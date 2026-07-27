@@ -263,27 +263,41 @@ function render(){
   card.scrollIntoView({block:"start", behavior:"smooth"});
 }
 
-/* ---- multiple choice + multiple response ---------------------------------- */
+/* ---- multiple choice + multiple response ----------------------------------
+   Options are reshuffled on every page load, not at build time, so reopening
+   the same file gives a different arrangement. This is why a bank's keyed
+   letters do not need to be balanced: position skew cannot survive a shuffle.
+   Options whose text refers to position ("all of the above", "both A and B")
+   are pinned to the end in their original order, because shuffling them
+   produces nonsense. */
+const PINNED = /^\s*(all|none)\s+of\s+the\s+above|^\s*both\s+[A-H]\s+and\s+[A-H]/i;
+
 function asChoice(q, body, act, card){
   const multi = q.type === "multi";
-  const keys = Object.keys(q.opts);
-  const picked = [];
+  const raw = Object.keys(q.opts).map(k=>({k, text:q.opts[k], da:q.da?q.da[k]:""}));
+  const free = raw.filter(o=>!PINNED.test(o.text));
+  const pins = raw.filter(o=> PINNED.test(o.text));
+  const shown = shuffled(free).concat(pins);
+  shown.forEach((o,n)=> o.label = LETTERS[n]);
+
+  const picked = [];   // holds ORIGINAL keys; display letters are cosmetic
   const wrap = document.createElement("div");
   wrap.className = "opts";
   const btns = {};
-  keys.forEach(k=>{
+  shown.forEach(o=>{
     const b = document.createElement("button");
     b.className = "opt"; b.type = "button"; b.setAttribute("aria-pressed","false");
-    b.innerHTML = `<span class="k">${k}</span><span>${esc(q.opts[k])}</span>`;
+    b.innerHTML = `<span class="k">${o.label}</span><span>${esc(o.text)}</span>`;
     b.onclick = ()=>{
-      if(!multi){ picked.length=0; picked.push(k); grade(); return; }
-      const at = picked.indexOf(k);
+      if(!multi){ picked.length=0; picked.push(o.k); grade(); return; }
+      const at = picked.indexOf(o.k);
       if(at>=0) picked.splice(at,1);
-      else if(picked.length < q.select) picked.push(k);
-      keys.forEach(x=>btns[x].setAttribute("aria-pressed", picked.includes(x)?"true":"false"));
+      else if(picked.length < q.select) picked.push(o.k);
+      shown.forEach(x=>btns[x.k].setAttribute("aria-pressed",
+        picked.includes(x.k)?"true":"false"));
       submit.disabled = picked.length !== q.select;
     };
-    btns[k]=b; wrap.appendChild(b);
+    btns[o.k]=b; wrap.appendChild(b);
   });
   body.appendChild(wrap);
   let submit;
@@ -293,19 +307,22 @@ function asChoice(q, body, act, card){
   }
   function grade(){
     const right = same(picked, q.correct);
-    keys.forEach(k=>{
-      btns[k].disabled = true;
-      if(q.correct.includes(k)) btns[k].classList.add("right");
-      else if(picked.includes(k)) btns[k].classList.add("wrong");
+    shown.forEach(o=>{
+      btns[o.k].disabled = true;
+      if(q.correct.includes(o.k)) btns[o.k].classList.add("right");
+      else if(picked.includes(o.k)) btns[o.k].classList.add("wrong");
     });
     if(submit) submit.remove();
-    close(q, card, act, right, picked.join(", "));
+    // Re-label the analysis to the letters actually on screen this time.
+    const lines = shown.filter(o=>o.da).map(o=>`<b>${o.label})</b> ${esc(o.da)}`);
+    const given = picked.map(k=>(shown.find(o=>o.k===k)||{}).label).sort().join(", ");
+    close(q, card, act, right, given, lines);
   }
 }
 
 /* ---- options table + drag-and-drop (assign each row to a category) -------- */
 function asAssign(q, body, act, card){
-  const rows = q.type==="dnd" ? shuffled(q.rows) : q.rows;
+  const rows = shuffled(q.rows);   // reshuffled every load, both table and dnd
   const chosen = new Array(rows.length).fill(null);
   const segs = [];
   rows.forEach((r, n)=>{
@@ -390,7 +407,7 @@ function mkSubmit(act, hint){
 }
 
 /* ---- reveal --------------------------------------------------------------- */
-function close(q, card, act, right, given){
+function close(q, card, act, right, given, daLines){
   if(right) score++; else miss.push({q, given});
   act.innerHTML = "";
   const exp = document.createElement("div");
@@ -400,8 +417,8 @@ function close(q, card, act, right, given){
   h += blk("Why this is best", q.why);
   h += blk("Key discriminator", q.disc);
   h += blk("Second best", q.second);
-  const lines = [];
-  if(q.da) Object.keys(q.da).forEach(k=>{ if(q.da[k]) lines.push(`<b>${k})</b> ${esc(q.da[k])}`); });
+  // daLines arrives pre-labelled with this render's shuffled letters.
+  const lines = daLines ? daLines.slice() : [];
   if(q.notes) q.notes.forEach(n=>lines.push(esc(n)));
   if(lines.length) h += `<div class="blk"><h4>Distractor analysis</h4><ul><li>`
     + lines.join("</li><li>") + `</li></ul></div>`;
@@ -588,8 +605,10 @@ def lint(questions):
         top, n = letter_hits.most_common(1)[0]
         if n / total > 0.40:
             warnings.append(
-                "BANK: %.0f%% of multiple-choice answers are %s (%d/%d). Answer-position "
-                "skew is invisible to the author and common in AI-written banks; redistribute."
+                "BANK: %.0f%% of multiple-choice answers are keyed %s (%d/%d). Harmless for "
+                "`itembank build`, which reshuffles options on every page load. It matters "
+                "only if this bank is consumed by something that does NOT shuffle: a printed "
+                "exam, an export, or another tool."
                 % (n / total * 100, top, n, total))
     return errors, warnings
 
