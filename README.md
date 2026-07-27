@@ -2,6 +2,10 @@
 
 Author, validate and render exam-style question banks written in plain markdown.
 
+It is also a local-first assessment runtime. Humans and AI tutors use the same
+parser, scoring rules, resumable sessions, and evidence files through browser,
+CLI, or JSON interfaces.
+
 One file, Python standard library only, no network and no services. Render a
 bank to a self-contained offline HTML quiz, or sit it under a local server that
 writes every answer to disk as you give it.
@@ -42,6 +46,10 @@ itembank lint  bank.md        # validate; exits non-zero on error
 itembank build bank.md        # interactive offline HTML quiz, NOTHING is saved
 itembank serve bank.md        # sit it locally, every answer written to disk
 itembank stats bank.md        # item mix, objective coverage, answer-position skew
+itembank start bank.md       # start a resumable JSON assessment session
+itembank next SESSION.json   # return the next item without its answer key
+itembank submit SESSION.json --answer '"B"'  # score and record a response
+itembank report SESSION.json # summarize the recorded evidence
 itembank guard .              # fail if a real question bank got committed
 ```
 
@@ -52,6 +60,17 @@ The intended loop with an LLM:
 3. Save them to a markdown file.
 4. `itembank lint` it, paste the errors back, iterate.
 5. `itembank build` and study.
+
+For an agent, use the JSON session interface instead of scraping HTML:
+
+1. `start` selects a deterministic set and returns the first public item.
+2. `next` returns the current item without answers, rationales, or model text.
+3. `submit` scores the response, records it locally, and returns the next item.
+4. `report` returns objective-level evidence and manually graded response count.
+
+The runtime owns answer keys, scoring, session position, and attempt recording.
+An agent owns explanation and remediation choices. This separation prevents a
+tutor from silently changing the test or grading its own explanation.
 
 ## Item types
 
@@ -152,6 +171,11 @@ pass later. Nothing blocks on it, and nothing is lost while you wait.
 
 ## Design boundaries
 
+**This is an assessment protocol and runtime, not only a renderer.** Markdown is
+the durable item source. The runtime is the shared layer beneath HTML, CLI, and
+agent adapters. A future MCP or function-calling adapter should wrap the JSON
+commands rather than implement a second parser.
+
 **This does not generate questions.** The LLM writes them; this validates and
 renders them. Any feature drifting toward generating content belongs in a prompt.
 
@@ -163,6 +187,12 @@ is worse than none, because it certifies the wrong answer.
 **This does not do spaced repetition.** Recognition is for diagnosis and exam
 simulation. Retention belongs in a spaced-repetition tool, and misses should
 graduate there as recall cards.
+
+**This does keep private local learning evidence.** The repository contains no
+learner data, hosted analytics, or accounts. A session JSON file records answers,
+deterministic scores, objective labels, and manual-grading state next to the
+private bank. That is the minimum evidence an agent needs to choose a useful
+next test. It is not a gradebook and is never committed to this repository.
 
 **This repository never contains question banks.** Fixtures are synthetic and
 written for this repo. `itembank guard` enforces it in CI: any markdown outside
@@ -177,6 +207,10 @@ GRADING.md                how to mark an attempt file; hand this to your marker
 fixtures/sample_bank.md   synthetic, exercises all six types, lints clean
 fixtures/broken_bank.md   deliberately defective; CI asserts lint catches each defect
 tests/serve_roundtrip.py  asserts a served sitting reaches disk
+tests/agent_roundtrip.py  asserts the JSON session contract survives a full sitting
+
+The JSON session commands use the same `itembank.py` runtime. Session files are
+private output and should live in a bank's `_attempts/` directory.
 ```
 
 ## Licence

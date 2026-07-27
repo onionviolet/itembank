@@ -12,6 +12,10 @@ authoring agent the format, `itembank lint` tells it exactly what it got wrong.
   itembank build BANK.md [OUT]  self-contained offline HTML quiz; saves nothing
   itembank serve BANK.md        sit it locally, every answer written to an attempt file
   itembank stats BANK.md        item mix, objective coverage, answer-position skew
+  itembank start BANK.md        start a resumable, agent-readable assessment
+  itembank next SESSION.json    return the next item without its answer key
+  itembank submit SESSION.json  score the current response and advance the session
+  itembank report SESSION.json  summarize the recorded evidence
   itembank guard [DIR]          fail if a real question bank was committed
 
 Scoring is dichotomous on every item type, matching the NREMT rule that no
@@ -44,6 +48,7 @@ def parse_bank(text):
 
 
 def parse_question(ch):
+    number = grab(r"Q(\d+)\.", ch)
     qtype = (grab(r"(?m)^\[TYPE:\s*(\w+)\s*\]", ch) or "mc").lower()
     # Stem runs from the Qn. marker to the first structural marker that follows.
     stem = grab(
@@ -52,6 +57,8 @@ def parse_question(ch):
         r"|\nWHY BEST:)",
         ch, re.S)
     common = {
+        "id": "q" + number if number else "",
+        "number": int(number) if number else 0,
         "type": qtype,
         "stem": stem,
         "difficulty": grab(r"\(difficulty:\s*([^)]+)\)", ch),
@@ -654,11 +661,17 @@ def lint(questions):
     """Return (errors, warnings) as lists of 'Qn: message' strings."""
     errors, warnings = [], []
     seen_stems = {}
+    seen_ids = {}
     letter_hits = collections.Counter()
 
     for idx, q in enumerate(questions, 1):
         tag = "Q%d" % idx
         t = q["type"]
+
+        if q.get("id") in seen_ids:
+            errors.append("%s: duplicate question number %s (also %s)" %
+                          (tag, q["id"], seen_ids[q["id"]]))
+        seen_ids[q.get("id")] = tag
 
         if t in ("mc", "multi"):
             if len(q["correct"]) != q["select"]:
@@ -748,6 +761,189 @@ def load(path):
     if not qs:
         sys.exit("No question blocks found in %s. Run `itembank spec` for the format." % path)
     return qs
+
+
+# ---- agent assessment runtime ----------------------------------------------
+# The browser is a presentation adapter. These helpers are the shared runtime
+# contract for the CLI and future adapters, so an agent never has to scrape HTML
+# or infer whether its response was accepted.
+
+SESSION_VERSION = 1
+
+
+def public_item(q, shuffle_seed=0):
+    """Return an item safe to show before the learner answers."""
+    out = {"id": q["id"], "number": q["number"], "type": q["type"],
+           "stem": q["stem"], "objective": q.get("objective", ""),
+           "difficulty": q.get("difficulty", "")}
+    if q["type"] in ("mc", "multi"):
+        out["options"] = [{"key": k, "text": q["opts"][k]} for k in sorted(q["opts"])]
+        out["response_schema"] = {"type": "array" if q["type"] == "multi" else "string",
+                                   "select": q["select"], "allowed": sorted(q["opts"])}
+    elif q["type"] in ("table", "dnd"):
+        out["rows"] = [{"text": r["text"], "id": i} for i, r in enumerate(q["rows"])]
+        out["categories"] = q["cats"]
+        out["response_schema"] = {"type": "object", "keys": "row id", "values": q["cats"]}
+    elif q["type"] == "build":
+        import random
+        steps = q["steps"][:]
+        random.Random(shuffle_seed).shuffle(steps)
+        out["steps"] = steps
+        out["response_schema"] = {"type": "array", "items": "step text", "ordered": True}
+    elif q["type"] == "short":
+        out["response_schema"] = {"type": "string", "min_length": 2}
+    return out
+
+
+def normalize_answer(answer):
+    if isinstance(answer, str):
+        try:
+            return json.loads(answer)
+        except (TypeError, ValueError):
+            return answer.strip()
+    return answer
+
+
+def score_response(q, answer):
+    """Score machine-checkable items. Constructed response stays ungraded."""
+    answer = normalize_answer(answer)
+    if q["type"] == "short":
+        return None
+    if q["type"] == "mc":
+        if isinstance(answer, list):
+            answer = answer[0] if len(answer) == 1 else ""
+        return isinstance(answer, str) and answer.upper() == q["correct"][0]
+    if q["type"] == "multi":
+        given = sorted(str(x).upper() for x in (answer if isinstance(answer, list) else [answer]))
+        return given == sorted(q["correct"])
+    if q["type"] in ("table", "dnd"):
+        if isinstance(answer, list):
+            answer = {str(i): v for i, v in enumerate(answer)}
+        if not isinstance(answer, dict):
+            return False
+        return all(str(i) in answer and answer[str(i)] == row["cat"]
+                   for i, row in enumerate(q["rows"])) and len(answer) == len(q["rows"])
+    if q["type"] == "build":
+        return isinstance(answer, list) and answer == q["steps"]
+    return False
+
+
+def session_path(path):
+    return os.path.abspath(path)
+
+
+def read_session(path):
+    try:
+        data = json.load(open(session_path(path), encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        sys.exit("cannot read session %s: %s" % (path, exc))
+    if data.get("schema_version") != SESSION_VERSION:
+        sys.exit("unsupported session schema in %s" % path)
+    return data
+
+
+def write_session(path, data):
+    target = session_path(path)
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    tmp = target + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, ensure_ascii=False, indent=2)
+        fh.write("\n")
+    os.replace(tmp, target)
+
+
+def session_view(data, qs):
+    selected = data["items"]
+    cursor = data["cursor"]
+    view = {"schema_version": SESSION_VERSION, "session_id": data["session_id"],
+            "status": data["status"], "mode": data["mode"],
+            "objective": data.get("objective", ""), "position": cursor,
+            "total": len(selected), "responses": len(data["responses"])}
+    if data["status"] == "active" and cursor < len(selected):
+        view["item"] = public_item(qs[selected[cursor]], data.get("seed", 0) + cursor)
+    else:
+        view["summary"] = session_summary(data)
+    return view
+
+
+def session_summary(data):
+    responses = data["responses"]
+    auto = [r for r in responses if r["score"] is not None]
+    correct = sum(1 for r in auto if r["score"] is True)
+    by_objective = collections.defaultdict(lambda: {"attempts": 0, "correct": 0, "pending": 0})
+    for r in responses:
+        bucket = by_objective[r.get("objective") or "(unmapped)"]
+        bucket["attempts"] += 1
+        if r["score"] is None:
+            bucket["pending"] += 1
+        elif r["score"]:
+            bucket["correct"] += 1
+    return {"auto_attempts": len(auto), "auto_correct": correct,
+            "pending_manual": len(responses) - len(auto),
+            "objectives": dict(by_objective)}
+
+
+def cmd_start(a):
+    qs = load(a.bank)
+    errors, _ = lint(qs)
+    if errors and not a.force:
+        sys.exit("refusing to start a bank with errors; run lint or pass --force")
+    import random, uuid
+    candidates = [i for i, q in enumerate(qs) if not a.objective or q.get("objective") == a.objective]
+    if not candidates:
+        sys.exit("no items match objective %r" % a.objective)
+    rng = random.Random(a.seed)
+    rng.shuffle(candidates)
+    items = candidates[:min(a.count, len(candidates))]
+    out = a.out or os.path.join(os.path.dirname(os.path.abspath(a.bank)) or ".", "_attempts",
+                                "session_%s.json" % uuid.uuid4().hex[:12])
+    data = {"schema_version": SESSION_VERSION, "session_id": uuid.uuid4().hex,
+            "bank": os.path.abspath(a.bank), "items": items, "cursor": 0,
+            "responses": [], "status": "active", "mode": a.mode,
+            "objective": a.objective or "", "seed": a.seed}
+    write_session(out, data)
+    result = session_view(data, qs)
+    result["session_file"] = session_path(out)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_next(a):
+    data = read_session(a.session)
+    qs = load(data["bank"])
+    print(json.dumps(session_view(data, qs), ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_submit(a):
+    data = read_session(a.session)
+    if data["status"] != "active":
+        sys.exit("session is already complete")
+    qs = load(data["bank"])
+    if data["cursor"] >= len(data["items"]):
+        data["status"] = "complete"
+        write_session(a.session, data)
+        sys.exit("session is already complete")
+    q = qs[data["items"][data["cursor"]]]
+    answer = normalize_answer(a.answer)
+    score = score_response(q, answer)
+    data["responses"].append({"item_id": q["id"], "objective": q.get("objective", ""),
+                               "type": q["type"], "answer": answer, "score": score})
+    data["cursor"] += 1
+    if data["cursor"] >= len(data["items"]):
+        data["status"] = "complete"
+    write_session(a.session, data)
+    result = {"accepted": True, "item_id": q["id"], "score": score,
+              "status": data["status"], "next": session_view(data, qs)}
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_report(a):
+    data = read_session(a.session)
+    print(json.dumps({"session_id": data["session_id"], "status": data["status"],
+                      "summary": session_summary(data)}, ensure_ascii=False, indent=2))
+    return 0
 
 
 def cmd_spec(a):
@@ -1051,6 +1247,31 @@ def main():
     s = sub.add_parser("stats", help="item mix, coverage, answer-position skew")
     s.add_argument("bank")
     s.set_defaults(fn=cmd_stats)
+
+    s = sub.add_parser("start", help="start a resumable JSON assessment session")
+    s.add_argument("bank")
+    s.add_argument("--count", type=int, default=10)
+    s.add_argument("--objective", default="", help="limit the session to one objective")
+    s.add_argument("--mode", default="diagnostic",
+                   choices=("diagnostic", "practice", "exam", "remediation"))
+    s.add_argument("--seed", type=int, default=0, help="deterministic item-selection seed")
+    s.add_argument("--out", help="session JSON path")
+    s.add_argument("--force", action="store_true", help="start despite lint errors")
+    s.set_defaults(fn=cmd_start)
+
+    s = sub.add_parser("next", help="return the next item in a JSON assessment session")
+    s.add_argument("session")
+    s.set_defaults(fn=cmd_next)
+
+    s = sub.add_parser("submit", help="score and record the current session response")
+    s.add_argument("session")
+    s.add_argument("--answer", required=True,
+                   help="response value, or a JSON array/object for structured items")
+    s.set_defaults(fn=cmd_submit)
+
+    s = sub.add_parser("report", help="summarize a JSON assessment session")
+    s.add_argument("session")
+    s.set_defaults(fn=cmd_report)
 
     s = sub.add_parser("guard", help="fail if a real bank was committed")
     s.add_argument("dir", nargs="?", default=".")
