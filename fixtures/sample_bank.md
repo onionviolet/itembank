@@ -126,3 +126,18 @@ DISTRACTOR ANALYSIS:
 TRAP: Ranking by how obvious the problem is to a customer rather than by health effect.
 
 CONFIDENCE: high
+
+Q6. A plant meets every primary standard but customers still complain the water is undrinkable. Explain how both facts can be true at once, and what the operator should investigate.   (difficulty: analysis)
+[TYPE: short]
+[OBJECTIVE: Regulatory framework]
+
+MODEL: Primary standards are health-based and enforceable; they say nothing about taste, odour, colour or staining, which secondary standards cover as non-enforceable guidelines. Water can therefore be legally safe and aesthetically unacceptable at the same time. The operator should investigate the secondary parameters, iron and manganese for staining and taste, sulphide or algal by-products for odour, and turbidity or colour for appearance.
+
+RUBRIC:
+- Names the primary/secondary split as health-based versus aesthetic
+- States that secondary standards are guidelines rather than enforceable limits
+- Points the investigation at specific aesthetic parameters rather than repeating the health tests
+
+TRAP: Assuming compliance and customer acceptability are the same measurement, so the only possible explanation is a testing error.
+
+CONFIDENCE: high

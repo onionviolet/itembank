@@ -2,8 +2,9 @@
 
 Author, validate and render exam-style question banks written in plain markdown.
 
-One file, Python standard library only, no network and no services. The output is
-a self-contained offline HTML quiz you open by double-clicking.
+One file, Python standard library only, no network and no services. Render a
+bank to a self-contained offline HTML quiz, or sit it under a local server that
+writes every answer to disk as you give it.
 
 ## Why this exists
 
@@ -38,7 +39,8 @@ somewhere and make it executable.
 ```
 itembank spec                 # print the format contract; give this to your LLM
 itembank lint  bank.md        # validate; exits non-zero on error
-itembank build bank.md        # interactive offline HTML quiz
+itembank build bank.md        # interactive offline HTML quiz, NOTHING is saved
+itembank serve bank.md        # sit it locally, every answer written to disk
 itembank stats bank.md        # item mix, objective coverage, answer-position skew
 itembank guard .              # fail if a real question bank got committed
 ```
@@ -53,8 +55,9 @@ The intended loop with an LLM:
 
 ## Item types
 
-Five, the set the NREMT uses, chosen because it spans familiarity through
-discrimination and because scoring is uniform across it.
+Six. Five are the NREMT set, chosen because it spans familiarity through
+discrimination and because scoring is uniform across it. The sixth, `short`, is
+constructed response, and it is the one the machine refuses to mark.
 
 | Type | Task |
 |---|---|
@@ -63,6 +66,7 @@ discrimination and because scoring is uniform across it.
 | `table` | classify each row into a named category |
 | `build` | put options into a required order |
 | `dnd` | sort items into buckets |
+| `short` | type an answer in prose; never auto-graded, marked later against a rubric |
 
 **Scoring is dichotomous on every type.** Two of three correct scores zero. This
 matches the NREMT's own rule that no credit is given for a partially correct
@@ -89,10 +93,72 @@ Syntax is the easy half. These are the checks worth having:
 
 Errors block a build. Warnings advise.
 
+## Sitting a quiz that gets graded
+
+`build` writes a static HTML file. A page opened from `file://` is sandboxed by
+the browser: it cannot write anywhere, so when the tab closes the sitting is
+gone. That is fine for drilling and useless for anything anyone will mark.
+
+`serve` is the same page behind a loopback server. Each answer is POSTed the
+moment it is given, and the process writes an attempt file to disk. Nothing is
+batched at the end, so a closed tab or a dead battery costs at most the item in
+progress.
+
+```
+itembank serve bank.md
+```
+
+It prints a `http://127.0.0.1:...` URL, opens your browser at it, and writes
+`_attempts/<bank>_attempt_<date>.md` next to the bank. Ctrl-C when you are done.
+Nothing listens on any external interface and nothing leaves the machine.
+
+Useful flags:
+
+| Flag | Why |
+|---|---|
+| `--reveal` | show the model answer after each `short` item. Off by default, because seeing it turns the items after it into recognition |
+| `--out PATH` | put the attempt file somewhere specific |
+| `--port N` | default 8731. If it is taken or blocked, a free port is used automatically |
+| `--no-open` | do not launch a browser |
+
+Then hand the attempt file to whoever is marking it, with `GRADING.md`.
+
+## Running this when there is no agent around
+
+Every part of this works with no AI in the loop. If you are out of usage, out of
+credits, or offline:
+
+**Sit a quiz.** `python itembank.py serve bank.md`. Answer, Ctrl-C. The attempt
+file is on disk. Selected-response items are already marked in it. It will still
+be there tomorrow.
+
+**Mark your own short answers.** Follow `GRADING.md`, including the part about
+why self-marking is worse and how to blunt it. Do it a day later, mark strictly
+against the rubric wording, and fail anything arguable.
+
+**Write more questions without an agent.** `itembank spec` prints the whole
+format. Write items by hand in any editor, then `itembank lint` them. The linter
+is the reviewer: it catches the structural mistakes and the two quality ones
+(a distractor that never says when it would be correct, answers clustering on
+one letter).
+
+**Check a bank you already have.** `itembank stats bank.md` shows the item mix,
+which objectives are covered, and the difficulty spread. If one objective has
+nine items and another has none, that is visible in one command.
+
+**The only thing that needs an agent** is someone else marking your prose. That
+work queues: attempt files accumulate, and a marker can do six of them in one
+pass later. Nothing blocks on it, and nothing is lost while you wait.
+
 ## Design boundaries
 
 **This does not generate questions.** The LLM writes them; this validates and
 renders them. Any feature drifting toward generating content belongs in a prompt.
+
+**This does not auto-grade prose.** A `short` item is recorded and left for a
+marker. Keyword matching cannot separate a correct explanation from a confident
+wrong one containing the right nouns, and a grader that cannot tell those apart
+is worse than none, because it certifies the wrong answer.
 
 **This does not do spaced repetition.** Recognition is for diagnosis and exam
 simulation. Retention belongs in a spaced-repetition tool, and misses should
@@ -106,9 +172,11 @@ coursework-derived or textbook-derived, and they belong somewhere private.
 ## Layout
 
 ```
-itembank.py              the whole tool
-fixtures/sample_bank.md  synthetic, exercises all five types, lints clean
-fixtures/broken_bank.md  deliberately defective; CI asserts lint catches each defect
+itembank.py               the whole tool
+GRADING.md                how to mark an attempt file; hand this to your marker
+fixtures/sample_bank.md   synthetic, exercises all six types, lints clean
+fixtures/broken_bank.md   deliberately defective; CI asserts lint catches each defect
+tests/serve_roundtrip.py  asserts a served sitting reaches disk
 ```
 
 ## Licence

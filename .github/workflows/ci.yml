@@ -32,5 +32,8 @@ jobs:
       - name: Sample fixture builds
         run: python itembank.py build fixtures/sample_bank.md /tmp/out.html
 
+      - name: Serve records an attempt to disk
+        run: python tests/serve_roundtrip.py
+
       - name: No real question bank committed
         run: python itembank.py guard .

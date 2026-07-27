@@ -9,7 +9,8 @@ authoring agent the format, `itembank lint` tells it exactly what it got wrong.
 
   itembank spec                 print the format contract (the AI-facing entry point)
   itembank lint  BANK.md        validate; errors exit non-zero, warnings advise
-  itembank build BANK.md [OUT]  self-contained offline interactive HTML quiz
+  itembank build BANK.md [OUT]  self-contained offline HTML quiz; saves nothing
+  itembank serve BANK.md        sit it locally, every answer written to an attempt file
   itembank stats BANK.md        item mix, objective coverage, answer-position skew
   itembank guard [DIR]          fail if a real question bank was committed
 
@@ -47,7 +48,8 @@ def parse_question(ch):
     # Stem runs from the Qn. marker to the first structural marker that follows.
     stem = grab(
         r"Q\d+\.\s*(.*?)\s*(?:\(difficulty:|\n\[OBJECTIVE|\n\[TYPE|\n\[SELECT"
-        r"|\n\[CATEGORIES|\n[A-H]\)|\nROW\)|\nITEM\)|\nSTEP\))",
+        r"|\n\[CATEGORIES|\n[A-H]\)|\nROW\)|\nITEM\)|\nSTEP\)|\nMODEL:|\nRUBRIC:"
+        r"|\nWHY BEST:)",
         ch, re.S)
     common = {
         "type": qtype,
@@ -102,6 +104,19 @@ def parse_question(ch):
         if not (stem and len(steps) > 1):
             return None
         common.update({"steps": steps, "notes": notes(ch)})
+        return common
+
+    if qtype == "short":
+        # Constructed response. Nothing here is machine-gradable by design: the
+        # rubric is for whoever marks it, and RUBRIC points are what they mark
+        # against, so "wrote something plausible" cannot pass as understanding.
+        model = section("MODEL", ch)
+        rubric = [b.strip() for b in re.findall(
+            r"(?m)^-\s*(.+?)\s*$",
+            grab(r"(?m)^RUBRIC:\s*(.*?)\s*(?=^[A-Z][A-Z \-]+:|\Z)", ch, re.S))]
+        if not stem:
+            return None
+        common.update({"model": model, "rubric": rubric, "notes": notes(ch)})
         return common
 
     return None
@@ -201,6 +216,13 @@ button.go:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .verdict.y{color:var(--ok)} .verdict.n{color:var(--bad)}
 .trap{background:var(--accent-soft);border-left:3px solid var(--accent);
   padding:9px 12px;border-radius:0 7px 7px 0}
+textarea.ans{width:100%;min-height:150px;padding:11px 12px;border-radius:9px;
+  border:1px solid var(--line);background:var(--card);color:inherit;
+  font:inherit;font-size:15.5px;line-height:1.5;resize:vertical}
+textarea.ans:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+textarea.ans:disabled{opacity:.75}
+.pend{color:var(--warn);font-weight:600;margin-bottom:10px}
+#savestate.bad{color:var(--bad)}
 .done{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px}
 .score{font-size:34px;font-weight:700;letter-spacing:-.02em}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -215,18 +237,40 @@ button.go:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
     <span>ITEM <b id="pos">1</b>/<b id="tot">0</b></span>
     <span>CORRECT <b id="ok">0</b></span>
     <span>ALL-OR-NOTHING SCORING</span>
+    <span id="savestate"></span>
   </div>
 </div>
 <div id="host"></div>
 </div>
 <script>
 const Q = __DATA__;
+const RECORD = __RECORD__;   /* true only under `itembank serve` */
+const REVEAL = __REVEAL__;   /* show model answers after a short item */
 const LABEL = {mc:"multiple choice", multi:"multiple response",
-               table:"options table", build:"build list", dnd:"drag-and-drop"};
-let i = 0, score = 0;
+               table:"options table", build:"build list", dnd:"drag-and-drop",
+               short:"short answer"};
+let i = 0, score = 0, autoTotal = 0;
 const miss = [];
+const LOG = [];              /* every response, in the order answered */
 const host = document.getElementById("host");
 const esc = s => (s==null?"":String(s));
+
+/* ---- recording -------------------------------------------------------------
+   Every answer is POSTed the moment it is given, not batched at the end, so a
+   closed tab or a dead battery costs at most the item in progress. The server
+   rewrites the whole attempt file each time, which makes the write idempotent
+   and means a partial sitting is still a valid file. */
+function record(entry){
+  LOG.push(entry);
+  if(!RECORD) return;
+  const el = document.getElementById("savestate");
+  fetch("/save", {method:"POST", headers:{"Content-Type":"application/json"},
+                  body: JSON.stringify({answers: LOG, done: i>=Q.length})})
+    .then(r => { el.textContent = r.ok ? "SAVED" : "SAVE FAILED";
+                 el.className = r.ok ? "" : "bad"; })
+    .catch(() => { el.textContent = "SAVE FAILED, server gone";
+                   el.className = "bad"; });
+}
 
 function shuffled(a){const b=a.slice();for(let j=b.length-1;j>0;j--){
   const k=Math.floor(Math.random()*(j+1));[b[j],b[k]]=[b[k],b[j]];}return b;}
@@ -235,7 +279,8 @@ function same(a,b){return a.length===b.length && a.every(x=>b.includes(x));}
 
 function chips(q){
   let h = `<span class="chip type">${LABEL[q.type]||q.type}</span>`;
-  if(q.type!=="mc") h += `<span class="chip aon">no partial credit</span>`;
+  if(q.type==="short") h += `<span class="chip aon">graded by a marker, not by this page</span>`;
+  else if(q.type!=="mc") h += `<span class="chip aon">no partial credit</span>`;
   if(q.objective) h += `<span class="chip">${esc(q.objective)}</span>`;
   if(q.difficulty) h += `<span class="chip">${esc(q.difficulty)}</span>`;
   return h;
@@ -258,8 +303,8 @@ function render(){
   card.appendChild(act);
   host.innerHTML = "";
   host.appendChild(card);
-  ({mc:asChoice, multi:asChoice, table:asAssign, dnd:asAssign, build:asBuild}[q.type])
-    (q, body, act, card);
+  ({mc:asChoice, multi:asChoice, table:asAssign, dnd:asAssign, build:asBuild,
+    short:asShort}[q.type])(q, body, act, card);
   card.scrollIntoView({block:"start", behavior:"smooth"});
 }
 
@@ -398,6 +443,54 @@ function asBuild(q, body, act, card){
   };
 }
 
+/* ---- short answer (constructed response, never auto-graded) ----------------
+   The page deliberately cannot mark this. Auto-grading prose means matching
+   keywords, and a keyword match cannot tell a correct explanation from a
+   confident wrong one that happens to contain the right nouns. So the answer is
+   recorded verbatim and a marker checks it against RUBRIC afterwards. The model
+   answer stays hidden unless the bank was rendered with --reveal, because
+   seeing it turns the next item into recognition. */
+function asShort(q, body, act, card){
+  const ta = document.createElement("textarea");
+  ta.className = "ans";
+  ta.placeholder = "Type your answer. Complete sentences; this is marked on what you actually wrote.";
+  body.appendChild(ta);
+  const submit = mkSubmit(act, "your own words, no notes");
+  ta.oninput = ()=>{ submit.disabled = ta.value.trim().length < 2; };
+  ta.focus();
+  submit.onclick = ()=>{
+    ta.disabled = true;
+    submit.remove();
+    const text = ta.value.trim();
+    record({n: i+1, type: "short", stem: q.stem, objective: q.objective || "",
+            answer: text, correct: null, model: q.model || "", rubric: q.rubric || []});
+    act.innerHTML = "";
+    const exp = document.createElement("div");
+    exp.className = "exp";
+    let h = `<div class="pend">Recorded. Not marked here.</div>`;
+    if(REVEAL && q.model){
+      h += `<div class="blk"><h4>Model answer</h4><div>${esc(q.model)}</div></div>`;
+      if(q.rubric && q.rubric.length)
+        h += `<div class="blk"><h4>What a marker checks</h4><ul><li>`
+           + q.rubric.map(esc).join("</li><li>") + `</li></ul></div>`;
+    } else {
+      h += `<div class="blk" style="color:var(--mut);font-size:13.5px">The model answer is
+        held back so it cannot contaminate the items after this one. It is in the bank file,
+        and in the attempt file next to what you wrote.</div>`;
+    }
+    if(q.trap && REVEAL)
+      h += `<div class="blk trap"><h4>Trap</h4><div>${esc(q.trap)}</div></div>`;
+    exp.innerHTML = h;
+    card.appendChild(exp);
+    const next = document.createElement("button");
+    next.className="go"; next.type="button";
+    next.textContent = (i===Q.length-1) ? "See results" : "Next";
+    next.onclick = ()=>{ i++; render(); };
+    act.appendChild(next);
+    next.focus();
+  };
+}
+
 function mkSubmit(act, hint){
   const b = document.createElement("button");
   b.className="go"; b.type="button"; b.textContent="Check"; b.disabled=true;
@@ -408,7 +501,10 @@ function mkSubmit(act, hint){
 
 /* ---- reveal --------------------------------------------------------------- */
 function close(q, card, act, right, given, daLines){
+  autoTotal++;
   if(right) score++; else miss.push({q, given});
+  record({n: i+1, type: q.type, stem: q.stem, objective: q.objective || "",
+          answer: given, correct: right, model: "", rubric: []});
   act.innerHTML = "";
   const exp = document.createElement("div");
   exp.className = "exp";
@@ -436,9 +532,16 @@ function close(q, card, act, right, given, daLines){
 /* ---- results -------------------------------------------------------------- */
 function finish(){
   document.getElementById("rail").style.width = "100%";
-  const pct = Math.round(score/Q.length*100);
-  let h = `<div class="done"><div class="score mono">${score}/${Q.length}
-    <span style="font-size:17px;color:var(--mut)"> &middot; ${pct}%</span></div>`;
+  record({n: 0, type: "__end__", stem: "", objective: "", answer: "",
+          correct: null, model: "", rubric: []});
+  const pct = autoTotal ? Math.round(score/autoTotal*100) : 0;
+  const pend = Q.filter(q=>q.type==="short").length;
+  let h = `<div class="done"><div class="score mono">${score}/${autoTotal}
+    <span style="font-size:17px;color:var(--mut)"> &middot; ${pct}% auto-marked</span></div>`;
+  if(pend) h += `<p style="margin:12px 0 0;color:var(--warn)"><b>${pend} short
+    answer${pend>1?"s":""} not marked here.</b> ${RECORD
+      ? "They are in the attempt file, waiting for a marker."
+      : "Nothing recorded them, because this page was opened as a file. Use <code>itembank serve</code> for a sitting that is meant to be graded."}</p>`;
   if(miss.length){
     h += `<p style="margin:14px 0 6px"><b>${miss.length} to harvest.</b>
       Per Anki_Testing_Strategy &sect;2, the discriminator becomes the card, not the question.</p><ul>`;
@@ -512,6 +615,18 @@ THE FIVE ITEM TYPES
      [TYPE: dnd]
      [CATEGORIES: Direct care | Readiness]
      ITEM) Assessing the airway :: Direct care
+
+6. Short answer.  Constructed response, typed in prose. NOT auto-graded, ever:
+   the answer is recorded and a human or an AI marks it against RUBRIC later.
+   Use it where selecting from options would give the answer away, or where the
+   skill being tested is producing the explanation rather than recognising it.
+     [TYPE: short]
+     MODEL:  the answer a full-credit response contains, compressed
+     RUBRIC:
+     - one checkable claim the answer must make
+     - a second one; two is the minimum, because a single point is a vibe
+   No WHY BEST is required on a short item; MODEL replaces it. TRAP still helps
+   the marker, because it names the wrong answer that will look confident.
 
 DISTRACTOR ANALYSIS
   For mc and multi, one line per option, keyed by letter:
@@ -588,8 +703,23 @@ def lint(questions):
             if not q.get("notes"):
                 warnings.append("%s: no DISTRACTOR ANALYSIS bullets" % tag)
 
-        if not q.get("why"):
-            errors.append("%s: no WHY BEST field" % tag)
+        elif t == "short":
+            if not q.get("model"):
+                errors.append("%s: short item has no MODEL answer, so nothing can grade it" % tag)
+            if len(q.get("rubric") or []) < 2:
+                errors.append("%s: short item needs at least two RUBRIC points; one point is a "
+                              "vibe, not a rubric" % tag)
+            if len(q.get("model", "").split()) > 80:
+                warnings.append("%s: MODEL answer is %d words. A marker cannot check a wall of "
+                                "prose point by point; compress it and push detail into RUBRIC"
+                                % (tag, len(q["model"].split())))
+            for n, r in enumerate(q.get("rubric") or [], 1):
+                if len(r.split()) > 25:
+                    warnings.append("%s: RUBRIC point %d is %d words. A point should be one "
+                                    "checkable claim" % (tag, n, len(r.split())))
+
+        if t != "short" and not q.get("why"):
+            errors.append("%s: no WHY BEST field" % tag)   # short items key off MODEL instead
         if not q.get("trap"):
             warnings.append("%s: no TRAP field" % tag)
         if (q.get("conf") or "").lower().startswith("low"):
@@ -636,6 +766,22 @@ def cmd_lint(a):
     return 1 if errors else 0
 
 
+def page_for(bank_path, qs, record=False, reveal=False):
+    text = open(bank_path, encoding="utf-8").read()
+    title = grab(r"(?m)^#\s+(.*?)\s*$", text) or os.path.basename(bank_path)
+    counts = collections.Counter(q["type"] for q in qs)
+    mix = ", ".join("%d %s" % (v, k) for k, v in counts.most_common())
+    sub = "%d items &middot; %s &middot; dichotomous scoring" % (len(qs), mix)
+    if record:
+        sub += " &middot; answers recorded"
+    return mix, (TEMPLATE
+                 .replace("__DATA__", json.dumps(qs, ensure_ascii=False))
+                 .replace("__RECORD__", "true" if record else "false")
+                 .replace("__REVEAL__", "true" if reveal else "false")
+                 .replace("__TITLE__", html.escape(title))
+                 .replace("__SUB__", sub))
+
+
 def cmd_build(a):
     qs = load(a.bank)
     errors, _ = lint(qs)
@@ -643,20 +789,178 @@ def cmd_build(a):
         for e in errors:
             print("error  " + e)
         sys.exit("refusing to build a bank with errors; fix them or pass --force")
-    text = open(a.bank, encoding="utf-8").read()
-    title = grab(r"(?m)^#\s+(.*?)\s*$", text) or os.path.basename(a.bank)
-    counts = collections.Counter(q["type"] for q in qs)
-    mix = ", ".join("%d %s" % (v, k) for k, v in counts.most_common())
     out = a.out or os.path.splitext(a.bank)[0] + "_quiz.html"
     if os.path.dirname(out):
         os.makedirs(os.path.dirname(out), exist_ok=True)
-    page = (TEMPLATE.replace("__DATA__", json.dumps(qs, ensure_ascii=False))
-                    .replace("__TITLE__", html.escape(title))
-                    .replace("__SUB__", "%d items &middot; %s &middot; dichotomous scoring"
-                                        % (len(qs), mix)))
+    # A file:// page cannot write anywhere, so `build` never records. It stays
+    # the shareable, no-process mode; `serve` is the one that keeps answers.
+    mix, page = page_for(a.bank, qs, record=False, reveal=not a.blind)
     open(out, "w", encoding="utf-8").write(page)
     print("%d items -> %s" % (len(qs), out))
     print("   mix: " + mix)
+    if any(q["type"] == "short" for q in qs):
+        print("   note: short answers cannot be saved by a file:// page. "
+              "Use `itembank serve` if this sitting is meant to be graded.")
+    return 0
+
+
+# ---- attempt file -----------------------------------------------------------
+# One markdown file per sitting, rewritten in full on every answer. Markdown
+# rather than JSON because the reader is a human or an LLM, both of which read
+# prose better than they read a data structure, and because it lands in a vault
+# next to the notes it feeds.
+
+def attempt_markdown(bank_path, answers, done):
+    from datetime import datetime
+    stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    body = [a for a in answers if a.get("type") != "__end__"]
+    auto = [a for a in body if a.get("correct") is not None]
+    right = [a for a in auto if a["correct"]]
+    shorts = [a for a in body if a.get("type") == "short"]
+    L = []
+    L.append("# Attempt: %s" % os.path.basename(bank_path))
+    L.append("")
+    L.append("*Written by `itembank serve`. Bank: `%s`. Started %s.*" % (bank_path, stamp))
+    L.append("")
+    L.append("**Status:** %s. %d auto-marked, %d correct. %d short answer(s) awaiting a marker."
+             % ("finished" if done else "IN PROGRESS, file may be partial",
+                len(auto), len(right), len(shorts)))
+    L.append("")
+    L.append("**To grade this:** see `GRADING.md` in the itembank repo. Mark each short answer "
+             "against its rubric, write the verdict into the `MARK:` line, and leave the "
+             "answer text exactly as written.")
+    L.append("")
+    for a in body:
+        L.append("---")
+        L.append("")
+        head = "## Item %d, %s" % (a.get("n", 0), a.get("type", "?"))
+        if a.get("correct") is True:
+            head += "  [auto: correct]"
+        elif a.get("correct") is False:
+            head += "  [auto: WRONG]"
+        L.append(head)
+        if a.get("objective"):
+            L.append("")
+            L.append("*Objective: %s*" % a["objective"])
+        L.append("")
+        L.append("**Q.** %s" % a.get("stem", "").replace("\n", " "))
+        L.append("")
+        if a.get("type") == "short":
+            L.append("**His answer, verbatim:**")
+            L.append("")
+            L.append("```")
+            L.append(a.get("answer", "") or "(left blank)")
+            L.append("```")
+            L.append("")
+            if a.get("model"):
+                L.append("**Model answer (from the bank, NOT his):** %s" % a["model"].replace("\n", " "))
+                L.append("")
+            if a.get("rubric"):
+                L.append("**Rubric. Replace each `(unmarked)` with `(pass)` or `(fail)`:**")
+                L.append("")
+                for r in a["rubric"]:
+                    L.append("- (unmarked) %s" % r)
+                L.append("")
+            L.append("MARK: (unmarked)")
+        else:
+            L.append("**Selected:** %s" % (a.get("answer") or "(nothing)"))
+        L.append("")
+    if not done:
+        L.append("---")
+        L.append("")
+        L.append("*Sitting was not finished. Everything above is real; nothing after it was answered.*")
+        L.append("")
+    return "\n".join(L)
+
+
+def cmd_serve(a):
+    """Run the quiz against a local process so every answer is written to disk.
+
+    The static `build` page is sandboxed by the browser and cannot write a file,
+    which is why answers used to evaporate when the tab closed. A loopback
+    server is the smallest thing that fixes it without adding a dependency: the
+    page POSTs each answer, this process writes the attempt file.
+    """
+    import http.server, socketserver, webbrowser, threading
+    from datetime import datetime
+
+    qs = load(a.bank)
+    errors, _ = lint(qs)
+    if errors and not a.force:
+        for e in errors:
+            print("error  " + e)
+        sys.exit("refusing to serve a bank with errors; fix them or pass --force")
+
+    out = a.out or os.path.join(
+        os.path.dirname(os.path.abspath(a.bank)) or ".", "_attempts",
+        "%s_attempt_%s.md" % (os.path.splitext(os.path.basename(a.bank))[0],
+                              datetime.now().strftime("%Y-%m-%d_%H%M")))
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    _, page = page_for(a.bank, qs, record=True, reveal=a.reveal)
+    page_bytes = page.encode("utf-8")
+    state = {"writes": 0}
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass                                    # the progress line below is the log
+
+        def do_GET(self):
+            if self.path not in ("/", "/index.html"):
+                self.send_error(404)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(page_bytes)))
+            self.end_headers()
+            self.wfile.write(page_bytes)
+
+        def do_POST(self):
+            if self.path != "/save":
+                self.send_error(404)
+                return
+            n = int(self.headers.get("Content-Length") or 0)
+            try:
+                data = json.loads(self.rfile.read(n).decode("utf-8"))
+                md = attempt_markdown(a.bank, data.get("answers", []), data.get("done"))
+                open(out, "w", encoding="utf-8").write(md)
+                state["writes"] += 1
+                answered = len([x for x in data.get("answers", [])
+                                if x.get("type") != "__end__"])
+                sys.stdout.write("\r  %d/%d answered, saved" % (answered, len(qs)))
+                sys.stdout.flush()
+                if data.get("done"):
+                    print("\n  finished. Attempt file: %s" % out)
+            except Exception as exc:                # never let a bad POST kill a sitting
+                self.send_error(500, str(exc))
+                return
+            self.send_response(204)
+            self.end_headers()
+
+    print("itembank serve")
+    # Windows reserves scattered port ranges (Hyper-V, WSL), so a fixed default
+    # can fail with a permission error that looks like a bug in this tool. Fall
+    # back to an OS-assigned port rather than making the user diagnose WinError
+    # 10013 on their own.
+    try:
+        srv = socketserver.TCPServer(("127.0.0.1", a.port), H)
+    except OSError as exc:
+        print("  port %d unavailable (%s), using a free one instead" % (a.port, exc.__class__.__name__))
+        srv = socketserver.TCPServer(("127.0.0.1", 0), H)
+
+    with srv:
+        url = "http://127.0.0.1:%d/" % srv.server_address[1]
+        print("  bank    %s (%d items)" % (a.bank, len(qs)))
+        print("  attempt %s" % out)
+        print("  url     %s" % url)
+        print("  Answers are written as you give them. Ctrl-C when you are done.")
+        sys.stdout.flush()
+        if not a.no_open:
+            threading.Timer(0.4, lambda: webbrowser.open(url)).start()
+        try:
+            srv.serve_forever()
+        except KeyboardInterrupt:
+            print("\nstopped. %d save(s) written to %s"
+                  % (state["writes"], out if state["writes"] else "nothing yet"))
     return 0
 
 
@@ -724,11 +1028,25 @@ def main():
     s.add_argument("bank")
     s.set_defaults(fn=cmd_lint)
 
-    s = sub.add_parser("build", help="render an interactive HTML quiz")
+    s = sub.add_parser("build", help="render an interactive HTML quiz (nothing is saved)")
     s.add_argument("bank")
     s.add_argument("out", nargs="?")
     s.add_argument("--force", action="store_true", help="build despite lint errors")
+    s.add_argument("--blind", action="store_true",
+                   help="hide model answers on short items, for a self-marked sitting")
     s.set_defaults(fn=cmd_build)
+
+    s = sub.add_parser("serve", help="sit the quiz with every answer written to disk")
+    s.add_argument("bank")
+    s.add_argument("--out", help="attempt file (default: _attempts/<bank>_attempt_<date>.md)")
+    s.add_argument("--port", type=int, default=8731)
+    s.add_argument("--reveal", action="store_true",
+                   help="show model answers after each short item; off by default so an "
+                        "early item cannot teach a later one")
+    s.add_argument("--no-open", action="store_true", dest="no_open",
+                   help="do not launch a browser")
+    s.add_argument("--force", action="store_true", help="serve despite lint errors")
+    s.set_defaults(fn=cmd_serve)
 
     s = sub.add_parser("stats", help="item mix, coverage, answer-position skew")
     s.add_argument("bank")

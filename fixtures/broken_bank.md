@@ -99,3 +99,13 @@ DISTRACTOR ANALYSIS:
 - B) This is simply wrong.
 
 CONFIDENCE: low
+
+Q9. Explain, in your own words, why the residual matters at the far end of the distribution system.
+[TYPE: short]
+
+RUBRIC:
+- Mentions contact time
+
+TRAP: Reciting the number instead of explaining what it protects against.
+
+CONFIDENCE: high
