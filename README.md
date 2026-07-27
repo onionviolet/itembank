@@ -50,6 +50,9 @@ itembank start bank.md       # start a resumable JSON assessment session
 itembank next SESSION.json   # return the next item without its answer key
 itembank submit SESSION.json --answer '"B"'  # score and record a response
 itembank report SESSION.json # summarize the recorded evidence
+itembank study bank.md      # flashcards plus a session-only Learn loop
+itembank export bank.md out.tsv --format basic  # Anki Basic TSV
+itembank export bank.md out.tsv --format cloze  # Anki Cloze TSV
 itembank guard .              # fail if a real question bank got committed
 ```
 
@@ -71,6 +74,10 @@ For an agent, use the JSON session interface instead of scraping HTML:
 The runtime owns answer keys, scoring, session position, and attempt recording.
 An agent owns explanation and remediation choices. This separation prevents a
 tutor from silently changing the test or grading its own explanation.
+
+`study` and `export` are generic bank surfaces. Subject-specific pipelines such
+as Mandarin TTS and `.apkg` packaging remain separate because they require
+content-specific dependencies and network behavior.
 
 ## Item types
 
@@ -208,6 +215,9 @@ fixtures/sample_bank.md   synthetic, exercises all six types, lints clean
 fixtures/broken_bank.md   deliberately defective; CI asserts lint catches each defect
 tests/serve_roundtrip.py  asserts a served sitting reaches disk
 tests/agent_roundtrip.py  asserts the JSON session contract survives a full sitting
+tests/surface_roundtrip.py asserts study and Anki export output
+
+ROADMAP.md                 product contract and sequenced improvement plan
 
 The JSON session commands use the same `itembank.py` runtime. Session files are
 private output and should live in a bank's `_attempts/` directory.
