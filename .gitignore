@@ -1,0 +1,15 @@
+# Never commit real question banks. See `itembank guard` and the CI job.
+*_MC_Bank.md
+*_Exam_Bank.md
+*_Question_Bank.md
+*_Quiz_Bank.md
+*_mc_bank.md
+*_exam_bank.md
+
+# Generated output
+*_quiz.html
+*_study.html
+
+__pycache__/
+*.pyc
+.DS_Store

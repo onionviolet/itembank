@@ -1,0 +1,36 @@
+name: ci
+
+on: [push, pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Sample fixture lints clean
+        run: |
+          python itembank.py lint fixtures/sample_bank.md
+          test "$(python itembank.py lint fixtures/sample_bank.md | grep -c '^error')" = "0"
+
+      - name: Broken fixture is caught
+        run: |
+          if python itembank.py lint fixtures/broken_bank.md; then
+            echo "linter passed a deliberately broken bank; it regressed"
+            exit 1
+          fi
+          for msg in "SELECT is 2" "does not exist" "not in CATEGORIES" \
+                     "duplicate steps" "no WHY BEST" "stem duplicates" \
+                     "WOULD be correct" "CONFIDENCE is low"; do
+            python itembank.py lint fixtures/broken_bank.md | grep -q "$msg" \
+              || { echo "linter no longer reports: $msg"; exit 1; }
+          done
+
+      - name: Sample fixture builds
+        run: python itembank.py build fixtures/sample_bank.md /tmp/out.html
+
+      - name: No real question bank committed
+        run: python itembank.py guard .
