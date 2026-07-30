@@ -1321,11 +1321,15 @@ def cmd_guard(a):
 # The plan stays wherever the learner keeps it and this reads it in place, so
 # the tool still holds no content of its own.
 
-DAY_LANES = ("EMT", "Math", "CS", "Mandarin", "Anki")
+DAY_LANES = ("EMT", "Math", "CS", "Linux", "Mandarin", "Anki")
 
 # The floor: the smallest day that still counts. A plan with no smaller version
 # offers only all-or-nothing once a day starts badly, and nothing wins.
 FLOOR_LANES = ("Anki", "EMT", "Math")
+
+# A plan cell that names no work. "Slip budget; no required EMT task" is a
+# planned zero, not a debt, so it must never count toward `behind` or `load`.
+NONE_CELL = re.compile(r"^\s*(none\b|slip budget\b)", re.I)
 
 MONTHS = dict((m, i + 1) for i, m in enumerate(
     "jan feb mar apr may jun jul aug sep oct nov dec".split()))
@@ -1397,17 +1401,312 @@ def parse_plan(path, year):
     return rows
 
 
+# ---- the wiring file (lanes.md) ---------------------------------------------
+# Which deck, notes file and fuse each lane carries, plus the global dated
+# fuses. Data, never code: the current window's fuses expire the week classes
+# start, and a tool with them baked in dies the same week. Two kinds of table,
+# told apart by their headers: a `Lane` column wires lanes; a two-column table
+# whose second header is a date carries global fuses.
+
+def parse_lanes(path, known_lanes=DAY_LANES):
+    """Returns (wiring, fuses, errors).
+
+    wiring maps lane -> {deck, notes, fuse, fuse_date}; fuses is a list of
+    (name, iso) pairs. errors is the lint, each entry carrying the line
+    number and the problem, because a wiring mistake that fails silently is
+    a lane that silently stops being watched.
+    """
+    wiring, fuses, errors = {}, [], []
+    table, start = [], 0
+    tables = []
+    for n, raw in enumerate(open(path, encoding="utf-8"), start=1):
+        if raw.lstrip().startswith("|"):
+            if not table:
+                start = n
+            table.append((n, split_row(raw)))
+        elif table:
+            tables.append(table)
+            table = []
+    if table:
+        tables.append(table)
+
+    for table in tables:
+        rows = [(n, c) for n, c in table if not is_rule_row(c)]
+        if not rows:
+            continue
+        hn, header = rows[0]
+        low = [h.lower() for h in header]
+        if low and "lane" in low[0]:
+            cols = {}
+            for i, h in enumerate(low[1:], start=1):
+                if "deck" in h:
+                    cols["deck"] = i
+                elif "glob" in h:
+                    cols["glob"] = i
+                elif "note" in h:
+                    cols["notes"] = i
+                elif "fuse" in h and "date" in h:
+                    cols["fuse_date"] = i
+                elif "fuse" in h:
+                    cols["fuse"] = i
+            for n, cells in rows[1:]:
+                lane = cells[0]
+                if lane not in known_lanes:
+                    errors.append("line %d: unknown lane %r (known: %s)"
+                                  % (n, lane, ", ".join(known_lanes)))
+                    continue
+                w = {}
+                for key, i in cols.items():
+                    w[key] = cells[i] if i < len(cells) else ""
+                if w.get("fuse_date") and not re.match(r"^\d{4}-\d{2}-\d{2}$",
+                                                       w["fuse_date"]):
+                    errors.append("line %d: lane %s has a malformed fuse date %r "
+                                  "(want YYYY-MM-DD)" % (n, lane, w["fuse_date"]))
+                    w["fuse_date"] = ""
+                wiring[lane] = w
+        elif len(header) == 2 and "date" in low[1]:
+            for n, cells in rows[1:]:
+                if len(cells) < 2 or not cells[0]:
+                    continue
+                if not re.match(r"^\d{4}-\d{2}-\d{2}$", cells[1]):
+                    errors.append("line %d: fuse %r has a malformed date %r "
+                                  "(want YYYY-MM-DD)" % (n, cells[0], cells[1]))
+                    continue
+                fuses.append((cells[0], cells[1]))
+    return wiring, fuses, errors
+
+
+def lint_lane_paths(wiring, lanes_path):
+    """Notes paths resolve against the wiring file's folder, then its parent
+    (the file lives one level below the vault root and the paths are
+    vault-root relative)."""
+    errors = []
+    here = os.path.dirname(os.path.abspath(lanes_path))
+    for lane, w in wiring.items():
+        p = w.get("notes")
+        if not p:
+            continue
+        if not any(os.path.exists(os.path.join(base, p))
+                   for base in (here, os.path.dirname(here))):
+            errors.append("lane %s: notes file %r does not exist" % (lane, p))
+    return errors
+
+
+def resolve_notes(path, lanes_path):
+    here = os.path.dirname(os.path.abspath(lanes_path))
+    for base in (here, os.path.dirname(here)):
+        full = os.path.join(base, path)
+        if os.path.exists(full):
+            return full
+    return ""
+
+
+def lane_files(w, lanes_path):
+    """The lane's reachable files: the notes file first, then every match of
+    the optional glob, so a lane whose course spans several documents (notes,
+    lessons, cadence) is one selector away instead of a folder hunt.
+
+    Returns a list of (label, fullpath). The server only ever opens paths
+    from this list, never a path a client named.
+    """
+    import glob as globmod
+    out, seen = [], set()
+
+    def add(full):
+        full = os.path.abspath(full)
+        if full.lower() in seen or not os.path.isfile(full):
+            return
+        seen.add(full.lower())
+        out.append((os.path.splitext(os.path.basename(full))[0], full))
+
+    if w.get("notes"):
+        primary = resolve_notes(w["notes"], lanes_path)
+        if primary:
+            add(primary)
+    if w.get("glob"):
+        here = os.path.dirname(os.path.abspath(lanes_path))
+        for base in (here, os.path.dirname(here)):
+            for m in sorted(globmod.glob(os.path.join(base, w["glob"]),
+                                         recursive=True)):
+                add(m)
+            if len(out) > (1 if w.get("notes") else 0):
+                break
+    return out
+
+
+def lint_lane_decks(wiring, deck_names):
+    """The fourth wiring lint, runnable only while Anki is up."""
+    errors = []
+    for lane, w in wiring.items():
+        d = w.get("deck")
+        if not d or d == "*":
+            continue
+        if d not in deck_names and not any(n.startswith(d + "::") for n in deck_names):
+            errors.append("lane %s: deck %r is not in Anki" % (lane, d))
+    return errors
+
+
+# ---- behind and load ----------------------------------------------------------
+# The two computed numbers that are the point of the surface. `behind` = past
+# plan rows that asked for this lane and were never ticked. `load` = what is
+# still owed divided by the days left to the lane's fuse; above 1.0 the lane no
+# longer fits in the days it has left. "A missed day is never made up" governs
+# the day, not the fuse: the fuse is about coverage, so misses roll into load
+# as the signal that the plan needs re-cutting.
+
+def cell_counts(text):
+    return bool(text) and not NONE_CELL.match(text)
+
+
+def lane_behind(plan, log, lane, today_iso):
+    return sum(1 for iso, row in plan.items()
+               if iso < today_iso and cell_counts(row.get(lane, ""))
+               and lane not in log.get(iso, set()))
+
+
+def lane_load(plan, log, lane, today_iso, fuse_iso):
+    from datetime import date
+    days = (date.fromisoformat(fuse_iso) - date.fromisoformat(today_iso)).days + 1
+    if days <= 0:
+        return None
+    owed = lane_behind(plan, log, lane, today_iso)
+    owed += sum(1 for iso, row in plan.items()
+                if today_iso <= iso <= fuse_iso and cell_counts(row.get(lane, ""))
+                and lane not in log.get(iso, set()))
+    return owed / days
+
+
+# ---- Anki, read-only ----------------------------------------------------------
+# Due and new counts per deck over AnkiConnect. Anki only answers while it is
+# open, so a closed Anki degrades to an omitted badge rather than an error: a
+# morning view that fails because one of four sources is shut is a view nobody
+# opens. Port discovery mirrors ankictl: the 8765 default sits inside a range
+# Windows commonly reserves, so a working install often listens elsewhere, and
+# the addon's own meta.json says where.
+
+ANKI_ADDON_ID = "2055492159"
+
+
+def _anki_addon_port():
+    home = os.path.expanduser("~")
+    if sys.platform == "win32":
+        base = os.environ.get("APPDATA", os.path.join(home, "AppData", "Roaming"))
+    elif sys.platform == "darwin":
+        base = os.path.join(home, "Library", "Application Support")
+    else:
+        base = os.environ.get("XDG_DATA_HOME", os.path.join(home, ".local", "share"))
+    for name in ("meta.json", "config.json"):
+        try:
+            with open(os.path.join(base, "Anki2", "addons21", ANKI_ADDON_ID, name),
+                      encoding="utf-8") as fh:
+                data = json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            continue
+        port = data.get("config", data).get("webBindPort")
+        if port:
+            return int(port)
+    return None
+
+
+def _anki_post(url, action, **params):
+    import urllib.request
+    payload = json.dumps({"action": action, "version": 6,
+                          "params": params}).encode("utf-8")
+    req = urllib.request.Request(url, data=payload,
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=2) as r:
+        body = json.load(r)
+    if body.get("error"):
+        raise RuntimeError(body["error"])
+    return body["result"]
+
+
+def anki_read(decks):
+    """Returns (counts, deck_names) or (None, None) when Anki is closed.
+
+    counts maps deck -> (due, new). A deck of `*` means the whole collection.
+    """
+    env = os.environ.get("ANKI_CONNECT_URL")
+    urls = [env] if env else ["http://127.0.0.1:8765"]
+    if not env:
+        port = _anki_addon_port()
+        if port and port != 8765:
+            urls.append("http://127.0.0.1:%d" % port)
+    for url in urls:
+        try:
+            names = _anki_post(url, "deckNames")
+            counts = {}
+            for d in decks:
+                scope = "" if d == "*" else '"deck:%s" ' % d
+                counts[d] = (
+                    len(_anki_post(url, "findCards",
+                                   query=scope + "is:due -is:suspended")),
+                    len(_anki_post(url, "findCards",
+                                   query=scope + "is:new -is:suspended")))
+            return counts, names
+        except Exception:
+            continue
+    return None, None
+
+
+# ---- git evidence --------------------------------------------------------------
+# Ticks are an opinion; a commit touching the lane's file is evidence, and the
+# two disagreeing is the thing worth seeing. Uncommitted edits count too, since
+# the vault's auto-backup commits on its own schedule, not the learner's.
+
+def touched_today(repo_dir, iso):
+    import subprocess
+    out = set()
+    try:
+        r = subprocess.run(
+            ["git", "-C", repo_dir, "log", "--since", iso + " 00:00",
+             "--name-only", "--pretty=format:"],
+            capture_output=True, text=True, timeout=5)
+        out |= {l.strip().replace("\\", "/").lower()
+                for l in r.stdout.splitlines() if l.strip()}
+        r = subprocess.run(["git", "-C", repo_dir, "status", "--porcelain"],
+                           capture_output=True, text=True, timeout=5)
+        out |= {l[3:].strip().strip('"').replace("\\", "/").lower()
+                for l in r.stdout.splitlines() if len(l) > 3}
+    except Exception:
+        return set()
+    return out
+
+
+def open_in_editor(path):
+    """Hand a file to the OS default handler, so a markdown file lands in
+    whatever the learner already edits it with (Obsidian, VS Code)."""
+    import subprocess
+    if sys.platform == "win32":
+        os.startfile(path)
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", path])
+    else:
+        subprocess.Popen(["xdg-open", path])
+
+
 def load_day_log(path):
-    log = {}
+    """Read the tick log, mapping columns by the log's own header row.
+
+    The log predates the sixth lane on some machines, so a five-column file
+    must read correctly: a lane the header does not name is simply not done
+    that day, never an error and never another lane's mark.
+    """
+    log, header = {}, list(DAY_LANES)
     if not os.path.exists(path):
         return log
     for raw in open(path, encoding="utf-8"):
         if not raw.lstrip().startswith("|"):
             continue
         cells = split_row(raw)
-        if not re.match(r"^\d{4}-\d{2}-\d{2}$", cells[0]):
+        if is_rule_row(cells):
             continue
-        log[cells[0]] = set(lane for lane, c in zip(DAY_LANES, cells[1:])
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", cells[0]):
+            named = [c for c in cells[1:] if c in DAY_LANES]
+            if named:
+                header = named
+            continue
+        log[cells[0]] = set(lane for lane, c in zip(header, cells[1:])
                             if c in DONE_MARKS)
     return log
 
@@ -1464,20 +1763,20 @@ def day_history(log, today, span=14):
 
 DAY_CSS = """
 *{box-sizing:border-box}
-body{margin:0;padding:20px 16px 64px;font:16px/1.5 -apple-system,BlinkMacSystemFont,
+body{margin:0;padding:14px 16px 24px;font:15px/1.45 -apple-system,BlinkMacSystemFont,
 "Segoe UI",Roboto,sans-serif;background:#fbfbfa;color:#1a1a1a;
 max-width:720px;margin-inline:auto;-webkit-text-size-adjust:100%}
-h1{font-size:1.5rem;margin:0 0 2px}
-.sub{color:#6b6b6b;font-size:.9rem;margin-bottom:18px}
-.bar{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:12px;
-background:#fff;border:1px solid #e5e3df;margin-bottom:18px}
-.streak{font-size:2rem;font-weight:700;line-height:1}
-.streak small{font-size:.8rem;font-weight:400;color:#6b6b6b;display:block}
+h1{font-size:1.35rem;margin:0 0 1px}
+.sub{color:#6b6b6b;font-size:.85rem;margin-bottom:10px}
+.bar{display:flex;align-items:center;gap:14px;padding:9px 14px;border-radius:12px;
+background:#fff;border:1px solid #e5e3df;margin-bottom:10px}
+.streak{font-size:1.6rem;font-weight:700;line-height:1}
+.streak small{font-size:.75rem;font-weight:400;color:#6b6b6b;display:block}
 .hist{display:flex;gap:4px;margin-left:auto}
-.hist i{width:11px;height:26px;border-radius:3px;background:#e5e3df;display:block}
+.hist i{width:11px;height:22px;border-radius:3px;background:#e5e3df;display:block}
 .hist i.floor{background:#b9d4b0}
 .hist i.full{background:#4f8f3f}
-label.lane{display:flex;gap:14px;align-items:flex-start;padding:16px;margin-bottom:10px;
+label.lane{display:flex;gap:12px;align-items:flex-start;padding:9px 14px;margin-bottom:7px;
 background:#fff;border:1px solid #e5e3df;border-radius:12px;cursor:pointer;
 -webkit-tap-highlight-color:transparent}
 label.lane:has(input:checked){background:#f2f7f0;border-color:#b9d4b0}
@@ -1489,13 +1788,31 @@ border:solid #fff;border-width:0 3px 3px 0;transform:rotate(45deg)}
 .name{font-weight:600}
 .name .req{font-weight:400;font-size:.72rem;color:#6b6b6b;border:1px solid #ddd;
 border-radius:20px;padding:1px 7px;margin-left:6px;vertical-align:1px}
-.task{color:#4a4a4a;font-size:.95rem;margin-top:3px}
-.verdict{padding:14px 16px;border-radius:12px;text-align:center;font-weight:600;
+.task{color:#4a4a4a;font-size:.88rem;margin-top:1px;display:block}
+.verdict{padding:9px 14px;border-radius:12px;text-align:center;font-weight:600;
 background:#fff;border:1px solid #e5e3df}
 .verdict.floor{background:#f2f7f0;border-color:#b9d4b0}
 .verdict.full{background:#4f8f3f;border-color:#4f8f3f;color:#fff}
-.note{color:#6b6b6b;font-size:.85rem;margin-top:18px}
+.note{color:#6b6b6b;font-size:.8rem;margin-top:8px}
 .note code{background:#efeeec;padding:1px 5px;border-radius:4px}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
+.chip{font-size:.78rem;padding:3px 10px;border-radius:20px;background:#fff;
+border:1px solid #e5e3df;color:#4a4a4a;white-space:nowrap}
+.chip b{font-weight:700}
+.chip.amber{background:#fdf3e3;border-color:#e8c98a;color:#7a5b16}
+.chip.red{background:#fbe9e7;border-color:#e5a099;color:#8f2a1e}
+.badges{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.badge{font-size:.72rem;padding:1px 8px;border-radius:20px;background:#efeeec;
+color:#5a5a58;font-weight:500}
+.badge.warn{background:#fdf3e3;color:#7a5b16}
+.badge.bad{background:#fbe9e7;color:#8f2a1e}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;
+border:1.5px solid #c9c6c0;margin-left:7px;vertical-align:1px}
+.dot.on{background:#4f8f3f;border-color:#4f8f3f}
+button.open{flex:0 0 auto;align-self:center;font:inherit;font-size:.75rem;
+padding:4px 10px;border-radius:8px;border:1px solid #dcdad6;background:#fff;
+color:#4a4a4a;cursor:pointer}
+button.open:hover{border-color:#b9b6b0}
 @media (prefers-color-scheme:dark){
 body{background:#16171a;color:#e9e9e7}
 .bar,label.lane,.verdict{background:#212226;border-color:#33343a}
@@ -1504,7 +1821,15 @@ body{background:#16171a;color:#e9e9e7}
 label.lane input{background:#212226;border-color:#4a4b52}
 label.lane:has(input:checked){background:#1e2a1c;border-color:#3f6f33}
 .verdict.floor{background:#1e2a1c;border-color:#3f6f33}
-.note code{background:#2b2c31}}
+.note code{background:#2b2c31}
+.chip{background:#212226;border-color:#33343a;color:#b9b9b7}
+.chip.amber{background:#33290f;border-color:#6e5719;color:#e2bd66}
+.chip.red{background:#3a1d19;border-color:#7c3a30;color:#e8988c}
+.badge{background:#2b2c31;color:#a5a5a3}
+.badge.warn{background:#33290f;color:#e2bd66}
+.badge.bad{background:#3a1d19;color:#e8988c}
+.dot{border-color:#4a4b52}
+button.open{background:#212226;border-color:#4a4b52;color:#b9b9b7}}
 """
 
 DAY_JS = """
@@ -1537,40 +1862,111 @@ function save(){
  };
  r.send(JSON.stringify({date:D.date,done:on}));
 }
-document.addEventListener('change',save);
+function openFile(lane,i){
+ var r=new XMLHttpRequest();
+ r.open('POST','/open');
+ r.setRequestHeader('Content-Type','application/json');
+ r.send(JSON.stringify({lane:lane,i:i}));
+}
+document.addEventListener('change',function(ev){
+ var el=ev.target;
+ if(el.classList&&el.classList.contains('open')){
+  if(el.value!==''){openFile(el.getAttribute('data-lane'),parseInt(el.value,10));el.value='';}
+  return;
+ }
+ save();
+});
+document.addEventListener('click',function(ev){
+ var b=ev.target.closest&&ev.target.closest('button.open');
+ if(!b)return;
+ ev.preventDefault();
+ openFile(b.getAttribute('data-lane'),parseInt(b.getAttribute('data-i')||'0',10));
+});
 paint();
 """
 
 
-def day_page(iso, weekday, plan_row, done, streak, hist, plan_path):
+def task_text(cell):
+    """Plan cells are markdown; the card shows their text, not their markup."""
+    return re.sub(r"[*`_]", "", cell)
+
+
+def lane_badges(li):
+    """The badge strip under a lane's task text, from that lane's numbers."""
+    out = []
+    if li.get("anki"):
+        due, new = li["anki"]
+        out.append(("", "%d due · %d new" % (due, new)))
+    if li.get("behind"):
+        out.append(("bad", "behind %d" % li["behind"]))
+    load = li.get("load")
+    if load is not None:
+        cls = "bad" if load > 1.0 else ("warn" if load > 0.85 else "")
+        out.append((cls, "load %.2f/day" % load))
+    return out
+
+
+def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None):
     e = html.escape
+    info = info or {}
+    lane_info = info.get("lanes", {})
     lanes = []
     for lane in DAY_LANES:
-        task = plan_row.get(lane) or "standing daily item"
+        task = task_text(plan_row.get(lane) or "standing daily item")
         req = ' <span class="req">floor</span>' if lane in FLOOR_LANES else ""
+        li = lane_info.get(lane, {})
+        dot = ""
+        if li.get("evidence") is not None:
+            dot = ('<i class="dot%s" title="%s"></i>'
+                   % (" on" if li["evidence"] else "",
+                      "a change touched this lane's file today" if li["evidence"]
+                      else "no change to this lane's file yet today"))
+        badges = "".join('<b class="badge %s">%s</b>' % (cls, e(txt))
+                         for cls, txt in lane_badges(li))
+        badges = '<span class="badges">%s</span>' % badges if badges else ""
+        files = li.get("files", [])
+        if len(files) > 1:
+            opts = "".join('<option value="%d">%s</option>' % (i, e(label))
+                           for i, (label, _) in enumerate(files))
+            btn = ('<select class="open" data-lane="%s" title="open a file">'
+                   '<option value="">open…</option>%s</select>' % (e(lane), opts))
+        elif files:
+            btn = ('<button class="open" data-lane="%s" data-i="0" '
+                   'title="open the notes file">notes</button>' % e(lane))
+        else:
+            btn = ""
         lanes.append(
             '<label class="lane"><input type="checkbox" name="%s"%s>'
-            '<span><span class="name">%s%s</span>'
-            '<span class="task">%s</span></span></label>'
-            % (e(lane), " checked" if lane in done else "", e(lane), req, e(task)))
+            '<span style="flex:1"><span class="name">%s%s%s</span>'
+            '<span class="task">%s</span>%s</span>%s</label>'
+            % (e(lane), " checked" if lane in done else "",
+               e(lane), req, dot, e(task), badges, btn))
+    chips = []
+    for name, days in info.get("fuses", []):
+        cls = "red" if days <= 3 else ("amber" if days <= 10 else "")
+        chips.append('<span class="chip %s">%s <b>%dd</b></span>'
+                     % (cls, e(name), days))
+    chips = '<div class="chips">%s</div>' % "".join(chips) if chips else ""
+    notes = "".join('<div class="note">%s</div>' % e(m)
+                    for m in info.get("notes", []))
     boot = {"date": iso, "lanes": list(DAY_LANES), "floor": list(FLOOR_LANES)}
     return ("<!doctype html><html lang=en><head><meta charset=utf-8>"
             "<meta name=viewport content='width=device-width,initial-scale=1'>"
             "<title>%s</title><style>%s</style></head><body>"
-            "<h1>%s</h1><div class=sub>%s</div>"
+            "<h1>%s</h1><div class=sub>%s</div>%s"
             "<div class=bar><div class=streak id=streak>%d"
             "<small><span id=streakword>%s</span> unbroken</small></div>"
             "<div class=hist id=hist>%s</div></div>"
             "%s<div class=verdict id=verdict></div>"
-            "<div class=note>Plan read from <code>%s</code>. Ticks are written to disk "
+            "%s<div class=note>Plan read from <code>%s</code>. Ticks are written to disk "
             "as you make them.</div>"
             "<script>window.__day__=%s;\n%s</script></body></html>"
-            % (e(iso), DAY_CSS, e(weekday), e(iso),
+            % (e(iso), DAY_CSS, e(weekday), e(iso), chips,
                streak, "day" if streak == 1 else "days",
                "".join('<i class="%s" title="%s: %s"></i>'
                        % ("" if h["status"] == "miss" else h["status"], h["date"], h["status"])
                        for h in hist),
-               "".join(lanes), e(plan_path),
+               "".join(lanes), notes, e(plan_path),
                json.dumps(boot), DAY_JS))
 
 
@@ -1591,6 +1987,81 @@ def lan_address():
         s.close()
 
 
+def day_info(plan, log, iso, plan_path, lanes_path):
+    """Everything on the page that is not the tick row: fuses, per-lane
+    behind/load, Anki counts, git evidence, and the reduced-mode notes.
+
+    Every source except the plan is allowed to be missing; each absence
+    becomes one plain sentence on the page instead of a failure.
+    """
+    from datetime import date
+    today = date.fromisoformat(iso)
+    info = {"lanes": {}, "fuses": [], "notes": []}
+
+    wiring, fuses, errors = {}, [], []
+    if os.path.exists(lanes_path):
+        wiring, fuses, errors = parse_lanes(lanes_path)
+        errors += lint_lane_paths(wiring, lanes_path)
+    else:
+        info["notes"].append("No lanes.md beside the plan, so fuses, card "
+                             "counts and notes buttons are off.")
+    for err in errors:
+        info["notes"].append("Wiring: %s (%s)" % (err, os.path.basename(lanes_path)))
+
+    decks = [w["deck"] for w in wiring.values() if w.get("deck")]
+    counts, deck_names = anki_read(decks) if decks else (None, None)
+    if decks and counts is None:
+        info["notes"].append("Anki is closed, so card counts are omitted.")
+    if deck_names:
+        for err in lint_lane_decks(wiring, deck_names):
+            info["notes"].append("Wiring: %s (%s)" % (err, os.path.basename(lanes_path)))
+
+    touched = touched_today(os.path.dirname(os.path.abspath(plan_path)) or ".", iso)
+
+    rail = list(fuses)
+    for lane, w in wiring.items():
+        if w.get("fuse_date"):
+            rail.append((w.get("fuse") or lane, w["fuse_date"]))
+    for name, fiso in sorted(rail, key=lambda f: f[1]):
+        days = (date.fromisoformat(fiso) - today).days
+        if days >= 0:
+            info["fuses"].append((name, days))
+
+    for lane in DAY_LANES:
+        w = wiring.get(lane, {})
+        files = lane_files(w, lanes_path) if w else []
+        li = {"behind": lane_behind(plan, log, lane, iso), "load": None,
+              "anki": counts.get(w.get("deck")) if counts and w.get("deck") else None,
+              "evidence": None, "files": files, "has_notes": bool(files)}
+        if w.get("fuse_date"):
+            li["load"] = lane_load(plan, log, lane, iso, w["fuse_date"])
+        if w.get("notes") and touched:
+            li["evidence"] = w["notes"].replace("\\", "/").lower() in touched
+        info["lanes"][lane] = li
+    return info
+
+
+def day_text(iso, weekday, row, log, streak, info):
+    done = log.get(iso, set())
+    L = ["%s  %s   streak %d" % (iso, weekday, streak)]
+    if info["fuses"]:
+        L.append("  fuses: " + "  ·  ".join("%s %dd" % f for f in info["fuses"]))
+    for lane in DAY_LANES:
+        li = info["lanes"].get(lane, {})
+        badges = "   ".join(txt for _, txt in lane_badges(li))
+        mark = "x" if lane in done else " "
+        L.append("  [%s] %-9s %s"
+                 % (mark, lane, task_text(row.get(lane) or "standing daily item")))
+        if badges:
+            L.append("      %-9s %s" % ("", badges))
+    L.append("  %s so far. Floor = %s." % (day_status(done), ", ".join(FLOOR_LANES)))
+    for m in info["notes"]:
+        L.append("  note: %s" % m)
+    if not row:
+        L.append("  note: the plan has no row for today, so only the standing lanes show.")
+    return "\n".join(L)
+
+
 def cmd_day(a):
     import http.server, socketserver, webbrowser, threading
     from datetime import date
@@ -1605,23 +2076,27 @@ def cmd_day(a):
 
     log_path = a.log or os.path.join(
         os.path.dirname(os.path.abspath(a.plan)) or ".", "daily_log.md")
+    lanes_path = a.lanes or os.path.join(
+        os.path.dirname(os.path.abspath(a.plan)) or ".", "lanes.md")
     log = load_day_log(log_path)
 
-    if a.check:
-        print("%s  %s" % (iso, today.strftime("%A")))
-        for lane in DAY_LANES:
-            mark = "x" if lane in log.get(iso, set()) else " "
-            print("  [%s] %-9s %s" % (mark, lane, row.get(lane) or "standing daily item"))
-        print("\n  %s. Streak %d. Log: %s"
-              % (day_status(log.get(iso, set())), day_streak(log, today), log_path))
-        if not row:
-            print("  note: the plan has no row for today, so only the standing lanes show.")
+    if a.check or a.due:
+        info = day_info(plan, log, iso, a.plan, lanes_path)
+        print(day_text(iso, today.strftime("%A"), row, log,
+                       day_streak(log, today), info))
+        print("  log: %s" % log_path)
         return 0
 
+    cache = {"at": 0.0, "info": None}
+
     def render():
+        import time
+        if time.time() - cache["at"] > 60 or cache["info"] is None:
+            cache["info"] = day_info(plan, log, iso, a.plan, lanes_path)
+            cache["at"] = time.time()
         return day_page(iso, today.strftime("%A"), row, log.get(iso, set()),
                         day_streak(log, today), day_history(log, today),
-                        a.plan).encode("utf-8")
+                        a.plan, cache["info"]).encode("utf-8")
 
     class H(http.server.BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -1639,18 +2114,30 @@ def cmd_day(a):
             self.wfile.write(body)
 
         def do_POST(self):
-            if self.path != "/save":
+            if self.path not in ("/save", "/open"):
                 self.send_error(404)
                 return
             try:
                 n = int(self.headers.get("Content-Length") or 0)
                 data = json.loads(self.rfile.read(n).decode("utf-8"))
-                d = data.get("date") or iso
-                log[d] = set(l for l in data.get("done", []) if l in DAY_LANES)
-                write_day_log(log_path, log)
-                out = json.dumps({"streak": day_streak(log, today),
-                                  "status": day_status(log[d]),
-                                  "hist": day_history(log, today)}).encode("utf-8")
+                if self.path == "/open":
+                    # Only paths this server itself resolved are openable; a
+                    # client names a lane and an index, never a path.
+                    files = (cache["info"] or {}).get("lanes", {}) \
+                        .get(data.get("lane"), {}).get("files", [])
+                    i = int(data.get("i") or 0)
+                    if not (0 <= i < len(files)):
+                        self.send_error(404)
+                        return
+                    open_in_editor(files[i][1])
+                    out = b"{}"
+                else:
+                    d = data.get("date") or iso
+                    log[d] = set(l for l in data.get("done", []) if l in DAY_LANES)
+                    write_day_log(log_path, log)
+                    out = json.dumps({"streak": day_streak(log, today),
+                                      "status": day_status(log[d]),
+                                      "hist": day_history(log, today)}).encode("utf-8")
             except Exception as exc:
                 self.send_error(500, str(exc))
                 return
@@ -1767,6 +2254,9 @@ def main():
     s = sub.add_parser("day", help="today's work across every subject, ticked and logged")
     s.add_argument("plan", help="markdown document holding a dated plan table")
     s.add_argument("--log", help="daily log file (default: daily_log.md beside the plan)")
+    s.add_argument("--lanes", help="wiring file (default: lanes.md beside the plan)")
+    s.add_argument("--due", action="store_true",
+                   help="print what is outstanding across every lane and exit")
     s.add_argument("--date", help="run a different day, for backfilling a missed one")
     s.add_argument("--port", type=int, default=8732)
     s.add_argument("--lan", action="store_true",

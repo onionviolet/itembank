@@ -88,8 +88,10 @@ them, records what got done, and counts the streak.
 ```
 itembank day plan.md            # open today, tick it, ticks hit disk immediately
 itembank day plan.md --lan      # also reachable from a phone on the same wifi
+itembank day plan.md --due      # print what is outstanding across every lane, exit
 itembank day plan.md --check    # print today's row and exit
 itembank day plan.md --date 2026-01-06   # backfill a day you missed
+itembank day plan.md --lanes wiring.md   # wiring file (default: lanes.md beside the plan)
 ```
 
 It exists because of a specific failure. A study plan split across several
@@ -109,7 +111,34 @@ streak; the strip along the top shows which was which.
 
 **The log** is markdown, one row per day, written beside the plan by default.
 Same reasoning as attempt files: the reader is a human or an LLM, and both read
-a table better than they read a state blob.
+a table better than they read a state blob. The reader maps columns by the
+log's own header row, so a log written before a lane existed still reads
+correctly: a lane the header does not name is simply not done that day.
+
+**The wiring (`lanes.md` beside the plan, optional).** Which Anki deck, notes
+file, and dated fuse each lane carries, plus a table of global fuses. Data,
+never code: fuses expire and lanes change, and a tool with them baked in dies
+with them. Two kinds of table, told apart by their headers: a `Lane` column
+wires lanes; a two-column table whose second header is a date carries global
+fuses. An optional `Notes glob` column makes a lane's whole document cluster
+reachable from its card through a file selector, and the notes button hands
+the file to whatever already edits it. The wiring is linted like everything
+else here: unknown lane, missing notes path, malformed date, and deck absent
+from Anki are each a named error with its line, because a wiring mistake that
+fails silently is a lane that silently stops being watched.
+
+**The two computed numbers.** `behind` is past plan rows that asked for a lane
+and were never ticked. `load` is what is still owed divided by the days left
+to that lane's fuse; above 1.0 the lane no longer fits in the days it has
+left, which is the signal the plan needs re-cutting. A cell that names no work
+("none", "Slip budget") is a planned zero, never debt.
+
+**Degraded, never broken.** Anki counts come over AnkiConnect and are omitted
+with a note when Anki is closed; a missing wiring file turns off fuses and
+badges and says so; a git repo around the plan adds an evidence dot per lane
+(a change touched the lane's file today) and its absence just hides the dot.
+A morning view that errors out because one of four sources is shut is a view
+nobody opens.
 
 ## Item types
 
