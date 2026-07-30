@@ -53,6 +53,7 @@ itembank report SESSION.json # summarize the recorded evidence
 itembank study bank.md      # flashcards plus a session-only Learn loop
 itembank export bank.md out.tsv --format basic  # Anki Basic TSV
 itembank export bank.md out.tsv --format cloze  # Anki Cloze TSV
+itembank day   plan.md        # today's work across every subject, ticked and logged
 itembank guard .              # fail if a real question bank got committed
 ```
 
@@ -78,6 +79,37 @@ tutor from silently changing the test or grading its own explanation.
 `study` and `export` are generic bank surfaces. Subject-specific pipelines such
 as Mandarin TTS and `.apkg` packaging remain separate because they require
 content-specific dependencies and network behavior.
+
+## The day surface
+
+Every other command tests one subject. `day` shows the whole day across all of
+them, records what got done, and counts the streak.
+
+```
+itembank day plan.md            # open today, tick it, ticks hit disk immediately
+itembank day plan.md --lan      # also reachable from a phone on the same wifi
+itembank day plan.md --check    # print today's row and exit
+itembank day plan.md --date 2026-01-06   # backfill a day you missed
+```
+
+It exists because of a specific failure. A study plan split across several
+documents and tools is a plan that does not get opened, and two consecutive
+days were lost that way while the plan itself sat there, correct and concrete.
+The fix is not a better plan, it is one screen.
+
+**Finding the plan.** Any markdown table whose first column parses as a date is
+a plan table, so the plan can live inside a dashboard next to unrelated tables
+and this does not need to be told where. Column headers name the lanes; a
+`2026-01-07` or a `**Mon Jan 5**` first cell both work.
+
+**The floor.** A day counts if the floor lanes are done, not only if every lane
+is. A plan with no smaller version offers all-or-nothing once a day starts
+badly, and nothing wins. `full` and `floor` are both unbroken days in the
+streak; the strip along the top shows which was which.
+
+**The log** is markdown, one row per day, written beside the plan by default.
+Same reasoning as attempt files: the reader is a human or an LLM, and both read
+a table better than they read a state blob.
 
 ## Item types
 

@@ -18,6 +18,7 @@ authoring agent the format, `itembank lint` tells it exactly what it got wrong.
   itembank report SESSION.json  summarize the recorded evidence
   itembank study BANK.md [OUT]  render a flashcard and Learn surface
   itembank export BANK.md OUT   export Basic or Cloze Anki TSV
+  itembank day   PLAN.md        today's work across every subject, ticked and logged
   itembank guard [DIR]          fail if a real question bank was committed
 
 Scoring is dichotomous on every item type, matching the NREMT rule that no
@@ -1308,6 +1309,386 @@ def cmd_guard(a):
     return 1 if offenders else 0
 
 
+# ---- the day surface --------------------------------------------------------
+# Every other command here tests one subject. This one shows the whole day
+# across all of them and records whether it happened.
+#
+# It exists because of an observed failure rather than a feature idea. A plan
+# split across several documents and tools is a plan that does not get opened,
+# and two consecutive days were lost exactly that way while the plan itself sat
+# there, correct and concrete. One screen, one tick per lane, one streak.
+#
+# The plan stays wherever the learner keeps it and this reads it in place, so
+# the tool still holds no content of its own.
+
+DAY_LANES = ("EMT", "Math", "CS", "Mandarin", "Anki")
+
+# The floor: the smallest day that still counts. A plan with no smaller version
+# offers only all-or-nothing once a day starts badly, and nothing wins.
+FLOOR_LANES = ("Anki", "EMT", "Math")
+
+MONTHS = dict((m, i + 1) for i, m in enumerate(
+    "jan feb mar apr may jun jul aug sep oct nov dec".split()))
+
+DONE_MARKS = ("x", "X", "yes", "done", "✓", "✔")
+
+
+def parse_day_date(cell, year):
+    """Read a date out of a plan table's first column.
+
+    Accepts `2026-07-29` and the shape people actually write by hand,
+    `**Mon Jul 27**`. Returns an ISO string, or "" when the cell is not a date,
+    which is how a plan table is told apart from every other table in a
+    document without the document having to declare itself.
+    """
+    t = re.sub(r"[*_`]", "", cell).strip()
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", t):
+        return t
+    for m in re.finditer(r"([A-Za-z]{3,9})\.?\s+(\d{1,2})\b", t):
+        if m.group(1)[:3].lower() in MONTHS:
+            return "%04d-%02d-%02d" % (year, MONTHS[m.group(1)[:3].lower()], int(m.group(2)))
+    for m in re.finditer(r"\b(\d{1,2})\s+([A-Za-z]{3,9})", t):
+        if m.group(2)[:3].lower() in MONTHS:
+            return "%04d-%02d-%02d" % (year, MONTHS[m.group(2)[:3].lower()], int(m.group(1)))
+    return ""
+
+
+def lane_for_header(cell):
+    t = re.sub(r"[*_`]", "", cell).lower()
+    for lane in DAY_LANES:
+        if re.search(r"\b%s\b" % re.escape(lane.lower()), t):
+            return lane
+    return ""
+
+
+def split_row(line):
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def is_rule_row(cells):
+    return bool(cells) and all(re.match(r"^:?-{2,}:?$", c) for c in cells if c)
+
+
+def parse_plan(path, year):
+    """Pull every dated row out of a markdown plan document.
+
+    Any table whose first column parses as a date is a plan table. That is the
+    whole detection rule, so the plan can live inside a dashboard, a syllabus,
+    or a file of its own and this does not need to be told which.
+    """
+    rows, header = {}, []
+    for raw in open(path, encoding="utf-8"):
+        if not raw.lstrip().startswith("|"):
+            continue
+        cells = split_row(raw)
+        if is_rule_row(cells):
+            continue
+        iso = parse_day_date(cells[0], year)
+        if not iso:
+            header = cells                     # newest non-dated row wins as the header
+            continue
+        day = {}
+        for i, text in enumerate(cells[1:], start=1):
+            lane = lane_for_header(header[i]) if i < len(header) else ""
+            if lane and text:
+                day[lane] = text
+        if day:
+            rows[iso] = day
+    return rows
+
+
+def load_day_log(path):
+    log = {}
+    if not os.path.exists(path):
+        return log
+    for raw in open(path, encoding="utf-8"):
+        if not raw.lstrip().startswith("|"):
+            continue
+        cells = split_row(raw)
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", cells[0]):
+            continue
+        log[cells[0]] = set(lane for lane, c in zip(DAY_LANES, cells[1:])
+                            if c in DONE_MARKS)
+    return log
+
+
+def day_status(done):
+    if all(l in done for l in DAY_LANES):
+        return "full"
+    if all(l in done for l in FLOOR_LANES):
+        return "floor"
+    return "miss"
+
+
+def write_day_log(path, log):
+    L = ["# Daily log", "",
+         "*Written by `itembank day`. One row per day, `x` where the lane was done.*", "",
+         "**Floor** = %s, the smallest day that still counts. **Full** = every lane. "
+         "A missed day is never made up; the next day runs its own row at normal size."
+         % ", ".join(FLOOR_LANES), "",
+         "| Date | " + " | ".join(DAY_LANES) + " | Day |",
+         "|---" * (len(DAY_LANES) + 2) + "|"]
+    for iso in sorted(log):
+        marks = ["x" if l in log[iso] else "." for l in DAY_LANES]
+        L.append("| %s | %s | %s |" % (iso, " | ".join(marks), day_status(log[iso])))
+    L.append("")
+    if os.path.dirname(path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+    open(path, "w", encoding="utf-8").write("\n".join(L))
+
+
+def day_streak(log, today):
+    """Consecutive days up to today that met at least the floor.
+
+    An unfinished today is not counted as a break, because a counter that reads
+    zero every morning is an argument for not starting.
+    """
+    from datetime import timedelta
+    d, n = today, 0
+    if day_status(log.get(today.isoformat(), set())) == "miss":
+        d = today - timedelta(days=1)
+    while day_status(log.get(d.isoformat(), set())) != "miss":
+        n += 1
+        d -= timedelta(days=1)
+    return n
+
+
+def day_history(log, today, span=14):
+    from datetime import timedelta
+    out = []
+    for i in range(span - 1, -1, -1):
+        d = (today - timedelta(days=i)).isoformat()
+        out.append({"date": d, "status": day_status(log.get(d, set()))})
+    return out
+
+
+DAY_CSS = """
+*{box-sizing:border-box}
+body{margin:0;padding:20px 16px 64px;font:16px/1.5 -apple-system,BlinkMacSystemFont,
+"Segoe UI",Roboto,sans-serif;background:#fbfbfa;color:#1a1a1a;
+max-width:720px;margin-inline:auto;-webkit-text-size-adjust:100%}
+h1{font-size:1.5rem;margin:0 0 2px}
+.sub{color:#6b6b6b;font-size:.9rem;margin-bottom:18px}
+.bar{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:12px;
+background:#fff;border:1px solid #e5e3df;margin-bottom:18px}
+.streak{font-size:2rem;font-weight:700;line-height:1}
+.streak small{font-size:.8rem;font-weight:400;color:#6b6b6b;display:block}
+.hist{display:flex;gap:4px;margin-left:auto}
+.hist i{width:11px;height:26px;border-radius:3px;background:#e5e3df;display:block}
+.hist i.floor{background:#b9d4b0}
+.hist i.full{background:#4f8f3f}
+label.lane{display:flex;gap:14px;align-items:flex-start;padding:16px;margin-bottom:10px;
+background:#fff;border:1px solid #e5e3df;border-radius:12px;cursor:pointer;
+-webkit-tap-highlight-color:transparent}
+label.lane:has(input:checked){background:#f2f7f0;border-color:#b9d4b0}
+label.lane input{appearance:none;-webkit-appearance:none;flex:0 0 auto;width:28px;height:28px;
+margin:0;border:2px solid #c9c6c0;border-radius:8px;background:#fff;cursor:pointer}
+label.lane input:checked{background:#4f8f3f;border-color:#4f8f3f}
+label.lane input:checked::after{content:"";display:block;width:8px;height:15px;margin:1px auto;
+border:solid #fff;border-width:0 3px 3px 0;transform:rotate(45deg)}
+.name{font-weight:600}
+.name .req{font-weight:400;font-size:.72rem;color:#6b6b6b;border:1px solid #ddd;
+border-radius:20px;padding:1px 7px;margin-left:6px;vertical-align:1px}
+.task{color:#4a4a4a;font-size:.95rem;margin-top:3px}
+.verdict{padding:14px 16px;border-radius:12px;text-align:center;font-weight:600;
+background:#fff;border:1px solid #e5e3df}
+.verdict.floor{background:#f2f7f0;border-color:#b9d4b0}
+.verdict.full{background:#4f8f3f;border-color:#4f8f3f;color:#fff}
+.note{color:#6b6b6b;font-size:.85rem;margin-top:18px}
+.note code{background:#efeeec;padding:1px 5px;border-radius:4px}
+@media (prefers-color-scheme:dark){
+body{background:#16171a;color:#e9e9e7}
+.bar,label.lane,.verdict{background:#212226;border-color:#33343a}
+.hist i{background:#33343a}
+.sub,.streak small,.task,.note,.name .req{color:#9a9a98}
+label.lane input{background:#212226;border-color:#4a4b52}
+label.lane:has(input:checked){background:#1e2a1c;border-color:#3f6f33}
+.verdict.floor{background:#1e2a1c;border-color:#3f6f33}
+.note code{background:#2b2c31}}
+"""
+
+DAY_JS = """
+var D=window.__day__;
+function paint(){
+ var on=[].slice.call(document.querySelectorAll('input')).filter(function(i){return i.checked})
+        .map(function(i){return i.name});
+ var floor=D.floor.every(function(l){return on.indexOf(l)>=0});
+ var full=D.lanes.every(function(l){return on.indexOf(l)>=0});
+ var v=document.getElementById('verdict');
+ v.className='verdict '+(full?'full':floor?'floor':'');
+ v.textContent=full?'Full day. Done.':floor?'Floor met. This day counts.'
+   :'Floor needs '+D.floor.filter(function(l){return on.indexOf(l)<0}).join(', ')+'.';
+ return on;
+}
+function save(){
+ var on=paint();
+ var r=new XMLHttpRequest();
+ r.open('POST','/save');
+ r.setRequestHeader('Content-Type','application/json');
+ r.onload=function(){
+  try{
+   var d=JSON.parse(r.responseText);
+   document.getElementById('streak').firstChild.nodeValue=d.streak;
+   document.getElementById('streakword').textContent=d.streak===1?'day':'days';
+   var h=document.getElementById('hist');h.innerHTML='';
+   d.hist.forEach(function(x){var i=document.createElement('i');
+     i.className=x.status==='miss'?'':x.status;i.title=x.date+': '+x.status;h.appendChild(i)});
+  }catch(e){}
+ };
+ r.send(JSON.stringify({date:D.date,done:on}));
+}
+document.addEventListener('change',save);
+paint();
+"""
+
+
+def day_page(iso, weekday, plan_row, done, streak, hist, plan_path):
+    e = html.escape
+    lanes = []
+    for lane in DAY_LANES:
+        task = plan_row.get(lane) or "standing daily item"
+        req = ' <span class="req">floor</span>' if lane in FLOOR_LANES else ""
+        lanes.append(
+            '<label class="lane"><input type="checkbox" name="%s"%s>'
+            '<span><span class="name">%s%s</span>'
+            '<span class="task">%s</span></span></label>'
+            % (e(lane), " checked" if lane in done else "", e(lane), req, e(task)))
+    boot = {"date": iso, "lanes": list(DAY_LANES), "floor": list(FLOOR_LANES)}
+    return ("<!doctype html><html lang=en><head><meta charset=utf-8>"
+            "<meta name=viewport content='width=device-width,initial-scale=1'>"
+            "<title>%s</title><style>%s</style></head><body>"
+            "<h1>%s</h1><div class=sub>%s</div>"
+            "<div class=bar><div class=streak id=streak>%d"
+            "<small><span id=streakword>%s</span> unbroken</small></div>"
+            "<div class=hist id=hist>%s</div></div>"
+            "%s<div class=verdict id=verdict></div>"
+            "<div class=note>Plan read from <code>%s</code>. Ticks are written to disk "
+            "as you make them.</div>"
+            "<script>window.__day__=%s;\n%s</script></body></html>"
+            % (e(iso), DAY_CSS, e(weekday), e(iso),
+               streak, "day" if streak == 1 else "days",
+               "".join('<i class="%s" title="%s: %s"></i>'
+                       % ("" if h["status"] == "miss" else h["status"], h["date"], h["status"])
+                       for h in hist),
+               "".join(lanes), e(plan_path),
+               json.dumps(boot), DAY_JS))
+
+
+def lan_address():
+    """Best-effort local address, so the page can be opened from a phone.
+
+    The UDP connect sends nothing; it only asks the routing table which local
+    interface would be used to reach the internet.
+    """
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 53))
+        return s.getsockname()[0]
+    except Exception:
+        return "127.0.0.1"
+    finally:
+        s.close()
+
+
+def cmd_day(a):
+    import http.server, socketserver, webbrowser, threading
+    from datetime import date
+
+    today = date.fromisoformat(a.date) if a.date else date.today()
+    iso = today.isoformat()
+    plan = parse_plan(a.plan, today.year)
+    if not plan:
+        sys.exit("no dated rows found in %s. A plan table needs a first column "
+                 "like `2026-07-29` or `**Mon Jul 29**`." % a.plan)
+    row = plan.get(iso, {})
+
+    log_path = a.log or os.path.join(
+        os.path.dirname(os.path.abspath(a.plan)) or ".", "daily_log.md")
+    log = load_day_log(log_path)
+
+    if a.check:
+        print("%s  %s" % (iso, today.strftime("%A")))
+        for lane in DAY_LANES:
+            mark = "x" if lane in log.get(iso, set()) else " "
+            print("  [%s] %-9s %s" % (mark, lane, row.get(lane) or "standing daily item"))
+        print("\n  %s. Streak %d. Log: %s"
+              % (day_status(log.get(iso, set())), day_streak(log, today), log_path))
+        if not row:
+            print("  note: the plan has no row for today, so only the standing lanes show.")
+        return 0
+
+    def render():
+        return day_page(iso, today.strftime("%A"), row, log.get(iso, set()),
+                        day_streak(log, today), day_history(log, today),
+                        a.plan).encode("utf-8")
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            if self.path not in ("/", "/index.html"):
+                self.send_error(404)
+                return
+            body = render()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_POST(self):
+            if self.path != "/save":
+                self.send_error(404)
+                return
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+                data = json.loads(self.rfile.read(n).decode("utf-8"))
+                d = data.get("date") or iso
+                log[d] = set(l for l in data.get("done", []) if l in DAY_LANES)
+                write_day_log(log_path, log)
+                out = json.dumps({"streak": day_streak(log, today),
+                                  "status": day_status(log[d]),
+                                  "hist": day_history(log, today)}).encode("utf-8")
+            except Exception as exc:
+                self.send_error(500, str(exc))
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(out)))
+            self.end_headers()
+            self.wfile.write(out)
+
+    host = "0.0.0.0" if a.lan else "127.0.0.1"
+    try:
+        srv = socketserver.TCPServer((host, a.port), H)
+    except OSError as exc:
+        print("  port %d unavailable (%s), using a free one instead"
+              % (a.port, exc.__class__.__name__))
+        srv = socketserver.TCPServer((host, 0), H)
+
+    with srv:
+        port = srv.server_address[1]
+        print("itembank day")
+        print("  %s, %s" % (today.strftime("%A"), iso))
+        print("  plan    %s (%d dated rows)" % (a.plan, len(plan)))
+        print("  log     %s" % log_path)
+        print("  url     http://127.0.0.1:%d/" % port)
+        if a.lan:
+            print("  phone   http://%s:%d/   (same wifi only)" % (lan_address(), port))
+        print("  Ticks are saved as you make them. Ctrl-C when you are done.")
+        sys.stdout.flush()
+        if not a.no_open:
+            threading.Timer(0.4, lambda: webbrowser.open("http://127.0.0.1:%d/" % port)).start()
+        try:
+            srv.serve_forever()
+        except KeyboardInterrupt:
+            print("\nstopped. Today: %s. Streak %d."
+                  % (day_status(log.get(iso, set())), day_streak(log, today)))
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(
         prog="itembank",
@@ -1382,6 +1763,19 @@ def main():
     s.add_argument("--format", choices=("basic", "cloze"), default="basic")
     s.add_argument("--force", action="store_true", help="export despite lint errors")
     s.set_defaults(fn=cmd_export)
+
+    s = sub.add_parser("day", help="today's work across every subject, ticked and logged")
+    s.add_argument("plan", help="markdown document holding a dated plan table")
+    s.add_argument("--log", help="daily log file (default: daily_log.md beside the plan)")
+    s.add_argument("--date", help="run a different day, for backfilling a missed one")
+    s.add_argument("--port", type=int, default=8732)
+    s.add_argument("--lan", action="store_true",
+                   help="bind all interfaces so a phone on the same wifi can open it")
+    s.add_argument("--check", action="store_true",
+                   help="print today's row and exit, without serving")
+    s.add_argument("--no-open", action="store_true", dest="no_open",
+                   help="do not launch a browser")
+    s.set_defaults(fn=cmd_day)
 
     s = sub.add_parser("guard", help="fail if a real bank was committed")
     s.add_argument("dir", nargs="?", default=".")

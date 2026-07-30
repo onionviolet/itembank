@@ -32,6 +32,7 @@ learner evidence remain in private storage.
 - Generic Basic and Cloze Anki TSV export through `export`.
 - Synthetic fixture tests for server, agent, study, and export paths.
 - Repository guard against real question-bank content.
+- Daily cross-subject surface (`day`): dated-plan parsing, floor rule, streak log.
 
 ## Next improvements, in order
 
