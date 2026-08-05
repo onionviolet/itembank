@@ -191,6 +191,10 @@ h1{font-size:21px;margin:0 0 4px;letter-spacing:-.01em}
 .opt[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
 .opt .k{flex:0 0 auto;font-family:ui-monospace,Menlo,Consolas,monospace;
   font-size:13px;color:var(--mut);min-width:1.2em}
+.opt .ot{flex:1 1 auto;min-width:0}
+.opt .rat{display:block;margin-top:6px;font-size:12.5px;line-height:1.5;color:var(--mut)}
+.opt.right .rat{color:var(--ok)}
+.opt.wrong .rat{color:var(--bad)}
 .opt.right{border-color:var(--ok);background:var(--ok-bg)}
 .opt.wrong{border-color:var(--bad);background:var(--bad-bg)}
 .opt:disabled{cursor:default}
@@ -342,7 +346,7 @@ function asChoice(q, body, act, card){
   shown.forEach(o=>{
     const b = document.createElement("button");
     b.className = "opt"; b.type = "button"; b.setAttribute("aria-pressed","false");
-    b.innerHTML = `<span class="k">${o.label}</span><span>${esc(o.text)}</span>`;
+    b.innerHTML = `<span class="k">${o.label}</span><span class="ot">${esc(o.text)}</span>`;
     b.onclick = ()=>{
       if(!multi){ picked.length=0; picked.push(o.k); grade(); return; }
       const at = picked.indexOf(o.k);
@@ -360,18 +364,33 @@ function asChoice(q, body, act, card){
     submit = mkSubmit(act, `select ${q.select}`);
     submit.onclick = grade;
   }
+  /* The rationale belongs to the option it is about, not to a footnote list
+     under the card. The same sentence reads as "why the answer you gave failed"
+     when it sits on that answer, and as trivia about the item when it sits in a
+     list below four other lines. No authoring changes: this is the `da` the
+     bank already carries, and it is the same data the hint ladder's tier 3
+     hands back one tier at a time. WHY BEST moves onto the keyed option when
+     there is exactly one, since on a multiple-response item it is about the set
+     rather than about any single option. */
   function grade(){
     const right = same(picked, q.correct);
+    const sole = q.correct.length === 1 ? q.correct[0] : null;
     shown.forEach(o=>{
-      btns[o.k].disabled = true;
-      if(q.correct.includes(o.k)) btns[o.k].classList.add("right");
-      else if(picked.includes(o.k)) btns[o.k].classList.add("wrong");
+      const b = btns[o.k];
+      b.disabled = true;
+      if(q.correct.includes(o.k)) b.classList.add("right");
+      else if(picked.includes(o.k)) b.classList.add("wrong");
+      const line = (o.k === sole && q.why) ? q.why : o.da;
+      if(line){
+        const r = document.createElement("span");
+        r.className = "rat";
+        r.textContent = line;      // textContent, so a bank cannot inject markup
+        b.querySelector(".ot").appendChild(r);
+      }
     });
     if(submit) submit.remove();
-    // Re-label the analysis to the letters actually on screen this time.
-    const lines = shown.filter(o=>o.da).map(o=>`<b>${o.label})</b> ${esc(o.da)}`);
     const given = picked.map(k=>(shown.find(o=>o.k===k)||{}).label).sort().join(", ");
-    close(q, card, act, right, given, lines);
+    close(q, card, act, right, given, {skipWhy: !!(sole && q.why)});
   }
 }
 
@@ -510,7 +529,7 @@ function mkSubmit(act, hint){
 }
 
 /* ---- reveal --------------------------------------------------------------- */
-function close(q, card, act, right, given, daLines){
+function close(q, card, act, right, given, opts){
   autoTotal++;
   if(right) score++; else miss.push({q, given});
   record({n: i+1, type: q.type, stem: q.stem, objective: q.objective || "",
@@ -520,14 +539,14 @@ function close(q, card, act, right, given, daLines){
   exp.className = "exp";
   let h = `<div class="verdict ${right?"y":"n"}">${right?"Correct":"Not correct"}</div>`;
   const blk = (t,v)=> v ? `<div class="blk"><h4>${t}</h4><div>${esc(v)}</div></div>` : "";
-  h += blk("Why this is best", q.why);
+  // Skipped when the caller already put WHY BEST on the keyed option.
+  if(!(opts && opts.skipWhy)) h += blk("Why this is best", q.why);
   h += blk("Key discriminator", q.disc);
   h += blk("Second best", q.second);
-  // daLines arrives pre-labelled with this render's shuffled letters.
-  const lines = daLines ? daLines.slice() : [];
-  if(q.notes) q.notes.forEach(n=>lines.push(esc(n)));
-  if(lines.length) h += `<div class="blk"><h4>Distractor analysis</h4><ul><li>`
-    + lines.join("</li><li>") + `</li></ul></div>`;
+  // Per-option analysis now renders on the options themselves; NOTES has no
+  // option to belong to, so it keeps a block here.
+  if(q.notes && q.notes.length) h += `<div class="blk"><h4>Notes</h4><ul><li>`
+    + q.notes.map(esc).join("</li><li>") + `</li></ul></div>`;
   if(q.trap) h += `<div class="blk trap"><h4>Trap</h4><div>${esc(q.trap)}</div></div>`;
   exp.innerHTML = h;
   card.appendChild(exp);
