@@ -9,8 +9,8 @@ authoring agent the format, `itembank lint` tells it exactly what it got wrong.
 
   itembank spec                 print the format contract (the AI-facing entry point)
   itembank lint  BANK.md        validate; errors exit non-zero, warnings advise
-  itembank build BANK.md [OUT]  self-contained offline HTML quiz; saves nothing
-  itembank serve BANK.md        sit it locally, every answer written to an attempt file
+  itembank build BANK.md [OUT]  offline HTML quiz; holds the key, saves nothing
+  itembank serve BANK.md        the graded sitting: the process scores and records
   itembank stats BANK.md        item mix, objective coverage, answer-position skew
   itembank start BANK.md        start a resumable, agent-readable assessment
   itembank next SESSION.json    return the next item without its answer key
@@ -268,38 +268,76 @@ textarea.ans:disabled{opacity:.75}
 </div>
 <script>
 const Q = __DATA__;
-const RECORD = __RECORD__;   /* true only under `itembank serve` */
-const REVEAL = __REVEAL__;   /* show model answers after a short item */
+const SERVE = __SERVE__;     /* true under `itembank serve`: the process scores */
+const LETTERS = "ABCDEFGH";
 const LABEL = {mc:"multiple choice", multi:"multiple response",
                table:"options table", build:"build list", dnd:"drag-and-drop",
                short:"short answer"};
+const FS = "\u001f", PS = "\u001e";   /* must match FIELD_SEP and PAIR_SEP */
 let i = 0, score = 0, autoTotal = 0;
 const miss = [];
-const LOG = [];              /* every response, in the order answered */
 const host = document.getElementById("host");
 const esc = s => (s==null?"":String(s));
 
-/* ---- recording -------------------------------------------------------------
-   Every answer is POSTed the moment it is given, not batched at the end, so a
-   closed tab or a dead battery costs at most the item in progress. The server
-   rewrites the whole attempt file each time, which makes the write idempotent
-   and means a partial sitting is still a valid file. */
-function record(entry){
-  LOG.push(entry);
-  if(!RECORD) return;
+/* ---- the verdict -----------------------------------------------------------
+   This page does not decide whether an answer is right. Under `serve` it hands
+   the response to the process, which calls the one scorer and returns the
+   verdict together with the explanation, so the page never holds a key it could
+   leak or score against. There is no process behind a file:// page, so `build`
+   ships a canonical key that Python computed and the check below is a single
+   string comparison against it. That is a lookup, not a second set of scoring
+   rules: every rule about what counts as correct still lives in one function,
+   in one language.
+
+   Each answer reaches the server the moment it is given rather than at the end,
+   so a closed tab or a dead battery costs at most the item in progress. */
+function canon(q, r){
+  if(q.type==="mc")    return String(r).toUpperCase();
+  if(q.type==="multi") return r.map(x=>String(x).toUpperCase()).sort().join(",");
+  if(q.type==="table" || q.type==="dnd")
+    return q.rows.map(row => row.id + PS + (r[String(row.id)]||"")).join(FS);
+  if(q.type==="build") return r.join(FS);
+  return "";
+}
+
+async function verify(q, response){
+  if(!SERVE)
+    return {score: (q.key===null || q.key===undefined) ? null : canon(q, response)===q.key,
+            explain: q.explain || {}};
+  const res = await fetch("/answer", {method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({id: q.id, response: response})});
+  if(!res.ok) throw new Error("HTTP " + res.status);
+  return res.json();
+}
+
+/* Paint the widget, then the explanation. A failed verify shows the failure
+   rather than a verdict: a green tick the process never issued would be a lie
+   about work that was not recorded. */
+async function settle(q, response, card, act, paint){
   const el = document.getElementById("savestate");
-  fetch("/save", {method:"POST", headers:{"Content-Type":"application/json"},
-                  body: JSON.stringify({answers: LOG, done: i>=Q.length})})
-    .then(r => { el.textContent = r.ok ? "SAVED" : "SAVE FAILED";
-                 el.className = r.ok ? "" : "bad"; })
-    .catch(() => { el.textContent = "SAVE FAILED, server gone";
-                   el.className = "bad"; });
+  let v;
+  try {
+    v = await verify(q, response);
+  } catch(err){
+    if(el){ el.textContent = "NOT SAVED"; el.className = "bad"; }
+    act.innerHTML = "";
+    const p = document.createElement("div");
+    p.className = "hint";
+    p.style.color = "var(--bad)";
+    p.textContent = "Could not reach the process that scores and records this sitting ("
+                  + err.message + "). This answer was not saved and was not marked. "
+                  + "Restart `itembank serve` and sit it again.";
+    act.appendChild(p);
+    return;
+  }
+  if(el && SERVE){ el.textContent = "SAVED"; el.className = ""; }
+  if(paint) paint(v);
+  close(q, card, act, v);
 }
 
 function shuffled(a){const b=a.slice();for(let j=b.length-1;j>0;j--){
   const k=Math.floor(Math.random()*(j+1));[b[j],b[k]]=[b[k],b[j]];}return b;}
-
-function same(a,b){return a.length===b.length && a.every(x=>b.includes(x));}
 
 function chips(q){
   let h = `<span class="chip type">${LABEL[q.type]||q.type}</span>`;
@@ -343,9 +381,9 @@ const PINNED = /^\s*(all|none)\s+of\s+the\s+above|^\s*both\s+[A-H]\s+and\s+[A-H]
 
 function asChoice(q, body, act, card){
   const multi = q.type === "multi";
-  const raw = Object.keys(q.opts).map(k=>({k, text:q.opts[k], da:q.da?q.da[k]:""}));
-  const free = raw.filter(o=>!PINNED.test(o.text));
-  const pins = raw.filter(o=> PINNED.test(o.text));
+  const want = q.response_schema.select;
+  const free = q.options.filter(o=>!PINNED.test(o.text));
+  const pins = q.options.filter(o=> PINNED.test(o.text));
   const shown = shuffled(free).concat(pins);
   shown.forEach((o,n)=> o.label = LETTERS[n]);
 
@@ -353,26 +391,31 @@ function asChoice(q, body, act, card){
   const wrap = document.createElement("div");
   wrap.className = "opts";
   const btns = {};
+  let submit;
   shown.forEach(o=>{
     const b = document.createElement("button");
     b.className = "opt"; b.type = "button"; b.setAttribute("aria-pressed","false");
     b.innerHTML = `<span class="k">${o.label}</span><span class="ot">${esc(o.text)}</span>`;
     b.onclick = ()=>{
-      if(!multi){ picked.length=0; picked.push(o.k); grade(); return; }
-      const at = picked.indexOf(o.k);
+      if(!multi){ picked.length=0; picked.push(o.key); go(); return; }
+      const at = picked.indexOf(o.key);
       if(at>=0) picked.splice(at,1);
-      else if(picked.length < q.select) picked.push(o.k);
-      shown.forEach(x=>btns[x.k].setAttribute("aria-pressed",
-        picked.includes(x.k)?"true":"false"));
-      submit.disabled = picked.length !== q.select;
+      else if(picked.length < want) picked.push(o.key);
+      shown.forEach(x=>btns[x.key].setAttribute("aria-pressed",
+        picked.includes(x.key)?"true":"false"));
+      submit.disabled = picked.length !== want;
     };
-    btns[o.k]=b; wrap.appendChild(b);
+    btns[o.key]=b; wrap.appendChild(b);
   });
   body.appendChild(wrap);
-  let submit;
   if(multi){
-    submit = mkSubmit(act, `select ${q.select}`);
-    submit.onclick = grade;
+    submit = mkSubmit(act, `select ${want}`);
+    submit.onclick = go;
+  }
+  function go(){
+    shown.forEach(o=>{ btns[o.key].disabled = true; });
+    if(submit) submit.remove();
+    settle(q, multi ? picked.slice() : picked[0], card, act, paint);
   }
   /* The rationale belongs to the option it is about, not to a footnote list
      under the card. The same sentence reads as "why the answer you gave failed"
@@ -382,15 +425,15 @@ function asChoice(q, body, act, card){
      hands back one tier at a time. WHY BEST moves onto the keyed option when
      there is exactly one, since on a multiple-response item it is about the set
      rather than about any single option. */
-  function grade(){
-    const right = same(picked, q.correct);
-    const sole = q.correct.length === 1 ? q.correct[0] : null;
+  function paint(v){
+    const ex = v.explain || {};
+    const correct = ex.correct || [];
+    const sole = correct.length === 1 ? correct[0] : null;
     shown.forEach(o=>{
-      const b = btns[o.k];
-      b.disabled = true;
-      if(q.correct.includes(o.k)) b.classList.add("right");
-      else if(picked.includes(o.k)) b.classList.add("wrong");
-      const line = (o.k === sole && q.why) ? q.why : o.da;
+      const b = btns[o.key];
+      if(correct.includes(o.key)) b.classList.add("right");
+      else if(picked.includes(o.key)) b.classList.add("wrong");
+      const line = (o.key === sole && ex.why) ? ex.why : ((ex.da||{})[o.key] || "");
       if(line){
         const r = document.createElement("span");
         r.className = "rat";
@@ -398,47 +441,52 @@ function asChoice(q, body, act, card){
         b.querySelector(".ot").appendChild(r);
       }
     });
-    if(submit) submit.remove();
-    const given = picked.map(k=>(shown.find(o=>o.k===k)||{}).label).sort().join(", ");
-    close(q, card, act, right, given, {skipWhy: !!(sole && q.why)});
+    v.skipWhy = !!(sole && ex.why);
   }
 }
 
-/* ---- options table + drag-and-drop (assign each row to a category) -------- */
+/* ---- options table + drag-and-drop (assign each row to a category) --------
+   Rows are reshuffled every load, so the response is keyed by the row's id
+   rather than by where it happens to sit on screen. */
 function asAssign(q, body, act, card){
-  const rows = shuffled(q.rows);   // reshuffled every load, both table and dnd
-  const chosen = new Array(rows.length).fill(null);
-  const segs = [];
-  rows.forEach((r, n)=>{
+  const rows = shuffled(q.rows);
+  const chosen = {};                 // row id -> category
+  const segs = {};
+  rows.forEach(r=>{
+    const id = String(r.id);
     const line = document.createElement("div");
     line.className = "rowline";
     const t = document.createElement("div");
     t.className = "rowtext"; t.textContent = r.text;
     const seg = document.createElement("div");
     seg.className = "seg";
-    const bs = q.cats.map(c=>{
+    const bs = q.categories.map(c=>{
       const b = document.createElement("button");
       b.type="button"; b.textContent=c; b.setAttribute("aria-pressed","false");
       b.onclick = ()=>{
-        chosen[n]=c;
+        chosen[id]=c;
         bs.forEach(x=>x.setAttribute("aria-pressed", x.textContent===c?"true":"false"));
-        submit.disabled = chosen.includes(null);
+        submit.disabled = Object.keys(chosen).length !== q.rows.length;
       };
       seg.appendChild(b); return b;
     });
-    segs.push(bs);
+    segs[id] = bs;
     line.appendChild(t); line.appendChild(seg); body.appendChild(line);
   });
   const submit = mkSubmit(act, "assign every row");
   submit.onclick = ()=>{
-    const right = rows.every((r,n)=>chosen[n]===r.cat);
-    rows.forEach((r,n)=>segs[n].forEach(b=>{
-      b.disabled = true;
-      if(b.textContent===r.cat) b.classList.add("right");
-      else if(b.textContent===chosen[n]) b.classList.add("wrong");
-    }));
+    rows.forEach(r=>segs[String(r.id)].forEach(b=>{ b.disabled = true; }));
     submit.remove();
-    close(q, card, act, right, rows.map((r,n)=>`${r.text} -> ${chosen[n]}`).join("; "));
+    settle(q, Object.assign({}, chosen), card, act, v=>{
+      const cats = (v.explain||{}).row_cats || {};
+      rows.forEach(r=>{
+        const id = String(r.id);
+        segs[id].forEach(b=>{
+          if(b.textContent===cats[id]) b.classList.add("right");
+          else if(b.textContent===chosen[id]) b.classList.add("wrong");
+        });
+      });
+    });
   };
 }
 
@@ -471,14 +519,16 @@ function asBuild(q, body, act, card){
   body.appendChild(wrap);
   const submit = mkSubmit(act, "tap the steps in order");
   submit.onclick = ()=>{
-    const right = order.every((s,n)=>s===q.steps[n]);
-    shown.forEach((s,n)=>{
-      btns[n].disabled = true;
-      btns[n].classList.add(order.indexOf(s)===q.steps.indexOf(s) ? "right" : "wrong");
-      btns[n].querySelector(".ord").textContent = q.steps.indexOf(s)+1;
-    });
+    shown.forEach((s,n)=>{ btns[n].disabled = true; });
     submit.remove();
-    close(q, card, act, right, order.join(" > "));
+    settle(q, order.slice(), card, act, v=>{
+      const right = (v.explain||{}).steps || [];
+      shown.forEach((s,n)=>{
+        const at = right.indexOf(s);
+        btns[n].classList.add(order.indexOf(s)===at ? "right" : "wrong");
+        btns[n].querySelector(".ord").textContent = at>=0 ? at+1 : "-";
+      });
+    });
   };
 }
 
@@ -500,33 +550,7 @@ function asShort(q, body, act, card){
   submit.onclick = ()=>{
     ta.disabled = true;
     submit.remove();
-    const text = ta.value.trim();
-    record({n: i+1, type: "short", stem: q.stem, objective: q.objective || "",
-            answer: text, correct: null, model: q.model || "", rubric: q.rubric || []});
-    act.innerHTML = "";
-    const exp = document.createElement("div");
-    exp.className = "exp";
-    let h = `<div class="pend">Recorded. Not marked here.</div>`;
-    if(REVEAL && q.model){
-      h += `<div class="blk"><h4>Model answer</h4><div>${esc(q.model)}</div></div>`;
-      if(q.rubric && q.rubric.length)
-        h += `<div class="blk"><h4>What a marker checks</h4><ul><li>`
-           + q.rubric.map(esc).join("</li><li>") + `</li></ul></div>`;
-    } else {
-      h += `<div class="blk" style="color:var(--mut);font-size:13.5px">The model answer is
-        held back so it cannot contaminate the items after this one. It is in the bank file,
-        and in the attempt file next to what you wrote.</div>`;
-    }
-    if(q.trap && REVEAL)
-      h += `<div class="blk trap"><h4>Trap</h4><div>${esc(q.trap)}</div></div>`;
-    exp.innerHTML = h;
-    card.appendChild(exp);
-    const next = document.createElement("button");
-    next.className="go"; next.type="button";
-    next.textContent = (i===Q.length-1) ? "See results" : "Next";
-    next.onclick = ()=>{ i++; render(); };
-    act.appendChild(next);
-    next.focus();
+    settle(q, ta.value.trim(), card, act, null);
   };
 }
 
@@ -538,26 +562,44 @@ function mkSubmit(act, hint){
   return b;
 }
 
-/* ---- reveal --------------------------------------------------------------- */
-function close(q, card, act, right, given, opts){
-  autoTotal++;
-  if(right) score++; else miss.push({q, given});
-  record({n: i+1, type: q.type, stem: q.stem, objective: q.objective || "",
-          answer: given, correct: right, model: "", rubric: []});
+/* ---- reveal ----------------------------------------------------------------
+   Everything rendered here arrives with the verdict. Before an answer is given
+   the page holds none of it under `serve`, which is the point: an item cannot
+   leak a key the page was never sent. */
+function close(q, card, act, v){
+  const ex = v.explain || {};
+  const right = v.score;
+  const pending = (right === null || right === undefined);
+  if(!pending){ autoTotal++; if(right) score++; else miss.push({q, ex}); }
   act.innerHTML = "";
   const exp = document.createElement("div");
   exp.className = "exp";
-  let h = `<div class="verdict ${right?"y":"n"}">${right?"Correct":"Not correct"}</div>`;
-  const blk = (t,v)=> v ? `<div class="blk"><h4>${t}</h4><div>${esc(v)}</div></div>` : "";
-  // Skipped when the caller already put WHY BEST on the keyed option.
-  if(!(opts && opts.skipWhy)) h += blk("Why this is best", q.why);
-  h += blk("Key discriminator", q.disc);
-  h += blk("Second best", q.second);
-  // Per-option analysis now renders on the options themselves; NOTES has no
-  // option to belong to, so it keeps a block here.
-  if(q.notes && q.notes.length) h += `<div class="blk"><h4>Notes</h4><ul><li>`
-    + q.notes.map(esc).join("</li><li>") + `</li></ul></div>`;
-  if(q.trap) h += `<div class="blk trap"><h4>Trap</h4><div>${esc(q.trap)}</div></div>`;
+  const blk = (t,val)=> val ? `<div class="blk"><h4>${t}</h4><div>${esc(val)}</div></div>` : "";
+  let h = pending
+    ? `<div class="pend">Recorded. Not marked here.</div>`
+    : `<div class="verdict ${right?"y":"n"}">${right?"Correct":"Not correct"}</div>`;
+  if(q.type === "short"){
+    if(ex.model){
+      h += blk("Model answer", ex.model);
+      if(ex.rubric && ex.rubric.length)
+        h += `<div class="blk"><h4>What a marker checks</h4><ul><li>`
+           + ex.rubric.map(esc).join("</li><li>") + `</li></ul></div>`;
+    } else {
+      h += `<div class="blk" style="color:var(--mut);font-size:13.5px">The model answer is
+        held back so it cannot contaminate the items after this one. It is in the bank file`
+        + (SERVE ? `, and in the attempt file next to what you wrote.` : `.`) + `</div>`;
+    }
+  } else {
+    // Skipped when the caller already put WHY BEST on the keyed option.
+    if(!v.skipWhy) h += blk("Why this is best", ex.why);
+    h += blk("Key discriminator", ex.disc);
+    h += blk("Second best", ex.second);
+    // Per-option analysis renders on the options themselves; NOTES has no
+    // option to belong to, so it keeps a block here.
+    if(ex.notes && ex.notes.length) h += `<div class="blk"><h4>Notes</h4><ul><li>`
+      + ex.notes.map(esc).join("</li><li>") + `</li></ul></div>`;
+  }
+  if(ex.trap) h += `<div class="blk trap"><h4>Trap</h4><div>${esc(ex.trap)}</div></div>`;
   exp.innerHTML = h;
   card.appendChild(exp);
   const next = document.createElement("button");
@@ -571,14 +613,12 @@ function close(q, card, act, right, given, opts){
 /* ---- results -------------------------------------------------------------- */
 function finish(){
   document.getElementById("rail").style.width = "100%";
-  record({n: 0, type: "__end__", stem: "", objective: "", answer: "",
-          correct: null, model: "", rubric: []});
   const pct = autoTotal ? Math.round(score/autoTotal*100) : 0;
   const pend = Q.filter(q=>q.type==="short").length;
   let h = `<div class="done"><div class="score mono">${score}/${autoTotal}
     <span style="font-size:17px;color:var(--mut)"> &middot; ${pct}% auto-marked</span></div>`;
   if(pend) h += `<p style="margin:12px 0 0;color:var(--warn)"><b>${pend} short
-    answer${pend>1?"s":""} not marked here.</b> ${RECORD
+    answer${pend>1?"s":""} not marked here.</b> ${SERVE
       ? "They are in the attempt file, waiting for a marker."
       : "Nothing recorded them, because this page was opened as a file. Use <code>itembank serve</code> for a sitting that is meant to be graded."}</p>`;
   if(miss.length){
@@ -587,7 +627,7 @@ function finish(){
     miss.forEach(m=>{
       h += `<li style="margin-bottom:9px"><b>${esc(m.q.stem.slice(0,110))}</b>`
         + (m.q.objective ? ` <span class="chip">${esc(m.q.objective)}</span>` : "")
-        + (m.q.trap ? `<br><span style="color:var(--mut)">Trap: ${esc(m.q.trap)}</span>` : "")
+        + (m.ex.trap ? `<br><span style="color:var(--mut)">Trap: ${esc(m.ex.trap)}</span>` : "")
         + `</li>`;
     });
     h += `</ul>`;
@@ -836,28 +876,75 @@ def normalize_answer(answer):
     return answer
 
 
-def score_response(q, answer):
-    """Score machine-checkable items. Constructed response stays ungraded."""
+# Field and record separators for the canonical form. Control characters rather
+# than punctuation because option text and build steps contain commas, pipes and
+# ">" often enough that any printable separator eventually collides with content
+# and scores a correct response wrong.
+FIELD_SEP = "\x1f"
+PAIR_SEP = "\x1e"
+
+
+def canonical_response(q, answer):
+    """Reduce a selected response to one comparable string.
+
+    Three consumers need to agree on what a response *is*: the scorer compares
+    two of these, the static `build` page compares the learner's against a key
+    computed here, and the attempt record stores what was given. Putting the
+    shape in one function is what lets the browser stop deciding correctness
+    while still being able to self-check offline, where there is no process to
+    ask. Returns None for constructed response, which has no canonical form.
+    """
     answer = normalize_answer(answer)
-    if q["type"] == "short":
+    t = q["type"]
+    if t == "short":
         return None
-    if q["type"] == "mc":
+    if t == "mc":
         if isinstance(answer, list):
             answer = answer[0] if len(answer) == 1 else ""
-        return isinstance(answer, str) and answer.upper() == q["correct"][0]
-    if q["type"] == "multi":
-        given = sorted(str(x).upper() for x in (answer if isinstance(answer, list) else [answer]))
-        return given == sorted(q["correct"])
-    if q["type"] in ("table", "dnd"):
+        return str(answer).strip().upper() if isinstance(answer, str) else ""
+    if t == "multi":
+        given = answer if isinstance(answer, list) else [answer]
+        return ",".join(sorted(str(x).strip().upper() for x in given))
+    if t in ("table", "dnd"):
         if isinstance(answer, list):
             answer = {str(i): v for i, v in enumerate(answer)}
-        if not isinstance(answer, dict):
-            return False
-        return all(str(i) in answer and answer[str(i)] == row["cat"]
-                   for i, row in enumerate(q["rows"])) and len(answer) == len(q["rows"])
-    if q["type"] == "build":
-        return isinstance(answer, list) and answer == q["steps"]
-    return False
+        if not isinstance(answer, dict) or len(answer) != len(q["rows"]):
+            return ""          # a partial or padded assignment is not a response
+        return FIELD_SEP.join("%d%s%s" % (i, PAIR_SEP, answer.get(str(i), ""))
+                              for i in range(len(q["rows"])))
+    if t == "build":
+        return FIELD_SEP.join(str(x) for x in answer) if isinstance(answer, list) else ""
+    return ""
+
+
+def canonical_key(q):
+    """The canonical response that is correct, in the same shape as the above."""
+    t = q["type"]
+    if t == "short":
+        return None
+    if t == "mc":
+        return q["correct"][0]
+    if t == "multi":
+        return ",".join(sorted(q["correct"]))
+    if t in ("table", "dnd"):
+        return FIELD_SEP.join("%d%s%s" % (i, PAIR_SEP, r["cat"])
+                              for i, r in enumerate(q["rows"]))
+    if t == "build":
+        return FIELD_SEP.join(q["steps"])
+    return ""
+
+
+def score_response(q, answer):
+    """The only scorer. Every surface reaches a verdict through this function.
+
+    Constructed response returns None rather than False: not-yet-marked and
+    marked-wrong are different states, and collapsing them would let a pending
+    item read as a failure in the evidence.
+    """
+    key = canonical_key(q)
+    if key is None:
+        return None
+    return canonical_response(q, answer) == key
 
 
 def session_path(path):
@@ -989,6 +1076,78 @@ def answer_text(q):
     return q.get("model", "")
 
 
+def response_text(q, answer):
+    """Human-readable rendering of what the learner actually gave.
+
+    The attempt file records option text, not letters. Letters are reshuffled on
+    every page load, so "B" in a saved attempt names a different option the next
+    time the same bank is sat, which makes the record unreadable exactly when
+    somebody comes back to mark it.
+    """
+    answer = normalize_answer(answer)
+    t = q["type"]
+    if t == "short":
+        return str(answer or "")
+    if t in ("mc", "multi"):
+        given = answer if isinstance(answer, list) else [answer]
+        keys = [str(k).strip().upper() for k in given]
+        return "; ".join("%s) %s" % (k, q["opts"][k]) for k in keys if k in q["opts"])
+    if t in ("table", "dnd"):
+        if isinstance(answer, list):
+            answer = dict((str(i), v) for i, v in enumerate(answer))
+        if not isinstance(answer, dict):
+            return ""
+        return "; ".join("%s -> %s" % (r["text"], answer.get(str(i), "(unassigned)"))
+                         for i, r in enumerate(q["rows"]))
+    if t == "build":
+        return " -> ".join(str(x) for x in answer) if isinstance(answer, list) else ""
+    return ""
+
+
+def explain_payload(q, reveal=True):
+    """Everything the learner may see AFTER responding, and nothing before it.
+
+    Under `serve` this is what the process hands back with the verdict, which is
+    what lets the page render a full explanation while never having been sent a
+    key it could leak or grade against.
+    """
+    out = {"answer_text": answer_text(q), "why": q.get("why", ""),
+           "disc": q.get("disc", ""), "second": q.get("second", ""),
+           "trap": q.get("trap", ""), "notes": q.get("notes") or []}
+    t = q["type"]
+    if t in ("mc", "multi"):
+        out["correct"] = q["correct"]
+        out["da"] = dict((k, v) for k, v in (q.get("da") or {}).items() if v)
+    elif t in ("table", "dnd"):
+        out["row_cats"] = dict((str(i), r["cat"]) for i, r in enumerate(q["rows"]))
+    elif t == "build":
+        out["steps"] = q["steps"]
+    elif t == "short":
+        # The model answer stays hidden unless asked for, because reading it
+        # turns every item after this one into recognition rather than recall.
+        out["model"] = q.get("model", "") if reveal else ""
+        out["rubric"] = (q.get("rubric") or []) if reveal else []
+        if not reveal:
+            out["trap"] = ""
+    return out
+
+
+def page_item(q, reveal=True, offline=False):
+    """One item shape for the quiz page, in both of its modes.
+
+    `serve` sends only the public half and scores in the process. A file:// page
+    has no process to ask, so `build` additionally carries the canonical key and
+    the explanation. That makes the static file the one surface holding a key on
+    the client, which is a property of having no server rather than a second
+    scoring model, and it is stated in the README rather than left implicit.
+    """
+    out = public_item(q)
+    if offline:
+        out["key"] = canonical_key(q)
+        out["explain"] = explain_payload(q, reveal)
+    return out
+
+
 def study_item(q):
     return {"id": q["id"], "type": q["type"], "stem": q["stem"],
             "objective": q.get("objective", ""), "answer": answer_text(q),
@@ -1090,21 +1249,22 @@ def cmd_lint(a):
     return 1 if errors else 0
 
 
-def page_for(bank_path, qs, record=False, reveal=False):
+def page_for(bank_path, qs, serve=False, reveal=False):
     text = open(bank_path, encoding="utf-8").read()
     title = grab(r"(?m)^#\s+(.*?)\s*$", text) or os.path.basename(bank_path)
     counts = collections.Counter(q["type"] for q in qs)
     mix = ", ".join("%d %s" % (v, k) for k, v in counts.most_common())
     sub = "%d items &middot; %s &middot; dichotomous scoring" % (len(qs), mix)
-    if record:
-        sub += " &middot; answers recorded"
+    sub += " &middot; answers recorded" if serve else " &middot; nothing recorded"
+    items = [page_item(q, reveal=reveal, offline=not serve) for q in qs]
+    # __DATA__ goes in last so that bank text which happens to contain another
+    # placeholder is never itself substituted.
     return mix, (TEMPLATE
                  .replace("__THEME__", THEME_CSS)
-                 .replace("__DATA__", json.dumps(qs, ensure_ascii=False))
-                 .replace("__RECORD__", "true" if record else "false")
-                 .replace("__REVEAL__", "true" if reveal else "false")
+                 .replace("__SERVE__", "true" if serve else "false")
                  .replace("__TITLE__", html.escape(title))
-                 .replace("__SUB__", sub))
+                 .replace("__SUB__", sub)
+                 .replace("__DATA__", json.dumps(items, ensure_ascii=False)))
 
 
 def cmd_build(a):
@@ -1117,9 +1277,10 @@ def cmd_build(a):
     out = a.out or os.path.splitext(a.bank)[0] + "_quiz.html"
     if os.path.dirname(out):
         os.makedirs(os.path.dirname(out), exist_ok=True)
-    # A file:// page cannot write anywhere, so `build` never records. It stays
-    # the shareable, no-process mode; `serve` is the one that keeps answers.
-    mix, page = page_for(a.bank, qs, record=False, reveal=not a.blind)
+    # A file:// page cannot write anywhere and has no process to ask, so `build`
+    # records nothing and is the one surface that carries the answer key to the
+    # client. It stays the shareable, no-process mode; `serve` is the graded one.
+    mix, page = page_for(a.bank, qs, serve=False, reveal=not a.blind)
     open(out, "w", encoding="utf-8").write(page)
     print("%d items -> %s" % (len(qs), out))
     print("   mix: " + mix)
@@ -1138,7 +1299,7 @@ def cmd_build(a):
 def attempt_markdown(bank_path, answers, done):
     from datetime import datetime
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-    body = [a for a in answers if a.get("type") != "__end__"]
+    body = list(answers)
     auto = [a for a in body if a.get("correct") is not None]
     right = [a for a in auto if a["correct"]]
     shorts = [a for a in body if a.get("type") == "short"]
@@ -1203,8 +1364,12 @@ def cmd_serve(a):
 
     The static `build` page is sandboxed by the browser and cannot write a file,
     which is why answers used to evaporate when the tab closed. A loopback
-    server is the smallest thing that fixes it without adding a dependency: the
-    page POSTs each answer, this process writes the attempt file.
+    server is the smallest thing that fixes it without adding a dependency.
+
+    It also does the scoring. The page is sent items with the key stripped, and
+    POSTs each response here; this process calls the one scorer, records the
+    result, and returns the verdict with the explanation. So a sitting that is
+    meant to count is one where the browser never held the answers.
     """
     import http.server, socketserver, webbrowser, threading
     from datetime import datetime
@@ -1221,9 +1386,31 @@ def cmd_serve(a):
         "%s_attempt_%s.md" % (os.path.splitext(os.path.basename(a.bank))[0],
                               datetime.now().strftime("%Y-%m-%d_%H%M")))
     os.makedirs(os.path.dirname(out), exist_ok=True)
-    _, page = page_for(a.bank, qs, record=True, reveal=a.reveal)
+    _, page = page_for(a.bank, qs, serve=True, reveal=a.reveal)
     page_bytes = page.encode("utf-8")
+    by_id = dict((q["id"], q) for q in qs)
+    # Keyed by item id and rewritten in full on every answer, so re-answering an
+    # item replaces its entry instead of appending a second one, and a sitting
+    # that stops halfway still leaves a valid file.
+    answered = collections.OrderedDict()
     state = {"writes": 0}
+
+    def record(q, response):
+        score = score_response(q, response)
+        answered[q["id"]] = {
+            "n": q["number"], "type": q["type"], "stem": q["stem"],
+            "objective": q.get("objective", ""),
+            "answer": response_text(q, response), "correct": score,
+            "model": q.get("model", ""), "rubric": q.get("rubric") or []}
+        done = len(answered) >= len(qs)
+        md = attempt_markdown(a.bank, list(answered.values()), done)
+        open(out, "w", encoding="utf-8").write(md)
+        state["writes"] += 1
+        sys.stdout.write("\r  %d/%d answered, saved" % (len(answered), len(qs)))
+        sys.stdout.flush()
+        if done:
+            print("\n  finished. Attempt file: %s" % out)
+        return score
 
     class H(http.server.BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -1240,26 +1427,28 @@ def cmd_serve(a):
             self.wfile.write(page_bytes)
 
         def do_POST(self):
-            if self.path != "/save":
+            if self.path != "/answer":
                 self.send_error(404)
                 return
             n = int(self.headers.get("Content-Length") or 0)
             try:
                 data = json.loads(self.rfile.read(n).decode("utf-8"))
-                md = attempt_markdown(a.bank, data.get("answers", []), data.get("done"))
-                open(out, "w", encoding="utf-8").write(md)
-                state["writes"] += 1
-                answered = len([x for x in data.get("answers", [])
-                                if x.get("type") != "__end__"])
-                sys.stdout.write("\r  %d/%d answered, saved" % (answered, len(qs)))
-                sys.stdout.flush()
-                if data.get("done"):
-                    print("\n  finished. Attempt file: %s" % out)
+                q = by_id.get(data.get("id"))
+                if q is None:
+                    self.send_error(404, "no item %r in this bank" % data.get("id"))
+                    return
+                score = record(q, data.get("response"))
+                body = json.dumps({"item_id": q["id"], "score": score,
+                                   "explain": explain_payload(q, a.reveal)},
+                                  ensure_ascii=False).encode("utf-8")
             except Exception as exc:                # never let a bad POST kill a sitting
                 self.send_error(500, str(exc))
                 return
-            self.send_response(204)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
             self.end_headers()
+            self.wfile.write(body)
 
     print("itembank serve")
     # Windows reserves scattered port ranges (Hyper-V, WSL), so a fixed default

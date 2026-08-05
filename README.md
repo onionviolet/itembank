@@ -43,8 +43,8 @@ somewhere and make it executable.
 ```
 itembank spec                 # print the format contract; give this to your LLM
 itembank lint  bank.md        # validate; exits non-zero on error
-itembank build bank.md        # interactive offline HTML quiz, NOTHING is saved
-itembank serve bank.md        # sit it locally, every answer written to disk
+itembank build bank.md        # offline HTML quiz; holds the key, saves NOTHING
+itembank serve bank.md        # the graded sitting: the process scores and records
 itembank stats bank.md        # item mix, objective coverage, answer-position skew
 itembank start bank.md       # start a resumable JSON assessment session
 itembank next SESSION.json   # return the next item without its answer key
@@ -63,7 +63,8 @@ The intended loop with an LLM:
 2. Ask for questions on your material.
 3. Save them to a markdown file.
 4. `itembank lint` it, paste the errors back, iterate.
-5. `itembank build` and study.
+5. `itembank serve` and sit it. Use `build` only for a throwaway drill; a static
+   page holds the answer key and saves nothing.
 
 For an agent, use the JSON session interface instead of scraping HTML:
 
@@ -191,6 +192,20 @@ moment it is given, and the process writes an attempt file to disk. Nothing is
 batched at the end, so a closed tab or a dead battery costs at most the item in
 progress.
 
+`serve` also scores. The page is sent items with the key stripped out, posts
+each response to the process, and renders the verdict and the explanation the
+process sends back. So under `serve` the browser never holds an answer, and
+there is one scorer for every surface: the same function the JSON session
+interface calls.
+
+**`build` is the exception, and it is one on purpose.** A `file://` page has no
+process to ask, so the static file carries the key. Anyone who opens the source
+can read the answers. That is acceptable for drilling alone and disqualifying
+for a sitting somebody else marks or an agent administers, so use `serve` for
+anything that counts. What `build` does not carry is a second set of scoring
+rules: Python writes a canonical key into the page and the page compares one
+string against it.
+
 ```
 itembank serve bank.md
 ```
@@ -274,7 +289,8 @@ itembank.py               the whole tool
 GRADING.md                how to mark an attempt file; hand this to your marker
 fixtures/sample_bank.md   synthetic, exercises all six types, lints clean
 fixtures/broken_bank.md   deliberately defective; CI asserts lint catches each defect
-tests/serve_roundtrip.py  asserts a served sitting reaches disk
+tests/serve_roundtrip.py  asserts a served sitting reaches disk and leaks no key
+tests/scoring_roundtrip.py asserts one scorer, and that the offline key matches it
 tests/agent_roundtrip.py  asserts the JSON session contract survives a full sitting
 tests/surface_roundtrip.py asserts study and Anki export output
 

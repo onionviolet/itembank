@@ -32,14 +32,15 @@ jobs:
       - name: Sample fixture builds
         run: python itembank.py build fixtures/sample_bank.md /tmp/out.html
 
-      - name: Serve records an attempt to disk
-        run: python tests/serve_roundtrip.py
-
-      - name: Day surface round-trips ticks
-        run: python tests/day_roundtrip.py
-
-      - name: Day wiring, behind/load, and degraded paths hold
-        run: python tests/due_roundtrip.py
+      # Every file under tests/, rather than a named list. The list had already
+      # drifted: two test files existed that CI never ran, so they could fail
+      # for weeks without anyone hearing about it.
+      - name: Test suite
+        run: |
+          for t in tests/*.py; do
+            echo "== $t"
+            python "$t" || exit 1
+          done
 
       - name: No real question bank committed
         run: python itembank.py guard .
