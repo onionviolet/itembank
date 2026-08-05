@@ -142,11 +142,7 @@ def notes(ch):
     return [b.strip() for b in re.findall(r"(?m)^-\s*(.+?)\s*$", blk)]
 
 
-TEMPLATE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>__TITLE__</title>
-<style>
-:root{
+THEME_CSS = r""":root{
   --bg:#f3f5f4; --card:#fff; --ink:#171d1c; --mut:#5f6d6a; --line:#dfe5e3;
   --accent:#0e6e62; --accent-soft:#e3efec;
   --ok:#1b7a3d; --ok-bg:#e8f4ec; --bad:#b4272b; --bad-bg:#fbebeb; --warn:#b5760a;
@@ -159,7 +155,21 @@ TEMPLATE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
     --ok:#4fbf74; --ok-bg:#11291b; --bad:#f0666a; --bad-bg:#2b1416; --warn:#e0a23a;
     --chip:#1d2726;
   }
-}
+}"""
+"""The one palette, shared by every surface.
+
+`study` used to declare its own blue accent and its own ok and bad, which made
+two surfaces of one tool read as two products, and left the study page with no
+dark-mode accent at all because its dark block never redefined one. Anything
+that renders substitutes __THEME__ rather than restating colours, so a theme
+is changed in one place.
+"""
+
+TEMPLATE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>__TITLE__</title>
+<style>
+__THEME__
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
   font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
@@ -989,8 +999,7 @@ def study_item(q):
 STUDY_TEMPLATE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>__TITLE__ study</title>
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--ink:#1c2024;--mut:#6b7280;--line:#e5e7eb;--accent:#2563eb;--ok:#16a34a;--bad:#dc2626}
-@media(prefers-color-scheme:dark){:root{--bg:#0f1216;--card:#171b21;--ink:#e6e8eb;--mut:#9aa3ad;--line:#2a3038}}
+__THEME__
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 .wrap{max-width:720px;margin:0 auto;padding:22px 18px 80px}h1{font-size:19px;margin:0 0 12px}
 .tabs{display:flex;gap:8px;margin-bottom:14px}.tab{flex:1;padding:9px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);cursor:pointer;font:inherit;font-weight:600}.tab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -1022,8 +1031,10 @@ def cmd_study(a):
     out = a.out or os.path.splitext(a.bank)[0] + "_study.html"
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     title = grab(r"(?m)^#\s+(.*?)\s*$", open(a.bank, encoding="utf-8").read()) or os.path.basename(a.bank)
-    page = STUDY_TEMPLATE.replace("__TITLE__", html.escape(title)).replace(
-        "__DATA__", json.dumps([study_item(q) for q in qs], ensure_ascii=False))
+    page = (STUDY_TEMPLATE.replace("__THEME__", THEME_CSS)
+            .replace("__TITLE__", html.escape(title))
+            .replace("__DATA__", json.dumps([study_item(q) for q in qs],
+                                            ensure_ascii=False)))
     open(out, "w", encoding="utf-8").write(page)
     print("%d items -> %s" % (len(qs), out))
     return 0
@@ -1088,6 +1099,7 @@ def page_for(bank_path, qs, record=False, reveal=False):
     if record:
         sub += " &middot; answers recorded"
     return mix, (TEMPLATE
+                 .replace("__THEME__", THEME_CSS)
                  .replace("__DATA__", json.dumps(qs, ensure_ascii=False))
                  .replace("__RECORD__", "true" if record else "false")
                  .replace("__REVEAL__", "true" if reveal else "false")
@@ -1496,27 +1508,57 @@ def parse_lanes(path, known_lanes=DAY_LANES):
 
 
 def lint_lane_paths(wiring, lanes_path):
-    """Notes paths resolve against the wiring file's folder, then its parent
-    (the file lives one level below the vault root and the paths are
-    vault-root relative)."""
+    """One resolver, so the linter cannot agree with a resolution bug.
+
+    It used to repeat the two-base lookup inline, which meant a path the
+    resolver could not find was also a path the linter reported as fine.
+    """
     errors = []
-    here = os.path.dirname(os.path.abspath(lanes_path))
     for lane, w in wiring.items():
         p = w.get("notes")
-        if not p:
-            continue
-        if not any(os.path.exists(os.path.join(base, p))
-                   for base in (here, os.path.dirname(here))):
+        if p and not resolve_notes(p, lanes_path):
             errors.append("lane %s: notes file %r does not exist" % (lane, p))
     return errors
 
 
-def resolve_notes(path, lanes_path):
+def wiring_bases(lanes_path):
+    """Candidate roots for a relative wiring path, nearest first.
+
+    This used to be exactly two entries, the wiring file's folder and its
+    parent, which worked only because `lanes.md` happens to sit one level below
+    the vault root. Walk up to the repository root instead, so moving the
+    wiring file deeper does not silently render every lane empty. The walk
+    stops at a `.git` (a file in a worktree, a directory otherwise), at the
+    filesystem root, or after eight levels, whichever comes first.
+    """
     here = os.path.dirname(os.path.abspath(lanes_path))
-    for base in (here, os.path.dirname(here)):
-        full = os.path.join(base, path)
+    out, cur = [], here
+    while True:
+        out.append(cur)
+        if os.path.exists(os.path.join(cur, ".git")):
+            break
+        parent = os.path.dirname(cur)
+        if parent == cur or len(out) >= 8:
+            break
+        cur = parent
+    return out
+
+
+def resolve_notes(path, lanes_path):
+    """Resolve a wiring path to an existing file, or "" if there is none.
+
+    `~` and absolute paths are handled deliberately. Absolute paths did work
+    before, but only by the accident that os.path.join returns its right-hand
+    side when that side is absolute, which is behaviour nothing tested and
+    nothing documented.
+    """
+    p = os.path.expanduser(path)
+    if os.path.isabs(p):
+        return os.path.abspath(p) if os.path.exists(p) else ""
+    for base in wiring_bases(lanes_path):
+        full = os.path.join(base, p)
         if os.path.exists(full):
-            return full
+            return os.path.abspath(full)
     return ""
 
 
@@ -1542,13 +1584,18 @@ def lane_files(w, lanes_path):
         primary = resolve_notes(w["notes"], lanes_path)
         if primary:
             add(primary)
-    if w.get("glob"):
-        here = os.path.dirname(os.path.abspath(lanes_path))
-        for base in (here, os.path.dirname(here)):
-            for m in sorted(globmod.glob(os.path.join(base, w["glob"]),
-                                         recursive=True)):
-                add(m)
-            if len(out) > (1 if w.get("notes") else 0):
+    g = os.path.expanduser(w.get("glob") or "")
+    if g and os.path.isabs(g):
+        for m in sorted(globmod.glob(g, recursive=True)):
+            add(m)
+    elif g:
+        # Nearest base that matches anything wins, and the search stops there.
+        # A bare `*.md` would otherwise sweep every level up to the repo root.
+        for base in wiring_bases(lanes_path):
+            hits = sorted(globmod.glob(os.path.join(base, g), recursive=True))
+            if hits:
+                for m in hits:
+                    add(m)
                 break
     return out
 

@@ -148,6 +148,51 @@ def check_reduced_page():
         fail("the text render lost the lane row or the reduced-mode note")
 
 
+def check_path_resolution():
+    """Wiring paths from arbitrary places, not just one level above lanes.md.
+
+    The old resolver tried exactly two bases, so a wiring file nested deeper
+    than one level below the root silently resolved nothing and every lane
+    rendered empty. Absolute paths worked only by accident and `~` never did.
+    """
+    import tempfile
+    with tempfile.TemporaryDirectory() as root:
+        os.makedirs(os.path.join(root, ".git"))
+        deep = os.path.join(root, "a", "b", "c")
+        os.makedirs(deep)
+        target = os.path.join(root, "notes", "emt.md")
+        os.makedirs(os.path.dirname(target))
+        open(target, "w").write("# notes\n")
+        lanes = os.path.join(deep, "lanes.md")
+        open(lanes, "w").write("x\n")
+
+        # three levels up, which the two-base resolver could never reach
+        if not itembank.resolve_notes("notes/emt.md", lanes):
+            fail("a path at the repo root did not resolve from a nested lanes.md")
+        # the walk stops at .git, so nothing above the repo is reachable
+        if itembank.wiring_bases(lanes)[-1] != os.path.abspath(root):
+            fail("the base walk did not stop at the repository root")
+        # absolute, now deliberate rather than accidental
+        if itembank.resolve_notes(target, lanes) != os.path.abspath(target):
+            fail("an absolute notes path did not resolve to itself")
+        if itembank.resolve_notes(os.path.join(root, "nope.md"), lanes):
+            fail("a missing absolute path resolved anyway")
+        # ~ expansion, checked against a path that certainly exists
+        home = os.path.expanduser("~")
+        if os.path.isdir(home):
+            first = sorted(f for f in os.listdir(home)
+                           if os.path.isfile(os.path.join(home, f)))
+            if first and not itembank.resolve_notes("~/" + first[0], lanes):
+                fail("~ was not expanded")
+        # the linter agrees with the resolver instead of repeating it
+        errs = itembank.lint_lane_paths({"EMT": {"notes": "notes/emt.md"}}, lanes)
+        if errs:
+            fail("the linter rejected a path the resolver finds: %r" % errs)
+        errs = itembank.lint_lane_paths({"EMT": {"notes": "notes/gone.md"}}, lanes)
+        if not errs:
+            fail("the linter accepted a path that does not exist")
+
+
 def main():
     check_wiring()
     check_linter_names_rows()
@@ -155,8 +200,10 @@ def main():
     check_old_log_reader()
     check_anki_closed()
     check_reduced_page()
+    check_path_resolution()
     print("PASS: wiring linted, behind/load hand-checked, old log mapped, "
-          "closed Anki and missing wiring degraded")
+          "closed Anki and missing wiring degraded, paths resolve from "
+          "arbitrary depth")
 
 
 if __name__ == "__main__":
