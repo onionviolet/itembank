@@ -93,11 +93,20 @@ def main():
     if itembank.score_response(tricky, ["a", "> b", "c | d", "e , f"]) is not False:
         fail("a build item was scored right on a different step list")
 
-    # One scorer, structurally: nothing else may compare against a key.
-    source = open(os.path.join(ROOT, "itembank.py"), encoding="utf-8").read()
-    scorers = re.findall(r"(?m)^def (\w*score\w*)\(", source)
-    if scorers != ["score_response"]:
-        fail("expected exactly one scorer, found %r" % scorers)
+    # One scorer, structurally, across every module rather than in the one file
+    # that happens to hold it today.
+    scorers = []
+    for base, dirs, files in os.walk(ROOT):
+        dirs[:] = [d for d in dirs if d not in (".git", "__pycache__", "tests")]
+        for f in sorted(files):
+            if not f.endswith(".py"):
+                continue
+            path = os.path.join(base, f)
+            source = open(path, encoding="utf-8").read()
+            scorers += [(os.path.relpath(path, ROOT), n)
+                        for n in re.findall(r"(?m)^def (\w*score\w*)\(", source)]
+    if scorers != [("runtime.py", "score_response")]:
+        fail("expected exactly one scorer, found %r" % (scorers,))
 
     print("scoring contract: ok (%d items, one scorer)" % len(qs))
     return 0

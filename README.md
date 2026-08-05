@@ -6,9 +6,17 @@ It is also a local-first assessment runtime. Humans and AI tutors use the same
 parser, scoring rules, resumable sessions, and evidence files through browser,
 CLI, or JSON interfaces.
 
-One file, Python standard library only, no network and no services. Render a
-bank to a self-contained offline HTML quiz, or sit it under a local server that
-writes every answer to disk as you give it.
+Python standard library only, no network, no services, and no install step:
+`python itembank.py` from a checkout is the whole thing. Render a bank to a
+self-contained offline HTML quiz, or sit it under a local server that scores
+every answer and writes it to disk as you give it.
+
+Four layers, and the boundaries between them are the design. `model` says what a
+bank is. `runtime` holds the only scorer and decides what a surface may see.
+`server` is one loopback HTTP server. Everything in `surfaces/` is a client: the
+quiz page, `study`, `day`, `export`, the JSON session commands and the CLI. No
+surface parses a bank a second way and none of them decides whether an answer is
+correct.
 
 ## Why this exists
 
@@ -285,7 +293,18 @@ coursework-derived or textbook-derived, and they belong somewhere private.
 ## Layout
 
 ```
-itembank.py               the whole tool
+itembank.py               entry point and public surface
+model.py                  what a bank is, and what makes one invalid
+runtime.py                scoring, sessions, and what a surface may see
+server.py                 one loopback HTTP server, for surfaces that need a browser
+surfaces/quiz.py          build and serve, plus the attempt file
+surfaces/quiz_page.py     the quiz page itself: markup, style, behaviour
+surfaces/study.py         flashcards and the Learn loop
+surfaces/anki.py          Basic and Cloze TSV export
+surfaces/session.py       start, next, submit, report
+surfaces/day.py           the day cockpit
+surfaces/cli.py           argparse, and the commands that need no surface
+surfaces/theme.py         the one palette
 GRADING.md                how to mark an attempt file; hand this to your marker
 fixtures/sample_bank.md   synthetic, exercises all six types, lints clean
 fixtures/broken_bank.md   deliberately defective; CI asserts lint catches each defect
