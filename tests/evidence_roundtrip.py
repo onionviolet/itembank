@@ -15,6 +15,7 @@ sys.path.insert(0, ROOT)
 import itembank                                            # noqa: E402
 
 BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
+BROKEN_BANK = os.path.join(ROOT, "fixtures", "broken_bank.md")
 
 # The 22 keys named in 01-02-PLAN.md's must_haves. The event also carries a
 # 23rd key, "bank", named in the plan's own field list and required by its
@@ -172,12 +173,270 @@ def test_one_writer():
         fail("expected exactly one append_event writer, found %r" % (writers,))
 
 
+# ---- item identity (01-04): the evidence key survives an edit ---------------
+# `fixtures/sample_bank.md` already carries [ID:]/[HASH:] lines, assigned for
+# real by 01-04's Task 2 (`itembank id-assign`). These tests copy it into a
+# tempdir, the same isolation pattern the tracer tests above use, so nothing
+# here reads or writes the repository's own fixture.
+
+def load_bank_text(path):
+    return open(path, encoding="utf-8").read()
+
+
+def write_bank_text(path, text):
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(text)
+
+
+def strip_identity(text):
+    """Remove every `[ID: ...]` and `[HASH: ...]` line, for constructing an
+    id-less bank from one that already carries identity fields.
+    """
+    lines = [l for l in text.splitlines(keepends=True)
+             if not re.match(r"^\[ID:\s|^\[HASH:\s", l)]
+    return "".join(lines)
+
+
+def id_assign_json(args_after_command, cwd):
+    """Run `id-assign` and parse its JSON payload, which is followed by one
+    trailing human-readable status line (per 01-04-PLAN.md Task 2) that would
+    otherwise make the whole of stdout fail json.loads().
+    """
+    out = run(["id-assign"] + list(args_after_command), cwd)
+    lines = out.splitlines()
+    return json.loads("\n".join(lines[:-1]))
+
+
+def lint_text(bank, cwd=None):
+    r = subprocess.run([sys.executable, os.path.join(ROOT, "itembank.py"), "lint", bank],
+                       cwd=cwd, capture_output=True, text=True)
+    return r.returncode, r.stdout
+
+
+def test_identity_survives_edit():
+    """Phase success criterion 1: a stem edit leaves the evidence trail
+    intact, because the key recorded against a response is the opaque
+    `[ID:]`, never the content.
+    """
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "sample_bank.md")
+        shutil.copyfile(BANK, bank)
+        id_assign_json([bank], tmp)   # already assigned in the fixture; confirms idempotence
+
+        objective, submitted, q = start_and_submit(tmp, bank, "drill")
+        item_id = q["item_id"]
+        if not item_id:
+            fail("the served item carries no item_id even after id-assign")
+        if submitted["score"] is not True:
+            fail("correct answer for %s scored %r, not True" % (q["id"], submitted["score"]))
+
+        out = run(["evidence", "--objective", objective, "--base", tmp], tmp)
+        before = json.loads(out)
+        if before["count"] != 1:
+            fail("expected 1 recorded event before the edit, got %r" % before["count"])
+        trail_before = before["events"]
+        if trail_before[0]["item_id"] != item_id:
+            fail("recorded event's item_id %r does not match the served item's %r" %
+                 (trail_before[0]["item_id"], item_id))
+
+        # Edit the served item's stem, leaving every other byte alone.
+        text = load_bank_text(bank)
+        stem_fragment = q["stem"][:40]
+        if stem_fragment not in text:
+            fail("could not locate the served item's stem in the bank text to edit it")
+        edited = text.replace(stem_fragment, stem_fragment + ", mid-shift,", 1)
+        if edited == text:
+            fail("the stem edit produced no change to the bank text")
+        write_bank_text(bank, edited)
+
+        rc, lint_out = lint_text(bank, tmp)
+        if rc != 0:
+            fail("lint exited %d after a stem edit; a content-hash drift must be a "
+                 "warning, not an error (D-04):\n%s" % (rc, lint_out))
+        if "content changed since [HASH:] was recorded" not in lint_out:
+            fail("lint did not report content drift after the stem edit:\n%s" % lint_out)
+
+        qs_after_lint = itembank.load(bank)
+        q_after_lint = next((x for x in qs_after_lint if x["item_id"] == item_id), None)
+        if q_after_lint is None:
+            fail("lint wrote to the bank: the item id %r no longer appears on disk" % item_id)
+
+        out = run(["evidence", "--objective", objective, "--base", tmp], tmp)
+        after_lint = json.loads(out)
+        if after_lint["events"] != trail_before:
+            fail("the evidence trail changed after a stem edit and a lint run:\n"
+                 "before=%r\nafter=%r" % (trail_before, after_lint["events"]))
+
+        reassigned = id_assign_json([bank], tmp)
+        change = next((c for b in reassigned["banks"] for c in b["changes"]
+                       if c["item_id"] == item_id), None)
+        if change is None:
+            fail("id-assign after the edit reported no change entry for item_id %r" % item_id)
+        if change["hash_action"] != "updated":
+            fail("id-assign after an edit reported hash_action %r, not updated" %
+                 change["hash_action"])
+        if change["action"] != "kept":
+            fail("id-assign after an edit reported action %r, not kept -- the id must "
+                 "survive the edit" % change["action"])
+
+        out = run(["evidence", "--objective", objective, "--base", tmp], tmp)
+        final = json.loads(out)
+        if final["events"] != trail_before:
+            fail("the evidence trail changed after re-running id-assign to refresh the hash")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_missing_and_duplicate_ids():
+    tmp = tempfile.mkdtemp()
+    try:
+        # A bank with every [ID:]/[HASH:] line stripped lints with
+        # item.missing_id warnings, zero errors, and nothing is assigned as
+        # a side effect of linting.
+        missing_bank = os.path.join(tmp, "missing_ids.md")
+        write_bank_text(missing_bank, strip_identity(load_bank_text(BANK)))
+        rc, lint_out = lint_text(missing_bank, tmp)
+        if rc != 0:
+            fail("lint on an id-less bank exited non-zero: %r" % lint_out)
+        if lint_out.count("no [ID:] line") != 6:
+            fail("expected 6 item.missing_id warnings, got:\n%s" % lint_out)
+        if any(q["item_id"] for q in itembank.load(missing_bank)):
+            fail("linting a bank assigned an item_id as a side effect")
+
+        # Two items sharing the same [ID:] value: an item.duplicate_id error.
+        dup_bank = os.path.join(tmp, "dup_ids.md")
+        shutil.copyfile(BANK, dup_bank)
+        qs = itembank.load(dup_bank)
+        first_id, second_id = qs[0]["item_id"], qs[1]["item_id"]
+        text = load_bank_text(dup_bank).replace(
+            "[ID: %s]" % second_id, "[ID: %s]" % first_id, 1)
+        write_bank_text(dup_bank, text)
+        rc, lint_out = lint_text(dup_bank, tmp)
+        if rc == 0:
+            fail("lint with two items sharing one [ID:] exited 0")
+        if "duplicate item id" not in lint_out:
+            fail("lint did not report item.duplicate_id:\n%s" % lint_out)
+
+        # id-assign over two id-less banks in one invocation assigns every id
+        # distinctly across both.
+        bank_a = os.path.join(tmp, "bank_a.md")
+        bank_b = os.path.join(tmp, "bank_b.md")
+        write_bank_text(bank_a, strip_identity(load_bank_text(BANK)))
+        write_bank_text(bank_b, strip_identity(load_bank_text(BANK)))
+        id_assign_json([bank_a, bank_b], tmp)
+        ids_a = [q["item_id"] for q in itembank.load(bank_a)]
+        ids_b = [q["item_id"] for q in itembank.load(bank_b)]
+        all_ids = ids_a + ids_b
+        if not all(all_ids):
+            fail("id-assign left an item without an id: %r / %r" % (ids_a, ids_b))
+        if len(set(all_ids)) != len(all_ids):
+            fail("id-assign over two banks in one invocation produced colliding ids: %r" %
+                 all_ids)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_fingerprint_whitespace_stability():
+    qs = itembank.load(BANK)
+    for q in qs:
+        whitespace_only = dict(q)
+        whitespace_only["stem"] = re.sub(r" ", "  ", q["stem"]) + "\n"
+        if itembank.content_fingerprint(whitespace_only) != itembank.content_fingerprint(q):
+            fail("doubling internal spaces and adding a trailing newline to the stem "
+                 "changed the fingerprint for %s" % q["id"])
+
+        one_char_changed = dict(q)
+        stem = q["stem"]
+        flipped = "Z" if stem[-1:] != "Z" else "Y"
+        one_char_changed["stem"] = stem[:-1] + flipped
+        if itembank.content_fingerprint(one_char_changed) == itembank.content_fingerprint(q):
+            fail("changing one stem character left the fingerprint unchanged for %s" %
+                 q["id"])
+
+
+def test_hash_states():
+    tmp = tempfile.mkdtemp()
+    try:
+        bank_text = (
+            "Q1. Item that carries an id but no hash.\n"
+            "[ID: aaaaaaaaaaaaaaaa]\n\n"
+            "A) One\nB) Two\nC) Three\n\n"
+            "CORRECT: A\n\n"
+            "WHY BEST: Placeholder.\n\n"
+            "TRAP: Placeholder.\n\n"
+            "CONFIDENCE: high\n\n"
+            "Q2. Item that carries neither an id nor a hash.\n\n"
+            "A) One\nB) Two\nC) Three\n\n"
+            "CORRECT: A\n\n"
+            "WHY BEST: Placeholder.\n\n"
+            "TRAP: Placeholder.\n\n"
+            "CONFIDENCE: high\n"
+        )
+        bank = os.path.join(tmp, "hash_states.md")
+        write_bank_text(bank, bank_text)
+        r = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "itembank.py"), "lint", bank, "--json"],
+            cwd=tmp, capture_output=True, text=True)
+        payload = json.loads(r.stdout)
+        by_item = {}
+        for w in payload["warnings"]:
+            by_item.setdefault(w["item"], []).append(w["code"])
+        codes_q1 = by_item.get("Q1", [])
+        codes_q2 = by_item.get("Q2", [])
+        if codes_q1.count("item.missing_hash") != 1:
+            fail("Q1 (has id, no hash) did not get exactly one item.missing_hash: %r" %
+                 codes_q1)
+        if "item.content_drift" in codes_q1:
+            fail("Q1 (has id, no hash) unexpectedly got item.content_drift: %r" % codes_q1)
+        if "item.missing_id" not in codes_q2:
+            fail("Q2 (has neither field) did not get item.missing_id: %r" % codes_q2)
+        if "item.missing_hash" in codes_q2 or "item.content_drift" in codes_q2:
+            fail("Q2 (has neither field) unexpectedly got a hash warning: %r" % codes_q2)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_lint_order_stable():
+    outs = []
+    for _ in range(3):
+        r = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "itembank.py"), "lint", BROKEN_BANK, "--json"],
+            capture_output=True, text=True)
+        outs.append(r.stdout)
+    if outs[0] != outs[1] or outs[1] != outs[2]:
+        fail("lint --json output is not stable across three repeated runs")
+    payload = json.loads(outs[0])
+
+    def item_num(tag):
+        m = re.match(r"Q(\d+)", tag)
+        return int(m.group(1)) if m else -1
+
+    error_items = [e["item"] for e in payload["errors"]]
+    if [item_num(t) for t in error_items] != sorted(item_num(t) for t in error_items):
+        fail("errors are not in non-decreasing item order: %r" % error_items)
+
+    warning_items = [w["item"] for w in payload["warnings"]]
+    non_bank = [t for t in warning_items if t != "BANK"]
+    if [item_num(t) for t in non_bank] != sorted(item_num(t) for t in non_bank):
+        fail("warnings are not in non-decreasing item order: %r" % warning_items)
+    if "BANK" in warning_items and warning_items[-1] != "BANK":
+        fail("the bank-wide entry is not last among warnings: %r" % warning_items)
+
+
 def main():
     test_tracer_end_to_end()
     test_mode_recorded()
     test_empty_log()
     test_one_writer()
-    print("evidence contract: ok (tracer end-to-end, mode recorded, empty log, one writer)")
+    test_identity_survives_edit()
+    test_missing_and_duplicate_ids()
+    test_fingerprint_whitespace_stability()
+    test_hash_states()
+    test_lint_order_stable()
+    print("evidence contract: ok (tracer end-to-end, mode recorded, empty log, one writer, "
+          "identity survives edit, missing/duplicate ids, fingerprint stability, hash "
+          "states, lint order)")
     return 0
 
 
