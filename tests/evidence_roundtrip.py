@@ -424,6 +424,303 @@ def test_lint_order_stable():
         fail("the bank-wide entry is not last among warnings: %r" % warning_items)
 
 
+# ---- idempotency and retraction (01-07): D-17's distinct-response rule and --
+# D-10's compensating-append undo, both proven end to end through the real CLI.
+
+def rewind_cursor(session_file, by=1):
+    """Move a session's cursor back `by` positions and mark it active again --
+    exactly what a crash between the evidence append and the session write
+    leaves behind, so re-submitting is a resubmission of the same item, the
+    scenario D-17's dedupe rule exists for.
+    """
+    data = json.load(open(session_file, encoding="utf-8"))
+    data["cursor"] -= by
+    if data["cursor"] < 0:
+        fail("rewound cursor below zero for %s" % session_file)
+    data["status"] = "active"
+    with open(session_file, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, ensure_ascii=False, indent=2)
+        fh.write("\n")
+
+
+def different_answer(q):
+    """A response that is valid to submit for `q` and genuinely differs from
+    `correct_answer(q)`'s canonical form, for exercising the "a different
+    answer opens the next attempt" half of D-17.
+    """
+    if q["type"] == "mc":
+        return next(k for k in sorted(q["opts"]) if k not in q["correct"])
+    if q["type"] == "multi":
+        return json.dumps(sorted(k for k in q["opts"] if k not in q["correct"]))
+    if q["type"] in ("table", "dnd"):
+        alt = q["cats"][1] if len(q["cats"]) > 1 else q["cats"][0]
+        return json.dumps(dict((str(i), alt) for i in range(len(q["rows"]))))
+    if q["type"] == "build":
+        return json.dumps(list(reversed(q["steps"])))
+    return "A genuinely different constructed response, worded differently."
+
+
+def log_lines_for_item(log, item_ref):
+    if not os.path.exists(log):
+        return []
+    out = []
+    for line in open(log, encoding="utf-8").read().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        obj = json.loads(line)
+        if obj.get("event_type") == "response" and obj.get("item_ref") == item_ref:
+            out.append(obj)
+    return out
+
+
+def test_duplicate_submit_dedupes():
+    """PROTO-03. An identical retry of the current item reports
+    already_recorded and names the event already there; a genuinely
+    different answer opens attempt 2. Covers one auto-scored item and the
+    `short` item, whose fallback (RESEARCH.md Pitfall 1) is the one this
+    test must not let regress: neither "the same short answer twice does
+    not dedupe" nor "two different short answers dedupe" may pass.
+    """
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "sample_bank.md")
+        shutil.copyfile(BANK, bank)
+        qs_by_id = {q["id"]: q for q in itembank.load(bank)}
+        log = os.path.join(tmp, "_evidence", "evidence.jsonl")
+
+        started = json.loads(run(["start", bank, "--count", "6", "--seed", "0"], tmp))
+        session_file = started["session_file"]
+
+        auto_tested = short_tested = False
+        data = json.load(open(session_file, encoding="utf-8"))
+        while data["status"] == "active":
+            nxt = json.loads(run(["next", session_file], tmp))
+            if nxt["status"] != "active":
+                break
+            q = qs_by_id[nxt["item"]["id"]]
+
+            if q["type"] != "short" and not auto_tested:
+                answer1 = correct_answer(q)
+                r1 = json.loads(run(["submit", session_file, "--answer", answer1], tmp))
+                if r1["evidence"]["status"] != "recorded":
+                    fail("first submit of %s reported %r, not recorded" %
+                         (q["id"], r1["evidence"]["status"]))
+                event_id_1 = r1["evidence"]["event_id"]
+
+                rewind_cursor(session_file)
+                r2 = json.loads(run(["submit", session_file, "--answer", answer1], tmp))
+                if r2["evidence"]["status"] != "already_recorded":
+                    fail("identical retry of %s reported %r, not already_recorded" %
+                         (q["id"], r2["evidence"]["status"]))
+                if r2["evidence"]["event_id"] != event_id_1:
+                    fail("retry of %s named event_id %r, not the original %r" %
+                         (q["id"], r2["evidence"]["event_id"], event_id_1))
+                lines = log_lines_for_item(log, q["id"])
+                if len(lines) != 1:
+                    fail("expected 1 log line for %s after an identical retry, found %d" %
+                         (q["id"], len(lines)))
+
+                rewind_cursor(session_file)
+                answer2 = different_answer(q)
+                r3 = json.loads(run(["submit", session_file, "--answer", answer2], tmp))
+                if r3["evidence"]["status"] != "recorded":
+                    fail("a genuinely different answer to %s reported %r, not recorded" %
+                         (q["id"], r3["evidence"]["status"]))
+                if r3["evidence"]["event_id"] == event_id_1:
+                    fail("a different answer to %s reused the first event_id" % q["id"])
+                lines = log_lines_for_item(log, q["id"])
+                if len(lines) != 2:
+                    fail("expected 2 log lines for %s after a different answer, found %d" %
+                         (q["id"], len(lines)))
+                second = next(l for l in lines if l["event_id"] == r3["evidence"]["event_id"])
+                if second["attempt_number"] != 2:
+                    fail("a different answer to %s recorded attempt_number %r, not 2" %
+                         (q["id"], second["attempt_number"]))
+                auto_tested = True
+
+            elif q["type"] == "short" and not short_tested:
+                base = "The parameters are within limits, but taste and odour are separate."
+                r1 = json.loads(run(["submit", session_file, "--answer", base], tmp))
+                if r1["evidence"]["status"] != "recorded":
+                    fail("first short submit reported %r, not recorded" %
+                         r1["evidence"]["status"])
+                event_id_1 = r1["evidence"]["event_id"]
+                first_raw = next(l for l in log_lines_for_item(log, q["id"])
+                                 if l["event_id"] == event_id_1)
+                if not first_raw["canonical"].startswith("short:"):
+                    fail("short event's canonical %r does not start with 'short:'" %
+                         first_raw["canonical"])
+                if first_raw["score"] is not None:
+                    fail("short event's score is %r, not None" % first_raw["score"])
+
+                rewind_cursor(session_file)
+                reflowed = "  ".join(base.upper().split())   # same words, different case/spacing
+                r2 = json.loads(run(["submit", session_file, "--answer", reflowed], tmp))
+                if r2["evidence"]["status"] != "already_recorded":
+                    fail("a re-cased, re-spaced retry of the same short answer reported %r, "
+                         "not already_recorded" % r2["evidence"]["status"])
+                if r2["evidence"]["event_id"] != event_id_1:
+                    fail("a re-cased, re-spaced retry of the same short answer named a "
+                         "different event_id")
+
+                rewind_cursor(session_file)
+                different = "A completely different explanation about disinfection byproducts."
+                r3 = json.loads(run(["submit", session_file, "--answer", different], tmp))
+                if r3["evidence"]["status"] != "recorded":
+                    fail("a genuinely different short answer reported %r, not recorded" %
+                         r3["evidence"]["status"])
+                if r3["evidence"]["event_id"] == event_id_1:
+                    fail("a genuinely different short answer reused the first event_id")
+                third_raw = next(l for l in log_lines_for_item(log, q["id"])
+                                 if l["event_id"] == r3["evidence"]["event_id"])
+                if not third_raw["canonical"].startswith("short:"):
+                    fail("second short event's canonical %r does not start with 'short:'" %
+                         third_raw["canonical"])
+                if third_raw["score"] is not None:
+                    fail("second short event's score is %r, not None" % third_raw["score"])
+                short_tested = True
+
+            else:
+                run(["submit", session_file, "--answer", correct_answer(q)], tmp)
+
+            data = json.load(open(session_file, encoding="utf-8"))
+
+        if not auto_tested:
+            fail("no auto-scored item was tested for duplicate-submit dedupe")
+        if not short_tested:
+            fail("no short item was tested for duplicate-submit dedupe")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_retraction():
+    """EVID-05. Undo is an append, never a removal (D-10): a retraction
+    suppresses its target in every view and count without deleting the
+    original line, a retraction that physically precedes its target still
+    suppresses it, and a retracted response no longer holds an attempt open.
+    """
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "sample_bank.md")
+        shutil.copyfile(BANK, bank)
+        objective = "Regulatory framework"   # shared by Q5 (dnd) and Q6 (short)
+        qs = {q["id"]: q for q in itembank.load(bank)}
+        log = os.path.join(tmp, "_evidence", "evidence.jsonl")
+
+        started = json.loads(run(
+            ["start", bank, "--objective", objective, "--count", "2", "--seed", "0"], tmp))
+        session_file = started["session_file"]
+        event_ids = []
+        data = json.load(open(session_file, encoding="utf-8"))
+        while data["status"] == "active":
+            nxt = json.loads(run(["next", session_file], tmp))
+            if nxt["status"] != "active":
+                break
+            q = qs[nxt["item"]["id"]]
+            r = json.loads(run(["submit", session_file, "--answer", correct_answer(q)], tmp))
+            event_ids.append(r["evidence"]["event_id"])
+            data = json.load(open(session_file, encoding="utf-8"))
+
+        if len(event_ids) != 2:
+            fail("expected 2 recorded responses under objective %r, got %d" %
+                 (objective, len(event_ids)))
+
+        before = json.loads(run(["evidence", "--objective", objective, "--base", tmp], tmp))
+        if before["count"] != 2:
+            fail("expected count 2 before any retraction, got %r" % before["count"])
+        if before["retracted"] != 0:
+            fail("expected retracted 0 before any retraction, got %r" % before["retracted"])
+
+        lines_before = [l for l in open(log, encoding="utf-8").read().splitlines() if l.strip()]
+        target = event_ids[0]
+        result = json.loads(run(
+            ["retract", target, "--reason", "wrong bank, superseded", "--base", tmp], tmp))
+        if result["status"] != "retracted":
+            fail("retracting a real event reported %r, not retracted" % result["status"])
+
+        lines_after = [l for l in open(log, encoding="utf-8").read().splitlines() if l.strip()]
+        if len(lines_after) != len(lines_before) + 1:
+            fail("retraction did not append exactly one line: %d -> %d" %
+                 (len(lines_before), len(lines_after)))
+        original_line = next(
+            (l for l in lines_after if json.loads(l).get("event_id") == target), None)
+        if original_line is None:
+            fail("the original event's line is no longer present after retraction")
+        json.loads(original_line)   # still parses
+
+        after = json.loads(run(["evidence", "--objective", objective, "--base", tmp], tmp))
+        if after["count"] != 1:
+            fail("expected count 1 after retracting one of two events, got %r" % after["count"])
+        if after["retracted"] != 1:
+            fail("expected retracted 1 after retracting one of two events, got %r" %
+                 after["retracted"])
+
+        # Retracting the same event again: already_retracted, no new line.
+        result2 = json.loads(run(
+            ["retract", target, "--reason", "duplicate retraction attempt", "--base", tmp], tmp))
+        if result2["status"] != "already_retracted":
+            fail("retracting an already-retracted event reported %r" % result2["status"])
+        lines_after2 = [l for l in open(log, encoding="utf-8").read().splitlines() if l.strip()]
+        if len(lines_after2) != len(lines_after):
+            fail("retracting an already-retracted event appended a line")
+
+        # Retracting an unknown id: non-zero exit, "no event", no new line.
+        r = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "itembank.py"), "retract", "not-a-real-id",
+             "--reason", "test", "--base", tmp],
+            cwd=tmp, capture_output=True, text=True)
+        if r.returncode == 0:
+            fail("retracting an unknown event id exited 0")
+        if "no event" not in (r.stdout + r.stderr):
+            fail("retracting an unknown event id did not name 'no event': %r" %
+                 (r.stdout + r.stderr))
+        lines_after3 = [l for l in open(log, encoding="utf-8").read().splitlines() if l.strip()]
+        if len(lines_after3) != len(lines_after2):
+            fail("retracting an unknown event id appended a line")
+
+        # A hand-built log whose retraction line physically precedes its
+        # target: retracted_ids is collected over the whole log first, so
+        # live_events still suppresses the target.
+        synth_dir = tempfile.mkdtemp()
+        try:
+            synth_log = itembank.log_path(synth_dir)
+            sample_q = next(iter(qs.values()))
+            fake_event = itembank.response_event(
+                "synth-session", sample_q, "A", True, "drill", 1, "synth_bank.md")
+            fake_retraction = itembank.retraction_event(fake_event["event_id"], "ordering test")
+            itembank.append_line(synth_log, json.dumps(fake_retraction, ensure_ascii=False))
+            itembank.append_line(synth_log, json.dumps(fake_event, ensure_ascii=False))
+            live_ids = set(ev["event_id"] for ev in itembank.live_events(synth_log))
+            if fake_event["event_id"] in live_ids:
+                fail("a retraction physically preceding its target failed to suppress it")
+        finally:
+            shutil.rmtree(synth_dir, ignore_errors=True)
+
+        # A retracted response no longer holds an attempt open: retracting
+        # the only response for a fresh item and resubmitting the same
+        # answer reports 'recorded', not 'already_recorded'.
+        solo_started = json.loads(run(["start", bank, "--count", "1", "--seed", "0"], tmp))
+        solo_session = solo_started["session_file"]
+        solo_q = qs[solo_started["item"]["id"]]
+        solo_answer = correct_answer(solo_q)
+        solo_r1 = json.loads(run(["submit", solo_session, "--answer", solo_answer], tmp))
+        if solo_r1["evidence"]["status"] != "recorded":
+            fail("solo item's first submit reported %r, not recorded" %
+                 solo_r1["evidence"]["status"])
+        run(["retract", solo_r1["evidence"]["event_id"], "--reason",
+             "retract the only response", "--base", tmp], tmp)
+        rewind_cursor(solo_session)
+        solo_r2 = json.loads(run(["submit", solo_session, "--answer", solo_answer], tmp))
+        if solo_r2["evidence"]["status"] != "recorded":
+            fail("resubmitting the same answer after retracting the only response reported "
+                 "%r, not recorded" % solo_r2["evidence"]["status"])
+        if solo_r2["evidence"]["event_id"] == solo_r1["evidence"]["event_id"]:
+            fail("resubmitting after retraction reused the retracted event's id")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     test_tracer_end_to_end()
     test_mode_recorded()
@@ -434,9 +731,11 @@ def main():
     test_fingerprint_whitespace_stability()
     test_hash_states()
     test_lint_order_stable()
+    test_duplicate_submit_dedupes()
+    test_retraction()
     print("evidence contract: ok (tracer end-to-end, mode recorded, empty log, one writer, "
           "identity survives edit, missing/duplicate ids, fingerprint stability, hash "
-          "states, lint order)")
+          "states, lint order, duplicate-submit dedupe, retraction)")
     return 0
 
 
