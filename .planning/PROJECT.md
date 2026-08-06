@@ -118,6 +118,16 @@ the feature is wrong.
 - [ ] Agent usage contract covering permissions, answer leakage, retries, manual grading, and what an agent may not infer (root ROADMAP §4)
 - [ ] GIFT export as the cheapest proof of the interoperability claim (#12)
 
+**Packaging, settings, and updates** *(new — supersedes #10 in part)*
+
+- [ ] Single double-clickable artifact per OS via stdlib `python -m zipapp`: `.pyz` plus a one-line launcher for Windows, macOS, and Linux
+- [ ] `--app=http://127.0.0.1:PORT` frameless window so the daemon opens as an app, not a browser tab
+- [ ] One documented config file (`itembank.json`, beside `lanes.md`) holding theme, daily cap, selection weights, auditor autonomy level, model adapter choice, and update policy
+- [ ] `itembank config` prints the settings schema the way `spec` prints the format contract, so an agent can discover what it may change; `lint` rejects an invalid value
+- [ ] Self-update against GitHub Releases with checksum verification and atomic replacement, no dependency
+- [ ] Update behaviour toggleable between opt-in-only and check-on-launch, and silent-failing when offline
+- [ ] **Every capability reachable from both the app and the CLI** — settings, updates, reports, and the auditor each have a route and a command, over one runtime
+
 ### Out of Scope
 
 - **Hosted anything — accounts, gradebook, analytics, cloud storage** — the content rule. EMT items are AAOS 12e derivatives and CSCI 1100 runs under an AI-use ban. A hosted API call ships that text off the machine, which is the never-a-content-store rule breached through a side door instead of through git.
@@ -126,7 +136,9 @@ the feature is wrong.
 - **Auto-grading prose into mastery without a review state** — keyword matching cannot separate a correct explanation from a confident wrong one containing the right nouns. A grader that cannot tell those apart certifies the wrong answer.
 - **A chat box as the primary tutoring surface** — a model asked to hint can be argued into revealing; a tier ladder cannot reveal a tier it has not unlocked.
 - **Full spaced-repetition ownership: intervals, ease, a card queue** — deferred, not rejected. Anki owns card reviews this milestone; itembank owns objective-level scheduling. Merging them deeper is a v2 question.
-- **Shipping as an exe** — solves "Python is not installed", which is not a problem on either machine, and costs a near-certain Defender false positive on a machine where that already bit this project. `--app=http://127.0.0.1:PORT` gives the frameless window instead (#10).
+- **A compiled binary: signed exe, `.app` bundle, AppImage** — deferred to v2, not rejected. It solves "Python is not installed", which is not a problem on either machine, and costs a release pipeline, a signing certificate, and a near-certain Defender false positive on a machine where that already bit this project. The zipapp gives the double-click on all three platforms for an afternoon instead. Revisit when a second person runs it, which is when "install Python first" becomes a real barrier (#10, partly superseded).
+- **A rewrite in Go, Rust, or any compiled language** — it would buy a static binary and cost the one verified scorer, the format contract, and five passing test files. Cross-language adaptability is bought at the JSON API seam (#7) instead, where any future native shell, TUI, or phone surface is a client rather than a reimplementation.
+- **Auto-updates that cannot be turned off** — update policy is a setting, and offline must degrade silently rather than block the page.
 - **QTI 3.0 export** — an order of magnitude more cost than GIFT for the same job, and nothing in the current path reads it. Revisit when a real consumer exists (#12).
 - **Mandarin TTS and `.apkg` packaging** — content-specific dependencies and network behaviour; stays a separate private pipeline.
 - **Question banks in this repository** — fixtures are synthetic, `guard` enforces it in CI, real banks live in private storage.
@@ -189,7 +201,9 @@ same day.
 
 ## Constraints
 
-- **Tech stack**: Python standard library only, no install step, no network beyond loopback — the founding design constraint. The single exception under review is a vendored KaTeX asset for Math rendering, because goal 5 forbids services and network, not files.
+- **Tech stack**: Python standard library only, no install step — the founding design constraint. Two named exceptions: a vendored KaTeX asset for Math rendering (goal 5 forbids services and network, not files), and stdlib `urllib` for the opt-in updater.
+- **Network**: narrowed from "none beyond loopback" to **"none that sees your content, and none you did not ask for."** The updater fetches a release and a checksum and sends nothing. It is a setting, defaults conservative, and fails silently offline. Serving, scoring, lessons, evidence, and the auditor all still work with the network unplugged.
+- **Surfaces**: every capability has both a route in the daemon and a command in the CLI. Neither surface is the real one; both are clients of the runtime.
 - **Security**: Bank content never leaves the machine. This forbids hosted model APIs for anything that sees item text, and it is a rule about the content, not a preference about vendors.
 - **Compliance**: A local model fixes privacy but **not policy**. Running offline is still AI assistance on graded coursework under the CSCI 1100 AI-use ban. This guardrail is written down explicitly so a future session does not reason "it runs offline, so it's fine."
 - **Data**: No real question banks in this repository, enforced by `itembank guard` in CI. Fixtures are synthetic. Learner evidence lives beside the private bank.
@@ -211,7 +225,11 @@ same day.
 | Scheduling in, cards stay in Anki | One scheduler and no second card store. A deeper Anki merge is a v2 question, not an assumption. | — Pending |
 | Trends drive selection, not just display | All four uses chosen: selection weight, plan re-cutting, longitudinal view, decay flagging. Evidence captures more than currently needed. | — Pending |
 | `day` fork 1 keeps the full editor and grows | Decided against issue #15's proposal to narrow it to dated capture. The optimistic-concurrency guard remains non-negotiable, because Obsidian and agents write the same files. | — Pending |
-| No exe; `--app=` frameless window instead | An exe solves a problem neither machine has and buys a Defender fight this project has already had. | — Pending |
+| Stay Python; buy adaptability at the JSON API seam | Weibao asked what works best and adapts to the others. The seam is cheap and a rewrite restarts the scorer. A future native shell is a client of `/api/*`, not a second implementation. | — Pending |
+| Zipapp plus per-OS launcher, not a compiled binary | Double-click on Windows, macOS, and Linux from stdlib `python -m zipapp`, no signing, no Defender fight, and still plain Python inside so an agent can read it. Signed binaries deferred to v2. | — Pending |
+| Updater ships, and the network constraint narrows on purpose | Weibao wanted grimoire's self-update. Grimoire is Electron plus `electron-updater` against GitHub Releases — a pipeline this project does not have. The stdlib equivalent is ~100 lines. Both opt-in and check-on-launch exist, toggleable. | ⚠️ Revisit |
+| Settings are one documented file with a printed schema | "Tunable" means an agent adjusts settings, not source. `itembank config` does for settings what `spec` does for the format: a contract an agent can read and a linter can enforce. | — Pending |
+| Every capability is both an app route and a CLI command | Weibao, twice: "shoudnt it be app based rather than terminal based? Both options should exist." Same shape as the one-scorer rule — two surfaces, one runtime. | — Pending |
 
 ## Evolution
 
