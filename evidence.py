@@ -34,7 +34,11 @@ EVIDENCE_DIRNAME = "_evidence"
 LOG_FILENAME = "evidence.jsonl"
 INDEX_FILENAME = "evidence_index.sqlite3"
 
-KNOWN_EVENT_TYPES = ("response",)
+# "retraction" is added by this plan (01-07); response events are the only
+# ones this build wrote before it. events() skips and warns on anything
+# outside this set (D-09), so a log written by a later build's event type
+# degrades instead of crashing.
+KNOWN_EVENT_TYPES = ("response", "retraction")
 
 # Bounds the tail scan `append_line_checked` and `recent_dedupe_keys` run to
 # decide whether an event is a duplicate. A dedupe_key contains the
@@ -419,14 +423,15 @@ def attempt_number(log, session_id, item_key, canon):
     canonical answer and stays open until a different canonical answer
     arrives.
 
-    Finds the most recent response event for this session and item key. If
-    there is none, this is attempt 1. If its `canonical` equals `canon`,
-    this submission is a retry of that same attempt, so it returns that
-    event's own `attempt_number` — which reproduces the same `dedupe_key`
-    upstream and lets `append_event` dedupe it. Otherwise a genuinely
-    different answer has arrived, so it returns one more than that attempt
-    number, opening the next attempt with a dedupe key that has never been
-    seen.
+    Finds the most recent *live* response event for this session and item
+    key (reading through `live_events`, so a retracted response cannot open
+    or continue an attempt). If there is none, this is attempt 1. If its
+    `canonical` equals `canon`, this submission is a retry of that same
+    attempt, so it returns that event's own `attempt_number` — which
+    reproduces the same `dedupe_key` upstream and lets `append_event`
+    dedupe it. Otherwise a genuinely different answer has arrived, so it
+    returns one more than that attempt number, opening the next attempt
+    with a dedupe key that has never been seen.
 
     Defined here slightly ahead of the Phase 6 cursor-hold that will make
     the number exceed 1 routinely in practice, so evidence recorded before
@@ -434,7 +439,7 @@ def attempt_number(log, session_id, item_key, canon):
     inconsistent eras (D-18).
     """
     last = None
-    for ev in events(log):
+    for ev in live_events(log):
         if ev.get("event_type") != RESPONSE_EVENT_TYPE:
             continue
         if ev.get("session_id") != session_id:
@@ -450,16 +455,18 @@ def attempt_number(log, session_id, item_key, canon):
 
 
 def objective_history(log, objective):
-    """Every response event whose `objective` equals the argument, oldest
-    first, sorted by `(ts, log order)` so events sharing a timestamp keep a
-    stable, reproducible order.
+    """Every LIVE response event whose `objective` equals the argument,
+    oldest first, sorted by `(ts, log order)` so events sharing a
+    timestamp keep a stable, reproducible order.
 
-    A linear scan of the log for now; plan 01-08 replaces the scan with the
-    sqlite index behind this same signature. Never recomputes a score — reads
-    the recorded `score` field.
+    Reads through `live_events`, never `events` — a retracted response must
+    never contribute to a count a learner sees (D-10). A linear scan of the
+    log for now; plan 01-08 replaces the scan with the sqlite index behind
+    this same signature. Never recomputes a score — reads the recorded
+    `score` field.
     """
     rows = []
-    for idx, ev in enumerate(events(log)):
+    for idx, ev in enumerate(live_events(log)):
         if ev.get("event_type") != RESPONSE_EVENT_TYPE:
             continue
         if ev.get("objective") != objective:
@@ -477,3 +484,87 @@ def objective_history(log, objective):
         }))
     rows.sort(key=lambda r: (r[0], r[1]))
     return [r[2] for r in rows]
+
+
+# ---- retractions --------------------------------------------------------
+# D-10: undo is an append, never a removal. A retraction is a compensating
+# event that references the event it undoes; nothing is ever deleted, so a
+# raw line count of the log overstates history and every view or count a
+# learner sees has to read through the filter below instead.
+
+RETRACTION_EVENT_TYPE = "retraction"
+
+
+def retraction_event(retracts, reason, actor="human"):
+    """Build one retraction event: an append-only compensating record that
+    suppresses `retracts` in every view (`live_events` and everything built
+    on it) without removing anything from the log.
+
+    `reason` must be a non-empty string — an unexplained undo is not an
+    audit trail, so an empty one raises `ValueError` rather than being
+    silently accepted. `dedupe_key` is always `None`: a retraction always
+    writes once its caller (`cmd_retract`) has decided to write it: whether
+    the target is already retracted is that caller's job to check first, an
+    `already_retracted` response that appends nothing, not a job for
+    `append_line_checked`'s ordinary dedupe path.
+    """
+    if not reason or not reason.strip():
+        raise ValueError("a retraction reason must be a non-empty string; "
+                          "an unexplained undo is not an audit trail")
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": RETRACTION_EVENT_TYPE,
+        "ts": utc_now(),
+        "retracts": retracts,
+        "reason": reason,
+        "actor": actor,
+        "dedupe_key": None,
+    }
+
+
+def retracted_ids(log):
+    """Every event_id ever named by a retraction's `retracts` field,
+    collected over the WHOLE log in one pass before anything is emitted —
+    so a retraction that physically precedes its target in the file (which
+    a migration can produce, importing records in source order rather than
+    chronological order) still suppresses it. See `live_events`.
+    """
+    ids = set()
+    for ev in events(log):
+        if ev.get("event_type") == RETRACTION_EVENT_TYPE:
+            target = ev.get("retracts")
+            if target:
+                ids.add(target)
+    return ids
+
+
+def live_events(log):
+    """Every non-retraction event whose `event_id` is not in
+    `retracted_ids(log)`, in log order.
+
+    This is the only function views may use for counting; `events()`
+    remains the raw reader for a tool that genuinely needs retracted
+    history too, such as an audit. `attempt_number` and `objective_history`
+    both read through this rather than `events` (D-10).
+    """
+    retracted = retracted_ids(log)
+    for ev in events(log):
+        if ev.get("event_type") == RETRACTION_EVENT_TYPE:
+            continue
+        if ev.get("event_id") in retracted:
+            continue
+        yield ev
+
+
+def event_by_id(log, event_id):
+    """The raw event dict for `event_id`, or `None` — used to validate a
+    retract target before anything is appended. Reads through `events()`,
+    not `live_events()`, because an already-retracted event is still a
+    valid retract target to look up (its retraction status is `cmd_retract`'s
+    next question, not this function's).
+    """
+    for ev in events(log):
+        if ev.get("event_id") == event_id:
+            return ev
+    return None

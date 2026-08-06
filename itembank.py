@@ -65,10 +65,11 @@ from surfaces.day import (ANKI_ADDON_ID, DAY_LANES, FLOOR_LANES, anki_read,   # 
                           load_day_log, parse_lanes, parse_plan, resolve_notes,
                           wiring_bases, write_day_log)
 from evidence import (EVENT_SCHEMA_VERSION, append_event, append_line,        # noqa: E402
-                      attempt_number, dedupe_key, evidence_dir, events,
-                      idempotency_canon, index_path, iter_raw, log_path,
-                      new_event_id, objective_history, response_event,
-                      subject_of, utc_now)
+                      attempt_number, dedupe_key, event_by_id, evidence_dir,
+                      events, idempotency_canon, index_path, iter_raw,
+                      live_events, locked, log_path, new_event_id,
+                      objective_history, recent_dedupe_keys, response_event,
+                      retracted_ids, retraction_event, subject_of, utc_now)
 from schema_validate import SUPPORTED, SchemaError, validate                  # noqa: E402
 
 __all__ = [
@@ -80,14 +81,16 @@ __all__ = [
     "attempt_number", "canonical_key", "canonical_response", "collapse",
     "content_fingerprint", "day_history", "day_info",
     "day_page", "day_status", "day_streak", "day_text", "dedupe_key",
-    "evidence_dir", "events", "explain_payload", "grab", "idempotency_canon",
-    "index_path", "iter_raw", "lane_behind", "lane_files", "lane_load", "lint",
-    "lint_lane_decks", "lint_lane_paths", "load", "load_day_log", "log_path",
+    "event_by_id", "evidence_dir", "events", "explain_payload", "grab",
+    "idempotency_canon", "index_path", "iter_raw", "lane_behind",
+    "lane_files", "lane_load", "lint", "lint_lane_decks", "lint_lane_paths",
+    "live_events", "load", "load_day_log", "locked", "log_path",
     "main", "new_event_id", "new_item_id", "normalize_answer", "notes",
     "objective_history", "page_item", "parse_bank", "parse_lanes",
     "parse_plan", "parse_question",
-    "public_item", "read_session", "resolve_notes", "response_event",
-    "response_text", "score_response", "section", "session_path",
+    "public_item", "read_session", "recent_dedupe_keys", "resolve_notes",
+    "response_event", "response_text", "retracted_ids", "retraction_event",
+    "score_response", "section", "session_path",
     "session_summary", "session_view", "subject_of", "upgrade_session", "utc_now",
     "validate", "wiring_bases", "write_day_log", "write_session",
 ]

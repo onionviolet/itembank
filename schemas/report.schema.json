@@ -50,6 +50,10 @@
         "count": {
           "type": "integer"
         },
+        "retracted": {
+          "type": "integer",
+          "description": "How many of this query's response events are suppressed by a retraction (plan 01-07). count is already post-retraction; this says how much of the raw log for this query was undone, so a smaller count is never mistaken for missing data. Optional: a document written before plan 01-07 has none."
+        },
         "events": {
           "type": "array",
           "items": {

@@ -9,7 +9,7 @@ import argparse, collections, json, os, sys
 from model import BANK_FILE_HINTS, SPEC, lint, load, parse_bank
 from surfaces.anki import cmd_export
 from surfaces.day import cmd_day
-from surfaces.evidence_cli import cmd_evidence, cmd_id_assign
+from surfaces.evidence_cli import cmd_evidence, cmd_id_assign, cmd_retract
 from surfaces.protocol_cli import cmd_schema
 from surfaces.quiz import cmd_build, cmd_serve
 from surfaces.session import cmd_next, cmd_report, cmd_start, cmd_submit
@@ -164,6 +164,16 @@ def main():
     s.add_argument("--base", default=".",
                    help="directory holding _evidence/ (default: current directory)")
     s.set_defaults(fn=cmd_evidence)
+
+    s = sub.add_parser("retract", help="undo a recorded evidence event by appending a "
+                       "reasoned compensating event; nothing is ever deleted (D-10)")
+    s.add_argument("event_id")
+    s.add_argument("--reason", required=True,
+                   help="why this event is being retracted -- an undo with no stated "
+                        "reason is not an audit trail")
+    s.add_argument("--base", default=".",
+                   help="directory holding _evidence/ (default: current directory)")
+    s.set_defaults(fn=cmd_retract)
 
     s = sub.add_parser("id-assign", help="assign opaque ids and content-hash fingerprints "
                        "into a bank; the only command that writes into a bank -- lint "

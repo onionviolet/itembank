@@ -5,6 +5,12 @@ It answers "how am I doing on this objective" from the log alone, the same way
 `surfaces/session.py` is the first writer into it. An objective with no recorded
 events is an empty history, not an error — the command still exits 0.
 
+`itembank retract` is the undo command (D-10): it appends a reasoned
+compensating event and never deletes anything. `itembank evidence`'s `count`
+is always post-retraction; its new `retracted` field says how much of the
+raw log for this query was undone, so a shrinking count is never mistaken
+for missing data.
+
 `itembank id-assign` is the identity writer: the only command that rewrites a
 bank file. `lint` stays read-only by design (D-03) — every identity change a
 learner's bank ever gets lands in `git diff` through this command alone.
@@ -20,8 +26,48 @@ import evidence
 def cmd_evidence(a):
     log = evidence.log_path(a.base)
     rows = evidence.objective_history(log, a.objective)
+    retracted = evidence.retracted_ids(log)
+    retracted_count = sum(
+        1 for ev in evidence.events(log)
+        if ev.get("event_type") == evidence.RESPONSE_EVENT_TYPE
+        and ev.get("objective") == a.objective
+        and ev.get("event_id") in retracted)
     result = {"schema_version": evidence.EVENT_SCHEMA_VERSION,
-              "objective": a.objective, "count": len(rows), "events": rows}
+              "objective": a.objective, "count": len(rows),
+              "retracted": retracted_count, "events": rows}
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_retract(a):
+    """Undo a recorded event by appending a reasoned retraction (D-10).
+    Nothing is ever deleted: retracting suppresses `a.event_id` in every
+    view from here on, but its original line stays on disk and readable.
+    """
+    log = evidence.log_path(a.base)
+    target = evidence.event_by_id(log, a.event_id)
+    if target is None:
+        sys.exit("no event %s in %s" % (a.event_id, log))
+
+    already = evidence.retracted_ids(log)
+    if a.event_id in already:
+        existing = next(
+            (ev for ev in evidence.events(log)
+             if ev.get("event_type") == evidence.RETRACTION_EVENT_TYPE
+             and ev.get("retracts") == a.event_id),
+            None)
+        result = {"status": "already_retracted", "event_id": a.event_id,
+                  "retracted_by": existing.get("event_id") if existing else None}
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+
+    try:
+        event = evidence.retraction_event(a.event_id, a.reason)
+    except ValueError as exc:
+        sys.exit(str(exc))
+    write_result = evidence.append_event(log, event)
+    result = {"status": "retracted", "event_id": write_result["event_id"],
+              "retracts": a.event_id, "reason": a.reason}
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
