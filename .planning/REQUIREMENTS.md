@@ -9,16 +9,16 @@
 
 - [ ] **EVID-01**: An item keeps the same identity across bank edits, so evidence recorded a month ago still points at the same question
 - [ ] **EVID-02**: A legitimate stem edit does not orphan that item's history; `lint` warns when a keyed item's content changed
-- [ ] **EVID-03**: One evidence store replaces `_attempts/*.md`, session JSON, and `daily_log.md`; each of those becomes a view over it
-- [ ] **EVID-04**: A single query answers "how am I doing on this objective over time" across every session and subject
+- [x] **EVID-03**: One evidence store replaces `_attempts/*.md`, session JSON, and `daily_log.md`; each of those becomes a view over it
+- [x] **EVID-04**: A single query answers "how am I doing on this objective over time" across every session and subject
 - [x] **EVID-05**: Every evidence write is auditable and reversible — nothing is silently overwritten
 - [ ] **EVID-06**: Existing attempt files and session JSON migrate into the new store without losing a recorded response
-- [ ] **EVID-07**: Evidence records response time, confidence, error category, hint tier reached, session mode, and manual-review state, whether or not anything reads them yet
-- [ ] **EVID-08**: A "correct" from drill mode is distinguishable in the evidence from a "correct" from exam mode
+- [x] **EVID-07**: Evidence records response time, confidence, error category, hint tier reached, session mode, and manual-review state, whether or not anything reads them yet
+- [x] **EVID-08**: A "correct" from drill mode is distinguishable in the evidence from a "correct" from exam mode
 
 ### Protocol
 
-- [ ] **PROTO-01**: Items, sessions, responses, and reports each carry an explicit schema version
+- [x] **PROTO-01**: Items, sessions, responses, and reports each carry an explicit schema version
 - [ ] **PROTO-02**: `lint` emits machine-readable errors with a stable error code and the field at fault, alongside the human text
 - [ ] **PROTO-03**: Submitting the same response twice does not record two attempts, and the tool says which happened
 - [ ] **PROTO-04**: A published JSON schema or contract fixture defines the agent interface, and CI checks the runtime against it
@@ -198,13 +198,13 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 |-------------|-------|--------|
 | EVID-01 | Phase 1 | Pending |
 | EVID-02 | Phase 1 | Pending |
-| EVID-03 | Phase 1 | Pending |
-| EVID-04 | Phase 1 | Pending |
+| EVID-03 | Phase 1 | Complete |
+| EVID-04 | Phase 1 | Complete |
 | EVID-05 | Phase 1 | Complete |
 | EVID-06 | Phase 1 | Pending |
-| EVID-07 | Phase 1 | Pending |
-| EVID-08 | Phase 1 | Pending |
-| PROTO-01 | Phase 1 | Pending |
+| EVID-07 | Phase 1 | Complete |
+| EVID-08 | Phase 1 | Complete |
+| PROTO-01 | Phase 1 | Complete |
 | PROTO-02 | Phase 1 | Pending |
 | PROTO-03 | Phase 1 | Pending |
 | PROTO-04 | Phase 1 | Pending |

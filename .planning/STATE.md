@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: evidence-spine-protocol-foundation
 status: executing
-stopped_at: Completed 01-01-PLAN.md
-last_updated: "2026-08-06T16:35:19.161Z"
+stopped_at: Completed 01-02-PLAN.md
+last_updated: "2026-08-06T16:55:57.018Z"
 last_activity: 2026-08-06
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 11
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-05)
 ## Current Position
 
 Phase: 01 (evidence-spine-protocol-foundation) — EXECUTING
-Plan: 2 of 11
+Plan: 3 of 11
 Status: Ready to execute
 Last activity: 2026-08-06 — Phase 01 execution started
 
-Progress: [█░░░░░░░░░] 9%
+Progress: [██░░░░░░░░] 18%
 
 ## Performance Metrics
 
@@ -59,6 +59,7 @@ Progress: [█░░░░░░░░░] 9%
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 01 P01 | 15min | 3 tasks | 5 files |
+| Phase 01 P02 | 18min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,8 @@ Recent decisions affecting current work:
 - [Roadmap]: Three phases carry unresolved design questions flagged for their own research at plan time — Phase 1 (item identity scheme, Windows event-log durability), Phase 8 (tier-gate enforcement mechanism, no prior art), Phase 11 (second quality gate algorithm, syllabus input formats, auditor reversibility mechanism).
 - [Roadmap]: The auditor (Phase 11) is deliberately last among new subsystems; its pitfall guard rails (citation-per-claim, second quality gate, one-item-per-commit reversibility, graduated autonomy) are written as phase acceptance criteria, not follow-on hardening.
 - [Phase ?]: 01-01: evidence.py built as a peer module to runtime.py, never imported by model.py; advisory-locked single-write()-per-event append confirmed durable on this Windows machine via a real-OS-process spike that also reproduced the unlocked-O_APPEND corruption bpo-42606 predicts
+- [Phase ?]: 01-02: Task 1 checkpoint resolved as option-a — response_time_ms and confidence captured with real values (served_ts, --confidence flag); error_category and hint_tier recorded as explicit null with the reason stated in code, since no error taxonomy or hint ladder exists before Phase 6/8
+- [Phase ?]: 01-02: evidence.py's response_event()/append_event()/events()/attempt_number()/objective_history() built as the first real writer and reader over the evidence log; surfaces/session.py is the first caller, and model.py additively parses [ID:]/[HASH:] into item_id/content_hash (empty until plan 01-04 assigns them)
 
 ### Pending Todos
 
@@ -92,6 +95,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-06T16:34:52.815Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-08-06T16:55:57.006Z
+Stopped at: Completed 01-02-PLAN.md
 Resume file: None
