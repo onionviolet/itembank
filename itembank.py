@@ -45,7 +45,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from model import (BANK_FILE_HINTS, LETTERS, LINT_CODES, LintError, SPEC,     # noqa: E402
-                   collapse, content_fingerprint, grab, lint, load,
+                   assign_ids, collapse, content_fingerprint, grab, lint, load,
                    new_item_id, notes, parse_bank, parse_question, section)
 from runtime import (FIELD_SEP, PAIR_SEP, SESSION_VERSION, answer_text,       # noqa: E402
                      canonical_key, canonical_response, explain_payload,
@@ -69,7 +69,7 @@ __all__ = [
     "ANKI_ADDON_ID", "BANK_FILE_HINTS", "DAY_LANES", "EVENT_SCHEMA_VERSION",
     "FIELD_SEP", "FLOOR_LANES", "LETTERS", "LINT_CODES", "LintError", "PAIR_SEP",
     "SESSION_VERSION", "SPEC",
-    "anki_read", "answer_text", "append_event", "append_line",
+    "anki_read", "answer_text", "append_event", "append_line", "assign_ids",
     "attempt_number", "canonical_key", "canonical_response", "collapse",
     "content_fingerprint", "day_history", "day_info",
     "day_page", "day_status", "day_streak", "day_text", "dedupe_key",

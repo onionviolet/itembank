@@ -9,7 +9,7 @@ import argparse, collections, json, os, sys
 from model import BANK_FILE_HINTS, SPEC, lint, load, parse_bank
 from surfaces.anki import cmd_export
 from surfaces.day import cmd_day
-from surfaces.evidence_cli import cmd_evidence
+from surfaces.evidence_cli import cmd_evidence, cmd_id_assign
 from surfaces.quiz import cmd_build, cmd_serve
 from surfaces.session import cmd_next, cmd_report, cmd_start, cmd_submit
 from surfaces.study import cmd_study
@@ -163,6 +163,14 @@ def main():
     s.add_argument("--base", default=".",
                    help="directory holding _evidence/ (default: current directory)")
     s.set_defaults(fn=cmd_evidence)
+
+    s = sub.add_parser("id-assign", help="assign opaque ids and content-hash fingerprints "
+                       "into a bank; the only command that writes into a bank -- lint "
+                       "stays read-only by design")
+    s.add_argument("banks", nargs="+")
+    s.add_argument("--dry-run", action="store_true", dest="dry_run",
+                   help="print the change set without writing anything")
+    s.set_defaults(fn=cmd_id_assign)
 
     s = sub.add_parser("study", help="render flashcards and a session-only Learn loop")
     s.add_argument("bank")

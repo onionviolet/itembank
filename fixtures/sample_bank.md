@@ -6,6 +6,8 @@ something that passes cleanly. It is not derived from any real course, exam, or
 textbook, and no real question bank belongs in this repository.
 
 Q1. An operator notices the chlorine residual at the far end of the distribution network has fallen below the regulatory floor, while the reading at the plant outlet is normal. What is the most likely explanation?   (difficulty: application)
+[ID: 57ae87843edb459e]
+[HASH: sha256:a91f4a23bab322cb]
 [OBJECTIVE: Distribution / residual maintenance]
 
 A) The plant is underdosing chlorine
@@ -32,6 +34,8 @@ TRAP: Reading a low number as a dosing failure without checking where in the sys
 CONFIDENCE: high
 
 Q2. Which conditions require an immediate boil-water notice?   (difficulty: application)
+[ID: 8916dc88223a4363]
+[HASH: sha256:8b634f100f7cf194]
 [TYPE: multi]
 [SELECT: 2]
 [OBJECTIVE: Public notification]
@@ -62,6 +66,8 @@ TRAP: Treating any abnormal reading as a notification trigger. Notification foll
 CONFIDENCE: high
 
 Q3. Classify each task as ROUTINE or EMERGENCY response.   (difficulty: recall)
+[ID: e509811f7ca54233]
+[HASH: sha256:800b843e38bf8e69]
 [TYPE: table]
 [CATEGORIES: Routine | Emergency]
 [OBJECTIVE: Operations]
@@ -84,6 +90,8 @@ TRAP: Sorting by how familiar the task feels rather than by whether it was plann
 CONFIDENCE: high
 
 Q4. Put the conventional surface-water treatment train in order.   (difficulty: recall)
+[ID: 743eecd69757482f]
+[HASH: sha256:d34f167356f9439e]
 [TYPE: build]
 [OBJECTIVE: Treatment processes]
 
@@ -106,6 +114,8 @@ TRAP: Treating the train as an arbitrary sequence to memorise rather than a chai
 CONFIDENCE: high
 
 Q5. Sort each parameter into PRIMARY or SECONDARY drinking-water standard.   (difficulty: recall)
+[ID: 868105c4d4814254]
+[HASH: sha256:546431d7afdd23c8]
 [TYPE: dnd]
 [CATEGORIES: Primary | Secondary]
 [OBJECTIVE: Regulatory framework]
@@ -128,6 +138,8 @@ TRAP: Ranking by how obvious the problem is to a customer rather than by health 
 CONFIDENCE: high
 
 Q6. A plant meets every primary standard but customers still complain the water is undrinkable. Explain how both facts can be true at once, and what the operator should investigate.   (difficulty: analysis)
+[ID: f5d144605ae4464b]
+[HASH: sha256:f9a63a70b476ade1]
 [TYPE: short]
 [OBJECTIVE: Regulatory framework]
 
