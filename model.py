@@ -4,10 +4,19 @@ Everything here reads markdown and returns plain dicts. It knows nothing about
 scoring, sessions or surfaces, which is what lets `spec` and `lint` be the whole
 of what an authoring agent has to satisfy.
 """
-import collections, re, sys
+import collections, hashlib, re, sys, uuid
 
 
 LETTERS = "ABCDEFGH"
+
+
+# A control character rather than punctuation, for the same reason
+# `runtime.FIELD_SEP` is one: option text, table/dnd rows and build steps
+# routinely contain commas, pipes and angle brackets, and any printable
+# separator eventually collides with content and corrupts the digest. Restated
+# here rather than imported, because the model layer reaches into no other
+# layer (see `runtime.py`'s own docstring for the architectural rule).
+FINGERPRINT_SEP = "\x1f"
 
 
 def grab(pattern, block, flags=0):
@@ -119,6 +128,64 @@ def notes(ch):
     """Free-form bullets under DISTRACTOR ANALYSIS, for the non-lettered types."""
     blk = grab(r"(?m)^DISTRACTOR ANALYSIS:\s*(.*?)\s*(?=^TRAP:|^CONFIDENCE:|\Z)", ch, re.S)
     return [b.strip() for b in re.findall(r"(?m)^-\s*(.+?)\s*$", blk)]
+
+
+def collapse(s):
+    """Whitespace-collapsed text, case preserved.
+
+    Case is preserved on purpose: a capitalization edit can change what a
+    question asks, so it must not be normalized away before hashing.
+    """
+    return " ".join(str(s or "").split())
+
+
+def content_fingerprint(q):
+    """A change-detection digest of the *tested* content only, never the
+    rationale around it.
+
+    Deliberately excludes `why`, `disc`, `second`, `trap`, `conf`, `da`,
+    `notes`, `objective`, `difficulty`, `number`, `id`, `item_id` and
+    `content_hash` -- the hash's job is to detect that stem, options, correct
+    answers, categories, rows, steps, model answer or rubric changed, and
+    D-04 already accepts the residual risk that a genuine rewrite of what a
+    question asks, while its rationale text stays untouched, still inherits
+    the old item's trend data. The drift warning this feeds is the only
+    signal for that case.
+
+    This digest is an integrity check, not a security boundary: this project
+    has one local user and no adversary in its threat model.
+    """
+    t = q["type"]
+    parts = ["type=" + t, "stem=" + collapse(q["stem"])]
+    if t in ("mc", "multi"):
+        for L in sorted(q["opts"]):
+            parts.append("opt:%s=%s" % (L, collapse(q["opts"][L])))
+        parts.append("correct=" + ",".join(sorted(q["correct"])))
+        parts.append("select=%d" % q["select"])
+    elif t in ("table", "dnd"):
+        parts.append("cats=" + "|".join(q["cats"]))
+        for i, r in enumerate(q["rows"]):
+            parts.append("row:%d=%s::%s" % (i, collapse(r["text"]), r["cat"]))
+    elif t == "build":
+        for i, s in enumerate(q["steps"]):
+            parts.append("step:%d=%s" % (i, collapse(s)))
+    elif t == "short":
+        parts.append("model=" + collapse(q["model"]))
+        for i, r in enumerate(q["rubric"]):
+            parts.append("rubric:%d=%s" % (i, collapse(r)))
+    payload = FINGERPRINT_SEP.join(parts)
+    return "sha256:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def new_item_id():
+    """A 64-bit-random opaque id, short enough to read in an `[ID:]` line.
+
+    An accidental collision across a personal bank is negligible, and D-05
+    makes these globally unique across every bank a caller assigns into
+    together, so renaming or splitting a bank file cannot orphan an item's
+    evidence history.
+    """
+    return uuid.uuid4().hex[:16]
 
 
 SPEC = r"""itembank format contract
@@ -238,6 +305,8 @@ LINT_CODES = tuple(sorted({
     "item.duplicate_steps", "item.missing_model", "item.too_few_rubric_points",
     "item.model_too_long", "item.rubric_point_too_long", "item.missing_why_best",
     "item.missing_trap", "item.low_confidence", "item.duplicate_stem",
+    "item.missing_id", "item.duplicate_id", "item.missing_hash",
+    "item.content_drift", "item.objective_unnamespaced",
     "bank.answer_position_skew",
 }))
 
@@ -252,6 +321,7 @@ def lint(questions):
     errors, warnings = [], []
     seen_stems = {}
     seen_ids = {}
+    seen_item_ids = {}
     letter_hits = collections.Counter()
 
     for idx, q in enumerate(questions, 1):
@@ -263,6 +333,38 @@ def lint(questions):
                           "duplicate question number %s (also %s)" %
                           (q["id"], seen_ids[q["id"]])))
         seen_ids[q.get("id")] = tag
+
+        item_id = q.get("item_id", "")
+        if not item_id:
+            warnings.append(LintError("item.missing_id", "item_id", tag,
+                            "no [ID:] line; run `itembank id-assign` before evidence is "
+                            "recorded against this item"))
+        else:
+            if item_id in seen_item_ids:
+                errors.append(LintError("item.duplicate_id", "item_id", tag,
+                              "duplicate item id %s (also %s)" %
+                              (item_id, seen_item_ids[item_id])))
+            seen_item_ids[item_id] = tag
+            content_hash = q.get("content_hash", "")
+            if not content_hash:
+                warnings.append(LintError("item.missing_hash", "content_hash", tag,
+                                "carries [ID:] but no [HASH:]; run `itembank id-assign` to "
+                                "record its fingerprint"))
+            else:
+                current_hash = content_fingerprint(q)
+                if content_hash != current_hash:
+                    warnings.append(LintError("item.content_drift", "content_hash", tag,
+                                    "content changed since [HASH:] was recorded (recorded "
+                                    "%s, now %s); evidence stays attached — run `itembank "
+                                    "id-assign` to update the fingerprint" %
+                                    (content_hash, current_hash)))
+
+        objective = q.get("objective") or ""
+        if objective and ":" not in objective:
+            warnings.append(LintError("item.objective_unnamespaced", "objective", tag,
+                            "OBJECTIVE %r has no subject prefix; use subject:path (for "
+                            "example emt:airway.opa) so two subjects cannot average into "
+                            "one trend line" % objective))
 
         if t in ("mc", "multi"):
             if len(q["correct"]) != q["select"]:

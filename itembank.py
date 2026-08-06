@@ -45,8 +45,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from model import (BANK_FILE_HINTS, LETTERS, LINT_CODES, LintError, SPEC,     # noqa: E402
-                   grab, lint, load, notes, parse_bank, parse_question,
-                   section)
+                   collapse, content_fingerprint, grab, lint, load,
+                   new_item_id, notes, parse_bank, parse_question, section)
 from runtime import (FIELD_SEP, PAIR_SEP, SESSION_VERSION, answer_text,       # noqa: E402
                      canonical_key, canonical_response, explain_payload,
                      normalize_answer, page_item, public_item, read_session,
@@ -69,14 +69,16 @@ __all__ = [
     "ANKI_ADDON_ID", "BANK_FILE_HINTS", "DAY_LANES", "EVENT_SCHEMA_VERSION",
     "FIELD_SEP", "FLOOR_LANES", "LETTERS", "LINT_CODES", "LintError", "PAIR_SEP",
     "SESSION_VERSION", "SPEC",
-    "anki_read", "answer_text", "append_event", "append_line", "attempt_number",
-    "canonical_key", "canonical_response", "day_history", "day_info",
+    "anki_read", "answer_text", "append_event", "append_line",
+    "attempt_number", "canonical_key", "canonical_response", "collapse",
+    "content_fingerprint", "day_history", "day_info",
     "day_page", "day_status", "day_streak", "day_text", "dedupe_key",
     "evidence_dir", "events", "explain_payload", "grab", "idempotency_canon",
     "index_path", "iter_raw", "lane_behind", "lane_files", "lane_load", "lint",
     "lint_lane_decks", "lint_lane_paths", "load", "load_day_log", "log_path",
-    "main", "new_event_id", "normalize_answer", "notes", "objective_history",
-    "page_item", "parse_bank", "parse_lanes", "parse_plan", "parse_question",
+    "main", "new_event_id", "new_item_id", "normalize_answer", "notes",
+    "objective_history", "page_item", "parse_bank", "parse_lanes",
+    "parse_plan", "parse_question",
     "public_item", "read_session", "resolve_notes", "response_event",
     "response_text", "score_response", "section", "session_path",
     "session_summary", "session_view", "subject_of", "utc_now",
