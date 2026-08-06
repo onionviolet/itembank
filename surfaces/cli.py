@@ -4,7 +4,7 @@
 `cmd_*` and stays unaware of argparse, so a new front end is a new module rather
 than an edit here and there.
 """
-import argparse, collections, os, sys
+import argparse, collections, json, os, sys
 
 from model import BANK_FILE_HINTS, SPEC, lint, load, parse_bank
 from surfaces.anki import cmd_export
@@ -23,10 +23,20 @@ def cmd_spec(a):
 def cmd_lint(a):
     qs = load(a.bank)
     errors, warnings = lint(qs)
+    if a.json:
+        payload = {
+            "schema_version": 1,
+            "bank": os.path.basename(a.bank),
+            "items": len(qs),
+            "errors": [e._asdict() for e in errors],
+            "warnings": [w._asdict() for w in warnings],
+        }
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 1 if errors else 0
     for e in errors:
-        print("error  " + e)
+        print("error  " + str(e))
     for w in warnings:
-        print("warn   " + w)
+        print("warn   " + str(w))
     print("\n%d items, %d errors, %d warnings" % (len(qs), len(errors), len(warnings)))
     return 1 if errors else 0
 
@@ -93,6 +103,8 @@ def main():
 
     s = sub.add_parser("lint", help="validate a bank")
     s.add_argument("bank")
+    s.add_argument("--json", action="store_true",
+                   help="emit the machine-readable lint contract instead of human lines")
     s.set_defaults(fn=cmd_lint)
 
     s = sub.add_parser("build", help="render an interactive HTML quiz (nothing is saved)")

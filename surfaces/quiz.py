@@ -37,7 +37,7 @@ def cmd_build(a):
     errors, _ = lint(qs)
     if errors and not a.force:
         for e in errors:
-            print("error  " + e)
+            print("error  " + str(e))
         sys.exit("refusing to build a bank with errors; fix them or pass --force")
     out = a.out or os.path.splitext(a.bank)[0] + "_quiz.html"
     if os.path.dirname(out):
@@ -143,7 +143,7 @@ def cmd_serve(a):
     errors, _ = lint(qs)
     if errors and not a.force:
         for e in errors:
-            print("error  " + e)
+            print("error  " + str(e))
         sys.exit("refusing to serve a bank with errors; fix them or pass --force")
 
     out = a.out or os.path.join(
