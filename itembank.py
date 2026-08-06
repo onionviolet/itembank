@@ -66,11 +66,13 @@ from evidence import (EVENT_SCHEMA_VERSION, append_event, append_line,        # 
                       idempotency_canon, index_path, iter_raw, log_path,
                       new_event_id, objective_history, response_event,
                       subject_of, utc_now)
+from schema_validate import SUPPORTED, SchemaError, validate                  # noqa: E402
 
 __all__ = [
     "ANKI_ADDON_ID", "BANK_FILE_HINTS", "DAY_LANES", "EVENT_SCHEMA_VERSION",
     "FIELD_SEP", "FLOOR_LANES", "ITEM_VERSION", "LETTERS", "LINT_CODES", "LintError",
     "PAIR_SEP", "REPORT_VERSION", "SESSION_UPGRADES", "SESSION_VERSION", "SPEC",
+    "SUPPORTED", "SchemaError",
     "anki_read", "answer_text", "append_event", "append_line", "assign_ids",
     "attempt_number", "canonical_key", "canonical_response", "collapse",
     "content_fingerprint", "day_history", "day_info",
@@ -84,7 +86,7 @@ __all__ = [
     "public_item", "read_session", "resolve_notes", "response_event",
     "response_text", "score_response", "section", "session_path",
     "session_summary", "session_view", "subject_of", "upgrade_session", "utc_now",
-    "wiring_bases", "write_day_log", "write_session",
+    "validate", "wiring_bases", "write_day_log", "write_session",
 ]
 
 if __name__ == "__main__":
