@@ -17,13 +17,17 @@ import collections, json, os, sys
 # contract for the CLI and future adapters, so an agent never has to scrape HTML
 # or infer whether its response was accepted.
 
+# Each published contract carries its own version because they evolve
+# independently; the matching documents live under `schemas/`.
 SESSION_VERSION = 1
+ITEM_VERSION = 1
+REPORT_VERSION = 1
 
 
 def public_item(q, shuffle_seed=0):
     """Return an item safe to show before the learner answers."""
-    out = {"id": q["id"], "number": q["number"], "type": q["type"],
-           "stem": q["stem"], "objective": q.get("objective", ""),
+    out = {"schema_version": ITEM_VERSION, "id": q["id"], "number": q["number"],
+           "type": q["type"], "stem": q["stem"], "objective": q.get("objective", ""),
            "difficulty": q.get("difficulty", "")}
     if q["type"] in ("mc", "multi"):
         out["options"] = [{"key": k, "text": q["opts"][k]} for k in sorted(q["opts"])]
@@ -130,14 +134,45 @@ def session_path(path):
     return os.path.abspath(path)
 
 
+# Registered forward-upgrade functions, keyed by the source version each one
+# upgrades from. Empty today because version 1 is the only version that has
+# ever existed; the registry exists so the first bump is a one-function
+# change to SESSION_UPGRADES rather than a rewrite of read_session.
+SESSION_UPGRADES = {}
+
+
+def upgrade_session(data):
+    """Carry a session dict forward to SESSION_VERSION, one registered step
+    at a time.
+
+    A non-integer `schema_version` and a version above what this build
+    understands each exit with a named error rather than guessing at a
+    shape. This is the migration path `.planning/codebase/CONCERNS.md`
+    flagged as missing: a version stamp with no way to move forward from it.
+    """
+    version = data.get("schema_version")
+    if not isinstance(version, int):
+        sys.exit("session has no valid schema_version (got %r)" % (version,))
+    while version < SESSION_VERSION:
+        upgrade = SESSION_UPGRADES.get(version)
+        if upgrade is None:
+            sys.exit("no upgrade path from session schema %d to %d" %
+                     (version, SESSION_VERSION))
+        data = upgrade(data)
+        version += 1
+        data["schema_version"] = version
+    if version > SESSION_VERSION:
+        sys.exit("session schema %d is newer than this build understands (%d); "
+                 "upgrade itembank" % (version, SESSION_VERSION))
+    return data
+
+
 def read_session(path):
     try:
         data = json.load(open(session_path(path), encoding="utf-8"))
     except (OSError, ValueError) as exc:
         sys.exit("cannot read session %s: %s" % (path, exc))
-    if data.get("schema_version") != SESSION_VERSION:
-        sys.exit("unsupported session schema in %s" % path)
-    return data
+    return upgrade_session(data)
 
 
 def write_session(path, data):
@@ -176,8 +211,8 @@ def session_summary(data):
             bucket["pending"] += 1
         elif r["score"]:
             bucket["correct"] += 1
-    return {"auto_attempts": len(auto), "auto_correct": correct,
-            "pending_manual": len(responses) - len(auto),
+    return {"schema_version": REPORT_VERSION, "auto_attempts": len(auto),
+            "auto_correct": correct, "pending_manual": len(responses) - len(auto),
             "objectives": dict(by_objective)}
 
 

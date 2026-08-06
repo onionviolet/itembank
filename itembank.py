@@ -47,11 +47,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from model import (BANK_FILE_HINTS, LETTERS, LINT_CODES, LintError, SPEC,     # noqa: E402
                    assign_ids, collapse, content_fingerprint, grab, lint, load,
                    new_item_id, notes, parse_bank, parse_question, section)
-from runtime import (FIELD_SEP, PAIR_SEP, SESSION_VERSION, answer_text,       # noqa: E402
+from runtime import (FIELD_SEP, ITEM_VERSION, PAIR_SEP, REPORT_VERSION,        # noqa: E402
+                     SESSION_UPGRADES, SESSION_VERSION, answer_text,
                      canonical_key, canonical_response, explain_payload,
                      normalize_answer, page_item, public_item, read_session,
                      response_text, score_response, session_path,
-                     session_summary, session_view, write_session)
+                     session_summary, session_view, upgrade_session,
+                     write_session)
 from surfaces.cli import main                                                  # noqa: E402
 from surfaces.day import (ANKI_ADDON_ID, DAY_LANES, FLOOR_LANES, anki_read,   # noqa: E402
                           day_history, day_info, day_page, day_status,
@@ -67,8 +69,8 @@ from evidence import (EVENT_SCHEMA_VERSION, append_event, append_line,        # 
 
 __all__ = [
     "ANKI_ADDON_ID", "BANK_FILE_HINTS", "DAY_LANES", "EVENT_SCHEMA_VERSION",
-    "FIELD_SEP", "FLOOR_LANES", "LETTERS", "LINT_CODES", "LintError", "PAIR_SEP",
-    "SESSION_VERSION", "SPEC",
+    "FIELD_SEP", "FLOOR_LANES", "ITEM_VERSION", "LETTERS", "LINT_CODES", "LintError",
+    "PAIR_SEP", "REPORT_VERSION", "SESSION_UPGRADES", "SESSION_VERSION", "SPEC",
     "anki_read", "answer_text", "append_event", "append_line", "assign_ids",
     "attempt_number", "canonical_key", "canonical_response", "collapse",
     "content_fingerprint", "day_history", "day_info",
@@ -81,7 +83,7 @@ __all__ = [
     "parse_plan", "parse_question",
     "public_item", "read_session", "resolve_notes", "response_event",
     "response_text", "score_response", "section", "session_path",
-    "session_summary", "session_view", "subject_of", "utc_now",
+    "session_summary", "session_view", "subject_of", "upgrade_session", "utc_now",
     "wiring_bases", "write_day_log", "write_session",
 ]
 

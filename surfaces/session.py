@@ -13,7 +13,7 @@ import datetime, json, os, sys
 
 import evidence
 from model import lint, load
-from runtime import (SESSION_VERSION, normalize_answer, read_session,
+from runtime import (REPORT_VERSION, SESSION_VERSION, normalize_answer, read_session,
                      score_response, session_path, session_summary, session_view,
                      write_session)
 
@@ -112,6 +112,7 @@ def cmd_submit(a):
 
 def cmd_report(a):
     data = read_session(a.session)
-    print(json.dumps({"session_id": data["session_id"], "status": data["status"],
-                      "summary": session_summary(data)}, ensure_ascii=False, indent=2))
+    print(json.dumps({"schema_version": REPORT_VERSION, "session_id": data["session_id"],
+                      "status": data["status"], "summary": session_summary(data)},
+                     ensure_ascii=False, indent=2))
     return 0
