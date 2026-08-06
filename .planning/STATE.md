@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 1
-current_phase_name: Evidence Spine & Protocol Foundation
+current_phase: 01
+current_phase_name: evidence-spine-protocol-foundation
 status: executing
-stopped_at: Phase 1 context gathered
-last_updated: "2026-08-06T16:09:41.766Z"
-last_activity: 2026-08-05
-last_activity_desc: ROADMAP.md and REQUIREMENTS.md traceability written; 92/92 v1 requirements mapped across 12 phases.
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-08-06T16:35:19.161Z"
+last_activity: 2026-08-06
+last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 11
-  completed_plans: 0
+  completed_plans: 1
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-05)
 
 **Core value:** One runtime, one scorer, one evidence store — and the runtime, not the model, decides what reaches the learner.
-**Current focus:** Phase 1 — Evidence Spine & Protocol Foundation
+**Current focus:** Phase 01 — evidence-spine-protocol-foundation
 
 ## Current Position
 
-Phase: 1 of 12 (Evidence Spine & Protocol Foundation)
-Plan: 0 of TBD in current phase
+Phase: 01 (evidence-spine-protocol-foundation) — EXECUTING
+Plan: 2 of 11
 Status: Ready to execute
-Last activity: 2026-08-05 — ROADMAP.md and REQUIREMENTS.md traceability written; 92/92 v1 requirements mapped across 12 phases.
+Last activity: 2026-08-06 — Phase 01 execution started
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 9%
 
 ## Performance Metrics
 
@@ -54,6 +54,11 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: -
 
 *Updated after each plan completion*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 01 P01 | 15min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -65,6 +70,7 @@ Recent decisions affecting current work:
 - [Roadmap]: Evidence spine (Phase 1) and daemon/settings/lesson/surfaces/check foundations (Phases 2-5) run as parallel-eligible tracks per `Depends on: Nothing`; the teaching loop, selection, model adapter, subject-loop integration, retention/trends, and the auditor form the dependent chain (Phases 6-11); packaging closes the milestone (Phase 12).
 - [Roadmap]: Three phases carry unresolved design questions flagged for their own research at plan time — Phase 1 (item identity scheme, Windows event-log durability), Phase 8 (tier-gate enforcement mechanism, no prior art), Phase 11 (second quality gate algorithm, syllabus input formats, auditor reversibility mechanism).
 - [Roadmap]: The auditor (Phase 11) is deliberately last among new subsystems; its pitfall guard rails (citation-per-claim, second quality gate, one-item-per-commit reversibility, graduated autonomy) are written as phase acceptance criteria, not follow-on hardening.
+- [Phase ?]: 01-01: evidence.py built as a peer module to runtime.py, never imported by model.py; advisory-locked single-write()-per-event append confirmed durable on this Windows machine via a real-OS-process spike that also reproduced the unlocked-O_APPEND corruption bpo-42606 predicts
 
 ### Pending Todos
 
@@ -73,7 +79,6 @@ None yet.
 ### Blockers/Concerns
 
 - [Phase 1]: Item identity scheme is an open decision (opaque ID + content-hash fingerprint vs. content-hash-as-ID with rekey/alias table) — must be resolved explicitly during Phase 1 planning before any evidence-writing phase starts.
-- [Phase 1]: Windows append-write durability for the NDJSON event log needs a spike — single-`write()` atomicity assumptions in the architecture research are POSIX-flavored and this project runs on Windows.
 - [Phase 8]: Tier-gate enforcement (detecting and dropping model output that reaches past the unlocked hint tier) has no prior-art analog found in research; expect original design work, not adapter plumbing.
 - [Phase 11]: Auditor autonomy beyond report-only is flagged `⚠️ Revisit` in PROJECT.md's Key Decisions — ship report-only and draft-and-approve fully proven before full audit-draft-lint-fix-commit is wired up.
 
@@ -87,6 +92,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-06T14:49:25.007Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-evidence-spine-protocol-foundation/01-CONTEXT.md
+Last session: 2026-08-06T16:34:52.815Z
+Stopped at: Completed 01-01-PLAN.md
+Resume file: None
