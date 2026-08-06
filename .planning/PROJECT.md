@@ -7,8 +7,9 @@ Today it tests: a markdown format contract with an actionable linter, six item t
 deterministic scoring behind one scorer, resumable JSON sessions, an offline HTML quiz,
 a graded loopback sitting, Anki TSV export, and a cross-subject `day` cockpit.
 
-This milestone turns it into a **comprehensive learning platform** — the thing that
-teaches, not only the thing that marks. In Weibao's words: "a local version of
+This milestone turns it into a **comprehensive, AI-taught learning platform** — the
+thing that teaches, not only the thing that marks. A capable model is the primary
+teaching surface; the runtime is what keeps that model honest. In Weibao's words: "a local version of
 [StudyBro], to walk through things and more," where "execute program seems perfect,
 and then we can have something fitting for each genre, from readings and questions for
 EMT, LaTeX and ??? for math, The bottom up or other styles for CS." It reads, it walks
@@ -21,12 +22,21 @@ as first-class clients of the same runtime a human uses.
 
 ## Core Value
 
-**One runtime, one scorer, one evidence store, and no answer ever reaches a surface
-that has not earned it.** A tutor built on this cannot cave and reveal the key under
-argument, because it was never handed the key. Everything else here — lessons,
-scheduling, the auditor, the UI — is a surface over that guarantee. If a feature
-requires a second scorer, a second parser, or shipping bank content off the machine,
-the feature is wrong.
+**One runtime, one scorer, one evidence store — and the runtime, not the model,
+decides what reaches the learner.**
+
+The tutoring model is smart and well-informed: it reads the item, the key, the
+rationale, and the learner's specific wrong answer, so it can teach about *this*
+error rather than about the item in general. What it is not allowed to do is choose
+how much to say. The runtime gates that by session mode and by hint tier, so a model
+argued into wanting to reveal still cannot, because the reveal is the runtime's call
+and not the model's.
+
+Every other product in this space inverts that — a system prompt asks the model to
+withhold, and a system prompt can be talked out of. Everything here (lessons,
+scheduling, the auditor, the UI) is a surface over that one guarantee. If a feature
+requires a second scorer, a second parser, or lets a model decide what the learner
+sees, the feature is wrong.
 
 ## Requirements
 
@@ -115,6 +125,20 @@ the feature is wrong.
 - [ ] Closed authoring loop: spec, draft, lint, feed errors back, repeat to clean or retry cap, write the bank — no human relaying errors (#11)
 - [ ] Model adapter as an interface, not a vendor: works with Claude Code, Codex, or a competitor today, and an open local model such as Qwen when the hardware exists (#14)
 - [ ] `short` rubric marking through that adapter, with the model a client of `next`/`submit`/`hint` and never a scorer (#14)
+- [ ] The tutoring model reads the key, rationale, and the learner's specific wrong answer, and writes a hint about *that* error
+- [ ] The runtime, not the model, decides which tier the model may speak at; the model cannot reach past the tier the session has unlocked
+- [ ] Model-generated hints are checked against the tier gate before rendering, and a hint that leaks the key is dropped rather than shown
+- [ ] Local model is a first-class backend, prepared in advance rather than retrofitted: the adapter is written against an OpenAI-compatible shape so a hosted CLI and a local server are the same code path
+- [ ] Every model interaction is logged to the evidence store, so a hint you were given is recoverable later
+
+**Feedback policy per session mode** *(new — resolves the Albert question)*
+
+- [ ] Feedback policy is a property of the session mode, not a global setting
+- [ ] Drill mode: correct answer and explanation immediately on a wrong answer, then next item (Albert's behaviour)
+- [ ] Practice mode: hint ladder, cursor held for a second attempt, reveal at tier 5
+- [ ] Diagnostic mode: no feedback until the sitting ends, because a hint contaminates the measurement
+- [ ] Exam mode: no feedback at all until the attempt file is marked
+- [ ] Mode is chosen per sitting and recorded in the evidence, so a "correct" from drill mode is distinguishable from a "correct" from exam mode
 - [ ] Agent usage contract covering permissions, answer leakage, retries, manual grading, and what an agent may not infer (root ROADMAP §4)
 - [ ] GIFT export as the cheapest proof of the interoperability claim (#12)
 
@@ -130,11 +154,11 @@ the feature is wrong.
 
 ### Out of Scope
 
-- **Hosted anything — accounts, gradebook, analytics, cloud storage** — the content rule. EMT items are AAOS 12e derivatives and CSCI 1100 runs under an AI-use ban. A hosted API call ships that text off the machine, which is the never-a-content-store rule breached through a side door instead of through git.
+- **Hosted storage: accounts, a gradebook, cloud sync, hosted analytics** — no learner evidence and no bank leaves the machine at rest. This still holds. Hosted *models* are now permitted (see Constraints); hosted *storage* is not.
 - **A social layer: matchmaking, public profiles, leaderboards** — worth something at ten thousand students and exactly zero at one. It is a business, not a feature.
 - **Gamification: points, badges, levels, scores** — a streak plus a git evidence dot is a signal; a score is a thing you optimise instead of studying. Retention mechanics buy nothing from a captive user of one.
 - **Auto-grading prose into mastery without a review state** — keyword matching cannot separate a correct explanation from a confident wrong one containing the right nouns. A grader that cannot tell those apart certifies the wrong answer.
-- **A chat box as the primary tutoring surface** — a model asked to hint can be argued into revealing; a tier ladder cannot reveal a tier it has not unlocked.
+- **A model that decides for itself how much to reveal** — the model writes the hint; the runtime decides which tier it may speak at and drops anything that reaches past it. A chat box may exist as *a* surface, never as the authority on what the learner sees.
 - **Full spaced-repetition ownership: intervals, ease, a card queue** — deferred, not rejected. Anki owns card reviews this milestone; itembank owns objective-level scheduling. Merging them deeper is a v2 question.
 - **A compiled binary: signed exe, `.app` bundle, AppImage** — deferred to v2, not rejected. It solves "Python is not installed", which is not a problem on either machine, and costs a release pipeline, a signing certificate, and a near-certain Defender false positive on a machine where that already bit this project. The zipapp gives the double-click on all three platforms for an afternoon instead. Revisit when a second person runs it, which is when "install Python first" becomes a real barrier (#10, partly superseded).
 - **A rewrite in Go, Rust, or any compiled language** — it would buy a static binary and cost the one verified scorer, the format contract, and five passing test files. Cross-language adaptability is bought at the JSON API seam (#7) instead, where any future native shell, TUI, or phone surface is a client rather than a reimplementation.
@@ -202,10 +226,11 @@ same day.
 ## Constraints
 
 - **Tech stack**: Python standard library only, no install step — the founding design constraint. Two named exceptions: a vendored KaTeX asset for Math rendering (goal 5 forbids services and network, not files), and stdlib `urllib` for the opt-in updater.
-- **Network**: narrowed from "none beyond loopback" to **"none that sees your content, and none you did not ask for."** The updater fetches a release and a checksum and sends nothing. It is a setting, defaults conservative, and fails silently offline. Serving, scoring, lessons, evidence, and the auditor all still work with the network unplugged.
+- **Network**: hosted models are permitted, so the tool is no longer offline-only. But the core loop must **degrade, never block**: sitting a quiz, scoring, lessons, the authored hint ladder, evidence, and reports all work with the network unplugged. The model layer goes quiet when unreachable, the same way `day` omits Anki counts when Anki is closed. Being out of credits must never stop you studying.
+- **Data residency**: evidence and banks stay on disk. No cloud sync, no hosted gradebook, no telemetry. Item text may transit to a model in a request; it is never stored remotely by this tool.
+- **Model backends**: hosted (Claude Code, Codex, or a competitor) and local (an OpenAI-compatible server such as llama.cpp or Ollama running Qwen) are the same code path. The local backend is prepared in advance rather than retrofitted, so the hardware arriving is a config change and not a rewrite.
 - **Surfaces**: every capability has both a route in the daemon and a command in the CLI. Neither surface is the real one; both are clients of the runtime.
-- **Security**: Bank content never leaves the machine. This forbids hosted model APIs for anything that sees item text, and it is a rule about the content, not a preference about vendors.
-- **Compliance**: A local model fixes privacy but **not policy**. Running offline is still AI assistance on graded coursework under the CSCI 1100 AI-use ban. This guardrail is written down explicitly so a future session does not reason "it runs offline, so it's fine."
+- **Accepted risk — hosted models see item text.** Weibao's explicit decision on 2026-08-05, after the tradeoff was put to him. It means AAOS-12e-derivative EMT items and course-derived CSCI 1100 items transit to a hosted provider. Two things stay true and are recorded here so they are not rediscovered as surprises: hosted or local, this is **AI assistance on graded coursework**, and the CSCI 1100 AI-use ban applies to both; and the local-only path remains fully built, so any subject can be moved back behind it by changing one setting rather than by changing the code.
 - **Data**: No real question banks in this repository, enforced by `itembank guard` in CI. Fixtures are synthetic. Learner evidence lives beside the private bank.
 - **Compatibility**: Format changes must be additive. A bank without a `LESSON` section must parse exactly as it does today.
 - **Hardware**: The local-model path targets a 7900 XTX build that does not exist yet. The adapter is designed now as a vendor-neutral interface; the local backend waits for the machine.
@@ -230,6 +255,10 @@ same day.
 | Updater ships, and the network constraint narrows on purpose | Weibao wanted grimoire's self-update. Grimoire is Electron plus `electron-updater` against GitHub Releases — a pipeline this project does not have. The stdlib equivalent is ~100 lines. Both opt-in and check-on-launch exist, toggleable. | ⚠️ Revisit |
 | Settings are one documented file with a printed schema | "Tunable" means an agent adjusts settings, not source. `itembank config` does for settings what `spec` does for the format: a contract an agent can read and a linter can enforce. | — Pending |
 | Every capability is both an app route and a CLI command | Weibao, twice: "shoudnt it be app based rather than terminal based? Both options should exist." Same shape as the one-scorer rule — two surfaces, one runtime. | — Pending |
+| The model sees the key; the runtime gates the tier | Weibao: "It can refer to keys as needed?" A key-blind model can only recite authored text. A key-aware model teaching about *your* error is a much better tutor, and the guarantee survives by moving from "the model lacks the key" to "the model lacks the decision." | — Pending |
+| Feedback policy belongs to the session mode | Weibao asked about Albert revealing the answer on a wrong response. Albert is right for volume drilling and wrong for diagnosis. Drill reveals, practice ladders, diagnostic and exam stay silent. One config field instead of one global argument. | — Pending |
+| Hosted models permitted, risk accepted explicitly | Weibao chose "hosted allowed everywhere, accept the risk" after the AAOS-derivation and CSCI-1100-AI-ban tradeoff was stated. His call, recorded rather than relitigated. The local path stays built so any subject can move back with a setting. | ⚠️ Revisit |
+| Model-first, offline-capable, local model prepared in advance | Weibao: "Maybe model first, and for me to prepare an powerful(ish) local model in advance?" Build against the model as the primary teaching path, keep the authored ladder as the floor, and write the adapter to an OpenAI-compatible shape so the 7900 XTX build is a config change. | — Pending |
 
 ## Evolution
 
