@@ -486,6 +486,262 @@ def objective_history(log, objective):
     return [r[2] for r in rows]
 
 
+# ---- disposable sqlite3 projection (01-08) --------------------------------
+# D-08: the log is the only authority. This index is a materialized view
+# over it, never a second source of truth -- deleting it and letting the
+# next query rebuild it returns the same answer every time
+# (test_index_is_disposable proves it for a missing, corrupt and
+# permanently-unwritable index). `sqlite3` is imported lazily inside each
+# of these functions rather than at module top, so a Python build without
+# it still imports this module and still records and reads evidence
+# through the live_events() linear-scan fallback in objective_history().
+
+INDEX_VERSION = 1   # The projection's OWN version, bumped whenever the table
+                     # shape below changes, which forces a full rebuild
+                     # rather than a subtly wrong query against an old
+                     # shape. This is not a published contract the way
+                     # schemas/*.json are -- the index is disposable, so
+                     # bumping this number costs a rebuild and nothing
+                     # else, which is exactly why it lives here and not in
+                     # schemas/.
+
+
+def _index_connect(path):
+    import sqlite3
+    return sqlite3.connect(path)
+
+
+def _create_index_schema(con):
+    con.execute("""CREATE TABLE events (
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id TEXT UNIQUE,
+        ts TEXT,
+        session_id TEXT,
+        item_id TEXT,
+        item_ref TEXT,
+        objective TEXT,
+        subject TEXT,
+        mode TEXT,
+        item_type TEXT,
+        score TEXT,
+        attempt_number INTEGER,
+        confidence TEXT,
+        response_time_ms INTEGER,
+        review_state TEXT,
+        retracted INTEGER DEFAULT 0)""")
+    con.execute("CREATE INDEX idx_objective ON events(objective, ts)")
+    con.execute("CREATE INDEX idx_subject ON events(subject, ts)")
+    con.execute("CREATE INDEX idx_session ON events(session_id, ts)")
+    con.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
+
+
+def _insert_response_row(con, ev):
+    """Insert one response event's projected row. `score` is stored as its
+    JSON encoding so the three states `true`, `false` and `null` all
+    survive the round trip -- a `short` item awaiting a marker is not a
+    wrong answer, and collapsing that distinction here would undo the one
+    `runtime.score_response`'s docstring exists to protect.
+    """
+    con.execute(
+        "INSERT OR IGNORE INTO events (event_id, ts, session_id, item_id, "
+        "item_ref, objective, subject, mode, item_type, score, "
+        "attempt_number, confidence, response_time_ms, review_state) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (ev.get("event_id"), ev.get("ts"), ev.get("session_id"),
+         ev.get("item_id"), ev.get("item_ref"), ev.get("objective", ""),
+         ev.get("subject", ""), ev.get("mode"), ev.get("item_type"),
+         json.dumps(ev.get("score")), ev.get("attempt_number"),
+         ev.get("confidence"), ev.get("response_time_ms"),
+         ev.get("review_state")))
+
+
+def _mark_index_retracted(con, ids):
+    """Mark rows retracted -- never deleted, so the index mirrors the log's
+    own D-10 semantics.
+    """
+    if ids:
+        con.executemany("UPDATE events SET retracted = 1 WHERE event_id = ?",
+                        [(eid,) for eid in ids])
+
+
+def _set_index_meta(con, log_bytes, log_mtime_ns):
+    con.executemany(
+        "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)",
+        [("index_version", str(INDEX_VERSION)),
+         ("event_schema_version", str(EVENT_SCHEMA_VERSION)),
+         ("log_bytes", str(log_bytes)),
+         ("log_mtime_ns", str(log_mtime_ns))])
+
+
+def rebuild_index(log, index):
+    """A full rebuild of the disposable projection from `log`, written
+    through `index + ".tmp"` and then `os.replace()`'d into place -- the
+    same tmp-then-replace pattern `runtime.write_session()` uses for a
+    session file, so a half-built index can never replace a good one.
+
+    Built on `events(log)`, which inherits `iter_raw`'s per-line
+    skip-and-report (D-09): a torn or malformed line warns and is skipped
+    rather than aborting the whole rebuild.
+    """
+    tmp = index + ".tmp"
+    if os.path.exists(tmp):
+        os.remove(tmp)
+    os.makedirs(os.path.dirname(index) or ".", exist_ok=True)
+    con = _index_connect(tmp)
+    try:
+        _create_index_schema(con)
+        for ev in events(log):
+            if ev.get("event_type") != RESPONSE_EVENT_TYPE:
+                continue
+            _insert_response_row(con, ev)
+        _mark_index_retracted(con, retracted_ids(log))
+        size = os.path.getsize(log) if os.path.exists(log) else 0
+        mtime_ns = os.stat(log).st_mtime_ns if os.path.exists(log) else 0
+        _set_index_meta(con, size, mtime_ns)
+        con.commit()
+    finally:
+        con.close()
+    os.replace(tmp, index)
+
+
+def index_stale(log, index):
+    """Whether `index` needs a rebuild before it can answer a query for
+    `log`, and the byte offset an incremental rebuild should resume from.
+
+    Returns `(stale, offset)`. `offset` is always 0 when a FULL rebuild is
+    required -- a missing index, an index that cannot even be opened, an
+    `index_version`/`event_schema_version` mismatch (the table shape or the
+    event shape moved since this index was built), or a log that is
+    SMALLER than the `log_bytes` this index already recorded, which means
+    the log was truncated or rewritten and an incremental pass would
+    silently index the wrong bytes at that offset. Otherwise `offset` is
+    the previously recorded `log_bytes`, for an incremental pass. Not stale
+    only when the log's current size and mtime both match the index's own
+    record exactly.
+    """
+    if not os.path.exists(index):
+        return True, 0
+    log_size = os.path.getsize(log) if os.path.exists(log) else 0
+    log_mtime_ns = os.stat(log).st_mtime_ns if os.path.exists(log) else 0
+    con = _index_connect(index)
+    try:
+        meta = dict(con.execute("SELECT key, value FROM meta").fetchall())
+    finally:
+        con.close()
+    if meta.get("index_version") != str(INDEX_VERSION):
+        return True, 0
+    if meta.get("event_schema_version") != str(EVENT_SCHEMA_VERSION):
+        return True, 0
+    try:
+        recorded_bytes = int(meta.get("log_bytes", "0"))
+    except (TypeError, ValueError):
+        return True, 0
+    if log_size < recorded_bytes:
+        return True, 0
+    if log_size == recorded_bytes and str(log_mtime_ns) == meta.get("log_mtime_ns", ""):
+        return False, 0
+    return True, recorded_bytes
+
+
+def _index_tail_update(log, index, offset):
+    """Extend `index` with response events found in `log` from byte
+    `offset` onward, marking any retraction found in that same tail.
+    Retraction is monotonic -- an event is never un-retracted -- so
+    applying only the new tail's retractions here is correct even when an
+    earlier retraction's own target sits before `offset`.
+    """
+    con = _index_connect(index)
+    try:
+        with open(log, "rb") as fh:
+            fh.seek(offset)
+            data = fh.read()
+        new_size = offset + len(data)
+        text = data.decode("utf-8", errors="replace")
+        new_retractions = set()
+        for raw in text.splitlines():
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                obj = json.loads(raw)
+            except (ValueError, TypeError):
+                print("warn  %s tail line malformed, skipped" % os.path.basename(log))
+                continue
+            if not isinstance(obj, dict):
+                print("warn  %s tail line malformed, skipped" % os.path.basename(log))
+                continue
+            et = obj.get("event_type")
+            if et == RETRACTION_EVENT_TYPE:
+                target = obj.get("retracts")
+                if target:
+                    new_retractions.add(target)
+                continue
+            if et != RESPONSE_EVENT_TYPE:
+                continue
+            _insert_response_row(con, obj)
+        _mark_index_retracted(con, new_retractions)
+        mtime_ns = os.stat(log).st_mtime_ns if os.path.exists(log) else 0
+        _set_index_meta(con, new_size, mtime_ns)
+        con.commit()
+    finally:
+        con.close()
+
+
+def ensure_index(log, index):
+    """Bring `index` up to date with `log` -- a full rebuild or an
+    incremental tail extension, whichever `index_stale()` says is needed --
+    and return `"used"` when a query may now read the index, or
+    `"fallback"` when it could not be built or extended at all.
+
+    Every step runs inside one `try/except Exception`: an index that
+    cannot be built must never stop a learner from studying, the same
+    degrade-never-block rule PROJECT.md applies to the model layer, applied
+    here to the query layer. On any failure this prints a warning, removes
+    the index file if one exists (so the next call starts clean), and
+    returns `"fallback"` -- the caller is expected to answer the query
+    through `live_events()` instead.
+
+    Takes the same advisory lock `append_line` takes around the log, but
+    around the index's own on-disk `.lock` file, so two concurrent queries
+    cannot rebuild or extend the index over each other.
+    """
+    try:
+        stale, offset = index_stale(log, index)
+        if not stale:
+            return "used"
+        lock_path = index + ".lock"
+        os.makedirs(os.path.dirname(index) or ".", exist_ok=True)
+        fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o644)
+        try:
+            with locked(fd):
+                # Re-check now that the lock is held: another process may
+                # have already rebuilt or extended the index while this one
+                # waited for the lock.
+                stale, offset = index_stale(log, index)
+                if not stale:
+                    return "used"
+                if offset == 0:
+                    rebuild_index(log, index)
+                else:
+                    size = os.path.getsize(log) if os.path.exists(log) else 0
+                    if size < offset:
+                        rebuild_index(log, index)
+                    else:
+                        _index_tail_update(log, index, offset)
+        finally:
+            os.close(fd)
+        return "used"
+    except Exception as exc:
+        print("warn  evidence index unavailable (%s); falling back to a full log scan" %
+              exc)
+        try:
+            if os.path.exists(index):
+                os.remove(index)
+        except Exception:
+            pass
+        return "fallback"
+
+
 # ---- retractions --------------------------------------------------------
 # D-10: undo is an append, never a removal. A retraction is a compensating
 # event that references the event it undoes; nothing is ever deleted, so a
