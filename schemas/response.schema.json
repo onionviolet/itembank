@@ -69,8 +69,8 @@
       "description": "The learner's raw response, shaped per item type -- a string, an array, or an object"
     },
     "canonical": {
-      "type": ["string", "null"],
-      "description": "runtime.canonical_response()'s output; null for a short item, which has no canonical form"
+      "type": "string",
+      "description": "evidence.idempotency_canon()'s output: runtime.canonical_response() when it returns one, or 'short:' + sha256 of the whitespace-collapsed, lowercased answer text when canonical_response() returns null (a short item has no canonical form of its own). This is the same value fed into dedupe_key, so the two can never compare against different things (D-17, plan 01-07); never null."
     },
     "score": {
       "type": ["boolean", "null"],

@@ -85,18 +85,27 @@ def cmd_submit(a):
     q = qs[data["items"][data["cursor"]]]
     answer = normalize_answer(a.answer)
     score = score_response(q, answer)
-    data["responses"].append({"item_id": q["id"], "objective": q.get("objective", ""),
-                               "type": q["type"], "answer": answer, "score": score})
 
     response_time_ms = ms_since(data.get("served_ts"))
     log = evidence.log_path(os.path.dirname(data["bank"]))
     item_key = evidence.evidence_key(q)
-    attempt_num = evidence.attempt_number(log, data["session_id"], item_key)
+    canon = evidence.idempotency_canon(q, answer)
+    attempt_num = evidence.attempt_number(log, data["session_id"], item_key, canon)
     event = evidence.response_event(
         data["session_id"], q, answer, score, data["mode"], attempt_num,
         os.path.basename(data["bank"]), response_time_ms=response_time_ms,
         confidence=a.confidence)
     evidence_result = evidence.append_event(log, event)
+
+    # A retry after a crash between the evidence append and the session
+    # write is the session catching up, not a new response: appending a
+    # second entry here for the same answer would double-count it in every
+    # later report and objective-history summary. The evidence log already
+    # has exactly one event for it either way (D-17).
+    if evidence_result["status"] == "recorded":
+        data["responses"].append({"item_id": q["id"], "objective": q.get("objective", ""),
+                                   "type": q["type"], "answer": answer, "score": score,
+                                   "status": evidence_result["status"]})
 
     data["cursor"] += 1
     if data["cursor"] >= len(data["items"]):

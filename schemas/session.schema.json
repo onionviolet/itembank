@@ -77,6 +77,11 @@
         "score": {
           "type": ["boolean", "null"],
           "description": "true, false, or null for a constructed response not yet marked"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["recorded", "already_recorded"],
+          "description": "The evidence writer's status for this response (plan 01-07). Always 'recorded' here: an 'already_recorded' retry is never appended to this array in the first place, so no second entry double-counts it in a later report. Optional: a session written before plan 01-07 has none."
         }
       }
     }
