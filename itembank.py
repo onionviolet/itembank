@@ -58,21 +58,26 @@ from surfaces.day import (ANKI_ADDON_ID, DAY_LANES, FLOOR_LANES, anki_read,   # 
                           lane_load, lint_lane_decks, lint_lane_paths,
                           load_day_log, parse_lanes, parse_plan, resolve_notes,
                           wiring_bases, write_day_log)
-from evidence import (EVENT_SCHEMA_VERSION, append_line, evidence_dir,        # noqa: E402
-                      index_path, iter_raw, log_path, new_event_id, utc_now)
+from evidence import (EVENT_SCHEMA_VERSION, append_event, append_line,        # noqa: E402
+                      attempt_number, dedupe_key, evidence_dir, events,
+                      idempotency_canon, index_path, iter_raw, log_path,
+                      new_event_id, objective_history, response_event,
+                      subject_of, utc_now)
 
 __all__ = [
     "ANKI_ADDON_ID", "BANK_FILE_HINTS", "DAY_LANES", "EVENT_SCHEMA_VERSION",
     "FIELD_SEP", "FLOOR_LANES", "LETTERS", "PAIR_SEP", "SESSION_VERSION", "SPEC",
-    "anki_read", "answer_text", "append_line", "canonical_key",
-    "canonical_response", "day_history", "day_info", "day_page", "day_status",
-    "day_streak", "day_text", "evidence_dir", "explain_payload", "grab",
+    "anki_read", "answer_text", "append_event", "append_line", "attempt_number",
+    "canonical_key", "canonical_response", "day_history", "day_info",
+    "day_page", "day_status", "day_streak", "day_text", "dedupe_key",
+    "evidence_dir", "events", "explain_payload", "grab", "idempotency_canon",
     "index_path", "iter_raw", "lane_behind", "lane_files", "lane_load", "lint",
     "lint_lane_decks", "lint_lane_paths", "load", "load_day_log", "log_path",
-    "main", "new_event_id", "normalize_answer", "notes", "page_item",
-    "parse_bank", "parse_lanes", "parse_plan", "parse_question", "public_item",
-    "read_session", "resolve_notes", "response_text", "score_response",
-    "section", "session_path", "session_summary", "session_view", "utc_now",
+    "main", "new_event_id", "normalize_answer", "notes", "objective_history",
+    "page_item", "parse_bank", "parse_lanes", "parse_plan", "parse_question",
+    "public_item", "read_session", "resolve_notes", "response_event",
+    "response_text", "score_response", "section", "session_path",
+    "session_summary", "session_view", "subject_of", "utc_now",
     "wiring_bases", "write_day_log", "write_session",
 ]
 

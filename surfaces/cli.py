@@ -9,6 +9,7 @@ import argparse, collections, os, sys
 from model import BANK_FILE_HINTS, SPEC, lint, load, parse_bank
 from surfaces.anki import cmd_export
 from surfaces.day import cmd_day
+from surfaces.evidence_cli import cmd_evidence
 from surfaces.quiz import cmd_build, cmd_serve
 from surfaces.session import cmd_next, cmd_report, cmd_start, cmd_submit
 from surfaces.study import cmd_study
@@ -123,7 +124,7 @@ def main():
     s.add_argument("--count", type=int, default=10)
     s.add_argument("--objective", default="", help="limit the session to one objective")
     s.add_argument("--mode", default="diagnostic",
-                   choices=("diagnostic", "practice", "exam", "remediation"))
+                   choices=("diagnostic", "practice", "exam", "remediation", "drill"))
     s.add_argument("--seed", type=int, default=0, help="deterministic item-selection seed")
     s.add_argument("--out", help="session JSON path")
     s.add_argument("--force", action="store_true", help="start despite lint errors")
@@ -137,11 +138,19 @@ def main():
     s.add_argument("session")
     s.add_argument("--answer", required=True,
                    help="response value, or a JSON array/object for structured items")
+    s.add_argument("--confidence", choices=("high", "medium", "low"), default=None,
+                   help="the learner's self-rated confidence in this response, optional")
     s.set_defaults(fn=cmd_submit)
 
     s = sub.add_parser("report", help="summarize a JSON assessment session")
     s.add_argument("session")
     s.set_defaults(fn=cmd_report)
+
+    s = sub.add_parser("evidence", help="read one objective's recorded response history")
+    s.add_argument("--objective", required=True, help="the objective to query")
+    s.add_argument("--base", default=".",
+                   help="directory holding _evidence/ (default: current directory)")
+    s.set_defaults(fn=cmd_evidence)
 
     s = sub.add_parser("study", help="render flashcards and a session-only Learn loop")
     s.add_argument("bank")
