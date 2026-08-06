@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/lint_error.schema.json",
+  "title": "itembank lint entry",
+  "description": "One machine-readable finding from model.lint(), as returned by 'itembank lint --json' and by model.LintError._asdict(). The code enum is a published API namespace (D-16): adding a code here is additive, renaming or removing one is a breaking change for every authoring agent that branches on it.",
+  "x-itembank-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["code", "field", "item", "message"],
+  "properties": {
+    "code": {
+      "type": "string",
+      "enum": [
+        "bank.answer_position_skew",
+        "item.content_drift",
+        "item.correct_unknown_option",
+        "item.distractor_missing",
+        "item.distractor_no_would_be",
+        "item.duplicate_id",
+        "item.duplicate_number",
+        "item.duplicate_stem",
+        "item.duplicate_steps",
+        "item.low_confidence",
+        "item.missing_distractor_notes",
+        "item.missing_hash",
+        "item.missing_id",
+        "item.missing_model",
+        "item.missing_second_best",
+        "item.missing_trap",
+        "item.missing_why_best",
+        "item.model_too_long",
+        "item.objective_unnamespaced",
+        "item.row_category_unknown",
+        "item.rubric_point_too_long",
+        "item.select_mismatch",
+        "item.too_few_categories",
+        "item.too_few_options",
+        "item.too_few_rows",
+        "item.too_few_rubric_points",
+        "item.too_few_steps"
+      ]
+    },
+    "field": {
+      "type": "string",
+      "description": "The question dict key at fault, for example 'opts' or 'why'"
+    },
+    "item": {
+      "type": "string",
+      "description": "The item tag this finding is about, for example 'Q3', or the literal 'BANK' for a bank-wide finding"
+    },
+    "message": {
+      "type": "string",
+      "description": "The human-readable text; str(LintError(...)) reproduces '<item>: <message>' exactly"
+    }
+  }
+}

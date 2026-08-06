@@ -1,0 +1,248 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/item.schema.json",
+  "title": "itembank served item",
+  "description": "What runtime.public_item() returns: the shape a learner may see before answering. This shape never carries an answer key, a rationale, or a model answer -- that boundary is what public_item exists to draw, and a consumer reading this contract cold should not look for one. explain_payload (not published here) is the after-answering counterpart.",
+  "x-itembank-version": 1,
+  "type": "object",
+  "required": ["schema_version", "id", "number", "type", "stem", "objective", "difficulty", "response_schema"],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "description": "The positional Qn-derived id, for example 'q3'. Not the opaque [ID:] identity field -- that lives on the private question dict, never on the served item."
+    },
+    "number": {
+      "type": "integer"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["mc", "multi", "table", "dnd", "build", "short"]
+    },
+    "stem": {
+      "type": "string"
+    },
+    "objective": {
+      "type": "string"
+    },
+    "difficulty": {
+      "type": "string"
+    },
+    "options": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/option"
+      }
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/row"
+      }
+    },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "response_schema": {
+      "type": "object",
+      "description": "Describes the shape a submitted answer must take. Its own inner shape varies by item type; see the mc/multi, table/dnd, build and short variants below."
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/mc_multi_item"
+    },
+    {
+      "$ref": "#/$defs/table_dnd_item"
+    },
+    {
+      "$ref": "#/$defs/build_item"
+    },
+    {
+      "$ref": "#/$defs/short_item"
+    }
+  ],
+  "$defs": {
+    "option": {
+      "type": "object",
+      "required": ["key", "text"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "A letter A-H"
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "row": {
+      "type": "object",
+      "required": ["text", "id"],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "id": {
+          "type": "integer",
+          "description": "The row's position in the served (possibly shuffled) list, not a stable identity"
+        }
+      }
+    },
+    "mc_multi_item": {
+      "type": "object",
+      "required": ["type", "options", "response_schema"],
+      "properties": {
+        "type": {
+          "enum": ["mc", "multi"]
+        },
+        "options": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "$ref": "#/$defs/option"
+          }
+        },
+        "response_schema": {
+          "$ref": "#/$defs/mc_multi_response_schema"
+        }
+      }
+    },
+    "table_dnd_item": {
+      "type": "object",
+      "required": ["type", "rows", "categories", "response_schema"],
+      "properties": {
+        "type": {
+          "enum": ["table", "dnd"]
+        },
+        "rows": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/row"
+          }
+        },
+        "categories": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "string"
+          }
+        },
+        "response_schema": {
+          "$ref": "#/$defs/table_dnd_response_schema"
+        }
+      }
+    },
+    "build_item": {
+      "type": "object",
+      "required": ["type", "steps", "response_schema"],
+      "properties": {
+        "type": {
+          "const": "build"
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "string"
+          }
+        },
+        "response_schema": {
+          "$ref": "#/$defs/build_response_schema"
+        }
+      }
+    },
+    "short_item": {
+      "type": "object",
+      "required": ["type", "response_schema"],
+      "properties": {
+        "type": {
+          "const": "short"
+        },
+        "response_schema": {
+          "$ref": "#/$defs/short_response_schema"
+        }
+      }
+    },
+    "mc_multi_response_schema": {
+      "type": "object",
+      "required": ["type", "select", "allowed"],
+      "properties": {
+        "type": {
+          "enum": ["array", "string"],
+          "description": "'string' for mc (pick one), 'array' for multi (pick select)"
+        },
+        "select": {
+          "type": "integer"
+        },
+        "allowed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The option keys a response may name"
+        }
+      }
+    },
+    "table_dnd_response_schema": {
+      "type": "object",
+      "required": ["type", "keys", "values"],
+      "properties": {
+        "type": {
+          "const": "object"
+        },
+        "keys": {
+          "const": "row id",
+          "description": "Literal descriptive text: a response is keyed by row id"
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The category names a row may be assigned to"
+        }
+      }
+    },
+    "build_response_schema": {
+      "type": "object",
+      "required": ["type", "items", "ordered"],
+      "properties": {
+        "type": {
+          "const": "array"
+        },
+        "items": {
+          "const": "step text",
+          "description": "Literal descriptive text: a response is an array of step text"
+        },
+        "ordered": {
+          "const": true
+        }
+      }
+    },
+    "short_response_schema": {
+      "type": "object",
+      "required": ["type", "min_length"],
+      "properties": {
+        "type": {
+          "const": "string"
+        },
+        "min_length": {
+          "type": "integer"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/session.schema.json",
+  "title": "itembank session file",
+  "description": "The resumable JSON session file written by 'itembank start' and read/written by 'next' and 'submit'. A session read whose schema_version is older than this document's current version is upgraded forward through runtime.upgrade_session before this shape is checked; a newer schema_version is rejected by name rather than guessed at.",
+  "x-itembank-version": 1,
+  "type": "object",
+  "required": ["schema_version", "session_id", "bank", "items", "cursor", "responses", "status", "mode", "objective", "seed"],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "bank": {
+      "type": "string",
+      "description": "Absolute path to the bank this session was started against"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "Indices into the parsed bank, not copies of the items themselves -- re-parsing the bank always agrees with this list"
+    },
+    "cursor": {
+      "type": "integer",
+      "description": "Position of the next unanswered item in items"
+    },
+    "responses": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/response_record"
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "complete"]
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["diagnostic", "practice", "exam", "remediation", "drill"]
+    },
+    "objective": {
+      "type": "string",
+      "description": "Empty string when the session was not limited to one objective"
+    },
+    "seed": {
+      "type": "integer",
+      "description": "Deterministic item-selection seed"
+    },
+    "served_ts": {
+      "type": "string",
+      "description": "ISO-8601 UTC timestamp of when the current item was served, used to compute response_time_ms. Optional: a session written before plan 01-02 has none."
+    }
+  },
+  "$defs": {
+    "response_record": {
+      "type": "object",
+      "required": ["item_id", "objective", "type", "answer", "score"],
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "description": "The Qn-derived positional id (see item.schema.json's own id field), not the opaque [ID:] identity field"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["mc", "multi", "table", "dnd", "build", "short"]
+        },
+        "answer": {
+          "description": "The learner's raw response, shaped per item type -- a string, an array, or an object"
+        },
+        "score": {
+          "type": ["boolean", "null"],
+          "description": "true, false, or null for a constructed response not yet marked"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/response.schema.json",
+  "title": "itembank evidence event",
+  "description": "One line of _evidence/evidence.jsonl, built by evidence.response_event() and written by evidence.append_event() alone. additionalProperties is false and every key below is required, so a missing key is a validation failure rather than a shrug: a consumer must be able to tell 'not captured' from 'this field did not exist in that era', and that only works if every key is always present. This document describes the response event -- the only event_type this build ever writes. event_type may also carry mark, retraction or day_tick; those are reserved in $defs for plans 01-07 and 01-09 to give a body to, and are not yet enforced by the required list below.",
+  "x-itembank-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "event_id", "event_type", "ts", "session_id", "item_id",
+    "item_ref", "item_type", "bank", "objective", "subject", "mode",
+    "attempt_number", "answer", "canonical", "score", "response_time_ms",
+    "confidence", "error_category", "hint_tier", "review_state", "dedupe_key",
+    "source_ref"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "event_id": {
+      "type": "string",
+      "description": "A uuid4 hex identifying this event"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": ["response", "mark", "retraction", "day_tick"],
+      "description": "This build writes only 'response'. 'mark', 'retraction' and 'day_tick' are reserved values, given a body in plans 01-07 and 01-09."
+    },
+    "ts": {
+      "type": "string",
+      "description": "ISO-8601 UTC to millisecond precision, matching evidence.utc_now()"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "item_id": {
+      "type": "string",
+      "description": "The opaque [ID:] identity field when assigned (plan 01-04); empty string on an item that has never had id-assign run against it"
+    },
+    "item_ref": {
+      "type": "string",
+      "description": "The Qn-derived positional id, always present regardless of whether item_id has been assigned"
+    },
+    "item_type": {
+      "type": "string",
+      "enum": ["mc", "multi", "table", "dnd", "build", "short"]
+    },
+    "bank": {
+      "type": "string",
+      "description": "The bank file's basename only, never an absolute path (T-1-06) -- a consumer should not expect a resolvable path here"
+    },
+    "objective": {
+      "type": "string"
+    },
+    "subject": {
+      "type": "string",
+      "description": "The text before the first ':' in a namespaced objective (evidence.subject_of); empty string on an unnamespaced or empty objective"
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["diagnostic", "practice", "exam", "remediation", "drill"],
+      "description": "Captured live on every surface; this is what makes a drill-mode correct distinguishable from an exam-mode correct"
+    },
+    "attempt_number": {
+      "type": "integer",
+      "description": "One more than the count of prior response events for this session and this item"
+    },
+    "answer": {
+      "description": "The learner's raw response, shaped per item type -- a string, an array, or an object"
+    },
+    "canonical": {
+      "type": ["string", "null"],
+      "description": "runtime.canonical_response()'s output; null for a short item, which has no canonical form"
+    },
+    "score": {
+      "type": ["boolean", "null"],
+      "description": "true, false, or null for a constructed response not yet marked -- not-yet-marked and marked-wrong are different states"
+    },
+    "response_time_ms": {
+      "type": ["integer", "null"],
+      "description": "Captured live; milliseconds between the item being served and the response being submitted; null only when the session carries no served_ts."
+    },
+    "confidence": {
+      "type": ["string", "null"],
+      "enum": ["high", "medium", "low", null],
+      "description": "Captured live where the surface offers it (submit --confidence); null when the learner did not say, which is different from low confidence."
+    },
+    "error_category": {
+      "type": "null",
+      "description": "Reserved, always null in schema version 1. No error taxonomy exists; it depends on the tutoring work in Phases 6 and 8. A guessed category would be recorded as fact and read as fact by later trend work, so it is recorded as unknown instead."
+    },
+    "hint_tier": {
+      "type": "null",
+      "description": "Reserved, always null in schema version 1. The hint ladder is Phase 6. Null means no ladder existed, which is a different fact from 'the ladder existed and the learner reached tier 0'; conflating them is unrecoverable once written."
+    },
+    "review_state": {
+      "type": "string",
+      "enum": ["n/a", "pending", "marked"],
+      "description": "'n/a' for an auto-scored item, 'pending' for a constructed response awaiting a marker, 'marked' once a mark event lands."
+    },
+    "dedupe_key": {
+      "type": "string",
+      "description": "A sha256 hex digest identifying one attempt at one item in one session"
+    },
+    "source_ref": {
+      "type": ["string", "null"],
+      "description": "Null except on records imported by itembank migrate."
+    }
+  },
+  "$defs": {
+    "mark_event": {
+      "type": "object",
+      "description": "Reserved shape for a mark event, written by plan 01-07. Not yet enforced.",
+      "properties": {
+        "event_type": {
+          "const": "mark"
+        }
+      }
+    },
+    "retraction_event": {
+      "type": "object",
+      "description": "Reserved shape for a retraction event -- D-10's compensating-append undo, written by plan 01-09. Not yet enforced.",
+      "properties": {
+        "event_type": {
+          "const": "retraction"
+        }
+      }
+    },
+    "day_tick_event": {
+      "type": "object",
+      "description": "Reserved shape for a day_tick event, written by plan 01-09. Not yet enforced.",
+      "properties": {
+        "event_type": {
+          "const": "day_tick"
+        }
+      }
+    }
+  }
+}

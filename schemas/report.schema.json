@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/report.schema.json",
+  "title": "itembank report payloads",
+  "description": "Two shapes, selected by which fields are present: a session summary (from 'itembank report' and runtime.session_summary()) and an objective history (from 'itembank evidence --objective' and evidence.objective_history()). Every count in either shape is post-retraction -- a raw line count of the evidence log overstates history, because D-10 undoes a response by appending a compensating event rather than removing anything.",
+  "x-itembank-version": 1,
+  "oneOf": [
+    {
+      "$ref": "#/$defs/session_summary"
+    },
+    {
+      "$ref": "#/$defs/objective_history"
+    }
+  ],
+  "$defs": {
+    "session_summary": {
+      "type": "object",
+      "required": ["schema_version", "auto_attempts", "auto_correct", "pending_manual", "objectives"],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "auto_attempts": {
+          "type": "integer",
+          "description": "Count of responses with a non-null score"
+        },
+        "auto_correct": {
+          "type": "integer"
+        },
+        "pending_manual": {
+          "type": "integer",
+          "description": "Count of constructed responses awaiting a mark"
+        },
+        "objectives": {
+          "type": "object",
+          "description": "Objective name to {attempts, correct, pending}, unmapped responses grouped under the literal key '(unmapped)'"
+        }
+      }
+    },
+    "objective_history": {
+      "type": "object",
+      "required": ["schema_version", "objective", "count", "events"],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "objective": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/objective_history_row"
+          }
+        }
+      }
+    },
+    "objective_history_row": {
+      "type": "object",
+      "properties": {
+        "ts": {
+          "type": ["string", "null"]
+        },
+        "session_id": {
+          "type": ["string", "null"]
+        },
+        "item_id": {
+          "type": ["string", "null"]
+        },
+        "item_ref": {
+          "type": ["string", "null"]
+        },
+        "mode": {
+          "type": ["string", "null"]
+        },
+        "score": {
+          "type": ["boolean", "null"]
+        },
+        "attempt_number": {
+          "type": ["integer", "null"]
+        },
+        "confidence": {
+          "type": ["string", "null"]
+        },
+        "response_time_ms": {
+          "type": ["integer", "null"]
+        }
+      }
+    }
+  }
+}
