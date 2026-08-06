@@ -33,8 +33,8 @@ def parse_question(ch):
     # Stem runs from the Qn. marker to the first structural marker that follows.
     stem = grab(
         r"Q\d+\.\s*(.*?)\s*(?:\(difficulty:|\n\[OBJECTIVE|\n\[TYPE|\n\[SELECT"
-        r"|\n\[CATEGORIES|\n[A-H]\)|\nROW\)|\nITEM\)|\nSTEP\)|\nMODEL:|\nRUBRIC:"
-        r"|\nWHY BEST:)",
+        r"|\n\[CATEGORIES|\n\[ID|\n\[HASH|\n[A-H]\)|\nROW\)|\nITEM\)|\nSTEP\)"
+        r"|\nMODEL:|\nRUBRIC:|\nWHY BEST:)",
         ch, re.S)
     common = {
         "id": "q" + number if number else "",
@@ -43,6 +43,8 @@ def parse_question(ch):
         "stem": stem,
         "difficulty": grab(r"\(difficulty:\s*([^)]+)\)", ch),
         "objective": grab(r"\[OBJECTIVE:\s*(.*?)\]", ch),
+        "item_id": grab(r"(?m)^\[ID:\s*(\S+)\s*\]", ch),          # empty until id-assign (01-04)
+        "content_hash": grab(r"(?m)^\[HASH:\s*(\S+)\s*\]", ch),   # empty until id-assign (01-04)
         "why": section("WHY BEST", ch),
         "disc": section("KEY DISCRIMINATOR", ch),
         "second": section("SECOND-BEST", ch),
@@ -131,12 +133,20 @@ one. Options A through H are supported.
 SHARED FIELDS (all types)
   Qn. <stem>   (difficulty: recall|application|analysis)     difficulty optional
   [OBJECTIVE: <syllabus or blueprint reference>]             optional
+  [ID: <opaque item id>]                                     optional, machine-assigned
+  [HASH: sha256:<digest>]                                    optional, machine-assigned
   WHY BEST:            why the keyed answer is correct
   KEY DISCRIMINATOR:   the one distinction the item turns on
   SECOND-BEST:         the runner-up, and what would make it win
   DISTRACTOR ANALYSIS: see below
   TRAP:                the misconception this item weaponises
   CONFIDENCE:          high | medium | low
+
+  [ID:] and [HASH:] are both optional; a bank without them parses exactly as it
+  did before these fields existed. [ID:] is assigned once by `itembank id-assign`
+  and is never edited by hand. [HASH:] is a fingerprint of the tested content,
+  used only to detect that an item changed. The ID is what evidence is recorded
+  against, so deleting it orphans that item's history.
 
 THE FIVE ITEM TYPES
 
