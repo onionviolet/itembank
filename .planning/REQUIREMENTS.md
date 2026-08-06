@@ -7,8 +7,8 @@
 
 ### Evidence
 
-- [ ] **EVID-01**: An item keeps the same identity across bank edits, so evidence recorded a month ago still points at the same question
-- [ ] **EVID-02**: A legitimate stem edit does not orphan that item's history; `lint` warns when a keyed item's content changed
+- [x] **EVID-01**: An item keeps the same identity across bank edits, so evidence recorded a month ago still points at the same question
+- [x] **EVID-02**: A legitimate stem edit does not orphan that item's history; `lint` warns when a keyed item's content changed
 - [x] **EVID-03**: One evidence store replaces `_attempts/*.md`, session JSON, and `daily_log.md`; each of those becomes a view over it
 - [x] **EVID-04**: A single query answers "how am I doing on this objective over time" across every session and subject
 - [x] **EVID-05**: Every evidence write is auditable and reversible — nothing is silently overwritten
@@ -196,8 +196,8 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| EVID-01 | Phase 1 | Pending |
-| EVID-02 | Phase 1 | Pending |
+| EVID-01 | Phase 1 | Complete |
+| EVID-02 | Phase 1 | Complete |
 | EVID-03 | Phase 1 | Complete |
 | EVID-04 | Phase 1 | Complete |
 | EVID-05 | Phase 1 | Complete |

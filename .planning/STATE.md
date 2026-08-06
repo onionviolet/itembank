@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: evidence-spine-protocol-foundation
 status: executing
-stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-08-06T17:07:54.890Z"
+stopped_at: Completed 01-04-PLAN.md
+last_updated: "2026-08-06T17:28:32.674Z"
 last_activity: 2026-08-06
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 11
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-05)
 ## Current Position
 
 Phase: 01 (evidence-spine-protocol-foundation) — EXECUTING
-Plan: 4 of 11
+Plan: 5 of 11
 Status: Ready to execute
 Last activity: 2026-08-06 — Phase 01 execution started
 
-Progress: [███░░░░░░░] 27%
+Progress: [████░░░░░░] 36%
 
 ## Performance Metrics
 
@@ -61,6 +61,7 @@ Progress: [███░░░░░░░] 27%
 | Phase 01 P01 | 15min | 3 tasks | 5 files |
 | Phase 01 P02 | 18min | 3 tasks | 8 files |
 | Phase 01 P03 | 20min | 2 tasks | 5 files |
+| Phase 01 P04 | 18min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,7 @@ Recent decisions affecting current work:
 - [Phase ?]: 01-02: Task 1 checkpoint resolved as option-a — response_time_ms and confidence captured with real values (served_ts, --confidence flag); error_category and hint_tier recorded as explicit null with the reason stated in code, since no error taxonomy or hint ladder exists before Phase 6/8
 - [Phase ?]: 01-02: evidence.py's response_event()/append_event()/events()/attempt_number()/objective_history() built as the first real writer and reader over the evidence log; surfaces/session.py is the first caller, and model.py additively parses [ID:]/[HASH:] into item_id/content_hash (empty until plan 01-04 assigns them)
 - [Phase ?]: 01-03: LINT_CODES built from sorted(set(...)) rather than a hand-ordered tuple, so sortedness/no-duplicates is structural rather than maintained by eye
+- [Phase ?]: 01-04: content_fingerprint() hashes only tested-content fields (never rationale); assign_ids() is a pure text transform, cmd_id_assign is the only bank writer, checking D-05 cross-bank id-uniqueness in a read-only first pass before any write
 
 ### Pending Todos
 
@@ -97,6 +99,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-06T17:07:54.860Z
-Stopped at: Completed 01-03-PLAN.md
+Last session: 2026-08-06T17:28:32.663Z
+Stopped at: Completed 01-04-PLAN.md
 Resume file: None
