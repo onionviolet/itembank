@@ -8,6 +8,9 @@ count. The fix is a machine-checkable contract: `itembank spec` tells an
 authoring agent the format, `itembank lint` tells it exactly what it got wrong.
 
   itembank spec                 print the format contract (the AI-facing entry point)
+  itembank schema [NAME]        print a published JSON contract; --all emits everything
+                                 (the format contract, all five documents, the command
+                                 sequence to run a session) in one self-contained object
   itembank lint  BANK.md        validate; errors exit non-zero, warnings advise
   itembank build BANK.md [OUT]  offline HTML quiz; holds the key, saves nothing
   itembank serve BANK.md        the graded sitting: the process scores and records

@@ -10,6 +10,7 @@ from model import BANK_FILE_HINTS, SPEC, lint, load, parse_bank
 from surfaces.anki import cmd_export
 from surfaces.day import cmd_day
 from surfaces.evidence_cli import cmd_evidence, cmd_id_assign
+from surfaces.protocol_cli import cmd_schema
 from surfaces.quiz import cmd_build, cmd_serve
 from surfaces.session import cmd_next, cmd_report, cmd_start, cmd_submit
 from surfaces.study import cmd_study
@@ -200,6 +201,14 @@ def main():
     s.add_argument("--no-open", action="store_true", dest="no_open",
                    help="do not launch a browser")
     s.set_defaults(fn=cmd_day)
+
+    s = sub.add_parser("schema", help="print the published JSON contracts the way "
+                       "`spec` prints the format contract")
+    s.add_argument("name", nargs="?")
+    s.add_argument("--all", action="store_true",
+                   help="emit the format contract, all five documents and the "
+                        "command sequence to run a session, in one object")
+    s.set_defaults(fn=cmd_schema)
 
     s = sub.add_parser("guard", help="fail if a real bank was committed")
     s.add_argument("dir", nargs="?", default=".")

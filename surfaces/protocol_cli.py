@@ -1,0 +1,104 @@
+"""The contract-delivery surface: hands over the published documents and does
+nothing else.
+
+`itembank schema` is to the five `schemas/*.json` documents what `itembank
+spec` is to the bank format: no processing, no summarizing, no rendering --
+the bytes on disk, printed verbatim, because a consumer who has to trust a
+paraphrase instead of the document itself is a consumer this contract has
+already failed. A route serving these same bytes over the loopback server
+arrives with the Phase 2 daemon; this command is what exists before it, and
+the route will read the same files off disk this command does, not a second
+copy embedded in Python.
+"""
+import json
+import os
+import sys
+
+from model import SPEC
+
+
+SCHEMA_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "schemas")
+
+# Listed in the order handed to a reader: what a learner sees before
+# answering, the session that carries it, the evidence a response leaves
+# behind, what comes back out in a report, and one lint finding.
+CONTRACTS = (
+    ("item", "what a learner sees before answering, from `itembank next`/`start`"),
+    ("session", "the resumable session file `start`/`next`/`submit`/`report` share"),
+    ("response", "one recorded evidence event, one line of `_evidence/evidence.jsonl`"),
+    ("report", "a session summary or an objective's response history"),
+    ("lint_error", "one finding from `itembank lint --json`'s `errors`/`warnings` arrays"),
+)
+
+CONTRACT_NAMES = tuple(name for name, _ in CONTRACTS)
+
+# The exact command sequence for running one session end to end, each tied to
+# the contract its output conforms to -- `contract` is None where no
+# published document covers the shape, so an agent is not sent chasing one
+# that does not exist. This is what turns a pile of schemas into something an
+# agent can actually run (PROTO-05).
+COMMANDS = (
+    {"command": "itembank lint BANK.md --json",
+     "description": "validate a bank; each entry of errors/warnings is one finding",
+     "contract": "lint_error"},
+    {"command": "itembank id-assign BANK.md",
+     "description": "assign opaque item ids and content-hash fingerprints; the only "
+                     "command that writes into a bank",
+     "contract": None},
+    {"command": "itembank start BANK.md --count N --mode MODE --out SESSION.json",
+     "description": "start a resumable session; writes SESSION.json and prints its "
+                     "first item",
+     "contract": "session"},
+    {"command": "itembank next SESSION.json",
+     "description": "return the current item without its answer key",
+     "contract": "item"},
+    {"command": "itembank submit SESSION.json --answer A --confidence high",
+     "description": "score the current response and record it as a response event "
+                     "in _evidence/evidence.jsonl",
+     "contract": "response"},
+    {"command": "itembank report SESSION.json",
+     "description": "summarize the session recorded so far",
+     "contract": "report"},
+    {"command": "itembank evidence --objective OBJ --base DIR",
+     "description": "read one objective's recorded response history",
+     "contract": "report"},
+)
+
+
+def _schema_path(name):
+    return os.path.join(SCHEMA_DIR, name + ".schema.json")
+
+
+def _load_schema_text(name):
+    return open(_schema_path(name), encoding="utf-8").read()
+
+
+def cmd_schema(a):
+    if a.all:
+        contracts = dict((name, json.loads(_load_schema_text(name))) for name in CONTRACT_NAMES)
+        payload = {
+            "schema_version": 1,
+            "spec": SPEC,
+            "contracts": contracts,
+            "commands": [dict(c) for c in COMMANDS],
+        }
+        print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+        return 0
+
+    if a.name:
+        if a.name not in CONTRACT_NAMES:
+            sys.exit("unknown contract %r; valid names: %s" %
+                     (a.name, ", ".join(CONTRACT_NAMES)))
+        print(_load_schema_text(a.name), end="")
+        return 0
+
+    print("Published JSON contracts (schemas/*.json):\n")
+    for name, summary in CONTRACTS:
+        doc = json.loads(_load_schema_text(name))
+        print("  %-12s v%-3d  %s" % (name, doc["x-itembank-version"], summary))
+    print("\nRun `itembank schema NAME` for one document, or "
+          "`itembank schema --all` for the whole contract -- the bank format, "
+          "all five documents, and the command sequence to run a session -- "
+          "in one object.")
+    return 0
