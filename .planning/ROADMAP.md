@@ -63,8 +63,21 @@ artifact per OS.
   4. A single query answers "how am I doing on objective X over time" across every session and subject, reading from the unified store alone.
   5. An agent with no repository context can read published schema versions for items, sessions, responses, and reports, and `lint` emits a machine-readable error code plus the offending field alongside the human-readable text.
 
-**Open decisions resolved here**: Item identity scheme (opaque ID with content-hash fingerprint, vs. content-hash-as-the-ID with a rekey/alias table) — no prior art in this codebase, needs its own design pass at plan time. Windows append-write durability for the event log — single-`write()` atomicity is POSIX-flavored; needs a spike on this platform before the append pattern is trusted.
-**Plans**: TBD
+**Open decisions resolved here**: Item identity scheme — **resolved at plan time as an opaque 12/16-hex `[ID:]` stored in the bank markdown with a separate `[HASH: sha256:...]` content fingerprint used only for drift detection (D-01/D-02); landed in plan 01-04.** Windows append-write durability for the event log — **resolved as an advisory lock (`msvcrt.locking` / `fcntl.flock`) held across exactly one `os.write()` per event, measured on the target machine by plan 01-01's blocking spike and recorded in `01-SPIKE-RESULT.md` before any plan appends a real event.**
+**Plans**: 11 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Windows append-durability spike and the locked log primitive
+- [ ] 01-02-PLAN.md — TRACER: one submitted response reaches the log and comes back out of it
+- [ ] 01-03-PLAN.md — Machine-readable lint errors with dotted codes and `lint --json`
+- [ ] 01-04-PLAN.md — Item identity: content fingerprint, `id-assign`, drift warning
+- [ ] 01-05-PLAN.md — Schema versions everywhere, the session upgrade seam, and the five published contracts
+- [ ] 01-06-PLAN.md — Minimal stdlib schema validator, `itembank schema`, and the CI contract gate
+- [ ] 01-07-PLAN.md — Idempotent submission, attempt numbering, and compensating retractions
+- [ ] 01-08-PLAN.md — Disposable sqlite3 index and the cross-subject objective query
+- [ ] 01-09-PLAN.md — Attempt file and session JSON become renders; marking becomes a batch command
+- [ ] 01-10-PLAN.md — `serve` and `day` become callers; `daily_log.md` becomes a render
+- [ ] 01-11-PLAN.md — Migration: the three legacy stores import with reconciled counts
 
 ### Phase 2: Daemon Consolidation & Settings Foundation
 **Goal**: The learner opens one process on one port for everything — sitting, studying, the day view, reports, and settings — and every capability in it also has a CLI command.
