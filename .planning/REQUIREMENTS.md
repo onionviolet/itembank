@@ -19,7 +19,7 @@
 ### Protocol
 
 - [x] **PROTO-01**: Items, sessions, responses, and reports each carry an explicit schema version
-- [ ] **PROTO-02**: `lint` emits machine-readable errors with a stable error code and the field at fault, alongside the human text
+- [x] **PROTO-02**: `lint` emits machine-readable errors with a stable error code and the field at fault, alongside the human text
 - [ ] **PROTO-03**: Submitting the same response twice does not record two attempts, and the tool says which happened
 - [ ] **PROTO-04**: A published JSON schema or contract fixture defines the agent interface, and CI checks the runtime against it
 - [ ] **PROTO-05**: An agent with no repository context can read the contract, run a full session, and interpret the evidence
@@ -205,7 +205,7 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | EVID-07 | Phase 1 | Complete |
 | EVID-08 | Phase 1 | Complete |
 | PROTO-01 | Phase 1 | Complete |
-| PROTO-02 | Phase 1 | Pending |
+| PROTO-02 | Phase 1 | Complete |
 | PROTO-03 | Phase 1 | Pending |
 | PROTO-04 | Phase 1 | Pending |
 | PROTO-05 | Phase 1 | Pending |
