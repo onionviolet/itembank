@@ -58,19 +58,22 @@ from surfaces.day import (ANKI_ADDON_ID, DAY_LANES, FLOOR_LANES, anki_read,   # 
                           lane_load, lint_lane_decks, lint_lane_paths,
                           load_day_log, parse_lanes, parse_plan, resolve_notes,
                           wiring_bases, write_day_log)
+from evidence import (EVENT_SCHEMA_VERSION, append_line, evidence_dir,        # noqa: E402
+                      index_path, iter_raw, log_path, new_event_id, utc_now)
 
 __all__ = [
-    "ANKI_ADDON_ID", "BANK_FILE_HINTS", "DAY_LANES", "FIELD_SEP", "FLOOR_LANES",
-    "LETTERS", "PAIR_SEP", "SESSION_VERSION", "SPEC", "anki_read", "answer_text",
-    "canonical_key", "canonical_response", "day_history", "day_info", "day_page",
-    "day_status", "day_streak", "day_text", "explain_payload", "grab",
-    "lane_behind", "lane_files", "lane_load", "lint", "lint_lane_decks",
-    "lint_lane_paths", "load", "load_day_log", "main", "normalize_answer",
-    "notes", "page_item", "parse_bank", "parse_lanes", "parse_plan",
-    "parse_question", "public_item", "read_session", "resolve_notes",
-    "response_text", "score_response", "section", "session_path",
-    "session_summary", "session_view", "wiring_bases", "write_day_log",
-    "write_session",
+    "ANKI_ADDON_ID", "BANK_FILE_HINTS", "DAY_LANES", "EVENT_SCHEMA_VERSION",
+    "FIELD_SEP", "FLOOR_LANES", "LETTERS", "PAIR_SEP", "SESSION_VERSION", "SPEC",
+    "anki_read", "answer_text", "append_line", "canonical_key",
+    "canonical_response", "day_history", "day_info", "day_page", "day_status",
+    "day_streak", "day_text", "evidence_dir", "explain_payload", "grab",
+    "index_path", "iter_raw", "lane_behind", "lane_files", "lane_load", "lint",
+    "lint_lane_decks", "lint_lane_paths", "load", "load_day_log", "log_path",
+    "main", "new_event_id", "normalize_answer", "notes", "page_item",
+    "parse_bank", "parse_lanes", "parse_plan", "parse_question", "public_item",
+    "read_session", "resolve_notes", "response_text", "score_response",
+    "section", "session_path", "session_summary", "session_view", "utc_now",
+    "wiring_bases", "write_day_log", "write_session",
 ]
 
 if __name__ == "__main__":

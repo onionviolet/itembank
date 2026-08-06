@@ -8,6 +8,8 @@
 
 # Generated output
 _attempts/
+# Learner evidence stays on disk, beside the bank, and never enters the repository.
+_evidence/
 session_*.json
 *_attempt_*.md
 *_quiz.html
