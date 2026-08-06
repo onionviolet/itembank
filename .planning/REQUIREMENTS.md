@@ -192,16 +192,108 @@ Resolved during roadmap or in the phase named, not deferred past it.
 
 ## Traceability
 
-Populated during roadmap creation.
+Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals and success criteria.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| _(pending roadmap)_ | — | Pending |
+| EVID-01 | Phase 1 | Pending |
+| EVID-02 | Phase 1 | Pending |
+| EVID-03 | Phase 1 | Pending |
+| EVID-04 | Phase 1 | Pending |
+| EVID-05 | Phase 1 | Pending |
+| EVID-06 | Phase 1 | Pending |
+| EVID-07 | Phase 1 | Pending |
+| EVID-08 | Phase 1 | Pending |
+| PROTO-01 | Phase 1 | Pending |
+| PROTO-02 | Phase 1 | Pending |
+| PROTO-03 | Phase 1 | Pending |
+| PROTO-04 | Phase 1 | Pending |
+| PROTO-05 | Phase 1 | Pending |
+| LESSON-01 | Phase 3 | Pending |
+| LESSON-02 | Phase 3 | Pending |
+| LESSON-03 | Phase 3 | Pending |
+| LESSON-04 | Phase 3 | Pending |
+| LESSON-05 | Phase 3 | Pending |
+| LESSON-06 | Phase 3 | Pending |
+| TEACH-01 | Phase 6 | Pending |
+| TEACH-02 | Phase 6 | Pending |
+| TEACH-03 | Phase 6 | Pending |
+| TEACH-04 | Phase 8 | Pending |
+| TEACH-05 | Phase 8 | Pending |
+| TEACH-06 | Phase 8 | Pending |
+| TEACH-07 | Phase 8 | Pending |
+| TEACH-08 | Phase 8 | Pending |
+| TEACH-09 | Phase 8 | Pending |
+| MODE-01 | Phase 6 | Pending |
+| MODE-02 | Phase 6 | Pending |
+| MODE-03 | Phase 6 | Pending |
+| MODE-04 | Phase 6 | Pending |
+| MODE-05 | Phase 6 | Pending |
+| MODE-06 | Phase 6 | Pending |
+| SEL-01 | Phase 7 | Pending |
+| SEL-02 | Phase 7 | Pending |
+| SEL-03 | Phase 7 | Pending |
+| SEL-04 | Phase 7 | Pending |
+| SEL-05 | Phase 7 | Pending |
+| SCHED-01 | Phase 10 | Pending |
+| SCHED-02 | Phase 10 | Pending |
+| SCHED-03 | Phase 10 | Pending |
+| SCHED-04 | Phase 10 | Pending |
+| TREND-01 | Phase 10 | Pending |
+| TREND-02 | Phase 10 | Pending |
+| TREND-03 | Phase 10 | Pending |
+| TREND-04 | Phase 10 | Pending |
+| TREND-05 | Phase 10 | Pending |
+| CODE-01 | Phase 5 | Pending |
+| CODE-02 | Phase 5 | Pending |
+| CODE-03 | Phase 5 | Pending |
+| CODE-04 | Phase 5 | Pending |
+| CODE-05 | Phase 5 | Pending |
+| LOOP-01 | Phase 9 | Pending |
+| LOOP-02 | Phase 9 | Pending |
+| LOOP-03 | Phase 9 | Pending |
+| LOOP-04 | Phase 9 | Pending |
+| LOOP-05 | Phase 9 | Pending |
+| AUDIT-01 | Phase 11 | Pending |
+| AUDIT-02 | Phase 11 | Pending |
+| AUDIT-03 | Phase 11 | Pending |
+| AUDIT-04 | Phase 11 | Pending |
+| AUDIT-05 | Phase 11 | Pending |
+| AUDIT-06 | Phase 11 | Pending |
+| AUDIT-07 | Phase 11 | Pending |
+| AUDIT-08 | Phase 11 | Pending |
+| AUDIT-09 | Phase 11 | Pending |
+| AUTH-01 | Phase 11 | Pending |
+| AUTH-02 | Phase 11 | Pending |
+| AUTH-03 | Phase 11 | Pending |
+| SURF-01 | Phase 2 | Pending |
+| SURF-02 | Phase 4 | Pending |
+| SURF-03 | Phase 2 | Pending |
+| SURF-04 | Phase 2 | Pending |
+| SURF-05 | Phase 4 | Pending |
+| SURF-06 | Phase 4 | Pending |
+| SURF-07 | Phase 4 | Pending |
+| SURF-08 | Phase 4 | Pending |
+| SURF-09 | Phase 4 | Pending |
+| MODEL-01 | Phase 8 | Pending |
+| MODEL-02 | Phase 8 | Pending |
+| MODEL-03 | Phase 8 | Pending |
+| MODEL-04 | Phase 8 | Pending |
+| MODEL-05 | Phase 8 | Pending |
+| DEL-01 | Phase 12 | Pending |
+| DEL-02 | Phase 12 | Pending |
+| DEL-03 | Phase 12 | Pending |
+| DEL-04 | Phase 2 | Pending |
+| DEL-05 | Phase 2 | Pending |
+| DEL-06 | Phase 12 | Pending |
+| DEL-07 | Phase 12 | Pending |
+| DEL-08 | Phase 12 | Pending |
 
 **Coverage:**
 - v1 requirements: 92 total
-- Mapped to phases: 0
-- Unmapped: 92 ⚠️
+- Mapped to phases: 92
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-08-05*
+*Roadmap created: 2026-08-05*
