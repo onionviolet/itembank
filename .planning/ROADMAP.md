@@ -33,6 +33,7 @@ artifact per OS.
 ## Phases
 
 **Phase Numbering:**
+
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
@@ -52,11 +53,13 @@ artifact per OS.
 ## Phase Details
 
 ### Phase 1: Evidence Spine & Protocol Foundation
+
 **Goal**: Every session the learner sits produces evidence that survives item edits, bank migrations, and repeated submissions, in one auditable store instead of three.
 **Mode:** mvp
 **Depends on**: Nothing (first phase)
 **Requirements**: EVID-01, EVID-02, EVID-03, EVID-04, EVID-05, EVID-06, EVID-07, EVID-08, PROTO-01, PROTO-02, PROTO-03, PROTO-04, PROTO-05
 **Success Criteria** (what must be TRUE):
+
   1. A learner can edit an item's stem after it has been linted once, and a query for that item's evidence history still resolves to the same objective/response trail — item identity survives a legitimate content edit.
   2. Running the one-time migration against existing `_attempts/*.md`, session JSON, and `daily_log.md` produces a single evidence store with no recorded response lost, verified by comparing pre- and post-migration counts.
   3. Submitting the same response twice to the same item within the same attempt records one accepted response, and the tool states which happened (recorded vs. already-recorded).
@@ -67,24 +70,58 @@ artifact per OS.
 **Plans**: 11 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 01-01-PLAN.md — Windows append-durability spike and the locked log primitive
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 01-02-PLAN.md — TRACER: one submitted response reaches the log and comes back out of it
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 01-03-PLAN.md — Machine-readable lint errors with dotted codes and `lint --json`
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 01-04-PLAN.md — Item identity: content fingerprint, `id-assign`, drift warning
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 01-05-PLAN.md — Schema versions everywhere, the session upgrade seam, and the five published contracts
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 01-06-PLAN.md — Minimal stdlib schema validator, `itembank schema`, and the CI contract gate
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
 - [ ] 01-07-PLAN.md — Idempotent submission, attempt numbering, and compensating retractions
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
 - [ ] 01-08-PLAN.md — Disposable sqlite3 index and the cross-subject objective query
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
 - [ ] 01-09-PLAN.md — Attempt file and session JSON become renders; marking becomes a batch command
+
+**Wave 10** *(blocked on Wave 9 completion)*
+
 - [ ] 01-10-PLAN.md — `serve` and `day` become callers; `daily_log.md` becomes a render
+
+**Wave 11** *(blocked on Wave 10 completion)*
+
 - [ ] 01-11-PLAN.md — Migration: the three legacy stores import with reconciled counts
 
 ### Phase 2: Daemon Consolidation & Settings Foundation
+
 **Goal**: The learner opens one process on one port for everything — sitting, studying, the day view, reports, and settings — and every capability in it also has a CLI command.
 **Mode:** mvp
 **Depends on**: Nothing (parallel-eligible with Phase 1)
 **Requirements**: SURF-01, SURF-03, SURF-04, DEL-04, DEL-05
 **Success Criteria** (what must be TRUE):
+
   1. Starting the daemon once serves `/`, `/quiz/<bank>`, `/study/<bank>`, `/report`, `/api/*`, and the day view from one port, replacing the need for a server per subcommand.
   2. Starting the daemon a second time does not fight over the port, and `--lan` still reaches a phone on the same wifi.
   3. For every route exercised in a manual pass, an equivalent CLI command exists and reaches the same result through the same runtime call, not a second implementation.
@@ -93,12 +130,14 @@ Plans:
 **Plans**: TBD
 
 ### Phase 3: Lesson Format & In-App Reader
+
 **Goal**: The learner opens a lesson inside the app, reads the teaching text an item is drawn from, and jumps straight to that item.
 **Mode:** mvp
 **Depends on**: Nothing (parallel-eligible with Phase 1, Phase 2)
 **Requirements**: LESSON-01, LESSON-02, LESSON-03, LESSON-04, LESSON-05, LESSON-06
 **UI hint**: yes
 **Success Criteria** (what must be TRUE):
+
   1. A bank carrying a `LESSON` section with `LESSON-REF`-tagged items renders the lesson as reading material in the app, with a working link from the lesson to each item that references it.
   2. A bank with no `LESSON` section still parses and renders byte-identically to how it does today — the compatibility floor holds.
   3. `lint` fails with an actionable message, by item number, when a `LESSON-REF` names a heading that does not exist — never a render-time crash.
@@ -107,12 +146,14 @@ Plans:
 **Plans**: TBD
 
 ### Phase 4: Surface Redesign & Theming
+
 **Goal**: Every surface reads from one visual system, the accent colour follows the learner's OS choice, and `day` supports safe in-page editing instead of round-tripping through Obsidian.
 **Mode:** mvp
 **Depends on**: Phase 2
 **Requirements**: SURF-02, SURF-05, SURF-06, SURF-07, SURF-08, SURF-09
 **UI hint**: yes
 **Success Criteria** (what must be TRUE):
+
   1. The question surface shows one sticky context line in place of the current five chrome bands, with a real typographic hierarchy for the stem.
   2. `study` renders the per-option rationale, second-best, and notes fields it currently discards, matching what the quiz surface already shows.
   3. Quiz, study, and `day` all read from one shared palette — `day` no longer carries its own literal-hex stylesheet — and the browser page holds no key and performs no scoring of its own; every verdict comes back from `/api/*`.
@@ -122,12 +163,14 @@ Plans:
 **Plans**: TBD
 
 ### Phase 5: Check Item Type & Code Editor
+
 **Goal**: A learner can write and run their own code against a `check` item, in a real editor, and get a dichotomous verdict through the same scorer as every other item type.
 **Mode:** mvp
 **Depends on**: Nothing (parallel-eligible with Phase 1; coordinate `model.py`/`runtime.py` diffs with Phase 1)
 **Requirements**: CODE-01, CODE-02, CODE-03, CODE-04, CODE-05
 **UI hint**: yes
 **Success Criteria** (what must be TRUE):
+
   1. A learner types code into a monospace field with working line numbers and a tab key that inserts a tab rather than moving focus.
   2. Submitting `check` code runs it, compares output against multiple expected test cases (not one hardcoded string), and reaches its verdict through `runtime.score_response()` like every other item type.
   3. Code that loops forever is killed at the timeout on both Windows and POSIX, including any child process it spawned — verified with a grandchild-spawning test case.
@@ -136,11 +179,13 @@ Plans:
 **Plans**: TBD
 
 ### Phase 6: Hint Ladder, Cursor-Hold & Feedback Modes
+
 **Goal**: A wrong answer holds the session open for a real second attempt, hints unlock one authored tier at a time, and feedback behavior changes correctly by session mode.
 **Mode:** mvp
 **Depends on**: Phase 1, Phase 3
 **Requirements**: TEACH-01, TEACH-02, TEACH-03, MODE-01, MODE-02, MODE-03, MODE-04, MODE-05, MODE-06
 **Success Criteria** (what must be TRUE):
+
   1. Submitting a wrong answer holds the cursor on that item instead of advancing, and a `hint` command/route returns tier 0 (lesson pointer), then 1 (objective), then 2 (trap), then 3 (rationale for the picked option), then 4 (discriminator), then 5 (reveal) — one new tier per call, never skipping ahead.
   2. `report` distinguishes an item answered correctly at tier 1 from one answered correctly at tier 4, reading `hints_used` recorded per response.
   3. Sitting the same bank in drill mode reveals the answer and explanation immediately on a wrong response and advances; in practice mode the ladder runs with the cursor held; in diagnostic mode nothing is shown until the sitting ends; in exam mode nothing is shown until the attempt file is marked.
@@ -150,11 +195,13 @@ Plans:
 **Plans**: TBD
 
 ### Phase 7: Selection Engine
+
 **Goal**: A session is assembled by rule, not by hand — targeted at an objective, a difficulty, or a discrimination pair — and the tool can say why it picked each item.
 **Mode:** mvp
 **Depends on**: Phase 1
 **Requirements**: SEL-01, SEL-02, SEL-03, SEL-04, SEL-05
 **Success Criteria** (what must be TRUE):
+
   1. A session can be requested filtered by objective, prerequisite, item type, and difficulty, and the returned set matches the filter.
   2. Diagnostic, practice, remediation, and exam selection modes each produce a session whose composition visibly differs in a way that matches the mode's purpose.
   3. Items just answered in the current session are not immediately re-served in the same or the next session, verified across a resumed session.
@@ -164,11 +211,13 @@ Plans:
 **Plans**: TBD
 
 ### Phase 8: Model Adapter Interface & Tier-Gate Enforcement
+
 **Goal**: The tutoring model reads the key and the learner's specific wrong answer and writes a hint about that error, but the runtime — not the model — decides which tier it may speak at, and a hint that reaches past that tier never renders.
 **Mode:** mvp
 **Depends on**: Phase 1, Phase 6
 **Requirements**: TEACH-04, TEACH-05, TEACH-06, TEACH-07, TEACH-08, TEACH-09, MODEL-01, MODEL-02, MODEL-03, MODEL-04, MODEL-05
 **Success Criteria** (what must be TRUE):
+
   1. Given an item, its key, rationale, and the learner's actual wrong answer, the model produces a hint about that specific error at the tier the runtime currently permits and no further — verified by a case where the model is prompted (adversarially) to reveal more, and the output is dropped rather than shown.
   2. Switching the configured model backend between a hosted CLI and a local OpenAI-compatible endpoint is a one-line config change with no code change, and both paths produce the same response shape.
   3. With the network unplugged (or the model unreachable), sitting a quiz, scoring, lessons, the authored hint ladder, evidence, and reports all keep working — only the model-generated tier of hinting goes quiet.
@@ -179,12 +228,14 @@ Plans:
 **Plans**: TBD
 
 ### Phase 9: Subject-Invariant Loop — EMT, Math, CS Integration
+
 **Goal**: One loop carries a learner through EMT prose, Math with rendered LaTeX, and CS with runnable code, proving the loop is subject-invariant rather than three separate tools wearing the same theme.
 **Mode:** mvp
 **Depends on**: Phase 3, Phase 5, Phase 6
 **Requirements**: LOOP-01, LOOP-02, LOOP-03, LOOP-04, LOOP-05
 **UI hint**: yes
 **Success Criteria** (what must be TRUE):
+
   1. The same lesson-then-hint-then-check loop drives a session in each of the three subjects, with only the lesson medium, allowed item types, and verifier varying per subject.
   2. Math lessons and items render LaTeX correctly offline, from the vendored asset, with the network unplugged.
   3. A CS lesson embeds runnable code inline in its prose, and a learner can execute it from the reading view.
@@ -194,12 +245,14 @@ Plans:
 **Plans**: TBD
 
 ### Phase 10: Retention, Pacing & Trends
+
 **Goal**: The tool tells the learner what's due today, stops a course being binged in one sitting, and raises or lowers what gets selected based on real performance history — with itembank's and Anki's notions of "due" shown as two labeled signals, never silently merged.
 **Mode:** mvp
 **Depends on**: Phase 1, Phase 7
 **Requirements**: SCHED-01, SCHED-02, SCHED-03, SCHED-04, TREND-01, TREND-02, TREND-03, TREND-04, TREND-05
 **UI hint**: yes
 **Success Criteria** (what must be TRUE):
+
   1. `day`'s cockpit shows what's due today per objective, computed from itembank's own evidence, alongside Anki's due/new counts as a separate, clearly labeled signal, both read from one shared per-render snapshot.
   2. A daily cap enforced through `day` blocks a course from being over-worked in one sitting, and Anki keeps owning card reviews — itembank writes no card schedule.
   3. An objective the learner keeps missing visibly raises its selection weight in the next session; one the learner has mastered drops out of rotation.
@@ -209,11 +262,13 @@ Plans:
 **Plans**: TBD
 
 ### Phase 11: Closed Authoring Loop & Curriculum Auditor
+
 **Goal**: An agent can both draft a clean item end-to-end with no human relaying lint errors, and audit a syllabus against the bank for coverage gaps — reporting what it's unsure of as unsure, writing only through the same contract a human uses, and leaving every write reversible in one step.
 **Mode:** mvp
 **Depends on**: Phase 1, Phase 8, Phase 10 (loosely — only for weak-objective-pointing refinement)
 **Requirements**: AUTH-01, AUTH-02, AUTH-03, AUDIT-01, AUDIT-02, AUDIT-03, AUDIT-04, AUDIT-05, AUDIT-06, AUDIT-07, AUDIT-08, AUDIT-09
 **Success Criteria** (what must be TRUE):
+
   1. One command runs the full authoring cycle — spec, draft, lint, feed errors back, retry to clean or to a cap — and writes the bank with no human relaying an error message; a model given no repository context can complete it from the contract alone, and cannot invent content beyond what it was asked to write.
   2. Ingesting a syllabus produces an objective-by-objective coverage report where every "covered" claim cites the exact syllabus passage and bank item(s) behind it, and anything uncitable is reported as unknown rather than covered.
   3. Every generated item passes `lint` before reaching a bank, and a second quality gate (distractor-overlap, near-duplicate stems, answer-leaking overlap, missing "would-be-correct" rationale) blocks a machine-authored item `lint` alone would pass.
@@ -224,11 +279,13 @@ Plans:
 **Plans**: TBD
 
 ### Phase 12: Packaging, Self-Update & Interop Export
+
 **Goal**: The learner double-clicks one file per OS to open itembank as an app, the tool can update itself safely, and a bank can leave itembank through GIFT without silently mangling anything GIFT can't express.
 **Mode:** mvp
 **Depends on**: Phase 2
 **Requirements**: DEL-01, DEL-02, DEL-03, DEL-06, DEL-07, DEL-08
 **Success Criteria** (what must be TRUE):
+
   1. A double-clickable `.pyz` artifact plus a one-line launcher opens the app on Windows, macOS, and Linux, in a frameless window where available, falling back to an ordinary browser tab otherwise.
   2. The shipped artifact is still plain Python inside — a person or an agent can open and edit it without unpacking a build step.
   3. Checking for an update, downloading, and verifying a checksum leaves the currently-running process untouched; the new version lands at a side-by-side path and a relaunch hands off to it, never overwriting the running file.

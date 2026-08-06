@@ -156,7 +156,7 @@ daemon, selection rules, trends.
 
 ### Claude's Discretion
 
-- **D-02 (where the ID lives)** was delegated — the user said "do what is best since
+- **Where the ID lives (D-02)** was delegated — the user said "do what is best since
   I don't understand." The reasoning is recorded above so it can be challenged rather
   than inherited silently. If a planner finds that writing to private bank files is
   unacceptable in practice, the fallback is a sidecar index, and that reversal must be
