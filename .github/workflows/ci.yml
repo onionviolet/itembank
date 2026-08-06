@@ -32,6 +32,37 @@ jobs:
       - name: Sample fixture builds
         run: python itembank.py build fixtures/sample_bank.md /tmp/out.html
 
+      # Drives a real session end to end and validates every payload it produces
+      # against schemas/*.json with schema_validate.py -- the CI half of PROTO-04.
+      # Everything happens under /tmp so nothing lands in the checkout; the one
+      # `|| true` is on `lint`, whose non-zero exit on a broken bank is expected,
+      # and its output is validated on the very next line so an empty file can't
+      # slip through unnoticed.
+      - name: Runtime output matches published schema
+        run: |
+          set -e
+          cp fixtures/sample_bank.md /tmp/bank.md
+          python itembank.py start /tmp/bank.md --count 3 --seed 1 --out /tmp/s.json > /tmp/start.json
+          python schema_validate.py schemas/session.schema.json /tmp/s.json
+          python -c "import json, sys
+          json.dump(json.load(open(sys.argv[1], encoding='utf-8'))['item'],
+                    open(sys.argv[2], 'w', encoding='utf-8'))" /tmp/start.json /tmp/item.json
+          python schema_validate.py schemas/item.schema.json /tmp/item.json
+          python itembank.py submit /tmp/s.json --answer A --confidence high
+          python schema_validate.py schemas/response.schema.json --jsonl /tmp/_evidence/evidence.jsonl
+          python itembank.py report /tmp/s.json > /tmp/report.json
+          python -c "import json, sys
+          json.dump(json.load(open(sys.argv[1], encoding='utf-8'))['summary'],
+                    open(sys.argv[2], 'w', encoding='utf-8'))" /tmp/report.json /tmp/report_summary.json
+          python schema_validate.py schemas/report.schema.json /tmp/report_summary.json
+          OBJ=$(python -c "import json, sys
+          print(json.load(open(sys.argv[1], encoding='utf-8'))['item']['objective'])" /tmp/start.json)
+          python itembank.py evidence --objective "$OBJ" --base /tmp > /tmp/history.json
+          python schema_validate.py schemas/report.schema.json /tmp/history.json
+          python itembank.py lint fixtures/broken_bank.md --json > /tmp/lint.json || true
+          python schema_validate.py schemas/lint_error.schema.json --array /tmp/lint.json errors
+          python schema_validate.py schemas/lint_error.schema.json --array /tmp/lint.json warnings
+
       # Every file under tests/, rather than a named list. The list had already
       # drifted: two test files existed that CI never ran, so they could fail
       # for weeks without anyone hearing about it.

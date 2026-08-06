@@ -9,6 +9,7 @@ import json, os, shutil, subprocess, sys, tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 import itembank                                            # noqa: E402
+import schema_validate                                     # noqa: E402
 
 BROKEN_BANK = os.path.join(ROOT, "fixtures", "broken_bank.md")
 SAMPLE_BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
@@ -342,6 +343,115 @@ def test_event_schema_fields():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ---- validator + delivery (01-06): every real payload checked against ------
+# schemas/*.json, and itembank schema --all is self-contained and stable.
+
+def test_runtime_matches_schemas():
+    """The local mirror of the CI step 'Runtime output matches published
+    schema': drives one real session end to end and checks every payload
+    against its document with itembank.validate directly, so a developer
+    sees this fail before pushing rather than first in CI.
+
+    `itembank report`'s top-level payload wraps runtime.session_summary()
+    under a `summary` key (session_id/status live beside it); the published
+    session_summary shape describes that inner object, matching what
+    01-05's own test_schema_versions_present already asserts against
+    `report["summary"]["schema_version"]`. So the session-summary half of
+    report.schema.json's oneOf is checked against `report["summary"]`, not
+    the wrapper -- the wrapper itself is not one of the two published shapes.
+    """
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "bank.md")
+        shutil.copyfile(SAMPLE_BANK, bank)
+
+        started = json.loads(run(["start", bank, "--count", "3", "--seed", "1"], tmp))
+        session_file = started["session_file"]
+        session_data = json.load(open(session_file, encoding="utf-8"))
+
+        errs = itembank.validate(session_data, load_schema("session.schema.json"))
+        if errs:
+            fail("session.schema.json: %s" % errs[0])
+
+        errs = itembank.validate(started["item"], load_schema("item.schema.json"))
+        if errs:
+            fail("item.schema.json: %s" % errs[0])
+
+        run(["submit", session_file, "--answer", "A", "--confidence", "high"], tmp)
+        log = os.path.join(tmp, "_evidence", "evidence.jsonl")
+        lines = [l for l in open(log, encoding="utf-8").read().splitlines() if l.strip()]
+        response_schema = load_schema("response.schema.json")
+        for line in lines:
+            errs = itembank.validate(json.loads(line), response_schema)
+            if errs:
+                fail("response.schema.json: %s" % errs[0])
+
+        report = json.loads(run(["report", session_file], tmp))
+        report_schema = load_schema("report.schema.json")
+        errs = itembank.validate(report["summary"], report_schema)
+        if errs:
+            fail("report.schema.json (session summary): %s" % errs[0])
+
+        history = json.loads(
+            run(["evidence", "--objective", started["item"]["objective"], "--base", tmp], tmp))
+        errs = itembank.validate(history, report_schema)
+        if errs:
+            fail("report.schema.json (objective history): %s" % errs[0])
+
+        lint_schema = load_schema("lint_error.schema.json")
+        broken = run_lint_json(BROKEN_BANK)
+        payload = json.loads(broken.stdout)
+        for entry in payload["errors"] + payload["warnings"]:
+            errs = itembank.validate(entry, lint_schema)
+            if errs:
+                fail("lint_error.schema.json: %s" % errs[0])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_schema_command_output():
+    """PROTO-05's automated half. Confirms `itembank schema --all` parses,
+    is self-contained in the senses a test can check mechanically, and is
+    byte-stable across runs. Whether the output is *sufficient* for a model
+    with no repository access is a sufficiency judgment -- the Task 3
+    `<human-check>` in 01-06-PLAN.md's job, not this test's.
+    """
+    cmd = [sys.executable, os.path.join(ROOT, "itembank.py"), "schema", "--all"]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        fail("itembank schema --all exited %d: %s" % (r.returncode, r.stderr))
+    payload = json.loads(r.stdout)
+
+    if payload.get("spec") != itembank.SPEC:
+        fail("--all's spec does not equal model.SPEC verbatim")
+
+    names = sorted(payload.get("contracts", {}))
+    if names != ["item", "lint_error", "report", "response", "session"]:
+        fail("--all's contracts dict does not carry all five names in sorted order: %r" % names)
+
+    for name, doc in payload["contracts"].items():
+        try:
+            schema_validate.check_schema(doc)
+        except schema_validate.SchemaError as exc:
+            fail("contracts[%r] does not check out as a schema: %s" % (name, exc))
+
+    commands = payload.get("commands", [])
+    subcommands = set(c["command"].split()[1] for c in commands)
+    for expected in ("start", "next", "submit", "report", "evidence"):
+        if expected not in subcommands:
+            fail("--all's commands list does not name %r" % expected)
+
+    for c in commands:
+        contract = c.get("contract")
+        if contract is not None and contract not in payload["contracts"]:
+            fail("commands entry %r names contract %r, absent from contracts" %
+                 (c["command"], contract))
+
+    second = subprocess.run(cmd, capture_output=True, text=True)
+    if second.stdout != r.stdout:
+        fail("two runs of itembank schema --all produced different bytes")
+
+
 def main():
     test_lint_error_shape()
     test_lint_codes_declared()
@@ -350,8 +460,11 @@ def main():
     test_schema_versions_present()
     test_schema_version_required()
     test_event_schema_fields()
+    test_runtime_matches_schemas()
+    test_schema_command_output()
     print("protocol contract: ok (%d lint codes declared, schema versions pinned, "
-          "EVID-07 field set asserted)" % len(itembank.LINT_CODES))
+          "EVID-07 field set asserted, runtime output validated against schemas/, "
+          "schema --all self-contained and stable)" % len(itembank.LINT_CODES))
     return 0
 
 
