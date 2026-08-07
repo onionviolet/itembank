@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 2
+current_phase: 02
 current_phase_name: Daemon Consolidation & Settings Foundation
 status: executing
-stopped_at: Phase 2 context gathered
-last_updated: "2026-08-07T16:49:46.096Z"
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-08-07T17:16:12.731Z"
 last_activity: 2026-08-07
-last_activity_desc: Phase 01 complete, transitioned to Phase 2
+last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 17
-  completed_plans: 11
+  completed_plans: 12
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-07)
 
 **Core value:** One runtime, one scorer, one evidence store — and the runtime, not the model, decides what reaches the learner.
-**Current focus:** Phase 2 — daemon-consolidation-&-settings-foundation
+**Current focus:** Phase 02 — Daemon Consolidation & Settings Foundation
 
 ## Current Position
 
-Phase: 2 — Daemon Consolidation & Settings Foundation
-Plan: Not started
+Phase: 02 (Daemon Consolidation & Settings Foundation) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-08-07 — Phase 01 complete, transitioned to Phase 2
+Last activity: 2026-08-07 — Phase 02 execution started
 
-Progress: [██████████] 100%
+Progress: [███████░░░] 71%
 
 ## Performance Metrics
 
@@ -69,6 +69,7 @@ Progress: [██████████] 100%
 | Phase 01 P09 | 12min | 3 tasks | 7 files |
 | Phase 01 P10 | ~21min | 3 tasks | 9 files |
 | Phase 01 P11 | ~30min | 3 tasks | 10 files |
+| Phase 02 P01 | 55min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -104,6 +105,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 01-11: source_key(kind, basename, ref) becomes a migrated response event's dedupe_key, deliberately separate from the live path's session+item+attempt+canonical scheme (D-17), so two unrelated unresolved legacy records can never collide into one event
 - [Phase ?]: 01-11: mark and day_tick events reuse mark_event()/day_tick_event()'s own already-idempotent dedupe keys during migration rather than a source_key override -- a day_tick imported by migration and one recorded live via itembank day since 01-10 naturally reconcile
 - [Phase ?]: 01-11: no resolution by default (D-14) -- item_id is empty and item_ref carries the original positional reference unless --resolve-by-position is explicitly given, which records source_ref.resolution on every event it touches; no similarity-matching path exists
+- [Phase ?]: [Phase 2] 02-01: surfaces/daemon.py's cmd_daemon opens one session (session_id/log/attempt-file) per bank at startup, stored on DaemonHandler.sessions[stem]; isolation between banks sharing one evidence log is by the event's bank field, matching the existing evidence design, not by a separate log file per bank
+- [Phase ?]: [Phase 2] 02-01: quiz.record_answer() factored out of cmd_serve's record() closure so the CLI serve path and the new daemon path score through runtime.score_response() and write through evidence.append_event() via exactly the same function (D-08 continued)
+- [Phase ?]: [Phase 2] 02-01: scan_dir() sorts candidates by (stem.lower(), full_path) rather than stem alone, so a stem-collision winner is deterministic across restarts even where directory-enumeration order is not guaranteed stable
 
 ### Pending Todos
 
@@ -131,6 +135,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-07T15:37:08.802Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-daemon-consolidation-settings-foundation/02-CONTEXT.md
+Last session: 2026-08-07T17:16:12.705Z
+Stopped at: Completed 02-01-PLAN.md
+Resume file: None
