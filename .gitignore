@@ -18,3 +18,10 @@ session_*.json
 __pycache__/
 *.pyc
 .DS_Store
+
+# Synthetic legacy fixtures for the migration tool's reconciliation test
+# (plan 01-11) are checked-in test data, not learner evidence -- carve them
+# out of the *_attempt_*.md rule above, which would otherwise silently drop
+# them from every `git add`.
+!fixtures/legacy_attempts/
+!fixtures/legacy_attempts/*_attempt_*.md

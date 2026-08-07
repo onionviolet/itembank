@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "session_id": "legacysess0001abcd",
+  "bank": "fixtures/sample_bank.md",
+  "items": [0, 1, 2, 3],
+  "cursor": 4,
+  "responses": [
+    {
+      "item_id": "q1",
+      "objective": "water:distribution.residual",
+      "type": "mc",
+      "answer": "B",
+      "score": true
+    },
+    {
+      "item_id": "q4",
+      "objective": "water:treatment.processes",
+      "type": "build",
+      "answer": ["Coagulation", "Flocculation", "Filtration", "Sedimentation", "Disinfection"],
+      "score": false
+    },
+    {
+      "item_id": "q6",
+      "objective": "water:regulatory.framework",
+      "type": "short",
+      "answer": "Primary standards are health-based; secondary standards are aesthetic guidelines.",
+      "score": null
+    },
+    {
+      "item_id": "q9",
+      "objective": "water:unknown.historical",
+      "type": "mc",
+      "answer": "A",
+      "score": true
+    }
+  ],
+  "status": "complete",
+  "mode": "diagnostic",
+  "objective": "",
+  "seed": 7
+}
