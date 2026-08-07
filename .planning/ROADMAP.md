@@ -127,7 +127,7 @@ Plans:
   3. For every route exercised in a manual pass, an equivalent CLI command exists and reaches the same result through the same runtime call, not a second implementation.
   4. `itembank config` prints the current settings schema (theme, daily cap, selection weights, auditor autonomy, model backend, update policy) the way `spec` prints the format contract, and setting an invalid value is rejected with a named error.
 
-**Plans**: 1/6 plans executed
+**Plans**: 2/6 plans executed
 
 Plans:
 **Wave 1**
@@ -136,7 +136,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 02-02-PLAN.md — Study, day and day-mutation routes; `serve`/`day` demoted from server owners to daemon launches
+- [x] 02-02-PLAN.md — Study, day and day-mutation routes; `serve`/`day` demoted from server owners to daemon launches
 - [ ] 02-03-PLAN.md — Settings foundation: `itembank.json`, its schema, numeric bounds in the validator, and `itembank config`
 
 **Wave 3** *(blocked on Wave 2 completion)*
@@ -328,7 +328,7 @@ for what can run concurrently.
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Evidence Spine & Protocol Foundation | 11/11 | Complete    | 2026-08-07 |
-| 2. Daemon Consolidation & Settings Foundation | 1/6 | In Progress|  |
+| 2. Daemon Consolidation & Settings Foundation | 2/6 | In Progress|  |
 | 3. Lesson Format & In-App Reader | 0/TBD | Not started | - |
 | 4. Surface Redesign & Theming | 0/TBD | Not started | - |
 | 5. Check Item Type & Code Editor | 0/TBD | Not started | - |
