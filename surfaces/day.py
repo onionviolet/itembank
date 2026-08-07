@@ -14,7 +14,6 @@ tool still holds no content of its own.
 import html, json, os, re, sys
 
 import evidence
-import server
 
 
 # ---- the day surface --------------------------------------------------------
@@ -956,7 +955,18 @@ def apply_day_post(state, kind, data):
 
 
 def cmd_day(a):
-    import webbrowser, threading
+    """Sit the day cockpit against the daemon, scoped to this one plan.
+
+    Keeps its date resolution, its plan parse and its `sys.exit` on an
+    undated plan, keeps the `--check`/`--due` branch exactly as it is (that
+    branch never served anything and does not change here), keeps building
+    a `day_state`, and keeps printing its banner, the `--lan` phone line via
+    `lan_address()` included. It no longer binds its own socket to do any
+    of that -- `surfaces/daemon.py` is the only module in the codebase that
+    defines an HTTP request handler; this command launches that daemon
+    scoped to one plan instead of duplicating its route table (SURF-01's
+    consolidation, finished).
+    """
     from datetime import date
 
     today = date.fromisoformat(a.date) if a.date else date.today()
@@ -971,57 +981,36 @@ def cmd_day(a):
     lanes_path = a.lanes or os.path.join(
         os.path.dirname(os.path.abspath(a.plan)) or ".", "lanes.md")
 
-    state = day_state(a.plan, log_path, lanes_path, iso)
-    row = state["plan"].get(iso, {})
-
     if a.check or a.due:
+        state = day_state(a.plan, log_path, lanes_path, iso)
+        row = state["plan"].get(iso, {})
         info = day_info(state["plan"], state["log"], iso, a.plan, lanes_path)
         print(day_text(iso, today.strftime("%A"), row, state["log"],
                        day_streak(state["log"], today), info))
         print("  log: %s" % log_path)
         return 0
 
-    class H(server.Handler):
-        def do_GET(self):
-            if self.path not in ("/", "/index.html"):
-                self.send_error(404)
-                return
-            self.send_html(day_render(state))
+    from surfaces.daemon import serve_scoped
 
-        def do_POST(self):
-            if self.path not in ("/save", "/open"):
-                self.send_error(404)
-                return
-            try:
-                data = self.read_json()
-                kind = "open" if self.path == "/open" else "save"
-                out = apply_day_post(state, kind, data)
-                if out is None:
-                    self.send_error(404)
-                    return
-            except Exception as exc:
-                self.send_error(500, str(exc))
-                return
-            self.send_json(out)
+    stem = os.path.splitext(os.path.basename(a.plan))[0]
+    plan_dir = os.path.dirname(os.path.abspath(a.plan)) or "."
 
-    srv = server.bind(H, a.port, "0.0.0.0" if a.lan else "127.0.0.1")
+    print("itembank day")
+    print("  %s, %s" % (today.strftime("%A"), iso))
+    print("  plan    %s (%d dated rows)" % (a.plan, len(plan)))
+    print("  log     %s" % log_path)
 
-    with srv:
-        port = srv.server_address[1]
-        print("itembank day")
-        print("  %s, %s" % (today.strftime("%A"), iso))
-        print("  plan    %s (%d dated rows)" % (a.plan, len(plan)))
-        print("  log     %s" % log_path)
-        print("  url     http://127.0.0.1:%d/" % port)
+    def on_bound(port):
         if a.lan:
-            print("  phone   http://%s:%d/   (same wifi only)" % (lan_address(), port))
+            print("  phone   http://%s:%d/day/%s   (same wifi only)"
+                  % (lan_address(), port, stem))
         print("  Ticks are saved as you make them. Ctrl-C when you are done.")
-        sys.stdout.flush()
-        if not a.no_open:
-            threading.Timer(0.4, lambda: webbrowser.open("http://127.0.0.1:%d/" % port)).start()
-        try:
-            srv.serve_forever()
-        except KeyboardInterrupt:
-            print("\nstopped. Today: %s. Streak %d."
-                  % (day_status(state["log"].get(iso, set())), day_streak(state["log"], today)))
+
+    serve_scoped(
+        plan_dir, {}, {stem: os.path.abspath(a.plan)}, a.port,
+        host="0.0.0.0" if a.lan else "127.0.0.1",
+        open_path="/day/%s" % stem, no_open=a.no_open, on_bound=on_bound,
+        extra={"day_extra": {stem: {
+            "log_path": log_path, "lanes_path": lanes_path, "iso": iso,
+        }}})
     return 0

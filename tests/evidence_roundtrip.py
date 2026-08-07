@@ -9,7 +9,7 @@ from `itembank submit` to `_evidence/evidence.jsonl` to `itembank evidence`.
 Standard library only, runnable as `python tests/evidence_roundtrip.py`.
 """
 import json, os, re, shutil, subprocess, sys, tempfile, threading, time
-import urllib.request
+import urllib.parse, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -1385,9 +1385,15 @@ def serve_correct_answer(q):
 
 def start_serve(bank, out, mode):
     """Start `itembank serve` on a background thread and return `(proc,
-    url, session_id)` -- `tests/serve_roundtrip.py`'s loopback-driving
+    quiz_url, session_id)` -- `tests/serve_roundtrip.py`'s loopback-driving
     pattern, extended to also capture the session id this plan's startup
     banner now prints.
+
+    `itembank serve` is now a daemon launch scoped to one bank (plan
+    02-02): the printed URL line already carries `/quiz/<stem>`, but the
+    banner-scraping regex below only captures the base (host:port/), so
+    `quiz_url` is built explicitly from the bank's own stem rather than
+    assumed to be the server root.
     """
     proc = subprocess.Popen(
         [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "serve", bank,
@@ -1396,23 +1402,36 @@ def start_serve(bank, out, mode):
     lines = []
     threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
                      daemon=True).start()
-    url = session_id = None
+    base = session_id = None
     for _ in range(60):                       # up to ~6s for the bind and banner
         time.sleep(0.1)
         joined = "".join(lines)
         m = re.search(r"http://127\.0\.0\.1:\d+/", joined)
         sm = re.search(r"(?m)^\s*session\s+(\S+)\s*$", joined)
         if m and sm:
-            url, session_id = m.group(0), sm.group(1)
+            base, session_id = m.group(0), sm.group(1)
             break
-    if not url or not session_id:
+    if not base or not session_id:
         proc.kill()
         fail("serve never printed both a url and a session id. Output was:\n" +
              "".join(lines))
-    return proc, url, session_id
+    stem = os.path.splitext(os.path.basename(bank))[0]
+    return proc, base + "quiz/%s" % stem, session_id
 
 
-def post_answer(url, item_id, response, elapsed_ms=None):
+def served_post_path(quiz_url, page):
+    """The answer-POST target the served page's own script carries, resolved
+    against the page's URL -- `itembank serve`'s answer path is bank-scoped
+    (`/quiz/<stem>/answer`), not the bare `/answer` a single-bank process
+    used to hardcode.
+    """
+    m = re.search(r'fetch\("([^"]+)"', page)
+    if not m:
+        fail("could not find the answer-POST target in the served page")
+    return urllib.parse.urljoin(quiz_url, m.group(1))
+
+
+def post_answer(answer_url, item_id, response, elapsed_ms=None):
     """POST one answer, mirroring the quiz page's own `{id, response,
     elapsed_ms}` body -- `elapsed_ms` omitted entirely (not sent as null)
     when the caller passes `None`, the same shape an older cached page
@@ -1421,7 +1440,7 @@ def post_answer(url, item_id, response, elapsed_ms=None):
     payload = {"id": item_id, "response": response}
     if elapsed_ms is not None:
         payload["elapsed_ms"] = elapsed_ms
-    req = urllib.request.Request(url + "answer", data=json.dumps(payload).encode(),
+    req = urllib.request.Request(answer_url, data=json.dumps(payload).encode(),
                                  headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=5) as res:
         return json.loads(res.read().decode("utf-8"))
@@ -1449,9 +1468,9 @@ def test_serve_writes_events():
         log = itembank.log_path(tmp)
         out = os.path.join(tmp, "attempt.md")
 
-        proc, url, session_id = start_serve(bank, out, "drill")
+        proc, quiz_url, session_id = start_serve(bank, out, "drill")
         try:
-            page = urllib.request.urlopen(url, timeout=5).read().decode("utf-8")
+            page = urllib.request.urlopen(quiz_url, timeout=5).read().decode("utf-8")
             for item in served_items_from_page(page):
                 for leak in ("key", "explain", "correct", "opts", "cats", "da",
                             "why", "model", "rubric"):
@@ -1459,15 +1478,16 @@ def test_serve_writes_events():
                         fail("served item %r carries %r under serve" %
                              (item.get("id"), leak))
 
+            answer_url = served_post_path(quiz_url, page)
             first, second = qs[0], qs[1]
-            r1 = post_answer(url, first["id"], serve_correct_answer(first),
+            r1 = post_answer(answer_url, first["id"], serve_correct_answer(first),
                              elapsed_ms=1234)
             if not r1.get("explain"):
                 fail("first answer carried no explanation")
-            r2 = post_answer(url, second["id"], serve_correct_answer(second))
+            r2 = post_answer(answer_url, second["id"], serve_correct_answer(second))
             if not r2.get("explain"):
                 fail("second answer (no elapsed_ms) carried no explanation")
-            r3 = post_answer(url, first["id"], serve_correct_answer(first),
+            r3 = post_answer(answer_url, first["id"], serve_correct_answer(first),
                              elapsed_ms=1234)
             if not r3.get("explain"):
                 fail("repeated first answer carried no explanation")
@@ -1502,9 +1522,11 @@ def test_serve_writes_events():
         # the two scores in separate buckets (EVID-08, proven from the
         # browser surface).
         out2 = os.path.join(tmp, "attempt2.md")
-        proc2, url2, _ = start_serve(bank, out2, "exam")
+        proc2, quiz_url2, _ = start_serve(bank, out2, "exam")
         try:
-            r4 = post_answer(url2, first["id"], serve_correct_answer(first),
+            page2 = urllib.request.urlopen(quiz_url2, timeout=5).read().decode("utf-8")
+            answer_url2 = served_post_path(quiz_url2, page2)
+            r4 = post_answer(answer_url2, first["id"], serve_correct_answer(first),
                              elapsed_ms=999)
             if not r4.get("explain"):
                 fail("exam-mode answer carried no explanation")
@@ -1545,20 +1567,27 @@ def test_day_ticks_are_events():
         lines = []
         threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
                          daemon=True).start()
-        url = None
+        # `itembank day` is now a daemon launch scoped to one plan (plan
+        # 02-02): the printed URL already names `/day/<stem>`, but this
+        # regex only captures the base, so the save target is built
+        # explicitly from the plan's own stem (`/day/<stem>/save`) rather
+        # than the bare `/save` a single-plan process used to hardcode.
+        stem = os.path.splitext(os.path.basename(plan))[0]
+        base = None
         for _ in range(60):
             time.sleep(0.1)
             m = re.search(r"http://127\.0\.0\.1:\d+/", "".join(lines))
             if m:
-                url = m.group(0)
+                base = m.group(0)
                 break
-        if not url:
+        if not base:
             proc.kill()
             fail("day server never printed a URL. Output was:\n" + "".join(lines))
+        day_url = base + "day/%s" % stem
 
         def save(done):
             body = json.dumps({"date": "2026-01-06", "done": done}).encode("utf-8")
-            req = urllib.request.Request(url + "save", data=body,
+            req = urllib.request.Request(day_url + "/save", data=body,
                                          headers={"Content-Type": "application/json"})
             return json.loads(urllib.request.urlopen(req, timeout=5).read().decode("utf-8"))
 

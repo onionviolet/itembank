@@ -244,6 +244,13 @@ def handle_quiz_answer(handler, stem):
     `score_response` or `evidence.append_event` directly; it goes through
     `quiz.record_answer`, which keeps "one scorer, one writer" structural
     rather than remembered.
+
+    `reveal` (whether `explain_payload` returns the short-item model answer)
+    and `progress` (whether to write the "d/N answered, saved" progress line
+    `cmd_serve` used to write from its own closure) both come off the bank's
+    session dict, defaulting to off -- a general multi-bank daemon launch
+    never sets either, so its behaviour is unchanged; `cmd_serve`'s scoped
+    launch sets both through `serve_scoped`'s `extra`.
     """
     path = handler.banks.get(stem)
     if path is None:
@@ -264,10 +271,24 @@ def handle_quiz_answer(handler, stem):
             # fabricated number, matching `cmd_serve`'s own type guard.
             elapsed_ms = None
         sess = handler.sessions[stem]
+        size_before = os.path.getsize(sess["log"]) if os.path.exists(sess["log"]) else -1
         score = quiz.record_answer(path, qs, sess["session_id"], sess["log"], sess["out"],
                                    sess["mode"], q, data.get("response"), elapsed_ms)
+        if sess.get("progress"):
+            # The only feedback a learner sitting `itembank serve` gets that
+            # an answer was actually written to disk -- preserved from the
+            # closure `cmd_serve` used to hold before it lost its own
+            # handler class.
+            already = size_before >= 0 and os.path.getsize(sess["log"]) == size_before
+            answered = len(set(ev["item_ref"]
+                               for ev in evidence.session_events(sess["log"], sess["session_id"])))
+            note = " (already recorded)" if already else ""
+            sys.stdout.write("\r  %d/%d answered, saved%s" % (answered, len(qs), note))
+            sys.stdout.flush()
+            if answered >= len(qs):
+                print("\n  finished. Attempt file: %s" % sess["out"])
         payload = {"item_id": q["id"], "score": score,
-                   "explain": explain_payload(q, False)}
+                   "explain": explain_payload(q, sess.get("reveal", False))}
     except Exception as exc:                    # never let a bad POST kill the daemon
         handler.send_error(500, str(exc))
         return
@@ -293,16 +314,20 @@ def _plan_day_state(handler, stem):
     handler class so ticks accumulate across requests exactly as they did
     within one `cmd_day` process (T-2-12). The log/lanes paths default to
     beside the plan file, the same defaulting `cmd_day` does when `--log`/
-    `--lanes` are not given.
+    `--lanes` are not given, and `iso` defaults to today -- unless
+    `day_extra` (set by `cmd_day`'s scoped launch through `serve_scoped`)
+    names an override for this stem, which is how `itembank day --date`
+    (backfilling a missed day) still works once `day` is a daemon launch.
     """
     state = handler.day_states.get(stem)
     if state is not None:
         return state
     path = handler.plans[stem]
     plan_dir = os.path.dirname(os.path.abspath(path)) or "."
-    log_path = os.path.join(plan_dir, "daily_log.md")
-    lanes_path = os.path.join(plan_dir, "lanes.md")
-    iso = datetime.date.today().isoformat()
+    override = handler.day_extra.get(stem, {})
+    log_path = override.get("log_path") or os.path.join(plan_dir, "daily_log.md")
+    lanes_path = override.get("lanes_path") or os.path.join(plan_dir, "lanes.md")
+    iso = override.get("iso") or datetime.date.today().isoformat()
     state = day.day_state(path, log_path, lanes_path, iso, base="/day/%s" % stem)
     handler.day_states[stem] = state
     return state
@@ -387,6 +412,7 @@ class DaemonHandler(server.Handler):
     root = "."
     sessions = {}
     day_states = {}
+    day_extra = {}
 
     def send_not_found(self, name):
         """The documented not-found copy: the stem the client asked for and
@@ -445,6 +471,57 @@ def _bind(port, host="127.0.0.1"):
         return Daemon((host, 0), DaemonHandler)
 
 
+def serve_scoped(root, banks, plans, port, host="127.0.0.1", open_path="/",
+                 no_open=False, extra=None, on_bound=None):
+    """Bind the one `Daemon`/`DaemonHandler` pair, scoped to whatever
+    `banks` and `plans` a caller passes in, print the URL line, optionally
+    open a browser after the same 0.4-second timer every launch has always
+    used, and run `serve_forever()` inside the `KeyboardInterrupt` guard --
+    the tail every daemon launch shares now, whether it is `cmd_daemon`
+    scanning a whole directory or `cmd_serve`/`cmd_day` scoped to the single
+    bank or plan they were pointed at. This is the whole of what "`serve`
+    and `day` become daemon launches" means: after this function exists,
+    binding a socket happens in exactly one place in the codebase.
+
+    `extra` carries whatever a caller needs pinned onto the handler class
+    the same way `banks`/`plans` are: `sessions` (bank stem -> session
+    bookkeeping, including the `reveal`/`progress` flags `handle_quiz_answer`
+    reads), `collisions` (`scan_dir`'s collision list, empty for a scoped
+    single-bank/single-plan launch), and `day_extra` (plan stem ->
+    `{"log_path", "lanes_path"}` overrides for `--log`/`--lanes`).
+
+    `on_bound(port)`, if given, runs right after the URL line is printed --
+    the caller's chance to print anything that needs the actual bound port
+    (`cmd_day`'s `--lan` phone address) followed by its own final line
+    before the browser timer starts and `serve_forever()` takes over.
+    """
+    extra = extra or {}
+    DaemonHandler.banks = banks
+    DaemonHandler.plans = plans
+    DaemonHandler.collisions = extra.get("collisions", [])
+    DaemonHandler.root = root
+    DaemonHandler.sessions = extra.get("sessions", {})
+    DaemonHandler.day_states = {}                  # built lazily, one per served plan
+    DaemonHandler.day_extra = extra.get("day_extra", {})
+
+    srv = _bind(port, host)
+    with srv:
+        bound_port = srv.server_address[1]
+        display_host = "127.0.0.1" if host in ("0.0.0.0", "127.0.0.1") else host
+        url = "http://%s:%d%s" % (display_host, bound_port, open_path)
+        print("  url     %s" % url)
+        if on_bound:
+            on_bound(bound_port)
+        sys.stdout.flush()
+        if not no_open:
+            threading.Timer(0.4, lambda: webbrowser.open(url)).start()
+        try:
+            srv.serve_forever()
+        except KeyboardInterrupt:
+            print("\nstopped.")
+    return bound_port
+
+
 def cmd_daemon(a):
     root = a.dir
     banks, plans, collisions = scan_dir(root)
@@ -473,22 +550,6 @@ def cmd_daemon(a):
             "mode": "practice",
         }
 
-    DaemonHandler.banks = banks
-    DaemonHandler.plans = plans
-    DaemonHandler.collisions = collisions
-    DaemonHandler.root = root
-    DaemonHandler.sessions = sessions
-    DaemonHandler.day_states = {}                  # built lazily, one per served plan
-
-    srv = _bind(a.port)
-    with srv:
-        url = "http://127.0.0.1:%d/" % srv.server_address[1]
-        print("  url     %s" % url)
-        sys.stdout.flush()
-        if not a.no_open:
-            threading.Timer(0.4, lambda: webbrowser.open(url)).start()
-        try:
-            srv.serve_forever()
-        except KeyboardInterrupt:
-            print("\nstopped.")
+    serve_scoped(root, banks, plans, a.port, open_path="/", no_open=a.no_open,
+                extra={"sessions": sessions, "collisions": collisions})
     return 0

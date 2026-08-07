@@ -75,25 +75,32 @@ def check_server():
     threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
                      daemon=True).start()
 
-    url = None
+    # `itembank day` is now a daemon launch scoped to one plan (plan 02-02):
+    # the printed URL already names `/day/<stem>`, but this regex only
+    # needs the base -- the cockpit page itself is scraped explicitly below,
+    # and its save target is plan-scoped (`/day/<stem>/save`), not the bare
+    # `/save` a single-plan process used to hardcode.
+    stem = os.path.splitext(os.path.basename(PLAN))[0]
+    base = None
     for _ in range(60):
         time.sleep(0.1)
         m = re.search(r"http://127\.0\.0\.1:\d+/", "".join(lines))
         if m:
-            url = m.group(0)
+            base = m.group(0)
             break
-    if not url:
+    if not base:
         proc.kill()
         fail("server never printed a URL. Output was:\n" + "".join(lines))
+    day_url = base + "day/%s" % stem
 
     try:
-        page = urllib.request.urlopen(url, timeout=5).read().decode("utf-8")
+        page = urllib.request.urlopen(day_url, timeout=5).read().decode("utf-8")
         if "ch 2 first half" not in page:
             fail("the served page did not contain the plan's EMT task for that date")
 
         body = json.dumps({"date": "2026-01-06",
                            "done": list(itembank.FLOOR_LANES)}).encode("utf-8")
-        req = urllib.request.Request(url + "save", data=body,
+        req = urllib.request.Request(day_url + "/save", data=body,
                                      headers={"Content-Type": "application/json"})
         got = json.loads(urllib.request.urlopen(req, timeout=5).read().decode("utf-8"))
         if got.get("status") != "floor":

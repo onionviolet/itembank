@@ -18,7 +18,8 @@ its "MARK:" / "[auto: ...]" text reflects that render's own vocabulary.
 
 Standard library only, no test framework, runnable as `python tests/serve_roundtrip.py`.
 """
-import json, os, re, subprocess, sys, tempfile, threading, time, urllib.error, urllib.request
+import json, os, re, subprocess, sys, tempfile, threading, time
+import urllib.error, urllib.parse, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -60,11 +61,25 @@ def wrong_answer(q):
     return None
 
 
-def post(url, payload):
-    req = urllib.request.Request(url + "answer", data=json.dumps(payload).encode(),
+def post(answer_url, payload):
+    req = urllib.request.Request(answer_url, data=json.dumps(payload).encode(),
                                  headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=5) as res:
         return json.loads(res.read().decode("utf-8"))
+
+
+def served_post_path(quiz_url, page):
+    """The answer-POST target the served page's own script carries, resolved
+    against the page's URL. `itembank serve` is a daemon launch scoped to
+    one bank (plan 02-02) -- its answer path is bank-scoped
+    (`/quiz/<stem>/answer`), not the bare `/answer` a single-bank process
+    used to hardcode, so this reads it off the page rather than assuming
+    the convention.
+    """
+    m = re.search(r'fetch\("([^"]+)"', page)
+    if not m:
+        fail("could not find the answer-POST target in the served page")
+    return urllib.parse.urljoin(quiz_url, m.group(1))
 
 
 def served_items(page):
@@ -103,6 +118,7 @@ def check_no_key(page, qs):
 
 def main():
     qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
+    stem = os.path.splitext(os.path.basename(BANK))[0]
     out = os.path.join(tempfile.mkdtemp(), "attempt.md")
     proc = subprocess.Popen(
         [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "serve", BANK,
@@ -112,23 +128,30 @@ def main():
     threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
                      daemon=True).start()
 
-    url = None
+    # `itembank serve` is now a daemon launch scoped to one bank (plan
+    # 02-02): the printed URL already names `/quiz/<stem>`, but this regex
+    # only needs the base -- the quiz page itself lives at `/quiz/<stem>`,
+    # scraped explicitly below rather than assumed to be the server root.
+    base = None
     for _ in range(60):                       # up to ~6s for the bind and banner
         time.sleep(0.1)
         m = re.search(r"http://127\.0\.0\.1:\d+/", "".join(lines))
         if m:
-            url = m.group(0)
+            base = m.group(0)
             break
-    if not url:
+    if not base:
         fail("server never printed a URL. Output was:\n" + "".join(lines))
+    quiz_url = base + "quiz/%s" % stem
 
     try:
-        page = urllib.request.urlopen(url, timeout=5).read().decode("utf-8")
+        page = urllib.request.urlopen(quiz_url, timeout=5).read().decode("utf-8")
         if "const SERVE = true" not in page:
             fail("served page is not in recording mode")
         if "function asShort" not in page:
             fail("served page has no short-answer renderer")
         check_no_key(page, qs)
+
+        answer_url = served_post_path(quiz_url, page)
 
         # A wrong answer must come back wrong. Re-answering the same item is a
         # new attempt, not an overwrite: the evidence log is append-only, so
@@ -136,21 +159,21 @@ def main():
         # with below are live, recorded events, and the render shows both --
         # nothing evaporates.
         first = qs[0]
-        bad = post(url, {"id": first["id"], "response": wrong_answer(first)})
+        bad = post(answer_url, {"id": first["id"], "response": wrong_answer(first)})
         if bad["score"] is not False:
             fail("a wrong answer scored %r, expected False" % bad["score"])
         if not bad["explain"].get("why"):
             fail("the verdict carried no explanation, so the page has nothing to render")
 
         for q in qs:
-            got = post(url, {"id": q["id"], "response": correct_answer(q)})
+            got = post(answer_url, {"id": q["id"], "response": correct_answer(q)})
             want = None if q["type"] == "short" else True
             if got["score"] is not want:
                 fail("item %s (%s) scored %r, expected %r"
                      % (q["id"], q["type"], got["score"], want))
 
         try:
-            post(url, {"id": "no-such-item", "response": "A"})
+            post(answer_url, {"id": "no-such-item", "response": "A"})
             fail("the server accepted an answer for an item that does not exist")
         except urllib.error.HTTPError as exc:
             if exc.code != 404:

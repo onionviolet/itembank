@@ -8,9 +8,8 @@ answer. Both are clients of the runtime.
 import collections, html, json, os, sys, uuid
 
 import evidence
-import server
 from model import grab, lint, load
-from runtime import explain_payload, page_item, score_response
+from runtime import page_item, score_response
 from surfaces.quiz_page import TEMPLATE
 from surfaces.theme import THEME_CSS
 
@@ -91,27 +90,26 @@ def cmd_build(a):
 
 
 def cmd_serve(a):
-    """Run the quiz against a local process so every answer is written to disk.
+    """Sit the quiz against the daemon, scoped to this one bank, so every
+    answer is written to disk.
 
-    The static `build` page is sandboxed by the browser and cannot write a file,
-    which is why answers used to evaporate when the tab closed. A loopback
-    server is the smallest thing that fixes it without adding a dependency.
-
-    It also does the scoring. The page is sent items with the key stripped, and
-    POSTs each response here; this process calls the one scorer, records the
-    result, and returns the verdict with the explanation. So a sitting that is
-    meant to count is one where the browser never held the answers.
+    The static `build` page is sandboxed by the browser and cannot write a
+    file, which is why answers used to evaporate when the tab closed. This
+    command still owns every one of its own responsibilities -- loading and
+    linting the bank, defaulting the attempt path, minting one session id,
+    printing its banner -- but it no longer binds its own socket to do it.
+    `surfaces/daemon.py` is the only module in the codebase that defines an
+    HTTP request handler; this command launches that daemon scoped to one
+    bank instead of duplicating its route table (SURF-01's consolidation,
+    finished).
 
     Persistence is `evidence.append_event()`, the same one writer every other
-    surface uses (D-08) -- this is the last surface that used to write its own
-    store instead. The attempt file is `evidence.render_attempt_md()`'s output,
-    written atomically; it is a view over `_evidence/evidence.jsonl`, never a
-    second place a response is recorded, and it is rebuilt in full after every
-    answer rather than accumulated in memory, so a sitting interrupted mid-write
-    never leaves a half-written file.
+    surface uses (D-08), reached by way of `quiz.record_answer()` -- the CLI
+    path and the daemon path score and record through exactly the same
+    function, never a second copy of either.
     """
-    import webbrowser, threading
     from datetime import datetime
+    from surfaces.daemon import serve_scoped
 
     qs = load(a.bank)
     errors, _ = lint(qs)
@@ -125,9 +123,6 @@ def cmd_serve(a):
         "%s_attempt_%s.md" % (os.path.splitext(os.path.basename(a.bank))[0],
                               datetime.now().strftime("%Y-%m-%d_%H%M")))
     os.makedirs(os.path.dirname(out), exist_ok=True)
-    _, page = page_for(a.bank, qs, serve=True, reveal=a.reveal)
-    page_bytes = page.encode("utf-8")
-    by_id = dict((q["id"], q) for q in qs)
 
     # One id per sitting, printed here so a marker can pass it to
     # `itembank mark`/`itembank render attempt` later -- the evidence log,
@@ -135,74 +130,22 @@ def cmd_serve(a):
     # attempt file is read back out of.
     session_id = uuid.uuid4().hex
     log = evidence.log_path(os.path.dirname(os.path.abspath(a.bank)) or ".")
-    state = {"writes": 0}
-
-    def record(q, response, elapsed_ms):
-        # `record_answer` is the one function both this CLI path and the
-        # daemon call (D-08 continued); the log's byte size before/after is
-        # how this closure alone still tells a genuinely new answer from a
-        # replayed one, without record_answer needing to report anything
-        # beyond the score it was asked to return.
-        size_before = os.path.getsize(log) if os.path.exists(log) else -1
-        score = record_answer(a.bank, qs, session_id, log, out, a.mode, q, response, elapsed_ms)
-        already = size_before >= 0 and os.path.getsize(log) == size_before
-        state["writes"] += 1
-
-        answered = len(set(ev["item_ref"] for ev in evidence.session_events(log, session_id)))
-        note = " (already recorded)" if already else ""
-        sys.stdout.write("\r  %d/%d answered, saved%s" % (answered, len(qs), note))
-        sys.stdout.flush()
-        if answered >= len(qs):
-            print("\n  finished. Attempt file: %s" % out)
-        return score
-
-    class H(server.Handler):
-        def do_GET(self):
-            if self.path not in ("/", "/index.html"):
-                self.send_error(404)
-                return
-            self.send_html(page_bytes)
-
-        def do_POST(self):
-            if self.path != "/answer":
-                self.send_error(404)
-                return
-            try:
-                data = self.read_json()
-                q = by_id.get(data.get("id"))
-                if q is None:
-                    self.send_error(404, "no item %r in this bank" % data.get("id"))
-                    return
-                elapsed_ms = data.get("elapsed_ms")
-                if not isinstance(elapsed_ms, int) or isinstance(elapsed_ms, bool):
-                    # Absent, non-integer, or an older cached page that never
-                    # sent the field at all: record an honest null rather
-                    # than a fabricated number.
-                    elapsed_ms = None
-                payload = {"item_id": q["id"],
-                           "score": record(q, data.get("response"), elapsed_ms),
-                           "explain": explain_payload(q, a.reveal)}
-            except Exception as exc:                # never let a bad POST kill a sitting
-                self.send_error(500, str(exc))
-                return
-            self.send_json(payload)
+    stem = os.path.splitext(os.path.basename(a.bank))[0]
 
     print("itembank serve")
-    srv = server.bind(H, a.port)
+    print("  session %s" % session_id)
+    print("  bank    %s (%d items)" % (a.bank, len(qs)))
+    print("  attempt %s" % out)
 
-    with srv:
-        url = "http://127.0.0.1:%d/" % srv.server_address[1]
-        print("  session %s" % session_id)
-        print("  bank    %s (%d items)" % (a.bank, len(qs)))
-        print("  attempt %s" % out)
-        print("  url     %s" % url)
+    def on_bound(port):
         print("  Answers are written as you give them. Ctrl-C when you are done.")
-        sys.stdout.flush()
-        if not a.no_open:
-            threading.Timer(0.4, lambda: webbrowser.open(url)).start()
-        try:
-            srv.serve_forever()
-        except KeyboardInterrupt:
-            print("\nstopped. %d save(s) written to %s"
-                  % (state["writes"], out if state["writes"] else "nothing yet"))
+
+    serve_scoped(
+        os.path.dirname(os.path.abspath(a.bank)) or ".",
+        {stem: os.path.abspath(a.bank)}, {}, a.port,
+        open_path="/quiz/%s" % stem, no_open=a.no_open, on_bound=on_bound,
+        extra={"sessions": {stem: {
+            "session_id": session_id, "log": log, "out": out, "mode": a.mode,
+            "reveal": a.reveal, "progress": True,
+        }}})
     return 0
