@@ -5,7 +5,7 @@ This executor's own machine is the target Windows 11 machine the spike measures
 against; CI runs this same file on `ubuntu-latest`, covering the POSIX path where
 `O_APPEND` is genuinely atomic. Runnable as `python tests/durability_roundtrip.py`.
 """
-import json, os, shutil, subprocess, sys, tempfile, time
+import contextlib, io, json, os, shutil, subprocess, sys, tempfile, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -76,6 +76,56 @@ def analyze_log(path, expected_count, expected_padding, tags):
     deviated = sum(1 for tag in tags for i in range(expected_count)
                    if seen.get((tag, i), 0) != 1)
     return torn, deviated
+
+
+def probe_torn_multibyte():
+    """(0) A torn multi-byte tail — DETERMINISTIC, ASSERTED, runs first. D-09
+    promises a malformed line is skipped and reported, never fatal, but the
+    other probes here pad with pure ASCII, and ASCII cannot be torn
+    mid-character — exactly why a green suite gated a broken guarantee. This
+    probe builds the tear by hand instead of waiting for `probe_kill` to get
+    timing-lucky, so a regression surfaces immediately and every run,
+    not only on the runs where a kill happened to land mid-character."""
+    d = tempfile.mkdtemp()
+    try:
+        path = os.path.join(d, "torn.jsonl")
+        first = json.dumps({"probe": "torn_multibyte", "marker": "kept"},
+                            ensure_ascii=False).encode("utf-8") + b"\n"
+        full = json.dumps({"tag": "cjk", "text": "けさ文"}, ensure_ascii=False).encode("utf-8")
+        cut = full.index("文".encode("utf-8")) + 2
+        tail = full[:cut]
+        with open(path, "wb") as fh:
+            fh.write(first)
+            fh.write(tail)
+
+        buf = io.StringIO()
+        records = None
+        exc_caught = None
+        with contextlib.redirect_stdout(buf):
+            try:
+                records = list(itembank.iter_raw(path))
+            except UnicodeDecodeError as exc:
+                exc_caught = exc
+        output = buf.getvalue()
+
+        if exc_caught is not None:
+            fail("probe_torn_multibyte: iter_raw raised UnicodeDecodeError on a torn "
+                 "multi-byte tail (%s); D-09 requires a malformed line to be skipped "
+                 "and reported, never fatal" % exc_caught)
+        if len(records) != 1:
+            fail("probe_torn_multibyte: expected exactly 1 record before the tear, got %d"
+                 % len(records))
+        if records[0][1].get("marker") != "kept":
+            fail("probe_torn_multibyte: the surviving record was not the first line's "
+                 "marker record (got %r)" % (records[0][1],))
+        expect = "%s:2 malformed, skipped" % os.path.basename(path)
+        if expect not in output:
+            fail("probe_torn_multibyte: expected stdout to report %r, got %r"
+                 % (expect, output))
+        print("torn multi-byte probe: ok (1 record survived a mid-character tear, "
+              "the torn line was reported)")
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
 
 
 def probe_unlocked():
@@ -160,6 +210,7 @@ def check_gitignore_hygiene():
 
 
 def main():
+    probe_torn_multibyte()
     check_gitignore_hygiene()
     probe_unlocked()
     total = probe_locked()
