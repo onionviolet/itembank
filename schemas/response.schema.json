@@ -58,8 +58,8 @@
     },
     "mode": {
       "type": "string",
-      "enum": ["diagnostic", "practice", "exam", "remediation", "drill"],
-      "description": "Captured live on every surface; this is what makes a drill-mode correct distinguishable from an exam-mode correct"
+      "enum": ["diagnostic", "practice", "exam", "remediation", "drill", "legacy"],
+      "description": "Captured live on every surface; this is what makes a drill-mode correct distinguishable from an exam-mode correct. 'legacy' is written only by itembank migrate (plan 01-11), for an imported record whose source (an attempt markdown file, which never recorded a mode) carries no mode of its own."
     },
     "attempt_number": {
       "type": "integer",
@@ -103,8 +103,28 @@
       "description": "A sha256 hex digest identifying one attempt at one item in one session"
     },
     "source_ref": {
-      "type": ["string", "null"],
-      "description": "Null except on records imported by itembank migrate."
+      "type": ["object", "null"],
+      "description": "Null for a live-path response event. For an event imported by itembank migrate (plan 01-11), an object naming where the record came from and how its item_id was resolved -- never a guess left unstated (D-14).",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["attempt_md", "session_json"],
+          "description": "Which legacy store this record came from"
+        },
+        "path": {
+          "type": "string",
+          "description": "The legacy source file's basename only, never a full path"
+        },
+        "ref": {
+          "type": "string",
+          "description": "The reference identifying this record within its source file -- an attempt file's item heading number, or a session file's array-index-plus-item_id"
+        },
+        "resolution": {
+          "type": "string",
+          "enum": ["unresolved", "position"],
+          "description": "'unresolved' by default (item_id is empty string); 'position' only when --resolve-by-position matched this record's positional reference against today's bank by current item number"
+        }
+      }
     }
   },
   "$defs": {

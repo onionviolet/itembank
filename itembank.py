@@ -64,6 +64,8 @@ from surfaces.day import (ANKI_ADDON_ID, DAY_LANES, FLOOR_LANES, anki_read,   # 
                           lane_load, lint_lane_decks, lint_lane_paths,
                           load_day_log, parse_lanes, parse_plan, resolve_notes,
                           wiring_bases, write_day_log)
+from surfaces.migrate import (read_attempt_md, read_legacy_session, scan_legacy,  # noqa: E402
+                              source_key)
 from evidence import (EVENT_SCHEMA_VERSION, INDEX_VERSION, append_event,       # noqa: E402
                       append_line, attempt_number, day_log_from_events,
                       day_tick_event, dedupe_key, ensure_index,
@@ -101,11 +103,14 @@ __all__ = [
     "objective_history", "objective_rollup", "page_item", "parse_bank",
     "parse_lanes",
     "parse_plan", "parse_question",
-    "public_item", "read_session", "rebuild_index", "recent_dedupe_keys",
+    "public_item", "read_attempt_md", "read_legacy_session", "read_session",
+    "rebuild_index", "recent_dedupe_keys",
     "render_attempt_md", "render_daily_log", "render_session_json", "resolve_notes",
     "response_event", "response_text", "retracted_ids", "retraction_event",
+    "scan_legacy",
     "score_response", "section", "session_events", "session_path",
-    "session_summary", "session_view", "subject_of", "upgrade_session", "utc_now",
+    "session_summary", "session_view", "source_key", "subject_of", "upgrade_session",
+    "utc_now",
     "validate", "wiring_bases", "write_day_log", "write_session",
 ]
 

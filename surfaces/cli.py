@@ -11,6 +11,7 @@ from surfaces.anki import cmd_export
 from surfaces.day import cmd_day
 from surfaces.evidence_cli import (cmd_evidence, cmd_id_assign, cmd_mark, cmd_render,
                                    cmd_retract)
+from surfaces.migrate import cmd_migrate
 from surfaces.protocol_cli import cmd_schema
 from surfaces.quiz import cmd_build, cmd_serve
 from surfaces.session import cmd_next, cmd_report, cmd_start, cmd_submit
@@ -265,6 +266,34 @@ def main():
                    help="emit the format contract, all five documents and the "
                         "command sequence to run a session, in one object")
     s.set_defaults(fn=cmd_schema)
+
+    s = sub.add_parser("migrate", help="one-time, re-runnable import of the three legacy "
+                       "stores (_attempts/*.md, session JSON, daily_log.md) into the "
+                       "evidence log; a dry run by default, pass --write to actually import")
+    s.add_argument("--base", default=".",
+                   help="directory holding the legacy stores and where _evidence/ is "
+                        "written (default: current directory)")
+    s.add_argument("--legacy-dir", dest="legacy_dir",
+                   help="override where attempt markdown and session JSON are read from "
+                        "(default: _attempts/ beside --base); must resolve inside --base "
+                        "or the command refuses to read it (T-1-03)")
+    s.add_argument("--bank",
+                   help="fallback bank basename recorded on an imported event when it "
+                        "cannot be inferred from the source filename")
+    s.add_argument("--subject", default="",
+                   help="prefix 'subject:' onto any imported objective that carries no "
+                        "colon (D-06)")
+    s.add_argument("--resolve-by-position", dest="resolve_by_position",
+                   help="load BANK.md and resolve a legacy positional reference to that "
+                        "item's current [ID:] by matching today's item number -- correct "
+                        "ONLY if the bank has not been reordered since the record was "
+                        "written; a wrong match attaches history to the wrong question "
+                        "with nothing to tell you. A reference with no match in BANK.md "
+                        "stays unresolved even with this flag.")
+    s.add_argument("--write", action="store_true",
+                   help="actually import; without this flag, migrate is a dry run that "
+                        "reports the counts it expects and writes nothing")
+    s.set_defaults(fn=cmd_migrate)
 
     s = sub.add_parser("guard", help="fail if a real bank was committed")
     s.add_argument("dir", nargs="?", default=".")
