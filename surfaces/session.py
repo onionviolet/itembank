@@ -8,6 +8,17 @@ writer: every submitted response is recorded as one event in
 `_evidence/evidence.jsonl`, beside the bank, through `evidence.append_event()`
 alone (D-08). The session JSON stays the resumability mechanism it always was;
 it stops being a source of record in a later plan, not here.
+
+Each command body is split into two functions: `do_start`/`do_next`/
+`do_submit`/`do_report` compute and return a dict, and `cmd_start`/`cmd_next`/
+`cmd_submit`/`cmd_report` unpack an argparse Namespace, call the matching
+`do_*`, print its result and return 0. These bodies now run in two very
+different places -- as a CLI process, where `sys.exit()` on a routine error
+condition is the correct way to report it, and inside a long-lived shared
+daemon, where it is not. Every `do_*` function keeps raising `SystemExit` on
+exactly the conditions it always has, with the same message text, because
+that is still correct for the CLI; containing it is the daemon's job
+(`surfaces/daemon.py`'s `/api/*` handlers), not this module's.
 """
 import datetime, json, os, sys
 
@@ -34,56 +45,66 @@ def ms_since(ts):
     return int((now - served).total_seconds() * 1000)
 
 
-def cmd_start(a):
-    qs = load(a.bank)
+def do_start(bank_path, count, objective, mode, seed, out, force):
+    qs = load(bank_path)
     errors, _ = lint(qs)
-    if errors and not a.force:
+    if errors and not force:
         sys.exit("refusing to start a bank with errors; run lint or pass --force")
     import random, uuid
-    candidates = [i for i, q in enumerate(qs) if not a.objective or q.get("objective") == a.objective]
+    candidates = [i for i, q in enumerate(qs) if not objective or q.get("objective") == objective]
     if not candidates:
-        sys.exit("no items match objective %r" % a.objective)
-    rng = random.Random(a.seed)
+        sys.exit("no items match objective %r" % objective)
+    rng = random.Random(seed)
     rng.shuffle(candidates)
-    items = candidates[:min(a.count, len(candidates))]
-    out = a.out or os.path.join(os.path.dirname(os.path.abspath(a.bank)) or ".", "_attempts",
-                                "session_%s.json" % uuid.uuid4().hex[:12])
+    items = candidates[:min(count, len(candidates))]
+    out = out or os.path.join(os.path.dirname(os.path.abspath(bank_path)) or ".", "_attempts",
+                              "session_%s.json" % uuid.uuid4().hex[:12])
     data = {"schema_version": SESSION_VERSION, "session_id": uuid.uuid4().hex,
-            "bank": os.path.abspath(a.bank), "items": items, "cursor": 0,
-            "responses": [], "status": "active", "mode": a.mode,
-            "objective": a.objective or "", "seed": a.seed,
+            "bank": os.path.abspath(bank_path), "items": items, "cursor": 0,
+            "responses": [], "status": "active", "mode": mode,
+            "objective": objective or "", "seed": seed,
             "served_ts": evidence.utc_now()}
     write_session(out, data)
     result = session_view(data, qs)
     result["session_file"] = session_path(out)
+    return result
+
+
+def cmd_start(a):
+    result = do_start(a.bank, a.count, a.objective, a.mode, a.seed, a.out, a.force)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
 
-def cmd_next(a):
-    data = read_session(a.session)
+def do_next(session_file):
+    data = read_session(session_file)
     qs = load(data["bank"])
     # `next` starts writing the session here: the clock for response_time_ms
     # starts the moment an item is handed over, not the moment it is
     # answered, so a learner who reads an item for a while has that time
     # honestly recorded rather than silently discarded.
     data["served_ts"] = evidence.utc_now()
-    write_session(a.session, data)
-    print(json.dumps(session_view(data, qs), ensure_ascii=False, indent=2))
+    write_session(session_file, data)
+    return session_view(data, qs)
+
+
+def cmd_next(a):
+    result = do_next(a.session)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
 
-def cmd_submit(a):
-    data = read_session(a.session)
+def do_submit(session_file, answer, confidence):
+    data = read_session(session_file)
     if data["status"] != "active":
         sys.exit("session is already complete")
     qs = load(data["bank"])
     if data["cursor"] >= len(data["items"]):
         data["status"] = "complete"
-        write_session(a.session, data)
+        write_session(session_file, data)
         sys.exit("session is already complete")
     q = qs[data["items"][data["cursor"]]]
-    answer = normalize_answer(a.answer)
+    answer = normalize_answer(answer)
     score = score_response(q, answer)
 
     response_time_ms = ms_since(data.get("served_ts"))
@@ -94,7 +115,7 @@ def cmd_submit(a):
     event = evidence.response_event(
         data["session_id"], q, answer, score, data["mode"], attempt_num,
         os.path.basename(data["bank"]), response_time_ms=response_time_ms,
-        confidence=a.confidence)
+        confidence=confidence)
     evidence_result = evidence.append_event(log, event)
 
     # A retry after a crash between the evidence append and the session
@@ -111,17 +132,25 @@ def cmd_submit(a):
     if data["cursor"] >= len(data["items"]):
         data["status"] = "complete"
     data["served_ts"] = evidence.utc_now()   # next item's clock starts now
-    write_session(a.session, data)
-    result = {"accepted": True, "item_id": q["id"], "score": score,
-              "status": data["status"], "evidence": evidence_result,
-              "next": session_view(data, qs)}
+    write_session(session_file, data)
+    return {"accepted": True, "item_id": q["id"], "score": score,
+            "status": data["status"], "evidence": evidence_result,
+            "next": session_view(data, qs)}
+
+
+def cmd_submit(a):
+    result = do_submit(a.session, a.answer, a.confidence)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
 
+def do_report(session_file):
+    data = read_session(session_file)
+    return {"schema_version": REPORT_VERSION, "session_id": data["session_id"],
+            "status": data["status"], "summary": session_summary(data)}
+
+
 def cmd_report(a):
-    data = read_session(a.session)
-    print(json.dumps({"schema_version": REPORT_VERSION, "session_id": data["session_id"],
-                      "status": data["status"], "summary": session_summary(data)},
-                     ensure_ascii=False, indent=2))
+    result = do_report(a.session)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
