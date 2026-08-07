@@ -15,6 +15,15 @@ TAGS = ("0", "1", "2", "3")
 PAD_SHORT = 480             # near 512 bytes once wrapped in the JSON envelope
 PAD_LONG = 4200              # above the 4096-byte NTFS sector size
 
+# A short ASCII key -> the character `run_writer` repeats to build a line's
+# padding. Threaded through subprocess argv as the KEY, never the raw
+# character: this project targets Windows, and a non-ASCII argument crossing
+# a subprocess boundary is at the mercy of the console code page, whereas an
+# ASCII key is not. "x" is the padding every probe used before this plan;
+# "cjk" is genuine multi-byte content, so a kill mid-write can actually land
+# inside a character instead of only ever landing between whole ASCII bytes.
+PAD_CHARS = {"x": "x", "cjk": "文"}
+
 
 def fail(msg):
     print("FAIL: " + msg)
@@ -32,9 +41,10 @@ def raw_append(path, line):
         os.close(fd)
 
 
-def run_writer(mode, path, tag, count, padding):
+def run_writer(mode, path, tag, count, padding, pad_key="x"):
+    pad_char = PAD_CHARS[pad_key]
     for i in range(count):
-        line = json.dumps({"tag": tag, "i": i, "pad": "x" * padding}, ensure_ascii=False)
+        line = json.dumps({"tag": tag, "i": i, "pad": pad_char * padding}, ensure_ascii=False)
         if mode == "locked":
             itembank.append_line(path, line)
         elif mode == "raw":
@@ -44,20 +54,26 @@ def run_writer(mode, path, tag, count, padding):
     return 0
 
 
-def spawn_writers(mode, path, count, padding, tags=TAGS):
+def spawn_writers(mode, path, count, padding, tags=TAGS, pad_key="x"):
     procs = [subprocess.Popen([sys.executable, __file__, "--writer", mode, path,
-                               tag, str(count), str(padding)]) for tag in tags]
+                               tag, str(count), str(padding), pad_key]) for tag in tags]
     for p in procs:
         p.wait()
     return procs
 
 
 def analyze_log(path, expected_count, expected_padding, tags):
-    """Torn/unparseable line count and (tag, i) pairs missing or duplicated."""
+    """Torn/unparseable line count and (tag, i) pairs missing or duplicated.
+
+    Opened with `errors="replace"`, the same posture Task 2 gave
+    `evidence.iter_raw()`: this harness exists to detect a torn multi-byte
+    tail, and a strict decode here would let it crash in the exact way it is
+    supposed to catch.
+    """
     seen = {}
     torn = 0
     if os.path.exists(path):
-        with open(path, encoding="utf-8") as fh:
+        with open(path, encoding="utf-8", errors="replace") as fh:
             for raw in fh:
                 raw = raw.strip()
                 if not raw:
@@ -168,13 +184,27 @@ def probe_locked():
 
 def probe_kill():
     """(c) Kill mid-write — ASSERTED. The reader must survive a torn tail, and a
-    further append after the torn tail must still be readable."""
+    further append after the torn tail must still be readable.
+
+    Pads with the "cjk" key (genuine multi-byte content), unlike
+    `probe_unlocked`/`probe_locked` which stay on the "x" ASCII key -- their
+    `PAD_SHORT`/`PAD_LONG` constants are calibrated in BYTES against the
+    512-byte and 4096-byte NTFS sector boundaries, and a 3-byte padding
+    character would silently triple those line sizes and invalidate what
+    those two probes measure. Do not "helpfully" convert them to match.
+
+    This probe is a real but timing-dependent guard for the torn-multi-byte
+    case, not the primary one: `append_line` writes each line under a lock
+    in a single `os.write`, so a terminate usually lands between whole
+    lines and only rarely mid-character. `probe_torn_multibyte` is the
+    deterministic probe that actually pins the guarantee.
+    """
     d = tempfile.mkdtemp()
     try:
         path = os.path.join(d, "kill.jsonl")
         padding = 100
         proc = subprocess.Popen([sys.executable, __file__, "--writer", "locked", path,
-                                 "0", "500000", str(padding)])
+                                 "0", "500000", str(padding), "cjk"])
         time.sleep(0.2)
         proc.terminate()
         proc.wait()
@@ -183,8 +213,17 @@ def probe_kill():
         for lineno, obj, raw in records:
             if len(obj.get("pad", "")) != padding:
                 fail("kill probe: record at line %d has the wrong pad length" % lineno)
-        with open(path, "rb") as fh:
-            complete_lines = fh.read().count(b"\n")
+        # A terminate this soon after spawn can race the writer subprocess's own
+        # startup (interpreter launch + import) and land before its first
+        # os.open() ever created the file -- a missing log is an empty log,
+        # never an error, the same posture iter_raw itself takes, rather than
+        # letting this probe's own read raise FileNotFoundError on a kill that
+        # was simply too fast to have left any bytes on disk.
+        if os.path.exists(path):
+            with open(path, "rb") as fh:
+                complete_lines = fh.read().count(b"\n")
+        else:
+            complete_lines = 0
         if len(records) < complete_lines - 1:
             fail("kill probe: reader returned %d records but the file had %d complete lines"
                  % (len(records), complete_lines))
@@ -222,7 +261,7 @@ def main():
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--writer":
-        _, mode, path, tag, count, padding = sys.argv[1:]
-        sys.exit(run_writer(mode, path, tag, int(count), int(padding)))
+        _, mode, path, tag, count, padding, pad_key = sys.argv[1:]
+        sys.exit(run_writer(mode, path, tag, int(count), int(padding), pad_key))
     else:
         sys.exit(main())
