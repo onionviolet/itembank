@@ -65,13 +65,15 @@ from surfaces.day import (ANKI_ADDON_ID, DAY_LANES, FLOOR_LANES, anki_read,   # 
                           load_day_log, parse_lanes, parse_plan, resolve_notes,
                           wiring_bases, write_day_log)
 from evidence import (EVENT_SCHEMA_VERSION, INDEX_VERSION, append_event,       # noqa: E402
-                      append_line, attempt_number, dedupe_key, ensure_index,
+                      append_line, attempt_number, day_log_from_events,
+                      day_tick_event, dedupe_key, ensure_index,
                       event_by_id, event_matches, evidence_dir, events,
                       idempotency_canon, index_for_log, index_path,
                       index_stale, iter_raw, live_events, locked, log_path,
                       mark_event, marks_by_event, new_event_id,
                       objective_history, objective_rollup, recent_dedupe_keys,
-                      rebuild_index, render_attempt_md, render_session_json,
+                      rebuild_index, render_attempt_md, render_daily_log,
+                      render_session_json,
                       response_event, retracted_ids, retraction_event,
                       session_events, subject_of, utc_now)
 from schema_validate import SUPPORTED, SchemaError, validate                  # noqa: E402
@@ -85,7 +87,8 @@ __all__ = [
     "anki_read", "answer_text", "append_event", "append_line", "assign_ids",
     "attempt_number", "canonical_key", "canonical_response", "collapse",
     "content_fingerprint", "day_history", "day_info",
-    "day_page", "day_status", "day_streak", "day_text", "dedupe_key",
+    "day_log_from_events",
+    "day_page", "day_status", "day_streak", "day_text", "day_tick_event", "dedupe_key",
     "ensure_index", "event_by_id", "event_matches", "evidence_dir", "events",
     "explain_payload",
     "grab", "idempotency_canon", "index_for_log", "index_path", "index_stale",
@@ -99,7 +102,7 @@ __all__ = [
     "parse_lanes",
     "parse_plan", "parse_question",
     "public_item", "read_session", "rebuild_index", "recent_dedupe_keys",
-    "render_attempt_md", "render_session_json", "resolve_notes",
+    "render_attempt_md", "render_daily_log", "render_session_json", "resolve_notes",
     "response_event", "response_text", "retracted_ids", "retraction_event",
     "score_response", "section", "session_events", "session_path",
     "session_summary", "session_view", "subject_of", "upgrade_session", "utc_now",

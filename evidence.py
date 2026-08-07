@@ -22,6 +22,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 import sys
 import uuid
 
@@ -34,11 +35,12 @@ EVIDENCE_DIRNAME = "_evidence"
 LOG_FILENAME = "evidence.jsonl"
 INDEX_FILENAME = "evidence_index.sqlite3"
 
-# "retraction" was added by plan 01-07, "mark" is added by this plan
-# (01-09) -- response events are the only ones this build wrote before
-# 01-07. events() skips and warns on anything outside this set (D-09), so a
-# log written by a later build's event type degrades instead of crashing.
-KNOWN_EVENT_TYPES = ("response", "retraction", "mark")
+# "retraction" was added by plan 01-07, "mark" by plan 01-09, "day_tick" by
+# this plan (01-10) -- response events are the only ones this build wrote
+# before 01-07. events() skips and warns on anything outside this set
+# (D-09), so a log written by a later build's event type degrades instead
+# of crashing.
+KNOWN_EVENT_TYPES = ("response", "retraction", "mark", "day_tick")
 
 # Bounds the tail scan `append_line_checked` and `recent_dedupe_keys` run to
 # decide whether an event is a duplicate. A dedupe_key contains the
@@ -1317,3 +1319,104 @@ def render_session_json(log, session_id, qs, bank_path):
         "objective": objective,
         "seed": 0,
     }
+
+
+# ---- day ticks (01-10) -------------------------------------------------------
+# EVID-03's third and last legacy store: `daily_log.md` stops being written
+# directly and becomes a render, exactly as the attempt markdown and the
+# session JSON already did in plan 01-09. Only the TICKS become events here --
+# the streak/pacing computation (`day_streak`, `lane_behind`, `lane_load`)
+# stays in `surfaces/day.py`, reading the rebuilt `{iso_date: set_of_lanes}`
+# mapping the same way it always has, per this plan's own narrow reading of
+# CONTEXT.md's deferred item (see 01-10-PLAN.md's Flagged Assumptions).
+
+DAY_TICK_EVENT_TYPE = "day_tick"
+
+_DAY_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def day_tick_event(date, lane, source="day"):
+    """Build one day_tick event: `lane` marked done on `date`, appended
+    rather than mutating `daily_log.md` in place -- D-11 extended to the
+    third of the three legacy stores EVID-03 names.
+
+    `date` must be `YYYY-MM-DD` AND a real calendar date; anything else
+    raises `ValueError` rather than becoming a silently wrong row in the
+    regenerated table (T-1-27) -- the same defensive posture
+    `retraction_event()`'s empty-reason check already takes for an
+    unexplained undo.
+
+    `dedupe_key` is a hash over `(date, lane)` alone, deliberately not
+    `source` or a timestamp: ticking the same lane on the same date twice
+    -- from the day POST route, from a future CLI, on the same session or a
+    different one -- must record once and report `already_recorded`.
+    """
+    if not isinstance(date, str) or not _DAY_DATE_RE.match(date):
+        raise ValueError(
+            "day_tick_event: date must be YYYY-MM-DD, got %r" % (date,))
+    try:
+        datetime.date.fromisoformat(date)
+    except ValueError:
+        raise ValueError(
+            "day_tick_event: date must be a real calendar date, got %r" % (date,))
+    if not lane:
+        raise ValueError("day_tick_event: lane must be a non-empty string")
+    raw = "%s|%s" % (date, lane)
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": DAY_TICK_EVENT_TYPE,
+        "ts": utc_now(),
+        "date": date,
+        "lane": lane,
+        "source": source,
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+def day_log_from_events(log):
+    """The `{iso_date: set_of_lanes}` mapping `surfaces/day.load_day_log()`
+    returns, built from the live `day_tick` events instead of the markdown
+    table (D-11 extended to the day surface's tick log).
+
+    Un-ticking a lane is a retraction of its tick event (D-10): reading
+    through `live_events` means a retracted tick simply is not present,
+    with no un-tick-specific code needed here at all.
+    """
+    out = {}
+    for ev in live_events(log):
+        if ev.get("event_type") != DAY_TICK_EVENT_TYPE:
+            continue
+        date, lane = ev.get("date"), ev.get("lane")
+        if not date or not lane:
+            continue
+        out.setdefault(date, set()).add(lane)
+    return out
+
+
+def render_daily_log(log, lanes, floor_lanes, status_fn):
+    """The `daily_log.md` markdown table, computed fresh from `log` (the
+    mapping `day_log_from_events()` returns) rather than read back in as an
+    input by anything (D-11) -- byte-for-byte the same structure
+    `surfaces/day.write_day_log()` produces for the same tick mapping:
+    heading, provenance line, the floor/full explanation, the header row,
+    and one row per date with `x`/`.` marks and a day-status column.
+
+    Takes the lane list, the floor list and the status function as
+    parameters rather than importing them from `surfaces/day.py` -- the
+    runtime tier must not import a surface, the same boundary
+    `runtime.py`'s own docstring holds for scoring, applied here to what a
+    lane means. Passing them keeps this module unaware of that.
+    """
+    L = ["# Daily log", "",
+         "*Written by `itembank day`. One row per day, `x` where the lane was done.*", "",
+         "**Floor** = %s, the smallest day that still counts. **Full** = every lane. "
+         "A missed day is never made up; the next day runs its own row at normal size."
+         % ", ".join(floor_lanes), "",
+         "| Date | " + " | ".join(lanes) + " | Day |",
+         "|---" * (len(lanes) + 2) + "|"]
+    for iso in sorted(log):
+        marks = ["x" if l in log[iso] else "." for l in lanes]
+        L.append("| %s | %s | %s |" % (iso, " | ".join(marks), status_fn(log[iso])))
+    L.append("")
+    return "\n".join(L)

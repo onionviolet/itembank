@@ -13,6 +13,7 @@ tool still holds no content of its own.
 """
 import html, json, os, re, sys
 
+import evidence
 import server
 
 
@@ -437,6 +438,13 @@ def load_day_log(path):
     The log predates the sixth lane on some machines, so a five-column file
     must read correctly: a lane the header does not name is simply not done
     that day, never an error and never another lane's mark.
+
+    Kept for two callers only, per plan 01-10 (D-11 extended to the day
+    surface): the migration reader (plan 01-11) that brings a pre-evidence
+    log's history into `_evidence/evidence.jsonl`, and `cmd_day`'s own
+    fallback for a machine that has not run that migration yet. `cmd_day`
+    no longer treats this as how it learns what was ticked once an
+    evidence log exists -- `evidence.day_log_from_events()` is.
     """
     log, header = {}, list(DAY_LANES)
     if not os.path.exists(path):
@@ -466,6 +474,14 @@ def day_status(done):
 
 
 def write_day_log(path, log):
+    """Write the tick log's markdown table directly.
+
+    Kept as the fallback writer for the pre-migration path only (plan
+    01-10, D-11 extended to the day surface): the day POST route now
+    writes through `evidence.render_daily_log()` and an atomic
+    tmp-then-`os.replace()`, never through this function, once an evidence
+    log exists for the plan being served.
+    """
     L = ["# Daily log", "",
          "*Written by `itembank day`. One row per day, `x` where the lane was done.*", "",
          "**Floor** = %s, the smallest day that still counts. **Full** = every lane. "
@@ -825,7 +841,21 @@ def cmd_day(a):
         os.path.dirname(os.path.abspath(a.plan)) or ".", "daily_log.md")
     lanes_path = a.lanes or os.path.join(
         os.path.dirname(os.path.abspath(a.plan)) or ".", "lanes.md")
-    log = load_day_log(log_path)
+
+    # A lane tick is an event (D-11 extended to the day surface, plan
+    # 01-10); `daily_log.md` is a render of it. The evidence log lives
+    # beside wherever the tick log itself lives, so a `--log` override
+    # (used by tests, or by a learner who keeps the log somewhere other
+    # than beside the plan) keeps its own evidence rather than sharing one
+    # with the plan file's directory.
+    evidence_log = evidence.log_path(os.path.dirname(os.path.abspath(log_path)) or ".")
+    if os.path.exists(evidence_log):
+        log = evidence.day_log_from_events(evidence_log)
+    else:
+        print("note: no _evidence/evidence.jsonl found yet; reading ticks straight "
+              "from %s. Run `itembank migrate` to bring this history into the "
+              "evidence log." % log_path)
+        log = load_day_log(log_path)
 
     if a.check or a.due:
         info = day_info(plan, log, iso, a.plan, lanes_path)
@@ -853,6 +883,7 @@ def cmd_day(a):
             self.send_html(render())
 
         def do_POST(self):
+            nonlocal log
             if self.path not in ("/save", "/open"):
                 self.send_error(404)
                 return
@@ -870,11 +901,39 @@ def cmd_day(a):
                     open_in_editor(files[i][1])
                     out = {}
                 else:
+                    # A tick is an append, an un-tick is a compensating
+                    # retraction (D-10 extended to the day surface): nothing
+                    # here is ever deleted, only appended. The lane name and
+                    # date both come from this POST body (T-1-27) -- the
+                    # date is validated by evidence.day_tick_event() itself,
+                    # and the lane is filtered against DAY_LANES below,
+                    # same as the check this replaces already did.
                     d = data.get("date") or iso
-                    log[d] = set(l for l in data.get("done", []) if l in DAY_LANES)
-                    write_day_log(log_path, log)
+                    prev_done = log.get(d, set())
+                    now_done = set(l for l in data.get("done", []) if l in DAY_LANES)
+                    for lane in sorted(now_done - prev_done):
+                        evidence.append_event(
+                            evidence_log, evidence.day_tick_event(d, lane))
+                    for lane in sorted(prev_done - now_done):
+                        target = None
+                        for ev in evidence.live_events(evidence_log):
+                            if (ev.get("event_type") == evidence.DAY_TICK_EVENT_TYPE
+                                    and ev.get("date") == d and ev.get("lane") == lane):
+                                target = ev.get("event_id")
+                        if target:
+                            evidence.append_event(
+                                evidence_log,
+                                evidence.retraction_event(target, "unticked in day"))
+                    log = evidence.day_log_from_events(evidence_log)
+                    md = evidence.render_daily_log(log, DAY_LANES, FLOOR_LANES, day_status)
+                    tmp = log_path + ".tmp"
+                    if os.path.dirname(log_path):
+                        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+                    with open(tmp, "w", encoding="utf-8") as fh:
+                        fh.write(md)
+                    os.replace(tmp, log_path)
                     out = {"streak": day_streak(log, today),
-                           "status": day_status(log[d]),
+                           "status": day_status(log.get(d, set())),
                            "hist": day_history(log, today)}
             except Exception as exc:
                 self.send_error(500, str(exc))

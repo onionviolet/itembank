@@ -24,7 +24,7 @@
     "event_type": {
       "type": "string",
       "enum": ["response", "mark", "retraction", "day_tick"],
-      "description": "This build writes only 'response'. 'mark', 'retraction' and 'day_tick' are reserved values, given a body in plans 01-07 and 01-09."
+      "description": "This build writes only 'response'. 'retraction' was given a body in plan 01-07, 'mark' in plan 01-09, and 'day_tick' in plan 01-10."
     },
     "ts": {
       "type": "string",
@@ -173,10 +173,26 @@
     },
     "day_tick_event": {
       "type": "object",
-      "description": "Reserved shape for a day_tick event, written by plan 01-09. Not yet enforced.",
+      "description": "The day_tick event's real shape (plan 01-10): a lane marked done on a date, appended by the day POST route rather than mutating daily_log.md in place. Not yet wired into a top-level oneOf with the response shape above, so this remains descriptive rather than enforced against a raw evidence.jsonl line.",
       "properties": {
         "event_type": {
           "const": "day_tick"
+        },
+        "date": {
+          "type": "string",
+          "description": "YYYY-MM-DD and a real calendar date; evidence.day_tick_event() rejects anything else with a ValueError"
+        },
+        "lane": {
+          "type": "string",
+          "description": "One of surfaces/day.py's DAY_LANES; validated by the day POST route before this event is built, not by evidence.py itself"
+        },
+        "source": {
+          "type": "string",
+          "description": "Always 'day' in this build -- reserved for a future non-interactive ticker"
+        },
+        "dedupe_key": {
+          "type": "string",
+          "description": "sha256 over (date, lane) alone, so ticking the same lane on the same date twice always reports already_recorded"
         }
       }
     }
