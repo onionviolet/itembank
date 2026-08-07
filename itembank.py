@@ -66,9 +66,10 @@ from surfaces.day import (ANKI_ADDON_ID, DAY_LANES, FLOOR_LANES, anki_read,   # 
                           wiring_bases, write_day_log)
 from evidence import (EVENT_SCHEMA_VERSION, INDEX_VERSION, append_event,       # noqa: E402
                       append_line, attempt_number, dedupe_key, ensure_index,
-                      event_by_id, evidence_dir, events, idempotency_canon,
-                      index_path, index_stale, iter_raw, live_events, locked,
-                      log_path, new_event_id, objective_history,
+                      event_by_id, event_matches, evidence_dir, events,
+                      idempotency_canon, index_for_log, index_path,
+                      index_stale, iter_raw, live_events, locked, log_path,
+                      new_event_id, objective_history, objective_rollup,
                       recent_dedupe_keys, rebuild_index, response_event,
                       retracted_ids, retraction_event, subject_of, utc_now)
 from schema_validate import SUPPORTED, SchemaError, validate                  # noqa: E402
@@ -83,13 +84,15 @@ __all__ = [
     "attempt_number", "canonical_key", "canonical_response", "collapse",
     "content_fingerprint", "day_history", "day_info",
     "day_page", "day_status", "day_streak", "day_text", "dedupe_key",
-    "ensure_index", "event_by_id", "evidence_dir", "events", "explain_payload",
-    "grab", "idempotency_canon", "index_path", "index_stale", "iter_raw",
+    "ensure_index", "event_by_id", "event_matches", "evidence_dir", "events",
+    "explain_payload",
+    "grab", "idempotency_canon", "index_for_log", "index_path", "index_stale",
+    "iter_raw",
     "lane_behind",
     "lane_files", "lane_load", "lint", "lint_lane_decks", "lint_lane_paths",
     "live_events", "load", "load_day_log", "locked", "log_path",
     "main", "new_event_id", "new_item_id", "normalize_answer", "notes",
-    "objective_history", "page_item", "parse_bank",
+    "objective_history", "objective_rollup", "page_item", "parse_bank",
     "parse_lanes",
     "parse_plan", "parse_question",
     "public_item", "read_session", "rebuild_index", "recent_dedupe_keys",

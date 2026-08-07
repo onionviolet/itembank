@@ -1,9 +1,18 @@
 """The evidence query surface: reading a learner's recorded history back out.
 
-`itembank evidence --objective X` is the first reader over `_evidence/evidence.jsonl`.
-It answers "how am I doing on this objective" from the log alone, the same way
-`surfaces/session.py` is the first writer into it. An objective with no recorded
-events is an empty history, not an error — the command still exits 0.
+`itembank evidence` is the reader over `_evidence/evidence.jsonl`. It answers
+"how am I doing on this objective" across every session and every subject, from
+the log alone, the same way `surfaces/session.py` is the first writer into it.
+An objective (or subject, or session) with no recorded events is an empty
+history, not an error — the command still exits 0.
+
+`--objective` matches exactly unless `--prefix` is also given, in which case it
+also matches an objective beginning with the argument followed by a `.` or `:`
+separator (D-06) — `emt:airway` never matches `emt:airwaymanagement`.
+`--subject` filters on subject alone, ignoring `--objective` entirely. At least
+one of `--objective`, `--subject` or `--session` is required. `--rebuild-index`
+deletes and rebuilds the disposable sqlite3 projection (01-08, D-08) before
+querying — it is a cache, so this loses nothing but time.
 
 `itembank retract` is the undo command (D-10): it appends a reasoned
 compensating event and never deletes anything. `itembank evidence`'s `count`
@@ -24,17 +33,62 @@ import evidence
 
 
 def cmd_evidence(a):
+    """The one command that answers "how am I doing on objective X over
+    time" across every session and every subject, reading from the log
+    alone (D-08's disposable sqlite3 projection is a cache in front of
+    that read, never a second source of truth). Presents counts and the
+    trail itself and nothing else -- no score, level, badge or streak, per
+    PROJECT.md's Out of Scope table.
+    """
     log = evidence.log_path(a.base)
-    rows = evidence.objective_history(log, a.objective)
-    retracted = evidence.retracted_ids(log)
+    index = evidence.index_for_log(log)
+
+    if a.rebuild_index:
+        # The index is a cache: deleting it and rebuilding costs time and
+        # loses nothing (D-08). Say so plainly rather than silently.
+        if os.path.exists(index):
+            os.remove(index)
+        evidence.rebuild_index(log, index)
+
+    objective = a.objective or None
+    subject = a.subject or None
+    session_id = a.session or None
+    mode = a.mode or None
+    since = a.since or None
+
+    if not (objective or subject or session_id):
+        sys.exit("evidence: give at least one of --objective, --subject or "
+                  "--session to query")
+
+    # objective_history() is the ONE call site that runs ensure_index() --
+    # deliberately not duplicated here, so a query that skipped it (a
+    # regression this surface cannot see directly) is not papered over by
+    # a second, independent index refresh happening beside it. The "used"
+    # vs "fallback" status reported below is inferred AFTER the query, by
+    # asking whether the index it should have refreshed is in fact fresh.
+    rows = evidence.objective_history(
+        log, objective, prefix=a.prefix, subject=subject, mode=mode,
+        session_id=session_id, since=since)
+    by_mode = evidence.objective_rollup(rows)
+    try:
+        post_stale, _ = evidence.index_stale(log, index)
+        status = "fallback" if post_stale else "used"
+    except Exception:
+        status = "fallback"
+
+    retracted_ids = evidence.retracted_ids(log)
     retracted_count = sum(
         1 for ev in evidence.events(log)
         if ev.get("event_type") == evidence.RESPONSE_EVENT_TYPE
-        and ev.get("objective") == a.objective
-        and ev.get("event_id") in retracted)
+        and evidence.event_matches(ev, objective, a.prefix, subject, mode,
+                                   session_id, since)
+        and ev.get("event_id") in retracted_ids)
+
     result = {"schema_version": evidence.EVENT_SCHEMA_VERSION,
-              "objective": a.objective, "count": len(rows),
-              "retracted": retracted_count, "events": rows}
+              "objective": objective or "", "count": len(rows),
+              "retracted": retracted_count, "by_mode": by_mode,
+              "index": status, "index_rebuilt": bool(a.rebuild_index),
+              "events": rows}
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 

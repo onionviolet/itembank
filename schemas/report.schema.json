@@ -54,6 +54,19 @@
           "type": "integer",
           "description": "How many of this query's response events are suppressed by a retraction (plan 01-07). count is already post-retraction; this says how much of the raw log for this query was undone, so a smaller count is never mistaken for missing data. Optional: a document written before plan 01-07 has none."
         },
+        "by_mode": {
+          "type": "object",
+          "description": "Plan 01-08, EVID-08's visible half. Mode name to {attempts, correct, wrong, pending}, counted over this query's events alone -- a drill-mode correct and an exam-mode correct live in different keys and are never summed into one figure. Optional: a document written before plan 01-08 has none."
+        },
+        "index": {
+          "type": "string",
+          "enum": ["used", "fallback"],
+          "description": "Plan 01-08, D-08. Whether the disposable sqlite3 projection answered this query (\"used\") or could not be built/extended at all, so a full log scan answered it instead (\"fallback\"). Either way the answer is the same; this field only says which path produced it. Optional: a document written before plan 01-08 has none."
+        },
+        "index_rebuilt": {
+          "type": "boolean",
+          "description": "Plan 01-08. True when --rebuild-index deleted and rebuilt the projection before this query ran. The index is a cache (D-08); rebuilding it costs time and loses nothing. Optional: a document written before plan 01-08 has none."
+        },
         "events": {
           "type": "array",
           "items": {

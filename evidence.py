@@ -454,22 +454,128 @@ def attempt_number(log, session_id, item_key, canon):
     return last.get("attempt_number", 1) + 1
 
 
-def objective_history(log, objective):
-    """Every LIVE response event whose `objective` equals the argument,
-    oldest first, sorted by `(ts, log order)` so events sharing a
-    timestamp keep a stable, reproducible order.
+def _like_escape(s):
+    """Escape `%`, `_` and `\\` in `s` for a parameterized SQL `LIKE ...
+    ESCAPE '\\'` clause, so an objective name that happens to contain a SQL
+    wildcard character cannot widen a prefix match beyond D-06's `.`/`:`
+    separator rule.
+    """
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
-    Reads through `live_events`, never `events` — a retracted response must
-    never contribute to a count a learner sees (D-10). A linear scan of the
-    log for now; plan 01-08 replaces the scan with the sqlite index behind
-    this same signature. Never recomputes a score — reads the recorded
-    `score` field.
+
+def event_matches(ev, objective, prefix=False, subject=None, mode=None,
+                   session_id=None, since=None):
+    """The one filter predicate both `objective_history()`'s live-scan
+    fallback and its indexed SQL path implement identically, and that
+    `surfaces/evidence_cli.py` reuses to count retracted rows under the
+    same query -- so the two paths, and the retracted count next to them,
+    can never silently disagree about what a query matched.
+
+    `subject`, when given, filters on the event's `subject` field ALONE and
+    ignores `objective` entirely (D-06). Otherwise `objective` is matched
+    exactly, or as a prefix when `prefix` is true: equal to `objective`, or
+    beginning with `objective` followed by a `.` or a `:` separator -- so
+    `emt:airway` matches `emt:airway.opa` but never `emt:airwaymanagement`.
+    """
+    if subject:
+        if ev.get("subject") != subject:
+            return False
+    elif objective:
+        ev_obj = ev.get("objective") or ""
+        if prefix:
+            if not (ev_obj == objective or ev_obj.startswith(objective + ".")
+                    or ev_obj.startswith(objective + ":")):
+                return False
+        elif ev_obj != objective:
+            return False
+    if mode and ev.get("mode") != mode:
+        return False
+    if session_id and ev.get("session_id") != session_id:
+        return False
+    if since and (ev.get("ts") or "") < since:
+        return False
+    return True
+
+
+def index_for_log(log):
+    """The disposable projection sitting beside `log` -- for a caller
+    holding only a log path, so it can reach the index without
+    re-deriving the evidence directory itself.
+    """
+    return os.path.join(os.path.dirname(log), INDEX_FILENAME)
+
+
+def _row_from_index_tuple(r):
+    return {
+        "ts": r[0], "session_id": r[1], "item_id": r[2], "item_ref": r[3],
+        "mode": r[4], "score": json.loads(r[5]) if r[5] is not None else None,
+        "attempt_number": r[6], "confidence": r[7], "response_time_ms": r[8],
+    }
+
+
+def _objective_history_indexed(index, objective, prefix, subject, mode,
+                                session_id, since):
+    """The SQL half of `objective_history()`. T-1-19: every filter value is
+    bound as a `?` parameter -- never concatenated or `%`-formatted into the
+    query text -- so a filter value can shape which parameter it binds to,
+    never the query's own structure.
+    """
+    con = _index_connect(index)
+    try:
+        clauses = ["retracted = 0"]
+        params = []
+        if subject:
+            clauses.append("subject = ?")
+            params.append(subject)
+        elif objective:
+            if prefix:
+                esc = _like_escape(objective)
+                clauses.append(
+                    "(objective = ? OR objective LIKE ? ESCAPE '\\' "
+                    "OR objective LIKE ? ESCAPE '\\')")
+                params.append(objective)
+                params.append(esc + ".%")
+                params.append(esc + ":%")
+            else:
+                clauses.append("objective = ?")
+                params.append(objective)
+        if mode:
+            clauses.append("mode = ?")
+            params.append(mode)
+        if session_id:
+            clauses.append("session_id = ?")
+            params.append(session_id)
+        if since:
+            clauses.append("ts >= ?")
+            params.append(since)
+        parts = [
+            "SELECT ts, session_id, item_id, item_ref, mode, score, ",
+            "attempt_number, confidence, response_time_ms FROM events WHERE ",
+            " AND ".join(clauses),
+            " ORDER BY ts, seq",
+        ]
+        sql = "".join(parts)
+        cur = con.execute(sql, params)
+        return [_row_from_index_tuple(r) for r in cur.fetchall()]
+    finally:
+        con.close()
+
+
+def _objective_history_fallback(log, objective, prefix, subject, mode,
+                                 session_id, since):
+    """The linear-scan half of `objective_history()`, used when the index
+    could not be built or extended at all (`ensure_index()` returned
+    `"fallback"`). Reads through `live_events`, never `events` -- a
+    retracted response must never contribute to a count a learner sees
+    (D-10). Sorted by `(ts, log order)` so events sharing a timestamp keep
+    a stable, reproducible order, identical to the indexed path's `ORDER BY
+    ts, seq` (seq is assigned in log order too).
     """
     rows = []
     for idx, ev in enumerate(live_events(log)):
         if ev.get("event_type") != RESPONSE_EVENT_TYPE:
             continue
-        if ev.get("objective") != objective:
+        if not event_matches(ev, objective, prefix, subject, mode, session_id, since):
             continue
         rows.append((ev.get("ts", ""), idx, {
             "ts": ev.get("ts"),
@@ -484,6 +590,73 @@ def objective_history(log, objective):
         }))
     rows.sort(key=lambda r: (r[0], r[1]))
     return [r[2] for r in rows]
+
+
+def objective_history(log, objective, prefix=False, subject=None, mode=None,
+                       session_id=None, since=None):
+    """Every LIVE response event matching the given filters, oldest first,
+    sorted by `(ts, log order)` so events sharing a timestamp keep a
+    stable, reproducible order across repeated queries and across an index
+    rebuild.
+
+    Calls `ensure_index(log, index_for_log(log))` and queries the disposable
+    sqlite3 projection (01-08) when it answers "used"; falls back to a
+    linear scan over `live_events(log)` when it answers "fallback" --
+    identical results, slower, so the index is provably a cache and never a
+    second source of truth (D-08; `test_index_is_disposable` is what proves
+    the two paths agree).
+
+    `objective` is matched exactly by default; `prefix=True` also matches an
+    objective beginning with `objective` followed by a `.` or `:`
+    separator. `subject=` filters on the indexed `subject` column alone and
+    ignores `objective` entirely. `mode=`, `session_id=` and `since=` (an
+    ISO date compared as a string prefix against `ts`, which sorts
+    correctly because timestamps are ISO-8601 UTC) are additional filters.
+    Never recomputes a score -- reads the recorded `score` field.
+    """
+    index = index_for_log(log)
+    status = ensure_index(log, index)
+    if status == "used":
+        try:
+            return _objective_history_indexed(
+                index, objective, prefix, subject, mode, session_id, since)
+        except Exception as exc:
+            print("warn  evidence index unavailable (%s); falling back to a "
+                  "full log scan" % exc)
+            try:
+                if os.path.exists(index):
+                    os.remove(index)
+            except Exception:
+                pass
+    return _objective_history_fallback(
+        log, objective, prefix, subject, mode, session_id, since)
+
+
+def objective_rollup(rows):
+    """Per-mode rollup over `objective_history()`'s rows: EVID-08's visible
+    half. A drill-mode correct and an exam-mode correct are counted in
+    different mode buckets and never summed into one figure -- the caller
+    is the one place a combined total could sneak in, and it does not.
+
+    Returns a dict mapping `mode` to `{"attempts", "correct", "wrong",
+    "pending"}`. `score` of `True`, `False` and `None` are counted
+    separately; `pending` is a `short` item awaiting a marker and is
+    deliberately not folded into `wrong`.
+    """
+    by_mode = {}
+    for row in rows:
+        mode = row.get("mode") or "(unknown)"
+        bucket = by_mode.setdefault(
+            mode, {"attempts": 0, "correct": 0, "wrong": 0, "pending": 0})
+        bucket["attempts"] += 1
+        score = row.get("score")
+        if score is True:
+            bucket["correct"] += 1
+        elif score is False:
+            bucket["wrong"] += 1
+        else:
+            bucket["pending"] += 1
+    return by_mode
 
 
 # ---- disposable sqlite3 projection (01-08) --------------------------------
@@ -623,11 +796,18 @@ def index_stale(log, index):
         return True, 0
     log_size = os.path.getsize(log) if os.path.exists(log) else 0
     log_mtime_ns = os.stat(log).st_mtime_ns if os.path.exists(log) else 0
-    con = _index_connect(index)
     try:
-        meta = dict(con.execute("SELECT key, value FROM meta").fetchall())
-    finally:
-        con.close()
+        con = _index_connect(index)
+        try:
+            meta = dict(con.execute("SELECT key, value FROM meta").fetchall())
+        finally:
+            con.close()
+    except Exception:
+        # Cannot even be opened -- a directory sitting at this path, a
+        # corrupted file, anything at all: treat it the same as missing,
+        # a full rebuild, rather than letting the exception escape and be
+        # mistaken by a caller for "the index cannot be used at all".
+        return True, 0
     if meta.get("index_version") != str(INDEX_VERSION):
         return True, 0
     if meta.get("event_schema_version") != str(EVENT_SCHEMA_VERSION):

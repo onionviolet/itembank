@@ -159,8 +159,24 @@ def main():
     s.add_argument("session")
     s.set_defaults(fn=cmd_report)
 
-    s = sub.add_parser("evidence", help="read one objective's recorded response history")
-    s.add_argument("--objective", required=True, help="the objective to query")
+    s = sub.add_parser("evidence", help="read recorded response history across every "
+                       "session and subject")
+    s.add_argument("--objective", default="",
+                   help="the objective to query; exact match unless --prefix is given")
+    s.add_argument("--prefix", action="store_true",
+                   help="match --objective as a prefix (emt:airway also matches "
+                        "emt:airway.opa, never emt:airwaymanagement)")
+    s.add_argument("--subject", default="",
+                   help="filter by subject alone, ignoring --objective entirely")
+    s.add_argument("--mode", default="",
+                   help="filter by session mode (diagnostic, practice, exam, "
+                        "remediation, drill)")
+    s.add_argument("--session", default="", help="filter by session_id")
+    s.add_argument("--since", default="",
+                   help="only events at or after this date, YYYY-MM-DD")
+    s.add_argument("--rebuild-index", action="store_true", dest="rebuild_index",
+                   help="delete and rebuild the disposable query index before "
+                        "querying; the index is a cache, so this loses nothing")
     s.add_argument("--base", default=".",
                    help="directory holding _evidence/ (default: current directory)")
     s.set_defaults(fn=cmd_evidence)
