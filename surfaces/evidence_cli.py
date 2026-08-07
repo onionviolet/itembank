@@ -126,6 +126,53 @@ def cmd_retract(a):
     return 0
 
 
+def cmd_render(a):
+    """Regenerate the attempt markdown or the session JSON for one session
+    from the evidence log alone (D-11) -- a view, never an input. Editing
+    the output changes nothing, because the next render replaces it from
+    the log alone. `daily` is reserved for plan 01-10; naming it here now
+    exits with a stated "not yet implemented" error rather than silently
+    producing nothing, so the gap is visible instead of guessed at.
+    """
+    if a.kind not in ("attempt", "session", "daily"):
+        sys.exit("render: unknown kind %r" % (a.kind,))
+    if a.kind == "daily":
+        sys.exit("render: 'daily' is not yet implemented in this build "
+                 "(arrives in plan 01-10)")
+    if not a.bank:
+        sys.exit("render: --bank is required for 'attempt' and 'session'")
+
+    log = evidence.log_path(a.base)
+    qs = model.load(a.bank)
+
+    if a.kind == "attempt":
+        text = evidence.render_attempt_md(log, a.session, qs, a.bank)
+        count = len(evidence.session_events(log, a.session))
+    else:
+        data = evidence.render_session_json(log, a.session, qs, a.bank)
+        text = json.dumps(data, ensure_ascii=False, indent=2)
+        count = len(data["responses"])
+
+    if a.out:
+        # The runtime.write_session() pattern (T-1-22): tmp file, then
+        # os.replace() -- so a half-written render can never replace a
+        # good one, the one atomic-write precedent every render in this
+        # phase copies rather than reinventing.
+        out_dir = os.path.dirname(os.path.abspath(a.out))
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+        tmp = a.out + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write(text)
+            fh.write("\n")
+        os.replace(tmp, a.out)
+        print("%d response(s) rendered for session %s -> %s" %
+              (count, a.session, a.out))
+    else:
+        print(text)
+    return 0
+
+
 def cmd_id_assign(a):
     paths = a.banks
     texts = {}

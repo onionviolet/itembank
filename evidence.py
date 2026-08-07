@@ -25,7 +25,7 @@ import os
 import sys
 import uuid
 
-from runtime import canonical_response
+from runtime import SESSION_VERSION, canonical_response, response_text
 
 
 EVENT_SCHEMA_VERSION = 1
@@ -34,11 +34,11 @@ EVIDENCE_DIRNAME = "_evidence"
 LOG_FILENAME = "evidence.jsonl"
 INDEX_FILENAME = "evidence_index.sqlite3"
 
-# "retraction" is added by this plan (01-07); response events are the only
-# ones this build wrote before it. events() skips and warns on anything
-# outside this set (D-09), so a log written by a later build's event type
-# degrades instead of crashing.
-KNOWN_EVENT_TYPES = ("response", "retraction")
+# "retraction" was added by plan 01-07, "mark" is added by this plan
+# (01-09) -- response events are the only ones this build wrote before
+# 01-07. events() skips and warns on anything outside this set (D-09), so a
+# log written by a later build's event type degrades instead of crashing.
+KNOWN_EVENT_TYPES = ("response", "retraction", "mark")
 
 # Bounds the tail scan `append_line_checked` and `recent_dedupe_keys` run to
 # decide whether an event is a duplicate. A dedupe_key contains the
@@ -1004,3 +1004,256 @@ def event_by_id(log, event_id):
         if ev.get("event_id") == event_id:
             return ev
     return None
+
+
+# ---- renders (01-09) --------------------------------------------------------
+# D-11: `_attempts/*.md` and the session JSON stop being inputs and become
+# views computed fresh from the log on every call. Neither is ever read back
+# in by anything -- `itembank start`/`next`/`submit` still write the session
+# file as a sitting's live working state (the cursor `next` advances); the
+# functions below are how that state, and the attempt markdown, are
+# recovered if the file is lost, not a replacement for it while a sitting is
+# still active.
+
+MARK_EVENT_TYPE = "mark"
+
+
+def session_events(log, session_id):
+    """Every LIVE response event for `session_id`, in stable `(ts, log
+    order)` order -- the same ordering rule `objective_history()`'s
+    fallback path uses (`ORDER BY ts, seq`), so two events sharing an
+    identical `ts` keep the order they were appended in rather than an
+    order that depends on dict or sort internals. Built on `live_events`,
+    never `events`, so a retracted response vanishes from a render exactly
+    as it vanishes from a count (D-10) -- reading `events` here instead
+    would let a retracted response keep rendering and keep counting.
+    """
+    rows = []
+    for idx, ev in enumerate(live_events(log)):
+        if ev.get("event_type") != RESPONSE_EVENT_TYPE:
+            continue
+        if ev.get("session_id") != session_id:
+            continue
+        rows.append((ev.get("ts", ""), idx, ev))
+    rows.sort(key=lambda r: (r[0], r[1]))
+    return [r[2] for r in rows]
+
+
+def marks_by_event(log):
+    """The most recent LIVE `mark` event for every response `event_id` that
+    has one, keyed by that response's own `event_id`.
+
+    Most recent rather than first, because a second mark carrying a
+    different verdict is a correction, not a duplicate (D-12); live,
+    because a retracted mark leaves the response pending again, the same
+    way a retracted response leaves an attempt open again (T-1-23). Marks
+    are appended to the log in the order they are recorded, so simply
+    keeping the last one seen while walking `live_events` in log order IS
+    the most recent live one. Nothing here mutates the response event
+    itself -- `review_state` is computed at read time by every caller of
+    this function, never written back onto the response.
+    """
+    marks = {}
+    for ev in live_events(log):
+        if ev.get("event_type") != MARK_EVENT_TYPE:
+            continue
+        target = ev.get("marks_event")
+        if target:
+            marks[target] = ev
+    return marks
+
+
+def render_attempt_md(log, session_id, qs, bank_path):
+    """The attempt markdown for one session, computed fresh from the log
+    every time this is called (D-11) -- never read back in as an input by
+    anything. Same document shape `surfaces/quiz.attempt_markdown` produces
+    today (title, status line, one section per item, the short-item rubric
+    block), with two deliberate differences, both consequences of this
+    being a render: the provenance line says the file is generated from the
+    evidence log and names the session, and the `MARK:` line reports the
+    recorded state read through `marks_by_event` instead of accepting a
+    hand edit.
+
+    `qs` is the parsed bank (`model.load(bank_path)`'s return value); a
+    response event carries only `item_ref`/`item_id`, never the item text
+    itself, so the stem, options and rubric are looked up in `qs` by
+    `item_ref`. `runtime.response_text(q, answer)` is reused for the
+    auto-scored answer line rather than reimplemented, which is what keeps
+    this render readable by whoever comes back to mark it: it records
+    option *text*, not a letter that a reshuffled page would reassign to a
+    different option next time (see that function's own docstring).
+
+    This function has no access to a session's original item selection or
+    cursor -- that lives only in the session JSON, which a render
+    deliberately never reads (D-11). So unlike the file this replaces, it
+    cannot say whether a sitting is "finished"; it reports exactly what has
+    been recorded and nothing about what has not yet been served.
+    """
+    events_ = session_events(log, session_id)
+    marks = marks_by_event(log)
+    by_ref = {}
+    for q in qs:
+        by_ref.setdefault(q["id"], q)
+
+    auto = [ev for ev in events_ if ev.get("score") is not None]
+    correct = sum(1 for ev in auto if ev.get("score") is True)
+    shorts = [ev for ev in events_ if ev.get("item_type") == "short"]
+    pending_shorts = [ev for ev in shorts if ev["event_id"] not in marks]
+
+    L = []
+    L.append("# Attempt: %s" % os.path.basename(bank_path))
+    L.append("")
+    L.append("*Generated from the evidence log for session `%s`. Bank: `%s`. "
+             "Editing this file changes nothing: it is rebuilt from "
+             "`_evidence/evidence.jsonl` every time `itembank render attempt` "
+             "runs.*" % (session_id, bank_path))
+    L.append("")
+    L.append("**Status:** %d response(s) recorded, %d auto-marked, %d correct. "
+             "%d short answer(s) awaiting a marker."
+             % (len(events_), len(auto), correct, len(pending_shorts)))
+    L.append("")
+    L.append("**To grade this:** see `GRADING.md`. Record each verdict with "
+             "`itembank mark --session %s ...` -- a batch marks many answers "
+             "in one call, and a mark is a timestamped event, never a line "
+             "edited in this file." % session_id)
+    L.append("")
+    for ev in events_:
+        q = by_ref.get(ev.get("item_ref"))
+        L.append("---")
+        L.append("")
+        head = "## Item %s, %s" % (q.get("number") if q else "?", ev.get("item_type", "?"))
+        score = ev.get("score")
+        if score is True:
+            head += "  [auto: correct]"
+        elif score is False:
+            head += "  [auto: WRONG]"
+        L.append(head)
+        objective = ev.get("objective") or ""
+        if objective:
+            L.append("")
+            L.append("*Objective: %s*" % objective)
+        L.append("")
+        stem = q["stem"] if q else "(this item no longer resolves against the given bank)"
+        L.append("**Q.** %s" % stem.replace("\n", " "))
+        L.append("")
+        if ev.get("item_type") == "short":
+            L.append("**Answer, verbatim:**")
+            L.append("")
+            L.append("```")
+            L.append(str(ev.get("answer") or "") or "(left blank)")
+            L.append("```")
+            L.append("")
+            model_text = ((q.get("model", "") if q else "") or "")
+            if model_text:
+                L.append("**Model answer (from the bank, not the learner's):** %s" %
+                         model_text.replace("\n", " "))
+                L.append("")
+            rubric = ((q.get("rubric") or []) if q else [])
+            mark = marks.get(ev["event_id"])
+            if rubric:
+                L.append("**Rubric:**")
+                L.append("")
+                mark_by_point = {}
+                if mark:
+                    for r in mark.get("rubric") or []:
+                        mark_by_point[r.get("point")] = r.get("pass")
+                for point in rubric:
+                    if mark and point in mark_by_point:
+                        state = "(pass)" if mark_by_point[point] else "(fail)"
+                    else:
+                        state = "(unmarked)"
+                    L.append("- %s %s" % (state, point))
+                L.append("")
+            if mark:
+                verdict_text = "PASS" if mark.get("verdict") else "FAIL"
+                notes = mark.get("notes") or ""
+                L.append("MARK: %s -- marked by %s at %s%s" %
+                         (verdict_text, mark.get("marker", "human"), mark.get("ts", ""),
+                          (": " + notes) if notes else ""))
+            else:
+                L.append("MARK: pending -- run `itembank mark --session %s --item %s "
+                         "--verdict pass|fail` to record a verdict" %
+                         (session_id, ev.get("item_ref")))
+        else:
+            answer_val = response_text(q, ev.get("answer")) if q else ""
+            L.append("**Selected:** %s" % (answer_val or "(nothing)"))
+        L.append("")
+    return "\n".join(L)
+
+
+def render_session_json(log, session_id, qs, bank_path):
+    """Reconstruct the session dict shape `surfaces/session.py` writes,
+    from `session_events(log, session_id)` alone (D-11).
+
+    This is a VIEW: `itembank start` still writes the session JSON as a
+    sitting's live working state -- the cursor `next` advances, and the
+    mode/objective/seed a fresh `submit` reads. This function is how that
+    state is recovered if the file is lost, not a replacement for it while
+    a sitting is active. Two consequences of building this from the log
+    alone, stated rather than silently guessed at:
+
+    - `seed` is never recorded in any response event -- only the session
+      file itself ever held it -- so a recovered session always reports 0.
+    - `items`/`cursor`/`status` describe exactly the items this
+      reconstruction can see (every distinct `item_ref` with a live
+      response), not the session's original selection, which is unknowable
+      without the session file. `status` is therefore "complete" whenever
+      there is at least one response and "active" when there are none, by
+      construction rather than by comparing against an item count this
+      function has no way to see.
+
+    Each response record also carries an additive `review_state`
+    ("n/a"/"pending"/"marked"), read through `marks_by_event` the same way
+    `render_attempt_md`'s `MARK:` line is -- so a mark is visible from this
+    view too, without ever mutating the response event it describes.
+    """
+    events_ = session_events(log, session_id)
+    marks = marks_by_event(log)
+    index_by_ref = {}
+    for i, q in enumerate(qs):
+        index_by_ref.setdefault(q["id"], i)
+
+    items = []
+    responses = []
+    modes = []
+    objectives = []
+    for ev in events_:
+        ref = ev.get("item_ref")
+        idx = index_by_ref.get(ref)
+        if idx is not None and idx not in items:
+            items.append(idx)
+        item_type = ev.get("item_type")
+        if item_type != "short":
+            review_state = "n/a"
+        elif ev.get("event_id") in marks:
+            review_state = "marked"
+        else:
+            review_state = "pending"
+        responses.append({
+            "item_id": ref,
+            "objective": ev.get("objective") or "",
+            "type": item_type,
+            "answer": ev.get("answer"),
+            "score": ev.get("score"),
+            "status": "recorded",
+            "review_state": review_state,
+        })
+        modes.append(ev.get("mode"))
+        objectives.append(ev.get("objective") or "")
+
+    mode = modes[0] if modes else "diagnostic"
+    objective = (objectives[0] if objectives and all(o == objectives[0] for o in objectives)
+                else "")
+
+    return {
+        "schema_version": SESSION_VERSION,
+        "session_id": session_id,
+        "bank": os.path.abspath(bank_path),
+        "items": items,
+        "cursor": len(items),
+        "responses": responses,
+        "status": "complete" if events_ else "active",
+        "mode": mode,
+        "objective": objective,
+        "seed": 0,
+    }
