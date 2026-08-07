@@ -8,7 +8,8 @@ from `itembank submit` to `_evidence/evidence.jsonl` to `itembank evidence`.
 
 Standard library only, runnable as `python tests/evidence_roundtrip.py`.
 """
-import json, os, re, shutil, subprocess, sys, tempfile
+import json, os, re, shutil, subprocess, sys, tempfile, threading, time
+import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -16,6 +17,8 @@ import itembank                                            # noqa: E402
 
 BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
 BROKEN_BANK = os.path.join(ROOT, "fixtures", "broken_bank.md")
+PLAN = os.path.join(ROOT, "fixtures", "sample_plan.md")
+LANES = os.path.join(ROOT, "fixtures", "sample_lanes.md")
 
 # The 22 keys named in 01-02-PLAN.md's must_haves. The event also carries a
 # 23rd key, "bank", named in the plan's own field list and required by its
@@ -1352,6 +1355,285 @@ def test_mark_flow():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ---- serve and day, pinned against the log (01-10) -------------------------
+# The last two writers -- `itembank serve`'s attempt file and `itembank day`'s
+# daily_log.md -- are proven end to end against the real CLI/loopback path,
+# the same way plan 01-09's renders were: checked against the log directly
+# (session_events, day_log_from_events), not against themselves.
+
+def serve_correct_answer(q):
+    """The response `score_response` marks true, in the raw shape a browser
+    POSTs (not the JSON-stringified shape `correct_answer()` above builds
+    for a CLI `--answer` string argument) -- `tests/serve_roundtrip.py`'s
+    own helper, duplicated here rather than imported because that file has
+    no importable surface of its own.
+    """
+    if q["type"] == "mc":
+        return q["correct"][0]
+    if q["type"] == "multi":
+        return list(q["correct"])
+    if q["type"] in ("table", "dnd"):
+        return dict((str(i), r["cat"]) for i, r in enumerate(q["rows"]))
+    if q["type"] == "build":
+        return list(q["steps"])
+    return "A constructed response, written out in full sentences."
+
+
+def start_serve(bank, out, mode):
+    """Start `itembank serve` on a background thread and return `(proc,
+    url, session_id)` -- `tests/serve_roundtrip.py`'s loopback-driving
+    pattern, extended to also capture the session id this plan's startup
+    banner now prints.
+    """
+    proc = subprocess.Popen(
+        [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "serve", bank,
+         "--no-open", "--port", "0", "--out", out, "--mode", mode],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    lines = []
+    threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
+                     daemon=True).start()
+    url = session_id = None
+    for _ in range(60):                       # up to ~6s for the bind and banner
+        time.sleep(0.1)
+        joined = "".join(lines)
+        m = re.search(r"http://127\.0\.0\.1:\d+/", joined)
+        sm = re.search(r"(?m)^\s*session\s+(\S+)\s*$", joined)
+        if m and sm:
+            url, session_id = m.group(0), sm.group(1)
+            break
+    if not url or not session_id:
+        proc.kill()
+        fail("serve never printed both a url and a session id. Output was:\n" +
+             "".join(lines))
+    return proc, url, session_id
+
+
+def post_answer(url, item_id, response, elapsed_ms=None):
+    """POST one answer, mirroring the quiz page's own `{id, response,
+    elapsed_ms}` body -- `elapsed_ms` omitted entirely (not sent as null)
+    when the caller passes `None`, the same shape an older cached page
+    with no `elapsed_ms` field at all would send.
+    """
+    payload = {"id": item_id, "response": response}
+    if elapsed_ms is not None:
+        payload["elapsed_ms"] = elapsed_ms
+    req = urllib.request.Request(url + "answer", data=json.dumps(payload).encode(),
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=5) as res:
+        return json.loads(res.read().decode("utf-8"))
+
+
+def served_items_from_page(page):
+    m = re.search(r"(?m)^const Q = (\[.*\]);$", page)
+    if not m:
+        fail("could not find the item payload in the served page")
+    return json.loads(m.group(1))
+
+
+def test_serve_writes_events():
+    """EVID-03 and EVID-08 on the browser surface: a graded sitting writes
+    every answer through evidence.append_event(), records a real mode and
+    response_time_ms, its attempt file is byte-identical to
+    render_attempt_md()'s own output, and by_mode keeps two sittings'
+    scores apart.
+    """
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "sample_bank.md")
+        shutil.copyfile(BANK, bank)
+        qs = itembank.load(bank)
+        log = itembank.log_path(tmp)
+        out = os.path.join(tmp, "attempt.md")
+
+        proc, url, session_id = start_serve(bank, out, "drill")
+        try:
+            page = urllib.request.urlopen(url, timeout=5).read().decode("utf-8")
+            for item in served_items_from_page(page):
+                for leak in ("key", "explain", "correct", "opts", "cats", "da",
+                            "why", "model", "rubric"):
+                    if leak in item:
+                        fail("served item %r carries %r under serve" %
+                             (item.get("id"), leak))
+
+            first, second = qs[0], qs[1]
+            r1 = post_answer(url, first["id"], serve_correct_answer(first),
+                             elapsed_ms=1234)
+            if not r1.get("explain"):
+                fail("first answer carried no explanation")
+            r2 = post_answer(url, second["id"], serve_correct_answer(second))
+            if not r2.get("explain"):
+                fail("second answer (no elapsed_ms) carried no explanation")
+            r3 = post_answer(url, first["id"], serve_correct_answer(first),
+                             elapsed_ms=1234)
+            if not r3.get("explain"):
+                fail("repeated first answer carried no explanation")
+        finally:
+            proc.terminate()
+
+        lines = [l for l in open(log, encoding="utf-8").read().splitlines() if l.strip()]
+        if len(lines) != 2:
+            fail("expected 2 lines in evidence.jsonl (one per distinct answer, the "
+                 "repeat deduped), found %d" % len(lines))
+        events_by_ref = {}
+        for l in lines:
+            ev = json.loads(l)
+            events_by_ref[ev["item_ref"]] = ev
+        if any(ev["mode"] != "drill" for ev in events_by_ref.values()):
+            fail("not every event recorded mode 'drill': %r" %
+                 [ev["mode"] for ev in events_by_ref.values()])
+        if events_by_ref[first["id"]]["response_time_ms"] != 1234:
+            fail("first answer's response_time_ms is %r, not 1234" %
+                 events_by_ref[first["id"]]["response_time_ms"])
+        if events_by_ref[second["id"]]["response_time_ms"] is not None:
+            fail("second answer (elapsed_ms omitted) recorded response_time_ms %r, "
+                 "not null" % events_by_ref[second["id"]]["response_time_ms"])
+
+        rendered = itembank.render_attempt_md(log, session_id, qs, bank)
+        on_disk = open(out, encoding="utf-8").read()
+        if on_disk != rendered:
+            fail("the attempt file on disk is not byte-identical to "
+                 "render_attempt_md()'s output for this session")
+
+        # A second sitting, a different mode, the same item: by_mode keeps
+        # the two scores in separate buckets (EVID-08, proven from the
+        # browser surface).
+        out2 = os.path.join(tmp, "attempt2.md")
+        proc2, url2, _ = start_serve(bank, out2, "exam")
+        try:
+            r4 = post_answer(url2, first["id"], serve_correct_answer(first),
+                             elapsed_ms=999)
+            if not r4.get("explain"):
+                fail("exam-mode answer carried no explanation")
+        finally:
+            proc2.terminate()
+
+        objective = first.get("objective") or ""
+        result = parse_json_tail(run(["evidence", "--objective", objective,
+                                      "--base", tmp], tmp))
+        by_mode = result["by_mode"]
+        if not {"drill", "exam"} <= set(by_mode):
+            fail("expected both a drill and an exam by_mode bucket, got %r" %
+                 set(by_mode))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_day_ticks_are_events():
+    """EVID-03 on the day surface: a tick is an event, un-ticking is a
+    retraction, daily_log.md is a byte-faithful render of write_day_log()'s
+    own shape for the same tick set, and the file can be deleted and
+    regenerated with no loss.
+    """
+    tmp = tempfile.mkdtemp()
+    try:
+        plan = os.path.join(tmp, "sample_plan.md")
+        lanes = os.path.join(tmp, "sample_lanes.md")
+        shutil.copyfile(PLAN, plan)
+        shutil.copyfile(LANES, lanes)
+        log_path = os.path.join(tmp, "daily_log.md")
+        evidence_log = itembank.log_path(tmp)
+
+        proc = subprocess.Popen(
+            [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "day", plan,
+             "--no-open", "--port", "0", "--log", log_path, "--lanes", lanes,
+             "--date", "2026-01-06"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        lines = []
+        threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
+                         daemon=True).start()
+        url = None
+        for _ in range(60):
+            time.sleep(0.1)
+            m = re.search(r"http://127\.0\.0\.1:\d+/", "".join(lines))
+            if m:
+                url = m.group(0)
+                break
+        if not url:
+            proc.kill()
+            fail("day server never printed a URL. Output was:\n" + "".join(lines))
+
+        def save(done):
+            body = json.dumps({"date": "2026-01-06", "done": done}).encode("utf-8")
+            req = urllib.request.Request(url + "save", data=body,
+                                         headers={"Content-Type": "application/json"})
+            return json.loads(urllib.request.urlopen(req, timeout=5).read().decode("utf-8"))
+
+        try:
+            r1 = save(["Anki", "EMT"])
+            if r1.get("status") not in ("floor", "miss", "full"):
+                fail("day POST route did not return a recognizable status: %r" % r1)
+
+            events_after_tick = [
+                json.loads(l) for l in
+                open(evidence_log, encoding="utf-8").read().splitlines() if l.strip()]
+            ticks = [e for e in events_after_tick if e["event_type"] == "day_tick"]
+            if len(ticks) != 2:
+                fail("expected 2 day_tick events after ticking two lanes, got %d" %
+                     len(ticks))
+
+            written = itembank.load_day_log(log_path)
+            if written.get("2026-01-06") != {"Anki", "EMT"}:
+                fail("regenerated daily_log.md does not mark both ticked lanes: %r" %
+                     written.get("2026-01-06"))
+
+            # Ticking the same two lanes again appends nothing.
+            save(["Anki", "EMT"])
+            events_after_repeat = [
+                json.loads(l) for l in
+                open(evidence_log, encoding="utf-8").read().splitlines() if l.strip()]
+            ticks_after_repeat = [e for e in events_after_repeat
+                                  if e["event_type"] == "day_tick"]
+            if len(ticks_after_repeat) != 2:
+                fail("re-ticking the same two lanes appended a new day_tick event: "
+                     "%d -> %d" % (len(ticks), len(ticks_after_repeat)))
+
+            # Un-ticking one lane appends a retraction, not a deletion --
+            # the log grows by one line.
+            save(["EMT"])
+            events_after_untick = [
+                json.loads(l) for l in
+                open(evidence_log, encoding="utf-8").read().splitlines() if l.strip()]
+            if len(events_after_untick) != len(events_after_repeat) + 1:
+                fail("un-ticking a lane did not append exactly one line: %d -> %d" %
+                     (len(events_after_repeat), len(events_after_untick)))
+            retractions = [e for e in events_after_untick
+                          if e["event_type"] == "retraction"]
+            if len(retractions) != 1:
+                fail("un-ticking a lane did not append exactly one retraction event, "
+                     "found %d" % len(retractions))
+
+            written2 = itembank.load_day_log(log_path)
+            if written2.get("2026-01-06") != {"EMT"}:
+                fail("regenerated daily_log.md still shows the un-ticked lane: %r" %
+                     written2.get("2026-01-06"))
+            remaining = itembank.day_log_from_events(evidence_log)
+            if remaining.get("2026-01-06") != {"EMT"}:
+                fail("day_log_from_events still reports the un-ticked lane as done: %r" %
+                     remaining.get("2026-01-06"))
+        finally:
+            proc.kill()
+
+        # The render is a faithful replacement for write_day_log's own
+        # output over the same tick set.
+        via_render = itembank.render_daily_log(
+            remaining, itembank.DAY_LANES, itembank.FLOOR_LANES, itembank.day_status)
+        legacy_out = os.path.join(tmp, "legacy_daily_log.md")
+        itembank.write_day_log(legacy_out, remaining)
+        legacy_text = open(legacy_out, encoding="utf-8").read()
+        if via_render != legacy_text:
+            fail("render_daily_log()'s output is not byte-identical to "
+                 "write_day_log()'s output for the same tick set")
+
+        # The file is an output: deleting it and re-rendering restores it.
+        os.remove(log_path)
+        via_render2 = itembank.render_daily_log(
+            remaining, itembank.DAY_LANES, itembank.FLOOR_LANES, itembank.day_status)
+        if via_render2 != via_render:
+            fail("re-rendering after deleting daily_log.md changed the output")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     test_tracer_end_to_end()
     test_mode_recorded()
@@ -1368,10 +1650,13 @@ def main():
     test_index_is_disposable()
     test_renders_match_log()
     test_mark_flow()
+    test_serve_writes_events()
+    test_day_ticks_are_events()
     print("evidence contract: ok (tracer end-to-end, mode recorded, empty log, one writer, "
           "identity survives edit, missing/duplicate ids, fingerprint stability, hash "
           "states, lint order, duplicate-submit dedupe, retraction, objective query, "
-          "index disposability, renders match log, mark flow)")
+          "index disposability, renders match log, mark flow, serve writes events, "
+          "day ticks are events)")
     return 0
 
 
