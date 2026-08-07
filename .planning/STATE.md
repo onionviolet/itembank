@@ -111,9 +111,15 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 1]: Item identity scheme is an open decision (opaque ID + content-hash fingerprint vs. content-hash-as-ID with rekey/alias table) — must be resolved explicitly during Phase 1 planning before any evidence-writing phase starts.
+- ~~[Phase 1]: Item identity scheme is an open decision~~ — RESOLVED in plan 01-04 (2026-08-06). Chose opaque `[ID:]` plus a `[HASH:]` content fingerprint over content-hash-as-ID. `model.py` gained `content_fingerprint()`/`new_item_id()`/`assign_ids()` and five identity lint checks; `itembank id-assign` is the only writer into a bank.
 - [Phase 8]: Tier-gate enforcement (detecting and dropping model output that reaches past the unlocked hint tier) has no prior-art analog found in research; expect original design work, not adapter plumbing.
 - [Phase 11]: Auditor autonomy beyond report-only is flagged `⚠️ Revisit` in PROJECT.md's Key Decisions — ship report-only and draft-and-approve fully proven before full audit-draft-lint-fix-commit is wired up.
+
+### Quick Tasks Completed
+
+| ID | Description | Date | Status |
+|----|-------------|------|--------|
+| 260806-u63 | Fix `iter_raw` crash on a torn multi-byte UTF-8 tail in `evidence.py` (closes Phase 1 verification gap / CR-01) | 2026-08-06 | complete ✓ |
 
 ## Deferred Items
 
