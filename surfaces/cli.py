@@ -138,7 +138,10 @@ def main():
 
     s = sub.add_parser("daemon", help="one process on one port for every surface")
     s.add_argument("dir", nargs="?", default=".")
-    s.add_argument("--port", type=int, default=8730)
+    s.add_argument("--port", type=int, default=None,
+                   help="default: itembank.json's daemon.port, or 8730 if unset")
+    s.add_argument("--lan", action="store_true",
+                   help="bind all interfaces so a phone on the same wifi can open it")
     s.add_argument("--no-open", action="store_true", dest="no_open",
                    help="do not launch a browser")
     s.add_argument("--force", action="store_true", help="serve despite lint errors")

@@ -13,17 +13,25 @@ render and runtime functions that already exist -- `quiz.page_for()`,
 `apply_day_post`) -- never a second copy of any of them living in a route
 handler.
 """
-import datetime, html, json, os, re, socketserver, sys, threading, urllib.parse, uuid, webbrowser
+import datetime, errno, html, json, os, re, socketserver, sys, threading
+import urllib.parse, urllib.request, uuid, webbrowser
 
 import evidence
 import server
 from model import load, parse_bank
 from runtime import explain_payload, read_session
-from surfaces import day, quiz, session, study
+from surfaces import day, quiz, session, settings, study
 from surfaces.theme import THEME_CSS
 
 
 MARKER_PATH = "/__itembank__"
+
+# The one place that chooses whether the daemon speaks to just this machine
+# or to the whole local network -- every other spot in this module that
+# needs to know reads this constant rather than repeating the literal, so
+# "how many places decide the bind host" stays a one-line answer instead of
+# a claim to trust (checked by this plan's own acceptance criteria).
+ALL_INTERFACES = "0.0.0.0"
 
 # Same directories `cmd_guard` skips, plus the two this daemon itself writes
 # into -- neither an attempt file nor the evidence log is ever a candidate
@@ -908,16 +916,31 @@ class Daemon(socketserver.ThreadingMixIn, socketserver.TCPServer):
     `day`'s AnkiConnect calls carry a two-second timeout per lane -- a plain
     single-threaded server would let one slow render stall every other
     route (RESEARCH.md Pitfall #4).
+
+    `allow_reuse_address` is deliberately left at its stdlib default
+    (`False`), not set `True`: `ThreadingMixIn` needs no help from
+    `SO_REUSEADDR` to serve concurrently, and on Windows `SO_REUSEADDR`'s
+    semantics are far more permissive than on POSIX -- it lets a second
+    process bind an already-listening port instead of merely skipping
+    TIME_WAIT, so a second daemon on a held port would bind silently instead
+    of raising the `OSError` `start_server()`'s probe depends on seeing.
+    Setting it `True` here (found while implementing plan 02-06's own
+    detect-and-attach path, which this attribute otherwise defeats outright
+    on this project's own target platform) is exactly the bug D-02 exists to
+    prevent, so it stays off.
     """
     daemon_threads = True
-    allow_reuse_address = True
 
 
 def _bind(port, host="127.0.0.1"):
     """The same free-port fallback `server.bind()` already implements,
     applied to `Daemon` instead of `socketserver.TCPServer` -- `server.bind()`
     itself constructs a fixed server class, so this mirrors its logic rather
-    than widening that module's scope outside this plan.
+    than widening that module's scope outside this plan. Used by every
+    caller of `serve_scoped()` that has not adopted `start_server()`'s
+    detect-and-attach probe (`cmd_serve`/`cmd_day`, both scoped to a single
+    bank or plan rather than a whole directory -- D-02's "no second daemon
+    ever binds" framing is `cmd_daemon`'s problem, not theirs).
     """
     try:
         return Daemon((host, port), DaemonHandler)
@@ -927,8 +950,76 @@ def _bind(port, host="127.0.0.1"):
         return Daemon((host, 0), DaemonHandler)
 
 
+def probe(port, host="127.0.0.1", timeout=0.5):
+    """Return True only when something at `<host>:<port>` positively
+    identifies itself as this daemon -- a GET against `MARKER_PATH` whose
+    body parses as JSON with an `itembank` field that is exactly `True`.
+
+    Every other outcome -- a closed port, a timeout, a connection refused, a
+    plain-text or otherwise non-JSON body, a JSON body of the wrong shape, a
+    redirect -- means *not us* and returns False, via one blanket
+    `except Exception`. This mirrors `day.anki_read()`'s own shape for the
+    same reason: the asymmetry is deliberate. A false negative costs one
+    unnecessary free-port fallback; a false positive would send a learner to
+    somebody else's web server believing it was their study tool (T-2-08).
+    """
+    try:
+        url = "http://%s:%d%s" % (host, port, MARKER_PATH)
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            data = json.load(r)
+        return isinstance(data, dict) and data.get("itembank") is True
+    except Exception:
+        return False
+
+
+def start_server(handler_cls, port, host="127.0.0.1", no_open=False):
+    """The detect-and-attach startup path (D-02): try binding `Daemon`
+    directly on `(host, port)` first, and only on `OSError` decide, by the
+    *kind* of failure, whether attaching to an already-running itembank is
+    the right response or whether this is simply a free-port fallback like
+    every other launch already has.
+
+    Returns `(srv, bound_port, fell_back)`. Three cases:
+
+    - **Reserved or permission-denied** (`errno.EACCES`, or Windows
+      `winerror` 10013): nothing is listening here, it is the OS itself
+      refusing the bind -- the Hyper-V/WSL reserved-range accommodation
+      `server.bind()`'s own docstring already records. Probing would only
+      burn the timeout on exactly the platform this project runs on
+      (T-2-20), so this case skips straight to the free-port fallback.
+    - **Occupied by another itembank** (`probe(port)` is True): print the
+      already-running line, open a browser at that URL unless `no_open`, and
+      exit 0. This runs in the CLI entry point's own process before any
+      server of this process's own exists -- not inside a request handler --
+      so exiting here carries none of Pitfall #3's hazard.
+    - **Occupied by something else** (`probe(port)` is False): fall back to
+      a free port, same as the reserved-port case, and tell the caller a
+      fallback happened so it can print the port actually bound. This is the
+      third case RESEARCH.md's Open Question 3 raises and the plan's own
+      flagged planner_assumption resolves as degrade-never-block rather than
+      a hard failure.
+
+    Both fallback branches call `server.bind()` rather than re-implementing
+    its free-port logic a third time -- D-02 scopes this change to the
+    daemon's own startup path and leaves `server.bind()` itself untouched
+    and general for `cmd_serve`'s and `cmd_day`'s own calls into it.
+    """
+    try:
+        return Daemon((host, port), handler_cls), port, False
+    except OSError as exc:
+        reserved = getattr(exc, "winerror", None) == 10013 or exc.errno == errno.EACCES
+        if not reserved and probe(port):
+            url = "http://127.0.0.1:%d/" % port
+            print("itembank is already running at %s" % url)
+            if not no_open:
+                webbrowser.open(url)
+            sys.exit(0)
+        srv = server.bind(handler_cls, port, host)
+        return srv, srv.server_address[1], True
+
+
 def serve_scoped(root, banks, plans, port, host="127.0.0.1", open_path="/",
-                 no_open=False, extra=None, on_bound=None):
+                 no_open=False, extra=None, on_bound=None, srv=None):
     """Bind the one `Daemon`/`DaemonHandler` pair, scoped to whatever
     `banks` and `plans` a caller passes in, print the URL line, optionally
     open a browser after the same 0.4-second timer every launch has always
@@ -950,6 +1041,14 @@ def serve_scoped(root, banks, plans, port, host="127.0.0.1", open_path="/",
     the caller's chance to print anything that needs the actual bound port
     (`cmd_day`'s `--lan` phone address) followed by its own final line
     before the browser timer starts and `serve_forever()` takes over.
+
+    `srv`, if given, is an already-bound server -- `cmd_daemon`'s own
+    `start_server()` result, carrying the detect-and-attach probe's outcome.
+    This function binds nothing itself in that case; it only wires the
+    handler class onto whatever was already bound and runs the shared tail.
+    Left `None` (the default) for every caller that has not adopted the
+    probe (`cmd_serve`, `cmd_day`), which keeps binding through `_bind()`'s
+    own free-port fallback exactly as before.
     """
     extra = extra or {}
     DaemonHandler.banks = banks
@@ -960,10 +1059,10 @@ def serve_scoped(root, banks, plans, port, host="127.0.0.1", open_path="/",
     DaemonHandler.day_states = {}                  # built lazily, one per served plan
     DaemonHandler.day_extra = extra.get("day_extra", {})
 
-    srv = _bind(port, host)
-    with srv:
-        bound_port = srv.server_address[1]
-        display_host = "127.0.0.1" if host in ("0.0.0.0", "127.0.0.1") else host
+    bound = srv if srv is not None else _bind(port, host)
+    with bound:
+        bound_port = bound.server_address[1]
+        display_host = "127.0.0.1" if host in (ALL_INTERFACES, "127.0.0.1") else host
         url = "http://%s:%d%s" % (display_host, bound_port, open_path)
         print("  url     %s" % url)
         if on_bound:
@@ -972,7 +1071,7 @@ def serve_scoped(root, banks, plans, port, host="127.0.0.1", open_path="/",
         if not no_open:
             threading.Timer(0.4, lambda: webbrowser.open(url)).start()
         try:
-            srv.serve_forever()
+            bound.serve_forever()
         except KeyboardInterrupt:
             print("\nstopped.")
     return bound_port
@@ -981,6 +1080,15 @@ def serve_scoped(root, banks, plans, port, host="127.0.0.1", open_path="/",
 def cmd_daemon(a):
     root = a.dir
     banks, plans, collisions = scan_dir(root)
+
+    # The `daemon` settings group's own port/LAN defaults, with an explicit
+    # `--port`/`--lan` on the command line winning -- argparse defaults to
+    # `None`/`False` (never a hardcoded 8730) so "the flag was not given at
+    # all" is distinguishable from "the flag matches the file's own value".
+    cfg = settings.load_settings(root)
+    port = a.port if a.port is not None else cfg["daemon"]["port"]
+    lan = True if a.lan else cfg["daemon"]["lan"]
+    host = ALL_INTERFACES if lan else "127.0.0.1"
 
     print("itembank daemon")
     print("  dir     %s" % os.path.abspath(root))
@@ -1006,6 +1114,22 @@ def cmd_daemon(a):
             "mode": "practice",
         }
 
-    serve_scoped(root, banks, plans, a.port, open_path="/", no_open=a.no_open,
-                extra={"sessions": sessions, "collisions": collisions})
+    # The detect-and-attach probe (D-02): a second `itembank daemon` on a
+    # port a first daemon holds attaches instead of binding; a reserved or
+    # squatted port falls back to a free one instead of hard-failing. A
+    # fallback's own "port unavailable" line comes from `server.bind()`
+    # itself (reused, not duplicated here); the `url` line `serve_scoped()`
+    # always prints next names the port actually bound.
+    srv, bound_port, fell_back = start_server(DaemonHandler, port, host, no_open=a.no_open)
+
+    def on_bound(actual_port):
+        if lan:
+            print("  phone   http://%s:%d/   (same wifi only)"
+                  % (day.lan_address(), actual_port))
+            print("  LAN mode is on: every device on this network can reach this "
+                  "daemon. itembank has no accounts and no authentication by design.")
+
+    serve_scoped(root, banks, plans, port, host=host, open_path="/", no_open=a.no_open,
+                extra={"sessions": sessions, "collisions": collisions},
+                on_bound=on_bound, srv=srv)
     return 0
