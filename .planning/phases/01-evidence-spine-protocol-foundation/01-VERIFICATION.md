@@ -1,20 +1,17 @@
 ---
 phase: 01-evidence-spine-protocol-foundation
 verified: 2026-08-06T00:00:00Z
-status: gaps_found
-score: 5/6 primary truths verified (65+ plan-level must-haves cross-checked; 1 confirmed blocker, 3 non-blocking warnings)
+status: human_needed
+score: 6/6 primary truths verified (65+ plan-level must-haves cross-checked; 0 blockers, 4 non-blocking warnings carried forward)
 behavior_unverified: 0
 overrides_applied: 0
-gaps:
-  - truth: "A process killed mid-append leaves at most one torn trailing line; evidence.iter_raw() skips exactly that line, reports it as `warn evidence.jsonl:<lineno> malformed, skipped`, and returns every line before it intact (01-01-PLAN.md must-have; also the phase's own documented D-09 guarantee, and the substance of EVID-05's 'auditable' half)."
-    status: failed
-    reason: "Reproduced directly against the current tree (not just cited from 01-REVIEW.md). evidence.iter_raw() opens the log with `open(path, encoding=\"utf-8\")` (no `errors=`) and iterates the file handle outside its try/except, which only guards `json.loads`. A log whose tail is torn mid multi-byte UTF-8 sequence (realistic on a process kill while a CJK short-answer, objective, or rationale is mid-write -- the project explicitly targets a Mandarin lane and tests CJK content elsewhere) raises an uncaught UnicodeDecodeError instead of being skipped-and-reported. This is not a single skipped line: it crashes iter_raw() entirely, and every function built on it (events, live_events, retracted_ids, objective_history's fallback, attempt_number, marks_by_event, render_attempt_md, render_session_json, day_log_from_events) -- i.e. `itembank evidence`, `report`, `mark`, `render`, `day`, and `serve`'s own save/read path -- inherits the crash on the next read. tests/durability_roundtrip.py's kill probe only pads lines with ASCII x/y characters, so this exact failure mode was never exercised by the suite that gates this phase."
-    artifacts:
-      - path: "evidence.py"
-        issue: "iter_raw() (lines 257-281): `open(path, encoding=\"utf-8\")` with no `errors=` argument, and the `for lineno, raw in enumerate(fh, 1)` loop that decodes each line sits outside the `try/except (ValueError, TypeError)` that only wraps `json.loads`. The sibling tail-readers in the same file (`_tail_dedupe_keys`, `_index_tail_update`) already defend against this by reading raw bytes and calling `.decode(\"utf-8\", errors=\"replace\")`; `iter_raw` is the one reader that doesn't, and it is the one every other reader is built on."
-    missing:
-      - "Open the log with `errors=\"replace\"` (matching the posture already used by `_tail_dedupe_keys`/`_index_tail_update`), or read raw bytes and decode defensively before the try/except that reports a malformed line, so a torn multi-byte tail degrades to a reported, skipped line instead of an uncaught exception."
-      - "A durability-probe case (or an addition to tests/durability_roundtrip.py's kill probe) that pads with genuine multi-byte UTF-8 content, not just ASCII, so this exact regression is caught by CI going forward."
+re_verification:
+  previous_status: gaps_found
+  previous_score: 5/6 primary truths verified
+  gaps_closed:
+    - "A process killed mid-append leaves at most one torn trailing line; evidence.iter_raw() skips exactly that line, reports it as `warn evidence.jsonl:<lineno> malformed, skipped`, and returns every line before it intact"
+  gaps_remaining: []
+  regressions: []
 deferred: []
 human_verification:
   - test: "Give a model with no repository access only the pasted output of `itembank schema --all` and ask it to author one item of each of the six types plus a legal recorded response, with no other file or source access."
@@ -28,9 +25,70 @@ human_verification:
 # Phase 1: Evidence Spine & Protocol Foundation Verification Report
 
 **Phase Goal:** Every session the learner sits produces evidence that survives item edits, bank migrations, and repeated submissions, in one auditable store instead of three.
-**Verified:** 2026-08-06
-**Status:** gaps_found
-**Re-verification:** No — initial verification
+**Verified:** 2026-08-06 (initial pass), **re-verified:** 2026-08-06 (after gap closure)
+**Status:** human_needed
+**Re-verification:** Yes — after gap closure (quick task 260806-u63)
+
+## Re-Verification: Gap Closure Check
+
+The prior pass found exactly one blocking gap: `evidence.iter_raw()` raised an uncaught
+`UnicodeDecodeError` (instead of the documented D-09 skip-and-report behavior) when the evidence
+log's tail was torn mid multi-byte UTF-8 sequence. Quick task 260806-u63 (commits `1e09df4`,
+`fbb87fb`, `4c2ba4b`) claims this is fixed. This pass independently re-verified the fix rather
+than trusting the SUMMARY. Two checks were run, both required by the verification brief:
+
+**Check 1 — independently reproduced the torn-tail case against the current tree** (not the
+SUMMARY's exact repro, a fresh one built directly against `evidence.iter_raw`):
+
+```
+$ python -c "... build a log: one complete JSON line, then a hand-cut multi-byte tail
+              (けさ文 encoded to utf-8, cut 2 bytes into the 3-byte 文 character) ...
+              list(evidence.iter_raw(path)) ..."
+warn  torn.jsonl:2 malformed, skipped
+NO CRASH. records=1
+(1, {'probe': 'indep', 'marker': 'kept'}, '{"probe": "indep", "marker": "kept"}\n')
+```
+
+Confirmed: `iter_raw()` on this tree returns the one complete record, reports the torn line, and
+raises nothing. `evidence.py:280` was inspected directly and reads
+`with open(path, encoding="utf-8", errors="replace") as fh:` — matching the posture
+`_tail_dedupe_keys`/`_index_tail_update` already used, exactly as claimed.
+
+**Check 2 — independently confirmed `probe_torn_multibyte()` would go red on a revert** (a
+regression test that passes either way is worthless, so this was not taken on faith from the
+SUMMARY's own RED/GREEN transcript): copied `evidence.py` to an isolated scratch location,
+reverted only the one keyword (`errors="replace"` → removed) in that copy, loaded it as a
+separate module via `importlib`, monkeypatched `itembank.iter_raw` to point at the reverted
+function, and ran `tests/durability_roundtrip.py`'s actual `probe_torn_multibyte()` against it
+unmodified:
+
+```
+FAIL: probe_torn_multibyte: iter_raw raised UnicodeDecodeError on a torn multi-byte tail
+('utf-8' codec can't decode bytes in position 0-1: unexpected end of data); D-09 requires a
+malformed line to be skipped and reported, never fatal
+probe correctly FAILED (went RED) against the reverted (unfixed) iter_raw, SystemExit code: 1
+```
+
+Confirmed: the probe is a genuine regression guard, not a test that would pass regardless of the
+fix. It was also re-run against the actual current tree (`python tests/durability_roundtrip.py`)
+in this pass, independently of the orchestrator's own run, and passed cleanly (torn multi-byte
+probe: ok; locked probe: 10000/10000 lines; kill probe: reader survived, post-kill append
+readable).
+
+Also confirmed independently:
+- `tests/durability_roundtrip.py`'s kill probe (`probe_kill`) now pads with genuine multi-byte
+  content via the `PAD_CHARS`/`pad_key` mechanism, with `probe_unlocked`/`probe_locked` correctly
+  left on ASCII padding — their `PAD_SHORT`/`PAD_LONG` constants are byte-calibrated against
+  512/4096-byte NTFS sector boundaries, and multi-byte padding would silently triple those line
+  sizes and invalidate what those two probes measure. This reasoning holds; it is not an
+  inconsistency.
+- Commits `1e09df4`, `fbb87fb`, `4c2ba4b` exist on this branch with the described diffs
+  (`git log`/`git show --stat` against `evidence.py` and `tests/durability_roundtrip.py`).
+- Working tree is otherwise clean apart from two pre-existing, unrelated items
+  (`.planning/config.json` modified, `_tmp_check.html` untracked) — neither touches evidence
+  code and neither is part of this phase's scope.
+
+**Verdict: gap genuinely closed.** Truth #6 below is flipped from ✗ FAILED to ✓ VERIFIED.
 
 ## Goal Achievement
 
@@ -43,13 +101,15 @@ human_verification:
 | 3 | Submitting the same response twice within the same attempt records one accepted response, and the tool states which happened (recorded vs. already-recorded) | ✓ VERIFIED (primary path) | `evidence.py` implements `append_line_checked`/dedupe/`attempt_number`; `tests/evidence_roundtrip.py` reports "duplicate-submit dedupe, retraction" passing. Non-blocking caveat: WR-02 below (two distinct *malformed* structured answers collapse into one dedupe bucket) |
 | 4 | A single query answers "how am I doing on objective X over time" across every session and subject, reading from the unified store alone | ✓ VERIFIED | `evidence.py` implements `ensure_index`/`rebuild_index`/`objective_rollup`, falling back to `live_events()` when the index is unavailable (confirmed by grep at `evidence.py:610,676,888`); `tests/evidence_roundtrip.py` reports "objective query, index disposability" passing |
 | 5 | An agent with no repository context can read published schema versions, and `lint` emits a machine-readable error code plus offending field alongside human-readable text | ✓ VERIFIED (mechanically) / see human item #1 | `model.LintError`/`LINT_CODES` implemented; CI step pipes live command output through `schema_validate.py` against `schemas/*.json` (`.github/workflows/ci.yml:36-64`); `itembank schema --all` implemented in `surfaces/protocol_cli.py`; `tests/protocol_roundtrip.py` reports "27 lint codes declared, schema versions pinned, ... schema --all self-contained and stable". Whether the output is *sufficient* for a genuinely fresh model to author from is explicitly deferred to human judgment (01-06-PLAN.md's own design) — see Human Verification #1 |
-| 6 | (01-01-PLAN.md must-have / phase's own D-09 guarantee) A process killed mid-append leaves at most one torn trailing line; `evidence.iter_raw()` skips exactly that line and returns every line before it intact — never fatal | ✗ FAILED | **Reproduced directly**: a log torn mid multi-byte UTF-8 sequence raises an uncaught `UnicodeDecodeError` out of `iter_raw()` (`evidence.py:268-269`, `open(path, encoding="utf-8")` with no `errors=`, decode happens outside the try/except). This crashes every reader built on `iter_raw` — `evidence`, `report`, `mark`, `render`, `day`, and `serve`'s save/read path — not just the one torn line. Confirmed pre-existing in 01-REVIEW.md as CR-01 and independently reproduced here with a minimal repro script; `tests/durability_roundtrip.py`'s kill probe never exercises multi-byte content so CI does not catch it |
+| 6 | (01-01-PLAN.md must-have / phase's own D-09 guarantee) A process killed mid-append leaves at most one torn trailing line; `evidence.iter_raw()` skips exactly that line and returns every line before it intact — never fatal | ✓ VERIFIED (gap closed) | **Fix independently re-verified in this pass** (not taken on the SUMMARY's word): `evidence.py:280` opens with `open(path, encoding="utf-8", errors="replace")`; a fresh, independently-built torn multi-byte repro against the current tree returns the surviving record and reports the torn line instead of raising; `tests/durability_roundtrip.py`'s `probe_torn_multibyte()` was independently confirmed to go RED against a reverted copy of the fix and GREEN against the current tree — see "Re-Verification: Gap Closure Check" above for both transcripts. Originally flagged as CR-01 in `01-REVIEW.md`, closed by quick task 260806-u63 (`1e09df4`/`fbb87fb`/`4c2ba4b`) |
 
-**Score:** 5/6 primary truths verified, 1 failed (blocker)
+**Score:** 6/6 primary truths verified, 0 failed
 
 ### Plan-Level Must-Haves — Artifact & Wiring Verification (all 11 plans)
 
-All artifacts declared across the 11 plans' `must_haves.artifacts` exist and are substantive (no stubs, no missing-pattern issues):
+Unchanged from the initial pass (not affected by this gap or its closure — re-checked only for
+regressions, not re-derived from scratch). All artifacts declared across the 11 plans'
+`must_haves.artifacts` exist and are substantive (no stubs, no missing-pattern issues):
 
 | Plan | Artifacts (exists+substantive) | Key Links (manually re-verified after tool false-negatives) |
 |------|-------------------------------|----------------------------------------------------------|
@@ -75,7 +135,7 @@ Note: the `gsd_run query verify.key-links` tool reported false negatives on near
 | EVID-02 | 01-04 | ✓ SATISFIED | `item.duplicate_id`/`item.missing_id`/`item.missing_hash` lint codes implemented |
 | EVID-03 | 01-02, 01-09, 01-10 | ✓ SATISFIED | Attempt md, session JSON, and daily_log.md are all renders of the log (`render_attempt_md`, `render_session_json`, `render_daily_log`) |
 | EVID-04 | 01-02, 01-08 | ✓ SATISFIED | `objective_history`/`objective_rollup` read the unified store, index-optional |
-| EVID-05 | 01-01, 01-07 | ✗ BLOCKED | Retraction/idempotency mechanics are sound (dedupe, `already_recorded`, retraction ordering all tested and pass), but the "auditable" half of this requirement is broken by the CR-01 crash — see Truth #6 above. Evidence is not silently overwritten, but it can become **entirely unreadable** after an ordinary crash, which is the opposite of auditable |
+| EVID-05 | 01-01, 01-07 | ✓ SATISFIED (gap closed) | Retraction/idempotency mechanics are sound (dedupe, `already_recorded`, retraction ordering all tested and pass). The "auditable" half — previously blocked by the CR-01 `iter_raw` crash on a torn multi-byte tail — is now closed and independently re-verified (see Truth #6 and "Re-Verification: Gap Closure Check" above): a crash no longer makes the evidence store unreadable after an ordinary kill |
 | EVID-06 | 01-11 | ✓ SATISFIED | Migration reconciliation test passes; dry-run-by-default and `--write` gate implemented |
 | EVID-07 | 01-02, 01-05, 01-09, 01-10 | ✓ SATISFIED | All 6 fields present on every event; `error_category`/`hint_tier` are documented-null (option-a, confirmed in `schemas/response.schema.json:88-95`) |
 | EVID-08 | 01-02, 01-08, 01-10 | ✓ SATISFIED | `mode` field recorded and rolled up per-mode, tested |
@@ -85,52 +145,88 @@ Note: the `gsd_run query verify.key-links` tool reported false negatives on near
 | PROTO-04 | 01-06 | ✓ SATISFIED | CI validates live command output against `schemas/*.json` on every push |
 | PROTO-05 | 01-06 | ✓ SATISFIED (mechanically), sufficiency judgment deferred | `itembank schema --all` implemented and tested for self-containment/stability; whether a fresh model can actually author from it is Human Verification #1 |
 
-No orphaned requirements — all 13 IDs listed in the phase's `Requirements:` field (`EVID-01..08`, `PROTO-01..05`) are claimed by at least one plan, and all 13 appear satisfied mechanically except EVID-05.
+No orphaned requirements — all 13 IDs listed in the phase's `Requirements:` field (`EVID-01..08`, `PROTO-01..05`) are claimed by at least one plan, and all 13 now appear satisfied mechanically, including EVID-05. `REQUIREMENTS.md` already carries `EVID-05` as `[x]`/`Complete` (Phase 1 row), consistent with this re-verification's finding.
 
 ### Anti-Patterns Found
 
 | File | Line(s) | Pattern | Severity | Impact |
 |------|---------|---------|----------|--------|
-| `evidence.py` | 257-281 | `iter_raw()` decodes outside its own try/except, crashing on a torn multi-byte UTF-8 tail | 🛑 Blocker | Contradicts the module's documented D-09 "never fatal" guarantee; breaks EVID-05's auditability under a realistic crash. See Truth #6/gap above. Reproduced independently in this verification, not just cited from 01-REVIEW.md |
-| `runtime.py` (canonical_response), `evidence.py` (idempotency_canon) | 91-99, 316-334 | Two distinct malformed structured responses (e.g. two different incomplete `table` answers) both canonicalize to `""` and collapse into one dedupe bucket; the second is silently dropped from the log | ⚠️ Warning | Narrow edge case (reachable via `itembank submit --answer` with malformed JSON, not via the browser UI where "Check" stays disabled until complete); touches PROTO-03's "the tool says which happened" spirit but not the literal must-have text. Untested by the suite (confirmed by grep — no test constructs two distinct malformed answers) |
-| `schemas/session.schema.json`, `surfaces/session.py`, `evidence.py` | schema 59-87, `session.py:106-108`, `evidence.py:1294-1302` | `render_session_json` always adds `review_state` to each response record; `cmd_submit`'s live-written session JSON never does; the schema documents neither | ⚠️ Warning | Confirmed by grep (no `review_state` in `schemas/session.schema.json` or `surfaces/session.py`). Doesn't fail schema validation (no `additionalProperties: false`) but is a real contract-drift between the two writers of "the same" shape |
-| `surfaces/migrate.py`, `evidence.py` | `migrate.py:401-402`, `evidence.py:45-53` | Migration idempotency ("re-run imports 0 new") relies on an 8 MiB dedupe tail window sized for one sitting, not for a migration re-run months later after ordinary studying has grown the log past 8 MiB | ⚠️ Warning | Re-verified reasoning from 01-REVIEW.md WR-01 against the cited line ranges; not independently re-derived from scratch. Untested at that scale (fixtures are far below 8 MiB) |
-| `surfaces/day.py` | 832 | `date.fromisoformat(a.date)` used unguarded, unlike every other date-shaped input in the codebase | ℹ️ Info | Crashes with a raw traceback on malformed `--date` instead of the house-style `sys.exit(...)`. Minor, CLI ergonomics only |
+| `evidence.py` | 257-281 (was 280 pre-fix) | `iter_raw()` decoded outside its own try/except, crashing on a torn multi-byte UTF-8 tail | ✅ RESOLVED (was 🛑 Blocker) | Fixed by quick task 260806-u63 (`fbb87fb`): `open(..., errors="replace")`, matching `_tail_dedupe_keys`/`_index_tail_update`'s posture. Independently re-verified in this pass — see "Re-Verification: Gap Closure Check" above. No longer contradicts D-09 or blocks EVID-05 |
+| `runtime.py` (canonical_response), `evidence.py` (idempotency_canon) | 91-99, 316-334 | Two distinct malformed structured responses (e.g. two different incomplete `table` answers) both canonicalize to `""` and collapse into one dedupe bucket; the second is silently dropped from the log | ⚠️ Warning (still open) | Narrow edge case (reachable via `itembank submit --answer` with malformed JSON, not via the browser UI where "Check" stays disabled until complete); touches PROTO-03's "the tool says which happened" spirit but not the literal must-have text. Untested by the suite. Out of scope for quick task 260806-u63; not addressed |
+| `schemas/session.schema.json`, `surfaces/session.py`, `evidence.py` | schema 59-87, `session.py:106-108`, `evidence.py:1294-1302` | `render_session_json` always adds `review_state` to each response record; `cmd_submit`'s live-written session JSON never does; the schema documents neither | ⚠️ Warning (still open) | Confirmed by grep (no `review_state` in `schemas/session.schema.json` or `surfaces/session.py`). Doesn't fail schema validation (no `additionalProperties: false`) but is a real contract-drift between the two writers of "the same" shape. Out of scope for quick task 260806-u63; not addressed |
+| `surfaces/migrate.py`, `evidence.py` | `migrate.py:401-402`, `evidence.py:45-53` | Migration idempotency ("re-run imports 0 new") relies on an 8 MiB dedupe tail window sized for one sitting, not for a migration re-run months later after ordinary studying has grown the log past 8 MiB | ⚠️ Warning (still open) | Re-verified reasoning from 01-REVIEW.md WR-01 against the cited line ranges in the initial pass; not independently re-derived from scratch in this pass. Untested at that scale. Out of scope for quick task 260806-u63; not addressed |
+| `surfaces/day.py` | 832 | `date.fromisoformat(a.date)` used unguarded, unlike every other date-shaped input in the codebase | ℹ️ Info (still open) | Crashes with a raw traceback on malformed `--date` instead of the house-style `sys.exit(...)`. Minor, CLI ergonomics only. Out of scope for quick task 260806-u63; not addressed |
+| `surfaces/quiz_page.py` | (pre-existing, commit `deb754e`) | `esc()` does not actually escape; output feeds `.innerHTML` at 8 sites (01-REVIEW.md CR-02) | ℹ️ Info (pre-existing, out of scope) | Predates this phase (introduced before Phase 1's own work) and is not a Phase 1 regression. Not part of this phase's `must_haves` or requirements, and not touched by quick task 260806-u63. Flagged here only to keep it visible rather than silently dropped, per this re-verification's explicit instructions — it is not resolved and not this phase's responsibility to resolve |
 
-No `TBD`/`FIXME`/`XXX`/`TODO`/`HACK`/`PLACEHOLDER` debt markers found in any phase-modified file (`evidence.py`, `model.py`, `runtime.py`, `schema_validate.py`, `itembank.py`, `surfaces/*.py`).
+Also noted (not a gap, not a code anti-pattern): quick task 260806-u63 fixed a pre-existing
+subprocess-startup timing race in `tests/durability_roundtrip.py`'s `probe_kill()` (a 0.2s sleep
+could lose the race against child interpreter startup, causing an intermittent `FileNotFoundError`
+in the test harness itself, unrelated to `iter_raw`). This is a test-harness robustness fix, not a
+product-code change, and is the likely explanation for prior reports of "flaky kill probe."
+
+No `TBD`/`FIXME`/`XXX`/`TODO`/`HACK`/`PLACEHOLDER` debt markers found in any phase-modified file (`evidence.py`, `model.py`, `runtime.py`, `schema_validate.py`, `itembank.py`, `surfaces/*.py`, `tests/durability_roundtrip.py`).
 
 ### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 |---|---|---|---|
-| All modules compile | `python -m py_compile evidence.py model.py runtime.py schema_validate.py itembank.py surfaces/*.py` | Clean | ✓ PASS |
-| Full test suite (run once, per constraint) | `python tests/*.py` (9 files) | All 9 report `ok`/`PASS`, including `durability_roundtrip.py`'s kill probe (345/345 records) | ✓ PASS |
+| All modules compile | `python -m py_compile evidence.py model.py runtime.py schema_validate.py itembank.py surfaces/*.py` | Clean (initial pass) | ✓ PASS |
+| Full test suite (run once, per constraint; re-run once more in this pass for `durability_roundtrip.py` specifically) | `python tests/*.py` (9 files); `python tests/durability_roundtrip.py` (this pass, standalone) | All 9 report `ok`/`PASS` (orchestrator's run); `durability_roundtrip.py` independently re-run in this pass: torn multi-byte probe ok, locked probe 10000/10000, kill probe survived and post-kill append readable | ✓ PASS |
 | `_evidence/` excluded from git | `grep _evidence .gitignore` | `_evidence/` present | ✓ PASS |
 | One `append_event` function exists | `grep -n "^def append_event"` across repo | Exactly one, in `evidence.py:386` | ✓ PASS |
-| CR-01 reproduction: `iter_raw()` on a log torn mid multi-byte UTF-8 sequence | Custom repro script (see gap detail) | `UnicodeDecodeError` raised uncaught, propagates out of `iter_raw()` | ✗ FAIL (confirms the gap) |
+| **CR-01 gap closure — independent fresh repro against current tree** | Independently-built torn multi-byte fixture (not the SUMMARY's exact bytes) fed to `evidence.iter_raw()` directly | `warn torn.jsonl:2 malformed, skipped`; 1 record returned; no exception | ✓ PASS (was ✗ FAIL pre-fix) |
+| **CR-01 gap closure — independent revert check** | Isolated copy of `evidence.py` with the one-keyword fix manually reverted, loaded via `importlib`, `itembank.iter_raw` monkeypatched to it, then the real unmodified `tests/durability_roundtrip.py:probe_torn_multibyte()` run against it | `FAIL: ... UnicodeDecodeError ...`; `SystemExit` code 1 — probe correctly goes RED | ✓ PASS (confirms the regression probe is a genuine guard, not a test that passes regardless) |
 | EVID-07 null-field rationale present in schema | `grep -A4 '"error_category"\|"hint_tier"' schemas/response.schema.json` | Both carry `"type": "null"` and a documented reason | ✓ PASS |
-| `review_state` contract drift (WR-03) | `grep review_state schemas/session.schema.json surfaces/session.py` | No output — confirms neither file mentions it | ✗ Confirms warning (non-blocking) |
+| `review_state` contract drift (WR-03) | `grep review_state schemas/session.schema.json surfaces/session.py` | No output — confirms neither file mentions it | ✗ Confirms warning (non-blocking, still open) |
+| Commit trail for the fix | `git log --oneline -- evidence.py tests/durability_roundtrip.py`; `git show --stat <hash>` for each of `1e09df4`/`fbb87fb`/`4c2ba4b` | All three commits present with the described file scope | ✓ PASS |
+| Working tree state | `git status --porcelain` | Only `.planning/config.json` (modified) and `_tmp_check.html` (untracked) — both pre-existing and unrelated to evidence code | ✓ PASS |
 
-Full suite executed exactly once, per the verification protocol's single-run constraint. Not re-run per must-have.
+Full suite executed at most once per file in this pass (durability_roundtrip.py specifically, since it is the file under re-verification); not re-run per must-have.
 
 ### Human Verification Required
 
-See frontmatter `human_verification` block. Two items, both explicitly flagged by the plans themselves as sufficiency/product judgments rather than code-correctness questions:
+See frontmatter `human_verification` block. Unchanged from the initial pass — neither item was
+part of the closed gap, and neither is silently marked resolved. Two items, both explicitly
+flagged by the plans themselves as sufficiency/product judgments rather than code-correctness
+questions:
 
 1. Whether `itembank schema --all`'s output is genuinely sufficient for a fresh, repository-less model context to author all six item types (PROTO-05 spirit).
 2. Whether `render_session_json`'s documented, honest inability to recover a session's original `seed`/item-selection/`cursor` from the log alone (only ever recoverable from the live session file) is an acceptable approximation for what later phases (selection engine, retention) will build on.
 
 ### Gaps Summary
 
-One confirmed blocker: `evidence.iter_raw()` — the read primitive every evidence consumer in the codebase is built on — crashes with an uncaught `UnicodeDecodeError` instead of skipping-and-reporting when a process is killed mid-append on a line containing multi-byte UTF-8 content (any CJK text, explicitly relevant given the project's Mandarin study lane and its own CJK test fixtures). This was flagged as CR-01 in the phase's own code review (`01-REVIEW.md`) and is independently reproduced here against the current tree with a minimal, self-contained repro. It directly falsifies a must-have truth stated in `01-01-PLAN.md` ("returns every line before it intact... never fatal") and the module's own documented D-09 guarantee, and it is the mechanism behind the "auditable" half of EVID-05 — a crash does not lose data on disk, but it can make the *entire* evidence store unreadable through every surface (`evidence`, `report`, `mark`, `render`, `day`, `serve`) until manually repaired. `tests/durability_roundtrip.py`'s kill probe pads only with ASCII, so this exact regression was never caught by the suite that gates this phase, despite the suite otherwise passing cleanly and thoroughly exercising the crash-kill, dedupe, retraction, and migration paths.
+**No gaps remain.** The single confirmed blocker from the initial pass — `evidence.iter_raw()`
+crashing with an uncaught `UnicodeDecodeError` on a torn multi-byte UTF-8 tail instead of
+skipping-and-reporting per D-09 — was closed by quick task 260806-u63 and independently
+re-verified in this pass (not taken on the SUMMARY's word): the fix line was read directly, a
+fresh torn-tail repro was built and run against the current tree with no crash, and the
+regression probe (`probe_torn_multibyte`) was confirmed to actually go RED against a reverted
+copy of the fix, so it is a real guard and not a vacuous test. EVID-05 is now fully satisfied.
 
-Three non-blocking warnings (WR-02, WR-03, WR-04 from `01-REVIEW.md`, independently re-confirmed by grep against the cited files/lines) round out the picture but do not, on their own, falsify a stated must-have truth — they are narrower edge cases (malformed-answer dedupe collision, a schema/writer contract-drift on `review_state`, and an unguarded `--date` CLI flag).
+Four non-blocking findings from the initial pass (`01-REVIEW.md` WR-01 through WR-04 — migration
+idempotency window, malformed-answer dedupe collision, `review_state` schema/writer drift,
+unguarded `day --date`) remain open, unchanged, and out of scope for the quick task that closed
+the blocker. One pre-existing, out-of-phase finding (`01-REVIEW.md` CR-02, `quiz_page.py`'s
+non-escaping `esc()`, from commit `deb754e` before this phase began) also remains open and is
+noted here for visibility only — it was never this phase's `must_haves` or requirement, and
+remains unaddressed.
 
-Everything else — item identity survival, migration reconciliation, idempotent submission on the primary (valid-answer) path, the cross-subject objective query, schema versioning/CI validation, and the full 92-test-name suite spanning every plan's documented behaviors — is verified against the actual codebase, not just against SUMMARY.md claims.
+Two human-verification items also remain open, unchanged from the initial pass, and are the
+reason this phase's overall status is `human_needed` rather than `passed`: a sufficiency judgment
+on `schema --all`'s output for a fresh model, and a product judgment on `render_session_json`'s
+honest `seed`/selection approximation. Everything else — item identity survival, migration
+reconciliation, idempotent submission, the cross-subject objective query, schema versioning/CI
+validation, and now crash-safe evidence reads — is verified against the actual codebase, not just
+against SUMMARY.md claims.
 
-**Recommendation:** Apply the CR-01 fix (`errors="replace"` on `iter_raw`'s `open()` call, matching the pattern already used elsewhere in the same file by `_tail_dedupe_keys`/`_index_tail_update`) before this phase is considered closed — it is a small, well-scoped fix directly contradicting the phase's own explicit guarantee, not a design question requiring a new plan.
+**Recommendation:** No further action required to close Phase 1's blocking gap. The two
+human-verification items above should be resolved by a human before the phases that build on
+`schema --all` output or `render_session_json`'s recovery path (selection engine, retention)
+proceed too far without that judgment. The four non-blocking warnings and the one pre-existing,
+out-of-phase CR-02 finding may be addressed opportunistically or folded into a later phase/plan;
+none of them falsify a Phase 1 must-have truth.
 
 ---
 
-_Verified: 2026-08-06_
+_Verified: 2026-08-06 (initial), re-verified: 2026-08-06 (after gap closure)_
 _Verifier: Claude (gsd-verifier)_
