@@ -115,7 +115,7 @@
 
 - [x] **SURF-01**: One daemon serves every surface on one port: the day view, a sitting, the study loop, reports, settings, and the JSON API
 - [ ] **SURF-02**: The browser page is a client of the same JSON API an agent uses; it holds no key and implements no scoring
-- [ ] **SURF-03**: Starting the daemon twice does not fight over the port, and `--lan` still reaches a phone on the same wifi
+- [x] **SURF-03**: Starting the daemon twice does not fight over the port, and `--lan` still reaches a phone on the same wifi
 - [x] **SURF-04**: Every capability has both a route and a CLI command, over one runtime
 - [ ] **SURF-05**: The question surface shows one sticky context line rather than five bands of chrome above the stem
 - [ ] **SURF-06**: `study` renders the per-option rationale, second-best, and notes it currently discards
@@ -268,7 +268,7 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | AUTH-03 | Phase 11 | Pending |
 | SURF-01 | Phase 2 | Complete |
 | SURF-02 | Phase 4 | Pending |
-| SURF-03 | Phase 2 | Pending |
+| SURF-03 | Phase 2 | Complete |
 | SURF-04 | Phase 2 | Complete |
 | SURF-05 | Phase 4 | Pending |
 | SURF-06 | Phase 4 | Pending |
