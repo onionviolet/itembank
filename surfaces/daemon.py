@@ -565,13 +565,23 @@ def _plan_day_state(handler, stem):
     `day_extra` (set by `cmd_day`'s scoped launch through `serve_scoped`)
     names an override for this stem, which is how `itembank day --date`
     (backfilling a missed day) still works once `day` is a daemon launch.
+
+    A plan with no override is rebuilt once the wall-clock date has moved
+    past the cached state's own `iso`: the consolidated `itembank daemon` is
+    meant to run indefinitely across multiple banks and plans, unlike the
+    old short-lived per-day `cmd_day` process this replaces, so caching
+    "today" forever would serve yesterday's plan row, streak and history
+    past midnight with no signal it had gone stale. A backfilled/overridden
+    `iso` names a specific historical date, never "today", so it is exempt
+    from this re-derivation.
     """
+    override = handler.day_extra.get(stem, {})
     state = handler.day_states.get(stem)
     if state is not None:
-        return state
+        if override.get("iso") or state["iso"] == datetime.date.today().isoformat():
+            return state
     path = handler.plans[stem]
     plan_dir = os.path.dirname(os.path.abspath(path)) or "."
-    override = handler.day_extra.get(stem, {})
     log_path = override.get("log_path") or os.path.join(plan_dir, "daily_log.md")
     lanes_path = override.get("lanes_path") or os.path.join(plan_dir, "lanes.md")
     iso = override.get("iso") or datetime.date.today().isoformat()
