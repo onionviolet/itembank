@@ -6,11 +6,11 @@ current_phase: 02
 current_phase_name: Daemon Consolidation & Settings Foundation
 status: verifying
 stopped_at: Completed 02-06-PLAN.md (phase 02 complete)
-last_updated: "2026-08-07T19:08:49.553Z"
+last_updated: "2026-08-07T19:23:03.552Z"
 last_activity: 2026-08-07
 last_activity_desc: Phase 02 execution started
 progress:
-  total_phases: 2
+  total_phases: 3
   completed_phases: 2
   total_plans: 17
   completed_plans: 17
@@ -141,6 +141,10 @@ None yet.
 | ID | Description | Date | Status |
 |----|-------------|------|--------|
 | 260806-u63 | Fix `iter_raw` crash on a torn multi-byte UTF-8 tail in `evidence.py` (closes Phase 1 verification gap / CR-01) | 2026-08-06 | complete ✓ |
+
+### Roadmap Evolution
+
+- Phase 2.1 inserted after Phase 2: Packaging/Self-Update/GIFT export (formerly Phase 12) pulled forward to ship an early exe of the Phase 1+2 feature set and dogfood the self-updater through remaining phases (URGENT)
 
 ## Deferred Items
 

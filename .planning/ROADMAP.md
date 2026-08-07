@@ -26,9 +26,12 @@ loop and the curriculum auditor come deliberately late: the auditor is the
 highest-risk subsystem in this milestone, and its phase carries the pitfall
 guard rails — citation-per-coverage-claim, a second quality gate beyond
 `lint`, one-item-per-commit reversibility, graduated autonomy — as acceptance
-criteria, not follow-on hardening. Packaging, self-update, and GIFT export
-close the milestone, turning the whole thing into one double-clickable
-artifact per OS.
+criteria, not follow-on hardening. Packaging and self-update were originally
+sequenced to close the milestone but were pulled forward to Phase 2.1 (see
+"Phase Numbering" below) so a double-clickable artifact of the Phase 1+2
+feature set exists early, and the self-updater ships every phase after it as
+a real release rather than being written and tested last. GIFT export moved
+with it.
 
 ## Phases
 
@@ -39,6 +42,7 @@ artifact per OS.
 
 - [x] **Phase 1: Evidence Spine & Protocol Foundation** - Stable item identity, one evidence store, and migration so nothing built after this reads a stale or split history. (completed 2026-08-07)
 - [ ] **Phase 2: Daemon Consolidation & Settings Foundation** - One daemon on one port serving every surface, with a printable, agent-discoverable settings schema.
+- [ ] **Phase 2.1: Packaging, Self-Update & Interop Export (INSERTED, moved from Phase 12)** - One double-clickable artifact per OS, a safe self-updater, and a GIFT export that fails loudly rather than wrong — pulled forward so a runnable exe of the Phase 1+2 feature set exists early, and the self-updater ships phases 3-11 as real releases instead of being written and tested last.
 - [ ] **Phase 3: Lesson Format & In-App Reader** - An optional `LESSON` section renders as reading material inside the app, linked to the items it teaches.
 - [ ] **Phase 4: Surface Redesign & Theming** - One shared palette, OS-driven theming, a decluttered question surface, and safe in-page `day` editing.
 - [ ] **Phase 5: Check Item Type & Code Editor** - A `check` item type runs the learner's own code in a real editor and scores it through the one scorer.
@@ -48,7 +52,7 @@ artifact per OS.
 - [ ] **Phase 9: Subject-Invariant Loop — EMT, Math, CS Integration** - One loop — lesson, hint, verify — carries a learner through EMT prose, Math LaTeX, and runnable CS code.
 - [ ] **Phase 10: Retention, Pacing & Trends** - What's due today, a daily cap, and evidence-driven selection weight and decay flagging, with itembank's and Anki's "due" shown apart.
 - [ ] **Phase 11: Closed Authoring Loop & Curriculum Auditor** - A closed spec-draft-lint-retry authoring loop, reused by a syllabus auditor that cites its coverage claims and never over-autonomizes silently.
-- [ ] **Phase 12: Packaging, Self-Update & Interop Export** - One double-clickable artifact per OS, a safe self-updater, and a GIFT export that fails loudly rather than wrong.
+- [ ] ~~**Phase 12: Packaging, Self-Update & Interop Export**~~ - MOVED to Phase 2.1 (2026-08-07) — see Phase 2.1 above. Slot retired, not reused.
 
 ## Phase Details
 
@@ -150,6 +154,33 @@ Plans:
 **Wave 5** *(blocked on Wave 4 completion)*
 
 - [x] 02-06-PLAN.md — Detect-and-attach singleton, `--lan`, and settings-driven daemon defaults
+
+### Phase 2.1: Packaging, Self-Update & Interop Export (INSERTED, moved from Phase 12)
+
+**Goal**: The learner double-clicks one file per OS to open itembank as an app, the tool can update itself safely, and a bank can leave itembank through GIFT without silently mangling anything GIFT can't express.
+**Mode:** mvp
+**Depends on**: Phase 2
+**Requirements**: DEL-01, DEL-02, DEL-03, DEL-06, DEL-07, DEL-08
+**Success Criteria** (what must be TRUE):
+
+  1. A double-clickable `.pyz` artifact plus a one-line launcher opens the app on Windows, macOS, and Linux, in a frameless window where available, falling back to an ordinary browser tab otherwise.
+  2. The shipped artifact is still plain Python inside — a person or an agent can open and edit it without unpacking a build step.
+  3. Checking for an update, downloading, and verifying a checksum leaves the currently-running process untouched; the new version lands at a side-by-side path and a relaunch hands off to it, never overwriting the running file.
+  4. An update whose version is not strictly newer than the running version is rejected even if its checksum is valid, and a failed or offline check fails silently rather than blocking the page.
+  5. GIFT export produces a file a real LMS importer accepts for expressible item types, and any item type GIFT cannot express fails loudly, by item number, rather than exporting silently wrong.
+
+**Why inserted here (reasoning)**:
+- No other phase's `Depends on` field named Phase 12 anywhere in the original roadmap — confirmed by inspection of all 12 phase entries. Its only real dependency, Phase 2, is complete (6/6 plans). Moving it up breaks no dependency chain.
+- Packaging is architecture, not a one-time snapshot: the shipped artifact stays "plain Python inside... without unpacking a build step" (Success Criterion 2), so every later phase's code lands in the next `.pyz` rebuild automatically. Landing this phase early doesn't require redoing it once Phases 3-11 add code.
+- The self-updater built here becomes the delivery path for every phase after it — Phases 3-11 ship through it as real releases, exercising it repeatedly, instead of it being written last and validated against nothing.
+- User's explicit goal (2026-08-07): a valid, double-clickable exe of the current (Phase 1 + Phase 2) feature set, sooner than waiting for the full 12-phase milestone to close.
+
+**Open decisions resolved here**: GitHub release-asset `digest` field format — existence confirmed, literal shape unverified against a live response; confirm it before writing the parser, and fall back to `SHA256SUMS.txt` if it surprises.
+**Plans**: TBD
+
+Plans:
+
+- [ ] TBD (run `/gsd-plan-phase 2.1` to break down)
 
 ### Phase 3: Lesson Format & In-App Reader
 
@@ -300,22 +331,9 @@ Plans:
 **Open decisions resolved here**: Second quality gate algorithm (distractor-overlap heuristic, near-duplicate detection thresholds); syllabus input formats (markdown/text only, vs. PDF/DOCX that stdlib parses poorly); auditor reversibility mechanism (shadow copy vs. a git commit per write, depending on whether the private bank directory is git-tracked). These three converge with the top pitfalls flagged for this subsystem — the citation contract, the second quality gate, and reversibility are novel mechanisms with no working precedent in any examined product, and need fresh design at plan time, not just implementation.
 **Plans**: TBD
 
-### Phase 12: Packaging, Self-Update & Interop Export
+### Phase 12: ~~Packaging, Self-Update & Interop Export~~ (MOVED)
 
-**Goal**: The learner double-clicks one file per OS to open itembank as an app, the tool can update itself safely, and a bank can leave itembank through GIFT without silently mangling anything GIFT can't express.
-**Mode:** mvp
-**Depends on**: Phase 2
-**Requirements**: DEL-01, DEL-02, DEL-03, DEL-06, DEL-07, DEL-08
-**Success Criteria** (what must be TRUE):
-
-  1. A double-clickable `.pyz` artifact plus a one-line launcher opens the app on Windows, macOS, and Linux, in a frameless window where available, falling back to an ordinary browser tab otherwise.
-  2. The shipped artifact is still plain Python inside — a person or an agent can open and edit it without unpacking a build step.
-  3. Checking for an update, downloading, and verifying a checksum leaves the currently-running process untouched; the new version lands at a side-by-side path and a relaunch hands off to it, never overwriting the running file.
-  4. An update whose version is not strictly newer than the running version is rejected even if its checksum is valid, and a failed or offline check fails silently rather than blocking the page.
-  5. GIFT export produces a file a real LMS importer accepts for expressible item types, and any item type GIFT cannot express fails loudly, by item number, rather than exporting silently wrong.
-
-**Open decisions resolved here**: GitHub release-asset `digest` field format — existence confirmed, literal shape unverified against a live response; confirm it before writing the parser, and fall back to `SHA256SUMS.txt` if it surprises.
-**Plans**: TBD
+This phase's full content — goal, requirements, success criteria, open decisions — now lives at **Phase 2.1**, inserted after Phase 2 on 2026-08-07. This numbered slot is retired: do not plan or execute against "Phase 12" and do not reuse this number for new work.
 
 ## Progress
 
