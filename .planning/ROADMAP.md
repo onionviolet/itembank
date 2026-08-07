@@ -67,7 +67,7 @@ artifact per OS.
   5. An agent with no repository context can read published schema versions for items, sessions, responses, and reports, and `lint` emits a machine-readable error code plus the offending field alongside the human-readable text.
 
 **Open decisions resolved here**: Item identity scheme — **resolved at plan time as an opaque 12/16-hex `[ID:]` stored in the bank markdown with a separate `[HASH: sha256:...]` content fingerprint used only for drift detection (D-01/D-02); landed in plan 01-04.** Windows append-write durability for the event log — **resolved as an advisory lock (`msvcrt.locking` / `fcntl.flock`) held across exactly one `os.write()` per event, measured on the target machine by plan 01-01's blocking spike and recorded in `01-SPIKE-RESULT.md` before any plan appends a real event.**
-**Plans**: 8/11 plans executed
+**Plans**: 9/11 plans executed
 
 Plans:
 **Wave 1**
@@ -104,7 +104,7 @@ Plans:
 
 **Wave 9** *(blocked on Wave 8 completion)*
 
-- [ ] 01-09-PLAN.md — Attempt file and session JSON become renders; marking becomes a batch command
+- [x] 01-09-PLAN.md — Attempt file and session JSON become renders; marking becomes a batch command
 
 **Wave 10** *(blocked on Wave 9 completion)*
 
@@ -305,7 +305,7 @@ for what can run concurrently.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Evidence Spine & Protocol Foundation | 8/11 | In Progress|  |
+| 1. Evidence Spine & Protocol Foundation | 9/11 | In Progress|  |
 | 2. Daemon Consolidation & Settings Foundation | 0/TBD | Not started | - |
 | 3. Lesson Format & In-App Reader | 0/TBD | Not started | - |
 | 4. Surface Redesign & Theming | 0/TBD | Not started | - |
