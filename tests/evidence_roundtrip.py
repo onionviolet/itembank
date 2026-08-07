@@ -33,6 +33,21 @@ def fail(msg):
     sys.exit(1)
 
 
+def flatten(obj):
+    """Yield (key, value) for every key at every depth of a JSON-like
+    structure -- used to assert a gamification key (points/level/badge/...)
+    is absent anywhere in an evidence query's output, not just at the top
+    level (PROJECT.md Out of Scope: no score, level, badge, streak, xp).
+    """
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            yield (k, v)
+            yield from flatten(v)
+    elif isinstance(obj, list):
+        for el in obj:
+            yield from flatten(el)
+
+
 def run(args, cwd):
     r = subprocess.run([sys.executable, os.path.join(ROOT, "itembank.py")] + list(args),
                        cwd=cwd, capture_output=True, text=True)
@@ -137,6 +152,18 @@ def test_mode_recorded():
         scores = set(e["score"] for e in result["events"])
         if scores != {True}:
             fail("expected both correct responses to agree on score, got %r" % scores)
+
+        # EVID-08's visible half (01-08): a drill correct and an exam correct
+        # are counted in different by_mode buckets, never summed into one.
+        by_mode = result["by_mode"]
+        if set(by_mode) != {"drill", "exam"}:
+            fail("expected by_mode keys {'drill', 'exam'}, got %r" % set(by_mode))
+        if by_mode["drill"]["correct"] != 1 or by_mode["exam"]["correct"] != 1:
+            fail("expected each mode's by_mode bucket to report correct 1, got %r" % by_mode)
+        combined_totals = [v for k, v in flatten(result) if k in
+                           ("score_total", "combined_correct", "total_correct")]
+        if combined_totals:
+            fail("found a combined-total key in evidence output: %r" % combined_totals)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -721,6 +748,301 @@ def test_retraction():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ---- disposable index and cross-subject query (01-08) ---------------------
+# D-08: queries are served by a disposable derived index, rebuilt whenever
+# the log has grown past it and deletable at any time with no loss. This is
+# phase success criterion 4: one query answers "how am I doing on objective
+# X over time" across every session and every subject.
+
+SYNTH_BANK_TEXT = """# Synthetic cross-subject bank (test fixture)
+
+Fully invented content for exercising a namespaced, cross-subject objective
+query. Not derived from any real course, exam, or textbook.
+
+Q1. Sample synthetic item about one airway management surface, for
+cross-subject and cross-session query testing.
+
+[OBJECTIVE: emt:airway.opa]
+
+A) Option one
+B) Option two
+C) Option three
+
+CORRECT: A
+
+WHY BEST: Placeholder rationale for the correct answer.
+
+Q2. Sample synthetic item about a different, longer-named airway management
+surface, for prefix-adjacency testing.
+
+[OBJECTIVE: emt:airwaymanagement]
+
+A) Option one
+B) Option two
+C) Option three
+
+CORRECT: A
+
+WHY BEST: Placeholder rationale for the correct answer.
+
+Q3. Sample synthetic item about while loops, for cross-subject query
+testing.
+
+[OBJECTIVE: csci1100:loops.while]
+
+A) Option one
+B) Option two
+C) Option three
+
+CORRECT: A
+
+WHY BEST: Placeholder rationale for the correct answer.
+"""
+
+
+def parse_json_tail(out):
+    """Parse the trailing JSON document in `out`, skipping any leading
+    `warn  ...` lines a fallback path may have printed to stdout ahead of
+    it (evidence.py's degrade-never-block warnings never go to stderr, so a
+    query that fell back still exits 0 with a parseable JSON tail).
+    """
+    return json.loads(out[out.index("{"):])
+
+
+def test_objective_query():
+    """EVID-04, the cross-subject requirement specifically: one query
+    answers the objective question across every session and every subject,
+    exact match is the default, prefix matching is explicit and does not
+    match a longer word, an empty history is not an error, and events
+    sharing a `ts` keep a stable log order across a rebuilt index.
+    """
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "synth_bank.md")
+        write_bank_text(bank, SYNTH_BANK_TEXT)
+        id_assign_json([bank], tmp)
+        rc, lint_out = lint_text(bank, tmp)
+        if rc != 0:
+            fail("synthetic cross-subject bank fixture does not lint clean:\n%s" % lint_out)
+        qs = {q["id"]: q for q in itembank.load(bank)}
+
+        # Two sessions, the same objective (emt:airway.opa): cross-session
+        # reach for one objective, the thing that was impossible before
+        # this phase.
+        sA = json.loads(run(
+            ["start", bank, "--objective", "emt:airway.opa", "--count", "1",
+             "--seed", "0", "--mode", "drill"], tmp))
+        run(["submit", sA["session_file"], "--answer",
+             correct_answer(qs[sA["item"]["id"]])], tmp)
+
+        sB = json.loads(run(
+            ["start", bank, "--objective", "emt:airway.opa", "--count", "1",
+             "--seed", "0", "--mode", "exam"], tmp))
+        run(["submit", sB["session_file"], "--answer",
+             correct_answer(qs[sB["item"]["id"]])], tmp)
+
+        # A third session, a different (longer) objective under the same
+        # subject -- the prefix-adjacency guard.
+        sD = json.loads(run(
+            ["start", bank, "--objective", "emt:airwaymanagement", "--count", "1",
+             "--seed", "0"], tmp))
+        run(["submit", sD["session_file"], "--answer",
+             correct_answer(qs[sD["item"]["id"]])], tmp)
+
+        # A fourth session, a second subject entirely.
+        sC = json.loads(run(
+            ["start", bank, "--objective", "csci1100:loops.while", "--count", "1",
+             "--seed", "0", "--mode", "exam"], tmp))
+        run(["submit", sC["session_file"], "--answer",
+             correct_answer(qs[sC["item"]["id"]])], tmp)
+
+        # Exact match, cross-session: both sessionA and sessionB's rows,
+        # ascending ts order, neither the emt:airwaymanagement nor the
+        # csci1100 row.
+        exact = parse_json_tail(run(
+            ["evidence", "--objective", "emt:airway.opa", "--base", tmp], tmp))
+        if exact["count"] != 2:
+            fail("expected 2 events under emt:airway.opa across two sessions, got %r" %
+                 exact["count"])
+        sessions = set(e["session_id"] for e in exact["events"])
+        if len(sessions) != 2:
+            fail("expected rows from two distinct sessions, got session_ids %r" % sessions)
+        tss = [e["ts"] for e in exact["events"]]
+        if tss != sorted(tss):
+            fail("emt:airway.opa events are not in ascending ts order: %r" % tss)
+
+        # Subject alone, no --objective: only the csci1100 row, and a
+        # subject-only query is accepted.
+        by_subject = parse_json_tail(run(
+            ["evidence", "--subject", "csci1100", "--base", tmp], tmp))
+        if by_subject["count"] != 1:
+            fail("expected 1 event under subject csci1100, got %r" % by_subject["count"])
+        if by_subject["events"][0]["item_ref"] != sC["item"]["id"]:
+            fail("subject query returned the wrong item: %r" % by_subject["events"][0])
+
+        # Adjacency: exact "emt:airway" matches nothing; --prefix matches
+        # the two emt:airway.opa rows and never the longer
+        # emt:airwaymanagement objective.
+        no_prefix = parse_json_tail(run(
+            ["evidence", "--objective", "emt:airway", "--base", tmp], tmp))
+        if no_prefix["count"] != 0:
+            fail("exact match on 'emt:airway' unexpectedly matched %r rows" %
+                 no_prefix["count"])
+
+        with_prefix = parse_json_tail(run(
+            ["evidence", "--objective", "emt:airway", "--prefix", "--base", tmp], tmp))
+        if with_prefix["count"] != 2:
+            fail("prefix match on 'emt:airway' expected 2 rows, got %r" %
+                 with_prefix["count"])
+        prefix_refs = set(e["item_ref"] for e in with_prefix["events"])
+        if prefix_refs != {sA["item"]["id"]}:
+            fail("prefix match on 'emt:airway' returned unexpected item_refs %r "
+                 "(the emt:airwaymanagement item must never appear here)" % prefix_refs)
+
+        # Empty rule: an objective with no recorded events is count 0, exit 0.
+        empty = parse_json_tail(run(
+            ["evidence", "--objective", "nothing:here", "--base", tmp], tmp))
+        if empty["count"] != 0 or empty["events"] != []:
+            fail("expected an empty history for an unused objective, got %r" % empty)
+
+        # Ordering rule: two hand-built events sharing one ts, appended in a
+        # specific log order under their own objective, are returned in
+        # that log order -- not sorted by event_id -- and the order
+        # survives an explicit --rebuild-index.
+        log = itembank.log_path(tmp)
+        shared_ts = "2020-01-01T00:00:00.000Z"
+        sample_q = next(iter(qs.values()))
+        first = itembank.response_event(
+            "order-session", sample_q, "A", False, "drill", 1, "synth_bank.md")
+        first["objective"], first["subject"] = "emt:ordertest", "emt"
+        first["ts"] = shared_ts
+        first["event_id"] = "zzzz_first_by_log_order"
+        second = itembank.response_event(
+            "order-session", sample_q, "A", True, "drill", 2, "synth_bank.md")
+        second["objective"], second["subject"] = "emt:ordertest", "emt"
+        second["ts"] = shared_ts
+        second["event_id"] = "aaaa_second_by_log_order"
+        itembank.append_line(log, json.dumps(first, ensure_ascii=False, sort_keys=True))
+        itembank.append_line(log, json.dumps(second, ensure_ascii=False, sort_keys=True))
+
+        ordered = parse_json_tail(run(
+            ["evidence", "--objective", "emt:ordertest", "--base", tmp], tmp))
+        if [e["score"] for e in ordered["events"]] != [False, True]:
+            fail("hand-built same-ts events were not returned in log order: %r" %
+                 ordered["events"])
+
+        rebuilt = parse_json_tail(run(
+            ["evidence", "--objective", "emt:ordertest", "--rebuild-index", "--base", tmp],
+            tmp))
+        if [e["score"] for e in rebuilt["events"]] != [False, True]:
+            fail("same-ts log order changed after --rebuild-index: %r" % rebuilt["events"])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_index_is_disposable():
+    """D-08's central claim: the sqlite3 projection is a disposable cache,
+    never a second source of truth. Deleting it, corrupting it, or making
+    its path permanently unwritable must never change a query's answer,
+    and a query must never write to the log itself.
+    """
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "sample_bank.md")
+        shutil.copyfile(BANK, bank)
+        objective, submitted, q = start_and_submit(tmp, bank, "drill")
+        if submitted["score"] is not True:
+            fail("setup: correct answer for %s scored %r, not True" % (q["id"], submitted["score"]))
+
+        log = itembank.log_path(tmp)
+        index = os.path.join(tmp, "_evidence", "evidence_index.sqlite3")
+
+        args = ["evidence", "--objective", objective, "--base", tmp]
+        first = run(args, tmp)
+        if not os.path.exists(index):
+            fail("a query never built the disposable index at all")
+        if "evidence index unavailable" in first:
+            fail("the very first query, with nothing wrong yet, printed the "
+                 "fallback warning -- ensure_index() is not being called before "
+                 "the index is read, or is failing when it should not: %r" % first)
+
+        # Staleness: an event appended directly to the log (bypassing the
+        # CLI, so the index just built above is now behind it) must be
+        # reflected on the very next query -- proving the query path
+        # actually calls ensure_index() rather than reading a frozen index.
+        # A regression that skipped ensure_index would leave the existing,
+        # still-valid index answering with the old, now-wrong count, and a
+        # regression that skipped it AND left the index unbuilt in the first
+        # place would print the fallback warning above instead of staying
+        # silent -- either way this section catches it.
+        extra = itembank.response_event(
+            "stale-check-session", q, correct_answer(q), True, "drill", 1,
+            os.path.basename(bank))
+        extra["objective"], extra["subject"] = objective, itembank.subject_of(objective)
+        itembank.append_line(log, json.dumps(extra, ensure_ascii=False, sort_keys=True))
+        refreshed_raw = run(args, tmp)
+        if "evidence index unavailable" in refreshed_raw:
+            fail("a routine query after a plain log append printed the fallback "
+                 "warning: %r" % refreshed_raw)
+        refreshed = parse_json_tail(refreshed_raw)
+        if refreshed["count"] != 2:
+            fail("a query did not pick up an event appended directly to the log since "
+                 "the index was last built -- ensure_index must run on every query, "
+                 "got count %r" % refreshed["count"])
+
+        # Re-baseline: everything from here on treats this two-event state
+        # as the ground truth the index must never be able to diverge from.
+        first = run(args, tmp)
+        log_bytes_before = open(log, "rb").read()
+
+        # Deleting the index and re-running the same query returns
+        # byte-identical output: the index is rebuilt from the log alone,
+        # with no prompt.
+        os.remove(index)
+        second = run(args, tmp)
+        if second != first:
+            fail("deleting the index changed the query's output:\nbefore=%r\nafter=%r" %
+                 (first, second))
+        if not os.path.exists(index):
+            fail("re-running the query after deleting the index did not rebuild it")
+
+        # Corrupting the index (a few bytes of garbage, not a valid sqlite3
+        # file) still returns the same rows and exits 0 -- either by
+        # rebuilding or through the fallback.
+        with open(index, "wb") as fh:
+            fh.write(b"not a sqlite database")
+        third = run(args, tmp)
+        if parse_json_tail(third)["events"] != parse_json_tail(first)["events"]:
+            fail("a corrupted index changed the query's rows")
+
+        # Making the index path permanently unwritable (an existing
+        # directory at that exact path) still returns the same rows,
+        # prints the fallback warning, and exits 0 -- the assertion that
+        # the index is a cache and not the store.
+        if os.path.exists(index):
+            if os.path.isdir(index):
+                shutil.rmtree(index)
+            else:
+                os.remove(index)
+        os.makedirs(index)
+        try:
+            fourth = run(args, tmp)
+            if "evidence index unavailable" not in fourth:
+                fail("an unwritable index path did not print the fallback warning")
+            if parse_json_tail(fourth)["events"] != parse_json_tail(first)["events"]:
+                fail("an unwritable index changed the query's rows")
+        finally:
+            shutil.rmtree(index, ignore_errors=True)
+
+        # A query never writes to the system of record.
+        log_bytes_after = open(log, "rb").read()
+        if log_bytes_after != log_bytes_before:
+            fail("evidence.jsonl changed after a series of queries; "
+                 "a query must never write to the log")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     test_tracer_end_to_end()
     test_mode_recorded()
@@ -733,9 +1055,12 @@ def main():
     test_lint_order_stable()
     test_duplicate_submit_dedupes()
     test_retraction()
+    test_objective_query()
+    test_index_is_disposable()
     print("evidence contract: ok (tracer end-to-end, mode recorded, empty log, one writer, "
           "identity survives edit, missing/duplicate ids, fingerprint stability, hash "
-          "states, lint order, duplicate-submit dedupe, retraction)")
+          "states, lint order, duplicate-submit dedupe, retraction, objective query, "
+          "index disposability)")
     return 0
 
 
