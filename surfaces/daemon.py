@@ -405,21 +405,33 @@ def sessions_by_bank(root, banks):
     scanned (renamed or removed since the session was recorded), is skipped
     rather than raised, the same allowlist-tolerance `session_index` itself
     already applies.
+
+    When a bank has more than one recorded session, the one whose file has
+    the newest mtime wins -- not whichever `session_id` (a random uuid4 hex,
+    per `do_start`/`do_next`, unrelated to time) happens to sort lexically
+    largest. `write_session`'s own tmp-then-`os.replace()` write refreshes
+    the mtime on every `do_next`/`do_submit`, so this tracks the most
+    recently *active* session, not merely the most recently created one.
     """
     index = session_index(root)
     by_abspath = dict((os.path.abspath(path), stem) for stem, path in banks.items())
     result = {}
+    best_mtime = {}
     for session_id, path in sorted(index.items()):
         try:
             with open(path, encoding="utf-8") as fh:
                 data = json.load(fh)
+            mtime = os.path.getmtime(path)
         except (OSError, ValueError):
             continue
         if not isinstance(data, dict):
             continue
         stem = by_abspath.get(data.get("bank"))
-        if stem is not None:
-            result[stem] = session_id            # lexically-last session_id wins
+        if stem is None:
+            continue
+        if stem not in best_mtime or mtime > best_mtime[stem]:
+            best_mtime[stem] = mtime
+            result[stem] = session_id            # newest-mtime session wins
     return result
 
 
