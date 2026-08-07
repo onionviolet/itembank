@@ -122,7 +122,7 @@ let i = 0, score = 0, autoTotal = 0;
 let shownAt = performance.now();
 const miss = [];
 const host = document.getElementById("host");
-const esc = s => (s==null?"":String(s));
+const esc = s => (s==null?"":String(s)).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 
 /* ---- the verdict -----------------------------------------------------------
    This page does not decide whether an answer is right. Under `serve` it hands
