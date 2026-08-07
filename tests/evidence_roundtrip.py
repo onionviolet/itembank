@@ -234,6 +234,16 @@ def id_assign_json(args_after_command, cwd):
     return json.loads("\n".join(lines[:-1]))
 
 
+def mark_json(args_after_command, cwd):
+    """Run `mark` and parse its JSON payload, which is followed by one
+    trailing human-readable status line (per 01-09-PLAN.md Task 2, the same
+    "%d ..., %d ..." house style `id_assign_json` above already strips).
+    """
+    out = run(["mark"] + list(args_after_command), cwd)
+    lines = out.splitlines()
+    return json.loads("\n".join(lines[:-1]))
+
+
 def lint_text(bank, cwd=None):
     r = subprocess.run([sys.executable, os.path.join(ROOT, "itembank.py"), "lint", bank],
                        cwd=cwd, capture_output=True, text=True)
@@ -1043,6 +1053,305 @@ def test_index_is_disposable():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ---- renders and marking (01-09): D-11's views over the log, and D-12's ----
+# batch marking command, both proven end to end against the real CLI and
+# against the log directly rather than against themselves.
+
+SHORT_ANSWER_TEXT = ("The plant meets primary limits, but customers notice iron "
+                     "staining and an odour, which are secondary aesthetic "
+                     "parameters, not health violations.")
+
+
+def drive_full_session(tmp, bank, mode="diagnostic"):
+    """Start a session covering every item in `bank`, answer every item
+    (alternating correct/wrong for auto-scored types, a real sentence for
+    the `short` item), and return `(session_id, qs, qs_by_id, short_ref,
+    auto_refs)`. Shared by `test_renders_match_log` and `test_mark_flow` so
+    neither reimplements the driving loop.
+    """
+    qs = itembank.load(bank)
+    qs_by_id = {q["id"]: q for q in qs}
+    started = json.loads(run(
+        ["start", bank, "--count", str(len(qs)), "--seed", "0", "--mode", mode], tmp))
+    session_file = started["session_file"]
+    session_id = started["session_id"]
+
+    short_ref = None
+    auto_refs = []
+    i = 0
+    data = json.load(open(session_file, encoding="utf-8"))
+    while data["status"] == "active":
+        nxt = json.loads(run(["next", session_file], tmp))
+        if nxt["status"] != "active":
+            break
+        q = qs_by_id[nxt["item"]["id"]]
+        if q["type"] == "short":
+            short_ref = q["id"]
+            answer = SHORT_ANSWER_TEXT
+        else:
+            auto_refs.append(q["id"])
+            answer = correct_answer(q) if i % 2 == 0 else different_answer(q)
+        run(["submit", session_file, "--answer", answer], tmp)
+        i += 1
+        data = json.load(open(session_file, encoding="utf-8"))
+
+    if short_ref is None:
+        fail("no short item was served while driving the session")
+    return session_id, qs, qs_by_id, short_ref, auto_refs
+
+
+def test_renders_match_log():
+    """EVID-03: the attempt markdown and the session JSON are views over
+    the log, never a second store, checked against `session_events`
+    directly (not against themselves) for ordering and idempotency, and
+    against the schema for shape.
+    """
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "sample_bank.md")
+        shutil.copyfile(BANK, bank)
+        log = itembank.log_path(tmp)
+
+        session_id, qs, qs_by_id, short_ref, auto_refs = drive_full_session(
+            tmp, bank, mode="practice")
+
+        log_events = itembank.session_events(log, session_id)
+        if not log_events:
+            fail("session_events returned nothing for a driven session")
+
+        session_json = itembank.render_session_json(log, session_id, qs, bank)
+        if len(session_json["responses"]) != len(log_events):
+            fail("rendered session JSON has %d responses, the log holds %d" %
+                 (len(session_json["responses"]), len(log_events)))
+        for rendered, ev in zip(session_json["responses"], log_events):
+            if rendered["item_id"] != ev["item_ref"]:
+                fail("rendered response item_id %r does not match the log's item_ref %r" %
+                     (rendered["item_id"], ev["item_ref"]))
+            if rendered["score"] != ev["score"]:
+                fail("rendered response score %r does not match the log's score %r for %r" %
+                     (rendered["score"], ev["score"], ev["item_ref"]))
+
+        schema = json.load(open(os.path.join(ROOT, "schemas", "session.schema.json"),
+                                encoding="utf-8"))
+        errs = itembank.validate(session_json, schema)
+        if errs:
+            fail("rendered session JSON fails schema validation: %r" % errs)
+
+        # Idempotency: rendering twice, from the same log, is byte-identical.
+        attempt_1 = itembank.render_attempt_md(log, session_id, qs, bank)
+        attempt_2 = itembank.render_attempt_md(log, session_id, qs, bank)
+        if attempt_1 != attempt_2:
+            fail("render_attempt_md is not byte-identical across two calls")
+        session_text_1 = json.dumps(session_json, ensure_ascii=False, sort_keys=True)
+        session_text_2 = json.dumps(
+            itembank.render_session_json(log, session_id, qs, bank),
+            ensure_ascii=False, sort_keys=True)
+        if session_text_1 != session_text_2:
+            fail("render_session_json is not byte-identical across two calls")
+
+        # Appending an event for a DIFFERENT session changes nothing here --
+        # the render is scoped to its own session_id.
+        other_q = qs[0]
+        other_event = itembank.response_event(
+            "unrelated-session", other_q, correct_answer(other_q), True, "drill", 1,
+            os.path.basename(bank))
+        itembank.append_line(log, json.dumps(other_event, ensure_ascii=False, sort_keys=True))
+        attempt_3 = itembank.render_attempt_md(log, session_id, qs, bank)
+        if attempt_3 != attempt_1:
+            fail("rendering after an unrelated session's event changed the output")
+
+        # runtime.response_text's own documented property survives the move
+        # to a render: the attempt markdown carries option TEXT for an
+        # mc/multi answer, not a bare letter that a reshuffled page would
+        # reassign to a different option next time.
+        text_found = False
+        for ev in log_events:
+            if ev.get("item_type") not in ("mc", "multi"):
+                continue
+            q = qs_by_id[ev["item_ref"]]
+            given = ev["answer"] if isinstance(ev["answer"], list) else [ev["answer"]]
+            option_text = q["opts"].get(str(given[0]).strip().upper())
+            if option_text and option_text in attempt_1:
+                text_found = True
+                break
+        if not text_found:
+            fail("attempt markdown does not carry option text for any mc/multi answer")
+
+        # Ordering: two hand-built response events sharing one ts, appended
+        # in a specific log order, render in that log order -- not sorted
+        # by event_id -- and the order survives an explicit --rebuild-index
+        # of the (unrelated) disposable query index.
+        order_session = "order-session-" + session_id[:8]
+        shared_ts = "2020-06-01T00:00:00.000Z"
+        sample_q = qs[0]
+        first = itembank.response_event(
+            order_session, sample_q, "A", False, "drill", 1, os.path.basename(bank))
+        first["ts"] = shared_ts
+        first["event_id"] = "zzzz_first_by_log_order"
+        second = itembank.response_event(
+            order_session, sample_q, "A", True, "drill", 2, os.path.basename(bank))
+        second["ts"] = shared_ts
+        second["event_id"] = "aaaa_second_by_log_order"
+        itembank.append_line(log, json.dumps(first, ensure_ascii=False, sort_keys=True))
+        itembank.append_line(log, json.dumps(second, ensure_ascii=False, sort_keys=True))
+
+        ordered = itembank.session_events(log, order_session)
+        if [ev["score"] for ev in ordered] != [False, True]:
+            fail("hand-built same-ts events were not returned in log order: %r" %
+                 [ev["event_id"] for ev in ordered])
+
+        run(["evidence", "--session", order_session, "--rebuild-index", "--base", tmp], tmp)
+        ordered_after_rebuild = itembank.session_events(log, order_session)
+        if [ev["score"] for ev in ordered_after_rebuild] != [False, True]:
+            fail("same-ts log order changed after --rebuild-index: %r" %
+                 [ev["event_id"] for ev in ordered_after_rebuild])
+
+        # Retraction: retracting one response removes exactly its section
+        # and drops the status line's count by one -- every count in a
+        # render is post-retraction (D-10).
+        target_event = next(ev for ev in log_events if ev["item_ref"] != short_ref)
+        before_count = len(itembank.session_events(log, session_id))
+        if ("**Status:** %d response(s)" % before_count) not in attempt_1:
+            fail("test setup: expected the status line to name %d responses "
+                 "before retraction:\n%s" % (before_count, attempt_1))
+        run(["retract", target_event["event_id"], "--reason", "render test retraction",
+             "--base", tmp], tmp)
+
+        after_events = itembank.session_events(log, session_id)
+        if len(after_events) != before_count - 1:
+            fail("retracting one response did not drop session_events by exactly one")
+        attempt_after = itembank.render_attempt_md(log, session_id, qs, bank)
+        if ("**Status:** %d response(s)" % (before_count - 1)) not in attempt_after:
+            fail("attempt markdown's status count did not drop by one after "
+                 "retraction:\n%s" % attempt_after)
+        retracted_q = qs_by_id[target_event["item_ref"]]
+        if retracted_q["stem"][:30] in attempt_after:
+            fail("the retracted item's stem is still present in the rendered "
+                 "attempt markdown after retraction")
+
+        session_after = itembank.render_session_json(log, session_id, qs, bank)
+        if len(session_after["responses"]) != before_count - 1:
+            fail("rendered session JSON did not drop by one response after retraction")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_mark_flow():
+    """D-12 and EVID-07's review_state: a batch marks several answers in
+    one invocation, a corrected verdict records as a new live mark rather
+    than mutating the old one, an undo restores the prior verdict, and the
+    underlying response event's own score is never touched by any of it.
+    """
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "sample_bank.md")
+        shutil.copyfile(BANK, bank)
+        log = itembank.log_path(tmp)
+
+        session_id, qs, qs_by_id, short_ref, auto_refs = drive_full_session(tmp, bank)
+        if len(auto_refs) < 2:
+            fail("expected at least two auto-scored items to mark alongside the "
+                 "short item, got %r" % auto_refs)
+
+        attempt_before = itembank.render_attempt_md(log, session_id, qs, bank)
+        if "MARK: pending" not in attempt_before:
+            fail("an unmarked short item did not render MARK: pending:\n%s" %
+                 attempt_before)
+
+        short_q = qs_by_id[short_ref]
+        marks_file = os.path.join(tmp, "marks.ndjson")
+        with open(marks_file, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({
+                "item_ref": short_ref, "verdict": True,
+                "rubric": [{"point": p, "pass": True} for p in short_q["rubric"]],
+                "notes": "covers every rubric point",
+            }) + "\n")
+            fh.write(json.dumps({"item_ref": auto_refs[0], "verdict": True}) + "\n")
+            fh.write(json.dumps({"item_ref": auto_refs[1], "verdict": True}) + "\n")
+
+        result1 = mark_json(["--session", session_id, "--file", marks_file], tmp)
+        if result1["recorded"] != 3 or result1["already_recorded"] != 0:
+            fail("a genuine three-entry batch reported %r, not recorded 3" % result1)
+
+        attempt_marked = itembank.render_attempt_md(log, session_id, qs, bank)
+        if "MARK: PASS" not in attempt_marked:
+            fail("a marked short item did not render MARK: PASS:\n%s" % attempt_marked)
+        if "(pass)" not in attempt_marked:
+            fail("a marked short item's rubric outcomes did not render:\n%s" %
+                 attempt_marked)
+
+        # Re-running the identical batch dedupes: the log grows by zero lines.
+        lines_before_replay = len(
+            [l for l in open(log, encoding="utf-8").read().splitlines() if l.strip()])
+        result2 = mark_json(["--session", session_id, "--file", marks_file], tmp)
+        if result2["already_recorded"] != 3 or result2["recorded"] != 0:
+            fail("replaying an identical mark batch reported %r, not "
+                 "already_recorded 3" % result2)
+        lines_after_replay = len(
+            [l for l in open(log, encoding="utf-8").read().splitlines() if l.strip()])
+        if lines_after_replay != lines_before_replay:
+            fail("replaying an identical mark batch appended a line to the log: "
+                 "%d -> %d" % (lines_before_replay, lines_after_replay))
+
+        # A correction: mark the short item again with the opposite verdict.
+        result3 = mark_json(
+            ["--session", session_id, "--item", short_ref, "--verdict", "fail"], tmp)
+        if result3["recorded"] != 1:
+            fail("a corrected verdict reported %r, not recorded" % result3)
+        flip_event_id = result3["marks"][0]["event_id"]
+        attempt_flipped = itembank.render_attempt_md(log, session_id, qs, bank)
+        if "MARK: FAIL" not in attempt_flipped:
+            fail("the corrected verdict did not render as MARK: FAIL:\n%s" %
+                 attempt_flipped)
+
+        # Undo the correction: the render shows the original verdict again.
+        run(["retract", flip_event_id, "--reason", "undo the test correction",
+             "--base", tmp], tmp)
+        attempt_restored = itembank.render_attempt_md(log, session_id, qs, bank)
+        if "MARK: PASS" not in attempt_restored:
+            fail("retracting the correcting mark did not restore MARK: PASS:\n%s" %
+                 attempt_restored)
+
+        # The response event's own score is untouched throughout -- a mark
+        # is a separate fact about it, never a mutation of it (T-1-23).
+        short_events = [ev for ev in itembank.session_events(log, session_id)
+                        if ev["item_ref"] == short_ref]
+        if len(short_events) != 1:
+            fail("expected exactly one live response event for the short item, "
+                 "found %d" % len(short_events))
+        if short_events[0]["score"] is not None:
+            fail("the short item's response event score changed after marking: %r" %
+                 short_events[0]["score"])
+
+        # Marking something never answered in this session is a named error,
+        # and appends nothing.
+        lines_before_bad = len(
+            [l for l in open(log, encoding="utf-8").read().splitlines() if l.strip()])
+        r = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "itembank.py"), "mark",
+             "--session", session_id, "--item", "not-a-real-item-ref",
+             "--verdict", "pass", "--base", tmp],
+            cwd=tmp, capture_output=True, text=True)
+        if r.returncode == 0:
+            fail("marking an item never answered in this session exited 0")
+        if "not-a-real-item-ref" not in (r.stdout + r.stderr):
+            fail("marking an unresolved item_ref did not name it: %r" %
+                 (r.stdout + r.stderr))
+        lines_after_bad = len(
+            [l for l in open(log, encoding="utf-8").read().splitlines() if l.strip()])
+        if lines_after_bad != lines_before_bad:
+            fail("marking an unresolved item_ref appended a line to the log")
+
+        # A non-human marker is rejected outright (T-1-24).
+        try:
+            itembank.mark_event(session_id, "", short_ref, "x", True, marker="model")
+            fail("mark_event accepted a non-human marker")
+        except ValueError:
+            pass
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     test_tracer_end_to_end()
     test_mode_recorded()
@@ -1057,10 +1366,12 @@ def main():
     test_retraction()
     test_objective_query()
     test_index_is_disposable()
+    test_renders_match_log()
+    test_mark_flow()
     print("evidence contract: ok (tracer end-to-end, mode recorded, empty log, one writer, "
           "identity survives edit, missing/duplicate ids, fingerprint stability, hash "
           "states, lint order, duplicate-submit dedupe, retraction, objective query, "
-          "index disposability)")
+          "index disposability, renders match log, mark flow)")
     return 0
 
 
