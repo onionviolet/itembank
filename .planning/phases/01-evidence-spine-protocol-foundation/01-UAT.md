@@ -1,20 +1,14 @@
 ---
-status: testing
+status: complete
 phase: 01-evidence-spine-protocol-foundation
 source: [01-VERIFICATION.md]
 started: 2026-08-06T00:00:00Z
-updated: 2026-08-06T00:00:00Z
+updated: 2026-08-07T00:00:00Z
 ---
 
 ## Current Test
 
-number: 1
-name: `itembank schema --all` is sufficient for a fresh model to author all six item types
-expected: |
-  A model with no repository access, given only the pasted output of `itembank schema --all`,
-  authors one item of each of the six types plus one legal recorded response — with no
-  back-and-forth needed to discover a field the schema left out.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -26,7 +20,7 @@ why_human: 01-06-PLAN.md's own Task 3 marks this a sufficiency judgment, not a s
 
 how_to_run: `python itembank.py schema --all` — paste the output into a fresh model context with no other files attached.
 
-result: [pending]
+result: pass
 
 ### 2. `render_session_json`'s seed/selection approximation is acceptable
 
@@ -36,14 +30,15 @@ why_human: 01-09-PLAN.md and 01-09-SUMMARY.md both document this as a deliberate
 
 decision_shape: Either accept the approximation as-is, or open a follow-up plan that captures seed and original selection as first-class logged facts at session start.
 
-result: [pending]
+result: pass
+decision: "accept the approximation as-is"
 
 ## Summary
 
 total: 2
-passed: 0
+passed: 2
 issues: 0
-pending: 2
+pending: 0
 skipped: 0
 blocked: 0
 
