@@ -9,7 +9,8 @@ import argparse, collections, json, os, sys
 from model import BANK_FILE_HINTS, SPEC, lint, load, parse_bank
 from surfaces.anki import cmd_export
 from surfaces.day import cmd_day
-from surfaces.evidence_cli import cmd_evidence, cmd_id_assign, cmd_render, cmd_retract
+from surfaces.evidence_cli import (cmd_evidence, cmd_id_assign, cmd_mark, cmd_render,
+                                   cmd_retract)
 from surfaces.protocol_cli import cmd_schema
 from surfaces.quiz import cmd_build, cmd_serve
 from surfaces.session import cmd_next, cmd_report, cmd_start, cmd_submit
@@ -202,6 +203,19 @@ def main():
                    help="directory holding _evidence/ (default: current directory)")
     s.add_argument("--out", help="write atomically to this path instead of stdout")
     s.set_defaults(fn=cmd_render)
+
+    s = sub.add_parser("mark", help="record a batch of short-answer marks as timestamped "
+                       "events; the attempt file no longer accepts a hand-edited MARK: "
+                       "line (D-12)")
+    s.add_argument("--session", required=True, help="the session_id being marked")
+    s.add_argument("--base", default=".",
+                   help="directory holding _evidence/ (default: current directory)")
+    s.add_argument("--file", help="NDJSON batch file, one mark per line; '-' reads stdin")
+    s.add_argument("--marks", help="inline JSON array of marks")
+    s.add_argument("--item", help="single-mark convenience form: the item_ref to mark")
+    s.add_argument("--verdict", choices=("pass", "fail"), default=None,
+                   help="required with --item")
+    s.set_defaults(fn=cmd_mark)
 
     s = sub.add_parser("id-assign", help="assign opaque ids and content-hash fingerprints "
                        "into a bank; the only command that writes into a bank -- lint "

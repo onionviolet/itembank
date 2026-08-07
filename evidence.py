@@ -151,15 +151,21 @@ def _tail_dedupe_keys(fd, window):
     belongs to the line before it, not a record of its own), and parse the
     rest with the same defensive per-line handling `iter_raw` uses.
 
-    Returns a dict of dedupe_key -> event_id for every response event found
-    in the scanned tail whose event_id has not also been retracted within
-    that same tail -- retraction-aware, so a retracted response's key is
-    not mistaken for still-recorded when the same answer is resubmitted
-    (D-10; exercised by `tests/evidence_roundtrip.py`'s test_retraction).
-    A retraction whose target lies outside the scanned window is a residual
+    Returns a dict of dedupe_key -> event_id for every dedupe-eligible
+    event found in the scanned tail whose event_id has not also been
+    retracted within that same tail -- retraction-aware, so a retracted
+    response's key is not mistaken for still-recorded when the same answer
+    is resubmitted (D-10; exercised by `tests/evidence_roundtrip.py`'s
+    test_retraction), and a retracted mark's key is not mistaken for
+    still-recorded when the same verdict is remarked (D-12; exercised by
+    test_mark_flow). "Dedupe-eligible" is any event whose own `dedupe_key`
+    is non-null -- response and mark events today -- rather than a
+    hardcoded list of event types, so a future event type that carries a
+    real `dedupe_key` dedupes correctly without a second edit here. A
+    retraction whose target lies outside the scanned window is a residual
     this bound accepts, the same way an old duplicate is: both are rare and
     both are recoverable, one by retraction and the other by the fact that
-    a fresh submission just becomes attempt N+1.
+    a fresh submission (or remark) just becomes the next live one.
     """
     size = os.lseek(fd, 0, os.SEEK_END)
     start = max(0, size - window)
@@ -182,12 +188,10 @@ def _tail_dedupe_keys(fd, window):
         if not isinstance(obj, dict):
             continue
         et = obj.get("event_type")
-        if et == "retraction":
+        if et == RETRACTION_EVENT_TYPE:
             target = obj.get("retracts")
             if target:
                 retracted_seen.add(target)
-            continue
-        if et != RESPONSE_EVENT_TYPE:
             continue
         dk, eid = obj.get("dedupe_key"), obj.get("event_id")
         if dk and eid:
@@ -1004,6 +1008,62 @@ def event_by_id(log, event_id):
         if ev.get("event_id") == event_id:
             return ev
     return None
+
+
+# ---- marks (01-09) ----------------------------------------------------------
+# D-12: the attempt file stops being an editable input, so marking a `short`
+# answer moves to a first-class, timestamped event instead of a hand-edited
+# `MARK:` line. A mark is a separate fact ABOUT a response, never a mutation
+# OF it (T-1-23): the response event's own `score` stays `None` forever, and
+# `review_state` is computed at read time from `marks_by_event`, above.
+
+
+def mark_event(session_id, item_id, item_ref, marks_event, verdict, rubric=None,
+                notes="", marker="human"):
+    """Build one mark event: a timestamped, first-class fact about the
+    response event named by `marks_event`, appended alongside it rather
+    than mutating it.
+
+    `verdict` is coerced to `bool` -- dichotomous, matching every other
+    scored surface in this tool (PARTIAL exists in `GRADING.md`'s procedure
+    to describe an answer, never to award half credit). `rubric` is a list
+    of `{"point": <the rubric text>, "pass": <bool>}`, defaulting to `[]`.
+
+    `marker` must be `"human"` in this phase: a model verdict is not
+    accepted evidence until Phase 8 (TEACH-09) teaches the runtime to hold
+    one as pending review instead, so any other value raises `ValueError`
+    rather than being recorded as a settled fact (T-1-24).
+
+    `dedupe_key` is computed over `(session_id, marks_event, verdict, a
+    canonical encoding of rubric)`, so replaying an identical batch is
+    idempotent (`append_event` reports `already_recorded`), while a
+    genuinely corrected verdict or rubric — a different tuple — always
+    records as a new, live mark that `marks_by_event` then prefers.
+    """
+    if marker != "human":
+        raise ValueError(
+            "mark_event: marker must be 'human' in this phase (got %r); a "
+            "model verdict is not accepted evidence until Phase 8 (TEACH-09)"
+            % (marker,))
+    rubric = [{"point": r["point"], "pass": bool(r["pass"])} for r in (rubric or [])]
+    rubric_canon = json.dumps(rubric, ensure_ascii=False, sort_keys=True)
+    verdict = bool(verdict)
+    raw = "%s|%s|%s|%s" % (session_id, marks_event, verdict, rubric_canon)
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": MARK_EVENT_TYPE,
+        "ts": utc_now(),
+        "session_id": session_id,
+        "item_id": item_id,
+        "item_ref": item_ref,
+        "marks_event": marks_event,
+        "verdict": verdict,
+        "rubric": rubric,
+        "notes": notes or "",
+        "marker": marker,
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
 
 
 # ---- renders (01-09) --------------------------------------------------------

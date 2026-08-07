@@ -69,11 +69,11 @@ from evidence import (EVENT_SCHEMA_VERSION, INDEX_VERSION, append_event,       #
                       event_by_id, event_matches, evidence_dir, events,
                       idempotency_canon, index_for_log, index_path,
                       index_stale, iter_raw, live_events, locked, log_path,
-                      marks_by_event, new_event_id, objective_history,
-                      objective_rollup, recent_dedupe_keys, rebuild_index,
-                      render_attempt_md, render_session_json, response_event,
-                      retracted_ids, retraction_event, session_events,
-                      subject_of, utc_now)
+                      mark_event, marks_by_event, new_event_id,
+                      objective_history, objective_rollup, recent_dedupe_keys,
+                      rebuild_index, render_attempt_md, render_session_json,
+                      response_event, retracted_ids, retraction_event,
+                      session_events, subject_of, utc_now)
 from schema_validate import SUPPORTED, SchemaError, validate                  # noqa: E402
 
 __all__ = [
@@ -93,8 +93,8 @@ __all__ = [
     "lane_behind",
     "lane_files", "lane_load", "lint", "lint_lane_decks", "lint_lane_paths",
     "live_events", "load", "load_day_log", "locked", "log_path",
-    "main", "marks_by_event", "new_event_id", "new_item_id", "normalize_answer",
-    "notes",
+    "main", "mark_event", "marks_by_event", "new_event_id", "new_item_id",
+    "normalize_answer", "notes",
     "objective_history", "objective_rollup", "page_item", "parse_bank",
     "parse_lanes",
     "parse_plan", "parse_question",

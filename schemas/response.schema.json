@@ -110,10 +110,55 @@
   "$defs": {
     "mark_event": {
       "type": "object",
-      "description": "Reserved shape for a mark event, written by plan 01-09. Not yet enforced.",
+      "description": "The mark event's real shape (plan 01-09, D-12): a first-class, timestamped fact about a response event, appended alongside it and never a mutation of it -- the response event's own score stays null forever, and review_state is computed at read time from evidence.marks_by_event(), never written back. Not yet wired into a top-level oneOf with the response shape above, so this remains descriptive rather than enforced against a raw evidence.jsonl line.",
       "properties": {
         "event_type": {
           "const": "mark"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "item_id": {
+          "type": "string",
+          "description": "The opaque [ID:] identity field copied from the response event being marked, empty string when that item has never had id-assign run against it"
+        },
+        "item_ref": {
+          "type": "string",
+          "description": "The Qn-derived positional id copied from the response event being marked"
+        },
+        "marks_event": {
+          "type": "string",
+          "description": "The event_id of the response event this mark is about"
+        },
+        "verdict": {
+          "type": "boolean",
+          "description": "true for pass, false for fail -- dichotomous, matching every other scored surface in this tool; PARTIAL exists only in GRADING.md's procedure to describe an answer, never to award half credit"
+        },
+        "rubric": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "point": {
+                "type": "string"
+              },
+              "pass": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "notes": {
+          "type": "string"
+        },
+        "marker": {
+          "type": "string",
+          "const": "human",
+          "description": "Always 'human' in this phase; a model verdict is not accepted evidence until Phase 8 (TEACH-09)"
+        },
+        "dedupe_key": {
+          "type": "string",
+          "description": "sha256 over (session_id, marks_event, verdict, a canonical encoding of rubric), so replaying an identical batch reports already_recorded and a corrected verdict or rubric always records a new, live mark"
         }
       }
     },

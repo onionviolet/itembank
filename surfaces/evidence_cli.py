@@ -173,6 +173,135 @@ def cmd_render(a):
     return 0
 
 
+def _resolve_marks_event(log, session_id, item_ref):
+    """The most recent LIVE response event for `session_id` and `item_ref`
+    -- what a mark's `marks_event` field must name. Returns the response
+    event dict, or `None` when nothing was ever answered for that item in
+    this session, which `cmd_mark` treats as a named error rather than a
+    mark with a dangling target.
+    """
+    candidate = None
+    for ev in evidence.live_events(log):
+        if ev.get("event_type") != evidence.RESPONSE_EVENT_TYPE:
+            continue
+        if ev.get("session_id") != session_id:
+            continue
+        if ev.get("item_ref") != item_ref:
+            continue
+        candidate = ev
+    return candidate
+
+
+def _normalize_verdict(raw):
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, str):
+        low = raw.strip().lower()
+        if low in ("pass", "true"):
+            return True
+        if low in ("fail", "false"):
+            return False
+    sys.exit("mark: verdict must be pass/fail (or true/false), got %r" % (raw,))
+
+
+def _normalize_rubric(raw):
+    if not raw:
+        return []
+    out = []
+    for r in raw:
+        if not isinstance(r, dict) or "point" not in r or "pass" not in r:
+            sys.exit("mark: each rubric entry needs 'point' and 'pass', got %r" % (r,))
+        out.append({"point": r["point"], "pass": bool(r["pass"])})
+    return out
+
+
+def _load_marks_batch(a):
+    """Exactly one of `--file`, `--marks` or `--item` selects the batch
+    (D-12 requires the command to accept a batch; `--item` is the
+    single-mark convenience form for one answer). Returns a list of raw
+    mark dicts, in input order, none of which have been resolved or
+    validated against the log yet.
+    """
+    given = [x for x in (a.file, a.marks, a.item) if x]
+    if len(given) != 1:
+        sys.exit("mark: give exactly one of --file, --marks or --item")
+    if a.file:
+        text = sys.stdin.read() if a.file == "-" else open(a.file, encoding="utf-8").read()
+        entries = []
+        for lineno, line in enumerate(text.splitlines(), 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except ValueError as exc:
+                sys.exit("mark: %s:%d is not valid JSON (%s)" % (a.file, lineno, exc))
+        return entries
+    if a.marks:
+        try:
+            entries = json.loads(a.marks)
+        except ValueError as exc:
+            sys.exit("mark: --marks is not valid JSON (%s)" % exc)
+        if not isinstance(entries, list):
+            sys.exit("mark: --marks must be a JSON array")
+        return entries
+    if not a.verdict:
+        sys.exit("mark: --item requires --verdict")
+    return [{"item_ref": a.item, "verdict": a.verdict}]
+
+
+def cmd_mark(a):
+    """Record a batch of marks as timestamped events (D-12) -- twenty short
+    answers marked in one invocation, not twenty separate ones.
+
+    Every entry's `item_ref` is resolved to its most recent live response
+    event, and every entry in the batch is resolved before anything is
+    appended: a batch that names one item never answered in this session
+    exits non-zero naming the reference, with nothing appended for any
+    entry in that batch, rather than partially recording the marks that
+    happened to resolve first.
+    """
+    log = evidence.log_path(a.base)
+    entries = _load_marks_batch(a)
+    if not entries:
+        sys.exit("mark: no marks given")
+
+    resolved = []
+    for entry in entries:
+        item_ref = entry.get("item_ref")
+        if not item_ref:
+            sys.exit("mark: an entry is missing item_ref: %r" % (entry,))
+        target = _resolve_marks_event(log, a.session, item_ref)
+        if target is None:
+            sys.exit("mark: no response recorded for item_ref %r in session %s; "
+                      "marking something that was never answered is not allowed" %
+                      (item_ref, a.session))
+        verdict = _normalize_verdict(entry.get("verdict"))
+        rubric = _normalize_rubric(entry.get("rubric"))
+        notes = entry.get("notes") or ""
+        resolved.append((item_ref, target, verdict, rubric, notes))
+
+    results = []
+    recorded = already_recorded = 0
+    for item_ref, target, verdict, rubric, notes in resolved:
+        event = evidence.mark_event(
+            a.session, target.get("item_id", ""), item_ref, target["event_id"],
+            verdict, rubric=rubric, notes=notes)
+        write_result = evidence.append_event(log, event)
+        results.append({"item_ref": item_ref, "marks_event": target["event_id"],
+                        "status": write_result["status"], "event_id": write_result["event_id"]})
+        if write_result["status"] == "recorded":
+            recorded += 1
+        else:
+            already_recorded += 1
+
+    payload = {"schema_version": evidence.EVENT_SCHEMA_VERSION, "session_id": a.session,
+              "marks": results, "recorded": recorded, "already_recorded": already_recorded}
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    print("%d recorded, %d already recorded" % (recorded, already_recorded))
+    return 0
+
+
 def cmd_id_assign(a):
     paths = a.banks
     texts = {}
