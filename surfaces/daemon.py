@@ -1,15 +1,17 @@
 """One process, one port, one ordered route table.
 
 Every earlier surface bound its own socket: `serve` for a sitting, `day` for
-the cockpit, and a static `build` page with nothing behind it at all. That
-duplication is the point this module removes. `DaemonHandler` is the one
-`server.Handler` subclass this phase adds; `ROUTES` is the one ordered table
-every request walks; every route handler resolves its identifier through a
-startup-built allowlist and then calls into the render and runtime functions
-that already exist -- `quiz.page_for()`, `quiz.record_answer()`,
-`runtime.score_response()` (by way of `record_answer`), `evidence.append_event()`
-(by way of `record_answer`) -- never a second copy of any of them living in a
-route handler.
+the cockpit, `study` for flashcards, and a static `build` page with nothing
+behind it at all. That duplication is the point this module removes.
+`DaemonHandler` is the one `server.Handler` subclass this phase adds; `ROUTES`
+is the one ordered table every request walks; every route handler resolves
+its identifier through a startup-built allowlist and then calls into the
+render and runtime functions that already exist -- `quiz.page_for()`,
+`quiz.record_answer()`, `study.study_page()`, `day.day_render()`,
+`day.apply_day_post()`, `runtime.score_response()` (by way of
+`record_answer`), `evidence.append_event()` (by way of `record_answer` and
+`apply_day_post`) -- never a second copy of any of them living in a route
+handler.
 """
 import datetime, html, os, re, socketserver, sys, threading, urllib.parse, uuid, webbrowser
 
@@ -17,7 +19,7 @@ import evidence
 import server
 from model import load, parse_bank
 from runtime import explain_payload
-from surfaces import day, quiz
+from surfaces import day, quiz, study
 from surfaces.theme import THEME_CSS
 
 
@@ -30,16 +32,28 @@ SKIP_DIRS = {".git", ".github", "_attempts", "_evidence"}
 
 QUIZ_GET_RE = re.compile(r"^/quiz/(?P<stem>[^/]+)$")
 QUIZ_ANSWER_RE = re.compile(r"^/quiz/(?P<stem>[^/]+)/answer$")
+STUDY_GET_RE = re.compile(r"^/study/(?P<stem>[^/]+)$")
+DAY_GET_RE = re.compile(r"^/day/(?P<stem>[^/]+)$")
+DAY_SAVE_RE = re.compile(r"^/day/(?P<stem>[^/]+)/save$")
+DAY_OPEN_RE = re.compile(r"^/day/(?P<stem>[^/]+)/open$")
 
 # Order is load-bearing: every fixed literal route comes before every
-# stem-parameterised route, so a bank whose stem happens to be "report",
-# "day" or "api" can never shadow a fixed route. Dispatch is first-match-wins
-# over this tuple, walked in order by `DaemonHandler._dispatch`.
+# stem-parameterised route, so a bank or plan whose stem happens to be
+# "report", "day" or "api" can never shadow a fixed route. Dispatch is
+# first-match-wins over this tuple, walked in order by
+# `DaemonHandler._dispatch`. `/day` is the one fixed route with plan-scoped
+# siblings (`/day/<stem>`, `/day/<stem>/save`, `/day/<stem>/open`); it is
+# ordered ahead of them for the same reason.
 ROUTES = (
     ("GET", "/", "handle_index"),
     ("GET", MARKER_PATH, "handle_marker"),
+    ("GET", "/day", "handle_day_index"),
     ("GET", QUIZ_GET_RE, "handle_quiz_get"),
     ("POST", QUIZ_ANSWER_RE, "handle_quiz_answer"),
+    ("GET", STUDY_GET_RE, "handle_study_get"),
+    ("GET", DAY_GET_RE, "handle_day_get"),
+    ("POST", DAY_SAVE_RE, "handle_day_save"),
+    ("POST", DAY_OPEN_RE, "handle_day_open"),
 )
 
 # Every route in ROUTES has a CLI command that reaches the same runtime
@@ -52,6 +66,11 @@ ROUTE_CLI = {
     ("GET", MARKER_PATH): "daemon",
     ("GET", QUIZ_GET_RE): "serve",
     ("POST", QUIZ_ANSWER_RE): "serve",
+    ("GET", STUDY_GET_RE): "study",
+    ("GET", "/day"): "day",
+    ("GET", DAY_GET_RE): "day",
+    ("POST", DAY_SAVE_RE): "day",
+    ("POST", DAY_OPEN_RE): "day",
 }
 
 
@@ -109,6 +128,18 @@ NOT_FOUND_BODY = (
     "<p>No bank or session matching &quot;%s&quot; is being served from this "
     "daemon. It may have been renamed, or the daemon was started in a "
     "different folder.</p></body></html>"
+)
+
+# `GET /day`'s defined behaviour for the ambiguous case (D-08's plan): with
+# zero or with two-or-more plans scanned there is no single answer for
+# "the" day plan, so this is the documented outcome rather than a guess at
+# which one the client meant. Carries no filesystem path (T-2-05).
+DAY_AMBIGUOUS_BODY = (
+    '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+    "<title>Not found</title></head><body><h1>Not found</h1>"
+    "<p>%s day plan%s scanned from this daemon, so <code>/day</code> alone is "
+    'ambiguous. Visit <a href="/">/</a> and open the plan you want by name '
+    "instead.</p></body></html>"
 )
 
 EMPTY_STATE = """<div class="empty">
@@ -243,6 +274,106 @@ def handle_quiz_answer(handler, stem):
     handler.send_json(payload)
 
 
+def handle_study_get(handler, stem):
+    """`GET /study/<stem>` -- the flashcard/Learn page for one bank, resolved
+    through the startup allowlist and rendered by `study.study_page()`. No
+    second copy of the study template lives here.
+    """
+    path = handler.banks.get(stem)
+    if path is None:
+        handler.send_not_found(stem)
+        return
+    qs = load(path)
+    page = study.study_page(path, qs)
+    handler.send_html(page.encode("utf-8"))
+
+
+def _plan_day_state(handler, stem):
+    """Get or lazily build this plan's `day.day_state`, cached on the
+    handler class so ticks accumulate across requests exactly as they did
+    within one `cmd_day` process (T-2-12). The log/lanes paths default to
+    beside the plan file, the same defaulting `cmd_day` does when `--log`/
+    `--lanes` are not given.
+    """
+    state = handler.day_states.get(stem)
+    if state is not None:
+        return state
+    path = handler.plans[stem]
+    plan_dir = os.path.dirname(os.path.abspath(path)) or "."
+    log_path = os.path.join(plan_dir, "daily_log.md")
+    lanes_path = os.path.join(plan_dir, "lanes.md")
+    iso = datetime.date.today().isoformat()
+    state = day.day_state(path, log_path, lanes_path, iso, base="/day/%s" % stem)
+    handler.day_states[stem] = state
+    return state
+
+
+def handle_day_get(handler, stem):
+    """`GET /day/<stem>` -- one plan's cockpit, rendered by `day.day_render()`
+    with its own plan-scoped `base` so the page's own POSTs come back to
+    this same stem (T-2-12).
+    """
+    if stem not in handler.plans:
+        handler.send_not_found(stem)
+        return
+    state = _plan_day_state(handler, stem)
+    handler.send_html(day.day_render(state))
+
+
+def handle_day_index(handler):
+    """`GET /day` -- serves the sole scanned plan when exactly one exists;
+    the ambiguous case (zero, or two-or-more) is the documented 404 rather
+    than a guess at which plan the client meant.
+    """
+    if len(handler.plans) == 1:
+        (stem,) = handler.plans
+        handle_day_get(handler, stem)
+        return
+    n = len(handler.plans)
+    body = DAY_AMBIGUOUS_BODY % ("No" if n == 0 else str(n), "" if n == 1 else "s")
+    handler.send_bytes(body.encode("utf-8"), "text/html; charset=utf-8", status=404)
+
+
+def handle_day_save(handler, stem):
+    """`POST /day/<stem>/save` -- one plan's tick save, through
+    `day.apply_day_post()`. Never calls `evidence.append_event()` or
+    `evidence.render_daily_log()` directly (T-2-11, T-2-12).
+    """
+    if stem not in handler.plans:
+        handler.send_not_found(stem)
+        return
+    try:
+        state = _plan_day_state(handler, stem)
+        data = handler.read_json()
+        result = day.apply_day_post(state, "save", data)
+    except Exception as exc:                    # never let a bad POST kill the daemon
+        handler.send_error(500, str(exc))
+        return
+    handler.send_json(result)
+
+
+def handle_day_open(handler, stem):
+    """`POST /day/<stem>/open` -- one plan's "open in editor", through
+    `day.apply_day_post()`. An out-of-range `(lane, index)` comes back as
+    `None`, which this handler alone turns into a 404 (T-2-10) --
+    `apply_day_post` has no `self` to call `send_error` on.
+    """
+    if stem not in handler.plans:
+        handler.send_not_found(stem)
+        return
+    try:
+        state = _plan_day_state(handler, stem)
+        data = handler.read_json()
+        result = day.apply_day_post(state, "open", data)
+    except Exception as exc:                    # never let a bad POST kill the daemon
+        handler.send_error(500, str(exc))
+        return
+    if result is None:
+        handler.send_error(404)
+        return
+    handler.send_json(result)
+
+
 class DaemonHandler(server.Handler):
     """The one `Handler` subclass this phase adds. Its state -- the
     `banks`/`plans` allowlists, the served root, and each bank's session
@@ -255,6 +386,7 @@ class DaemonHandler(server.Handler):
     collisions = []
     root = "."
     sessions = {}
+    day_states = {}
 
     def send_not_found(self, name):
         """The documented not-found copy: the stem the client asked for and
@@ -346,6 +478,7 @@ def cmd_daemon(a):
     DaemonHandler.collisions = collisions
     DaemonHandler.root = root
     DaemonHandler.sessions = sessions
+    DaemonHandler.day_states = {}                  # built lazily, one per served plan
 
     srv = _bind(a.port)
     with srv:

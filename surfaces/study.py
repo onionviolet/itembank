@@ -40,6 +40,22 @@ function start(){order=shuffle([...Array(CARDS.length).keys()]);if(mode==="flash
 </script></body></html>"""
 
 
+def study_page(bank_path, qs):
+    """The exact substitution chain `cmd_study` used to run inline, factored
+    out so the daemon and the CLI render the study surface from one function
+    instead of two copies of the same three `.replace()` calls (D-08
+    extended to the study surface). Returns the page string; the study
+    surface has no client POST at all, so no path parameterisation is
+    needed here the way `quiz.page_for()` and `day.day_page()` need one.
+    """
+    title = grab(r"(?m)^#\s+(.*?)\s*$", open(bank_path, encoding="utf-8").read()) \
+        or os.path.basename(bank_path)
+    return (STUDY_TEMPLATE.replace("__THEME__", THEME_CSS)
+            .replace("__TITLE__", html.escape(title))
+            .replace("__DATA__", json.dumps([study_item(q) for q in qs],
+                                            ensure_ascii=False)))
+
+
 def cmd_study(a):
     qs = load(a.bank)
     errors, _ = lint(qs)
@@ -47,11 +63,7 @@ def cmd_study(a):
         sys.exit("refusing to study a bank with errors; fix them or pass --force")
     out = a.out or os.path.splitext(a.bank)[0] + "_study.html"
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
-    title = grab(r"(?m)^#\s+(.*?)\s*$", open(a.bank, encoding="utf-8").read()) or os.path.basename(a.bank)
-    page = (STUDY_TEMPLATE.replace("__THEME__", THEME_CSS)
-            .replace("__TITLE__", html.escape(title))
-            .replace("__DATA__", json.dumps([study_item(q) for q in qs],
-                                            ensure_ascii=False)))
+    page = study_page(a.bank, qs)
     open(out, "w", encoding="utf-8").write(page)
     print("%d items -> %s" % (len(qs), out))
     return 0

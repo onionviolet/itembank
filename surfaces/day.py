@@ -611,7 +611,7 @@ function paint(){
 function save(){
  var on=paint();
  var r=new XMLHttpRequest();
- r.open('POST','/save');
+ r.open('POST',D.base+'/save');
  r.setRequestHeader('Content-Type','application/json');
  r.onload=function(){
   try{
@@ -627,7 +627,7 @@ function save(){
 }
 function openFile(lane,i){
  var r=new XMLHttpRequest();
- r.open('POST','/open');
+ r.open('POST',D.base+'/open');
  r.setRequestHeader('Content-Type','application/json');
  r.send(JSON.stringify({lane:lane,i:i}));
 }
@@ -669,7 +669,7 @@ def lane_badges(li):
     return out
 
 
-def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None):
+def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None, base=""):
     e = html.escape
     info = info or {}
     lane_info = info.get("lanes", {})
@@ -712,7 +712,12 @@ def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None):
     chips = '<div class="chips">%s</div>' % "".join(chips) if chips else ""
     notes = "".join('<div class="note">%s</div>' % e(m)
                     for m in info.get("notes", []))
-    boot = {"date": iso, "lanes": list(DAY_LANES), "floor": list(FLOOR_LANES)}
+    # `base` is the plan-scoped POST prefix (T-2-12): one process serving
+    # more than one plan needs each page to say which plan's save/open
+    # routes it posts back to, the same fix `__POST__` was for the quiz
+    # page. An empty base (the default) preserves the pre-daemon behaviour
+    # of posting to root-relative `/save` and `/open`.
+    boot = {"date": iso, "lanes": list(DAY_LANES), "floor": list(FLOOR_LANES), "base": base}
     return ("<!doctype html><html lang=en><head><meta charset=utf-8>"
             "<meta name=viewport content='width=device-width,initial-scale=1'>"
             "<title>%s</title><style>%s</style></head><body>"
@@ -825,22 +830,23 @@ def day_text(iso, weekday, row, log, streak, info):
     return "\n".join(L)
 
 
-def cmd_day(a):
-    import webbrowser, threading
+def day_state(plan_path, log_path, lanes_path, iso, base=""):
+    """Everything `cmd_day` used to compute in its pre-bind block, factored
+    out into one mutable dict so a daemon can hold one of these per served
+    plan instead of duplicating the block per launch (SURF-01 extended to
+    the day surface). Holds the parsed plan, the resolved log/lanes paths,
+    the derived evidence log (from `log_path`'s own directory, not the
+    plan's -- plan 01-10's decision, preserved exactly), the reconstructed
+    tick log, the `iso`/`today` pair, and the 60-second render cache.
+
+    `base` is the plan-scoped POST prefix (T-2-12) `day_render` passes on to
+    `day_page`: the default empty string keeps `cmd_day`'s single-plan
+    launch posting to root-relative paths exactly as before; a daemon
+    serving several plans gives each state its own `/day/<stem>`.
+    """
     from datetime import date
-
-    today = date.fromisoformat(a.date) if a.date else date.today()
-    iso = today.isoformat()
-    plan = parse_plan(a.plan, today.year)
-    if not plan:
-        sys.exit("no dated rows found in %s. A plan table needs a first column "
-                 "like `2026-07-29` or `**Mon Jul 29**`." % a.plan)
-    row = plan.get(iso, {})
-
-    log_path = a.log or os.path.join(
-        os.path.dirname(os.path.abspath(a.plan)) or ".", "daily_log.md")
-    lanes_path = a.lanes or os.path.join(
-        os.path.dirname(os.path.abspath(a.plan)) or ".", "lanes.md")
+    today = date.fromisoformat(iso)
+    plan = parse_plan(plan_path, today.year)
 
     # A lane tick is an event (D-11 extended to the day surface, plan
     # 01-10); `daily_log.md` is a render of it. The evidence log lives
@@ -857,84 +863,142 @@ def cmd_day(a):
               "evidence log." % log_path)
         log = load_day_log(log_path)
 
+    return {"plan": plan, "plan_path": plan_path, "log_path": log_path,
+            "lanes_path": lanes_path, "evidence_log": evidence_log, "log": log,
+            "iso": iso, "today": today, "base": base,
+            "cache": {"at": 0.0, "info": None}}
+
+
+def day_render(state):
+    """The body of `cmd_day`'s old `render()` closure: the 60-second
+    `day_info` cache refresh and the `day_page(...)` call, returning
+    encoded bytes. The one render function the CLI and the daemon both
+    call (D-08 extended to the day surface) -- no second copy of this
+    substitution chain lives in `surfaces/daemon.py`.
+    """
+    import time
+    cache = state["cache"]
+    if time.time() - cache["at"] > 60 or cache["info"] is None:
+        cache["info"] = day_info(state["plan"], state["log"], state["iso"],
+                                 state["plan_path"], state["lanes_path"])
+        cache["at"] = time.time()
+    row = state["plan"].get(state["iso"], {})
+    return day_page(state["iso"], state["today"].strftime("%A"), row,
+                    state["log"].get(state["iso"], set()),
+                    day_streak(state["log"], state["today"]),
+                    day_history(state["log"], state["today"]),
+                    state["plan_path"], cache["info"],
+                    base=state.get("base", "")).encode("utf-8")
+
+
+def apply_day_post(state, kind, data):
+    """The body of `cmd_day`'s old POST handler, over one plan's `state`.
+
+    `kind` is `"save"` or `"open"`. The `open` branch keeps resolving
+    `(lane, index)` against the server-built `files` list from the last
+    render and keeps its bounds check (T-2-10); an out-of-range index
+    returns `None`, a sentinel the caller turns into a 404 rather than this
+    function calling `send_error` itself, since it has no handler to call it
+    on. The `save` branch keeps appending a `day_tick_event` per newly-
+    ticked lane and a `retraction_event` per untick (T-2-11), keeps
+    filtering lane names against `DAY_LANES`, keeps rebuilding `log` from
+    `day_log_from_events`, and keeps writing `daily_log.md` through
+    `render_daily_log` plus tmp-then-`os.replace`. Nothing here is
+    reimplemented -- it is moved, verbatim in behaviour, from the handler
+    this code came from.
+    """
+    if kind == "open":
+        # Only paths this server itself resolved are openable; a client
+        # names a lane and an index, never a path.
+        files = (state["cache"].get("info") or {}).get("lanes", {}) \
+            .get(data.get("lane"), {}).get("files", [])
+        i = int(data.get("i") or 0)
+        if not (0 <= i < len(files)):
+            return None
+        open_in_editor(files[i][1])
+        return {}
+
+    # save: a tick is an append, an un-tick is a compensating retraction
+    # (D-10 extended to the day surface): nothing here is ever deleted,
+    # only appended. The lane name and date both come from this POST body
+    # (T-1-27) -- the date is validated by evidence.day_tick_event() itself,
+    # and the lane is filtered against DAY_LANES below, same as the check
+    # this replaces already did.
+    evidence_log = state["evidence_log"]
+    log = state["log"]
+    d = data.get("date") or state["iso"]
+    prev_done = log.get(d, set())
+    now_done = set(l for l in data.get("done", []) if l in DAY_LANES)
+    for lane in sorted(now_done - prev_done):
+        evidence.append_event(evidence_log, evidence.day_tick_event(d, lane))
+    for lane in sorted(prev_done - now_done):
+        target = None
+        for ev in evidence.live_events(evidence_log):
+            if (ev.get("event_type") == evidence.DAY_TICK_EVENT_TYPE
+                    and ev.get("date") == d and ev.get("lane") == lane):
+                target = ev.get("event_id")
+        if target:
+            evidence.append_event(
+                evidence_log, evidence.retraction_event(target, "unticked in day"))
+    log = evidence.day_log_from_events(evidence_log)
+    state["log"] = log
+    md = evidence.render_daily_log(log, DAY_LANES, FLOOR_LANES, day_status)
+    log_path = state["log_path"]
+    tmp = log_path + ".tmp"
+    if os.path.dirname(log_path):
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write(md)
+    os.replace(tmp, log_path)
+    return {"streak": day_streak(log, state["today"]),
+            "status": day_status(log.get(d, set())),
+            "hist": day_history(log, state["today"])}
+
+
+def cmd_day(a):
+    import webbrowser, threading
+    from datetime import date
+
+    today = date.fromisoformat(a.date) if a.date else date.today()
+    iso = today.isoformat()
+    plan = parse_plan(a.plan, today.year)
+    if not plan:
+        sys.exit("no dated rows found in %s. A plan table needs a first column "
+                 "like `2026-07-29` or `**Mon Jul 29**`." % a.plan)
+
+    log_path = a.log or os.path.join(
+        os.path.dirname(os.path.abspath(a.plan)) or ".", "daily_log.md")
+    lanes_path = a.lanes or os.path.join(
+        os.path.dirname(os.path.abspath(a.plan)) or ".", "lanes.md")
+
+    state = day_state(a.plan, log_path, lanes_path, iso)
+    row = state["plan"].get(iso, {})
+
     if a.check or a.due:
-        info = day_info(plan, log, iso, a.plan, lanes_path)
-        print(day_text(iso, today.strftime("%A"), row, log,
-                       day_streak(log, today), info))
+        info = day_info(state["plan"], state["log"], iso, a.plan, lanes_path)
+        print(day_text(iso, today.strftime("%A"), row, state["log"],
+                       day_streak(state["log"], today), info))
         print("  log: %s" % log_path)
         return 0
-
-    cache = {"at": 0.0, "info": None}
-
-    def render():
-        import time
-        if time.time() - cache["at"] > 60 or cache["info"] is None:
-            cache["info"] = day_info(plan, log, iso, a.plan, lanes_path)
-            cache["at"] = time.time()
-        return day_page(iso, today.strftime("%A"), row, log.get(iso, set()),
-                        day_streak(log, today), day_history(log, today),
-                        a.plan, cache["info"]).encode("utf-8")
 
     class H(server.Handler):
         def do_GET(self):
             if self.path not in ("/", "/index.html"):
                 self.send_error(404)
                 return
-            self.send_html(render())
+            self.send_html(day_render(state))
 
         def do_POST(self):
-            nonlocal log
             if self.path not in ("/save", "/open"):
                 self.send_error(404)
                 return
             try:
                 data = self.read_json()
-                if self.path == "/open":
-                    # Only paths this server itself resolved are openable; a
-                    # client names a lane and an index, never a path.
-                    files = (cache["info"] or {}).get("lanes", {}) \
-                        .get(data.get("lane"), {}).get("files", [])
-                    i = int(data.get("i") or 0)
-                    if not (0 <= i < len(files)):
-                        self.send_error(404)
-                        return
-                    open_in_editor(files[i][1])
-                    out = {}
-                else:
-                    # A tick is an append, an un-tick is a compensating
-                    # retraction (D-10 extended to the day surface): nothing
-                    # here is ever deleted, only appended. The lane name and
-                    # date both come from this POST body (T-1-27) -- the
-                    # date is validated by evidence.day_tick_event() itself,
-                    # and the lane is filtered against DAY_LANES below,
-                    # same as the check this replaces already did.
-                    d = data.get("date") or iso
-                    prev_done = log.get(d, set())
-                    now_done = set(l for l in data.get("done", []) if l in DAY_LANES)
-                    for lane in sorted(now_done - prev_done):
-                        evidence.append_event(
-                            evidence_log, evidence.day_tick_event(d, lane))
-                    for lane in sorted(prev_done - now_done):
-                        target = None
-                        for ev in evidence.live_events(evidence_log):
-                            if (ev.get("event_type") == evidence.DAY_TICK_EVENT_TYPE
-                                    and ev.get("date") == d and ev.get("lane") == lane):
-                                target = ev.get("event_id")
-                        if target:
-                            evidence.append_event(
-                                evidence_log,
-                                evidence.retraction_event(target, "unticked in day"))
-                    log = evidence.day_log_from_events(evidence_log)
-                    md = evidence.render_daily_log(log, DAY_LANES, FLOOR_LANES, day_status)
-                    tmp = log_path + ".tmp"
-                    if os.path.dirname(log_path):
-                        os.makedirs(os.path.dirname(log_path), exist_ok=True)
-                    with open(tmp, "w", encoding="utf-8") as fh:
-                        fh.write(md)
-                    os.replace(tmp, log_path)
-                    out = {"streak": day_streak(log, today),
-                           "status": day_status(log.get(d, set())),
-                           "hist": day_history(log, today)}
+                kind = "open" if self.path == "/open" else "save"
+                out = apply_day_post(state, kind, data)
+                if out is None:
+                    self.send_error(404)
+                    return
             except Exception as exc:
                 self.send_error(500, str(exc))
                 return
@@ -959,5 +1023,5 @@ def cmd_day(a):
             srv.serve_forever()
         except KeyboardInterrupt:
             print("\nstopped. Today: %s. Streak %d."
-                  % (day_status(log.get(iso, set())), day_streak(log, today)))
+                  % (day_status(state["log"].get(iso, set())), day_streak(state["log"], today)))
     return 0
