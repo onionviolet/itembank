@@ -46,6 +46,14 @@ def ms_since(ts):
 
 
 def do_start(bank_path, count, objective, mode, seed, out, force):
+    # A non-positive count is rejected outright rather than handed to the
+    # slice below: Python's slice semantics treat a negative stop index as
+    # "up to but excluding the last |count| elements," so count=-1 would
+    # otherwise silently produce nearly the entire bank instead of erroring
+    # on the obviously-invalid input. Checked here, not per-caller, so both
+    # the CLI's --count and /api/start's count field get the same guard.
+    if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+        sys.exit("count must be a positive integer, got %r" % (count,))
     qs = load(bank_path)
     errors, _ = lint(qs)
     if errors and not force:
