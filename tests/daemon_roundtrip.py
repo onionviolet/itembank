@@ -23,6 +23,7 @@ import evidence                                             # noqa: E402
 from surfaces import cli, daemon, study                    # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import agent_roundtrip                                       # noqa: E402
 import serve_roundtrip                                      # noqa: E402
 
 BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
@@ -553,6 +554,333 @@ def check_route_cli_inventory():
                  "surfaces/cli.py" % name)
 
 
+def check_api_route_scope():
+    """D-04 scopes `/api/*` to exactly four routes this phase, and the count
+    is asserted rather than trusted.
+    """
+    if len(daemon.API_ROUTES) != 4:
+        fail("D-04 scopes /api/* to exactly four routes this phase; API_ROUTES has "
+             "%d" % len(daemon.API_ROUTES))
+    if not {"start", "next", "submit", "report"} <= set(daemon.ROUTE_CLI.values()):
+        fail("ROUTE_CLI is missing one of the four session CLI commands")
+
+
+def snapshot_dirs(root):
+    """Every directory under `root`, as absolute paths -- used to prove a
+    hostile request created nothing on disk.
+    """
+    found = set()
+    for dirpath, dirnames, _ in os.walk(root):
+        for d in dirnames:
+            found.add(os.path.join(dirpath, d))
+    return found
+
+
+def api_by_id(bank=BANK):
+    """`{item_id: full_bank_item}` for `bank`, so a check can look up the
+    real `q` dict (with `correct`/`rows`/`steps`) behind an `/api/*`
+    response's stripped-down public item payload.
+    """
+    qs = itembank.parse_bank(open(bank, encoding="utf-8").read())
+    return {q["id"]: q for q in qs}
+
+
+def api_correct_answer(by_id, item):
+    """The correct response for an `/api/*` public item payload, resolved
+    through the full bank item -- `agent_roundtrip.answer_for()` only
+    guarantees a validly-SHAPED answer, not a correct one (a `dnd`/
+    `table`/`build` item's first listed category or step order is not
+    necessarily its key).
+    """
+    return serve_roundtrip.correct_answer(by_id[item["id"]])
+
+
+def check_api_sitting():
+    """The happy path: `/api/start` -> `/api/next` -> `/api/submit` ->
+    `/api/report`, each printing the same shape the CLI does, over the
+    exact same runtime calls (SURF-04, SURF-01).
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        started = post(url + "api/start",
+                       {"bank": "sample_bank", "count": 6, "seed": 7, "mode": "practice"})
+        if started["status"] != "active":
+            fail("POST /api/start did not return an active session")
+        if "correct" in started["item"]:
+            fail("POST /api/start's item payload carries an answer key")
+        session_id = started["session_id"]
+
+        nxt = post(url + "api/next", {"session_id": session_id})
+        if "item" not in nxt:
+            fail("POST /api/next did not return the current item")
+
+        answer = api_correct_answer(api_by_id(), nxt["item"])
+        submitted = post(url + "api/submit", {"session_id": session_id, "answer": answer})
+        if submitted["accepted"] is not True:
+            fail("POST /api/submit did not accept a valid response")
+        if submitted["score"] is not True:
+            fail("POST /api/submit against the correct answer scored %r, expected True"
+                 % submitted["score"])
+        if submitted["evidence"]["status"] != "recorded":
+            fail("POST /api/submit's response was not recorded: %r" % submitted["evidence"])
+
+        report = post(url + "api/report", {"session_id": session_id})
+        if report["session_id"] != session_id:
+            fail("POST /api/report returned a different session_id than it was asked for")
+        if report["summary"]["auto_attempts"] < 1:
+            fail("POST /api/report's summary shows no auto_attempts after one submit")
+    finally:
+        proc.terminate()
+
+
+def check_api_duplicate_submit_dedupes():
+    """Submitting the same answer twice for the same item -- simulating a
+    client retry after a crash between the evidence append and the
+    session write (D-17) -- returns `evidence.status` `already_recorded`
+    the second time, matching the CLI (`tests/evidence_roundtrip.py`'s own
+    dedupe test proves the CLI half of this).
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        started = post(url + "api/start", {"bank": "sample_bank", "count": 1, "seed": 0})
+        session_id = started["session_id"]
+        session_file = started["session_file"]
+        answer = api_correct_answer(api_by_id(), started["item"])
+
+        first = post(url + "api/submit", {"session_id": session_id, "answer": answer})
+        if first["evidence"]["status"] != "recorded":
+            fail("the first submit was not recorded: %r" % first["evidence"])
+
+        with open(session_file, encoding="utf-8") as fh:
+            data = json.load(fh)
+        data["cursor"] -= 1
+        data["status"] = "active"
+        with open(session_file, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+
+        second = post(url + "api/submit", {"session_id": session_id, "answer": answer})
+        if second["evidence"]["status"] != "already_recorded":
+            fail("resubmitting the same answer for the same item returned %r, expected "
+                 "already_recorded" % second["evidence"]["status"])
+    finally:
+        proc.terminate()
+
+
+def check_api_survives_routine_error():
+    """The plan's real point: driving a session to completion over
+    `/api/submit`, submitting once more, must return a 4xx and leave the
+    daemon serving every other route -- not a dead process (T-2-03).
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        started = post(url + "api/start", {"bank": "sample_bank", "count": 6, "seed": 7})
+        session_id = started["session_id"]
+        by_id = api_by_id()
+        state = started
+        while state["status"] == "active":
+            answer = api_correct_answer(by_id, state["item"])
+            result = post(url + "api/submit", {"session_id": session_id, "answer": answer})
+            state = result["next"]
+        if state["status"] != "complete":
+            fail("driving a full sitting over /api/* did not reach status complete")
+
+        try:
+            post(url + "api/submit", {"session_id": session_id, "answer": "anything"})
+            fail("submitting past a complete session did not return a 4xx")
+        except urllib.error.HTTPError as exc:
+            if exc.code < 400 or exc.code >= 500:
+                fail("submitting past a complete session returned HTTP %d, expected 4xx"
+                     % exc.code)
+
+        # The test with teeth: without this second assertion the check above
+        # would pass on a daemon that just died from an uncaught SystemExit.
+        status, _ = get(url)
+        if status != 200:
+            fail("the daemon did not survive a routine error: GET / returned %d" % status)
+    finally:
+        proc.terminate()
+
+
+def check_api_bank_not_found():
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        try:
+            post(url + "api/start", {"bank": "no-such-bank", "count": 1})
+            fail("POST /api/start with a bank stem that was not scanned did not "
+                 "return a 4xx")
+        except urllib.error.HTTPError as exc:
+            if exc.code != 404:
+                fail("POST /api/start with an unscanned bank stem returned HTTP %d, "
+                     "expected 404" % exc.code)
+        attempts_dir = os.path.join(workdir, "_attempts")
+        if os.path.isdir(attempts_dir) and os.listdir(attempts_dir):
+            fail("POST /api/start against an unscanned bank stem created a session file")
+    finally:
+        proc.terminate()
+
+
+def check_api_start_traversal():
+    """A `bank` field naming a path outside the served directory -- absolute,
+    or with parent-directory segments -- returns 4xx, creates no directory
+    and writes no file (T-2-01, T-2-02).
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        parent = os.path.dirname(workdir)
+        before = snapshot_dirs(parent)
+        hostile_values = (
+            "../../etc/passwd",
+            "..\\..\\Windows\\System32\\evil",
+            os.path.abspath(os.path.join(workdir, "..", "escaped")),
+        )
+        for hostile in hostile_values:
+            try:
+                post(url + "api/start", {"bank": hostile, "count": 1})
+                fail("a path-shaped bank field was accepted instead of returning a "
+                     "4xx: %r" % hostile)
+            except urllib.error.HTTPError as exc:
+                if exc.code < 400 or exc.code >= 500:
+                    fail("a path-shaped bank field returned HTTP %d, expected 4xx"
+                         % exc.code)
+        after = snapshot_dirs(parent)
+        if after != before:
+            fail("a hostile bank field on /api/start created a new directory: %r"
+                 % (after - before))
+        attempts_dir = os.path.join(workdir, "_attempts")
+        if os.path.isdir(attempts_dir) and os.listdir(attempts_dir):
+            fail("a hostile bank field on /api/start wrote a session file")
+    finally:
+        proc.terminate()
+
+
+def check_api_reject_path_fields():
+    """A `session`, `bank_path` or `out` field on any `/api/*` body is a 400
+    naming the field, never silently ignored -- accepting one would
+    reintroduce the raw-path surface D-03's allowlist closed (T-2-01). An
+    unknown `session_id` is a 404, and neither case reads a file.
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        started = post(url + "api/start", {"bank": "sample_bank", "count": 1, "seed": 0})
+        session_id = started["session_id"]
+
+        for field, value in (("session", os.path.join(workdir, "_attempts", "x.json")),
+                             ("bank_path", BANK), ("out", "somewhere.json")):
+            try:
+                post(url + "api/next", {"session_id": session_id, field: value})
+                fail("a %r field on /api/next was silently accepted" % field)
+            except urllib.error.HTTPError as exc:
+                if exc.code != 400:
+                    fail("a %r field on /api/next returned HTTP %d, expected 400"
+                         % (field, exc.code))
+
+        try:
+            post(url + "api/next", {"session_id": "no-such-session-id"})
+            fail("an unknown session_id on /api/next did not return a 4xx")
+        except urllib.error.HTTPError as exc:
+            if exc.code != 404:
+                fail("an unknown session_id on /api/next returned HTTP %d, expected 404"
+                     % exc.code)
+    finally:
+        proc.terminate()
+
+
+def check_api_malformed_json():
+    """A malformed JSON body on `/api/submit` returns 4xx and the daemon
+    stays up.
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        req = urllib.request.Request(
+            url + "api/submit", data=b"{not valid json",
+            headers={"Content-Type": "application/json"})
+        try:
+            urllib.request.urlopen(req, timeout=5)
+            fail("a malformed JSON body on /api/submit did not return a 4xx")
+        except urllib.error.HTTPError as exc:
+            if exc.code < 400 or exc.code >= 500:
+                fail("a malformed JSON body on /api/submit returned HTTP %d, expected "
+                     "4xx" % exc.code)
+        status, _ = get(url)
+        if status != 200:
+            fail("the daemon did not survive a malformed JSON body: GET / returned %d"
+                 % status)
+    finally:
+        proc.terminate()
+
+
+def check_api_cli_parity():
+    """SURF-04's real assertion: a sitting driven over `/api/*` and the same
+    sitting driven over the CLI, against the same bank and the same seed,
+    record matching evidence events on `score`, `objective`, `mode` and
+    `canonical` -- proving the daemon reaches the same runtime call rather
+    than a second implementation.
+    """
+    api_dir = tempfile.mkdtemp()
+    cli_dir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(api_dir, "sample_bank.md"))
+    shutil.copy(BANK, os.path.join(cli_dir, "sample_bank.md"))
+
+    by_id = api_by_id()
+
+    proc, url, lines = start_daemon(api_dir)
+    try:
+        started = post(url + "api/start",
+                       {"bank": "sample_bank", "count": 6, "seed": 7, "mode": "practice"})
+        session_id = started["session_id"]
+        state = started
+        while state["status"] == "active":
+            answer = api_correct_answer(by_id, state["item"])
+            result = post(url + "api/submit", {"session_id": session_id, "answer": answer})
+            state = result["next"]
+    finally:
+        proc.terminate()
+
+    cli_bank = os.path.join(cli_dir, "sample_bank.md")
+    cli_session = os.path.join(cli_dir, "session.json")
+    first = agent_roundtrip.run("start", cli_bank, "--count", "6", "--seed", "7",
+                                "--mode", "practice", "--out", cli_session)
+    while first["status"] == "active":
+        answer = api_correct_answer(by_id, first["item"])
+        result = agent_roundtrip.run("submit", cli_session, "--answer",
+                                     json.dumps(answer))
+        first = result["next"]
+
+    api_log = evidence.log_path(api_dir)
+    cli_log = evidence.log_path(cli_dir)
+    api_events = [ev for ev in evidence.live_events(api_log) if ev["event_type"] == "response"]
+    cli_events = [ev for ev in evidence.live_events(cli_log) if ev["event_type"] == "response"]
+    if len(api_events) != len(cli_events):
+        fail("the /api/* sitting recorded %d response events but the CLI sitting "
+             "recorded %d, for the same bank and seed"
+             % (len(api_events), len(cli_events)))
+
+    api_by_ref = {ev["item_ref"]: ev for ev in api_events}
+    cli_by_ref = {ev["item_ref"]: ev for ev in cli_events}
+    if set(api_by_ref) != set(cli_by_ref):
+        fail("the /api/* and CLI sittings recorded events for different items")
+    for ref, api_ev in api_by_ref.items():
+        cli_ev = cli_by_ref[ref]
+        for field in ("score", "objective", "mode", "canonical"):
+            if api_ev.get(field) != cli_ev.get(field):
+                fail("item %s: /api/* recorded %s=%r but the CLI recorded %s=%r"
+                     % (ref, field, api_ev.get(field), field, cli_ev.get(field)))
+
+
 def main():
     checks = (
         check_index_populated,
@@ -575,6 +903,15 @@ def main():
         check_day_save_and_isolation,
         check_day_open_out_of_range,
         check_route_cli_inventory,
+        check_api_route_scope,
+        check_api_sitting,
+        check_api_duplicate_submit_dedupes,
+        check_api_survives_routine_error,
+        check_api_bank_not_found,
+        check_api_start_traversal,
+        check_api_reject_path_fields,
+        check_api_malformed_json,
+        check_api_cli_parity,
     )
     for check in checks:
         check()

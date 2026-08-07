@@ -13,13 +13,13 @@ render and runtime functions that already exist -- `quiz.page_for()`,
 `apply_day_post`) -- never a second copy of any of them living in a route
 handler.
 """
-import datetime, html, os, re, socketserver, sys, threading, urllib.parse, uuid, webbrowser
+import datetime, html, json, os, re, socketserver, sys, threading, urllib.parse, uuid, webbrowser
 
 import evidence
 import server
 from model import load, parse_bank
 from runtime import explain_payload
-from surfaces import day, quiz, study
+from surfaces import day, quiz, session, study
 from surfaces.theme import THEME_CSS
 
 
@@ -37,6 +37,21 @@ DAY_GET_RE = re.compile(r"^/day/(?P<stem>[^/]+)$")
 DAY_SAVE_RE = re.compile(r"^/day/(?P<stem>[^/]+)/save$")
 DAY_OPEN_RE = re.compile(r"^/day/(?P<stem>[^/]+)/open$")
 
+# The four `/api/*` session routes D-04 scopes for this phase. Fixed
+# literals, not stem-parameterised: a session or a bank is addressed by an
+# opaque identifier in the JSON body (T-2-01), never by a path segment, so
+# there is no `<stem>`/`<id>` group in any of these patterns at all. The
+# four-entry length is asserted by `check_api_route_scope` in
+# `tests/daemon_roundtrip.py` and by this plan's own acceptance criteria --
+# the browser-holds-no-key rework that would want more of them is Phase 4's
+# SURF-02 job, not this one.
+API_ROUTES = (
+    ("POST", "/api/start", "handle_api_start"),
+    ("POST", "/api/next", "handle_api_next"),
+    ("POST", "/api/submit", "handle_api_submit"),
+    ("POST", "/api/report", "handle_api_report"),
+)
+
 # Order is load-bearing: every fixed literal route comes before every
 # stem-parameterised route, so a bank or plan whose stem happens to be
 # "report", "day" or "api" can never shadow a fixed route. Dispatch is
@@ -48,6 +63,7 @@ ROUTES = (
     ("GET", "/", "handle_index"),
     ("GET", MARKER_PATH, "handle_marker"),
     ("GET", "/day", "handle_day_index"),
+) + API_ROUTES + (
     ("GET", QUIZ_GET_RE, "handle_quiz_get"),
     ("POST", QUIZ_ANSWER_RE, "handle_quiz_answer"),
     ("GET", STUDY_GET_RE, "handle_study_get"),
@@ -64,6 +80,10 @@ ROUTES = (
 ROUTE_CLI = {
     ("GET", "/"): "daemon",
     ("GET", MARKER_PATH): "daemon",
+    ("POST", "/api/start"): "start",
+    ("POST", "/api/next"): "next",
+    ("POST", "/api/submit"): "submit",
+    ("POST", "/api/report"): "report",
     ("GET", QUIZ_GET_RE): "serve",
     ("POST", QUIZ_ANSWER_RE): "serve",
     ("GET", STUDY_GET_RE): "study",
@@ -395,6 +415,238 @@ def handle_day_open(handler, stem):
         return
     if result is None:
         handler.send_error(404)
+        return
+    handler.send_json(result)
+
+
+# ---- /api/* -- SURF-04's proof: an agent drives a whole sitting over HTTP
+# against the exact same runtime calls `surfaces/session.py` already makes
+# from the shell. Two findings from RESEARCH.md are load-bearing here and
+# are why this exists as its own section rather than three lines bolted
+# onto the quiz handlers: `session.do_*` raises `SystemExit` on error
+# conditions that are routine in normal use (Pitfall #3), and
+# the runtime's session-file readers/writers take a raw filesystem path
+# with no allowlist at all (Pitfall #5). Every handler below resolves an identifier
+# through an allowlist before ever calling a `do_*`, and every `do_*` call
+# is wrapped in the SystemExit/Exception containment described below.
+
+SESSION_MODES = ("diagnostic", "practice", "exam", "remediation", "drill")
+CONFIDENCE_LEVELS = ("high", "medium", "low")
+
+# `/api/*` addresses a session by its opaque `session_id` (resolved through
+# `session_index`) and a bank by its scanned stem (resolved through
+# `handler.banks`) -- never by a raw filesystem path. A body naming one of
+# these CLI-side field names instead is refused loudly with 400 rather than
+# silently ignored, so a client that guesses the old Namespace field name
+# can never reintroduce the raw-path surface D-03's bank allowlist already
+# closed once (T-2-01).
+API_FORBIDDEN_FIELDS = ("session", "bank_path", "out")
+
+
+def session_index(root):
+    """`{session_id: abspath}` built by scanning `<root>/_attempts/` for
+    `session_*.json` files and reading each one's own `session_id` field.
+
+    Built lazily per request rather than once at daemon startup, so a
+    session created by `POST /api/start` -- or by an `itembank start` run
+    in another terminal while the daemon is up -- is addressable
+    immediately; one directory listing per API request is cheap next to
+    the file reads the request is about to do anyway. Skips any file that
+    does not parse as JSON, is not a JSON object, or carries no
+    `session_id`, rather than raising: a half-written session file must
+    not break addressing for every other session (D-03's allowlist
+    principle extended to session identifiers -- RESEARCH.md Pitfall #5).
+    """
+    attempts_dir = os.path.join(os.path.abspath(root), "_attempts")
+    index = {}
+    if not os.path.isdir(attempts_dir):
+        return index
+    for name in os.listdir(attempts_dir):
+        if not (name.startswith("session_") and name.endswith(".json")):
+            continue
+        path = os.path.join(attempts_dir, name)
+        try:
+            with open(path, encoding="utf-8") as fh:
+                data = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        session_id = data.get("session_id")
+        if isinstance(session_id, str) and session_id:
+            index[session_id] = path
+    return index
+
+
+def api_reject_path_fields(data):
+    """The first `API_FORBIDDEN_FIELDS` name present in `data`, or `None`."""
+    for field in API_FORBIDDEN_FIELDS:
+        if field in data:
+            return field
+    return None
+
+
+def api_read_json(handler):
+    """`handler.read_json()`, but a malformed or non-object body is reported
+    to the caller as `(None, True)` instead of letting the decode error
+    propagate into the generic `except Exception` -> 500 clause every
+    handler below also carries -- a client typo in a JSON body is exactly
+    the routine, not-exotic condition D-05 asks for a clean 4xx on, not a
+    500. Returns `(data, failed)`; the caller has already sent the error
+    response when `failed` is true.
+    """
+    try:
+        data = handler.read_json()
+    except (ValueError, TypeError) as exc:
+        handler.send_error(400, "malformed JSON body: %s" % exc)
+        return None, True
+    if not isinstance(data, dict):
+        handler.send_error(400, "JSON body must be a JSON object")
+        return None, True
+    bad = api_reject_path_fields(data)
+    if bad:
+        handler.send_error(
+            400, "field %r is not accepted here; a session is addressed by its "
+            "session_id and a bank by its scanned stem, never by a path" % bad)
+        return None, True
+    return data, False
+
+
+def api_session_path(handler, session_id):
+    """The resolved session path for a client-supplied `session_id`, or
+    `None` -- a miss (wrong type, empty, or simply unknown) is always a
+    404, and `session_id` is never joined to a path itself; it is only
+    ever a dict key into `session_index`'s own allowlist.
+    """
+    if not isinstance(session_id, str) or not session_id:
+        return None
+    return session_index(handler.root).get(session_id)
+
+
+def handle_api_start(handler):
+    """`POST /api/start` -- `{"bank": "<stem>", "count", "objective", "mode",
+    "seed"}`. `bank` is resolved through the same stem allowlist the GET
+    routes use: a value that is not a key in `handler.banks` is a 404, full
+    stop -- it is never joined to a path, never normalised, never checked
+    for traversal segments, because it is never treated as a path at all.
+    The output path is computed server-side under `<root>/_attempts/`,
+    exactly what `session.do_start` defaults to when no `out` is given;
+    `out` is never read from the body (T-2-02).
+    """
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    bank = data.get("bank")
+    path = handler.banks.get(bank) if isinstance(bank, str) else None
+    if path is None:
+        handler.send_not_found(bank if isinstance(bank, str) else "")
+        return
+    count = data.get("count", 10)
+    if not isinstance(count, int) or isinstance(count, bool):
+        count = 10
+    seed = data.get("seed", 0)
+    if not isinstance(seed, int) or isinstance(seed, bool):
+        seed = 0
+    mode = data.get("mode", "diagnostic")
+    if mode not in SESSION_MODES:
+        mode = "diagnostic"
+    objective = data.get("objective", "")
+    if not isinstance(objective, str):
+        objective = ""
+    out = os.path.join(os.path.abspath(handler.root), "_attempts",
+                       "session_%s.json" % uuid.uuid4().hex[:12])
+    # Both except clauses below are deliberate and both required, not one
+    # collapsed into the other: SystemExit derives from BaseException, not
+    # Exception, so the bare `except Exception` clause every other route
+    # handler in this module already uses would NOT catch it -- an
+    # uncaught SystemExit here would propagate out through socketserver's
+    # request loop and kill the process serving every other bank, every
+    # other tab and the day view. The conditions that raise it are routine
+    # here, not exotic: a bank with lint errors, an objective matching no
+    # items, a session already complete. Do not collapse these two clauses
+    # into one in a later refactor.
+    try:
+        result = session.do_start(path, count, objective, mode, seed, out, False)
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    except Exception as exc:
+        handler.send_error(500, str(exc))
+        return
+    handler.send_json(result)
+
+
+def handle_api_next(handler):
+    """`POST /api/next` -- `{"session_id": "<id>"}`. `session_id` is resolved
+    through `session_index`; a miss is a 404.
+    """
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    session_id = data.get("session_id")
+    path = api_session_path(handler, session_id)
+    if path is None:
+        handler.send_not_found(session_id if isinstance(session_id, str) else "")
+        return
+    try:
+        result = session.do_next(path)
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    except Exception as exc:
+        handler.send_error(500, str(exc))
+        return
+    handler.send_json(result)
+
+
+def handle_api_submit(handler):
+    """`POST /api/submit` -- `{"session_id": "<id>", "answer": ..., "confidence"}`.
+    `answer` is passed through untouched (`session.do_submit` normalizes it
+    the same way the CLI's `--answer` string already was); `confidence`
+    must be one of the three levels or absent.
+    """
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    session_id = data.get("session_id")
+    path = api_session_path(handler, session_id)
+    if path is None:
+        handler.send_not_found(session_id if isinstance(session_id, str) else "")
+        return
+    confidence = data.get("confidence")
+    if confidence not in (None,) + CONFIDENCE_LEVELS:
+        handler.send_error(
+            400, "confidence must be one of %s" % ", ".join(CONFIDENCE_LEVELS))
+        return
+    answer = data.get("answer")
+    try:
+        result = session.do_submit(path, answer, confidence)
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    except Exception as exc:
+        handler.send_error(500, str(exc))
+        return
+    handler.send_json(result)
+
+
+def handle_api_report(handler):
+    """`POST /api/report` -- `{"session_id": "<id>"}`."""
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    session_id = data.get("session_id")
+    path = api_session_path(handler, session_id)
+    if path is None:
+        handler.send_not_found(session_id if isinstance(session_id, str) else "")
+        return
+    try:
+        result = session.do_report(path)
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    except Exception as exc:
+        handler.send_error(500, str(exc))
         return
     handler.send_json(result)
 
