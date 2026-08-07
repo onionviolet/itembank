@@ -127,7 +127,29 @@ Plans:
   3. For every route exercised in a manual pass, an equivalent CLI command exists and reaches the same result through the same runtime call, not a second implementation.
   4. `itembank config` prints the current settings schema (theme, daily cap, selection weights, auditor autonomy, model backend, update policy) the way `spec` prints the format contract, and setting an invalid value is rejected with a named error.
 
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 02-01-PLAN.md — TRACER: one daemon, one port, one bank's quiz end to end, plus the `/` index
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 02-02-PLAN.md — Study, day and day-mutation routes; `serve`/`day` demoted from server owners to daemon launches
+- [ ] 02-03-PLAN.md — Settings foundation: `itembank.json`, its schema, numeric bounds in the validator, and `itembank config`
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 02-04-PLAN.md — `/api/start|next|submit|report` over the same runtime, identifier-addressed and `SystemExit`-contained
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 02-05-PLAN.md — The `/report` page: populated, in-progress, empty and not-found states
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 02-06-PLAN.md — Detect-and-attach singleton, `--lan`, and settings-driven daemon defaults
 
 ### Phase 3: Lesson Format & In-App Reader
 
@@ -306,7 +328,7 @@ for what can run concurrently.
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Evidence Spine & Protocol Foundation | 11/11 | Complete    | 2026-08-07 |
-| 2. Daemon Consolidation & Settings Foundation | 0/TBD | Not started | - |
+| 2. Daemon Consolidation & Settings Foundation | 0/6 | Planned | - |
 | 3. Lesson Format & In-App Reader | 0/TBD | Not started | - |
 | 4. Surface Redesign & Theming | 0/TBD | Not started | - |
 | 5. Check Item Type & Code Editor | 0/TBD | Not started | - |
