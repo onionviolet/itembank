@@ -371,7 +371,7 @@ def handle_report_get(handler):
         handler.send_error(400, str(exc.code))
         return
     except Exception as exc:
-        handler.send_error(500, str(exc))
+        handler.send_server_error(exc)
         return
     summary = result["summary"]
     status = result["status"]
@@ -525,7 +525,7 @@ def handle_quiz_answer(handler, stem):
         payload = {"item_id": q["id"], "score": score,
                    "explain": explain_payload(q, sess.get("reveal", False))}
     except Exception as exc:                    # never let a bad POST kill the daemon
-        handler.send_error(500, str(exc))
+        handler.send_server_error(exc)
         return
     handler.send_json(payload)
 
@@ -607,7 +607,7 @@ def handle_day_save(handler, stem):
         data = handler.read_json()
         result = day.apply_day_post(state, "save", data)
     except Exception as exc:                    # never let a bad POST kill the daemon
-        handler.send_error(500, str(exc))
+        handler.send_server_error(exc)
         return
     handler.send_json(result)
 
@@ -626,7 +626,7 @@ def handle_day_open(handler, stem):
         data = handler.read_json()
         result = day.apply_day_post(state, "open", data)
     except Exception as exc:                    # never let a bad POST kill the daemon
-        handler.send_error(500, str(exc))
+        handler.send_server_error(exc)
         return
     if result is None:
         handler.send_error(404)
@@ -786,7 +786,7 @@ def handle_api_start(handler):
         handler.send_error(400, str(exc.code))
         return
     except Exception as exc:
-        handler.send_error(500, str(exc))
+        handler.send_server_error(exc)
         return
     handler.send_json(result)
 
@@ -809,7 +809,7 @@ def handle_api_next(handler):
         handler.send_error(400, str(exc.code))
         return
     except Exception as exc:
-        handler.send_error(500, str(exc))
+        handler.send_server_error(exc)
         return
     handler.send_json(result)
 
@@ -840,7 +840,7 @@ def handle_api_submit(handler):
         handler.send_error(400, str(exc.code))
         return
     except Exception as exc:
-        handler.send_error(500, str(exc))
+        handler.send_server_error(exc)
         return
     handler.send_json(result)
 
@@ -861,7 +861,7 @@ def handle_api_report(handler):
         handler.send_error(400, str(exc.code))
         return
     except Exception as exc:
-        handler.send_error(500, str(exc))
+        handler.send_server_error(exc)
         return
     handler.send_json(result)
 
@@ -888,6 +888,18 @@ class DaemonHandler(server.Handler):
         """
         body = NOT_FOUND_BODY % html.escape(name)
         self.send_bytes(body.encode("utf-8"), "text/html; charset=utf-8", status=404)
+
+    def send_server_error(self, exc):
+        """A `500` that never leaks a local filesystem path, matching
+        `send_not_found`'s T-2-05 discipline for `404`. `str(exc)` on an
+        `OSError`/`IOError` (permission denied, disk full, a file moved
+        mid-request) typically includes the full absolute served path --
+        exactly what `--lan` exposes to every other device on the network.
+        The real text is logged server-side only; the client gets a
+        generic, path-free message.
+        """
+        print("  500 %s" % exc)
+        self.send_error(500, "internal error")
 
     def _dispatch(self):
         path = urllib.parse.urlsplit(self.path).path
