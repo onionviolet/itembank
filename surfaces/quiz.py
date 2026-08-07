@@ -15,7 +15,7 @@ from surfaces.quiz_page import TEMPLATE
 from surfaces.theme import THEME_CSS
 
 
-def page_for(bank_path, qs, serve=False, reveal=False):
+def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer"):
     text = open(bank_path, encoding="utf-8").read()
     title = grab(r"(?m)^#\s+(.*?)\s*$", text) or os.path.basename(bank_path)
     counts = collections.Counter(q["type"] for q in qs)
@@ -23,6 +23,11 @@ def page_for(bank_path, qs, serve=False, reveal=False):
     sub = "%d items &middot; %s &middot; dichotomous scoring" % (len(qs), mix)
     sub += " &middot; answers recorded" if serve else " &middot; nothing recorded"
     items = [page_item(q, reveal=reveal, offline=not serve) for q in qs]
+    # `post_path` lets one process serve more than one bank -- each bank's
+    # page posts an answer back to its own bank-scoped path instead of a
+    # single hardcoded "/answer", which was correct only while exactly one
+    # bank was served per process. The default keeps `cmd_build`'s static
+    # page and `cmd_serve`'s single-bank page byte-compatible.
     # __DATA__ goes in last so that bank text which happens to contain another
     # placeholder is never itself substituted.
     return mix, (TEMPLATE
@@ -30,7 +35,36 @@ def page_for(bank_path, qs, serve=False, reveal=False):
                  .replace("__SERVE__", "true" if serve else "false")
                  .replace("__TITLE__", html.escape(title))
                  .replace("__SUB__", sub)
+                 .replace("__POST__", post_path)
                  .replace("__DATA__", json.dumps(items, ensure_ascii=False)))
+
+
+def record_answer(bank_path, qs, session_id, log, out_path, mode, q, response, elapsed_ms):
+    """Score one response, append it to the evidence log, and re-render the
+    attempt file atomically. The one function `cmd_serve` and
+    `surfaces/daemon.py` both call, so the CLI path and the daemon path can
+    never diverge in how a response is scored or recorded -- one scorer
+    (`runtime.score_response`) and one writer (`evidence.append_event`),
+    reached through exactly one place (D-08 continued).
+    """
+    score = score_response(q, response)
+    item_key = evidence.evidence_key(q)
+    canon = evidence.idempotency_canon(q, response)
+    attempt_num = evidence.attempt_number(log, session_id, item_key, canon)
+    event = evidence.response_event(
+        session_id, q, response, score, mode, attempt_num,
+        os.path.basename(bank_path), response_time_ms=elapsed_ms, confidence=None)
+    evidence.append_event(log, event)
+
+    # Regenerate the whole attempt file from the log, atomically -- the
+    # render is the only generator of this document (D-11); a sitting
+    # killed mid-write must never leave a half-written attempt file.
+    md = evidence.render_attempt_md(log, session_id, qs, bank_path)
+    tmp = out_path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write(md)
+    os.replace(tmp, out_path)
+    return score
 
 
 def cmd_build(a):
@@ -104,27 +138,18 @@ def cmd_serve(a):
     state = {"writes": 0}
 
     def record(q, response, elapsed_ms):
-        score = score_response(q, response)
-        item_key = evidence.evidence_key(q)
-        canon = evidence.idempotency_canon(q, response)
-        attempt_num = evidence.attempt_number(log, session_id, item_key, canon)
-        event = evidence.response_event(
-            session_id, q, response, score, a.mode, attempt_num,
-            os.path.basename(a.bank), response_time_ms=elapsed_ms, confidence=None)
-        result = evidence.append_event(log, event)
-
-        # Regenerate the whole attempt file from the log, atomically -- the
-        # render is the only generator of this document (D-11); a sitting
-        # killed mid-write must never leave a half-written attempt file.
-        md = evidence.render_attempt_md(log, session_id, qs, a.bank)
-        tmp = out + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as fh:
-            fh.write(md)
-        os.replace(tmp, out)
+        # `record_answer` is the one function both this CLI path and the
+        # daemon call (D-08 continued); the log's byte size before/after is
+        # how this closure alone still tells a genuinely new answer from a
+        # replayed one, without record_answer needing to report anything
+        # beyond the score it was asked to return.
+        size_before = os.path.getsize(log) if os.path.exists(log) else -1
+        score = record_answer(a.bank, qs, session_id, log, out, a.mode, q, response, elapsed_ms)
+        already = size_before >= 0 and os.path.getsize(log) == size_before
         state["writes"] += 1
 
         answered = len(set(ev["item_ref"] for ev in evidence.session_events(log, session_id)))
-        note = " (already recorded)" if result["status"] == "already_recorded" else ""
+        note = " (already recorded)" if already else ""
         sys.stdout.write("\r  %d/%d answered, saved%s" % (answered, len(qs), note))
         sys.stdout.flush()
         if answered >= len(qs):

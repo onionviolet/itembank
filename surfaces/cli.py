@@ -8,6 +8,7 @@ import argparse, collections, json, os, sys
 
 from model import BANK_FILE_HINTS, SPEC, lint, load, parse_bank
 from surfaces.anki import cmd_export
+from surfaces.daemon import cmd_daemon
 from surfaces.day import cmd_day
 from surfaces.evidence_cli import (cmd_evidence, cmd_id_assign, cmd_mark, cmd_render,
                                    cmd_retract)
@@ -133,6 +134,14 @@ def main():
                    help="do not launch a browser")
     s.add_argument("--force", action="store_true", help="serve despite lint errors")
     s.set_defaults(fn=cmd_serve)
+
+    s = sub.add_parser("daemon", help="one process on one port for every surface")
+    s.add_argument("dir", nargs="?", default=".")
+    s.add_argument("--port", type=int, default=8730)
+    s.add_argument("--no-open", action="store_true", dest="no_open",
+                   help="do not launch a browser")
+    s.add_argument("--force", action="store_true", help="serve despite lint errors")
+    s.set_defaults(fn=cmd_daemon)
 
     s = sub.add_parser("stats", help="item mix, coverage, answer-position skew")
     s.add_argument("bank")

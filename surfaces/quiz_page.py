@@ -152,7 +152,7 @@ async function verify(q, response){
   /* performance.now() rather than Date.now(): elapsed_ms is a monotonic-clock
      delta, so it cannot go negative under a system clock change mid-sitting. */
   const elapsed_ms = Math.max(0, Math.round(performance.now() - shownAt));
-  const res = await fetch("/answer", {method:"POST",
+  const res = await fetch("__POST__", {method:"POST",
     headers:{"Content-Type":"application/json"},
     body: JSON.stringify({id: q.id, response: response, elapsed_ms: elapsed_ms})});
   if(!res.ok) throw new Error("HTTP " + res.status);
