@@ -42,7 +42,13 @@ def ms_since(ts):
     except ValueError:
         return None
     now = datetime.datetime.now(datetime.timezone.utc)
-    return int((now - served).total_seconds() * 1000)
+    # Floored at zero, matching the client-side JS's
+    # Math.max(0, Math.round(performance.now() - shownAt)) (surfaces/quiz_page.py,
+    # T-1-25): a wall-clock delta -- not a monotonic one -- can go negative
+    # under an NTP correction or a manual clock change between served_ts
+    # being written and this being computed, and evidence.py's own
+    # response_time_ms invariant is non-negative.
+    return max(0, int((now - served).total_seconds() * 1000))
 
 
 def do_start(bank_path, count, objective, mode, seed, out, force):
