@@ -135,7 +135,10 @@ def scan_dir(root):
     for path in candidates:
         stem = os.path.splitext(os.path.basename(path))[0]
         stem_key = stem.lower()
-        text = open(path, encoding="utf-8").read()
+        try:
+            text = open(path, encoding="utf-8").read()
+        except (OSError, UnicodeDecodeError):
+            continue                            # unreadable or not UTF-8; skip silently
         qs = parse_bank(text)
         if qs:
             kind, table = "bank", banks
