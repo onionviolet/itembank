@@ -42,10 +42,24 @@ def ms_since(ts):
     except ValueError:
         return None
     now = datetime.datetime.now(datetime.timezone.utc)
-    return int((now - served).total_seconds() * 1000)
+    # Floored at zero, matching the client-side JS's
+    # Math.max(0, Math.round(performance.now() - shownAt)) (surfaces/quiz_page.py,
+    # T-1-25): a wall-clock delta -- not a monotonic one -- can go negative
+    # under an NTP correction or a manual clock change between served_ts
+    # being written and this being computed, and evidence.py's own
+    # response_time_ms invariant is non-negative.
+    return max(0, int((now - served).total_seconds() * 1000))
 
 
 def do_start(bank_path, count, objective, mode, seed, out, force):
+    # A non-positive count is rejected outright rather than handed to the
+    # slice below: Python's slice semantics treat a negative stop index as
+    # "up to but excluding the last |count| elements," so count=-1 would
+    # otherwise silently produce nearly the entire bank instead of erroring
+    # on the obviously-invalid input. Checked here, not per-caller, so both
+    # the CLI's --count and /api/start's count field get the same guard.
+    if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+        sys.exit("count must be a positive integer, got %r" % (count,))
     qs = load(bank_path)
     errors, _ = lint(qs)
     if errors and not force:

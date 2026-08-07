@@ -911,7 +911,11 @@ def apply_day_post(state, kind, data):
         # names a lane and an index, never a path.
         files = (state["cache"].get("info") or {}).get("lanes", {}) \
             .get(data.get("lane"), {}).get("files", [])
-        i = int(data.get("i") or 0)
+        i = data.get("i", 0)
+        if i is None:
+            i = 0
+        if not isinstance(i, int) or isinstance(i, bool):
+            return None          # caller turns None into a clean client-facing error
         if not (0 <= i < len(files)):
             return None
         open_in_editor(files[i][1])

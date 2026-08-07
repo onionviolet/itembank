@@ -135,7 +135,10 @@ def scan_dir(root):
     for path in candidates:
         stem = os.path.splitext(os.path.basename(path))[0]
         stem_key = stem.lower()
-        text = open(path, encoding="utf-8").read()
+        try:
+            text = open(path, encoding="utf-8").read()
+        except (OSError, UnicodeDecodeError):
+            continue                            # unreadable or not UTF-8; skip silently
         qs = parse_bank(text)
         if qs:
             kind, table = "bank", banks
@@ -368,7 +371,7 @@ def handle_report_get(handler):
         handler.send_error(400, str(exc.code))
         return
     except Exception as exc:
-        handler.send_error(500, str(exc))
+        handler.send_server_error(exc)
         return
     summary = result["summary"]
     status = result["status"]
@@ -402,21 +405,33 @@ def sessions_by_bank(root, banks):
     scanned (renamed or removed since the session was recorded), is skipped
     rather than raised, the same allowlist-tolerance `session_index` itself
     already applies.
+
+    When a bank has more than one recorded session, the one whose file has
+    the newest mtime wins -- not whichever `session_id` (a random uuid4 hex,
+    per `do_start`/`do_next`, unrelated to time) happens to sort lexically
+    largest. `write_session`'s own tmp-then-`os.replace()` write refreshes
+    the mtime on every `do_next`/`do_submit`, so this tracks the most
+    recently *active* session, not merely the most recently created one.
     """
     index = session_index(root)
     by_abspath = dict((os.path.abspath(path), stem) for stem, path in banks.items())
     result = {}
+    best_mtime = {}
     for session_id, path in sorted(index.items()):
         try:
             with open(path, encoding="utf-8") as fh:
                 data = json.load(fh)
+            mtime = os.path.getmtime(path)
         except (OSError, ValueError):
             continue
         if not isinstance(data, dict):
             continue
         stem = by_abspath.get(data.get("bank"))
-        if stem is not None:
-            result[stem] = session_id            # lexically-last session_id wins
+        if stem is None:
+            continue
+        if stem not in best_mtime or mtime > best_mtime[stem]:
+            best_mtime[stem] = mtime
+            result[stem] = session_id            # newest-mtime session wins
     return result
 
 
@@ -522,7 +537,7 @@ def handle_quiz_answer(handler, stem):
         payload = {"item_id": q["id"], "score": score,
                    "explain": explain_payload(q, sess.get("reveal", False))}
     except Exception as exc:                    # never let a bad POST kill the daemon
-        handler.send_error(500, str(exc))
+        handler.send_server_error(exc)
         return
     handler.send_json(payload)
 
@@ -550,13 +565,23 @@ def _plan_day_state(handler, stem):
     `day_extra` (set by `cmd_day`'s scoped launch through `serve_scoped`)
     names an override for this stem, which is how `itembank day --date`
     (backfilling a missed day) still works once `day` is a daemon launch.
+
+    A plan with no override is rebuilt once the wall-clock date has moved
+    past the cached state's own `iso`: the consolidated `itembank daemon` is
+    meant to run indefinitely across multiple banks and plans, unlike the
+    old short-lived per-day `cmd_day` process this replaces, so caching
+    "today" forever would serve yesterday's plan row, streak and history
+    past midnight with no signal it had gone stale. A backfilled/overridden
+    `iso` names a specific historical date, never "today", so it is exempt
+    from this re-derivation.
     """
+    override = handler.day_extra.get(stem, {})
     state = handler.day_states.get(stem)
     if state is not None:
-        return state
+        if override.get("iso") or state["iso"] == datetime.date.today().isoformat():
+            return state
     path = handler.plans[stem]
     plan_dir = os.path.dirname(os.path.abspath(path)) or "."
-    override = handler.day_extra.get(stem, {})
     log_path = override.get("log_path") or os.path.join(plan_dir, "daily_log.md")
     lanes_path = override.get("lanes_path") or os.path.join(plan_dir, "lanes.md")
     iso = override.get("iso") or datetime.date.today().isoformat()
@@ -604,7 +629,7 @@ def handle_day_save(handler, stem):
         data = handler.read_json()
         result = day.apply_day_post(state, "save", data)
     except Exception as exc:                    # never let a bad POST kill the daemon
-        handler.send_error(500, str(exc))
+        handler.send_server_error(exc)
         return
     handler.send_json(result)
 
@@ -623,7 +648,7 @@ def handle_day_open(handler, stem):
         data = handler.read_json()
         result = day.apply_day_post(state, "open", data)
     except Exception as exc:                    # never let a bad POST kill the daemon
-        handler.send_error(500, str(exc))
+        handler.send_server_error(exc)
         return
     if result is None:
         handler.send_error(404)
@@ -783,7 +808,7 @@ def handle_api_start(handler):
         handler.send_error(400, str(exc.code))
         return
     except Exception as exc:
-        handler.send_error(500, str(exc))
+        handler.send_server_error(exc)
         return
     handler.send_json(result)
 
@@ -806,7 +831,7 @@ def handle_api_next(handler):
         handler.send_error(400, str(exc.code))
         return
     except Exception as exc:
-        handler.send_error(500, str(exc))
+        handler.send_server_error(exc)
         return
     handler.send_json(result)
 
@@ -837,7 +862,7 @@ def handle_api_submit(handler):
         handler.send_error(400, str(exc.code))
         return
     except Exception as exc:
-        handler.send_error(500, str(exc))
+        handler.send_server_error(exc)
         return
     handler.send_json(result)
 
@@ -858,7 +883,7 @@ def handle_api_report(handler):
         handler.send_error(400, str(exc.code))
         return
     except Exception as exc:
-        handler.send_error(500, str(exc))
+        handler.send_server_error(exc)
         return
     handler.send_json(result)
 
@@ -885,6 +910,18 @@ class DaemonHandler(server.Handler):
         """
         body = NOT_FOUND_BODY % html.escape(name)
         self.send_bytes(body.encode("utf-8"), "text/html; charset=utf-8", status=404)
+
+    def send_server_error(self, exc):
+        """A `500` that never leaks a local filesystem path, matching
+        `send_not_found`'s T-2-05 discipline for `404`. `str(exc)` on an
+        `OSError`/`IOError` (permission denied, disk full, a file moved
+        mid-request) typically includes the full absolute served path --
+        exactly what `--lan` exposes to every other device on the network.
+        The real text is logged server-side only; the client gets a
+        generic, path-free message.
+        """
+        print("  500 %s" % exc)
+        self.send_error(500, "internal error")
 
     def _dispatch(self):
         path = urllib.parse.urlsplit(self.path).path
