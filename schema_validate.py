@@ -42,33 +42,53 @@ class SchemaError(Exception):
     """
 
 
-def check_schema(schema, path="#"):
+def check_schema(schema, path="#", root=None):
     """Walk `schema` recursively and raise SchemaError on any keyword this
     validator does not implement. Called once at the top of `validate` so an
     unsupported keyword is reported before a single instance is examined.
+
+    `root` carries the top-level document so a `$ref` can resolve and be
+    recursed into, the same way `validate()` threads `root` down for
+    instance checking -- a caller never passes it; it is set to `schema`
+    itself on the first (non-recursive) call. Without this, a malformed or
+    dangling `$ref` (e.g. `{"$ref": "#/$defs/typo"}`) would pass
+    `check_schema()` silently and only surface later inside `validate()`,
+    and only if an instance happened to exercise that exact branch --
+    exactly the "looks green while checking half the contract" failure mode
+    this function otherwise exists to prevent.
     """
+    if root is None:
+        root = schema
     if not isinstance(schema, dict):
         raise SchemaError("schema at %s is not an object: %r" % (path, schema))
     for kw, value in schema.items():
         if kw not in SUPPORTED and kw not in ANNOTATIONS:
             raise SchemaError("unsupported keyword %r at %s" % (kw, path))
-        if kw == "properties":
+        if kw == "$ref":
+            if not (isinstance(value, str) and value.startswith("#/$defs/")):
+                raise SchemaError("unsupported $ref target %r at %s" % (value, path))
+            name = value[len("#/$defs/"):]
+            defs = root.get("$defs", {}) if isinstance(root, dict) else {}
+            if name not in defs:
+                raise SchemaError("$ref %r at %s does not resolve" % (value, path))
+            check_schema(defs[name], path + ".$ref(" + name + ")", root)
+        elif kw == "properties":
             if not isinstance(value, dict):
                 raise SchemaError("properties at %s is not an object" % path)
             for name, subschema in value.items():
-                check_schema(subschema, path + ".properties." + name)
+                check_schema(subschema, path + ".properties." + name, root)
         elif kw == "$defs":
             if not isinstance(value, dict):
                 raise SchemaError("$defs at %s is not an object" % path)
             for name, subschema in value.items():
-                check_schema(subschema, path + ".$defs." + name)
+                check_schema(subschema, path + ".$defs." + name, root)
         elif kw == "items":
-            check_schema(value, path + ".items")
+            check_schema(value, path + ".items", root)
         elif kw == "oneOf":
             if not isinstance(value, list):
                 raise SchemaError("oneOf at %s is not an array" % path)
             for i, subschema in enumerate(value):
-                check_schema(subschema, path + ".oneOf[%d]" % i)
+                check_schema(subschema, path + ".oneOf[%d]" % i, root)
 
 
 def _matches_type(instance, type_name):
