@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: evidence-spine-protocol-foundation
 status: executing
-stopped_at: Completed 01-09-PLAN.md
-last_updated: "2026-08-07T00:49:29.889Z"
+stopped_at: Completed 01-10-PLAN.md
+last_updated: "2026-08-07T01:14:09.431Z"
 last_activity: 2026-08-06
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 11
-  completed_plans: 9
+  completed_plans: 10
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-05)
 ## Current Position
 
 Phase: 01 (evidence-spine-protocol-foundation) — EXECUTING
-Plan: 10 of 11
+Plan: 11 of 11
 Status: Ready to execute
 Last activity: 2026-08-06 — Phase 01 execution started
 
-Progress: [████████░░] 82%
+Progress: [█████████░] 91%
 
 ## Performance Metrics
 
@@ -67,6 +67,7 @@ Progress: [████████░░] 82%
 | Phase 01 P07 | 40min | 3 tasks | 9 files |
 | Phase 01 P08 | 21min | 3 tasks | 6 files |
 | Phase 01 P09 | 12min | 3 tasks | 7 files |
+| Phase 01 P10 | ~21min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 1] 01-09: mark_event() rejects any marker other than 'human' (T-1-24); a model verdict is not accepted evidence until Phase 8/TEACH-09 teaches the runtime to hold one as pending review
 - [Phase ?]: [Phase 1] 01-09: fixed _tail_dedupe_keys() to track the dedupe key of any event carrying one (response or mark), not just event_type=='response' -- found while confirming a replayed mark batch reports already_recorded per D-12
 - [Phase ?]: [Phase 1] 01-09: cmd_mark validates and resolves every batch entry before appending any of them, so an unresolved item_ref anywhere in the batch appends nothing at all, not a partial prefix
+- [Phase ?]: 01-10: the day surface's evidence directory is derived from daily_log.md's own resolved location (--log override), not the plan file's directory, so evidence lives beside wherever the tick history itself lives
+- [Phase ?]: 01-10: tests/serve_roundtrip.py's attempt-file assertions updated to match render_attempt_md()'s established 01-09 vocabulary (MARK: pending, no finished claim) and the evidence log's append-only attempt semantics (re-answering opens a new live attempt rather than overwriting)
+- [Phase ?]: 01-10: cmd_serve prints session_id in its startup banner so a marker can pass it to itembank mark / itembank render attempt after the sitting ends
 
 ### Pending Todos
 
@@ -117,6 +121,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-07T00:49:29.875Z
-Stopped at: Completed 01-09-PLAN.md
+Last session: 2026-08-07T01:14:09.418Z
+Stopped at: Completed 01-10-PLAN.md
 Resume file: None
