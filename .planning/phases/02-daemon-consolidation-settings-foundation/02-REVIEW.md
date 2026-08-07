@@ -22,10 +22,10 @@ files_reviewed_list:
   - tests/evidence_roundtrip.py
   - tests/serve_roundtrip.py
 findings:
-  critical: 1
-  warning: 7
+  critical: 2
+  warning: 8
   info: 3
-  total: 11
+  total: 13
 status: issues_found
 ---
 
@@ -38,118 +38,77 @@ status: issues_found
 
 ## Summary
 
-Reviewed the daemon-consolidation and settings-foundation surface: the new
-`server.py`-based `daemon.py` route table, the `settings.py`/`schema_validate.py`
-contract behind `itembank config`, and the quiz/study/day render surfaces that the
-daemon now serves from one process. The consolidation itself is careful about the
-things its own docstrings call out (path allowlisting, `SystemExit` containment
-around `session.do_*`, route-vs-CLI inventory, no key leakage to the browser) and
-those specific claims hold up under inspection.
+This is a re-review of the daemon-consolidation/settings-foundation surface after
+commit `6a00bea` fixed the stored-XSS defect (`quiz_page.py`'s `esc()` performing
+no HTML escaping) an earlier pass of this same review flagged as CR-01.
+**That fix is confirmed correct**: `esc` now replaces `& < >`
+(`surfaces/quiz_page.py:125`), and no equivalent unescaped-bank-content-into-
+`innerHTML` pattern was found anywhere else in `surfaces/quiz_page.py`,
+`surfaces/day.py`, or `surfaces/study.py` — all three consistently escape
+bank/plan-derived text before writing it into HTML.
 
-The standout problem is in `surfaces/quiz_page.py`: the client-side `esc()` helper
-used everywhere item content is written into `innerHTML` does not actually escape
-HTML — it is a `null`-coalescing stringifier, not a sanitizer — so any bank content
-(stem, option text, rationale, trap, rubric, model answer) containing HTML markup
-executes as markup in the browser. This is a real stored-XSS surface reachable
-through the daemon's own `/quiz/<stem>` route, on the same bank content the project
-says may already come from third-party sources (AAOS-12e-derived text, course
-material, and — per the model-backend plans — eventually AI-generated content).
+The route table, allowlist-based bank/session resolution, and the `/api/*` input
+validation (path-field rejection, traversal rejection, `SystemExit` containment
+around `session.do_*`) remain careful and are backed by an unusually thorough test
+suite (`tests/daemon_roundtrip.py`, `tests/config_roundtrip.py`).
 
-Beyond that, a handful of degrade-never-block and input-validation gaps were found
-that don't match the rigor of the D-02/D-03/T-2-xx invariants documented elsewhere
-in this same phase: a malformed-encoding `.md` file can crash the whole daemon at
-startup instead of being skipped like a non-bank file; a hand-edited `itembank.json`
-is never schema-validated on read (only on `config set`), so a bad nested value
-crashes `cmd_daemon` with a raw `TypeError` instead of a `settings.*` message;
-`cmd_guard`'s own skip-list is narrower than `daemon.py`'s (which explicitly notes
-what `cmd_guard` is supposed to already exclude); and the day cockpit's per-plan
-state, once built inside the consolidated daemon, never re-derives "today," so a
-long-running `itembank daemon` process left up past midnight keeps serving
-yesterday's plan row indefinitely.
+Two new (or previously under-weighted) **crash-class** defects were found and
+reproduced directly against the code in this diff, both fitting this review's
+"crashes" criterion for Critical severity rather than Warning: (1) a single
+non-UTF-8 `.md` file anywhere under the directory `itembank daemon` is pointed at
+takes the *entire* daemon startup down with an uncaught `UnicodeDecodeError`
+before it binds a socket, and (2) `itembank.json` is never validated against its
+own schema on read, so a syntactically-valid-JSON-but-schema-invalid settings
+file crashes `daemon`/`config set` with a raw Python traceback instead of the
+project's own `sys.exit()`-with-a-message convention. Several further
+input-validation and robustness gaps below round out the standard-depth pass:
+a negative `count` on `/api/start`/`--count` is accepted and silently produces a
+near-full-bank session via Python's slice semantics; internal `500` responses can
+leak local filesystem paths the way `404` responses are deliberately hardened
+against not to; the day cockpit's per-plan "today" is computed once and never
+re-derived, so a long-running consolidated daemon serves a stale date past
+midnight; and a couple of smaller correctness/robustness items round out the
+list. None of the findings below is a stored/reflected-XSS-class issue — that
+class of defect appears closed for this phase's surfaces.
 
 ## Critical Issues
 
-### CR-01: The quiz page's client-side `esc()` does not escape HTML — stored XSS via bank content
+### CR-01: One non-UTF-8 `.md` file anywhere in the served directory crashes the entire daemon at startup
 
-**File:** `surfaces/quiz_page.py:125` (definition), used at (non-exhaustive)
-`surfaces/quiz_page.py:209,247,286-289,351,426-451,477-480`
+**File:** `surfaces/daemon.py:107-152` (`scan_dir`), specifically line 138
 
-**Issue:** The template's `esc` helper is:
-
-```js
-const esc = s => (s==null?"":String(s));
-```
-
-This is a null/undefined guard plus `String()` coercion — it performs **no HTML
-escaping** (no replacement of `<`, `>`, `&`, `"`). It is nonetheless used
-throughout the page everywhere item content is inserted via `innerHTML` /
-template-literal HTML strings rather than `textContent`:
-
-- `card.innerHTML = ...<p class="stem">${esc(q.stem)}</p>` (item stem)
-- `b.innerHTML = ...<span class="ot">${esc(o.text)}</span>` (mc/multi option text)
-- `b.innerHTML = ...<span>${esc(s)}</span>` (build step text)
-- `blk("Why this is best", ex.why)`, `blk(..., ex.disc)`, `blk(..., ex.second)`,
-  `blk(..., ex.model)` → `` `<div class="blk">...${esc(val)}</div>` `` (rationale,
-  discriminator, second-best, model answer)
-- `ex.rubric.map(esc).join("</li><li>")` and `ex.notes.map(esc).join("</li><li>")`
-  (rubric lines, notes — joined raw into `<li>` markup with no escaping)
-- `finish()`'s "to harvest" list: `esc(m.q.stem.slice(0,110))`, `esc(m.ex.trap)`
-
-Any of these fields containing HTML (e.g. `<img src=x onerror=alert(1)>` in a
-stem, option, rationale, or rubric line) executes as markup in the learner's
-browser the moment the item or its explanation renders. The codebase is aware of
-this exact class of bug elsewhere in the same file — the `asAssign` per-row
-category rationale explicitly uses `r.textContent = line;  // textContent, so a
-bank cannot inject markup` — but that discipline was not applied to the `esc()`
-helper the rest of the page relies on, so it is broken (or missing) everywhere
-else. Compare `surfaces/study.py`'s client-side `esc`, which *does* escape
-`& < >` correctly — the two surfaces disagree on what `esc` means.
-
-This is reachable through the consolidated daemon's own `GET /quiz/<stem>` and
-`POST /quiz/<stem>/answer` routes with no additional privilege needed, and the
-project's own threat model already accepts that item text can originate from
-third-party course material (and, per the model-backend roadmap, eventually
-model-generated content) — i.e. content not fully trusted to be markup-free.
-
-**Fix:** Make `esc()` actually escape, matching `study.py`'s version (or use
-`textContent` at every one of these call sites instead of building HTML strings):
-
-```js
-const esc = s => (s==null?"":String(s))
-  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-```
-
-Also audit `chips(q)`'s `LABEL[q.type]||q.type` fallback, which inserts `q.type`
-unescaped with no `esc()` call at all (lower risk since `type` is normally one of
-a fixed enum, but should not depend on that going forward).
-
-## Warnings
-
-### WR-01: `scan_dir()` crashes the whole daemon on one badly-encoded `.md` file
-
-**File:** `surfaces/daemon.py:138-146` (also affects `surfaces/day.py:parse_plan`,
-called from the same loop)
-
-**Issue:** `scan_dir()` (called once at `itembank daemon` startup to build the
-bank/plan allowlist) does:
+**Issue:** `scan_dir()` — run once, synchronously, before `itembank daemon` binds
+any socket — reads every candidate `.md` file with a hard-coded UTF-8 decode and
+no error handling:
 
 ```python
 text = open(path, encoding="utf-8").read()
 qs = parse_bank(text)
 ```
 
-with no `try/except` around the read. Every other classification outcome in this
-function degrades gracefully ("neither a bank nor a plan; skip silently" — line
-145), matching the project's stated "degrade, never block" constraint. But a
-`.md` file in the served directory that is not valid UTF-8 (a binary file
-mis-named `.md`, a Windows-1252-saved note, a stray BOM-less legacy file) raises
-`UnicodeDecodeError` here uncaught, which propagates out of `scan_dir()` and
-aborts `cmd_daemon()` before it ever binds a socket — one bad file prevents the
-daemon from serving every other bank and plan in the directory, not just the
-offending one.
+Every *other* classification outcome in this same function degrades gracefully
+("neither a bank nor a plan; skip silently", line 145), matching this project's
+stated "degrade, never block" constraint (CLAUDE.md). But a `.md` file that is not
+valid UTF-8 — a stray editor backup, a mis-renamed binary, a Windows-1252-saved
+note, anything an Obsidian vault or a course-materials folder plausibly
+accumulates — raises `UnicodeDecodeError` here, uncaught, which propagates out of
+`scan_dir()` and aborts `cmd_daemon()` entirely. One bad file anywhere under the
+served root prevents the daemon from serving *every* other bank and plan, not
+just the offending one. Reproduced directly:
+
+```
+$ python itembank.py daemon <dir-containing-one-non-utf8-.md-file> --no-open
+itembank daemon
+  dir     ...
+Traceback (most recent call last):
+  ...
+  File ".../surfaces/daemon.py", line 138, in scan_dir
+    text = open(path, encoding="utf-8").read()
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte
+```
 
 **Fix:** Wrap the read/classify per candidate and skip files that fail to decode,
-the same way a non-bank/non-plan file is already skipped:
+consistent with the "skip silently" precedent already in the same loop:
 
 ```python
 try:
@@ -158,112 +117,142 @@ except (OSError, UnicodeDecodeError):
     continue
 ```
 
-### WR-02: `load_settings()` never validates against the schema, so a malformed `itembank.json` crashes `cmd_daemon` with a raw `TypeError` instead of a `settings.*` error
+### CR-02: `itembank.json` is never validated against its own schema on read — a type-invalid (but JSON-valid) settings file crashes `daemon` and `config set` with a raw traceback
 
-**File:** `surfaces/settings.py:83-102`, consumed at `surfaces/daemon.py:1089`
+**File:** `surfaces/settings.py:83-102` (`load_settings`), `surfaces/settings.py:131-136` (`set_at`), `surfaces/daemon.py:1088-1090` (`cmd_daemon`), `surfaces/daemon.py:1008` (`start_server`)
 
-**Issue:** `settings.py`'s own module docstring says "There is exactly one
-validator here... one contract, printed either as a human summary or verbatim
-off disk, and one validator behind every write." That validator
-(`schema_validate.validate`) only runs inside `cmd_config`'s `set` action.
-`load_settings()` — the function every other consumer (`cmd_daemon`, and any
-future reader) calls to get the effective config — only checks that the file
-parses as JSON and that the top level is a dict:
+**Issue:** `settings.py`'s own module docstring states "There is exactly one
+validator here, `schema_validate.validate()`... one contract... and one validator
+behind every write." That validator only actually runs inside `cmd_config`'s
+`set` action. `load_settings()` — the function `cmd_daemon` and every other
+consumer calls to get the effective config — only checks that the file parses as
+JSON and that the top level is a dict; it never runs the result through
+`schema_validate.validate()`. `merge_over_defaults()` only recurses into a nested
+key when *both* the default and the raw value are dicts
+(`surfaces/settings.py:73`) — otherwise it takes the raw value verbatim, type
+mismatch and all. A hand-edited, merge-conflicted, or foreign-tool-written
+`itembank.json` that is syntactically valid JSON but violates the schema's types
+therefore loads without complaint and crashes later with no `settings.*`-coded
+message at all. Three concrete reproductions against a temp `itembank.json`:
 
-```python
-try:
-    raw = json.load(open(path, encoding="utf-8"))
-except (OSError, ValueError) as exc:
-    sys.exit("settings.malformed_file: cannot read %s: %s" % (path, exc))
-if not isinstance(raw, dict):
-    sys.exit("settings.malformed_file: %s does not contain a JSON object" % path)
-return merge_over_defaults(defaults, raw)
-```
+1. `"daemon": "oops-not-a-dict"` → `itembank daemon <dir>` crashes at
+   `surfaces/daemon.py:1090` (`cfg["daemon"]["lan"]`) with
+   `TypeError: string indices must be integers, not 'str'`.
+2. `"daemon": {"port": "not-an-int", "lan": false, "open_browser": true}` →
+   `itembank daemon <dir>` crashes inside `socketserver.TCPServer.server_bind()`
+   (via `surfaces/daemon.py:1008`, `Daemon((host, port), handler_cls)`) with
+   `TypeError: 'str' object cannot be interpreted as an integer` — the bad value
+   reaches the raw OS socket call.
+3. `"daemon": "oops-not-a-dict"` → `itembank config set daemon.port 9000 --base
+   <dir>` crashes at `surfaces/settings.py:136` (`set_at`,
+   `node[parts[-1]] = value`) with `TypeError: 'str' object does not support item
+   assignment`.
 
-`merge_over_defaults` only recurses into a nested key when *both* the default and
-the raw value are dicts (`surfaces/settings.py:73`); otherwise it takes the raw
-value verbatim. So a hand-edited `itembank.json` with, say, `"daemon": "oops"`
-(a string instead of an object — plausible from a manual edit or an
-older/foreign tool writing the file) loads without complaint. `cmd_daemon` then
-does `cfg["daemon"]["port"]`, which raises `TypeError: string indices must be
-integers`, uncaught, instead of the friendly `settings.malformed_file` /
-`settings.invalid_type` message the rest of the module is built around.
+`tests/config_roundtrip.py::test_config_malformed_file` only covers JSON
+*syntax* errors (`"{not valid json"`), not schema-*type* errors in otherwise-valid
+JSON, so none of the three reproductions above is caught by the existing suite.
+Note that `surfaces/settings.py:print_table` (the plain `config` table) *does*
+guard against exactly this (`nested_current = data.get(name) if
+isinstance(data.get(name), dict) else {}`) — the project is clearly aware a
+nested value can be malformed, the guard just was never applied to the two paths
+(`cmd_daemon`, `set_at`) that assume the schema's shape holds.
 
-**Fix:** Run `schema_validate.validate(raw, schema)` inside `load_settings()`
-(after the dict check, before merging) and `sys.exit` with a `settings.*`-coded
-message on the first error, the same shape `cmd_config`'s `set` path already
-uses.
-
-### WR-03: `cmd_guard` does not exclude `_attempts/`/`_evidence/`, unlike `daemon.py`'s own skip-list
-
-**File:** `surfaces/cli.py:74-97` (specifically line 82), vs.
-`surfaces/daemon.py:36-39`
-
-**Issue:** `daemon.py`'s `SKIP_DIRS` comment reads: "Same directories `cmd_guard`
-skips, plus the two this daemon itself writes into" — i.e. it documents that
-`cmd_guard` is expected to already skip `.git`/`.github`/`fixtures`, and that
-`_attempts`/`_evidence` are the daemon's *additional* exclusions on top of that.
-But `cmd_guard`'s own walk only excludes `(".git", "fixtures", ".github")`:
+**Fix:** Validate the merged document against the schema inside
+`load_settings()` and `sys.exit()` with a `settings.*`-coded message on failure,
+the same shape the JSON-syntax-error path already uses:
 
 ```python
-dirs[:] = [d for d in dirs if d not in (".git", "fixtures", ".github")]
+def load_settings(base):
+    schema = load_schema()
+    defaults = defaults_from_schema(schema)
+    path = settings_path(base)
+    if not os.path.exists(path):
+        return dict(defaults)
+    try:
+        raw = json.load(open(path, encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        sys.exit("settings.malformed_file: cannot read %s: %s" % (path, exc))
+    if not isinstance(raw, dict):
+        sys.exit("settings.malformed_file: %s does not contain a JSON object" % path)
+    merged = merge_over_defaults(defaults, raw)
+    errs = schema_validate.validate(merged, schema)
+    if errs:
+        sys.exit("%s: %s" % (classify_error(errs[0]), errs[0]))
+    return merged
 ```
 
-`_attempts/*_attempt_*.md` files are machine-rendered from `evidence.py` and
-mirror the item-heading/option/verdict shape closely enough that they can
-plausibly parse as a non-empty bank via `parse_bank()`. Both `_attempts/` and
-`_evidence/`-adjacent generated files are gitignored (so a clean CI checkout
-never has them), but `cmd_guard` walks the live filesystem, not git state — a
-developer running `itembank guard .` locally after sitting a quiz would get a
-false-positive "parses as a question bank" failure on their own generated
-attempt file, undermining confidence in the one mechanical check this project
-relies on to keep real banks out of the repo.
+This closes all three reproductions at one point instead of requiring every
+current and future caller to defensively type-check its own slice of the
+document.
 
-**Fix:** Align `cmd_guard`'s skip set with `daemon.py`'s `SKIP_DIRS`
-(`{".git", ".github", "fixtures", "_attempts", "_evidence"}`), or better, have
-one module own the shared constant so the two lists cannot drift again.
+## Warnings
 
-### WR-04: The daemon's per-plan day state never re-derives "today," so a long-running daemon shows a stale date forever
+### WR-01: Daemon `500` responses can leak local filesystem paths, unlike its `404` responses
 
-**File:** `surfaces/daemon.py:544-566` (`_plan_day_state`), `surfaces/day.py:832-890`
-(`day_state`, `day_render`)
+**File:** `surfaces/daemon.py:371,525,607,626,786,809,840,861` (every `handler.send_error(500, str(exc))`)
 
-**Issue:** `_plan_day_state()` builds a `day.day_state()` once per plan stem and
-caches it for the life of the handler class:
+**Issue:** The daemon is deliberately careful that a `404` never leaks the served
+directory or a traceback (`send_not_found`'s docstring, `NOT_FOUND_BODY`, and
+`tests/daemon_roundtrip.py`'s `check_unknown_stem`/`check_report_not_found`
+assert this explicitly, citing `T-2-05`). No equivalent care applies to the
+generic `except Exception` clauses that produce a `500`: every one of them does
+`handler.send_error(500, str(exc))`, and `str(exc)` on an `OSError`/`IOError`
+(permission denied, disk full, a file moved mid-request) typically includes the
+full absolute path involved. A `--lan` daemon serves these same handlers to every
+device on the local network — the startup banner even prints "itembank has no
+accounts and no authentication by design" — so an ordinary I/O error is one of
+the few ways a client elsewhere on the LAN could learn the served directory's
+absolute path, exactly what the `404` path was hardened against.
+
+**Fix:** Log `str(exc)` server-side (stdout, matching this project's existing
+logging convention) and send a generic, path-free message to the client instead,
+e.g. `handler.send_error(500, "internal error")`.
+
+### WR-02: The index's "View report" link resolves to an arbitrary session, not the most recent one
+
+**File:** `surfaces/daemon.py:391-420` (`sessions_by_bank`), `surfaces/daemon.py:431-439` (`handle_index`)
+
+**Issue:** `sessions_by_bank()`'s own docstring says the picked session is
+"lexically-last session_id wins" when a bank has more than one recorded session,
+and the code matches: `for session_id, path in sorted(index.items()): ...
+result[stem] = session_id`. `session_id` is `uuid.uuid4().hex`
+(`surfaces/quiz.py:131`, `surfaces/session.py:62`), unrelated to creation time.
+For a bank sat more than once, `GET /`'s "View report" link therefore opens
+whichever session's hex string happens to sort largest — not the most recently
+created or most recently active one. A learner who resits a bank will often find
+"View report" opening a stale, unrelated earlier sitting instead of the one they
+just finished.
+
+**Fix:** Key the picked session by an actual time signal instead of the
+`session_id` string — e.g. the session file's own `mtime` (cheap to read
+alongside the existing `open()`/`json.load()` already in the loop), or the
+`served_ts` field already present in the session JSON.
+
+### WR-03: `POST /day/<stem>/open` returns a generic `500` instead of `400` for a non-numeric `i`
+
+**File:** `surfaces/day.py:909-917` (`apply_day_post`), `surfaces/daemon.py:612-631` (`handle_day_open`)
+
+**Issue:** `apply_day_post`'s `open` branch does `i = int(data.get("i") or 0)`
+with no type guard, unlike every comparable `/api/*` input field in this phase
+(`count`/`seed`/`mode`/`confidence` in `handle_api_start`/`handle_api_submit`,
+the forbidden-field checks in `api_read_json`). A body such as `{"lane": "EMT",
+"i": "not-a-number"}` raises an uncaught `ValueError` inside `apply_day_post`;
+`handle_day_open`'s blanket `except Exception` turns that into a `500` rather
+than the `400` every other malformed-shape case in this same module returns.
+
+**Fix:**
 
 ```python
-state = handler.day_states.get(stem)
-if state is not None:
-    return state
-...
-iso = override.get("iso") or datetime.date.today().isoformat()
-state = day.day_state(path, log_path, lanes_path, iso, base="/day/%s" % stem)
-handler.day_states[stem] = state
-return state
+i = data.get("i")
+if not isinstance(i, int) or isinstance(i, bool):
+    return None   # caller already turns None into a clean client-facing error
 ```
 
-`day_render()`'s 60-second cache only refreshes `day_info` (fuses, Anki counts,
-git evidence) — it never touches `state["iso"]`/`state["today"]`, which are fixed
-at first-request time. Under the new consolidated `itembank daemon` (as opposed
-to the old, short-lived per-day `cmd_day` process this replaces), the process is
-meant to be able to run indefinitely across multiple banks and plans. If it stays
-up past midnight, every subsequent `GET /day/<stem>` (and `GET /day`) keeps
-rendering yesterday's plan row, streak, and history against a date that is no
-longer "today" — with no error, just silently stale data for the one surface
-whose entire point is "what does today owe."
+### WR-04: `/api/start` and the CLI's `--count` accept a negative count, which silently truncates the bank via Python slice semantics instead of erroring
 
-**Fix:** Either rebuild `iso`/`today` (and hence the cached `day_state`) once the
-wall-clock date has advanced past `state["today"]`, or drop the per-stem cache
-entirely and rebuild the cheap parts of `day_state` (everything except the parsed
-plan/log) on every request the way `day_render()`'s `day_info` refresh already
-does.
+**File:** `surfaces/session.py:54-59` (`do_start`), `surfaces/daemon.py:756-758` (`handle_api_start`)
 
-### WR-05: `count` on `/api/start` (and the CLI's `--count`) is type-checked but not range-checked; a negative value silently truncates instead of erroring
-
-**File:** `surfaces/session.py:54-59` (`do_start`), `surfaces/daemon.py:756-758`
-(`handle_api_start`)
-
-**Issue:** `handle_api_start` only guards `count`'s *type*:
+**Issue:** `handle_api_start` only type-checks `count`:
 
 ```python
 count = data.get("count", 10)
@@ -271,19 +260,26 @@ if not isinstance(count, int) or isinstance(count, bool):
     count = 10
 ```
 
-`do_start` then does `items = candidates[:min(count, len(candidates))]`. Python
-slicing with a negative stop index means "up to but excluding the last `|count|`
-elements" — e.g. `count = -1` silently produces *almost the entire bank*
-(`candidates[:-1]`) instead of the obviously-invalid input it looks like. A
-client (or a CLI user via `--count -1`, which argparse also accepts with no
-`choices`/range restriction) gets a session sized nothing like what they asked
-for, with no error at all.
+`do_start` then does `items = candidates[:min(count, len(candidates))]`. Python's
+slice semantics treat a negative stop index as "up to but excluding the last
+`|count|` elements," so `count = -1` silently produces *nearly the entire bank*
+instead of erroring on the obviously-invalid input. Reproduced directly: a
+6-item fixture bank with `--count -1` produces a 5-item session, exit code 0, no
+warning of any kind:
 
-**Fix:** Reject or clamp `count < 1` explicitly (e.g. treat it the same as an
-invalid type and fall back to the default, or `sys.exit`/400 with a clear
-message), rather than letting Python's slice semantics decide the behavior.
+```
+$ python itembank.py start fixtures/sample_bank.md --count -1 --seed 0
+# session_file's "items" array has length 5, not the requested (invalid) -1
+```
 
-### WR-06: `ms_since()` can record a negative `response_time_ms`, unlike its client-side counterpart
+The same gap exists on the CLI (`argparse`'s `--count` has no range restriction),
+and on `/api/start`'s `count` field.
+
+**Fix:** Reject or clamp `count < 1` explicitly rather than letting the slice
+decide behavior — e.g. treat a non-positive count the same as an invalid type
+(daemon path) and `sys.exit` with a clear message (CLI path).
+
+### WR-05: `ms_since()` can record a negative `response_time_ms` under a backward wall-clock change, unlike its client-side counterpart
 
 **File:** `surfaces/session.py:32-45`
 
@@ -301,100 +297,132 @@ def ms_since(ts):
     return int((now - served).total_seconds() * 1000)
 ```
 
-There is no floor at zero. The client-side JS computes the analogous value with
-`Math.max(0, Math.round(performance.now() - shownAt))` specifically because a
-wall-clock-based delta can go negative under a system clock change — but
-`ms_since` uses `datetime.datetime.now()` (wall clock, not monotonic), so the
-same hazard applies here and is *not* guarded. A backward clock adjustment
-mid-session (NTP correction, manual clock change, DST edge case in some
-platforms' local-time handling) produces a negative `response_time_ms` written
-into the permanent evidence log — violating the non-negative invariant the
-project's own `tests/evidence_roundtrip.py` (`response_time_ms is not a
-non-negative int`) assumes holds for every recorded event.
+There is no floor at zero. The client-side JS computes the analogous quantity
+with `Math.max(0, Math.round(performance.now() - shownAt))`
+(`surfaces/quiz_page.py:154`) specifically *because* a wall-clock-based delta can
+go negative under a system clock adjustment — the comment there says as much
+(T-1-25). `ms_since` uses `datetime.datetime.now()` (wall clock, not monotonic),
+so the identical hazard applies here and is unguarded: an NTP correction or
+manual clock change between `do_next`'s `served_ts` write and a later `do_submit`
+can write a negative `response_time_ms` into the permanent evidence log,
+violating the non-negative invariant `tests/evidence_roundtrip.py` itself asserts
+(`response_time_ms is not a non-negative int`).
 
-**Fix:** Clamp: `return max(0, int((now - served).total_seconds() * 1000))`.
+**Fix:** `return max(0, int((now - served).total_seconds() * 1000))`.
 
-### WR-07: `schema_validate.check_schema()` accepts `$ref` as a keyword but never resolves or recurses into it, contradicting the module's own "whole document checked before any instance" guarantee
+### WR-06: The daemon's per-plan day state fixes "today" once and never re-derives it — a long-running daemon shows a stale date forever
 
-**File:** `schema_validate.py:45-71` (`check_schema`) vs. `108-116` (`$ref`
-resolution inside `validate`)
+**File:** `surfaces/daemon.py:544-566` (`_plan_day_state`), `surfaces/day.py:832-890` (`day_state`, `day_render`)
+
+**Issue:** `_plan_day_state()` builds a `day.day_state()` once per plan stem and
+caches it for the life of the handler class (`handler.day_states[stem] = state`,
+returned unchanged on every later request). `day_render()`'s 60-second cache only
+refreshes `day_info` (fuses, Anki counts, git evidence) — it never touches
+`state["iso"]`/`state["today"]`, which are fixed at first-request time
+(`iso = override.get("iso") or datetime.date.today().isoformat()`). Under the
+consolidated `itembank daemon` — meant to run indefinitely across multiple banks
+and plans, unlike the old short-lived per-day `cmd_day` process this replaces —
+if the process stays up past midnight, every subsequent `GET /day/<stem>` (and
+`GET /day`) keeps rendering yesterday's plan row, streak, and history against a
+date that is no longer "today," with no error and no visible signal that the
+date is stale.
+
+**Fix:** Either rebuild `iso`/`today` (and the day-log derivation that depends on
+it) once the wall-clock date has advanced past `state["today"]`, or drop the
+per-stem `day_states` cache entirely and rebuild the cheap parts of `day_state`
+on every request the way `day_render()`'s `day_info` refresh already does.
+
+### WR-07: `schema_validate.check_schema()` never resolves or recurses into `$ref`, contradicting the module's own "whole document checked" guarantee
+
+**File:** `schema_validate.py:45-71` (`check_schema`) vs. `schema_validate.py:108-116` (`$ref` resolution inside `validate`)
 
 **Issue:** The module docstring states: "a schema that uses a keyword outside
 that set is refused, not partially checked... A green result from this validator
-means the whole document was checked." `check_schema()` does treat `$ref` as a
-recognized keyword (it's in `SUPPORTED`), but its per-keyword dispatch only
-recurses for `properties`, `$defs`, `items`, and `oneOf` — there is no branch for
-`$ref` at all, so it never checks that the target actually resolves, and never
-recurses into the referenced subschema to check *it* for unsupported keywords.
-A malformed or dangling `$ref` (e.g. `{"$ref": "#/$defs/typo"}`) passes
-`check_schema()` silently and only raises `SchemaError` later, inside
-`validate()`, and only if an instance actually exercises that branch (line
-108-115) — exactly the "looks like a green build while checking half the
-contract" failure mode the module's own docstring says it exists to prevent.
-`schemas/settings.schema.json` does not currently use `$ref`, so there is no
-live impact today, but the guarantee is not actually enforced for the next
-schema that does.
+means the whole document was checked." `check_schema()` does list `$ref` in
+`SUPPORTED`, but its per-keyword dispatch only recurses for `properties`,
+`$defs`, `items`, and `oneOf` — there is no branch for `$ref` at all. It never
+checks that a `$ref`'s target actually resolves, and never recurses into the
+referenced subschema to check *it* for unsupported keywords. A malformed or
+dangling `$ref` (e.g. `{"$ref": "#/$defs/typo"}`) currently passes
+`check_schema()` silently and only surfaces as a `SchemaError` inside
+`validate()` — and only if an instance happens to exercise that exact branch
+(lines 108-115). This is the precise "looks like a green build while checking
+half the contract" failure mode the module's own docstring says it exists to
+prevent. `schemas/settings.schema.json` does not currently use `$ref`, so there
+is no live impact today, but the guarantee this module advertises is not
+actually enforced for the next schema that adds one.
 
 **Fix:** Give `check_schema()` a `$ref` branch that resolves the target against
-`$defs` at the top level (which requires threading the root document down through
-`check_schema`, similar to how `validate()` threads `root`) and recurses into it.
+the top-level `$defs` (threading `root` down through `check_schema`, mirroring
+how `validate()` already threads `root`) and recurses into the resolved
+subschema.
+
+### WR-08: `data.get("i")` in the day "open" handler and similar loosely-typed daemon inputs would benefit from the same explicit type checks `/api/*` already applies elsewhere
+
+**File:** `surfaces/day.py:914`
+
+**Issue:** Folded into WR-03 above; listed separately here only to flag that the
+pattern (`int(x or 0)` / bare `int(x)` on a client-supplied JSON value) is worth
+a repo-wide sweep rather than a single spot-fix, since the same shape could
+recur as `/day/*` or a future `/api/*` route grows more fields.
+
+**Fix:** See WR-03's fix; consider a small shared helper (`as_int(data, key,
+default=None)` returning `None` on any non-`int`/`bool` value) used by every
+handler that currently hand-rolls this check inconsistently.
 
 ## Info
 
-### IN-01: "already recorded" progress note can race under concurrent requests
+### IN-01: `quiz_page.py`'s item-type chip is the one bank-derived field not routed through `esc()`
 
-**File:** `surfaces/daemon.py:505-521` (`handle_quiz_answer`)
+**File:** `surfaces/quiz_page.py:191`
 
-**Issue:** `Daemon` mixes in `ThreadingMixIn`, so concurrent POSTs to the same
-bank's `/quiz/<stem>/answer` run in parallel threads. The "already recorded"
-progress note is derived from comparing `os.path.getsize(sess["log"])` before and
-after the write, with no lock:
+**Issue:** `` `<span class="chip type">${LABEL[q.type]||q.type}</span>` `` is the
+only bank-derived value in this template inserted without going through the
+now-fixed `esc()` — every other field (stem, option text, why, discriminator,
+trap, rubric, notes) does. It is not currently exploitable: `model.py`'s
+`[TYPE: ...]` parser constrains the value to `\w+` (`model.py:41`), which cannot
+carry HTML metacharacters. But that constraint lives in a different module than
+the escaping discipline this file otherwise applies uniformly — exactly the kind
+of split the project's own CR-01 fix (commit `6a00bea`) just closed for every
+other field.
 
-```python
-size_before = os.path.getsize(sess["log"]) if os.path.exists(sess["log"]) else -1
-score = quiz.record_answer(...)
-...
-already = size_before >= 0 and os.path.getsize(sess["log"]) == size_before
-```
-
-Two overlapping requests can interleave their size snapshots, producing a
-misleading "(already recorded)" (or its absence) in the printed progress line.
-This is cosmetic only — the actual dedupe decision lives inside
-`evidence.append_event`, not here — but worth a comment or a lock if the note is
-meant to be trustworthy under concurrency.
-
-**Fix:** Either accept this as a best-effort UX note (document it as such) or
-guard the read-modify-read with a per-bank lock.
+**Fix:** Route `q.type` through `esc()` too, so the page's escaping discipline
+does not depend on a parser-level assumption holding forever.
 
 ### IN-02: `Q.sort(()=>Math.random()-0.5)` is a biased shuffle
 
 **File:** `surfaces/quiz_page.py:491`
 
-**Issue:** Sorting with a random comparator is a well-known anti-pattern: it does
-not produce a uniform shuffle (some orderings are far more likely than others),
-and the ECMAScript spec does not even guarantee the comparator is called on
-every pair. `shuffled()` earlier in the same file (line 187) correctly
-implements Fisher–Yates and is used for options/rows/steps — the item order
-itself uses the weaker pattern instead.
+**Issue:** Sorting with a random comparator is a well-known non-uniform shuffle
+(some orderings are far more likely than others), and the comparator is not even
+guaranteed to be invoked on every pair. `shuffled()` earlier in the same file
+(line 187) correctly implements Fisher–Yates and is used for options/rows/steps
+— the overall item order uses the weaker pattern instead.
 
-**Fix:** Reuse `shuffled(Q)` in place of `Q.sort(()=>Math.random()-0.5)`.
+**Fix:** `shuffled(Q)` in place of `Q.sort(()=>Math.random()-0.5)`.
 
-### IN-03: Raw exception text returned to the client in 500 responses, reachable over `--lan`
+### IN-03: The "already recorded" progress note can race under concurrent requests to the same bank
 
-**File:** `surfaces/daemon.py` — every `except Exception as exc:
-handler.send_error(500, str(exc))` (e.g. lines 525, 607, 626, 786, 809, 840, 861)
+**File:** `surfaces/daemon.py:505-521` (`handle_quiz_answer`)
 
-**Issue:** Every route handler that catches a routine failure returns the raw
-Python exception string as the HTTP error body. Under `--lan` (which the daemon's
-own banner already flags as "no accounts and no authentication by design"), any
-device on the local network can trigger these paths and see internal exception
-text, which can include file paths or other implementation detail not otherwise
-exposed by the documented not-found/error copy used elsewhere (e.g.
-`NOT_FOUND_BODY`, which is deliberately scrubbed — see `T-2-05` in the daemon
-module docstring).
+**Issue:** `Daemon` mixes in `ThreadingMixIn`, so concurrent `POST`s to the same
+bank's `/quiz/<stem>/answer` run in parallel threads. The printed "already
+recorded" progress note is derived from an unlocked read-modify-read of the
+evidence log's file size:
 
-**Fix:** Return a generic message to the client and log `str(exc)` server-side
-instead, at least for the `--lan` case.
+```python
+size_before = os.path.getsize(sess["log"]) if os.path.exists(sess["log"]) else -1
+score = quiz.record_answer(...)
+already = size_before >= 0 and os.path.getsize(sess["log"]) == size_before
+```
+
+Two overlapping requests can interleave their size snapshots, producing a
+misleading "(already recorded)" note (or its absence). This is cosmetic only —
+the real dedupe decision lives inside `evidence.append_event`, not here — but is
+worth a comment acknowledging the race, or a per-bank lock if the note is meant
+to be trustworthy under concurrency.
+
+**Fix:** Document as best-effort, or guard with a per-bank lock.
 
 ---
 
