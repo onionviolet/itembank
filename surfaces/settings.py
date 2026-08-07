@@ -87,6 +87,19 @@ def load_settings(base):
     exits with settings.malformed_file naming the path and the decode error
     -- the same sys.exit-on-bad-file shape runtime.read_session already uses
     for session files.
+
+    The merged document is then validated one known top-level key at a time
+    against that key's own subschema -- the same `schema_validate.validate()`
+    call `cmd_config`'s `set` action already runs against a single new value.
+    A syntactically-valid-JSON settings file that is schema-*invalid* (a
+    string where `daemon` should be an object, a non-integer `daemon.port`,
+    ...) exits here with a `settings.*`-coded message instead of reaching a
+    caller (`cmd_daemon`, `set_at`, a raw socket bind) and crashing with a
+    Python traceback. Validating per-key rather than validating the whole
+    document at once deliberately does not enforce the schema's top-level
+    `additionalProperties: false` -- an unrecognized top-level key must keep
+    reading back and round-tripping untouched (see `merge_over_defaults`'s
+    own "unknown, not dropped" contract and `test_unknown_key_preserved`).
     """
     schema = load_schema()
     defaults = defaults_from_schema(schema)
@@ -99,7 +112,14 @@ def load_settings(base):
         sys.exit("settings.malformed_file: cannot read %s: %s" % (path, exc))
     if not isinstance(raw, dict):
         sys.exit("settings.malformed_file: %s does not contain a JSON object" % path)
-    return merge_over_defaults(defaults, raw)
+    merged = merge_over_defaults(defaults, raw)
+    errs = []
+    for key, subschema in schema.get("properties", {}).items():
+        if key in merged:
+            errs.extend(schema_validate.validate(merged[key], subschema))
+    if errs:
+        sys.exit("%s: %s" % (classify_error(errs[0]), errs[0]))
+    return merged
 
 
 def write_settings(base, data):
