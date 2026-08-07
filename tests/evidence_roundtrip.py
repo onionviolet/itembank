@@ -14,11 +14,15 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 import itembank                                            # noqa: E402
+import surfaces.day                                        # noqa: E402
 
 BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
 BROKEN_BANK = os.path.join(ROOT, "fixtures", "broken_bank.md")
 PLAN = os.path.join(ROOT, "fixtures", "sample_plan.md")
 LANES = os.path.join(ROOT, "fixtures", "sample_lanes.md")
+LEGACY_ATTEMPTS_DIR = os.path.join(ROOT, "fixtures", "legacy_attempts")
+LEGACY_SESSION = os.path.join(ROOT, "fixtures", "legacy_session.json")
+LEGACY_DAILY_LOG = os.path.join(ROOT, "fixtures", "legacy_daily_log.md")
 
 # The 22 keys named in 01-02-PLAN.md's must_haves. The event also carries a
 # 23rd key, "bank", named in the plan's own field list and required by its
@@ -1634,6 +1638,280 @@ def test_day_ticks_are_events():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ---- migration (01-11): D-13's re-runnability, D-14's unresolved rule, and --
+# the phase's second success criterion -- pre/post counts reconcile exactly --
+# proven against a total this test computes independently of
+# surfaces/migrate.py, per its own read_first instruction that a
+# reconciliation test asking the tool to check its own arithmetic proves
+# nothing.
+
+def _lay_out_legacy_tree(base):
+    """The layout a real machine has: the bank at `base`, attempt markdown
+    and session JSON under `base/_attempts/`, the day log beside the bank.
+    """
+    shutil.copyfile(BANK, os.path.join(base, "sample_bank.md"))
+    attempts_dir = os.path.join(base, "_attempts")
+    os.makedirs(attempts_dir, exist_ok=True)
+    for f in sorted(os.listdir(LEGACY_ATTEMPTS_DIR)):
+        shutil.copyfile(os.path.join(LEGACY_ATTEMPTS_DIR, f),
+                        os.path.join(attempts_dir, f))
+    shutil.copyfile(LEGACY_SESSION, os.path.join(attempts_dir, "legacy_session.json"))
+    shutil.copyfile(LEGACY_DAILY_LOG, os.path.join(base, "daily_log.md"))
+
+
+def _independent_legacy_count(base):
+    """Count the source records directly -- a simple `## Item ` count per
+    attempt file, `len(responses)` from the session JSON, and
+    `surfaces.day.load_day_log`'s own tick mapping -- never by calling
+    `surfaces.migrate.scan_legacy` or anything else under test.
+    """
+    attempts_dir = os.path.join(base, "_attempts")
+    attempt_total = 0
+    session_total = 0
+    for f in sorted(os.listdir(attempts_dir)):
+        full = os.path.join(attempts_dir, f)
+        if f.endswith(".md"):
+            text = open(full, encoding="utf-8").read()
+            attempt_total += len(re.findall(r"(?m)^## Item ", text))
+        elif f.endswith(".json"):
+            data = json.load(open(full, encoding="utf-8"))
+            session_total += len(data.get("responses") or [])
+    tick_log = surfaces.day.load_day_log(os.path.join(base, "daily_log.md"))
+    tick_total = sum(len(v) for v in tick_log.values())
+    return attempt_total, session_total, tick_total
+
+
+def _fingerprint_legacy_files(base):
+    """A byte fingerprint of every legacy source file under `base`, so a
+    caller can assert migration reads them and never writes to them.
+    """
+    out = {}
+    attempts_dir = os.path.join(base, "_attempts")
+    for f in sorted(os.listdir(attempts_dir)):
+        p = os.path.join(attempts_dir, f)
+        out[p] = open(p, "rb").read()
+    daily = os.path.join(base, "daily_log.md")
+    out[daily] = open(daily, "rb").read()
+    return out
+
+
+def migrate_json(args_after_command, cwd):
+    """Run `migrate` and parse its trailing JSON reconciliation object,
+    which follows two human-readable `found:`/`wrote:` (or `would write:`)
+    status lines in the house `"%d ..., %d ..."` style.
+    """
+    return parse_json_tail(run(["migrate"] + list(args_after_command), cwd))
+
+
+def test_migration_reconciliation():
+    """EVID-06 and both of its probe edges (idempotency, concurrency),
+    plus D-14's unresolved rule -- the phase's second success criterion,
+    proven against fixtures/legacy_attempts, fixtures/legacy_session.json
+    and fixtures/legacy_daily_log.md, laid out under a temp directory the
+    way a real machine has them.
+    """
+    tmp = tempfile.mkdtemp()
+    try:
+        _lay_out_legacy_tree(tmp)
+        expected_attempt, expected_session, expected_tick = _independent_legacy_count(tmp)
+        expected_total = expected_attempt + expected_session + expected_tick
+        if expected_total < 15:
+            fail("test setup: expected the legacy fixtures to carry more than "
+                 "%d records (attempt=%d session=%d tick=%d)" %
+                 (expected_total, expected_attempt, expected_session, expected_tick))
+        before_files = _fingerprint_legacy_files(tmp)
+        log = itembank.log_path(tmp)
+
+        # Dry run: nothing appended, and its found total matches the
+        # independently computed one.
+        dry = migrate_json(["--base", tmp], tmp)
+        if dry["dry_run"] is not True:
+            fail("a migrate run with no --write reported dry_run %r, not True" %
+                 dry["dry_run"])
+        if os.path.exists(log):
+            fail("a dry run created or appended to the evidence log")
+        found_total = sum(dry["found"].values())
+        if found_total != expected_total:
+            fail("dry run found %d records, independently counted %d: %r" %
+                 (found_total, expected_total, dry["found"]))
+
+        # Real run: written + already_present accounts for the whole found
+        # total, and the log's own line count for response/day_tick events
+        # matches what was reported written.
+        real = migrate_json(["--base", tmp, "--write"], tmp)
+        if real["dry_run"] is not False:
+            fail("a --write migrate run reported dry_run %r, not False" % real["dry_run"])
+        w = real["written"]
+        accounted = w["resolved"] + w["unresolved"] + w["unparsed"] + w["ticks"] + w["already_present"]
+        if accounted != found_total:
+            fail("real run found %d but accounted for %d: %r" %
+                 (found_total, accounted, w))
+        if w["already_present"] != 0:
+            fail("the first --write run against a fresh log reported "
+                 "already_present %d, not 0" % w["already_present"])
+        if w["resolved"] + w["unresolved"] + w["ticks"] == 0:
+            fail("a --write run against a fresh log wrote nothing at all")
+
+        live_events = [json.loads(l) for l in
+                       open(log, encoding="utf-8").read().splitlines() if l.strip()]
+        live_response_or_tick = [e for e in live_events
+                                 if e["event_type"] in ("response", "day_tick")]
+        if len(live_response_or_tick) != w["resolved"] + w["unresolved"] + w["ticks"]:
+            fail("the log's response/day_tick line count %d does not match what "
+                 "the real run reported writing (%d resolved+unresolved, %d ticks)" %
+                 (len(live_response_or_tick), w["resolved"] + w["unresolved"], w["ticks"]))
+
+        # Idempotency edge: running --write again imports zero new events;
+        # already_present covers the whole found total, and the log's line
+        # count is unchanged.
+        again = migrate_json(["--base", tmp, "--write"], tmp)
+        aw = again["written"]
+        # A record that never parses (the deliberately corrupted fixture
+        # section) never reaches append_event at all, so it is never
+        # "already present" -- it lands in `unparsed` again, every run.
+        # The full found total is therefore accounted for by
+        # already_present plus that same unparsed count, not by
+        # already_present alone.
+        if aw["already_present"] != found_total - aw["unparsed"]:
+            fail("a second --write run reported already_present %d and "
+                 "unparsed %d, which do not sum to the full found total %d: %r" %
+                 (aw["already_present"], aw["unparsed"], found_total, aw))
+        if aw["resolved"] != 0 or aw["unresolved"] != 0 or aw["ticks"] != 0:
+            fail("a second --write run reported new resolved/unresolved/tick "
+                 "records: %r" % aw)
+        lines_after_second = [l for l in
+                              open(log, encoding="utf-8").read().splitlines() if l.strip()]
+        if len(lines_after_second) != len(live_events):
+            fail("a second --write run changed the log's line count: %d -> %d" %
+                 (len(live_events), len(lines_after_second)))
+
+        # Unresolved rule (D-14): every imported response under the q9
+        # reference is present, not dropped, carries item_id "", and names
+        # its resolution as unresolved.
+        q9_events = [e for e in live_events
+                    if e.get("event_type") == "response" and e.get("item_ref") == "q9"]
+        if not q9_events:
+            fail("no imported response carries item_ref 'q9' -- the "
+                 "unresolvable fixture record was dropped rather than imported")
+        for e in q9_events:
+            if e["item_id"] != "":
+                fail("a q9 response carries item_id %r, not empty" % e["item_id"])
+            source_ref = e.get("source_ref") or {}
+            if source_ref.get("resolution") != "unresolved":
+                fail("a q9 response's source_ref does not report 'unresolved': %r" %
+                     source_ref)
+
+        after_files = _fingerprint_legacy_files(tmp)
+        if after_files != before_files:
+            fail("one or more legacy source files changed after migration runs "
+                 "against %s -- migration must read them and never write to them" % tmp)
+
+        # Concurrency edge: kill the migration partway through on a fresh
+        # copy of the same tree, then resume it to completion. The final
+        # event count must equal the uninterrupted run's, and at most one
+        # malformed line may result from the kill.
+        tmp2 = tempfile.mkdtemp()
+        try:
+            _lay_out_legacy_tree(tmp2)
+            log2 = itembank.log_path(tmp2)
+            proc = subprocess.Popen(
+                [sys.executable, os.path.join(ROOT, "itembank.py"), "migrate",
+                 "--base", tmp2, "--write"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            time.sleep(0.05)
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+
+            run(["migrate", "--base", tmp2, "--write"], tmp2)
+            final = migrate_json(["--base", tmp2, "--write"], tmp2)
+            fw = final["written"]
+            if fw["already_present"] != expected_total - fw["unparsed"]:
+                fail("after an interrupted-then-resumed migration, a final "
+                     "confirming run reported already_present %d and unparsed "
+                     "%d, which do not sum to the expected total %d: %r" %
+                     (fw["already_present"], fw["unparsed"], expected_total, fw))
+            if fw["resolved"] != 0 or fw["unresolved"] != 0 or fw["ticks"] != 0:
+                fail("after an interrupted-then-resumed migration, a final "
+                     "confirming run still reported new records: %r" % fw)
+
+            bad = 0
+            if os.path.exists(log2):
+                for line in open(log2, encoding="utf-8").read().splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        json.loads(line)
+                    except ValueError:
+                        bad += 1
+            if bad > 1:
+                fail("an interrupted-then-resumed migration left %d malformed "
+                     "lines in the log, expected at most 1" % bad)
+        finally:
+            shutil.rmtree(tmp2, ignore_errors=True)
+
+        # Opt-in resolution: a fresh copy migrated with
+        # --resolve-by-position resolves q1..q6 to the bank's [ID:] values
+        # and records source_ref.resolution 'position', while q9 stays
+        # unresolved and still counted.
+        tmp3 = tempfile.mkdtemp()
+        try:
+            _lay_out_legacy_tree(tmp3)
+            bank3 = os.path.join(tmp3, "sample_bank.md")
+            qs_by_ref = {q["id"]: q for q in itembank.load(bank3)}
+            run(["migrate", "--base", tmp3, "--write",
+                 "--resolve-by-position", bank3], tmp3)
+            log3 = itembank.log_path(tmp3)
+            events3 = [json.loads(l) for l in
+                      open(log3, encoding="utf-8").read().splitlines() if l.strip()]
+            resolved_seen = False
+            for e in events3:
+                if e.get("event_type") != "response":
+                    continue
+                ref = e.get("item_ref")
+                if ref == "q9":
+                    if e["item_id"] != "" or e["source_ref"]["resolution"] != "unresolved":
+                        fail("q9 resolved under --resolve-by-position, which D-14 "
+                             "forbids: %r" % e)
+                    continue
+                q = qs_by_ref.get(ref)
+                if q and q.get("item_id") and e["item_id"] == q["item_id"]:
+                    if e["source_ref"]["resolution"] != "position":
+                        fail("a resolved event %r did not record "
+                             "source_ref.resolution 'position'" % e)
+                    resolved_seen = True
+            if not resolved_seen:
+                fail("--resolve-by-position resolved nothing at all")
+        finally:
+            shutil.rmtree(tmp3, ignore_errors=True)
+
+        # Scope rule (T-1-03): --legacy-dir pointed outside --base exits
+        # non-zero and appends nothing.
+        tmp4 = tempfile.mkdtemp()
+        outside = tempfile.mkdtemp()
+        try:
+            _lay_out_legacy_tree(tmp4)
+            log4 = itembank.log_path(tmp4)
+            r = subprocess.run(
+                [sys.executable, os.path.join(ROOT, "itembank.py"), "migrate",
+                 "--base", tmp4, "--legacy-dir", outside, "--write"],
+                cwd=tmp4, capture_output=True, text=True)
+            if r.returncode == 0:
+                fail("migrate --legacy-dir pointed outside --base exited 0")
+            if os.path.exists(log4):
+                fail("migrate --legacy-dir pointed outside --base appended to "
+                     "the evidence log")
+        finally:
+            shutil.rmtree(tmp4, ignore_errors=True)
+            shutil.rmtree(outside, ignore_errors=True)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     test_tracer_end_to_end()
     test_mode_recorded()
@@ -1652,11 +1930,12 @@ def main():
     test_mark_flow()
     test_serve_writes_events()
     test_day_ticks_are_events()
+    test_migration_reconciliation()
     print("evidence contract: ok (tracer end-to-end, mode recorded, empty log, one writer, "
           "identity survives edit, missing/duplicate ids, fingerprint stability, hash "
           "states, lint order, duplicate-submit dedupe, retraction, objective query, "
           "index disposability, renders match log, mark flow, serve writes events, "
-          "day ticks are events)")
+          "day ticks are events, migration reconciliation)")
     return 0
 
 
