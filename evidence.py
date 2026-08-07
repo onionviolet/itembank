@@ -262,10 +262,22 @@ def iter_raw(path):
     dict, is reported to stdout and skipped rather than raised: D-09 requires the
     reader to survive a torn line, and `runtime.read_session()`'s whole-file
     `sys.exit` posture is the wrong template for one line of a growing log.
+
+    Opened with `errors="replace"`: a torn tail can cut inside a multi-byte
+    UTF-8 character, and a strict decode would raise `UnicodeDecodeError` out
+    of this generator and take down every reader built on it (`events`,
+    `live_events`, `retracted_ids`, `attempt_number`, `objective_history`'s
+    fallback, `marks_by_event`, `render_attempt_md`, `render_session_json`,
+    `day_log_from_events`). With the lenient decode, the torn bytes become
+    U+FFFD, `json.loads` below fails on the resulting string, and the
+    `except (ValueError, TypeError)` already here reports and skips the line
+    exactly as it does for a JSON-malformed one. This matches the posture
+    `_tail_dedupe_keys` and `_index_tail_update` already take for the same
+    reason, on the same log.
     """
     if not os.path.exists(path):
         return
-    with open(path, encoding="utf-8") as fh:
+    with open(path, encoding="utf-8", errors="replace") as fh:
         for lineno, raw in enumerate(fh, 1):
             stripped = raw.strip()
             if not stripped:
