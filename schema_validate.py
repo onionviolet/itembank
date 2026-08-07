@@ -3,10 +3,10 @@
 
 There is no JSON Schema implementation in the Python standard library, and this
 is not a Draft 2020-12 reimplementation either. It is a subset validator scoped
-to the exact keywords the five documents under `schemas/` use: `type`,
+to the exact keywords the documents under `schemas/` use: `type`,
 `properties`, `required`, `additionalProperties`, `enum`, `const`, `items`,
-`minItems`, `minLength`, `$defs`, `$ref` (local `#/$defs/<name>` only), and
-`oneOf`. Nothing more.
+`minItems`, `minLength`, `minimum`, `maximum`, `$defs`, `$ref` (local
+`#/$defs/<name>` only), and `oneOf`. Nothing more.
 
 The one decision that makes this worth trusting: a schema that uses a keyword
 outside that set is refused, not partially checked. `check_schema` walks the
@@ -22,12 +22,15 @@ import sys
 
 SUPPORTED = frozenset([
     "type", "properties", "required", "additionalProperties", "enum", "const",
-    "items", "minItems", "minLength", "$defs", "$ref", "oneOf",
+    "items", "minItems", "minLength", "minimum", "maximum", "$defs", "$ref", "oneOf",
 ])
 
 # Accepted and ignored: they describe the schema to a human reader but impose
 # no constraint this validator checks.
-ANNOTATIONS = frozenset(["$schema", "$id", "title", "description", "x-itembank-version"])
+ANNOTATIONS = frozenset([
+    "$schema", "$id", "title", "description", "x-itembank-version",
+    "default", "x-itembank-phase",
+])
 
 
 class SchemaError(Exception):
@@ -163,6 +166,18 @@ def validate(instance, schema, root=None, path="$"):
         if len(instance) < schema["minLength"]:
             errors.append("%s: has length %d, shorter than minLength %d" %
                           (path, len(instance), schema["minLength"]))
+
+    # A bool is never a number here, matching _matches_type's exclusion -- True
+    # would otherwise satisfy `minimum: 0` as if it were 1.
+    if "minimum" in schema and isinstance(instance, (int, float)) and not isinstance(instance, bool):
+        if instance < schema["minimum"]:
+            errors.append("%s: %r is less than minimum %r" %
+                          (path, instance, schema["minimum"]))
+
+    if "maximum" in schema and isinstance(instance, (int, float)) and not isinstance(instance, bool):
+        if instance > schema["maximum"]:
+            errors.append("%s: %r is greater than maximum %r" %
+                          (path, instance, schema["maximum"]))
 
     if "oneOf" in schema:
         branches = schema["oneOf"]

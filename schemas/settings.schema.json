@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/settings.schema.json",
+  "title": "itembank settings file",
+  "description": "The one documented settings file, itembank.json, shipped at repository root. Every key is typed, ranged or enumerated, and defaulted here; a key's x-itembank-phase names the phase whose code actually reads it -- a key with no shipped reader yet is still present and settable, but itembank config reports it as inert rather than letting a learner believe it controls behaviour.",
+  "x-itembank-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["theme", "daily_cap", "selection_weights", "auditor_autonomy", "model_backend", "update_policy", "daemon"],
+  "properties": {
+    "theme": {
+      "type": "string",
+      "description": "The app's color theme. Inert until Phase 4 reads it.",
+      "enum": ["system", "light", "dark"],
+      "default": "system",
+      "x-itembank-phase": 4
+    },
+    "daily_cap": {
+      "type": "integer",
+      "description": "Maximum items served per subject per day. Inert until Phase 10 reads it.",
+      "minimum": 1,
+      "maximum": 500,
+      "default": 40,
+      "x-itembank-phase": 10
+    },
+    "selection_weights": {
+      "type": "object",
+      "description": "Relative weights the item-selection algorithm uses to prioritize which items to serve. Inert until Phase 7 reads it.",
+      "additionalProperties": false,
+      "x-itembank-phase": 7,
+      "default": {
+        "objective_miss_rate": 0.5,
+        "difficulty_spread": 0.3,
+        "recency_decay": 0.2
+      },
+      "properties": {
+        "objective_miss_rate": {
+          "type": "number",
+          "description": "Weight given to an objective's historical miss rate. Inert until Phase 7 reads it.",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.5,
+          "x-itembank-phase": 7
+        },
+        "difficulty_spread": {
+          "type": "number",
+          "description": "Weight given to spreading served items across difficulty levels. Inert until Phase 7 reads it.",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.3,
+          "x-itembank-phase": 7
+        },
+        "recency_decay": {
+          "type": "number",
+          "description": "Weight given to how recently an item was last served. Inert until Phase 7 reads it.",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.2,
+          "x-itembank-phase": 7
+        }
+      }
+    },
+    "auditor_autonomy": {
+      "type": "string",
+      "description": "How much the auditor is allowed to act on its own findings without a human approving each step. Anything beyond report_only is flagged Revisit in PROJECT.md until proven. Inert until Phase 11 reads it.",
+      "enum": ["report_only", "draft_and_approve", "audit_draft_lint_fix_commit"],
+      "default": "report_only",
+      "x-itembank-phase": 11
+    },
+    "model_backend": {
+      "type": "object",
+      "description": "Which model backend (if any) the AI-tutoring surfaces call, and where. Inert until Phase 8 reads it.",
+      "additionalProperties": false,
+      "x-itembank-phase": 8,
+      "default": {
+        "kind": "none",
+        "endpoint": "",
+        "model": ""
+      },
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "none disables model calls entirely; hosted talks to a network provider; local talks to an OpenAI-compatible server on this machine. Inert until Phase 8 reads it.",
+          "enum": ["none", "hosted", "local"],
+          "default": "none",
+          "x-itembank-phase": 8
+        },
+        "endpoint": {
+          "type": "string",
+          "description": "Base URL of the model server; ignored when kind is none. Inert until Phase 8 reads it.",
+          "default": "",
+          "x-itembank-phase": 8
+        },
+        "model": {
+          "type": "string",
+          "description": "Model name/identifier passed to the backend; ignored when kind is none. Inert until Phase 8 reads it.",
+          "default": "",
+          "x-itembank-phase": 8
+        }
+      }
+    },
+    "update_policy": {
+      "type": "string",
+      "description": "Whether the opt-in updater checks for a new version automatically. Inert until Phase 12 reads it.",
+      "enum": ["opt_in", "check_on_launch"],
+      "default": "opt_in",
+      "x-itembank-phase": 12
+    },
+    "daemon": {
+      "type": "object",
+      "description": "The daemon's own port and LAN settings. The only group this phase's own code reads (plan 02-06).",
+      "additionalProperties": false,
+      "x-itembank-phase": 2,
+      "default": {
+        "port": 8730,
+        "lan": false,
+        "open_browser": true
+      },
+      "properties": {
+        "port": {
+          "type": "integer",
+          "description": "Default port the daemon binds to.",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 8730,
+          "x-itembank-phase": 2
+        },
+        "lan": {
+          "type": "boolean",
+          "description": "Default value for --lan: bind all interfaces so a phone on the same wifi can open it.",
+          "default": false,
+          "x-itembank-phase": 2
+        },
+        "open_browser": {
+          "type": "boolean",
+          "description": "Whether the daemon launches a browser on startup by default.",
+          "default": true,
+          "x-itembank-phase": 2
+        }
+      }
+    }
+  }
+}
