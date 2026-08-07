@@ -13,14 +13,14 @@ those things.
 Standard library only, no test framework, runnable as
 `python tests/daemon_roundtrip.py`.
 """
-import json, os, re, shutil, socketserver, subprocess, sys, tempfile, threading, time
+import http.server, json, os, re, shutil, socketserver, subprocess, sys, tempfile, threading, time
 import urllib.error, urllib.parse, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 import itembank                                            # noqa: E402
 import evidence                                             # noqa: E402
-from surfaces import cli, daemon, session, study            # noqa: E402
+from surfaces import cli, daemon, day, session, study        # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import agent_roundtrip                                       # noqa: E402
@@ -35,19 +35,29 @@ def fail(msg):
     sys.exit(1)
 
 
-def start_daemon(workdir, *extra_args):
-    """Launch `itembank daemon <workdir> --no-open --port 0`, drain its
+def start_daemon(workdir, *extra_args, force_port_zero=True):
+    """Launch `itembank daemon <workdir> --no-open[, --port 0]`, drain its
     stdout on a background thread, and return `(proc, url, lines)` once the
     printed banner's URL has been scraped -- the same subprocess-plus-
     background-thread shape `tests/serve_roundtrip.py` and
     `tests/day_roundtrip.py` already use, generalized to a daemon that can
     be pointed at any prepared directory. Exported at module level so later
     plans in this phase (02-02, 02-04, 02-05, 02-06) can import or copy it.
+
+    `force_port_zero` defaults to True: every earlier caller relies on
+    getting an OS-assigned free port so concurrent test runs never collide,
+    and `extra_args` can still override it (argparse keeps the last `--port`
+    it sees) the way plan 02-06's own `--lan`/known-port checks below do.
+    Pass `False` for the one case that needs `--port` omitted entirely so a
+    settings-driven default in `itembank.json` can take effect.
     """
+    args = [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "daemon", workdir,
+            "--no-open"]
+    if force_port_zero:
+        args += ["--port", "0"]
+    args += list(extra_args)
     proc = subprocess.Popen(
-        [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "daemon", workdir,
-         "--no-open", "--port", "0"] + list(extra_args),
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     lines = []
     threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
                      daemon=True).start()
@@ -62,6 +72,55 @@ def start_daemon(workdir, *extra_args):
         proc.terminate()
         fail("daemon never printed a URL. Output was:\n" + "".join(lines))
     return proc, url, lines
+
+
+def free_port():
+    """A currently-free TCP port, found by binding a throwaway server on
+    port 0 and reading the OS-assigned number back before closing it --
+    used wherever a startup-case test below needs a *known* port rather
+    than the usual 0, matching `tests/day_roundtrip.py`'s own
+    fixed-port-versus-port-zero split for exactly the same reason.
+    """
+    srv = socketserver.TCPServer(("127.0.0.1", 0), socketserver.BaseRequestHandler)
+    port = srv.server_address[1]
+    srv.server_close()
+    return port
+
+
+def start_decoy(port, body=b"plain text, not itembank", content_type="text/plain",
+                status=200):
+    """A throwaway HTTP listener on a known port that is definitely not an
+    itembank daemon -- the false-positive guard `probe()` must survive
+    (T-2-08), and the squatter the reserved/occupied-by-something-else
+    startup case falls back around. Returns the bound server; the caller
+    shuts it down.
+    """
+    class Decoy(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            self.send_response(status)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    srv = socketserver.TCPServer(("127.0.0.1", port), Decoy)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+
+def run_daemon_once(args, timeout=10):
+    """Launch `itembank <args>` and wait for it to exit on its own, rather
+    than serve forever -- for the already-running attach case, which is
+    expected to print its line and exit 0 quickly instead of binding
+    anything. Returns `(returncode, output)`.
+    """
+    result = subprocess.run(
+        [sys.executable, "-u", os.path.join(ROOT, "itembank.py")] + list(args),
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=timeout)
+    return result.returncode, result.stdout
 
 
 def get(url):
@@ -1181,6 +1240,205 @@ def check_report_no_truncation():
         proc.terminate()
 
 
+# ---- startup -- plan 02-06's detect-and-attach probe, the three
+# bind-failure cases, `--lan`, and the settings-driven port/LAN defaults.
+# The false-positive guard (`check_probe_non_itembank_listener`) is the
+# most important assertion in this section: without it, `probe()` could
+# return True for anything that answers at all.
+
+def check_probe_closed_port():
+    port = free_port()                          # nothing is listening once closed
+    if daemon.probe(port, timeout=0.2) is not False:
+        fail("probe() on a closed port did not return False")
+
+
+def check_probe_non_itembank_listener():
+    """The false-positive guard: a plain-text 200 and a JSON body missing
+    the `itembank` field must both read as False, never True (T-2-08).
+    """
+    port = free_port()
+    decoy = start_decoy(port, body=b"plain text, not itembank", content_type="text/plain")
+    try:
+        if daemon.probe(port, timeout=0.5) is not False:
+            fail("probe() returned True against a plain-text, non-JSON listener")
+    finally:
+        decoy.shutdown()
+        decoy.server_close()
+
+    port = free_port()
+    decoy = start_decoy(port, body=json.dumps({"other": True}).encode("utf-8"),
+                        content_type="application/json")
+    try:
+        if daemon.probe(port, timeout=0.5) is not False:
+            fail("probe() returned True against JSON lacking the itembank field")
+    finally:
+        decoy.shutdown()
+        decoy.server_close()
+
+
+def check_probe_real_daemon():
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    port = free_port()
+    proc, url, lines = start_daemon(workdir, "--port", str(port))
+    try:
+        if daemon.probe(port, timeout=1.0) is not True:
+            fail("probe() on a real running daemon did not return True")
+        status, body = get(url + "__itembank__")
+        if status != 200 or json.loads(body) != {"itembank": True}:
+            fail("GET /__itembank__ did not return the documented marker shape")
+    finally:
+        proc.terminate()
+
+
+def check_startup_second_attaches():
+    """A second `itembank daemon` on a port the first holds attaches
+    instead of binding: it exits 0, prints the already-running line, prints
+    no URL of its own (the free-port fallback line's absence, T-2-20), and
+    the first daemon is still the one answering afterward.
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    port = free_port()
+    proc, url, lines = start_daemon(workdir, "--port", str(port))
+    try:
+        code, output = run_daemon_once(
+            ["daemon", workdir, "--no-open", "--port", str(port)])
+        if code != 0:
+            fail("a second daemon on a held port exited %d, expected 0" % code)
+        if "itembank is already running at" not in output:
+            fail("a second daemon on a held port did not print the already-running "
+                 "line: %r" % output)
+        # The "already running" line itself names a URL; what must be
+        # absent is `serve_scoped()`'s own banner line, printed only once a
+        # socket has actually been bound.
+        if re.search(r"(?m)^\s*url\s+http://127\.0\.0\.1:\d+/", output):
+            fail("a second daemon on a held port printed serve_scoped()'s own url "
+                 "line -- it bound a socket instead of attaching: %r" % output)
+
+        status, body = get(url + "__itembank__")
+        if status != 200 or json.loads(body) != {"itembank": True}:
+            fail("the first daemon stopped answering after a second start attempt")
+    finally:
+        proc.terminate()
+
+
+def check_startup_squatter_falls_back():
+    """A configured port held by a non-itembank listener falls back to a
+    free port and serves successfully there, rather than hard-failing --
+    the flagged planner_assumption this case pins down.
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    port = free_port()
+    decoy = start_decoy(port)
+    try:
+        proc, url, lines = start_daemon(workdir, "--port", str(port))
+        try:
+            output = "".join(lines)
+            if ("http://127.0.0.1:%d/" % port) in output:
+                fail("the daemon bound the squatted port instead of falling back")
+            status, _ = get(url)
+            if status != 200:
+                fail("the daemon did not start successfully after falling back from "
+                     "a squatted port: GET / returned %d" % status)
+        finally:
+            proc.terminate()
+    finally:
+        decoy.shutdown()
+        decoy.server_close()
+
+
+def check_startup_loopback_by_default():
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        if not url.startswith("http://127.0.0.1:"):
+            fail("the default daemon banner does not show a loopback URL: %r" % url)
+        if "phone" in "".join(lines).lower():
+            fail("a daemon started without --lan printed a phone line")
+    finally:
+        proc.terminate()
+
+
+def check_startup_lan_binds_all():
+    """`--lan` binds all interfaces and the banner carries both the
+    loopback URL and a phone line. Cross-device reachability itself is a
+    manual check (02-VALIDATION.md); this proves the bind widened, by
+    reaching the LAN address from this same machine.
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    port = free_port()
+    proc, url, lines = start_daemon(workdir, "--lan", "--port", str(port))
+    try:
+        output = "".join(lines)
+        if "http://127.0.0.1:" not in output:
+            fail("a --lan daemon's banner is missing the loopback URL")
+        addr = day.lan_address()
+        if addr == "127.0.0.1":
+            print("skip: lan_address() returned loopback (no LAN route on this "
+                 "machine) -- skipping the phone-line and cross-interface checks")
+        else:
+            if ("phone   http://%s:%d/" % (addr, port)) not in output:
+                fail("a --lan daemon's banner is missing the phone line: %r" % output)
+            status, _ = get("http://%s:%d/" % (addr, port))
+            if status != 200:
+                fail("a --lan daemon did not answer on its LAN address")
+    finally:
+        proc.terminate()
+
+
+def check_lan_path_validation_unchanged():
+    """`--lan` widens who can reach the routes, never what a request may
+    name -- two of plan 02-04's hostile cases still return the same 4xx
+    under a `--lan` daemon.
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    port = free_port()
+    proc, url, lines = start_daemon(workdir, "--lan", "--port", str(port))
+    try:
+        try:
+            post(url + "api/start", {"bank": "../../etc/passwd", "count": 1})
+            fail("a path-shaped bank field was accepted by a --lan daemon")
+        except urllib.error.HTTPError as exc:
+            if exc.code < 400 or exc.code >= 500:
+                fail("a path-shaped bank field on a --lan daemon returned HTTP %d, "
+                     "expected 4xx" % exc.code)
+        try:
+            post(url + "api/next", {"session_id": "no-such-session-id"})
+            fail("an unknown session_id was accepted by a --lan daemon")
+        except urllib.error.HTTPError as exc:
+            if exc.code != 404:
+                fail("an unknown session_id on a --lan daemon returned HTTP %d, "
+                     "expected 404" % exc.code)
+    finally:
+        proc.terminate()
+
+
+def check_settings_driven_port():
+    """With no `--port` given at all, the daemon binds `itembank.json`'s own
+    `daemon.port` -- the settings group this plan makes live, proven
+    against a temp `--base` rather than the repo's own shipped file.
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    port = free_port()
+    subprocess.run(
+        [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "config", "set",
+         "daemon.port", str(port), "--base", workdir],
+        check=True, capture_output=True, text=True)
+    proc, url, lines = start_daemon(workdir, force_port_zero=False)
+    try:
+        if url != "http://127.0.0.1:%d/" % port:
+            fail("with no --port given, the daemon did not bind the settings-driven "
+                 "port %d: bound %r instead" % (port, url))
+    finally:
+        proc.terminate()
+
+
 def main():
     checks = (
         check_index_populated,
@@ -1220,12 +1478,22 @@ def main():
         check_report_objective_rows_one_and_many,
         check_report_not_found,
         check_report_no_truncation,
+        check_probe_closed_port,
+        check_probe_non_itembank_listener,
+        check_probe_real_daemon,
+        check_startup_second_attaches,
+        check_startup_squatter_falls_back,
+        check_startup_loopback_by_default,
+        check_startup_lan_binds_all,
+        check_lan_path_validation_unchanged,
+        check_settings_driven_port,
     )
     for check in checks:
         check()
     print("ok: daemon served %d checks -- index, quiz, answer scoring, cross-bank "
           "isolation, stem collisions, the route/CLI inventory, the /api/* session "
-          "routes and the /report page all held" % len(checks))
+          "routes, the /report page, and the detect-and-attach startup path all held"
+          % len(checks))
     return 0
 
 
