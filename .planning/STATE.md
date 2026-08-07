@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 02
 current_phase_name: Daemon Consolidation & Settings Foundation
 status: executing
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-08-07T17:44:33.587Z"
+stopped_at: Completed 02-03-PLAN.md
+last_updated: "2026-08-07T18:08:38.720Z"
 last_activity: 2026-08-07
 last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 17
-  completed_plans: 13
+  completed_plans: 14
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 ## Current Position
 
 Phase: 02 (Daemon Consolidation & Settings Foundation) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Status: Ready to execute
 Last activity: 2026-08-07 — Phase 02 execution started
 
-Progress: [████████░░] 76%
+Progress: [████████░░] 82%
 
 ## Performance Metrics
 
@@ -71,6 +71,7 @@ Progress: [████████░░] 76%
 | Phase 01 P11 | ~30min | 3 tasks | 10 files |
 | Phase 02 P01 | 55min | 2 tasks | 5 files |
 | Phase 02 P02 | 26min | 2 tasks | 8 files |
+| Phase 02 P03 | 65min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -111,6 +112,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 2] 02-01: scan_dir() sorts candidates by (stem.lower(), full_path) rather than stem alone, so a stem-collision winner is deterministic across restarts even where directory-enumeration order is not guaranteed stable
 - [Phase ?]: 02-02: day_state()/day_render()/apply_day_post() take an explicit iso threaded through serve_scoped's day_extra rather than computing 'today' internally, so itembank day --date backfilling still works once day became a daemon launch
 - [Phase ?]: 02-02: handle_quiz_answer reads reveal/progress off the bank's session dict (default off) rather than at the route-table level, so a general itembank daemon launch is unaffected while itembank serve's scoped launch keeps --reveal and its progress line
+- [Phase ?]: 02-03: Task 1 checkpoint resolved as option-a -- itembank config mirrors itembank schema exactly (no-args table, config schema verbatim, config set validate-then-write); SETTINGS_CODES built as a sorted dotted tuple following the LINT_CODES precedent
+- [Phase ?]: 02-03: added required arrays to the nested daemon/selection_weights/model_backend object schemas so settings.missing_key has a reachable input path via config set, rather than a published code nothing can trigger
 
 ### Pending Todos
 
@@ -138,6 +141,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-07T17:44:24.228Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-08-07T18:08:38.703Z
+Stopped at: Completed 02-03-PLAN.md
 Resume file: None
