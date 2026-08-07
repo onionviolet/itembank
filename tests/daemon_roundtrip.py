@@ -20,7 +20,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 import itembank                                            # noqa: E402
 import evidence                                             # noqa: E402
-from surfaces import cli, daemon, study                    # noqa: E402
+from surfaces import cli, daemon, session, study            # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import agent_roundtrip                                       # noqa: E402
@@ -881,6 +881,306 @@ def check_api_cli_parity():
                      % (ref, field, api_ev.get(field), field, cli_ev.get(field)))
 
 
+# ---- /report -- the last route SURF-01 names, and the last new page this
+# phase authors. Two rows this plan's own UI-SPEC carries as deliberate
+# backstops, confirmed at UAT rather than automated here: the overflow
+# behaviour of a report carrying ten or more pending `short` items, and the
+# concrete visual layout of the populated case. Their absence below is not
+# an oversight.
+
+REPORT_FIELD_RE_TMPL = r'data-field="%s"[^>]*>(?:<div class="figure-value">)?(\d+)'
+
+
+def report_field(body, field):
+    """The integer value at `REPORT_TEMPLATE`'s `data-field="<field>"`
+    marker -- a narrow regex against a stable attribute, not a scrape of
+    prose that a later copywriting change could silently break.
+    """
+    m = re.search(REPORT_FIELD_RE_TMPL % re.escape(field), body)
+    return int(m.group(1)) if m else None
+
+
+def report_progress(body):
+    """`(position, total)` from the in-progress state's own `data-field`
+    marker, or `None` if the report carries no progress line at all.
+    """
+    m = re.search(r'data-field="progress">In progress -- (\d+) of (\d+) items', body)
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
+def report_objective_rows(body):
+    """Every `<tr>...</tr>` inside the report's objective `<tbody>`, or an
+    empty list if the report has no table at all (the empty state).
+    """
+    m = re.search(r"<tbody>(.*?)</tbody>", body, re.S)
+    if not m:
+        return []
+    return re.findall(r"<tr>.*?</tr>", m.group(1), re.S)
+
+
+def drive_sitting(url, session_id, by_id, short_answer="leave this one for a human marker"):
+    """Answer every remaining item in an active session over `/api/submit`,
+    scoring correctly whenever the item is auto-markable and leaving a
+    `short` item's text unmarked -- the mixed-outcome fixture several report
+    checks below share.
+    """
+    state = post(url + "api/next", {"session_id": session_id})
+    while state["status"] == "active":
+        item = state["item"]
+        q = by_id[item["id"]]
+        answer = short_answer if q["type"] == "short" else api_correct_answer(by_id, item)
+        result = post(url + "api/submit", {"session_id": session_id, "answer": answer})
+        state = result["next"]
+    return state
+
+
+def check_report_populated():
+    """Populated: a session mixing correct, incorrect and pending responses
+    renders 200, carries every objective the fixture bank names, and
+    carries the auto-marked/correct/pending-manual figures.
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        by_id = api_by_id()
+        started = post(url + "api/start",
+                       {"bank": "sample_bank", "count": 6, "seed": 7, "mode": "practice"})
+        session_id = started["session_id"]
+        state = started
+        wrong_done = False
+        while state["status"] == "active":
+            item = state["item"]
+            q = by_id[item["id"]]
+            if q["type"] == "short":
+                answer = "leave this one for a human marker"
+            elif not wrong_done:
+                answer = serve_roundtrip.wrong_answer(q)
+                wrong_done = True
+            else:
+                answer = api_correct_answer(by_id, item)
+            result = post(url + "api/submit", {"session_id": session_id, "answer": answer})
+            state = result["next"]
+
+        status, body = get(url + "report?session=%s" % session_id)
+        if status != 200:
+            fail("GET /report on a populated session returned %d, expected 200" % status)
+        qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
+        for objective in set(q.get("objective", "") for q in qs):
+            if objective and objective not in body:
+                fail("the populated report is missing objective %r" % objective)
+        for field in ("auto_attempts", "auto_correct", "pending_manual"):
+            if report_field(body, field) is None:
+                fail("the populated report has no %s figure" % field)
+    finally:
+        proc.terminate()
+
+
+def check_report_matches_command():
+    """SURF-04's real assertion: the page and `session.do_report` agree on
+    `auto_attempts`, `auto_correct` and `pending_manual` for the same
+    session, compared as three named numeric fields rather than a substring
+    of prose.
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    body = None
+    try:
+        by_id = api_by_id()
+        started = post(url + "api/start",
+                       {"bank": "sample_bank", "count": 6, "seed": 3, "mode": "practice"})
+        session_id = started["session_id"]
+        session_file = started["session_file"]
+        drive_sitting(url, session_id, by_id)
+
+        status, body = get(url + "report?session=%s" % session_id)
+        if status != 200:
+            fail("GET /report returned %d, expected 200" % status)
+    finally:
+        proc.terminate()
+
+    want = session.do_report(session_file)["summary"]
+    for field in ("auto_attempts", "auto_correct", "pending_manual"):
+        got = report_field(body, field)
+        if got != want[field]:
+            fail("the report page's %s figure is %r but session.do_report says %r"
+                 % (field, got, want[field]))
+
+
+def check_report_empty():
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        started = post(url + "api/start", {"bank": "sample_bank", "count": 6, "seed": 0})
+        session_id = started["session_id"]
+        status, body = get(url + "report?session=%s" % session_id)
+        if status != 200:
+            fail("GET /report on a fresh session returned %d, expected 200" % status)
+        if "Nothing answered yet" not in body:
+            fail("an empty session's report is missing the documented empty-state heading")
+        if "<table" in body:
+            fail("an empty session's report renders an objective table")
+    finally:
+        proc.terminate()
+
+
+def check_report_in_progress():
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        by_id = api_by_id()
+        started = post(url + "api/start", {"bank": "sample_bank", "count": 6, "seed": 7})
+        session_id = started["session_id"]
+        answer = api_correct_answer(by_id, started["item"])
+        result = post(url + "api/submit", {"session_id": session_id, "answer": answer})
+        if result["next"]["status"] != "active":
+            fail("answering one of six items did not leave the session active")
+
+        status, body = get(url + "report?session=%s" % session_id)
+        if status != 200:
+            fail("GET /report on an in-progress session returned %d, expected 200" % status)
+        progress = report_progress(body)
+        if progress != (1, 6):
+            fail("an in-progress report's position-of-total reading is %r, expected "
+                 "(1, 6)" % (progress,))
+        if 'data-status="complete"' in body:
+            fail("an in-progress report reads as a completed session")
+    finally:
+        proc.terminate()
+
+
+def check_report_zero_auto_marked():
+    """A session whose only response is a `short` item has zero auto-marked
+    responses; the page's percentage must render 0 -- never a
+    `ZeroDivisionError`, never `NaN`, and never an exception swallowed into
+    a 500 that only the daemon's own captured stdout would reveal.
+
+    Seed 8 with count 1 is the fixture bank's only way to reach this: of
+    the six items, exactly one (`Q6`) is `short`, and seed 8 is the seed
+    under which `do_start`'s shuffle serves it first (found once, recorded
+    here rather than searched at test time).
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        started = post(url + "api/start", {"bank": "sample_bank", "count": 1, "seed": 8})
+        if started["item"]["type"] != "short":
+            fail("the zero-auto-marked fixture's seed no longer serves the short item "
+                 "first -- item type is %r" % started["item"]["type"])
+        session_id = started["session_id"]
+        result = post(url + "api/submit",
+                      {"session_id": session_id, "answer": "some prose, never auto-marked"})
+        if result["status"] != "complete":
+            fail("answering the sole item did not complete a count-1 session")
+
+        status, body = get(url + "report?session=%s" % session_id)
+        if status != 200:
+            fail("GET /report on a zero-auto-marked session returned %d, expected 200"
+                 % status)
+        if "NaN" in body:
+            fail("the report body contains a NaN percentage")
+        pct = report_field(body, "pct")
+        if pct != 0:
+            fail("a session with zero auto-marked responses rendered pct=%r, expected 0"
+                 % pct)
+        output = "".join(lines)
+        if "ZeroDivisionError" in body or "ZeroDivisionError" in output:
+            fail("a ZeroDivisionError leaked into the report body or the daemon's "
+                 "captured stdout")
+    finally:
+        proc.terminate()
+
+
+def check_report_objective_rows_one_and_many():
+    """The per-objective row markup is the same shape at one objective as
+    at many -- compared by row count and by tag structure, not by text.
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        by_id = api_by_id()
+
+        one = post(url + "api/start", {"bank": "sample_bank", "count": 1, "seed": 7})
+        one_answer = api_correct_answer(by_id, one["item"])
+        post(url + "api/submit", {"session_id": one["session_id"], "answer": one_answer})
+        _, one_body = get(url + "report?session=%s" % one["session_id"])
+        one_rows = report_objective_rows(one_body)
+
+        many = post(url + "api/start", {"bank": "sample_bank", "count": 6, "seed": 7})
+        drive_sitting(url, many["session_id"], by_id)
+        _, many_body = get(url + "report?session=%s" % many["session_id"])
+        many_rows = report_objective_rows(many_body)
+
+        if len(one_rows) != 1:
+            fail("a one-item session's report has %d objective rows, expected 1"
+                 % len(one_rows))
+        if len(many_rows) <= 1:
+            fail("a six-item session's report has %d objective rows, expected more "
+                 "than 1" % len(many_rows))
+        one_shape = re.sub(r">[^<]*<", "><", one_rows[0])
+        many_shape = re.sub(r">[^<]*<", "><", many_rows[0])
+        if one_shape != many_shape:
+            fail("the objective row's tag structure differs between one objective and "
+                 "many:\n  one:  %r\n  many: %r" % (one_shape, many_shape))
+    finally:
+        proc.terminate()
+
+
+def check_report_not_found():
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        for query in ("", "session=nope",
+                      "session=" + urllib.parse.quote("../../etc/passwd", safe="")):
+            target = url + "report" + ("?" + query if query else "")
+            try:
+                get(target)
+                fail("GET /report with query %r did not return a 404" % query)
+            except urllib.error.HTTPError as exc:
+                if exc.code != 404:
+                    fail("GET /report with query %r returned HTTP %d, expected 404"
+                         % (query, exc.code))
+                body = exc.read().decode("utf-8")
+                if "Not found" not in body:
+                    fail("the /report 404 body is missing the documented not-found "
+                         "copy for query %r" % query)
+                if "Traceback" in body:
+                    fail("the /report 404 body leaked a traceback for query %r" % query)
+                if workdir in body:
+                    fail("the /report 404 body leaked the served directory for query "
+                         "%r" % query)
+        status, _ = get(url)
+        if status != 200:
+            fail("the daemon did not survive the /report not-found cases: GET / "
+                 "returned %d" % status)
+    finally:
+        proc.terminate()
+
+
+def check_report_no_truncation():
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        by_id = api_by_id()
+        started = post(url + "api/start", {"bank": "sample_bank", "count": 6, "seed": 7})
+        drive_sitting(url, started["session_id"], by_id)
+        _, body = get(url + "report?session=%s" % started["session_id"])
+        low = body.lower()
+        if "nowrap" in low:
+            fail("the served report declares a nowrap rule; table/figure text must wrap")
+        if "text-overflow" in low:
+            fail("the served report declares a text-overflow ellipsis rule")
+    finally:
+        proc.terminate()
+
+
 def main():
     checks = (
         check_index_populated,
@@ -912,12 +1212,20 @@ def main():
         check_api_reject_path_fields,
         check_api_malformed_json,
         check_api_cli_parity,
+        check_report_populated,
+        check_report_matches_command,
+        check_report_empty,
+        check_report_in_progress,
+        check_report_zero_auto_marked,
+        check_report_objective_rows_one_and_many,
+        check_report_not_found,
+        check_report_no_truncation,
     )
     for check in checks:
         check()
     print("ok: daemon served %d checks -- index, quiz, answer scoring, cross-bank "
-          "isolation, stem collisions and the route/CLI inventory all held"
-          % len(checks))
+          "isolation, stem collisions, the route/CLI inventory, the /api/* session "
+          "routes and the /report page all held" % len(checks))
     return 0
 
 
