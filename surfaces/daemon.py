@@ -18,7 +18,7 @@ import datetime, html, json, os, re, socketserver, sys, threading, urllib.parse,
 import evidence
 import server
 from model import load, parse_bank
-from runtime import explain_payload
+from runtime import explain_payload, read_session
 from surfaces import day, quiz, session, study
 from surfaces.theme import THEME_CSS
 
@@ -63,6 +63,7 @@ ROUTES = (
     ("GET", "/", "handle_index"),
     ("GET", MARKER_PATH, "handle_marker"),
     ("GET", "/day", "handle_day_index"),
+    ("GET", "/report", "handle_report_get"),
 ) + API_ROUTES + (
     ("GET", QUIZ_GET_RE, "handle_quiz_get"),
     ("POST", QUIZ_ANSWER_RE, "handle_quiz_answer"),
@@ -80,6 +81,7 @@ ROUTES = (
 ROUTE_CLI = {
     ("GET", "/"): "daemon",
     ("GET", MARKER_PATH): "daemon",
+    ("GET", "/report"): "report",
     ("POST", "/api/start"): "start",
     ("POST", "/api/next"): "next",
     ("POST", "/api/submit"): "submit",
@@ -173,7 +175,7 @@ BANK_ROW = """<div class="row">
   <div class="name">__STEM__</div>
   <div class="links">
     <a href="/quiz/__STEM__">Sit this bank</a>
-    <a href="/study/__STEM__">Study this bank</a>
+    <a href="/study/__STEM__">Study this bank</a>__REPORT_LINK__
   </div>
 </div>"""
 
@@ -214,6 +216,201 @@ h1{font-size:21px;font-weight:700;margin:0 0 32px}
 __BODY__
 </div></body></html>"""
 
+# The other genuinely new page this phase authors -- no existing render
+# function to call into, per RESEARCH.md Open Question 2. Follows
+# INDEX_TEMPLATE's own `str.replace()` substitution convention (`__THEME__`,
+# `__TITLE__`, `__BODY__`) so the daemon's two new pages read as one family.
+# Same 8-point spacing scale, the same four font sizes (12.5/16/21/34) and
+# the same 60/30/10 color split as the index -- `--accent` reserved for the
+# headline score number and for link hover/focus rings, nothing else. Table
+# and figure cells wrap (`overflow-wrap:anywhere`); no `white-space:nowrap`
+# and no `text-overflow` ellipsis anywhere in this stylesheet, matching the
+# index's own no-truncation rule. The objective table sits in ordinary
+# document flow -- no max-height, no scroll container -- so a session with
+# many pending items scrolls with the page (the overflow backstop this
+# plan's must_haves carries).
+REPORT_TEMPLATE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>__TITLE__</title>
+<style>
+__THEME__
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:800px;margin:0 auto;padding:64px 24px}
+h1{font-size:21px;font-weight:700;margin:0 0 32px}
+.empty h2{font-size:21px;font-weight:700;margin:0 0 16px}
+.empty p{color:var(--mut);font-size:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;
+  padding:24px;margin-bottom:24px}
+.headline{font-size:34px;font-weight:700;color:var(--accent);line-height:1.1}
+.headline-label{font-size:12.5px;color:var(--mut);margin:4px 0 0}
+.status{font-size:12.5px;color:var(--mut);margin:16px 0 0}
+.figures{display:flex;gap:32px;flex-wrap:wrap;margin-top:24px}
+.figure-value{font-size:21px;font-weight:700}
+.figure-label{font-size:12.5px;color:var(--mut);margin-top:4px}
+table{width:100%;border-collapse:collapse;margin-top:8px}
+th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);
+  font-size:16px;overflow-wrap:anywhere}
+th{font-size:12.5px;color:var(--mut);font-weight:700}
+</style></head><body><div class="wrap">
+<h1>itembank report</h1>
+__BODY__
+</div></body></html>"""
+
+# The documented empty-state copy (Copywriting Contract), rendered instead
+# of a report table with all-zero or blank cells whenever a session has
+# recorded neither an auto-marked response nor a pending-manual one.
+REPORT_EMPTY = """<div class="empty">
+  <h2>Nothing answered yet</h2>
+  <p>This session hasn't recorded a response. Sit the bank, then refresh
+  this report.</p>
+</div>"""
+
+
+def _report_figure(field, value, label):
+    """One labelled figure (`data-field` names which of `session_summary()`'s
+    three top-level counts it carries) -- a stable marker
+    `check_api_cli_parity`-style page-versus-command tests can regex against
+    instead of scraping prose that copywriting could change later.
+    """
+    return ('<div class="figure" data-field="%s"><div class="figure-value">%d</div>'
+            '<div class="figure-label">%s</div></div>'
+            % (field, value, html.escape(label)))
+
+
+def _report_objective_rows(objectives):
+    """One `<tr>` per entry in `summary["objectives"]`, sorted by name for a
+    deterministic render -- the same row markup at one objective as at many
+    (no count sentence, no singular/plural branch). Objective names come
+    from bank content and are HTML-escaped before they reach the page.
+    """
+    rows = []
+    for name in sorted(objectives):
+        bucket = objectives[name]
+        rows.append(
+            "<tr><td>%s</td><td>%d</td><td>%d</td><td>%d</td></tr>"
+            % (html.escape(name), bucket["attempts"], bucket["correct"], bucket["pending"]))
+    return "\n".join(rows)
+
+
+def _report_card(summary, status, position=None, total=None):
+    """The populated/in-progress body: the headline auto-marked accuracy,
+    the three labelled figures, and the per-objective table -- one render
+    for both states, distinguished only by whether a progress line is
+    present. All arithmetic here is `summary`'s own fields (`session_summary()`'s
+    output); no count is recomputed from a responses list.
+    """
+    attempts = summary["auto_attempts"]
+    correct = summary["auto_correct"]
+    pending = summary["pending_manual"]
+    # Mirrors quiz_page.py's finish() guard (`pct = autoTotal ? Math.round(...) : 0`)
+    # so a session with zero auto-marked responses (e.g. every item is
+    # `short`) renders 0, never a ZeroDivisionError and never NaN.
+    pct = round(correct / attempts * 100) if attempts else 0
+    figures = "".join((
+        _report_figure("auto_attempts", attempts, "auto-marked"),
+        _report_figure("auto_correct", correct, "correct"),
+        _report_figure("pending_manual", pending, "pending manual"),
+    ))
+    progress = ""
+    if status == "active" and position is not None and total is not None:
+        progress = ('<p class="status" data-field="progress">In progress -- '
+                     '%d of %d items answered so far.</p>' % (position, total))
+    rows = _report_objective_rows(summary["objectives"])
+    return (
+        '<div class="card" data-status="%s">'
+        '<div class="headline" data-field="pct">%d%%</div>'
+        '<p class="headline-label">auto-marked accuracy</p>'
+        '%s'
+        '<div class="figures">%s</div>'
+        '</div>'
+        '<table><thead><tr><th>Objective</th><th>Attempts</th>'
+        '<th>Correct</th><th>Pending</th></tr></thead>'
+        '<tbody>%s</tbody></table>'
+        % (html.escape(status), pct, progress, figures, rows))
+
+
+def handle_report_get(handler):
+    """`GET /report?session=<id>` -- a session's summary as a page on the
+    same port every other surface uses, rendered from exactly the dict
+    `session.do_report()` returns -- the same body `itembank report`
+    prints, so the page and the command can never disagree (SURF-04).
+
+    `session_id` comes off the query string and is resolved through the
+    same `session_index(root)`-backed `api_session_path` lookup `/api/*`
+    uses; a value that is not a key in that lookup takes the same 404
+    branch as an unknown bank stem and is never joined to a path (T-2-01).
+    """
+    params = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query)
+    session_id = (params.get("session") or [""])[0]
+    path = api_session_path(handler, session_id)
+    if path is None:
+        handler.send_not_found(session_id)
+        return
+    # Both except clauses are deliberate, mirroring every /api/* handler
+    # below: `session.do_report` raises SystemExit on a routine session
+    # error (a malformed or future-versioned session file), and SystemExit
+    # derives from BaseException, so a bare `except Exception` would not
+    # catch it -- an uncaught one here would take the request loop, and
+    # every other bank and tab this daemon serves, down with it (T-2-03).
+    try:
+        result = session.do_report(path)
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    except Exception as exc:
+        handler.send_error(500, str(exc))
+        return
+    summary = result["summary"]
+    status = result["status"]
+    if summary["auto_attempts"] == 0 and summary["pending_manual"] == 0:
+        body = REPORT_EMPTY
+    else:
+        position = total = None
+        if status == "active":
+            # Position/total come from the session's own cursor and item
+            # count -- the same session data `session_summary()` was itself
+            # computed from -- never recomputed from the responses list.
+            data = read_session(path)
+            position, total = data["cursor"], len(data["items"])
+        body = _report_card(summary, status, position, total)
+    page = REPORT_TEMPLATE.replace("__THEME__", THEME_CSS).replace(
+        "__TITLE__", "itembank report").replace("__BODY__", body)
+    handler.send_html(page.encode("utf-8"))
+
+
+def sessions_by_bank(root, banks):
+    """`{bank_stem: session_id}` for banks that have at least one session
+    recorded under `<root>/_attempts/` -- the index's `View report` link
+    (Copywriting Contract: "only if `_attempts/session_*.json` exists for
+    it") is wired only for the stems this returns; a bank with none gets no
+    link rather than a dead one.
+
+    Built by reading every session `session_index(root)` already found and
+    matching each one's own `bank` field (an abspath, per `do_start`)
+    against `banks`' own abspaths -- never a second bank scan. A session
+    file that fails to parse, or whose `bank` no longer matches anything
+    scanned (renamed or removed since the session was recorded), is skipped
+    rather than raised, the same allowlist-tolerance `session_index` itself
+    already applies.
+    """
+    index = session_index(root)
+    by_abspath = dict((os.path.abspath(path), stem) for stem, path in banks.items())
+    result = {}
+    for session_id, path in sorted(index.items()):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                data = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        stem = by_abspath.get(data.get("bank"))
+        if stem is not None:
+            result[stem] = session_id            # lexically-last session_id wins
+    return result
+
 
 def handle_index(handler):
     """`GET /` -- the index of every bank and day plan this daemon found at
@@ -223,11 +420,18 @@ def handle_index(handler):
     banks, plans = handler.banks, handler.plans
     stems = sorted(set(banks) | set(plans), key=str.lower)
     if stems:
+        report_links = sessions_by_bank(handler.root, banks)
         rows = []
         for stem in stems:
             esc = html.escape(stem)
-            row = BANK_ROW if stem in banks else PLAN_ROW
-            rows.append(row.replace("__STEM__", esc))
+            if stem in banks:
+                session_id = report_links.get(stem)
+                link = ('\n    <a href="/report?session=%s">View report</a>'
+                        % html.escape(session_id)) if session_id else ""
+                row = BANK_ROW.replace("__STEM__", esc).replace("__REPORT_LINK__", link)
+            else:
+                row = PLAN_ROW.replace("__STEM__", esc)
+            rows.append(row)
         body = "\n".join(rows)
     else:
         served_dir = html.escape(os.path.abspath(handler.root))
