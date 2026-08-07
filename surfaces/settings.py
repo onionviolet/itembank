@@ -1,0 +1,276 @@
+"""The settings surface: `itembank config` is to `itembank.json` what `itembank
+spec` is to the bank format and `itembank schema` is to the published
+documents -- one contract, printed either as a human summary or verbatim off
+disk, and one validator behind every write.
+
+There is exactly one validator here, `schema_validate.validate()` -- the same
+function `schemas/*.json` already use. `classify_error` is a thin string
+classifier over that validator's plain-string error output; it does not
+duplicate any type or range check, it only names which of the six published
+codes (`SETTINGS_CODES`) a given validator message belongs to.
+"""
+import json
+import os
+import sys
+
+import schema_validate
+
+
+SCHEMA_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "schemas")
+SCHEMA_PATH = os.path.join(SCHEMA_DIR, "settings.schema.json")
+
+SETTINGS_FILE = "itembank.json"
+
+# This phase's own settings; a key whose x-itembank-phase is at or below this
+# number is "read by this phase" rather than reported as inert.
+THIS_PHASE = 2
+
+# The published dotted error-code namespace (D-06), extending Phase 1's D-16
+# lint-code precedent. Built from a set-then-sorted tuple so it is provably
+# sorted and duplicate-free regardless of the order the codes are written
+# below. Adding a code here is additive; renaming or removing one is a
+# breaking change for every consumer that branches on it.
+SETTINGS_CODES = tuple(sorted({
+    "settings.invalid_type", "settings.invalid_value", "settings.out_of_range",
+    "settings.unknown_key", "settings.missing_key", "settings.malformed_file",
+}))
+
+
+def settings_path(base):
+    return os.path.join(base or ".", SETTINGS_FILE)
+
+
+def load_schema():
+    return json.load(open(SCHEMA_PATH, encoding="utf-8"))
+
+
+def defaults_from_schema(schema):
+    """Walk `properties` recursively and build the full default object from
+    the `default` annotations -- the source of truth for both the shipped
+    itembank.json (Task 2) and a missing key's effective value (this task).
+    """
+    defaults = {}
+    for key, sub in schema.get("properties", {}).items():
+        if sub.get("type") == "object" and "properties" in sub:
+            defaults[key] = defaults_from_schema(sub)
+        else:
+            defaults[key] = sub.get("default")
+    return defaults
+
+
+def merge_over_defaults(defaults, raw):
+    """Merge `raw` (the file on disk) over `defaults`, one level of nested
+    objects deep, so a settings file missing a key -- or missing one nested
+    key inside a known object -- reads as that key's schema default rather
+    than as absent. Any top-level key in `raw` that `defaults` does not know
+    about is preserved verbatim: unknown, not dropped.
+    """
+    merged = dict(defaults)
+    for key, value in defaults.items():
+        if key not in raw:
+            continue
+        if isinstance(value, dict) and isinstance(raw[key], dict):
+            merged[key] = merge_over_defaults(value, raw[key])
+        else:
+            merged[key] = raw[key]
+    for key, value in raw.items():
+        if key not in merged:
+            merged[key] = value
+    return merged
+
+
+def load_settings(base):
+    """Read itembank.json (when present) merged over the schema's own
+    defaults, so a missing key reads as its default rather than as absent
+    (the planner_assumptions resolution). A file that will not parse as JSON
+    exits with settings.malformed_file naming the path and the decode error
+    -- the same sys.exit-on-bad-file shape runtime.read_session already uses
+    for session files.
+    """
+    schema = load_schema()
+    defaults = defaults_from_schema(schema)
+    path = settings_path(base)
+    if not os.path.exists(path):
+        return dict(defaults)
+    try:
+        raw = json.load(open(path, encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        sys.exit("settings.malformed_file: cannot read %s: %s" % (path, exc))
+    if not isinstance(raw, dict):
+        sys.exit("settings.malformed_file: %s does not contain a JSON object" % path)
+    return merge_over_defaults(defaults, raw)
+
+
+def write_settings(base, data):
+    """Write itembank.json tmp-then-os.replace(), matching
+    runtime.write_session's crash-safety and byte layout exactly -- the same
+    json.dump(..., ensure_ascii=False, indent=2) plus a trailing newline,
+    which is what makes a repeated `config set` byte-identical rather than
+    merely equivalent.
+    """
+    target = settings_path(base)
+    target_dir = os.path.dirname(os.path.abspath(target))
+    os.makedirs(target_dir, exist_ok=True)
+    tmp = target + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, ensure_ascii=False, indent=2)
+        fh.write("\n")
+    os.replace(tmp, target)
+
+
+def get_at(data, dotted):
+    node = data
+    for part in dotted.split("."):
+        if not isinstance(node, dict) or part not in node:
+            return None
+        node = node[part]
+    return node
+
+
+def set_at(data, dotted, value):
+    parts = dotted.split(".")
+    node = data
+    for part in parts[:-1]:
+        node = node.setdefault(part, {})
+    node[parts[-1]] = value
+
+
+def schema_for_key(schema, dotted):
+    """Walk `schema`'s nested `properties` along `dotted`'s path segments.
+    Returns None at any level that does not resolve -- an unknown key, be it
+    top-level (`nope`) or nested under a known object (`daemon.nope`).
+    """
+    node = schema
+    for part in dotted.split("."):
+        props = node.get("properties") if isinstance(node, dict) else None
+        if not props or part not in props:
+            return None
+        node = props[part]
+    return node
+
+
+def classify_error(msg):
+    """Map one schema_validate.validate() output string to one of
+    SETTINGS_CODES by matching the substrings that validator actually emits.
+    This is the one place a validator message becomes a dotted code; it does
+    not change schema_validate.validate()'s own return contract (a list of
+    plain strings), which every existing CI caller still depends on.
+    """
+    if "expected type" in msg or "does not equal const" in msg:
+        return "settings.invalid_type"
+    if "is not one of" in msg:
+        return "settings.invalid_value"
+    if "is less than minimum" in msg or "is greater than maximum" in msg:
+        return "settings.out_of_range"
+    if "additional property" in msg:
+        return "settings.unknown_key"
+    if "missing required key" in msg:
+        return "settings.missing_key"
+    return "settings.invalid_value"
+
+
+def decode_value(raw):
+    """Decode a CLI value as JSON so `9000`, `true`, `0.4` and a JSON array
+    arrive as their real types; fall back to the raw string on a decode
+    failure so plain words like `system` and `hosted` behave.
+    """
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return raw
+
+
+def range_or_enum(sub):
+    if "enum" in sub:
+        return "|".join(str(v) for v in sub["enum"])
+    if "minimum" in sub or "maximum" in sub:
+        return "%s..%s" % (sub.get("minimum", "-inf"), sub.get("maximum", "inf"))
+    if sub.get("type") == "boolean":
+        return "true|false"
+    if sub.get("type") == "object":
+        return "(see nested rows)"
+    return "(free-form)"
+
+
+def status_text(phase):
+    if phase is not None and phase <= THIS_PHASE:
+        return "read by this phase"
+    # A plain ASCII dash, not an em dash: this line reaches a real console,
+    # and the project's own house style already writes "--" in printed
+    # prose rather than risk a non-ASCII character on a codepage console.
+    return "inert -- read from phase %s" % phase
+
+
+def render_value(value, is_object):
+    return "(nested, see rows below)" if is_object else repr(value)
+
+
+def print_row(name, sub, default, current, indent=False):
+    label = ("  " if indent else "") + name
+    is_object = sub.get("type") == "object"
+    print("  %-26s %-9s %-30s %-14s %-14s %s" %
+          (label, sub.get("type", ""), range_or_enum(sub),
+           render_value(default, is_object), render_value(current, is_object),
+           status_text(sub.get("x-itembank-phase"))))
+
+
+def print_table(schema, data):
+    defaults = defaults_from_schema(schema)
+    print("itembank.json settings (schemas/settings.schema.json):\n")
+    print("  %-26s %-9s %-30s %-14s %-14s %s" %
+          ("KEY", "TYPE", "ALLOWED / RANGE", "DEFAULT", "CURRENT", "STATUS"))
+    for name, sub in schema["properties"].items():
+        print_row(name, sub, defaults.get(name), data.get(name))
+        if sub.get("type") == "object" and "properties" in sub:
+            nested_default = defaults.get(name) or {}
+            nested_current = data.get(name) if isinstance(data.get(name), dict) else {}
+            for nested_name, nested_sub in sub["properties"].items():
+                print_row(name + "." + nested_name, nested_sub,
+                          nested_default.get(nested_name), nested_current.get(nested_name),
+                          indent=True)
+
+    known = set(schema["properties"])
+    unknown = sorted(k for k in data if k not in known)
+    if unknown:
+        print("\nUnknown to schemas/settings.schema.json -- preserved on write, read by "
+              "nothing:")
+        for k in unknown:
+            print("  %s = %r" % (k, data[k]))
+
+    print("\nRun `itembank config schema` for the raw JSON Schema document, or "
+          "`itembank config set KEY VALUE` to change one setting.")
+
+
+def cmd_config(a):
+    schema = load_schema()
+
+    if a.action == "schema":
+        print(open(SCHEMA_PATH, encoding="utf-8").read(), end="")
+        return 0
+
+    if a.action == "set":
+        if not a.key or a.value is None:
+            sys.exit("usage: itembank config set KEY VALUE (key=%r value=%r)" %
+                     (a.key, a.value))
+        new_value = decode_value(a.value)
+
+        subschema = schema_for_key(schema, a.key)
+        if subschema is None:
+            top_level = sorted(schema["properties"])
+            sys.exit("settings.unknown_key: %r is not a known settings key; "
+                     "top-level keys: %s" % (a.key, ", ".join(top_level)))
+
+        errs = schema_validate.validate(new_value, subschema)
+        if errs:
+            sys.exit("%s: %s" % (classify_error(errs[0]), errs[0]))
+
+        data = load_settings(a.base)
+        set_at(data, a.key, new_value)
+        write_settings(a.base, data)
+        print("set %s = %s" % (a.key, json.dumps(new_value, ensure_ascii=False)))
+        return 0
+
+    data = load_settings(a.base)
+    print_table(schema, data)
+    return 0

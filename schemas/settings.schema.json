@@ -27,6 +27,7 @@
       "type": "object",
       "description": "Relative weights the item-selection algorithm uses to prioritize which items to serve. Inert until Phase 7 reads it.",
       "additionalProperties": false,
+      "required": ["objective_miss_rate", "difficulty_spread", "recency_decay"],
       "x-itembank-phase": 7,
       "default": {
         "objective_miss_rate": 0.5,
@@ -71,6 +72,7 @@
       "type": "object",
       "description": "Which model backend (if any) the AI-tutoring surfaces call, and where. Inert until Phase 8 reads it.",
       "additionalProperties": false,
+      "required": ["kind", "endpoint", "model"],
       "x-itembank-phase": 8,
       "default": {
         "kind": "none",
@@ -110,6 +112,7 @@
       "type": "object",
       "description": "The daemon's own port and LAN settings. The only group this phase's own code reads (plan 02-06).",
       "additionalProperties": false,
+      "required": ["port", "lan", "open_browser"],
       "x-itembank-phase": 2,
       "default": {
         "port": 8730,

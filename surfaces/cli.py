@@ -16,6 +16,7 @@ from surfaces.migrate import cmd_migrate
 from surfaces.protocol_cli import cmd_schema
 from surfaces.quiz import cmd_build, cmd_serve
 from surfaces.session import cmd_next, cmd_report, cmd_start, cmd_submit
+from surfaces.settings import cmd_config
 from surfaces.study import cmd_study
 
 
@@ -275,6 +276,15 @@ def main():
                    help="emit the format contract, all five documents and the "
                         "command sequence to run a session, in one object")
     s.set_defaults(fn=cmd_schema)
+
+    s = sub.add_parser("config", help="print the settings schema the way `spec` prints "
+                       "the format contract")
+    s.add_argument("action", nargs="?", choices=("schema", "set"))
+    s.add_argument("key", nargs="?")
+    s.add_argument("value", nargs="?")
+    s.add_argument("--base", default=".",
+                   help="directory holding itembank.json (default: current directory)")
+    s.set_defaults(fn=cmd_config)
 
     s = sub.add_parser("migrate", help="one-time, re-runnable import of the three legacy "
                        "stores (_attempts/*.md, session JSON, daily_log.md) into the "
