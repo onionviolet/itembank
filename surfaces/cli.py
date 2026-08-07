@@ -124,6 +124,10 @@ def main():
     s.add_argument("--reveal", action="store_true",
                    help="show model answers after each short item; off by default so an "
                         "early item cannot teach a later one")
+    s.add_argument("--mode", default="practice",
+                   choices=("diagnostic", "practice", "exam", "remediation", "drill"),
+                   help="recorded on every response, so a drill sitting is distinguishable "
+                        "from an exam sitting in the evidence")
     s.add_argument("--no-open", action="store_true", dest="no_open",
                    help="do not launch a browser")
     s.add_argument("--force", action="store_true", help="serve despite lint errors")

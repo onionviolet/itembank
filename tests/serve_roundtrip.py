@@ -12,6 +12,10 @@ nothing looks wrong, because the quiz still works. It just becomes a page that
 hands over the answers to anyone who opens the source, which disqualifies every
 surface an agent or a second person touches.
 
+Since plan 01-10, the attempt file itself is `evidence.render_attempt_md()`'s
+output, a view over `_evidence/evidence.jsonl` rather than a second store, and
+its "MARK:" / "[auto: ...]" text reflects that render's own vocabulary.
+
 Standard library only, no test framework, runnable as `python tests/serve_roundtrip.py`.
 """
 import json, os, re, subprocess, sys, tempfile, threading, time, urllib.error, urllib.request
@@ -126,8 +130,11 @@ def main():
             fail("served page has no short-answer renderer")
         check_no_key(page, qs)
 
-        # A wrong answer must come back wrong, and re-answering must replace the
-        # entry rather than append a second one.
+        # A wrong answer must come back wrong. Re-answering the same item is a
+        # new attempt, not an overwrite: the evidence log is append-only, so
+        # both this wrong first attempt and the correct one it is followed
+        # with below are live, recorded events, and the render shows both --
+        # nothing evaporates.
         first = qs[0]
         bad = post(url, {"id": first["id"], "response": wrong_answer(first)})
         if bad["score"] is not False:
@@ -153,13 +160,11 @@ def main():
 
     text = open(out, encoding="utf-8").read()
     for needle in ("A constructed response, written out in full sentences.",
-                   "MARK: (unmarked)",
+                   "MARK: pending",
                    "[auto: correct]",
-                   "finished"):
+                   "[auto: WRONG]"):
         if needle not in text:
             fail("attempt file is missing %r" % needle)
-    if "[auto: WRONG]" in text:
-        fail("re-answering appended a second entry instead of replacing the first")
     short = next(q for q in qs if q["type"] == "short")
     if short["model"] not in text:
         fail("attempt file dropped the model answer the marker needs")

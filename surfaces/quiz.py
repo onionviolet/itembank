@@ -5,11 +5,12 @@ and saves nothing. `serve` puts the same page behind a loopback server that
 scores every response and writes the attempt file, so the browser never holds an
 answer. Both are clients of the runtime.
 """
-import collections, html, json, os, sys
+import collections, html, json, os, sys, uuid
 
+import evidence
 import server
 from model import grab, lint, load
-from runtime import explain_payload, page_item, response_text, score_response
+from runtime import explain_payload, page_item, score_response
 from surfaces.quiz_page import TEMPLATE
 from surfaces.theme import THEME_CSS
 
@@ -55,75 +56,6 @@ def cmd_build(a):
     return 0
 
 
-# ---- attempt file -----------------------------------------------------------
-# One markdown file per sitting, rewritten in full on every answer. Markdown
-# rather than JSON because the reader is a human or an LLM, both of which read
-# prose better than they read a data structure, and because it lands in a vault
-# next to the notes it feeds.
-
-def attempt_markdown(bank_path, answers, done):
-    from datetime import datetime
-    stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-    body = list(answers)
-    auto = [a for a in body if a.get("correct") is not None]
-    right = [a for a in auto if a["correct"]]
-    shorts = [a for a in body if a.get("type") == "short"]
-    L = []
-    L.append("# Attempt: %s" % os.path.basename(bank_path))
-    L.append("")
-    L.append("*Written by `itembank serve`. Bank: `%s`. Started %s.*" % (bank_path, stamp))
-    L.append("")
-    L.append("**Status:** %s. %d auto-marked, %d correct. %d short answer(s) awaiting a marker."
-             % ("finished" if done else "IN PROGRESS, file may be partial",
-                len(auto), len(right), len(shorts)))
-    L.append("")
-    L.append("**To grade this:** see `GRADING.md` in the itembank repo. Mark each short answer "
-             "against its rubric, write the verdict into the `MARK:` line, and leave the "
-             "answer text exactly as written.")
-    L.append("")
-    for a in body:
-        L.append("---")
-        L.append("")
-        head = "## Item %d, %s" % (a.get("n", 0), a.get("type", "?"))
-        if a.get("correct") is True:
-            head += "  [auto: correct]"
-        elif a.get("correct") is False:
-            head += "  [auto: WRONG]"
-        L.append(head)
-        if a.get("objective"):
-            L.append("")
-            L.append("*Objective: %s*" % a["objective"])
-        L.append("")
-        L.append("**Q.** %s" % a.get("stem", "").replace("\n", " "))
-        L.append("")
-        if a.get("type") == "short":
-            L.append("**His answer, verbatim:**")
-            L.append("")
-            L.append("```")
-            L.append(a.get("answer", "") or "(left blank)")
-            L.append("```")
-            L.append("")
-            if a.get("model"):
-                L.append("**Model answer (from the bank, NOT his):** %s" % a["model"].replace("\n", " "))
-                L.append("")
-            if a.get("rubric"):
-                L.append("**Rubric. Replace each `(unmarked)` with `(pass)` or `(fail)`:**")
-                L.append("")
-                for r in a["rubric"]:
-                    L.append("- (unmarked) %s" % r)
-                L.append("")
-            L.append("MARK: (unmarked)")
-        else:
-            L.append("**Selected:** %s" % (a.get("answer") or "(nothing)"))
-        L.append("")
-    if not done:
-        L.append("---")
-        L.append("")
-        L.append("*Sitting was not finished. Everything above is real; nothing after it was answered.*")
-        L.append("")
-    return "\n".join(L)
-
-
 def cmd_serve(a):
     """Run the quiz against a local process so every answer is written to disk.
 
@@ -135,6 +67,14 @@ def cmd_serve(a):
     POSTs each response here; this process calls the one scorer, records the
     result, and returns the verdict with the explanation. So a sitting that is
     meant to count is one where the browser never held the answers.
+
+    Persistence is `evidence.append_event()`, the same one writer every other
+    surface uses (D-08) -- this is the last surface that used to write its own
+    store instead. The attempt file is `evidence.render_attempt_md()`'s output,
+    written atomically; it is a view over `_evidence/evidence.jsonl`, never a
+    second place a response is recorded, and it is rebuilt in full after every
+    answer rather than accumulated in memory, so a sitting interrupted mid-write
+    never leaves a half-written file.
     """
     import webbrowser, threading
     from datetime import datetime
@@ -154,26 +94,40 @@ def cmd_serve(a):
     _, page = page_for(a.bank, qs, serve=True, reveal=a.reveal)
     page_bytes = page.encode("utf-8")
     by_id = dict((q["id"], q) for q in qs)
-    # Keyed by item id and rewritten in full on every answer, so re-answering an
-    # item replaces its entry instead of appending a second one, and a sitting
-    # that stops halfway still leaves a valid file.
-    answered = collections.OrderedDict()
+
+    # One id per sitting, printed here so a marker can pass it to
+    # `itembank mark`/`itembank render attempt` later -- the evidence log,
+    # not this process's memory, is what a marker or a crash-recovered
+    # attempt file is read back out of.
+    session_id = uuid.uuid4().hex
+    log = evidence.log_path(os.path.dirname(os.path.abspath(a.bank)) or ".")
     state = {"writes": 0}
 
-    def record(q, response):
+    def record(q, response, elapsed_ms):
         score = score_response(q, response)
-        answered[q["id"]] = {
-            "n": q["number"], "type": q["type"], "stem": q["stem"],
-            "objective": q.get("objective", ""),
-            "answer": response_text(q, response), "correct": score,
-            "model": q.get("model", ""), "rubric": q.get("rubric") or []}
-        done = len(answered) >= len(qs)
-        md = attempt_markdown(a.bank, list(answered.values()), done)
-        open(out, "w", encoding="utf-8").write(md)
+        item_key = evidence.evidence_key(q)
+        canon = evidence.idempotency_canon(q, response)
+        attempt_num = evidence.attempt_number(log, session_id, item_key, canon)
+        event = evidence.response_event(
+            session_id, q, response, score, a.mode, attempt_num,
+            os.path.basename(a.bank), response_time_ms=elapsed_ms, confidence=None)
+        result = evidence.append_event(log, event)
+
+        # Regenerate the whole attempt file from the log, atomically -- the
+        # render is the only generator of this document (D-11); a sitting
+        # killed mid-write must never leave a half-written attempt file.
+        md = evidence.render_attempt_md(log, session_id, qs, a.bank)
+        tmp = out + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write(md)
+        os.replace(tmp, out)
         state["writes"] += 1
-        sys.stdout.write("\r  %d/%d answered, saved" % (len(answered), len(qs)))
+
+        answered = len(set(ev["item_ref"] for ev in evidence.session_events(log, session_id)))
+        note = " (already recorded)" if result["status"] == "already_recorded" else ""
+        sys.stdout.write("\r  %d/%d answered, saved%s" % (answered, len(qs), note))
         sys.stdout.flush()
-        if done:
+        if answered >= len(qs):
             print("\n  finished. Attempt file: %s" % out)
         return score
 
@@ -194,7 +148,14 @@ def cmd_serve(a):
                 if q is None:
                     self.send_error(404, "no item %r in this bank" % data.get("id"))
                     return
-                payload = {"item_id": q["id"], "score": record(q, data.get("response")),
+                elapsed_ms = data.get("elapsed_ms")
+                if not isinstance(elapsed_ms, int) or isinstance(elapsed_ms, bool):
+                    # Absent, non-integer, or an older cached page that never
+                    # sent the field at all: record an honest null rather
+                    # than a fabricated number.
+                    elapsed_ms = None
+                payload = {"item_id": q["id"],
+                           "score": record(q, data.get("response"), elapsed_ms),
                            "explain": explain_payload(q, a.reveal)}
             except Exception as exc:                # never let a bad POST kill a sitting
                 self.send_error(500, str(exc))
@@ -206,6 +167,7 @@ def cmd_serve(a):
 
     with srv:
         url = "http://127.0.0.1:%d/" % srv.server_address[1]
+        print("  session %s" % session_id)
         print("  bank    %s (%d items)" % (a.bank, len(qs)))
         print("  attempt %s" % out)
         print("  url     %s" % url)

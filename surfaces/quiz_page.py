@@ -116,6 +116,10 @@ const LABEL = {mc:"multiple choice", multi:"multiple response",
                short:"short answer"};
 const FS = "\u001f", PS = "\u001e";   /* must match FIELD_SEP and PAIR_SEP */
 let i = 0, score = 0, autoTotal = 0;
+/* When the current item was rendered, per performance.now() -- a monotonic
+   clock, so a system clock change mid-sitting cannot produce a negative or
+   absurd elapsed_ms (T-1-25). Reset every time render() shows a new item. */
+let shownAt = performance.now();
 const miss = [];
 const host = document.getElementById("host");
 const esc = s => (s==null?"":String(s));
@@ -145,9 +149,12 @@ async function verify(q, response){
   if(!SERVE)
     return {score: (q.key===null || q.key===undefined) ? null : canon(q, response)===q.key,
             explain: q.explain || {}};
+  /* performance.now() rather than Date.now(): elapsed_ms is a monotonic-clock
+     delta, so it cannot go negative under a system clock change mid-sitting. */
+  const elapsed_ms = Math.max(0, Math.round(performance.now() - shownAt));
   const res = await fetch("/answer", {method:"POST",
     headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({id: q.id, response: response})});
+    body: JSON.stringify({id: q.id, response: response, elapsed_ms: elapsed_ms})});
   if(!res.ok) throw new Error("HTTP " + res.status);
   return res.json();
 }
@@ -195,6 +202,7 @@ function render(){
   document.getElementById("ok").textContent = score;
   document.getElementById("rail").style.width = (i/Q.length*100)+"%";
   if(i>=Q.length) return finish();
+  shownAt = performance.now();
   const q = Q[i];
   const card = document.createElement("div");
   card.className = "card";
