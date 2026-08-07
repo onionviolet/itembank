@@ -37,7 +37,7 @@ artifact per OS.
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: Evidence Spine & Protocol Foundation** - Stable item identity, one evidence store, and migration so nothing built after this reads a stale or split history.
+- [x] **Phase 1: Evidence Spine & Protocol Foundation** - Stable item identity, one evidence store, and migration so nothing built after this reads a stale or split history. (completed 2026-08-07)
 - [ ] **Phase 2: Daemon Consolidation & Settings Foundation** - One daemon on one port serving every surface, with a printable, agent-discoverable settings schema.
 - [ ] **Phase 3: Lesson Format & In-App Reader** - An optional `LESSON` section renders as reading material inside the app, linked to the items it teaches.
 - [ ] **Phase 4: Surface Redesign & Theming** - One shared palette, OS-driven theming, a decluttered question surface, and safe in-page `day` editing.
@@ -305,7 +305,7 @@ for what can run concurrently.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Evidence Spine & Protocol Foundation | 11/11 | In Progress|  |
+| 1. Evidence Spine & Protocol Foundation | 11/11 | Complete    | 2026-08-07 |
 | 2. Daemon Consolidation & Settings Foundation | 0/TBD | Not started | - |
 | 3. Lesson Format & In-App Reader | 0/TBD | Not started | - |
 | 4. Surface Redesign & Theming | 0/TBD | Not started | - |

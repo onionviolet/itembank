@@ -1,7 +1,7 @@
 ---
 phase: 01-evidence-spine-protocol-foundation
 verified: 2026-08-06T00:00:00Z
-status: human_needed
+status: passed
 score: 6/6 primary truths verified (65+ plan-level must-haves cross-checked; 0 blockers, 4 non-blocking warnings carried forward)
 behavior_unverified: 0
 overrides_applied: 0
@@ -9,14 +9,17 @@ re_verification:
   previous_status: gaps_found
   previous_score: 5/6 primary truths verified
   gaps_closed:
+
     - "A process killed mid-append leaves at most one torn trailing line; evidence.iter_raw() skips exactly that line, reports it as `warn evidence.jsonl:<lineno> malformed, skipped`, and returns every line before it intact"
   gaps_remaining: []
   regressions: []
 deferred: []
 human_verification:
+
   - test: "Give a model with no repository access only the pasted output of `itembank schema --all` and ask it to author one item of each of the six types plus a legal recorded response, with no other file or source access."
     expected: "The model succeeds in authoring all six item types and describing a valid response from the schema text alone, with no back-and-forth needed to discover fields the schema omitted."
     why_human: "01-06-PLAN.md's own Task 3 human-check and Flagged Assumptions section mark this explicitly as a sufficiency judgment, not a string match. The automated suite (tests/protocol_roundtrip.py) confirms the output parses, is self-contained, and is byte-stable across runs -- it cannot confirm a genuinely fresh model succeeds at authoring from it alone. 01-06-SUMMARY.md confirms this was carried forward undone, as the plan itself designed."
+
   - test: "Inspect a session recovered by `render_session_json` after the live session JSON has been deleted or is unavailable, and judge whether reporting `seed: 0` (always) and deriving `items`/`cursor`/`status` from the distinct item_refs the log proves were answered, rather than the session's true original selection, is an acceptable approximation for downstream consumers (day cockpit, resumed sessions, agent tooling)."
     expected: "A human (or product-owner-level) judgment on whether this documented, honest approximation is good enough, or whether the original seed/selection needs to be captured as a first-class logged fact in a follow-up plan."
     why_human: "01-09-PLAN.md and 01-09-SUMMARY.md both document this as a deliberate, honest approximation rather than a bug -- render_session_json has no way to recover the original seed/cursor from the log alone, and says so rather than guessing. Whether that tradeoff is acceptable for the phases that build on it (selection engine, retention) is a product decision, not a code-correctness question."
@@ -76,14 +79,17 @@ probe: ok; locked probe: 10000/10000 lines; kill probe: reader survived, post-ki
 readable).
 
 Also confirmed independently:
+
 - `tests/durability_roundtrip.py`'s kill probe (`probe_kill`) now pads with genuine multi-byte
   content via the `PAD_CHARS`/`pad_key` mechanism, with `probe_unlocked`/`probe_locked` correctly
   left on ASCII padding — their `PAD_SHORT`/`PAD_LONG` constants are byte-calibrated against
   512/4096-byte NTFS sector boundaries, and multi-byte padding would silently triple those line
   sizes and invalidate what those two probes measure. This reasoning holds; it is not an
   inconsistency.
+
 - Commits `1e09df4`, `fbb87fb`, `4c2ba4b` exist on this branch with the described diffs
   (`git log`/`git show --stat` against `evidence.py` and `tests/durability_roundtrip.py`).
+
 - Working tree is otherwise clean apart from two pre-existing, unrelated items
   (`.planning/config.json` modified, `_tmp_check.html` untracked) — neither touches evidence
   code and neither is part of this phase's scope.
@@ -225,6 +231,22 @@ human-verification items above should be resolved by a human before the phases t
 proceed too far without that judgment. The four non-blocking warnings and the one pre-existing,
 out-of-phase CR-02 finding may be addressed opportunistically or folded into a later phase/plan;
 none of them falsify a Phase 1 must-have truth.
+
+---
+
+## Acknowledged Gaps
+
+- item: "01-CONTEXT.md `## Open Questions Flagged for Research / Plan Time` still lists 3 questions from context-gathering (2026-08-06) as unresolved."
+  status: acknowledged, resolved-in-later-artifacts
+  reason: |
+    1. Windows append-write durability — resolved by 01-SPIKE-RESULT.md, measured on the
+       target Windows 11 machine, feeding the lock-based mitigation in evidence.append_line.
+    2. EVID-07 event field set (names/types/null semantics) — resolved by response.schema.json's
+       23-key contract and test_event_schema_fields (01-05-SUMMARY.md).
+    3. JSON Schema validation with no stdlib validator — resolved by the hand-rolled
+       schema_validate.py subset validator wired into CI (01-06-SUMMARY.md).
+  acknowledged_by: user, during /gsd-verify-work 01 artifact scan
+  acknowledged_at: 2026-08-07
 
 ---
 

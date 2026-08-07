@@ -59,19 +59,16 @@ sees, the feature is wrong.
 - ✓ Daily cross-subject surface (`day`): dated-plan parsing, floor rule, streak log, lane fuses and load — existing
 - ✓ Repository guard against real question-bank content (`guard`) — existing
 - ✓ Synthetic fixture tests for server, agent, study, export, and `day` paths — existing
+- ✓ Stable opaque `[ID:]` item IDs plus `[HASH:]` content fingerprint, immutable after first `id-assign`, replacing positional `Qn` (#4) — Phase 01 (01-04)
+- ✓ One evidence store (`evidence.py` append-only JSONL log) replacing three (`_attempts/*.md`, session JSON, `daily_log.md`) — Phase 01 (01-01 through 01-11)
+- ✓ Explicit schema versions for items, sessions, responses, and reports (`schemas/*.json`, `SESSION_UPGRADES`) — Phase 01 (01-05)
+- ✓ Machine-readable lint errors with declared, sorted `LINT_CODES` — Phase 01 (01-03)
+- ✓ Defined resume and idempotency behaviour for repeated `submit`/`mark` calls (`dedupe_key`, `idempotency_canon`, D-12) — Phase 01 (01-02, 01-07)
+- ✓ Public JSON schema / contract fixture for the agent interface: `itembank schema --all`, `schemas/*.json`, `schema_validate.py` in CI — Phase 01 (01-06)
 
 ### Active
 
 <!-- This milestone. All 13 unbuilt GitHub issues plus three new capability areas. -->
-
-**Evidence spine**
-
-- [ ] Stable content-hash item IDs, immutable after first lint, replacing positional `Qn` (#4)
-- [ ] One evidence store replacing three (`_attempts/*.md`, session JSON, `daily_log.md`), answering "how am I doing on this objective over time" (#4)
-- [ ] Explicit schema versions for items, sessions, responses, and reports (root ROADMAP §1)
-- [ ] Machine-readable lint errors with error codes and fields (root ROADMAP §1)
-- [ ] Defined resume and idempotency behaviour for repeated `submit` calls (root ROADMAP §1)
-- [ ] Public JSON schema or contract fixture for the agent interface (root ROADMAP §1)
 
 **The teaching loop**
 
@@ -259,6 +256,9 @@ same day.
 | Feedback policy belongs to the session mode | Weibao asked about Albert revealing the answer on a wrong response. Albert is right for volume drilling and wrong for diagnosis. Drill reveals, practice ladders, diagnostic and exam stay silent. One config field instead of one global argument. | — Pending |
 | Hosted models permitted, risk accepted explicitly | Weibao chose "hosted allowed everywhere, accept the risk" after the AAOS-derivation and CSCI-1100-AI-ban tradeoff was stated. His call, recorded rather than relitigated. The local path stays built so any subject can move back with a setting. | ⚠️ Revisit |
 | Model-first, offline-capable, local model prepared in advance | Weibao: "Maybe model first, and for me to prepare an powerful(ish) local model in advance?" Build against the model as the primary teaching path, keep the authored ladder as the floor, and write the adapter to an OpenAI-compatible shape so the 7900 XTX build is a config change. | — Pending |
+| Item identity: opaque `[ID:]` plus a `[HASH:]` content fingerprint, not content-hash-as-ID | An edit to explanation text must not silently mint a new evidence-tracked item; the opaque ID stays stable across edits while `[HASH:]` tracks content drift for lint warnings. Resolves Phase 1's flagged identity-scheme question. | ✓ Shipped — Phase 01 (01-04) |
+| Windows append-write durability: single `os.write()` per event under an advisory lock (`msvcrt.locking`/`fcntl.flock`) | The roadmap called this spike load-bearing before the append pattern could be trusted. Measured on the target Windows 11 machine: unlocked `O_APPEND` reproduced bpo-42606 corruption across three runs; the locked, single-write-per-event pattern did not tear once. | ✓ Shipped — Phase 01 (01-01, see `01-SPIKE-RESULT.md`) |
+| `render_session_json`'s seed/selection approximation (always reports `seed: 0`; derives `items`/`cursor`/`status` from the item_refs the log proves were answered) is acceptable as-is | The session file cannot be an input to its own render (D-11), and an append-only log has no way to recover the true original seed/cursor once the session file is gone. Weibao confirmed the honest approximation is good enough for the day cockpit, resumed sittings, and agent tooling as currently scoped. | ✓ Accepted as-is — Phase 01 UAT (2026-08-07) |
 
 ## Evolution
 
@@ -278,4 +278,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-05 after initialization*
+*Last updated: 2026-08-07 after Phase 01*
