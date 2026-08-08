@@ -20,6 +20,31 @@ from model import lint, load
 # function is the only way to be sure none is.
 GIFT_ESCAPE = re.compile(r"([~=#{}:\\])")
 
+# A field that still carries a line break or carriage return after escaping
+# cannot be written into a GIFT answer block -- GIFT's own grammar is
+# line-oriented and no backslash escape rescues an embedded newline.
+UNSAFE_NEWLINE = re.compile(r"[\r\n]")
+
+# The published dotted error-code namespace (D-06 precedent, extending
+# `model.LINT_CODES`/`settings.SETTINGS_CODES`). Built from a set-then-sorted
+# tuple so sortedness is structural rather than maintained by eye.
+GIFT_TYPE_UNSUPPORTED = "gift.type_unsupported"
+GIFT_FIELD_UNESCAPABLE = "gift.field_unescapable"
+GIFT_STRICT_DIVERGENCE = "gift.strict_divergence"
+
+GIFT_CODES = tuple(sorted({
+    GIFT_TYPE_UNSUPPORTED, GIFT_FIELD_UNESCAPABLE, GIFT_STRICT_DIVERGENCE,
+}))
+
+# The one sentence describing the `multi` scoring divergence, shared between
+# the default-mode warning (item still exported) and the `--strict` failure
+# (item refused) -- the two modes differ only in whether the item is written
+# and which list the message lands in, never in what they say diverges.
+MULTI_DIVERGENCE = (
+    "type 'multi' exported as GIFT weighted-answer choices -- a learner "
+    "selecting only some of the correct options may score partial credit "
+    "in the LMS, where itembank's own scorer would mark it wrong.")
+
 
 def gift_escape(text):
     if not text:
@@ -108,27 +133,87 @@ def gift_short(q):
                              gift_escape(q.get("model", "")))
 
 
+def unexpressible_field(q):
+    """Return the name of the first field this item carries that GIFT
+    cannot safely write, or `None` when every field is fine.
+
+    A field is unexpressible once its text still carries a line break or a
+    carriage return -- GIFT's answer blocks are line-oriented and no
+    backslash escape rescues an embedded newline. Fields are named the way
+    an author would recognise them: the stem, an option by its letter, a
+    matching row by its position, the category, the short model answer, the
+    general feedback -- not a single generic label, so the refusal points at
+    exactly the field to fix.
+    """
+    def bad(text):
+        return bool(text) and UNSAFE_NEWLINE.search(text)
+
+    if bad(q.get("stem")):
+        return "stem"
+    t = q["type"]
+    if t in ("mc", "multi"):
+        for L in sorted(q.get("opts") or {}):
+            fb = (q.get("da") or {}).get(L)
+            if bad(q["opts"][L]) or bad(fb):
+                return "option %s" % L
+        if bad(q.get("why")):
+            return "general feedback"
+    elif t in ("table", "dnd"):
+        for i, r in enumerate(q.get("rows") or [], 1):
+            if bad(r.get("text")):
+                return "row %d" % i
+            if bad(r.get("cat")):
+                return "category"
+    elif t == "short":
+        if bad(q.get("model")):
+            return "model answer"
+    return None
+
+
 def gift_item(q, errors, warnings, strict=False):
     """Dispatch one item to its renderer, or record why it could not be
     rendered. `errors` and `warnings` are accumulated into, following
     `model.lint()`'s house convention, rather than raised.
+
+    Two refusals run before any renderer is reached, in both modes alike.
+    `build` (ordering) has no GIFT equivalent at all (D-02) -- no flag makes
+    it exportable. An item whose escaped field still carries a line break is
+    refused by field name rather than written into a shape GIFT would
+    misparse. Only after both pass does `strict` get a say: it promotes a
+    `multi` item's scoring-divergence warning to a per-item failure instead
+    of changing what is checked.
     """
     t = q["type"]
+    if t == "build":
+        errors.append(
+            "%s: Q%d: type 'build' (ordering) has no GIFT equivalent -- "
+            "not exported" % (GIFT_TYPE_UNSUPPORTED, q["number"]))
+        return None
+    field = unexpressible_field(q)
+    if field is not None:
+        errors.append(
+            "%s: Q%d: %s contains a character sequence GIFT export cannot "
+            "safely escape -- not exported" %
+            (GIFT_FIELD_UNESCAPABLE, q["number"], field))
+        return None
     if t == "mc":
         return gift_mc(q)
     if t == "multi":
+        if strict:
+            errors.append(
+                "%s: Q%d: %s -- not exported" %
+                (GIFT_STRICT_DIVERGENCE, q["number"], MULTI_DIVERGENCE))
+            return None
         warnings.append(
-            "Q%d: type 'multi' exported as GIFT weighted-answer choices -- a "
-            "learner selecting only some of the correct options may score "
-            "partial credit in the LMS, where itembank's own scorer would "
-            "mark it wrong. Export kept; verify against your LMS if this "
-            "matters." % q["number"])
+            "Q%d: %s Export kept; verify against your LMS if this "
+            "matters." % (q["number"], MULTI_DIVERGENCE))
         return gift_multi(q)
     if t in ("table", "dnd"):
         return gift_matching(q)
     if t == "short":
         return gift_short(q)
-    errors.append("Q%d: type %r has no GIFT equivalent -- not exported" % (q["number"], t))
+    errors.append("%s: Q%d: type %r has no GIFT equivalent -- not exported" %
+                   (GIFT_TYPE_UNSUPPORTED, q["number"], t))
     return None
 
 
