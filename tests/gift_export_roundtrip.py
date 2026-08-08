@@ -3,18 +3,50 @@
 synthetic fixtures, that every character in the escape set is actually escaped in the
 rendered document, that a `table`/`dnd` item's repeated categories survive as repeated
 `matching` sub-questions, that export is byte-deterministic, that a `multi` item's
-scoring-divergence warning names its item number, and that the module carries no
-second scorer or parser.
+scoring-divergence warning names its item number, that the module carries no second
+scorer or parser, and the loud-failure paths: `build` always refused by item number,
+`--strict` promoting `multi` to a per-item failure, an unescapable field named by the
+refusal, and a partial or all-skipped export summarising and exiting distinctly from a
+complete one.
 
 Standard library only, runnable as `python tests/gift_export_roundtrip.py`.
 """
-import os, shutil, subprocess, sys, tempfile
+import os, re, shutil, subprocess, sys, tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 ITEMBANK = os.path.join(ROOT, "itembank.py")
 SAMPLE_BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
 ESCAPES_BANK = os.path.join(ROOT, "fixtures", "gift_escapes_bank.md")
+BUILD_ONLY_BANK = os.path.join(ROOT, "fixtures", "gift_build_only_bank.md")
+
+# A minimal, synthetic, lint-clean bank with no `build` item -- used only to prove
+# the all-clear export path (nothing skipped) prints the plain success line and
+# exits 0, distinct from every skip-carrying fixture above.
+NO_BUILD_BANK = """Q1. Pick the correct color.
+
+A) Red
+B) Blue
+C) Green
+
+CORRECT: A
+
+WHY BEST: Testing the all-clear export path.
+
+CONFIDENCE: high
+
+Q2. Pick the correct shape.
+
+A) Circle
+B) Square
+C) Triangle
+
+CORRECT: C
+
+WHY BEST: Testing the all-clear export path a second time.
+
+CONFIDENCE: high
+"""
 
 from model import load                                     # noqa: E402
 from surfaces import gift                                  # noqa: E402
@@ -161,6 +193,168 @@ def test_no_second_scorer_or_parser():
                  "second scorer or a second parser" % name)
 
 
+def test_build_always_fails_by_item_number():
+    """`build` has no GIFT equivalent (D-02) -- refused by item number and dotted
+    code in both modes, and never present in the rendered document either way.
+    """
+    qs = load(SAMPLE_BANK)
+    for strict in (False, True):
+        document, errors, warnings = gift.render_gift(qs, strict=strict)
+        matches = [e for e in errors if e.startswith(gift.GIFT_TYPE_UNSUPPORTED) and "Q4" in e]
+        if not matches:
+            fail("strict=%r: no Q4 build-refusal error carrying the dotted code found "
+                 "in %r" % (strict, errors))
+        if "::Q4::" in document:
+            fail("strict=%r: a build item was written into the GIFT document" % strict)
+
+
+def test_strict_promotes_multi_to_a_failure():
+    """Default mode warns and keeps the `multi` item; `--strict` fails it instead,
+    sharing the same divergence sentence and differing only in the not-exported
+    marker and which list the message lands in.
+    """
+    qs = load(SAMPLE_BANK)
+    document, errors, warnings = gift.render_gift(qs)
+    strict_document, strict_errors, strict_warnings = gift.render_gift(qs, strict=True)
+
+    default_msg = next((w for w in warnings if "Q2" in w), None)
+    if default_msg is None:
+        fail("default mode: no Q2 warning found: %r" % warnings)
+    if "::Q2::" not in document:
+        fail("default mode: Q2 (multi) was not written to the document despite "
+             "being only a warning")
+    if "not exported" in default_msg:
+        fail("default-mode multi warning carries the not-exported marker: %r" % default_msg)
+
+    strict_msg = next((e for e in strict_errors if "Q2" in e), None)
+    if strict_msg is None:
+        fail("strict mode: no Q2 error found: %r" % strict_errors)
+    if "::Q2::" in strict_document:
+        fail("strict mode: Q2 (multi) was still written to the document")
+    if "not exported" not in strict_msg:
+        fail("strict-mode multi failure does not carry the not-exported marker: %r"
+             % strict_msg)
+    if not strict_msg.startswith(gift.GIFT_STRICT_DIVERGENCE):
+        fail("strict-mode multi failure is not prefixed by its dotted code: %r" % strict_msg)
+
+    if gift.MULTI_DIVERGENCE not in default_msg or gift.MULTI_DIVERGENCE not in strict_msg:
+        fail("default and strict multi messages do not state the same divergence:\n"
+             "default: %r\nstrict:  %r" % (default_msg, strict_msg))
+
+
+def test_unescapable_field_is_named():
+    """A line break survives escaping, so `unexpressible_field` -- and `gift_item`'s
+    refusal built on it -- must name the specific field, not a generic label, and
+    must do so per field kind: stem, an option, and a matching row.
+    """
+    base_mc = {"type": "mc", "number": 1, "opts": {"A": "fine", "B": "ok", "C": "ok"},
+               "correct": ["A"], "da": {}, "why": ""}
+
+    stem_item = dict(base_mc, stem="line one\nline two")
+    if gift.unexpressible_field(stem_item) != "stem":
+        fail("a stem carrying a line break was not named 'stem': %r" %
+             gift.unexpressible_field(stem_item))
+    errors, warnings = [], []
+    if gift.gift_item(stem_item, errors, warnings) is not None:
+        fail("gift_item rendered an item with an unescapable stem")
+    if not any("stem" in e for e in errors):
+        fail("gift_item's refusal for an unescapable stem does not name it: %r" % errors)
+
+    option_item = dict(base_mc, stem="fine", opts={"A": "fine", "B": "line one\nline two", "C": "ok"})
+    if gift.unexpressible_field(option_item) != "option B":
+        fail("an option carrying a line break was not named 'option B': %r" %
+             gift.unexpressible_field(option_item))
+    errors, warnings = [], []
+    if gift.gift_item(option_item, errors, warnings) is not None:
+        fail("gift_item rendered an item with an unescapable option")
+    if not any("option B" in e for e in errors):
+        fail("gift_item's refusal for an unescapable option does not name it: %r" % errors)
+
+    row_item = {"type": "table", "number": 2, "stem": "fine",
+                "rows": [{"text": "fine", "cat": "fine"},
+                         {"text": "line one\nline two", "cat": "fine"}]}
+    if gift.unexpressible_field(row_item) != "row 2":
+        fail("a matching row carrying a line break was not named 'row 2': %r" %
+             gift.unexpressible_field(row_item))
+    errors, warnings = [], []
+    if gift.gift_item(row_item, errors, warnings) is not None:
+        fail("gift_item rendered an item with an unescapable matching row")
+    if not any("row 2" in e for e in errors):
+        fail("gift_item's refusal for an unescapable matching row does not name it: %r" % errors)
+
+
+def test_partial_export_summary_and_exit_code():
+    """A bank with one skipped item prints the exported-and-skipped summary and
+    exits 1; a bank with nothing skipped prints the all-clear line and exits 0 --
+    the two must never be confused, by a script or by a reader.
+    """
+    tmp = tempfile.mkdtemp()
+    partial_out = os.path.join(tmp, "partial.gift")
+    r = subprocess.run([sys.executable, ITEMBANK, "export", SAMPLE_BANK, partial_out,
+                        "--format", "gift"], capture_output=True, text=True, encoding="utf-8")
+    combined = r.stdout + r.stderr
+    if r.returncode != 1:
+        fail("exporting sample_bank.md (one build item) exited %d, expected 1: %s"
+             % (r.returncode, combined))
+    if "5 items exported, 1 skipped" not in combined:
+        fail("partial-export summary missing expected counts: %r" % combined)
+    if partial_out not in combined:
+        fail("partial-export summary does not name the output path: %r" % combined)
+    if "%d items ->" % 6 in combined:
+        fail("a partial export also printed the all-clear line: %r" % combined)
+
+    no_build_path = os.path.join(tmp, "no_build_bank.md")
+    open(no_build_path, "w", encoding="utf-8").write(NO_BUILD_BANK)
+    clean_out = os.path.join(tmp, "clean.gift")
+    r2 = subprocess.run([sys.executable, ITEMBANK, "export", no_build_path, clean_out,
+                         "--format", "gift"], capture_output=True, text=True, encoding="utf-8")
+    combined2 = r2.stdout + r2.stderr
+    if r2.returncode != 0:
+        fail("exporting a bank with no build item exited %d, expected 0: %s"
+             % (r2.returncode, combined2))
+    if "2 items ->" not in combined2:
+        fail("all-clear export did not print the plain success line: %r" % combined2)
+    if "skipped" in combined2 or "error" in combined2.lower():
+        fail("all-clear export printed error rows or a skipped summary: %r" % combined2)
+    shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_all_build_bank_exports_nothing_loudly():
+    """A bank whose every item is `build` writes an empty GIFT document, prints one
+    row per item, names zero exported and every item skipped, and exits 1 -- the
+    zero-one-many check at its top end.
+    """
+    qs = load(BUILD_ONLY_BANK)
+    n = len(qs)
+    if n < 10:
+        fail("gift_build_only_bank.md has only %d items, need 10 or more" % n)
+
+    tmp = tempfile.mkdtemp()
+    out = os.path.join(tmp, "none.gift")
+    r = subprocess.run([sys.executable, ITEMBANK, "export", BUILD_ONLY_BANK, out,
+                        "--format", "gift"], capture_output=True, text=True, encoding="utf-8")
+    combined = r.stdout + r.stderr
+    if r.returncode != 1:
+        fail("exporting an all-build bank exited %d, expected 1: %s" % (r.returncode, combined))
+    content = open(out, encoding="utf-8").read()
+    if "::" in content:
+        fail("an all-build export wrote a question name into the file: %r" % content)
+    for q in qs:
+        tag = "Q%d" % q["number"]
+        if tag not in combined:
+            fail("no console row names %s in an all-build export: %r" % (tag, combined))
+    if "%d items exported, %d skipped" % (0, n) not in combined:
+        fail("all-build export summary does not name zero exported and %d skipped: %r"
+             % (n, combined))
+    row_shapes = set()
+    for line in combined.splitlines():
+        if line.startswith(gift.GIFT_TYPE_UNSUPPORTED):
+            row_shapes.add(re.sub(r"Q\d+", "Qn", line))
+    if len(row_shapes) != 1:
+        fail("build-refusal rows are not identically shaped across the bank: %r" % row_shapes)
+    shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     test_every_expressible_type_renders()
     test_every_escape_set_character_is_escaped()
@@ -168,10 +362,18 @@ def main():
     test_export_is_deterministic()
     test_multi_warns_by_item_number()
     test_no_second_scorer_or_parser()
+    test_build_always_fails_by_item_number()
+    test_strict_promotes_multi_to_a_failure()
+    test_unescapable_field_is_named()
+    test_partial_export_summary_and_exit_code()
+    test_all_build_bank_exports_nothing_loudly()
     print("GIFT export contract: ok (exact renders for all five expressible types, "
           "every escape-set character escaped, repeated matching categories "
           "preserved, deterministic export, multi divergence warned by item number, "
-          "no second scorer or parser)")
+          "no second scorer or parser, build always refused by item number in both "
+          "modes, --strict promotes multi to a per-item failure, unescapable fields "
+          "named per field kind, partial and all-skipped exports summarise and exit "
+          "distinctly from a complete export)")
     return 0
 
 
