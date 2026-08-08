@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 02.1
 current_phase_name: packaging-self-update-interop-export
 status: executing
-stopped_at: Completed 02.1-08-PLAN.md
-last_updated: "2026-08-08T17:24:57.599Z"
+stopped_at: Completed 02.1-09-PLAN.md
+last_updated: "2026-08-08T17:44:58.387Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 02.1 execution started
 progress:
   total_phases: 6
-  completed_phases: 2
-  total_plans: 26
-  completed_plans: 25
+  completed_phases: 3
+  total_plans: 42
+  completed_plans: 26
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 ## Current Position
 
 Phase: 02.1 (packaging-self-update-interop-export) — EXECUTING
-Plan: 8 of 9
+Plan: 9 of 9
 Status: Ready to execute
 Last activity: 2026-08-08 — Phase 02.1 execution started
 
-Progress: [██████████] 96%
+Progress: [██████░░░░] 63%
 
 ## Performance Metrics
 
@@ -83,6 +83,7 @@ Progress: [██████████] 96%
 | Phase 02.1 P05 | 35min | 2 tasks | 3 files |
 | Phase 02.1 P07 | 20min | 3 tasks | 5 files |
 | Phase 02.1 P08 | ~15min | 2 tasks | 2 files |
+| Phase 02.1 P09 | ~25min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -150,6 +151,10 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 02.1] 02.1-08: AuthStrippingRedirectHandler overrides redirect_request only and calls super() first -- stdlib decides whether a redirect is legal, the subclass only strips; the origin comparison resolves a missing port to the scheme's default (https->443, http->80) so a url that spells its default port out does not read as a different origin, and the stripped state is sticky because each hop's Request is built from the previous hop's headers
 - [Phase ?]: [Phase 02.1] 02.1-08: _github_token_for fails closed -- the token comes only from ITEMBANK_GITHUB_TOKEN (D-09 unchanged) and is returned only for github.com, api.github.com, or a .github.com subdomain, refusing even an explicitly-passed token for any other host, because a release document naming a foreign download url is API-supplied data, not a trustworthy source for the decision to hand it a credential (T-02.1-38)
 - [Phase ?]: [Phase 02.1] 02.1-08: the plan's Task 2 test-helper rename (patched_urlopen -> patched_transport on the _open_request seam) collided with Task 1's already-implemented opener-injection helper which had taken the same name; resolved by renaming the Task 1 helper to patched_opener_transport (it injects a transport into the real opener) and giving the seam helper the plan's intended name -- both names now describe what they patch (Rule 3 auto-fix)
+- [Phase ?]: [Phase 02.1] 02.1-09: the throttle clock moves into updates/check_state.json (CHECK_STATE_REL/read_check_state/write_check_state), written after every check that reached GitHub whether or not anything was installed -- so should_check throttles from the first check rather than the first install (CR-02), and no placeholder manifest is ever written because handoff() must only trust a real pointer
+- [Phase ?]: [Phase 02.1] 02.1-09: status['reached'] on check_latest is the throttle's reachability distinction -- rate-limited (any error status) counts as reached because GitHub charges the 60-per-hour budget for a request that arrived; offline/DNS/timeout does not, so a machine that comes back online checks at its next launch instead of waiting out an interval no request earned
+- [Phase ?]: [Phase 02.1] 02.1-09: the disclosure gate writes notified_at alone (never checked_at), so the next launch finds consent satisfied and the clock unstarted and checks immediately rather than a full interval later -- disclosure costs one launch, not one interval; the gate sits after the policy gate so a directory with no itembank.json (opt_in from the schema default) prints nothing and asks nothing
+- [Phase ?]: [Phase 02.1] 02.1-09: D-13 stands unrevised and is now documented in three places -- the schema's update_policy description, README's Install section, and CLAUDE.md's Constraints list -- stating the default is opt_in, that this repo's own itembank.json intentionally sets check_on_launch to dogfood the updater, and that the two values are meant to differ; the verifier's alternative (raising the schema default) would make every fresh install phone home by default and was rejected
 
 ### Pending Todos
 
@@ -181,6 +186,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-08T17:23:48.143Z
-Stopped at: Completed 02.1-08-PLAN.md
+Last session: 2026-08-08T17:44:58.353Z
+Stopped at: Completed 02.1-09-PLAN.md
 Resume file: None
