@@ -961,6 +961,7 @@ def test_background_check_is_silent_on_every_failure():
     def run_bg(check_latest_fn):
         base = tempfile.mkdtemp()
         try:
+            u.write_check_state(base, notified_at="2026-08-08T00:00:00Z")
             buf = io.StringIO()
             with mock.patch.object(u, "check_latest", check_latest_fn), \
                  mock.patch.object(u, "download_asset",
@@ -1011,6 +1012,7 @@ def test_background_check_is_silent_on_every_failure():
 
     base = tempfile.mkdtemp()
     try:
+        u.write_check_state(base, notified_at="2026-08-08T00:00:00Z")
         buf = io.StringIO()
         with mock.patch.object(u, "check_latest", newer_release), \
              mock.patch.object(u, "download_asset", spy_download):
@@ -1169,6 +1171,92 @@ def test_background_check_throttles_on_a_fresh_install():
         shutil.rmtree(base, ignore_errors=True)
 
 
+def test_first_background_check_discloses_before_it_requests():
+    """CR-03's proof: the first background check on a machine (no
+    check-state record) prints the one-time disclosure and makes no request;
+    the second launch makes the request and repeats nothing -- disclosure
+    costs one launch, not one interval. A directory under opt_in -- what a
+    fresh .pyz in its own folder reads from the schema default -- prints
+    nothing and asks nothing at all.
+    """
+    cfg = {"update_policy": "check_on_launch",
+           "update": {"repo": "onionviolet/itembank",
+                      "check_interval_hours": 24}}
+    running_tag = "v" + itembank.__version__
+    release = {"tag_name": running_tag, "assets": []}
+
+    def spy_check_latest(calls):
+        def fn(repo, timeout=5, token=None, status=None):
+            calls.append(repo)
+            return release
+        return fn
+
+    base = tempfile.mkdtemp()
+    try:
+        calls = []
+        buf = io.StringIO()
+        with mock.patch.object(u, "check_latest", spy_check_latest(calls)), \
+             mock.patch.object(u, "download_asset",
+                               lambda *a, **k: fail("a disclosure-only launch "
+                                                    "must not download")):
+            with contextlib.redirect_stdout(buf):
+                u.background_check(base, cfg)
+        out = buf.getvalue()
+        lines = [ln for ln in out.splitlines() if ln.strip()]
+        if len(lines) != 1:
+            fail("the first background check printed %d line(s), expected "
+                 "exactly 1 disclosure line: %r" % (len(lines), out))
+        if "update_policy" not in lines[0] or '"opt_in"' not in lines[0]:
+            fail("the disclosure line does not name the setting key and the "
+                 "value that turns the check off: %r" % lines[0])
+        if calls:
+            fail("the first background check made a request before the "
+                 "disclosure could be read: %r" % calls)
+        state = u.read_check_state(base)
+        if not state.get("notified_at"):
+            fail("the disclosure did not record notified_at: %r" % state)
+        if state.get("checked_at"):
+            fail("the disclosure launch also recorded checked_at -- the next "
+                 "launch must check immediately, not a full interval later: "
+                 "%r" % state)
+
+        calls.clear()
+        buf = io.StringIO()
+        with mock.patch.object(u, "check_latest", spy_check_latest(calls)):
+            with contextlib.redirect_stdout(buf):
+                u.background_check(base, cfg)
+        if len(calls) != 1:
+            fail("the second launch made %d request(s), expected exactly 1: "
+                 "%r" % (len(calls), calls))
+        if buf.getvalue():
+            fail("the second launch printed %r -- the disclosure costs one "
+                 "launch, not one interval" % buf.getvalue())
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+    # A directory with no settings file reads opt_in from the schema default;
+    # the policy gate returns before the disclosure, so a fresh .pyz in its
+    # own folder stays completely silent.
+    base = tempfile.mkdtemp()
+    try:
+        calls = []
+        buf = io.StringIO()
+        with mock.patch.object(u, "check_latest", spy_check_latest(calls)):
+            with contextlib.redirect_stdout(buf):
+                u.background_check(base, {"update_policy": "opt_in"})
+        if buf.getvalue():
+            fail("under opt_in the first launch printed %r -- the disclosure "
+                 "must never appear when the policy gate already forbids "
+                 "the request" % buf.getvalue())
+        if calls:
+            fail("under opt_in a request was made: %r" % calls)
+        if u.read_check_state(base).get("notified_at"):
+            fail("under opt_in the disclosure was recorded even though it "
+                 "was never printed")
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+
 def main():
     test_strictly_newer_only()
     test_checksum_accepts_rejects_and_abstains()
@@ -1190,6 +1278,7 @@ def main():
     test_update_command_prints_one_locked_outcome()
     test_background_check_is_silent_on_every_failure()
     test_background_check_throttles_on_a_fresh_install()
+    test_first_background_check_discloses_before_it_requests()
     print("update contract: ok (strictly-newer comparison, checksum "
           "accept/reject/abstain, SHA256SUMS.txt fallback, offline and "
           "rate-limited silence, atomic validated manifest, a writable "
@@ -1197,7 +1286,8 @@ def main():
           "itembank.json, install/handoff safety, the update command's "
           "and background check's surface coverage, and redirect-safe "
           "authorization stripping plus the token host gate, and the "
-          "fresh-install throttle clock living in check_state.json)")
+          "fresh-install throttle clock living in check_state.json, plus "
+          "the one-time first-launch disclosure before any request)")
     return 0
 
 
