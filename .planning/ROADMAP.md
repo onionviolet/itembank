@@ -306,7 +306,50 @@ Plans:
   5. Rapidly resubmitting the same or an empty answer does not advance the hint tier faster than one tier per genuine attempt.
   6. A lesson can interleave a short explanation with a learner action, prediction, or attempt before revealing the next idea; feedback addresses the learner's move, and hints guide without simply handing over the answer.
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 06-01-PLAN.md — Runtime-owned feedback policy, append-only hint evidence, and derived teaching outcomes
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 06-02-PLAN.md — CLI, identifier-addressed API, and browser clients over the one policy
+
+### Phase 06.1: Interactive Visual Assessment Protocol (INSERTED)
+
+**Goal:** A learner can manipulate a plot or number line and receive deterministic, runtime-governed feedback while a teaching agent observes meaningful actions and state instead of pixels, without receiving the answer or scoring authority.
+**Depends on:** Phase 4, Phase 5, Phase 6
+**Requirements:** VIS-01, VIS-02, VIS-03, VIS-04, VIS-05, VIS-06, VIS-07, VIS-08, VIS-09
+**UI hint:** yes
+**Success Criteria** (what must be TRUE):
+
+  1. One versioned `visual` item protocol declaratively describes `plot` and `numberline` interactions; `spec`, the published schema, named lint errors, and synthetic golden fixtures let an authoring model create and diagnose items without reading renderer source, and bank-authored JavaScript is refused.
+  2. Plot and number-line items render through one SVG-plus-semantic-HTML adapter and serialize the same domain response for mouse, touch, keyboard, and the non-drag HTML control path; the first slice uses no canvas.
+  3. The served public payload contains the scene, initial state, allowed semantic actions, response grammar, and accessibility text, but never accepted states, tolerance, misconception mapping, reveal content, or solution paths.
+  4. `runtime.score_response()` alone normalizes fixed grid/rational units, applies the private versioned tolerance policy at its exact boundaries, and returns a dichotomous verdict; viewport size, zoom, device-pixel ratio, and renderer rounding cannot change the result.
+  5. Committed learner actions, runtime observations, final semantic state, error category, opaque feedback anchor, and Phase-6-bounded hint entitlement are append-only evidence that a later teaching agent can query; raw pointer movement is neither accepted nor stored.
+  6. The visual interaction works at 320 CSS px and 200% zoom with visible focus, status announcements, 24x24-or-larger pointer targets plus a non-drag alternative, pointer cancellation, and equivalent keyboard operation. Canvas remains reserved for a future dense simulation and may never replace the semantic HTML state/control fallback.
+  7. GIFT export refuses every visual interaction loudly by item number and `gift.type_unsupported`; Canvas LMS/LTI, QTI export, advanced visual families, hosted identity, and grade passback remain backlog work.
+
+**Benchmark posture:** Brilliant is an explicit learn-by-doing quality target. Public patterns from Brilliant, Desmos/Amplify, GeoGebra, Khanmigo, H5P/QTI, and ALEKS inform prediction-before-explanation, meaningful manipulation, immediate targeted feedback, transparent state, accessibility, and authorability. This phase does not copy proprietary content, interaction details, branding, or pursue competitor feature parity.
+**Plans:** 3 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 06.1-01-PLAN.md — TRACER: one declarative plot path, then the shared plot/number-line protocol and deterministic runtime scorer
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 06.1-02-PLAN.md — Model-authoring contract, named lint/schema/golden fixtures, and semantic action/observation evidence API
+
+**Wave 3** *(blocked on Waves 1 and 2 completion)*
+
+- [ ] 06.1-03-PLAN.md — Accessible mouse/touch/keyboard equivalence, canvas fallback boundary, GIFT loud refusal, and phase gate
 
 ### Phase 7: Selection Engine
 
@@ -449,11 +492,11 @@ for what can run concurrently.
 
 ### Phase 999.1: Advanced Visual Items and Canvas LMS Integration (BACKLOG)
 
-**Goal:** Extend the interactive-item contract established in Phase 5 with image/SVG stems and advanced visual item types--beginning with an interactive plot item--then expose the player inside Canvas LMS through an embeddable/LTI surface.
+**Goal:** Extend the Phase 06.1 visual protocol beyond plot and number line into advanced visual families, then expose the player inside Canvas LMS through an explicitly hosted, authenticated LTI surface.
 **Requirements:** TBD
 **Plans:** 0 plans
 
-Future exploration should cover `plot`, `hotspot`, `diagram`, `timeline`, `numberline`, `trace`, and simulation-style responses. Renderers receive validated configuration rather than bank-authored JavaScript; meaningful structured responses are stored instead of screenshots or pixels; every visual interaction has a keyboard/semantic-HTML equivalent; unsupported interactive types fail loudly during GIFT export. The learn-by-doing pedagogy itself lands incrementally in Phases 5-10 rather than waiting for this backlog item.
+Future exploration should cover `hotspot`, `diagram`, `timeline`, `trace`, geometry/construction, and dense simulation-style responses, plus the hosting, identity, privacy, deep-linking, and grade-passback decisions required by LTI. Phase 06.1 owns the initial plot/number-line protocol, SVG/HTML slice, semantic evidence, and canvas-fallback rule. Renderers continue to receive validated configuration rather than bank-authored JavaScript, and Canvas/LTI must remain an adapter to the same local runtime/scorer rather than a second authority.
 
 Plans:
 
