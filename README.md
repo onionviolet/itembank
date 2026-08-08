@@ -43,6 +43,12 @@ git clone <this repo>
 python itembank.py --help
 ```
 
+A checkout run this way checks GitHub for a new version at most once per
+interval (24 hours by default) when the daemon starts, and nothing but that
+request leaves the machine. The first launch prints this notice once before
+it checks anything. To turn the check off, set `update_policy` to `opt_in`
+in `itembank.json`.
+
 There is nothing to install. If you want it on your PATH, copy `itembank.py`
 somewhere and make it executable.
 

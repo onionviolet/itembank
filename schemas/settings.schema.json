@@ -103,7 +103,7 @@
     },
     "update_policy": {
       "type": "string",
-      "description": "Whether the opt-in updater checks GitHub Releases automatically. check_on_launch checks once at daemon launch, silently and non-blockingly; opt_in only checks when the user runs itembank update. Read by this phase (2.1).",
+      "description": "Whether the opt-in updater checks GitHub Releases automatically. check_on_launch checks once at daemon launch, silently and non-blockingly; opt_in only checks when the user runs itembank update. The declared default is opt_in, so a fresh installation with no settings file makes no automatic check; this repository's own checked-in itembank.json intentionally sets check_on_launch to dogfood the updater (D-13), so the two values are meant to differ. Read by this phase (2.1).",
       "enum": ["opt_in", "check_on_launch"],
       "default": "opt_in",
       "x-itembank-phase": 2.1
