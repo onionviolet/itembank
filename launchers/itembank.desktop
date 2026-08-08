@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=itembank
+Comment=Local-first assessment protocol and runtime for human and AI tutors
+Terminal=true
+Categories=Education;
+Exec=bash -c 'p="$0"; p="${p#file://}"; cd "$(dirname "$p")" && python3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)" >/dev/null 2>&1; if [ $? -ne 0 ]; then echo "itembank needs Python 3.11 or newer. Install it from https://python.org and run this file again."; read -p "Press Enter to close..."; exit 1; fi; exec python3 itembank.pyz' %k

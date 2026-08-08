@@ -33,7 +33,7 @@ STAGE_FILES = (
 )
 STAGE_DIRS = ("surfaces", "schemas")
 
-LAUNCHERS_DIR = os.path.join(ROOT, "launchers")
+LAUNCHER_DIR = os.path.join(ROOT, "launchers")
 
 # Four lines, no logic -- a later plan adds the update handoff here, and a
 # template that already carries branches is a template that gets edited badly.
@@ -94,8 +94,15 @@ def copy_launchers(out_dir):
     covers the launcher shims too -- a release asset set whose checksum file
     names only one of its files certifies nothing about the rest.
     """
-    for name in sorted(os.listdir(LAUNCHERS_DIR)):
-        shutil.copy2(os.path.join(LAUNCHERS_DIR, name), os.path.join(out_dir, name))
+    for name in sorted(os.listdir(LAUNCHER_DIR)):
+        src = os.path.join(LAUNCHER_DIR, name)
+        dst = os.path.join(out_dir, name)
+        shutil.copy2(src, dst)
+        if os.name == "posix":
+            # shutil.copy2() preserves mode on POSIX already, but make the
+            # intent explicit: a shipped .command with the executable bit
+            # stripped is not double-clickable at all.
+            os.chmod(dst, os.stat(src).st_mode)
 
 
 def main():
