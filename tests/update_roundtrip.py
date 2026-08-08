@@ -17,6 +17,8 @@ same way for every `handoff` test. Every filesystem effect goes into a
 Runnable as `python tests/update_roundtrip.py`.
 """
 import builtins
+import contextlib
+import email.message
 import hashlib
 import inspect
 import io
@@ -27,7 +29,7 @@ import sys
 import tempfile
 import types
 import urllib.error
-import contextlib
+import urllib.request
 from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -63,6 +65,43 @@ class FakeResponse:
         return False
 
 
+class FakeRedirectResponse(io.BytesIO):
+    """The response shape urllib's redirect chain asks of the object it
+    processes: `.code`/`.status`/`.msg`, an `email.message.Message`
+    `.headers` (so `Location` is found case-insensitively), an `.info()`
+    returning that object -- and, from `io.BytesIO`, `.read()`, `.close()`
+    and context-manager support (`HTTPRedirectHandler.http_error_302` reads
+    and closes the 302 response before following it).
+    """
+    def __init__(self, code, msg, headers, body=b""):
+        super().__init__(body)
+        self.code = code
+        self.status = code
+        self.msg = msg
+        self.headers = headers
+
+    def info(self):
+        return self.headers
+
+
+class FakeRedirectTransport(urllib.request.BaseHandler):
+    """A substituted https transport: answers `https_open` itself, records
+    every request it sees as `(full_url, headers)`, and serves responses
+    from a queue. `handler_order` below the real https handler's 500 so it
+    answers first. Only the network is substituted -- the opener and its
+    redirect handler are the real ones `download_asset` runs through.
+    """
+    handler_order = 100
+
+    def __init__(self, responses, recorded):
+        self.responses = list(responses)
+        self.recorded = recorded
+
+    def https_open(self, req):
+        self.recorded.append((req.full_url, dict(req.header_items())))
+        return self.responses.pop(0)
+
+
 @contextlib.contextmanager
 def patched_urlopen(fn):
     """Substitute surfaces.update's own urlopen reference for the duration
@@ -74,6 +113,28 @@ def patched_urlopen(fn):
         yield
     finally:
         u.urllib.request.urlopen = original
+
+
+@contextlib.contextmanager
+def patched_transport(transport):
+    """Build the module's real redirect-safe opener and inject a fake
+    transport handler into it for the duration of the block. Only the
+    network is substituted -- the opener, its AuthStrippingRedirectHandler
+    and the redirect chain are the real ones `download_asset` runs through.
+    Restores the module's opener factory afterward even if the block raises.
+    """
+    real = u._redirect_safe_opener
+
+    def opener_with_transport():
+        opener = real()
+        opener.add_handler(transport)
+        return opener
+
+    u._redirect_safe_opener = opener_with_transport
+    try:
+        yield
+    finally:
+        u._redirect_safe_opener = real
 
 
 # ---- strictly-newer comparison, independent of any checksum ---------------
@@ -333,6 +394,137 @@ def test_token_never_comes_from_the_settings_file():
         shutil.rmtree(base, ignore_errors=True)
         if had_env_token:
             os.environ["ITEMBANK_GITHUB_TOKEN"] = saved_env_token
+
+
+def _redirect_to(url):
+    headers = email.message.Message()
+    headers["Location"] = url
+    return FakeRedirectResponse(302, "Found", headers)
+
+
+def test_authorization_is_stripped_on_a_cross_host_redirect():
+    """CR-01's end-to-end proof: drive `download_asset`'s real opener
+    through a substituted transport and inspect what every hop actually
+    carried. GitHub's asset endpoint 302s to `objects.githubusercontent.com`;
+    the follow-up request must carry no Authorization header and no
+    occurrence of the token string in any header value, while the first hop
+    must carry both (the control assertion that the token was set at all).
+    The chain then returns to api.github.com -- the header must not come
+    back (sticky stripping, T-02.1-39).
+    """
+    sentinel = "sentinel-update-token-4b1e"
+    hop1 = ("https://api.github.com/repos/onionviolet/itembank/releases/"
+            "download/itembank-0.3.0.pyz")
+    cdn = ("https://objects.githubusercontent.com/github-production-release-"
+           "asset/2e1c6a/abc?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=deadbeef")
+    home = "https://api.github.com/repos/onionviolet/itembank/releases/latest"
+
+    recorded = []
+    transport = FakeRedirectTransport(
+        [_redirect_to(cdn),
+         _redirect_to(home),
+         FakeRedirectResponse(200, "OK", email.message.Message(),
+                              b"redirect-safe-artifact-bytes")],
+        recorded)
+
+    had_env_token = "ITEMBANK_GITHUB_TOKEN" in os.environ
+    saved_env_token = os.environ.get("ITEMBANK_GITHUB_TOKEN")
+    try:
+        os.environ["ITEMBANK_GITHUB_TOKEN"] = sentinel
+        with patched_transport(transport):
+            data = u.download_asset(hop1)
+    finally:
+        if had_env_token:
+            os.environ["ITEMBANK_GITHUB_TOKEN"] = saved_env_token
+        else:
+            os.environ.pop("ITEMBANK_GITHUB_TOKEN", None)
+
+    if data != b"redirect-safe-artifact-bytes":
+        fail("download_asset did not return the final hop's bytes after "
+             "the redirect chain: %r" % (data,))
+    if len(recorded) != 3:
+        fail("the redirected exchange made %d request(s), expected 3 "
+             "(api.github.com -> objects.githubusercontent.com -> "
+             "api.github.com): %r" % (len(recorded), recorded))
+
+    first_url, first_headers = recorded[0]
+    if first_url != hop1:
+        fail("the first hop went to %r, expected %r" % (first_url, hop1))
+    if first_headers.get("Authorization") != "Bearer " + sentinel:
+        fail("the first hop did not carry the Authorization header -- the "
+             "cross-host assertion would pass vacuously if the token were "
+             "never set: %r" % (first_headers,))
+
+    cdn_url, cdn_headers = recorded[1]
+    if cdn_url != cdn:
+        fail("the second hop went to %r, expected the CDN %r" % (cdn_url, cdn))
+    lower = {k.lower(): v for k, v in cdn_headers.items()}
+    if "authorization" in lower:
+        fail("the cross-host hop carried an Authorization header: %r" % (cdn_headers,))
+    for name, value in lower.items():
+        if sentinel in value:
+            fail("the cross-host hop carried the token string under header "
+                 "%r: %r" % (name, value))
+    if lower.get("accept") != "application/octet-stream":
+        fail("the cross-host hop lost the Accept header: %r" % (cdn_headers,))
+    if lower.get("user-agent") != "itembank-updater":
+        fail("the cross-host hop lost the User-Agent header: %r" % (cdn_headers,))
+
+    home_url, home_headers = recorded[2]
+    if home_url != home:
+        fail("the return-to-origin hop went to %r, expected %r" % (home_url, home))
+    lower_home = {k.lower(): v for k, v in home_headers.items()}
+    if "authorization" in lower_home:
+        fail("the Authorization header came back on the return-to-origin "
+             "hop: %r" % (home_headers,))
+    for name, value in lower_home.items():
+        if sentinel in value:
+            fail("the return-to-origin hop carried the token string under "
+                 "header %r: %r" % (name, value))
+
+
+def test_same_host_redirect_keeps_authorization():
+    """A redirect that stays on the same scheme, host and port must keep the
+    Authorization header -- the fix removes the cross-origin leak, not the
+    private-repo capability D-09 built (CR-01's same-host must_have).
+    """
+    sentinel = "sentinel-update-token-4b1e"
+    first = ("https://api.github.com/repos/onionviolet/itembank/releases/"
+             "download/itembank-0.3.0.pyz")
+    second = ("https://api.github.com/repos/onionviolet/itembank/releases/"
+              "download/itembank-0.3.0.pyz/relocated")
+
+    recorded = []
+    transport = FakeRedirectTransport(
+        [_redirect_to(second),
+         FakeRedirectResponse(200, "OK", email.message.Message(),
+                              b"same-host-artifact-bytes")],
+        recorded)
+
+    had_env_token = "ITEMBANK_GITHUB_TOKEN" in os.environ
+    saved_env_token = os.environ.get("ITEMBANK_GITHUB_TOKEN")
+    try:
+        os.environ["ITEMBANK_GITHUB_TOKEN"] = sentinel
+        with patched_transport(transport):
+            data = u.download_asset(first)
+    finally:
+        if had_env_token:
+            os.environ["ITEMBANK_GITHUB_TOKEN"] = saved_env_token
+        else:
+            os.environ.pop("ITEMBANK_GITHUB_TOKEN", None)
+
+    if data != b"same-host-artifact-bytes":
+        fail("download_asset did not return the same-host redirect's "
+             "bytes: %r" % (data,))
+    if len(recorded) != 2:
+        fail("the same-host exchange made %d request(s), expected 2: %r" %
+             (len(recorded), recorded))
+    if recorded[0][1].get("Authorization") != "Bearer " + sentinel:
+        fail("the first hop did not carry the Authorization header: %r" %
+             (recorded[0][1],))
+    if recorded[1][1].get("Authorization") != "Bearer " + sentinel:
+        fail("a same-origin redirect dropped the Authorization header, "
+             "breaking private-repo downloads: %r" % (recorded[1][1],))
 
 
 # ---- install: never writes the path this process is running from ---------
@@ -765,6 +957,8 @@ def main():
     test_update_root_is_writable()
     test_opt_in_policy_makes_no_request()
     test_token_never_comes_from_the_settings_file()
+    test_authorization_is_stripped_on_a_cross_host_redirect()
+    test_same_host_redirect_keeps_authorization()
     test_install_never_writes_the_running_artifact()
     test_partial_download_leaves_nothing_readable()
     test_install_is_idempotent()
@@ -776,8 +970,9 @@ def main():
           "accept/reject/abstain, SHA256SUMS.txt fallback, offline and "
           "rate-limited silence, atomic validated manifest, a writable "
           "update root, opt-in consent, the token never comes from "
-          "itembank.json, install/handoff safety, and the update command's "
-          "and background check's surface coverage)")
+          "itembank.json, install/handoff safety, the update command's "
+          "and background check's surface coverage, and redirect-safe "
+          "authorization stripping)")
     return 0
 
 
