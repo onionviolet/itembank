@@ -276,22 +276,27 @@ The concrete existing sequence is temporary-path write followed by `os.replace(t
 | A3 | The native-picker seam can use the available Tk runtime and degrade to browser fallback in every packaged target. | Standard Stack | Packaged environments without Tk need the fallback as the primary path. |
 | A4 | New day edit route(s) need a CLI equivalent through either a new command or the existing `day` command. | Common Pitfalls | Planner must choose a concrete CLI contract before implementation. |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+The uncertainty statements and original recommendations below are preserved as the research record. The added **Binding resolution** lines are the approved plan-time contracts and supersede the uncertainty for Phase 4 execution.
 
 1. **What is the exact persisted `theme` schema shape?**
    - What we know: The existing source-of-truth schema currently defines the exact theme union as `"enum": ["system", "light", "dark"]` and default `"system"`. [VERIFIED: schemas/settings.schema.json:11-16]
    - What's unclear: The additive object/key structure for source accent and derived override provenance.
    - Recommendation: Add a backward-compatible theme object only after a schema/test task defines defaults and migration/merge behavior; do not overload the current string silently. [ASSUMED]
+   - **Binding resolution:** Keep the existing top-level `theme` string and its `system|light|dark` enum/default unchanged. Add required top-level `accent: {"source":"#RRGGBB"}` with source default `#0e6e62`; validate after merging schema defaults so older files remain loadable; persist only the normalized source and never derived pairs, ratios, correction notices, or per-mode overrides. Plan 04-03 proves this with `tests/config_roundtrip.py` and `tests/theme_roundtrip.py` before browser consumption.
 
 2. **Which native picker implementation should ship?**
    - What we know: Tk 8.6 imports in the target environment, and `surfaces/launcher.py` already concentrates host-container decisions. [VERIFIED: environment probe 2026-08-08] [VERIFIED: surfaces/launcher.py:1-94]
    - What's unclear: Tk availability in all `.pyz` target installations and whether it opens the desired native dialog on macOS/Linux.
    - Recommendation: Make this a Wave 0 spike with an explicit fallback result; browser `<input type="color">` must independently meet the feature. [CITED: https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input/color]
+   - **Binding resolution:** `itembank theme pick --json --initial COLOR` lazily invokes `tkinter.colorchooser` on its process main thread. The local browser route spawns the current source script or `.pyz` with fixed no-shell argv, validates the structured child result, and never constructs Tk in a threaded HTTP handler. Selection is preview-only until explicit save. Cancel, missing Tk, display/package/spawn failure, or malformed output returns `available:false`, preserves settings/draft, focuses the browser color input, and uses the exact UI copy `System picker is unavailable here. Choose a color below instead.` Plans 04-03/04-04 prove direct picker and source/`.pyz` child/fallback branches in `tests/theme_roundtrip.py` and `tests/daemon_roundtrip.py`.
 
 3. **What table syntax can the cell editor safely edit?**
    - What we know: `parse_plan()` detects pipe rows and splits cells using `line.strip().strip("|").split("|")`. [VERIFIED: surfaces/day.py:65-111]
    - What's unclear: Whether user plan cells contain escaped pipes or multiline table extensions.
    - Recommendation: The byte-patch adapter must either preserve those forms correctly or refuse editing with a clear non-destructive message; test the supported grammar before enabling save. [ASSUMED]
+   - **Binding resolution:** Support exactly one unambiguous pipe table with header, delimiter/rule row, and exactly one matching dated row; optional outer pipes, LF/CRLF, leading/trailing padding, unknown columns, surrounding prose/unrelated tables, escaped `\|`, and closed inline-code pipes are preserved. Safely encode an entered literal pipe. Refuse with no write: duplicate matching dates, missing header/rule, ambiguous candidate table, missing column/date row, multiline extensions, HTML tables, colspan/rowspan, unclosed code/escape ambiguity, and newline/control input. Compute the revision from complete raw UTF-8 bytes, patch cell spans in descending order, re-read/compare immediately before same-directory fsync plus `os.replace`, and retain draft/current on conflict. Plans 04-02/04-06 prove every accepted/refused form, byte preservation, and concurrency recovery in `tests/day_edit_roundtrip.py` and `tests/daemon_roundtrip.py`.
 
 ## Environment Availability
 
@@ -303,7 +308,7 @@ The concrete existing sequence is temporary-path write followed by `os.replace(t
 | External package manager/package | Phase implementation | Not required | — | stdlib-only design [VERIFIED: .planning/PROJECT.md] |
 
 **Missing dependencies with no fallback:** None.  
-**Missing dependencies with fallback:** None detected; Tk packaging behavior still needs the native-picker spike. [ASSUMED]
+**Missing dependencies with fallback:** None detected; the original Tk packaging uncertainty is resolved by the main-thread source/`.pyz` child contract plus independent browser color-input fallback recorded under **Open Questions (RESOLVED)**. [PLANNED]
 
 ## Validation Architecture
 
