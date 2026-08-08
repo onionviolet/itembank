@@ -234,6 +234,11 @@ def check_latest(repo, timeout=5, token=None, status=None):
     anything short of a clean 200: unreachable, DNS failure, timeout, an
     HTTP error status, or a rate-limited response. Nothing here raises.
 
+    `token`, when not passed explicitly, is read from the
+    `ITEMBANK_GITHUB_TOKEN` environment variable and from nowhere else
+    (D-09) -- never from the checked-in settings file, and never written
+    to the manifest, a printed line, or a log.
+
     `status`, when passed a dict, is populated with `status["rate_limited"]`
     so an explicit `itembank update` invocation can print the rate-limit
     line while a background check -- which never inspects `status` -- stays
@@ -242,6 +247,8 @@ def check_latest(repo, timeout=5, token=None, status=None):
     if status is None:
         status = {}
     status["rate_limited"] = False
+    if token is None:
+        token = os.environ.get("ITEMBANK_GITHUB_TOKEN")
     headers = {
         "Accept": "application/vnd.github+json",
         "User-Agent": "itembank-updater",
