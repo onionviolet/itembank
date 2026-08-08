@@ -203,7 +203,7 @@ here precisely so the planner does not have to redesign it mid-plan:
 | E4 | Bank-level empty / degraded state (no `LESSON`, or unreadable `LESSON-SRC`) | `static-content` |
 | E5 | `itembank lesson` CLI output and the four lint messages | `static-content` |
 
-**Probe coverage: 28 applicable.** Resolved 24 explicit, 3 backstop, 0 unresolved, 1 dismissed with reason.
+**Probe coverage: 28 applicable.** Resolved 20 explicit, 2 backstop, 0 unresolved, 6 dismissed with reason. (20 + 2 + 6 = 28; the table below is authoritative.)
 
 | Category | Element | Status | Resolution / Reason |
 |----------|---------|--------|---------------------|

@@ -258,7 +258,7 @@ Every string below is meant to be used close to verbatim. Locked strings that mu
 | E4 | The `Check` submit button, its `Running…` in-flight state, and the hidden-case-count hint | `interactive-control` |
 | E5 | The always-visible CODE-05 honest-limits line beside the editor | `static-content` |
 
-**Probe coverage: 32 applicable.** Resolved 23 explicit, 2 backstop, 0 unresolved, 7 dismissed with reason.
+**Probe coverage: 32 applicable.** Resolved 23 explicit, 2 backstop, 0 unresolved, 8 dismissed with reason — 33 rows total. The extra row is `long-text / E5`, which the probe did not propose; it is an additional check authored here to carry the CODE-05 identity assertion. The table below is authoritative.
 
 | Category | Element | Status | Resolution / Reason |
 |----------|---------|--------|---------------------|
