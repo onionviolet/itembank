@@ -279,7 +279,16 @@ Plans:
   3. Code that loops forever is killed at the timeout on both Windows and POSIX, including any child process it spawned — verified with a grandchild-spawning test case.
   4. `spec` and any UI copy state plainly that this stops accidents, not deliberate escapes, with no claim of sandboxing anywhere in the documentation.
 
-**Plans**: TBD
+**Plans**: 7 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Tracer: one `check` item end to end — parse, run, score, record (wave 1)
+- [ ] 05-02-PLAN.md — Execution bounds: output cap, Windows Job Object kill, grandchild test (wave 2)
+- [ ] 05-03-PLAN.md — Settings group, the agent submit path, and the default-closed LAN refusal (wave 2)
+- [ ] 05-04-PLAN.md — Windows process-tree kill: manual verification and spike record (wave 3)
+- [ ] 05-05-PLAN.md — The code editor: field, gutter, Tab/Shift-Tab, honest-limits line (wave 3)
+- [ ] 05-06-PLAN.md — Per-case result matrix and the three refusal states (wave 4)
+- [ ] 05-07-PLAN.md — Honest-limits gate, README, item schema, end-of-phase pass (wave 5)
 
 ### Phase 6: Hint Ladder, Cursor-Hold & Feedback Modes
 
