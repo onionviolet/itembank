@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 02.1
 current_phase_name: packaging-self-update-interop-export
 status: executing
-stopped_at: Completed 02.1-06-PLAN.md
-last_updated: "2026-08-08T04:47:23.243Z"
+stopped_at: Completed 02.1-05-PLAN.md
+last_updated: "2026-08-08T05:03:43.590Z"
 last_activity: 2026-08-07
 last_activity_desc: Phase 02.1 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 24
-  completed_plans: 22
+  completed_plans: 23
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 ## Current Position
 
 Phase: 02.1 (packaging-self-update-interop-export) — EXECUTING
-Plan: 6 of 7
+Plan: 7 of 7
 Status: Ready to execute
 Last activity: 2026-08-07 — Phase 02.1 execution started
 
-Progress: [█████████░] 92%
+Progress: [██████████] 96%
 
 ## Performance Metrics
 
@@ -80,6 +80,7 @@ Progress: [█████████░] 92%
 | Phase 02.1 P03 | 25min | 3 tasks | 7 files |
 | Phase 02.1 P04 | 25min | 3 tasks | 5 files |
 | Phase 02.1 P06 | 20min | 2 tasks | 3 files |
+| Phase 02.1 P05 | 35min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -140,6 +141,8 @@ Recent decisions affecting current work:
 - [Phase ?]: 02.1-04: export_gift() returns exit code 1 when anything was skipped, 0 otherwise -- the plan's own resolution of an unspecified exit-code gap, matching cmd_lint's precedent
 - [Phase ?]: 02.1-06: GIFT_CODES carries exactly three refusal codes (gift.type_unsupported, gift.field_unescapable, gift.strict_divergence); the pre-existing default-mode multi warning from 02.1-04 stays uncoded per the plan's own instruction to leave that behaviour unchanged
 - [Phase ?]: 02.1-06: the real Moodle sandbox import (D-04's manual layer) could not be attempted -- this executor's tool set has no browser/computer-use capability -- recorded PARTIAL per D-05 and tracked as an open item in .planning/WINDOWS.md
+- [Phase ?]: 02.1-05: check_latest reads ITEMBANK_GITHUB_TOKEN from the environment itself (D-09) when no explicit token is passed; found and fixed while writing the token-secrecy test, committed separately from Task 2's own commit
+- [Phase ?]: 02.1-05: should_check()'s rate-limit clock is the manifest's own checked_at field, not a second sibling file -- write_manifest's four parameters double as both what's currently trusted and when that was last verified
 
 ### Pending Todos
 
@@ -171,6 +174,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-08T04:47:23.226Z
-Stopped at: Completed 02.1-06-PLAN.md
+Last session: 2026-08-08T05:03:43.573Z
+Stopped at: Completed 02.1-05-PLAN.md
 Resume file: None

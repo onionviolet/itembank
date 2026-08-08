@@ -138,8 +138,8 @@
 - [x] **DEL-03**: The daemon opens as a frameless app window, falling back to an ordinary browser tab when that is unavailable
 - [x] **DEL-04**: One documented config file holds theme, daily cap, selection weights, auditor autonomy, model backend, and update policy
 - [x] **DEL-05**: `itembank config` prints the settings schema the way `spec` prints the format contract, and an invalid value is rejected with a named error
-- [ ] **DEL-06**: The tool updates itself from GitHub Releases with checksum verification and atomic replacement
-- [ ] **DEL-07**: Update behaviour toggles between opt-in-only and check-on-launch, and fails silently when offline
+- [x] **DEL-06**: The tool updates itself from GitHub Releases with checksum verification and atomic replacement
+- [x] **DEL-07**: Update behaviour toggles between opt-in-only and check-on-launch, and fails silently when offline
 - [x] **DEL-08**: GIFT export produces a file a real LMS importer accepts, and item types GIFT cannot express fail loudly by item number rather than exporting silently wrong
 
 ## v2 Requirements
@@ -285,8 +285,8 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | DEL-03 | Phase 12 | Complete |
 | DEL-04 | Phase 2 | Complete |
 | DEL-05 | Phase 2 | Complete |
-| DEL-06 | Phase 12 | Pending |
-| DEL-07 | Phase 12 | Pending |
+| DEL-06 | Phase 12 | Complete |
+| DEL-07 | Phase 12 | Complete |
 | DEL-08 | Phase 12 | Complete |
 
 **Coverage:**
