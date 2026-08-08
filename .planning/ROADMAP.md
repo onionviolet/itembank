@@ -170,6 +170,7 @@ Plans:
   5. GIFT export produces a file a real LMS importer accepts for expressible item types, and any item type GIFT cannot express fails loudly, by item number, rather than exporting silently wrong.
 
 **Why inserted here (reasoning)**:
+
 - No other phase's `Depends on` field named Phase 12 anywhere in the original roadmap — confirmed by inspection of all 12 phase entries. Its only real dependency, Phase 2, is complete (6/6 plans). Moving it up breaks no dependency chain.
 - Packaging is architecture, not a one-time snapshot: the shipped artifact stays "plain Python inside... without unpacking a build step" (Success Criterion 2), so every later phase's code lands in the next `.pyz` rebuild automatically. Landing this phase early doesn't require redoing it once Phases 3-11 add code.
 - The self-updater built here becomes the delivery path for every phase after it — Phases 3-11 ship through it as real releases, exercising it repeatedly, instead of it being written last and validated against nothing.
@@ -179,12 +180,22 @@ Plans:
 **Plans**: 7 plans in 4 waves
 
 Plans:
+**Wave 1**
 
 - [ ] 02.1-01-PLAN.md — Tracer: one `.pyz` that actually runs (version constant, bundled-resource reader, `build.py`, Windows shim)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 02.1-02-PLAN.md — macOS `.command` and Linux `.desktop` shims, release bundle, README install section
 - [ ] 02.1-03-PLAN.md — Settings contract (`daemon.window`, `update` group, phase-number fix) and the frameless app window
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 02.1-04-PLAN.md — GIFT export: one escape function and the five expressible item types
 - [ ] 02.1-05-PLAN.md — Updater decisions: strictly-newer comparison, checksum verification, offline silence
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 02.1-06-PLAN.md — GIFT loud failures, `--strict`, and the real LMS import
 - [ ] 02.1-07-PLAN.md — Updater install: side-by-side landing, pointer manifest, relaunch handoff, `itembank update`
 
