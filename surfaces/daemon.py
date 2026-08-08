@@ -14,13 +14,13 @@ render and runtime functions that already exist -- `quiz.page_for()`,
 handler.
 """
 import datetime, errno, html, json, os, re, socketserver, sys, threading
-import urllib.parse, urllib.request, uuid, webbrowser
+import urllib.parse, urllib.request, uuid
 
 import evidence
 import server
 from model import load, parse_bank
 from runtime import explain_payload, read_session
-from surfaces import day, quiz, session, settings, study
+from surfaces import day, launcher, quiz, session, settings, study
 from surfaces.theme import THEME_CSS
 
 
@@ -1009,7 +1009,7 @@ def probe(port, host="127.0.0.1", timeout=0.5):
         return False
 
 
-def start_server(handler_cls, port, host="127.0.0.1", no_open=False):
+def start_server(handler_cls, port, host="127.0.0.1", no_open=False, window="app"):
     """The detect-and-attach startup path (D-02): try binding `Daemon`
     directly on `(host, port)` first, and only on `OSError` decide, by the
     *kind* of failure, whether attaching to an already-running itembank is
@@ -1025,7 +1025,9 @@ def start_server(handler_cls, port, host="127.0.0.1", no_open=False):
       burn the timeout on exactly the platform this project runs on
       (T-2-20), so this case skips straight to the free-port fallback.
     - **Occupied by another itembank** (`probe(port)` is True): print the
-      already-running line, open a browser at that URL unless `no_open`, and
+      already-running line, open a container at that URL through
+      `launcher.open_window` (D-11's `window` setting and `no_open`
+      opt-out both apply here exactly as they do on a fresh launch), and
       exit 0. This runs in the CLI entry point's own process before any
       server of this process's own exists -- not inside a request handler --
       so exiting here carries none of Pitfall #3's hazard.
@@ -1048,15 +1050,14 @@ def start_server(handler_cls, port, host="127.0.0.1", no_open=False):
         if not reserved and probe(port):
             url = "http://127.0.0.1:%d/" % port
             print("itembank is already running at %s" % url)
-            if not no_open:
-                webbrowser.open(url)
+            launcher.open_window(url, window, no_open)
             sys.exit(0)
         srv = server.bind(handler_cls, port, host)
         return srv, srv.server_address[1], True
 
 
 def serve_scoped(root, banks, plans, port, host="127.0.0.1", open_path="/",
-                 no_open=False, extra=None, on_bound=None, srv=None):
+                 no_open=False, extra=None, on_bound=None, srv=None, window="app"):
     """Bind the one `Daemon`/`DaemonHandler` pair, scoped to whatever
     `banks` and `plans` a caller passes in, print the URL line, optionally
     open a browser after the same 0.4-second timer every launch has always
@@ -1086,6 +1087,14 @@ def serve_scoped(root, banks, plans, port, host="127.0.0.1", open_path="/",
     Left `None` (the default) for every caller that has not adopted the
     probe (`cmd_serve`, `cmd_day`), which keeps binding through `_bind()`'s
     own free-port fallback exactly as before.
+
+    `window` (D-11) chooses the container `launcher.open_window` opens once
+    the socket is accepting: `"app"` (the default, matching the shipped
+    schema default) attempts a frameless Chromium-family window and falls
+    back to a tab, `"tab"` always opens an ordinary tab. `cmd_serve` and
+    `cmd_day` reach this function without a settings read of their own and
+    therefore take the default, exactly like `cmd_daemon`'s own shipped
+    default -- one behaviour across every daemon launch in the tool.
     """
     extra = extra or {}
     DaemonHandler.banks = banks
@@ -1106,7 +1115,7 @@ def serve_scoped(root, banks, plans, port, host="127.0.0.1", open_path="/",
             on_bound(bound_port)
         sys.stdout.flush()
         if not no_open:
-            threading.Timer(0.4, lambda: webbrowser.open(url)).start()
+            threading.Timer(0.4, lambda: launcher.open_window(url, window, no_open)).start()
         try:
             bound.serve_forever()
         except KeyboardInterrupt:
@@ -1126,6 +1135,13 @@ def cmd_daemon(a):
     port = a.port if a.port is not None else cfg["daemon"]["port"]
     lan = True if a.lan else cfg["daemon"]["lan"]
     host = ALL_INTERFACES if lan else "127.0.0.1"
+    window = cfg["daemon"]["window"]
+    # D-11: open_browser gates whether anything opens at all; --no-open still
+    # wins over it. This is the first reader open_browser has ever had (a
+    # grep before this task found zero) -- the schema declared it, nothing
+    # read it, and a learner setting it false believed it was doing
+    # something. It is now.
+    no_open = a.no_open or not cfg["daemon"]["open_browser"]
 
     print("itembank daemon")
     print("  dir     %s" % os.path.abspath(root))
@@ -1157,7 +1173,8 @@ def cmd_daemon(a):
     # fallback's own "port unavailable" line comes from `server.bind()`
     # itself (reused, not duplicated here); the `url` line `serve_scoped()`
     # always prints next names the port actually bound.
-    srv, bound_port, fell_back = start_server(DaemonHandler, port, host, no_open=a.no_open)
+    srv, bound_port, fell_back = start_server(DaemonHandler, port, host,
+                                              no_open=no_open, window=window)
 
     def on_bound(actual_port):
         if lan:
@@ -1166,7 +1183,7 @@ def cmd_daemon(a):
             print("  LAN mode is on: every device on this network can reach this "
                   "daemon. itembank has no accounts and no authentication by design.")
 
-    serve_scoped(root, banks, plans, port, host=host, open_path="/", no_open=a.no_open,
+    serve_scoped(root, banks, plans, port, host=host, open_path="/", no_open=no_open,
                 extra={"sessions": sessions, "collisions": collisions},
-                on_bound=on_bound, srv=srv)
+                on_bound=on_bound, srv=srv, window=window)
     return 0
