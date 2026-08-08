@@ -117,6 +117,12 @@ def gift_item(q, errors, warnings, strict=False):
     if t == "mc":
         return gift_mc(q)
     if t == "multi":
+        warnings.append(
+            "Q%d: type 'multi' exported as GIFT weighted-answer choices -- a "
+            "learner selecting only some of the correct options may score "
+            "partial credit in the LMS, where itembank's own scorer would "
+            "mark it wrong. Export kept; verify against your LMS if this "
+            "matters." % q["number"])
         return gift_multi(q)
     if t in ("table", "dnd"):
         return gift_matching(q)
@@ -139,3 +145,31 @@ def render_gift(qs, strict=False):
         if block is not None:
             blocks.append(block)
     return "\n\n".join(blocks), errors, warnings
+
+
+def export_gift(a):
+    """The GIFT branch of `itembank export`, reached from
+    `anki.cmd_export` when `--format gift` is given. Same load-then-gate-
+    then-transform-then-status-line shape as the existing Anki export, so
+    GIFT export reads as the same family of command, not a differently-
+    voiced new feature.
+    """
+    qs = load(a.bank)
+    errors, _ = lint(qs)
+    if errors and not a.force:
+        sys.exit("refusing to export a bank with errors; fix them or pass --force")
+    document, gift_errors, gift_warnings = render_gift(qs, strict=getattr(a, "strict", False))
+    for w in gift_warnings:
+        print(w)
+    for e in gift_errors:
+        print(e)
+    os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
+    content = (document + "\n") if document else ""
+    open(a.out, "w", encoding="utf-8").write(content)
+    skipped = len(gift_errors)
+    exported = len(qs) - skipped
+    if skipped:
+        print("%d items exported, %d skipped (see above) -> %s" % (exported, skipped, a.out))
+        return 1
+    print("%d items -> %s" % (exported, a.out))
+    return 0

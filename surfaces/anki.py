@@ -7,6 +7,7 @@ import os, re, sys
 
 from model import lint, load
 from runtime import answer_text
+from surfaces import gift
 
 
 def tsv_cell(value):
@@ -14,6 +15,8 @@ def tsv_cell(value):
 
 
 def cmd_export(a):
+    if a.format == "gift":
+        return gift.export_gift(a)
     qs = load(a.bank)
     errors, _ = lint(qs)
     if errors and not a.force:

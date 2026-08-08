@@ -259,10 +259,13 @@ def main():
     s.add_argument("--force", action="store_true", help="study despite lint errors")
     s.set_defaults(fn=cmd_study)
 
-    s = sub.add_parser("export", help="export a bank as Anki TSV")
+    s = sub.add_parser("export", help="export a bank as Anki TSV or GIFT for LMS import")
     s.add_argument("bank")
     s.add_argument("out")
-    s.add_argument("--format", choices=("basic", "cloze"), default="basic")
+    s.add_argument("--format", choices=("basic", "cloze", "gift"), default="basic")
+    s.add_argument("--strict", action="store_true",
+                   help="GIFT export only: promote the multi scoring-divergence "
+                        "warning to a per-item failure")
     s.add_argument("--force", action="store_true", help="export despite lint errors")
     s.set_defaults(fn=cmd_export)
 
