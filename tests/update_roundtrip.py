@@ -527,6 +527,83 @@ def test_same_host_redirect_keeps_authorization():
              "breaking private-repo downloads: %r" % (recorded[1][1],))
 
 
+def test_token_is_never_attached_to_a_non_github_host():
+    """A release document's `browser_download_url` is API-supplied data
+    that decides the host of the very first request, before any redirect
+    exists -- so the credential must be host-gated before the header is
+    even built (T-02.1-38). The github.com case is the control proving the
+    token is not simply never set. The structural assertion closes
+    T-02.1-40: both network functions must route through the one
+    `_open_request` seam, so a future call site added beside them shows up
+    as a failing assertion rather than as a silent second, unguarded
+    request path.
+    """
+    sentinel = "sentinel-host-gate-token-9c27"
+    foreign = ("https://example.invalid/onionviolet/itembank/releases/"
+               "download/itembank-0.3.0.pyz")
+    github = ("https://github.com/onionviolet/itembank/releases/download/"
+              "itembank-0.3.0.pyz")
+
+    for fn_name in ("check_latest", "download_asset"):
+        src = inspect.getsource(getattr(u, fn_name))
+        if "_open_request" not in src:
+            fail("%s does not route through the module's single "
+                 "_open_request seam (T-02.1-40):\n%s" % (fn_name, src))
+
+    recorded = []
+    transport = FakeRedirectTransport(
+        [FakeRedirectResponse(200, "OK", email.message.Message(),
+                              b"foreign-host-bytes"),
+         FakeRedirectResponse(200, "OK", email.message.Message(),
+                              b"github-host-bytes")],
+        recorded)
+
+    had_env_token = "ITEMBANK_GITHUB_TOKEN" in os.environ
+    saved_env_token = os.environ.get("ITEMBANK_GITHUB_TOKEN")
+    try:
+        os.environ["ITEMBANK_GITHUB_TOKEN"] = sentinel
+        with patched_transport(transport):
+            foreign_data = u.download_asset(foreign)
+            github_data = u.download_asset(github)
+    finally:
+        if had_env_token:
+            os.environ["ITEMBANK_GITHUB_TOKEN"] = saved_env_token
+        else:
+            os.environ.pop("ITEMBANK_GITHUB_TOKEN", None)
+
+    if foreign_data != b"foreign-host-bytes":
+        fail("download_asset did not fetch the foreign-host url: %r" %
+             (foreign_data,))
+    if github_data != b"github-host-bytes":
+        fail("download_asset did not fetch the github.com url: %r" %
+             (github_data,))
+    if len(recorded) != 2:
+        fail("the host-gate exchange made %d request(s), expected 2: %r" %
+             (len(recorded), recorded))
+
+    foreign_url, foreign_headers = recorded[0]
+    if foreign_url != foreign:
+        fail("the first request went to %r, expected the foreign url %r" %
+             (foreign_url, foreign))
+    lower_foreign = {k.lower(): v for k, v in foreign_headers.items()}
+    if "authorization" in lower_foreign:
+        fail("a non-GitHub host received an Authorization header on its "
+             "very first request: %r" % (foreign_headers,))
+    for name, value in lower_foreign.items():
+        if sentinel in value:
+            fail("a non-GitHub host received the token string under header "
+                 "%r: %r" % (name, value))
+
+    github_url, github_headers = recorded[1]
+    if github_url != github:
+        fail("the second request went to %r, expected the github.com url "
+             "%r" % (github_url, github))
+    if github_headers.get("Authorization") != "Bearer " + sentinel:
+        fail("a github.com url did not receive the Authorization header -- "
+             "the refusal assertion would pass vacuously if the token were "
+             "never set: %r" % (github_headers,))
+
+
 # ---- install: never writes the path this process is running from ---------
 
 def test_install_never_writes_the_running_artifact():
@@ -959,6 +1036,7 @@ def main():
     test_token_never_comes_from_the_settings_file()
     test_authorization_is_stripped_on_a_cross_host_redirect()
     test_same_host_redirect_keeps_authorization()
+    test_token_is_never_attached_to_a_non_github_host()
     test_install_never_writes_the_running_artifact()
     test_partial_download_leaves_nothing_readable()
     test_install_is_idempotent()
@@ -972,7 +1050,7 @@ def main():
           "update root, opt-in consent, the token never comes from "
           "itembank.json, install/handoff safety, the update command's "
           "and background check's surface coverage, and redirect-safe "
-          "authorization stripping)")
+          "authorization stripping plus the token host gate)")
     return 0
 
 
