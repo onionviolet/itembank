@@ -20,7 +20,7 @@ import evidence
 import server
 from model import load, parse_bank
 from runtime import explain_payload, read_session
-from surfaces import day, launcher, quiz, session, settings, study
+from surfaces import day, launcher, quiz, session, settings, study, update
 from surfaces.theme import THEME_CSS
 
 
@@ -1142,6 +1142,21 @@ def cmd_daemon(a):
     # read it, and a learner setting it false believed it was doing
     # something. It is now.
     no_open = a.no_open or not cfg["daemon"]["open_browser"]
+
+    # The silent background release check (DEL-07): started on its own
+    # daemon thread before the socket even binds, so a slow or unreachable
+    # GitHub can never delay or block serving the index page. Wrapped a
+    # second time here even though background_check already swallows its
+    # own exceptions -- a failing update check must never reach this
+    # startup path as a traceback, the same degrade-never-block contract
+    # surfaces/day.py already keeps when Anki is closed.
+    def _background_check_thread():
+        try:
+            update.background_check(update.update_root(), cfg)
+        except Exception:
+            pass
+
+    threading.Thread(target=_background_check_thread, daemon=True).start()
 
     print("itembank daemon")
     print("  dir     %s" % os.path.abspath(root))

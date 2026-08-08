@@ -18,6 +18,7 @@ from surfaces.quiz import cmd_build, cmd_serve
 from surfaces.session import cmd_next, cmd_report, cmd_start, cmd_submit
 from surfaces.settings import cmd_config
 from surfaces.study import cmd_study
+from surfaces.update import cmd_update
 
 
 def cmd_spec(a):
@@ -329,6 +330,17 @@ def main():
                    help="actually import; without this flag, migrate is a dry run that "
                         "reports the counts it expects and writes nothing")
     s.set_defaults(fn=cmd_migrate)
+
+    s = sub.add_parser("update", help="check GitHub for a newer release, download and "
+                       "verify it, and prepare it beside the running artifact")
+    s.add_argument("--check", action="store_true",
+                   help="report whether a newer version exists without downloading it")
+    s.add_argument("--repo", default=None,
+                   help="owner/name of the GitHub repository to check "
+                        "(default: itembank.json's update.repo)")
+    s.add_argument("--timeout", type=int, default=30,
+                   help="network timeout in seconds (default: 30)")
+    s.set_defaults(fn=cmd_update)
 
     s = sub.add_parser("guard", help="fail if a real bank was committed")
     s.add_argument("dir", nargs="?", default=".")
