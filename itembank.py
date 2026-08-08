@@ -39,6 +39,10 @@ four layers, and the boundaries between them are the design:
 Python standard library only. No network, no services, no dependencies, and no
 install step: `python itembank.py` from a checkout is the whole thing.
 """
+# D-07: releases are tagged plain vX.Y.Z with no pre-release or build suffix,
+# because the updater compares version components as integers.
+__version__ = "0.3.0"
+
 import os
 import sys
 
@@ -86,6 +90,7 @@ __all__ = [
     "LINT_CODES", "LintError",
     "PAIR_SEP", "REPORT_VERSION", "SESSION_UPGRADES", "SESSION_VERSION", "SPEC",
     "SUPPORTED", "SchemaError",
+    "__version__",
     "anki_read", "answer_text", "append_event", "append_line", "assign_ids",
     "attempt_number", "canonical_key", "canonical_response", "collapse",
     "content_fingerprint", "day_history", "day_info",

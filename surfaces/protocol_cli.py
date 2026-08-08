@@ -11,14 +11,11 @@ the route will read the same files off disk this command does, not a second
 copy embedded in Python.
 """
 import json
-import os
 import sys
 
+import resources
 from model import SPEC
 
-
-SCHEMA_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "schemas")
 
 # Listed in the order handed to a reader: what a learner sees before
 # answering, the session that carries it, the evidence a response leaves
@@ -67,11 +64,11 @@ COMMANDS = (
 
 
 def _schema_path(name):
-    return os.path.join(SCHEMA_DIR, name + ".schema.json")
+    return "schemas/" + name + ".schema.json"
 
 
 def _load_schema_text(name):
-    return open(_schema_path(name), encoding="utf-8").read()
+    return resources.read_text(_schema_path(name))
 
 
 def cmd_schema(a):

@@ -13,12 +13,13 @@ import json
 import os
 import sys
 
+import resources
 import schema_validate
 
 
-SCHEMA_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "schemas")
-SCHEMA_PATH = os.path.join(SCHEMA_DIR, "settings.schema.json")
+# Archive-relative path (see resources.py): resolves inside a checkout and
+# inside a .pyz alike, unlike the __file__-relative path this replaced.
+SCHEMA_RESOURCE = "schemas/settings.schema.json"
 
 SETTINGS_FILE = "itembank.json"
 
@@ -42,7 +43,7 @@ def settings_path(base):
 
 
 def load_schema():
-    return json.load(open(SCHEMA_PATH, encoding="utf-8"))
+    return json.loads(resources.read_text(SCHEMA_RESOURCE))
 
 
 def defaults_from_schema(schema):
@@ -266,7 +267,7 @@ def cmd_config(a):
     schema = load_schema()
 
     if a.action == "schema":
-        print(open(SCHEMA_PATH, encoding="utf-8").read(), end="")
+        print(resources.read_text(SCHEMA_RESOURCE), end="")
         return 0
 
     if a.action == "set":
