@@ -221,7 +221,32 @@ Plans:
   3. `lint` fails with an actionable message, by item number, when a `LESSON-REF` names a heading that does not exist — never a render-time crash.
   4. `spec` documents the `LESSON`/`LESSON-REF` grammar well enough that an authoring agent with no source access can write a valid lesson on the first try.
 
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 03-01-PLAN.md — TRACER: one lesson, one reference, rendered at `/lesson/<bank>` and linked both ways
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 03-02-PLAN.md — Shared lesson source `[LESSON-SRC:]` with path containment and a degraded reader state
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 03-03-PLAN.md — Lint: four codes, two CI couplings, one REQUIREMENTS reconciliation
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 03-04-PLAN.md — The renderer's real markdown scope and the Phase 9 fenced-code seam
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 03-05-PLAN.md — CLI twin completeness: `--ref` filtering and the output contract
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 03-06-PLAN.md — `spec` documents the grammar, plus the phase gate
 
 ### Phase 4: Surface Redesign & Theming
 
