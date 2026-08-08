@@ -85,6 +85,18 @@
 - [ ] **CODE-04**: Execution is bounded by a timeout and the process tree is cleaned up on both Windows and POSIX
 - [ ] **CODE-05**: The documentation states plainly that this stops accidents and not deliberate escapes, and does not claim isolation
 
+### Visual interactions
+
+- [ ] **VIS-01**: One versioned declarative `visual` item protocol describes renderer configuration and semantic responses without allowing bank-authored JavaScript
+- [ ] **VIS-02**: Public visual payloads expose only the scene, initial state, allowed semantic actions, response grammar, and accessibility text; accepted states, tolerance, misconception mapping, and reveal material remain private
+- [ ] **VIS-03**: Mouse, touch, keyboard, and semantic-HTML controls serialize the same domain action and response rather than pixels, paths, screenshots, or renderer-specific state
+- [ ] **VIS-04**: Visual responses are normalized and scored deterministically by `runtime.score_response()` alone, including exact versioned tolerance boundaries, and remain dichotomous
+- [ ] **VIS-05**: `plot` and `numberline` ship together as one shared inline-SVG and semantic-HTML vertical slice
+- [ ] **VIS-06**: Committed semantic actions, runtime observations, final state, error category, feedback anchor, and bounded hint entitlement are append-only, agent-queryable evidence; raw pointer movement is not stored
+- [ ] **VIS-07**: Every visual interaction has equivalent keyboard and non-drag operation, accessible names/status, touch targets and cancellation, narrow/zoom reflow, and a semantic fallback that remains mandatory if a future dense simulation uses canvas
+- [ ] **VIS-08**: `spec`, named lint errors, published schemas, and synthetic golden fixtures form a complete visual-item authoring contract for a model with no renderer-source access
+- [ ] **VIS-09**: GIFT export refuses visual items loudly by item number and stable code instead of approximating an interaction the format cannot express
+
 ### Subject loop
 
 - [ ] **LOOP-01**: One subject-invariant loop drives EMT, Math, and CS; only lesson medium, allowed item types, and verifier vary
@@ -249,6 +261,15 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | CODE-03 | Phase 5 | Pending |
 | CODE-04 | Phase 5 | Pending |
 | CODE-05 | Phase 5 | Pending |
+| VIS-01 | Phase 06.1 | Pending |
+| VIS-02 | Phase 06.1 | Pending |
+| VIS-03 | Phase 06.1 | Pending |
+| VIS-04 | Phase 06.1 | Pending |
+| VIS-05 | Phase 06.1 | Pending |
+| VIS-06 | Phase 06.1 | Pending |
+| VIS-07 | Phase 06.1 | Pending |
+| VIS-08 | Phase 06.1 | Pending |
+| VIS-09 | Phase 06.1 | Pending |
 | LOOP-01 | Phase 9 | Pending |
 | LOOP-02 | Phase 9 | Pending |
 | LOOP-03 | Phase 9 | Pending |
@@ -291,8 +312,8 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 
 **Coverage:**
 
-- v1 requirements: 92 total
-- Mapped to phases: 92
+- v1 requirements: 101 total
+- Mapped to phases: 101
 - Unmapped: 0 ✓
 
 ---
