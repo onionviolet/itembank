@@ -175,12 +175,18 @@ Plans:
 - The self-updater built here becomes the delivery path for every phase after it — Phases 3-11 ship through it as real releases, exercising it repeatedly, instead of it being written last and validated against nothing.
 - User's explicit goal (2026-08-07): a valid, double-clickable exe of the current (Phase 1 + Phase 2) feature set, sooner than waiting for the full 12-phase milestone to close.
 
-**Open decisions resolved here**: GitHub release-asset `digest` field format — existence confirmed, literal shape unverified against a live response; confirm it before writing the parser, and fall back to `SHA256SUMS.txt` if it surprises.
-**Plans**: TBD
+**Open decisions resolved here**: GitHub release-asset `digest` field format — **RESOLVED 2026-08-07 at plan time by a live request**: the asset object carries `digest` shaped as `sha256:` followed by 64 hex characters, and `tag_name` is a plain `vX.Y.Z` string. The parser is built on that shape, with the `SHA256SUMS.txt` asset kept as a redundant fallback for the null-digest case (plan 02.1-05).
+**Plans**: 7 plans in 4 waves
 
 Plans:
 
-- [ ] TBD (run `/gsd-plan-phase 2.1` to break down)
+- [ ] 02.1-01-PLAN.md — Tracer: one `.pyz` that actually runs (version constant, bundled-resource reader, `build.py`, Windows shim)
+- [ ] 02.1-02-PLAN.md — macOS `.command` and Linux `.desktop` shims, release bundle, README install section
+- [ ] 02.1-03-PLAN.md — Settings contract (`daemon.window`, `update` group, phase-number fix) and the frameless app window
+- [ ] 02.1-04-PLAN.md — GIFT export: one escape function and the five expressible item types
+- [ ] 02.1-05-PLAN.md — Updater decisions: strictly-newer comparison, checksum verification, offline silence
+- [ ] 02.1-06-PLAN.md — GIFT loud failures, `--strict`, and the real LMS import
+- [ ] 02.1-07-PLAN.md — Updater install: side-by-side landing, pointer manifest, relaunch handoff, `itembank update`
 
 ### Phase 3: Lesson Format & In-App Reader
 
