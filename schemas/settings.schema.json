@@ -103,21 +103,22 @@
     },
     "update_policy": {
       "type": "string",
-      "description": "Whether the opt-in updater checks for a new version automatically. Inert until Phase 12 reads it.",
+      "description": "Whether the opt-in updater checks GitHub Releases automatically. check_on_launch checks once at daemon launch, silently and non-blockingly; opt_in only checks when the user runs itembank update. Read by this phase (2.1).",
       "enum": ["opt_in", "check_on_launch"],
       "default": "opt_in",
-      "x-itembank-phase": 12
+      "x-itembank-phase": 2.1
     },
     "daemon": {
       "type": "object",
-      "description": "The daemon's own port and LAN settings. The only group this phase's own code reads (plan 02-06).",
+      "description": "The daemon's own port, LAN, and app-window settings.",
       "additionalProperties": false,
-      "required": ["port", "lan", "open_browser"],
+      "required": ["port", "lan", "open_browser", "window"],
       "x-itembank-phase": 2,
       "default": {
         "port": 8730,
         "lan": false,
-        "open_browser": true
+        "open_browser": true,
+        "window": "app"
       },
       "properties": {
         "port": {
@@ -139,6 +140,40 @@
           "description": "Whether the daemon launches a browser on startup by default.",
           "default": true,
           "x-itembank-phase": 2
+        },
+        "window": {
+          "type": "string",
+          "description": "Which container the daemon opens its page in: app attempts a frameless Chromium-family --app= window and falls back to an ordinary tab when no such browser is found; tab always opens an ordinary tab. Read by this phase (2.1).",
+          "enum": ["app", "tab"],
+          "default": "app",
+          "x-itembank-phase": 2.1
+        }
+      }
+    },
+    "update": {
+      "type": "object",
+      "description": "Where the opt-in self-updater looks for releases, and how often a background check may run. Read by this phase (2.1).",
+      "additionalProperties": false,
+      "required": ["repo", "check_interval_hours"],
+      "x-itembank-phase": 2.1,
+      "default": {
+        "repo": "onionviolet/itembank",
+        "check_interval_hours": 24
+      },
+      "properties": {
+        "repo": {
+          "type": "string",
+          "description": "owner/name of the GitHub repository whose Releases the updater reads. A token, when one is used, comes from the ITEMBANK_GITHUB_TOKEN environment variable and never from this file. Read by this phase (2.1).",
+          "default": "onionviolet/itembank",
+          "x-itembank-phase": 2.1
+        },
+        "check_interval_hours": {
+          "type": "integer",
+          "description": "Minimum hours between two background update checks, to stay well under GitHub's 60-requests-per-hour unauthenticated limit. Read by this phase (2.1).",
+          "minimum": 1,
+          "maximum": 720,
+          "default": 24,
+          "x-itembank-phase": 2.1
         }
       }
     }

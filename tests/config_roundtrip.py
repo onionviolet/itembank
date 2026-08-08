@@ -83,13 +83,14 @@ def assert_rejected(base, args, expected_code):
 # ---- Task 2: the schema is complete, the validator's bounds are exact ------
 
 def test_schema_names_every_project_key():
-    """PROJECT.md's six named settings plus the daemon's own group -- no
-    fewer, no more, each with a default, a phase and a description.
+    """PROJECT.md's six named settings plus the daemon's own group plus the
+    update group -- seven groups, no fewer, no more, each with a default, a
+    phase and a description.
     """
     schema = json.load(open(SCHEMA_PATH, encoding="utf-8"))
     keys = set(schema["properties"])
     expected = {"theme", "daily_cap", "selection_weights", "auditor_autonomy",
-                "model_backend", "update_policy", "daemon"}
+                "model_backend", "update_policy", "daemon", "update"}
     if keys != expected:
         fail("schema properties %r do not equal the expected key set %r" % (keys, expected))
     for name, sub in schema["properties"].items():
@@ -120,7 +121,7 @@ def test_config_no_args_prints_table():
     if r.returncode != 0:
         fail("itembank config exited %d: %s" % (r.returncode, r.stderr))
     for name in ("theme", "daily_cap", "selection_weights", "auditor_autonomy",
-                 "model_backend", "update_policy", "daemon"):
+                 "model_backend", "update_policy", "daemon", "update"):
         if name not in r.stdout:
             fail("config table is missing key %r" % name)
     if r.stdout.count("inert") < 5:
@@ -129,6 +130,26 @@ def test_config_no_args_prints_table():
         stripped = line.strip()
         if stripped.startswith("daemon") and "inert" in line:
             fail("daemon is marked inert, but this phase's own code reads it: %r" % line)
+    shutil.rmtree(base, ignore_errors=True)
+
+
+def test_phase_2_1_keys_read_not_inert():
+    """RESEARCH Pitfall 8: update_policy, daemon.window, update.repo and
+    update.check_interval_hours are read by this phase (2.1), so none of
+    their table rows may say 'inert' -- the exact bug that motivated D-10.
+    """
+    base = fresh_base()
+    r = run([], base)
+    if r.returncode != 0:
+        fail("itembank config exited %d: %s" % (r.returncode, r.stderr))
+    read_by_this_phase = ("update_policy", "daemon.window", "update.repo",
+                          "update.check_interval_hours")
+    for line in r.stdout.splitlines():
+        stripped = line.strip()
+        first_token = stripped.split()[0] if stripped.split() else ""
+        if first_token in read_by_this_phase and "inert" in line:
+            fail("%r is marked inert, but this phase's own code reads it: %r" %
+                 (first_token, line))
     shutil.rmtree(base, ignore_errors=True)
 
 
@@ -288,6 +309,7 @@ def main():
     test_schema_names_every_project_key()
     test_boundary_values_exact()
     test_config_no_args_prints_table()
+    test_phase_2_1_keys_read_not_inert()
     test_config_schema_byte_identical()
     test_config_set_idempotent()
     test_config_set_type_errors()
