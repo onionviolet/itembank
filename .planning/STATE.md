@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 02
-current_phase_name: Daemon Consolidation & Settings Foundation
+current_phase: 02.1
+current_phase_name: packaging-self-update-interop-export
 status: executing
-stopped_at: Phase 2.1 context gathered
-last_updated: "2026-08-08T03:01:25.494Z"
+stopped_at: Completed 02.1-01-PLAN.md
+last_updated: "2026-08-08T03:36:46.728Z"
 last_activity: 2026-08-07
-last_activity_desc: Phase 02 execution started
+last_activity_desc: Phase 02.1 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 24
-  completed_plans: 17
+  completed_plans: 18
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-07)
 
 **Core value:** One runtime, one scorer, one evidence store — and the runtime, not the model, decides what reaches the learner.
-**Current focus:** Phase 02 — Daemon Consolidation & Settings Foundation
+**Current focus:** Phase 02.1 — packaging-self-update-interop-export
 
 ## Current Position
 
-Phase: 02 (Daemon Consolidation & Settings Foundation) — EXECUTING
-Plan: 6 of 6
+Phase: 02.1 (packaging-self-update-interop-export) — EXECUTING
+Plan: 2 of 7
 Status: Ready to execute
-Last activity: 2026-08-07 — Phase 02 execution started
+Last activity: 2026-08-07 — Phase 02.1 execution started
 
-Progress: [██████████] 100%
+Progress: [████████░░] 75%
 
 ## Performance Metrics
 
@@ -75,6 +75,7 @@ Progress: [██████████] 100%
 | Phase 02 P04 | 16min | 2 tasks | 4 files |
 | Phase 02 P05 | 16min | 2 tasks | 2 files |
 | Phase 02 P06 | 25min | 2 tasks | 3 files |
+| Phase 02.1 P01 | 20min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -125,6 +126,8 @@ Recent decisions affecting current work:
 - [Phase ?]: 02-05: REPORT_TEMPLATE's data-field="<name>" markers give tests a stable regex hook against every numeric figure instead of scraping prose
 - [Phase ?]: 02-06: probe()/start_server() implement D-02's three-case detect-and-attach startup; fixed a Windows-only bug where Daemon's allow_reuse_address=True silently defeated it (SO_REUSEADDR lets a second process bind an already-listening port on Windows, unlike POSIX)
 - [Phase ?]: 02-06: cmd_daemon reads daemon.port/daemon.lan from itembank.json via settings.load_settings(), with --port/--lan overriding; --lan has no CLI off-switch, so 'explicitly given' collapses to a.lan is True
+- [Phase ?]: 02.1-01: resources.py is the one bundled-resource reader (checkout and .pyz alike); build.py's STAGE_FILES/STAGE_DIRS are explicit allowlists, never a working-tree walk, keeping evidence and real banks out of the artifact
+- [Phase ?]: 02.1-01: itembank.__version__ = "0.3.0" is the first release ever cut from this repo, deliberately pre-1.0; surfaces/cli.py's --version flag imports itembank lazily inside main() to avoid circling back through the .pyz's __main__.py
 
 ### Pending Todos
 
@@ -156,6 +159,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-07T23:05:02.668Z
-Stopped at: Phase 2.1 context gathered
-Resume file: .planning/phases/02.1-packaging-self-update-interop-export/02.1-CONTEXT.md
+Last session: 2026-08-08T03:36:46.711Z
+Stopped at: Completed 02.1-01-PLAN.md
+Resume file: None

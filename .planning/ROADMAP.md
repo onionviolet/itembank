@@ -177,12 +177,12 @@ Plans:
 - User's explicit goal (2026-08-07): a valid, double-clickable exe of the current (Phase 1 + Phase 2) feature set, sooner than waiting for the full 12-phase milestone to close.
 
 **Open decisions resolved here**: GitHub release-asset `digest` field format — **RESOLVED 2026-08-07 at plan time by a live request**: the asset object carries `digest` shaped as `sha256:` followed by 64 hex characters, and `tag_name` is a plain `vX.Y.Z` string. The parser is built on that shape, with the `SHA256SUMS.txt` asset kept as a redundant fallback for the null-digest case (plan 02.1-05).
-**Plans**: 7 plans in 4 waves
+**Plans**: 1/7 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 02.1-01-PLAN.md — Tracer: one `.pyz` that actually runs (version constant, bundled-resource reader, `build.py`, Windows shim)
+- [x] 02.1-01-PLAN.md — Tracer: one `.pyz` that actually runs (version constant, bundled-resource reader, `build.py`, Windows shim)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
