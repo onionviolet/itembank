@@ -46,6 +46,43 @@ python itembank.py --help
 There is nothing to install. If you want it on your PATH, copy `itembank.py`
 somewhere and make it executable.
 
+## Install and run (release)
+
+A release is one `itembank-X.Y.Z.pyz` file plus one launcher shim per OS,
+downloaded from GitHub Releases and run in place. There is no installer and
+no install step.
+
+**Python 3.11 or newer must already be on the machine.** `zipapp` does not
+bundle an interpreter, and the stdlib-only constraint this project holds
+itself to rules out the tools that do. "Double-clickable" here means
+double-clickable on a machine that already has Python 3.11+, not a
+Python-free installer.
+
+**Windows.** Double-click `itembank.bat`, or the raw `.pyz` itself where a
+standard python.org installer has already set up the file association.
+
+**macOS.** Double-click `itembank.command`. The first time you run a file
+downloaded from the internet, Gatekeeper attaches a quarantine flag and
+blocks the double-click with no explanation. Fix it once: right-click the
+file, choose Open, and confirm -- or run `xattr -d com.apple.quarantine
+itembank.command` from a terminal. Fully solving this needs a paid Apple
+Developer signing certificate, which is deferred (`V2-DEL-01`, signed
+binaries revisited when a second person runs the tool).
+
+**Linux.** Install or double-click `itembank.desktop`, or run the executable
+`.pyz` directly from a terminal (`./itembank-X.Y.Z.pyz`). File-manager
+behavior for desktop entries varies across desktop environments; running it
+from a terminal always works.
+
+**Verify what you downloaded.** Every release includes `SHA256SUMS.txt`
+covering the `.pyz` and every launcher shim (`itembank.bat`,
+`itembank.command`, `itembank.desktop`). Check a downloaded file against it
+with:
+
+```
+sha256sum -c SHA256SUMS.txt
+```
+
 ## Use
 
 ```

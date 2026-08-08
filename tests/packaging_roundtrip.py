@@ -21,6 +21,14 @@ import itembank                                             # noqa: E402
 BANK_OR_EVIDENCE_PATTERNS = ("session_*.json", "*_attempt_*.md", "*_quiz.html",
                              "*_study.html")
 
+# Locked verbatim in 02.1-UI-SPEC.md's Copywriting Contract for the launcher
+# failure path, shared word-for-word by all three OS shims -- defined once
+# here so the three assertions below cannot drift from each other or from
+# the shims themselves.
+LOCKED_LAUNCHER_FAILURE_SENTENCE = (
+    "itembank needs Python 3.11 or newer. Install it from https://python.org "
+    "and run this file again.")
+
 
 def fail(msg):
     print("FAIL: " + msg)
@@ -124,6 +132,53 @@ def test_checksums_cover_every_artifact(out_dir):
         fail("SHA256SUMS.txt does not list the .pyz artifact")
 
 
+def test_every_launcher_ships(out_dir):
+    """Every file in launchers/ ends up in the release directory and in
+    SHA256SUMS.txt with a matching digest -- read from os.listdir() rather
+    than a hardcoded name list, so a fourth shim added later is covered
+    automatically instead of silently unasserted.
+    """
+    names = os.listdir(build.LAUNCHER_DIR)
+    if not names:
+        fail("build.LAUNCHER_DIR (%r) is empty" % build.LAUNCHER_DIR)
+    checksums_path = os.path.join(out_dir, "SHA256SUMS.txt")
+    lines = [l for l in open(checksums_path, encoding="utf-8").read().splitlines() if l]
+    listed = {}
+    for line in lines:
+        digest, name = line.split("  ", 1)
+        listed[name] = digest
+    for name in names:
+        path = os.path.join(out_dir, name)
+        if not os.path.exists(path):
+            fail("launcher %r was not copied into %r" % (name, out_dir))
+        if name not in listed:
+            fail("SHA256SUMS.txt does not list launcher %r" % name)
+        actual = hashlib.sha256(open(path, "rb").read()).hexdigest()
+        if actual != listed[name]:
+            fail("checksum mismatch for launcher %r: recorded %s, actual %s" %
+                 (name, listed[name], actual))
+
+
+def test_launchers_carry_the_locked_failure_sentence():
+    """All three shims print the identical locked sentence and each names
+    an explicit interpreter invocation rather than relying on file
+    association state.
+    """
+    for name in os.listdir(build.LAUNCHER_DIR):
+        text = open(os.path.join(build.LAUNCHER_DIR, name), encoding="utf-8").read()
+        if LOCKED_LAUNCHER_FAILURE_SENTENCE not in text:
+            fail("%s does not carry the locked failure sentence" % name)
+    bat_path = os.path.join(build.LAUNCHER_DIR, "itembank.bat")
+    bat_text = open(bat_path, encoding="utf-8").read()
+    if "py -3" not in bat_text:
+        fail("itembank.bat does not name the Windows Python launcher (py -3)")
+    for name in ("itembank.command", "itembank.desktop"):
+        path = os.path.join(build.LAUNCHER_DIR, name)
+        text = open(path, encoding="utf-8").read()
+        if "python3" not in text:
+            fail("%s does not name python3 explicitly" % name)
+
+
 def main():
     out_dir = tempfile.mkdtemp()
     try:
@@ -132,12 +187,15 @@ def main():
         test_artifact_is_plain_python_inside(artifact)
         test_no_evidence_or_bank_in_the_artifact(artifact)
         test_checksums_cover_every_artifact(out_dir)
+        test_every_launcher_ships(out_dir)
+        test_launchers_carry_the_locked_failure_sentence()
     finally:
         shutil.rmtree(out_dir, ignore_errors=True)
     print("packaging contract: ok (DEL-01/DEL-02 -- builds, runs every "
           "resource-reading command from outside the checkout, is plain "
           "Python inside, carries no evidence/bank content, checksums cover "
-          "every artifact)")
+          "every artifact, all three OS launchers ship and carry the locked "
+          "failure sentence)")
     return 0
 
 
