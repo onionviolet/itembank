@@ -35,11 +35,19 @@ STAGE_DIRS = ("surfaces", "schemas")
 
 LAUNCHER_DIR = os.path.join(ROOT, "launchers")
 
-# Four lines, no logic -- a later plan adds the update handoff here, and a
-# template that already carries branches is a template that gets edited badly.
+# One branch, no more: the update handoff attempt, guarded so a broken
+# updater can never stop the tool from starting. Every launch of the built
+# artifact first offers a newer, already-verified sibling the chance to take
+# over as a fresh process (surfaces/update.py:handoff) before falling
+# through to the CLI exactly as before.
 MAIN_TEMPLATE = (
     "import os, sys\n"
     "sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n"
+    "try:\n"
+    "    from surfaces.update import handoff\n"
+    "    handoff(sys.argv[1:])\n"
+    "except Exception:\n"
+    "    pass\n"
     "from surfaces.cli import main\n"
     "main()\n"
 )

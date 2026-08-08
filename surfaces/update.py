@@ -20,6 +20,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -27,6 +28,7 @@ from datetime import datetime, timezone
 
 import resources
 import schema_validate
+from surfaces import settings
 
 
 MANIFEST_SCHEMA_RESOURCE = "schemas/update_manifest.schema.json"
@@ -301,3 +303,361 @@ def may_check(policy, explicit):
     first.
     """
     return bool(explicit) or policy == "check_on_launch"
+
+
+# ---- install half: download, verify-then-position, the relaunch handoff --
+
+# The artifact shape this project's own `build.py` emits: a fixed prefix, a
+# plain vX.Y.Z-shaped version with no leading "v" (build.py names the file
+# from `itembank.__version__` directly), and the archive suffix. Anything
+# else -- a differently-prefixed name, a script, a `SHA256SUMS.txt`, or a
+# path-traversal attempt reduced to its basename -- is not a match.
+_ASSET_RE = re.compile(r"^itembank-\d+\.\d+\.\d+\.pyz$")
+
+# The checksum-file asset name `build.py:sha256sums()` writes -- the
+# fallback source of an artifact's expected digest when the release asset's
+# own `digest` field is absent or null.
+CHECKSUMS_ASSET_NAME = "SHA256SUMS.txt"
+
+# An order of magnitude above the real artifact's size (well under 10MB),
+# generous and still bounded -- a hostile or broken response cannot exhaust
+# memory through `download_asset`.
+_MAX_ASSET_BYTES = 100 * 1024 * 1024
+
+
+def pick_asset(release):
+    """Choose the release asset to fetch from a parsed GitHub releases/latest
+    document, or return `None` when nothing qualifies. The API's `name`
+    field is never trusted as a path component: it is reduced to its
+    basename first, and only a basename matching this project's own build
+    shape is accepted, so a maliciously named asset can never carry a
+    parent-directory segment into a later filesystem path. The first
+    qualifying asset wins when several are present. Returns
+    `(name, download_url, digest)`, with `digest` explicitly `None` (never
+    substituted) when the asset's own `digest` field is absent or null.
+    """
+    if not isinstance(release, dict):
+        return None
+    for asset in release.get("assets") or []:
+        if not isinstance(asset, dict):
+            continue
+        raw_name = asset.get("name")
+        if not isinstance(raw_name, str) or not raw_name:
+            continue
+        name = os.path.basename(raw_name)
+        if not _ASSET_RE.match(name):
+            continue
+        url = asset.get("browser_download_url")
+        if not isinstance(url, str) or not url:
+            continue
+        digest = asset.get("digest")
+        if not isinstance(digest, str) or not digest:
+            digest = None
+        return (name, url, digest)
+    return None
+
+
+def download_asset(url, token=None, timeout=30):
+    """Fetch `url`'s bytes over https, or return `None` on any failure --
+    unreachable, timed out, a bad HTTP status -- the same failure handling
+    `check_latest` uses; nothing here raises. `token`, when not passed
+    explicitly, is read from `ITEMBANK_GITHUB_TOKEN` (D-09), same as
+    `check_latest`. The read is capped at `_MAX_ASSET_BYTES` so a hostile or
+    stalled response cannot exhaust memory (T-02.1-33).
+    """
+    if token is None:
+        token = os.environ.get("ITEMBANK_GITHUB_TOKEN")
+    headers = {
+        "Accept": "application/octet-stream",
+        "User-Agent": "itembank-updater",
+    }
+    if token:
+        headers["Authorization"] = "Bearer %s" % token
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.read(_MAX_ASSET_BYTES)
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return None
+
+
+def install(base, version, name, data, expected):
+    """Verify `data` against `expected` first; only a verified artifact is
+    ever written to disk, and nothing is written at all when verification
+    fails or cannot be completed (`verify_digest`'s `False` or `None`) --
+    this is what makes Success Criterion 3 structural rather than merely
+    careful. On success, `data` is written to a `.part`-suffixed name under
+    `base`'s versions directory and `os.replace`d onto the version-qualified
+    final name, so an interrupted write can never leave a partial artifact
+    at a path anything reads. The pointer manifest is written last, naming
+    the version, the artifact's path relative to `base`, its digest, and the
+    check time.
+
+    Idempotent by construction: when the target already exists with the
+    same digest under a manifest that already records these exact values,
+    nothing is written a second time and the manifest is rewritten to
+    byte-identical content (its own `checked_at` reused, not refreshed) --
+    a second `install` call of the same version adds no second copy.
+
+    Never opens the currently-running artifact for writing: the target name
+    always carries the version being installed, and a version equal to the
+    running one never reaches here because `is_newer` refuses it upstream,
+    so no code path in this function can collide with the running file.
+    """
+    verified = verify_digest(data, expected)
+    if not verified:
+        return None
+
+    versions_dir = os.path.join(base, *VERSIONS_REL.split("/"))
+    os.makedirs(versions_dir, exist_ok=True)
+    target = os.path.join(versions_dir, name)
+    rel_path = "/".join([VERSIONS_REL, name])
+    digest_hex = hashlib.sha256(data).hexdigest()
+
+    existing_manifest = read_manifest(base)
+    matches_manifest = (
+        existing_manifest is not None
+        and existing_manifest.get("version") == version
+        and existing_manifest.get("path") == rel_path
+        and existing_manifest.get("sha256") == digest_hex
+    )
+    checked_at = existing_manifest.get("checked_at") if matches_manifest else None
+
+    if not matches_manifest:
+        needs_write = True
+        if os.path.exists(target):
+            with open(target, "rb") as fh:
+                on_disk = fh.read()
+            needs_write = hashlib.sha256(on_disk).hexdigest() != digest_hex
+        if needs_write:
+            partial = target + ".part"
+            with open(partial, "wb") as fh:
+                fh.write(data)
+            os.replace(partial, target)
+
+    write_manifest(base, version, rel_path, digest_hex, checked_at=checked_at)
+    return target
+
+
+def handoff(argv):
+    """Read the pointer manifest under `update_root()` and, only when every
+    guard passes, spawn the newer artifact as a fresh process and exit this
+    one -- otherwise return with no effect. The guards, in order: a missing
+    or invalid manifest; a manifest version that is not strictly newer than
+    the running `itembank.__version__` (the same `is_newer` comparison, not
+    a second one); a target that resolves to the artifact this process is
+    already running from (the loop guard); a missing target file; and a
+    target whose digest no longer matches what the manifest recorded (a
+    pointer to changed bytes is not trustworthy).
+
+    Spawns with `subprocess.Popen([sys.executable, target, *argv],
+    close_fds=True)` and `sys.exit(0)` on every platform -- never a
+    platform branch on the `exec` family, which has no real
+    process-replacing implementation on Windows (Choice Point 6). The whole
+    decision body is wrapped so any unexpected exception returns instead of
+    propagating: a broken updater must never stop the tool from starting.
+    """
+    try:
+        base = update_root()
+        manifest = read_manifest(base)
+        if manifest is None:
+            return None
+
+        import itembank  # local: avoid a module-load-order cycle through
+                          # surfaces.cli, which this module's own caller
+                          # (build.py's generated __main__.py) may import
+                          # immediately after calling this function.
+        if not is_newer(manifest.get("version"), itembank.__version__):
+            return None
+
+        rel_path = manifest.get("path")
+        if not isinstance(rel_path, str) or not rel_path:
+            return None
+        target = os.path.abspath(os.path.join(base, *rel_path.split("/")))
+
+        running = resources.archive_path()
+        if running is not None and os.path.abspath(running) == target:
+            return None
+
+        if not os.path.exists(target):
+            return None
+        with open(target, "rb") as fh:
+            data = fh.read()
+        if hashlib.sha256(data).hexdigest() != manifest.get("sha256"):
+            return None
+
+        subprocess.Popen([sys.executable, target] + list(argv), close_fds=True)
+    except SystemExit:
+        raise
+    except Exception:
+        return None
+    sys.exit(0)
+
+
+def _checksum_fallback(release, name, timeout=30):
+    """When a picked asset's `digest` field is absent, resolve its expected
+    SHA-256 from the release's own `SHA256SUMS.txt` asset instead --
+    `install()` itself stays network-free; its caller (`cmd_update`)
+    resolves `expected` before calling it. Returns a `sha256:<hex>` string
+    matching `verify_digest`'s expected shape, or `None` when the checksum
+    asset is missing, unreachable, or does not name `name`.
+    """
+    for asset in release.get("assets") or []:
+        if not isinstance(asset, dict):
+            continue
+        if os.path.basename(str(asset.get("name") or "")) != CHECKSUMS_ASSET_NAME:
+            continue
+        url = asset.get("browser_download_url")
+        if not isinstance(url, str) or not url:
+            return None
+        data = download_asset(url, timeout=timeout)
+        if data is None:
+            return None
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
+            return None
+        digest = parse_sha256sums(text, name)
+        return ("sha256:" + digest) if digest else None
+    return None
+
+
+def _digest_display(value):
+    """The first twelve hex characters of a `sha256:<hex>`-shaped value, for
+    the deliberately truncated mismatch line -- readable in a narrow
+    terminal rather than a 64-character wall of hex.
+    """
+    if not value:
+        return "unavailable"
+    _, sep, hexval = value.partition(":")
+    return (hexval if sep else value)[:12]
+
+
+def cmd_update(a):
+    """The explicit, talkative surface: `itembank update`. Branches to
+    exactly one of six locked outcomes (UI-SPEC's Copywriting Contract) and
+    never prints two. Exit codes: 0 when nothing was refused (up to date,
+    installed, unreachable, rate-limited); 1 when a candidate was offered
+    and rejected (a checksum mismatch or a version that is not newer) --
+    a rejection is a result a script should be able to see.
+    """
+    cfg = settings.load_settings(".")
+    repo = a.repo if a.repo else cfg["update"]["repo"]
+    status = {}
+    release = check_latest(repo, timeout=a.timeout, status=status)
+    if release is None:
+        if status.get("rate_limited"):
+            print("GitHub rate-limited this check -- try again later.")
+        else:
+            print("Could not reach GitHub to check for updates (offline, or "
+                  "the connection failed). Try again later.")
+        return 0
+
+    import itembank
+    running = itembank.__version__
+    running_parsed = parse_version(running)
+    running_display = "v%d.%d.%d" % running_parsed if running_parsed else running
+
+    tag = release.get("tag_name") if isinstance(release, dict) else None
+    offered = parse_version(tag)
+    asset = pick_asset(release)
+
+    if offered is not None and running_parsed is not None and offered < running_parsed:
+        latest_display = "v%d.%d.%d" % offered
+        print("%s is not newer than the version you're running (%s) -- not "
+              "installing it." % (latest_display, running_display))
+        return 1
+
+    if (asset is None or offered is None or running_parsed is None
+            or offered == running_parsed):
+        print("itembank is up to date (%s)." % running_display)
+        return 0
+
+    latest_display = "v%d.%d.%d" % offered
+    if a.check:
+        print("A new itembank version is available: %s (you're on %s). Run "
+              "'itembank update' to install it." % (latest_display, running_display))
+        return 0
+
+    name, url, digest = asset
+    print("Downloading itembank %s..." % latest_display)
+    data = download_asset(url, timeout=a.timeout)
+    if data is None:
+        print("Could not reach GitHub to check for updates (offline, or "
+              "the connection failed). Try again later.")
+        return 0
+
+    print("Verifying checksum...")
+    expected = digest if digest is not None else _checksum_fallback(release, name,
+                                                                     timeout=a.timeout)
+
+    installed_path = install(update_root(), tag, name, data, expected)
+    if installed_path is None:
+        got_hex = hashlib.sha256(data).hexdigest()[:12]
+        exp_hex = _digest_display(expected)
+        print("Downloaded update failed checksum verification -- discarding "
+              "it. Nothing was installed. (expected sha256:%s..., got "
+              "sha256:%s...)" % (exp_hex, got_hex))
+        return 1
+
+    print("Installed %s at %s. Run itembank again to use it." %
+          (latest_display, installed_path))
+    return 0
+
+
+def background_check(root, cfg):
+    """The silent counterpart to `cmd_update`: informs, never installs, and
+    is silent on every failure -- offline, unreachable, rate-limited are all
+    indistinguishable from "nothing to say" here, per DEL-07's own
+    "fails silently when offline". `root` is the base directory the
+    manifest and versions directory live under (ordinarily
+    `update_root()`'s return value; passed explicitly, like every other
+    `base`-taking function in this module, so a caller -- and a test -- can
+    point it at an isolated directory).
+
+    Returns immediately unless `cfg["update_policy"]` permits an unconsented
+    background request (`may_check`), and again unless `should_check` says
+    the interval has elapsed -- an intent to check every launch does not
+    become a request every launch. The whole body is wrapped so any
+    exception is swallowed: a failing update check must never reach the
+    daemon's startup path as a traceback.
+    """
+    try:
+        cfg = cfg or {}
+        policy = cfg.get("update_policy")
+        if not may_check(policy, False):
+            return
+        update_cfg = cfg.get("update") or {}
+        interval = update_cfg.get("check_interval_hours", 24)
+        if not should_check(root, interval):
+            return
+        repo = update_cfg.get("repo")
+        if not repo:
+            return
+
+        release = check_latest(repo)
+        if release is None:
+            return
+
+        # A completed check (whether or not it found anything newer) resets
+        # should_check's clock so a shared network is not asked again until
+        # the interval elapses -- only when there is already a manifest to
+        # refresh; a background check installs nothing, so it has no
+        # version/path/sha256 of its own to record one for the first time.
+        existing = read_manifest(root)
+        if existing is not None:
+            write_manifest(root, existing.get("version"), existing.get("path"),
+                           existing.get("sha256"))
+
+        import itembank
+        running_parsed = parse_version(itembank.__version__)
+        offered = parse_version(release.get("tag_name") if isinstance(release, dict)
+                                else None)
+        if offered is None or running_parsed is None or offered <= running_parsed:
+            return
+
+        print("A new itembank version is available: %s (you're on %s). Run "
+              "'itembank update' to install it."
+              % ("v%d.%d.%d" % offered, "v%d.%d.%d" % running_parsed))
+    except Exception:
+        return
