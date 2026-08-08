@@ -1153,7 +1153,7 @@ modules with no pending deprecation relevant to this use.
 **If this table is empty:** not applicable — seven assumptions above need planner
 confirmation before being treated as locked.
 
-## Open Questions
+## Open Questions — Resolved at Plan Time
 
 1. **`THIS_PHASE` watermark vs. the parallel-eligible roadmap**
    - What we know: `surfaces/settings.py:30`'s `THIS_PHASE` constant is a single scalar
@@ -1164,6 +1164,9 @@ confirmation before being treated as locked.
    - Recommendation: leave `THIS_PHASE` unbumped unless Phase 4 has already landed by
      the time this phase executes; note the gap in the plan explicitly rather than
      silently accepting an incorrect "read by this phase" status line for `theme`.
+   - **Resolution: RESOLVED.** Leave the scalar at `2.1`; Phase 5 settings remain usable
+     while the status display does not falsely claim parallel Phase 3/4 delivery. Controlled
+     by **05-03 Task 1, "The check settings group"**, including its explicit source gate.
 
 2. **Two-level nested job scope for `check.max_output_bytes`-triggered early kill on
    Windows**
@@ -1176,6 +1179,11 @@ confirmation before being treated as locked.
      only so the executor does not accidentally build two kill mechanisms.
    - Recommendation: implement one `kill_tree(handle_or_pgid)` function per platform,
      called from both the timeout branch and the output-cap branch.
+   - **Resolution: RESOLVED.** Timeout and output-cap triggers share the single
+     `kill_tree()` path; Windows closes the assigned Job Object through that path and keeps
+     the process-tree fallback behind it. Controlled by **05-02 Task 1, "The output cap
+     fails the case and kills early"**, with the Job Object implementation completed by
+     **05-02 Task 2**.
 
 3. **Whether the offline-refusal branch in `quiz_page.py` needs its own JS unit test**
    - What we know: `CONCERNS.md` already flags "No test of JavaScript scoring logic" as
@@ -1188,6 +1196,10 @@ confirmation before being treated as locked.
      against the built page's HTML output (matching how `tests/serve_roundtrip.py`
      likely already asserts against rendered attempt-file text) is sufficient; no new
      JS test infrastructure is needed for this phase.
+   - **Resolution: RESOLVED.** Use Python-side assertions over the generated HTML plus the
+     end-of-phase human pass; add no JavaScript test dependency. Controlled by **05-06
+     Task 2, "The three refusal states and the offline skip control"**, and manually closed
+     by **05-07 Task 3**.
 
 ## Environment Availability
 
