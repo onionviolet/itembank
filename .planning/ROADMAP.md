@@ -177,7 +177,7 @@ Plans:
 - User's explicit goal (2026-08-07): a valid, double-clickable exe of the current (Phase 1 + Phase 2) feature set, sooner than waiting for the full 12-phase milestone to close.
 
 **Open decisions resolved here**: GitHub release-asset `digest` field format — **RESOLVED 2026-08-07 at plan time by a live request**: the asset object carries `digest` shaped as `sha256:` followed by 64 hex characters, and `tag_name` is a plain `vX.Y.Z` string. The parser is built on that shape, with the `SHA256SUMS.txt` asset kept as a redundant fallback for the null-digest case (plan 02.1-05).
-**Plans**: 3/7 plans executed
+**Plans**: 4/7 plans executed
 
 Plans:
 **Wave 1**
@@ -191,7 +191,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 02.1-04-PLAN.md — GIFT export: one escape function and the five expressible item types
+- [x] 02.1-04-PLAN.md — GIFT export: one escape function and the five expressible item types
 - [ ] 02.1-05-PLAN.md — Updater decisions: strictly-newer comparison, checksum verification, offline silence
 
 **Wave 4** *(blocked on Wave 3 completion)*

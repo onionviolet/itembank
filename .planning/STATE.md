@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 02.1
 current_phase_name: packaging-self-update-interop-export
 status: executing
-stopped_at: Completed 02.1-03-PLAN.md
-last_updated: "2026-08-08T04:04:52.319Z"
+stopped_at: Completed 02.1-04-PLAN.md
+last_updated: "2026-08-08T04:26:27.941Z"
 last_activity: 2026-08-07
 last_activity_desc: Phase 02.1 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 24
-  completed_plans: 20
+  completed_plans: 21
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 ## Current Position
 
 Phase: 02.1 (packaging-self-update-interop-export) — EXECUTING
-Plan: 4 of 7
+Plan: 5 of 7
 Status: Ready to execute
 Last activity: 2026-08-07 — Phase 02.1 execution started
 
-Progress: [████████░░] 83%
+Progress: [█████████░] 88%
 
 ## Performance Metrics
 
@@ -78,6 +78,7 @@ Progress: [████████░░] 83%
 | Phase 02.1 P01 | 20min | 3 tasks | 9 files |
 | Phase 02.1 P02 | 9min | 2 tasks | 6 files |
 | Phase 02.1 P03 | 25min | 3 tasks | 7 files |
+| Phase 02.1 P04 | 25min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -134,6 +135,8 @@ Recent decisions affecting current work:
 - [Phase ?]: 02.1-02: added .gitattributes (text eol=lf) for launchers/itembank.command and launchers/itembank.desktop -- core.autocrlf on a Windows checkout would otherwise silently corrupt the bash shebang / desktop Exec= line build.py copies verbatim into the release directory
 - [Phase ?]: 02.1-03: start_server() (not _bind(), which has no browser-opening code) is where the already-running webbrowser.open() call site lives; wired the real two call sites in daemon.py instead of adding a dead window param -- CONTEXT.md's own line-number caveat anticipated this
 - [Phase ?]: 02.1-03: cmd_daemon's effective no-open is a.no_open or not cfg['daemon']['open_browser'] -- open_browser's first-ever reader in the codebase
+- [Phase ?]: 02.1-04: gift_item's build (and any unrecognized type) branch is one generic fallback -- not a build-specific case -- per the important_note reserving the tailored refusal contract (locked wording, --strict promotion, unescapable-field detection) for plan 02.1-06
+- [Phase ?]: 02.1-04: export_gift() returns exit code 1 when anything was skipped, 0 otherwise -- the plan's own resolution of an unspecified exit-code gap, matching cmd_lint's precedent
 
 ### Pending Todos
 
@@ -165,6 +168,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-08T04:04:52.289Z
-Stopped at: Completed 02.1-03-PLAN.md
+Last session: 2026-08-08T04:26:27.913Z
+Stopped at: Completed 02.1-04-PLAN.md
 Resume file: None
