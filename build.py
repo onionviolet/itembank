@@ -33,6 +33,8 @@ STAGE_FILES = (
 )
 STAGE_DIRS = ("surfaces", "schemas")
 
+LAUNCHERS_DIR = os.path.join(ROOT, "launchers")
+
 # Four lines, no logic -- a later plan adds the update handoff here, and a
 # template that already carries branches is a template that gets edited badly.
 MAIN_TEMPLATE = (
@@ -87,6 +89,15 @@ def sha256sums(out_dir):
     return target
 
 
+def copy_launchers(out_dir):
+    """Copy every file in launchers/ alongside the .pyz, so SHA256SUMS.txt
+    covers the launcher shims too -- a release asset set whose checksum file
+    names only one of its files certifies nothing about the rest.
+    """
+    for name in sorted(os.listdir(LAUNCHERS_DIR)):
+        shutil.copy2(os.path.join(LAUNCHERS_DIR, name), os.path.join(out_dir, name))
+
+
 def main():
     ap = argparse.ArgumentParser(description="Build the itembank release artifact.")
     ap.add_argument("--out", default="dist", help="output directory (default: dist)")
@@ -94,8 +105,11 @@ def main():
 
     artifact = build(a.out)
     print("%d bytes -> %s" % (os.path.getsize(artifact), artifact))
-    checksums = sha256sums(a.out)
-    print("checksums -> %s" % checksums)
+    copy_launchers(a.out)
+    sha256sums(a.out)
+    n = sum(1 for f in os.listdir(a.out)
+            if f != "SHA256SUMS.txt" and os.path.isfile(os.path.join(a.out, f)))
+    print("%d artifacts -> %s" % (n, a.out))
     return 0
 
 

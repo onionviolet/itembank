@@ -98,9 +98,19 @@ def cmd_guard(a):
 
 
 def main():
+    # Imported lazily and inside main(), not at module scope: itembank.py
+    # itself does `from surfaces.cli import main`, and the built .pyz's
+    # __main__.py does `from surfaces.cli import main` directly (bypassing
+    # itembank.py entirely) -- a module-scope `from itembank import
+    # __version__` here would circle back into a partially-initialized
+    # surfaces.cli in that second case and break every command.
+    import itembank
+
     ap = argparse.ArgumentParser(
         prog="itembank",
         description="Author, validate and render exam-style question banks in markdown.")
+    ap.add_argument("--version", action="version",
+                    version="%(prog)s " + itembank.__version__)
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("spec", help="print the format contract")
