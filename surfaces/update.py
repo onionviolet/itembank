@@ -240,7 +240,11 @@ def check_latest(repo, timeout=5, token=None, status=None):
     `token`, when not passed explicitly, is read from the
     `ITEMBANK_GITHUB_TOKEN` environment variable and from nowhere else
     (D-09) -- never from the checked-in settings file, and never written
-    to the manifest, a printed line, or a log.
+    to the manifest, a printed line, or a log. It is attached only when
+    the request target is GitHub-owned (`_github_token_for`): a release
+    document naming a download host GitHub does not own gets no
+    credential even on its very first request, before any redirect exists
+    (T-02.1-38).
 
     `status`, when passed a dict, is populated with `status["rate_limited"]`
     so an explicit `itembank update` invocation can print the rate-limit
@@ -250,8 +254,7 @@ def check_latest(repo, timeout=5, token=None, status=None):
     if status is None:
         status = {}
     status["rate_limited"] = False
-    if token is None:
-        token = os.environ.get("ITEMBANK_GITHUB_TOKEN")
+    token = _github_token_for(_GITHUB_API % repo, token=token)
     headers = {
         "Accept": "application/vnd.github+json",
         "User-Agent": "itembank-updater",
@@ -260,7 +263,7 @@ def check_latest(repo, timeout=5, token=None, status=None):
         headers["Authorization"] = "Bearer %s" % token
     req = urllib.request.Request(_GITHUB_API % repo, headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with _open_request(req, timeout=timeout) as resp:
             if resp.headers.get("X-RateLimit-Remaining") == "0":
                 status["rate_limited"] = True
                 return None
@@ -326,6 +329,32 @@ def _origin_of(url):
     if port is None:
         port = 443 if scheme == "https" else (80 if scheme == "http" else None)
     return (scheme, host, port)
+
+
+def _github_token_for(url, token=None):
+    """Resolve the token a request aimed at `url` may carry, or `None`.
+    The token comes from the `ITEMBANK_GITHUB_TOKEN` environment variable
+    when not passed explicitly (D-09 unchanged -- the environment is still
+    the only source, and the settings file is still not one), and is
+    returned only when the url's host is GitHub-owned: `github.com`,
+    `api.github.com`, or any `.github.com` subdomain. Anything else
+    returns `None` -- including when a caller passed a token explicitly.
+    Failing closed is right here, because the only way a non-GitHub host
+    reaches this function is a release document that named one, and a
+    release document is API-supplied data, not a trustworthy source for
+    the decision to hand it a credential (T-02.1-38). The redirect
+    handler cannot help with this half of the leak -- there is no
+    redirect, the very first request goes to the foreign host -- so the
+    destination is checked before the header is ever built.
+    """
+    if token is None:
+        token = os.environ.get("ITEMBANK_GITHUB_TOKEN")
+    if not token:
+        return None
+    host = (urllib.parse.urlsplit(url).hostname or "").lower()
+    if host in ("github.com", "api.github.com") or host.endswith(".github.com"):
+        return token
+    return None
 
 
 class AuthStrippingRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -437,11 +466,13 @@ def download_asset(url, token=None, timeout=30):
     unreachable, timed out, a bad HTTP status -- the same failure handling
     `check_latest` uses; nothing here raises. `token`, when not passed
     explicitly, is read from `ITEMBANK_GITHUB_TOKEN` (D-09), same as
-    `check_latest`. The read is capped at `_MAX_ASSET_BYTES` so a hostile or
-    stalled response cannot exhaust memory (T-02.1-33).
+    `check_latest`, and is attached only when `url` is GitHub-owned
+    (`_github_token_for`, T-02.1-38) -- the same one place the token is
+    resolved and its destination checked. The read is capped at
+    `_MAX_ASSET_BYTES` so a hostile or stalled response cannot exhaust
+    memory (T-02.1-33).
     """
-    if token is None:
-        token = os.environ.get("ITEMBANK_GITHUB_TOKEN")
+    token = _github_token_for(url, token=token)
     headers = {
         "Accept": "application/octet-stream",
         "User-Agent": "itembank-updater",

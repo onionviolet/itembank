@@ -8,11 +8,13 @@ never comes from itembank.json) -- plus the install half added in plan
 guard, the relaunch handoff's every refusal case, and the update command's
 and background check's own surface contracts.
 
-No real network request is ever made -- every `urllib.request.urlopen` call
-site is substituted with a stub before the module under test can reach it.
-No real process is ever spawned -- `subprocess.Popen` is substituted the
-same way for every `handoff` test. Every filesystem effect goes into a
-`tempfile.mkdtemp()` directory; nothing is written into the checkout.
+No real network request is ever made -- every request the module makes is
+substituted at its single `_open_request` seam (or, for the redirect
+tests, at the opener's transport handler) before the module under test can
+reach the network. No real process is ever spawned -- `subprocess.Popen`
+is substituted the same way for every `handoff` test. Every filesystem
+effect goes into a `tempfile.mkdtemp()` directory; nothing is written into
+the checkout.
 
 Runnable as `python tests/update_roundtrip.py`.
 """
@@ -103,20 +105,7 @@ class FakeRedirectTransport(urllib.request.BaseHandler):
 
 
 @contextlib.contextmanager
-def patched_urlopen(fn):
-    """Substitute surfaces.update's own urlopen reference for the duration
-    of the block, restoring it afterward even if the block raises.
-    """
-    original = u.urllib.request.urlopen
-    u.urllib.request.urlopen = fn
-    try:
-        yield
-    finally:
-        u.urllib.request.urlopen = original
-
-
-@contextlib.contextmanager
-def patched_transport(transport):
+def patched_opener_transport(transport):
     """Build the module's real redirect-safe opener and inject a fake
     transport handler into it for the duration of the block. Only the
     network is substituted -- the opener, its AuthStrippingRedirectHandler
@@ -135,6 +124,23 @@ def patched_transport(transport):
         yield
     finally:
         u._redirect_safe_opener = real
+
+
+@contextlib.contextmanager
+def patched_transport(fn):
+    """Substitute surfaces.update's own `_open_request` seam for the
+    duration of the block, restoring it afterward even if the block
+    raises. The seam is the module's only outbound-request path, so a
+    stub left on the old `urlopen` name would intercept nothing and the
+    suite would begin making real requests to GitHub -- which this file
+    promises it never does.
+    """
+    original = u._open_request
+    u._open_request = fn
+    try:
+        yield
+    finally:
+        u._open_request = original
 
 
 # ---- strictly-newer comparison, independent of any checksum ---------------
@@ -240,7 +246,7 @@ def test_offline_check_is_silent():
                           (raise_timeout, "TimeoutError"),
                           (raise_http_error, "HTTPError")):
         buf = io.StringIO()
-        with patched_urlopen(raiser):
+        with patched_transport(raiser):
             with contextlib.redirect_stdout(buf):
                 result = u.check_latest("onionviolet/itembank")
         if result is not None:
@@ -257,7 +263,7 @@ def test_rate_limited_check_is_silent_but_distinguishable():
     def rate_limited(*a, **kw):
         return FakeResponse(headers={"X-RateLimit-Remaining": "0"})
 
-    with patched_urlopen(rate_limited):
+    with patched_transport(rate_limited):
         result = u.check_latest("onionviolet/itembank")
         if result is not None:
             fail("check_latest returned %r under a rate-limited response, "
@@ -340,7 +346,7 @@ def test_opt_in_policy_makes_no_request():
         calls.append((a, kw))
         raise AssertionError("urlopen must never be called under this gate")
 
-    with patched_urlopen(spy):
+    with patched_transport(spy):
         if u.may_check("opt_in", False):
             u.check_latest("onionviolet/itembank")
 
@@ -382,7 +388,7 @@ def test_token_never_comes_from_the_settings_file():
             captured["headers"] = dict(req.header_items())
             raise urllib.error.URLError("offline (expected, no assertion on this)")
 
-        with patched_urlopen(spy):
+        with patched_transport(spy):
             u.check_latest(reloaded["update"]["repo"])
 
         if "Authorization" in captured.get("headers", {}):
@@ -431,7 +437,7 @@ def test_authorization_is_stripped_on_a_cross_host_redirect():
     saved_env_token = os.environ.get("ITEMBANK_GITHUB_TOKEN")
     try:
         os.environ["ITEMBANK_GITHUB_TOKEN"] = sentinel
-        with patched_transport(transport):
+        with patched_opener_transport(transport):
             data = u.download_asset(hop1)
     finally:
         if had_env_token:
@@ -505,7 +511,7 @@ def test_same_host_redirect_keeps_authorization():
     saved_env_token = os.environ.get("ITEMBANK_GITHUB_TOKEN")
     try:
         os.environ["ITEMBANK_GITHUB_TOKEN"] = sentinel
-        with patched_transport(transport):
+        with patched_opener_transport(transport):
             data = u.download_asset(first)
     finally:
         if had_env_token:
@@ -562,7 +568,7 @@ def test_token_is_never_attached_to_a_non_github_host():
     saved_env_token = os.environ.get("ITEMBANK_GITHUB_TOKEN")
     try:
         os.environ["ITEMBANK_GITHUB_TOKEN"] = sentinel
-        with patched_transport(transport):
+        with patched_opener_transport(transport):
             foreign_data = u.download_asset(foreign)
             github_data = u.download_asset(github)
     finally:
