@@ -39,6 +39,11 @@ MANIFEST_SCHEMA_RESOURCE = "schemas/update_manifest.schema.json"
 # on "/", an os.path.join() argument list on every platform.
 MANIFEST_REL = "updates/current.json"
 VERSIONS_REL = "versions"
+# The throttle's own record, separate from the manifest (CR-02): it carries
+# when GitHub was last reached and whether the learner has been told about
+# the check. Same forward-slash convention as MANIFEST_REL so one string
+# works as both a relative resource path and an os.path.join() argument list.
+CHECK_STATE_REL = "updates/check_state.json"
 
 # The published dotted error-code namespace, following SETTINGS_CODES'
 # set-then-sorted construction (surfaces/settings.py) so sortedness is
@@ -230,6 +235,50 @@ def write_manifest(base, version, path, sha256, checked_at=None):
     os.replace(tmp, target)
 
 
+def read_check_state(base):
+    """Load the check-state record, returning an empty dict on a missing
+    file, unparseable JSON, or a document that is not a dict -- never
+    raising, the same degrade-not-crash posture `read_manifest` keeps.
+
+    Deliberately NOT validated against a JSON schema, and deliberately
+    without a schema file: the manifest is schema-validated because
+    `handoff()` spawns the artifact it names, so a malformed pointer there
+    is a code-execution question; this record only decides whether to make
+    a request and whether to print a sentence, and a malformed one degrades
+    to "check now", which is the safe default. A second schema, a second
+    bundled resource and a second build.py staging entry would all be cost
+    with nothing behind it (T-02.1-43 accepts this).
+    """
+    path = os.path.join(base, *CHECK_STATE_REL.split("/"))
+    try:
+        raw = json.load(open(path, encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def write_check_state(base, **fields):
+    """Merge `fields` into the current check-state record, set
+    `schema_version` to 1, and write it with the identical tmp-then-
+    os.replace sequence `write_manifest` uses -- no second atomic-write
+    helper. Merge rather than overwrite: the record holds two independent
+    facts written at different moments (`notified_at` by the disclosure
+    gate, `checked_at` by a completed check), and a write of one must not
+    erase the other.
+    """
+    state = read_check_state(base)
+    state.update(fields)
+    state["schema_version"] = 1
+    target = os.path.join(base, *CHECK_STATE_REL.split("/"))
+    target_dir = os.path.dirname(os.path.abspath(target))
+    os.makedirs(target_dir, exist_ok=True)
+    tmp = target + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(state, fh, ensure_ascii=False, indent=2)
+        fh.write("\n")
+    os.replace(tmp, target)
+
+
 def check_latest(repo, timeout=5, token=None, status=None):
     """Fetch GitHub's releases/latest document for `repo` (an `owner/name`
     string -- the caller's job to source from settings, never hardcoded or
@@ -247,13 +296,18 @@ def check_latest(repo, timeout=5, token=None, status=None):
     (T-02.1-38).
 
     `status`, when passed a dict, is populated with `status["rate_limited"]`
-    so an explicit `itembank update` invocation can print the rate-limit
-    line while a background check -- which never inspects `status` -- stays
-    silent, per DEL-07's split between the two call sites.
+    and `status["reached"]` so callers can distinguish the two failure
+    families the throttle cares about: an explicit `itembank update`
+    invocation prints the rate-limit line, and `background_check` starts its
+    clock only when the request actually arrived at GitHub. `reached` is
+    `True` as soon as a response (any status) comes back -- a rate-limited
+    answer still spent the 60-per-hour budget -- and stays `False` when the
+    request never left the machine.
     """
     if status is None:
         status = {}
     status["rate_limited"] = False
+    status["reached"] = False
     token = _github_token_for(_GITHUB_API % repo, token=token)
     headers = {
         "Accept": "application/vnd.github+json",
@@ -264,11 +318,13 @@ def check_latest(repo, timeout=5, token=None, status=None):
     req = urllib.request.Request(_GITHUB_API % repo, headers=headers)
     try:
         with _open_request(req, timeout=timeout) as resp:
+            status["reached"] = True
             if resp.headers.get("X-RateLimit-Remaining") == "0":
                 status["rate_limited"] = True
                 return None
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
+        status["reached"] = True
         remaining = exc.headers.get("X-RateLimit-Remaining") if exc.headers else None
         if remaining == "0":
             status["rate_limited"] = True
@@ -279,22 +335,38 @@ def check_latest(repo, timeout=5, token=None, status=None):
 
 def should_check(base, interval_hours):
     """The rate-limit guard behind DEL-07/RESEARCH Pitfall 2: `True` only
-    when no manifest exists yet (never checked) or at least
-    `interval_hours` have elapsed since the manifest's own `checked_at`.
-    `check_on_launch` expresses an intent to check on every launch; this
-    function decides whether an actual request is made, so a shared campus
-    or dorm network does not exhaust a 60-per-hour budget across every
-    learner's every launch.
+    when neither clock yields a usable timestamp (never checked) or at least
+    `interval_hours` have elapsed since the most recent of the two clocks.
+    The two sources are the manifest's own `checked_at` (unchanged, so an
+    installation that already worked keeps working) and the check-state
+    record's `checked_at` -- the clock for a machine that has never
+    installed anything, so the throttle engages from the first check rather
+    than the first install (CR-02). Each value is parsed inside its own
+    guard: an unparseable one contributes nothing rather than
+    short-circuiting the whole function. `check_on_launch` expresses an
+    intent to check on every launch; this function decides whether an
+    actual request is made, so a shared campus or dorm network does not
+    exhaust a 60-per-hour budget across every learner's every launch.
     """
+    candidates = []
     manifest = read_manifest(base)
-    if manifest is None:
-        return True
+    if manifest is not None:
+        try:
+            checked_at = datetime.strptime(manifest["checked_at"],
+                                           "%Y-%m-%dT%H:%M:%SZ")
+            candidates.append(checked_at.replace(tzinfo=timezone.utc))
+        except (KeyError, ValueError):
+            pass
+    state = read_check_state(base)
     try:
-        checked_at = datetime.strptime(manifest["checked_at"], "%Y-%m-%dT%H:%M:%SZ")
-        checked_at = checked_at.replace(tzinfo=timezone.utc)
+        checked_at = datetime.strptime(state["checked_at"],
+                                       "%Y-%m-%dT%H:%M:%SZ")
+        candidates.append(checked_at.replace(tzinfo=timezone.utc))
     except (KeyError, ValueError):
+        pass
+    if not candidates:
         return True
-    elapsed = datetime.now(timezone.utc) - checked_at
+    elapsed = datetime.now(timezone.utc) - max(candidates)
     return elapsed.total_seconds() >= interval_hours * 3600
 
 
@@ -728,9 +800,15 @@ def background_check(root, cfg):
     Returns immediately unless `cfg["update_policy"]` permits an unconsented
     background request (`may_check`), and again unless `should_check` says
     the interval has elapsed -- an intent to check every launch does not
-    become a request every launch. The whole body is wrapped so any
-    exception is swallowed: a failing update check must never reach the
-    daemon's startup path as a traceback.
+    become a request every launch. A completed check that reached GitHub
+    (whether it found a release, found nothing, or was refused) stamps
+    `checked_at` into the check-state record before anything else, so
+    `should_check`'s clock starts on the very first check rather than the
+    first install (CR-02); a check that never reached GitHub records
+    nothing, so a machine that comes back online checks at its next launch
+    instead of waiting out an interval no request earned. The whole body is
+    wrapped so any exception is swallowed: a failing update check must
+    never reach the daemon's startup path as a traceback.
     """
     try:
         cfg = cfg or {}
@@ -745,19 +823,18 @@ def background_check(root, cfg):
         if not repo:
             return
 
-        release = check_latest(repo)
+        status = {}
+        release = check_latest(repo, status=status)
+        # The clock stamp: unconditional on reachability, and before the
+        # release-is-None early return so a refused check still spends the
+        # interval it spent GitHub's budget on. The manifest's conditional
+        # refresh this replaces was CR-02 -- nothing was ever written for a
+        # machine with no manifest, so the throttle never engaged.
+        if status.get("reached"):
+            write_check_state(root, checked_at=datetime.now(timezone.utc)
+                              .strftime("%Y-%m-%dT%H:%M:%SZ"))
         if release is None:
             return
-
-        # A completed check (whether or not it found anything newer) resets
-        # should_check's clock so a shared network is not asked again until
-        # the interval elapses -- only when there is already a manifest to
-        # refresh; a background check installs nothing, so it has no
-        # version/path/sha256 of its own to record one for the first time.
-        existing = read_manifest(root)
-        if existing is not None:
-            write_manifest(root, existing.get("version"), existing.get("path"),
-                           existing.get("sha256"))
 
         import itembank
         running_parsed = parse_version(itembank.__version__)
