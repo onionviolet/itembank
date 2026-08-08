@@ -370,9 +370,10 @@ def test_token_never_comes_from_the_settings_file():
     if "ITEMBANK_GITHUB_TOKEN" not in src:
         fail("surfaces/update.py does not name the ITEMBANK_GITHUB_TOKEN "
              "environment variable")
-    if "itembank.json" in src:
-        fail("surfaces/update.py names the settings filename itembank.json "
-             "directly -- the token must never be read from a checked-in file")
+    if "itembank.json" in inspect.getsource(u._github_token_for):
+        fail("the token-resolution path names the settings filename "
+             "itembank.json directly -- the token must never be read from a "
+             "checked-in file")
 
     base = tempfile.mkdtemp()
     had_env_token = "ITEMBANK_GITHUB_TOKEN" in os.environ

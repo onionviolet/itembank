@@ -806,9 +806,15 @@ def background_check(root, cfg):
     `should_check`'s clock starts on the very first check rather than the
     first install (CR-02); a check that never reached GitHub records
     nothing, so a machine that comes back online checks at its next launch
-    instead of waiting out an interval no request earned. The whole body is
-    wrapped so any exception is swallowed: a failing update check must
-    never reach the daemon's startup path as a traceback.
+    instead of waiting out an interval no request earned. The first launch
+    of all prints the one-time disclosure (CR-03) and returns before any
+    request exists: the copy is locked in the UI-SPEC's Copywriting
+    Contract, appears once per machine, and lands in the same startup
+    stream as the existing new-version line -- it is not a failure outcome,
+    so DEL-07's silence rule for offline/unreachable/rate-limited is
+    unchanged. The whole body is wrapped so any exception is swallowed: a
+    failing update check must never reach the daemon's startup path as a
+    traceback.
     """
     try:
         cfg = cfg or {}
@@ -817,6 +823,29 @@ def background_check(root, cfg):
             return
         update_cfg = cfg.get("update") or {}
         interval = update_cfg.get("check_interval_hours", 24)
+
+        # CR-03's one-time disclosure gate: after the policy gate (not
+        # before it) and before any request exists, a machine that has never
+        # been told what the check does is told once, and this launch
+        # returns without asking. Only notified_at is written -- never
+        # checked_at -- which is exactly why write_check_state merges: the
+        # next launch finds the consent satisfied and the clock still
+        # unstarted, so it checks immediately rather than a full interval
+        # later. Placed after may_check is the load-bearing detail: a
+        # directory with no itembank.json reads opt_in from the schema
+        # default and returns at the policy gate, so a downloaded release
+        # running in its own folder prints nothing and asks nothing.
+        state = read_check_state(root)
+        if not state.get("notified_at"):
+            print("itembank will check GitHub for a new version at most once "
+                  "every %s hours. Nothing but the request leaves this "
+                  "machine. Set \"update_policy\": \"opt_in\" in "
+                  "itembank.json to turn it off. This notice appears once."
+                  % interval)
+            write_check_state(root, notified_at=datetime.now(timezone.utc)
+                              .strftime("%Y-%m-%dT%H:%M:%SZ"))
+            return
+
         if not should_check(root, interval):
             return
         repo = update_cfg.get("repo")
