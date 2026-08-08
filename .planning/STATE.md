@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 02.1
 current_phase_name: packaging-self-update-interop-export
 status: executing
-stopped_at: Completed 02.1-01-PLAN.md
-last_updated: "2026-08-08T03:36:46.728Z"
+stopped_at: Completed 02.1-02-PLAN.md
+last_updated: "2026-08-08T03:49:35.063Z"
 last_activity: 2026-08-07
 last_activity_desc: Phase 02.1 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 24
-  completed_plans: 18
+  completed_plans: 19
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 ## Current Position
 
 Phase: 02.1 (packaging-self-update-interop-export) — EXECUTING
-Plan: 2 of 7
+Plan: 3 of 7
 Status: Ready to execute
 Last activity: 2026-08-07 — Phase 02.1 execution started
 
-Progress: [████████░░] 75%
+Progress: [████████░░] 79%
 
 ## Performance Metrics
 
@@ -76,6 +76,7 @@ Progress: [████████░░] 75%
 | Phase 02 P05 | 16min | 2 tasks | 2 files |
 | Phase 02 P06 | 25min | 2 tasks | 3 files |
 | Phase 02.1 P01 | 20min | 3 tasks | 9 files |
+| Phase 02.1 P02 | 9min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -128,6 +129,8 @@ Recent decisions affecting current work:
 - [Phase ?]: 02-06: cmd_daemon reads daemon.port/daemon.lan from itembank.json via settings.load_settings(), with --port/--lan overriding; --lan has no CLI off-switch, so 'explicitly given' collapses to a.lan is True
 - [Phase ?]: 02.1-01: resources.py is the one bundled-resource reader (checkout and .pyz alike); build.py's STAGE_FILES/STAGE_DIRS are explicit allowlists, never a working-tree walk, keeping evidence and real banks out of the artifact
 - [Phase ?]: 02.1-01: itembank.__version__ = "0.3.0" is the first release ever cut from this repo, deliberately pre-1.0; surfaces/cli.py's --version flag imports itembank lazily inside main() to avoid circling back through the .pyz's __main__.py
+- [Phase ?]: 02.1-02: build.LAUNCHER_DIR (renamed from LAUNCHERS_DIR) is the one launcher-directory constant; copy_launchers() preserves the source file mode on POSIX so the shipped .command keeps its executable bit
+- [Phase ?]: 02.1-02: added .gitattributes (text eol=lf) for launchers/itembank.command and launchers/itembank.desktop -- core.autocrlf on a Windows checkout would otherwise silently corrupt the bash shebang / desktop Exec= line build.py copies verbatim into the release directory
 
 ### Pending Todos
 
@@ -159,6 +162,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-08T03:36:46.711Z
-Stopped at: Completed 02.1-01-PLAN.md
+Last session: 2026-08-08T03:49:35.035Z
+Stopped at: Completed 02.1-02-PLAN.md
 Resume file: None
