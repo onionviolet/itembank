@@ -142,9 +142,48 @@ optionality and reversibility. The planner may revise any of them with a stated 
   expected output only after the response. The case expectations are key material and
   do not reach the page before answering.
 
+### Amendments after research (2026-08-08)
+
+`05-RESEARCH.md` found a real gap in D-01 and two facts that change the task list. These
+amendments are Claude's calls under the same delegated instruction and they **override** the
+conflicting text above.
+
+- **D-13 (amends D-01):** The per-case results vector is what the **scorer** compares, but it is
+  **not** what the evidence records. The codebase threads exactly one `answer` value through
+  `score_response()`, `evidence.response_event()`'s stored `"answer"` field, and
+  `idempotency_canon` at once; storing the vector there would mean the learner's actual submitted
+  code is never recorded — a regression that would show up first in Phase 8, when the tutoring
+  model needs to read the specific wrong answer. Add a reserved response-event field
+  (`check_source`, `null` for every other type), following the existing `error_category` /
+  `hint_tier` precedent. D-01's purity argument stands unchanged; only the storage path is fixed.
+  — **Reversibility:** one-way — the evidence log is append-only, so a response written without
+  the source cannot gain it later.
+- **D-14:** **Both** submit paths gate on the runner, not one. The browser path is
+  `POST /quiz/<stem>/answer` → `handle_quiz_answer` → `quiz.record_answer()`; `/api/submit`
+  (`surfaces/session.py:do_submit`) is a *separate* agent-facing path that also calls
+  `score_response()` directly today. Gating only the first would let an agent driving
+  `itembank submit` skip code execution entirely and score against nothing.
+- **D-15:** `explain_payload(q, reveal=True)` gains a `run_result=None` parameter. There is no
+  existing channel through which per-case actual output could reach it, and the UI-SPEC's
+  "Your output" row requires one. This is a required signature change, not an optional one.
+- **D-16 (narrows D-07):** `subprocess.Popen` **cannot** support the race-free
+  `CREATE_SUSPENDED` → assign-to-job → resume sequence, because CPython's Windows
+  `_execute_child` closes the child's thread handle before returning (`bpo-1677688`). Accept the
+  narrow race window rather than reimplementing process creation: a grandchild spawned in the
+  microseconds before job assignment can escape. That residual gap is **consistent with D-10's
+  honest framing** and must be stated in the phase's own notes, not papered over. Measure the
+  escape rate over 50 iterations rather than claiming zero.
+- **Two regexes, not one:** `model.py`'s stem terminator (lines 43-47) **and** the separate
+  `TERMINATOR` used by `assign_ids()` (lines 191-193) both need `CASE)`, `[LANG:]`, and
+  `[MATCH:]` added. Fixing only the first leaves `id-assign` inserting `[ID:]`/`[HASH:]` in the
+  wrong place.
+- **CI is `ubuntu-latest` only.** The Windows kill path cannot be verified by CI at any point in
+  this phase. It is a manual verification on the target machine, following the `01-01-PLAN.md`
+  spike precedent — see `05-VALIDATION.md`'s manual table.
+
 ### Claude's Discretion
 
-Every decision above (D-01 through D-12) is Claude's discretion under the delegated
+Every decision above (D-01 through D-16) is Claude's discretion under the delegated
 instruction. Three specifically invite the planner to overrule:
 
 - D-03's `::` separator, if a real Python test case's expected stdout plausibly

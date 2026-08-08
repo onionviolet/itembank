@@ -153,9 +153,49 @@ optionality and inspectability. The planner may revise any with a stated reason.
   session already; the trace records the snapshot marker. A test asserts it, because a
   selector that quietly drifts is unfalsifiable.
 
+### Amendments after research (2026-08-08)
+
+`07-RESEARCH.md` confirmed D-07, escalated D-06 from a hazard to a live collision, and raised
+four open questions. All four are resolved here under the same delegated instruction.
+
+- **D-11 (resolves D-06):** Use a **distinct `selection_mode` field**. The collision is not a
+  future risk, it is already shipped: `schemas/session.schema.json:41-44`,
+  `schemas/response.schema.json:59-62`, and `surfaces/daemon.py:670` (`SESSION_MODES`) all
+  already enumerate `"remediation"` as a *feedback* mode value, colliding with this phase's
+  *selection* mode of the same name. Documented coupling is no longer available as an option —
+  the same string already means two things in two published contracts.
+  — **Reversibility:** one-way — the evidence log is append-only, so a conflated field cannot be
+  split later without a migration over every recorded event.
+- **D-12 (answers SEL-01's "prerequisite"):** There is **no backing field anywhere** for it —
+  not in `model.py`, not in `schemas/item.schema.json`, not in D-01..D-10. Add `[PREREQ:]` as an
+  additive item tag naming zero or more objective identifiers, parsed like `[OBJECTIVE:]`, added
+  to the stem-terminator alternation, and excluded from `content_fingerprint()` as pedagogy
+  metadata. Filtering by prerequisite then means "items whose prerequisites the learner has
+  evidence of passing". Lint warns (`item.prereq_unknown`) when a `[PREREQ:]` names an objective
+  no item in the bank teaches.
+- **D-13 (cooldown scope):** Bump `INDEX_VERSION` and add a `bank` column to the disposable
+  sqlite3 index. The index has no `bank` column today, so "the last N responses in this bank"
+  is not cheaply answerable through the fast path. The index is explicitly disposable and
+  rebuildable, which is exactly what makes a schema bump the cheap answer rather than the
+  expensive one. Cooldown is **bank-scoped**.
+- **D-14 (where `--explain` lives):** Extend `/api/start` with a `"preview": true` field rather
+  than adding an `/api/select` route, and give the CLI `itembank select <bank> --explain`. This
+  matches D-04's own framing (the trace rides with the selection, it is not a second endpoint)
+  and avoids breaking `tests/daemon_roundtrip.py:616-624`, which hard-codes
+  `len(daemon.API_ROUTES) != 4`.
+- **D-15 (settings collision):** A `selection_weights` block already exists in settings, already
+  tagged phase 7. The planner must read it before adding `selection.*` keys and decide whether
+  its `recency_decay` key **is** D-08's soft penalty rather than a second knob for the same
+  thing. Two settings that both dampen recency would be a bug shipped as a feature.
+- **Confirmed, not assumed:** D-07's finding that `conf` is `CONFIDENCE:` (author confidence) and
+  not a confusion set is verified correct. `[PAIR:]` is genuinely new ground.
+- **Fixture reality:** `fixtures/sample_bank.md` holds 6 items with unnamespaced objectives and
+  no `[PAIR:]` tags. It cannot exercise a cooldown of 20, four distinct mode compositions, or a
+  pair request. A new fixture is Wave 0 work, not a nicety — see `07-VALIDATION.md`.
+
 ### Claude's Discretion
 
-Every decision above (D-01 through D-10) is Claude's discretion under the delegated
+Every decision above (D-01 through D-15) is Claude's discretion under the delegated
 instruction. Three specifically invite the planner to overrule:
 
 - D-02's published `selection.schema.json`. If a sixth contract is more ceremony than

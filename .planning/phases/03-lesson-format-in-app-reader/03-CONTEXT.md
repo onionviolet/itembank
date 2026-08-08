@@ -126,9 +126,31 @@ preference. The planner may revise any of them with a stated reason.
   rule Phase 4 Success Criterion 3 states for every surface. The reader is a read-only
   render; the item links navigate, they do not answer.
 
+### Amendments after research (2026-08-08)
+
+`03-RESEARCH.md` closed two questions it raised and confirmed one claim this file rested on.
+Both answers below are Claude's calls under the same delegated instruction.
+
+- **D-11:** `itembank lesson <bank> --ref <text>` **filters output to that one heading plus its
+  backlinks list**, rather than rendering the whole lesson and scrolling to it. The CLI has no
+  anchor to jump to, so "render the whole thing" would make `--ref` a no-op in the one surface
+  where it is the only way to ask for a section.
+- **D-12:** The offline `build` page **omits the "Read the lesson" chip entirely.** There is no
+  server and no `/lesson/<bank>` route in a static file, so rendering the chip would produce a
+  link that silently does nothing. Omission is the honest option and it matches the project's
+  posture elsewhere (`day` omits Anki counts rather than guessing).
+- **Confirmed, not assumed:** D-01's claim that `parse_bank()`'s preamble discard gives LESSON-03
+  for free is verified — `fixtures/sample_bank.md` already carries a title and two prose
+  paragraphs above `Q1.` that today's parser silently discards.
+- **Two CI couplings the planner must not miss**, found by research and easy to overlook:
+  `schemas/lint_error.schema.json`'s `code` property is a **closed enum** (26 entries) validated
+  against live lint output by CI, and `tests/protocol_roundtrip.py`'s `test_lint_codes_declared()`
+  hard-codes `prefix in ("item", "bank")`. Both must change in the same commit that adds the
+  `lesson.*` namespace, or the build breaks the moment a fixture exercises a new code.
+
 ### Claude's Discretion
 
-Every decision above (D-01 through D-10) is Claude's discretion under the delegated
+Every decision above (D-01 through D-12) is Claude's discretion under the delegated
 instruction. Three specifically invite the planner to overrule:
 
 - D-02's `[LESSON-SRC:]` directive, if lint and the reader cannot share one code path
