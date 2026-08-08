@@ -23,6 +23,7 @@ import re
 import subprocess
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
@@ -305,6 +306,80 @@ def may_check(policy, explicit):
     return bool(explicit) or policy == "check_on_launch"
 
 
+# ---- request plumbing: one opener, one seam -------------------------------
+
+def _origin_of(url):
+    """The (scheme, host, port) triple identifying where a request is aimed,
+    with a missing port resolved to the scheme's default so a url that
+    spells its default port out does not read as a different origin. An
+    unparseable port degrades to a port of `None` -- different from any real
+    origin -- so the caller treats the target as foreign and strips the
+    credential, failing closed.
+    """
+    parts = urllib.parse.urlsplit(url)
+    scheme = parts.scheme.lower()
+    host = (parts.hostname or "").lower()
+    try:
+        port = parts.port
+    except ValueError:
+        port = None
+    if port is None:
+        port = 443 if scheme == "https" else (80 if scheme == "http" else None)
+    return (scheme, host, port)
+
+
+class AuthStrippingRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Remove the Authorization header the instant a redirect crosses to a
+    different origin -- scheme, host or port. stdlib's own
+    `redirect_request` copies every header except content-length and
+    content-type onto the follow-up request and never compares hosts,
+    which is exactly how 02.1-VERIFICATION.md's CR-01 leaked the update
+    token onto GitHub's separately-hosted CDN origin. This subclass does
+    not second-guess whether a redirect is legal -- `super()` decides that
+    -- and the stripped state is sticky: each hop's Request is built from
+    the previous hop's headers, so once the header is gone it cannot return
+    on a later hop that happens to come back to the original host
+    (T-02.1-39).
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new is None:
+            return None
+        if _origin_of(req.full_url) != _origin_of(newurl):
+            # Request capitalises keys it is given, but a caller-built dict
+            # may not have, so delete case-insensitively over a copy.
+            for key in list(new.headers):
+                if key.lower() == "authorization":
+                    del new.headers[key]
+            for key in list(new.unredirected_hdrs):
+                if key.lower() == "authorization":
+                    del new.unredirected_hdrs[key]
+        return new
+
+
+def _redirect_safe_opener():
+    """A fresh opener carrying the module's AuthStrippingRedirectHandler.
+    `build_opener` substitutes a passed instance for the default handler of
+    the same family, so the default HTTPRedirectHandler is not in the
+    chain. Built per call rather than cached in a module global -- this
+    project holds no module-level mutable state (CLAUDE.md), and the
+    at-most-two requests an update check makes cost nothing.
+    """
+    return urllib.request.build_opener(AuthStrippingRedirectHandler())
+
+
+def _open_request(req, timeout):
+    """The module's single outbound-request seam: every request an update
+    check makes opens through the redirect-safe opener, so no call site can
+    bypass the Authorization-stripping handler. Returns the opener's
+    response context manager; callers keep their own existing except
+    clauses, which is why the module-wide failure contract (every error
+    class returns `None`, nothing raises) is unchanged.
+    """
+    return _redirect_safe_opener().open(req, timeout=timeout)
+
+
 # ---- install half: download, verify-then-position, the relaunch handoff --
 
 # The artifact shape this project's own `build.py` emits: a fixed prefix, a
@@ -375,7 +450,7 @@ def download_asset(url, token=None, timeout=30):
         headers["Authorization"] = "Bearer %s" % token
     req = urllib.request.Request(url, headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with _open_request(req, timeout=timeout) as resp:
             return resp.read(_MAX_ASSET_BYTES)
     except (urllib.error.URLError, TimeoutError, OSError):
         return None
@@ -500,7 +575,11 @@ def _checksum_fallback(release, name, timeout=30):
     `install()` itself stays network-free; its caller (`cmd_update`)
     resolves `expected` before calling it. Returns a `sha256:<hex>` string
     matching `verify_digest`'s expected shape, or `None` when the checksum
-    asset is missing, unreachable, or does not name `name`.
+    asset is missing, unreachable, or does not name `name`. The fetch goes
+    through `download_asset` and therefore through the module's single
+    redirect-safe opener -- the same Authorization-stripping fix that
+    covers the artifact fetch covers this one (CR-01 named both call
+    sites; one seam covers both).
     """
     for asset in release.get("assets") or []:
         if not isinstance(asset, dict):
