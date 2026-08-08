@@ -177,7 +177,7 @@ Plans:
 - User's explicit goal (2026-08-07): a valid, double-clickable exe of the current (Phase 1 + Phase 2) feature set, sooner than waiting for the full 12-phase milestone to close.
 
 **Open decisions resolved here**: GitHub release-asset `digest` field format — **RESOLVED 2026-08-07 at plan time by a live request**: the asset object carries `digest` shaped as `sha256:` followed by 64 hex characters, and `tag_name` is a plain `vX.Y.Z` string. The parser is built on that shape, with the `SHA256SUMS.txt` asset kept as a redundant fallback for the null-digest case (plan 02.1-05).
-**Plans**: 7/9 plans executed (2 gap-closure plans added 2026-08-08 from `02.1-VERIFICATION.md`)
+**Plans**: 8/9 plans executed (2 gap-closure plans added 2026-08-08 from `02.1-VERIFICATION.md`)
 
 Plans:
 **Wave 1**
@@ -201,7 +201,7 @@ Plans:
 
 **Wave 5** *(gap closure — blocked on Wave 4 completion)*
 
-- [ ] 02.1-08-PLAN.md — CR-01: the update token stops at the redirect, and only ever goes to GitHub
+- [x] 02.1-08-PLAN.md — CR-01: the update token stops at the redirect, and only ever goes to GitHub
 
 **Wave 6** *(gap closure — blocked on Wave 5 completion)*
 

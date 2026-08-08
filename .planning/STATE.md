@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 02.1
 current_phase_name: packaging-self-update-interop-export
 status: executing
-stopped_at: Phases 3, 5, 7 context gathered
-last_updated: "2026-08-08T16:47:46.773Z"
-last_activity: 2026-08-07
+stopped_at: Completed 02.1-08-PLAN.md
+last_updated: "2026-08-08T17:24:57.599Z"
+last_activity: 2026-08-08
 last_activity_desc: Phase 02.1 execution started
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 26
-  completed_plans: 24
+  completed_plans: 25
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 ## Current Position
 
 Phase: 02.1 (packaging-self-update-interop-export) — EXECUTING
-Plan: 7 of 7
+Plan: 8 of 9
 Status: Ready to execute
-Last activity: 2026-08-07 — Phase 02.1 execution started
+Last activity: 2026-08-08 — Phase 02.1 execution started
 
-Progress: [██████████] 100%
+Progress: [██████████] 96%
 
 ## Performance Metrics
 
@@ -82,6 +82,7 @@ Progress: [██████████] 100%
 | Phase 02.1 P06 | 20min | 2 tasks | 3 files |
 | Phase 02.1 P05 | 35min | 2 tasks | 3 files |
 | Phase 02.1 P07 | 20min | 3 tasks | 5 files |
+| Phase 02.1 P08 | ~15min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -146,6 +147,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 02.1-05: should_check()'s rate-limit clock is the manifest's own checked_at field, not a second sibling file -- write_manifest's four parameters double as both what's currently trusted and when that was last verified
 - [Phase ?]: 02.1-07: install()'s SHA256SUMS.txt fallback is resolved by cmd_update (a new _checksum_fallback helper), not inside install() itself -- install()'s locked 5-argument signature has no url to fetch from, keeping it network-free
 - [Phase ?]: 02.1-07: background_check(root, cfg) treats root as the literal base directory (like read_manifest/write_manifest/should_check), not update_root() internally -- lets a test isolate it from the real per-user data directory
+- [Phase ?]: [Phase 02.1] 02.1-08: AuthStrippingRedirectHandler overrides redirect_request only and calls super() first -- stdlib decides whether a redirect is legal, the subclass only strips; the origin comparison resolves a missing port to the scheme's default (https->443, http->80) so a url that spells its default port out does not read as a different origin, and the stripped state is sticky because each hop's Request is built from the previous hop's headers
+- [Phase ?]: [Phase 02.1] 02.1-08: _github_token_for fails closed -- the token comes only from ITEMBANK_GITHUB_TOKEN (D-09 unchanged) and is returned only for github.com, api.github.com, or a .github.com subdomain, refusing even an explicitly-passed token for any other host, because a release document naming a foreign download url is API-supplied data, not a trustworthy source for the decision to hand it a credential (T-02.1-38)
+- [Phase ?]: [Phase 02.1] 02.1-08: the plan's Task 2 test-helper rename (patched_urlopen -> patched_transport on the _open_request seam) collided with Task 1's already-implemented opener-injection helper which had taken the same name; resolved by renaming the Task 1 helper to patched_opener_transport (it injects a transport into the real opener) and giving the seam helper the plan's intended name -- both names now describe what they patch (Rule 3 auto-fix)
 
 ### Pending Todos
 
@@ -177,6 +181,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-08T16:47:46.756Z
-Stopped at: Phases 3, 5, 7 context gathered
-Resume file: .planning/phases/03-lesson-format-in-app-reader/03-CONTEXT.md
+Last session: 2026-08-08T17:23:48.143Z
+Stopped at: Completed 02.1-08-PLAN.md
+Resume file: None
