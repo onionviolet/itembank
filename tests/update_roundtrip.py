@@ -32,6 +32,7 @@ import tempfile
 import types
 import urllib.error
 import urllib.request
+from datetime import datetime
 from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -1030,6 +1031,144 @@ def test_background_check_is_silent_on_every_failure():
         shutil.rmtree(base, ignore_errors=True)
 
 
+def test_background_check_throttles_on_a_fresh_install():
+    """CR-02's proof: the throttle clock starts on the first background
+    check, not the first install. A machine that has never installed an
+    update has no manifest, but after a check that reached GitHub it must
+    still be throttled by updates/check_state.json -- and a check that never
+    reached GitHub must not start the clock, because a request that never
+    left the machine spent none of GitHub's 60-per-hour budget (RESEARCH
+    Pitfall 2), while a refused one (rate-limited) did spend it and must.
+
+    Each base is seeded with `notified_at` so the scenarios exercise the
+    steady state: the one-time disclosure gate (plan 02.1-09 Task 2)
+    consumes the first launch of a genuinely fresh machine, and these
+    assertions are about the throttle, not about consent.
+    """
+    def make_cfg(interval_hours):
+        return {"update_policy": "check_on_launch",
+                "update": {"repo": "onionviolet/itembank",
+                           "check_interval_hours": interval_hours}}
+
+    def counting_check_latest(calls, reached=True, release=None):
+        def fn(repo, timeout=5, token=None, status=None):
+            calls.append(repo)
+            if status is not None:
+                status["reached"] = reached
+            return release
+        return fn
+
+    running_tag = "v" + itembank.__version__
+
+    # 24-hour interval: two launches inside the interval make one request.
+    base = tempfile.mkdtemp()
+    try:
+        u.write_check_state(base, notified_at="2026-08-08T00:00:00Z")
+        calls = []
+        release = {"tag_name": running_tag, "assets": []}
+        with mock.patch.object(u, "check_latest",
+                               counting_check_latest(calls, release=release)):
+            u.background_check(base, make_cfg(24))
+            u.background_check(base, make_cfg(24))
+        if len(calls) != 1:
+            fail("a fresh install made %d request(s) across two launches "
+                 "inside a 24-hour interval, expected exactly 1: %r" %
+                 (len(calls), calls))
+        state = u.read_check_state(base)
+        if not state.get("checked_at"):
+            fail("no checked_at was recorded in the check-state record "
+                 "after a check that reached GitHub: %r" % state)
+        try:
+            datetime.strptime(state["checked_at"], "%Y-%m-%dT%H:%M:%SZ")
+        except (KeyError, ValueError):
+            fail("check_state.json does not carry a parseable checked_at: %r" %
+                 state)
+        if u.read_manifest(base) is not None:
+            fail("a background check wrote a manifest on a machine that has "
+                 "never installed an update")
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+    # 0-hour interval: two launches make two requests -- a throttle, not a
+    # one-shot.
+    base = tempfile.mkdtemp()
+    try:
+        u.write_check_state(base, notified_at="2026-08-08T00:00:00Z")
+        calls = []
+        release = {"tag_name": running_tag, "assets": []}
+        with mock.patch.object(u, "check_latest",
+                               counting_check_latest(calls, release=release)):
+            u.background_check(base, make_cfg(0))
+            u.background_check(base, make_cfg(0))
+        if len(calls) != 2:
+            fail("a fresh install with a 0-hour interval made %d request(s) "
+                 "across two launches, expected 2: %r" % (len(calls), calls))
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+    # Never reached GitHub: no checked_at is recorded, so the next launch
+    # checks again instead of waiting out an interval no request earned.
+    base = tempfile.mkdtemp()
+    try:
+        u.write_check_state(base, notified_at="2026-08-08T00:00:00Z")
+        calls = []
+        with mock.patch.object(u, "check_latest",
+                               counting_check_latest(calls, reached=False)):
+            u.background_check(base, make_cfg(24))
+            u.background_check(base, make_cfg(24))
+        if len(calls) != 2:
+            fail("a check that never reached GitHub made %d request(s) "
+                 "across two launches, expected 2 (the clock must not start "
+                 "when the request never left the machine): %r" %
+                 (len(calls), calls))
+        if u.read_check_state(base).get("checked_at"):
+            fail("a check that never reached GitHub still recorded "
+                 "checked_at: %r" % u.read_check_state(base))
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+    # Reached GitHub but was refused (rate-limited): the request still spent
+    # the budget, so checked_at IS recorded and the next launch stays home.
+    base = tempfile.mkdtemp()
+    try:
+        u.write_check_state(base, notified_at="2026-08-08T00:00:00Z")
+        calls = []
+        with mock.patch.object(u, "check_latest",
+                               counting_check_latest(calls, reached=True)):
+            u.background_check(base, make_cfg(24))
+            u.background_check(base, make_cfg(24))
+        if len(calls) != 1:
+            fail("a rate-limited check (reached=True, no release) made %d "
+                 "request(s) across two launches, expected 1: %r" %
+                 (len(calls), calls))
+        if not u.read_check_state(base).get("checked_at"):
+            fail("a rate-limited check that reached GitHub did not record "
+                 "checked_at, so the next launch would spend the budget again")
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+    # An existing installation whose manifest already carries a recent
+    # checked_at is still throttled by it -- the new record adds a second
+    # clock source rather than replacing the one that already worked.
+    base = tempfile.mkdtemp()
+    try:
+        u.write_manifest(base, itembank.__version__, "versions/itembank-x.pyz",
+                         "a" * 64)
+        u.write_check_state(base, notified_at="2026-08-08T00:00:00Z")
+        calls = []
+        release = {"tag_name": running_tag, "assets": []}
+        with mock.patch.object(u, "check_latest",
+                               counting_check_latest(calls, release=release)):
+            u.background_check(base, make_cfg(24))
+            u.background_check(base, make_cfg(24))
+        if calls:
+            fail("an existing manifest's own recent checked_at did not "
+                 "throttle the next launch: %d request(s) made, expected 0: "
+                 "%r" % (len(calls), calls))
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+
 def main():
     test_strictly_newer_only()
     test_checksum_accepts_rejects_and_abstains()
@@ -1050,13 +1189,15 @@ def main():
     test_handoff_refuses_every_unsafe_case()
     test_update_command_prints_one_locked_outcome()
     test_background_check_is_silent_on_every_failure()
+    test_background_check_throttles_on_a_fresh_install()
     print("update contract: ok (strictly-newer comparison, checksum "
           "accept/reject/abstain, SHA256SUMS.txt fallback, offline and "
           "rate-limited silence, atomic validated manifest, a writable "
           "update root, opt-in consent, the token never comes from "
           "itembank.json, install/handoff safety, the update command's "
           "and background check's surface coverage, and redirect-safe "
-          "authorization stripping plus the token host gate)")
+          "authorization stripping plus the token host gate, and the "
+          "fresh-install throttle clock living in check_state.json)")
     return 0
 
 
