@@ -267,7 +267,7 @@ Plans:
 
 ### Phase 5: Check Item Type & Code Editor
 
-**Goal**: A learner can write and run their own code against a `check` item, in a real editor, and get a dichotomous verdict through the same scorer as every other item type.
+**Goal**: A learner can write and run their own code against a `check` item, in a real editor, and get a dichotomous verdict through the same scorer as every other item type; the item also establishes the reusable interaction contract future visual manipulatives will use.
 **Mode:** mvp
 **Depends on**: Nothing (parallel-eligible with Phase 1; coordinate `model.py`/`runtime.py` diffs with Phase 1)
 **Requirements**: CODE-01, CODE-02, CODE-03, CODE-04, CODE-05
@@ -278,6 +278,7 @@ Plans:
   2. Submitting `check` code runs it, compares output against multiple expected test cases (not one hardcoded string), and reaches its verdict through `runtime.score_response()` like every other item type.
   3. Code that loops forever is killed at the timeout on both Windows and POSIX, including any child process it spawned — verified with a grandchild-spawning test case.
   4. `spec` and any UI copy state plainly that this stops accidents, not deliberate escapes, with no claim of sandboxing anywhere in the documentation.
+  5. The editor is the first proof of a renderer-independent interactive-item contract: validated configuration enters the renderer, a meaningful structured response leaves it, `runtime.score_response()` alone returns the verdict, and an accessible non-pointer interaction reaches the same response shape.
 
 **Plans**: 7 plans
 
@@ -303,6 +304,7 @@ Plans:
   3. Sitting the same bank in drill mode reveals the answer and explanation immediately on a wrong response and advances; in practice mode the ladder runs with the cursor held; in diagnostic mode nothing is shown until the sitting ends; in exam mode nothing is shown until the attempt file is marked.
   4. Every response records which mode produced it, so a "correct" from drill mode is distinguishable from a "correct" from exam mode in the evidence.
   5. Rapidly resubmitting the same or an empty answer does not advance the hint tier faster than one tier per genuine attempt.
+  6. A lesson can interleave a short explanation with a learner action, prediction, or attempt before revealing the next idea; feedback addresses the learner's move, and hints guide without simply handing over the answer.
 
 **Plans**: TBD
 
@@ -319,6 +321,7 @@ Plans:
   3. Items just answered in the current session are not immediately re-served in the same or the next session, verified across a resumed session.
   4. Requesting a discrimination pair for a named confusion serves both commonly-confused items together.
   5. For any selected item, the tool can state in plain terms why it was chosen over another candidate.
+  6. A guided path can sequence prerequisites into bite-sized concept steps with periodic application checkpoints, while keeping the selector's reasons visible and rule-based.
 
 **Open decisions resolved here**: The selection-mode naming collision — resolved at plan time as a **distinct `selection_mode` field** (D-11), because `schemas/session.schema.json`, `schemas/response.schema.json` and `surfaces/daemon.py:SESSION_MODES` already enumerate `"remediation"` as a *feedback* mode; gated by a blocking `checkpoint:decision` in plan 07-04 because the evidence log is append-only. What the log records about a selection — resolved as a **`selection` event once per sitting plus `selection_mode` on every response event** (D-03), also gated in 07-04. Cooldown scope — resolved as **bank-scoped** (D-13), paid for by bumping `INDEX_VERSION` and adding a `bank` column to the disposable sqlite3 index in plan 07-03. `selection_weights.recency_decay` — resolved as **being** D-08's soft penalty rather than a second knob for the same thing (D-15), with `objective_miss_rate` and `difficulty_spread` retagged to Phase 10.
 **Plans**: 6 plans
@@ -376,6 +379,7 @@ Plans:
   3. A CS lesson embeds runnable code inline in its prose, and a learner can execute it from the reading view.
   4. An EMT lesson renders prose and tables correctly, matching the source markdown structure.
   5. Adding a fourth subject requires only a configuration entry (lesson medium, item types, verifier), not a new surface or a code fork.
+  6. Each subject includes at least one guided-discovery sequence that cycles through context, learner action or prediction, immediate targeted feedback, and explanation instead of presenting a lecture followed by detached questions.
 
 **Plans**: TBD
 
@@ -393,6 +397,7 @@ Plans:
   3. An objective the learner keeps missing visibly raises its selection weight in the next session; one the learner has mastered drops out of rotation.
   4. An objective answered correctly a month ago and untouched since is flagged at-risk in the longitudinal `/report` view, before it would actually be failed.
   5. The longitudinal report shows accuracy by objective over weeks, hint tier reached, and items pending manual marking, and every trend shown states the evidence it rests on.
+  6. Recommendations favor short, focused sessions and surface the learner's strategy, surprise, or sticking point as optional reflection evidence without turning streaks or points into the definition of mastery.
 
 **Plans**: TBD
 
@@ -439,3 +444,17 @@ for what can run concurrently.
 | 10. Retention, Pacing & Trends | 0/TBD | Not started | - |
 | 11. Closed Authoring Loop & Curriculum Auditor | 0/TBD | Not started | - |
 | 12. Packaging, Self-Update & Interop Export | 0/TBD | Not started | - |
+
+## Backlog
+
+### Phase 999.1: Advanced Visual Items and Canvas LMS Integration (BACKLOG)
+
+**Goal:** Extend the interactive-item contract established in Phase 5 with image/SVG stems and advanced visual item types--beginning with an interactive plot item--then expose the player inside Canvas LMS through an embeddable/LTI surface.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Future exploration should cover `plot`, `hotspot`, `diagram`, `timeline`, `numberline`, `trace`, and simulation-style responses. Renderers receive validated configuration rather than bank-authored JavaScript; meaningful structured responses are stored instead of screenshots or pixels; every visual interaction has a keyboard/semantic-HTML equivalent; unsupported interactive types fail loudly during GIFT export. The learn-by-doing pedagogy itself lands incrementally in Phases 5-10 rather than waiting for this backlog item.
+
+Plans:
+
+- [ ] TBD (promote with $gsd-review-backlog when ready)
