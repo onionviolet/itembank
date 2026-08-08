@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 02.1
-current_phase_name: packaging-self-update-interop-export
-status: executing
-stopped_at: Phases 3, 5, 7 planned and verified
-last_updated: "2026-08-08T18:00:56.131Z"
+current_phase_name: Packaging, Self-Update & Interop Export (INSERTED, moved from Phase 12)
+status: planning
+stopped_at: Phase 4 context gathered
+last_updated: "2026-08-08T18:25:53.131Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 02.1 execution started
 progress:
-  total_phases: 6
+  total_phases: 7
   completed_phases: 3
   total_plans: 45
   completed_plans: 26
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 
 ## Current Position
 
-Phase: 02.1 (packaging-self-update-interop-export) — EXECUTING
-Plan: 9 of 9
-Status: Ready to execute
-Last activity: 2026-08-08 — Phase 02.1 execution started
+Phase: 02.1 — Packaging, Self-Update & Interop Export (INSERTED, moved from Phase 12)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-08-08 — Phase 02 complete, transitioned to Phase 02.1
 
 Progress: [██████░░░░] 63%
 
@@ -38,7 +38,7 @@ Progress: [██████░░░░] 63%
 
 **Velocity:**
 
-- Total plans completed: 11
+- Total plans completed: 17
 - Average duration: - min
 - Total execution time: 0 hours
 
@@ -47,6 +47,7 @@ Progress: [██████░░░░] 63%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 11 | - | - |
+| 02 | 6 | - | - |
 
 **Recent Trend:**
 
@@ -186,6 +187,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-08T18:00:56.111Z
-Stopped at: Phases 3, 5, 7 planned and verified
-Resume file: .planning/phases/03-lesson-format-in-app-reader/03-01-PLAN.md
+Last session: 2026-08-08T18:25:53.109Z
+Stopped at: Phase 4 context gathered
+Resume file: .planning/phases/04-surface-redesign-theming/04-CONTEXT.md
