@@ -353,6 +353,16 @@ def main():
                     help="exact confirmation text RESET required to restore #0e6e62")
     tr.set_defaults(fn=cmd_theme)
 
+    tk = t.add_parser("pick", help="open the native OS color picker "
+                      "(preview-only until an explicit theme set)")
+    tk.add_argument("--base", default=".",
+                    help="directory holding itembank.json (default: current directory)")
+    tk.add_argument("--initial", default="",
+                    help="seed the picker with this source color (default: saved accent)")
+    tk.add_argument("--json", action="store_true",
+                    help="emit the structured picker contract instead of human lines")
+    tk.set_defaults(fn=cmd_theme)
+
     s = sub.add_parser("migrate", help="one-time, re-runnable import of the three legacy "
                        "stores (_attempts/*.md, session JSON, daily_log.md) into the "
                        "evidence log; a dry run by default, pass --write to actually import")

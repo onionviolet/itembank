@@ -14,6 +14,7 @@ fixed per mode and never derive from the learner accent, so a custom colour
 can never turn a verdict colour-only (D-06). Nothing derived is ever persisted.
 """
 import colorsys
+import json
 import re
 import sys
 
@@ -53,6 +54,11 @@ FOCUS_CONTRAST = 3.0
 # lives in 04-UI-SPEC; this is the command-line disclosure).
 ADJUST_NOTICE = ("Adjusted for readable contrast. Your source colour is "
                  "still saved.")
+
+# Exact browser-fallback copy for the picker degradation path (04-UI-SPEC
+# Copywriting contract; plan 04-03 Task 3). The same string is the stable
+# `reason` in every structured unavailable result.
+PICKER_FALLBACK = "System picker is unavailable here. Choose a color below instead."
 
 HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
@@ -275,6 +281,55 @@ def _write_source(base, source):
     write_settings(base, data)
 
 
+def _load_tkinter():
+    """Lazy tkinter import; returns the module object or None when Tk is
+    missing or unavailable in the packaged runtime. Never called at module
+    startup and never invoked from a daemon request thread -- the launcher
+    child bridge keeps Tk on the picker process's main thread (T-04-12).
+    """
+    try:
+        import tkinter
+        from tkinter import colorchooser  # noqa: F401 -- loads tkinter.colorchooser
+    except Exception:
+        return None
+    return tkinter
+
+
+def pick_native_accent(initial=None):
+    """Open the host OS color picker on this process's main thread.
+
+    Returns ``{"available", "source", "reason"}``: a normalized ``#RRGGBB``
+    on selection; cancel, missing Tk, headless/display errors, chooser
+    exceptions, and malformed results return ``available: false`` with the
+    stable browser-fallback reason and never mutate settings. The hidden root
+    is withdrawn and destroyed in every path (T-04-12). Selection is
+    preview-only -- persistence happens through an explicit `theme set`.
+    """
+    tk = _load_tkinter()
+    if tk is None:
+        return {"available": False, "source": None, "reason": PICKER_FALLBACK}
+    root = None
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        seeded = normalize_source(initial) if initial is not None else None
+        result = tk.colorchooser.askcolor(initialcolor=seeded, parent=root)
+    except Exception:
+        return {"available": False, "source": None, "reason": PICKER_FALLBACK}
+    finally:
+        if root is not None:
+            try:
+                root.destroy()
+            except Exception:
+                pass
+    if not result or not result[1]:
+        return {"available": False, "source": None, "reason": PICKER_FALLBACK}
+    source = normalize_source(result[1])
+    if source is None:
+        return {"available": False, "source": None, "reason": PICKER_FALLBACK}
+    return {"available": True, "source": source, "reason": None}
+
+
 def cmd_theme(a):
     """`itembank theme` command family: read-only preview, source-only set,
     confirmed reset, and (plan 04-03 Task 3) the native picker.
@@ -298,5 +353,30 @@ def cmd_theme(a):
         _print_preview(theme_preview(DEFAULT_ACCENT))
         print("reset accent.source = %r" % DEFAULT_ACCENT)
         return 0
+    if a.action == "pick":
+        result = pick_native_accent(initial=getattr(a, "initial", "") or None)
+        if result["available"]:
+            preview = theme_preview(result["source"])
+            if getattr(a, "json", False):
+                print(json.dumps({
+                    "available": True,
+                    "source": result["source"],
+                    "preview": preview,
+                    "saved": False,
+                }, ensure_ascii=False, indent=2))
+            else:
+                _print_preview(preview)
+                print("Selection is preview-only -- run `itembank theme set %s` "
+                      "to save." % result["source"])
+            return 0
+        if getattr(a, "json", False):
+            print(json.dumps({
+                "available": False,
+                "source": None,
+                "reason": PICKER_FALLBACK,
+            }, ensure_ascii=False, indent=2))
+        else:
+            print(PICKER_FALLBACK)
+        return 0
     sys.exit("usage: itembank theme preview COLOR | set COLOR | reset "
-             "--confirm-reset RESET")
+             "--confirm-reset RESET | pick [--initial COLOR] [--json]")

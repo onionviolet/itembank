@@ -27,7 +27,7 @@ SETTINGS_FILE = "itembank.json"
 # this number is "read by this phase" rather than reported as inert. A float
 # so a sub-phase (2.1) can sit strictly between its parent (2) and the next
 # whole phase (3) without renumbering anything.
-THIS_PHASE = 2.1
+THIS_PHASE = 4
 
 # The published dotted error-code namespace (D-06), extending Phase 1's D-16
 # lint-code precedent. Built from a set-then-sorted tuple so it is provably
