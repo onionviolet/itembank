@@ -12,11 +12,13 @@ THEME_CSS and the existing settings/config contract.
 Standard library only, no test framework, runnable as
 `python tests/theme_roundtrip.py`.
 """
-import json, os, re, shutil, subprocess, sys, tempfile
+import argparse, hashlib, io, json, os, re, shutil, subprocess, sys, tempfile
+from contextlib import redirect_stdout
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 from surfaces import settings                                # noqa: E402
+from surfaces import theme                                    # noqa: E402
 from surfaces.theme import THEME_CSS                         # noqa: E402
 
 ITEMBANK = os.path.join(ROOT, "itembank.py")
@@ -433,6 +435,191 @@ def test_theme_preview_cli_readonly():
         shutil.rmtree(base, ignore_errors=True)
 
 
+# ---- plan 04-03 Task 3: native picker, launcher bridge, fallback copy -------
+
+class _FakeRoot:
+    """Records the hidden-root lifecycle (`withdraw` then `destroy`) so the
+    no-resource-leak contract can be asserted on every path."""
+    def __init__(self, calls):
+        self._calls = calls
+
+    def withdraw(self):
+        self._calls.append("withdraw")
+
+    def destroy(self):
+        self._calls.append("destroy")
+
+
+class _FakeTkModule:
+    """Stand-in for the tkinter module `theme._load_tkinter` returns: `Tk()`
+    yields a recorded hidden root and `colorchooser` carries the chooser."""
+    def __init__(self, calls, chooser):
+        self._calls = calls
+        self.colorchooser = chooser
+
+    def Tk(self):
+        self._calls.append("Tk")
+        return _FakeRoot(self._calls)
+
+
+class _FakeRunModule:
+    """Stand-in for `launcher.subprocess` with only the `run` seam
+    run_native_picker uses; raises `error` or returns `result`."""
+    def __init__(self, calls, result, error=None):
+        self._calls = calls
+        self._result = result
+        self._error = error
+
+    def run(self, argv, **kwargs):
+        self._calls.append((argv, kwargs))
+        if self._error is not None:
+            raise self._error
+        return self._result
+
+
+def _picked_calls(chooser_result):
+    calls = []
+    chooser = ColorChooserMock(calls, result=chooser_result)
+    fake_tk = _FakeTkModule(calls, chooser)
+    return calls, fake_tk
+
+
+def test_pick_native_accent_selection_preview_only():
+    from surfaces.theme import cmd_theme, pick_native_accent
+    calls, fake_tk = _picked_calls(((192, 0, 64), "#c00040"))
+    with patch_attribute(theme, "_load_tkinter", lambda: fake_tk):
+        result = pick_native_accent(initial="#0e6e62")
+    if result != {"available": True, "source": "#c00040", "reason": None}:
+        fail("pick_native_accent normalized the selection wrong: %r" % result)
+    if calls[:2] != ["Tk", "withdraw"] or calls[-1] != "destroy" or calls[2][0] != "askcolor":
+        fail("picker lifecycle calls are wrong: %r" % calls)
+
+    base = fresh_base()
+    ns = argparse.Namespace(action="pick", base=base, initial="#0e6e62", json=True)
+    buf = io.StringIO()
+    with patch_attribute(theme, "_load_tkinter", lambda: fake_tk):
+        with redirect_stdout(buf):
+            code = cmd_theme(ns)
+    if code != 0:
+        fail("cmd_theme pick exited %d" % code)
+    payload = json.loads(buf.getvalue())
+    if payload.get("available") is not True or payload.get("source") != "#c00040":
+        fail("pick --json payload wrong: %r" % payload)
+    if not payload.get("preview", {}).get("light", {}).get("accent"):
+        fail("pick --json carries no adjusted light preview")
+    if payload.get("saved") is not False:
+        fail("a native pick must be preview-only until an explicit save")
+    data = json.load(open(os.path.join(base, "itembank.json"), encoding="utf-8"))
+    if data["accent"]["source"] != "#0e6e62":
+        fail("theme pick mutated accent.source")
+    shutil.rmtree(base, ignore_errors=True)
+
+
+def test_pick_unavailable_paths_never_write():
+    from surfaces.theme import cmd_theme, pick_native_accent
+    # cancel: (None, None) with the hidden root still destroyed
+    calls, fake_tk = _picked_calls((None, None))
+    with patch_attribute(theme, "_load_tkinter", lambda: fake_tk):
+        r = pick_native_accent(initial="#0e6e62")
+    if r["available"] is not False or r["source"] is not None:
+        fail("cancel normalized wrong: %r" % r)
+    if calls[-1] != "destroy":
+        fail("cancel path did not destroy the hidden root: %r" % calls)
+    # missing Tk
+    with patch_attribute(theme, "_load_tkinter", lambda: None):
+        r = pick_native_accent()
+    if r["available"] is not False:
+        fail("missing Tk did not return unavailable")
+    # chooser exception
+    calls, fake_tk = _picked_calls(None)
+    fake_tk.colorchooser = ColorChooserMock(calls, error=RuntimeError("no display"))
+    with patch_attribute(theme, "_load_tkinter", lambda: fake_tk):
+        r = pick_native_accent()
+    if r["available"] is not False or r["source"] is not None:
+        fail("chooser exception normalized wrong: %r" % r)
+    if calls[-1] != "destroy":
+        fail("exception path did not destroy the hidden root: %r" % calls)
+    # malformed chooser result
+    calls, fake_tk = _picked_calls(("junk", 123))
+    with patch_attribute(theme, "_load_tkinter", lambda: fake_tk):
+        r = pick_native_accent()
+    if r["available"] is not False:
+        fail("malformed chooser result normalized wrong: %r" % r)
+
+    # CLI human fallback copy, no traceback, no write
+    base = fresh_base()
+    before = hashlib.sha256(
+        open(os.path.join(base, "itembank.json"), "rb").read()).hexdigest()
+    buf = io.StringIO()
+    ns = argparse.Namespace(action="pick", base=base, initial="", json=False)
+    with patch_attribute(theme, "_load_tkinter", lambda: None):
+        with redirect_stdout(buf):
+            code = cmd_theme(ns)
+    if code != 0:
+        fail("unavailable pick exited non-zero: %d" % code)
+    if "System picker is unavailable here. Choose a color below instead." not in buf.getvalue():
+        fail("unavailable pick did not print the exact browser-fallback copy: %r"
+             % buf.getvalue())
+    after = hashlib.sha256(
+        open(os.path.join(base, "itembank.json"), "rb").read()).hexdigest()
+    if before != after:
+        fail("unavailable pick wrote itembank.json")
+    shutil.rmtree(base, ignore_errors=True)
+
+
+def test_launcher_run_native_picker_bridge():
+    from surfaces import launcher
+    calls = []
+    result = subprocess.CompletedProcess(
+        [], 0, stdout='{"available": true, "source": "#c00040"}\n', stderr="")
+    real_module = launcher.subprocess
+    launcher.subprocess = _FakeRunModule(calls, result)
+    try:
+        got = launcher.run_native_picker("#0e6e62")
+    finally:
+        launcher.subprocess = real_module
+    if got != {"available": True, "source": "#c00040", "reason": None}:
+        fail("run_native_picker normalized the child result wrong: %r" % got)
+    argv = calls[0][0]
+    if argv[0] != sys.executable:
+        fail("run_native_picker did not invoke the current interpreter: %r" % argv)
+    if not (argv[1].endswith("itembank.py") or argv[1].endswith(".pyz")):
+        fail("run_native_picker entry is not the current source/.pyz: %r" % argv[1])
+    if argv[2:] != ["theme", "pick", "--json", "--initial", "#0e6e62"]:
+        fail("run_native_picker argv tail is wrong: %r" % argv)
+    for token in argv:
+        if " " in token:
+            fail("child argv must be fixed no-shell tokens, got %r" % token)
+
+
+def test_launcher_run_native_picker_fails_closed():
+    from surfaces import launcher
+    real_module = launcher.subprocess
+    fallback = "System picker is unavailable here. Choose a color below instead."
+    expected = {"available": False, "source": None, "reason": fallback}
+    cases = (
+        ("spawn failure", _FakeRunModule([], None, error=OSError("boom"))),
+        ("nonzero exit", _FakeRunModule(
+            [], subprocess.CompletedProcess([], 1, stdout="", stderr="err"))),
+        ("oversize output", _FakeRunModule(
+            [], subprocess.CompletedProcess([], 0, stdout="x" * 5000, stderr=""))),
+        ("malformed output", _FakeRunModule(
+            [], subprocess.CompletedProcess(
+                [], 0, stdout="Traceback (most recent call last):\nboom", stderr=""))),
+        ("unavailable result", _FakeRunModule(
+            [], subprocess.CompletedProcess(
+                [], 0, stdout='{"available": false, "source": null}\n', stderr=""))),
+    )
+    try:
+        for name, mod in cases:
+            launcher.subprocess = mod
+            r = launcher.run_native_picker("#0e6e62")
+            if r != expected:
+                fail("%s did not map to the unavailable result: %r" % (name, r))
+    finally:
+        launcher.subprocess = real_module
+
+
 def main():
     check_token_extractor()
     check_contrast()
@@ -446,12 +633,16 @@ def main():
     test_theme_css_modes()
     test_palette_matches_binding_values()
     test_theme_preview_cli_readonly()
+    test_pick_native_accent_selection_preview_only()
+    test_pick_unavailable_paths_never_write()
+    test_launcher_run_native_picker_bridge()
+    test_launcher_run_native_picker_fails_closed()
     print("ok: theme Wave 0 harness -- token/contrast extractors, settings "
           "bases, deterministic picker mocks, source/.pyz child seam, and "
           "cross-surface render collector all self-check green against "
           "current theme/config fixtures; plan 04-03 derivation, contrast, "
-          "semantic-independence, mode-CSS and read-only preview assertions "
-          "pass")
+          "semantic-independence, mode-CSS, read-only preview, native-picker "
+          "lifecycle/fallback and launcher child-bridge assertions pass")
     return 0
 
 

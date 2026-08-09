@@ -437,6 +437,34 @@ def test_theme_preview_readonly_reports_tokens():
     shutil.rmtree(base, ignore_errors=True)
 
 
+def test_phase_4_theme_keys_read_not_inert():
+    """Phase 4's own theme/accent settings read as active through `itembank
+    config`, while later-phase groups (daily_cap, selection_weights,
+    auditor_autonomy, model_backend) keep their inert labeling -- the
+    discovery contract the settings UI relies on.
+    """
+    base = fresh_base()
+    r = run([], base)
+    if r.returncode != 0:
+        fail("itembank config exited %d: %s" % (r.returncode, r.stderr))
+    rows = []
+    for line in r.stdout.splitlines():
+        stripped = line.strip()
+        if stripped.split():
+            rows.append((stripped.split()[0], stripped))
+    active = ("theme", "accent.source")
+    for token, line in rows:
+        if token in active and "inert" in line:
+            fail("%r is marked inert, but Phase 4's own code reads it: %r"
+                 % (token, line))
+    inert_groups = ("daily_cap", "selection_weights", "auditor_autonomy",
+                    "model_backend")
+    for group in inert_groups:
+        if not any(token == group and "inert" in line for token, line in rows):
+            fail("%r is no longer marked inert" % group)
+    shutil.rmtree(base, ignore_errors=True)
+
+
 # ---- structural: SETTINGS_CODES is sorted, deduped, and every code is ------
 # reachable from at least one input this test itself supplies.
 
@@ -477,6 +505,7 @@ def main():
     test_theme_set_reset_contract()
     test_theme_set_invalid_colors_rejected()
     test_theme_preview_readonly_reports_tokens()
+    test_phase_4_theme_keys_read_not_inert()
     test_settings_codes_declared()
     # Reachability is checked last, after every other test has had a chance
     # to record the codes its own inputs triggered via assert_rejected/code_in.
