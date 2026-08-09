@@ -457,8 +457,14 @@ def test_lint_order_stable():
         return int(m.group(1)) if m else -1
 
     error_items = [e["item"] for e in payload["errors"]]
-    if [item_num(t) for t in error_items] != sorted(item_num(t) for t in error_items):
+    non_bank_errors = [t for t in error_items if t != "BANK"]
+    if [item_num(t) for t in non_bank_errors] != \
+       sorted(item_num(t) for t in non_bank_errors):
         fail("errors are not in non-decreasing item order: %r" % error_items)
+    # Plan 03-03's lesson.duplicate_heading is the first BANK-tagged error
+    # (D-06); like the bank-wide warning, it must trail every per-item finding.
+    if "BANK" in error_items and error_items[-1] != "BANK":
+        fail("the bank-wide entry is not last among errors: %r" % error_items)
 
     warning_items = [w["item"] for w in payload["warnings"]]
     non_bank = [t for t in warning_items if t != "BANK"]

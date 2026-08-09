@@ -8,7 +8,7 @@ answer. Both are clients of the runtime.
 import collections, html, json, os, sys, uuid
 
 import evidence
-from model import grab, lint, load
+from model import grab, lint, load, parse_lesson
 from runtime import page_item, score_response
 from surfaces.quiz_page import TEMPLATE
 from surfaces.theme import THEME_CSS
@@ -76,6 +76,10 @@ def record_answer(bank_path, qs, session_id, log, out_path, mode, q, response, e
 
 def cmd_build(a):
     qs = load(a.bank)
+    # build/study/export keep calling lint(qs) with one argument: none of them
+    # renders a lesson link, so the lesson checks stay off there -- the static
+    # page omits the chip entirely by D-12, and turning the checks on would
+    # refuse a bank over a link that surface never shows.
     errors, _ = lint(qs)
     if errors and not a.force:
         for e in errors:
@@ -120,7 +124,10 @@ def cmd_serve(a):
     from surfaces.daemon import serve_scoped
 
     qs = load(a.bank)
-    errors, _ = lint(qs)
+    # The same lesson-supplied gate cmd_lint applies: a bank whose lesson
+    # reference names a missing heading is refused before a learner sees a
+    # chip pointing at an anchor that does not exist (ROADMAP SC3).
+    errors, _ = lint(qs, lesson=parse_lesson(a.bank))
     if errors and not a.force:
         for e in errors:
             print("error  " + str(e))

@@ -6,7 +6,7 @@ than an edit here and there.
 """
 import argparse, collections, json, os, sys
 
-from model import BANK_FILE_HINTS, SPEC, lint, load, parse_bank
+from model import BANK_FILE_HINTS, SPEC, lint, load, parse_bank, parse_lesson
 from surfaces.anki import cmd_export
 from surfaces.daemon import cmd_daemon
 from surfaces.day import cmd_day
@@ -29,7 +29,12 @@ def cmd_spec(a):
 
 def cmd_lint(a):
     qs = load(a.bank)
-    errors, warnings = lint(qs)
+    # cmd_lint is the one call site that both loads a bank by path and is the
+    # acceptance gate for ROADMAP SC3, so it is the one that supplies the
+    # lesson: a LESSON-REF naming a missing heading is an error by item
+    # number, never a render-time crash. `--force` is not offered here --
+    # the whole point of lint is that it fails loudly.
+    errors, warnings = lint(qs, lesson=parse_lesson(a.bank))
     if a.json:
         payload = {
             "schema_version": 1,

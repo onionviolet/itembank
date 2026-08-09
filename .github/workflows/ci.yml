@@ -24,7 +24,9 @@ jobs:
           fi
           for msg in "SELECT is 2" "does not exist" "not in CATEGORIES" \
                      "duplicate steps" "no WHY BEST" "stem duplicates" \
-                     "WOULD be correct" "CONFIDENCE is low"; do
+                     "WOULD be correct" "CONFIDENCE is low" \
+                     "does not match any lesson heading" "collides with" \
+                     "is not referenced by any item"; do
             python itembank.py lint fixtures/broken_bank.md | grep -q "$msg" \
               || { echo "linter no longer reports: $msg"; exit 1; }
           done
@@ -62,6 +64,9 @@ jobs:
           python itembank.py lint fixtures/broken_bank.md --json > /tmp/lint.json || true
           python schema_validate.py schemas/lint_error.schema.json --array /tmp/lint.json errors
           python schema_validate.py schemas/lint_error.schema.json --array /tmp/lint.json warnings
+          python itembank.py lint fixtures/lesson_broken_src_bank.md --json > /tmp/lint-src.json || true
+          python schema_validate.py schemas/lint_error.schema.json --array /tmp/lint-src.json errors
+          python schema_validate.py schemas/lint_error.schema.json --array /tmp/lint-src.json warnings
 
       # Every file under tests/, rather than a named list. The list had already
       # drifted: two test files existed that CI never ran, so they could fail

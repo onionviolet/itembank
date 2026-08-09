@@ -727,7 +727,10 @@ def lint(questions, lesson=LESSON_UNCHECKED):
                 src_path = src_match.group(1)
             else:
                 quoted = re.findall(r"'([^']*)'", detail)
-                src_path = quoted[-1] if quoted else ""
+                # An OS error quotes the resolved path; echo only its basename
+                # so the message never discloses an absolute path the bank file
+                # does not already contain (T-3-09).
+                src_path = os.path.basename(quoted[-1]) if quoted else ""
             errors.append(LintError(
                 "lesson.src_unreadable", "src", "BANK",
                 "[LESSON-SRC: %s] could not be read (%s) -- fix the path or "

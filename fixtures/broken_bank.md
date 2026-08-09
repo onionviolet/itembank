@@ -4,7 +4,24 @@ Every item below is wrong on purpose. `itembank lint fixtures/broken_bank.md`
 must report each defect, and CI asserts it does. If a change to the linter makes
 this file pass, the linter regressed.
 
+## LESSON
+
+### Airway, Step-By-Step!
+
+Placeholder lesson prose for the first of two headings whose texts reduce to
+the same slug, exercising `lesson.duplicate_heading`.
+
+### airway step by step
+
+Placeholder lesson prose for the second colliding heading.
+
+### Calling for Help
+
+A heading no item references, exercising `lesson.orphan_heading`: a lesson
+legitimately teaches more than it tests.
+
 Q1. SELECT disagrees with CORRECT: says pick two, keys three.
+[LESSON-REF: Missing Section]
 [TYPE: multi]
 [SELECT: 2]
 
