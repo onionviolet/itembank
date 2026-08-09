@@ -942,6 +942,36 @@ def check_edit_snapshot_and_form():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def check_day_script_safety():
+    """CR-01 regression: a plan cell containing a script terminator is
+    serialized inert in the `window.__day__` data element -- the page still
+    has exactly one `<script>`, the payload can never close it or execute,
+    and the boot JSON still parses back to a ready snapshot.
+    """
+    import shutil
+    tmp = tempfile.mkdtemp()
+    try:
+        hostile = [HEADER,
+                   ["2026-01-07",
+                    "</script><script>window.__pwned__=1</script>",
+                    "Ch 1 finish", "Lab 0"]]
+        path = write_plan(tmp, hostile, "hostile.md")
+        state = day.day_state(path, os.path.join(tmp, "daily_log.md"),
+                              os.path.join(tmp, "lanes.md"), "2026-01-07")
+        page = day.day_render(state).decode("utf-8")
+        if page.count("<script") != 1 or page.count("</script>") != 1:
+            fail("hostile plan cell closed or duplicated the day page script "
+                 "element (<script count %d, </script> count %d)"
+                 % (page.count("<script"), page.count("</script>")))
+        if "\\u003c/script\\u003e" not in page:
+            fail("day page did not escape the script terminator in boot data")
+        boot = page_boot_data(page)
+        if boot is None or boot.get("snapshot", {}).get("status") != "ready":
+            fail("hostile plan page has no ready boot snapshot")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def check_apply_day_edit_and_cache():
     """Test 3 + Test 5 (state side): `apply_day_edit` is the only surface
     wrapper around `day_document.save`; on `saved` it reloads `state["plan"]`,
@@ -1143,6 +1173,7 @@ def main():
     check_task2_draft_and_no_temp()
     check_task2_tight_window_recheck()
     check_edit_snapshot_and_form()
+    check_day_script_safety()
     check_apply_day_edit_and_cache()
     check_day_palette_and_no_css_literals()
     check_conflict_recovery_markup_and_dirty_js()

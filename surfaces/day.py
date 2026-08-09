@@ -14,7 +14,7 @@ tool still holds no content of its own.
 import html, json, os, re, sys
 
 import evidence
-from surfaces import settings
+from surfaces import presentation, settings
 from surfaces.theme import theme_css
 
 
@@ -1088,7 +1088,7 @@ def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None,
                        % ("" if h["status"] == "miss" else h["status"], h["date"], h["status"])
                        for h in hist),
                "".join(lanes), editor, empty_row, notes, e(plan_path),
-               json.dumps(boot), DAY_JS))
+               presentation.script_safe_json(boot), DAY_JS))
 
 
 def lan_address():

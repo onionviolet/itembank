@@ -20,7 +20,7 @@ rule. A future graphical/canvas presentation may only attach behind
 `render_surface`'s adapter seam while equivalent semantic HTML remains
 present and operable; Phase 4 implements no canvas or media design.
 """
-import html
+import html, json
 
 
 # Shared spacing/typography/measure/accessibility CSS. Token *names* come
@@ -115,6 +115,21 @@ pre{background:var(--chip);border:1px solid var(--line);border-radius:8px;
 def esc(value):
     """Escape one presentation value for HTML text."""
     return html.escape("" if value is None else str(value))
+
+
+def script_safe_json(value):
+    """JSON that cannot close a page's `<script>` data element (T-04-17):
+    escape `<`, `>`, `&` and the JS line separators U+2028/U+2029 so bank
+    prose can never terminate the script element or splice executable
+    markup. Every surface that embeds boot/item payloads into a `<script>`
+    data element routes them through this one helper (study, quiz, day);
+    rendered text is escaped again by each surface's own HTML escaper, and
+    this only guarantees the embedded data element itself stays inert.
+    """
+    return (json.dumps(value, ensure_ascii=False)
+            .replace("<", "\\u003c").replace(">", "\\u003e")
+            .replace("&", "\\u0026")
+            .replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
 
 
 def _action_markup(action, primary=False):

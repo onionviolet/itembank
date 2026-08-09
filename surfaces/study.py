@@ -10,25 +10,12 @@ after the learner deliberately flips the card, and the surface never calls
 local recall state are presentation and queue behavior only, while quiz
 alone is response-driven.
 """
-import html, json, os, sys
+import html, os, sys
 
 from model import grab, lint, load
 from runtime import explain_payload, public_item
 from surfaces import presentation, settings
 from surfaces.theme import theme_css
-
-
-def script_safe_json(value):
-    """JSON that cannot close the page's `<script>` data element (T-04-17):
-    escape `<`, `>`, `&` and the JS line separators U+2028/U+2029 so bank
-    prose can never terminate the script or splice executable markup.
-    Rendered card text is escaped again through `presentation.esc`; this
-    only guarantees the embedded data element itself stays inert.
-    """
-    return (json.dumps(value, ensure_ascii=False)
-            .replace("<", "\\u003c").replace(">", "\\u003e")
-            .replace("&", "\\u0026")
-            .replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
 
 
 def study_item(q):
@@ -44,6 +31,7 @@ def study_item(q):
 
 
 esc = presentation.esc
+script_safe_json = presentation.script_safe_json
 
 
 # Card-component rules only; the document shell, base typography, focus

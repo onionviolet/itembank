@@ -454,6 +454,46 @@ def check_study_script_safety():
         fail("hostile option text was not rendered through escaping")
 
 
+def check_quiz_script_safety():
+    """CR-01 regression: a bank option containing a script terminator is
+    serialized inert in the offline quiz page's embedded data element -- the
+    rendered page still has exactly one `<script>`, the payload can never
+    close it, and the served page stays inert too.
+    """
+    from surfaces.quiz import page_for
+    hostile = ("Q1. Stem with </script><script>alert(1)</script>? "
+               "(difficulty: recall)\n"
+               "A) safe\nB) </script><script>window.__pwned__=1</script>\n"
+               "C) Three\nCORRECT: B\n"
+               "WHY BEST: the option payload must stay inert\n"
+               "CONFIDENCE: high\n")
+    with tempfile.TemporaryDirectory() as tmp:
+        bank = os.path.join(tmp, "hostile_bank.md")
+        with open(bank, "w", encoding="utf-8") as fh:
+            fh.write("# Hostile quiz bank\n\n" + hostile)
+        import itembank
+        qs = itembank.parse_bank(open(bank, encoding="utf-8").read())
+        _, offline = page_for(bank, qs, serve=False,
+                              lesson_base="", lesson_slugs=set(),
+                              bank_stem="hostile_bank", mode="practice")
+        _, served = page_for(bank, qs, serve=True, post_path="/quiz/x/answer",
+                             lesson_base="", lesson_slugs=set(),
+                             bank_stem="hostile_bank", mode="practice")
+    # The shared template carries both script slots (offline + served); the
+    # inactive slot is emptied, so the benign baseline is exactly two tags.
+    for label, page in (("offline", offline), ("served", served)):
+        if page.count("<script") != 2 or page.count("</script>") != 2:
+            fail("%s quiz page gained or lost a script element from hostile "
+                 "bank text (<script count %d, </script> count %d)"
+                 % (label, page.count("<script"), page.count("</script>")))
+        if "<script>window.__pwned__=1</script>" in page:
+            fail("%s quiz page contains the raw hostile payload" % label)
+    if "\\u003c/script\\u003e" not in offline:
+        fail("offline quiz page did not escape the script terminator")
+    if "<script>window.__pwned__=1</script>" in offline:
+        fail("hostile option text reached the quiz page as raw markup")
+
+
 def check_study_empty_and_error_states():
     """Test 5: empty input renders the shared state panel with the exact
     empty copy; a malformed card renders an error state that keeps bank
@@ -758,6 +798,7 @@ def main():
     check_study_item_nonchoice_payload()
     check_study_item_sentinels_reach_reveal()
     check_study_script_safety()
+    check_quiz_script_safety()
     check_study_empty_and_error_states()
     check_study_reveal_order()
     check_study_recall_controls_and_default_open()

@@ -5,12 +5,12 @@ and saves nothing. `serve` puts the same page behind a loopback server that
 scores every response and writes the attempt file, so the browser never holds an
 answer. Both are clients of the runtime.
 """
-import collections, html, json, os, sys, uuid
+import collections, html, os, sys, uuid
 
 import evidence
 from model import grab, lint, load, parse_lesson
 from runtime import page_item, score_response
-from surfaces import settings
+from surfaces import presentation, settings
 from surfaces.quiz_page import OFFLINE_JS, SERVED_JS, TEMPLATE
 from surfaces.theme import THEME_CSS, theme_css
 
@@ -84,8 +84,8 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                  .replace("__CTX_MODE__", ctx_mode)
                  .replace("__OFFLINE_JS__", "" if serve else offline_js)
                  .replace("__SERVED_JS__", served_js if serve else "")
-                 .replace("__BOOT__", json.dumps(boot, ensure_ascii=False))
-                 .replace("__DATA__", json.dumps(items, ensure_ascii=False)))
+                 .replace("__BOOT__", presentation.script_safe_json(boot))
+                 .replace("__DATA__", presentation.script_safe_json(items)))
 
 
 def record_answer(bank_path, qs, session_id, log, out_path, mode, q, response, elapsed_ms):
