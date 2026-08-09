@@ -12,6 +12,12 @@ receives only bootstrap metadata, starts the sitting through POST /api/start,
 submits through POST /api/submit, and renders only the server-issued verdict
 and explanation. The served page never contains the offline canonicalization
 implementation, and the static page never references the API.
+
+Both clients share the Phase 4 question hierarchy (D-01 through D-03): one
+sticky context line (bank/lesson context, objective, item N of M, session
+mode), one native details disclosure for secondary metadata, a single
+dominant stem h1, native response controls, a reserved feedback region, and
+one primary next action per state.
 """
 
 
@@ -24,19 +30,29 @@ __THEME__
 body{margin:0;background:var(--bg);color:var(--ink);
   font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 .wrap{max-width:800px;margin:0 auto;padding:22px 18px 96px}
-header{margin-bottom:18px}
-h1{font-size:21px;margin:0 0 4px;letter-spacing:-.01em}
-.sub{color:var(--mut);font-size:13.5px}
 .mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
   font-variant-numeric:tabular-nums}
-.railwrap{position:sticky;top:0;background:var(--bg);padding:10px 0 12px;z-index:5}
-.rail{height:5px;background:var(--line);border-radius:99px;overflow:hidden}
-.rail>i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
-.tally{display:flex;gap:14px;font-size:12.5px;color:var(--mut);margin-top:7px}
-.statusline{min-height:1.4em;color:var(--mut);font-size:13.5px;margin:0 0 8px}
+/* The one sticky orientation line (D-01): bank/lesson context, objective,
+   item N of M, session mode -- and nothing else persistent. */
+.context-line{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;
+  gap:4px 18px;align-items:center;background:var(--bg);padding:8px 0 10px;
+  border-bottom:1px solid var(--line);margin-bottom:14px;font-size:12.5px;
+  color:var(--mut)}
+.context-line .objective{flex:1 1 220px;min-width:0;overflow-wrap:anywhere}
+.context-line .lesson{margin-left:auto}
+.context-line a.lesson{color:var(--accent);text-decoration:none;font-weight:600}
+.context-line a.lesson:hover,.context-line a.lesson:focus-visible{
+  text-decoration:underline;outline:2px solid var(--accent);outline-offset:2px}
+/* One native disclosure owns all secondary metadata (D-01). */
+.session-details{margin:0 0 14px;font-size:13px;color:var(--mut)}
+.session-details summary{cursor:pointer;padding:4px 0;font-size:11px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--mut);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.session-details summary:focus-visible{outline:2px solid var(--accent);
+  outline-offset:2px}
+.detail-body{margin-top:8px;display:flex;flex-wrap:wrap;gap:7px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
   padding:18px 18px 16px;margin-bottom:14px}
-.meta{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-bottom:9px}
 .chip{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
   background:var(--chip);color:var(--mut);padding:3px 8px;border-radius:5px;
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
@@ -44,11 +60,38 @@ h1{font-size:21px;margin:0 0 4px;letter-spacing:-.01em}
 .chip.aon{background:var(--bad-bg);color:var(--bad)}
 .chip.lesson{background:var(--accent-soft);color:var(--accent);
   text-decoration:none;display:inline-block}
-.stem{margin:0 0 13px;font-size:16.5px;text-wrap:pretty}
+/* The active stem is the page's single dominant h1 (D-02). */
+h1.stem{font-size:28px;font-weight:600;line-height:1.2;margin:0 0 14px;
+  text-wrap:pretty}
+/* Response controls: native inputs with a 44px target (D-03). */
+.choices{display:flex;flex-direction:column;gap:7px;border:0;padding:0;
+  margin:0 0 6px}
+.choices legend{font-size:12.5px;color:var(--mut);margin-bottom:6px}
+.choice{display:flex;gap:10px;align-items:center;min-height:44px;width:100%;
+  text-align:left;background:var(--card);border:1px solid var(--line);
+  border-radius:9px;padding:10px 12px;font:inherit;color:inherit;cursor:pointer;
+  transition:.12s}
+.choice:hover:not(:disabled){border-color:var(--accent)}
+.choice:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.choice input{width:20px;height:20px;flex:0 0 auto;accent-color:var(--accent)}
+.choice input:disabled{cursor:default}
+.choice .k{flex:0 0 auto;font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:13px;color:var(--mut);min-width:1.2em}
+.choice .ot{flex:1 1 auto;min-width:0}
+.choice .rat{display:block;margin-top:6px;font-size:12.5px;line-height:1.5;
+  color:var(--mut)}
+.choice.right{background:var(--ok-bg);border-color:var(--ok)}
+.choice.right .rat{color:var(--ok)}
+.choice.wrong{background:var(--bad-bg);border-color:var(--bad)}
+.choice.wrong .rat{color:var(--bad)}
+.choice:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.choice:has(input:checked).right{border-color:var(--ok);background:var(--ok-bg)}
+.choice:has(input:checked).wrong{border-color:var(--bad);background:var(--bad-bg)}
 .opts{display:flex;flex-direction:column;gap:7px}
-.opt{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;
-  background:var(--card);border:1px solid var(--line);border-radius:9px;
-  padding:10px 12px;font:inherit;color:inherit;cursor:pointer;transition:.12s}
+.opt{display:flex;gap:10px;align-items:center;min-height:44px;width:100%;
+  text-align:left;background:var(--card);border:1px solid var(--line);
+  border-radius:9px;padding:10px 12px;font:inherit;color:inherit;cursor:pointer;
+  transition:.12s}
 .opt:hover:not(:disabled){border-color:var(--accent)}
 .opt:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .opt[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
@@ -66,10 +109,11 @@ h1{font-size:21px;margin:0 0 4px;letter-spacing:-.01em}
 .rowline:last-of-type{border-bottom:0}
 .rowtext{flex:1 1 240px;min-width:0}
 .seg{display:flex;gap:5px;flex-wrap:wrap}
-.seg button{font:inherit;font-size:13.5px;padding:5px 11px;border-radius:7px;
-  border:1px solid var(--line);background:var(--card);color:inherit;cursor:pointer}
-.seg button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);
-  color:var(--accent)}
+.seg button{font:inherit;font-size:13.5px;padding:8px 12px;min-height:44px;
+  border-radius:7px;border:1px solid var(--line);background:var(--card);
+  color:inherit;cursor:pointer}
+.seg button[aria-pressed="true"]{border-color:var(--accent);
+  background:var(--accent-soft);color:var(--accent)}
 .seg button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .seg button.right{border-color:var(--ok);background:var(--ok-bg);color:var(--ok)}
 .seg button.wrong{border-color:var(--bad);background:var(--bad-bg);color:var(--bad)}
@@ -77,13 +121,19 @@ h1{font-size:21px;margin:0 0 4px;letter-spacing:-.01em}
   place-items:center;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;
   border:1px solid var(--line);color:var(--mut)}
 .ord.set{background:var(--accent);border-color:var(--accent);color:#fff}
+/* Reserved feedback region: directly below the response control, before the
+   next action, with stable minimum height so the stem never shifts (D-02). */
+.feedback{min-height:96px;margin-top:14px;padding-top:12px;
+  border-top:1px solid var(--line);font-size:14.5px}
+.feedback .status{color:var(--mut);margin-bottom:8px}
 .act{margin-top:13px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
-button.go{font:inherit;font-weight:600;font-size:14.5px;padding:9px 17px;border:0;
-  border-radius:9px;background:var(--accent);color:#fff;cursor:pointer}
+button.go{font:inherit;font-weight:600;font-size:14.5px;padding:11px 17px;
+  min-height:44px;min-width:44px;border:0;border-radius:9px;
+  background:var(--accent);color:#fff;cursor:pointer}
 button.go:disabled{opacity:.4;cursor:default}
 button.go:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+button.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line)}
 .hint{font-size:12.5px;color:var(--mut)}
-.exp{margin-top:14px;padding-top:13px;border-top:1px solid var(--line);font-size:14.5px}
 .exp h4{margin:0 0 5px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;
   color:var(--mut);font-family:ui-monospace,Menlo,Consolas,monospace}
 .exp .blk{margin-bottom:11px}
@@ -91,33 +141,41 @@ button.go:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .exp li{margin-bottom:4px}
 .verdict{font-weight:600;margin-bottom:10px}
 .verdict.y{color:var(--ok)} .verdict.n{color:var(--bad)}
+.pend{color:var(--warn);font-weight:600;margin-bottom:10px}
 .trap{background:var(--accent-soft);border-left:3px solid var(--accent);
   padding:9px 12px;border-radius:0 7px 7px 0}
 textarea.ans{width:100%;min-height:150px;padding:11px 12px;border-radius:9px;
   border:1px solid var(--line);background:var(--card);color:inherit;
   font:inherit;font-size:15.5px;line-height:1.5;resize:vertical}
-textarea.ans:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+textarea.ans:focus{outline:2px solid var(--accent);outline-offset:1px;
+  border-color:var(--accent)}
 textarea.ans:disabled{opacity:.75}
-.pend{color:var(--warn);font-weight:600;margin-bottom:10px}
-#savestate.bad{color:var(--bad)}
-.done{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px}
+.done{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:20px}
 .score{font-size:34px;font-weight:700;letter-spacing:-.02em}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.empty{text-align:center;padding:28px 10px}
+@media (max-width:767px){
+  .wrap{max-width:100%;padding:18px 16px 80px}
+  .context-line{gap:2px 12px}
+  h1.stem{font-size:20px}
+  .feedback{min-height:120px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important}
+  html{scroll-behavior:auto!important}
+}
 </style></head><body><div class="wrap">
-<header>
-  <h1>__TITLE__</h1>
-  <div class="sub">__SUB__</div>
-</header>
-<div class="railwrap">
-  <div class="rail"><i id="rail"></i></div>
-  <div class="tally mono">
-    <span>ITEM <b id="pos">1</b>/<b id="tot">0</b></span>
-    <span>CORRECT <b id="ok">0</b></span>
-    <span>ALL-OR-NOTHING SCORING</span>
-    <span id="savestate"></span>
-  </div>
-</div>
-<div id="status" role="status" aria-live="polite" class="statusline"></div>
+<nav class="context-line" data-surface-context aria-label="Session context">
+  <span class="cx" id="cx-bank">__CTX_BANK__</span>
+  <span class="cx objective" id="cx-objective"></span>
+  <span class="cx mono">Item <b id="pos">1</b> of <b id="tot">0</b></span>
+  <span class="cx mode" id="cx-mode">__CTX_MODE__</span>
+  <span class="cx lesson" id="cx-lesson"></span>
+</nav>
+<details class="session-details">
+  <summary>Session details</summary>
+  <div id="detail-body" class="detail-body"></div>
+</details>
 <div id="host"></div>
 </div>
 <script id="offline">
@@ -136,26 +194,22 @@ __SERVED_JS__
 OFFLINE_JS = r"""const Q = __DATA__;
 const SERVE = false;
 const LESSON_BASE = "__LESSON_BASE__";   /* empty when no reader sits behind this page */
+const LESSON_LABEL = "__LESSON_LABEL__";
 const LETTERS = "ABCDEFGH";
 const LABEL = {mc:"multiple choice", multi:"multiple response",
                table:"options table", build:"build list", dnd:"drag-and-drop",
                short:"short answer"};
 const FS = "\u001f", PS = "\u001e";   /* must match FIELD_SEP and PAIR_SEP */
+const REDUCED = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 let i = 0, score = 0, autoTotal = 0;
-/* When the current item was rendered, per performance.now() -- a monotonic
-   clock, so a system clock change mid-sitting cannot produce a negative or
-   absurd elapsed_ms (T-1-25). Reset every time render() shows a new item. */
 let shownAt = performance.now();
 const miss = [];
 const host = document.getElementById("host");
+const cxObjective = document.getElementById("cx-objective");
+const cxLesson = document.getElementById("cx-lesson");
+const detailBody = document.getElementById("detail-body");
 const esc = s => (s==null?"":String(s)).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 
-/* ---- the verdict -----------------------------------------------------------
-   A file:// page has no process behind it, so the static build ships a
-   canonical key that Python computed and the check below is a single string
-   comparison against it. That is a lookup, not a second set of scoring rules:
-   every rule about what counts as correct still lives in one function, in one
-   language (runtime.canonical_response / canonical_key). */
 function canon(q, r){
   if(q.type==="mc")    return String(r).toUpperCase();
   if(q.type==="multi") return r.map(x=>String(x).toUpperCase()).sort().join(",");
@@ -170,21 +224,51 @@ async function verify(q, response){
           explain: q.explain || {}};
 }
 
+function lessonChip(q){
+  /* D-12: no chip when no reader sits behind the page, or when the slug does
+     not resolve (--force). */
+  if(!(q.lesson_slug && LESSON_BASE)) return "";
+  return `<a class="chip lesson" href="${LESSON_BASE}#${q.lesson_slug}"
+          target="_blank" rel="noopener">${LESSON_LABEL}</a>`;
+}
+
+function metaChips(q){
+  let h = `<span class="chip type">${LABEL[q.type]||q.type}</span>`;
+  if(q.type==="short") h += `<span class="chip aon">graded by a marker, not by this page</span>`;
+  else if(q.type!=="mc") h += `<span class="chip aon">no partial credit</span>`;
+  if(q.difficulty) h += `<span class="chip">${esc(q.difficulty)}</span>`;
+  h += `<span class="chip aon">dichotomous scoring</span>`;
+  return h;
+}
+
+function setContext(q){
+  if(cxObjective) cxObjective.textContent = q.objective || "";
+  if(cxLesson) cxLesson.innerHTML = lessonChip(q);
+  if(detailBody) detailBody.innerHTML = metaChips(q);
+}
+
+function feedbackFor(card){
+  let fb = card.querySelector(".feedback");
+  if(!fb){
+    fb = document.createElement("div");
+    fb.className = "feedback";
+    fb.setAttribute("role", "status");
+    fb.setAttribute("aria-live", "polite");
+    card.appendChild(fb);
+  }
+  return fb;
+}
+
 async function settle(q, response, card, act, paint){
-  const el = document.getElementById("savestate");
+  const fb = feedbackFor(card);
+  fb.innerHTML = `<div class="status">Checking answer&hellip;</div>`;
   let v;
   try {
     v = await verify(q, response);
   } catch(err){
-    if(el){ el.textContent = "NOT SAVED"; el.className = "bad"; }
-    act.innerHTML = "";
-    const p = document.createElement("div");
-    p.className = "hint";
-    p.style.color = "var(--bad)";
-    p.textContent = "Could not reach the process that scores and records this sitting ("
-                  + err.message + "). This answer was not saved and was not marked. "
-                  + "Restart `itembank serve` and sit it again.";
-    act.appendChild(p);
+    fb.innerHTML = `<div class="status">Could not reach the process that scores and records
+      this sitting (${esc(err.message)}). This answer was not saved and was not marked.
+      Restart itembank and sit it again.</div>`;
     return;
   }
   if(paint) paint(v);
@@ -194,33 +278,23 @@ async function settle(q, response, card, act, paint){
 function shuffled(a){const b=a.slice();for(let j=b.length-1;j>0;j--){
   const k=Math.floor(Math.random()*(j+1));[b[j],b[k]]=[b[k],b[j]];}return b;}
 
-function chips(q){
-  let h = `<span class="chip type">${LABEL[q.type]||q.type}</span>`;
-  if(q.type==="short") h += `<span class="chip aon">graded by a marker, not by this page</span>`;
-  else if(q.type!=="mc") h += `<span class="chip aon">no partial credit</span>`;
-  if(q.objective) h += `<span class="chip">${esc(q.objective)}</span>`;
-  if(q.difficulty) h += `<span class="chip">${esc(q.difficulty)}</span>`;
-  /* D-12: a static file:// page has no daemon behind /lesson/<stem> to link
-     to, so it gets no chip rather than a link that silently does nothing. */
-  if(q.lesson_slug && LESSON_BASE)
-    h += `<a class="chip lesson" href="${LESSON_BASE}#${q.lesson_slug}"
-          target="_blank" rel="noopener">__LESSON_LABEL__</a>`;
-  return h;
-}
-
 function render(){
   document.getElementById("pos").textContent = Math.min(i+1, Q.length);
   document.getElementById("tot").textContent = Q.length;
-  document.getElementById("ok").textContent = score;
-  document.getElementById("rail").style.width = (i/Q.length*100)+"%";
   if(i>=Q.length) return finish();
   shownAt = performance.now();
   const q = Q[i];
+  setContext(q);
   const card = document.createElement("div");
   card.className = "card";
-  card.innerHTML = `<div class="meta">${chips(q)}</div><p class="stem">${esc(q.stem)}</p>`;
+  card.innerHTML = `<h1 class="stem">${esc(q.stem)}</h1>`;
   const body = document.createElement("div");
   card.appendChild(body);
+  const fb = document.createElement("div");
+  fb.className = "feedback";
+  fb.setAttribute("role", "status");
+  fb.setAttribute("aria-live", "polite");
+  card.appendChild(fb);
   const act = document.createElement("div");
   act.className = "act";
   card.appendChild(act);
@@ -228,10 +302,10 @@ function render(){
   host.appendChild(card);
   ({mc:asChoice, multi:asChoice, table:asAssign, dnd:asAssign, build:asBuild,
     short:asShort}[q.type])(q, body, act, card);
-  card.scrollIntoView({block:"start", behavior:"smooth"});
+  card.scrollIntoView({block:"start", behavior: REDUCED ? "auto" : "smooth"});
 }
 
-/* ---- multiple choice + multiple response ---------------------------------- */
+/* ---- multiple choice (native radio) + multiple response (native checkboxes) */
 const PINNED = /^\s*(all|none)\s+of\s+the\s+above|^\s*both\s+[A-H]\s+and\s+[A-H]/i;
 
 function asChoice(q, body, act, card){
@@ -242,33 +316,54 @@ function asChoice(q, body, act, card){
   const shown = shuffled(free).concat(pins);
   shown.forEach((o,n)=> o.label = LETTERS[n]);
 
-  const picked = [];   // holds ORIGINAL keys; display letters are cosmetic
-  const wrap = document.createElement("div");
-  wrap.className = "opts";
-  const btns = {};
-  let submit;
+  const fieldset = document.createElement("fieldset");
+  fieldset.className = "choices";
+  const legend = document.createElement("legend");
+  legend.textContent = multi ? `Select ${want}` : "Choose one";
+  fieldset.appendChild(legend);
+  const picked = [];       // holds ORIGINAL keys
+  const boxes = {};
+  let submit = null;
   shown.forEach(o=>{
-    const b = document.createElement("button");
-    b.className = "opt"; b.type = "button"; b.setAttribute("aria-pressed","false");
-    b.innerHTML = `<span class="k">${o.label}</span><span class="ot">${esc(o.text)}</span>`;
-    b.onclick = ()=>{
-      if(!multi){ picked.length=0; picked.push(o.key); go(); return; }
-      const at = picked.indexOf(o.key);
-      if(at>=0) picked.splice(at,1);
-      else if(picked.length < want) picked.push(o.key);
-      shown.forEach(x=>btns[x.key].setAttribute("aria-pressed",
-        picked.includes(x.key)?"true":"false"));
-      submit.disabled = picked.length !== want;
+    const label = document.createElement("label");
+    label.className = "choice";
+    const input = document.createElement("input");
+    input.type = multi ? "checkbox" : "radio";
+    input.name = "answer";
+    input.value = o.key;
+    const k = document.createElement("span");
+    k.className = "k"; k.textContent = o.label;
+    const ot = document.createElement("span");
+    ot.className = "ot"; ot.innerHTML = esc(o.text);
+    label.append(input, k, ot);
+    input.onchange = ()=>{
+      if(!multi){
+        picked.length = 0; picked.push(o.key);
+        if(submit) submit.disabled = false;
+        return;
+      }
+      if(input.checked){
+        if(picked.length >= want){ input.checked = false; return; }
+        picked.push(o.key);
+      } else {
+        const at = picked.indexOf(o.key);
+        if(at >= 0) picked.splice(at, 1);
+      }
+      if(submit) submit.disabled = picked.length !== want;
     };
-    btns[o.key]=b; wrap.appendChild(b);
+    boxes[o.key] = {label, input};
+    fieldset.appendChild(label);
   });
-  body.appendChild(wrap);
-  if(multi){
-    submit = mkSubmit(act, `select ${want}`);
-    submit.onclick = go;
+  body.appendChild(fieldset);
+  submit = mkSubmit(act, multi ? `select ${want}` : "choose one");
+  submit.disabled = multi;
+  submit.onclick = go;
+  function revert(){
+    shown.forEach(o=>{ boxes[o.key].input.disabled = false; });
+    if(!multi) submit.disabled = false;
   }
   function go(){
-    shown.forEach(o=>{ btns[o.key].disabled = true; });
+    shown.forEach(o=>{ boxes[o.key].input.disabled = true; });
     if(submit) submit.remove();
     settle(q, multi ? picked.slice() : picked[0], card, act, paint);
   }
@@ -277,15 +372,15 @@ function asChoice(q, body, act, card){
     const correct = ex.correct || [];
     const sole = correct.length === 1 ? correct[0] : null;
     shown.forEach(o=>{
-      const b = btns[o.key];
-      if(correct.includes(o.key)) b.classList.add("right");
-      else if(picked.includes(o.key)) b.classList.add("wrong");
+      const {label, input} = boxes[o.key];
+      if(correct.includes(o.key)) label.classList.add("right");
+      else if(picked.includes(o.key)) label.classList.add("wrong");
       const line = (o.key === sole && ex.why) ? ex.why : ((ex.da||{})[o.key] || "");
       if(line){
         const r = document.createElement("span");
         r.className = "rat";
         r.textContent = line;      // textContent, so a bank cannot inject markup
-        b.querySelector(".ot").appendChild(r);
+        label.querySelector(".ot").appendChild(r);
       }
     });
     v.skipWhy = !!(sole && ex.why);
@@ -377,7 +472,7 @@ function asBuild(q, body, act, card){
   };
 }
 
-/* ---- short answer (constructed response, never auto-graded) ---------------- */
+/* ---- short answer --------------------------------------------------------- */
 function asShort(q, body, act, card){
   const ta = document.createElement("textarea");
   ta.className = "ans";
@@ -395,7 +490,7 @@ function asShort(q, body, act, card){
 
 function mkSubmit(act, hint){
   const b = document.createElement("button");
-  b.className="go"; b.type="button"; b.textContent="Check"; b.disabled=true;
+  b.className="go"; b.type="button"; b.textContent="Submit answer"; b.disabled=true;
   const h = document.createElement("span"); h.className="hint"; h.textContent=hint;
   act.appendChild(b); act.appendChild(h);
   return b;
@@ -407,6 +502,7 @@ function close(q, card, act, v){
   const pending = (right === null || right === undefined);
   if(!pending){ autoTotal++; if(right) score++; else miss.push({q, ex}); }
   act.innerHTML = "";
+  const fb = feedbackFor(card);
   const exp = document.createElement("div");
   exp.className = "exp";
   const blk = (t,val)=> val ? `<div class="blk"><h4>${t}</h4><div>${esc(val)}</div></div>` : "";
@@ -421,8 +517,7 @@ function close(q, card, act, v){
            + ex.rubric.map(esc).join("</li><li>") + `</li></ul></div>`;
     } else {
       h += `<div class="blk" style="color:var(--mut);font-size:13.5px">The model answer is
-        held back so it cannot contaminate the items after this one. It is in the bank file`
-        + (SERVE ? `, and in the attempt file next to what you wrote.` : `.`) + `</div>`;
+        held back so it cannot contaminate the items after this one. It is in the bank file.`;
     }
   } else {
     if(!v.skipWhy) h += blk("Why this is best", ex.why);
@@ -433,7 +528,8 @@ function close(q, card, act, v){
   }
   if(ex.trap) h += `<div class="blk trap"><h4>Trap</h4><div>${esc(ex.trap)}</div></div>`;
   exp.innerHTML = h;
-  card.appendChild(exp);
+  fb.innerHTML = "";
+  fb.appendChild(exp);
   const next = document.createElement("button");
   next.className="go"; next.type="button";
   next.textContent = (i===Q.length-1) ? "See results" : "Next";
@@ -442,9 +538,8 @@ function close(q, card, act, v){
   next.focus();
 }
 
-/* ---- results -------------------------------------------------------------- */
 function finish(){
-  document.getElementById("rail").style.width = "100%";
+  document.getElementById("rail") && (document.getElementById("rail").style.width = "100%");
   const pct = autoTotal ? Math.round(score/autoTotal*100) : 0;
   const pend = Q.filter(q=>q.type==="short").length;
   let h = `<div class="done"><div class="score mono">${score}/${autoTotal}
@@ -468,11 +563,9 @@ function finish(){
   }
   h += `</div>`;
   host.innerHTML = h;
-  window.scrollTo({top:0, behavior:"smooth"});
+  window.scrollTo({top:0, behavior: REDUCED ? "auto" : "smooth"});
 }
 
-/* A #<id> URL fragment pins that item to the front of the deck before the
-   shuffle runs over the rest. */
 const frag = location.hash.replace(/^#/, "");
 if(frag){ const at = Q.findIndex(x => String(x.id) === frag); if(at >= 0) Q.unshift(Q.splice(at, 1)[0]); }
 Q.sort(()=>Math.random()-0.5);
@@ -488,21 +581,21 @@ render();
 SERVED_JS = r"""const BOOT = __BOOT__;
 const SERVE = true;
 const LESSON_BASE = "__LESSON_BASE__";   /* empty when no reader sits behind this page */
+const LESSON_LABEL = "__LESSON_LABEL__";
 const LETTERS = "ABCDEFGH";
 const LABEL = {mc:"multiple choice", multi:"multiple response",
                table:"options table", build:"build list", dnd:"drag-and-drop",
                short:"short answer"};
 const FS = "\u001f", PS = "\u001e";   /* must match FIELD_SEP and PAIR_SEP */
+const REDUCED = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 let sessionId = null, i = 0, total = 0, score = 0, autoTotal = 0;
 let shownAt = performance.now();
 const miss = [];
 const host = document.getElementById("host");
-const statusEl = document.getElementById("status");
+const cxObjective = document.getElementById("cx-objective");
+const cxLesson = document.getElementById("cx-lesson");
+const detailBody = document.getElementById("detail-body");
 const esc = s => (s==null?"":String(s)).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
-
-function setStatus(text){
-  if(statusEl) statusEl.textContent = text;
-}
 
 async function api(url, payload){
   const res = await fetch(url, {method:"POST",
@@ -522,17 +615,55 @@ async function verify(q, response){
   return {score: v.score, explain: v.explain || {}, next: v.next};
 }
 
+function lessonChip(q){
+  /* D-12: no chip when no reader sits behind the page, and no chip when the
+     slug does not resolve to a served heading (--force). */
+  if(!(q.lesson_slug && LESSON_BASE
+       && (!BOOT.lesson_slugs || BOOT.lesson_slugs.indexOf(q.lesson_slug) >= 0)))
+    return "";
+  return `<a class="chip lesson" href="${LESSON_BASE}#${q.lesson_slug}"
+          target="_blank" rel="noopener">${LESSON_LABEL}</a>`;
+}
+
+function metaChips(q){
+  let h = `<span class="chip type">${LABEL[q.type]||q.type}</span>`;
+  if(q.type==="short") h += `<span class="chip aon">graded by a marker, not by this page</span>`;
+  else if(q.type!=="mc") h += `<span class="chip aon">no partial credit</span>`;
+  if(q.difficulty) h += `<span class="chip">${esc(q.difficulty)}</span>`;
+  h += `<span class="chip aon">dichotomous scoring</span>`;
+  return h;
+}
+
+function setContext(q){
+  if(cxObjective) cxObjective.textContent = q.objective || "";
+  if(cxLesson) cxLesson.innerHTML = lessonChip(q);
+  if(detailBody) detailBody.innerHTML = metaChips(q);
+}
+
+function feedbackFor(card){
+  let fb = card.querySelector(".feedback");
+  if(!fb){
+    fb = document.createElement("div");
+    fb.className = "feedback";
+    fb.setAttribute("role", "status");
+    fb.setAttribute("aria-live", "polite");
+    card.appendChild(fb);
+  }
+  return fb;
+}
+
 async function settle(q, response, card, act, paint, revert){
-  setStatus("Checking answer…");
+  const fb = feedbackFor(card);
+  fb.innerHTML = `<div class="status">Checking answer&hellip;</div>`;
   try {
     const v = await verify(q, response);
-    setStatus("");
     if(paint) paint(v);
     close(q, card, act, v);
   } catch(err){
     /* API failure: keep the current item and the entered response visible,
        offer a retry, and never manufacture a verdict the server did not issue. */
-    setStatus("Couldn't check that answer. Your selection is still here.");
+    fb.innerHTML = `<div class="status">Couldn't check that answer. Your selection
+      is still here.</div>`;
     if(revert) revert();
     const b = document.createElement("button");
     b.className = "go"; b.type = "button"; b.textContent = "Try again";
@@ -545,38 +676,29 @@ async function settle(q, response, card, act, paint, revert){
 function shuffled(a){const b=a.slice();for(let j=b.length-1;j>0;j--){
   const k=Math.floor(Math.random()*(j+1));[b[j],b[k]]=[b[k],b[j]];}return b;}
 
-function chips(q){
-  let h = `<span class="chip type">${LABEL[q.type]||q.type}</span>`;
-  if(q.type==="short") h += `<span class="chip aon">graded by a marker, not by this page</span>`;
-  else if(q.type!=="mc") h += `<span class="chip aon">no partial credit</span>`;
-  if(q.objective) h += `<span class="chip">${esc(q.objective)}</span>`;
-  if(q.difficulty) h += `<span class="chip">${esc(q.difficulty)}</span>`;
-  /* D-12: the chip only ships when a reader sits behind this page, and a
-     LESSON-REF that does not resolve to a served heading (--force) has its
-     slug omitted rather than linking to a dead anchor. */
-  if(q.lesson_slug && LESSON_BASE
-     && (!BOOT.lesson_slugs || BOOT.lesson_slugs.indexOf(q.lesson_slug) >= 0))
-    h += `<a class="chip lesson" href="${LESSON_BASE}#${q.lesson_slug}"
-          target="_blank" rel="noopener">__LESSON_LABEL__</a>`;
-  return h;
-}
-
 function renderItem(view){
-  if(!view || !view.item){ finish((view||{}).summary); return; }
+  if(!view || !view.item){
+    if(view && view.summary){ finish(view.summary); return; }
+    emptyState();
+    return;
+  }
   i = view.position || 0;
   total = view.total || 0;
   document.getElementById("pos").textContent = i + 1;
   document.getElementById("tot").textContent = total;
-  document.getElementById("ok").textContent = score;
-  document.getElementById("rail").style.width =
-    (total ? (i/total*100) : 0) + "%";
   shownAt = performance.now();
   const q = view.item;
+  setContext(q);
   const card = document.createElement("div");
   card.className = "card";
-  card.innerHTML = `<div class="meta">${chips(q)}</div><p class="stem">${esc(q.stem)}</p>`;
+  card.innerHTML = `<h1 class="stem">${esc(q.stem)}</h1>`;
   const body = document.createElement("div");
   card.appendChild(body);
+  const fb = document.createElement("div");
+  fb.className = "feedback";
+  fb.setAttribute("role", "status");
+  fb.setAttribute("aria-live", "polite");
+  card.appendChild(fb);
   const act = document.createElement("div");
   act.className = "act";
   card.appendChild(act);
@@ -584,9 +706,13 @@ function renderItem(view){
   host.appendChild(card);
   ({mc:asChoice, multi:asChoice, table:asAssign, dnd:asAssign, build:asBuild,
     short:asShort}[q.type])(q, body, act, card);
-  setStatus("");
+  /* Restore focus to the first meaningful control of the new item. */
+  const first = card.querySelector("input, button, textarea");
+  if(first && !REDUCED) first.focus({preventScroll:true});
+  card.scrollIntoView({block:"start", behavior: REDUCED ? "auto" : "smooth"});
 }
 
+/* ---- multiple choice (native radio) + multiple response (native checkboxes) */
 const PINNED = /^\s*(all|none)\s+of\s+the\s+above|^\s*both\s+[A-H]\s+and\s+[A-H]/i;
 
 function asChoice(q, body, act, card){
@@ -597,34 +723,54 @@ function asChoice(q, body, act, card){
   const shown = shuffled(free).concat(pins);
   shown.forEach((o,n)=> o.label = LETTERS[n]);
 
-  const picked = [];   // holds ORIGINAL keys; display letters are cosmetic
-  const wrap = document.createElement("div");
-  wrap.className = "opts";
-  const btns = {};
-  let submit;
+  const fieldset = document.createElement("fieldset");
+  fieldset.className = "choices";
+  const legend = document.createElement("legend");
+  legend.textContent = multi ? `Select ${want}` : "Choose one";
+  fieldset.appendChild(legend);
+  const picked = [];       // holds ORIGINAL keys
+  const boxes = {};
+  let submit = null;
   shown.forEach(o=>{
-    const b = document.createElement("button");
-    b.className = "opt"; b.type = "button"; b.setAttribute("aria-pressed","false");
-    b.innerHTML = `<span class="k">${o.label}</span><span class="ot">${esc(o.text)}</span>`;
-    b.onclick = ()=>{
-      if(!multi){ picked.length=0; picked.push(o.key); go(); return; }
-      const at = picked.indexOf(o.key);
-      if(at>=0) picked.splice(at,1);
-      else if(picked.length < want) picked.push(o.key);
-      shown.forEach(x=>btns[x.key].setAttribute("aria-pressed",
-        picked.includes(x.key)?"true":"false"));
-      submit.disabled = picked.length !== want;
+    const label = document.createElement("label");
+    label.className = "choice";
+    const input = document.createElement("input");
+    input.type = multi ? "checkbox" : "radio";
+    input.name = "answer";
+    input.value = o.key;
+    const k = document.createElement("span");
+    k.className = "k"; k.textContent = o.label;
+    const ot = document.createElement("span");
+    ot.className = "ot"; ot.innerHTML = esc(o.text);
+    label.append(input, k, ot);
+    input.onchange = ()=>{
+      if(!multi){
+        picked.length = 0; picked.push(o.key);
+        if(submit) submit.disabled = false;
+        return;
+      }
+      if(input.checked){
+        if(picked.length >= want){ input.checked = false; return; }
+        picked.push(o.key);
+      } else {
+        const at = picked.indexOf(o.key);
+        if(at >= 0) picked.splice(at, 1);
+      }
+      if(submit) submit.disabled = picked.length !== want;
     };
-    btns[o.key]=b; wrap.appendChild(b);
+    boxes[o.key] = {label, input};
+    fieldset.appendChild(label);
   });
-  body.appendChild(wrap);
-  if(multi){
-    submit = mkSubmit(act, `select ${want}`);
-    submit.onclick = go;
+  body.appendChild(fieldset);
+  submit = mkSubmit(act, multi ? `select ${want}` : "choose one");
+  submit.disabled = multi;
+  submit.onclick = go;
+  function revert(){
+    shown.forEach(o=>{ boxes[o.key].input.disabled = false; });
+    if(!multi) submit.disabled = false;
   }
-  function revert(){ shown.forEach(o=>{ btns[o.key].disabled = false; }); }
   function go(){
-    shown.forEach(o=>{ btns[o.key].disabled = true; });
+    shown.forEach(o=>{ boxes[o.key].input.disabled = true; });
     if(submit) submit.remove();
     settle(q, multi ? picked.slice() : picked[0], card, act, paint, revert);
   }
@@ -633,15 +779,15 @@ function asChoice(q, body, act, card){
     const correct = ex.correct || [];
     const sole = correct.length === 1 ? correct[0] : null;
     shown.forEach(o=>{
-      const b = btns[o.key];
-      if(correct.includes(o.key)) b.classList.add("right");
-      else if(picked.includes(o.key)) b.classList.add("wrong");
+      const {label, input} = boxes[o.key];
+      if(correct.includes(o.key)) label.classList.add("right");
+      else if(picked.includes(o.key)) label.classList.add("wrong");
       const line = (o.key === sole && ex.why) ? ex.why : ((ex.da||{})[o.key] || "");
       if(line){
         const r = document.createElement("span");
         r.className = "rat";
         r.textContent = line;      // textContent, so a bank cannot inject markup
-        b.querySelector(".ot").appendChild(r);
+        label.querySelector(".ot").appendChild(r);
       }
     });
     v.skipWhy = !!(sole && ex.why);
@@ -753,7 +899,7 @@ function asShort(q, body, act, card){
 
 function mkSubmit(act, hint){
   const b = document.createElement("button");
-  b.className="go"; b.type="button"; b.textContent="Check"; b.disabled=true;
+  b.className="go"; b.type="button"; b.textContent="Submit answer"; b.disabled=true;
   const h = document.createElement("span"); h.className="hint"; h.textContent=hint;
   act.appendChild(b); act.appendChild(h);
   return b;
@@ -765,6 +911,7 @@ function close(q, card, act, v){
   const pending = (right === null || right === undefined);
   if(!pending){ autoTotal++; if(right){ score++; } else { miss.push({q, ex}); } }
   act.innerHTML = "";
+  const fb = feedbackFor(card);
   const exp = document.createElement("div");
   exp.className = "exp";
   const blk = (t,val)=> val ? `<div class="blk"><h4>${t}</h4><div>${esc(val)}</div></div>` : "";
@@ -791,7 +938,8 @@ function close(q, card, act, v){
   }
   if(ex.trap) h += `<div class="blk trap"><h4>Trap</h4><div>${esc(ex.trap)}</div></div>`;
   exp.innerHTML = h;
-  card.appendChild(exp);
+  fb.innerHTML = "";
+  fb.appendChild(exp);
   const next = document.createElement("button");
   next.className = "go"; next.type = "button";
   const nxt = v.next || {};
@@ -813,7 +961,6 @@ function finish(summary){
   const correct = s.auto_correct || 0;
   const pend = s.pending_manual || 0;
   const pct = auto ? Math.round(correct/auto*100) : 0;
-  document.getElementById("rail").style.width = "100%";
   let h = `<div class="done"><div class="score mono">${correct}/${auto}
     <span style="font-size:17px;color:var(--mut)"> &middot; ${pct}% auto-marked</span></div>`;
   if(pend) h += `<p style="margin:12px 0 0;color:var(--warn)"><b>${pend} short
@@ -832,27 +979,43 @@ function finish(summary){
   } else {
     h += `<p style="margin-top:14px">Clean sweep. Nothing to harvest.</p>`;
   }
-  h += `</div>`;
+  h += `<div class="act"><a class="go ghost" style="text-decoration:none"
+        href="/report">View report</a></div></div>`;
   host.innerHTML = h;
-  setStatus("");
-  window.scrollTo({top:0, behavior:"smooth"});
+  window.scrollTo({top:0, behavior: REDUCED ? "auto" : "smooth"});
+}
+
+/* ---- empty session: no item to show --------------------------------------- */
+function emptyState(){
+  host.innerHTML = `<div class="done empty">
+    <p><b>This session has no question ready.</b></p>
+    <p style="color:var(--mut)">No items match this sitting&rsquo;s filters or
+      the bank has nothing to serve.</p>
+    <div class="act"><a class="go ghost" style="text-decoration:none"
+          href="/report">View report</a>
+      <a class="go ghost" style="text-decoration:none"
+          href="/settings">Filters / settings</a></div>
+  </div>`;
 }
 
 /* ---- start: one /api/start call bootstraps the whole sitting -------------- */
 async function start(){
-  setStatus("Loading…");
+  host.innerHTML = `<div class="card"><div class="feedback" role="status"
+      aria-live="polite"><div class="status">Loading&hellip;</div></div></div>`;
   try {
     const view = await api("/api/start",
       {bank: BOOT.bank, count: BOOT.count, mode: BOOT.mode});
     sessionId = view.session_id;
     renderItem(view);
   } catch(err){
-    setStatus("Couldn't load this session. Try again.");
-    host.innerHTML = "";
-    const b = document.createElement("button");
-    b.className = "go"; b.type = "button"; b.textContent = "Try again";
-    b.onclick = ()=>{ host.innerHTML = ""; start(); };
-    host.appendChild(b);
+    host.innerHTML = `<div class="done empty">
+      <p><b>This session has no question ready.</b></p>
+      <p style="color:var(--mut)">Couldn't load this session (${esc(err.message)}).
+        Your bank is still here; try again.</p>
+      <div class="act"><button class="go" type="button" id="retry">Try again</button></div>
+    </div>`;
+    const b = document.getElementById("retry");
+    b.onclick = ()=>{ start(); };
     b.focus();
   }
 }

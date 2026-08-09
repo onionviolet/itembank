@@ -149,12 +149,15 @@ def check_semantic_helpers():
 
     page = served_quiz_html()
     dom = semantic_dom(page)
-    presentation_roundtrip.assert_single_h1(dom)      # current title header
-    presentation_roundtrip.assert_landmark(dom, "header")
-    # Current served output builds its controls in JavaScript (the Task 3
-    # RED target is native controls present in the served DOM itself); Wave 0
-    # only asserts the response host exists and the page really is a
-    # script-driven client.
+    presentation_roundtrip.assert_landmark(dom, "nav")
+    # The question hierarchy is JS-rendered (one item at a time from the API),
+    # so Wave 0 asserts the shell: the context region, the details disclosure,
+    # the response host, and that the page really is a script-driven client.
+    if not any(n["tag"] == "nav" and "data-surface-context" in n["attrs"]
+               for n in dom.all("nav")):
+        fail("served sentinel page has no data-surface-context region")
+    if len(dom.details()) != 1:
+        fail("served sentinel page must carry exactly one details disclosure")
     if dom.find("div", id="host") is None:
         fail("served sentinel page has no #host response container")
     if 'createElement("button")' not in page:
@@ -163,10 +166,108 @@ def check_semantic_helpers():
         fail("served sentinel page carries no shared --accent theme block")
 
 
+def check_question_hierarchy():
+    """Phase 4 Task 3: one sticky context line, one details disclosure, a
+    single dominant stem h1, native controls, a reserved feedback region, and
+    one primary next action per state (D-01 through D-03).
+    """
+    page = served_quiz_html()
+    dom = semantic_dom(page)
+
+    # Exactly one sticky context region with the four orientation fields.
+    contexts = [n for n in dom.all("nav")
+                if "data-surface-context" in n["attrs"]]
+    if len(contexts) != 1:
+        fail("expected exactly one data-surface-context region, got %d"
+             % len(contexts))
+    ctx = contexts[0]
+    bank_span = dom.find("span", id="cx-bank")
+    if bank_span is None or "Sentinel bank" not in bank_span["text"]:
+        fail("context line missing bank context: %r"
+             % (bank_span["text"] if bank_span else None))
+    if not any(n["tag"] == "span" and "Item" in n["text"]
+               for n in dom.all("span")):
+        fail("context line missing item N of M progress")
+    if not dom.find("span", id="cx-objective"):
+        fail("context line missing the objective slot")
+    if not dom.find("span", id="cx-mode"):
+        fail("context line missing the session-mode slot")
+
+    # Secondary metadata lives in exactly one native details disclosure.
+    det = dom.details()
+    if len(det) != 1:
+        fail("expected exactly one details disclosure, got %d" % len(det))
+    summaries = [n for n in dom.all("summary")]
+    if not summaries or "Session details" not in summaries[0]["text"]:
+        fail("details disclosure missing the locked summary label")
+
+    # DOM order in the served client: context nav, then h1 stem, response
+    # control (appended into body), role=status feedback region, then the
+    # next-action container. The renderItem assembly proves the structural
+    # order: stem h1 -> body(controls) -> feedback -> act.
+    served_js_start = page.find('<script id="served">')
+    served_js = page[served_js_start:]
+    rstart = served_js.find("function renderItem(")
+    if rstart < 0:
+        fail("served client has no renderItem function")
+    body_js = served_js[rstart:]
+    h1_at = body_js.find('<h1 class="stem">')
+    fb_at = body_js.find('fb.className = "feedback"')
+    fb_role_at = body_js.find('fb.setAttribute("role", "status")')
+    fb_append_at = body_js.find("card.appendChild(fb)")
+    act_append_at = body_js.find("card.appendChild(act)")
+    if not (0 < h1_at < fb_at < fb_role_at < fb_append_at < act_append_at):
+        fail("served client DOM order is not context, h1, control, feedback, "
+             "action (positions %d %d %d %d %d)"
+             % (h1_at, fb_at, fb_role_at, fb_append_at, act_append_at))
+
+    # Native controls: radio for mc, checkbox for multi, all 44px targets.
+    if '"radio"' not in served_js or '"checkbox"' not in served_js:
+        fail("served client must use native radio/checkbox inputs")
+    if 'input.type = multi ? "checkbox" : "radio"' not in served_js:
+        fail("served client must choose native input type per item kind")
+    css = page[page.find("__THEME__"):]
+    css = page[page.find("<style>") + len("<style>"):page.find("</style>")]
+    for rule in (".choice{", ".opt{", "button.go{", "min-height:44px"):
+        if rule not in css:
+            fail("controls lack a 44px target rule (%r)" % rule)
+
+    # Stem typography: 28px wide, 20px narrow; feedback 96px/120px.
+    if "h1.stem{font-size:28px" not in css:
+        fail("stem h1 must be 28px at desktop")
+    if "h1.stem{font-size:20px" not in css:
+        fail("stem h1 must reduce to 20px at narrow width")
+    if ".feedback{min-height:96px" not in css:
+        fail("feedback region must reserve 96px at desktop")
+    if ".feedback{min-height:120px" not in css:
+        fail("feedback region must reserve 120px at narrow width")
+
+    # Reduced motion disables transitions and smooth scrolling.
+    rm = presentation_roundtrip.reduced_motion_block(css)
+    if rm is None or "scroll-behavior:auto" not in rm:
+        fail("reduced-motion block must disable smooth scrolling")
+
+    # One primary next action per state, and the locked state copy.
+    for marker in ('b.textContent="Submit answer"',
+                   "Checking answer&hellip;",
+                   "Couldn't check that answer. Your selection",
+                   "This session has no question ready.",
+                   'b.textContent = "Try again"'):
+        if marker not in served_js:
+            fail("served client missing state copy/action: %r" % marker)
+
+    # The h1 is the only heading in the shell (the old page title is gone).
+    hs = dom.headings()
+    if hs != []:
+        fail("served shell must carry no static headings (stem is JS-rendered), "
+             "got %r" % hs)
+
+
 def main():
     check_study_and_export()
     check_semantic_helpers()
-    print("study and export surfaces + Wave 0 semantic/sentinel helpers: ok")
+    check_question_hierarchy()
+    print("study and export surfaces + Phase 4 question hierarchy: ok")
 
 
 if __name__ == "__main__":

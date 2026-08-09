@@ -22,6 +22,8 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
     mix = ", ".join("%d %s" % (v, k) for k, v in counts.most_common())
     sub = "%d items &middot; %s &middot; dichotomous scoring" % (len(qs), mix)
     sub += " &middot; answers recorded" if serve else " &middot; nothing recorded"
+    ctx_bank = html.escape(title)
+    ctx_mode = html.escape(mode or "")
     # Served mode (SURF-02): the page receives bootstrap metadata only --
     # allowlisted bank stem, item count, configured session mode, and the
     # resolving lesson-slug set -- plus an empty item array. The browser
@@ -69,6 +71,8 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                  .replace("__SERVE__", "true" if serve else "false")
                  .replace("__TITLE__", html.escape(title))
                  .replace("__SUB__", sub)
+                 .replace("__CTX_BANK__", ctx_bank)
+                 .replace("__CTX_MODE__", ctx_mode)
                  .replace("__OFFLINE_JS__", "" if serve else offline_js)
                  .replace("__SERVED_JS__", served_js if serve else "")
                  .replace("__BOOT__", json.dumps(boot, ensure_ascii=False))
