@@ -263,7 +263,7 @@ Plans:
   4. The accent colour is set from an OS colour picker, with light/dark pairs computed, contrast-checked, and correct/incorrect kept colour-blind safe.
   5. Editing a `day` plan in-page under an optimistic-concurrency guard does not silently overwrite an edit made in Obsidian at the same time — the conflict is surfaced, not lost.
 
-**Plans**: 2/6 plans executed
+**Plans**: 3/6 plans executed
 
 Plans:
 
@@ -277,7 +277,7 @@ Plans:
 
 **Wave 2** *(blocked on 04-02)*
 
-- [ ] 04-03-PLAN.md — Additive source-accent schema, accessible palette derivation, and guarded native picker
+- [x] 04-03-PLAN.md — Additive source-accent schema, accessible palette derivation, and guarded native picker
 
 **Wave 3** *(blocked on 04-01 and 04-03)*
 
@@ -532,7 +532,7 @@ for what can run concurrently.
 | 1. Evidence Spine & Protocol Foundation | 11/11 | Complete    | 2026-08-07 |
 | 2. Daemon Consolidation & Settings Foundation | 6/6 | Complete    | 2026-08-08 |
 | 3. Lesson Format & In-App Reader | 6/6 | In Progress|  |
-| 4. Surface Redesign & Theming | 2/6 | In Progress|  |
+| 4. Surface Redesign & Theming | 3/6 | In Progress|  |
 | 5. Check Item Type & Code Editor | 0/TBD | Not started | - |
 | 6. Hint Ladder, Cursor-Hold & Feedback Modes | 0/TBD | Not started | - |
 | 7. Selection Engine | 0/6 | Planned | - |

@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: Surface Redesign & Theming
 status: executing
-stopped_at: Completed 04-02-PLAN.md
-last_updated: "2026-08-09T03:32:32.737Z"
+stopped_at: Completed 04-03-PLAN.md
+last_updated: "2026-08-09T03:50:38.260Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 02.1 execution started
 progress:
   total_phases: 13
   completed_phases: 4
   total_plans: 79
-  completed_plans: 34
+  completed_plans: 35
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 ## Current Position
 
 Phase: 04 (Surface Redesign & Theming) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-08-08 — Phase 04 execution started
 
-Progress: [████░░░░░░] 43%
+Progress: [████░░░░░░] 44%
 
 ## Performance Metrics
 
@@ -90,6 +90,7 @@ Progress: [████░░░░░░] 43%
 | Phase 03 P04 | 313 | 2 tasks | 4 files |
 | Phase 03 P03-05 | 8 | 2 tasks | 4 files |
 | Phase 04 P02 | 21 | 2 tasks | 4 files |
+| Phase 04 P04-03 | 10 | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -177,6 +178,11 @@ Recent decisions affecting current work:
 - [Phase 04]: [Phase 4] 04-02: force is a CLI-level second confirmation (--force + --confirm-force OVERWRITE + the conflict's current revision), never a byte-gate bypass -- save(force=True) still requires SHA-256 equality with the fresh bytes and still fails on a third concurrent version
 - [Phase 04]: [Phase 4] 04-02: escaped pipes display as literal | and submitted pipes are stored as \| with backslashes escaped first, so _display(_encode(value)) == value; unchanged cells keep their raw bytes because only submitted cells are patched
 - [Phase 04]: [Phase 4] 04-02: tests prove exact-byte preservation with a common-prefix/suffix single_replacement helper because difflib SequenceMatcher opcodes are alignment-dependent and non-minimal
+- [Phase ?]: 04-03: Accent hex format enforced by theme.py normalization plus schema minLength 7 -- schema_validate.py supports no pattern keyword, and extending the shared validator was outside the plan's file scope.
+- [Phase ?]: 04-03: The derived dark accent-soft for the default teal lands exactly on the card color because that is the nearest blend meeting both 4.5:1 pairings -- soft derivation is contrast-first and honestly reported.
+- [Phase ?]: 04-03: THEME_CSS is now a computed constant from theme_css(system default); the light warn token moves from #b5760a to the binding #8a5900.
+- [Phase ?]: 04-03: The picker fallback reason string is the single source of the exact human copy in both structured and human output.
+- [Phase ?]: 04-03: D-07 resolves in favor of one source plus deterministic enforced derivation -- no manual per-mode override path exists in the persisted contract.
 
 ### Pending Todos
 
@@ -216,6 +222,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-09T03:32:16.554Z
-Stopped at: Completed 04-02-PLAN.md
+Last session: 2026-08-09T03:50:38.226Z
+Stopped at: Completed 04-03-PLAN.md
 Resume file: None
