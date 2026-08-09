@@ -496,9 +496,9 @@ THE LESSON SECTION
   name an arbitrary file on the machine. When a bank carries both an inline
   section and an external directive, the external source takes precedence.
 
-  An item's [LESSON-REF:] tag names readable heading text, not an id, and one
-  item carries at most one reference; the tag itself is listed above with the
-  other shared fields.
+  An item's [LESSON-REF:] tag names readable heading text, not an id; if an
+  item carries more than one [LESSON-REF:] tag, only the first is read. The
+  tag itself is listed above with the other shared fields.
 
 THE SLUG RULE
   A heading's slug is its text lowercased, whitespace collapsed, punctuation
