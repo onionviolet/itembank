@@ -19,6 +19,7 @@ sys.path.insert(0, ROOT)
 from surfaces import settings                                # noqa: E402
 from surfaces.theme import THEME_CSS                         # noqa: E402
 
+ITEMBANK = os.path.join(ROOT, "itembank.py")
 SETTINGS_ON_DISK = os.path.join(ROOT, "itembank.json")
 
 
@@ -282,6 +283,156 @@ def check_render_collector():
         fail("theme_blocks found no <style> block in the built quiz page")
 
 
+# ---- plan 04-03 Task 1: deterministic, contrast-checked palette derivation --
+
+def test_derive_theme_deterministic_and_normalized():
+    from surfaces.theme import derive_theme
+    d1 = derive_theme("#0E6E62")
+    d2 = derive_theme("#0e6e62")
+    if json.dumps(d1, sort_keys=True) != json.dumps(d2, sort_keys=True):
+        fail("derive_theme is not byte-stable across runs or source casing")
+    if d1["source"] != "#0e6e62":
+        fail("derive_theme did not normalize the source to lowercase #RRGGBB: %r"
+             % d1["source"])
+    if d1 != derive_theme("#0e6e62"):
+        fail("derive_theme is not deterministic for the same input")
+    for mode in ("light", "dark"):
+        for token in ("accent", "accent_soft", "bg", "ink", "card", "chip",
+                      "line", "ok", "ok_bg", "bad", "bad_bg", "warn"):
+            if token not in d1[mode]:
+                fail("%s mode is missing token %r" % (mode, token))
+
+
+def test_derived_accents_meet_contrast_and_report_correction():
+    import colorsys
+    from surfaces.theme import derive_theme, theme_preview
+    for source in ("#0e6e62", "#ffff00", "#000000", "#ffffff", "#c00040"):
+        d = derive_theme(source)
+        for mode in ("light", "dark"):
+            acc = d[mode]["accent"]
+            for bg_name in ("card", "bg"):
+                ratio = contrast_ratio(acc, d[mode][bg_name])
+                if ratio < 4.5:
+                    fail("accent %s on %s (%s mode) is %.2f:1, below 4.5:1"
+                         % (acc, bg_name, mode, ratio))
+    # An inaccessible source is corrected along the same hue/lightness family
+    # while the preview retains and reports the original source (D-06).
+    p = theme_preview("#ffff00")
+    if p["source"] != "#ffff00":
+        fail("preview did not retain the original source: %r" % p["source"])
+    if not p["adjusted_modes"]:
+        fail("preview of an inaccessible source reports no adjustment")
+    adjusted = p["light"]["accent"]
+
+    def _hue(hex_color):
+        rgb = [int(hex_color[i:i + 2], 16) / 255.0 for i in (1, 3, 5)]
+        h, _, _ = colorsys.rgb_to_hls(*rgb)
+        return h
+
+    delta = abs(_hue(p["source"]) - _hue(adjusted))
+    if min(delta, 1.0 - delta) > 0.02:
+        fail("corrected accent hue %.3f drifted from source hue %.3f"
+             % (_hue(adjusted), _hue(p["source"])))
+    if not p["notices"]:
+        fail("adjusted preview carries no human-readable notice")
+
+
+def test_semantic_tokens_independent_and_contrast_checked():
+    from surfaces.theme import derive_theme
+    a = derive_theme("#0e6e62")
+    b = derive_theme("#c00040")
+    for mode in ("light", "dark"):
+        for tok in ("ok", "ok_bg", "bad", "bad_bg", "warn"):
+            if a[mode][tok] != b[mode][tok]:
+                fail("semantic token %s/%s differs across unrelated accents"
+                     % (mode, tok))
+        for fg, bg in (("ok", "ok_bg"), ("bad", "bad_bg"),
+                       ("warn", "bg"), ("warn", "card")):
+            if contrast_ratio(a[mode][fg], a[mode][bg]) < 4.5:
+                fail("%s on %s (%s mode) is below the 4.5:1 floor"
+                     % (fg, bg, mode))
+        verdicts = (a[mode]["ok"], a[mode]["bad"], a[mode]["warn"],
+                    a[mode]["accent"])
+        if len(set(verdicts)) != len(verdicts):
+            fail("semantic verdict tokens are not pairwise distinct from the "
+                 "accent in %s mode" % mode)
+
+
+def test_theme_css_modes():
+    from surfaces.theme import theme_css
+    sys_css = theme_css({"theme": "system", "accent": {"source": "#0e6e62"}})
+    light_css = theme_css({"theme": "light", "accent": {"source": "#0e6e62"}})
+    dark_css = theme_css({"theme": "dark", "accent": {"source": "#0e6e62"}})
+    parsed_sys = parse_css_tokens(sys_css)
+    if ":root" not in parsed_sys:
+        fail("system CSS has no :root block")
+    dark_blocks = [sel for sel in parsed_sys if "prefers-color-scheme:dark" in sel]
+    if len(dark_blocks) != 1:
+        fail("system CSS must emit exactly one prefers-color-scheme:dark branch")
+    parsed_light = parse_css_tokens(light_css)
+    if len(parsed_light) != 1 or ":root" not in parsed_light:
+        fail("light CSS must emit only the :root token set")
+    parsed_dark = parse_css_tokens(dark_css)
+    if len(parsed_dark) != 1 or ":root" not in parsed_dark:
+        fail("dark CSS must emit only the :root token set")
+    if parsed_dark[":root"] != parsed_sys[dark_blocks[0]]:
+        fail("forced dark tokens differ from the system dark branch")
+    if parsed_light[":root"]["--accent"] != parsed_sys[":root"]["--accent"]:
+        fail("forced light accent differs from the system light branch")
+
+
+def test_palette_matches_binding_values():
+    from surfaces.theme import derive_theme
+    d = derive_theme("#0e6e62")
+    light_base = {"bg": "#f3f5f4", "ink": "#171d1c", "card": "#ffffff",
+                  "chip": "#eef2f1", "line": "#dfe5e3"}
+    dark_base = {"bg": "#0e1413", "ink": "#e4ebe9", "card": "#161e1d",
+                 "chip": "#1d2726", "line": "#26312f"}
+    light_sem = {"ok": "#1b7a3d", "ok_bg": "#e8f4ec", "bad": "#b4272b",
+                 "bad_bg": "#fbebeb", "warn": "#8a5900"}
+    dark_sem = {"ok": "#4fbf74", "ok_bg": "#11291b", "bad": "#f0666a",
+                "bad_bg": "#2b1416", "warn": "#e0a23a"}
+    for name, expected in (("light", light_base), ("dark", dark_base)):
+        for token, value in expected.items():
+            if d[name][token] != value:
+                fail("%s base token %s = %r, expected %r"
+                     % (name, token, d[name][token], value))
+    for name, expected in (("light", light_sem), ("dark", dark_sem)):
+        for token, value in expected.items():
+            if d[name][token] != value:
+                fail("%s semantic token %s = %r, expected %r"
+                     % (name, token, d[name][token], value))
+
+
+def test_theme_preview_cli_readonly():
+    base = tempfile.mkdtemp()
+    try:
+        r = subprocess.run(
+            [sys.executable, ITEMBANK, "theme", "preview", "#0e6e62",
+             "--base", base],
+            capture_output=True, text=True, encoding="utf-8")
+        if r.returncode != 0:
+            fail("itembank theme preview exited %d: %s"
+                 % (r.returncode, r.stdout + r.stderr))
+        low = r.stdout.lower()
+        for needle in ("source", "light", "dark", "accent", "soft", "ratio"):
+            if needle not in low:
+                fail("preview output is missing %r: %r" % (needle, r.stdout))
+        if os.path.exists(os.path.join(base, "itembank.json")):
+            fail("itembank theme preview wrote a settings file")
+        adjusted = subprocess.run(
+            [sys.executable, ITEMBANK, "theme", "preview", "#ffff00",
+             "--base", base],
+            capture_output=True, text=True, encoding="utf-8")
+        if adjusted.returncode != 0:
+            fail("adjusted preview exited %d: %s"
+                 % (adjusted.returncode, adjusted.stdout + adjusted.stderr))
+        if "Adjusted for readable contrast" not in adjusted.stdout:
+            fail("adjusted preview output carries no correction notice")
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+
 def main():
     check_token_extractor()
     check_contrast()
@@ -289,10 +440,18 @@ def main():
     check_picker_mocks()
     check_child_seam()
     check_render_collector()
+    test_derive_theme_deterministic_and_normalized()
+    test_derived_accents_meet_contrast_and_report_correction()
+    test_semantic_tokens_independent_and_contrast_checked()
+    test_theme_css_modes()
+    test_palette_matches_binding_values()
+    test_theme_preview_cli_readonly()
     print("ok: theme Wave 0 harness -- token/contrast extractors, settings "
           "bases, deterministic picker mocks, source/.pyz child seam, and "
           "cross-surface render collector all self-check green against "
-          "current theme/config fixtures")
+          "current theme/config fixtures; plan 04-03 derivation, contrast, "
+          "semantic-independence, mode-CSS and read-only preview assertions "
+          "pass")
     return 0
 
 
