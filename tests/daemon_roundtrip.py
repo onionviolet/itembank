@@ -230,19 +230,13 @@ def token_store():
     return {"issue": issue, "consume": consume, "state": state}
 
 
-def served_post_path(quiz_url, page):
-    """The answer-POST target the served page's own script carries, resolved
-    against the page's URL -- reading this off the page rather than
-    assuming the `/quiz/<stem>/answer` convention is what gives the
-    isolation and answer-scoring checks below actual teeth against the
-    `__POST__` substitution: an unsubstituted placeholder resolves to a
-    path nothing serves, and posting there fails loudly instead of the
-    check silently posting to a URL it guessed.
+def legacy_answer_url(quiz_url):
+    """The legacy bank-scoped answer route (`/quiz/<stem>/answer`) the old
+    browser flow posted to. The new served flow uses /api/start + /api/submit,
+    but the legacy route must stay compatible (success criteria), so these
+    checks still drive it directly.
     """
-    m = re.search(r'fetch\("([^"]+)"', page)
-    if not m:
-        fail("could not find the answer-POST target in the served page")
-    return urllib.parse.urljoin(quiz_url, m.group(1))
+    return quiz_url.rstrip("/") + "/answer"
 
 
 def write_today_plan(path, emt_task="synthetic EMT task for today"):
@@ -354,6 +348,8 @@ def check_quiz_no_key():
     try:
         _, page = get(url + "quiz/sample_bank")
         qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
+        serve_roundtrip.check_served_boot(page, qs, "sample_bank", "practice")
+        serve_roundtrip.check_served_page_js(page, "sample_bank")
         serve_roundtrip.check_no_key(page, qs)
     finally:
         proc.terminate()
@@ -367,7 +363,7 @@ def check_answer_scoring():
         qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
         quiz_url = url + "quiz/sample_bank"
         _, page = get(quiz_url)
-        answer_url = served_post_path(quiz_url, page)
+        answer_url = legacy_answer_url(quiz_url)
         first = qs[0]
         bad = post(answer_url,
                    {"id": first["id"], "response": serve_roundtrip.wrong_answer(first)})
@@ -399,7 +395,7 @@ def check_two_bank_isolation():
         qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
         quiz_url = url + "quiz/alpha_bank"
         _, page = get(quiz_url)
-        answer_url = served_post_path(quiz_url, page)
+        answer_url = legacy_answer_url(quiz_url)
         if "alpha_bank" not in answer_url:
             fail("alpha_bank's served page posts its answer to %r, which is not "
                  "scoped to alpha_bank" % answer_url)
@@ -947,6 +943,119 @@ def check_api_reject_path_fields():
             if exc.code != 404:
                 fail("an unknown session_id on /api/next returned HTTP %d, expected 404"
                      % exc.code)
+    finally:
+        proc.terminate()
+
+
+def check_served_api_flow():
+    """Test 2: the served quiz is a client of the canonical API -- the page's
+    boot metadata drives POST /api/start, and POST /api/submit returns the
+    server-issued score, explanation and next state (SURF-02).
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
+        quiz_url = url + "quiz/sample_bank"
+        _, page = get(quiz_url)
+        boot = serve_roundtrip.served_boot(page)
+        started = post(url + "api/start",
+                       {"bank": boot["bank"], "count": boot["count"],
+                        "mode": boot["mode"]})
+        if "correct" in started["item"] or "explain" in started["item"]:
+            fail("POST /api/start's item carries answer material")
+        session_id = started["session_id"]
+        answer = api_correct_answer(api_by_id(), started["item"])
+        submitted = post(url + "api/submit",
+                         {"session_id": session_id, "answer": answer})
+        if submitted["score"] is not True:
+            fail("served API flow scored the correct answer %r, expected True"
+                 % submitted["score"])
+        if "explain" not in submitted:
+            fail("served API flow returned no explanation payload")
+        if "next" not in submitted:
+            fail("served API flow returned no next state")
+        if submitted["evidence"]["status"] != "recorded":
+            fail("served API flow did not record the response: %r"
+                 % submitted["evidence"])
+    finally:
+        proc.terminate()
+
+
+def check_api_forged_fields():
+    """Test 3: `/api/submit` rejects every client field that claims an item
+    id, score, key, explanation, bank path, or output path -- the current item
+    is resolved from the allowlisted session, never from client authority.
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        started = post(url + "api/start",
+                       {"bank": "sample_bank", "count": 1, "seed": 0})
+        session_id = started["session_id"]
+        for field in ("item_id", "score", "key", "explanation",
+                      "bank_path", "out", "session"):
+            try:
+                post(url + "api/submit", {"session_id": session_id,
+                                          "answer": "A", field: "forged"})
+                fail("api/submit accepted a forged %r field" % field)
+            except urllib.error.HTTPError as exc:
+                if exc.code != 400:
+                    fail("forged %r on api/submit returned HTTP %d, expected 400"
+                         % (field, exc.code))
+    finally:
+        proc.terminate()
+
+
+def check_serve_attempt_refresh():
+    """Test 4: `itembank serve --out attempt.md` still refreshes the configured
+    attempt view atomically after API submissions, and its progress line is
+    based on the API session id, not a stale page-owned counter.
+    """
+    out = os.path.join(tempfile.mkdtemp(), "attempt.md")
+    proc = subprocess.Popen(
+        [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "serve", BANK,
+         "--no-open", "--port", "0", "--out", out],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    lines = []
+    threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
+                     daemon=True).start()
+    base = None
+    for _ in range(60):
+        time.sleep(0.1)
+        m = re.search(r"http://127\.0\.0\.1:\d+/", "".join(lines))
+        if m:
+            base = m.group(0)
+            break
+    if not base:
+        proc.terminate()
+        fail("scoped serve never printed a URL. Output was:\n" + "".join(lines))
+    try:
+        qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
+        _, page = get(base + "quiz/sample_bank")
+        boot = serve_roundtrip.served_boot(page)
+        started = post(base + "api/start",
+                       {"bank": boot["bank"], "count": boot["count"],
+                        "mode": boot["mode"]})
+        session_id = started["session_id"]
+        answer = api_correct_answer(api_by_id(), started["item"])
+        submitted = post(base + "api/submit",
+                         {"session_id": session_id, "answer": answer})
+        if submitted["score"] is not True:
+            fail("scoped serve API submit scored %r, expected True"
+                 % submitted["score"])
+
+        text = open(out, encoding="utf-8").read()
+        if "[auto: correct]" not in text:
+            fail("configured attempt view was not refreshed after the API submit")
+        output = "".join(lines)
+        if "1/%d answered" % len(qs) not in output:
+            fail("scoped serve progress did not print the API session count: %r"
+                 % output[-400:])
+        if session_id not in output:
+            fail("scoped serve progress is not based on the API session id")
     finally:
         proc.terminate()
 
@@ -1601,6 +1710,9 @@ def main():
         check_api_bank_not_found,
         check_api_start_traversal,
         check_api_reject_path_fields,
+        check_served_api_flow,
+        check_api_forged_fields,
+        check_serve_attempt_refresh,
         check_wave0_helpers,
         check_api_malformed_json,
         check_api_cli_parity,

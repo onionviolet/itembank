@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Assert that `itembank serve` scores in the process and writes answers to disk.
+"""Assert that `itembank serve` scores in the process, writes answers to disk,
+and that the served page is a client of the canonical `/api/*` JSON session
+API (SURF-02) -- no key, no scoring implementation, and no full bank item
+array in the served source.
 
 Two regressions guarded here, both of which fail silently in the worst way.
 
@@ -7,22 +10,25 @@ First, persistence: the static `build` page cannot save anything, so a sitting
 used to vanish with the tab. If the write half breaks, the person believes their
 work was recorded when it was not.
 
-Second, answer leakage: the served page must never carry the key. If that breaks
-nothing looks wrong, because the quiz still works. It just becomes a page that
-hands over the answers to anyone who opens the source, which disqualifies every
-surface an agent or a second person touches.
+Second, answer leakage: the served page must never carry the key or a
+client-side scorer. If that breaks nothing looks wrong, because the quiz still
+works. It just becomes a page that hands over the answers to anyone who opens
+the source, which disqualifies every surface an agent or a second person
+touches.
 
 Since plan 01-10, the attempt file itself is `evidence.render_attempt_md()`'s
 output, a view over `_evidence/evidence.jsonl` rather than a second store, and
 its "MARK:" / "[auto: ...]" text reflects that render's own vocabulary.
 
-Standard library only, no test framework, runnable as `python tests/serve_roundtrip.py`.
+Standard library only, no test framework, runnable as
+`python tests/serve_roundtrip.py`.
 """
 import json, os, re, subprocess, sys, tempfile, threading, time
 import urllib.error, urllib.parse, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+import evidence                                            # noqa: E402
 import itembank                                            # noqa: E402
 
 BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
@@ -61,59 +67,107 @@ def wrong_answer(q):
     return None
 
 
-def post(answer_url, payload):
-    req = urllib.request.Request(answer_url, data=json.dumps(payload).encode(),
+def post(url, payload):
+    req = urllib.request.Request(url, data=json.dumps(payload).encode(),
                                  headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=5) as res:
         return json.loads(res.read().decode("utf-8"))
 
 
-def served_post_path(quiz_url, page):
-    """The answer-POST target the served page's own script carries, resolved
-    against the page's URL. `itembank serve` is a daemon launch scoped to
-    one bank (plan 02-02) -- its answer path is bank-scoped
-    (`/quiz/<stem>/answer`), not the bare `/answer` a single-bank process
-    used to hardcode, so this reads it off the page rather than assuming
-    the convention.
-    """
-    m = re.search(r'fetch\("([^"]+)"', page)
-    if not m:
-        fail("could not find the answer-POST target in the served page")
-    return urllib.parse.urljoin(quiz_url, m.group(1))
+# ---- served-page contract helpers ------------------------------------------
 
-
-def served_items(page):
-    """The item payload the page was actually given."""
-    m = re.search(r"(?m)^const Q = (\[.*\]);$", page)
+def served_boot(page):
+    """The served page's bootstrap metadata object (`const BOOT = {...};`)."""
+    m = re.search(r"(?m)^const BOOT = (\{.*?\});$", page)
     if not m:
-        fail("could not find the item payload in the served page")
+        fail("served page carries no BOOT bootstrap metadata")
     return json.loads(m.group(1))
 
 
+def served_items(page):
+    """The item payload the page was actually given -- empty for served mode,
+    which receives items one at a time from the API.
+    """
+    m = re.search(r"(?m)^const Q = (\[.*\]);$", page)
+    return json.loads(m.group(1)) if m else []
+
+
+def check_served_boot(page, qs, stem, mode):
+    """Test 1: the served shell's boot data carries the allowlisted bank stem,
+    the item count, and the configured session mode -- nothing else.
+    """
+    boot = served_boot(page)
+    if boot.get("bank") != stem:
+        fail("served boot bank is %r, expected %r" % (boot.get("bank"), stem))
+    if boot.get("count") != len(qs):
+        fail("served boot count is %r, expected %d" % (boot.get("count"), len(qs)))
+    if boot.get("mode") != mode:
+        fail("served boot mode is %r, expected %r" % (boot.get("mode"), mode))
+
+
 def check_no_key(page, qs):
+    """Test 1 + 5: the served page has no full item array and no
+    canonicalization/scoring implementation; the static page has both.
+    """
     items = served_items(page)
-    if len(items) != len(qs):
-        fail("served %d items, bank has %d" % (len(items), len(qs)))
-    for item in items:
-        for leak in ("key", "explain", "correct", "opts", "cats", "da", "why",
-                     "model", "rubric", "steps_correct"):
-            if leak in item:
-                fail("served item %s carries %r, which is answer-key data"
-                     % (item.get("id"), leak))
-    # The page carries the offline branch's *code* in both modes, which is fine:
-    # it reads `key` off an item, and under `serve` no item has one. What must
-    # not exist is a second set of scoring rules that could disagree with the
-    # process.
-    for banned in ("function grade(", "q.correct.includes", "same(picked"):
+    if items:
+        fail("served page carries %d full items; boot metadata only is allowed"
+             % len(items))
+    for banned in ("function canon(", "function grade(", "q.correct.includes",
+                   "same(picked", "q.key", "q.explain"):
         if banned in page:
             fail("served page references %r; the process is the only scorer" % banned)
-    # Nothing from the answer half of the bank may appear anywhere in the source,
-    # not only inside the payload.
+    # Nothing from the answer half of the bank may appear anywhere in the
+    # source, not only inside the payload.
     for q in qs:
         if q["type"] == "short" and q.get("model") and q["model"] in page:
             fail("served page contains the model answer for %s" % q["id"])
         if q.get("why") and q["why"] in page:
             fail("served page contains the WHY BEST text for %s" % q["id"])
+
+
+def check_served_page_js(page, stem):
+    """Test 2 + 6: the new browser flow starts and submits through the
+    canonical API, renders a loading/checking status, keeps a Retry path for
+    API failure, and never references the legacy bank-scoped answer route.
+    """
+    for needle in ('fetch("/api/start"', 'fetch("/api/submit"',
+                   "Loading", "Checking answer", "Try again"):
+        if needle not in page:
+            fail("served page is missing %r" % needle)
+    if 'fetch("/quiz/%s/answer"' % stem in page:
+        fail("the new browser flow still references the legacy bank-scoped "
+             "answer route")
+
+
+def check_static_offline(page, qs):
+    """Test 5: the static `build` compatibility path still carries the full
+    Python-produced key/explanation array and its offline canonical-key
+    comparison -- that implementation belongs only to the static page.
+    """
+    items = served_items(page)
+    if len(items) != len(qs):
+        fail("static page carries %d items, bank has %d" % (len(items), len(qs)))
+    for item in items:
+        if "key" not in item or "explain" not in item:
+            fail("static item %s is missing the offline key/explanation"
+                 % item.get("id"))
+    for needle in ("function canon(", "q.key"):
+        if needle not in page:
+            fail("static page lost its offline canonical-key comparison (%r)"
+                 % needle)
+
+
+# ---- canonical API flow helpers ---------------------------------------------
+
+def api_start(base, bank, count, mode):
+    return post(base + "api/start",
+                {"bank": bank, "count": count, "mode": mode})
+
+
+def api_submit(base, session_id, answer):
+    return post(base + "api/submit",
+                {"session_id": session_id, "answer": answer})
 
 
 def main():
@@ -128,10 +182,6 @@ def main():
     threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
                      daemon=True).start()
 
-    # `itembank serve` is now a daemon launch scoped to one bank (plan
-    # 02-02): the printed URL already names `/quiz/<stem>`, but this regex
-    # only needs the base -- the quiz page itself lives at `/quiz/<stem>`,
-    # scraped explicitly below rather than assumed to be the server root.
     base = None
     for _ in range(60):                       # up to ~6s for the bind and banner
         time.sleep(0.1)
@@ -149,38 +199,65 @@ def main():
             fail("served page is not in recording mode")
         if "function asShort" not in page:
             fail("served page has no short-answer renderer")
+        check_served_boot(page, qs, stem, "practice")
         check_no_key(page, qs)
+        check_served_page_js(page, stem)
 
-        answer_url = served_post_path(quiz_url, page)
+        # Test 2: the whole sitting runs over /api/start -> /api/submit.
+        started = api_start(base, stem, len(qs), "practice")
+        if started["status"] != "active":
+            fail("POST /api/start did not return an active session")
+        if "correct" in started["item"] or "explain" in started["item"]:
+            fail("POST /api/start's item carries answer material")
+        session_id = started["session_id"]
+        by_id = dict((q["id"], q) for q in qs)
 
-        # A wrong answer must come back wrong. Re-answering the same item is a
-        # new attempt, not an overwrite: the evidence log is append-only, so
-        # both this wrong first attempt and the correct one it is followed
-        # with below are live, recorded events, and the render shows both --
-        # nothing evaporates.
-        first = qs[0]
-        bad = post(answer_url, {"id": first["id"], "response": wrong_answer(first)})
-        if bad["score"] is not False:
-            fail("a wrong answer scored %r, expected False" % bad["score"])
-        if not bad["explain"].get("why"):
-            fail("the verdict carried no explanation, so the page has nothing to render")
-
-        for q in qs:
-            got = post(answer_url, {"id": q["id"], "response": correct_answer(q)})
+        view = started
+        for idx in range(len(qs)):
+            q = by_id[view["item"]["id"]]
             want = None if q["type"] == "short" else True
+            got = api_submit(base, session_id, correct_answer(q))
             if got["score"] is not want:
                 fail("item %s (%s) scored %r, expected %r"
                      % (q["id"], q["type"], got["score"], want))
+            if "explain" not in got:
+                fail("submit response carries no server-issued explanation")
+            if got["evidence"]["status"] != "recorded":
+                fail("submit response was not recorded exactly once: %r"
+                     % got["evidence"])
+            if idx < len(qs) - 1:
+                if "item" not in got["next"]:
+                    fail("submit %d returned no next item" % (idx + 1))
+                view = got["next"]
+            else:
+                if "summary" not in got["next"]:
+                    fail("final submit returned no completion summary")
 
-        try:
-            post(answer_url, {"id": "no-such-item", "response": "A"})
-            fail("the server accepted an answer for an item that does not exist")
-        except urllib.error.HTTPError as exc:
-            if exc.code != 404:
-                fail("unknown item returned HTTP %d, expected 404" % exc.code)
+        # Test 2: evidence recorded exactly once, under the API session id.
+        log = evidence.log_path(os.path.dirname(os.path.abspath(BANK)) or ".")
+        recorded = [ev for ev in evidence.live_events(log)
+                    if ev.get("event_type") == "response"
+                    and ev.get("session_id") == session_id]
+        if len(recorded) != len(qs):
+            fail("API sitting recorded %d response events, expected %d"
+                 % (len(recorded), len(qs)))
+
+        # Test 3: forged authority/path/verdict fields are rejected.
+        for field in ("item_id", "score", "key", "explanation",
+                      "bank_path", "out"):
+            try:
+                post(base + "api/submit", {"session_id": session_id,
+                                           "answer": "A", field: "forged"})
+                fail("api/submit accepted a forged %r field" % field)
+            except urllib.error.HTTPError as exc:
+                if exc.code != 400:
+                    fail("forged %r returned HTTP %d, expected 400"
+                         % (field, exc.code))
     finally:
         proc.terminate()
 
+    # Test 4: the configured attempt view refreshed atomically after API
+    # submissions -- the response text and marker vocabulary are present.
     text = open(out, encoding="utf-8").read()
     for needle in ("A constructed response, written out in full sentences.",
                    "MARK: pending",
@@ -198,8 +275,19 @@ def main():
         # gets swept into unrelated Dataview queries.
         fail("attempt file uses task checkboxes; use (unmarked) instead")
 
-    print("ok: serve scored %d items in-process and wrote %d bytes to %s"
-          % (len(qs), len(text), out))
+    # Test 5: the static offline build keeps its keys and canonical comparison.
+    build_out = os.path.join(tempfile.mkdtemp(), "quiz.html")
+    result = subprocess.run(
+        [sys.executable, os.path.join(ROOT, "itembank.py"), "build", BANK,
+         build_out], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    if result.returncode != 0:
+        fail("itembank build failed: %s" % result.stdout)
+    check_static_offline(open(build_out, encoding="utf-8").read(), qs)
+
+    print("ok: serve scored %d items in-process via /api/start + /api/submit, "
+          "recorded %d evidence events once, refreshed the attempt view at %s, "
+          "and kept the static offline build green"
+          % (len(qs), len(qs), out))
     return 0
 
 
