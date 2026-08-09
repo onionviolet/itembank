@@ -19,6 +19,7 @@ import json
 import re
 import sys
 
+from surfaces import presentation
 from surfaces.settings import load_settings, write_settings
 
 
@@ -307,26 +308,12 @@ def persist_source(base, source):
     _write_source(base, source)
 
 
-# The settings page stylesheet (plan 04-04 Task 1). Uses only theme tokens
-# from `theme_css(config)` -- never literal colors -- the 8-point spacing
-# scale, the four font sizes, 44px targets, a 2px/2px focus ring, the 768px
-# breakpoint, 320px overflow protection, a 150ms motion cap, and the
-# reduced-motion kill rule. Task 2 migrates this page through the shared
-# presentation shell; the visual contract is locked here first.
+# Settings-page-only styles (plan 04-04). The document shell, base
+# typography/spacing, focus rings, breakpoint, and reduced-motion rules now
+# come from `presentation.SHARED_CSS`; these rules cover only the theme
+# form's own components and ride in the same generated style block, using
+# token names -- never literals -- so no second palette owner exists.
 SETTINGS_CSS = r"""
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);
-  font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-.wrap{max-width:720px;margin:0 auto;padding:24px 16px 64px}
-h1{font-size:28px;font-weight:600;line-height:1.2;margin:0 0 8px}
-h2{font-size:20px;font-weight:600;line-height:1.2;margin:0 0 16px}
-h3{font-size:14px;font-weight:600;line-height:1.4;margin:0 0 8px}
-p{font-size:16px;line-height:1.5;margin:0 0 16px}
-.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  font-variant-numeric:tabular-nums}
-.back{margin:0 0 24px;color:var(--mut);font-size:14px}
-.back a{color:var(--accent);text-decoration:none;font-weight:600}
-.back a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .field{margin:0 0 16px}
 .field label{display:block;font-size:14px;color:var(--mut);margin:0 0 8px}
 .field-row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
@@ -336,8 +323,8 @@ p{font-size:16px;line-height:1.5;margin:0 0 16px}
   padding:10px 16px;border-radius:8px;border:1px solid var(--line);
   background:var(--card);color:inherit;cursor:pointer;transition:.12s}
 .actions button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.actions button[data-primary]{background:var(--accent);border-color:var(--accent);
-  color:#fff}
+.actions button[data-primary]{background:var(--accent-soft);
+  border-color:var(--accent);color:var(--accent)}
 .actions button:disabled{opacity:.55;cursor:default}
 .previews{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:0 0 24px}
 .preview-card{background:var(--card);border:1px solid var(--line);
@@ -368,13 +355,8 @@ details.accessibility p{font-size:14px;color:var(--mut)}
 .ratio:last-child{border-bottom:0}
 .status{min-height:24px;font-size:14px;color:var(--mut);margin:0}
 @media (max-width:767px){
-  .wrap{padding:16px 16px 56px}
-  h1{font-size:20px}
   .previews{grid-template-columns:1fr}
   .actions button{width:100%}
-}
-@media (prefers-reduced-motion:reduce){
-  *{transition:none!important}
 }
 """
 
@@ -430,26 +412,24 @@ def theme_page(config):
     cards = "".join(_settings_preview_card(mode, preview[mode])
                     for mode in ("light", "dark"))
     reset_disabled = ' disabled' if src == DEFAULT_ACCENT else ""
-    return SETTINGS_TEMPLATE.replace(
-        "__THEME__", theme_css(config)).replace(
+    body = SETTINGS_BODY.replace(
         "__SOURCE__", src).replace(
         "__ADJUST_COPY__", adjust_copy).replace(
         "__RATIO_ROWS__", ratio_rows).replace(
         "__PREVIEW_CARDS__", cards).replace(
         "__RESET_DISABLED__", reset_disabled)
+    return presentation.surface_shell(
+        "Settings", body,
+        theme_css=theme_css(config) + "\n" + SETTINGS_CSS,
+        back={"href": "/", "label": "itembank"},
+        noscript=SETTINGS_NOSCRIPT)
 
 
-SETTINGS_TEMPLATE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>itembank settings</title>
-<style>
-__THEME__
-__SETTINGS_CSS__
-</style></head><body><div class="wrap">
-<p class="back"><a href="/">&larr; itembank</a></p>
-<main>
-<h1>Settings</h1>
-<section data-section="theme" aria-labelledby="theme-heading">
+# The settings body (plan 04-04 Task 2): one quiet Theme section plus the
+# small vanilla client. The document shell, single h1, back link, generated
+# theme tokens, shared design CSS, and no-script fallback all come from
+# `presentation.surface_shell`.
+SETTINGS_BODY = r"""<section data-section="theme" aria-labelledby="theme-heading">
 <h2 id="theme-heading">Theme</h2>
 <p>One accent colour is shared by every surface. The tool keeps your chosen
 source colour and renders an accessible light/dark pair from it.</p>
@@ -480,8 +460,6 @@ __RATIO_ROWS__
 <div class="status" id="theme-status" role="status" aria-live="polite" data-theme-status>Loading&hellip;</div>
 </form>
 </section>
-</main>
-</div>
 <script>
 (function () {
   var input = document.getElementById("theme-source");
@@ -632,10 +610,11 @@ __RATIO_ROWS__
   say("Choose a colour to preview it, then Save accent to keep it.");
 })();
 </script>
-</body></html>"""
+"""
 
-SETTINGS_TEMPLATE = SETTINGS_TEMPLATE.replace(
-    "__SETTINGS_CSS__", SETTINGS_CSS)
+SETTINGS_NOSCRIPT = ("The settings page needs JavaScript for live preview "
+                     "and saving; the served content above remains visible "
+                     "without it.")
 
 
 def _load_tkinter():

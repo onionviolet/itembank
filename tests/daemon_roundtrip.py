@@ -1323,7 +1323,7 @@ def check_report_empty():
         status, body = get(url + "report?session=%s" % session_id)
         if status != 200:
             fail("GET /report on a fresh session returned %d, expected 200" % status)
-        if "Nothing answered yet" not in body:
+        if "Nothing has been answered yet." not in body:
             fail("an empty session's report is missing the documented empty-state heading")
         if "<table" in body:
             fail("an empty session's report renders an objective table")

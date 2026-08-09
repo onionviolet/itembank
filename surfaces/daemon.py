@@ -20,8 +20,8 @@ import evidence
 import server
 from model import load, parse_bank, parse_lesson
 from runtime import explain_payload, read_session
-from surfaces import day, launcher, lesson, quiz, session, settings, study, update
-from surfaces.theme import THEME_CSS
+from surfaces import (day, launcher, lesson, presentation, quiz, session,
+                      settings, study, update)
 from surfaces import theme
 
 
@@ -205,85 +205,23 @@ PLAN_ROW = """<div class="row">
   </div>
 </div>"""
 
-# Genuinely new HTML with no existing render function to call into -- the
-# 8-point spacing scale, the four font sizes and the __THEME__ substitution
-# convention `quiz.page_for()` already uses, per 02-UI-SPEC.md. Row link
-# text is left to wrap naturally: no `white-space:nowrap`, no ellipsis
-# truncation anywhere in this stylesheet. Rows are a plain vertical list in
-# ordinary document flow -- no max-height, no scroll container -- so any
-# number of rows scrolls with the page.
-INDEX_TEMPLATE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>itembank</title>
-<style>
-__THEME__
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);
-  font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-.wrap{max-width:800px;margin:0 auto;padding:64px 24px}
-h1{font-size:21px;font-weight:700;margin:0 0 32px}
-.empty h2{font-size:21px;font-weight:700;margin:0 0 16px}
-.empty p{color:var(--mut);font-size:16px}
-.row{background:var(--card);border:1px solid var(--line);border-radius:8px;
-  padding:16px;margin-bottom:24px}
-.row .name{font-size:16px;font-weight:700;overflow-wrap:anywhere}
-.row .links{margin-top:8px;display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px}
-.row a{color:var(--accent)}
-.row a:hover,.row a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-</style></head><body><div class="wrap">
-<h1>itembank</h1>
-__BODY__
-</div></body></html>"""
+# The index and report documents are no longer authored in this module:
+# both pages render through `presentation.surface_shell` with a per-render
+# `theme.theme_css(load_settings(root))` block (plan 04-04 Task 2), so no
+# second stylesheet or palette owner exists anywhere in the daemon. The
+# body-only fragments below are the state/content markup the handlers feed
+# into that shell.
 
-# The other genuinely new page this phase authors -- no existing render
-# function to call into, per RESEARCH.md Open Question 2. Follows
-# INDEX_TEMPLATE's own `str.replace()` substitution convention (`__THEME__`,
-# `__TITLE__`, `__BODY__`) so the daemon's two new pages read as one family.
-# Same 8-point spacing scale, the same four font sizes (12.5/16/21/34) and
-# the same 60/30/10 color split as the index -- `--accent` reserved for the
-# headline score number and for link hover/focus rings, nothing else. Table
-# and figure cells wrap (`overflow-wrap:anywhere`); no `white-space:nowrap`
-# and no `text-overflow` ellipsis anywhere in this stylesheet, matching the
-# index's own no-truncation rule. The objective table sits in ordinary
-# document flow -- no max-height, no scroll container -- so a session with
-# many pending items scrolls with the page (the overflow backstop this
-# plan's must_haves carries).
-REPORT_TEMPLATE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>__TITLE__</title>
-<style>
-__THEME__
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);
-  font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-.wrap{max-width:800px;margin:0 auto;padding:64px 24px}
-h1{font-size:21px;font-weight:700;margin:0 0 32px}
-.empty h2{font-size:21px;font-weight:700;margin:0 0 16px}
-.empty p{color:var(--mut);font-size:16px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:8px;
-  padding:24px;margin-bottom:24px}
-.headline{font-size:34px;font-weight:700;color:var(--accent);line-height:1.1}
-.headline-label{font-size:12.5px;color:var(--mut);margin:4px 0 0}
-.status{font-size:12.5px;color:var(--mut);margin:16px 0 0}
-.figures{display:flex;gap:32px;flex-wrap:wrap;margin-top:24px}
-.figure-value{font-size:21px;font-weight:700}
-.figure-label{font-size:12.5px;color:var(--mut);margin-top:4px}
-table{width:100%;border-collapse:collapse;margin-top:8px}
-th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);
-  font-size:16px;overflow-wrap:anywhere}
-th{font-size:12.5px;color:var(--mut);font-weight:700}
-</style></head><body><div class="wrap">
-<h1>itembank report</h1>
-__BODY__
-</div></body></html>"""
-
-# The documented empty-state copy (Copywriting Contract), rendered instead
-# of a report table with all-zero or blank cells whenever a session has
-# recorded neither an auto-marked response nor a pending-manual one.
+# The documented empty-state copy (04-UI-SPEC Copywriting Contract),
+# rendered instead of a report table with all-zero or blank cells whenever
+# a session has recorded neither an auto-marked response nor a
+# pending-manual one.
 REPORT_EMPTY = """<div class="empty">
-  <h2>Nothing answered yet</h2>
-  <p>This session hasn't recorded a response. Sit the bank, then refresh
+  <h2>Nothing has been answered yet.</h2>
+  <p>This sitting has not recorded a response. Sit the bank, then refresh
   this report.</p>
+  <div class="actions"><a class="go primary" data-action-primary
+    href="/">Back to itembank</a></div>
 </div>"""
 
 
@@ -318,7 +256,10 @@ def _report_card(summary, status, position=None, total=None):
     the three labelled figures, and the per-objective table -- one render
     for both states, distinguished only by whether a progress line is
     present. All arithmetic here is `summary`'s own fields (`session_summary()`'s
-    output); no count is recomputed from a responses list.
+    output); no count is recomputed from a responses list. Pending-manual
+    responses are disclosed in plain text (04-UI-SPEC: auto-graded totals
+    exclude them), and the evidence the figures rest on stays visible as
+    text rather than implied by the numbers.
     """
     attempts = summary["auto_attempts"]
     correct = summary["auto_correct"]
@@ -336,18 +277,27 @@ def _report_card(summary, status, position=None, total=None):
     if status == "active" and position is not None and total is not None:
         progress = ('<p class="status" data-field="progress">In progress -- '
                      '%d of %d items answered so far.</p>' % (position, total))
+    partial = ""
+    if pending:
+        partial = ('<p class="status" data-field="pending-notice">Some responses '
+                   'still need review. Auto-graded totals exclude them.</p>')
     rows = _report_objective_rows(summary["objectives"])
     return (
         '<div class="card" data-status="%s">'
         '<div class="headline" data-field="pct">%d%%</div>'
         '<p class="headline-label">auto-marked accuracy</p>'
         '%s'
+        '%s'
         '<div class="figures">%s</div>'
         '</div>'
+        '<div class="table-wrap">'
         '<table><thead><tr><th>Objective</th><th>Attempts</th>'
         '<th>Correct</th><th>Pending</th></tr></thead>'
         '<tbody>%s</tbody></table>'
-        % (html.escape(status), pct, progress, figures, rows))
+        "</div>"
+        '<p class="status" data-provenance>This report is compiled from the '
+        'recorded evidence for this sitting.</p>'
+        % (html.escape(status), pct, progress, partial, figures, rows))
 
 
 def handle_report_get(handler):
@@ -383,6 +333,7 @@ def handle_report_get(handler):
         return
     summary = result["summary"]
     status = result["status"]
+    theme_block = theme.theme_css(settings.load_settings(handler.root))
     if summary["auto_attempts"] == 0 and summary["pending_manual"] == 0:
         body = REPORT_EMPTY
     else:
@@ -394,8 +345,9 @@ def handle_report_get(handler):
             data = read_session(path)
             position, total = data["cursor"], len(data["items"])
         body = _report_card(summary, status, position, total)
-    page = REPORT_TEMPLATE.replace("__THEME__", THEME_CSS).replace(
-        "__TITLE__", "itembank report").replace("__BODY__", body)
+    page = presentation.surface_shell(
+        "itembank report", body, theme_css=theme_block,
+        back={"href": "/", "label": "itembank"})
     handler.send_html(page.encode("utf-8"))
 
 
@@ -445,10 +397,14 @@ def sessions_by_bank(root, banks):
 
 def handle_index(handler):
     """`GET /` -- the index of every bank and day plan this daemon found at
-    startup. No HTML is generated anywhere else; this is the one function
-    that authors it, following `quiz.page_for()`'s substitution convention.
+    startup, rendered through the shared presentation shell with the
+    per-render theme block (plan 04-04 Task 2). The page distinguishes the
+    populated case, the no-configured-banks/plans case, and stem collisions
+    (files that were found but are not served because another file shares
+    their stem) as a labelled warning with recovery actions.
     """
     banks, plans = handler.banks, handler.plans
+    theme_block = theme.theme_css(settings.load_settings(handler.root))
     stems = sorted(set(banks) | set(plans), key=str.lower)
     if stems:
         report_links = sessions_by_bank(handler.root, banks)
@@ -457,17 +413,30 @@ def handle_index(handler):
             esc = html.escape(stem)
             if stem in banks:
                 session_id = report_links.get(stem)
-                link = ('\n    <a href="/report?session=%s">View report</a>'
+                link = ('\n    <a class="go secondary" data-action-secondary '
+                        'href="/report?session=%s">View report</a>'
                         % html.escape(session_id)) if session_id else ""
                 row = BANK_ROW.replace("__STEM__", esc).replace("__REPORT_LINK__", link)
             else:
                 row = PLAN_ROW.replace("__STEM__", esc)
             rows.append(row)
         body = "\n".join(rows)
+        if handler.collisions:
+            losers = sorted(stem for _, _, loser in handler.collisions
+                            for stem in [os.path.splitext(
+                                os.path.basename(loser))[0]])
+            body += presentation.state_panel({
+                "kind": "warn",
+                "status": ("Some files were not served because another file "
+                           "shares their name: %s. The served file wins; "
+                           "rename one of them and restart the daemon to "
+                           "make it available."
+                           % ", ".join(losers)),
+            })
     else:
         served_dir = html.escape(os.path.abspath(handler.root))
         body = EMPTY_STATE.replace("__DIR__", served_dir)
-    page = INDEX_TEMPLATE.replace("__THEME__", THEME_CSS).replace("__BODY__", body)
+    page = presentation.surface_shell("itembank", body, theme_css=theme_block)
     handler.send_html(page.encode("utf-8"))
 
 
@@ -620,7 +589,9 @@ def handle_theme_post(handler):
 def handle_quiz_get(handler, stem):
     """`GET /quiz/<stem>` -- the quiz page for one bank, resolved through the
     startup allowlist and rendered by the existing `quiz.page_for()`. No key
-    data is sent: `serve=True` is what makes `page_for` omit it.
+    data is sent: `serve=True` is what makes `page_for` omit it. The page
+    receives the same per-render theme block as index/report/settings, so
+    every surface reads the one palette (D-04, plan 04-04 Task 2).
     """
     path = handler.banks.get(stem)
     if path is None:
@@ -630,11 +601,12 @@ def handle_quiz_get(handler, stem):
     lesson = parse_lesson(path)
     lesson_slugs = set(h["slug"] for h in lesson["headings"]) if lesson else set()
     sess = handler.sessions.get(stem) or {}
+    theme_block = theme.theme_css(settings.load_settings(handler.root))
     _, page = quiz.page_for(path, qs, serve=True, reveal=False,
                             post_path="/quiz/%s/answer" % stem,
                             bank_stem=stem, mode=sess.get("mode", "practice"),
                             lesson_base="/lesson/%s" % stem,
-                            lesson_slugs=lesson_slugs)
+                            lesson_slugs=lesson_slugs, theme_css=theme_block)
     handler.send_html(page.encode("utf-8"))
 
 

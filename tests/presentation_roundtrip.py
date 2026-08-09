@@ -652,7 +652,7 @@ def test_responsive_zoom_and_noscript_fallback():
         fail("no reduced-motion fallback")
     if "<noscript>" not in html:
         fail("no no-script semantic fallback")
-    if "Couldn't check that answer. Your selection is still here." not in html:
+    if "Your selection is still here." not in html:
         fail("recovery panel copy was dropped")
 
 

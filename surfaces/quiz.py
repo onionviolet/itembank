@@ -10,12 +10,20 @@ import collections, html, json, os, sys, uuid
 import evidence
 from model import grab, lint, load, parse_lesson
 from runtime import page_item, score_response
+from surfaces import settings
 from surfaces.quiz_page import OFFLINE_JS, SERVED_JS, TEMPLATE
-from surfaces.theme import THEME_CSS
+from surfaces.theme import THEME_CSS, theme_css
 
 
 def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
-             lesson_base="", lesson_slugs=None, bank_stem=None, mode=None):
+             lesson_base="", lesson_slugs=None, bank_stem=None, mode=None,
+             theme_css=None):
+    """Render one quiz page. `theme_css`, when given, is the per-render
+    generated token block (the daemon passes
+    `theme.theme_css(load_settings(root))` so quiz shares the one palette
+    with index/report/settings -- plan 04-04 Task 2); when omitted the
+    module's THEME_CSS constant keeps every existing caller byte-identical.
+    """
     text = open(bank_path, encoding="utf-8").read()
     title = grab(r"(?m)^#\s+(.*?)\s*$", text) or os.path.basename(bank_path)
     counts = collections.Counter(q["type"] for q in qs)
@@ -67,7 +75,8 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
     # __DATA__/__BOOT__ go in last so that bank text which happens to contain
     # another placeholder is never itself substituted.
     return mix, (TEMPLATE
-                 .replace("__THEME__", THEME_CSS)
+                 .replace("__THEME__", THEME_CSS if theme_css is None
+                          else theme_css)
                  .replace("__SERVE__", "true" if serve else "false")
                  .replace("__TITLE__", html.escape(title))
                  .replace("__SUB__", sub)
@@ -121,10 +130,18 @@ def cmd_build(a):
     out = a.out or os.path.splitext(a.bank)[0] + "_quiz.html"
     if os.path.dirname(out):
         os.makedirs(os.path.dirname(out), exist_ok=True)
+    # The static page reads settings beside the bank and uses the same
+    # generator as every served surface (plan 04-04 Task 2 Test 3): a
+    # missing settings file falls back to schema defaults, so the offline
+    # build stays byte-compatible for banks with no itembank.json.
+    base = os.path.dirname(os.path.abspath(a.bank)) or "."
+    cfg = settings.load_settings(base)
+    css = theme_css(cfg)
     # A file:// page cannot write anywhere and has no process to ask, so `build`
     # records nothing and is the one surface that carries the answer key to the
     # client. It stays the shareable, no-process mode; `serve` is the graded one.
-    mix, page = page_for(a.bank, qs, serve=False, reveal=not a.blind)
+    mix, page = page_for(a.bank, qs, serve=False, reveal=not a.blind,
+                         theme_css=css)
     open(out, "w", encoding="utf-8").write(page)
     print("%d items -> %s" % (len(qs), out))
     print("   mix: " + mix)
