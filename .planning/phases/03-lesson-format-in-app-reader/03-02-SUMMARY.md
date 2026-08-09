@@ -123,7 +123,7 @@ Each task was committed atomically (Task 1 followed the TDD RED/GREEN cycle):
 2. **Task 1 GREEN - LESSON-SRC loader branch** - `f0dd64a` (feat)
 3. **Task 2 - degraded reader state** - `e1e6037` (feat)
 
-**Plan metadata:** pending (docs: complete plan)
+**Plan metadata:** `25de3b1` (docs: complete plan)
 
 ## Files Created/Modified
 
