@@ -608,15 +608,20 @@ def check_study_no_scorer_or_response():
     start = page.find("<script>")
     end = page.find("</script>", start)
     js = page[start + len("<script>"):end]
+    # The embedded CARDS payload legitimately carries `explain.correct`
+    # (study is the deliberate reveal surface, T-04-19); the no-verdict rule
+    # applies to the client behavior after the data element, never to the
+    # canonical payload itself.
+    client = js[js.find("];") + 2:]
     for banned in ("fetch(", "XMLHttpRequest", "/api/", "score_response",
                    "WebSocket", "submit"):
-        if banned in js:
+        if banned in client:
             fail("study client references a response/scoring path: %r" % banned)
-    if "aria-pressed" not in js:
+    if "aria-pressed" not in client:
         fail("the client does not track local recall selection state")
-    if "correct" in js.lower():
+    if "correct" in client.lower():
         fail("the client grades or names a local verdict: %r"
-             % [s for s in ("correct", "incorrect") if s in js.lower()])
+             % [s for s in ("correct", "incorrect") if s in client.lower()])
 
 
 def check_study_reveal_announce_and_responsive():
@@ -636,7 +641,7 @@ def check_study_reveal_announce_and_responsive():
     if presentation_roundtrip.reduced_motion_block(css) is None:
         fail("study page has no reduced-motion fallback")
     js = page[page.find("<script>"):page.find("</script>")]
-    if "focus()" not in js:
+    if "focus(" not in js:
         fail("the client never moves/keeps focus")
     if not any(n["tag"] == "details" for n in semantic_dom(page).all()):
         fail("no native disclosure state")
