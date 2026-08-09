@@ -1067,6 +1067,60 @@ def check_day_palette_and_no_css_literals():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def check_conflict_recovery_markup_and_dirty_js():
+    """Plan 04-06 Task 2 tests 2, 5, 6, and 7 (page side): the day page
+    carries the exact conflict heading, labelled `Your draft` / `Current file`
+    regions, Copy/Download actions for each version, Reload current and
+    Reapply draft controls, a force confirmation checkbox with the exact
+    UI-SPEC copy plus a separate Force overwrite button, and a client that
+    attaches `beforeunload` only while values differ from the saved baseline
+    and moves focus to the conflict heading. Narrow layout stacks the panes
+    without page-level horizontal scroll, and the full documents stay
+    selectable/copyable/downloadable.
+    """
+    import shutil
+    from surfaces.day import DAY_CSS, DAY_JS, day_state, day_render
+    tmp = tempfile.mkdtemp()
+    try:
+        path = write_plan(tmp, [HEADER, row_for()], "plan.md")
+        state = day_state(path, os.path.join(tmp, "daily_log.md"),
+                          os.path.join(tmp, "lanes.md"), "2026-01-07")
+        page = day_render(state).decode("utf-8")
+        if "Plan changed outside itembank \u2014 nothing was overwritten." not in page:
+            fail("day page lacks the exact conflict heading copy")
+        for label in ("Your draft", "Current file"):
+            if label not in page:
+                fail("day conflict markup lacks the %r region label" % label)
+        for action in ("Copy draft", "Download draft", "Copy current",
+                       "Download current", "Reload current", "Reapply draft"):
+            if action not in page:
+                fail("day conflict markup lacks the %r action" % action)
+        if ("I understand this replaces these edited cells using the latest "
+                "plan version.") not in page:
+            fail("day force confirmation checkbox copy is missing")
+        if "Force overwrite" not in page:
+            fail("day conflict markup lacks the Force overwrite button")
+        if "conflict-heading" not in page or 'tabindex="-1"' not in page:
+            fail("day conflict heading is not a focused heading target")
+        if "beforeunload" not in DAY_JS:
+            fail("day client never attaches the dirty-navigation warning")
+        if "reloadCurrent" not in DAY_JS or "reapplyDraft" not in DAY_JS:
+            fail("day client lacks reload/reapply recovery handlers")
+        if "navigator.clipboard" not in DAY_JS or "URL.createObjectURL" not in DAY_JS:
+            fail("day client lacks copy/download primitives")
+        if "current-doc" not in page:
+            fail("day conflict markup does not carry the full current document")
+        if "white-space:pre-wrap" not in DAY_CSS and "overflow-wrap:anywhere" not in DAY_CSS:
+            fail("day conflict documents are not selectable without clipping")
+        if "overflow-x" in DAY_CSS:
+            fail("day CSS introduces page-level horizontal scroll handling")
+        if not re.search(r"@media[^{]+\{[^}]*\.panes\{flex-direction:column",
+                         DAY_CSS):
+            fail("day conflict panes do not stack at narrow widths")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     check_builders_and_corpus()
     check_byte_helpers()
@@ -1087,6 +1141,7 @@ def main():
     check_edit_snapshot_and_form()
     check_apply_day_edit_and_cache()
     check_day_palette_and_no_css_literals()
+    check_conflict_recovery_markup_and_dirty_js()
     print("ok: day-edit plan 04-02 -- structured snapshot, exact-span edit, "
           "grammar refusals, atomic replace, stale conflicts, confirmed force "
           "all green; plan 04-06 -- editor boot snapshot, apply_day_edit "

@@ -13,7 +13,7 @@ those things.
 Standard library only, no test framework, runnable as
 `python tests/daemon_roundtrip.py`.
 """
-import http.server, json, os, re, shutil, socketserver, subprocess, sys, tempfile, threading, time, uuid
+import hashlib, http.server, json, os, re, shutil, socketserver, subprocess, sys, tempfile, threading, time, uuid
 import urllib.error, urllib.parse, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -810,6 +810,155 @@ def check_day_edit_route():
                    {"date": iso, "done": list(itembank.FLOOR_LANES)})
         if got.get("status") != "floor":
             fail("tick save after a plan edit broke: %r" % got.get("status"))
+    finally:
+        proc.terminate()
+
+
+def edit_draft_hash(edits):
+    """The canonical draft hash the daemon binds force tokens to: sorted keys,
+    JSON-encoded key/value pairs joined with `,`, SHA-256 over UTF-8."""
+    parts = []
+    for key in sorted(edits):
+        parts.append(json.dumps(key, ensure_ascii=False, sort_keys=True) + ":" +
+                     json.dumps(edits[key], ensure_ascii=False, sort_keys=True))
+    return hashlib.sha256(",".join(parts).encode("utf-8")).hexdigest()
+
+
+def check_day_edit_conflict_and_force():
+    """Plan 04-06 Task 2 tests 1, 3, 4, and 7 (daemon side): an external byte
+    edit after page load yields a no-write conflict carrying the draft, both
+    revisions, and a one-use force token bound to stem, stale revision,
+    current revision, and draft hash; no-token, wrong-token, changed-draft,
+    replayed-token, missing-confirmation, wrong-stem, and third-version
+    requests write nothing; a confirmed force patches only submitted cells
+    against a fresh revision and consumes the token.
+    """
+    workdir = tempfile.mkdtemp()
+    os.makedirs(os.path.join(workdir, "a"))
+    os.makedirs(os.path.join(workdir, "b"))
+    plan_a = os.path.join(workdir, "a", "plan_a.md")
+    plan_b = os.path.join(workdir, "b", "plan_b.md")
+    iso = write_today_plan(plan_a, "ch 2 first half")
+    write_today_plan(plan_b, "other plan task")
+    proc, url, lines = start_daemon(workdir)
+    try:
+        status, page = get(url + "day/plan_a")
+        if status != 200:
+            fail("conflict test could not load /day/plan_a")
+        snap = day_boot_data(page)["snapshot"]
+        stale_rev = snap["revision"]
+        original = open(plan_a, "rb").read()
+        external = original.replace(b"ch 2 first half",
+                                    b"changed by Obsidian")
+        with open(plan_a, "wb") as fh:
+            fh.write(external)
+
+        conflict = post(url + "day/plan_a/edit",
+                        {"revision": stale_rev,
+                         "edits": {"EMT (top priority)": "my draft"}})
+        if conflict.get("status") != "conflict":
+            fail("stale save returned %r, want conflict" % conflict.get("status"))
+        if open(plan_a, "rb").read() != external:
+            fail("conflict response wrote to the file")
+        if conflict.get("draft") != {"EMT (top priority)": "my draft"}:
+            fail("conflict response lost the draft: %r" % conflict.get("draft"))
+        current = conflict.get("current", {})
+        if current.get("revision") != conflict.get("revision"):
+            fail("conflict response current/revision mismatch")
+        if current.get("cells", {}).get("EMT (top priority)") != "changed by Obsidian":
+            fail("conflict response did not carry the fresh current cell")
+        if current.get("revision") == stale_rev:
+            fail("conflict response current revision equals the stale revision")
+        token = conflict.get("force_token")
+        if not isinstance(token, str) or not re.fullmatch(r"[0-9a-f]{64}", token):
+            fail("conflict did not issue a one-use token: %r" % token)
+        fhash = conflict.get("force_draft_hash")
+        if fhash != edit_draft_hash({"EMT (top priority)": "my draft"}):
+            fail("conflict draft hash %r does not match the canonical hash"
+                 % fhash)
+
+        force_base = {"revision": conflict["revision"],
+                      "edits": {"EMT (top priority)": "my draft"},
+                      "force": True,
+                      "confirmation": ("I understand this replaces these edited "
+                                       "cells using the latest plan version.")}
+
+        st, body = json_request(url + "day/plan_a/edit",
+                                dict(force_base, force_token="0" * 64))
+        if st != 200 or body.get("status") != "invalid":
+            fail("wrong force token was not refused: %r" % body)
+        if open(plan_a, "rb").read() != external:
+            fail("wrong-token force wrote to the file")
+
+        st, body = json_request(url + "day/plan_a/edit",
+                                dict(force_base, force_token=token,
+                                     confirmation="nope"))
+        if st != 200 or body.get("status") != "invalid":
+            fail("force without the exact confirmation was not refused: %r"
+                 % body)
+
+        st, body = json_request(url + "day/plan_a/edit",
+                                dict(force_base, force_token=token,
+                                     edits={"EMT (top priority)": "changed draft"}))
+        if st != 200 or body.get("status") != "invalid":
+            fail("changed-draft force was not refused: %r" % body)
+        if open(plan_a, "rb").read() != external:
+            fail("changed-draft force wrote to the file")
+
+        st, body = json_request(url + "day/plan_a/edit",
+                                dict(force_base, force_token=token))
+        if st != 200 or body.get("status") != "saved":
+            fail("confirmed force was not saved: %r" % body)
+        saved_bytes = open(plan_a, "rb").read()
+        if saved_bytes == external:
+            fail("confirmed force did not patch the file")
+        if b"my draft" not in saved_bytes or b"Ch 1 sets, problems 1-6" not in saved_bytes:
+            fail("confirmed force lost the draft cell or the concurrent Math edit")
+        if body.get("revision") == stale_rev:
+            fail("confirmed force returned the stale revision")
+        if body.get("cells", {}).get("EMT (top priority)") != "my draft":
+            fail("confirmed force did not return the saved cells")
+        if token in daemon.DaemonHandler.day_force_tokens:
+            fail("confirmed force did not consume the one-use token")
+
+        replay = post(url + "day/plan_a/edit",
+                      dict(force_base, force_token=token))
+        if replay.get("status") != "invalid":
+            fail("replayed force token was not refused: %r" % replay)
+        if open(plan_a, "rb").read() != saved_bytes:
+            fail("replayed force wrote to the file")
+
+        st, body = json_request(url + "day/plan_b/edit",
+                                dict(force_base, force_token=token))
+        if st != 200 or body.get("status") != "invalid":
+            fail("wrong-stem force was not refused: %r" % body)
+
+        conflict2 = post(url + "day/plan_a/edit",
+                         {"revision": stale_rev,
+                          "edits": {"EMT (top priority)": "my draft"}})
+        if conflict2.get("status") != "conflict":
+            fail("second stale save returned %r, want conflict"
+                 % conflict2.get("status"))
+        token2 = conflict2.get("force_token")
+        if not isinstance(token2, str) or not re.fullmatch(r"[0-9a-f]{64}", token2):
+            fail("second conflict did not issue a fresh token: %r" % token2)
+        if token2 == token:
+            fail("second conflict reused the consumed token")
+
+        third = saved_bytes.replace(b"Ch 1 sets, problems 1-6",
+                                    b"changed a third time")
+        with open(plan_a, "wb") as fh:
+            fh.write(third)
+        st, body = json_request(url + "day/plan_a/edit",
+                                dict(force_base,
+                                     revision=conflict2["revision"],
+                                     force_token=token2))
+        if st != 200 or body.get("status") != "conflict":
+            fail("third-version force was not a fresh conflict: %r" % body)
+        if open(plan_a, "rb").read() != third:
+            fail("third-version force wrote to the file")
+        if "force_token" in body:
+            fail("third-version conflict reissued a usable force token")
     finally:
         proc.terminate()
 
@@ -2152,6 +2301,7 @@ def main():
         check_day_save_and_isolation,
         check_day_open_out_of_range,
         check_day_edit_route,
+        check_day_edit_conflict_and_force,
         check_route_cli_inventory,
         check_api_route_scope,
         check_api_sitting,
