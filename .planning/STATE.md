@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 02.1
-current_phase_name: Packaging, Self-Update & Interop Export (INSERTED, moved from Phase 12)
+current_phase: 03
+current_phase_name: Lesson Format & In-App Reader
 status: executing
 stopped_at: Phases 6.1, 8, 9, 10, 11 UI-SPECs approved
-last_updated: "2026-08-08T22:42:54.793Z"
+last_updated: "2026-08-09T00:20:10.139Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 02.1 execution started
 progress:
   total_phases: 13
   completed_phases: 3
-  total_plans: 67
+  total_plans: 79
   completed_plans: 26
 ---
 
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-07)
 
 **Core value:** One runtime, one scorer, one evidence store — and the runtime, not the model, decides what reaches the learner.
-**Current focus:** Phase 02.1 — packaging-self-update-interop-export
+**Current focus:** Phase 03 — Lesson Format & In-App Reader
 
 ## Current Position
 
-Phase: 02.1 — Packaging, Self-Update & Interop Export (INSERTED, moved from Phase 12)
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-08-08 — Phase 02 complete, transitioned to Phase 02.1
+Phase: 03 (Lesson Format & In-App Reader) — EXECUTING
+Plan: 1 of 6
+Status: Executing Phase 03
+Last activity: 2026-08-08 — Phase 03 execution started
 
 Progress: [██████░░░░] 63%
 
@@ -93,6 +93,7 @@ Progress: [██████░░░░] 63%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- [Phase 3] 03-01: D-04 resolved option-a (user delegation) -- `lesson_ref`/`lesson_slug` stay EXCLUDED from `model.content_fingerprint()` and are locked by a regression assertion (fingerprint of a tagged item equals the byte-identical untagged item); tagging an item never raises `item.content_drift`.
 - [Roadmap]: Evidence spine (Phase 1) and daemon/settings/lesson/surfaces/check foundations (Phases 2-5) run as parallel-eligible tracks per `Depends on: Nothing`; the teaching loop, selection, model adapter, subject-loop integration, retention/trends, and the auditor form the dependent chain (Phases 6-11); packaging closes the milestone (Phase 12).
 - [Roadmap]: Three phases carry unresolved design questions flagged for their own research at plan time — Phase 1 (item identity scheme, Windows event-log durability), Phase 8 (tier-gate enforcement mechanism, no prior art), Phase 11 (second quality gate algorithm, syllabus input formats, auditor reversibility mechanism).
 - [Roadmap]: The auditor (Phase 11) is deliberately last among new subsystems; its pitfall guard rails (citation-per-claim, second quality gate, one-item-per-commit reversibility, graduated autonomy) are written as phase acceptance criteria, not follow-on hardening.

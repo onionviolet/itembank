@@ -41,7 +41,7 @@ with it.
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
 - [x] **Phase 1: Evidence Spine & Protocol Foundation** - Stable item identity, one evidence store, and migration so nothing built after this reads a stale or split history. (completed 2026-08-07)
-- [ ] **Phase 2: Daemon Consolidation & Settings Foundation** - One daemon on one port serving every surface, with a printable, agent-discoverable settings schema.
+- [x] **Phase 2: Daemon Consolidation & Settings Foundation** - One daemon on one port serving every surface, with a printable, agent-discoverable settings schema. (completed 2026-08-08)
 - [ ] **Phase 2.1: Packaging, Self-Update & Interop Export (INSERTED, moved from Phase 12)** - One double-clickable artifact per OS, a safe self-updater, and a GIFT export that fails loudly rather than wrong — pulled forward so a runnable exe of the Phase 1+2 feature set exists early, and the self-updater ships phases 3-11 as real releases instead of being written and tested last.
 - [ ] **Phase 3: Lesson Format & In-App Reader** - An optional `LESSON` section renders as reading material inside the app, linked to the items it teaches.
 - [ ] **Phase 4: Surface Redesign & Theming** - One shared palette, OS-driven theming, a decluttered question surface, and safe in-page `day` editing.
@@ -221,12 +221,12 @@ Plans:
   3. `lint` fails with an actionable message, by item number, when a `LESSON-REF` names a heading that does not exist — never a render-time crash.
   4. `spec` documents the `LESSON`/`LESSON-REF` grammar well enough that an authoring agent with no source access can write a valid lesson on the first try.
 
-**Plans**: 6 plans
+**Plans**: 1/6 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — TRACER: one lesson, one reference, rendered at `/lesson/<bank>` and linked both ways
+- [x] 03-01-PLAN.md — TRACER: one lesson, one reference, rendered at `/lesson/<bank>` and linked both ways
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -263,7 +263,33 @@ Plans:
   4. The accent colour is set from an OS colour picker, with light/dark pairs computed, contrast-checked, and correct/incorrect kept colour-blind safe.
   5. Editing a `day` plan in-page under an optimistic-concurrency guard does not silently overwrite an edit made in Obsidian at the same time — the conflict is surfaced, not lost.
 
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+
+**Wave 0 — validation foundation, then the first production tracer**
+
+- [ ] 04-01-PLAN.md — Phase-wide executable test harness, then API-authoritative quiz tracer and accessible one-line hierarchy
+
+**Wave 1** *(blocked on 04-01 Wave 0 foundation/tracer)*
+
+- [ ] 04-02-PLAN.md — Exact-span day document grammar, revisions, atomic save, and CLI proof
+
+**Wave 2** *(blocked on 04-02)*
+
+- [ ] 04-03-PLAN.md — Additive source-accent schema, accessible palette derivation, and guarded native picker
+
+**Wave 3** *(blocked on 04-01 and 04-03)*
+
+- [ ] 04-04-PLAN.md — Semantic presentation adapter, settings UI, and shared palette for index/report/quiz
+
+**Wave 4** *(blocked on 04-04)*
+
+- [ ] 04-05-PLAN.md — Complete progressive study explanations, deliberate-reveal accessibility, and study palette migration
+
+**Wave 5** *(blocked on 04-02, 04-04, and 04-05)*
+
+- [ ] 04-06-PLAN.md — Structured day browser editing, day palette migration, conflict recovery, and one-use force confirmation
 
 ### Phase 5: Check Item Type & Code Editor
 
@@ -283,6 +309,7 @@ Plans:
 **Plans**: 7 plans
 
 Plans:
+
 - [ ] 05-01-PLAN.md — Tracer: one `check` item end to end — parse, run, score, record (wave 1)
 - [ ] 05-02-PLAN.md — Execution bounds: output cap, Windows Job Object kill, grandchild test (wave 2)
 - [ ] 05-03-PLAN.md — Settings group, the agent submit path, and the default-closed LAN refusal (wave 2)
@@ -324,6 +351,7 @@ Plans:
 **Depends on:** Phase 4, Phase 5, Phase 6
 **Requirements:** VIS-01, VIS-02, VIS-03, VIS-04, VIS-05, VIS-06, VIS-07, VIS-08, VIS-09
 **UI hint:** yes
+**Approved phase contracts:** `06.1-CONTEXT.md` reconciles the prior locked research/UI decisions. `06.1-01` and `06.1-02` are `UPSTREAM-CONTRACT` / `UI-INDEPENDENT`; `06.1-03` learner-renderer work is `UI-BLOCKED` on `.planning/phases/06.1-interactive-visual-assessment-protocol/06.1-UI-SPEC.md` and the shared `.planning/UI-SPEC.md`.
 **Success Criteria** (what must be TRUE):
 
   1. One versioned `visual` item protocol declaratively describes `plot` and `numberline` interactions; `spec`, the published schema, named lint errors, and synthetic golden fixtures let an authoring model create and diagnose items without reading renderer source, and bank-authored JavaScript is refused.
@@ -397,6 +425,8 @@ Plans:
 **Mode:** mvp
 **Depends on**: Phase 1, Phase 6
 **Requirements**: TEACH-04, TEACH-05, TEACH-06, TEACH-07, TEACH-08, TEACH-09, MODEL-01, MODEL-02, MODEL-03, MODEL-04, MODEL-05
+**Approved phase contracts:** `.planning/phases/08-model-adapter-interface-tier-gate-enforcement/08-UI-SPEC.md` and `08-AI-SPEC.md`. Adapter/tier/evidence work is upstream; generated learner support remains blocked on implementation of the Phase 6 tier/fact seam and green adversarial gate evidence.
+**UI contract**: `UI-DEPENDENT` — adapter and deterministic tier-gate work may proceed as an upstream contract; learner-facing model status, provenance, uncertainty, and generated-hint surfaces must validate against `.planning/UI-SPEC.md` before completion.
 **Success Criteria** (what must be TRUE):
 
   1. Given an item, its key, rationale, and the learner's actual wrong answer, the model produces a hint about that specific error at the tier the runtime currently permits and no further — verified by a case where the model is prompted (adversarially) to reveal more, and the output is dropped rather than shown.
@@ -415,6 +445,7 @@ Plans:
 **Depends on**: Phase 3, Phase 5, Phase 6
 **Requirements**: LOOP-01, LOOP-02, LOOP-03, LOOP-04, LOOP-05
 **UI hint**: yes
+**UI contract**: Mixed. `09-01` and `09-02` are `UPSTREAM-CONTRACT` with UI-dependent public status/semantic-table checks; `09-03` is `UI-INDEPENDENT`; `09-04` and `09-05` are `UI-BLOCKED` and must implement `.planning/phases/09-subject-invariant-loop-emt-math-cs-integration/09-UI-SPEC.md` alongside the global `.planning/UI-SPEC.md` foundation.
 **Success Criteria** (what must be TRUE):
 
   1. The same lesson-then-hint-then-check loop drives a session in each of the three subjects, with only the lesson medium, allowed item types, and verifier varying per subject.
@@ -424,7 +455,25 @@ Plans:
   5. Adding a fourth subject requires only a configuration entry (lesson medium, item types, verifier), not a new surface or a code fork.
   6. Each subject includes at least one guided-discovery sequence that cycles through context, learner action or prediction, immediate targeted feedback, and explanation instead of presenting a lecture followed by detached questions.
 
-**Plans**: TBD
+**Plans**: 5 plans across 4 waves
+
+Plans:
+**Wave 1**
+
+- [ ] 09-01-PLAN.md - Persist one selected subject profile and prove the EMT tracer through the shared loop.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 09-02-PLAN.md - Publish EMT/Math/CS profile configuration and prove a fourth subject requires configuration only.
+- [ ] 09-03-PLAN.md - Approve one immutable KaTeX release before vendoring.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 09-04-PLAN.md - Bundle and render offline Math through the shared reader under the Phase 9 UI contract.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 09-05-PLAN.md - Add observation-only runnable lesson code and prove the four-profile integration matrix.
 
 ### Phase 10: Retention, Pacing & Trends
 
@@ -432,7 +481,9 @@ Plans:
 **Mode:** mvp
 **Depends on**: Phase 1, Phase 7
 **Requirements**: SCHED-01, SCHED-02, SCHED-03, SCHED-04, TREND-01, TREND-02, TREND-03, TREND-04, TREND-05
+**Approved phase UI contract:** `.planning/phases/10-retention-pacing-trends/10-UI-SPEC.md`; derivation/evidence snapshots are upstream, while report/recommendation surfaces remain `UI-BLOCKED` on its verification gates.
 **UI hint**: yes
+**UI contract**: Mixed. Derivation and evidence-snapshot modules are `UPSTREAM-CONTRACT`; due-today, trend, recommendation, pacing, and evidence-inspection surfaces are `UI-BLOCKED` until they satisfy `.planning/UI-SPEC.md`.
 **Success Criteria** (what must be TRUE):
 
   1. `day`'s cockpit shows what's due today per objective, computed from itembank's own evidence, alongside Anki's due/new counts as a separate, clearly labeled signal, both read from one shared per-render snapshot.
@@ -450,6 +501,9 @@ Plans:
 **Mode:** mvp
 **Depends on**: Phase 1, Phase 8, Phase 10 (loosely — only for weak-objective-pointing refinement)
 **Requirements**: AUTH-01, AUTH-02, AUTH-03, AUDIT-01, AUDIT-02, AUDIT-03, AUDIT-04, AUDIT-05, AUDIT-06, AUDIT-07, AUDIT-08, AUDIT-09
+**Approved phase contracts:** `.planning/phases/11-closed-authoring-loop-curriculum-auditor/11-UI-SPEC.md` and `11-AI-SPEC.md`; browser review/write surfaces remain `UI-BLOCKED`, and live-model authoring additionally requires green Phase 8 adapter evidence plus Phase 11 AI evaluation fixtures.
+**UI hint**: yes
+**UI contract**: Mixed. Ingestion, lint, citation, and coverage-engine work may proceed as `UPSTREAM-CONTRACT`; diff, preview, approval, reversible-write, uncertainty, and audit-queue surfaces are `UI-BLOCKED` until they satisfy `.planning/UI-SPEC.md`.
 **Success Criteria** (what must be TRUE):
 
   1. One command runs the full authoring cycle — spec, draft, lint, feed errors back, retry to clean or to a cap — and writes the bank with no human relaying an error message; a model given no repository context can complete it from the contract alone, and cannot invent content beyond what it was asked to write.
@@ -459,7 +513,7 @@ Plans:
   5. Every auditor write is undone by a single documented action (shadow copy or `git revert`), demonstrated once for a report-only-stage write and once for an autonomous one.
 
 **Open decisions resolved here**: Second quality gate algorithm (distractor-overlap heuristic, near-duplicate detection thresholds); syllabus input formats (markdown/text only, vs. PDF/DOCX that stdlib parses poorly); auditor reversibility mechanism (shadow copy vs. a git commit per write, depending on whether the private bank directory is git-tracked). These three converge with the top pitfalls flagged for this subsystem — the citation contract, the second quality gate, and reversibility are novel mechanisms with no working precedent in any examined product, and need fresh design at plan time, not just implementation.
-**Plans**: TBD
+**Plans**: 5 plans across 4 waves
 
 ### Phase 12: ~~Packaging, Self-Update & Interop Export~~ (MOVED)
 
@@ -476,9 +530,9 @@ for what can run concurrently.
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Evidence Spine & Protocol Foundation | 11/11 | Complete    | 2026-08-07 |
-| 2. Daemon Consolidation & Settings Foundation | 6/6 | In Progress|  |
-| 3. Lesson Format & In-App Reader | 0/TBD | Not started | - |
-| 4. Surface Redesign & Theming | 0/TBD | Not started | - |
+| 2. Daemon Consolidation & Settings Foundation | 6/6 | Complete    | 2026-08-08 |
+| 3. Lesson Format & In-App Reader | 1/6 | In Progress|  |
+| 4. Surface Redesign & Theming | 0/6 | Planned | - |
 | 5. Check Item Type & Code Editor | 0/TBD | Not started | - |
 | 6. Hint Ladder, Cursor-Hold & Feedback Modes | 0/TBD | Not started | - |
 | 7. Selection Engine | 0/6 | Planned | - |
