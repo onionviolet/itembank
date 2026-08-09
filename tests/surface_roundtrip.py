@@ -10,6 +10,8 @@ shape, and semantic-DOM helpers built on `tests/presentation_roundtrip.py`.
 Standard library only, runnable as `python tests/surface_roundtrip.py`.
 """
 import os
+import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -93,6 +95,41 @@ def sentinel_items():
         import itembank
         sentinel_items._cache = itembank.parse_bank(SENTINEL_BANK)
     return sentinel_items._cache
+
+
+def synthetic_q(kind):
+    """A full parsed-shape question for one item type, with every
+    explanation field populated -- the shape `model.parse_question` produces,
+    hand-built so the plan 04-05 harness never depends on fixture-bank drift.
+    """
+    base = {"id": "syn-0001", "number": 1, "type": kind,
+            "stem": "Synthetic stem.", "difficulty": "recall",
+            "objective": "Math / basics", "lesson_ref": "",
+            "lesson_slug": "", "item_id": "", "content_hash": "",
+            "conf": "high", "why": "Synthetic why.",
+            "disc": "Synthetic discriminator.",
+            "second": "Synthetic second-best.", "trap": "Synthetic trap."}
+    if kind in ("mc", "multi"):
+        base.update({"opts": {"A": "Option one", "B": "Option two",
+                              "C": "Option three"},
+                     "correct": ["B"] if kind == "mc" else ["A", "C"],
+                     "da": {"A": "Distractor A", "B": "Distractor B",
+                            "C": "Distractor C"},
+                     "select": 1 if kind == "mc" else 2,
+                     "notes": ["Synthetic note."]})
+    elif kind in ("table", "dnd"):
+        base.update({"cats": ["Routine", "Emergency"],
+                     "rows": [{"text": "Row one", "cat": "Routine"},
+                              {"text": "Row two", "cat": "Emergency"}],
+                     "notes": ["Synthetic note."]})
+    elif kind == "build":
+        base.update({"steps": ["Alpha", "Beta", "Gamma"],
+                     "notes": ["Synthetic note."]})
+    elif kind == "short":
+        base.update({"model": "Synthetic model answer.",
+                     "rubric": ["Rubric point one", "Rubric point two"],
+                     "notes": ["Synthetic note."]})
+    return base
 
 
 def served_quiz_html(bank_text=SENTINEL_BANK):
@@ -263,10 +300,184 @@ def check_question_hierarchy():
              "got %r" % hs)
 
 
+# ---- plan 04-05 Task 1: canonical complete study payload -------------------
+
+def check_study_item_choice_payload():
+    """Test 1: mc/multi `study_item` carries public options plus answer_text,
+    why, correct, every non-empty da rationale, second, disc, trap, and all
+    notes -- exactly the runtime's own explain payload, no hand-picked copy.
+    """
+    from runtime import explain_payload
+    from surfaces.study import study_item
+    for kind in ("mc", "multi"):
+        q = synthetic_q(kind)
+        view = study_item(q)
+        for key in ("id", "type", "stem", "objective"):
+            if view.get(key) != q[key]:
+                fail("%s study_item lost the stable %r shape: %r"
+                     % (kind, key, view))
+        if not view.get("options") or len(view["options"]) != 3:
+            fail("%s study_item carries no public options list: %r"
+                 % (kind, view))
+        ex = view.get("explain")
+        if not isinstance(ex, dict):
+            fail("%s study_item has no explain member: %r" % (kind, view))
+        expected = explain_payload(q, reveal=True)
+        if ex != expected:
+            fail("%s study_item explain diverges from runtime.explain_payload: "
+                 "got %r expected %r" % (kind, ex, expected))
+        if not ex["da"]:
+            fail("%s study explain dropped every option rationale: %r"
+                 % (kind, ex))
+        if ex["notes"] != ["Synthetic note."]:
+            fail("%s study explain lost notes: %r" % (kind, ex))
+
+
+def check_study_item_nonchoice_payload():
+    """Test 2: table/dnd/build/short cards preserve every field their
+    explain_payload branch returns; empty optional fields stay empty rather
+    than being fabricated.
+    """
+    from runtime import explain_payload
+    from surfaces.study import study_item
+    for kind in ("table", "dnd", "build", "short"):
+        q = synthetic_q(kind)
+        ex = study_item(q).get("explain")
+        expected = explain_payload(q, reveal=True)
+        if not isinstance(ex, dict):
+            fail("%s study_item has no explain member: %r" % (kind, ex))
+        if ex != expected:
+            fail("%s study_item explain diverges from runtime.explain_payload: "
+                 "got %r expected %r" % (kind, ex, expected))
+    q = synthetic_q("short")
+    q["model"] = ""
+    q["rubric"] = []
+    ex = study_item(q)["explain"]
+    if ex != explain_payload(q, reveal=True):
+        fail("empty optional short fields were fabricated: %r" % ex)
+    if ex["model"] != "" or ex["rubric"] != []:
+        fail("empty short fields did not stay empty: %r" % ex)
+
+
+def check_study_item_sentinels_reach_reveal():
+    """Test 3: a sentinel in every explanation field appears exactly once in
+    the generated study data and exactly once in the rendered reveal output
+    -- no independent hand-copied projection can drift.
+    """
+    from surfaces.study import study_item, study_page
+    q = synthetic_q("mc")
+    q["why"] = "SENTINEL_WHY"
+    q["disc"] = "SENTINEL_DISC"
+    q["second"] = "SENTINEL_SECOND"
+    q["trap"] = "SENTINEL_TRAP"
+    q["notes"] = ["SENTINEL_NOTE"]
+    q["da"] = {"A": "SENTINEL_DA_A", "B": "SENTINEL_DA_B",
+               "C": "SENTINEL_DA_C"}
+    sentinels = ("SENTINEL_WHY", "SENTINEL_DISC", "SENTINEL_SECOND",
+                 "SENTINEL_TRAP", "SENTINEL_NOTE",
+                 "SENTINEL_DA_A", "SENTINEL_DA_B", "SENTINEL_DA_C")
+    data = json.dumps(study_item(q), ensure_ascii=False)
+    for s in sentinels:
+        if data.count(s) != 1:
+            fail("sentinel %r appears %d times in generated study data, "
+                 "expected exactly once" % (s, data.count(s)))
+    with tempfile.TemporaryDirectory() as tmp:
+        bank = os.path.join(tmp, "sentinel_bank.md")
+        with open(bank, "w", encoding="utf-8") as fh:
+            fh.write("# Sentinel study bank\n\nQ1. Stem.\n"
+                     "A) One\nB) Two\nC) Three\nCORRECT: B\n")
+        page = study_page(bank, [q])
+    m = re.search(r"const CARDS=(\[.*?\]);", page, re.S)
+    if not m:
+        fail("study page carries no embedded CARDS data element")
+    embedded = m.group(1)
+    for s in sentinels:
+        if embedded.count(s) != 1:
+            fail("sentinel %r appears %d times in the embedded study data, "
+                 "expected exactly once" % (s, embedded.count(s)))
+    start = page.find("<script")
+    end = page.find("</script>", start) + len("</script>")
+    visible = page[:start] + page[end:]
+    for s in sentinels:
+        if visible.count(s) != 1:
+            fail("sentinel %r appears %d times in the rendered reveal output, "
+                 "expected exactly once" % (s, visible.count(s)))
+
+
+def check_study_script_safety():
+    """Test 4: bank text containing HTML or a script terminator is serialized
+    inert and later rendered through escaping -- it can never close the data
+    element or execute.
+    """
+    from surfaces.study import study_page
+    hostile = ("Q1. <script>alert(1)</script> stem?  (difficulty: recall)\n"
+               "A) <img src=x onerror=alert(2)>\nB) Two\nC) Three\n"
+               "CORRECT: B\n"
+               "WHY BEST: </script><script>alert(3)</script>\n"
+               "CONFIDENCE: high\n")
+    with tempfile.TemporaryDirectory() as tmp:
+        bank = os.path.join(tmp, "hostile_bank.md")
+        with open(bank, "w", encoding="utf-8") as fh:
+            fh.write("# Hostile bank\n\n" + hostile)
+        import itembank
+        qs = itembank.parse_bank(open(bank, encoding="utf-8").read())
+        page = study_page(bank, qs)
+    if page.count("<script") != 1 or page.count("</script>") != 1:
+        fail("hostile bank text closed or duplicated the page script element "
+             "(<script count %d, </script> count %d)"
+             % (page.count("<script"), page.count("</script>")))
+    if "\\u003c/script\\u003e" not in page:
+        fail("hostile serialization did not escape the script terminator")
+    if "&lt;script&gt;alert(1)&lt;/script&gt;" not in page:
+        fail("rendered stem was not escaped text")
+    if '<img src=x onerror=alert(2)>' in page.replace("&lt;", "<").replace(
+            "&gt;", ">"):
+        fail("hostile option text reached the page as executable markup")
+
+
+def check_study_empty_and_error_states():
+    """Test 5: empty input renders the shared state panel with the exact
+    empty copy; a malformed card renders an error state that keeps bank
+    context and a retry/back action instead of a blank page.
+    """
+    from surfaces.study import study_page
+    with tempfile.TemporaryDirectory() as tmp:
+        bank = os.path.join(tmp, "empty_bank.md")
+        with open(bank, "w", encoding="utf-8") as fh:
+            fh.write("# Empty study bank\n\nNo questions here.\n")
+        page = study_page(bank, [])
+        if "No study cards match this bank." not in page:
+            fail("empty study page is missing the locked empty copy")
+        if 'role="status"' not in page:
+            fail("empty study state is not in a persistent status region")
+        if 'data-state="empty"' not in page:
+            fail("empty study state does not use the shared state panel")
+    with tempfile.TemporaryDirectory() as tmp:
+        bank = os.path.join(tmp, "broken_bank.md")
+        with open(bank, "w", encoding="utf-8") as fh:
+            fh.write("# Broken study bank\n\nQ1. ???\n")
+        page = study_page(bank, [{"type": "mc"}])
+        if ("This card could not be shown. Move to the next card or reload."
+                not in page):
+            fail("render-error study page lacks the recovery copy")
+        if "Broken study bank" not in page:
+            fail("render-error study page lost bank context")
+        if 'data-state="bad"' not in page:
+            fail("render-error study page does not use the shared error panel")
+        if not re.search(r'class="go[^"]*"[^>]*>\s*Reload', page) \
+                and "Choose another bank" not in page:
+            fail("render-error study page has no retry/back action")
+
+
 def main():
     check_study_and_export()
     check_semantic_helpers()
     check_question_hierarchy()
+    check_study_item_choice_payload()
+    check_study_item_nonchoice_payload()
+    check_study_item_sentinels_reach_reveal()
+    check_study_script_safety()
+    check_study_empty_and_error_states()
     print("study and export surfaces + Phase 4 question hierarchy: ok")
 
 
