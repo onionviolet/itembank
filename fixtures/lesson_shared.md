@@ -30,3 +30,9 @@ The delivered concentration depends on the patient's breathing pattern, not
 just the device. A mask that looks correct but sits loose delivers less than
 the number on the dial suggests, which is why reassessment after application
 is part of the skill.
+
+A worked estimate for the delivered fraction:
+
+```math
+FiO2 \approx 0.21 + 0.04 \times flow
+```

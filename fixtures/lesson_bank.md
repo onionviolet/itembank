@@ -19,6 +19,38 @@ When the airway is at risk, the first intervention is positioning. A
 head-tilt/chin-lift opens the airway in most patients with no suspected spine
 injury; a jaw-thrust does the same without moving the cervical spine.
 
+The positioning steps, in order:
+
+1. Open the airway with a head-tilt/chin-lift.
+2. Suction the oropharynx if it is not clear.
+3. Insert the airway adjunct that fits the patient.
+4. Reassess air movement after every move.
+
+Signs to track while reassessing:
+
+- Air movement at the mouth and nose
+- Chest rise with each breath
+- Noisy breathing that worsens with position
+
+| Sign | What it means | Action |
+| --- | --- | --- |
+| Snoring | Tongue against the pharynx | Head-tilt/chin-lift or jaw-thrust |
+| Gurgling | Fluid in the airway | Suction |
+| No air movement | Complete obstruction | Immediate intervention |
+
+```text
+A **bold marker** and an _underscore pair_ and a `backtick pair` and a
+[link-shaped thing](nowhere) survive inside a fence, and so do a
+# heading marker and a - list marker.
+```
+
+```
+Plain fenced block with no language class.
+```
+
+A sentence with markup-shaped text: an <img onerror=y> tag and an ampersand
+& stay visible as characters, never markup.
+
 ### When to Call for Help
 
 Some findings mean the airway is already failing: snoring respirations with a

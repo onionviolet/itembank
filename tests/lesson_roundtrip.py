@@ -772,6 +772,129 @@ def test_unknown_reference_is_error_not_warning():
         fail("unknown-reference must never appear in the warnings list (SC3)")
 
 
+# ---- plan 03-04 Task 1: blocks -- fenced code, lists, tables ----------------
+# D-08's deliberately small block scope, and the Phase 9 seam: a fenced block
+# carrying an info string must render as a pre/code element with a
+# `language-<info>` class, source preserved verbatim apart from HTML escaping,
+# so Phase 9 attaches KaTeX and the run button by selector without re-parsing.
+
+def test_render_fenced_code_with_language():
+    h = lesson.render_markdown("```python\nx = 1\n```\n")
+    if "<pre" not in h or "language-python" not in h:
+        fail("fenced code must render a pre/code element with the language "
+             "class: %r" % h)
+    if "x = 1" not in h:
+        fail("fenced code content missing: %r" % h)
+
+
+def test_render_fenced_code_without_language():
+    h = lesson.render_markdown("```\nplain\n```\n")
+    if "<pre" not in h or "language-" in h:
+        fail("a fenced block with no info string must carry no language "
+             "class: %r" % h)
+    if "plain" not in h:
+        fail("plain fenced content missing: %r" % h)
+
+
+def test_render_fenced_code_verbatim_against_inline_pass():
+    src = ("```text\n**not bold** _not italic_ `not code` [not](a link)\n"
+           "# not a heading\n- not a list item\n```\n")
+    h = lesson.render_markdown(src)
+    for want in ("**not bold**", "_not italic_", "`not code`", "[not](a link)",
+                 "# not a heading", "- not a list item"):
+        if want not in h:
+            fail("inline pass mangled fenced content: missing %r in %r"
+                 % (want, h))
+    for banned in ("<strong>", "<em>", "<a ", "<h2", "<ul", "<li>"):
+        if banned in h:
+            fail("inline pass reached inside a fence: %r in %r" % (banned, h))
+
+
+def test_render_fenced_code_escaped():
+    h = lesson.render_markdown("```html\n<script>x</script> & y\n```\n")
+    if "&lt;script&gt;" not in h or "&amp;" not in h:
+        fail("fenced content must be HTML-escaped: %r" % h)
+    if "<script>" in h:
+        fail("fenced content leaked raw markup: %r" % h)
+
+
+def test_render_fenced_code_unterminated():
+    h = lesson.render_markdown("```python\nunterminated\n")
+    if "<pre" not in h or "unterminated" not in h:
+        fail("an unterminated fence must render to the end of the section "
+             "rather than raising: %r" % h)
+
+
+def test_render_lists():
+    h = lesson.render_markdown("- one\n- two\n")
+    if "<ul>" not in h or h.count("<li>") != 2:
+        fail("dash list must render an unordered list with one item per "
+             "line: %r" % h)
+    h = lesson.render_markdown("1. one\n2. two\n")
+    if "<ol>" not in h or h.count("<li>") != 2:
+        fail("digit list must render an ordered list with one item per "
+             "line: %r" % h)
+
+
+def test_render_table():
+    h = lesson.render_markdown("| a | b |\n| --- | --- |\n| 1 | 2 |\n")
+    if "<table" not in h or "<th" not in h or "<td" not in h:
+        fail("a pipe table with a separator row must render as a table: %r"
+             % h)
+
+
+def test_render_malformed_table_falls_back_to_paragraph():
+    h = lesson.render_markdown("a | b but no table here\n")
+    if "<table" in h or "<p" not in h:
+        fail("a lone pipe line must render as a paragraph: %r" % h)
+    h2 = lesson.render_markdown("| a | b |\n| 1 | 2 |\n")
+    if "<table" in h2:
+        fail("a run with no separator row must not render a table: %r" % h2)
+    h3 = lesson.render_markdown("| a | b |\n| --- | --- |\n| 1 | 2 | 3 |\n")
+    if "<table" in h3:
+        fail("a row with a different cell count must fall back to a "
+             "paragraph: %r" % h3)
+
+
+def test_render_overflow_containers():
+    src = open(os.path.join(ROOT, "surfaces", "lesson.py"),
+               encoding="utf-8").read()
+    if "overflow-x:auto" not in src:
+        fail("the reader must style wide code and tables with their own "
+             "horizontal scroll container")
+    code = "\n".join(l for l in src.splitlines()
+                     if not l.lstrip().startswith("#"))
+    if re.search(r"white-space:nowrap|text-overflow", code):
+        fail("the reader must never force no-wrap or ellipsis truncation "
+             "on lesson prose")
+
+
+def test_render_deep_heading_same_size():
+    h = lesson.render_markdown("#### deeper than the grammar\n")
+    if "<h2>deeper than the grammar</h2>" not in h:
+        fail("a heading deeper than ### must render at the same Display "
+             "size as a section heading: %r" % h)
+
+
+def test_lesson_bank_fixture_renders_all_block_kinds():
+    pg = lesson.lesson_page(LES_BANK, itembank.load(LES_BANK),
+                            itembank.parse_lesson(LES_BANK))
+    for want in ("<table", "<ul>", "<ol>", "<pre", "language-text",
+                 "&lt;img onerror=y&gt;", "&amp;"):
+        if want not in pg:
+            fail("fixture lesson page missing %r" % want)
+    if pg.count("<pre") < 2:
+        fail("fixture must carry two fenced blocks, got %d"
+             % pg.count("<pre"))
+
+
+def test_lesson_shared_fixture_carries_math_seam():
+    shared = itembank.parse_lesson(SHARED_LESSON)
+    h = lesson.render_markdown(shared["body"])
+    if "language-math" not in h:
+        fail("the shared fixture must carry the math fence Phase 9 attaches "
+             "to")
+
 
 # ---- subprocess: daemon routes and the CLI twin ----------------------------
 
@@ -960,6 +1083,18 @@ test_schema_enum_has_no_undeclared_codes()
 test_lint_codes_namespace_prefixes_match_protocol()
 test_broken_lesson_fixtures_validate_against_schema()
 test_unknown_reference_is_error_not_warning()
+test_render_fenced_code_with_language()
+test_render_fenced_code_without_language()
+test_render_fenced_code_verbatim_against_inline_pass()
+test_render_fenced_code_escaped()
+test_render_fenced_code_unterminated()
+test_render_lists()
+test_render_table()
+test_render_malformed_table_falls_back_to_paragraph()
+test_render_overflow_containers()
+test_render_deep_heading_same_size()
+test_lesson_bank_fixture_renders_all_block_kinds()
+test_lesson_shared_fixture_carries_math_seam()
 test_lesson_src_degraded_daemon_and_cli()
 test_lesson_plain_empty_state_has_no_warning()
 test_routes_and_cli_twin()
