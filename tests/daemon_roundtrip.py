@@ -736,82 +736,85 @@ def check_day_edit_route():
         fail("POST /day/<stem>/edit does not map to the day CLI twin")
 
     workdir = tempfile.mkdtemp()
-    iso = write_today_plan(os.path.join(workdir, "sample_plan.md"),
-                           "ch 2 first half")
-    proc, url, lines = start_daemon(workdir)
     try:
-        status, page = get(url + "day/sample_plan")
-        if status != 200:
-            fail("GET /day/<stem> returned %d for the edit test" % status)
-        boot = day_boot_data(page)
-        if boot is None:
-            fail("day page has no boot data for the edit route")
-        snap = boot.get("snapshot")
-        if not snap or snap.get("status") != "ready":
-            fail("day boot snapshot not ready for the edit route: %r" % snap)
-        if not re.fullmatch(r"[0-9a-f]{64}", snap.get("revision", "")):
-            fail("day boot snapshot revision is not SHA-256")
-        if snap.get("cells", {}).get("EMT (top priority)") != "ch 2 first half":
-            fail("day boot snapshot lost the current cell value")
-        if "plan.md" in json.dumps(boot) or workdir in json.dumps(boot):
-            fail("day boot data leaks a filesystem path")
-        if "Edit plan" not in page or "Save changes" not in page:
-            fail("day page has no Edit plan / Save changes controls")
-        if "<textarea" in page:
-            fail("day editor exposes a raw Markdown textarea")
+        iso = write_today_plan(os.path.join(workdir, "sample_plan.md"),
+                               "ch 2 first half")
+        proc, url, lines = start_daemon(workdir)
+        try:
+            status, page = get(url + "day/sample_plan")
+            if status != 200:
+                fail("GET /day/<stem> returned %d for the edit test" % status)
+            boot = day_boot_data(page)
+            if boot is None:
+                fail("day page has no boot data for the edit route")
+            snap = boot.get("snapshot")
+            if not snap or snap.get("status") != "ready":
+                fail("day boot snapshot not ready for the edit route: %r" % snap)
+            if not re.fullmatch(r"[0-9a-f]{64}", snap.get("revision", "")):
+                fail("day boot snapshot revision is not SHA-256")
+            if snap.get("cells", {}).get("EMT (top priority)") != "ch 2 first half":
+                fail("day boot snapshot lost the current cell value")
+            if "plan.md" in json.dumps(boot) or workdir in json.dumps(boot):
+                fail("day boot data leaks a filesystem path")
+            if "Edit plan" not in page or "Save changes" not in page:
+                fail("day page has no Edit plan / Save changes controls")
+            if "<textarea" in page:
+                fail("day editor exposes a raw Markdown textarea")
 
-        saved = post(url + "day/sample_plan/edit", {
-            "revision": snap["revision"],
-            "edits": {"EMT (top priority)": "ch 3, start"}})
-        if saved.get("status") != "saved":
-            fail("day edit route returned %r, want saved" % saved.get("status"))
-        if saved.get("revision") == snap["revision"]:
-            fail("day edit route returned the stale revision")
-        if saved.get("cells", {}).get("EMT (top priority)") != "ch 3, start":
-            fail("day edit route did not return the saved cells")
-        if saved.get("row", {}).get("EMT") != "ch 3, start":
-            fail("day edit route did not return the fresh parsed row")
-        _status, page2 = get(url + "day/sample_plan")
-        if "ch 3, start" not in page2:
-            fail("next render after a plan edit does not show the new plan text")
-        boot2 = day_boot_data(page2)
-        if boot2["snapshot"]["revision"] == snap["revision"]:
-            fail("next render after a plan edit kept the stale revision")
-        plan_bytes_now = open(os.path.join(workdir, "sample_plan.md"),
-                              "rb").read()
-        if b"ch 3, start" not in plan_bytes_now:
-            fail("plan edit did not reach the file bytes")
+            saved = post(url + "day/sample_plan/edit", {
+                "revision": snap["revision"],
+                "edits": {"EMT (top priority)": "ch 3, start"}})
+            if saved.get("status") != "saved":
+                fail("day edit route returned %r, want saved" % saved.get("status"))
+            if saved.get("revision") == snap["revision"]:
+                fail("day edit route returned the stale revision")
+            if saved.get("cells", {}).get("EMT (top priority)") != "ch 3, start":
+                fail("day edit route did not return the saved cells")
+            if saved.get("row", {}).get("EMT") != "ch 3, start":
+                fail("day edit route did not return the fresh parsed row")
+            _status, page2 = get(url + "day/sample_plan")
+            if "ch 3, start" not in page2:
+                fail("next render after a plan edit does not show the new plan text")
+            boot2 = day_boot_data(page2)
+            if boot2["snapshot"]["revision"] == snap["revision"]:
+                fail("next render after a plan edit kept the stale revision")
+            plan_bytes_now = open(os.path.join(workdir, "sample_plan.md"),
+                                  "rb").read()
+            if b"ch 3, start" not in plan_bytes_now:
+                fail("plan edit did not reach the file bytes")
 
-        invalid = post(url + "day/sample_plan/edit", {
-            "revision": boot2["snapshot"]["revision"],
-            "edits": {"EMT (top priority)": "bad\nvalue"}})
-        if invalid.get("status") != "invalid":
-            fail("day edit invalid status %r, want invalid" % invalid.get("status"))
-        if invalid.get("draft") != {"EMT (top priority)": "bad\nvalue"}:
-            fail("day edit invalid response lost the draft: %r"
-                 % invalid.get("draft"))
-        if open(os.path.join(workdir, "sample_plan.md"), "rb").read() != plan_bytes_now:
-            fail("day edit invalid response wrote to the file")
+            invalid = post(url + "day/sample_plan/edit", {
+                "revision": boot2["snapshot"]["revision"],
+                "edits": {"EMT (top priority)": "bad\nvalue"}})
+            if invalid.get("status") != "invalid":
+                fail("day edit invalid status %r, want invalid" % invalid.get("status"))
+            if invalid.get("draft") != {"EMT (top priority)": "bad\nvalue"}:
+                fail("day edit invalid response lost the draft: %r"
+                     % invalid.get("draft"))
+            if open(os.path.join(workdir, "sample_plan.md"), "rb").read() != plan_bytes_now:
+                fail("day edit invalid response wrote to the file")
 
-        for forged in ({"path": "/etc/passwd"},
-                       {"document": "full file"},
-                       {"plan": "other.md"},
-                       {"bytes": "AA=="}):
-            status_f, body = json_request(
-                url + "day/sample_plan/edit",
-                {"revision": snap["revision"],
-                 "edits": {"EMT": "x"},
-                 "force_token": "t"} | forged)
-            if status_f != 200 or body.get("status") != "invalid":
-                fail("day edit accepted authority field %r: %r"
-                     % (forged, body))
+            for forged in ({"path": "/etc/passwd"},
+                           {"document": "full file"},
+                           {"plan": "other.md"},
+                           {"bytes": "AA=="}):
+                status_f, body = json_request(
+                    url + "day/sample_plan/edit",
+                    {"revision": snap["revision"],
+                     "edits": {"EMT": "x"},
+                     "force_token": "t"} | forged)
+                if status_f != 200 or body.get("status") != "invalid":
+                    fail("day edit accepted authority field %r: %r"
+                         % (forged, body))
 
-        got = post(url + "day/sample_plan/save",
-                   {"date": iso, "done": list(itembank.FLOOR_LANES)})
-        if got.get("status") != "floor":
-            fail("tick save after a plan edit broke: %r" % got.get("status"))
+            got = post(url + "day/sample_plan/save",
+                       {"date": iso, "done": list(itembank.FLOOR_LANES)})
+            if got.get("status") != "floor":
+                fail("tick save after a plan edit broke: %r" % got.get("status"))
+        finally:
+            proc.terminate()
     finally:
-        proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
 
 
 def edit_draft_hash(edits):
@@ -834,133 +837,136 @@ def check_day_edit_conflict_and_force():
     against a fresh revision and consumes the token.
     """
     workdir = tempfile.mkdtemp()
-    os.makedirs(os.path.join(workdir, "a"))
-    os.makedirs(os.path.join(workdir, "b"))
-    plan_a = os.path.join(workdir, "a", "plan_a.md")
-    plan_b = os.path.join(workdir, "b", "plan_b.md")
-    iso = write_today_plan(plan_a, "ch 2 first half")
-    write_today_plan(plan_b, "other plan task")
-    proc, url, lines = start_daemon(workdir)
     try:
-        status, page = get(url + "day/plan_a")
-        if status != 200:
-            fail("conflict test could not load /day/plan_a")
-        snap = day_boot_data(page)["snapshot"]
-        stale_rev = snap["revision"]
-        original = open(plan_a, "rb").read()
-        external = original.replace(b"ch 2 first half",
-                                    b"changed by Obsidian")
-        with open(plan_a, "wb") as fh:
-            fh.write(external)
+        os.makedirs(os.path.join(workdir, "a"))
+        os.makedirs(os.path.join(workdir, "b"))
+        plan_a = os.path.join(workdir, "a", "plan_a.md")
+        plan_b = os.path.join(workdir, "b", "plan_b.md")
+        iso = write_today_plan(plan_a, "ch 2 first half")
+        write_today_plan(plan_b, "other plan task")
+        proc, url, lines = start_daemon(workdir)
+        try:
+            status, page = get(url + "day/plan_a")
+            if status != 200:
+                fail("conflict test could not load /day/plan_a")
+            snap = day_boot_data(page)["snapshot"]
+            stale_rev = snap["revision"]
+            original = open(plan_a, "rb").read()
+            external = original.replace(b"ch 2 first half",
+                                        b"changed by Obsidian")
+            with open(plan_a, "wb") as fh:
+                fh.write(external)
 
-        conflict = post(url + "day/plan_a/edit",
-                        {"revision": stale_rev,
-                         "edits": {"EMT (top priority)": "my draft"}})
-        if conflict.get("status") != "conflict":
-            fail("stale save returned %r, want conflict" % conflict.get("status"))
-        if open(plan_a, "rb").read() != external:
-            fail("conflict response wrote to the file")
-        if conflict.get("draft") != {"EMT (top priority)": "my draft"}:
-            fail("conflict response lost the draft: %r" % conflict.get("draft"))
-        current = conflict.get("current", {})
-        if current.get("revision") != conflict.get("revision"):
-            fail("conflict response current/revision mismatch")
-        if current.get("cells", {}).get("EMT (top priority)") != "changed by Obsidian":
-            fail("conflict response did not carry the fresh current cell")
-        if current.get("revision") == stale_rev:
-            fail("conflict response current revision equals the stale revision")
-        token = conflict.get("force_token")
-        if not isinstance(token, str) or not re.fullmatch(r"[0-9a-f]{64}", token):
-            fail("conflict did not issue a one-use token: %r" % token)
-        fhash = conflict.get("force_draft_hash")
-        if fhash != edit_draft_hash({"EMT (top priority)": "my draft"}):
-            fail("conflict draft hash %r does not match the canonical hash"
-                 % fhash)
+            conflict = post(url + "day/plan_a/edit",
+                            {"revision": stale_rev,
+                             "edits": {"EMT (top priority)": "my draft"}})
+            if conflict.get("status") != "conflict":
+                fail("stale save returned %r, want conflict" % conflict.get("status"))
+            if open(plan_a, "rb").read() != external:
+                fail("conflict response wrote to the file")
+            if conflict.get("draft") != {"EMT (top priority)": "my draft"}:
+                fail("conflict response lost the draft: %r" % conflict.get("draft"))
+            current = conflict.get("current", {})
+            if current.get("revision") != conflict.get("revision"):
+                fail("conflict response current/revision mismatch")
+            if current.get("cells", {}).get("EMT (top priority)") != "changed by Obsidian":
+                fail("conflict response did not carry the fresh current cell")
+            if current.get("revision") == stale_rev:
+                fail("conflict response current revision equals the stale revision")
+            token = conflict.get("force_token")
+            if not isinstance(token, str) or not re.fullmatch(r"[0-9a-f]{64}", token):
+                fail("conflict did not issue a one-use token: %r" % token)
+            fhash = conflict.get("force_draft_hash")
+            if fhash != edit_draft_hash({"EMT (top priority)": "my draft"}):
+                fail("conflict draft hash %r does not match the canonical hash"
+                     % fhash)
 
-        force_base = {"revision": conflict["revision"],
-                      "edits": {"EMT (top priority)": "my draft"},
-                      "force": True,
-                      "confirmation": ("I understand this replaces these edited "
-                                       "cells using the latest plan version.")}
+            force_base = {"revision": conflict["revision"],
+                          "edits": {"EMT (top priority)": "my draft"},
+                          "force": True,
+                          "confirmation": ("I understand this replaces these edited "
+                                           "cells using the latest plan version.")}
 
-        st, body = json_request(url + "day/plan_a/edit",
-                                dict(force_base, force_token="0" * 64))
-        if st != 200 or body.get("status") != "invalid":
-            fail("wrong force token was not refused: %r" % body)
-        if open(plan_a, "rb").read() != external:
-            fail("wrong-token force wrote to the file")
+            st, body = json_request(url + "day/plan_a/edit",
+                                    dict(force_base, force_token="0" * 64))
+            if st != 200 or body.get("status") != "invalid":
+                fail("wrong force token was not refused: %r" % body)
+            if open(plan_a, "rb").read() != external:
+                fail("wrong-token force wrote to the file")
 
-        st, body = json_request(url + "day/plan_a/edit",
-                                dict(force_base, force_token=token,
-                                     confirmation="nope"))
-        if st != 200 or body.get("status") != "invalid":
-            fail("force without the exact confirmation was not refused: %r"
-                 % body)
+            st, body = json_request(url + "day/plan_a/edit",
+                                    dict(force_base, force_token=token,
+                                         confirmation="nope"))
+            if st != 200 or body.get("status") != "invalid":
+                fail("force without the exact confirmation was not refused: %r"
+                     % body)
 
-        st, body = json_request(url + "day/plan_a/edit",
-                                dict(force_base, force_token=token,
-                                     edits={"EMT (top priority)": "changed draft"}))
-        if st != 200 or body.get("status") != "invalid":
-            fail("changed-draft force was not refused: %r" % body)
-        if open(plan_a, "rb").read() != external:
-            fail("changed-draft force wrote to the file")
+            st, body = json_request(url + "day/plan_a/edit",
+                                    dict(force_base, force_token=token,
+                                         edits={"EMT (top priority)": "changed draft"}))
+            if st != 200 or body.get("status") != "invalid":
+                fail("changed-draft force was not refused: %r" % body)
+            if open(plan_a, "rb").read() != external:
+                fail("changed-draft force wrote to the file")
 
-        st, body = json_request(url + "day/plan_a/edit",
-                                dict(force_base, force_token=token))
-        if st != 200 or body.get("status") != "saved":
-            fail("confirmed force was not saved: %r" % body)
-        saved_bytes = open(plan_a, "rb").read()
-        if saved_bytes == external:
-            fail("confirmed force did not patch the file")
-        if b"my draft" not in saved_bytes or b"Ch 1 sets, problems 1-6" not in saved_bytes:
-            fail("confirmed force lost the draft cell or the concurrent Math edit")
-        if body.get("revision") == stale_rev:
-            fail("confirmed force returned the stale revision")
-        if body.get("cells", {}).get("EMT (top priority)") != "my draft":
-            fail("confirmed force did not return the saved cells")
-        if token in daemon.DaemonHandler.day_force_tokens:
-            fail("confirmed force did not consume the one-use token")
+            st, body = json_request(url + "day/plan_a/edit",
+                                    dict(force_base, force_token=token))
+            if st != 200 or body.get("status") != "saved":
+                fail("confirmed force was not saved: %r" % body)
+            saved_bytes = open(plan_a, "rb").read()
+            if saved_bytes == external:
+                fail("confirmed force did not patch the file")
+            if b"my draft" not in saved_bytes or b"Ch 1 sets, problems 1-6" not in saved_bytes:
+                fail("confirmed force lost the draft cell or the concurrent Math edit")
+            if body.get("revision") == stale_rev:
+                fail("confirmed force returned the stale revision")
+            if body.get("cells", {}).get("EMT (top priority)") != "my draft":
+                fail("confirmed force did not return the saved cells")
+            if token in daemon.DaemonHandler.day_force_tokens:
+                fail("confirmed force did not consume the one-use token")
 
-        replay = post(url + "day/plan_a/edit",
-                      dict(force_base, force_token=token))
-        if replay.get("status") != "invalid":
-            fail("replayed force token was not refused: %r" % replay)
-        if open(plan_a, "rb").read() != saved_bytes:
-            fail("replayed force wrote to the file")
+            replay = post(url + "day/plan_a/edit",
+                          dict(force_base, force_token=token))
+            if replay.get("status") != "invalid":
+                fail("replayed force token was not refused: %r" % replay)
+            if open(plan_a, "rb").read() != saved_bytes:
+                fail("replayed force wrote to the file")
 
-        st, body = json_request(url + "day/plan_b/edit",
-                                dict(force_base, force_token=token))
-        if st != 200 or body.get("status") != "invalid":
-            fail("wrong-stem force was not refused: %r" % body)
+            st, body = json_request(url + "day/plan_b/edit",
+                                    dict(force_base, force_token=token))
+            if st != 200 or body.get("status") != "invalid":
+                fail("wrong-stem force was not refused: %r" % body)
 
-        conflict2 = post(url + "day/plan_a/edit",
-                         {"revision": stale_rev,
-                          "edits": {"EMT (top priority)": "my draft"}})
-        if conflict2.get("status") != "conflict":
-            fail("second stale save returned %r, want conflict"
-                 % conflict2.get("status"))
-        token2 = conflict2.get("force_token")
-        if not isinstance(token2, str) or not re.fullmatch(r"[0-9a-f]{64}", token2):
-            fail("second conflict did not issue a fresh token: %r" % token2)
-        if token2 == token:
-            fail("second conflict reused the consumed token")
+            conflict2 = post(url + "day/plan_a/edit",
+                             {"revision": stale_rev,
+                              "edits": {"EMT (top priority)": "my draft"}})
+            if conflict2.get("status") != "conflict":
+                fail("second stale save returned %r, want conflict"
+                     % conflict2.get("status"))
+            token2 = conflict2.get("force_token")
+            if not isinstance(token2, str) or not re.fullmatch(r"[0-9a-f]{64}", token2):
+                fail("second conflict did not issue a fresh token: %r" % token2)
+            if token2 == token:
+                fail("second conflict reused the consumed token")
 
-        third = saved_bytes.replace(b"Ch 1 sets, problems 1-6",
-                                    b"changed a third time")
-        with open(plan_a, "wb") as fh:
-            fh.write(third)
-        st, body = json_request(url + "day/plan_a/edit",
-                                dict(force_base,
-                                     revision=conflict2["revision"],
-                                     force_token=token2))
-        if st != 200 or body.get("status") != "conflict":
-            fail("third-version force was not a fresh conflict: %r" % body)
-        if open(plan_a, "rb").read() != third:
-            fail("third-version force wrote to the file")
-        if "force_token" in body:
-            fail("third-version conflict reissued a usable force token")
+            third = saved_bytes.replace(b"Ch 1 sets, problems 1-6",
+                                        b"changed a third time")
+            with open(plan_a, "wb") as fh:
+                fh.write(third)
+            st, body = json_request(url + "day/plan_a/edit",
+                                    dict(force_base,
+                                         revision=conflict2["revision"],
+                                         force_token=token2))
+            if st != 200 or body.get("status") != "conflict":
+                fail("third-version force was not a fresh conflict: %r" % body)
+            if open(plan_a, "rb").read() != third:
+                fail("third-version force wrote to the file")
+            if "force_token" in body:
+                fail("third-version conflict reissued a usable force token")
+        finally:
+            proc.terminate()
     finally:
-        proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
 
 
 def check_route_cli_inventory():
