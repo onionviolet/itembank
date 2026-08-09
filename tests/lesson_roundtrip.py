@@ -16,7 +16,9 @@ import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "tests"))
 import itembank                                            # noqa: E402
+import protocol_roundtrip                                   # noqa: E402
 from surfaces import daemon, lesson, quiz                   # noqa: E402
 from surfaces.quiz_page import TEMPLATE                     # noqa: E402
 
@@ -676,6 +678,100 @@ def test_lesson_lint_src_unreadable():
         fail("no heading-level findings may accompany src_unreadable")
 
 
+# ---- plan 03-03 Task 3: the coupling guards --------------------------------
+# 03-RESEARCH.md Pitfall 3's failure mode: a code that exists in three places
+# minus one, where the missing one is a file nobody was looking at. These tests
+# lock all three couplings -- the tuple, the schema enum, and the accepted
+# namespace prefixes -- so a drift fails locally rather than in CI.
+
+def test_lint_codes_schema_enum_contains_all_codes():
+    """Every member of LINT_CODES is a member of the published code enum, so
+    the next code added without a schema entry fails locally. The failure
+    names the offending members -- the whole value of this test is that it
+    says which file to edit."""
+    lint_schema = json.load(open(os.path.join(ROOT, "schemas",
+                                              "lint_error.schema.json"),
+                                 encoding="utf-8"))
+    enum = set(lint_schema["properties"]["code"]["enum"])
+    missing = set(itembank.LINT_CODES) - enum
+    if missing:
+        fail("LINT_CODES members missing from schemas/lint_error.schema.json's "
+             "code enum: %s" % ", ".join(sorted(missing)))
+
+
+def test_schema_enum_has_no_undeclared_codes():
+    """The reverse containment too: the enum carries no member that is not a
+    published code, so a stale enum entry cannot survive."""
+    lint_schema = json.load(open(os.path.join(ROOT, "schemas",
+                                              "lint_error.schema.json"),
+                                 encoding="utf-8"))
+    enum = set(lint_schema["properties"]["code"]["enum"])
+    undeclared = enum - set(itembank.LINT_CODES)
+    if undeclared:
+        fail("schemas/lint_error.schema.json's code enum carries members "
+             "missing from LINT_CODES: %s" % ", ".join(sorted(undeclared)))
+
+
+def test_lint_codes_namespace_prefixes_match_protocol():
+    """Every namespace prefix appearing in LINT_CODES is one the protocol
+    test's accepted set contains -- read from that module, never restated
+    here, so the two cannot drift."""
+    accepted = set(protocol_roundtrip.LINT_PREFIXES)
+    prefixes = {c.split(".", 1)[0] for c in itembank.LINT_CODES}
+    unknown = prefixes - accepted
+    if unknown:
+        fail("namespace prefixes not accepted by tests/protocol_roundtrip.py: %s"
+             % ", ".join(sorted(unknown)))
+
+
+def test_broken_lesson_fixtures_validate_against_schema():
+    """Run the linter over each broken lesson fixture as a subprocess with
+    JSON output and push every entry through schema_validate.validate -- the
+    same validator CI calls. Tolerate the expected non-zero exit and validate
+    the parsed output rather than trusting the exit code, so an empty or
+    truncated document cannot pass."""
+    import schema_validate
+    lint_schema = json.load(open(os.path.join(ROOT, "schemas",
+                                              "lint_error.schema.json"),
+                                 encoding="utf-8"))
+    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    for bank in (os.path.join(ROOT, "fixtures", "broken_bank.md"),
+                 os.path.join(ROOT, "fixtures", "lesson_broken_src_bank.md")):
+        r = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "itembank.py"), "lint", bank,
+             "--json"],
+            capture_output=True, text=True, encoding="utf-8", env=env)
+        if r.returncode == 0:
+            fail("lint exited 0 on deliberately broken fixture %s" % bank)
+        payload = json.loads(r.stdout)
+        if not payload["errors"] and not payload["warnings"]:
+            fail("lint --json on %s produced an empty document" % bank)
+        for key in ("errors", "warnings"):
+            for i, entry in enumerate(payload[key]):
+                errs = schema_validate.validate(entry, lint_schema)
+                if errs:
+                    fail("%s %s[%d] fails lint_error.schema.json: %s"
+                         % (bank, key, i, errs))
+
+
+def test_unknown_reference_is_error_not_warning():
+    """The machine-checkable form of ROADMAP SC3: the unknown-reference
+    finding lands in the errors list and never the warnings list, so a future
+    well-meaning downgrade to a warning fails a test rather than quietly
+    weakening the phase's acceptance gate."""
+    tmp = tempfile.mkdtemp()
+    bank = os.path.join(tmp, "ref_missing.md")
+    open(bank, "w", encoding="utf-8").write(
+        "## LESSON\n\n### Existing Heading\n\nprose\n\n"
+        + clean_mc("Which is one?", "Missing Section"))
+    qs = itembank.load(bank)
+    errors, warnings = itembank.lint(qs, lesson=itembank.parse_lesson(bank))
+    if not any(e.code == "item.lesson_ref_unknown" for e in errors):
+        fail("unknown-reference must appear in the errors list (ROADMAP SC3)")
+    if any(w.code == "item.lesson_ref_unknown" for w in warnings):
+        fail("unknown-reference must never appear in the warnings list (SC3)")
+
+
 
 # ---- subprocess: daemon routes and the CLI twin ----------------------------
 
@@ -859,8 +955,13 @@ test_lesson_lint_matching_ref_adds_nothing()
 test_lesson_lint_duplicate_heading()
 test_lesson_lint_orphan_heading()
 test_lesson_lint_src_unreadable()
+test_lint_codes_schema_enum_contains_all_codes()
+test_schema_enum_has_no_undeclared_codes()
+test_lint_codes_namespace_prefixes_match_protocol()
+test_broken_lesson_fixtures_validate_against_schema()
+test_unknown_reference_is_error_not_warning()
 test_lesson_src_degraded_daemon_and_cli()
 test_lesson_plain_empty_state_has_no_warning()
 test_routes_and_cli_twin()
 test_page_for_shapes_and_build()
-print("ok: lesson roundtrip (slug, parse, fingerprint, LESSON-SRC, degraded state, route, CLI twin, both link directions, lesson lint)")
+print("ok: lesson roundtrip (slug, parse, fingerprint, LESSON-SRC, degraded state, route, CLI twin, both link directions, lesson lint, coupling guards)")

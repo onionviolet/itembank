@@ -15,6 +15,13 @@ BROKEN_BANK = os.path.join(ROOT, "fixtures", "broken_bank.md")
 SAMPLE_BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
 SCHEMAS_DIR = os.path.join(ROOT, "schemas")
 
+# The namespace prefixes the protocol contract accepts. Plan 03-03 Task 3
+# reads this set from this module (tests/lesson_roundtrip.py imports it)
+# rather than restating the literal, so the two files cannot drift -- a second
+# copy of the prefix list is the same class of drift this set exists to
+# prevent.
+LINT_PREFIXES = ("item", "bank", "lesson")
+
 
 def fail(msg):
     print("FAIL: " + msg)
@@ -88,7 +95,7 @@ def test_lint_codes_declared():
         fail("LINT_CODES has duplicates")
     for c in codes:
         prefix = c.split(".", 1)[0]
-        if prefix not in ("item", "bank", "lesson"):
+        if prefix not in LINT_PREFIXES:
             fail("code %r has an undeclared namespace prefix %r" % (c, prefix))
 
 
