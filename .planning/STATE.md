@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: Surface Redesign & Theming
 status: executing
-stopped_at: Completed 03-05-PLAN.md
-last_updated: "2026-08-09T02:43:36.494Z"
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-08-09T03:32:32.737Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 02.1 execution started
 progress:
   total_phases: 13
   completed_phases: 4
   total_plans: 79
-  completed_plans: 32
+  completed_plans: 34
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 ## Current Position
 
 Phase: 04 (Surface Redesign & Theming) — EXECUTING
-Plan: 1 of 6
-Status: Executing Phase 04
+Plan: 2 of 6
+Status: Ready to execute
 Last activity: 2026-08-08 — Phase 04 execution started
 
-Progress: [████░░░░░░] 39%
+Progress: [████░░░░░░] 43%
 
 ## Performance Metrics
 
@@ -89,6 +89,7 @@ Progress: [████░░░░░░] 39%
 | Phase 03 P03 | 17min | 3 tasks | 12 files |
 | Phase 03 P04 | 313 | 2 tasks | 4 files |
 | Phase 03 P03-05 | 8 | 2 tasks | 4 files |
+| Phase 04 P02 | 21 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -172,6 +173,10 @@ Recent decisions affecting current work:
 - [Phase 03]: D-11 executed: --ref filters output to one heading plus its backlinks because the CLI has no anchor to jump to — A second matching rule or a render-then-scroll approach would disagree with the slug the tag and anchor already share
 - [Phase 03]: lesson_page returns None on a --ref miss so the route, CLI and tests share one render without inheriting an exit path — cmd_lesson owns the sys.exit hard stop, keeping the render function exit-free
 - [Phase 03]: Resolved the deferred 03-04 backlink-placement quirk: each heading's section renders from its own text/body with its backlinks directly beneath — Correct --ref filtering requires per-heading association; the old </section>-re-split nested sections and detached both backlink lists
+- [Phase 04]: [Phase 4] 04-02: the day-document adapter was built as one coherent D-08..D-11 implementation, so Task 2's conflict/force assertions passed on first run (no RED); the Task 2 feat commit added the genuinely missing immediately-before-replace revision re-check (TOCTOU closure, T-04-05)
+- [Phase 04]: [Phase 4] 04-02: force is a CLI-level second confirmation (--force + --confirm-force OVERWRITE + the conflict's current revision), never a byte-gate bypass -- save(force=True) still requires SHA-256 equality with the fresh bytes and still fails on a third concurrent version
+- [Phase 04]: [Phase 4] 04-02: escaped pipes display as literal | and submitted pipes are stored as \| with backslashes escaped first, so _display(_encode(value)) == value; unchanged cells keep their raw bytes because only submitted cells are patched
+- [Phase 04]: [Phase 4] 04-02: tests prove exact-byte preservation with a common-prefix/suffix single_replacement helper because difflib SequenceMatcher opcodes are alignment-dependent and non-minimal
 
 ### Pending Todos
 
@@ -211,6 +216,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-09T01:55:39.103Z
-Stopped at: Completed 03-05-PLAN.md
+Last session: 2026-08-09T03:32:16.554Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None
