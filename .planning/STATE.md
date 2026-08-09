@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: Surface Redesign & Theming
 status: executing
-stopped_at: Completed 04-04-PLAN.md
-last_updated: "2026-08-09T04:15:36.485Z"
+stopped_at: Completed 04-05-PLAN.md
+last_updated: "2026-08-09T04:33:40.332Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 02.1 execution started
 progress:
   total_phases: 13
   completed_phases: 4
   total_plans: 79
-  completed_plans: 36
+  completed_plans: 37
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 ## Current Position
 
 Phase: 04 (Surface Redesign & Theming) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Ready to execute
 Last activity: 2026-08-08 — Phase 04 execution started
 
-Progress: [█████░░░░░] 46%
+Progress: [█████░░░░░] 47%
 
 ## Performance Metrics
 
@@ -92,6 +92,7 @@ Progress: [█████░░░░░] 46%
 | Phase 04 P02 | 21 | 2 tasks | 4 files |
 | Phase 04 P04-03 | 10 | 3 tasks | 8 files |
 | Phase 04 P04 | 15 min | 2 tasks | 6 files |
+| Phase 04 P05 | 10min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -188,6 +189,11 @@ Recent decisions affecting current work:
 - [Phase ?]: 04-04: same-origin validation applies only when an Origin header is present; netloc comparison normalizes default ports
 - [Phase ?]: 04-04: primary actions use the contrast-guaranteed accent-soft/accent pairing instead of white-on-accent, which is not guaranteed in dark mode
 - [Phase ?]: 04-04: report empty/partial copy follows 04-UI-SPEC exactly (Nothing has been answered yet. / Some responses still need review. Auto-graded totals exclude them.), superseding the 04-02-era heading
+- [Phase ?]: 04-05: study_item composes the runtime's two canonical builders wholesale under an explain member; there is no second explanation allowlist in the surface, so D-12 is enforced structurally rather than maintained by hand.
+- [Phase ?]: 04-05: study cards are server-rendered through presentation.surface_shell/state_panel/details primitives with the one theme_css(load_settings(bank_dir)) palette; the client wires only reveal/queue/rating state, never scoring, submission, or a second palette (D-04, D-14).
+- [Phase ?]: 04-05: after reveal the Reveal explanation control becomes a quiet 'Explanation revealed' control that keeps focus per UI-SPEC while the revealed/rating groups supply the single primary next action.
+- [Phase ?]: 04-05: the embedded CARDS payload legitimately carries explain.correct (study is the deliberate reveal surface, T-04-19 accepted); the no-verdict rule is enforced on client behavior, not on the canonical payload.
+- [Phase ?]: 04-05: the locked empty copy 'No study cards match this bank.' comes from the plan's must-haves; the render-error state uses the UI-SPEC study matrix recovery copy 'This card could not be shown. Move to the next card or reload.' with Reload/Choose-another-bank actions.
 
 ### Pending Todos
 
@@ -227,6 +233,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-09T04:15:36.457Z
-Stopped at: Completed 04-04-PLAN.md
+Last session: 2026-08-09T04:33:40.306Z
+Stopped at: Completed 04-05-PLAN.md
 Resume file: None

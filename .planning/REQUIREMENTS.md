@@ -130,7 +130,7 @@
 - [x] **SURF-03**: Starting the daemon twice does not fight over the port, and `--lan` still reaches a phone on the same wifi
 - [x] **SURF-04**: Every capability has both a route and a CLI command, over one runtime
 - [ ] **SURF-05**: The question surface shows one sticky context line rather than five bands of chrome above the stem
-- [ ] **SURF-06**: `study` renders the per-option rationale, second-best, and notes it currently discards
+- [x] **SURF-06**: `study` renders the per-option rationale, second-best, and notes it currently discards
 - [ ] **SURF-07**: The whole tool uses one palette; the `day` page stops being a third stylesheet in literal hex
 - [x] **SURF-08**: The accent colour is set from the OS colour picker with light and dark pairs computed from it, and correct/incorrect stay contrast-checked and colour-blind safe
 - [ ] **SURF-09**: `day` supports full in-page markdown editing with an optimistic-concurrency guard, so an edit cannot silently overwrite one made in Obsidian
@@ -292,7 +292,7 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | SURF-03 | Phase 2 | Complete |
 | SURF-04 | Phase 2 | Complete |
 | SURF-05 | Phase 4 | Pending |
-| SURF-06 | Phase 4 | Pending |
+| SURF-06 | Phase 4 | Complete |
 | SURF-07 | Phase 4 | Pending |
 | SURF-08 | Phase 4 | Complete |
 | SURF-09 | Phase 4 | Pending |
