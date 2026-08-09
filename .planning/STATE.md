@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: Surface Redesign & Theming
 status: executing
-stopped_at: Completed 04-03-PLAN.md
-last_updated: "2026-08-09T03:50:38.260Z"
+stopped_at: Completed 04-04-PLAN.md
+last_updated: "2026-08-09T04:15:36.485Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 02.1 execution started
 progress:
   total_phases: 13
   completed_phases: 4
   total_plans: 79
-  completed_plans: 35
+  completed_plans: 36
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 ## Current Position
 
 Phase: 04 (Surface Redesign & Theming) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Status: Ready to execute
 Last activity: 2026-08-08 — Phase 04 execution started
 
-Progress: [████░░░░░░] 44%
+Progress: [█████░░░░░] 46%
 
 ## Performance Metrics
 
@@ -91,6 +91,7 @@ Progress: [████░░░░░░] 44%
 | Phase 03 P03-05 | 8 | 2 tasks | 4 files |
 | Phase 04 P02 | 21 | 2 tasks | 4 files |
 | Phase 04 P04-03 | 10 | 3 tasks | 8 files |
+| Phase 04 P04 | 15 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -183,6 +184,10 @@ Recent decisions affecting current work:
 - [Phase ?]: 04-03: THEME_CSS is now a computed constant from theme_css(system default); the light warn token moves from #b5760a to the binding #8a5900.
 - [Phase ?]: 04-03: The picker fallback reason string is the single source of the exact human copy in both structured and human output.
 - [Phase ?]: 04-03: D-07 resolves in favor of one source plus deterministic enforced derivation -- no manual per-mode override path exists in the persisted contract.
+- [Phase ?]: 04-04: /api/theme reads only action/source/confirm; any css/path/tokens/config authority field is refused with 400 before any helper runs (T-04-16)
+- [Phase ?]: 04-04: same-origin validation applies only when an Origin header is present; netloc comparison normalizes default ports
+- [Phase ?]: 04-04: primary actions use the contrast-guaranteed accent-soft/accent pairing instead of white-on-accent, which is not guaranteed in dark mode
+- [Phase ?]: 04-04: report empty/partial copy follows 04-UI-SPEC exactly (Nothing has been answered yet. / Some responses still need review. Auto-graded totals exclude them.), superseding the 04-02-era heading
 
 ### Pending Todos
 
@@ -222,6 +227,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-09T03:50:38.226Z
-Stopped at: Completed 04-03-PLAN.md
+Last session: 2026-08-09T04:15:36.457Z
+Stopped at: Completed 04-04-PLAN.md
 Resume file: None
