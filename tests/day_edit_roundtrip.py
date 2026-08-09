@@ -674,6 +674,27 @@ def check_task2_conflict_no_write():
             fail("CLI conflict wrote to the file")
 
 
+def check_task2_conflict_non_utf8_current():
+    """WR-02 regression: when the concurrent current bytes are not valid
+    UTF-8, the conflict path must still return a no-write conflict with a
+    lossily-decoded display document instead of crashing with
+    UnicodeDecodeError.
+    """
+    if day_document is None:
+        fail("Task 2 RED: surfaces.day_document does not exist yet")
+    result = day_document._conflict_result(
+        {"EMT": "ch 3"}, "a" * 64,
+        b"| 2026-01-07 | ch 2 \xff\xfe finish |\n", "2026-01-07", False)
+    if result.get("status") != "conflict":
+        fail("non-utf8 conflict returned %r, want conflict"
+             % result.get("status"))
+    if not isinstance(result.get("document"), str):
+        fail("non-utf8 conflict lost its display document")
+    current = result.get("current") or {}
+    if not isinstance(current.get("document"), str):
+        fail("non-utf8 conflict current document is not a lossy string")
+
+
 def check_task2_metadata_no_false_conflict():
     if day_document is None:
         fail("Task 2 RED: surfaces.day_document does not exist yet")
@@ -1209,6 +1230,7 @@ def main():
     check_task1_refusals()
     check_task1_atomic_write()
     check_task2_conflict_no_write()
+    check_task2_conflict_non_utf8_current()
     check_task2_metadata_no_false_conflict()
     check_task2_force_cli_gates()
     check_task2_confirmed_force()

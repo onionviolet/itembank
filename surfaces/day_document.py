@@ -242,7 +242,14 @@ def _build_snapshot(internals, iso, revision, text):
 def _conflict_result(edits, submitted_revision, data, iso, forced):
     """A no-write conflict carrying draft, fresh current data, both revisions."""
     revision = hashlib.sha256(data).hexdigest()
-    text = data.decode("utf-8")
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        # A concurrent edit can land non-UTF-8 bytes between the read and
+        # the atomic replace; the conflict document is display/copy text only
+        # and is never written back, so a lossy decode there is safe and the
+        # advertised no-write recovery UI still appears (WR-02).
+        text = data.decode("utf-8", errors="replace")
     result, internals = _analyze(data, int(iso[:4]), iso)
     if result["status"] == "ready":
         current = _build_snapshot(internals, iso, revision, text)
