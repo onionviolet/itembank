@@ -52,9 +52,11 @@ validation per the user's explicit instruction:
    Acting as the fresh model with only `_tmp_lesson_trial/spec.txt` in hand
    (no repository access), a bank was written with a `## LESSON` section, two
    `###` headings, three items (mc, multi, short) and two `[LESSON-REF:]`
-   tags. `python itembank.py lint _tmp_lesson_trial/fresh_model_bank.md`
+   tags. `python itembank.py lint _tmp_lesson_trial/fresh_model_bank.txt`
    exits 0 with 0 errors on the first attempt; both references resolve and
    the lesson parses with both headings. No rule had to be amended.
+   (The trial bank lives as `.txt` so `itembank guard` never mistakes it for
+   a committed real bank; it is the identical content the trial produced.)
 2. **Long-text scroll smoothness (UI-SPEC E1) — DEFERRED to final product.**
    Perceived-performance judgment on a ~62,000-word lesson; requires a human
    reading the page.

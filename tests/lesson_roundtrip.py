@@ -1433,6 +1433,30 @@ def test_page_for_shapes_and_build():
     if "Read the lesson" not in with_base:
         fail("page_for with a lesson base must carry the chip")
 
+    # --force dead-anchor gap (D-12): an item whose LESSON-REF does not
+    # resolve to a heading must have its served slug blanked even when the
+    # lint gate is bypassed, so the chip is omitted rather than linking to a
+    # dead anchor. (Regression for the gap the verifier found in 03-01.)
+    dangling = list(qs)
+    dangling[1]["lesson_slug"] = "missing-section"
+    _, dangling_page = quiz.page_for(LES_BANK, dangling, serve=True,
+                                     lesson_base="/lesson/lesson_bank",
+                                     lesson_slugs={"the-airway-step-by-step"})
+    m = re.search(r"const Q = (\[.*?\]);", dangling_page)
+    if not m:
+        fail("could not find the served item array in the dangling page")
+    served = [it.get("lesson_slug") for it in json.loads(m.group(1))]
+    if served != ["the-airway-step-by-step", "", ""]:
+        fail("dangling LESSON-REF must blank the served lesson_slug, got %r" % served)
+    _, no_headings = quiz.page_for(LES_BANK, qs, serve=True,
+                                   lesson_base="/lesson/lesson_bank",
+                                   lesson_slugs=set())
+    m0 = re.search(r"const Q = (\[.*?\]);", no_headings)
+    if not m0:
+        fail("could not find the served item array in the no-headings page")
+    if any(it.get("lesson_slug") for it in json.loads(m0.group(1))):
+        fail("chip slugs must all be blank when no lesson heading resolves (--force)")
+
     build_out = os.path.join(tempfile.mkdtemp(), "q.html")
     res = subprocess.run(
         [sys.executable, os.path.join(ROOT, "itembank.py"), "build", LES_BANK, build_out],

@@ -483,9 +483,12 @@ def handle_quiz_get(handler, stem):
         handler.send_not_found(stem)
         return
     qs = load(path)
+    lesson = parse_lesson(path)
+    lesson_slugs = set(h["slug"] for h in lesson["headings"]) if lesson else set()
     _, page = quiz.page_for(path, qs, serve=True, reveal=False,
                             post_path="/quiz/%s/answer" % stem,
-                            lesson_base="/lesson/%s" % stem)
+                            lesson_base="/lesson/%s" % stem,
+                            lesson_slugs=lesson_slugs)
     handler.send_html(page.encode("utf-8"))
 
 

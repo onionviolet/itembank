@@ -15,14 +15,28 @@ from surfaces.theme import THEME_CSS
 
 
 def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
-             lesson_base=""):
+             lesson_base="", lesson_slugs=None):
     text = open(bank_path, encoding="utf-8").read()
     title = grab(r"(?m)^#\s+(.*?)\s*$", text) or os.path.basename(bank_path)
     counts = collections.Counter(q["type"] for q in qs)
     mix = ", ".join("%d %s" % (v, k) for k, v in counts.most_common())
     sub = "%d items &middot; %s &middot; dichotomous scoring" % (len(qs), mix)
     sub += " &middot; answers recorded" if serve else " &middot; nothing recorded"
-    items = [page_item(q, reveal=reveal, offline=not serve) for q in qs]
+    # When the caller knows which lesson headings actually resolve (from
+    # parse_lesson), blank the slug of any item whose LESSON-REF does not
+    # resolve to one. That is how the D-12 chip rule holds under `serve
+    # --force`: a bank with a dangling reference normally never serves (lint
+    # errors, D-05), but when the gate is bypassed the chip must be omitted
+    # rather than rendered as a link to a dead anchor.
+    if lesson_slugs is None:
+        items = [page_item(q, reveal=reveal, offline=not serve) for q in qs]
+    else:
+        items = []
+        for q in qs:
+            it = page_item(q, reveal=reveal, offline=not serve)
+            if it.get("lesson_slug") and it["lesson_slug"] not in lesson_slugs:
+                it["lesson_slug"] = ""
+            items.append(it)
     # The chip label is the locked string, but it only ships when a reader
     # actually sits behind this page (D-12): a static file:// page has no
     # daemon at /lesson/<stem> to link to, so the label is substituted away
