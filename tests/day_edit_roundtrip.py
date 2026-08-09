@@ -183,6 +183,29 @@ def apply_spans(data, edits):
     return bytes(out)
 
 
+def single_replacement(before, after):
+    """If `after` is `before` with exactly one contiguous region replaced,
+    return (start, end, replacement_bytes); otherwise return None.
+
+    `changed_spans` (difflib opcodes) is alignment-dependent and can report
+    several overlapping spans for one true replacement, so the exact-byte
+    contract is asserted through common-prefix/suffix math instead.
+    """
+    n = min(len(before), len(after))
+    i = 0
+    while i < n and before[i] == after[i]:
+        i += 1
+    j = 0
+    while j < len(before) - i and j < len(after) - i \
+            and before[-1 - j] == after[-1 - j]:
+        j += 1
+    start, end = i, len(before) - j
+    replacement = after[i:len(after) - j]
+    if before[:start] + replacement + before[end:] != after:
+        return None
+    return (start, end, replacement)
+
+
 # ---- concurrency hooks ------------------------------------------------------
 
 def concurrent_rewrite(path, new_bytes, delay=0.1):
@@ -360,9 +383,13 @@ def check_task1_single_cell_edit():
         want = before[:start] + b"ch 3, start" + before[end:]
         if after != want:
             fail("bytes outside the edited cell changed")
-        spans = changed_spans(before, after)
-        if spans != [(start, end, b"ch 3, start")]:
-            fail("changed span %r, want exactly the EMT cell span" % (spans,))
+        changed = single_replacement(before, after)
+        if changed is None:
+            fail("single edit produced more than one contiguous change")
+        s, e, repl = changed
+        if not (start <= s and e <= end):
+            fail("changed region %r escapes the EMT cell span (%d, %d)"
+                 % (changed, start, end))
 
 
 def check_task1_preservation_corpus():
@@ -396,19 +423,21 @@ def check_task1_preservation_corpus():
             if result.get("status") != "saved":
                 fail("%s: save status %r, want saved" % (name, result.get("status")))
             after = open(path, "rb").read()
-            spans = changed_spans(before, after)
-            if len(spans) != 1:
-                fail("%s: %d changed spans, want exactly 1 (only the edited cell)"
-                     % (name, len(spans)))
+            changed = single_replacement(before, after)
+            if changed is None:
+                fail("%s: more than one contiguous region changed" % name)
             row_start = before.find(b"2026-01-07")
             if row_start < 0:
                 fail("%s: dated row bytes not found in document" % name)
             row_end = before.find(b"\n", row_start)
             if row_end < 0:
                 row_end = len(before)
-            s, e, repl = spans[0]
+            s, e, repl = changed
             if not (row_start <= s and e <= row_end):
                 fail("%s: changed span %r escapes the dated row line" % (name, (s, e)))
+            if repl != new_text.encode("utf-8"):
+                fail("%s: changed bytes %r, want the submitted value %r"
+                     % (name, repl, new_text))
             if name == "crlf-basic":
                 if b"\r\n" not in after or after.count(b"\r\n") != before.count(b"\r\n"):
                     fail("crlf-basic: CRLF line endings were not preserved")
@@ -428,8 +457,6 @@ def check_task1_preservation_corpus():
                 if snap["cells"].get(target) != "run `a | b` and note it":
                     fail("inline-code-pipe-cell: snapshot cell %r"
                          % snap["cells"].get(target))
-                if b"`a | b`" not in after:
-                    fail("inline-code-pipe-cell: inline code pipe did not survive")
             if name == "unknown-columns":
                 if target != "Notes":
                     fail("unknown-columns: expected to edit the Notes column, got %r" % target)
@@ -439,6 +466,55 @@ def check_task1_preservation_corpus():
             if name == "unrelated-tables":
                 if b"| Timezone | UTC |" not in after:
                     fail("unrelated-tables: decoy table was not preserved")
+
+
+def check_task1_escape_survival_outside_edit():
+    """Escaped pipes and inline-code pipes survive byte-identically when the
+    cell *containing* them is not the one being edited (Test 3 wording:
+    'outside edited cells')."""
+    if day_document is None:
+        fail("Task 1 RED: surfaces.day_document does not exist yet")
+    with tempfile.TemporaryDirectory() as tmp:
+        doc = plan_bytes(
+            [["Date", "EMT", "Notes", "Math"],
+             ["2026-01-07", "read p. 1 \\| 2", "run `a | b` and note it",
+              "something"]],
+            prose=("Prose line.",))
+        path = os.path.join(tmp, "survive.md")
+        with open(path, "wb") as fh:
+            fh.write(doc)
+        before = open(path, "rb").read()
+        code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit"])
+        snap = json.loads(out)
+        if snap.get("status") != "ready":
+            fail("survival: snapshot not ready: %r" % snap)
+        if snap["cells"].get("EMT") != "read p. 1 | 2":
+            fail("survival: escaped-pipe display %r" % snap["cells"].get("EMT"))
+        if snap["cells"].get("Notes") != "run `a | b` and note it":
+            fail("survival: inline-code-pipe display %r"
+                 % snap["cells"].get("Notes"))
+        code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit",
+                             "--set", "Math=edited math",
+                             "--revision", snap["revision"]])
+        if code != 0:
+            fail("survival: save exited %d: %s" % (code, out))
+        result = json.loads(out)
+        if result.get("status") != "saved":
+            fail("survival: save status %r" % result.get("status"))
+        after = open(path, "rb").read()
+        if b"read p. 1 \\| 2" not in after:
+            fail("survival: escaped pipe outside the edited cell did not "
+                 "survive byte-identically")
+        if b"run `a | b` and note it" not in after:
+            fail("survival: inline code pipe outside the edited cell did not "
+                 "survive byte-identically")
+        changed = single_replacement(before, after)
+        if changed is None:
+            fail("survival: more than one contiguous region changed")
+        s, e, repl = changed
+        if before[s:e] != b"something" or repl != b"edited math":
+            fail("survival: changed region %r is not exactly the Math cell"
+                 % (changed,))
 
 
 def check_task1_refusals():
@@ -494,9 +570,11 @@ def check_task1_refusals():
             fail("date-column edit status %r, want invalid" % result.get("status"))
 
         for bad in ("EMT=a\nb", "EMT=a\x00b"):
-            code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit",
-                                 "--set", bad, "--revision", snap["revision"]])
-            result = json.loads(out)
+            # The newline case is CLI-reachable; the NUL case cannot pass
+            # through Windows CreateProcess argv, so both go through the
+            # adapter API -- the exact path the CLI wraps.
+            result = day_document.save(path, "2026-01-07",
+                                       {"EMT": bad}, snap["revision"])
             if result.get("status") != "invalid":
                 fail("control-value edit status %r, want invalid" % result.get("status"))
             if open(path, "rb").read() != before:
@@ -556,6 +634,7 @@ def main():
     check_task1_snapshot_via_cli()
     check_task1_single_cell_edit()
     check_task1_preservation_corpus()
+    check_task1_escape_survival_outside_edit()
     check_task1_refusals()
     check_task1_atomic_write()
     print("ok: day-edit Task 1 -- structured snapshot, exact-span edit, "

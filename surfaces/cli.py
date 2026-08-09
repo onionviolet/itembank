@@ -295,6 +295,20 @@ def main():
                    help="bind all interfaces so a phone on the same wifi can open it")
     s.add_argument("--check", action="store_true",
                    help="print today's row and exit, without serving")
+    s.add_argument("--edit", action="store_true",
+                   help="structured row/cell edit mode: print the dated-row "
+                        "snapshot, or save with --set plus --revision")
+    s.add_argument("--set", action="append", default=[], metavar="COLUMN=TEXT",
+                   help="repeatable cell edit COLUMN=TEXT; requires --edit "
+                        "and the snapshot's --revision")
+    s.add_argument("--revision", default="",
+                   help="the SHA-256 revision the edit is based on (printed "
+                        "by the snapshot)")
+    s.add_argument("--force", action="store_true",
+                   help="second-confirmation save after a conflict; requires "
+                        "--confirm-force OVERWRITE and the conflict's --revision")
+    s.add_argument("--confirm-force", default="", metavar="WORD",
+                   help="exact confirmation text required with --force")
     s.add_argument("--no-open", action="store_true", dest="no_open",
                    help="do not launch a browser")
     s.set_defaults(fn=cmd_day)

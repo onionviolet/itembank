@@ -958,6 +958,46 @@ def apply_day_post(state, kind, data):
             "hist": day_history(log, state["today"])}
 
 
+def _day_edit(a, iso):
+    """Structured row/cell edit twin for `itembank day --edit` (plan 04-02).
+
+    Snapshot-only when no `--set` is given; a save requires the SHA-256
+    revision the snapshot printed and routes through `day_document.save`, so
+    the CLI and the browser editor (plan 04-06) prove the same data-loss
+    boundary. This branch never touches the tick/check/due/server paths.
+    """
+    from surfaces import day_document
+
+    edits = {}
+    for item in a.set:
+        key, _, value = item.partition("=")
+        key = key.strip()
+        if not key:
+            sys.exit("bad --set %r; want COLUMN=TEXT" % item)
+        edits[key] = value
+    if not a.edit:
+        sys.exit("--edit is required to use --set/--revision/--force")
+    if not edits and (a.revision or a.force or a.confirm_force):
+        sys.exit("--revision/--force/--confirm-force require at least one --set")
+    if a.confirm_force and not a.force:
+        sys.exit("--confirm-force requires --force")
+    if a.force:
+        if a.confirm_force != "OVERWRITE":
+            sys.exit("--force requires --confirm-force OVERWRITE")
+        if not a.revision:
+            sys.exit("--force requires --revision")
+    if edits and not a.revision:
+        sys.exit("--set requires --revision (the SHA-256 printed by the snapshot)")
+
+    if edits:
+        result = day_document.save(a.plan, iso, edits, a.revision, force=a.force)
+    else:
+        from datetime import date
+        result = day_document.snapshot(a.plan, date.fromisoformat(iso).year, iso)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0 if result.get("status") in ("ready", "saved") else 1
+
+
 def cmd_day(a):
     """Sit the day cockpit against the daemon, scoped to this one plan.
 
@@ -975,6 +1015,8 @@ def cmd_day(a):
 
     today = date.fromisoformat(a.date) if a.date else date.today()
     iso = today.isoformat()
+    if a.edit or a.set or a.revision or a.force or a.confirm_force:
+        return _day_edit(a, iso)
     plan = parse_plan(a.plan, today.year)
     if not plan:
         sys.exit("no dated rows found in %s. A plan table needs a first column "
