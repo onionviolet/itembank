@@ -30,6 +30,10 @@
     "difficulty": {
       "type": "string"
     },
+    "lesson_slug": {
+      "type": "string",
+      "description": "The slug of the LESSON heading this item's [LESSON-REF:] names, produced by model.lesson_slug() -- empty when the item carries no resolved lesson reference. Present so the quiz page can build the 'Read the lesson' link without re-slugifying."
+    },
     "options": {
       "type": "array",
       "items": {

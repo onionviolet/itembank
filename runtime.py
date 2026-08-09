@@ -28,7 +28,7 @@ def public_item(q, shuffle_seed=0):
     """Return an item safe to show before the learner answers."""
     out = {"schema_version": ITEM_VERSION, "id": q["id"], "number": q["number"],
            "type": q["type"], "stem": q["stem"], "objective": q.get("objective", ""),
-           "difficulty": q.get("difficulty", "")}
+           "difficulty": q.get("difficulty", ""), "lesson_slug": q.get("lesson_slug", "")}
     if q["type"] in ("mc", "multi"):
         out["options"] = [{"key": k, "text": q["opts"][k]} for k in sorted(q["opts"])]
         out["response_schema"] = {"type": "array" if q["type"] == "multi" else "string",

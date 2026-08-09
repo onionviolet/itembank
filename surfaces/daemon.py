@@ -18,9 +18,9 @@ import urllib.parse, urllib.request, uuid
 
 import evidence
 import server
-from model import load, parse_bank
+from model import load, parse_bank, parse_lesson
 from runtime import explain_payload, read_session
-from surfaces import day, launcher, quiz, session, settings, study, update
+from surfaces import day, launcher, lesson, quiz, session, settings, study, update
 from surfaces.theme import THEME_CSS
 
 
@@ -41,6 +41,7 @@ SKIP_DIRS = {".git", ".github", "_attempts", "_evidence"}
 QUIZ_GET_RE = re.compile(r"^/quiz/(?P<stem>[^/]+)$")
 QUIZ_ANSWER_RE = re.compile(r"^/quiz/(?P<stem>[^/]+)/answer$")
 STUDY_GET_RE = re.compile(r"^/study/(?P<stem>[^/]+)$")
+LESSON_GET_RE = re.compile(r"^/lesson/(?P<stem>[^/]+)$")
 DAY_GET_RE = re.compile(r"^/day/(?P<stem>[^/]+)$")
 DAY_SAVE_RE = re.compile(r"^/day/(?P<stem>[^/]+)/save$")
 DAY_OPEN_RE = re.compile(r"^/day/(?P<stem>[^/]+)/open$")
@@ -76,6 +77,7 @@ ROUTES = (
     ("GET", QUIZ_GET_RE, "handle_quiz_get"),
     ("POST", QUIZ_ANSWER_RE, "handle_quiz_answer"),
     ("GET", STUDY_GET_RE, "handle_study_get"),
+    ("GET", LESSON_GET_RE, "handle_lesson_get"),
     ("GET", DAY_GET_RE, "handle_day_get"),
     ("POST", DAY_SAVE_RE, "handle_day_save"),
     ("POST", DAY_OPEN_RE, "handle_day_open"),
@@ -97,6 +99,7 @@ ROUTE_CLI = {
     ("GET", QUIZ_GET_RE): "serve",
     ("POST", QUIZ_ANSWER_RE): "serve",
     ("GET", STUDY_GET_RE): "study",
+    ("GET", LESSON_GET_RE): "lesson",
     ("GET", "/day"): "day",
     ("GET", DAY_GET_RE): "day",
     ("POST", DAY_SAVE_RE): "day",
@@ -481,7 +484,8 @@ def handle_quiz_get(handler, stem):
         return
     qs = load(path)
     _, page = quiz.page_for(path, qs, serve=True, reveal=False,
-                            post_path="/quiz/%s/answer" % stem)
+                            post_path="/quiz/%s/answer" % stem,
+                            lesson_base="/lesson/%s" % stem)
     handler.send_html(page.encode("utf-8"))
 
 
@@ -553,6 +557,21 @@ def handle_study_get(handler, stem):
         return
     qs = load(path)
     page = study.study_page(path, qs)
+    handler.send_html(page.encode("utf-8"))
+
+
+def handle_lesson_get(handler, stem):
+    """`GET /lesson/<stem>` -- the lesson reader for one bank, resolved
+    through the startup allowlist and rendered by `lesson.lesson_page()`.
+    No second copy of the lesson template lives here; the handler generates
+    no HTML of its own.
+    """
+    path = handler.banks.get(stem)
+    if path is None:
+        handler.send_not_found(stem)
+        return
+    qs = load(path)
+    page = lesson.lesson_page(path, qs, parse_lesson(path))
     handler.send_html(page.encode("utf-8"))
 
 

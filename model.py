@@ -4,7 +4,7 @@ Everything here reads markdown and returns plain dicts. It knows nothing about
 scoring, sessions or surfaces, which is what lets `spec` and `lint` be the whole
 of what an authoring agent has to satisfy.
 """
-import collections, hashlib, re, sys, uuid
+import collections, hashlib, os, re, sys, uuid
 
 
 LETTERS = "ABCDEFGH"
@@ -43,8 +43,9 @@ def parse_question(ch):
     stem = grab(
         r"Q\d+\.\s*(.*?)\s*(?:\(difficulty:|\n\[OBJECTIVE|\n\[TYPE|\n\[SELECT"
         r"|\n\[CATEGORIES|\n\[ID|\n\[HASH|\n[A-H]\)|\nROW\)|\nITEM\)|\nSTEP\)"
-        r"|\nMODEL:|\nRUBRIC:|\nWHY BEST:)",
+        r"|\nMODEL:|\nRUBRIC:|\nWHY BEST:|\n\[LESSON-REF)",
         ch, re.S)
+    lesson_ref = grab(r"\[LESSON-REF:\s*(.*?)\]", ch)
     common = {
         "id": "q" + number if number else "",
         "number": int(number) if number else 0,
@@ -52,6 +53,8 @@ def parse_question(ch):
         "stem": stem,
         "difficulty": grab(r"\(difficulty:\s*([^)]+)\)", ch),
         "objective": grab(r"\[OBJECTIVE:\s*(.*?)\]", ch),
+        "lesson_ref": lesson_ref,
+        "lesson_slug": lesson_slug(lesson_ref) if lesson_ref else "",
         "item_id": grab(r"(?m)^\[ID:\s*(\S+)\s*\]", ch),          # empty until id-assign (01-04)
         "content_hash": grab(r"(?m)^\[HASH:\s*(\S+)\s*\]", ch),   # empty until id-assign (01-04)
         "why": section("WHY BEST", ch),
@@ -137,6 +140,84 @@ def collapse(s):
     question asks, so it must not be normalized away before hashing.
     """
     return " ".join(str(s or "").split())
+
+
+def lesson_slug(text):
+    """One slugifier for both the lesson lookup key and the rendered HTML
+    anchor id (D-03) -- a lookup that agrees with an anchor by coincidence
+    eventually disagrees, so there is structurally one call, not two.
+
+    Behaviour: collapse whitespace, lowercase, drop every character outside
+    ASCII letters, digits, spaces and hyphens, then replace each run of
+    whitespace with a single hyphen and strip leading and trailing hyphens.
+    Empty input returns the empty string, and the function is idempotent over
+    its own output.
+
+    A heading written entirely in non-ASCII characters therefore reduces to
+    the empty string, which collides with any other such heading and is caught
+    loudly by plan 03-03's duplicate-heading check rather than fabricated
+    into a unique id.
+    """
+    s = collapse(str(text or "")).lower()
+    s = "".join(c for c in s if c.isascii() and (c.isalnum() or c in " -"))
+    s = re.sub(r"\s+", "-", s)
+    return s.strip("-")
+
+
+def parse_lesson(bank_path):
+    """A second, independent read over the bank file for a different purpose:
+    the LESSON section's teaching text. Never called from inside `load()` or
+    `parse_bank()`, and it changes neither's return shape.
+
+    Mirrors `parse_bank()`'s boundary rule exactly: iterate every chunk of the
+    unbounded split and stop accumulating the moment a chunk both matches
+    `Qn.` at its start and parses as a real question. A first-match-only split
+    would silently cut a lesson whose prose contains an illustrative line
+    shaped like a question marker (03-RESEARCH.md Pitfall 2).
+
+    Returns `None` when the preamble carries no `## LESSON` section; otherwise
+    a dict with exactly: `source`, `body`, `intro`, `headings` (each with
+    `text`, `slug`, `body`, in document order) and `error`/`detail`, both the
+    empty string in this plan -- plan 03-02 is the only plan that ever sets
+    `error`, and declaring the keys now keeps that addition one branch in the
+    loader and nothing in the parser (D-02).
+    """
+    text = open(bank_path, encoding="utf-8").read()
+    preamble = []
+    for ch in re.split(r"(?m)^(?=Q\d+\.)", text):
+        if re.match(r"Q\d+\.", ch.strip()) and parse_question(ch) is not None:
+            break
+        preamble.append(ch)
+    head = "".join(preamble)
+    m = re.search(r"(?m)^##\s+LESSON\s*$", head)
+    if m is None:
+        return None
+    lesson_text = head[m.end():]
+    lines = lesson_text.splitlines()
+    intro = []
+    headings = []
+    current = None
+    for line in lines:
+        hm = re.match(r"^###\s+(.+?)\s*$", line)
+        if hm:
+            if current is not None:
+                headings.append(current)
+            current = {"text": hm.group(1).strip(),
+                       "slug": lesson_slug(hm.group(1)), "body": []}
+        elif current is None:
+            intro.append(line)
+        else:
+            current["body"].append(line)
+    if current is not None:
+        headings.append(current)
+    for h in headings:
+        h["body"] = "\n".join(h["body"]).strip()
+    return {"source": os.path.abspath(bank_path),
+            "body": lesson_text.strip(),
+            "intro": "\n".join(intro).strip(),
+            "headings": headings,
+            "error": "",
+            "detail": ""}
 
 
 def content_fingerprint(q):

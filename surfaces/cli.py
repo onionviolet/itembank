@@ -12,6 +12,7 @@ from surfaces.daemon import cmd_daemon
 from surfaces.day import cmd_day
 from surfaces.evidence_cli import (cmd_evidence, cmd_id_assign, cmd_mark, cmd_render,
                                    cmd_retract)
+from surfaces.lesson import cmd_lesson
 from surfaces.migrate import cmd_migrate
 from surfaces.protocol_cli import cmd_schema
 from surfaces.quiz import cmd_build, cmd_serve
@@ -259,6 +260,11 @@ def main():
     s.add_argument("out", nargs="?")
     s.add_argument("--force", action="store_true", help="study despite lint errors")
     s.set_defaults(fn=cmd_study)
+
+    s = sub.add_parser("lesson", help="render the LESSON section as reading material")
+    s.add_argument("bank")
+    s.add_argument("--out")
+    s.set_defaults(fn=cmd_lesson)
 
     s = sub.add_parser("export", help="export a bank as Anki TSV or GIFT for LMS import")
     s.add_argument("bank")
