@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: Surface Redesign & Theming
 status: executing
-stopped_at: Completed 04-05-PLAN.md
-last_updated: "2026-08-09T04:33:40.332Z"
+stopped_at: Completed 04-06-PLAN.md
+last_updated: "2026-08-09T05:06:03.105Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 02.1 execution started
 progress:
   total_phases: 13
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 79
-  completed_plans: 37
+  completed_plans: 38
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 ## Current Position
 
 Phase: 04 (Surface Redesign & Theming) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Status: Ready to execute
 Last activity: 2026-08-08 — Phase 04 execution started
 
-Progress: [█████░░░░░] 47%
+Progress: [█████░░░░░] 48%
 
 ## Performance Metrics
 
@@ -93,6 +93,7 @@ Progress: [█████░░░░░] 47%
 | Phase 04 P04-03 | 10 | 3 tasks | 8 files |
 | Phase 04 P04 | 15 min | 2 tasks | 6 files |
 | Phase 04 P05 | 10min | 2 tasks | 2 files |
+| Phase 04 P06 | 30min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -194,6 +195,10 @@ Recent decisions affecting current work:
 - [Phase ?]: 04-05: after reveal the Reveal explanation control becomes a quiet 'Explanation revealed' control that keeps focus per UI-SPEC while the revealed/rating groups supply the single primary next action.
 - [Phase ?]: 04-05: the embedded CARDS payload legitimately carries explain.correct (study is the deliberate reveal surface, T-04-19 accepted); the no-verdict rule is enforced on client behavior, not on the canonical payload.
 - [Phase ?]: 04-05: the locked empty copy 'No study cards match this bank.' comes from the plan's must-haves; the render-error state uses the UI-SPEC study matrix recovery copy 'This card could not be shown. Move to the next card or reload.' with Reload/Choose-another-bank actions.
+- [Phase ?]: The force request re-submits against the conflict's current revision (the revision the token is bound to), not the page-load revision; day_document.save's fresh-read gate then catches a third concurrent version.
+- [Phase ?]: Day editor conflict/force markup ships server-side with the page; the client only toggles state and wires behavior, so recovery semantics survive no-JS and mid-fetch states.
+- [Phase ?]: Token refusals use the same 200 + {status: invalid, reason} shape as every other day edit refusal -- one client error path, no HTTP-status branching.
+- [Phase ?]: DAY_CSS migrated onto semantic tokens: --ok/--ok-bg for full/floor states, --bad/--bad-bg for chips/badges, --warn for amber, --accent for interaction only.
 
 ### Pending Todos
 
@@ -233,6 +238,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-09T04:33:40.306Z
-Stopped at: Completed 04-05-PLAN.md
+Last session: 2026-08-09T05:05:55.638Z
+Stopped at: Completed 04-06-PLAN.md
 Resume file: None
