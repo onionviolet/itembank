@@ -597,6 +597,8 @@ border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--
 .editor .status.warn{color:var(--warn);font-weight:600}
 .editor .status.ok{color:var(--ok);font-weight:600}
 .editor .acts{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+.editor #edit-recovery{display:none}
+.editor #edit-recovery.on{display:flex}
 .editor button{font:inherit;font-size:.9rem;min-height:44px;padding:8px 14px;border-radius:8px;
 border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
 .editor button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -750,9 +752,15 @@ function saveEdits(){
    say(INVALID_COPY,"err");
   }else{
    say((d.reason||"Plan not available.")+" Retry, or copy/download the plan and reload.","warn");
+   document.getElementById('current-doc').textContent=SNAP.document||"";
+   document.getElementById('edit-recovery').classList.add('on');
   }
   saveBtn.disabled=!isDirty();
  });
+}
+function retryEdits(){
+ document.getElementById('edit-recovery').classList.remove('on');
+ saveEdits();
 }
 function reloadCurrent(){
  say("Reloading current plan\u2026");
@@ -821,6 +829,7 @@ function initEditor(){
  });
  document.getElementById('reload-current').addEventListener('click',reloadCurrent);
  document.getElementById('reapply-draft').addEventListener('click',reapplyDraft);
+ document.getElementById('retry-edits').addEventListener('click',retryEdits);
  document.getElementById('copy-draft').addEventListener('click',function(){
   copyText(JSON.stringify(draft,null,1),this);
  });
@@ -831,6 +840,12 @@ function initEditor(){
   copyText(document.getElementById('current-doc').textContent,this);
  });
  document.getElementById('download-current').addEventListener('click',function(){
+  downloadText("current-plan.md",document.getElementById('current-doc').textContent);
+ });
+ document.getElementById('copy-unavailable').addEventListener('click',function(){
+  copyText(document.getElementById('current-doc').textContent,this);
+ });
+ document.getElementById('download-unavailable').addEventListener('click',function(){
   downloadText("current-plan.md",document.getElementById('current-doc').textContent);
  });
  document.getElementById('force-confirm').addEventListener('change',function(){
@@ -1010,6 +1025,11 @@ def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None,
             '<button type="button" id="discard-edits" class="open">Discard edits</button>'
             "</div>"
             '<div class="status" id="edit-status" role="status" aria-live="polite"></div>'
+            '<div class="acts" id="edit-recovery">'
+            '<button type="button" id="retry-edits">Retry</button>'
+            '<button type="button" id="copy-unavailable">Copy current</button>'
+            '<button type="button" id="download-unavailable">Download current</button>'
+            "</div>"
             '<section class="conflict" id="conflict" aria-labelledby="conflict-heading">'
             '<h3 id="conflict-heading" tabindex="-1">%s</h3>'
             '<div class="panes">'

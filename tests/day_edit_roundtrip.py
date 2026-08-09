@@ -1095,6 +1095,10 @@ def check_conflict_recovery_markup_and_dirty_js():
                        "Download current", "Reload current", "Reapply draft"):
             if action not in page:
                 fail("day conflict markup lacks the %r action" % action)
+        for recovery in ("retry-edits", "copy-unavailable", "download-unavailable"):
+            if recovery not in page:
+                fail("day unavailable-source markup lacks the %r recovery action"
+                     % recovery)
         if ("I understand this replaces these edited cells using the latest "
                 "plan version.") not in page:
             fail("day force confirmation checkbox copy is missing")
