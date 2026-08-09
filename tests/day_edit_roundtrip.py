@@ -972,6 +972,34 @@ def check_day_script_safety():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def check_day_editor_ignores_first_column_by_position():
+    """WR-04 regression: the editor skips the first (date-key) column by
+    position, not by label -- a plan whose first header is "DAY", "DATE" or
+    "Date " must not render a phantom input for the uneditable date column.
+    """
+    import shutil
+    tmp = tempfile.mkdtemp()
+    try:
+        for first in ("DAY", "DATE", "Date "):
+            header = [first] + list(HEADER[1:])
+            path = write_plan(tmp, [header, row_for()],
+                              "plan_%s.md" % first.strip().lower())
+            state = day.day_state(path, os.path.join(tmp, "daily_log.md"),
+                                  os.path.join(tmp, "lanes.md"), "2026-01-07")
+            page = day.day_render(state).decode("utf-8")
+            if ('name="%s"' % first) in page:
+                fail("day editor rendered an input for the date-key column %r"
+                     % first)
+        path = write_plan(tmp, [HEADER, row_for()], "plan_Date.md")
+        state = day.day_state(path, os.path.join(tmp, "daily_log.md"),
+                              os.path.join(tmp, "lanes.md"), "2026-01-07")
+        page = day.day_render(state).decode("utf-8")
+        if 'name="Date"' in page:
+            fail("day editor rendered an input for the Date column")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def check_apply_day_edit_and_cache():
     """Test 3 + Test 5 (state side): `apply_day_edit` is the only surface
     wrapper around `day_document.save`; on `saved` it reloads `state["plan"]`,
@@ -1188,6 +1216,7 @@ def main():
     check_task2_tight_window_recheck()
     check_edit_snapshot_and_form()
     check_day_script_safety()
+    check_day_editor_ignores_first_column_by_position()
     check_apply_day_edit_and_cache()
     check_day_palette_and_no_css_literals()
     check_conflict_recovery_markup_and_dirty_js()

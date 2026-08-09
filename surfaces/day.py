@@ -1005,7 +1005,11 @@ def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None,
     # routes it posts back to, the same fix `__POST__` was for the quiz
     # page. An empty base (the default) preserves the pre-daemon behaviour
     # of posting to root-relative `/save` and `/open`.
-    editable = [(c, cells.get(c, "")) for c in columns if c != "Date"]
+    # The date column is the row key and is excluded from the snapshot by
+    # *index* (day_document._build_snapshot skips column 0), never by label --
+    # a plan whose first header is "DAY", "DATE" or "Date " would otherwise
+    # render a phantom input that can never be saved (WR-04).
+    editable = [(c, cells.get(c, "")) for c in columns[1:]]
     fields = "".join(
         '<div class="field"><label for="edit-%d">%s</label>'
         '<input class="day-edit" type="text" id="edit-%d" name="%s" value="%s" '
