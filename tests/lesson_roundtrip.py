@@ -104,6 +104,31 @@ def broken_directive_bank(tmp, directive="nope.md"):
     return p
 
 
+def clean_mc(stem, ref=""):
+    """A minimal otherwise-clean multiple-choice block: every lint-relevant
+    field present, so the only findings a lesson check can add are its own.
+    Missing [ID:]/[HASH:] warnings are expected and ignored by the lesson
+    tests; no error or other warning may come from the item itself."""
+    ref_line = "[LESSON-REF: %s]\n" % ref if ref else ""
+    return (
+        "Q1. %s   (difficulty: recall)\n%s"
+        "[OBJECTIVE: emt:airway]\n"
+        "A) One\nB) Two\nC) Three\nD) Four\n\n"
+        "CORRECT: A\n\n"
+        "WHY BEST: One is the keyed answer.\n\n"
+        "KEY DISCRIMINATOR: One vs the rest.\n\n"
+        "SECOND-BEST: B. Two is the runner-up; this would be correct if the "
+        "question asked for two.\n\n"
+        "DISTRACTOR ANALYSIS:\n"
+        "- A) Correct: the keyed answer.\n"
+        "- B) The runner-up; this would be correct if the question asked for two.\n"
+        "- C) A filler; this would be correct if the question asked for three.\n"
+        "- D) A filler; this would be correct if the question asked for four.\n\n"
+        "TRAP: Picking the runner-up.\n\n"
+        "CONFIDENCE: high\n"
+        % (stem, ref_line))
+
+
 # ---- in-process: slug, parse, fingerprint, served payload ------------------
 
 def test_slug():
@@ -429,9 +454,227 @@ def test_lesson_src_wins_over_inline():
         fail("parse_lesson docstring must state the external-over-inline precedence")
 
 
-def test_lesson_src_stays_out_of_lint_namespace():
-    if "lesson.src_unreadable" in itembank.LINT_CODES:
-        fail("lesson.src_unreadable must stay unpublished until plan 03-03")
+# ---- plan 03-03: lesson lint codes and lint(questions, lesson=...) ---------
+
+def assert_codes_declared(findings):
+    for f in findings:
+        if f.code not in itembank.LINT_CODES:
+            fail("emitted code %r is not declared in LINT_CODES" % f.code)
+
+
+def test_lesson_lint_codes_published():
+    """The four lesson codes are all members of the one published set, which
+    stays sorted and duplicate-free (D-05/D-06, plan 03-03 Task 1)."""
+    need = {"item.lesson_ref_unknown", "lesson.duplicate_heading",
+            "lesson.orphan_heading", "lesson.src_unreadable"}
+    missing = need - set(itembank.LINT_CODES)
+    if missing:
+        fail("lesson lint codes not all published in LINT_CODES: missing %r"
+             % sorted(missing))
+    codes = itembank.LINT_CODES
+    if list(codes) != sorted(codes):
+        fail("LINT_CODES is not sorted")
+    if len(set(codes)) != len(codes):
+        fail("LINT_CODES has duplicates")
+
+
+def test_lesson_lint_sentinel_exported():
+    """LESSON_UNCHECKED is the module-level sentinel default that turns the
+    lesson checks off; a caller that supplies lesson data passes whatever
+    parse_lesson() returned, including its no-section None."""
+    if not hasattr(itembank, "LESSON_UNCHECKED"):
+        fail("LESSON_UNCHECKED sentinel is not exported by itembank")
+    if "LESSON_UNCHECKED" not in itembank.__all__:
+        fail("LESSON_UNCHECKED must be a member of itembank.__all__")
+
+
+def test_lesson_lint_default_unchanged():
+    """lint(qs) with no lesson argument behaves exactly as it did before this
+    phase: the sentinel default skips every lesson check, so a lesson-bearing
+    bank adds no lesson finding to the baseline output."""
+    qs = itembank.load(LES_BANK)
+    errors, warnings = itembank.lint(qs)
+    if any(e.code.startswith("lesson.") or e.code == "item.lesson_ref_unknown"
+           for e in errors):
+        fail("default lint must not emit lesson errors: %r" % errors)
+    if any(w.code.startswith("lesson.") for w in warnings):
+        fail("default lint must not emit lesson warnings: %r" % warnings)
+
+
+def test_lesson_lint_unknown_reference():
+    """A LESSON-REF naming a heading that does not exist is an error, by item
+    number, naming the reference key -- never a warning and never a
+    render-time crash (D-05, ROADMAP SC3)."""
+    tmp = tempfile.mkdtemp()
+    bank = os.path.join(tmp, "ref_missing.md")
+    open(bank, "w", encoding="utf-8").write(
+        "## LESSON\n\n### Existing Heading\n\nprose\n\n"
+        + clean_mc("Which is one?", "Missing Section"))
+    qs = itembank.load(bank)
+    lesson = itembank.parse_lesson(bank)
+    if lesson is None or lesson["error"]:
+        fail("test bank did not parse a clean lesson: %r" % lesson)
+    errors, warnings = itembank.lint(qs, lesson=lesson)
+    assert_codes_declared(errors + warnings)
+    unknown = [e for e in errors if e.code == "item.lesson_ref_unknown"]
+    if len(unknown) != 1:
+        fail("expected exactly one unknown-reference error, got %r" % errors)
+    e = unknown[0]
+    if e.field != "lesson_ref":
+        fail("unknown-reference field must be 'lesson_ref', got %r" % e.field)
+    if e.item != "Q1":
+        fail("unknown-reference item must be the item's own Qn number, got %r"
+             % e.item)
+    if "Missing Section" not in e.message:
+        fail("unknown-reference message must name the referenced heading: %r"
+             % e.message)
+    if "does not match any lesson heading" not in e.message:
+        fail("unknown-reference message must use the locked wording: %r"
+             % e.message)
+    if str(e) != "Q1: %s" % e.message:
+        fail("str() must reproduce the historical tag-colon-message shape: %r"
+             % str(e))
+    if any(w.code == "item.lesson_ref_unknown" for w in warnings):
+        fail("unknown-reference must land in errors, never warnings (SC3)")
+
+
+def test_lesson_lint_no_section_means_every_ref_unknown():
+    """lesson=None (parse_lesson's no-`## LESSON` result) is not a skip: a
+    bank with no lesson section at all is a bank where every reference is
+    unknown, each reported by its own Qn number."""
+    tmp = tempfile.mkdtemp()
+    bank = os.path.join(tmp, "no_section.md")
+    open(bank, "w", encoding="utf-8").write(
+        clean_mc("Which is one?", "Any Heading")
+        + clean_mc("Which is two?", "Another Heading").replace("Q1.", "Q2.", 1))
+    qs = itembank.load(bank)
+    errors, warnings = itembank.lint(qs, lesson=None)
+    assert_codes_declared(errors + warnings)
+    unknown = [e for e in errors if e.code == "item.lesson_ref_unknown"]
+    if len(unknown) != 2:
+        fail("a bank with no lesson section must error on every reference, "
+             "got %r" % errors)
+    if sorted(e.item for e in unknown) != ["Q1", "Q2"]:
+        fail("unknown-reference tags wrong: %r" % [e.item for e in unknown])
+    if any(w.code == "item.lesson_ref_unknown" for w in warnings):
+        fail("unknown-reference must land in errors, never warnings (SC3)")
+
+
+def test_lesson_lint_matching_ref_adds_nothing():
+    """A reference whose slug exists among the lesson's headings adds no
+    lesson finding at all -- errors or warnings."""
+    tmp = tempfile.mkdtemp()
+    bank = os.path.join(tmp, "ok.md")
+    open(bank, "w", encoding="utf-8").write(
+        "## LESSON\n\n### The Airway, Step By Step\n\nprose\n\n"
+        + clean_mc("Which is one?", "The Airway, Step By Step"))
+    qs = itembank.load(bank)
+    lesson = itembank.parse_lesson(bank)
+    errors, warnings = itembank.lint(qs, lesson=lesson)
+    assert_codes_declared(errors + warnings)
+    if any(e.code.startswith("lesson.") or e.code == "item.lesson_ref_unknown"
+           for e in errors):
+        fail("a matching reference must add no lesson error: %r" % errors)
+    if any(w.code.startswith("lesson.") for w in warnings):
+        fail("a fully-referenced lesson must add no lesson warning: %r"
+             % warnings)
+
+
+def test_lesson_lint_duplicate_heading():
+    """Two headings whose texts differ but whose slugs collide are one error
+    naming both heading texts and the shared slug -- a reference to either is
+    ambiguous (D-06)."""
+    tmp = tempfile.mkdtemp()
+    bank = os.path.join(tmp, "dup.md")
+    open(bank, "w", encoding="utf-8").write(
+        "## LESSON\n\n### Airway, Step-By-Step!\n\nprose a\n\n"
+        "### airway step by step\n\nprose b\n\n"
+        + clean_mc("Which is one?", "The Airway, Step By Step"))
+    qs = itembank.load(bank)
+    lesson = itembank.parse_lesson(bank)
+    slugs = [h["slug"] for h in lesson["headings"]]
+    if len(slugs) != 2 or slugs[0] != slugs[1] or not slugs[0]:
+        fail("fixture headings must collide on the same slug: %r" % slugs)
+    errors, warnings = itembank.lint(qs, lesson=lesson)
+    assert_codes_declared(errors + warnings)
+    dup = [e for e in errors if e.code == "lesson.duplicate_heading"]
+    if len(dup) != 1:
+        fail("expected exactly one duplicate-heading error, got %r" % errors)
+    e = dup[0]
+    if e.item != "BANK":
+        fail("duplicate-heading is a bank-level finding, got item %r" % e.item)
+    for text in ("airway step by step", "Airway, Step-By-Step!", slugs[0]):
+        if text not in e.message:
+            fail("duplicate-heading message must name both headings and the "
+                 "shared slug: %r" % e.message)
+    if "collides with" not in e.message:
+        fail("duplicate-heading message must use the locked wording: %r"
+             % e.message)
+
+
+def test_lesson_lint_orphan_heading():
+    """A heading no item references is a warning and never an error: a lesson
+    legitimately teaches more than it tests (D-06)."""
+    tmp = tempfile.mkdtemp()
+    bank = os.path.join(tmp, "orphan.md")
+    open(bank, "w", encoding="utf-8").write(
+        "## LESSON\n\n### Referenced Heading\n\nprose a\n\n"
+        "### Background Reading\n\nprose b\n\n"
+        + clean_mc("Which is one?", "Referenced Heading"))
+    qs = itembank.load(bank)
+    lesson = itembank.parse_lesson(bank)
+    errors, warnings = itembank.lint(qs, lesson=lesson)
+    assert_codes_declared(errors + warnings)
+    orphan = [w for w in warnings if w.code == "lesson.orphan_heading"]
+    if len(orphan) != 1:
+        fail("expected exactly one orphan-heading warning, got %r" % warnings)
+    w = orphan[0]
+    if w.item != "BANK":
+        fail("orphan-heading is a bank-level finding, got item %r" % w.item)
+    if "Background Reading" not in w.message:
+        fail("orphan-heading message must name the unreferenced heading: %r"
+             % w.message)
+    if "is not referenced by any item" not in w.message:
+        fail("orphan-heading message must use the locked wording: %r"
+             % w.message)
+    if any(e.code == "lesson.orphan_heading" for e in errors):
+        fail("an orphan heading is a warning and never an error (D-06)")
+    if any(e.code.startswith("lesson.") for e in errors):
+        fail("orphan input must produce no lesson error: %r" % errors)
+
+
+def test_lesson_lint_src_unreadable():
+    """An unreadable [LESSON-SRC:] appends exactly one error carrying the
+    result's detail text, tagged BANK, and no heading-level findings -- there
+    are no headings to check."""
+    tmp = tempfile.mkdtemp()
+    bank = os.path.join(tmp, "src_broken.md")
+    open(bank, "w", encoding="utf-8").write(
+        "[LESSON-SRC: missing_lesson.md]\n\n" + clean_mc("Which is one?"))
+    qs = itembank.load(bank)
+    lesson = itembank.parse_lesson(bank)
+    if lesson is None or lesson["error"] != "lesson.src_unreadable":
+        fail("fixture must produce the structured unreadable-source result: %r"
+             % lesson)
+    errors, warnings = itembank.lint(qs, lesson=lesson)
+    assert_codes_declared(errors + warnings)
+    src = [e for e in errors if e.code == "lesson.src_unreadable"]
+    if len(src) != 1:
+        fail("expected exactly one src_unreadable error, got %r" % errors)
+    e = src[0]
+    if e.item != "BANK":
+        fail("src_unreadable is a bank-level finding, got item %r" % e.item)
+    if lesson["detail"] not in e.message:
+        fail("src_unreadable message must carry the result's detail: %r"
+             % e.message)
+    if "could not be read" not in e.message:
+        fail("src_unreadable message must use the locked wording: %r"
+             % e.message)
+    if any(w.code.startswith("lesson.") for w in warnings) or \
+       any(e2.code.startswith("lesson.") and e2.code != "lesson.src_unreadable"
+           for e2 in errors):
+        fail("no heading-level findings may accompany src_unreadable")
+
 
 
 # ---- subprocess: daemon routes and the CLI twin ----------------------------
@@ -607,9 +850,17 @@ test_lesson_src_absolute_refused()
 test_lesson_src_subdirectory_accepted()
 test_lesson_src_prefix_sibling_refused()
 test_lesson_src_wins_over_inline()
-test_lesson_src_stays_out_of_lint_namespace()
+test_lesson_lint_codes_published()
+test_lesson_lint_sentinel_exported()
+test_lesson_lint_default_unchanged()
+test_lesson_lint_unknown_reference()
+test_lesson_lint_no_section_means_every_ref_unknown()
+test_lesson_lint_matching_ref_adds_nothing()
+test_lesson_lint_duplicate_heading()
+test_lesson_lint_orphan_heading()
+test_lesson_lint_src_unreadable()
 test_lesson_src_degraded_daemon_and_cli()
 test_lesson_plain_empty_state_has_no_warning()
 test_routes_and_cli_twin()
 test_page_for_shapes_and_build()
-print("ok: lesson roundtrip (slug, parse, fingerprint, LESSON-SRC, degraded state, route, CLI twin, both link directions)")
+print("ok: lesson roundtrip (slug, parse, fingerprint, LESSON-SRC, degraded state, route, CLI twin, both link directions, lesson lint)")
