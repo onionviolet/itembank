@@ -494,6 +494,33 @@ def check_quiz_script_safety():
         fail("hostile option text reached the quiz page as raw markup")
 
 
+def check_served_report_link_carries_session():
+    """WR-05 regression: the served quiz client's View report links carry
+    the live session id (`/report?session=<id>`) instead of a dead bare
+    `/report` 404.
+    """
+    from surfaces.quiz import page_for
+    with tempfile.TemporaryDirectory() as tmp:
+        bank = os.path.join(tmp, "served_bank.md")
+        with open(bank, "w", encoding="utf-8") as fh:
+            fh.write("# Served bank\n\nQ1. Stem.\n"
+                     "A) One\nB) Two\nC) Three\nCORRECT: B\n")
+        import itembank
+        qs = itembank.parse_bank(open(bank, encoding="utf-8").read())
+        _, page = page_for(bank, qs, serve=True, post_path="/quiz/x/answer",
+                           lesson_base="", lesson_slugs=set(),
+                           bank_stem="x", mode="practice")
+    start = page.find('<script id="served">')
+    end = page.find("</script>", start)
+    js = page[start:end]
+    if 'href="/report">' in js:
+        fail("served quiz client still emits a bare /report link")
+    if '"/report?session=" + encodeURIComponent(sessionId || "")' not in js:
+        fail("served quiz client does not build the session-aware report href")
+    if 'href="${report}">View report</a>' not in js:
+        fail("served quiz client does not use the session-aware report href")
+
+
 def check_study_empty_and_error_states():
     """Test 5: empty input renders the shared state panel with the exact
     empty copy; a malformed card renders an error state that keeps bank
@@ -799,6 +826,7 @@ def main():
     check_study_item_sentinels_reach_reveal()
     check_study_script_safety()
     check_quiz_script_safety()
+    check_served_report_link_carries_session()
     check_study_empty_and_error_states()
     check_study_reveal_order()
     check_study_recall_controls_and_default_open()

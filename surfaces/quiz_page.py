@@ -957,6 +957,7 @@ function close(q, card, act, v){
 /* ---- results: the summary is the server's session summary ----------------- */
 function finish(summary){
   const s = summary || {};
+  const report = "/report?session=" + encodeURIComponent(sessionId || "");
   const auto = s.auto_attempts || 0;
   const correct = s.auto_correct || 0;
   const pend = s.pending_manual || 0;
@@ -980,19 +981,20 @@ function finish(summary){
     h += `<p style="margin-top:14px">Clean sweep. Nothing to harvest.</p>`;
   }
   h += `<div class="act"><a class="go ghost" style="text-decoration:none"
-        href="/report">View report</a></div></div>`;
+        href="${report}">View report</a></div></div>`;
   host.innerHTML = h;
   window.scrollTo({top:0, behavior: REDUCED ? "auto" : "smooth"});
 }
 
 /* ---- empty session: no item to show --------------------------------------- */
 function emptyState(){
+  const report = "/report?session=" + encodeURIComponent(sessionId || "");
   host.innerHTML = `<div class="done empty">
     <p><b>This session has no question ready.</b></p>
     <p style="color:var(--mut)">No items match this sitting&rsquo;s filters or
       the bank has nothing to serve.</p>
     <div class="act"><a class="go ghost" style="text-decoration:none"
-          href="/report">View report</a>
+          href="${report}">View report</a>
       <a class="go ghost" style="text-decoration:none"
           href="/settings">Filters / settings</a></div>
   </div>`;
