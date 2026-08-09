@@ -4,15 +4,15 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 02.1
 current_phase_name: Packaging, Self-Update & Interop Export (INSERTED, moved from Phase 12)
-status: planning
-stopped_at: Phases 6, 8, 9, 10, and 11 context gathered
-last_updated: "2026-08-08T18:41:37.312Z"
+status: executing
+stopped_at: Phases 6.1, 8, 9, 10, 11 UI-SPECs approved
+last_updated: "2026-08-08T22:42:54.793Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 02.1 execution started
 progress:
-  total_phases: 12
+  total_phases: 13
   completed_phases: 3
-  total_plans: 45
+  total_plans: 67
   completed_plans: 26
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 
 Phase: 02.1 — Packaging, Self-Update & Interop Export (INSERTED, moved from Phase 12)
 Plan: Not started
-Status: Ready to plan
+Status: Ready to execute
 Last activity: 2026-08-08 — Phase 02 complete, transitioned to Phase 02.1
 
 Progress: [██████░░░░] 63%
@@ -176,6 +176,7 @@ None yet.
 ### Roadmap Evolution
 
 - Phase 2.1 inserted after Phase 2: Packaging/Self-Update/GIFT export (formerly Phase 12) pulled forward to ship an early exe of the Phase 1+2 feature set and dogfood the self-updater through remaining phases (URGENT)
+- Phase 06.1 inserted after Phase 6: Interactive Visual Assessment Protocol (URGENT)
 
 ## Deferred Items
 
@@ -185,8 +186,14 @@ Items acknowledged and carried forward from previous milestone close:
 |----------|------|--------|-------------|
 | *(none — this is the project's first milestone)* | | | |
 
+## Deferred Verification
+
+| Phase | State | Resume |
+|-------|-------|--------|
+| 2.1 | verification_deferred_human | $gsd-verify-work 2.1 |
+
 ## Session Continuity
 
-Last session: 2026-08-08T18:41:37.277Z
-Stopped at: Phases 6, 8, 9, 10, and 11 context gathered
-Resume file: .planning/phases/11-closed-authoring-loop-curriculum-auditor/11-CONTEXT.md
+Last session: 2026-08-08T22:42:54.733Z
+Stopped at: Phases 6.1, 8, 9, 10, 11 UI-SPECs approved
+Resume file: .planning/phases/06.1-interactive-visual-assessment-protocol/06.1-UI-SPEC.md
