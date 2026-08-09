@@ -1155,6 +1155,20 @@ def check_conflict_recovery_markup_and_dirty_js():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def check_conflict_document_uses_fresh_current():
+    """WR-01 regression: the conflict recovery client fills `current-doc`
+    (the text behind Copy current / Download current) from the conflict's
+    fresh `d.current.document`, falling back to the page-load snapshot, and
+    the non-conflict error branch prefers the server's `d.document` over the
+    stale snapshot -- the pane header and cells already used the fresh data.
+    """
+    js = day.DAY_JS
+    if "(d.current&&d.current.document)||SNAP.document" not in js:
+        fail("conflict client does not prefer the conflict's fresh document")
+    if "d.document||SNAP.document||\"\"" not in js:
+        fail("recovery branch does not prefer the server's fresh document")
+
+
 def main():
     check_builders_and_corpus()
     check_byte_helpers()
@@ -1177,6 +1191,7 @@ def main():
     check_apply_day_edit_and_cache()
     check_day_palette_and_no_css_literals()
     check_conflict_recovery_markup_and_dirty_js()
+    check_conflict_document_uses_fresh_current()
     print("ok: day-edit plan 04-02 -- structured snapshot, exact-span edit, "
           "grammar refusals, atomic replace, stale conflicts, confirmed force "
           "all green; plan 04-06 -- editor boot snapshot, apply_day_edit "

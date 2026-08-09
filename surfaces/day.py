@@ -713,7 +713,8 @@ function showConflict(d){
  forceDraftHash=d.force_draft_hash||"";
  forceRevision=d.current&&d.current.revision?d.current.revision:SNAP.revision;
  setDraft(values());
- fillPanels(draft,currentCells(d),SNAP.document,SNAP.revision,d.current.revision);
+ fillPanels(draft,currentCells(d),(d.current&&d.current.document)||SNAP.document,
+   SNAP.revision,d.current.revision);
  document.getElementById('conflict').classList.add('on');
  forcePanel.classList.add('on');
  document.getElementById('force-confirm').checked=false;
@@ -752,7 +753,7 @@ function saveEdits(){
    say(INVALID_COPY,"err");
   }else{
    say((d.reason||"Plan not available.")+" Retry, or copy/download the plan and reload.","warn");
-   document.getElementById('current-doc').textContent=SNAP.document||"";
+   document.getElementById('current-doc').textContent=d.document||SNAP.document||"";
    document.getElementById('edit-recovery').classList.add('on');
   }
   saveBtn.disabled=!isDirty();
