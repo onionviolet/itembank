@@ -20,6 +20,7 @@
         "item.duplicate_number",
         "item.duplicate_stem",
         "item.duplicate_steps",
+        "item.lesson_ref_unknown",
         "item.low_confidence",
         "item.missing_distractor_notes",
         "item.missing_hash",
@@ -37,7 +38,10 @@
         "item.too_few_options",
         "item.too_few_rows",
         "item.too_few_rubric_points",
-        "item.too_few_steps"
+        "item.too_few_steps",
+        "lesson.duplicate_heading",
+        "lesson.orphan_heading",
+        "lesson.src_unreadable"
       ]
     },
     "field": {

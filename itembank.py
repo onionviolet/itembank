@@ -51,7 +51,8 @@ import sys
 # imports nothing.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from model import (BANK_FILE_HINTS, LETTERS, LINT_CODES, LintError, SPEC,     # noqa: E402
+from model import (BANK_FILE_HINTS, LESSON_UNCHECKED, LETTERS, LINT_CODES,   # noqa: E402
+                   LintError, SPEC,
                    assign_ids, collapse, content_fingerprint, grab, lint, load,
                    lesson_slug, new_item_id, notes, parse_bank, parse_lesson,
                    parse_question, section)
@@ -87,8 +88,8 @@ from schema_validate import SUPPORTED, SchemaError, validate                  # 
 
 __all__ = [
     "ANKI_ADDON_ID", "BANK_FILE_HINTS", "DAY_LANES", "EVENT_SCHEMA_VERSION",
-    "FIELD_SEP", "FLOOR_LANES", "INDEX_VERSION", "ITEM_VERSION", "LETTERS",
-    "LINT_CODES", "LintError",
+    "FIELD_SEP", "FLOOR_LANES", "INDEX_VERSION", "ITEM_VERSION",
+    "LESSON_UNCHECKED", "LETTERS", "LINT_CODES", "LintError",
     "PAIR_SEP", "REPORT_VERSION", "SESSION_UPGRADES", "SESSION_VERSION", "SPEC",
     "SUPPORTED", "SchemaError",
     "__version__",

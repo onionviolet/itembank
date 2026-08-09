@@ -499,6 +499,17 @@ class LintError(collections.namedtuple("LintError", "code field item message")):
         return "%s: %s" % (self.item, self.message)
 
 
+# The sentinel default of `lint()`'s lesson parameter. It distinguishes "the
+# caller did not supply lesson data" (skip every lesson check -- the behaviour
+# every pre-03-03 caller relies on) from "the caller supplied lesson data and
+# this bank has no lesson section", because those two demand opposite
+# behaviour and `parse_lesson()` legitimately returns None for the second: a
+# reference into a bank with no lesson is an error, not a skipped check
+# (D-05). A caller that wants the checks passes whatever `parse_lesson()`
+# returned, including its no-section result.
+LESSON_UNCHECKED = object()
+
+
 # The published code namespace. Adding a code here is additive; renaming or removing
 # one is a breaking change for every authoring agent that branches on it (D-16).
 # Built from a set-then-sorted so the tuple is provably sorted and duplicate-free
@@ -512,23 +523,37 @@ LINT_CODES = tuple(sorted({
     "item.model_too_long", "item.rubric_point_too_long", "item.missing_why_best",
     "item.missing_trap", "item.low_confidence", "item.duplicate_stem",
     "item.missing_id", "item.duplicate_id", "item.missing_hash",
-    "item.content_drift", "item.objective_unnamespaced",
+    "item.content_drift", "item.objective_unnamespaced", "item.lesson_ref_unknown",
+    "lesson.duplicate_heading", "lesson.orphan_heading", "lesson.src_unreadable",
     "bank.answer_position_skew",
 }))
 
 
-def lint(questions):
+def lint(questions, lesson=LESSON_UNCHECKED):
     """Return (errors, warnings) as lists of LintError records.
 
     str(record) reproduces the historical 'Qn: message' text exactly; the code and
     field are additive machine-readable fields an authoring agent can branch on
     without a lookup table.
+
+    `lesson` defaults to the LESSON_UNCHECKED sentinel, which turns every lesson
+    check off: a caller that never heard of lessons gets byte-for-byte what it got
+    before this parameter existed. A caller that supplies lesson data passes
+    whatever `parse_lesson()` returned -- a dict of headings (the checks below
+    run), None for a bank with no `## LESSON` section (every non-empty
+    LESSON-REF is unknown, D-05), or a dict carrying an unreadable-source error
+    (lesson.src_unreadable, no heading-level findings).
     """
     errors, warnings = [], []
     seen_stems = {}
     seen_ids = {}
     seen_item_ids = {}
     letter_hits = collections.Counter()
+    lesson_on = lesson is not LESSON_UNCHECKED
+    if lesson_on:
+        known_slugs = set()
+        if lesson:
+            known_slugs = {h["slug"] for h in lesson["headings"]}
 
     for idx, q in enumerate(questions, 1):
         tag = "Q%d" % idx
@@ -571,6 +596,18 @@ def lint(questions):
                             "OBJECTIVE %r has no subject prefix; use subject:path (for "
                             "example emt:airway.opa) so two subjects cannot average into "
                             "one trend line" % objective))
+
+        # The per-item lesson check lives inside this loop so the finding is
+        # tagged by the item's own number for free (D-05, ROADMAP SC3); a
+        # second pass would have to re-derive the numbering. A bank with no
+        # lesson section at all (lesson is None) has an empty known-slug set,
+        # so every non-empty reference is unknown rather than silently skipped.
+        if lesson_on:
+            ref = q.get("lesson_ref") or ""
+            if ref and lesson_slug(ref) not in known_slugs:
+                errors.append(LintError(
+                    "item.lesson_ref_unknown", "lesson_ref", tag,
+                    "LESSON-REF '%s' does not match any lesson heading" % ref))
 
         if t in ("mc", "multi"):
             if len(q["correct"]) != q["select"]:
@@ -673,6 +710,49 @@ def lint(questions):
                 "only if this bank is consumed by something that does NOT shuffle: a printed "
                 "exam, an export, or another tool."
                 % (n / total * 100, top, n, total)))
+
+    # Bank-level lesson findings, in document order for the headings so two
+    # runs over the same bank produce byte-identical output. An unreadable
+    # external source has no headings to check, so it produces only its own
+    # finding. lint() has no bank text of its own -- the lesson dict is the
+    # whole contract -- so the locked template's <path> is recovered from the
+    # structured detail parse_lesson() returned (the escape refusal embeds the
+    # authored directive; an OS error quotes the resolved file), matching
+    # T-3-09's echo-the-authored-path intent without fabricating data.
+    if lesson_on:
+        if lesson and lesson.get("error"):
+            detail = lesson.get("detail") or ""
+            src_match = re.match(r"(.+?) escapes the bank's directory$", detail)
+            if src_match:
+                src_path = src_match.group(1)
+            else:
+                quoted = re.findall(r"'([^']*)'", detail)
+                src_path = quoted[-1] if quoted else ""
+            errors.append(LintError(
+                "lesson.src_unreadable", "src", "BANK",
+                "[LESSON-SRC: %s] could not be read (%s) -- fix the path or "
+                "remove the directive" % (src_path, detail)))
+        elif lesson:
+            referenced = {lesson_slug(q["lesson_ref"]) for q in questions
+                          if (q.get("lesson_ref") or "")}
+            seen_slugs = {}
+            for h in lesson["headings"]:
+                slug = h["slug"]
+                if slug in seen_slugs:
+                    errors.append(LintError(
+                        "lesson.duplicate_heading", "headings", "BANK",
+                        "lesson heading '%s' collides with '%s' after "
+                        "slugifying to '%s' -- rename one"
+                        % (h["text"], seen_slugs[slug], slug)))
+                else:
+                    seen_slugs[slug] = h["text"]
+            for h in lesson["headings"]:
+                if h["slug"] not in referenced:
+                    warnings.append(LintError(
+                        "lesson.orphan_heading", "headings", "BANK",
+                        "lesson heading '%s' is not referenced by any item's "
+                        "[LESSON-REF:] -- fine if it's background reading, but "
+                        "check it wasn't meant to be tested" % h["text"]))
     return errors, warnings
 
 

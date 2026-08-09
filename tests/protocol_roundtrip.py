@@ -88,7 +88,7 @@ def test_lint_codes_declared():
         fail("LINT_CODES has duplicates")
     for c in codes:
         prefix = c.split(".", 1)[0]
-        if prefix not in ("item", "bank"):
+        if prefix not in ("item", "bank", "lesson"):
             fail("code %r has an undeclared namespace prefix %r" % (c, prefix))
 
 
