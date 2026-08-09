@@ -1476,8 +1476,8 @@ def test_spec_documents_lesson_grammar():
         "literal text",                   # what does not render
         "info string",                    # fenced-block convention
         "later phase",                    # the Phase 9 seam
-        "question marker",                # the one constraint
-        "ends the lesson",                # the one constraint
+        "parses as a real question",      # the one constraint
+        "stays in the prose",             # the one constraint
     ):
         if want not in s:
             fail("SPEC must document %r for the LESSON grammar" % want)

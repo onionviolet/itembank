@@ -481,10 +481,12 @@ THE RULE THAT SURVIVES EVERY TYPE
 THE LESSON SECTION
   A bank may carry one optional LESSON section: the teaching text its items
   test. It lives above the first question, opened by `## LESSON` at the start
-  of a line and running to the first `Qn.` marker; its subheadings are one
-  level deeper, `### heading text`, and each becomes a section an item can
-  point at. A bank without a lesson section parses exactly as it did before
-  this grammar existed, so adding a lesson to a real bank cannot break it.
+  of a line and running to the first `Qn.` line that parses as a real question;
+  its subheadings are one level deeper, `### heading text`, and each becomes a
+  section an item can point at.
+
+  A bank without a lesson section parses exactly as it did before this
+  grammar existed, so adding a lesson to a real bank cannot break it.
 
   [LESSON-SRC: <path>]                                      optional, external source
   The same preamble region may name an external markdown file whose own
@@ -518,10 +520,11 @@ WHAT THE READER RENDERS
 
 ONE CONSTRAINT
   A line inside lesson prose that begins like a question marker -- `Q1.` at
-  the start of a line -- ends the lesson there. This is a property of the
-  boundary that separates questions from prose, and the grammar tells authors
-  to avoid it rather than making the boundary context-sensitive, which would
-  put the compatibility promise at risk for a rare authoring habit.
+  the start of a line -- ends the lesson only when it parses as a real question;
+  a line merely shaped like one stays in the prose. This is a property of
+  the boundary that separates questions from prose, and the context-sensitivity
+  is deliberate: a first-match-only boundary would silently cut a lesson
+  whose prose contains an illustrative line shaped like a question marker.
 
 LESSON LINT CODES
   item.lesson_ref_unknown   error     an item's LESSON-REF names no heading
