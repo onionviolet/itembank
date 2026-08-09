@@ -235,9 +235,13 @@ Items acknowledged and carried forward from previous milestone close:
 |-------|-------|--------|
 | 2.1 | verification_deferred_human | $gsd-verify-work 2.1 |
 | 3 | verification_deferred_human | $gsd-verify-work 3 |
+| 4 | verification_deferred_human | $gsd-verify-work 4 |
 
 ## Session Continuity
 
-Last session: 2026-08-09T05:05:55.638Z
-Stopped at: Completed 04-06-PLAN.md
-Resume file: None
+Last session: 2026-08-09 (autonomous run, this thread)
+Stopped at: Phase 4 executed (6/6 plans), code-reviewed (7 findings fixed),
+verified 5/5 with human items deferred; Phases 2.1/3/4 carry
+verification_deferred_human rows above.
+Resume file: .planning/HANDOFF-2026-08-09.md (resume with
+$gsd-autonomous --from 5 in a fresh chat)
