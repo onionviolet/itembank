@@ -503,11 +503,13 @@ THE LESSON SECTION
   itself is listed above with the other shared fields.
 
 THE SLUG RULE
-  A heading's slug is its text lowercased, whitespace collapsed, punctuation
-  dropped. Two headings whose slugs collide make a reference to either
-  ambiguous, so the collision is an error: author headings that differ in
-  more than casing, spacing and punctuation, and you can predict the collision
-  before the linter reports it.
+  A heading's slug is its text lowercased, whitespace collapsed, and every
+  character outside ASCII letters, digits, spaces and hyphens dropped; each
+  run of whitespace becomes a single hyphen. Hyphens are kept, so "A-B" and
+  "AB" do not collide. Two headings whose slugs collide make a reference to
+  either ambiguous, so the collision is an error: author headings that differ
+  in more than casing, spacing and punctuation, and you can predict the
+  collision before the linter reports it.
 
 WHAT THE READER RENDERS
   The lesson reader renders headings, paragraphs, bullet and numbered lists,
