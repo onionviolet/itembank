@@ -811,6 +811,38 @@ def check_task2_draft_and_no_temp():
             fail("invalid result left a temporary file")
 
 
+def check_task2_tight_window_recheck():
+    """A write landing between save's first read and os.replace must still
+    produce a no-write conflict (D-09: the fresh read is immediately before
+    replacement, not merely at the start of save)."""
+    if day_document is None:
+        fail("Task 2 RED: surfaces.day_document does not exist yet")
+    with tempfile.TemporaryDirectory() as tmp:
+        path = write_plan(tmp, [HEADER, row_for()])
+        snap = day_document.snapshot(path, 2026, "2026-01-07")
+        concurrent = plan_bytes(
+            [HEADER, row_for(cells=("ch 2 finish", "raced edit", "Lab 0"))])
+        original_replace = day_document._atomic_replace
+
+        def racing_replace(target, data, expected_rev):
+            with open(target, "wb") as fh:
+                fh.write(concurrent)
+            return original_replace(target, data, expected_rev)
+
+        day_document._atomic_replace = racing_replace
+        try:
+            result = day_document.save(path, "2026-01-07",
+                                       {"EMT": "ch 3"}, snap["revision"])
+        finally:
+            day_document._atomic_replace = original_replace
+        if result.get("status") != "conflict":
+            fail("race-window save status %r, want conflict" % result.get("status"))
+        if open(path, "rb").read() != concurrent:
+            fail("race-window save overwrote the concurrent edit")
+        if os.path.exists(path + ".tmp"):
+            fail("race-window conflict left a temporary file")
+
+
 def main():
     check_builders_and_corpus()
     check_byte_helpers()
@@ -827,6 +859,7 @@ def main():
     check_task2_force_cli_gates()
     check_task2_confirmed_force()
     check_task2_draft_and_no_temp()
+    check_task2_tight_window_recheck()
     print("ok: day-edit plan 04-02 -- structured snapshot, exact-span edit, "
           "grammar refusals, atomic replace, stale conflicts, confirmed force "
           "all green")

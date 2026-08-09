@@ -31,6 +31,18 @@ RULE_RE = re.compile(r"^:?-{2,}:?$")
 CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 
 
+class StaleRevisionError(Exception):
+    """Raised when the target changed between `save`'s first read and replace.
+
+    Carries the freshly read bytes so the caller can build a conflict result
+    without a third read.
+    """
+
+    def __init__(self, current_bytes):
+        super().__init__("plan changed on disk during the save")
+        self.current_bytes = current_bytes
+
+
 # ---- reading and line structure --------------------------------------------
 
 def _read_plan(path):
@@ -227,6 +239,24 @@ def _build_snapshot(internals, iso, revision, text):
             "columns": columns, "cells": cells, "document": text}
 
 
+def _conflict_result(edits, submitted_revision, data, iso, forced):
+    """A no-write conflict carrying draft, fresh current data, both revisions."""
+    revision = hashlib.sha256(data).hexdigest()
+    text = data.decode("utf-8")
+    result, internals = _analyze(data, int(iso[:4]), iso)
+    if result["status"] == "ready":
+        current = _build_snapshot(internals, iso, revision, text)
+    else:
+        current = {"status": result["status"], "reason": result["reason"],
+                   "revision": revision, "date": iso, "document": text}
+    return {"status": "conflict",
+            "reason": "plan changed on disk since revision %s; nothing "
+                      "was overwritten" % submitted_revision,
+            "draft": edits, "revision": revision,
+            "submitted_revision": submitted_revision, "current": current,
+            "document": text, "forced": bool(forced)}
+
+
 def _analyze(data, year, iso):
     """Locate the one unambiguous dated row and build its snapshot.
 
@@ -372,13 +402,7 @@ def save(path, iso, edits, revision, force=False):
         return result
 
     if rev != revision:
-        current = _build_snapshot(internals, iso, rev, text)
-        return {"status": "conflict",
-                "reason": "plan changed on disk since revision %s; nothing "
-                          "was overwritten" % revision,
-                "draft": edits, "revision": rev,
-                "submitted_revision": revision, "current": current,
-                "document": text, "forced": bool(force)}
+        return _conflict_result(edits, revision, data, iso, force)
 
     columns = [_display(c[2]) for c in internals["header"]["cells"]]
     exact, lanes = {}, {}
@@ -426,7 +450,12 @@ def save(path, iso, edits, revision, force=False):
                           "unreadable: %s" % new_result["reason"],
                 "draft": edits, "revision": rev, "document": text}
 
-    _atomic_replace(path, new_bytes)
+    try:
+        _atomic_replace(path, new_bytes, rev)
+    except StaleRevisionError as stale:
+        # D-09: the revision check happens immediately before replacement.
+        # A write that landed in the analysis window is never overwritten.
+        return _conflict_result(edits, revision, stale.current_bytes, iso, force)
     new_rev = hashlib.sha256(new_bytes).hexdigest()
     saved_cells = _build_snapshot(new_internals, iso, new_rev,
                                   new_bytes.decode("utf-8"))["cells"]
@@ -435,8 +464,14 @@ def save(path, iso, edits, revision, force=False):
             "forced": bool(force)}
 
 
-def _atomic_replace(path, data):
-    """Same-directory temporary file, flush/fsync, then `os.replace` (D-11)."""
+def _atomic_replace(path, data, expected_rev):
+    """Fresh-read revision gate plus same-directory atomic replace (D-09, D-11)."""
+    try:
+        current = open(path, "rb").read()
+    except OSError:
+        current = b""
+    if hashlib.sha256(current).hexdigest() != expected_rev:
+        raise StaleRevisionError(current)
     tmp = path + ".tmp"
     with open(tmp, "wb") as fh:
         fh.write(data)
