@@ -1178,6 +1178,121 @@ def test_lesson_page_carries_no_exit_path():
         fail("lesson_page must carry no process-exit path")
 
 
+# ---- plan 03-05 Task 2: the CLI's observable contract ---------------------
+
+def test_lesson_cli_default_output_path():
+    """No --out writes beside the bank with a lesson-suffixed HTML name
+    derived from the bank's own name, exactly as cmd_study derives its
+    default -- one derivation rule for sibling commands."""
+    tmp = tempfile.mkdtemp()
+    bank = os.path.join(tmp, "lesson_bank.md")
+    shutil.copy(LES_BANK, bank)
+    res = run_lesson([bank])
+    if res.returncode != 0:
+        fail("lesson with no --out failed: " + res.stdout + res.stderr)
+    expected = os.path.join(tmp, "lesson_bank_lesson.html")
+    if not os.path.exists(expected):
+        fail("default output path not written: %r" % expected)
+    if "2 lesson section(s) -> " not in res.stdout:
+        fail("default run must report the heading count: %r" % res.stdout)
+
+
+def test_lesson_cli_out_creates_containing_directory():
+    """--out into a nested directory that does not exist creates it, the way
+    cmd_study's default-output derivation does."""
+    tmp = tempfile.mkdtemp()
+    nested = os.path.join(tmp, "sub", "dir", "c.html")
+    res = run_lesson([LES_BANK, "--out", nested])
+    if res.returncode != 0:
+        fail("lesson --out into a new directory failed: " + res.stdout + res.stderr)
+    if not os.path.exists(nested):
+        fail("--out must create the containing directory")
+
+
+def test_lesson_cli_exactly_one_status_line():
+    """Exactly one status line in the locked count-arrow-path form, and
+    nothing else -- no progress line, no per-section output, no document on
+    stdout (E5)."""
+    out = os.path.join(tempfile.mkdtemp(), "c1.html")
+    res = run_lesson([LES_BANK, "--out", out])
+    if res.returncode != 0:
+        fail("lesson failed: " + res.stdout + res.stderr)
+    locked = [l for l in res.stdout.splitlines()
+              if re.match(r"^[0-9]+ lesson section\(s\) -> ", l)]
+    if len(locked) != 1:
+        fail("exactly one locked status line expected, got %d: %r"
+             % (len(locked), res.stdout))
+    if len(res.stdout.splitlines()) != 1:
+        fail("no progress or per-section output allowed: %r" % res.stdout)
+
+
+def test_lesson_cli_no_lesson_bank_writes_empty_and_exits_zero():
+    """A bank with no lesson section writes the empty-state page and exits
+    0 with a count of 0 -- the same degraded-state policy as the route, not
+    a second one (T-3-04)."""
+    out = os.path.join(tempfile.mkdtemp(), "c2.html")
+    res = run_lesson([SMP_BANK, "--out", out])
+    if res.returncode != 0:
+        fail("a bank with no lesson section must exit 0: "
+             + res.stdout + res.stderr)
+    if "0 lesson section(s) -> " not in res.stdout:
+        fail("no-lesson run must report 0 sections: %r" % res.stdout)
+    if "No lesson yet" not in open(out, encoding="utf-8").read():
+        fail("no-lesson run must write the empty-state page")
+
+
+def test_lesson_cli_broken_src_writes_degraded_and_exits_zero():
+    """A bank whose external lesson source cannot be read writes the
+    degraded page and exits 0 with a count of 0 (T-3-04)."""
+    out = os.path.join(tempfile.mkdtemp(), "c3.html")
+    bank = os.path.join(ROOT, "fixtures", "lesson_broken_src_bank.md")
+    res = run_lesson([bank, "--out", out])
+    if res.returncode != 0:
+        fail("a broken LESSON-SRC must exit 0: " + res.stdout + res.stderr)
+    if "0 lesson section(s) -> " not in res.stdout:
+        fail("broken-source run must report 0 sections: %r" % res.stdout)
+    pg = open(out, encoding="utf-8").read()
+    if "No lesson yet" not in pg or "var(--warn)" not in pg:
+        fail("broken-source run must write the degraded warning page")
+
+
+def test_lesson_cli_src_bank_reports_heading_count():
+    """An external-source bank reports the heading count its lesson actually
+    carries (2 in the shared fixture)."""
+    out = os.path.join(tempfile.mkdtemp(), "c4.html")
+    bank = os.path.join(ROOT, "fixtures", "lesson_src_bank.md")
+    res = run_lesson([bank, "--out", out])
+    if res.returncode != 0:
+        fail("external-source lesson failed: " + res.stdout + res.stderr)
+    if "2 lesson section(s) -> " not in res.stdout:
+        fail("external-source run must report its heading count: %r"
+             % res.stdout)
+
+
+def test_lesson_cli_file_byte_identical_to_render():
+    """The machine-readable form of D-07: the CLI's written file equals what
+    the render function produces, which is what the daemon route sends."""
+    out = os.path.join(tempfile.mkdtemp(), "c1.html")
+    res = run_lesson([LES_BANK, "--out", out])
+    if res.returncode != 0:
+        fail("lesson failed: " + res.stdout + res.stderr)
+    page = lesson.lesson_page(LES_BANK, itembank.load(LES_BANK),
+                              itembank.parse_lesson(LES_BANK))
+    if open(out, encoding="utf-8").read() != page:
+        fail("CLI file must equal the render function's output byte-for-byte")
+
+
+def test_lesson_help_lists_ref_and_out():
+    res = subprocess.run(
+        [sys.executable, os.path.join(ROOT, "itembank.py"), "lesson",
+         "--help"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30)
+    if res.returncode != 0:
+        fail("lesson --help failed: " + res.stderr)
+    if "--ref" not in res.stdout or "--out" not in res.stdout:
+        fail("lesson --help must list both --ref and --out: %r" % res.stdout)
+
+
 # ---- subprocess: daemon routes and the CLI twin ----------------------------
 
 def test_lesson_src_degraded_daemon_and_cli():
@@ -1396,6 +1511,14 @@ test_lesson_ref_cli_miss_hard_stops()
 test_lesson_ref_cli_no_lesson_bank_miss()
 test_lesson_route_selects_no_section()
 test_lesson_page_carries_no_exit_path()
+test_lesson_cli_default_output_path()
+test_lesson_cli_out_creates_containing_directory()
+test_lesson_cli_exactly_one_status_line()
+test_lesson_cli_no_lesson_bank_writes_empty_and_exits_zero()
+test_lesson_cli_broken_src_writes_degraded_and_exits_zero()
+test_lesson_cli_src_bank_reports_heading_count()
+test_lesson_cli_file_byte_identical_to_render()
+test_lesson_help_lists_ref_and_out()
 test_lesson_src_degraded_daemon_and_cli()
 test_lesson_plain_empty_state_has_no_warning()
 test_routes_and_cli_twin()
