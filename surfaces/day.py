@@ -14,6 +14,8 @@ tool still holds no content of its own.
 import html, json, os, re, sys
 
 import evidence
+from surfaces import settings
+from surfaces.theme import theme_css
 
 
 # ---- the day surface --------------------------------------------------------
@@ -525,80 +527,343 @@ def day_history(log, today, span=14):
 DAY_CSS = """
 *{box-sizing:border-box}
 body{margin:0;padding:14px 16px 24px;font:15px/1.45 -apple-system,BlinkMacSystemFont,
-"Segoe UI",Roboto,sans-serif;background:#fbfbfa;color:#1a1a1a;
+"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);
 max-width:720px;margin-inline:auto;-webkit-text-size-adjust:100%}
 h1{font-size:1.35rem;margin:0 0 1px}
-.sub{color:#6b6b6b;font-size:.85rem;margin-bottom:10px}
+.sub{color:var(--mut);font-size:.85rem;margin-bottom:10px}
 .bar{display:flex;align-items:center;gap:14px;padding:9px 14px;border-radius:12px;
-background:#fff;border:1px solid #e5e3df;margin-bottom:10px}
+background:var(--card);border:1px solid var(--line);margin-bottom:10px}
 .streak{font-size:1.6rem;font-weight:700;line-height:1}
-.streak small{font-size:.75rem;font-weight:400;color:#6b6b6b;display:block}
+.streak small{font-size:.75rem;font-weight:400;color:var(--mut);display:block}
 .hist{display:flex;gap:4px;margin-left:auto}
-.hist i{width:11px;height:22px;border-radius:3px;background:#e5e3df;display:block}
-.hist i.floor{background:#b9d4b0}
-.hist i.full{background:#4f8f3f}
+.hist i{width:11px;height:22px;border-radius:3px;background:var(--chip);display:block}
+.hist i.floor{background:var(--ok-bg)}
+.hist i.full{background:var(--ok)}
 label.lane{display:flex;gap:12px;align-items:flex-start;padding:9px 14px;margin-bottom:7px;
-background:#fff;border:1px solid #e5e3df;border-radius:12px;cursor:pointer;
+background:var(--card);border:1px solid var(--line);border-radius:12px;cursor:pointer;
 -webkit-tap-highlight-color:transparent}
-label.lane:has(input:checked){background:#f2f7f0;border-color:#b9d4b0}
+label.lane:has(input:checked){background:var(--ok-bg);border-color:var(--ok)}
 label.lane input{appearance:none;-webkit-appearance:none;flex:0 0 auto;width:28px;height:28px;
-margin:0;border:2px solid #c9c6c0;border-radius:8px;background:#fff;cursor:pointer}
-label.lane input:checked{background:#4f8f3f;border-color:#4f8f3f}
+margin:0;border:2px solid var(--line);border-radius:8px;background:var(--card);cursor:pointer}
+label.lane input:checked{background:var(--ok);border-color:var(--ok)}
 label.lane input:checked::after{content:"";display:block;width:8px;height:15px;margin:1px auto;
-border:solid #fff;border-width:0 3px 3px 0;transform:rotate(45deg)}
+border:solid var(--card);border-width:0 3px 3px 0;transform:rotate(45deg)}
 .name{font-weight:600}
-.name .req{font-weight:400;font-size:.72rem;color:#6b6b6b;border:1px solid #ddd;
+.name .req{font-weight:400;font-size:.72rem;color:var(--mut);border:1px solid var(--line);
 border-radius:20px;padding:1px 7px;margin-left:6px;vertical-align:1px}
-.task{color:#4a4a4a;font-size:.88rem;margin-top:1px;display:block}
+.task{color:var(--mut);font-size:.88rem;margin-top:1px;display:block}
 .verdict{padding:9px 14px;border-radius:12px;text-align:center;font-weight:600;
-background:#fff;border:1px solid #e5e3df}
-.verdict.floor{background:#f2f7f0;border-color:#b9d4b0}
-.verdict.full{background:#4f8f3f;border-color:#4f8f3f;color:#fff}
-.note{color:#6b6b6b;font-size:.8rem;margin-top:8px}
-.note code{background:#efeeec;padding:1px 5px;border-radius:4px}
+background:var(--card);border:1px solid var(--line)}
+.verdict.floor{background:var(--ok-bg);border-color:var(--ok)}
+.verdict.full{background:var(--ok);border-color:var(--ok);color:var(--card)}
+.note{color:var(--mut);font-size:.8rem;margin-top:8px}
+.note code{background:var(--chip);padding:1px 5px;border-radius:4px}
 .chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
-.chip{font-size:.78rem;padding:3px 10px;border-radius:20px;background:#fff;
-border:1px solid #e5e3df;color:#4a4a4a;white-space:nowrap}
+.chip{font-size:.78rem;padding:3px 10px;border-radius:20px;background:var(--card);
+border:1px solid var(--line);color:var(--ink);white-space:nowrap}
 .chip b{font-weight:700}
-.chip.amber{background:#fdf3e3;border-color:#e8c98a;color:#7a5b16}
-.chip.red{background:#fbe9e7;border-color:#e5a099;color:#8f2a1e}
+.chip.amber{background:var(--chip);border-color:var(--warn);color:var(--warn)}
+.chip.red{background:var(--bad-bg);border-color:var(--bad);color:var(--bad)}
 .badges{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
-.badge{font-size:.72rem;padding:1px 8px;border-radius:20px;background:#efeeec;
-color:#5a5a58;font-weight:500}
-.badge.warn{background:#fdf3e3;color:#7a5b16}
-.badge.bad{background:#fbe9e7;color:#8f2a1e}
+.badge{font-size:.72rem;padding:1px 8px;border-radius:20px;background:var(--chip);
+color:var(--mut);font-weight:500}
+.badge.warn{background:var(--chip);color:var(--warn)}
+.badge.bad{background:var(--bad-bg);color:var(--bad)}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;
-border:1.5px solid #c9c6c0;margin-left:7px;vertical-align:1px}
-.dot.on{background:#4f8f3f;border-color:#4f8f3f}
+border:1.5px solid var(--line);margin-left:7px;vertical-align:1px}
+.dot.on{background:var(--ok);border-color:var(--ok)}
 button.open{flex:0 0 auto;align-self:center;font:inherit;font-size:.75rem;
-padding:4px 10px;border-radius:8px;border:1px solid #dcdad6;background:#fff;
-color:#4a4a4a;cursor:pointer}
-button.open:hover{border-color:#b9b6b0}
-@media (prefers-color-scheme:dark){
-body{background:#16171a;color:#e9e9e7}
-.bar,label.lane,.verdict{background:#212226;border-color:#33343a}
-.hist i{background:#33343a}
-.sub,.streak small,.task,.note,.name .req{color:#9a9a98}
-label.lane input{background:#212226;border-color:#4a4b52}
-label.lane:has(input:checked){background:#1e2a1c;border-color:#3f6f33}
-.verdict.floor{background:#1e2a1c;border-color:#3f6f33}
-.note code{background:#2b2c31}
-.chip{background:#212226;border-color:#33343a;color:#b9b9b7}
-.chip.amber{background:#33290f;border-color:#6e5719;color:#e2bd66}
-.chip.red{background:#3a1d19;border-color:#7c3a30;color:#e8988c}
-.badge{background:#2b2c31;color:#a5a5a3}
-.badge.warn{background:#33290f;color:#e2bd66}
-.badge.bad{background:#3a1d19;color:#e8988c}
-.dot{border-color:#4a4b52}
-button.open{background:#212226;border-color:#4a4b52;color:#b9b9b7}}
+padding:4px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);
+color:var(--ink);cursor:pointer}
+button.open:hover{border-color:var(--accent)}
+.editor{display:none;border:1px solid var(--line);border-radius:12px;margin:12px 0;
+background:var(--card);padding:14px}
+.editor.on{display:block}
+.editor legend{font-weight:600;padding:0 6px;font-size:1rem}
+.editor .rev{font-size:.8rem;color:var(--mut);margin:0 0 10px;display:flex;
+flex-wrap:wrap;gap:8px;align-items:center}
+.editor .rev code{background:var(--chip);padding:1px 6px;border-radius:4px}
+.editor .fields{display:flex;flex-direction:column;gap:10px}
+.editor .field{display:flex;flex-direction:column;gap:4px}
+.editor .field label{font-size:.78rem;color:var(--mut);font-weight:600}
+.editor input[type=text]{font:inherit;font-size:15px;min-height:44px;padding:8px 10px;
+border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.editor input[type=text]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.editor .field.invalid input{border-color:var(--bad);background:var(--bad-bg)}
+.editor .field .err{display:none;font-size:.78rem;color:var(--bad)}
+.editor .field.invalid .err{display:block}
+.editor .status{min-height:24px;font-size:.85rem;color:var(--mut);margin:10px 0 0}
+.editor .status.err{color:var(--bad);font-weight:600}
+.editor .status.warn{color:var(--warn);font-weight:600}
+.editor .status.ok{color:var(--ok);font-weight:600}
+.editor .acts{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+.editor button{font:inherit;font-size:.9rem;min-height:44px;padding:8px 14px;border-radius:8px;
+border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+.editor button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.editor button[data-primary]{background:var(--accent-soft);border-color:var(--accent);
+color:var(--accent);font-weight:600}
+.editor button:disabled{opacity:.55;cursor:default}
+.editor .conflict{display:none;margin-top:12px;border-top:1px solid var(--line);padding-top:12px}
+.editor .conflict.on{display:block}
+.editor .conflict h3{margin:0 0 6px;font-size:1.05rem;color:var(--bad)}
+.editor .panes{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}
+.editor .pane{flex:1 1 280px;min-width:0}
+.editor .pane h4{margin:0 0 4px;font-size:.85rem;color:var(--mut)}
+.editor .pane .rev{font-size:.72rem;color:var(--mut);margin:0 0 6px}
+.editor .pane pre{max-height:220px;overflow:auto;background:var(--bg);border:1px solid var(--line);
+border-radius:8px;padding:10px;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 8px}
+.editor .pane .acts{gap:8px;margin-top:0}
+.editor .pane button{min-height:40px;font-size:.8rem;padding:6px 10px}
+.editor .force{display:none;margin-top:12px;border-top:1px solid var(--line);padding-top:12px}
+.editor .force.on{display:block}
+.editor .force label{display:flex;gap:8px;align-items:flex-start;font-size:.85rem;
+color:var(--bad)}
+.editor .force input[type=checkbox]{width:22px;height:22px;flex:0 0 auto;margin:1px 0 0;
+accent-color:var(--bad)}
+@media (max-width:520px){
+.editor .panes{flex-direction:column}
+.editor .acts button{flex:1 1 auto}}
 """
 
 
 DAY_JS = """
 var D=window.__day__;
+var SNAP=D.snapshot||{};
+var INVALID_COPY="Plan not saved. Fix the highlighted cells and try again.";
+var CONFLICT_HEADING="Plan changed outside itembank \u2014 nothing was overwritten.";
+var FORCE_COPY="I understand this replaces these edited cells using the latest plan version.";
+var baseline={},draft={},forceToken="",forceDraftHash="",dirty=false;
+var status=document.getElementById('edit-status');
+var saveBtn=document.getElementById('save-edits');
+var forcePanel=document.getElementById('force-panel');
+function revShort(r){return r?r.slice(0,12):"";}
+function inputs(){return [].slice.call(document.querySelectorAll('.editor input[type=text]'));}
+function values(){
+ var o={};
+ inputs().forEach(function(i){o[i.name]=i.value;});
+ return o;
+}
+function setDraft(o){draft={};Object.keys(o).forEach(function(k){draft[k]=o[k];});}
+function setBaseline(o){baseline={};Object.keys(o).forEach(function(k){baseline[k]=o[k];});}
+function isDirty(){
+ var v=values(),k;
+ for(k in baseline){if(v[k]!==baseline[k]){return true;}}
+ return false;
+}
+function setDirty(){
+ dirty=isDirty();
+ saveBtn.disabled=!dirty;
+ if(dirty){window.addEventListener('beforeunload',beforeunload);}
+ else{window.removeEventListener('beforeunload',beforeunload);}
+}
+function beforeunload(e){
+ e.preventDefault();
+ e.returnValue="You have unsaved plan changes.";
+}
+function say(t,cls){status.textContent=t;status.className="status "+(cls||"");}
+function draftHash(o){
+ var keys=Object.keys(o).sort(),parts=[];
+ keys.forEach(function(k){parts.push(JSON.stringify(k)+":"+JSON.stringify(o[k]));});
+ return parts.join(",");
+}
+function highlightErrors(fields){
+ inputs().forEach(function(i){
+  i.closest('.field').classList.toggle('invalid',fields.indexOf(i.name)>=0);
+ });
+}
+function post(path,payload,cb){
+ var r=new XMLHttpRequest();
+ r.open('POST',D.base+path);
+ r.setRequestHeader('Content-Type','application/json');
+ r.onload=function(){try{cb(JSON.parse(r.responseText));}catch(e){}};
+ r.send(JSON.stringify(payload));
+}
+function copyText(t,btn){
+ if(navigator.clipboard&&navigator.clipboard.writeText){
+  navigator.clipboard.writeText(t).then(function(){btn.textContent="Copied";});
+ }else{
+  var ta=document.createElement('textarea');
+  ta.value=t;ta.style.position='fixed';ta.style.opacity='0';
+  document.body.appendChild(ta);ta.select();
+  try{document.execCommand('copy');btn.textContent="Copied";}catch(e){}
+  document.body.removeChild(ta);
+ }
+}
+function downloadText(name,t){
+ var a=document.createElement('a');
+ a.href=URL.createObjectURL(new Blob([t],{type:'text/plain'}));
+ a.download=name;a.click();
+ setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
+}
+function fillPanels(draftCells,currentCells,currentDoc,draftRev,currentRev){
+ var d=document.getElementById('draft-pane'),c=document.getElementById('current-pane');
+ d.querySelector('[data-draft-cells]').textContent=
+  draftCells?JSON.stringify(draftCells,null,1):"";
+ d.querySelector('[data-draft-rev]').textContent="Your draft \u00b7 revision "+revShort(draftRev);
+ c.querySelector('[data-current-cells]').textContent=
+  currentCells?JSON.stringify(currentCells,null,1):"";
+ c.querySelector('[data-current-rev]').textContent="Current file \u00b7 revision "+revShort(currentRev);
+ document.getElementById('current-doc').textContent=currentDoc||"";
+}
+function showConflict(d){
+ forceToken=d.force_token||"";
+ forceDraftHash=d.force_draft_hash||"";
+ setDraft(values());
+ fillPanels(draft,currentCells(d),SNAP.document,SNAP.revision,d.current.revision);
+ document.getElementById('conflict').classList.add('on');
+ forcePanel.classList.add('on');
+ document.getElementById('force-confirm').checked=false;
+ document.getElementById('force-btn').disabled=true;
+ var h=document.getElementById('conflict-heading');
+ h.textContent=CONFLICT_HEADING;
+ h.focus();
+}
+function currentCells(d){
+ return d.current&&d.current.cells?d.current.cells:SNAP.cells;
+}
+function saveEdits(){
+ var changed={},v=values(),k;
+ for(k in baseline){if(v[k]!==baseline[k]){changed[k]=v[k];}}
+ if(!Object.keys(changed).length){return;}
+ say("Saving\u2026");
+ saveBtn.disabled=true;
+ post('/edit',{revision:SNAP.revision,edits:changed},function(d){
+  if(d.status==="saved"){
+   SNAP.revision=d.revision;
+   setBaseline(d.cells);
+   setDraft({});
+   document.getElementById('conflict').classList.remove('on');
+   forcePanel.classList.remove('on');
+   forceToken="";forceDraftHash="";
+   say("Saved. Plan version "+revShort(d.revision)+".","ok");
+   location.reload();
+   return;
+  }
+  if(d.status==="conflict"){showConflict(d);return;}
+  highlightErrors(d.errors||[]);
+  if(d.status==="invalid"){
+   say(INVALID_COPY,"err");
+  }else{
+   say((d.reason||"Plan not available.")+" Retry, or copy/download the plan and reload.","warn");
+  }
+  saveBtn.disabled=!isDirty();
+ });
+}
+function reloadCurrent(){
+ say("Reloading current plan\u2026");
+ getPage();
+}
+function reapplyDraft(){
+ var k;
+ for(k in draft){var i=document.querySelector('.editor input[name="'+k+'"]');if(i){i.value=draft[k];}}
+ highlightErrors([]);
+ document.getElementById('conflict').classList.remove('on');
+ forcePanel.classList.remove('on');
+ forceToken="";forceDraftHash="";
+ setDirty();
+ var first=inputs()[0];
+ if(first){first.focus();}
+}
+function getPage(){
+ var r=new XMLHttpRequest();
+ r.open('GET',D.base);
+ r.onload=function(){
+  try{
+   var m=r.responseText.match(/window\.__day__=(\{.*?\});\n/s);
+   if(!m){return;}
+   var b=JSON.parse(m[1]);
+   SNAP=b.snapshot||SNAP;
+   setBaseline(SNAP.cells||{});
+   inputs().forEach(function(i){i.value=baseline[i.name]||"";});
+   document.getElementById('revision-code').textContent=revShort(SNAP.revision);
+   say("Current plan reloaded. Your recoverable draft is still available.","warn");
+   setDirty();
+  }catch(e){}
+ };
+ r.send();
+}
+function openFile(lane,i){
+ var r=new XMLHttpRequest();
+ r.open('POST',D.base+'/open');
+ r.setRequestHeader('Content-Type','application/json');
+ r.send(JSON.stringify({lane:lane,i:i}));
+}
+function editMode(){
+ document.getElementById('editor').classList.add('on');
+ document.getElementById('edit-btn').disabled=true;
+ var first=inputs()[0];
+ if(first){first.focus();}
+}
+function initEditor(){
+ setBaseline(SNAP.cells||{});
+ setDraft({});
+ setDirty();
+ document.getElementById('edit-btn').addEventListener('click',function(){editMode();});
+ saveBtn.addEventListener('click',saveEdits);
+ document.getElementById('copy-revision').addEventListener('click',function(){
+  copyText(SNAP.revision||"",this);
+ });
+ document.getElementById('discard-edits').addEventListener('click',function(){
+  inputs().forEach(function(i){i.value=baseline[i.name]||"";});
+  highlightErrors([]);
+  setDraft({});
+  setDirty();
+  say("Edits discarded.","");
+ });
+ inputs().forEach(function(i){
+  i.addEventListener('input',setDirty);
+ });
+ document.getElementById('reload-current').addEventListener('click',reloadCurrent);
+ document.getElementById('reapply-draft').addEventListener('click',reapplyDraft);
+ document.getElementById('copy-draft').addEventListener('click',function(){
+  copyText(JSON.stringify(draft,null,1),this);
+ });
+ document.getElementById('download-draft').addEventListener('click',function(){
+  downloadText("draft-plan.json",JSON.stringify(draft,null,1));
+ });
+ document.getElementById('copy-current').addEventListener('click',function(){
+  copyText(document.getElementById('current-doc').textContent,this);
+ });
+ document.getElementById('download-current').addEventListener('click',function(){
+  downloadText("current-plan.md",document.getElementById('current-doc').textContent);
+ });
+ document.getElementById('force-confirm').addEventListener('change',function(){
+  document.getElementById('force-btn').disabled=!this.checked;
+ });
+ document.getElementById('force-btn').addEventListener('click',function(){
+  var v=values(),changed={},k;
+  for(k in baseline){if(v[k]!==baseline[k]){changed[k]=v[k];}}
+  if(!Object.keys(changed).length){return;}
+  var hash=draftHash(changed);
+  if(hash!==forceDraftHash){forceToken="";forceDraftHash="";return;}
+  say("Confirming force overwrite\u2026");
+  this.disabled=true;
+  post('/edit',{revision:SNAP.revision,edits:changed,force_token:forceToken,
+                confirmation:FORCE_COPY,force:true},function(d){
+   if(d.status==="saved"){
+    SNAP.revision=d.revision;
+    setBaseline(d.cells);
+    forceToken="";forceDraftHash="";
+    document.getElementById('conflict').classList.remove('on');
+    forcePanel.classList.remove('on');
+    say("Force overwrite saved. Plan version "+revShort(d.revision)+".","ok");
+    location.reload();
+    return;
+   }
+   document.getElementById('force-confirm').checked=false;
+   document.getElementById('force-btn').disabled=true;
+   if(d.status==="conflict"){
+    showConflict(d);
+   }else{
+    say((d.reason||"Force overwrite not completed.")+" Your draft is still here.","err");
+   }
+  });
+ });
+}
 function paint(){
- var on=[].slice.call(document.querySelectorAll('input')).filter(function(i){return i.checked})
-        .map(function(i){return i.name});
+ var on=[].slice.call(document.querySelectorAll('input[type=checkbox].lane'))
+        .filter(function(i){return i.checked}).map(function(i){return i.name});
  var floor=D.floor.every(function(l){return on.indexOf(l)>=0});
  var full=D.lanes.every(function(l){return on.indexOf(l)>=0});
  var v=document.getElementById('verdict');
@@ -607,7 +872,7 @@ function paint(){
    :'Floor needs '+D.floor.filter(function(l){return on.indexOf(l)<0}).join(', ')+'.';
  return on;
 }
-function save(){
+function saveTicks(){
  var on=paint();
  var r=new XMLHttpRequest();
  r.open('POST',D.base+'/save');
@@ -624,19 +889,14 @@ function save(){
  };
  r.send(JSON.stringify({date:D.date,done:on}));
 }
-function openFile(lane,i){
- var r=new XMLHttpRequest();
- r.open('POST',D.base+'/open');
- r.setRequestHeader('Content-Type','application/json');
- r.send(JSON.stringify({lane:lane,i:i}));
-}
 document.addEventListener('change',function(ev){
  var el=ev.target;
  if(el.classList&&el.classList.contains('open')){
   if(el.value!==''){openFile(el.getAttribute('data-lane'),parseInt(el.value,10));el.value='';}
   return;
  }
- save();
+ if(el.classList&&el.classList.contains('day-edit')){return;}
+ saveTicks();
 });
 document.addEventListener('click',function(ev){
  var b=ev.target.closest&&ev.target.closest('button.open');
@@ -644,6 +904,9 @@ document.addEventListener('click',function(ev){
  ev.preventDefault();
  openFile(b.getAttribute('data-lane'),parseInt(b.getAttribute('data-i')||'0',10));
 });
+if(SNAP.status==="ready"){
+ initEditor();
+}
 paint();
 """
 
@@ -668,10 +931,15 @@ def lane_badges(li):
     return out
 
 
-def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None, base=""):
+def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None,
+             base="", theme_css="", snapshot=None):
     e = html.escape
     info = info or {}
     lane_info = info.get("lanes", {})
+    snapshot = snapshot or {}
+    rev = snapshot.get("revision") or ""
+    columns = snapshot.get("columns") or []
+    cells = snapshot.get("cells") or {}
     lanes = []
     for lane in DAY_LANES:
         task = task_text(plan_row.get(lane) or "standing daily item")
@@ -716,7 +984,66 @@ def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None, b
     # routes it posts back to, the same fix `__POST__` was for the quiz
     # page. An empty base (the default) preserves the pre-daemon behaviour
     # of posting to root-relative `/save` and `/open`.
-    boot = {"date": iso, "lanes": list(DAY_LANES), "floor": list(FLOOR_LANES), "base": base}
+    editable = [(c, cells.get(c, "")) for c in columns if c != "Date"]
+    fields = "".join(
+        '<div class="field"><label for="edit-%d">%s</label>'
+        '<input class="day-edit" type="text" id="edit-%d" name="%s" value="%s" '
+        'autocomplete="off" spellcheck="false">'
+        '<span class="err">Fix this cell.</span></div>'
+        % (i, e(label), i, e(label), e(value))
+        for i, (label, value) in enumerate(editable))
+    editor = ""
+    if snapshot.get("status") == "ready" and editable:
+        editor = (
+            '<fieldset class="editor" id="editor">'
+            "<legend>Edit plan</legend>"
+            '<p class="rev">Plan version <code id="revision-code">%s</code> '
+            '<button type="button" id="copy-revision" class="open">copy</button></p>'
+            '<div class="fields">%s</div>'
+            '<div class="acts">'
+            '<button type="button" id="save-edits" data-primary disabled>Save changes</button>'
+            '<button type="button" id="discard-edits" class="open">Discard edits</button>'
+            "</div>"
+            '<div class="status" id="edit-status" role="status" aria-live="polite"></div>'
+            '<section class="conflict" id="conflict" aria-labelledby="conflict-heading">'
+            '<h3 id="conflict-heading" tabindex="-1">%s</h3>'
+            '<div class="panes">'
+            '<div class="pane" id="draft-pane">'
+            "<h4>Your draft</h4>"
+            '<p class="rev" data-draft-rev></p>'
+            '<pre data-draft-cells></pre>'
+            '<div class="acts">'
+            '<button type="button" id="copy-draft">Copy draft</button>'
+            '<button type="button" id="download-draft">Download draft</button>'
+            "</div></div>"
+            '<div class="pane" id="current-pane">'
+            "<h4>Current file</h4>"
+            '<p class="rev" data-current-rev></p>'
+            '<pre data-current-cells></pre>'
+            '<pre id="current-doc" hidden></pre>'
+            '<div class="acts">'
+            '<button type="button" id="copy-current">Copy current</button>'
+            '<button type="button" id="download-current">Download current</button>'
+            "</div></div></div>"
+            '<div class="acts">'
+            '<button type="button" id="reload-current">Reload current</button>'
+            '<button type="button" id="reapply-draft">Reapply draft</button>'
+            "</div>"
+            '<div class="force" id="force-panel">'
+            '<label><input type="checkbox" id="force-confirm">'
+            "<span>I understand this replaces these edited cells using the "
+            "latest plan version.</span></label>"
+            '<div class="acts"><button type="button" id="force-btn" disabled>'
+            "Force overwrite</button></div>"
+            "</div></section>"
+            "</fieldset>"
+            % (e(rev[:12] if rev else ""), fields,
+               "Plan changed outside itembank \u2014 nothing was overwritten."))
+    boot = {"date": iso, "lanes": list(DAY_LANES), "floor": list(FLOOR_LANES),
+            "base": base, "snapshot": snapshot}
+    empty_row = ""
+    if not plan_row:
+        empty_row = '<div class="empty">No plan row for this date.</div>'
     return ("<!doctype html><html lang=en><head><meta charset=utf-8>"
             "<meta name=viewport content='width=device-width,initial-scale=1'>"
             "<title>%s</title><style>%s</style></head><body>"
@@ -725,15 +1052,17 @@ def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None, b
             "<small><span id=streakword>%s</span> unbroken</small></div>"
             "<div class=hist id=hist>%s</div></div>"
             "%s<div class=verdict id=verdict></div>"
+            "%s"
+            "%s"
             "%s<div class=note>Plan read from <code>%s</code>. Ticks are written to disk "
             "as you make them.</div>"
             "<script>window.__day__=%s;\n%s</script></body></html>"
-            % (e(iso), DAY_CSS, e(weekday), e(iso), chips,
+            % (e(iso), theme_css + DAY_CSS, e(weekday), e(iso), chips,
                streak, "day" if streak == 1 else "days",
                "".join('<i class="%s" title="%s: %s"></i>'
                        % ("" if h["status"] == "miss" else h["status"], h["date"], h["status"])
                        for h in hist),
-               "".join(lanes), notes, e(plan_path),
+               "".join(lanes), editor, empty_row, notes, e(plan_path),
                json.dumps(boot), DAY_JS))
 
 
@@ -876,18 +1205,55 @@ def day_render(state):
     substitution chain lives in `surfaces/daemon.py`.
     """
     import time
+    from surfaces import day_document
     cache = state["cache"]
     if time.time() - cache["at"] > 60 or cache["info"] is None:
         cache["info"] = day_info(state["plan"], state["log"], state["iso"],
                                  state["plan_path"], state["lanes_path"])
         cache["at"] = time.time()
     row = state["plan"].get(state["iso"], {})
+    cfg = settings.load_settings(
+        os.path.dirname(os.path.abspath(state["plan_path"])) or ".")
+    css = theme_css(cfg)
+    snapshot = day_document.snapshot(state["plan_path"],
+                                     state["today"].year, state["iso"])
     return day_page(state["iso"], state["today"].strftime("%A"), row,
                     state["log"].get(state["iso"], set()),
                     day_streak(state["log"], state["today"]),
                     day_history(state["log"], state["today"]),
                     state["plan_path"], cache["info"],
-                    base=state.get("base", "")).encode("utf-8")
+                    base=state.get("base", ""), theme_css=css,
+                    snapshot=snapshot).encode("utf-8")
+
+
+def apply_day_edit(state, data, force=False):
+    """The one surface wrapper around `day_document.save` for the in-page
+    editor (plan 04-06). `data` carries `revision` plus `edits`; `force`
+    is a daemon-level second confirmation and delegates the same way after
+    the daemon's one-use token gate. On `saved`, the parsed plan is reloaded
+    and only the render-info cache is invalidated -- tick/evidence state is
+    never touched by a plan edit.
+    """
+    from surfaces import day_document
+    revision = data.get("revision") if isinstance(data, dict) else None
+    edits = data.get("edits") if isinstance(data, dict) else None
+    if not isinstance(edits, dict) or not all(
+            isinstance(v, str) for v in edits.values()):
+        return {"status": "invalid",
+                "reason": "edits must be a map of column to single-line text",
+                "draft": edits if isinstance(edits, dict) else {}}
+    if not isinstance(revision, str) or not revision:
+        return {"status": "invalid",
+                "reason": "a SHA-256 revision is required", "draft": edits}
+    result = day_document.save(state["plan_path"], state["iso"], edits,
+                               revision, force=bool(force))
+    if result.get("status") == "saved":
+        from datetime import date
+        state["plan"] = parse_plan(state["plan_path"], state["today"].year)
+        state["cache"]["info"] = None
+        state["cache"]["at"] = 0.0
+        result["row"] = state["plan"].get(state["iso"], {})
+    return result
 
 
 def apply_day_post(state, kind, data):

@@ -13,7 +13,7 @@ render and runtime functions that already exist -- `quiz.page_for()`,
 `apply_day_post`) -- never a second copy of any of them living in a route
 handler.
 """
-import datetime, errno, html, json, os, re, socketserver, sys, threading
+import datetime, errno, hashlib, html, json, os, re, secrets, socketserver, sys, threading
 import urllib.parse, urllib.request, uuid
 
 import evidence
@@ -46,6 +46,15 @@ LESSON_GET_RE = re.compile(r"^/lesson/(?P<stem>[^/]+)$")
 DAY_GET_RE = re.compile(r"^/day/(?P<stem>[^/]+)$")
 DAY_SAVE_RE = re.compile(r"^/day/(?P<stem>[^/]+)/save$")
 DAY_OPEN_RE = re.compile(r"^/day/(?P<stem>[^/]+)/open$")
+DAY_EDIT_RE = re.compile(r"^/day/(?P<stem>[^/]+)/edit$")
+
+# Fields a browser may send on `POST /day/<stem>/edit`. Everything else is
+# refused before any helper runs (T-04-21): the client addresses the plan by
+# URL stem only, and the body carries the revision plus changed structured
+# cells -- never a filesystem path, a full-document replacement, or any other
+# authority field.
+DAY_EDIT_ALLOWED_FIELDS = ("revision", "edits", "force_token", "confirmation",
+                           "force")
 
 # The four `/api/*` session routes D-04 scopes for this phase. Fixed
 # literals, not stem-parameterised: a session or a bank is addressed by an
@@ -84,6 +93,7 @@ ROUTES = (
     ("GET", DAY_GET_RE, "handle_day_get"),
     ("POST", DAY_SAVE_RE, "handle_day_save"),
     ("POST", DAY_OPEN_RE, "handle_day_open"),
+    ("POST", DAY_EDIT_RE, "handle_day_edit"),
 )
 
 # Every route in ROUTES has a CLI command that reaches the same runtime
@@ -109,6 +119,7 @@ ROUTE_CLI = {
     ("GET", DAY_GET_RE): "day",
     ("POST", DAY_SAVE_RE): "day",
     ("POST", DAY_OPEN_RE): "day",
+    ("POST", DAY_EDIT_RE): "day",
 }
 
 
@@ -796,6 +807,131 @@ def handle_day_open(handler, stem):
     handler.send_json(result)
 
 
+def _draft_hash(edits):
+    """One canonical hash of a submitted draft, shared by issuance and the
+    force request: sorted keys, JSON-encoded key/value pairs joined with `,`.
+    The browser computes the identical string client-side, so a token minted
+    for one draft can never be spent on a different draft (T-04-23).
+    """
+    parts = []
+    for key in sorted(edits):
+        parts.append(json.dumps(key, ensure_ascii=False, sort_keys=True) + ":" +
+                     json.dumps(edits[key], ensure_ascii=False, sort_keys=True))
+    return hashlib.sha256(",".join(parts).encode("utf-8")).hexdigest()
+
+
+def _issue_day_force_token(handler, stem, stale_revision, current_revision, edits):
+    """Mint one cryptographically random, one-use force token bound to the
+    plan stem, the stale revision the browser edited against, the current
+    revision the conflict reported, and the exact draft hash (T-04-23). Any
+    earlier token for the same stem is dropped -- another conflict always
+    returns to recovery rather than reusing an old gate.
+    """
+    token = secrets.token_hex(32)
+    handler.day_force_tokens[token] = {
+        "stem": stem, "stale_revision": stale_revision,
+        "current_revision": current_revision,
+        "draft_hash": _draft_hash(edits)}
+    return token
+
+
+def _consume_day_force_token(handler, stem, token, stale_revision, edits):
+    """Validate and consume one force token. Returns `(ok, reason)`; `ok` is
+    False -- and nothing is consumed -- for an unknown token, a replay, a
+    token minted for another plan, a stale-revision mismatch, or a draft that
+    changed since issuance. The token is removed before the save so a replay
+    can never pass even if the file were somehow unchanged (T-04-23).
+    """
+    bound = handler.day_force_tokens.get(token)
+    if bound is None:
+        return False, "no force token was issued for this conflict"
+    if bound["stem"] != stem:
+        return False, "force token belongs to another plan"
+    if bound["stale_revision"] != stale_revision:
+        return False, "force token was issued for a different revision"
+    if bound["draft_hash"] != _draft_hash(edits):
+        return False, "the draft changed after the conflict; reapply and retry"
+    del handler.day_force_tokens[token]
+    return True, None
+
+
+def handle_day_edit(handler, stem):
+    """`POST /day/<stem>/edit` -- the structured plan editor (plan 04-06).
+    The normal branch delegates to `day.apply_day_edit`, the one surface
+    wrapper around `day_document.save`. The force branch additionally
+    requires a separate explicit confirmation plus a one-use token bound to
+    the stem, stale revision, current revision, and draft hash; the token is
+    consumed before the save and `day_document.save` performs its own fresh
+    revision recheck, so a third concurrent version still produces a new
+    no-write conflict (T-04-22, T-04-23).
+    """
+    if stem not in handler.plans:
+        handler.send_not_found(stem)
+        return
+    try:
+        data = handler.read_json()
+        unknown = [k for k in data if k not in DAY_EDIT_ALLOWED_FIELDS]
+        if unknown:
+            handler.send_json({"status": "invalid",
+                               "reason": "unexpected fields: %s"
+                                         % ", ".join(sorted(unknown))})
+            return
+        if data.get("force_token") and not data.get("force"):
+            handler.send_json({"status": "invalid",
+                               "reason": "a force token without a force "
+                                         "request is refused"})
+            return
+        edits = data.get("edits")
+        revision = data.get("revision")
+        if not isinstance(edits, dict) or not all(
+                isinstance(v, str) for v in edits.values()):
+            handler.send_json({"status": "invalid",
+                               "reason": "edits must be a map of column to "
+                                         "single-line text"})
+            return
+        if not isinstance(revision, str) or not revision:
+            handler.send_json({"status": "invalid",
+                               "reason": "a SHA-256 revision is required"})
+            return
+        state = _plan_day_state(handler, stem)
+        revision = data["revision"]
+        edits = data["edits"]
+        if data.get("force"):
+            if data.get("confirmation") != (
+                    "I understand this replaces these edited cells using the "
+                    "latest plan version."):
+                handler.send_json({"status": "invalid",
+                                   "reason": "force requires the explicit "
+                                             "confirmation statement"})
+                return
+            token = data.get("force_token")
+            if not isinstance(token, str) or not token:
+                handler.send_json({"status": "invalid",
+                                   "reason": "force requires a one-use token "
+                                             "issued by the conflict"})
+                return
+            ok, reason = _consume_day_force_token(
+                handler, stem, token, revision, edits)
+            if not ok:
+                handler.send_json({"status": "invalid", "reason": reason})
+                return
+            result = day.apply_day_edit(state, data, force=True)
+            if result.get("status") == "conflict":
+                # The consumed token is gone; another conflict returns to
+                # recovery without a reusable gate (T-04-23).
+                result.pop("force_token", None)
+            handler.send_json(result)
+            return
+        result = day.apply_day_edit(state, data)
+        if result.get("status") == "conflict":
+            result["force_token"] = _issue_day_force_token(
+                handler, stem, revision, result.get("revision", ""), edits)
+            result["force_draft_hash"] = _draft_hash(edits)
+        handler.send_json(result)
+    except Exception as exc:
+        handler.send_server_error(exc)
+
+
 # ---- /api/* -- SURF-04's proof: an agent drives a whole sitting over HTTP
 # against the exact same runtime calls `surfaces/session.py` already makes
 # from the shell. Two findings from RESEARCH.md are load-bearing here and
@@ -1118,6 +1254,7 @@ class DaemonHandler(server.Handler):
     sessions = {}
     day_states = {}
     day_extra = {}
+    day_force_tokens = {}
 
     def send_not_found(self, name):
         """The documented not-found copy: the stem the client asked for and
@@ -1320,6 +1457,7 @@ def serve_scoped(root, banks, plans, port, host="127.0.0.1", open_path="/",
     DaemonHandler.sessions = extra.get("sessions", {})
     DaemonHandler.day_states = {}                  # built lazily, one per served plan
     DaemonHandler.day_extra = extra.get("day_extra", {})
+    DaemonHandler.day_force_tokens = {}            # one-use edit-conflict gates
 
     bound = srv if srv is not None else _bind(port, host)
     with bound:

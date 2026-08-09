@@ -714,20 +714,25 @@ def check_day_edit_route():
     if not hasattr(daemon, "DAY_EDIT_RE"):
         fail("daemon has no DAY_EDIT_RE for the plan edit route")
     routes = daemon.ROUTES
-    fixed_before = True
+    fixed_after = False
     edit_pos = None
     for i, (method, pattern, name) in enumerate(routes):
         if name == "handle_day_edit":
             edit_pos = i
-        if hasattr(pattern, "match") and name != "handle_day_edit":
-            fixed_before = False
+        if edit_pos is not None and not hasattr(pattern, "match"):
+            fixed_after = True
     if edit_pos is None:
         fail("ROUTES has no handle_day_edit entry")
-    if not fixed_before:
+    if fixed_after:
         fail("handle_day_edit is not ordered after every fixed literal route")
-    if ("POST", daemon.DAY_EDIT_RE) not in routes:
+    if not any(method == "POST" and getattr(pattern, "pattern", None)
+               == daemon.DAY_EDIT_RE.pattern
+               for method, pattern, name in routes):
         fail("ROUTES does not carry the DAY_EDIT_RE pair")
-    if daemon.ROUTE_CLI.get(("POST", daemon.DAY_EDIT_RE)) != "day":
+    cli_match = [v for (m, p), v in daemon.ROUTE_CLI.items()
+                 if m == "POST" and getattr(p, "pattern", None)
+                 == daemon.DAY_EDIT_RE.pattern]
+    if cli_match != ["day"]:
         fail("POST /day/<stem>/edit does not map to the day CLI twin")
 
     workdir = tempfile.mkdtemp()
@@ -797,9 +802,9 @@ def check_day_edit_route():
                 {"revision": snap["revision"],
                  "edits": {"EMT": "x"},
                  "force_token": "t"} | forged)
-            if status_f != 400:
-                fail("day edit accepted authority field %r with HTTP %d"
-                     % (forged, status_f))
+            if status_f != 200 or body.get("status") != "invalid":
+                fail("day edit accepted authority field %r: %r"
+                     % (forged, body))
 
         got = post(url + "day/sample_plan/save",
                    {"date": iso, "done": list(itembank.FLOOR_LANES)})

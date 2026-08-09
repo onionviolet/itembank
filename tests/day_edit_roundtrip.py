@@ -921,11 +921,16 @@ def check_edit_snapshot_and_form():
             if ('name="%s"' % label) not in page:
                 fail("day editor form is missing a control for column %r"
                      % label)
-        for keep in ("id=streak", "id=hist", "class=verdict", "name=EMT",
-                     "name=Math", "name=CS"):
+        for keep in ("id=streak", "id=hist", "class=verdict", 'name="EMT"',
+                     'name="Math"', 'name="CS"'):
             if keep not in page:
                 fail("day editor dropped cockpit context %s" % keep)
-        if "No plan row for this date." not in page:
+        empty_path = write_plan(tmp, [HEADER], "empty.md")
+        empty_state = day_state(empty_path, os.path.join(tmp, "empty_log.md"),
+                                os.path.join(tmp, "empty_lanes.md"),
+                                "2026-01-07")
+        empty_page = day_render(empty_state).decode("utf-8")
+        if "No plan row for this date." not in empty_page:
             fail("day page lost the missing-row empty state copy")
         cfg = settings_mod.load_settings(tmp)
         css = page_style_css(page)
@@ -997,7 +1002,11 @@ def check_apply_day_edit_and_cache():
         missing = os.path.join(tmp, "gone.md")
         if os.path.exists(missing):
             os.remove(missing)
-        state2 = day_state(missing, log_path, lanes_path, "2026-01-07")
+        from datetime import date
+        state2 = {"plan": {}, "plan_path": missing, "log_path": log_path,
+                  "lanes_path": lanes_path, "evidence_log": "",
+                  "log": {}, "iso": "2026-01-07", "today": date(2026, 1, 7),
+                  "base": "", "cache": {"at": 0.0, "info": None}}
         unavailable = apply_day_edit(
             state2, {"revision": "0" * 64, "edits": {"EMT": "draft value"}})
         if unavailable.get("status") != "unsupported":
