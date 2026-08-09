@@ -430,9 +430,10 @@ def check_study_script_safety():
         fail("hostile serialization did not escape the script terminator")
     if "&lt;script&gt;alert(1)&lt;/script&gt;" not in page:
         fail("rendered stem was not escaped text")
-    if '<img src=x onerror=alert(2)>' in page.replace("&lt;", "<").replace(
-            "&gt;", ">"):
-        fail("hostile option text reached the page as executable markup")
+    if "<img src=x onerror=alert(2)>" in page:
+        fail("hostile option text reached the page as raw executable markup")
+    if "&lt;img src=x onerror=alert(2)&gt;" not in page:
+        fail("hostile option text was not rendered through escaping")
 
 
 def check_study_empty_and_error_states():
