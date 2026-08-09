@@ -32,6 +32,8 @@ h1{font-size:21px;margin:0 0 4px;letter-spacing:-.01em}
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 .chip.type{background:var(--accent-soft);color:var(--accent)}
 .chip.aon{background:var(--bad-bg);color:var(--bad)}
+.chip.lesson{background:var(--accent-soft);color:var(--accent);
+  text-decoration:none;display:inline-block}
 .stem{margin:0 0 13px;font-size:16.5px;text-wrap:pretty}
 .opts{display:flex;flex-direction:column;gap:7px}
 .opt{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;
@@ -110,6 +112,7 @@ textarea.ans:disabled{opacity:.75}
 <script>
 const Q = __DATA__;
 const SERVE = __SERVE__;     /* true under `itembank serve`: the process scores */
+const LESSON_BASE = "__LESSON_BASE__";   /* empty when no reader sits behind this page */
 const LETTERS = "ABCDEFGH";
 const LABEL = {mc:"multiple choice", multi:"multiple response",
                table:"options table", build:"build list", dnd:"drag-and-drop",
@@ -193,6 +196,16 @@ function chips(q){
   else if(q.type!=="mc") h += `<span class="chip aon">no partial credit</span>`;
   if(q.objective) h += `<span class="chip">${esc(q.objective)}</span>`;
   if(q.difficulty) h += `<span class="chip">${esc(q.difficulty)}</span>`;
+  /* The two-part condition is D-12: a static file:// page has no daemon
+     behind /lesson/<stem> to link to, so it gets no chip rather than a link
+     that silently does nothing. The slug half is empty when lint was bypassed
+     with --force on a reference naming a missing heading -- better to omit
+     the chip than to link to a dead anchor. The label is substituted by
+     quiz.py and is the empty string on pages with no reader behind them, so
+     the fixed string never ships to a page that cannot honour it. */
+  if(q.lesson_slug && LESSON_BASE)
+    h += `<a class="chip lesson" href="${LESSON_BASE}#${q.lesson_slug}"
+          target="_blank" rel="noopener">__LESSON_LABEL__</a>`;
   return h;
 }
 
@@ -488,6 +501,13 @@ function finish(){
   window.scrollTo({top:0, behavior:"smooth"});
 }
 
+/* A #<id> URL fragment pins that item to the front of the deck before the
+   shuffle runs over the rest. The fragment never reaches the server, so the
+   quiz route needs no change; an empty or stale fragment is a no-op and the
+   page behaves exactly as it always has -- a broken bookmark costs the
+   learner nothing more than "not pinned first". */
+const frag = location.hash.replace(/^#/, "");
+if(frag){ const at = Q.findIndex(x => String(x.id) === frag); if(at >= 0) Q.unshift(Q.splice(at, 1)[0]); }
 Q.sort(()=>Math.random()-0.5);
 render();
 </script></body></html>"""

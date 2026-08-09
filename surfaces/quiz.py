@@ -14,7 +14,8 @@ from surfaces.quiz_page import TEMPLATE
 from surfaces.theme import THEME_CSS
 
 
-def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer"):
+def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
+             lesson_base=""):
     text = open(bank_path, encoding="utf-8").read()
     title = grab(r"(?m)^#\s+(.*?)\s*$", text) or os.path.basename(bank_path)
     counts = collections.Counter(q["type"] for q in qs)
@@ -22,6 +23,11 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer"):
     sub = "%d items &middot; %s &middot; dichotomous scoring" % (len(qs), mix)
     sub += " &middot; answers recorded" if serve else " &middot; nothing recorded"
     items = [page_item(q, reveal=reveal, offline=not serve) for q in qs]
+    # The chip label is the locked string, but it only ships when a reader
+    # actually sits behind this page (D-12): a static file:// page has no
+    # daemon at /lesson/<stem> to link to, so the label is substituted away
+    # and the chip never renders.
+    lesson_label = "Read the lesson" if lesson_base else ""
     # `post_path` lets one process serve more than one bank -- each bank's
     # page posts an answer back to its own bank-scoped path instead of a
     # single hardcoded "/answer", which was correct only while exactly one
@@ -35,6 +41,8 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer"):
                  .replace("__TITLE__", html.escape(title))
                  .replace("__SUB__", sub)
                  .replace("__POST__", post_path)
+                 .replace("__LESSON_BASE__", lesson_base)
+                 .replace("__LESSON_LABEL__", lesson_label)
                  .replace("__DATA__", json.dumps(items, ensure_ascii=False)))
 
 
