@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 03
 current_phase_name: Lesson Format & In-App Reader
 status: executing
-stopped_at: Completed 03-04-PLAN.md
-last_updated: "2026-08-09T01:43:38.695Z"
+stopped_at: Completed 03-05-PLAN.md
+last_updated: "2026-08-09T01:55:39.327Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 02.1 execution started
 progress:
   total_phases: 13
   completed_phases: 3
   total_plans: 79
-  completed_plans: 30
+  completed_plans: 31
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 ## Current Position
 
 Phase: 03 (Lesson Format & In-App Reader) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Ready to execute
 Last activity: 2026-08-08 — Phase 03 execution started
 
-Progress: [████░░░░░░] 38%
+Progress: [████░░░░░░] 39%
 
 ## Performance Metrics
 
@@ -88,6 +88,7 @@ Progress: [████░░░░░░] 38%
 | Phase 03 P03-02 | 313 | 2 tasks | 5 files |
 | Phase 03 P03 | 17min | 3 tasks | 12 files |
 | Phase 03 P04 | 313 | 2 tasks | 4 files |
+| Phase 03 P03-05 | 8 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -168,6 +169,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 3] 03-03: lesson.src_unreadable echoes the bank-author-written basename, never a resolved absolute path (T-3-09), while the raw OS-error detail stays as the reason -- lint is the diagnostic surface the 03-02 reader defers the detail to
 - [Phase ?]: [Phase 3] 03-03: lesson.duplicate_heading is the first BANK-tagged error; bank-level findings trail per-item findings like bank.answer_position_skew, and tests/evidence_roundtrip.py's ordering assertion was extended to admit BANK errors last
 - [Phase ?]: [Phase 3] 03-03: accepted lint namespace prefixes live in tests/protocol_roundtrip.py's LINT_PREFIXES and are read (never restated) by the coupling tests, so the tuple, the schema enum and the accepted prefixes cannot drift apart
+- [Phase 03]: D-11 executed: --ref filters output to one heading plus its backlinks because the CLI has no anchor to jump to — A second matching rule or a render-then-scroll approach would disagree with the slug the tag and anchor already share
+- [Phase 03]: lesson_page returns None on a --ref miss so the route, CLI and tests share one render without inheriting an exit path — cmd_lesson owns the sys.exit hard stop, keeping the render function exit-free
+- [Phase 03]: Resolved the deferred 03-04 backlink-placement quirk: each heading's section renders from its own text/body with its backlinks directly beneath — Correct --ref filtering requires per-heading association; the old </section>-re-split nested sections and detached both backlink lists
 
 ### Pending Todos
 
@@ -206,6 +210,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-09T01:43:38.669Z
-Stopped at: Completed 03-04-PLAN.md
+Last session: 2026-08-09T01:55:39.103Z
+Stopped at: Completed 03-05-PLAN.md
 Resume file: None

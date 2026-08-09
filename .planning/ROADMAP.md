@@ -221,7 +221,7 @@ Plans:
   3. `lint` fails with an actionable message, by item number, when a `LESSON-REF` names a heading that does not exist — never a render-time crash.
   4. `spec` documents the `LESSON`/`LESSON-REF` grammar well enough that an authoring agent with no source access can write a valid lesson on the first try.
 
-**Plans**: 4/6 plans executed
+**Plans**: 5/6 plans executed
 
 Plans:
 **Wave 1**
@@ -242,7 +242,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 03-05-PLAN.md — CLI twin completeness: `--ref` filtering and the output contract
+- [x] 03-05-PLAN.md — CLI twin completeness: `--ref` filtering and the output contract
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
@@ -531,7 +531,7 @@ for what can run concurrently.
 |-------|----------------|--------|-----------|
 | 1. Evidence Spine & Protocol Foundation | 11/11 | Complete    | 2026-08-07 |
 | 2. Daemon Consolidation & Settings Foundation | 6/6 | Complete    | 2026-08-08 |
-| 3. Lesson Format & In-App Reader | 4/6 | In Progress|  |
+| 3. Lesson Format & In-App Reader | 5/6 | In Progress|  |
 | 4. Surface Redesign & Theming | 0/6 | Planned | - |
 | 5. Check Item Type & Code Editor | 0/TBD | Not started | - |
 | 6. Hint Ladder, Cursor-Hold & Feedback Modes | 0/TBD | Not started | - |
