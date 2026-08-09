@@ -46,6 +46,12 @@ def run(args, base):
         capture_output=True, text=True, encoding="utf-8")
 
 
+def run_theme(args, base):
+    return subprocess.run(
+        [sys.executable, ITEMBANK, "theme"] + list(args) + ["--base", base],
+        capture_output=True, text=True, encoding="utf-8")
+
+
 def settings_file(base):
     return os.path.join(base, "itembank.json")
 
@@ -80,23 +86,62 @@ def assert_rejected(base, args, expected_code):
         fail("config %r mutated itembank.json on a rejected set" % (args,))
 
 
+def assert_rejected_theme(base, args, expected_code):
+    before = sha(base)
+    r = run_theme(args, base)
+    if r.returncode == 0:
+        fail("itembank theme %r exited 0, expected a rejection" % (args,))
+    output = r.stdout + r.stderr
+    code = code_in(output)
+    if code != expected_code:
+        fail("itembank theme %r reported %r, expected %r (output: %r)" %
+             (args, code, expected_code, output))
+    after = sha(base)
+    if before != after:
+        fail("itembank theme %r mutated itembank.json on a rejected action" % (args,))
+
+
 # ---- Task 2: the schema is complete, the validator's bounds are exact ------
 
 def test_schema_names_every_project_key():
     """PROJECT.md's six named settings plus the daemon's own group plus the
-    update group -- seven groups, no fewer, no more, each with a default, a
-    phase and a description.
+    update group plus the Phase 4 accent group -- eight groups, no fewer, no
+    more, each with a default, a phase and a description.
     """
     schema = json.load(open(SCHEMA_PATH, encoding="utf-8"))
     keys = set(schema["properties"])
     expected = {"theme", "daily_cap", "selection_weights", "auditor_autonomy",
-                "model_backend", "update_policy", "daemon", "update"}
+                "model_backend", "update_policy", "daemon", "update", "accent"}
     if keys != expected:
         fail("schema properties %r do not equal the expected key set %r" % (keys, expected))
     for name, sub in schema["properties"].items():
         for annotation in ("default", "x-itembank-phase", "description"):
             if annotation not in sub:
                 fail("%s is missing %r" % (name, annotation))
+
+
+def test_theme_schema_additive_accent():
+    """The persisted contract is exactly the existing theme string plus one
+    required top-level accent object whose only persisted field is the
+    normalized opaque source, defaulting to #0e6e62 (04-UI-SPEC / 04-RESEARCH
+    binding resolution of the additive-schema open question).
+    """
+    schema = json.load(open(SCHEMA_PATH, encoding="utf-8"))
+    theme = schema["properties"]["theme"]
+    if theme["enum"] != ["system", "light", "dark"] or theme["default"] != "system":
+        fail("theme property changed; it must stay system|light|dark default system")
+    accent = schema["properties"].get("accent")
+    if not accent:
+        fail("schema has no top-level accent group")
+    if accent.get("type") != "object" or accent.get("required") != ["source"]:
+        fail("accent must be an object with required ['source']")
+    if accent.get("additionalProperties") is not False:
+        fail("accent must reject unknown keys")
+    src = accent.get("properties", {}).get("source")
+    if not src or src.get("default") != "#0e6e62":
+        fail("accent.source default is not #0e6e62")
+    if "accent" not in schema.get("required", []):
+        fail("accent is not a top-level required key")
 
 
 def test_boundary_values_exact():
@@ -285,6 +330,113 @@ def test_missing_schema_key_reads_as_default():
     shutil.rmtree(base, ignore_errors=True)
 
 
+# ---- plan 04-03 Task 2: additive source-only accent persistence ------------
+
+def test_old_file_missing_accent_loads_with_default():
+    """A pre-Phase-4 settings file (no accent key at all) remains loadable:
+    settings loading merges schema defaults before validation, so the source
+    reads back as #0e6e62 rather than absent.
+    """
+    base = fresh_base()
+    data = json.load(open(settings_file(base), encoding="utf-8"))
+    data.pop("accent", None)
+    json.dump(data, open(settings_file(base), "w", encoding="utf-8"), indent=2)
+    r = run([], base)
+    if r.returncode != 0:
+        fail("an old settings file missing accent no longer loads: %s" %
+             (r.stdout + r.stderr))
+    if "#0e6e62" not in r.stdout:
+        fail("accent.source did not read back as the schema default #0e6e62")
+    shutil.rmtree(base, ignore_errors=True)
+
+
+def test_theme_set_persists_only_source():
+    """`itembank theme set` persists exactly one normalized source; unknown
+    top-level user keys survive the write; no derived pair, ratio, correction
+    notice, or per-mode override ever lands in itembank.json (D-05).
+    """
+    base = fresh_base()
+    data = json.load(open(settings_file(base), encoding="utf-8"))
+    data["legacy_extra_key"] = "preserve-me"
+    json.dump(data, open(settings_file(base), "w", encoding="utf-8"), indent=2)
+
+    r = run_theme(["set", "#123ABC"], base)
+    if r.returncode != 0:
+        fail("theme set failed: %s" % (r.stdout + r.stderr))
+    after = json.load(open(settings_file(base), encoding="utf-8"))
+    if after.get("accent") != {"source": "#123abc"}:
+        fail("theme set persisted %r; expected exactly {'source': '#123abc'}"
+             % after.get("accent"))
+    if after.get("legacy_extra_key") != "preserve-me":
+        fail("theme set dropped an unknown top-level user key")
+    shutil.rmtree(base, ignore_errors=True)
+
+
+def test_theme_set_reset_contract():
+    base = fresh_base()
+    r = run_theme(["set", "#c00040"], base)
+    if r.returncode != 0:
+        fail("theme set #c00040 failed: %s" % (r.stdout + r.stderr))
+    data = json.load(open(settings_file(base), encoding="utf-8"))
+    if data["accent"]["source"] != "#c00040":
+        fail("theme set did not persist the normalized source: %r" %
+             data["accent"])
+    h1 = sha(base)
+    r2 = run_theme(["set", "#c00040"], base)
+    if r2.returncode != 0:
+        fail("repeated theme set failed: %s" % (r2.stdout + r2.stderr))
+    if sha(base) != h1:
+        fail("repeating theme set with the same source is not byte-idempotent")
+
+    r3 = run_theme(["reset", "--confirm-reset", "RESET"], base)
+    if r3.returncode != 0:
+        fail("theme reset with confirmation failed: %s" % (r3.stdout + r3.stderr))
+    data = json.load(open(settings_file(base), encoding="utf-8"))
+    if data["accent"]["source"] != "#0e6e62":
+        fail("theme reset did not restore the schema default #0e6e62")
+
+    before = sha(base)
+    r4 = run_theme(["reset"], base)
+    if r4.returncode == 0:
+        fail("theme reset without confirmation exited 0")
+    r5 = run_theme(["reset", "--confirm-reset", "WRONG"], base)
+    if r5.returncode == 0:
+        fail("theme reset with a wrong confirmation exited 0")
+    if sha(base) != before:
+        fail("theme reset with absent/wrong confirmation wrote itembank.json")
+    shutil.rmtree(base, ignore_errors=True)
+
+
+def test_theme_set_invalid_colors_rejected():
+    base = fresh_base()
+    for bad in ("notacolor", "#12345", "#12345g", "#gggggg"):
+        assert_rejected_theme(base, ["set", bad], "settings.invalid_value")
+    data = json.load(open(settings_file(base), encoding="utf-8"))
+    if data.get("accent", {}).get("source") not in (None, "#0e6e62"):
+        fail("a rejected color still mutated accent.source")
+    shutil.rmtree(base, ignore_errors=True)
+
+
+def test_theme_preview_readonly_reports_tokens():
+    base = fresh_base()
+    r = run_theme(["preview", "#0e6e62"], base)
+    if r.returncode != 0:
+        fail("theme preview exited %d: %s" % (r.returncode, r.stdout + r.stderr))
+    for needle in ("#0e6e62", "light", "dark", "accent", "ratio"):
+        if needle not in r.stdout:
+            fail("theme preview is missing %r: %r" % (needle, r.stdout))
+    before = sha(base)
+    adj = run_theme(["preview", "#ffff00"], base)
+    if adj.returncode != 0:
+        fail("adjusted theme preview exited %d: %s"
+             % (adj.returncode, adj.stdout + adj.stderr))
+    if "Adjusted for readable contrast" not in adj.stdout:
+        fail("adjusted theme preview carries no correction notice")
+    if sha(base) != before:
+        fail("theme preview wrote itembank.json")
+    shutil.rmtree(base, ignore_errors=True)
+
+
 # ---- structural: SETTINGS_CODES is sorted, deduped, and every code is ------
 # reachable from at least one input this test itself supplies.
 
@@ -320,6 +472,11 @@ def main():
     test_config_malformed_file()
     test_unknown_key_preserved()
     test_missing_schema_key_reads_as_default()
+    test_old_file_missing_accent_loads_with_default()
+    test_theme_set_persists_only_source()
+    test_theme_set_reset_contract()
+    test_theme_set_invalid_colors_rejected()
+    test_theme_preview_readonly_reports_tokens()
     test_settings_codes_declared()
     # Reachability is checked last, after every other test has had a chance
     # to record the codes its own inputs triggered via assert_rejected/code_in.
