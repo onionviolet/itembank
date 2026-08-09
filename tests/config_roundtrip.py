@@ -144,6 +144,36 @@ def test_theme_schema_additive_accent():
         fail("accent is not a top-level required key")
 
 
+def test_accent_source_hex_pattern():
+    """WR-03 regression: the schema itself enforces the exact six-digit hex
+    pattern -- `config set accent.source` rejects a non-hex value with
+    settings.invalid_value and never touches itembank.json, while valid hex
+    values still pass.
+    """
+    import schema_validate
+    schema = json.load(open(SCHEMA_PATH, encoding="utf-8"))
+    src = schema["properties"]["accent"]["properties"]["source"]
+    if src.get("pattern") != "^#[0-9a-fA-F]{6}$":
+        fail("accent.source has no exact #RRGGBB pattern: %r"
+             % src.get("pattern"))
+    for value in ("#0e6e62", "#123abc", "#ABCDEF"):
+        if schema_validate.validate(value, src):
+            fail("valid hex accent.source %r failed the schema pattern" % value)
+    for value in ("zzzzzzz", "#12345g", "1234567"):
+        if not schema_validate.validate(value, src):
+            fail("non-hex accent.source %r passed the schema pattern" % value)
+    base = fresh_base()
+    try:
+        assert_rejected(base, ["set", "accent.source", "zzzzzzz"],
+                        "settings.invalid_value")
+        r = run(["set", "accent.source", "#123abc"], base)
+        if r.returncode != 0:
+            fail("a valid hex accent.source was rejected: %s"
+                 % (r.stdout + r.stderr))
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+
 def test_boundary_values_exact():
     """minimum/maximum are inclusive; one step outside either is rejected
     with settings.out_of_range and the file is left untouched.
@@ -487,6 +517,7 @@ def test_all_codes_reachable():
 
 def main():
     test_schema_names_every_project_key()
+    test_accent_source_hex_pattern()
     test_boundary_values_exact()
     test_config_no_args_prints_table()
     test_phase_2_1_keys_read_not_inert()

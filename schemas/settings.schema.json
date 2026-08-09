@@ -27,7 +27,8 @@
       "properties": {
         "source": {
           "type": "string",
-          "description": "The learner's chosen source accent as a normalized opaque #RRGGBB hex color. Written only through itembank theme set/pick, which normalize and validate the exact six-digit hex form before persisting; the schema enforces the string type and a seven-character minimum so a hand-edited file cannot carry an empty or truncated source.",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "The learner's chosen source accent as a normalized opaque #RRGGBB hex color. Written only through itembank theme set/pick, which normalize and validate the exact six-digit hex form before persisting; the schema enforces the exact #RRGGBB pattern so a hand-edited file or a config set cannot carry a source the renderer silently ignores.",
           "minLength": 7,
           "default": "#0e6e62",
           "x-itembank-phase": 4

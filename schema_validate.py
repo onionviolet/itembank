@@ -5,8 +5,8 @@ There is no JSON Schema implementation in the Python standard library, and this
 is not a Draft 2020-12 reimplementation either. It is a subset validator scoped
 to the exact keywords the documents under `schemas/` use: `type`,
 `properties`, `required`, `additionalProperties`, `enum`, `const`, `items`,
-`minItems`, `minLength`, `minimum`, `maximum`, `$defs`, `$ref` (local
-`#/$defs/<name>` only), and `oneOf`. Nothing more.
+`minItems`, `minLength`, `pattern`, `minimum`, `maximum`, `$defs`, `$ref`
+(local `#/$defs/<name>` only), and `oneOf`. Nothing more.
 
 The one decision that makes this worth trusting: a schema that uses a keyword
 outside that set is refused, not partially checked. `check_schema` walks the
@@ -17,12 +17,14 @@ the contract -- which is worse than no check at all, because it looks like one.
 A green result from this validator means the whole document was checked.
 """
 import json
+import re
 import sys
 
 
 SUPPORTED = frozenset([
     "type", "properties", "required", "additionalProperties", "enum", "const",
-    "items", "minItems", "minLength", "minimum", "maximum", "$defs", "$ref", "oneOf",
+    "items", "minItems", "minLength", "pattern", "minimum", "maximum",
+    "$defs", "$ref", "oneOf",
 ])
 
 # Accepted and ignored: they describe the schema to a human reader but impose
@@ -186,6 +188,11 @@ def validate(instance, schema, root=None, path="$"):
         if len(instance) < schema["minLength"]:
             errors.append("%s: has length %d, shorter than minLength %d" %
                           (path, len(instance), schema["minLength"]))
+
+    if "pattern" in schema and isinstance(instance, str):
+        if re.search(schema["pattern"], instance) is None:
+            errors.append("%s: %r does not match pattern %r" %
+                          (path, instance, schema["pattern"]))
 
     # A bool is never a number here, matching _matches_type's exclusion -- True
     # would otherwise satisfy `minimum: 0` as if it were 1.
