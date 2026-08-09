@@ -828,8 +828,11 @@ def _issue_day_force_token(handler, stem, stale_revision, current_revision, edit
     returns to recovery rather than reusing an old gate.
     """
     token = secrets.token_hex(32)
+    # The browser re-submits against the conflict's current revision, so the
+    # token is bound to that revision as the revision a force request must
+    # present; the fresh disk recheck still happens inside day_document.save.
     handler.day_force_tokens[token] = {
-        "stem": stem, "stale_revision": stale_revision,
+        "stem": stem, "stale_revision": current_revision,
         "current_revision": current_revision,
         "draft_hash": _draft_hash(edits)}
     return token

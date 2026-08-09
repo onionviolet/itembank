@@ -633,7 +633,7 @@ var SNAP=D.snapshot||{};
 var INVALID_COPY="Plan not saved. Fix the highlighted cells and try again.";
 var CONFLICT_HEADING="Plan changed outside itembank \u2014 nothing was overwritten.";
 var FORCE_COPY="I understand this replaces these edited cells using the latest plan version.";
-var baseline={},draft={},forceToken="",forceDraftHash="",dirty=false;
+var baseline={},draft={},forceToken="",forceDraftHash="",forceRevision="",dirty=false;
 var status=document.getElementById('edit-status');
 var saveBtn=document.getElementById('save-edits');
 var forcePanel=document.getElementById('force-panel');
@@ -709,6 +709,7 @@ function fillPanels(draftCells,currentCells,currentDoc,draftRev,currentRev){
 function showConflict(d){
  forceToken=d.force_token||"";
  forceDraftHash=d.force_draft_hash||"";
+ forceRevision=d.current&&d.current.revision?d.current.revision:SNAP.revision;
  setDraft(values());
  fillPanels(draft,currentCells(d),SNAP.document,SNAP.revision,d.current.revision);
  document.getElementById('conflict').classList.add('on');
@@ -723,12 +724,15 @@ function currentCells(d){
  return d.current&&d.current.cells?d.current.cells:SNAP.cells;
 }
 function saveEdits(){
- var changed={},v=values(),k;
+ var changed={},v=values(),k,forceRev=SNAP.revision;
+ if(document.getElementById('conflict').classList.contains('on')){
+  forceRev=forceRevision;
+ }
  for(k in baseline){if(v[k]!==baseline[k]){changed[k]=v[k];}}
  if(!Object.keys(changed).length){return;}
  say("Saving\u2026");
  saveBtn.disabled=true;
- post('/edit',{revision:SNAP.revision,edits:changed},function(d){
+ post('/edit',{revision:forceRev,edits:changed},function(d){
   if(d.status==="saved"){
    SNAP.revision=d.revision;
    setBaseline(d.cells);
@@ -798,6 +802,7 @@ function editMode(){
 function initEditor(){
  setBaseline(SNAP.cells||{});
  setDraft({});
+ forceRevision=SNAP.revision;
  setDirty();
  document.getElementById('edit-btn').addEventListener('click',function(){editMode();});
  saveBtn.addEventListener('click',saveEdits);
@@ -839,7 +844,7 @@ function initEditor(){
   if(hash!==forceDraftHash){forceToken="";forceDraftHash="";return;}
   say("Confirming force overwrite\u2026");
   this.disabled=true;
-  post('/edit',{revision:SNAP.revision,edits:changed,force_token:forceToken,
+  post('/edit',{revision:forceRevision,edits:changed,force_token:forceToken,
                 confirmation:FORCE_COPY,force:true},function(d){
    if(d.status==="saved"){
     SNAP.revision=d.revision;
