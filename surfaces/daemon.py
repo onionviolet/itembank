@@ -501,6 +501,35 @@ def _same_origin(handler):
     return _origin_netloc(origin) == _origin_netloc(host)
 
 
+def _reject_cross_origin(handler):
+    """Refuse a state-changing request whose `Origin` is not the page's own
+    host -- the first half of the authority model `handle_theme_post`
+    established (T-04-13/T-04-14). A request with no `Origin` (CLI/curl-style
+    clients) is accepted here and still must satisfy the loopback policy
+    where one applies.
+    """
+    if not _same_origin(handler):
+        handler.send_error(403, "cross-origin request refused")
+        return True
+    return False
+
+
+def _reject_cross_origin_write(handler):
+    """The full authority gate for a mutating route, mirroring
+    `handle_theme_post`: same-origin when an Origin is present plus a
+    loopback client. A `--lan` daemon binds 0.0.0.0 and exposes every
+    mutating day route to the network, so writes are loopback-only exactly
+    like theme save/reset -- a phone may read the cockpit but never tick a
+    lane, open a host-side editor, or rewrite a plan for another device.
+    """
+    if _reject_cross_origin(handler):
+        return True
+    if not _client_is_loopback(handler):
+        handler.send_error(403, "day write requires a loopback client")
+        return True
+    return False
+
+
 THEME_ACTIONS = ("preview", "pick", "save", "reset")
 THEME_ALLOWED_FIELDS = ("action", "source", "confirm")
 
@@ -635,6 +664,8 @@ def handle_quiz_answer(handler, stem):
     never sets either, so its behaviour is unchanged; `cmd_serve`'s scoped
     launch sets both through `serve_scoped`'s `extra`.
     """
+    if _reject_cross_origin(handler):
+        return
     path = handler.banks.get(stem)
     if path is None:
         handler.send_not_found(stem)
@@ -772,6 +803,8 @@ def handle_day_save(handler, stem):
     `day.apply_day_post()`. Never calls `evidence.append_event()` or
     `evidence.render_daily_log()` directly (T-2-11, T-2-12).
     """
+    if _reject_cross_origin_write(handler):
+        return
     if stem not in handler.plans:
         handler.send_not_found(stem)
         return
@@ -791,6 +824,8 @@ def handle_day_open(handler, stem):
     `None`, which this handler alone turns into a 404 (T-2-10) --
     `apply_day_post` has no `self` to call `send_error` on.
     """
+    if _reject_cross_origin_write(handler):
+        return
     if stem not in handler.plans:
         handler.send_not_found(stem)
         return
@@ -868,6 +903,8 @@ def handle_day_edit(handler, stem):
     revision recheck, so a third concurrent version still produces a new
     no-write conflict (T-04-22, T-04-23).
     """
+    if _reject_cross_origin_write(handler):
+        return
     if stem not in handler.plans:
         handler.send_not_found(stem)
         return
@@ -1050,6 +1087,8 @@ def handle_api_start(handler):
     exactly what `session.do_start` defaults to when no `out` is given;
     `out` is never read from the body (T-2-02).
     """
+    if _reject_cross_origin(handler):
+        return
     data, failed = api_read_json(handler)
     if failed:
         return
@@ -1103,6 +1142,8 @@ def handle_api_next(handler):
     """`POST /api/next` -- `{"session_id": "<id>"}`. `session_id` is resolved
     through `session_index`; a miss is a 404.
     """
+    if _reject_cross_origin(handler):
+        return
     data, failed = api_read_json(handler)
     if failed:
         return
@@ -1172,6 +1213,8 @@ def handle_api_submit(handler):
     attempt view is regenerated atomically and progress is printed from the
     API session's own evidence.
     """
+    if _reject_cross_origin(handler):
+        return
     data, failed = api_read_json(handler)
     if failed:
         return
@@ -1224,6 +1267,8 @@ def handle_api_submit(handler):
 
 def handle_api_report(handler):
     """`POST /api/report` -- `{"session_id": "<id>"}`."""
+    if _reject_cross_origin(handler):
+        return
     data, failed = api_read_json(handler)
     if failed:
         return

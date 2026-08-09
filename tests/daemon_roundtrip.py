@@ -135,14 +135,18 @@ def post(url, payload):
         return json.loads(res.read().decode("utf-8"))
 
 
-def json_request(url, payload=None, method="POST", timeout=5):
+def json_request(url, payload=None, method="POST", timeout=5, headers=None):
     """A reusable JSON request helper returning `(status, body)` for any HTTP
     outcome -- `body` is parsed JSON on a JSON response, otherwise the text.
     Unlike `post()`, a non-2xx is not raised; the caller asserts the code.
+    `headers` adds extra request headers (used by the same-origin checks).
     """
     body = b"" if payload is None else json.dumps(payload).encode()
     req = urllib.request.Request(url, data=body, method=method,
                                  headers={"Content-Type": "application/json"})
+    if headers:
+        for name, value in headers.items():
+            req.add_header(name, value)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as res:
             raw = res.read()
@@ -2051,6 +2055,63 @@ def check_theme_route_loopback_and_origin():
             proc.terminate()
 
 
+def check_cross_origin_gate_on_mutating_routes():
+    """CR-02 regression: every state-changing route -- day save/open/edit,
+    quiz answer, and the four /api/* routes -- refuses a cross-origin POST
+    with 403 before any mutation, mirroring /api/theme. Origin-less
+    CLI-style requests and same-origin requests still pass (this harness is
+    loopback, so the day-write loopback policy does not bite).
+    """
+    workdir = temp_dir_with(bank=True, plan=True)
+    proc, url, lines = start_daemon(workdir)
+    try:
+        plan_stem = os.path.splitext(os.path.basename(PLAN))[0]
+        bank_stem = os.path.splitext(os.path.basename(BANK))[0]
+        routes = (
+            (url + "day/%s/save" % plan_stem,
+             {"date": "2026-01-07", "done": []}),
+            (url + "day/%s/open" % plan_stem, {"lane": "EMT", "i": 0}),
+            (url + "day/%s/edit" % plan_stem,
+             {"revision": "a" * 64, "edits": {"EMT": "x"}}),
+            (url + "quiz/%s/answer" % bank_stem,
+             {"id": "q1", "response": "B"}),
+            (url + "api/start",
+             {"bank": bank_stem, "count": 1, "mode": "practice"}),
+            (url + "api/next", {"session_id": "nope"}),
+            (url + "api/submit", {"session_id": "nope", "answer": "B"}),
+            (url + "api/report", {"session_id": "nope"}),
+        )
+        plan_path = os.path.join(workdir, os.path.basename(PLAN))
+        log_path = os.path.join(workdir, "daily_log.md")
+        before_plan = open(plan_path, "rb").read()
+        before_log = open(log_path, "rb").read() \
+            if os.path.exists(log_path) else None
+        for endpoint, payload in routes:
+            status, _ = json_request(endpoint, payload,
+                                     headers={"Origin": "http://evil.example"})
+            if status != 403:
+                fail("cross-origin POST to %s returned %d, expected 403"
+                     % (endpoint, status))
+        if open(plan_path, "rb").read() != before_plan:
+            fail("a cross-origin request mutated the plan file")
+        after_log = open(log_path, "rb").read() \
+            if os.path.exists(log_path) else None
+        if after_log != before_log:
+            fail("a cross-origin request mutated the daily log")
+        # Origin-less CLI-style clients and same-origin browsers still pass
+        # from loopback -- the day-write policy, like theme, blocks only
+        # cross-origin and non-loopback mutations.
+        status, _ = json_request(routes[0][0], routes[0][1])
+        if status == 403:
+            fail("an Origin-less loopback day save was refused")
+        status, _ = json_request(routes[0][0], routes[0][1],
+                                 headers={"Origin": url.rstrip("/")})
+        if status == 403:
+            fail("a same-origin loopback day save was refused")
+    finally:
+        proc.terminate()
+
+
 def check_settings_page_states_and_js():
     """Tests 4 and 6: the page wires `input` to live preview and `change` to
     dirty-save enablement, shows adjusted rendered tokens separately from the
@@ -2334,6 +2395,7 @@ def main():
         check_theme_route_contract,
         check_theme_pick_contract,
         check_theme_route_loopback_and_origin,
+        check_cross_origin_gate_on_mutating_routes,
         check_settings_page_states_and_js,
         check_probe_closed_port,
         check_probe_non_itembank_listener,
