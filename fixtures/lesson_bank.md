@@ -59,6 +59,14 @@ weak effort, cyanosis, or a patient who cannot speak in full sentences.
 Calling for help is not a failure of the first responder. It is the second
 intervention, and it happens while the first one is still being done.
 
+Call early and call once, with the essentials: **name**, role, and the
+airway finding. A _repeat_ of the same information delays help. Use a
+`run report` for the handover, and see [the call checklist](call-checklist.md)
+when the airway is already failing.
+
+A sign like a <script> tag in prose, an attribute like onerror="x", and an
+ampersand & all render as visible characters.
+
 Q1. Which finding most clearly suggests the airway is at risk?   (difficulty: application)
 [LESSON-REF: The Airway, Step By Step]
 [OBJECTIVE: emt:airway]

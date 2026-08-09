@@ -896,6 +896,128 @@ def test_lesson_shared_fixture_carries_math_seam():
              "to")
 
 
+# ---- plan 03-04 Task 2: inlines -- emphasis, inline code, links ------------
+# The inline pass runs over placeholder-protected, already-escaped text only:
+# code spans are lifted first so they are never re-scanned, escaping happens
+# before emphasis and link patterns so a markup-shaped stem or heading can
+# never reach the page as markup, and only a relative path or an http/https
+# URL becomes a clickable anchor (T-3-11).
+
+def test_render_inline_emphasis():
+    h = lesson.render_markdown("a **b** c _d_ e\n")
+    if "<strong>b</strong>" not in h or "<em>d</em>" not in h:
+        fail("double markers must render strong and single markers em: %r"
+             % h)
+
+
+def test_render_inline_code():
+    h = lesson.render_markdown("use `x < y` here\n")
+    if "<code" not in h or "&lt;" not in h:
+        fail("inline code must render as an escaped code element: %r" % h)
+    if "<strong>" in h:
+        fail("inline code content must never be re-scanned for inline "
+             "patterns: %r" % h)
+
+
+def test_render_links():
+    h = lesson.render_markdown("see [the notes](notes.md)\n")
+    if "<a " not in h or "notes.md" not in h:
+        fail("a relative link must render as an anchor: %r" % h)
+    h = lesson.render_markdown("see [x](javascript:alert(1))\n")
+    if "<a " in h:
+        fail("a scheme-bearing link target must render as plain text: %r"
+             % h)
+    h = lesson.render_markdown("see [docs](https://example.com/a?x=1&y=2)\n")
+    if "<a " not in h or "&amp;" not in h:
+        fail("an https link must render with an escaped target: %r" % h)
+
+
+def test_render_prose_escaped():
+    h = lesson.render_markdown("an <img onerror=y> tag & an amp\n")
+    if "&lt;img" not in h or "&amp;" not in h or "<img" in h:
+        fail("markup-shaped prose must render escaped: %r" % h)
+
+
+def test_render_word_boundary_emphasis():
+    h = lesson.render_markdown("snake_case_name stays whole\n")
+    if "<em>" in h:
+        fail("an underscore inside an identifier must not split the word: %r"
+             % h)
+
+
+def test_render_malformed_markers_do_not_raise():
+    lesson.render_markdown("unmatched ** and _ and ` here\n")
+
+
+def test_render_heading_markup_slug_vs_visible():
+    h = lesson.render_markdown('### What about <B> & "Q"?\n\nProse.\n')
+    if 'id="what-about-b-q"' not in h:
+        fail("heading anchor id must come from the slug of the plain text: "
+             "%r" % h)
+    if 'What about &lt;B&gt; &amp; &quot;Q&quot;?' not in h:
+        fail("heading visible text must carry the escaped characters: %r"
+             % h)
+
+
+def test_lesson_bank_fixture_renders_inlines():
+    pg = lesson.lesson_page(LES_BANK, itembank.load(LES_BANK),
+                            itembank.parse_lesson(LES_BANK))
+    for want in ("<strong>name</strong>", "<em>repeat</em>",
+                 "<code>run report</code>",
+                 '<a href="call-checklist.md">',
+                 "&lt;script&gt;", 'onerror=&quot;x&quot;'):
+        if want not in pg:
+            fail("fixture lesson page missing inline rendering %r" % want)
+
+
+def test_full_page_escapes_markup_shaped_bank():
+    """The phase's Tampering assertion, proved rather than trusted: a bank
+    whose heading, prose, table cell, list item and item stem all carry
+    markup-shaped text renders the escaped forms and never the raw forms --
+    including in the anchor id derived from the heading and in the backlink
+    row derived from the stem. This project's threat model is one local
+    user with no adversary, so the discipline is correctness first: a stray
+    angle bracket in a stem must not break the page."""
+    tmp = tempfile.mkdtemp()
+    bank = os.path.join(tmp, "inject.md")
+    open(bank, "w", encoding="utf-8").write(
+        "# Inject bank\n\n"
+        "## LESSON\n\n"
+        "### A & <B> Heading\n\n"
+        "Prose with <img onerror=y> and & amp.\n\n"
+        "| Cell | Value |\n| --- | --- |\n| <td> | & |\n\n"
+        "- <li> item\n\n"
+        "Q1. Stem with <script> alert(1) </script>?   (difficulty: recall)\n"
+        "A) One\nB) Two\nC) Three\nD) Four\n\n"
+        "CORRECT: A\n\n"
+        "WHY BEST: One is the keyed answer.\n\n"
+        "KEY DISCRIMINATOR: One vs the rest.\n\n"
+        "SECOND-BEST: B. Two is the runner-up; this would be correct if the "
+        "question asked for two.\n\n"
+        "DISTRACTOR ANALYSIS:\n"
+        "- A) Correct: the keyed answer.\n"
+        "- B) The runner-up; this would be correct if the question asked for two.\n"
+        "- C) A filler; this would be correct if the question asked for three.\n"
+        "- D) A filler; this would be correct if the question asked for four.\n\n"
+        "TRAP: Picking the runner-up.\n\n"
+        "CONFIDENCE: high\n")
+    qs = itembank.load(bank)
+    L = itembank.parse_lesson(bank)
+    pg = lesson.lesson_page(bank, qs, L)
+    for want in ("A &amp; &lt;B&gt; Heading",
+                 'id="a-b-heading"',
+                 "&lt;img onerror=y&gt;",
+                 "&amp; amp",
+                 "&lt;td&gt;",
+                 "&lt;li&gt; item",
+                 "Stem with &lt;script&gt; alert(1) &lt;/script&gt;"):
+        if want not in pg:
+            fail("escaped form missing from the full page: %r" % want)
+    for banned in ("<img onerror", "<td>", "<li> item", "<script> alert"):
+        if banned in pg:
+            fail("raw markup-shaped text reached the page: %r" % banned)
+
+
 # ---- subprocess: daemon routes and the CLI twin ----------------------------
 
 def test_lesson_src_degraded_daemon_and_cli():
@@ -1095,6 +1217,15 @@ test_render_overflow_containers()
 test_render_deep_heading_same_size()
 test_lesson_bank_fixture_renders_all_block_kinds()
 test_lesson_shared_fixture_carries_math_seam()
+test_render_inline_emphasis()
+test_render_inline_code()
+test_render_links()
+test_render_prose_escaped()
+test_render_word_boundary_emphasis()
+test_render_malformed_markers_do_not_raise()
+test_render_heading_markup_slug_vs_visible()
+test_lesson_bank_fixture_renders_inlines()
+test_full_page_escapes_markup_shaped_bank()
 test_lesson_src_degraded_daemon_and_cli()
 test_lesson_plain_empty_state_has_no_warning()
 test_routes_and_cli_twin()
