@@ -269,6 +269,8 @@ def main():
     s = sub.add_parser("lesson", help="render the LESSON section as reading material")
     s.add_argument("bank")
     s.add_argument("--out")
+    s.add_argument("--ref", default="",
+                   help="render only the section whose heading matches this text")
     s.set_defaults(fn=cmd_lesson)
 
     s = sub.add_parser("export", help="export a bank as Anki TSV or GIFT for LMS import")
