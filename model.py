@@ -408,6 +408,7 @@ SHARED FIELDS (all types)
   [OBJECTIVE: <syllabus or blueprint reference>]             optional
   [ID: <opaque item id>]                                     optional, machine-assigned
   [HASH: sha256:<digest>]                                    optional, machine-assigned
+  [LESSON-REF: <heading text>]                               optional, links to a lesson heading
   WHY BEST:            why the keyed answer is correct
   KEY DISCRIMINATOR:   the one distinction the item turns on
   SECOND-BEST:         the runner-up, and what would make it win
@@ -476,6 +477,59 @@ THE RULE THAT SURVIVES EVERY TYPE
   where it WOULD be correct. Everything else here is syntax; this is the part
   worth protecting, and it is the first thing a model drops under length
   pressure. `itembank lint` warns when a distractor line never says it.
+
+THE LESSON SECTION
+  A bank may carry one optional LESSON section: the teaching text its items
+  test. It lives above the first question, opened by `## LESSON` at the start
+  of a line and running to the first `Qn.` marker; its subheadings are one
+  level deeper, `### heading text`, and each becomes a section an item can
+  point at. A bank without a lesson section parses exactly as it did before
+  this grammar existed, so adding a lesson to a real bank cannot break it.
+
+  [LESSON-SRC: <path>]                                      optional, external source
+  The same preamble region may name an external markdown file whose own
+  `## LESSON` section replaces the bank's. A path in that directive is
+  resolved relative to the bank file; a path resolving outside the bank's
+  own directory is refused rather than read: a bank should not be able to
+  name an arbitrary file on the machine. When a bank carries both an inline
+  section and an external directive, the external source takes precedence.
+
+  An item's [LESSON-REF:] tag names readable heading text, not an id, and one
+  item carries at most one reference; the tag itself is listed above with the
+  other shared fields.
+
+THE SLUG RULE
+  A heading's slug is its text lowercased, whitespace collapsed, punctuation
+  dropped. Two headings whose slugs collide make a reference to either
+  ambiguous, so the collision is an error: author headings that differ in
+  more than casing, spacing and punctuation, and you can predict the collision
+  before the linter reports it.
+
+WHAT THE READER RENDERS
+  The lesson reader renders headings, paragraphs, bullet and numbered lists,
+  pipe tables, inline code, fenced code, bold, italic and links -- nothing
+  else. Any other markdown construct appears as literal text, so write plain
+  prose and let that list be the whole toolbox.
+
+  A fenced block's info string (```python, ```math) names the block's
+  language. Nothing acts on it yet; a later phase attaches maths rendering
+  and a run button to it by name, so the info string is worth writing
+  correctly even though nothing acts on it today.
+
+ONE CONSTRAINT
+  A line inside lesson prose that begins like a question marker -- `Q1.` at
+  the start of a line -- ends the lesson there. This is a property of the
+  boundary that separates questions from prose, and the grammar tells authors
+  to avoid it rather than making the boundary context-sensitive, which would
+  put the compatibility promise at risk for a rare authoring habit.
+
+LESSON LINT CODES
+  item.lesson_ref_unknown   error     an item's LESSON-REF names no heading
+  lesson.duplicate_heading  error     two headings slug-collide
+  lesson.src_unreadable     error     LESSON-SRC names a missing or out-of-tree
+                                      file
+  lesson.orphan_heading     warning   a heading no item references; a lesson
+                                      legitimately teaches more than it tests
 """
 
 
