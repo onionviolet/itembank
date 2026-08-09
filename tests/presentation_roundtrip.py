@@ -13,7 +13,14 @@ add their failing feature assertions here first.
 Standard library only, no test framework, runnable as
 `python tests/presentation_roundtrip.py`.
 """
-import html.parser, os, re, sys
+import html.parser, json, os, re, shutil, subprocess, sys, tempfile, threading, time
+import urllib.error, urllib.request
+
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ITEMBANK = os.path.join(ROOT, "itembank.py")
+BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
+PLAN = os.path.join(ROOT, "fixtures", "sample_plan.md")
 
 
 def fail(msg):
@@ -258,6 +265,434 @@ def probe_adapter(adapter, data):
     return True, output
 
 
+# ---- plan 04-04 Task 2: shared daemon/presentation harness helpers --------
+
+def start_theme_daemon(workdir):
+    """Launch `itembank daemon <workdir> --no-open --port 0` and return
+    `(proc, url, lines)` once the banner's URL is scraped -- the same
+    subprocess pattern `tests/daemon_roundtrip.py` uses, kept local so this
+    harness stays self-contained.
+    """
+    args = [sys.executable, "-u", ITEMBANK, "daemon", workdir,
+            "--no-open", "--port", "0"]
+    proc = subprocess.Popen(args, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True)
+    lines = []
+    threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
+                     daemon=True).start()
+    url = None
+    for _ in range(60):
+        time.sleep(0.1)
+        m = re.search(r"http://127\.0\.0\.1:\d+/", "".join(lines))
+        if m:
+            url = m.group(0)
+            break
+    if not url:
+        proc.terminate()
+        fail("presentation daemon never printed a URL:\n" + "".join(lines))
+    return proc, url, lines
+
+
+def theme_get(url):
+    with urllib.request.urlopen(url, timeout=5) as res:
+        return res.status, res.read().decode("utf-8")
+
+
+def theme_json_post(url, payload):
+    req = urllib.request.Request(url, data=json.dumps(payload).encode(),
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as res:
+            return res.status, json.loads(res.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read().decode("utf-8", errors="replace")
+
+
+def write_settings_file(base, overrides):
+    """Write itembank.json into `base` from the schema defaults merged over
+    `overrides`, through the existing validated settings writer.
+    """
+    sys.path.insert(0, ROOT)
+    from surfaces import settings
+    data = settings.load_settings(base)
+    for dotted, value in overrides.items():
+        node = data
+        parts = dotted.split(".")
+        for part in parts[:-1]:
+            node = node.setdefault(part, {})
+        node[parts[-1]] = value
+    settings.write_settings(base, data)
+
+
+def style_css(html):
+    """Every `<style>` block's content concatenated, in document order."""
+    return "\n".join(re.findall(r"<style>(.*?)</style>", html, re.S))
+
+
+def token_value(css, name):
+    """The first `--name: value` token in a CSS string (`:root`'s block for
+    a system/light document, the only block for a forced-mode document)."""
+    m = re.search(r"--%s\s*:\s*([^;]+);" % re.escape(name), css)
+    return m.group(1).strip() if m else None
+
+
+# ---- plan 04-04 Task 2 tests ----------------------------------------------
+
+def test_shared_accent_tokens_across_routes():
+    """Test 1: index, report, settings, and served quiz all carry the same
+    accent token values generated from the daemon root's settings.
+    """
+    sys.path.insert(0, ROOT)
+    from surfaces.theme import derive_theme
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    shutil.copy(PLAN, os.path.join(workdir, "sample_plan.md"))
+    write_settings_file(workdir, {"accent.source": "#c00040"})
+    expected_light = derive_theme("#c00040")["light"]["accent"]
+    expected_dark = derive_theme("#c00040")["dark"]["accent"]
+    proc, url, lines = start_theme_daemon(workdir)
+    try:
+        pages = {}
+        for route, path in (("/", ""), ("/settings", "settings"),
+                            ("/quiz/sample_bank", "quiz/sample_bank")):
+            status, body = theme_get(url + path)
+            if status != 200:
+                fail("GET %s returned %d, expected 200" % (route, status))
+            pages[route] = body
+        started = theme_json_post(url + "api/start",
+                                  {"bank": "sample_bank", "count": 1, "seed": 0})
+        if started[0] != 200:
+            fail("api/start for the shared-token report failed: %r" % started)
+        status, body = theme_get(url + "report?session=%s"
+                                 % started[1]["session_id"])
+        if status != 200:
+            fail("GET /report returned %d, expected 200" % status)
+        pages["/report"] = body
+        for route, body in pages.items():
+            css = style_css(body)
+            light = token_value(css, "accent")
+            if light != expected_light:
+                fail("%s does not carry the shared light accent %s (got %r)"
+                     % (route, expected_light, light))
+            dark_m = re.search(r"prefers-color-scheme:dark", css)
+            if not dark_m:
+                fail("%s carries no system dark-mode branch" % route)
+            dark = token_value(css[dark_m.end():], "accent")
+            if dark != expected_dark:
+                fail("%s does not carry the shared dark accent %s (got %r)"
+                     % (route, expected_dark, dark))
+    finally:
+        proc.terminate()
+
+
+def test_reload_after_save_updates_tokens():
+    """Test 2: saving a new source then reloading each route returns the new
+    tokens; already-open tabs are not asserted to update automatically.
+    """
+    sys.path.insert(0, ROOT)
+    from surfaces.theme import derive_theme
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_theme_daemon(workdir)
+    try:
+        _, body = theme_get(url)
+        before = token_value(style_css(body), "accent")
+        status, resp = theme_json_post(url + "api/theme",
+                                       {"action": "save", "source": "#c00040"})
+        if status != 200 or resp.get("saved") is not True:
+            fail("theme save failed: %r %r" % (status, resp))
+        expected = derive_theme("#c00040")["light"]["accent"]
+        for route, path in (("index", ""), ("settings", "settings"),
+                            ("quiz", "quiz/sample_bank")):
+            _, body = theme_get(url + path)
+            got = token_value(style_css(body), "accent")
+            if got != expected:
+                fail("%s did not pick up the saved accent on reload "
+                     "(got %r, expected %r)" % (route, got, expected))
+        if before == expected:
+            fail("sanity: the saved token must differ from the default")
+    finally:
+        proc.terminate()
+
+
+def test_static_build_uses_settings_beside_bank():
+    """Test 3: static `itembank build` reads settings beside the bank and
+    uses the same generator; a missing settings file uses schema defaults.
+    """
+    sys.path.insert(0, ROOT)
+    from surfaces.theme import derive_theme
+    tmp = tempfile.mkdtemp()
+    bank = os.path.join(tmp, "bank.md")
+    shutil.copy(BANK, bank)
+    write_settings_file(tmp, {"accent.source": "#123abc"})
+    out = os.path.join(tmp, "quiz.html")
+    r = subprocess.run([sys.executable, ITEMBANK, "build", bank, out],
+                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                       text=True)
+    if r.returncode != 0:
+        fail("itembank build with settings failed: %s" % r.stdout)
+    page = open(out, encoding="utf-8").read()
+    expected = derive_theme("#123abc")["light"]["accent"]
+    if token_value(style_css(page), "accent") != expected:
+        fail("static build ignored the settings beside the bank")
+
+    tmp2 = tempfile.mkdtemp()
+    bank2 = os.path.join(tmp2, "bank.md")
+    shutil.copy(BANK, bank2)
+    out2 = os.path.join(tmp2, "quiz.html")
+    r = subprocess.run([sys.executable, ITEMBANK, "build", bank2, out2],
+                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                       text=True)
+    if r.returncode != 0:
+        fail("itembank build without settings failed: %s" % r.stdout)
+    page2 = open(out2, encoding="utf-8").read()
+    default = derive_theme("#0e6e62")["light"]["accent"]
+    if token_value(style_css(page2), "accent") != default:
+        fail("build without a settings file did not use schema defaults")
+
+
+def test_forced_modes_preserve_semantic_tokens():
+    """Test 4: forced light/dark and OS-system modes select the correct token
+    blocks without changing semantic-state tokens.
+    """
+    sys.path.insert(0, ROOT)
+    from surfaces.theme import SEMANTIC_TOKENS
+    for mode, expected_bg in (("light", "#f3f5f4"), ("dark", "#0e1413")):
+        workdir = tempfile.mkdtemp()
+        shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+        write_settings_file(workdir, {"theme": mode, "accent.source": "#c00040"})
+        proc, url, lines = start_theme_daemon(workdir)
+        try:
+            _, body = theme_get(url)
+            css = style_css(body)
+            if token_value(css, "bg") != expected_bg:
+                fail("forced %s mode does not select the %s token block "
+                     "(bg %r)" % (mode, mode, token_value(css, "bg")))
+            for tok in ("ok", "bad", "warn"):
+                got = token_value(css, tok)
+                if got != SEMANTIC_TOKENS[mode][tok]:
+                    fail("forced %s page changed semantic token %s: "
+                         "got %r expected %r" % (mode, tok, got,
+                                                 SEMANTIC_TOKENS[mode][tok]))
+        finally:
+            proc.terminate()
+
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    write_settings_file(workdir, {"theme": "system", "accent.source": "#c00040"})
+    proc, url, lines = start_theme_daemon(workdir)
+    try:
+        _, body = theme_get(url)
+        css = style_css(body)
+        if "prefers-color-scheme:dark" not in css:
+            fail("system mode does not carry the dark-mode media branch")
+    finally:
+        proc.terminate()
+
+
+def test_default_adapter_structure_and_alternate_adapter():
+    """Test 5: the default adapter emits one h1, landmarks, native
+    controls, visible-focus hooks, a persistent polite status region, and
+    intact fallback content; a dummy alternate adapter receives the same
+    behavior-free view data without any scorer/session/path object.
+    """
+    sys.path.insert(0, ROOT)
+    from surfaces import presentation
+    view = {
+        "title": "Synthetic step",
+        "back": {"href": "/", "label": "itembank"},
+        "context": ["Alpha bank", "Item 1 of 2"],
+        "step": {"label": "Read and answer", "prompt": "Choose one.",
+                 "body": "Body prose here.",
+                 "status": "Ready.",
+                 "action": {"label": "Submit answer", "href": "/next"},
+                 "details": [{"summary": "More details", "body": "Detail body"}]},
+        "state": {"kind": "ok", "status": "Recorded."},
+    }
+    html = presentation.render_surface(view)
+    dom = Dom(html)
+    assert_single_h1(dom)
+    assert_landmark(dom, "main")
+    assert_status_region(dom)
+    assert_native_controls(dom, minimum=3)
+    assert_heading_order(dom)
+    if not dom.find("nav", **{"data-surface-context": None}):
+        fail("default adapter emits no data-surface-context nav")
+    css = style_css(html)
+    if not focus_visible_rules(css):
+        fail("default adapter CSS carries no visible-focus hooks")
+    if reduced_motion_block(css) is None:
+        fail("default adapter CSS carries no reduced-motion block")
+    for needle in ("Body prose here.", "Detail body", "Submit answer",
+                   "Recorded."):
+        if needle not in html:
+            fail("default adapter dropped fallback content %r" % needle)
+
+    received = {}
+
+    def alt(view_data):
+        received["view"] = view_data
+        return "<main>alternate</main>"
+
+    out = presentation.render_surface(view, adapter=alt)
+    if out != "<main>alternate</main>":
+        fail("an alternate adapter's output was not honored: %r" % out)
+    if received.get("view") is not view:
+        fail("the alternate adapter did not receive the same view data")
+    for banned in ("score", "key", "session_id", "path", "writer"):
+        if banned in json.dumps(view):
+            fail("view data carries a behavior object field: %r" % banned)
+
+
+def test_index_and_report_state_copy():
+    """Test 6: index distinguishes no configured banks/plans; report renders
+    the exact empty and partial-review copy with plain labels, tabular
+    numbers, and visible evidence/provenance.
+    """
+    workdir = tempfile.mkdtemp()
+    proc, url, lines = start_theme_daemon(workdir)
+    try:
+        status, body = theme_get(url)
+        if status != 200:
+            fail("empty index returned %d" % status)
+        if "Nothing to serve here yet" not in body:
+            fail("empty index lost its documented empty-state heading")
+    finally:
+        proc.terminate()
+
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_theme_daemon(workdir)
+    try:
+        started = theme_json_post(url + "api/start",
+                                  {"bank": "sample_bank", "count": 1, "seed": 8})
+        if started[0] != 200:
+            fail("api/start for the report states failed: %r" % started)
+        session_id = started[1]["session_id"]
+        status, body = theme_get(url + "report?session=%s" % session_id)
+        if "Nothing has been answered yet." not in body:
+            fail("empty report does not render the exact empty copy")
+        if "<table" in body:
+            fail("empty report renders an objective table")
+        resp = theme_json_post(url + "api/submit",
+                               {"session_id": session_id, "answer": "prose"})
+        if resp[0] != 200:
+            fail("short-answer submit for the partial report failed: %r" % resp)
+        status, body = theme_get(url + "report?session=%s" % session_id)
+        if "Some responses still need review. Auto-graded totals exclude them." not in body:
+            fail("partial report is missing the exact partial-review copy")
+        if 'data-field="pending_manual"' not in body:
+            fail("partial report lost the pending-manual tabular figure")
+        if 'data-field="pct"' not in body:
+            fail("populated report lost its plain tabular headline")
+        if "data-provenance" not in body:
+            fail("populated report has no visible evidence/provenance marker")
+    finally:
+        proc.terminate()
+
+
+def test_lesson_compatible_prose_view():
+    """Test 7: a synthetic lesson-compatible prose view uses the same 720px
+    shell, heading/link/code/table overflow rules and disclosures without
+    adding lesson parsing, media, subject rendering, or Phase 3 behavior.
+    """
+    sys.path.insert(0, ROOT)
+    from surfaces import presentation
+    lesson = lesson_view_fixture()
+    html = presentation.render_surface({
+        "title": lesson["title"],
+        "back": {"href": "/", "label": "itembank"},
+        "step": {"label": lesson["title"], "body": lesson["body"],
+                 "action": {"label": "Start studying questions",
+                            "href": "/quiz/sample_bank"},
+                 "details": [{"summary": lesson["headings"][0]["text"],
+                              "body": "Heading prose"}]},
+    })
+    css = style_css(html)
+    if not re.search(r"\.surface\{[^}]*max-width:720px", css):
+        fail("lesson-compatible shell does not use the 720px measure")
+    if "overflow-wrap:anywhere" not in css:
+        fail("lesson-compatible shell has no long-content overflow protection")
+    if "overflow-x:auto" not in css:
+        fail("lesson-compatible shell has no code/table overflow rules")
+    if "<details" not in html:
+        fail("lesson-compatible view has no native disclosure")
+    for banned in ("<canvas", "<video", "<audio", "parse_lesson",
+                   "lesson_parser"):
+        if banned in html:
+            fail("lesson-compatible adapter added %r behavior" % banned)
+
+
+def test_responsive_zoom_and_noscript_fallback():
+    """Test 8: the shell, settings preview, report table wrapper, context
+    line, and recovery panels stay usable at 320px/200% zoom without
+    page-level horizontal scroll; reduced-motion and no-script cases retain
+    the semantic fallback.
+    """
+    sys.path.insert(0, ROOT)
+    from surfaces import presentation
+    html = presentation.render_surface({
+        "title": "Responsive",
+        "back": {"href": "/", "label": "itembank"},
+        "context": ["A very long context line value that must wrap",
+                    "Item 12 of 120"],
+        "step": {"label": "Prompt", "body": "Body", "status": "Ready",
+                 "action": {"label": "Go", "href": "/go"}},
+        "state": {"kind": "bad",
+                  "status": "Couldn't check that answer. Your selection is still here."},
+        "noscript": ("This page uses JavaScript only for enhanced "
+                     "interaction; the served content remains available."),
+    })
+    css = style_css(html)
+    if "@media (max-width:767px)" not in css:
+        fail("no narrow-width breakpoint for 320px usability")
+    if "min-width:0" not in css:
+        fail("no overflow-safe layout rule for 320px/200% zoom")
+    if reduced_motion_block(css) is None:
+        fail("no reduced-motion fallback")
+    if "<noscript>" not in html:
+        fail("no no-script semantic fallback")
+    if "Couldn't check that answer. Your selection is still here." not in html:
+        fail("recovery panel copy was dropped")
+
+
+def test_teaching_step_primary_action_contract():
+    """Test 9: synthetic quiz/study/lesson views express a concise
+    step/prompt, immediate status slot, optional progressive details, and
+    exactly one primary next action; secondary actions cannot acquire the
+    primary marker and the adapter adds no sequencing/pedagogy behavior.
+    """
+    sys.path.insert(0, ROOT)
+    from surfaces import presentation
+    html = presentation.render_surface({
+        "title": "Step",
+        "step": {"label": "A concise step", "prompt": "Choose one.",
+                 "body": "Body.", "status": "Ready.",
+                 "action": {"label": "Primary", "href": "/go"},
+                 "secondary": [{"label": "Secondary one", "href": "/s1"},
+                               {"label": "Secondary two"}]},
+    })
+    if html.count("data-action-primary") != 1:
+        fail("teaching_step renders %d primary markers, expected exactly one"
+             % html.count("data-action-primary"))
+    if html.count("data-action-secondary") != 2:
+        fail("teaching_step renders %d secondary markers, expected 2"
+             % html.count("data-action-secondary"))
+    if "role=\"status\"" not in html:
+        fail("teaching_step has no immediate status slot")
+    if "<script" in html:
+        fail("the adapter generated sequencing/pedagogy script")
+    m = re.search(r'<a[^>]*data-action-primary[^>]*>(.*?)</a>', html, re.S)
+    if not m or "Primary" not in m.group(1):
+        fail("the primary marker is attached to the wrong action")
+    for sec in re.findall(r'<a[^>]*data-action-secondary[^>]*>(.*?)</a>',
+                          html, re.S):
+        if "Primary" in sec:
+            fail("a secondary action acquired the primary marker")
+    if "Choose one." not in html:
+        fail("the concise prompt was dropped")
+
+
 # ---- self-checks ------------------------------------------------------------
 
 def check_parser_and_assertions():
@@ -343,10 +778,20 @@ def main():
     check_css_hooks()
     check_fixtures()
     check_adapter_probe()
+    test_shared_accent_tokens_across_routes()
+    test_reload_after_save_updates_tokens()
+    test_static_build_uses_settings_beside_bank()
+    test_forced_modes_preserve_semantic_tokens()
+    test_default_adapter_structure_and_alternate_adapter()
+    test_index_and_report_state_copy()
+    test_lesson_compatible_prose_view()
+    test_responsive_zoom_and_noscript_fallback()
+    test_teaching_step_primary_action_contract()
     print("ok: presentation Wave 0 harness -- semantic DOM parser, landmark/"
           "heading/status/native-control/focus/reduced-motion assertions, "
-          "long-content/320px/state fixtures, behavior-free adapter probes "
-          "and lesson-compatible synthetic data all self-check green")
+          "long-content/320px/state fixtures, behavior-free adapter probes, "
+          "lesson-compatible synthetic data, and the plan 04-04 shared "
+          "palette/adapter contract all self-check green")
     return 0
 
 
