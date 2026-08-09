@@ -29,7 +29,7 @@
 - [x] **LESSON-01**: A bank can carry an optional `LESSON` section holding the teaching text its items test
 - [ ] **LESSON-02**: An item can reference a lesson heading via `LESSON-REF`
 - [ ] **LESSON-03**: A bank with no `LESSON` section parses byte-identically to how it parses today
-- [ ] **LESSON-04**: `lint` fails, by item number, when a `LESSON-REF` names a heading that does not exist -- never a render-time crash
+- [x] **LESSON-04**: `lint` fails, by item number, when a `LESSON-REF` names a heading that does not exist -- never a render-time crash
 - [ ] **LESSON-05**: `spec` documents both, so an authoring agent can write lessons without seeing the source
 - [ ] **LESSON-06**: A lesson renders in the app as reading material, with its items reachable from it
 
@@ -224,7 +224,7 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | LESSON-01 | Phase 3 | Complete |
 | LESSON-02 | Phase 3 | Pending |
 | LESSON-03 | Phase 3 | Pending |
-| LESSON-04 | Phase 3 | Pending |
+| LESSON-04 | Phase 3 | Complete |
 | LESSON-05 | Phase 3 | Pending |
 | LESSON-06 | Phase 3 | Pending |
 | TEACH-01 | Phase 6 | Pending |

@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 03
 current_phase_name: Lesson Format & In-App Reader
 status: executing
-stopped_at: Completed 03-02-PLAN.md
-last_updated: "2026-08-09T01:02:22.579Z"
+stopped_at: Completed 03-03-PLAN.md
+last_updated: "2026-08-09T01:27:27.177Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 02.1 execution started
 progress:
   total_phases: 13
   completed_phases: 3
   total_plans: 79
-  completed_plans: 28
+  completed_plans: 29
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 ## Current Position
 
 Phase: 03 (Lesson Format & In-App Reader) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-08-08 — Phase 03 execution started
 
-Progress: [████░░░░░░] 35%
+Progress: [████░░░░░░] 37%
 
 ## Performance Metrics
 
@@ -86,6 +86,7 @@ Progress: [████░░░░░░] 35%
 | Phase 02.1 P08 | ~15min | 2 tasks | 2 files |
 | Phase 02.1 P09 | ~25min | 3 tasks | 6 files |
 | Phase 03 P03-02 | 313 | 2 tasks | 5 files |
+| Phase 03 P03 | 17min | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -161,6 +162,11 @@ Recent decisions affecting current work:
 - [Phase 03]: 03-02: an external [LESSON-SRC:] source wins over an inline ## LESSON section when a bank carries both; the precedence is documented in parse_lesson()'s docstring.
 - [Phase 03]: 03-02: the degraded lesson page echoes the bank-author-written directive path (grabbed from the bank text), never the resolved absolute path or the raw OS error text (T-3-07); the reason detail stays with itembank lint because the reader is not a diagnostic surface.
 - [Phase 03]: 03-02: warn CSS is template-substituted (__WARN_CSS__) into the lesson page only for the degraded branch, so the plain empty state carries no var(--warn) styling and the two states stay visually distinguishable.
+- [Phase ?]: [Phase 3] 03-03: lint(questions, lesson=LESSON_UNCHECKED) uses a sentinel default so 'no lesson data supplied' (skip every lesson check, pre-03-03 callers byte-identical) stays distinct from 'lesson data supplied and there is no ## LESSON section' (every LESSON-REF is unknown, never a skip)
+- [Phase ?]: [Phase 3] 03-03: all four lesson lint messages reproduce 03-UI-SPEC.md's Copywriting Contract verbatim (item.lesson_ref_unknown by Qn, lesson.duplicate_heading naming both headings and the slug, lesson.orphan_heading, lesson.src_unreadable), so CI substring greps and authoring agents read the same strings
+- [Phase ?]: [Phase 3] 03-03: lesson.src_unreadable echoes the bank-author-written basename, never a resolved absolute path (T-3-09), while the raw OS-error detail stays as the reason -- lint is the diagnostic surface the 03-02 reader defers the detail to
+- [Phase ?]: [Phase 3] 03-03: lesson.duplicate_heading is the first BANK-tagged error; bank-level findings trail per-item findings like bank.answer_position_skew, and tests/evidence_roundtrip.py's ordering assertion was extended to admit BANK errors last
+- [Phase ?]: [Phase 3] 03-03: accepted lint namespace prefixes live in tests/protocol_roundtrip.py's LINT_PREFIXES and are read (never restated) by the coupling tests, so the tuple, the schema enum and the accepted prefixes cannot drift apart
 
 ### Pending Todos
 
@@ -199,6 +205,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-09T01:02:22.542Z
-Stopped at: Completed 03-02-PLAN.md
+Last session: 2026-08-09T01:27:27.151Z
+Stopped at: Completed 03-03-PLAN.md
 Resume file: None
