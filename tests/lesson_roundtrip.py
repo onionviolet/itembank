@@ -436,6 +436,62 @@ def test_lesson_src_stays_out_of_lint_namespace():
 
 # ---- subprocess: daemon routes and the CLI twin ----------------------------
 
+def test_lesson_src_degraded_daemon_and_cli():
+    """A bank whose `[LESSON-SRC:]` cannot be read serves a 200 degraded
+    page on the daemon route and the byte-identical page from `itembank
+    lesson`, both printing/rendering the empty state plus the locked warning
+    note -- one degraded-state policy, and never an exception (T-3-04)."""
+    tmp = tempfile.mkdtemp()
+    bank = broken_directive_bank(tmp)
+    proc, url, _ = start_daemon(tmp)
+    try:
+        status, body = get(url + "/lesson/broken_bank")
+    finally:
+        proc.kill()
+        proc.wait()
+    if status != 200:
+        fail("a broken LESSON-SRC must serve 200, got %d" % status)
+    for want in ("No lesson yet",
+                 "var(--warn)",
+                 "The external lesson file for this bank could not be read."):
+        if want not in body:
+            fail("degraded page missing %r" % want)
+    if "<code>nope.md</code>" not in body:
+        fail("degraded page must show the unreadable source path in a code "
+             "element: %s" % body[body.find("warn"):body.find("warn") + 300])
+    for leak in ("CORRECT:", "WHY BEST", "Up is up."):
+        if leak in body:
+            fail("degraded page leaks answer-key material: %r" % leak)
+    if "white-space:nowrap" in body or "text-overflow" in body:
+        fail("degraded page must not force no-wrap or ellipsis truncation")
+    if "overflow-wrap" not in body:
+        fail("the wrapping code element needs an overflow-wrap rule")
+
+    cli_out = os.path.join(tmp, "broken.html")
+    res = subprocess.run(
+        [sys.executable, os.path.join(ROOT, "itembank.py"), "lesson", bank,
+         "--out", cli_out],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
+    if res.returncode != 0:
+        fail("itembank lesson on a broken directive failed: " + res.stdout)
+    if not re.search(r"0 lesson section\(s\) -> ", res.stdout):
+        fail("CLI must print 0 sections for the degraded state: %r" % res.stdout)
+    cli_page = open(cli_out, encoding="utf-8").read()
+    if cli_page != body:
+        fail("CLI twin and daemon route disagree on the degraded state")
+
+
+def test_lesson_plain_empty_state_has_no_warning():
+    pg = lesson.lesson_page(SMP_BANK, itembank.load(SMP_BANK),
+                            itembank.parse_lesson(SMP_BANK))
+    if "No lesson yet" not in pg:
+        fail("plain empty state missing heading")
+    if "var(--warn)" in pg:
+        fail("plain empty state must not carry the warning note")
+    if "white-space:nowrap" in pg or "text-overflow" in pg:
+        fail("plain empty state must not force no-wrap or ellipsis truncation")
+
+
 def test_routes_and_cli_twin():
     tmp = tempfile.mkdtemp()
     shutil.copy(LES_BANK, tmp)
@@ -552,6 +608,8 @@ test_lesson_src_subdirectory_accepted()
 test_lesson_src_prefix_sibling_refused()
 test_lesson_src_wins_over_inline()
 test_lesson_src_stays_out_of_lint_namespace()
+test_lesson_src_degraded_daemon_and_cli()
+test_lesson_plain_empty_state_has_no_warning()
 test_routes_and_cli_twin()
 test_page_for_shapes_and_build()
-print("ok: lesson roundtrip (slug, parse, fingerprint, LESSON-SRC, route, CLI twin, both link directions)")
+print("ok: lesson roundtrip (slug, parse, fingerprint, LESSON-SRC, degraded state, route, CLI twin, both link directions)")

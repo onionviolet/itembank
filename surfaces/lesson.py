@@ -17,9 +17,23 @@ SUB_BYLINE = ("Reading material for this bank. Following a link below opens "
 EMPTY_HEADING = "No lesson yet"
 EMPTY_BODY = ("This bank has no ## LESSON section. Add one above the first "
               "Qn. line \u2014 see itembank spec for the LESSON/LESSON-REF grammar.")
+WARN_SENTENCE = ("The external lesson file for this bank could not be read. "
+                 "Run itembank lint %s for details.")
 ORPHAN_COPY = "No items reference this section yet."
 BACKLINKS_LABEL = "Items testing this"
 CHIP_LABEL = "Read the lesson"
+
+# Only the degraded state carries the warn note, so its style is substituted
+# in (like __THEME__) rather than shipped on every page -- a bank with no
+# lesson and a bank whose lesson source broke must be visually
+# distinguishable, and the plain empty state must contain no --warn styling
+# at all. `overflow-wrap`/`word-break` make a long [LESSON-SRC:] path wrap
+# inside the card; there is deliberately no nowrap and no ellipsis
+# truncation on the code element.
+WARN_CSS = """.warn{color:var(--warn);font-size:14px;margin:14px auto 0;max-width:520px;
+  text-align:center}
+.warn code{overflow-wrap:anywhere;word-break:break-all}
+"""
 
 
 LESSON_TEMPLATE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -48,6 +62,7 @@ p{margin:0 0 10px}
 .empty{text-align:center;padding:36px 10px}
 .empty h2{font-size:19px;margin:0 0 8px}
 .empty p{color:var(--mut);max-width:520px;margin:0 auto}
+__WARN_CSS__
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head><body><div class="wrap">
 <header>
@@ -126,13 +141,29 @@ def lesson_page(bank_path, qs, lesson, ref=None):
     `ref` is accepted and ignored in this plan; plan 03-05 gives it meaning.
     A bank with no lesson section, or one whose section holds zero headings,
     renders the shared `No lesson yet` empty state -- never a crash and never
-    an empty card under a title.
+    an empty card under a title. A lesson result carrying a non-empty error
+    key (an unreadable or out-of-tree `[LESSON-SRC:]`) renders that same
+    empty-state layout plus one `var(--warn)` note naming the offending
+    source path in a wrapping code element: the degraded state, in the
+    warning tone rather than the error tone, and never an exception
+    (T-3-04). The only interpolated value in that note is the
+    bank-author-written directive path, HTML-escaped like every other text
+    run (T-3-07); the reason detail stays with `itembank lint`, because the
+    reader is not a diagnostic surface.
     """
-    title = (grab(r"(?m)^#\s+(.*?)\s*$", open(bank_path, encoding="utf-8").read())
+    bank_text = open(bank_path, encoding="utf-8").read()
+    title = (grab(r"(?m)^#\s+(.*?)\s*$", bank_text)
              or os.path.basename(bank_path))
+    warn_css = ""
     if lesson is None or not lesson.get("headings"):
         body = '<div class="empty"><h2>%s</h2><p>%s</p></div>' % (
             html.escape(EMPTY_HEADING), html.escape(EMPTY_BODY))
+        if lesson is not None and lesson.get("error"):
+            src = grab(r"(?m)^\[LESSON-SRC:\s*(.*?)\s*\]", bank_text)
+            warn_css = WARN_CSS
+            body += ('<p class="warn">%s <code>%s</code></p>' % (
+                html.escape(WARN_SENTENCE % os.path.basename(bank_path)),
+                html.escape(src)))
     else:
         stem = os.path.splitext(os.path.basename(bank_path))[0]
         rendered = render_markdown(lesson["body"])
@@ -149,6 +180,7 @@ def lesson_page(bank_path, qs, lesson, ref=None):
         body = "\n".join(body_parts)
     return (LESSON_TEMPLATE
             .replace("__THEME__", THEME_CSS)
+            .replace("__WARN_CSS__", warn_css)
             .replace("__TITLE__", html.escape(title) + " lesson")
             .replace("__SUB__", SUB_BYLINE)
             .replace("__BODY__", body))
