@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 03
 current_phase_name: Lesson Format & In-App Reader
 status: executing
-stopped_at: Phases 6.1, 8, 9, 10, 11 UI-SPECs approved
-last_updated: "2026-08-09T00:20:10.139Z"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-08-09T01:02:22.579Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 02.1 execution started
 progress:
   total_phases: 13
   completed_phases: 3
   total_plans: 79
-  completed_plans: 26
+  completed_plans: 28
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 ## Current Position
 
 Phase: 03 (Lesson Format & In-App Reader) — EXECUTING
-Plan: 1 of 6
-Status: Executing Phase 03
+Plan: 2 of 6
+Status: Ready to execute
 Last activity: 2026-08-08 — Phase 03 execution started
 
-Progress: [██████░░░░] 63%
+Progress: [████░░░░░░] 35%
 
 ## Performance Metrics
 
@@ -85,6 +85,7 @@ Progress: [██████░░░░] 63%
 | Phase 02.1 P07 | 20min | 3 tasks | 5 files |
 | Phase 02.1 P08 | ~15min | 2 tasks | 2 files |
 | Phase 02.1 P09 | ~25min | 3 tasks | 6 files |
+| Phase 03 P03-02 | 313 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -157,6 +158,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 02.1] 02.1-09: status['reached'] on check_latest is the throttle's reachability distinction -- rate-limited (any error status) counts as reached because GitHub charges the 60-per-hour budget for a request that arrived; offline/DNS/timeout does not, so a machine that comes back online checks at its next launch instead of waiting out an interval no request earned
 - [Phase ?]: [Phase 02.1] 02.1-09: the disclosure gate writes notified_at alone (never checked_at), so the next launch finds consent satisfied and the clock unstarted and checks immediately rather than a full interval later -- disclosure costs one launch, not one interval; the gate sits after the policy gate so a directory with no itembank.json (opt_in from the schema default) prints nothing and asks nothing
 - [Phase ?]: [Phase 02.1] 02.1-09: D-13 stands unrevised and is now documented in three places -- the schema's update_policy description, README's Install section, and CLAUDE.md's Constraints list -- stating the default is opt_in, that this repo's own itembank.json intentionally sets check_on_launch to dogfood the updater, and that the two values are meant to differ; the verifier's alternative (raising the schema default) would make every fresh install phone home by default and was rejected
+- [Phase 03]: 03-02: an external [LESSON-SRC:] source wins over an inline ## LESSON section when a bank carries both; the precedence is documented in parse_lesson()'s docstring.
+- [Phase 03]: 03-02: the degraded lesson page echoes the bank-author-written directive path (grabbed from the bank text), never the resolved absolute path or the raw OS error text (T-3-07); the reason detail stays with itembank lint because the reader is not a diagnostic surface.
+- [Phase 03]: 03-02: warn CSS is template-substituted (__WARN_CSS__) into the lesson page only for the degraded branch, so the plain empty state carries no var(--warn) styling and the two states stay visually distinguishable.
 
 ### Pending Todos
 
@@ -195,6 +199,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-08T22:42:54.733Z
-Stopped at: Phases 6.1, 8, 9, 10, 11 UI-SPECs approved
-Resume file: .planning/phases/06.1-interactive-visual-assessment-protocol/06.1-UI-SPEC.md
+Last session: 2026-08-09T01:02:22.542Z
+Stopped at: Completed 03-02-PLAN.md
+Resume file: None

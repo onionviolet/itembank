@@ -26,7 +26,7 @@
 
 ### Lessons
 
-- [ ] **LESSON-01**: A bank can carry an optional `LESSON` section holding the teaching text its items test
+- [x] **LESSON-01**: A bank can carry an optional `LESSON` section holding the teaching text its items test
 - [ ] **LESSON-02**: An item can reference a lesson heading via `LESSON-REF`
 - [ ] **LESSON-03**: A bank with no `LESSON` section parses byte-identically to how it parses today
 - [ ] **LESSON-04**: `lint` warns when a `LESSON-REF` names a heading that does not exist
@@ -221,7 +221,7 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | PROTO-03 | Phase 1 | Complete |
 | PROTO-04 | Phase 1 | Complete |
 | PROTO-05 | Phase 1 | Complete |
-| LESSON-01 | Phase 3 | Pending |
+| LESSON-01 | Phase 3 | Complete |
 | LESSON-02 | Phase 3 | Pending |
 | LESSON-03 | Phase 3 | Pending |
 | LESSON-04 | Phase 3 | Pending |
