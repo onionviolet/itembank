@@ -58,6 +58,15 @@ p{margin:0 0 10px}
 .bl a{display:block;color:var(--accent);text-decoration:none;margin:4px 0}
 .bl a:hover,.bl a:focus-visible{text-decoration:underline;
   outline:2px solid var(--accent);outline-offset:2px}
+.scroll{overflow-x:auto;margin:0 0 10px}
+pre{margin:0;background:var(--chip);border-radius:8px;padding:10px 12px}
+pre code{display:block;font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  font-size:13.5px;line-height:1.5;color:var(--ink)}
+.lang{display:block;font-size:11px;letter-spacing:.05em;color:var(--mut);
+  margin-bottom:6px;font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace}
+table{border-collapse:collapse;margin:0 0 10px;min-width:100%}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;font-size:14.5px}
+th{background:var(--chip);color:var(--mut);font-weight:700}
 .orphan{color:var(--mut);font-size:14px}
 .empty{text-align:center;padding:36px 10px}
 .empty h2{font-size:19px;margin:0 0 8px}
@@ -73,27 +82,196 @@ __WARN_CSS__
 </div></body></html>"""
 
 
-def _paragraphs(text):
-    return [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
-
-
 def _truncate(text, limit):
     if len(text) <= limit:
         return text
     return text[:limit] + "\u2026"
 
 
-def render_markdown(text):
-    """A deliberately small stdlib block renderer for lesson prose.
+_TOKEN_RE = re.compile(r"^\x00K(\d+)\x00$")
+_FENCE_RE = re.compile(r"^(`{3,})\s*(.*?)\s*$")
 
-    In this plan it handles exactly two block kinds: a `###` heading line and
-    a blank-line-separated paragraph. Every literal text run goes through
+
+def _code_block(info, content):
+    """The one markup shape Phase 9 attaches to (D-08): a preformatted
+    element wrapping a code element whose class names the info string.
+    The class is sanitised with the same restricted character set
+    `lesson_slug` uses, so a hostile info string cannot close the class
+    attribute or introduce a second one (T-3-10); the content is the
+    block's source, HTML-escaped and otherwise untouched -- no re-indent,
+    no syntax highlighting. A visible label in the muted foreground names
+    the language; there is no KaTeX, no run button and no copy button --
+    this plan cuts the seam and leaves it inert.
+    """
+    lang = lesson_slug(info)
+    esc = html.escape(content)
+    code = ('<code class="language-%s">%s</code>' % (lang, esc)
+            if lang else "<code>%s</code>" % esc)
+    label = '<span class="lang">%s</span>' % html.escape(lang) if lang else ""
+    return '<div class="scroll">%s<pre>%s</pre></div>' % (label, code)
+
+
+def _protect_code(text):
+    """Lift every fenced block out of a section's text before any inline
+    pass, replacing each with an opaque placeholder line that no inline
+    pattern can match. Returns `(protected_text, tokens)` with the rendered
+    code fragments in order.
+
+    This ordering is the whole design: a single interleaved pass would let
+    an emphasis or link pattern reach inside a fenced block and silently
+    mangle exactly the content Phase 9 depends on being verbatim, and the
+    damage would be invisible until someone read the rendered code closely.
+    An unterminated fence treats the rest of the section as the block's
+    content -- the forgiving reading that keeps the document readable
+    (T-3-04).
+    """
+    lines = text.split("\n")
+    out, tokens = [], []
+    i = 0
+    while i < len(lines):
+        m = _FENCE_RE.match(lines[i])
+        if m:
+            fence = m.group(1)
+            info = m.group(2).strip()
+            closer = re.compile(r"^`{%d,}\s*$" % len(fence))
+            j = i + 1
+            body = []
+            while j < len(lines) and not closer.match(lines[j]):
+                body.append(lines[j])
+                j += 1
+            if j < len(lines):
+                j += 1  # skip the closing fence line
+            tokens.append(_code_block(info, "\n".join(body)))
+            out.append("\x00K%d\x00" % (len(tokens) - 1))
+            i = j
+        else:
+            out.append(lines[i])
+            i += 1
+    return "\n".join(out), tokens
+
+
+def _split_cells(row):
+    row = row.strip()
+    if row.startswith("|"):
+        row = row[1:]
+    if row.endswith("|"):
+        row = row[:-1]
+    return [c.strip() for c in row.split("|")]
+
+
+def _is_separator_row(row):
+    return all(re.match(r"^:?-+:?$", c) for c in _split_cells(row))
+
+
+def _table_html(rows):
+    """A pipe run whose second line is a separator row of dashes becomes a
+    table with the first line as the header; anything that does not fit
+    that shape -- a lone pipe line, a missing separator, a row with a
+    different cell count -- returns None so the caller falls back to a
+    paragraph rather than raising or emitting a broken table (T-3-04).
+    Alignment markers are not implemented; D-08 declines that edge case.
+    """
+    if len(rows) < 2 or not _is_separator_row(rows[1]):
+        return None
+    header = _split_cells(rows[0])
+    body = [_split_cells(r) for r in rows[2:]]
+    if any(len(r) != len(header) for r in body):
+        return None
+    head = "".join("<th>%s</th>" % _inline(c) for c in header)
+    rows_html = "".join(
+        "<tr>%s</tr>" % "".join("<td>%s</td>" % _inline(c) for c in r)
+        for r in body)
+    return ('<div class="scroll"><table><thead><tr>%s</tr></thead>'
+            "<tbody>%s</tbody></table></div>" % (head, rows_html))
+
+
+def _inline(text):
+    """Escape one literal text run after block structure is resolved.
+    Plan 03-04 Task 2 widens this to emphasis, inline code and links,
+    always on placeholder-protected, already-escaped text.
+    """
+    return html.escape(text)
+
+
+def _render_blocks(text):
+    """The D-08 block classifier for one section: fenced placeholders,
+    deeper heading levels, one level of list, pipe tables, then
+    paragraphs. Structure is resolved first and every literal text run is
+    escaped second -- never the raw source wholesale, which would also
+    escape the markup the renderer itself emits.
+    """
+    protected, tokens = _protect_code(text)
+    out = []
+    lines = protected.split("\n")
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if not line.strip():
+            i += 1
+            continue
+        tm = _TOKEN_RE.match(line)
+        if tm:
+            out.append(tokens[int(tm.group(1))])
+            i += 1
+            continue
+        hm = re.match(r"^#{4,}\s+(.+?)\s*$", line)
+        if hm:
+            # The grammar defines exactly two heading levels; any deeper
+            # heading renders at the same Display size, with no third size.
+            out.append("<h2>%s</h2>" % _inline(hm.group(1)))
+            i += 1
+            continue
+        if re.match(r"^-\s+", line):
+            items = []
+            while i < len(lines) and re.match(r"^-\s+", lines[i]):
+                items.append(_inline(re.sub(r"^-\s+", "", lines[i])))
+                i += 1
+            out.append("<ul>%s</ul>"
+                       % "".join("<li>%s</li>" % it for it in items))
+            continue
+        if re.match(r"^\d+\.\s+", line):
+            items = []
+            while i < len(lines) and re.match(r"^\d+\.\s+", lines[i]):
+                items.append(_inline(re.sub(r"^\d+\.\s+", "", lines[i])))
+                i += 1
+            out.append("<ol>%s</ol>"
+                       % "".join("<li>%s</li>" % it for it in items))
+            continue
+        if "|" in line:
+            j = i
+            rows = []
+            while j < len(lines) and "|" in lines[j]:
+                rows.append(lines[j])
+                j += 1
+            table = _table_html(rows)
+            if table is not None:
+                out.append(table)
+                i = j
+                continue
+        buf = [line]
+        i += 1
+        while i < len(lines) and lines[i].strip():
+            nxt = lines[i]
+            if (re.match(r"^#{4,}\s", nxt) or re.match(r"^-\s+", nxt)
+                    or re.match(r"^\d+\.\s+", nxt) or _TOKEN_RE.match(nxt)
+                    or "|" in nxt):
+                break
+            buf.append(nxt)
+            i += 1
+        out.append("<p>%s</p>" % _inline("\n".join(buf)))
+    return "\n".join(out)
+
+
+def render_markdown(text):
+    """A deliberately small stdlib block renderer for lesson prose, covering
+    exactly D-08's declared scope: headings, paragraphs, lists, tables,
+    inline code, fenced code, bold/italic and links -- nothing else, and no
+    attempt at CommonMark completeness. Every literal text run goes through
     `html.escape` after block structure is resolved and before interpolation,
     matching the discipline `quiz_page.py` and `daemon.py` already apply to
     bank content -- a stray angle bracket in lesson prose must not break the
-    page. The function is structured as a block classifier with escaping done
-    second, so plan 03-04 can add list, table, fenced-code and inline handling
-    by extending the classifier rather than rewriting the function.
+    page. Fenced blocks are extracted to placeholders before the inline pass
+    so code content is never re-scanned.
     """
     out = []
     for block in re.split(r"(?m)(?=^###\s)", text):
@@ -104,12 +282,11 @@ def render_markdown(text):
         m = re.match(r"^###\s+(.+?)\s*$", lines[0])
         if m:
             heading = m.group(1).strip()
-            prose = "".join("<p>%s</p>" % html.escape(p)
-                            for p in _paragraphs("\n".join(lines[1:])))
+            prose = _render_blocks("\n".join(lines[1:]))
             out.append('<section id="%s"><h2>%s</h2>%s</section>'
                        % (lesson_slug(heading), html.escape(heading), prose))
         else:
-            out.extend("<p>%s</p>" % html.escape(p) for p in _paragraphs(block))
+            out.append(_render_blocks(block))
     return "\n".join(out)
 
 
