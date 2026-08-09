@@ -843,6 +843,221 @@ def check_task2_tight_window_recheck():
             fail("race-window conflict left a temporary file")
 
 
+# ---- plan 04-06 Task 1: browser editor boot state, apply_day_edit, palette --
+
+def page_boot_data(page):
+    """Parse the `window.__day__` JSON embedded in one rendered day page."""
+    m = re.search(r"window\.__day__=(\{.*?\});\n", page, re.S)
+    if not m:
+        return None
+    return json.loads(m.group(1))
+
+
+def page_style_css(page):
+    """The concatenated `<style>` blocks of one rendered page."""
+    return "".join(re.findall(r"<style>(.*?)</style>", page, re.S))
+
+
+def check_edit_snapshot_and_form():
+    """Test 1 + Test 2 (page side) + Test 8 (structure): GET /day/<stem>
+    embeds a snapshot with the revision, the actual parsed editable column
+    labels and cell values, and no filesystem path in browser data; the page
+    renders an explicit Edit plan control and a semantic form/table with one
+    labeled single-line control per editable cell -- never a raw Markdown
+    textarea, a path input, or a new-column input -- while keeping the day
+    cockpit's date/status/lane/streak/task/evidence content.
+    """
+    import shutil
+    from surfaces import settings as settings_mod
+    from surfaces.theme import theme_css
+    from surfaces.day import day_state, day_render
+    tmp = tempfile.mkdtemp()
+    try:
+        path = write_plan(tmp, [HEADER, row_for()], "plan.md")
+        settings_mod.write_settings(tmp, {"accent": {"source": "#c00040"}})
+        iso = "2026-01-07"
+        state = day_state(path, os.path.join(tmp, "daily_log.md"),
+                          os.path.join(tmp, "lanes.md"), iso)
+        page = day_render(state).decode("utf-8")
+        boot = page_boot_data(page)
+        if boot is None:
+            fail("day page does not embed a window.__day__ boot object")
+        snap = boot.get("snapshot")
+        if not isinstance(snap, dict):
+            fail("day boot data has no snapshot member")
+        if snap.get("status") != "ready":
+            fail("day boot snapshot status %r, want ready" % snap.get("status"))
+        if not re.fullmatch(r"[0-9a-f]{64}", snap.get("revision", "")):
+            fail("day boot snapshot revision %r is not a 64-hex SHA-256"
+                 % snap.get("revision"))
+        if snap.get("columns") != list(HEADER):
+            fail("day boot snapshot columns %r, want %r"
+                 % (snap.get("columns"), list(HEADER)))
+        cells = snap.get("cells", {})
+        if cells.get("EMT (top priority)") != "ch 2 finish":
+            fail("day boot snapshot EMT cell %r" % cells.get("EMT (top priority)"))
+        if cells.get("Math, ~25 min") != "Ch 1 finish":
+            fail("day boot snapshot Math cell %r" % cells.get("Math, ~25 min"))
+        if "Date" in cells:
+            fail("day boot snapshot makes the date column editable")
+        boot_text = json.dumps(boot, ensure_ascii=False)
+        if tmp in boot_text or "plan.md" in boot_text:
+            fail("day boot data leaks a filesystem path")
+        if "Edit plan" not in page:
+            fail("day page has no explicit Edit plan control")
+        if "Save changes" not in page:
+            fail("day editor has no Save changes control")
+        if "Plan version" not in page:
+            fail("day editor does not display the loaded revision")
+        if "<textarea" in page:
+            fail("day editor exposes a raw Markdown textarea")
+        for banned in ('name="path"', 'name="document"', 'name="plan"',
+                       'type="file"'):
+            if banned in page:
+                fail("day editor exposes a filesystem authority control %s"
+                     % banned)
+        editable = [c for c in list(HEADER) if c != "Date"]
+        for label in editable:
+            if ('name="%s"' % label) not in page:
+                fail("day editor form is missing a control for column %r"
+                     % label)
+        for keep in ("id=streak", "id=hist", "class=verdict", "name=EMT",
+                     "name=Math", "name=CS"):
+            if keep not in page:
+                fail("day editor dropped cockpit context %s" % keep)
+        if "No plan row for this date." not in page:
+            fail("day page lost the missing-row empty state copy")
+        cfg = settings_mod.load_settings(tmp)
+        css = page_style_css(page)
+        if theme_css(cfg).split("{", 1)[0] not in css:
+            fail("day page does not inject the generated theme block")
+        if "--accent" not in css or "--bg" not in css or "--ok" not in css:
+            fail("day page theme block is missing semantic token variables")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def check_apply_day_edit_and_cache():
+    """Test 3 + Test 5 (state side): `apply_day_edit` is the only surface
+    wrapper around `day_document.save`; on `saved` it reloads `state["plan"]`,
+    invalidates only the render-info cache, and returns the fresh row and
+    revision; on `invalid`/`unsupported` it keeps the draft verbatim and never
+    touches the file; tick/log/evidence state stays untouched throughout.
+    """
+    import shutil
+    from surfaces.day import day_state, apply_day_edit, parse_plan
+    tmp = tempfile.mkdtemp()
+    try:
+        path = write_plan(tmp, [HEADER, row_for()], "plan.md")
+        log_path = os.path.join(tmp, "daily_log.md")
+        lanes_path = os.path.join(tmp, "lanes.md")
+        state = day_state(path, log_path, lanes_path, "2026-01-07")
+        from surfaces import day_document as dd
+        snap = dd.snapshot(path, 2026, "2026-01-07")
+        if snap["status"] != "ready":
+            fail("apply_day_edit precondition snapshot not ready: %r" % snap)
+        before_log = dict(state["log"])
+        before_evidence = state["evidence_log"]
+        before_bytes = open(path, "rb").read()
+        result = apply_day_edit(
+            state, {"revision": snap["revision"],
+                    "edits": {"EMT (top priority)": "ch 3, start"}})
+        if result.get("status") != "saved":
+            fail("apply_day_edit save status %r, want saved" % result.get("status"))
+        if result.get("revision") == snap["revision"]:
+            fail("apply_day_edit returned the stale revision")
+        if state["plan"].get("2026-01-07", {}).get("EMT") != "ch 3, start":
+            fail("apply_day_edit did not reload state['plan'] after save")
+        if state["cache"].get("info") is not None:
+            fail("apply_day_edit did not invalidate the render cache")
+        if state["log"] != before_log or state["evidence_log"] != before_evidence:
+            fail("apply_day_edit touched tick/evidence state")
+        if open(path, "rb").read() == before_bytes:
+            fail("apply_day_edit saved but the file bytes are unchanged")
+        if result.get("row", {}).get("EMT") != "ch 3, start":
+            fail("apply_day_edit saved result lacks the fresh parsed row")
+        if result.get("cells", {}).get("EMT (top priority)") != "ch 3, start":
+            fail("apply_day_edit saved result lacks the saved cells")
+
+        after_save = open(path, "rb").read()
+        invalid = apply_day_edit(
+            state, {"revision": result["revision"],
+                    "edits": {"EMT (top priority)": "bad\nvalue"}})
+        if invalid.get("status") != "invalid":
+            fail("apply_day_edit invalid status %r, want invalid"
+                 % invalid.get("status"))
+        if invalid.get("draft") != {"EMT (top priority)": "bad\nvalue"}:
+            fail("apply_day_edit invalid result lost the draft: %r"
+                 % invalid.get("draft"))
+        if open(path, "rb").read() != after_save:
+            fail("apply_day_edit invalid result wrote to the file")
+        if os.path.exists(path + ".tmp"):
+            fail("apply_day_edit invalid result left a temporary file")
+
+        missing = os.path.join(tmp, "gone.md")
+        if os.path.exists(missing):
+            os.remove(missing)
+        state2 = day_state(missing, log_path, lanes_path, "2026-01-07")
+        unavailable = apply_day_edit(
+            state2, {"revision": "0" * 64, "edits": {"EMT": "draft value"}})
+        if unavailable.get("status") != "unsupported":
+            fail("apply_day_edit missing-source status %r, want unsupported"
+                 % unavailable.get("status"))
+        if unavailable.get("draft") != {"EMT": "draft value"}:
+            fail("apply_day_edit missing source lost the draft: %r"
+                 % unavailable.get("draft"))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def check_day_palette_and_no_css_literals():
+    """Test 9: day CLI/scoped rendering loads settings beside the plan (schema
+    defaults when absent), injects the same generated accent/system/light/dark
+    tokens as other surfaces, and `DAY_CSS` contains no hex/rgb/hsl palette
+    literals and no accent-as-semantic-status rules.
+    """
+    import shutil
+    from surfaces import settings as settings_mod
+    from surfaces.theme import derive_theme, theme_css
+    from surfaces.day import DAY_CSS, day_state, day_render
+    if re.search(r"#[0-9a-fA-F]{6}", DAY_CSS):
+        fail("DAY_CSS contains hex palette literals")
+    if re.search(r"(?i)rgb\(|rgba\(|hsl\(|hsla\(", DAY_CSS):
+        fail("DAY_CSS contains rgb/hsl palette literals")
+    if re.search(r"var\(--accent\)[^}]*\.(ok|bad|warn)|\.(ok|bad|warn)[^}]*var\(--accent\)",
+                 DAY_CSS):
+        fail("DAY_CSS styles correctness with the custom accent")
+    tmp = tempfile.mkdtemp()
+    try:
+        path = write_plan(tmp, [HEADER, row_for()], "plan.md")
+        settings_mod.write_settings(tmp, {"accent": {"source": "#c00040"}})
+        state = day_state(path, os.path.join(tmp, "daily_log.md"),
+                          os.path.join(tmp, "lanes.md"), "2026-01-07")
+        page = day_render(state).decode("utf-8")
+        css = page_style_css(page)
+        expected = derive_theme("#c00040")["light"]["accent"]
+        m = re.search(r"--accent:([^;]+);", css)
+        if not m or m.group(1) != expected:
+            fail("day page accent token %r, want the settings-derived %r"
+                 % (m.group(1) if m else None, expected))
+        tmp2 = tempfile.mkdtemp()
+        try:
+            path2 = write_plan(tmp2, [HEADER, row_for()], "plan.md")
+            state2 = day_state(path2, os.path.join(tmp2, "daily_log.md"),
+                               os.path.join(tmp2, "lanes.md"), "2026-01-07")
+            page2 = day_render(state2).decode("utf-8")
+            css2 = page_style_css(page2)
+            default_light = derive_theme("#0e6e62")["light"]["accent"]
+            if re.search(r"--accent:%s;" % re.escape(default_light), css2) is None:
+                fail("day page without settings did not use schema defaults")
+            if not re.search(r"prefers-color-scheme:dark", css2):
+                fail("day page without settings lost the dark-mode media block")
+        finally:
+            shutil.rmtree(tmp2, ignore_errors=True)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     check_builders_and_corpus()
     check_byte_helpers()
@@ -860,9 +1075,13 @@ def main():
     check_task2_confirmed_force()
     check_task2_draft_and_no_temp()
     check_task2_tight_window_recheck()
+    check_edit_snapshot_and_form()
+    check_apply_day_edit_and_cache()
+    check_day_palette_and_no_css_literals()
     print("ok: day-edit plan 04-02 -- structured snapshot, exact-span edit, "
           "grammar refusals, atomic replace, stale conflicts, confirmed force "
-          "all green")
+          "all green; plan 04-06 -- editor boot snapshot, apply_day_edit "
+          "wrapper, and palette migration all green")
     return 0
 
 

@@ -257,6 +257,19 @@ def write_today_plan(path, emt_task="synthetic EMT task for today"):
     return iso
 
 
+def day_boot_data(page):
+    """Parse the `window.__day__` JSON embedded in one rendered day page."""
+    m = re.search(r"window\.__day__=(\{.*?\});\n", page, re.S)
+    if not m:
+        return None
+    return json.loads(m.group(1))
+
+
+def day_page_css(page):
+    """The concatenated `<style>` blocks of one rendered day page."""
+    return "".join(re.findall(r"<style>(.*?)</style>", page, re.S))
+
+
 def check_index_populated():
     workdir = tempfile.mkdtemp()
     shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
@@ -685,6 +698,113 @@ def check_day_open_out_of_range():
         except urllib.error.HTTPError as exc:
             if exc.code != 404:
                 fail("an out-of-range open index returned HTTP %d, expected 404" % exc.code)
+    finally:
+        proc.terminate()
+
+
+def check_day_edit_route():
+    """Plan 04-06 Task 1 tests 1-5 (daemon side): GET /day/<stem> embeds the
+    snapshot boot data; POST /day/<stem>/edit patches only requested cells and
+    returns a new revision that the next render reflects; the edit route
+    resolves the stem only through `handler.plans`, rejects path/full-document
+    authority fields, sits after fixed literals, and maps to the `day` CLI;
+    tick-save/open routes keep working while a plan edit invalidates only
+    parsed plan/render state.
+    """
+    if not hasattr(daemon, "DAY_EDIT_RE"):
+        fail("daemon has no DAY_EDIT_RE for the plan edit route")
+    routes = daemon.ROUTES
+    fixed_before = True
+    edit_pos = None
+    for i, (method, pattern, name) in enumerate(routes):
+        if name == "handle_day_edit":
+            edit_pos = i
+        if hasattr(pattern, "match") and name != "handle_day_edit":
+            fixed_before = False
+    if edit_pos is None:
+        fail("ROUTES has no handle_day_edit entry")
+    if not fixed_before:
+        fail("handle_day_edit is not ordered after every fixed literal route")
+    if ("POST", daemon.DAY_EDIT_RE) not in routes:
+        fail("ROUTES does not carry the DAY_EDIT_RE pair")
+    if daemon.ROUTE_CLI.get(("POST", daemon.DAY_EDIT_RE)) != "day":
+        fail("POST /day/<stem>/edit does not map to the day CLI twin")
+
+    workdir = tempfile.mkdtemp()
+    iso = write_today_plan(os.path.join(workdir, "sample_plan.md"),
+                           "ch 2 first half")
+    proc, url, lines = start_daemon(workdir)
+    try:
+        status, page = get(url + "day/sample_plan")
+        if status != 200:
+            fail("GET /day/<stem> returned %d for the edit test" % status)
+        boot = day_boot_data(page)
+        if boot is None:
+            fail("day page has no boot data for the edit route")
+        snap = boot.get("snapshot")
+        if not snap or snap.get("status") != "ready":
+            fail("day boot snapshot not ready for the edit route: %r" % snap)
+        if not re.fullmatch(r"[0-9a-f]{64}", snap.get("revision", "")):
+            fail("day boot snapshot revision is not SHA-256")
+        if snap.get("cells", {}).get("EMT (top priority)") != "ch 2 first half":
+            fail("day boot snapshot lost the current cell value")
+        if "plan.md" in json.dumps(boot) or workdir in json.dumps(boot):
+            fail("day boot data leaks a filesystem path")
+        if "Edit plan" not in page or "Save changes" not in page:
+            fail("day page has no Edit plan / Save changes controls")
+        if "<textarea" in page:
+            fail("day editor exposes a raw Markdown textarea")
+
+        saved = post(url + "day/sample_plan/edit", {
+            "revision": snap["revision"],
+            "edits": {"EMT (top priority)": "ch 3, start"}})
+        if saved.get("status") != "saved":
+            fail("day edit route returned %r, want saved" % saved.get("status"))
+        if saved.get("revision") == snap["revision"]:
+            fail("day edit route returned the stale revision")
+        if saved.get("cells", {}).get("EMT (top priority)") != "ch 3, start":
+            fail("day edit route did not return the saved cells")
+        if saved.get("row", {}).get("EMT") != "ch 3, start":
+            fail("day edit route did not return the fresh parsed row")
+        _status, page2 = get(url + "day/sample_plan")
+        if "ch 3, start" not in page2:
+            fail("next render after a plan edit does not show the new plan text")
+        boot2 = day_boot_data(page2)
+        if boot2["snapshot"]["revision"] == snap["revision"]:
+            fail("next render after a plan edit kept the stale revision")
+        plan_bytes_now = open(os.path.join(workdir, "sample_plan.md"),
+                              "rb").read()
+        if b"ch 3, start" not in plan_bytes_now:
+            fail("plan edit did not reach the file bytes")
+
+        invalid = post(url + "day/sample_plan/edit", {
+            "revision": boot2["snapshot"]["revision"],
+            "edits": {"EMT (top priority)": "bad\nvalue"}})
+        if invalid.get("status") != "invalid":
+            fail("day edit invalid status %r, want invalid" % invalid.get("status"))
+        if invalid.get("draft") != {"EMT (top priority)": "bad\nvalue"}:
+            fail("day edit invalid response lost the draft: %r"
+                 % invalid.get("draft"))
+        if open(os.path.join(workdir, "sample_plan.md"), "rb").read() != plan_bytes_now:
+            fail("day edit invalid response wrote to the file")
+
+        for forged in ({"path": "/etc/passwd"},
+                       {"document": "full file"},
+                       {"plan": "other.md"},
+                       {"bytes": "AA=="}):
+            status_f, body = json_request(
+                url + "day/sample_plan/edit",
+                {"revision": snap["revision"],
+                 "edits": {"EMT": "x"},
+                 "force_token": "t"} | forged)
+            if status_f != 400:
+                fail("day edit accepted authority field %r with HTTP %d"
+                     % (forged, status_f))
+
+        got = post(url + "day/sample_plan/save",
+                   {"date": iso, "done": list(itembank.FLOOR_LANES)})
+        if got.get("status") != "floor":
+            fail("tick save after a plan edit broke: %r" % got.get("status"))
     finally:
         proc.terminate()
 
@@ -2026,6 +2146,7 @@ def main():
         check_day_index_ambiguous,
         check_day_save_and_isolation,
         check_day_open_out_of_range,
+        check_day_edit_route,
         check_route_cli_inventory,
         check_api_route_scope,
         check_api_sitting,
