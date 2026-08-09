@@ -185,12 +185,58 @@ def _table_html(rows):
             "<tbody>%s</tbody></table></div>" % (head, rows_html))
 
 
+_INLINE_CODE_RE = re.compile(r"`([^`\n]+)`")
+_STRONG_RE = re.compile(r"(?<!\w)\*\*(.+?)\*\*(?!\w)", re.S)
+_EM_RE = re.compile(r"(?<!\w)_([^_]+)_(?!\w)", re.S)
+_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+
+
+def _link_target_ok(target):
+    """Only a plain relative path or an http/https URL becomes an anchor;
+    every other target renders as plain text, so a scheme-bearing target in
+    lesson prose cannot become a clickable action (T-3-11)."""
+    t = target.strip()
+    if t.startswith(("http://", "https://")):
+        return True
+    head = re.split(r"[/#]", t, 1)[0]
+    return ":" not in head
+
+
+def _linkify(text):
+    def _rep(m):
+        label, target = m.group(1), m.group(2).strip()
+        if not _link_target_ok(target):
+            return m.group(0)
+        return '<a href="%s">%s</a>' % (target, label)
+    return _LINK_RE.sub(_rep, text)
+
+
 def _inline(text):
-    """Escape one literal text run after block structure is resolved.
-    Plan 03-04 Task 2 widens this to emphasis, inline code and links,
-    always on placeholder-protected, already-escaped text.
+    """The inline pass for one literal text run, ordered so escaping cannot
+    be undone: lift backtick code spans to placeholders first (so they are
+    never re-scanned), escape the remaining text, apply emphasis and link
+    patterns to the escaped text, then substitute the code spans back in
+    escaped. Escaping before the patterns run is what keeps a
+    markup-shaped stem or heading from reaching the page as markup
+    (T-3-01); markers must sit at a word boundary so an underscore inside
+    an identifier does not split it. Unmatched markers stay literal rather
+    than raising (T-3-04).
     """
-    return html.escape(text)
+    spans = []
+
+    def _lift(m):
+        spans.append(m.group(1))
+        return "\x00I%d\x00" % (len(spans) - 1)
+
+    text = _INLINE_CODE_RE.sub(_lift, text)
+    text = html.escape(text)
+    text = _STRONG_RE.sub(r"<strong>\1</strong>", text)
+    text = _EM_RE.sub(r"<em>\1</em>", text)
+    text = _linkify(text)
+    for idx, span in enumerate(spans):
+        text = text.replace("\x00I%d\x00" % idx,
+                            "<code>%s</code>" % html.escape(span))
+    return text
 
 
 def _render_blocks(text):

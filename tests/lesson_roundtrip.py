@@ -988,6 +988,7 @@ def test_full_page_escapes_markup_shaped_bank():
         "| Cell | Value |\n| --- | --- |\n| <td> | & |\n\n"
         "- <li> item\n\n"
         "Q1. Stem with <script> alert(1) </script>?   (difficulty: recall)\n"
+        "[LESSON-REF: A & <B> Heading]\n"
         "A) One\nB) Two\nC) Three\nD) Four\n\n"
         "CORRECT: A\n\n"
         "WHY BEST: One is the keyed answer.\n\n"
@@ -1013,7 +1014,12 @@ def test_full_page_escapes_markup_shaped_bank():
                  "Stem with &lt;script&gt; alert(1) &lt;/script&gt;"):
         if want not in pg:
             fail("escaped form missing from the full page: %r" % want)
-    for banned in ("<img onerror", "<td>", "<li> item", "<script> alert"):
+    # The raw forms must not appear AS CONTENT: the table/list/heading
+    # markup tags legitimately contain "<td>", "<li>" and "<B>", so the
+    # leak fingerprints are the doubled or adjacent sequences only raw
+    # content would produce.
+    for banned in ("<img onerror", "<td><td>", "<li><li>", "<script> alert",
+                   "<B> Heading"):
         if banned in pg:
             fail("raw markup-shaped text reached the page: %r" % banned)
 
