@@ -1024,6 +1024,160 @@ def test_full_page_escapes_markup_shaped_bank():
             fail("raw markup-shaped text reached the page: %r" % banned)
 
 
+# ---- plan 03-05: --ref filtering and the CLI output contract ---------------
+
+def run_lesson(args):
+    """Run `itembank lesson ...` as a subprocess so the hard stop's exit
+    status and stderr are both observable."""
+    return subprocess.run(
+        [sys.executable, os.path.join(ROOT, "itembank.py"), "lesson"] + args,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30)
+
+
+def test_lesson_ref_filters_one_section():
+    """`--ref` renders exactly the matched heading's section and its
+    backlinks and nothing else -- the same document narrowed, not a second
+    layout (D-11)."""
+    qs = itembank.load(LES_BANK)
+    L = itembank.parse_lesson(LES_BANK)
+    full = lesson.lesson_page(LES_BANK, qs, L)
+    one = lesson.lesson_page(LES_BANK, qs, L, ref=L["headings"][0]["text"])
+    if not isinstance(one, str) or len(one) >= len(full):
+        fail("--ref must narrow the page (got %d vs %d chars)"
+             % (len(one) if isinstance(one, str) else -1, len(full)))
+    if L["headings"][1]["text"] in one:
+        fail("the other heading's prose must be absent from the filtered page")
+    if one.count('<section id="') != 1:
+        fail("the filtered page must contain exactly one section, got %d"
+             % one.count('<section id="'))
+    if "No items reference this section yet." in one:
+        fail("the other heading's orphan backlinks must be absent")
+    card = '<div class="card">'
+    if one[:one.index(card)] != full[:full.index(card)]:
+        fail("the filtered page must keep the full page's chrome and byline")
+
+
+def test_lesson_ref_slug_variants_resolve():
+    """Casing, spacing and punctuation differences in the caller's text
+    resolve through the one slugifier to the same section (D-03) -- the
+    exact assertion that proves the slug is doing the matching, not raw
+    string comparison."""
+    qs = itembank.load(LES_BANK)
+    L = itembank.parse_lesson(LES_BANK)
+    full = lesson.lesson_page(LES_BANK, qs, L)
+    exact = lesson.lesson_page(LES_BANK, qs, L, ref=L["headings"][0]["text"])
+    if not isinstance(exact, str) or len(exact) >= len(full):
+        fail("the exact-text --ref must narrow the page")
+    for variant in ("the airway step by step", "The  Airway,  Step By Step",
+                    "the-airway step-by-step"):
+        if lesson.lesson_page(LES_BANK, qs, L, ref=variant) != exact:
+            fail("ref variant %r must resolve to the exact section (D-03)"
+                 % variant)
+
+
+def test_lesson_ref_miss_signals_none():
+    """A ref naming no heading returns None from the render function -- the
+    caller (`cmd_lesson`) turns that into the hard stop, so the render
+    function itself carries no process-exit path (T-3-12)."""
+    qs = itembank.load(LES_BANK)
+    L = itembank.parse_lesson(LES_BANK)
+    if lesson.lesson_page(LES_BANK, qs, L, ref="no such heading") is not None:
+        fail("a no-match --ref must signal a miss, not render a document")
+    if lesson.lesson_page(SMP_BANK, itembank.load(SMP_BANK),
+                          itembank.parse_lesson(SMP_BANK),
+                          ref="anything") is not None:
+        fail("--ref against a bank with no lesson section is the same miss")
+
+
+def test_lesson_ref_no_ref_renders_everything():
+    """No ref -- and an empty ref -- render the whole lesson exactly as the
+    daemon route does; filtering is opt-in."""
+    qs = itembank.load(LES_BANK)
+    L = itembank.parse_lesson(LES_BANK)
+    full = lesson.lesson_page(LES_BANK, qs, L)
+    if lesson.lesson_page(LES_BANK, qs, L, ref=None) != full:
+        fail("no ref must render the whole lesson")
+    if lesson.lesson_page(LES_BANK, qs, L, ref="") != full:
+        fail("an empty --ref must render the whole lesson")
+
+
+def test_lesson_ref_cli_match_exits_zero_count_one():
+    """`itembank lesson <bank> --ref <heading>` exits 0 and reports the one
+    section it actually rendered (D-11)."""
+    out = os.path.join(tempfile.mkdtemp(), "r1.html")
+    res = run_lesson([LES_BANK, "--ref", "The Airway, Step By Step",
+                      "--out", out])
+    if res.returncode != 0:
+        fail("--ref on a matching heading failed: " + res.stderr + res.stdout)
+    if "1 lesson section(s) -> " not in res.stdout:
+        fail("--ref success line must report 1 section: %r" % res.stdout)
+    if not os.path.exists(out):
+        fail("--ref must write the filtered page")
+    if open(out, encoding="utf-8").read().count('<section id="') != 1:
+        fail("filtered file must contain exactly one section")
+
+
+def test_lesson_ref_cli_slug_variant_byte_identical():
+    """The same heading typed with different casing, spacing and punctuation
+    writes a byte-identical file to the exact-text run -- the slugifier is
+    what reconciles them."""
+    tmp = tempfile.mkdtemp()
+    exact = os.path.join(tmp, "exact.html")
+    variant = os.path.join(tmp, "variant.html")
+    r1 = run_lesson([LES_BANK, "--ref", "The Airway, Step By Step",
+                     "--out", exact])
+    r2 = run_lesson([LES_BANK, "--ref", "the airway,  step  by step",
+                     "--out", variant])
+    if r1.returncode != 0 or r2.returncode != 0:
+        fail("slug-variant runs must both exit 0: %r / %r"
+             % (r1.stderr, r2.stderr))
+    if open(exact, encoding="utf-8").read() != \
+       open(variant, encoding="utf-8").read():
+        fail("slug-variant output must be byte-identical to the exact-text run")
+
+
+def test_lesson_ref_cli_miss_hard_stops():
+    """A --ref naming no heading exits non-zero with the locked message
+    naming both the requested text and the bank, and writes no file."""
+    out = os.path.join(tempfile.mkdtemp(), "r2.html")
+    res = run_lesson([LES_BANK, "--ref", "no such heading", "--out", out])
+    if res.returncode == 0:
+        fail("a no-match --ref must exit non-zero")
+    if "no lesson heading matching" not in res.stderr:
+        fail("hard-stop message missing from stderr: %r" % res.stderr)
+    if repr("no such heading") not in res.stderr or LES_BANK not in res.stderr:
+        fail("hard-stop message must name the requested text and the bank: %r"
+             % res.stderr)
+    if os.path.exists(out):
+        fail("a hard stop must not write the output file")
+
+
+def test_lesson_ref_cli_no_lesson_bank_miss():
+    """An explicit --ref against a bank with no lesson section at all is the
+    same miss, on the same locked terms -- never a silent empty render."""
+    res = run_lesson([SMP_BANK, "--ref", "anything"])
+    if res.returncode == 0:
+        fail("--ref against a bank with no lesson must hard-stop")
+    if "no lesson heading matching" not in res.stderr:
+        fail("no-lesson --ref must use the locked miss message: %r"
+             % res.stderr)
+
+
+def test_lesson_route_selects_no_section():
+    """The daemon route passes no ref: the browser's way to reach a section
+    is the fragment D-07 locked, never a query parameter, so no second
+    selection mechanism exists."""
+    if "ref" in inspect.signature(daemon.handle_lesson_get).parameters:
+        fail("the lesson route handler must not accept a ref")
+    if "ref=" in inspect.getsource(daemon.handle_lesson_get):
+        fail("the lesson route handler must not pass a ref to the render")
+
+
+def test_lesson_page_carries_no_exit_path():
+    if "sys.exit" in inspect.getsource(lesson.lesson_page):
+        fail("lesson_page must carry no process-exit path")
+
+
 # ---- subprocess: daemon routes and the CLI twin ----------------------------
 
 def test_lesson_src_degraded_daemon_and_cli():
@@ -1232,6 +1386,16 @@ test_render_malformed_markers_do_not_raise()
 test_render_heading_markup_slug_vs_visible()
 test_lesson_bank_fixture_renders_inlines()
 test_full_page_escapes_markup_shaped_bank()
+test_lesson_ref_filters_one_section()
+test_lesson_ref_slug_variants_resolve()
+test_lesson_ref_miss_signals_none()
+test_lesson_ref_no_ref_renders_everything()
+test_lesson_ref_cli_match_exits_zero_count_one()
+test_lesson_ref_cli_slug_variant_byte_identical()
+test_lesson_ref_cli_miss_hard_stops()
+test_lesson_ref_cli_no_lesson_bank_miss()
+test_lesson_route_selects_no_section()
+test_lesson_page_carries_no_exit_path()
 test_lesson_src_degraded_daemon_and_cli()
 test_lesson_plain_empty_state_has_no_warning()
 test_routes_and_cli_twin()
