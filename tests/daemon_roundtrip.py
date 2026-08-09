@@ -13,7 +13,7 @@ those things.
 Standard library only, no test framework, runnable as
 `python tests/daemon_roundtrip.py`.
 """
-import http.server, json, os, re, shutil, socketserver, subprocess, sys, tempfile, threading, time
+import http.server, json, os, re, shutil, socketserver, subprocess, sys, tempfile, threading, time, uuid
 import urllib.error, urllib.parse, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -133,6 +133,101 @@ def post(url, payload):
                                  headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=5) as res:
         return json.loads(res.read().decode("utf-8"))
+
+
+def json_request(url, payload=None, method="POST", timeout=5):
+    """A reusable JSON request helper returning `(status, body)` for any HTTP
+    outcome -- `body` is parsed JSON on a JSON response, otherwise the text.
+    Unlike `post()`, a non-2xx is not raised; the caller asserts the code.
+    """
+    body = b"" if payload is None else json.dumps(payload).encode()
+    req = urllib.request.Request(url, data=body, method=method,
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as res:
+            raw = res.read()
+            status = res.status
+    except urllib.error.HTTPError as exc:
+        raw = exc.read()
+        status = exc.code
+    except urllib.error.URLError as exc:
+        return None, str(exc.reason)
+    try:
+        return status, json.loads(raw.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return status, raw.decode("utf-8", errors="replace")
+
+
+def temp_dir_with(bank=True, plan=False, settings_overrides=None, name="work"):
+    """A temp directory pre-loaded with the fixture bank/plan and, when
+    `settings_overrides` is given, an itembank.json built from the shipped
+    defaults merged with those overrides -- the isolated settings base later
+    Phase 4 route checks (accent save, LAN policy) will build on.
+    """
+    workdir = tempfile.mkdtemp(prefix=name + "-")
+    if bank:
+        shutil.copy(BANK, os.path.join(workdir, os.path.basename(BANK)))
+    if plan:
+        shutil.copy(PLAN, os.path.join(workdir, os.path.basename(PLAN)))
+    if settings_overrides:
+        write_settings_file(workdir, settings_overrides)
+    return workdir
+
+
+def write_settings_file(base, overrides):
+    """Write itembank.json into `base` from the schema defaults merged over
+    `overrides`, through the existing validated `settings.write_settings`.
+    """
+    from surfaces import settings
+    data = settings.load_settings(base)
+    for dotted, value in overrides.items():
+        node = data
+        parts = dotted.split(".")
+        for part in parts[:-1]:
+            node = node.setdefault(part, {})
+        node[parts[-1]] = value
+    settings.write_settings(base, data)
+    return data
+
+
+def assert_fixed_routes_before_patterned(routes):
+    """Every fixed-literal route must precede every regex route in the daemon's
+    ordered route table -- the shadowing rule that keeps a bank stem named
+    "report" or "api" from hijacking a fixed route.
+    """
+    saw_patterned = False
+    for method, pattern, _ in routes:
+        if hasattr(pattern, "match"):
+            saw_patterned = True
+        elif saw_patterned:
+            fail("fixed route (%s, %s) appears after a regex route; the "
+                 "ordered route table can be shadowed" % (method, pattern))
+
+
+def token_store():
+    """A one-use, draft/revision-bound force-token recorder for Phase 4 plan
+    04-06's conflict-recovery scenario: `issue` returns a token, `consume`
+    succeeds exactly once per token and rejects replay, `state` exposes the
+    recorded bindings. Harness-only; the production token lives in the day
+    document seam later plans implement.
+    """
+    state = {"issued": [], "consumed": []}
+
+    def issue(bound_revision):
+        token = uuid.uuid4().hex
+        state["issued"].append({"token": token, "revision": bound_revision})
+        return token
+
+    def consume(token):
+        if any(c["token"] == token for c in state["consumed"]):
+            return False
+        issued = [i for i in state["issued"] if i["token"] == token]
+        if not issued:
+            return False
+        state["consumed"].append(issued[0])
+        return True
+
+    return {"issue": issue, "consume": consume, "state": state}
 
 
 def served_post_path(quiz_url, page):
@@ -856,6 +951,44 @@ def check_api_reject_path_fields():
         proc.terminate()
 
 
+def check_wave0_helpers():
+    """Task 1 self-check for the reusable Phase 4 helpers: route order,
+    temp-dir/settings bases, one-use force tokens, and JSON request handling.
+    Pure helper checks -- no daemon needed, so this stays fast.
+    """
+    assert_fixed_routes_before_patterned(daemon.ROUTES)
+
+    workdir = temp_dir_with(bank=True, plan=True,
+                            settings_overrides={"daemon.port": 8123,
+                                                "theme": "light"})
+    try:
+        if not os.path.isfile(os.path.join(workdir, "sample_bank.md")):
+            fail("temp_dir_with did not copy the bank fixture")
+        if not os.path.isfile(os.path.join(workdir, "sample_plan.md")):
+            fail("temp_dir_with did not copy the plan fixture")
+        from surfaces import settings as settings_mod
+        cfg = settings_mod.load_settings(workdir)
+        if cfg["daemon"]["port"] != 8123 or cfg["theme"] != "light":
+            fail("temp_dir_with settings overrides did not land: %r" % cfg)
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+    store = token_store()
+    token = store["issue"]("rev-abc")
+    if store["consume"](token) is not True:
+        fail("freshly issued force token was not consumable")
+    if store["consume"](token) is not False:
+        fail("one-use force token was consumed twice")
+    if store["consume"]("never-issued") is not False:
+        fail("an unknown force token was accepted")
+
+    status, _ = json_request("http://127.0.0.1:1/api/start",
+                             {"bank": "nope"}, timeout=1)
+    if status is not None and status not in (400, 404):
+        fail("json_request against a closed port returned unexpected status %r"
+             % status)
+
+
 def check_api_malformed_json():
     """A malformed JSON body on `/api/submit` returns 4xx and the daemon
     stays up.
@@ -1468,6 +1601,7 @@ def main():
         check_api_bank_not_found,
         check_api_start_traversal,
         check_api_reject_path_fields,
+        check_wave0_helpers,
         check_api_malformed_json,
         check_api_cli_parity,
         check_report_populated,
