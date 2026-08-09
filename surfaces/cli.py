@@ -19,6 +19,7 @@ from surfaces.quiz import cmd_build, cmd_serve
 from surfaces.session import cmd_next, cmd_report, cmd_start, cmd_submit
 from surfaces.settings import cmd_config
 from surfaces.study import cmd_study
+from surfaces.theme import cmd_theme
 from surfaces.update import cmd_update
 
 
@@ -329,6 +330,15 @@ def main():
     s.add_argument("--base", default=".",
                    help="directory holding itembank.json (default: current directory)")
     s.set_defaults(fn=cmd_config)
+
+    s = sub.add_parser("theme", help="preview, set, reset, or pick the source accent")
+    t = s.add_subparsers(dest="action", required=True)
+    tp = t.add_parser("preview", help="show the derived light/dark accent tokens "
+                      "and contrast ratios for COLOR")
+    tp.add_argument("color")
+    tp.add_argument("--base", default=".",
+                    help="directory holding itembank.json (default: current directory)")
+    tp.set_defaults(fn=cmd_theme)
 
     s = sub.add_parser("migrate", help="one-time, re-runnable import of the three legacy "
                        "stores (_attempts/*.md, session JSON, daily_log.md) into the "
