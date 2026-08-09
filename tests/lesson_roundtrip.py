@@ -1450,6 +1450,92 @@ def test_page_for_shapes_and_build():
         fail("handle_quiz_get must supply the lesson base path")
 
 
+# ---- plan 03-06: spec-coverage assertions (LESSON-05) ---------------------
+
+def test_spec_documents_lesson_grammar():
+    """Every construct the LESSON grammar must state appears in model.SPEC --
+    the format contract an authoring agent reads with no source access
+    (LESSON-05). The strings assert meaning, not style: each is the plainest
+    way the rule can be stated, and a future rewrite that changes the meaning
+    fails here instead of shipping a spec that lies."""
+    s = itembank.SPEC
+    for want in (
+        "## LESSON",                      # the section marker
+        "###",                            # the subheading level
+        "first `Qn.`",                    # placement above the first question
+        "without a lesson section parses exactly as it",  # no-lesson promise
+        "[LESSON-SRC:",                   # the external-source directive
+        "relative to the bank file",      # path resolution rule
+        "outside the bank",               # containment refusal
+        "takes precedence",               # external wins over inline
+        "[LESSON-REF:",                   # the item tag
+        "lowercased",                     # slug rule
+        "whitespace",                     # slug rule
+        "punctuation",                    # slug rule
+        "collide",                        # collision is predictable
+        "literal text",                   # what does not render
+        "info string",                    # fenced-block convention
+        "later phase",                    # the Phase 9 seam
+        "question marker",                # the one constraint
+        "ends the lesson",                # the one constraint
+    ):
+        if want not in s:
+            fail("SPEC must document %r for the LESSON grammar" % want)
+
+
+def test_spec_lists_reader_scope():
+    """The spec names exactly the constructs plan 03-04 shipped in
+    render_markdown(): headings, paragraphs, lists, tables, inline code,
+    fenced code, bold/italic and links -- nothing else."""
+    s = itembank.SPEC
+    for want in ("headings", "paragraphs", "lists", "tables", "inline code",
+                 "fenced code", "bold", "italic", "links"):
+        if want not in s:
+            fail("SPEC must name %r in the rendered-markdown scope" % want)
+
+
+def test_spec_item_tag_lives_in_shared_fields():
+    """The item tag is a shared field, not only a mention inside the lesson
+    section: it must appear before the type list starts, where an author
+    reading the shared fields sees it without reaching the new section."""
+    s = itembank.SPEC
+    tag_at = s.find("[LESSON-REF:")
+    types_at = s.find("THE FIVE ITEM TYPES")
+    if tag_at < 0 or types_at < 0 or tag_at > types_at:
+        fail("LESSON-REF must be listed in the shared-fields block")
+
+
+def test_spec_names_every_lesson_lint_code():
+    """The spec names all four lesson codes and each is a published LINT_CODES
+    member -- the code list is derived, never restated, so a rename fails here
+    instead of leaving the contract describing a code that no longer exists
+    (T-3-08). The error/warning split and each trigger are stated too."""
+    s = itembank.SPEC
+    lesson_codes = [c for c in itembank.LINT_CODES
+                    if c.startswith("lesson.") or c == "item.lesson_ref_unknown"]
+    if len(lesson_codes) != 4:
+        fail("expected exactly 4 lesson lint codes, got %d: %r"
+             % (len(lesson_codes), lesson_codes))
+    for c in lesson_codes:
+        if c not in s:
+            fail("SPEC must name published lint code %r" % c)
+    for want in ("error", "warning", "collide", "no heading",
+                 "missing", "no item references"):
+        if want not in s:
+            fail("SPEC must state the lint severity split and triggers: %r"
+                 % want)
+
+
+def test_spec_existing_contract_intact():
+    """Every existing substring other tests and CI rely on survives the
+    additive rewrite (T-3-14)."""
+    s = itembank.SPEC
+    for keep in ("THE FIVE ITEM TYPES", "DISTRACTOR ANALYSIS",
+                 "THE RULE THAT SURVIVES EVERY TYPE", "[ID:]", "[HASH:]"):
+        if keep not in s:
+            fail("existing SPEC substring lost: %r" % keep)
+
+
 test_slug()
 test_parse_lesson()
 test_prose_line_shaped_like_question_marker()
@@ -1523,4 +1609,9 @@ test_lesson_src_degraded_daemon_and_cli()
 test_lesson_plain_empty_state_has_no_warning()
 test_routes_and_cli_twin()
 test_page_for_shapes_and_build()
+test_spec_documents_lesson_grammar()
+test_spec_lists_reader_scope()
+test_spec_item_tag_lives_in_shared_fields()
+test_spec_names_every_lesson_lint_code()
+test_spec_existing_contract_intact()
 print("ok: lesson roundtrip (slug, parse, fingerprint, LESSON-SRC, degraded state, route, CLI twin, both link directions, lesson lint, coupling guards)")
