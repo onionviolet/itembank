@@ -14,12 +14,19 @@ current public behavior (the cockpit parser the phase does not replace).
 Standard library only, no test framework, runnable as
 `python tests/day_edit_roundtrip.py`.
 """
-import difflib, hashlib, json, os, subprocess, sys, tempfile, threading, time
+import difflib, hashlib, json, os, re, subprocess, sys, tempfile, threading, time
 import urllib.error, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 from surfaces import day                                # noqa: E402
+
+try:
+    from surfaces import day_document                     # noqa: E402
+except ImportError:
+    # Plan 04-02 is TDD: the adapter does not exist until Task 1's RED gate
+    # is observed. Every Task 1/2 check below fails cleanly in that state.
+    day_document = None
 
 
 def fail(msg):
@@ -293,16 +300,266 @@ def check_http_helper_refuses_closed_port():
     fail("http_post against a closed port did not raise")
 
 
+# ---- plan 04-02 Task 1: lossless dated-row snapshot/edit --------------------
+
+def check_task1_snapshot_via_cli():
+    if day_document is None:
+        fail("Task 1 RED: surfaces.day_document does not exist yet")
+    with tempfile.TemporaryDirectory() as tmp:
+        path = write_plan(tmp, [HEADER, row_for()])
+        code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit"])
+        if code != 0:
+            fail("snapshot exited %d, want 0: %s" % (code, out))
+        snap = json.loads(out)
+        if snap.get("status") != "ready":
+            fail("snapshot status %r, want 'ready'" % snap.get("status"))
+        if not re.fullmatch(r"[0-9a-f]{64}", snap.get("revision", "")):
+            fail("snapshot revision %r is not a 64-hex SHA-256" % snap.get("revision"))
+        if snap.get("date") != "2026-01-07":
+            fail("snapshot date %r, want 2026-01-07" % snap.get("date"))
+        if snap.get("columns") != list(HEADER):
+            fail("snapshot columns %r, want %r" % (snap.get("columns"), list(HEADER)))
+        cells = snap.get("cells", {})
+        if cells.get("EMT (top priority)") != "ch 2 finish":
+            fail("snapshot EMT cell %r, want 'ch 2 finish'" % cells.get("EMT (top priority)"))
+        if cells.get("Math, ~25 min") != "Ch 1 finish":
+            fail("snapshot Math cell %r, want 'Ch 1 finish'" % cells.get("Math, ~25 min"))
+        if cells.get("CS + other") != "Lab 0":
+            fail("snapshot CS cell %r, want 'Lab 0'" % cells.get("CS + other"))
+        if "Date" in cells:
+            fail("snapshot made the date column editable")
+        if snap.get("document") != open(path, encoding="utf-8").read():
+            fail("snapshot document does not match the file text")
+        if snap.get("revision") != sha256_bytes(open(path, "rb").read()):
+            fail("snapshot revision is not the SHA-256 of the file bytes")
+
+
+def check_task1_single_cell_edit():
+    if day_document is None:
+        fail("Task 1 RED: surfaces.day_document does not exist yet")
+    with tempfile.TemporaryDirectory() as tmp:
+        path = write_plan(tmp, [HEADER, row_for()])
+        before = open(path, "rb").read()
+        code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit"])
+        snap = json.loads(out)
+        rev = snap["revision"]
+        code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit",
+                             "--set", "EMT=ch 3, start", "--revision", rev])
+        if code != 0:
+            fail("save exited %d: %s" % (code, out))
+        result = json.loads(out)
+        if result.get("status") != "saved":
+            fail("save status %r, want 'saved'" % result.get("status"))
+        if result.get("revision") == rev:
+            fail("save returned the same revision it was given")
+        after = open(path, "rb").read()
+        if result.get("revision") != sha256_bytes(after):
+            fail("save revision is not the SHA-256 of the bytes now on disk")
+        start = before.index(b"ch 2 finish")
+        end = start + len(b"ch 2 finish")
+        want = before[:start] + b"ch 3, start" + before[end:]
+        if after != want:
+            fail("bytes outside the edited cell changed")
+        spans = changed_spans(before, after)
+        if spans != [(start, end, b"ch 3, start")]:
+            fail("changed span %r, want exactly the EMT cell span" % (spans,))
+
+
+def check_task1_preservation_corpus():
+    if day_document is None:
+        fail("Task 1 RED: surfaces.day_document does not exist yet")
+    with tempfile.TemporaryDirectory() as tmp:
+        for name, data in SUPPORTED_GRAMMAR:
+            if name == "lf-basic":
+                continue
+            path = os.path.join(tmp, name + ".md")
+            with open(path, "wb") as fh:
+                fh.write(data)
+            code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit"])
+            if code != 0:
+                fail("%s: snapshot exited %d: %s" % (name, code, out))
+            snap = json.loads(out)
+            if snap.get("status") != "ready":
+                fail("%s: snapshot status %r, want ready" % (name, snap.get("status")))
+            editable = [c for c in snap["columns"] if c != "Date"]
+            if not editable:
+                fail("%s: no editable columns in %r" % (name, snap["columns"]))
+            target = {"unknown-columns": "Notes"}.get(name, editable[0])
+            new_text = "edited " + name
+            before = open(path, "rb").read()
+            code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit",
+                                 "--set", "%s=%s" % (target, new_text),
+                                 "--revision", snap["revision"]])
+            if code != 0:
+                fail("%s: save exited %d: %s" % (name, code, out))
+            result = json.loads(out)
+            if result.get("status") != "saved":
+                fail("%s: save status %r, want saved" % (name, result.get("status")))
+            after = open(path, "rb").read()
+            spans = changed_spans(before, after)
+            if len(spans) != 1:
+                fail("%s: %d changed spans, want exactly 1 (only the edited cell)"
+                     % (name, len(spans)))
+            row_start = before.find(b"2026-01-07")
+            if row_start < 0:
+                fail("%s: dated row bytes not found in document" % name)
+            row_end = before.find(b"\n", row_start)
+            if row_end < 0:
+                row_end = len(before)
+            s, e, repl = spans[0]
+            if not (row_start <= s and e <= row_end):
+                fail("%s: changed span %r escapes the dated row line" % (name, (s, e)))
+            if name == "crlf-basic":
+                if b"\r\n" not in after or after.count(b"\r\n") != before.count(b"\r\n"):
+                    fail("crlf-basic: CRLF line endings were not preserved")
+            if name == "padded-cells":
+                if before.count(b"  | ") != after.count(b"  | "):
+                    fail("padded-cells: cell padding was not preserved")
+            if name == "no-outer-pipes":
+                if after.strip().startswith(b"|"):
+                    fail("no-outer-pipes: an outer pipe was introduced")
+            if name == "escaped-pipe-cell":
+                if snap["cells"].get(target) != "read p. 1 | 2":
+                    fail("escaped-pipe-cell: snapshot did not unescape \\| -> |: %r"
+                         % snap["cells"].get(target))
+                if b"\\|" not in before:
+                    fail("escaped-pipe-cell fixture lost its escape before the edit")
+            if name == "inline-code-pipe-cell":
+                if snap["cells"].get(target) != "run `a | b` and note it":
+                    fail("inline-code-pipe-cell: snapshot cell %r"
+                         % snap["cells"].get(target))
+                if b"`a | b`" not in after:
+                    fail("inline-code-pipe-cell: inline code pipe did not survive")
+            if name == "unknown-columns":
+                if target != "Notes":
+                    fail("unknown-columns: expected to edit the Notes column, got %r" % target)
+            if name == "surrounding-prose":
+                if b"A line before." not in after or b"Another line before." not in after:
+                    fail("surrounding-prose: prose was not preserved")
+            if name == "unrelated-tables":
+                if b"| Timezone | UTC |" not in after:
+                    fail("unrelated-tables: decoy table was not preserved")
+
+
+def check_task1_refusals():
+    if day_document is None:
+        fail("Task 1 RED: surfaces.day_document does not exist yet")
+    with tempfile.TemporaryDirectory() as tmp:
+        for name, data in REFUSED_GRAMMAR:
+            if name == "control-char-input":
+                # The corpus comment defines this entry as a representational
+                # proof for client-side refusal of *submitted* values; the
+                # document itself must not be treated as unreadable. The
+                # submitted-value refusal is asserted separately below.
+                continue
+            path = os.path.join(tmp, "refused-" + name + ".md")
+            with open(path, "wb") as fh:
+                fh.write(data)
+            code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit"])
+            if code == 0:
+                fail("%s: refusal snapshot exited 0" % name)
+            result = json.loads(out)
+            if result.get("status") not in ("invalid", "unsupported"):
+                fail("%s: snapshot status %r, want invalid/unsupported"
+                     % (name, result.get("status")))
+            if open(path, "rb").read() != data:
+                fail("%s: refusal wrote to the file" % name)
+            if os.path.exists(path + ".tmp"):
+                fail("%s: refusal left a temporary file" % name)
+
+        path = write_plan(tmp, [HEADER, row_for()], "valid.md")
+        before = open(path, "rb").read()
+        code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit"])
+        snap = json.loads(out)
+
+        code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit",
+                             "--set", "NoSuchColumn=value",
+                             "--revision", snap["revision"]])
+        if code == 0:
+            fail("unknown-column edit exited 0, want failure")
+        result = json.loads(out)
+        if result.get("status") != "invalid":
+            fail("unknown-column edit status %r, want invalid" % result.get("status"))
+        if result.get("draft") != {"NoSuchColumn": "value"}:
+            fail("unknown-column edit did not echo the draft verbatim: %r"
+                 % result.get("draft"))
+        if open(path, "rb").read() != before:
+            fail("unknown-column edit changed the file")
+
+        code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit",
+                             "--set", "Date=2026-01-08",
+                             "--revision", snap["revision"]])
+        result = json.loads(out)
+        if result.get("status") != "invalid":
+            fail("date-column edit status %r, want invalid" % result.get("status"))
+
+        for bad in ("EMT=a\nb", "EMT=a\x00b"):
+            code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit",
+                                 "--set", bad, "--revision", snap["revision"]])
+            result = json.loads(out)
+            if result.get("status") != "invalid":
+                fail("control-value edit status %r, want invalid" % result.get("status"))
+            if open(path, "rb").read() != before:
+                fail("control-value edit changed the file")
+
+        code, out = run_cli(["day", path, "--date", "2026-01-08", "--edit"])
+        if code == 0:
+            fail("missing-date snapshot exited 0, want failure")
+        result = json.loads(out)
+        if result.get("status") != "invalid":
+            fail("missing-date snapshot status %r, want invalid" % result.get("status"))
+
+
+def check_task1_atomic_write():
+    if day_document is None:
+        fail("Task 1 RED: surfaces.day_document does not exist yet")
+    with tempfile.TemporaryDirectory() as tmp:
+        path = write_plan(tmp, [HEADER, row_for()])
+        snap = day_document.snapshot(path, 2026, "2026-01-07")
+        if snap["status"] != "ready":
+            fail("atomic: snapshot not ready: %r" % snap)
+        calls = []
+        orig_replace = os.replace
+
+        def spy_replace(src, dst):
+            calls.append((src, dst, os.path.exists(src)))
+            return orig_replace(src, dst)
+
+        os.replace = spy_replace
+        try:
+            result = day_document.save(path, "2026-01-07",
+                                       {"EMT": "ch 3"}, snap["revision"])
+        finally:
+            os.replace = orig_replace
+        if result["status"] != "saved":
+            fail("atomic: save status %r" % result["status"])
+        if not calls:
+            fail("atomic: os.replace was never called")
+        tmp_src, dst, existed = calls[-1]
+        if dst != path:
+            fail("atomic: os.replace target %r, want the plan path" % dst)
+        if not existed:
+            fail("atomic: temporary sibling file did not exist before replace")
+        if os.path.basename(tmp_src) != os.path.basename(path) + ".tmp":
+            fail("atomic: temporary file %r is not a sibling of the plan" % tmp_src)
+        if os.path.exists(path + ".tmp"):
+            fail("atomic: temporary file left behind")
+        if result["revision"] != sha256_bytes(open(path, "rb").read()):
+            fail("atomic: returned revision does not match bytes on disk")
+
+
 def main():
     check_builders_and_corpus()
     check_byte_helpers()
     check_concurrent_and_cli_helpers()
     check_http_helper_refuses_closed_port()
-    print("ok: day-edit Wave 0 harness -- LF/CRLF builders, %d supported + %d "
-          "refused grammar entries, byte hash/diff/apply helpers, concurrent "
-          "rewrite hooks, CLI/HTTP helpers all self-check green before "
-          "surfaces/day_document.py exists"
-          % (len(SUPPORTED_GRAMMAR), len(REFUSED_GRAMMAR)))
+    check_task1_snapshot_via_cli()
+    check_task1_single_cell_edit()
+    check_task1_preservation_corpus()
+    check_task1_refusals()
+    check_task1_atomic_write()
+    print("ok: day-edit Task 1 -- structured snapshot, exact-span edit, "
+          "grammar refusals, atomic replace all green")
     return 0
 
 
