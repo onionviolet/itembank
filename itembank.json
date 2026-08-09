@@ -1,5 +1,8 @@
 {
   "theme": "system",
+  "accent": {
+    "source": "#0e6e62"
+  },
   "daily_cap": 40,
   "selection_weights": {
     "objective_miss_rate": 0.5,

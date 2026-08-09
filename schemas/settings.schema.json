@@ -6,14 +6,33 @@
   "x-itembank-version": 1,
   "type": "object",
   "additionalProperties": false,
-  "required": ["theme", "daily_cap", "selection_weights", "auditor_autonomy", "model_backend", "update_policy", "daemon"],
+  "required": ["theme", "accent", "daily_cap", "selection_weights", "auditor_autonomy", "model_backend", "update_policy", "daemon"],
   "properties": {
     "theme": {
       "type": "string",
-      "description": "The app's color theme. Inert until Phase 4 reads it.",
+      "description": "The app's color theme. Read by this phase (4).",
       "enum": ["system", "light", "dark"],
       "default": "system",
       "x-itembank-phase": 4
+    },
+    "accent": {
+      "type": "object",
+      "description": "The learner's chosen source accent color. Only accent.source is persisted; derived light/dark pairs, contrast ratios, correction notices, and manual per-mode overrides never enter this file (D-05/D-07). Read by this phase (4).",
+      "additionalProperties": false,
+      "required": ["source"],
+      "x-itembank-phase": 4,
+      "default": {
+        "source": "#0e6e62"
+      },
+      "properties": {
+        "source": {
+          "type": "string",
+          "description": "The learner's chosen source accent as a normalized opaque #RRGGBB hex color. Written only through itembank theme set/pick, which normalize and validate the exact six-digit hex form before persisting; the schema enforces the string type and a seven-character minimum so a hand-edited file cannot carry an empty or truncated source.",
+          "minLength": 7,
+          "default": "#0e6e62",
+          "x-itembank-phase": 4
+        }
+      }
     },
     "daily_cap": {
       "type": "integer",

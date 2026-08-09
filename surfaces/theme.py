@@ -17,6 +17,8 @@ import colorsys
 import re
 import sys
 
+from surfaces.settings import load_settings, write_settings
+
 
 # The learner-facing persisted source accent, and the document the existing
 # `THEME_CSS` constant is computed from (the additive schema default).
@@ -264,11 +266,37 @@ def _print_preview(payload):
         print("notice: %s" % notice)
 
 
+def _write_source(base, source):
+    """Persist exactly `accent.source` through the atomic settings writer,
+    leaving every other key (known or unknown to the schema) untouched.
+    """
+    data = load_settings(base)
+    data["accent"]["source"] = source
+    write_settings(base, data)
+
+
 def cmd_theme(a):
-    """`itembank theme` command family. Task 1 ships the read-only preview
-    slice; set/reset and pick are added by Tasks 2 and 3 of plan 04-03.
+    """`itembank theme` command family: read-only preview, source-only set,
+    confirmed reset, and (plan 04-03 Task 3) the native picker.
     """
     if a.action == "preview":
         _print_preview(theme_preview(a.color))
         return 0
-    sys.exit("usage: itembank theme preview COLOR --base DIR")
+    if a.action == "set":
+        src = normalize_source(a.color)
+        if src is None:
+            sys.exit("settings.invalid_value: %r is not an opaque #RRGGBB color"
+                     % (a.color,))
+        _write_source(a.base, src)
+        _print_preview(theme_preview(src))
+        print("set accent.source = %r" % src)
+        return 0
+    if a.action == "reset":
+        if a.confirm_reset != "RESET":
+            sys.exit("theme reset requires --confirm-reset RESET")
+        _write_source(a.base, DEFAULT_ACCENT)
+        _print_preview(theme_preview(DEFAULT_ACCENT))
+        print("reset accent.source = %r" % DEFAULT_ACCENT)
+        return 0
+    sys.exit("usage: itembank theme preview COLOR | set COLOR | reset "
+             "--confirm-reset RESET")

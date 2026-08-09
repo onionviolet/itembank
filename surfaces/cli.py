@@ -340,6 +340,19 @@ def main():
                     help="directory holding itembank.json (default: current directory)")
     tp.set_defaults(fn=cmd_theme)
 
+    ts = t.add_parser("set", help="persist COLOR as the source accent")
+    ts.add_argument("color")
+    ts.add_argument("--base", default=".",
+                    help="directory holding itembank.json (default: current directory)")
+    ts.set_defaults(fn=cmd_theme)
+
+    tr = t.add_parser("reset", help="restore the default source accent after confirmation")
+    tr.add_argument("--base", default=".",
+                    help="directory holding itembank.json (default: current directory)")
+    tr.add_argument("--confirm-reset", default="", metavar="RESET",
+                    help="exact confirmation text RESET required to restore #0e6e62")
+    tr.set_defaults(fn=cmd_theme)
+
     s = sub.add_parser("migrate", help="one-time, re-runnable import of the three legacy "
                        "stores (_attempts/*.md, session JSON, daily_log.md) into the "
                        "evidence log; a dry run by default, pass --write to actually import")
