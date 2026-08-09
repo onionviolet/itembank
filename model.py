@@ -497,8 +497,10 @@ THE LESSON SECTION
   section and an external directive, the external source takes precedence.
 
   An item's [LESSON-REF:] tag names readable heading text, not an id; if an
-  item carries more than one [LESSON-REF:] tag, only the first is read. The
-  tag itself is listed above with the other shared fields.
+  item carries more than one [LESSON-REF:] tag, only the first is read. A
+  referenced heading's text must not contain `]` -- the tag reads up to the
+  first closing bracket, so a bracketed heading can never be named. The tag
+  itself is listed above with the other shared fields.
 
 THE SLUG RULE
   A heading's slug is its text lowercased, whitespace collapsed, punctuation
