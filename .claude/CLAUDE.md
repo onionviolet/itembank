@@ -40,7 +40,20 @@ sees, the feature is wrong.
 
 ### Constraints
 
-- **Tech stack**: Python standard library only, no install step — the founding design constraint. Two named exceptions: a vendored KaTeX asset for Math rendering (goal 5 forbids services and network, not files), and stdlib `urllib` for the opt-in updater.
+> **Amendment 2026-08-09 — constraint relaxation (Weibao, recorded verbatim in
+> `.planning/RESEARCH-BRIEF-learning-platform-2026-08-09.md` §1).** The following
+> are now **preferences, not rules**: Python-stdlib-only, no install/build step,
+> Python-only, offline-first/local-first. Dependencies, bundlers, npm, and
+> non-Python components are permitted when they earn their cost. **A packaged
+> desktop app is an end goal.** Judge ideas on product merit and report real
+> cost; do not reject an idea for needing a dependency. Still non-negotiable:
+> (1) the runtime, not a model, decides what reaches the learner; (2) exactly one
+> parser, one scorer, one evidence store; (3) evidence and banks stay on disk, no
+> telemetry; (4) format changes are additive; (5) the accessibility gates in
+> `.planning/UI-SPEC.md`. Bullets below marked *(relaxed 2026-08-09)* are kept
+> for history but no longer bind.
+
+- **Tech stack** *(relaxed 2026-08-09 — now a preference, see amendment above)*: Python standard library only, no install step — the founding design constraint. Two named exceptions: a vendored KaTeX asset for Math rendering (goal 5 forbids services and network, not files), and stdlib `urllib` for the opt-in updater.
 - **Network**: hosted models are permitted, so the tool is no longer offline-only. But the core loop must **degrade, never block**: sitting a quiz, scoring, lessons, the authored hint ladder, evidence, and reports all work with the network unplugged. The model layer goes quiet when unreachable, the same way `day` omits Anki counts when Anki is closed. Being out of credits must never stop you studying.
 - **Data residency**: evidence and banks stay on disk. No cloud sync, no hosted gradebook, no telemetry. Item text may transit to a model in a request; it is never stored remotely by this tool.
 - **Accepted risk — the `update_policy` divergence is deliberate (D-13).** The schema default is `opt_in`, so a fresh install with no settings file never phones home without being asked; this repository's own checked-in `itembank.json` sets `check_on_launch` so the updater gets dogfooded through Phases 3–11, which is the reason this phase was pulled forward. The background check is throttled to the configured interval and prints a one-time disclosure before its first request, and the two values are meant to differ — recorded 2026-08-08 so this is not rediscovered later as a surprise.
@@ -57,6 +70,12 @@ sees, the feature is wrong.
 <!-- GSD:stack-start source:codebase/STACK.md -->
 
 ## Technology Stack
+
+> **Note (2026-08-09):** this section describes the stack **as built today**. The
+> stdlib-only / no-build-step / Python-only statements below are historical fact,
+> not forward constraints — see the Constraints amendment above. Future phases may
+> add a build step, npm-managed frontend assets, or non-Python components where
+> they earn it, and Phase-12-scope packaging targets a real installer.
 
 ## Languages
 
