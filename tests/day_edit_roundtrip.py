@@ -626,6 +626,191 @@ def check_task1_atomic_write():
             fail("atomic: returned revision does not match bytes on disk")
 
 
+# ---- plan 04-02 Task 2: stale revisions, conflicts, confirmed force ---------
+
+def check_task2_conflict_no_write():
+    if day_document is None:
+        fail("Task 2 RED: surfaces.day_document does not exist yet")
+    with tempfile.TemporaryDirectory() as tmp:
+        path = write_plan(tmp, [HEADER, row_for()])
+        snap = day_document.snapshot(path, 2026, "2026-01-07")
+        concurrent = plan_bytes(
+            [HEADER, row_for(cells=("ch 2 finish", "changed by Obsidian", "Lab 0"))])
+        with open(path, "wb") as fh:
+            fh.write(concurrent)
+
+        result = day_document.save(path, "2026-01-07",
+                                   {"EMT": "ch 3"}, snap["revision"])
+        if result.get("status") != "conflict":
+            fail("stale save status %r, want conflict" % result.get("status"))
+        if open(path, "rb").read() != concurrent:
+            fail("conflict wrote to the file")
+        if result.get("draft") != {"EMT": "ch 3"}:
+            fail("conflict lost the draft: %r" % result.get("draft"))
+        if result.get("revision") != sha256_bytes(concurrent):
+            fail("conflict did not carry the fresh revision")
+        if result.get("submitted_revision") != snap["revision"]:
+            fail("conflict did not carry the submitted revision")
+        current = result.get("current", {})
+        if current.get("revision") != result.get("revision"):
+            fail("conflict current snapshot revision mismatch")
+        if current.get("cells", {}).get("Math, ~25 min") != "changed by Obsidian":
+            fail("conflict current snapshot did not carry the fresh cell value")
+        if current.get("document") != concurrent.decode("utf-8"):
+            fail("conflict current snapshot document mismatch")
+        if os.path.exists(path + ".tmp"):
+            fail("conflict left a temporary file")
+
+        code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit",
+                             "--set", "EMT=ch 3", "--revision", snap["revision"]])
+        if code == 0:
+            fail("CLI conflict exited 0")
+        cli = json.loads(out)
+        if cli.get("status") != "conflict":
+            fail("CLI conflict status %r" % cli.get("status"))
+        if cli.get("draft") != {"EMT": "ch 3"}:
+            fail("CLI conflict lost the draft: %r" % cli.get("draft"))
+        if open(path, "rb").read() != concurrent:
+            fail("CLI conflict wrote to the file")
+
+
+def check_task2_metadata_no_false_conflict():
+    if day_document is None:
+        fail("Task 2 RED: surfaces.day_document does not exist yet")
+    with tempfile.TemporaryDirectory() as tmp:
+        path = write_plan(tmp, [HEADER, row_for()])
+        snap = day_document.snapshot(path, 2026, "2026-01-07")
+        os.utime(path, (time.time() + 5, time.time() + 5))
+        result = day_document.save(path, "2026-01-07",
+                                   {"EMT": "ch 3"}, snap["revision"])
+        if result.get("status") != "saved":
+            fail("metadata-only change caused %r, want saved" % result.get("status"))
+        after = open(path, "rb").read()
+        if result.get("revision") != sha256_bytes(after):
+            fail("metadata-only save returned a wrong revision")
+
+        snap2 = day_document.snapshot(path, 2026, "2026-01-07")
+        mutated = after.replace(b"ch 3", b"ch 9")
+        with open(path, "wb") as fh:
+            fh.write(mutated)
+        result = day_document.save(path, "2026-01-07",
+                                   {"EMT": "ch 4"}, snap2["revision"])
+        if result.get("status") != "conflict":
+            fail("byte change did not conflict: %r" % result.get("status"))
+        if open(path, "rb").read() != mutated:
+            fail("byte-change conflict wrote to the file")
+
+
+def check_task2_force_cli_gates():
+    if day_document is None:
+        fail("Task 2 RED: surfaces.day_document does not exist yet")
+    with tempfile.TemporaryDirectory() as tmp:
+        path = write_plan(tmp, [HEADER, row_for()])
+        original = open(path, "rb").read()
+        base = ["day", path, "--date", "2026-01-07", "--edit",
+                "--set", "EMT=x"]
+
+        code, out = run_cli(base + ["--revision", "a" * 64, "--force"])
+        if code == 0:
+            fail("--force alone was accepted")
+        if "OVERWRITE" not in out:
+            fail("--force alone did not name the required confirmation")
+
+        code, out = run_cli(base + ["--revision", "a" * 64,
+                                    "--confirm-force", "OVERWRITE"])
+        if code == 0:
+            fail("--confirm-force OVERWRITE alone was accepted")
+
+        code, out = run_cli(base + ["--force", "--confirm-force", "OVERWRITE"])
+        if code == 0:
+            fail("--force without --revision was accepted")
+
+        code, out = run_cli(base + ["--revision", "a" * 64,
+                                    "--force", "--confirm-force", "wrong"])
+        if code == 0:
+            fail("a wrong confirmation word was accepted")
+
+        if open(path, "rb").read() != original:
+            fail("gated force attempts wrote to the file")
+        if os.path.exists(path + ".tmp"):
+            fail("gated force attempts left a temporary file")
+
+
+def check_task2_confirmed_force():
+    if day_document is None:
+        fail("Task 2 RED: surfaces.day_document does not exist yet")
+    with tempfile.TemporaryDirectory() as tmp:
+        path = write_plan(tmp, [HEADER, row_for()])
+        snap = day_document.snapshot(path, 2026, "2026-01-07")
+        concurrent = plan_bytes(
+            [HEADER, row_for(cells=("ch 2 finish", "changed by Obsidian", "Lab 0"))],
+            prose=("Prose edited by Obsidian.",))
+        with open(path, "wb") as fh:
+            fh.write(concurrent)
+
+        first = day_document.save(path, "2026-01-07",
+                                  {"EMT": "ch 3"}, snap["revision"])
+        if first.get("status") != "conflict":
+            fail("stale save did not conflict: %r" % first.get("status"))
+
+        forced = day_document.save(path, "2026-01-07", {"EMT": "ch 3"},
+                                   first["revision"], force=True)
+        if forced.get("status") != "saved":
+            fail("confirmed force did not save: %r" % forced)
+        after = open(path, "rb").read()
+        if forced.get("revision") != sha256_bytes(after):
+            fail("confirmed force returned a wrong revision")
+        if b"changed by Obsidian" not in after:
+            fail("confirmed force lost the concurrent Math edit")
+        if b"Prose edited by Obsidian." not in after:
+            fail("confirmed force lost the concurrent prose edit")
+        if forced.get("cells", {}).get("EMT (top priority)") != "ch 3":
+            fail("confirmed force did not apply the draft cell")
+
+        snap3 = day_document.snapshot(path, 2026, "2026-01-07")
+        third = plan_bytes(
+            [HEADER, row_for(cells=("ch 3", "changed again", "Lab 0"))])
+        with open(path, "wb") as fh:
+            fh.write(third)
+        replay = day_document.save(path, "2026-01-07", {"EMT": "ch 4"},
+                                   snap3["revision"], force=True)
+        if replay.get("status") != "conflict":
+            fail("third-version replay was not refused: %r" % replay.get("status"))
+        if open(path, "rb").read() != third:
+            fail("third-version replay wrote to the file")
+        if os.path.exists(path + ".tmp"):
+            fail("third-version conflict left a temporary file")
+
+        snap4 = day_document.snapshot(path, 2026, "2026-01-07")
+        code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit",
+                             "--set", "EMT=ch 5", "--revision", snap4["revision"],
+                             "--force", "--confirm-force", "OVERWRITE"])
+        if code != 0:
+            fail("CLI confirmed force exited %d: %s" % (code, out))
+        cli = json.loads(out)
+        if cli.get("status") != "saved":
+            fail("CLI confirmed force status %r" % cli.get("status"))
+
+
+def check_task2_draft_and_no_temp():
+    if day_document is None:
+        fail("Task 2 RED: surfaces.day_document does not exist yet")
+    with tempfile.TemporaryDirectory() as tmp:
+        path = write_plan(tmp, [HEADER, row_for()])
+        before = open(path, "rb").read()
+        snap = day_document.snapshot(path, 2026, "2026-01-07")
+        result = day_document.save(path, "2026-01-07",
+                                   {"EMT": "bad\nvalue"}, snap["revision"])
+        if result.get("status") != "invalid":
+            fail("invalid-value save status %r, want invalid" % result.get("status"))
+        if result.get("draft") != {"EMT": "bad\nvalue"}:
+            fail("invalid result lost the draft verbatim: %r" % result.get("draft"))
+        if open(path, "rb").read() != before:
+            fail("invalid result wrote to the file")
+        if os.path.exists(path + ".tmp"):
+            fail("invalid result left a temporary file")
+
+
 def main():
     check_builders_and_corpus()
     check_byte_helpers()
@@ -637,8 +822,14 @@ def main():
     check_task1_escape_survival_outside_edit()
     check_task1_refusals()
     check_task1_atomic_write()
-    print("ok: day-edit Task 1 -- structured snapshot, exact-span edit, "
-          "grammar refusals, atomic replace all green")
+    check_task2_conflict_no_write()
+    check_task2_metadata_no_false_conflict()
+    check_task2_force_cli_gates()
+    check_task2_confirmed_force()
+    check_task2_draft_and_no_temp()
+    print("ok: day-edit plan 04-02 -- structured snapshot, exact-span edit, "
+          "grammar refusals, atomic replace, stale conflicts, confirmed force "
+          "all green")
     return 0
 
 
