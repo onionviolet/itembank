@@ -10,53 +10,68 @@ import collections, html, json, os, sys, uuid
 import evidence
 from model import grab, lint, load, parse_lesson
 from runtime import page_item, score_response
-from surfaces.quiz_page import TEMPLATE
+from surfaces.quiz_page import OFFLINE_JS, SERVED_JS, TEMPLATE
 from surfaces.theme import THEME_CSS
 
 
 def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
-             lesson_base="", lesson_slugs=None):
+             lesson_base="", lesson_slugs=None, bank_stem=None, mode=None):
     text = open(bank_path, encoding="utf-8").read()
     title = grab(r"(?m)^#\s+(.*?)\s*$", text) or os.path.basename(bank_path)
     counts = collections.Counter(q["type"] for q in qs)
     mix = ", ".join("%d %s" % (v, k) for k, v in counts.most_common())
     sub = "%d items &middot; %s &middot; dichotomous scoring" % (len(qs), mix)
     sub += " &middot; answers recorded" if serve else " &middot; nothing recorded"
-    # When the caller knows which lesson headings actually resolve (from
-    # parse_lesson), blank the slug of any item whose LESSON-REF does not
-    # resolve to one. That is how the D-12 chip rule holds under `serve
-    # --force`: a bank with a dangling reference normally never serves (lint
-    # errors, D-05), but when the gate is bypassed the chip must be omitted
-    # rather than rendered as a link to a dead anchor.
-    if lesson_slugs is None:
-        items = [page_item(q, reveal=reveal, offline=not serve) for q in qs]
+    # Served mode (SURF-02): the page receives bootstrap metadata only --
+    # allowlisted bank stem, item count, configured session mode, and the
+    # resolving lesson-slug set -- plus an empty item array. The browser
+    # starts the sitting through POST /api/start and submits through
+    # POST /api/submit, so no key, explanation or full bank item array ever
+    # reaches the served source. The offline client script is substituted
+    # away entirely (plan 04-01 Test 5).
+    if serve:
+        items = []
+        boot = {"bank": bank_stem or "", "count": len(qs), "mode": mode or "",
+                "lesson_slugs": sorted(lesson_slugs) if lesson_slugs else []}
     else:
+        # The static `build` compatibility path: the full Python-produced
+        # item array with canonical keys and explanations, and the offline
+        # canonical-key comparison client. When the caller knows which lesson
+        # headings actually resolve (from parse_lesson), blank the slug of any
+        # item whose LESSON-REF does not resolve -- the D-12 chip rule for the
+        # one surface with no daemon behind it.
         items = []
         for q in qs:
-            it = page_item(q, reveal=reveal, offline=not serve)
-            if it.get("lesson_slug") and it["lesson_slug"] not in lesson_slugs:
+            it = page_item(q, reveal=reveal, offline=True)
+            if it.get("lesson_slug") and lesson_slugs is not None \
+                    and it["lesson_slug"] not in lesson_slugs:
                 it["lesson_slug"] = ""
             items.append(it)
+        boot = {}
     # The chip label is the locked string, but it only ships when a reader
     # actually sits behind this page (D-12): a static file:// page has no
     # daemon at /lesson/<stem> to link to, so the label is substituted away
     # and the chip never renders.
     lesson_label = "Read the lesson" if lesson_base else ""
-    # `post_path` lets one process serve more than one bank -- each bank's
-    # page posts an answer back to its own bank-scoped path instead of a
-    # single hardcoded "/answer", which was correct only while exactly one
-    # bank was served per process. The default keeps `cmd_build`'s static
-    # page and `cmd_serve`'s single-bank page byte-compatible.
-    # __DATA__ goes in last so that bank text which happens to contain another
-    # placeholder is never itself substituted.
+    # The chip base/label live inside the two client scripts (quiz_page.py),
+    # not in the shared shell, so the substitutions must target the JS strings
+    # themselves before they are inserted into the template.
+    offline_js = (OFFLINE_JS
+                  .replace("__LESSON_BASE__", lesson_base)
+                  .replace("__LESSON_LABEL__", lesson_label))
+    served_js = (SERVED_JS
+                 .replace("__LESSON_BASE__", lesson_base)
+                 .replace("__LESSON_LABEL__", lesson_label))
+    # __DATA__/__BOOT__ go in last so that bank text which happens to contain
+    # another placeholder is never itself substituted.
     return mix, (TEMPLATE
                  .replace("__THEME__", THEME_CSS)
                  .replace("__SERVE__", "true" if serve else "false")
                  .replace("__TITLE__", html.escape(title))
                  .replace("__SUB__", sub)
-                 .replace("__POST__", post_path)
-                 .replace("__LESSON_BASE__", lesson_base)
-                 .replace("__LESSON_LABEL__", lesson_label)
+                 .replace("__OFFLINE_JS__", "" if serve else offline_js)
+                 .replace("__SERVED_JS__", served_js if serve else "")
+                 .replace("__BOOT__", json.dumps(boot, ensure_ascii=False))
                  .replace("__DATA__", json.dumps(items, ensure_ascii=False)))
 
 

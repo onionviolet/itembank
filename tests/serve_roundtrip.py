@@ -131,7 +131,7 @@ def check_served_page_js(page, stem):
     canonical API, renders a loading/checking status, keeps a Retry path for
     API failure, and never references the legacy bank-scoped answer route.
     """
-    for needle in ('fetch("/api/start"', 'fetch("/api/submit"',
+    for needle in ('"/api/start"', '"/api/submit"',
                    "Loading", "Checking answer", "Try again"):
         if needle not in page:
             fail("served page is missing %r" % needle)
@@ -213,10 +213,20 @@ def main():
         by_id = dict((q["id"], q) for q in qs)
 
         view = started
-        for idx in range(len(qs)):
+        seen = 0
+        wrong_done = False
+        while True:
             q = by_id[view["item"]["id"]]
-            want = None if q["type"] == "short" else True
-            got = api_submit(base, session_id, correct_answer(q))
+            if q["type"] == "short":
+                answer, want = correct_answer(q), None
+            elif not wrong_done:
+                # One deliberate wrong auto answer so the attempt view proves
+                # it renders both verdicts (mirrors the legacy test).
+                answer, want = wrong_answer(q), False
+                wrong_done = True
+            else:
+                answer, want = correct_answer(q), True
+            got = api_submit(base, session_id, answer)
             if got["score"] is not want:
                 fail("item %s (%s) scored %r, expected %r"
                      % (q["id"], q["type"], got["score"], want))
@@ -225,13 +235,16 @@ def main():
             if got["evidence"]["status"] != "recorded":
                 fail("submit response was not recorded exactly once: %r"
                      % got["evidence"])
-            if idx < len(qs) - 1:
-                if "item" not in got["next"]:
-                    fail("submit %d returned no next item" % (idx + 1))
-                view = got["next"]
-            else:
+            seen += 1
+            if seen >= len(qs):
                 if "summary" not in got["next"]:
                     fail("final submit returned no completion summary")
+                break
+            if "item" not in got["next"]:
+                fail("submit %d returned no next item" % seen)
+            view = got["next"]
+        if not wrong_done:
+            fail("the sitting never submitted a wrong auto answer")
 
         # Test 2: evidence recorded exactly once, under the API session id.
         log = evidence.log_path(os.path.dirname(os.path.abspath(BANK)) or ".")

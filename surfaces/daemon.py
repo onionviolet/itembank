@@ -485,8 +485,10 @@ def handle_quiz_get(handler, stem):
     qs = load(path)
     lesson = parse_lesson(path)
     lesson_slugs = set(h["slug"] for h in lesson["headings"]) if lesson else set()
+    sess = handler.sessions.get(stem) or {}
     _, page = quiz.page_for(path, qs, serve=True, reveal=False,
                             post_path="/quiz/%s/answer" % stem,
+                            bank_stem=stem, mode=sess.get("mode", "practice"),
                             lesson_base="/lesson/%s" % stem,
                             lesson_slugs=lesson_slugs)
     handler.send_html(page.encode("utf-8"))
@@ -699,7 +701,8 @@ CONFIDENCE_LEVELS = ("high", "medium", "low")
 # silently ignored, so a client that guesses the old Namespace field name
 # can never reintroduce the raw-path surface D-03's bank allowlist already
 # closed once (T-2-01).
-API_FORBIDDEN_FIELDS = ("session", "bank_path", "out")
+API_FORBIDDEN_FIELDS = ("session", "bank_path", "out",
+                        "item_id", "score", "key", "explanation")
 
 
 def session_index(root):
@@ -832,6 +835,12 @@ def handle_api_start(handler):
     except Exception as exc:
         handler.send_server_error(exc)
         return
+    # Register the API session against the allowlisted bank stem so a scoped
+    # `itembank serve` launch can regenerate its configured attempt markdown
+    # and print progress after every submit (plan 04-01 Test 4).
+    sess_cfg = handler.sessions.get(bank)
+    if sess_cfg is not None:
+        sess_cfg["api_session_id"] = result["session_id"]
     handler.send_json(result)
 
 
@@ -858,11 +867,55 @@ def handle_api_next(handler):
     handler.send_json(result)
 
 
+def _scoped_session_for(handler, session_id):
+    """The sessions-dict entry whose `api_session_id` matches `session_id`,
+    or None. `/api/start` registers the API session against the allowlisted
+    bank stem (plan 04-01 Task 2), so a scoped `itembank serve` launch can
+    keep regenerating its configured attempt markdown and printing progress
+    based on the API session id after every submit.
+    """
+    for cfg in handler.sessions.values():
+        if cfg.get("api_session_id") == session_id:
+            return cfg
+    return None
+
+
+def _refresh_attempt_view(cfg, session_id, qs, bank_path):
+    """Regenerate the configured attempt markdown atomically from the evidence
+    log after an API submit, using `evidence.render_attempt_md` -- the exact
+    render the legacy route and the CLI use, never a second writer -- and print
+    the scoped-serve progress line from the API session's own event count.
+    """
+    md = evidence.render_attempt_md(cfg["log"], session_id, qs, bank_path)
+    tmp = cfg["out"] + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write(md)
+    os.replace(tmp, cfg["out"])
+    if cfg.get("progress"):
+        answered = len(set(ev["item_ref"]
+                           for ev in evidence.session_events(cfg["log"], session_id)))
+        sys.stdout.write("  %d/%d answered, saved\n" % (answered, len(qs)))
+        sys.stdout.flush()
+        if answered >= len(qs):
+            print("\n  finished. Attempt file: %s" % cfg["out"])
+
+
 def handle_api_submit(handler):
     """`POST /api/submit` -- `{"session_id": "<id>", "answer": ..., "confidence"}`.
     `answer` is passed through untouched (`session.do_submit` normalizes it
     the same way the CLI's `--answer` string already was); `confidence`
     must be one of the three levels or absent.
+
+    The current question is resolved server-side from the allowlisted session
+    BEFORE `session.do_submit` runs -- the cursor advances inside `do_submit`,
+    and the explanation must describe the item just answered. The server-issued
+    `explain_payload` for that exact question is appended to the result under
+    the scoped session's reveal policy. A client field claiming an item id,
+    score, key or explanation was already rejected by `api_read_json`'s
+    forbidden-field gate (T-04-01). Finally, when this session was registered
+    against a bank stem carrying a scoped `serve` launch, the configured
+    attempt view is regenerated atomically and progress is printed from the
+    API session's own evidence.
     """
     data, failed = api_read_json(handler)
     if failed:
@@ -878,6 +931,25 @@ def handle_api_submit(handler):
             400, "confidence must be one of %s" % ", ".join(CONFIDENCE_LEVELS))
         return
     answer = data.get("answer")
+    # Pre-submit read: resolve the current question before do_submit advances
+    # the cursor. Failures here are deliberately swallowed -- do_submit itself
+    # validates the session and reports the authoritative error.
+    q = None
+    qs = []
+    bank_path = ""
+    try:
+        pre = read_session(path)
+        bank_path = pre.get("bank") or ""
+        if isinstance(bank_path, str) and bank_path:
+            qs = load(bank_path)
+            cursor = pre.get("cursor", -1)
+            items = pre.get("items") or []
+            idx = items[cursor] if isinstance(cursor, int) \
+                and 0 <= cursor < len(items) else None
+            if isinstance(idx, int) and 0 <= idx < len(qs):
+                q = qs[idx]
+    except Exception:
+        q = None
     try:
         result = session.do_submit(path, answer, confidence)
     except SystemExit as exc:
@@ -886,6 +958,12 @@ def handle_api_submit(handler):
     except Exception as exc:
         handler.send_server_error(exc)
         return
+    cfg = _scoped_session_for(handler, session_id)
+    if q is not None:
+        result["explain"] = explain_payload(
+            q, bool(cfg.get("reveal")) if cfg is not None else False)
+    if cfg is not None and result.get("accepted") and qs:
+        _refresh_attempt_view(cfg, session_id, qs, bank_path)
     handler.send_json(result)
 
 

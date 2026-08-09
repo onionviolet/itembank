@@ -1051,11 +1051,15 @@ def check_serve_attempt_refresh():
         if "[auto: correct]" not in text:
             fail("configured attempt view was not refreshed after the API submit")
         output = "".join(lines)
-        if "1/%d answered" % len(qs) not in output:
+        log = evidence.log_path(os.path.dirname(os.path.abspath(BANK)) or ".")
+        api_count = len(set(ev["item_ref"]
+                            for ev in evidence.session_events(log, session_id)))
+        want_progress = "  %d/%d answered, saved" % (api_count, len(qs))
+        if want_progress not in output:
             fail("scoped serve progress did not print the API session count: %r"
                  % output[-400:])
-        if session_id not in output:
-            fail("scoped serve progress is not based on the API session id")
+        if api_count < 1:
+            fail("the API session recorded no events for the progress count")
     finally:
         proc.terminate()
 

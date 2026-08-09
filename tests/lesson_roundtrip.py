@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(ROOT, "tests"))
 import itembank                                            # noqa: E402
 import protocol_roundtrip                                   # noqa: E402
 from surfaces import daemon, lesson, quiz                   # noqa: E402
-from surfaces.quiz_page import TEMPLATE                     # noqa: E402
+from surfaces.quiz_page import OFFLINE_JS                   # noqa: E402
 
 LES_BANK = os.path.join(ROOT, "fixtures", "lesson_bank.md")
 SMP_BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
@@ -1412,12 +1412,17 @@ def test_routes_and_cli_twin():
             fail("served quiz chip href must compose LESSON_BASE#slug")
         if 'target="_blank"' not in quiz_body:
             fail("lesson chip must open in a new tab")
-        m = re.search(r"const Q = (\[.*?\]);", quiz_body)
+        # Served quiz pages carry BOOT metadata only (plan 04-01 Test 1): the
+        # resolving lesson-slug set moves from the per-item array into BOOT,
+        # and the served client blanks chips for slugs outside it.
+        m = re.search(r"const BOOT = (\{.*?\});", quiz_body)
         if not m:
-            fail("could not find the served item array")
-        served = json.loads(m.group(1))
-        if sum(1 for it in served if it.get("lesson_slug")) != 2:
-            fail("served quiz item array must carry exactly 2 non-empty lesson slugs")
+            fail("could not find the served BOOT metadata")
+        boot = json.loads(m.group(1))
+        if sorted(boot.get("lesson_slugs") or []) != [
+                "the-airway-step-by-step", "when-to-call-for-help"]:
+            fail("served BOOT must carry every resolving lesson slug, got %r"
+                 % boot.get("lesson_slugs"))
     finally:
         proc.kill()
         proc.wait()
@@ -1442,19 +1447,20 @@ def test_page_for_shapes_and_build():
     _, dangling_page = quiz.page_for(LES_BANK, dangling, serve=True,
                                      lesson_base="/lesson/lesson_bank",
                                      lesson_slugs={"the-airway-step-by-step"})
-    m = re.search(r"const Q = (\[.*?\]);", dangling_page)
+    m = re.search(r"const BOOT = (\{.*?\});", dangling_page)
     if not m:
-        fail("could not find the served item array in the dangling page")
-    served = [it.get("lesson_slug") for it in json.loads(m.group(1))]
-    if served != ["the-airway-step-by-step", "", ""]:
-        fail("dangling LESSON-REF must blank the served lesson_slug, got %r" % served)
+        fail("could not find the served BOOT metadata in the dangling page")
+    boot = json.loads(m.group(1))
+    if boot.get("lesson_slugs") != ["the-airway-step-by-step"]:
+        fail("dangling LESSON-REF must restrict BOOT lesson_slugs, got %r"
+             % boot.get("lesson_slugs"))
     _, no_headings = quiz.page_for(LES_BANK, qs, serve=True,
                                    lesson_base="/lesson/lesson_bank",
                                    lesson_slugs=set())
-    m0 = re.search(r"const Q = (\[.*?\]);", no_headings)
+    m0 = re.search(r"const BOOT = (\{.*?\});", no_headings)
     if not m0:
-        fail("could not find the served item array in the no-headings page")
-    if any(it.get("lesson_slug") for it in json.loads(m0.group(1))):
+        fail("could not find the served BOOT metadata in the no-headings page")
+    if json.loads(m0.group(1)).get("lesson_slugs"):
         fail("chip slugs must all be blank when no lesson heading resolves (--force)")
 
     build_out = os.path.join(tempfile.mkdtemp(), "q.html")
@@ -1466,8 +1472,8 @@ def test_page_for_shapes_and_build():
     if "Read the lesson" in open(build_out, encoding="utf-8").read():
         fail("static build page must carry no lesson chip (D-12)")
 
-    pin_at = TEMPLATE.find("location.hash")
-    sort_at = TEMPLATE.find("Q.sort")
+    pin_at = OFFLINE_JS.find("location.hash")
+    sort_at = OFFLINE_JS.find("Q.sort")
     if not (0 < pin_at < sort_at):
         fail("fragment-pin step must run before the shuffle")
     if "lesson" not in inspect.getsource(daemon.handle_quiz_get):

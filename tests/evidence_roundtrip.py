@@ -1426,15 +1426,12 @@ def start_serve(bank, out, mode):
 
 
 def served_post_path(quiz_url, page):
-    """The answer-POST target the served page's own script carries, resolved
-    against the page's URL -- `itembank serve`'s answer path is bank-scoped
-    (`/quiz/<stem>/answer`), not the bare `/answer` a single-bank process
-    used to hardcode.
+    """The legacy bank-scoped answer route (`/quiz/<stem>/answer`) the old
+    served script posted to. The new served page is an /api/* client (plan
+    04-01), but the legacy route stays compatible, and this Phase 1 test
+    still drives it directly to pin the evidence shape.
     """
-    m = re.search(r'fetch\("([^"]+)"', page)
-    if not m:
-        fail("could not find the answer-POST target in the served page")
-    return urllib.parse.urljoin(quiz_url, m.group(1))
+    return quiz_url.rstrip("/") + "/answer"
 
 
 def post_answer(answer_url, item_id, response, elapsed_ms=None):
@@ -1453,10 +1450,12 @@ def post_answer(answer_url, item_id, response, elapsed_ms=None):
 
 
 def served_items_from_page(page):
+    """The served page's item payload -- empty under serve since plan 04-01,
+    which replaced the full item array with bootstrap metadata plus one item
+    per /api/start and /api/submit response.
+    """
     m = re.search(r"(?m)^const Q = (\[.*\]);$", page)
-    if not m:
-        fail("could not find the item payload in the served page")
-    return json.loads(m.group(1))
+    return json.loads(m.group(1)) if m else []
 
 
 def test_serve_writes_events():
@@ -1477,6 +1476,8 @@ def test_serve_writes_events():
         proc, quiz_url, session_id = start_serve(bank, out, "drill")
         try:
             page = urllib.request.urlopen(quiz_url, timeout=5).read().decode("utf-8")
+            if served_items_from_page(page):
+                fail("served page carries a full item array under serve")
             for item in served_items_from_page(page):
                 for leak in ("key", "explain", "correct", "opts", "cats", "da",
                             "why", "model", "rubric"):
