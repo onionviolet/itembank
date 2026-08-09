@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 03
-current_phase_name: Lesson Format & In-App Reader
+current_phase: 04
+current_phase_name: Surface Redesign & Theming
 status: executing
 stopped_at: Completed 03-05-PLAN.md
-last_updated: "2026-08-09T01:55:39.327Z"
+last_updated: "2026-08-09T02:43:36.494Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 02.1 execution started
 progress:
   total_phases: 13
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 79
-  completed_plans: 31
+  completed_plans: 32
 ---
 
 # Project State
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-07)
 
 **Core value:** One runtime, one scorer, one evidence store — and the runtime, not the model, decides what reaches the learner.
-**Current focus:** Phase 03 — Lesson Format & In-App Reader
+**Current focus:** Phase 04 — Surface Redesign & Theming
 
 ## Current Position
 
-Phase: 03 (Lesson Format & In-App Reader) — EXECUTING
-Plan: 5 of 6
-Status: Ready to execute
-Last activity: 2026-08-08 — Phase 03 execution started
+Phase: 04 (Surface Redesign & Theming) — EXECUTING
+Plan: 1 of 6
+Status: Executing Phase 04
+Last activity: 2026-08-08 — Phase 04 execution started
 
 Progress: [████░░░░░░] 39%
 

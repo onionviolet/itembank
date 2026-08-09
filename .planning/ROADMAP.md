@@ -209,7 +209,7 @@ Plans:
 
 ### Phase 3: Lesson Format & In-App Reader
 
-**Goal**: The learner opens a lesson inside the app, reads the teaching text an item is drawn from, and jumps straight to that item.
+**Goal**: As a learner, I want to open the lesson an item is drawn from inside the app, so that I can read the teaching text and jump straight back to the question that tests it.
 **Mode:** mvp
 **Depends on**: Nothing (parallel-eligible with Phase 1, Phase 2)
 **Requirements**: LESSON-01, LESSON-02, LESSON-03, LESSON-04, LESSON-05, LESSON-06
@@ -221,7 +221,7 @@ Plans:
   3. `lint` fails with an actionable message, by item number, when a `LESSON-REF` names a heading that does not exist — never a render-time crash.
   4. `spec` documents the `LESSON`/`LESSON-REF` grammar well enough that an authoring agent with no source access can write a valid lesson on the first try.
 
-**Plans**: 5/6 plans executed
+**Plans**: 6/6 plans executed
 
 Plans:
 **Wave 1**
@@ -246,7 +246,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 03-06-PLAN.md — `spec` documents the grammar, plus the phase gate
+- [x] 03-06-PLAN.md — `spec` documents the grammar, plus the phase gate
 
 ### Phase 4: Surface Redesign & Theming
 
@@ -263,13 +263,13 @@ Plans:
   4. The accent colour is set from an OS colour picker, with light/dark pairs computed, contrast-checked, and correct/incorrect kept colour-blind safe.
   5. Editing a `day` plan in-page under an optimistic-concurrency guard does not silently overwrite an edit made in Obsidian at the same time — the conflict is surfaced, not lost.
 
-**Plans**: 6 plans
+**Plans**: 1/6 plans executed
 
 Plans:
 
 **Wave 0 — validation foundation, then the first production tracer**
 
-- [ ] 04-01-PLAN.md — Phase-wide executable test harness, then API-authoritative quiz tracer and accessible one-line hierarchy
+- [x] 04-01-PLAN.md — Phase-wide executable test harness, then API-authoritative quiz tracer and accessible one-line hierarchy
 
 **Wave 1** *(blocked on 04-01 Wave 0 foundation/tracer)*
 
@@ -531,8 +531,8 @@ for what can run concurrently.
 |-------|----------------|--------|-----------|
 | 1. Evidence Spine & Protocol Foundation | 11/11 | Complete    | 2026-08-07 |
 | 2. Daemon Consolidation & Settings Foundation | 6/6 | Complete    | 2026-08-08 |
-| 3. Lesson Format & In-App Reader | 5/6 | In Progress|  |
-| 4. Surface Redesign & Theming | 0/6 | Planned | - |
+| 3. Lesson Format & In-App Reader | 6/6 | In Progress|  |
+| 4. Surface Redesign & Theming | 1/6 | In Progress|  |
 | 5. Check Item Type & Code Editor | 0/TBD | Not started | - |
 | 6. Hint Ladder, Cursor-Hold & Feedback Modes | 0/TBD | Not started | - |
 | 7. Selection Engine | 0/6 | Planned | - |
