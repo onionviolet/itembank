@@ -175,6 +175,19 @@ def parse_lesson(bank_path):
     would silently cut a lesson whose prose contains an illustrative line
     shaped like a question marker (03-RESEARCH.md Pitfall 2).
 
+    An optional `[LESSON-SRC: <path>]` in the preamble names an external
+    markdown file whose own `## LESSON` section replaces the bank's. The
+    directive's path is resolved against the bank file's own directory, and
+    anything resolving outside it -- a relative climb, an absolute path, or
+    a sibling directory whose name merely starts with the bank's -- is
+    refused before any open, on the same absolute-path-plus-separator-suffix
+    containment shape `surfaces/migrate.py:scan_legacy()` already proves.
+    The refusal and any OS-level read failure are returned as a structured
+    dict with `error` set to `lesson.src_unreadable` and `detail` naming the
+    reason; the function returns a dict on every path and raises on none
+    (T-3-04). An external source wins over an inline `## LESSON` section when
+    a bank carries both.
+
     Returns `None` when the preamble carries no `## LESSON` section; otherwise
     a dict with exactly: `source`, `body`, `intro`, `headings` (each with
     `text`, `slug`, `body`, in document order) and `error`/`detail`, both the
@@ -189,6 +202,29 @@ def parse_lesson(bank_path):
             break
         preamble.append(ch)
     head = "".join(preamble)
+
+    # The one branch in the loader (D-02): an external source replaces the
+    # bank's own preamble text before the section match, so everything after
+    # this point -- the section search, the heading walk, the returned key
+    # set -- runs unchanged over one string whether the lesson came from the
+    # bank file or from a shared file. The refusal is decided from the
+    # resolved path alone, never from the result of a read (T-3-02).
+    source = os.path.abspath(bank_path)
+    src = grab(r"(?m)^\[LESSON-SRC:\s*(.*?)\s*\]", head)
+    if src:
+        bank_dir = os.path.dirname(source) or "."
+        resolved = os.path.abspath(os.path.join(bank_dir, src))
+        if resolved != bank_dir and not resolved.startswith(bank_dir + os.sep):
+            return {"source": source, "body": "", "intro": "", "headings": [],
+                    "error": "lesson.src_unreadable",
+                    "detail": "%s escapes the bank's directory" % src}
+        try:
+            head = open(resolved, encoding="utf-8").read()
+        except OSError as exc:
+            return {"source": source, "body": "", "intro": "", "headings": [],
+                    "error": "lesson.src_unreadable", "detail": str(exc)}
+        source = resolved
+
     m = re.search(r"(?m)^##\s+LESSON\s*$", head)
     if m is None:
         return None
@@ -212,7 +248,7 @@ def parse_lesson(bank_path):
         headings.append(current)
     for h in headings:
         h["body"] = "\n".join(h["body"]).strip()
-    return {"source": os.path.abspath(bank_path),
+    return {"source": source,
             "body": lesson_text.strip(),
             "intro": "\n".join(intro).strip(),
             "headings": headings,
