@@ -17,11 +17,13 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 import itembank                                            # noqa: E402
-from surfaces import daemon, quiz                           # noqa: E402
+from surfaces import daemon, lesson, quiz                   # noqa: E402
 from surfaces.quiz_page import TEMPLATE                     # noqa: E402
 
 LES_BANK = os.path.join(ROOT, "fixtures", "lesson_bank.md")
 SMP_BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
+SRC_BANK = os.path.join(ROOT, "fixtures", "lesson_src_bank.md")
+SHARED_LESSON = os.path.join(ROOT, "fixtures", "lesson_shared.md")
 
 
 def fail(msg):
@@ -67,6 +69,39 @@ def start_daemon(workdir):
 def get(url):
     with urllib.request.urlopen(url, timeout=5) as res:
         return res.status, res.read().decode("utf-8")
+
+
+def lesson_bank_text(directive, marker_heading="H"):
+    """A minimal bank whose preamble carries `[LESSON-SRC: <directive>]`
+    plus its own inline `## LESSON` section, so the RED state fails as a
+    wrong `error == ''` and the directive branch must be proven to win over
+    the inline section rather than merely coexist with it.
+    """
+    return ("[LESSON-SRC: %s]\n\n## LESSON\n\n### %s\n\nx\n\n"
+            "Q1. s\nA) a\nB) b\nCORRECT: A\n"
+            % (directive, marker_heading))
+
+
+def broken_directive_bank(tmp, directive="nope.md"):
+    """A real bank (title, preamble directive, well-formed items) whose
+    `[LESSON-SRC:]` cannot be satisfied -- the fixture both the daemon route
+    and the CLI twin must degrade on rather than raise.
+    """
+    p = os.path.join(tmp, "broken_bank.md")
+    open(p, "w", encoding="utf-8").write(
+        "# Broken source bank\n\n[LESSON-SRC: %s]\n\n"
+        "Q1. Which way is up?   (difficulty: recall)\n"
+        "A) Up\nB) Down\nC) Sideways\nD) None\n\nCORRECT: A\n\n"
+        "WHY BEST: Up is up.\n\nKEY DISCRIMINATOR: Direction.\n\n"
+        "SECOND-BEST: B. Down is down; this would be correct if the question "
+        "asked which way is down.\n\nDISTRACTOR ANALYSIS:\n"
+        "- A) Correct: the canonical direction.\n"
+        "- B) The opposite; this would be correct if the question asked down.\n"
+        "- C) Not the answer; this would be correct if the question asked sideways.\n"
+        "- D) None; this would be correct if the question asked about nothing.\n\n"
+        "TRAP: Picking a direction other than up.\n\nCONFIDENCE: high\n"
+        % directive)
+    return p
 
 
 # ---- in-process: slug, parse, fingerprint, served payload ------------------
@@ -234,6 +269,171 @@ def test_structural_rules():
         fail("lesson route missing from ROUTE_CLI")
 
 
+# ---- plan 03-02: [LESSON-SRC:] external source and path containment --------
+
+def test_lesson_src_shared_parse():
+    """A bank whose preamble carries `[LESSON-SRC:]` resolves its headings
+    from that external file, with the identical key set an inline lesson
+    returns (D-02's one-branch-in-the-loader cost ceiling)."""
+    src = itembank.parse_lesson(SRC_BANK)
+    if src is None:
+        fail("lesson_src_bank did not parse a lesson")
+    if src["error"] != "" or src["detail"] != "":
+        fail("shared-source lesson must carry empty error/detail: %r" % src)
+    shared = itembank.parse_lesson(SHARED_LESSON)
+    if [h["text"] for h in src["headings"]] != [h["text"] for h in shared["headings"]]:
+        fail("external-source headings differ from the shared file's: %r"
+             % [h["text"] for h in src["headings"]])
+    if len(src["headings"]) != 2:
+        fail("shared fixture must carry exactly 2 headings, got %d"
+             % len(src["headings"]))
+    if os.path.basename(src["source"]) != "lesson_shared.md":
+        fail("source must be the shared file, got %r" % src["source"])
+    inline = itembank.parse_lesson(LES_BANK)
+    if set(src) != set(inline):
+        fail("external-source key set differs from inline key set: %r vs %r"
+             % (sorted(src), sorted(inline)))
+    qs = itembank.load(SRC_BANK)
+    tagged = [q for q in qs if q["lesson_ref"]]
+    if not tagged:
+        fail("lesson_src_bank must carry at least one LESSON-REF item")
+    if tagged[0]["lesson_slug"] not in [h["slug"] for h in src["headings"]]:
+        fail("tagged item references a heading missing from the shared lesson")
+
+
+def test_lesson_src_two_banks_share():
+    """Two different banks pointing `[LESSON-SRC:]` at one shared file each
+    resolve that one lesson -- the cross-bank case D-02 exists for."""
+    tmp = tempfile.mkdtemp()
+    open(os.path.join(tmp, "shared.md"), "w", encoding="utf-8").write(
+        open(SHARED_LESSON, encoding="utf-8").read())
+    lessons = []
+    for i, name in enumerate(("bank_a.md", "bank_b.md"), 1):
+        p = os.path.join(tmp, name)
+        open(p, "w", encoding="utf-8").write(
+            "[LESSON-SRC: shared.md]\n\n"
+            "Q%d. same question %d\nA) a\nB) b\nCORRECT: A\n"
+            % (i, i))
+        lessons.append(itembank.parse_lesson(p))
+    if any(l is None or l["error"] for l in lessons):
+        fail("both banks must resolve the shared lesson: %r" % lessons)
+    if [h["text"] for h in lessons[0]["headings"]] != \
+       [h["text"] for h in lessons[1]["headings"]]:
+        fail("two banks pointing at one shared file must see the same headings")
+
+
+def test_lesson_src_missing_file():
+    tmp = tempfile.mkdtemp()
+    p = os.path.join(tmp, "b.md")
+    open(p, "w", encoding="utf-8").write(lesson_bank_text("nope.md"))
+    r = itembank.parse_lesson(p)
+    if r is None:
+        fail("a missing LESSON-SRC file must return a dict, not None")
+    if r["error"] != "lesson.src_unreadable":
+        fail("missing LESSON-SRC file error code wrong: %r" % r["error"])
+    if not r["detail"]:
+        fail("missing-file detail must be non-empty")
+
+
+def test_lesson_src_traversal_refused():
+    """A relative climb above the bank's directory is refused before any
+    open -- proven by a real readable file above the bank whose distinctive
+    text must never reach the returned dict (T-3-02)."""
+    tmp = tempfile.mkdtemp()
+    os.mkdir(os.path.join(tmp, "bank"))
+    open(os.path.join(tmp, "secret.md"), "w", encoding="utf-8").write(
+        "MARKER_DO_NOT_LEAK")
+    p = os.path.join(tmp, "bank", "b.md")
+    open(p, "w", encoding="utf-8").write(lesson_bank_text("../secret.md"))
+    r = itembank.parse_lesson(p)
+    if r is None or r["error"] != "lesson.src_unreadable":
+        fail("a climb above the bank's directory must be refused: %r" % r)
+    if "MARKER_DO_NOT_LEAK" in repr(r):
+        fail("the refused file was opened despite the containment refusal")
+    if "../secret.md" not in r["detail"]:
+        fail("out-of-tree detail must name the offending path: %r" % r["detail"])
+
+
+def test_lesson_src_absolute_refused():
+    """An absolute directive value resolves to itself, so the same
+    containment check catches it without a separate branch."""
+    tmp = tempfile.mkdtemp()
+    os.mkdir(os.path.join(tmp, "bank"))
+    outside = os.path.join(tmp, "outside.md")
+    open(outside, "w", encoding="utf-8").write("MARKER_DO_NOT_LEAK")
+    p = os.path.join(tmp, "bank", "b.md")
+    open(p, "w", encoding="utf-8").write(lesson_bank_text(outside))
+    r = itembank.parse_lesson(p)
+    if r is None or r["error"] != "lesson.src_unreadable":
+        fail("an absolute path outside the bank's directory must be refused")
+    if "MARKER_DO_NOT_LEAK" in repr(r):
+        fail("an absolute outside path was opened despite the refusal")
+
+
+def test_lesson_src_subdirectory_accepted():
+    tmp = tempfile.mkdtemp()
+    bank_dir = os.path.join(tmp, "bank")
+    os.makedirs(os.path.join(bank_dir, "sub"))
+    open(os.path.join(bank_dir, "sub", "lesson.md"), "w", encoding="utf-8").write(
+        "# Sub lesson\n\n## LESSON\n\n### Heading Z\n\nProse.\n")
+    p = os.path.join(bank_dir, "b.md")
+    open(p, "w", encoding="utf-8").write(lesson_bank_text("sub/lesson.md"))
+    r = itembank.parse_lesson(p)
+    if r is None or r["error"] != "":
+        fail("a subdirectory path inside the bank's directory must be accepted: %r"
+             % r)
+    if [h["text"] for h in r["headings"]] != ["Heading Z"]:
+        fail("subdirectory lesson headings wrong: %r"
+             % [h["text"] for h in r["headings"]])
+    if os.path.basename(r["source"]) != "lesson.md":
+        fail("subdirectory source wrong: %r" % r["source"])
+
+
+def test_lesson_src_prefix_sibling_refused():
+    """A sibling directory whose name merely starts with the bank's own
+    directory must be refused -- the separator suffix is load-bearing, and
+    a naive prefix test would read `<tmp>/bank-evil/...` for a bank inside
+    `<tmp>/bank`."""
+    tmp = tempfile.mkdtemp()
+    bank_dir = os.path.join(tmp, "bank")
+    os.makedirs(bank_dir)
+    evil_dir = os.path.join(tmp, "bank-evil")
+    os.makedirs(evil_dir)
+    open(os.path.join(evil_dir, "lesson.md"), "w", encoding="utf-8").write(
+        "MARKER_DO_NOT_LEAK")
+    p = os.path.join(bank_dir, "b.md")
+    open(p, "w", encoding="utf-8").write(lesson_bank_text("../bank-evil/lesson.md"))
+    r = itembank.parse_lesson(p)
+    if r is None or r["error"] != "lesson.src_unreadable":
+        fail("a sibling sharing the bank dir's name prefix must be refused")
+    if "MARKER_DO_NOT_LEAK" in repr(r):
+        fail("the prefix-sibling file was opened")
+
+
+def test_lesson_src_wins_over_inline():
+    """A bank carrying both an inline `## LESSON` section and a
+    `[LESSON-SRC:]` directive resolves to the external file's headings, and
+    the precedence is stated in the function's docstring."""
+    tmp = tempfile.mkdtemp()
+    open(os.path.join(tmp, "shared.md"), "w", encoding="utf-8").write(
+        "# Shared\n\n## LESSON\n\n### External Heading\n\nExternal prose.\n")
+    p = os.path.join(tmp, "b.md")
+    open(p, "w", encoding="utf-8").write(
+        lesson_bank_text("shared.md", marker_heading="Inline Heading"))
+    r = itembank.parse_lesson(p)
+    headings = [h["text"] for h in r["headings"]] if r else r
+    if r is None or headings != ["External Heading"]:
+        fail("an external source must win over an inline section: %r" % headings)
+    doc = inspect.getdoc(itembank.parse_lesson) or ""
+    if "external" not in doc or "inline" not in doc:
+        fail("parse_lesson docstring must state the external-over-inline precedence")
+
+
+def test_lesson_src_stays_out_of_lint_namespace():
+    if "lesson.src_unreadable" in itembank.LINT_CODES:
+        fail("lesson.src_unreadable must stay unpublished until plan 03-03")
+
+
 # ---- subprocess: daemon routes and the CLI twin ----------------------------
 
 def test_routes_and_cli_twin():
@@ -343,6 +543,15 @@ test_fingerprint_ignores_tag()
 test_lesson03_compatibility_floor()
 test_public_item_and_schema()
 test_structural_rules()
+test_lesson_src_shared_parse()
+test_lesson_src_two_banks_share()
+test_lesson_src_missing_file()
+test_lesson_src_traversal_refused()
+test_lesson_src_absolute_refused()
+test_lesson_src_subdirectory_accepted()
+test_lesson_src_prefix_sibling_refused()
+test_lesson_src_wins_over_inline()
+test_lesson_src_stays_out_of_lint_namespace()
 test_routes_and_cli_twin()
 test_page_for_shapes_and_build()
-print("ok: lesson roundtrip (slug, parse, fingerprint, route, CLI twin, both link directions)")
+print("ok: lesson roundtrip (slug, parse, fingerprint, LESSON-SRC, route, CLI twin, both link directions)")
