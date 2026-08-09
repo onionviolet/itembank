@@ -149,6 +149,24 @@ def served_quiz_html(bank_text=SENTINEL_BANK):
         return page
 
 
+def study_page_for_question(q, bank_title="Synthetic study bank",
+                            settings_overrides=None):
+    """Render a real study page for one synthetic question dict, with
+    optional settings written beside the bank -- the same `study_page()` path
+    the daemon and the CLI use, so DOM assertions run against current output.
+    """
+    from surfaces.study import study_page
+    bank_text = "# %s\n\nQ1. Placeholder stem.\nA) A\nB) B\nC) C\n" \
+                "CORRECT: B\n" % bank_title
+    with tempfile.TemporaryDirectory() as tmp:
+        bank = os.path.join(tmp, "study_bank.md")
+        with open(bank, "w", encoding="utf-8") as fh:
+            fh.write(bank_text)
+        if settings_overrides:
+            presentation_roundtrip.write_settings_file(tmp, settings_overrides)
+        return study_page(bank, [q])
+
+
 def semantic_dom(html):
     """Parse `html` into the shared semantic DOM (presentation_roundtrip)."""
     return presentation_roundtrip.Dom(html)
@@ -470,6 +488,263 @@ def check_study_empty_and_error_states():
             fail("render-error study page has no retry/back action")
 
 
+# ---- plan 04-05 Task 2: progressive reveal, accessibility, palette --------
+
+def _label_sequence(node):
+    """Headings and disclosure summaries under `node`, in document order."""
+    out = []
+    for ch in node.get("children", []):
+        if ch["tag"] in ("h3", "summary"):
+            out.append(ch["text"].strip())
+        out.extend(_label_sequence(ch))
+    return out
+
+
+def check_study_reveal_order():
+    """Test 1: reveal order is answer, concise why, option list with adjacent
+    rationales, then labelled details for second-best, discriminator/trap,
+    and notes.
+    """
+    page = study_page_for_question(synthetic_q("mc"))
+    dom = semantic_dom(page)
+    sec = next(n for n in dom.all()
+               if n["tag"] == "section" and "data-explain" in n["attrs"])
+    labels = _label_sequence(sec)
+    expected = ["Answer", "Why this is best",
+                "A) Option one", "B) Option two", "C) Option three",
+                "Second-best answer", "Discriminator", "Common trap", "Notes"]
+    if labels != expected:
+        fail("reveal label order is %r, expected %r" % (labels, expected))
+
+
+def check_study_recall_controls_and_default_open():
+    """Test 2: before reveal, mc/multi options are native toggle buttons for
+    local recall only; correct and selected rationales open after reveal and
+    every other rationale stays closed but keyboard-reachable.
+    """
+    page = study_page_for_question(synthetic_q("mc"))
+    dom = semantic_dom(page)
+    recall = [n for n in dom.all()
+              if n["tag"] == "button" and "data-recall" in n["attrs"]]
+    if len(recall) != 3:
+        fail("study card has %d recall buttons, expected one per option"
+             % len(recall))
+    if not all(n["attrs"].get("aria-pressed") == "false" for n in recall):
+        fail("recall buttons are not aria-pressed toggle buttons")
+    if "Your recall choice" not in page:
+        fail("recall controls are not marked as not graded")
+    details = [n for n in dom.all()
+               if n["tag"] == "details" and "data-opt" in n["attrs"]]
+    if len(details) != 3:
+        fail("expected one rationale details per option, got %d" % len(details))
+    by_key = dict((n["attrs"]["data-opt"], n) for n in details)
+    if "open" not in by_key["B"]["attrs"]:
+        fail("the correct option's rationale is not open by default")
+    for key in ("A", "C"):
+        if "open" in by_key[key]["attrs"]:
+            fail("non-correct rationale %s is open by default" % key)
+    if not all(n["tag"] == "summary" for n in dom.all("summary")):
+        fail("rationale disclosures are not keyboard-reachable summaries")
+    sec = next(n for n in dom.all()
+               if n["tag"] == "section" and "data-explain" in n["attrs"])
+    if "hidden" not in sec["attrs"]:
+        fail("the explanation is not hidden before reveal")
+    js = page[page.find("<script>"):page.find("</script>")]
+    if "Revealing explanation" not in js:
+        fail("the reveal transition announcement is missing")
+    if ".open = true" not in js:
+        fail("the client does not open the selected rationale on reveal")
+
+
+def check_study_nonchoice_cards():
+    """Test 3: non-choice cards show their canonical answer/explanation
+    without inventing option controls; short cards retain model/rubric
+    deliberate-review content.
+    """
+    for kind in ("table", "dnd", "build", "short"):
+        page = study_page_for_question(synthetic_q(kind))
+        dom = semantic_dom(page)
+        if any("data-recall" in n["attrs"] for n in dom.all("button")):
+            fail("%s card invented local-recall option controls" % kind)
+        if not any("Reveal explanation" in n["text"]
+                   for n in dom.all("button")):
+            fail("%s card has no Reveal explanation action" % kind)
+    page = study_page_for_question(synthetic_q("short"))
+    for needle in ("Synthetic model answer.", "Rubric point one",
+                   "Rubric point two"):
+        if needle not in page:
+            fail("short card dropped deliberate-review content %r" % needle)
+
+
+def check_study_native_controls_and_a11y():
+    """Test 4: tabs, reveal, previous/next, Got it/Missed, option selection,
+    and disclosures are native controls with visible focus, semantic labels,
+    status announcements, and reduced-motion behavior.
+    """
+    page = study_page_for_question(synthetic_q("mc"))
+    dom = semantic_dom(page)
+    for label in ("Flashcards", "Learn", "Reveal explanation", "Previous",
+                  "Next", "Got it", "Missed"):
+        if not any(n["tag"] == "button" and label in n["text"]
+                   for n in dom.all()):
+            fail("study page is missing the native %r control" % label)
+    presentation_roundtrip.assert_native_controls(dom, minimum=9)
+    presentation_roundtrip.assert_single_h1(dom)
+    presentation_roundtrip.assert_heading_order(dom)
+    presentation_roundtrip.assert_status_region(dom)
+    css = presentation_roundtrip.style_css(page)
+    if not presentation_roundtrip.focus_visible_rules(css):
+        fail("study page has no visible-focus rules")
+    if presentation_roundtrip.reduced_motion_block(css) is None:
+        fail("study page has no reduced-motion block")
+
+
+def check_study_no_scorer_or_response():
+    """Test 5: no study JavaScript imports/calls a scorer or sends a
+    response; local selected/got/missed state affects only card
+    presentation/queue behavior (D-14).
+    """
+    page = study_page_for_question(synthetic_q("mc"))
+    start = page.find("<script>")
+    end = page.find("</script>", start)
+    js = page[start + len("<script>"):end]
+    for banned in ("fetch(", "XMLHttpRequest", "/api/", "score_response",
+                   "WebSocket", "submit"):
+        if banned in js:
+            fail("study client references a response/scoring path: %r" % banned)
+    if "aria-pressed" not in js:
+        fail("the client does not track local recall selection state")
+    if "correct" in js.lower():
+        fail("the client grades or names a local verdict: %r"
+             % [s for s in ("correct", "incorrect") if s in js.lower()])
+
+
+def check_study_reveal_announce_and_responsive():
+    """Test 6: reveal announces `Revealing explanation...`; empty/error,
+    long content at 320px/200%, focus movement, visible focus, native
+    disclosure state, and reduced motion preserve all explanation
+    information.
+    """
+    page = study_page_for_question(synthetic_q("mc"))
+    if "Revealing explanation" not in page:
+        fail("no Revealing explanation announcement")
+    css = presentation_roundtrip.style_css(page)
+    for needle in ("@media (max-width:767px)", "overflow-wrap:anywhere",
+                   "min-width:0"):
+        if needle not in css:
+            fail("study CSS lacks %r for 320px/200%% long content" % needle)
+    if presentation_roundtrip.reduced_motion_block(css) is None:
+        fail("study page has no reduced-motion fallback")
+    js = page[page.find("<script>"):page.find("</script>")]
+    if "focus()" not in js:
+        fail("the client never moves/keeps focus")
+    if not any(n["tag"] == "details" for n in semantic_dom(page).all()):
+        fail("no native disclosure state")
+
+
+def check_study_one_primary_action_per_state():
+    """Test 7: unrevealed, revealed, and Learn-rating states each expose one
+    primary next action, with no automatic pedagogy sequence.
+    """
+    page = study_page_for_question(synthetic_q("mc"))
+    dom = semantic_dom(page)
+    groups = dict((n["attrs"]["data-acts"], n) for n in dom.all()
+                  if "data-acts" in n["attrs"])
+    for name in ("front", "revealed", "rating"):
+        g = groups.get(name)
+        if g is None:
+            fail("study card has no %s action group" % name)
+            continue
+        primary = [n for n in g.get("children", [])
+                   if "data-action-primary" in n["attrs"]]
+        if len(primary) != 1:
+            fail("%s action group has %d primary actions, expected exactly one"
+                 % (name, len(primary)))
+    if groups["front"] and not any(
+            "Reveal explanation" in n["text"]
+            for n in groups["front"].get("children", [])
+            if "data-action-primary" in n["attrs"]):
+        fail("the unrevealed primary action is not Reveal explanation")
+    if groups["revealed"] and not any(
+            n["text"].strip() == "Next"
+            for n in groups["revealed"].get("children", [])
+            if "data-action-primary" in n["attrs"]):
+        fail("the revealed primary action is not Next")
+    if groups["rating"] and not any(
+            n["text"].strip() == "Got it"
+            for n in groups["rating"].get("children", [])
+            if "data-action-primary" in n["attrs"]):
+        fail("the Learn-rating primary action is not Got it")
+    js = page[page.find("<script>"):page.find("</script>")]
+    for banned in ("setTimeout", "setInterval", "autoplay"):
+        if banned in js:
+            fail("study client adds an automatic pedagogy sequence: %r"
+                 % banned)
+
+
+def check_study_theme_and_palette():
+    """Test 8: study consumes `theme.theme_css` from settings beside the
+    bank (schema defaults when absent), matches quiz accent tokens in
+    system/light/dark, and has no component color literals or
+    accent-as-correctness styling.
+    """
+    import shutil
+    import itembank
+    from surfaces import settings as settings_mod
+    from surfaces.quiz import page_for
+    from surfaces.theme import derive_theme, theme_css
+    from surfaces.study import study_page
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "sample_bank.md")
+        shutil.copy(BANK, bank)
+        qs = itembank.parse_bank(open(bank, encoding="utf-8").read())
+        presentation_roundtrip.write_settings_file(
+            tmp, {"accent.source": "#c00040"})
+        page = study_page(bank, qs)
+        expected_light = derive_theme("#c00040")["light"]["accent"]
+        got = presentation_roundtrip.token_value(
+            presentation_roundtrip.style_css(page), "accent")
+        if got != expected_light:
+            fail("study page did not consume the accent settings beside the "
+                 "bank: got %r expected %r" % (got, expected_light))
+        cfg = settings_mod.load_settings(tmp)
+        _, quiz = page_for(bank, qs, serve=True, post_path="/quiz/x/answer",
+                           lesson_base="", lesson_slugs=set(), bank_stem="x",
+                           mode="", theme_css=theme_css(cfg))
+        quiz_accent = presentation_roundtrip.token_value(
+            presentation_roundtrip.style_css(quiz), "accent")
+        if quiz_accent != got:
+            fail("study and quiz accent tokens differ: study %r quiz %r"
+                 % (got, quiz_accent))
+        presentation_roundtrip.write_settings_file(
+            tmp, {"theme": "dark", "accent.source": "#c00040"})
+        dark = study_page(bank, qs)
+        dark_accent = presentation_roundtrip.token_value(
+            presentation_roundtrip.style_css(dark), "accent")
+        if dark_accent != derive_theme("#c00040")["dark"]["accent"]:
+            fail("study dark tokens differ from the generated palette: %r"
+                 % dark_accent)
+        # schema defaults when no settings file exists
+        tmp2 = tempfile.mkdtemp()
+        bank2 = os.path.join(tmp2, "sample_bank.md")
+        shutil.copy(BANK, bank2)
+        default_page = study_page(bank2, qs)
+        default_accent = presentation_roundtrip.token_value(
+            presentation_roundtrip.style_css(default_page), "accent")
+        if default_accent != derive_theme("#0e6e62")["light"]["accent"]:
+            fail("study page without settings did not use schema defaults")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    src = open(os.path.join(ROOT, "surfaces", "study.py"),
+               encoding="utf-8").read()
+    if re.search(r"#[0-9a-fA-F]{6}", src):
+        fail("surfaces/study.py contains component color literals")
+    css = presentation_roundtrip.style_css(page)
+    if re.search(r"\.(rationale|option)[^}]*var\(--accent\)", css):
+        fail("study styles correctness with the custom accent")
+
+
 def main():
     check_study_and_export()
     check_semantic_helpers()
@@ -479,6 +754,14 @@ def main():
     check_study_item_sentinels_reach_reveal()
     check_study_script_safety()
     check_study_empty_and_error_states()
+    check_study_reveal_order()
+    check_study_recall_controls_and_default_open()
+    check_study_nonchoice_cards()
+    check_study_native_controls_and_a11y()
+    check_study_no_scorer_or_response()
+    check_study_reveal_announce_and_responsive()
+    check_study_one_primary_action_per_state()
+    check_study_theme_and_palette()
     print("study and export surfaces + Phase 4 question hierarchy: ok")
 
 
