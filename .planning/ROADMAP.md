@@ -914,6 +914,47 @@ against any plan.
    optional dependency (`sympy`), 1 config key, 1 event type (`mark_proposal`). No
    new blocks, no parser change, **no edit to `score_response()`** — a plan whose
    diff touches that function has failed.
+9. **A new API route reserves its tool name, and a key-bearing payload is gated on
+   evidence.** *(Added 2026-08-10, extracted from backlog Phase 999.3 criteria 2 and 3
+   during `/gsd-review-backlog`. Binds Phases 3 through 11 now. The phase itself stays
+   in the backlog; this rule does not.)*
+
+   Two cheap habits now, because both are expensive retrofits later and one of them
+   fails **silently**.
+
+   **(a) Reserve the tool name.** Any plan adding an entry to
+   `surfaces/daemon.py:API_ROUTES` adds its CLI command **and** its future MCP tool
+   name to `SURFACE_PARITY` in the same commit. The tool need not exist. The name
+   being present is what makes the parity test meaningful the day a dispatcher is
+   written, and what stops the third surface arriving as a second parity map. Cost:
+   one string per route.
+
+   **(b) A key-bearing payload rides the answer path, and says so.** Verified against
+   the tree 2026-08-10, today's code is **already correct, by construction rather than
+   by rule**, and that is the thing worth pinning before a fourth caller exists:
+
+   - `surfaces/daemon.py:1261` and `:705` attach `explain` to a **submit result** —
+     a response has necessarily been recorded to produce one.
+   - `reveal` (`daemon.py:660`) is narrower than its name suggests: it controls only
+     whether `explain_payload` returns the **short-item model answer**, and it defaults
+     off. It is not the gate on the explain block itself.
+   - `surfaces/study.py:29` passes `reveal=True` unconditionally, which is correct and
+     deliberate: study is an answers-visible surface by definition, not a sitting.
+
+   The rule: **any new caller of `explain_payload()`, or any new payload carrying the
+   key, rationale, or distractor analysis, either sits on the answer path or names the
+   evidence read that authorized it.** A caller-supplied boolean is not authorization.
+   Study-mode-style always-reveal surfaces remain legitimate and must declare
+   themselves as such in a docstring, the way `study.py` already does.
+
+   **Why (b) is urgent and (a) is merely tidy.** The current correctness is
+   *incidental* — it holds because every caller happens to live on the submit path. The
+   day a caller does not, a leak breaks Directive §4.1 **invisibly**: the browser
+   surface still behaves, every existing test still passes, and the defect is
+   unobservable until a non-browser caller exists. By then every payload path written
+   under the old habit needs re-auditing. A reviewer may cite this rule against any plan
+   whose diff constructs an explain-shaped payload off the answer path without naming
+   what authorized it.
 
 ## Progress
 
@@ -952,17 +993,71 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 
 ## Backlog
 
-### Phase 999.1: Advanced Visual Items and Canvas LMS Integration (BACKLOG)
+> **Backlog reviewed 2026-08-10** (`/gsd-review-backlog`). Nothing promoted, nothing
+> removed, one entry split. The reasoning for each verdict is recorded inline below so
+> the next review argues with it rather than re-deriving it.
 
-**Goal:** Extend the Phase 06.1 visual protocol beyond plot and number line into advanced visual families, then expose the player inside Canvas LMS through an explicitly hosted, authenticated LTI surface.
+### Phase 999.1: Advanced Visual Item Families (BACKLOG)
+
+**Goal:** Extend the Phase 06.1 visual protocol beyond plot and number line into advanced visual families.
 **Requirements:** TBD
+**Depends on:** Phase 06.1 (0/3 plans, not executed)
 **Plans:** 0 plans
 
-Future exploration should cover `hotspot`, `diagram`, `timeline`, `trace`, geometry/construction, and dense simulation-style responses, plus the hosting, identity, privacy, deep-linking, and grade-passback decisions required by LTI. Phase 06.1 owns the initial plot/number-line protocol, SVG/HTML slice, semantic evidence, and canvas-fallback rule. Renderers continue to receive validated configuration rather than bank-authored JavaScript, and Canvas/LTI must remain an adapter to the same local runtime/scorer rather than a second authority.
+Covers `hotspot`, `diagram`, `timeline`, `trace`, geometry/construction, and dense
+simulation-style responses. Phase 06.1 owns the initial plot/number-line protocol, the
+SVG/HTML slice, semantic evidence, and the canvas-fallback rule. Renderers continue to
+receive validated configuration rather than bank-authored JavaScript
+(`REQUIREMENTS.md` VIS-01, `UI-SPEC.md:609`).
 
-Plans:
+**2026-08-10 review verdict: KEEP.** Not promotable, for a mechanical reason rather
+than a judgement call: its only dependency, Phase 06.1, has 0 of 3 plans executed.
+Promoting a phase ahead of the phase whose protocol it extends would mean designing
+`hotspot` against a plot/number-line contract that does not exist yet. Re-review when
+06.1 is verified.
 
-- [ ] TBD (promote with $gsd-review-backlog when ready)
+**Split from Canvas/LTI on 2026-08-10.** The two halves were bundled and have opposite
+dependency profiles and opposite constraint status: visual families depend on 06.1 and
+violate nothing, while Canvas/LTI depends on nothing here and collides head-on with a
+product constraint. Bundling them meant neither could be reviewed on its own terms. The
+LTI half is now 999.4.
+
+### Phase 999.4: Canvas LMS Integration via LTI (BACKLOG, split from 999.1 on 2026-08-10)
+
+**Goal:** Expose the item player inside Canvas LMS through an explicitly hosted, authenticated LTI surface, as an adapter to the same local runtime and scorer rather than a second authority.
+**Requirements:** TBD
+**Depends on:** nothing in this roadmap
+**Plans:** 0 plans
+
+Covers the hosting, identity, privacy, deep-linking, and grade-passback decisions LTI
+requires.
+
+**Redirect.** Artifacts written before 2026-08-10 park Canvas/LTI in "Phase 999.1" and
+still read correctly except for the number: `06.1-03-PLAN.md:125`,
+`06.1-RESEARCH.md:298`, `2026-08-09-landscape-widening.md:428`,
+`HANDOFF-2026-08-09.md:5`. They are not rewritten, because their reasoning is unchanged
+and rewriting executed and historical artifacts to chase a renumber is churn. **This
+entry is the live one.**
+
+**2026-08-10 review verdict: KEEP, and the next review should seriously consider
+Out of Scope instead.** The argument against it is not cost, it is that three separate
+recorded constraints point the other way, and no one has answered them:
+
+1. `.claude/CLAUDE.md` **Users**: *"One. No accounts, no auth, no multi-tenancy, and no
+   design work spent on them."* LTI is an authentication and identity protocol. It is
+   the thing that sentence names.
+2. `.claude/CLAUDE.md` **Data residency**: *"No cloud sync, no hosted gradebook, no
+   telemetry."* Grade passback is a hosted gradebook write.
+3. `ROADMAP.md` **Recorded descopes (2026-08-10)**: *"QTI / LTI / xAPI LRS (landscape
+   verdict) | Skipped."* The descope table already skipped LTI and then pointed at this
+   entry, which is circular. That circularity is the defect this split exposes.
+
+Note that Directive §4a's constraint-basis rule cuts **for** this entry too: the Users
+and Data-residency lines are `CLAUDE.md` constraints, not §4 non-negotiables, so they
+inform and do not veto. The honest position is that LTI is not forbidden, it is
+unjustified: **no consumer exists.** The same standard already applied to QTI
+(`V2-INT-01`: *"once a real consumer exists"*). Promote when a real Canvas course
+requires it, and not before.
 
 ### Phase 999.2: Bilingual Reader (BACKLOG)
 
@@ -976,6 +1071,14 @@ codebase happens only when un-authored prose must be tappable with tracked word
 status: that needs tokenization, lemmatization, and a per-word state store, which
 is a second product rather than a feature. Build nothing until then.
 See `.planning/research/2026-08-09-extraction-subjects-bilingual.md` (Q7).
+
+**2026-08-10 review verdict: KEEP, unchanged.** This is what a correctly parked backlog
+entry looks like and it needs nothing from this review. It names a sharp trigger (prose
+must be tappable with tracked word status), names the three capabilities that trigger
+requires (tokenization, lemmatization, a per-word state store), states the conclusion
+that follows (a second product, not a feature), and records the cheap thing already
+shipped in its place (the `zh=` meta field on `## TERMS` in Phase 3.1). Nothing to
+re-litigate.
 
 ### Phase 999.3: MCP Surface — the runtime as a tool table (BACKLOG, added 2026-08-10)
 
@@ -1043,9 +1146,37 @@ together has confused "involves an LLM" with "is the same seam."
 **Size estimate:** roughly 350 to 450 lines of stdlib Python for transport, dispatch,
 discover-plus-legacy, and six tools. Estimate, not measured. No dependency.
 
+**2026-08-10 review verdict: KEEP — but its one-way door was extracted and now binds
+Phases 3 through 11 immediately (Extensibility Rule 9).**
+
+The promote case is genuinely strong and is recorded here so the next review does not
+have to rebuild it. `CLAUDE.md` states the milestone's own user as *"AI tutors as
+first-class clients of the same runtime a human uses."* MCP is that sentence in
+protocol form. Directive §1 settles the design-target backend as *"something like
+claude code,"* and MCP is how Claude Code natively reaches a local tool. The phase
+depends only on Phase 2, which is complete. It costs roughly 400 lines, no dependency,
+and no UI, so it does not touch `UI-SPEC.md` or the Directive §5 planning sequence.
+
+**It stays in the backlog anyway, on scheduling, not merit.** V1 has 18 phase
+directories and 11 of them are unstarted. Directive §5 hands execution to DeepSeek
+**sequentially**, so an added phase is real serial time. Nothing in V1 is blocked on
+this, and promoting it buys only an earlier slot in a queue that is not moving.
+`REQUIREMENTS.md` files it under V2 and that boundary should hold.
+
+**Promotion trigger (specific, so the next review is a lookup, not a re-argument):**
+promote when Phase 8 is verified **and** either an AI tutor is being used against
+itembank often enough that shelling out to the CLI is the friction, or V1 reaches
+`/gsd-complete-milestone`. Whichever comes first.
+
+**What could not wait, and did not.** Criteria 2 and 3 are one-way doors on code that
+Phases 3 through 11 are actively growing. Every API route added without a reserved tool
+name, and every payload path added without the evidence-log gate, is retrofit cost paid
+later at a worse rate. That constraint is now Extensibility Rule 9 and binds now,
+without promoting the phase.
+
 Plans:
 
-- [ ] TBD (promote with `/gsd-review-backlog` when ready)
+- [ ] TBD (promote per the trigger above)
 
 ### Recorded descopes (2026-08-10)
 
@@ -1054,7 +1185,7 @@ Plans:
 | Native mobile apps (B2) | Descoped — iOS forbids the Python sidecar. Answer is responsive pages over `--lan` (shipped in Phase 2), a Tailscale recipe, and exports. Documentation, not a phase. |
 | Handwriting / stylus input (B10) | Explicitly descoped. |
 | OCR of photographed pages (B9) | Deferred to backlog; the photograph→model→draft loop later rides Phase 3.2's generation path. |
-| QTI / LTI / xAPI LRS (landscape verdict) | Skipped. Keep Anki TSV + JSON; align evidence **field names** with xAPI vocabulary so a future export is free. Canvas/LTI stays in 999.1. |
+| QTI / LTI / xAPI LRS (landscape verdict) | Skipped. Keep Anki TSV + JSON; align evidence **field names** with xAPI vocabulary so a future export is free. Canvas/LTI stays in **999.4** (split out of 999.1 on 2026-08-10). |
 | Dyslexia-specific typefaces (B13) | Research is negative. Ship measure and spacing controls instead (covered by the Phase 3.1 render pass). |
 | Backup/sync service (B7) | Convention, not code: a documented copy story plus export completeness, and the "one writing home" rule below. |
 | TanStack Charts for Phase 10 trends | **Rejected on merit, not on dependency** (`.planning/notes/2026-08-10-tanstack-verdict.md`). Measured 2026-08-10: **0.9.0 pre-alpha**, unstable API, **17 transitive d3 packages**, not vendorable as one file. Phase 10 renders trends as **Python-generated inline `<polyline>` SVG**: zero JS, works in the `.pyz`, the Tauri webview and a `--lan` phone tab identically, carries a real `<table>` fallback for `UI-SPEC.md` §8, and is styled by the existing `SHARED_CSS` semantic tokens. |
