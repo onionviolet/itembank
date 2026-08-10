@@ -547,7 +547,7 @@ Plans:
 **Goal**: A lesson reads like a textbook that will not let you skim it — a short passage, an inline check the learner must clear before the next idea appears, and the same idea returning on a schedule days later — built entirely from the lesson reader, the hint ladder, and the evidence log that already exist.
 **Mode:** mvp
 **Depends on**: Phase 3.1, Phase 5, Phase 6
-**Requirements**: TBD (assign at `/gsd-plan-phase 6.2`)
+**Requirements**: GATE-01, GATE-02, GATE-03, GATE-04, GATE-05, GATE-06
 **UI hint**: yes
 **Research basis**: Execute Program and Runestone loop patterns in `.planning/research/2026-08-09-landscape-widening.md`; brief §7.6.
 **Success Criteria** (what must be TRUE):
@@ -567,7 +567,21 @@ Plans:
 
 - **OPEN — ruling 9** (shared with Phase 3.1): May `[!CHECK:]` reference an item in another bank? **Default if unruled: no — narrower now, additive later.** Affects whether a gated lesson can pull its check from a shared bank or only from its own.
 
-**Plans**: TBD
+**Plans**: 4 plans across 3 waves
+
+Plans:
+**Wave 1**
+
+- [ ] 06.2-01-PLAN.md — Gate grammar, gate_skip event, response context field, gate_state derivation
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 06.2-02-PLAN.md — The gate band: activate 3.1's D2 slot, three renderings, truncation, mode-degrade, compatibility floor
+- [ ] 06.2-03-PLAN.md — The recorded-skip control, check/skip routes, settings, and the outcome-split report
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 06.2-04-PLAN.md — Phase verification: the twelve UI-SPEC §13 gates, requirement audit, full suite
 
 ### Phase 7: Selection Engine
 
