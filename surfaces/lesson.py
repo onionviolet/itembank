@@ -8,8 +8,8 @@ only way out of a lesson is to another surface, never to a score.
 import html, json, os, re, sys
 
 import evidence
-from model import (grab, lesson_slug, load, parse_key_blocks, parse_lesson,
-                   parse_terms)
+from model import (grab, lesson_slug, load, load_style, parse_key_blocks,
+                   parse_lesson, parse_terms, resolve_style)
 from runtime import glossable
 from surfaces.presentation import SHARED_CSS
 from surfaces import settings
@@ -45,6 +45,18 @@ REVIEW_UNAVAILABLE_COPY = ("Review scheduling is unavailable without the "
                            "runtime. Run itembank export anki to take this "
                            "key to Anki.")
 ANSWERS_HEADING = "Answers"
+
+# The style footer and refusal copy (03.1-UI-SPEC 9.6, 15): the only place
+# these strings live, so the renderer, the CLI, and the tests reproduce one
+# copy contract. The degraded copy echoes the author-written style id and
+# the bank basename -- never a resolved absolute path (T-3-07 precedent).
+STYLE_FOOT = "style: %s \u00b7 rendered by render_style"
+HOUSE_FOOT = "style: house"
+STYLE_DEGRADED_COPY = ("The style file %s could not be read. This lesson "
+                       "is shown in the house style. Run itembank lint %s "
+                       "for details.")
+RENDER_REFUSAL_COPY = ("render_style cannot turn %s into %s; that is a "
+                       "rewrite, not a rearrangement. No file was changed.")
 
 # Only the degraded state carries the warn note, so its style is substituted
 # in (like __THEME__) rather than shipped on every page -- a bank with no
@@ -140,6 +152,9 @@ th{background:var(--chip);color:var(--mut);font-weight:600}
 .gloss-back:hover,.gloss-back:focus-visible{text-decoration:underline}
 .held{font-family:var(--font-ledger);font-size:12px;letter-spacing:.08em;
   text-transform:uppercase;color:var(--mut);margin:var(--space-6) 0 0}
+.style-foot{font-family:var(--font-ledger);font-size:12px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--mut);
+  margin:var(--space-4) 0 0;text-align:center}
 .reader-nav{margin:0 0 var(--space-4)}
 .reader-nav summary{cursor:pointer;color:var(--mut);font-size:12px;
   font-family:var(--font-ledger);letter-spacing:.08em;
@@ -186,7 +201,8 @@ __GLOSS_PRINT_CSS__
 </header>
 __READER_NAV__
 __GLOSS_SCRIPT__
-<div class="card">__BODY__</div>
+<div class="card">__STYLE_WARN____BODY__</div>
+<p class="style-foot">__STYLE_FOOT__</p>
 </div></body></html>"""
 
 
@@ -896,7 +912,8 @@ def _backlinks_html(stem, qs, slug):
         html.escape(BACKLINKS_LABEL), rows)
 
 
-def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False):
+def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
+                style_override=None):
     """The one render both surfaces call: the daemon route and `cmd_lesson`
     write the same document because there is only one `lesson_page`.
 
@@ -928,6 +945,10 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False):
     bank-author-written directive path, HTML-escaped like every other text
     run (T-3-07); the reason detail stays with `itembank lint`, because the
     reader is not a diagnostic surface.
+
+    `style_override` is render_style's seam: the page renders under that
+    style id whether or not the bank declares it, so the permuted output is
+    honest about which style produced it (D-11).
     """
     bank_text = open(bank_path, encoding="utf-8").read()
     title = (grab(r"(?m)^#\s+(.*?)\s*$", bank_text)
@@ -996,6 +1017,36 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False):
                 for _kid, text in ctx["key_answers"])
             body += ('<section id="answers"><h2>%s</h2><ol>%s</ol></section>'
                      % (html.escape(ANSWERS_HEADING), answers))
+    # The style footer and its degraded copy (03.1-UI-SPEC 9.6): one
+    # Ledger-voice line names the style that produced the page. A resolved
+    # named style reads `style: <id> · rendered by render_style`; the house
+    # fallback reads `style: house`; a missing/unreadable style file keeps
+    # the house footer and adds the warn note echoing the author-written
+    # id, leaving the reason to `itembank lint` (T-031-15).
+    style_warn_html = ""
+    style_foot = HOUSE_FOOT
+    bank_dir = os.path.dirname(os.path.abspath(bank_path)) or "."
+    if style_override:
+        st = load_style(style_override, bank_dir)
+        if st is None or st.get("error"):
+            warn_css = WARN_CSS
+            style_warn_html = '<p class="warn">%s</p>' % html.escape(
+                STYLE_DEGRADED_COPY
+                % (style_override, os.path.basename(bank_path)))
+        else:
+            style_foot = STYLE_FOOT % lesson_slug(style_override)
+    else:
+        resolved = resolve_style(
+            qs, bank_path, settings.load_settings(bank_dir))
+        if resolved.get("id") != "house":
+            st = resolved.get("style")
+            if st is None or st.get("error"):
+                warn_css = WARN_CSS
+                style_warn_html = '<p class="warn">%s</p>' % html.escape(
+                    STYLE_DEGRADED_COPY
+                    % (resolved["id"], os.path.basename(bank_path)))
+            else:
+                style_foot = STYLE_FOOT % lesson_slug(resolved["id"])
     return (LESSON_TEMPLATE
             .replace("__THEME__", THEME_CSS)
             .replace("__SHARED_CSS__", SHARED_CSS)
@@ -1005,9 +1056,185 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False):
             .replace("__GLOSS_PRINT_CSS__", print_css)
             .replace("__READER_NAV__", nav_html)
             .replace("__GLOSS_SCRIPT__", gloss_script)
+            .replace("__STYLE_WARN__", style_warn_html)
+            .replace("__STYLE_FOOT__", style_foot)
             .replace("__TITLE__", html.escape(title) + " lesson")
             .replace("__SUB__", SUB_BYLINE)
             .replace("__BODY__", body))
+
+
+def _rule_param_kind(param):
+    """Map one order.before rule param to the block kind it names:
+    `[!EXAMPLE]` -> EXAMPLE, `[!CHECK]` -> CHECK, `paragraph` -> paragraph.
+    A param the classifier cannot name is dropped -- render_style never
+    guesses at a block kind it cannot identify (D-11)."""
+    p = param.strip()
+    if p.startswith("[!") and p.endswith("]"):
+        return p[2:-1].split(":")[0].strip().upper()
+    return p.lower()
+
+
+def _style_block_kind(block):
+    """Classify one section block for render_style's order.before rules,
+    mirroring the block boundaries _render_blocks() actually consumes:
+    callout kinds from `> [!KIND]`, fenced code, deeper headings, lists,
+    tables, or paragraph."""
+    text = block.lstrip()
+    cm = _CALLOUT_MARK_RE.match(text)
+    if cm:
+        return cm.group(1).split(":")[0].strip().upper()
+    if text.startswith("```"):
+        return "code"
+    if re.match(r"^#{4,}\s", text):
+        return "heading"
+    if re.match(r"^(\s*[-*]\s|\s*\d+\.\s)", text):
+        return "list"
+    lines = text.splitlines()
+    if len(lines) >= 2 and "|" in lines[0] and _is_separator_row(lines[1]):
+        return "table"
+    return "paragraph"
+
+
+def _split_section_blocks(body):
+    """Split one section body into the logical blocks _render_blocks() would
+    consume, so a permutation moves blocks rather than fragments: fenced
+    code protected first, then blank-line boundaries, with `>` callout runs
+    and pipe-table runs kept whole (D-11)."""
+    protected, tokens = _protect_code(body)
+    lines = protected.split("\n")
+    blocks = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if not line.strip():
+            i += 1
+            continue
+        start = i
+        if line.startswith(">"):
+            while i < len(lines) and lines[i].startswith(">"):
+                i += 1
+            blocks.append("\n".join(lines[start:i]))
+            continue
+        tm = _TOKEN_RE.match(line)
+        if tm:
+            blocks.append(tokens[int(tm.group(1))])
+            i += 1
+            continue
+        if "|" in line:
+            j = i
+            while j < len(lines) and "|" in lines[j]:
+                j += 1
+            blocks.append("\n".join(lines[i:j]))
+            i = j
+            continue
+        buf = [line]
+        i += 1
+        while i < len(lines) and lines[i].strip():
+            nxt = lines[i]
+            if (nxt.startswith(">") or "|" in nxt or _TOKEN_RE.match(nxt)
+                    or re.match(r"^#{4,}\s", nxt)
+                    or re.match(r"^-\s+", nxt)
+                    or re.match(r"^\d+\.\s", nxt)):
+                break
+            buf.append(nxt)
+            i += 1
+        blocks.append("\n".join(buf))
+    return blocks
+
+
+def _permute_section_blocks(body, rules):
+    """Permute the blocks of one section per the target style's order.before
+    rows: within a section, every A precedes every B. The fix is a stable
+    partition -- every A block moves, in its original order, to just before
+    the first B; nothing is created, deleted, or rewritten, and a rule whose
+    kinds the classifier cannot identify is simply not applied (D-11)."""
+    order_rules = []
+    for row in rules or []:
+        if row.get("kind") != "order.before":
+            continue
+        params = [p for p in (row.get("params") or "").split(",")
+                  if p.strip()]
+        if len(params) != 2:
+            continue
+        a, b = _rule_param_kind(params[0]), _rule_param_kind(params[1])
+        if a and b:
+            order_rules.append((a, b))
+    if not order_rules:
+        return body
+    blocks = _split_section_blocks(body)
+    if len(blocks) < 2:
+        return body
+    guard = 0
+    changed = True
+    while changed and guard <= len(blocks):
+        changed = False
+        guard += 1
+        kinds = [_style_block_kind(b) for b in blocks]
+        for a, b in order_rules:
+            first_b = next((i for i, k in enumerate(kinds) if k == b), None)
+            if first_b is None:
+                continue
+            last_a = next((i for i in range(len(kinds) - 1, -1, -1)
+                           if kinds[i] == a), None)
+            if last_a is not None and last_a > first_b:
+                prefix = [x for i, x in enumerate(blocks)
+                          if i < first_b and kinds[i] != a]
+                moved = [x for i, x in enumerate(blocks)
+                         if kinds[i] == a]
+                suffix = [x for i, x in enumerate(blocks)
+                          if i >= first_b and kinds[i] != a]
+                blocks = prefix + moved + suffix
+                kinds = [_style_block_kind(b) for b in blocks]
+                changed = True
+    return "\n\n".join(blocks)
+
+
+def _render_style_refusal(source_id, target_id):
+    """The five named mechanically impossible transforms (D-11, ROADMAP 3b),
+    refused by name and never approximated: expository->case-narrative,
+    expository->Socratic, expository->worked-example, anything->Bottom-Up
+    (artifact-first), and case-narrative->anything. `house` reads as the
+    expository base -- the house rules are expository's rules (R1.4)."""
+    s = source_id or "house"
+    if s in ("expository", "house"):
+        if target_id in ("case-narrative", "socratic", "worked-example"):
+            return RENDER_REFUSAL_COPY % (s, target_id)
+    if target_id == "artifact-first":
+        return RENDER_REFUSAL_COPY % (s, target_id)
+    if s == "case-narrative" and target_id != "case-narrative":
+        return RENDER_REFUSAL_COPY % (s, target_id)
+    return None
+
+
+def render_style(bank_path, style_id, out=None):
+    """The runtime, model-free style transform (D-11): permutes only blocks
+    a lesson already contains, per the target style's order.before rows,
+    and renders the permuted lesson through lesson_page with the footer
+    naming the target style. One of the five named impossible transforms is
+    refused by name: the refusal copy is returned and no file is written.
+    Returns the written output path, or the refusal copy when refused."""
+    qs = load(bank_path)
+    lesson_data = parse_lesson(bank_path)
+    bank_dir = os.path.dirname(os.path.abspath(bank_path)) or "."
+    source = resolve_style(qs, bank_path, settings.load_settings(bank_dir))
+    slug = lesson_slug(style_id)
+    refusal = _render_style_refusal(source.get("id"), slug)
+    if refusal:
+        return refusal
+    target = load_style(slug, bank_dir)
+    permuted = lesson_data
+    if (lesson_data and lesson_data.get("headings")
+            and target is not None and not target.get("error")):
+        headings = [dict(h, body=_permute_section_blocks(h["body"],
+                                                         target["rules"]))
+                    for h in lesson_data["headings"]]
+        permuted = dict(lesson_data, headings=headings)
+    page = lesson_page(bank_path, qs, permuted, style_override=style_id)
+    out = out or (os.path.splitext(bank_path)[0]
+                  + "_%s.html" % slug)
+    os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
+    open(out, "w", encoding="utf-8").write(page)
+    return out
 
 
 def cmd_lesson(a):
@@ -1034,6 +1261,19 @@ def cmd_lesson(a):
     else:
         count = 0
     print("%d lesson section(s) -> %s" % (count, out))
+    return 0
+
+
+def cmd_render_style(a):
+    """The render_style CLI twin (03.1-UI-SPEC 9.6): render the bank's
+    lesson permuted into the requested style and write the page; one of the
+    five named impossible transforms prints the exact refusal copy, writes
+    nothing, and exits 1 (D-11)."""
+    result = render_style(a.bank, a.style, out=a.out)
+    if result.startswith(RENDER_REFUSAL_COPY.split("%s")[0]):
+        print(result)
+        return 1
+    print("rendered %s in style %s -> %s" % (a.bank, a.style, result))
     return 0
 
 

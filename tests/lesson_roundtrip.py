@@ -911,9 +911,13 @@ GOLDEN_PARSE_P3 = os.path.join(ROOT, "fixtures",
 
 def _lesson_content_region(pg):
     """The rendered `__BODY__` region of LESSON_TEMPLATE -- the content
-    between `<div class="card">` and the card's closing `</div>`."""
-    m = re.search(r'<div class="card">(.*?)</div>\s*</div></body></html>',
-                  pg, re.S)
+    between `<div class="card">` and the card's closing `</div>`. The page
+    now carries the plan 03.1-04 style footer between the card and the
+    closing wrapper, which this extraction skips."""
+    m = re.search(
+        r'<div class="card">(.*?)</div>\s*'
+        r'<p class="style-foot">.*?</p>\s*</div></body></html>',
+        pg, re.S)
     if not m:
         fail("lesson page has no <div class=\"card\"> content region")
     return m.group(1)

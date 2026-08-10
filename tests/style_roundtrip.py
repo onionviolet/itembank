@@ -405,7 +405,8 @@ def test_render_style_permutes_and_refuses():
             lines = ["# Fixture bank", ""]
             if style_id:
                 lines += ["[STYLE: %s]" % style_id, ""]
-            lines += ["## LESSON", ""] + body_lines
+            lines += ["## LESSON", ""] + body_lines + [
+                "", "Q1. s", "A) a", "B) b", "CORRECT: A", ""]
             p = os.path.join(bank, "bank.md")
             with open(p, "w", encoding="utf-8") as fh:
                 fh.write("\n".join(lines))
