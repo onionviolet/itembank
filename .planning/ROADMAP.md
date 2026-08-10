@@ -33,6 +33,48 @@ feature set exists early, and the self-updater ships every phase after it as
 a real release rather than being written and tested last. GIFT export moved
 with it.
 
+**Revision 2026-08-10 — research absorbed.** The 2026-08-09 research pass
+(`.planning/RESEARCH-BRIEF-learning-platform-2026-08-09.md` §7, seven artifacts in
+`.planning/research/`) changed four things about the shape above. First, content
+became a phase: the research named content and adherence, not features, as the
+real bottleneck, so **Phase 3.2 pulls seeding and import in front of Phase 5** and
+every phase after it is judged against a real corpus. Second, the lesson grew
+teeth — **Phase 3.1** adds the glossary, the memorizable block, and one written
+style contract the linter enforces, and **Phase 6.2** turns reading into a gated
+loop. Third, the differentiator became visible: the runtime's refusal renders as
+structural state rather than model reluctance, because Socratic tutoring is now
+commoditized at the prompt layer and only the visible lock distinguishes this from
+a system prompt. Fourth, packaging returns as **Phase 13** on a keep-the-Python
+verdict, because a port would temporarily create a second scorer.
+
+Two more things were added deliberately and cheaply: **Phase 9.1** exports audio
+drill packs, correcting a real mismatch the research found between a desktop app
+optimized for authoring and consumption that is phone- and audio-shaped; and the
+**Extensibility Rules** section below, which exists because absorbing a dozen
+features across ten phases is only affordable if each one registers a strategy
+instead of adding a branch. Nothing was renumbered. Every format change stays
+additive, and every phase adding grammar owes a byte-identical no-op fixture.
+Six rulings remain open for Weibao (brief §7.7); each is recorded on the phase it
+blocks, and none of them blocks starting.
+
+**Revision 2026-08-10 (round two) — lesson styles, tiered verdicts, file layout.**
+The second research pass (`.planning/RESEARCH-BRIEF-2-lesson-styles-2026-08-10.md`
+§4, five artifacts in `.planning/research/2026-08-10-*.md`) is complete and folded in
+here additively, with no renumbering. Four things changed shape. First, **lesson
+style is plural and is a registry**: five styles ship, `expository` is the parent,
+one file per style at `styles/<id>.md`, exactly one inheritance level, and adding a
+sixth is a file — Phase 3.1 criteria 3a/3b stop being placeholders and carry the real
+specification. Second, `??? for math` is answered: **Worked Example → Variation →
+Formalization** (`math-worked`), with `math-explore` shipped alongside it per
+Directive §3. Third, **two-file lesson layout is the default**, overridable per
+subject profile (`lesson_layout`) — the prose separates, the item never does. Fourth,
+and most consequential, the Extensibility Rules §8 tiered-verdict hypothesis is
+**partially overturned**: strategies do not declare authority, because that hands
+every strategy the power to decide and then asks it not to. Two registries of
+**normalizers** feed the unchanged `score_response()`, and tier 3 is not a scorer
+strategy at all. Rules §8 below is rewritten to the researched design. Rulings 7–10
+are recorded on the phases they block; none blocks starting.
+
 ## Phases
 
 **Phase Numbering:**
@@ -44,15 +86,20 @@ with it.
 - [x] **Phase 2: Daemon Consolidation & Settings Foundation** - One daemon on one port serving every surface, with a printable, agent-discoverable settings schema. (completed 2026-08-08)
 - [ ] **Phase 2.1: Packaging, Self-Update & Interop Export (INSERTED, moved from Phase 12)** - One double-clickable artifact per OS, a safe self-updater, and a GIFT export that fails loudly rather than wrong — pulled forward so a runnable exe of the Phase 1+2 feature set exists early, and the self-updater ships phases 3-11 as real releases instead of being written and tested last.
 - [ ] **Phase 3: Lesson Format & In-App Reader** - An optional `LESSON` section renders as reading material inside the app, linked to the items it teaches.
+- [ ] **Phase 3.1: Lesson Rich Blocks, Glossary & Style (INSERTED 2026-08-10)** - `## TERMS` + `[[term]]` hover glossary, `[!KEY]` memorizable blocks that round-trip to Anki, one `LESSON-STYLE.md` contract the linter reads, and the callout/figure/print render pass on Phase 4 tokens.
+- [ ] **Phase 3.2: Seeding, Import & Provenance (INSERTED 2026-08-10)** - Content arrives before the features that consume it: Anki `.apkg` import, a human-approves-everything draft→lint→retry seeding loop, and the `[SRC:]`/`[OBJ:]`/`## SOURCES` provenance standard with paraphrase-not-transcribe lint.
 - [ ] **Phase 4: Surface Redesign & Theming** - One shared palette, OS-driven theming, a decluttered question surface, and safe in-page `day` editing.
 - [ ] **Phase 5: Check Item Type & Code Editor** - A `check` item type runs the learner's own code in a real editor and scores it through the one scorer.
 - [ ] **Phase 6: Hint Ladder, Cursor-Hold & Feedback Modes** - A wrong answer holds the cursor, hints unlock one authored tier at a time, and feedback behavior follows session mode.
+- [ ] **Phase 6.2: Executable Textbook Loop (INSERTED 2026-08-10)** - Prose, an inline check the learner must clear to continue, then spaced re-exposure of the same idea — the Execute Program / Runestone loop over the existing lesson, hint, and evidence machinery.
 - [ ] **Phase 7: Selection Engine** - Sessions are assembled by an inspectable rule engine — objective, difficulty, discrimination pairs, no accidental repeats.
 - [ ] **Phase 8: Model Adapter Interface & Tier-Gate Enforcement** - The tutoring model sees the key and writes hints about the learner's actual error; the runtime gates the tier, not the model.
 - [ ] **Phase 9: Subject-Invariant Loop — EMT, Math, CS Integration** - One loop — lesson, hint, verify — carries a learner through EMT prose, Math LaTeX, and runnable CS code.
+- [ ] **Phase 9.1: Audio Drill Export (INSERTED 2026-08-10)** - `itembank export audio` turns an objective into a stem→pause→key→why drill pack, so the commute is study time and the TTS engine is a config entry, not a dependency.
 - [ ] **Phase 10: Retention, Pacing & Trends** - What's due today, a daily cap, and evidence-driven selection weight and decay flagging, with itembank's and Anki's "due" shown apart.
 - [ ] **Phase 11: Closed Authoring Loop & Curriculum Auditor** - A closed spec-draft-lint-retry authoring loop, reused by a syllabus auditor that cites its coverage claims and never over-autonomizes silently.
 - [ ] ~~**Phase 12: Packaging, Self-Update & Interop Export**~~ - MOVED to Phase 2.1 (2026-08-07) — see Phase 2.1 above. Slot retired, not reused.
+- [ ] **Phase 13: Desktop Packaging — Tauri Shell over the Python Sidecar** - A signed, installable desktop app whose inside is still the same Python runtime, because porting it would temporarily create a second scorer.
 
 ## Phase Details
 
@@ -248,9 +295,84 @@ Plans:
 
 - [x] 03-06-PLAN.md — `spec` documents the grammar, plus the phase gate
 
+### Phase 3.1: Lesson Rich Blocks, Glossary & Style (INSERTED 2026-08-10)
+
+**Goal**: A lesson can define its own vocabulary, mark what must be memorized, and be held to one written style contract — so reading material teaches like a textbook instead of rendering like a text file, and every block it adds is scored, exported, or linted by machinery that already exists.
+**Mode:** mvp
+**Depends on**: Phase 3, Phase 4 (tokens)
+**Requirements**: TBD (assign at `/gsd-plan-phase 3.1`)
+**UI hint**: yes
+**Research basis**: `.planning/research/2026-08-09-differentiators-d1-d2-d3.md` (D1/D2/D3 grammar — use verbatim as this phase's format contract), `2026-08-09-lesson-display-editor.md` Q1, `2026-08-09-visual-design.md`, brief §7.2 Q3/Q4/Q7 and §7.6.
+**Round-two research: COMPLETE (2026-08-10)** — this phase is no longer blocked. R1 and R2 are answered in `.planning/RESEARCH-BRIEF-2-lesson-styles-2026-08-10.md` §4.3, with full verdicts in `.planning/research/2026-08-10-lesson-style-catalogue.md` (styles) and `2026-08-10-style-registry-mechanics.md` (registry shape). Criteria 3a and 3b below are rewritten from those verdicts and are now specifications, not placeholders. R2 enforcement lands as criterion 3c; R5 file layout as criterion 7.
+**Success Criteria** (what must be TRUE):
+
+  1. A `## TERMS` block plus `[[term]]` references render as a hover gloss via the Popover API, degrade to a glossary appendix with no JavaScript, and pass through a runtime `glossable()` gate so a gloss can never leak a keyed answer; each lookup lands as a `term_lookup` event.
+  2. A `[!KEY]` callout is a GitHub-compatible block with a minted `[ID:]`/`[HASH:]`, exports to Anki TSV with a `#guid` that round-trips on re-export, supports `{{cloze}}`, and emits `key_review` events Phase 10 can replay into scheduler state.
+  3. A style file carries a prose voice zone the model reads and a `## Rules` pipe table the linter parses; the machine-checkable rules are implemented (round one found 18 — 8 errors, 10 warnings — for a single style), model-judged rules are declared `manual` and deferred to Phase 11, and a rule row claiming a lintable severity the linter does not implement is itself a lint error.
+  3a. **Styles are plural, and the registry ships five.** In this order: `expository` (the parent every other style inherits from, cost zero), `worked-example`, `checked-prose` (Execute Program and Brilliant merged behind a `predict_first` flag and a prose budget — Directive §3 applied properly rather than shipping two near-identical styles), `artifact-first` (Bottom-Up ordering plus PRIMM pacing, which are orthogonal and compose), and `case-narrative` (last only because it depends on Phase 9's `## SCENARIO`). Four styles are **rejected with the no-cheap-fix reason named** and must not be revived without new evidence: Feynman (every rule it contributes is semantic, so the contract is uncheckable), cookbook (its weakness is its purpose — keep the Diátaxis split as a house rule instead), written Socratic (branching is a second parser per Directive §4.2, and unbranched it collapses into the rhetorical questions W7 already bans), and explorable explanations (per-lesson bespoke JavaScript is bank-authored executable code, which `VIS-01` and `UI-SPEC.md:609` refuse outright; it is also a second renderer against Directive §4.2, and the evidence base is thin). Two reclassifications: the atomic prompt sheet already ships as `[!KEY]` plus Anki export, and productive failure is not a style but the `predict_first` flag. Adding a sixth style is one file — no parser change, no lint-code change, no renderer change, proven by the Extensibility Rule 6 stub.
+  3b. **The registry's mechanics are fixed.** One file per style at `styles/<id>.md`; exactly one inheritance level, and a `[STYLE-PARENT:]` naming anything other than `house` is a lint error. **House constrains the artifact, style constrains the sequence** — the test is that a rule is house-wide iff violating it would still be wrong in every other style. House rows carry a `lock` column encoding the five non-negotiables, which cannot be overridden by any style; that lock is what makes the registry safely model-writable. Selection precedence is **lesson, then bank, then subject profile, then house**. Two operations must never be conflated: `render_style` is runtime, model-free, and may only permute blocks that already exist; `restyle` is Phase 11, model-driven, human-gated, and produces a new file. The mechanically impossible transforms are named and the renderer must refuse them rather than approximate: expository→case-narrative, expository→Socratic, expository→worked-example, anything→Bottom-Up, and case-narrative→anything.
+  3c. **Enforcement is three cost classes, not two.** Structural counts over the parsed heading tree and one shared lexical metrics pass both run on **every** lint; only discourse judgement defers to Phase 11. Structure is checkable because a style declares its section skeleton (the markdownlint MD043 pattern), which moves "worked examples precede variations" out of model-judged and into a deterministic count. Severity is **earned by construction**: `error` only for structural counts or author-controlled literal lists, and that is a ceiling a style may not raise. All eight of round one's error-severity rules survive. The check catalogue is **closed** — a style file may enable, disable, re-severity, and parameterize a check, but may never define one, because `LINT_CODES` is a published API and sprawl is the real scale risk. Every warning is calibrated against the Phase 3.2 corpus before shipping enabled, with its false-positive rate recorded; above roughly 20% it ships disabled by default. Local `<!-- style-ignore: -->` suppression must exist, because the failure mode is that an unsuppressable warning gets its whole category globally disabled; suppression counts are themselves a report that retires bad checks. A style `error` blocks a machine-authored write and never a human's `lint`. Budget: the whole style pass under 50ms for a 5000-word lesson, asserted by test.
+  3d. **The authoring model does not receive the style file.** It receives **distilled imperatives, capped at seven, placed last in the prompt**, plus exactly one exemplar. Adherence collapses past roughly ten simultaneous instructions and shows a recency bias, so the cap and the position are the finding, not formatting taste. The `## Voice` prose zone is for the human and is never sent to a model.
+  3e. **New blocks: one parse path, two additive entries.** `[!CHECK: <id>]` is the single new parse path — an inline placement anchor carrying no key and no scoring path, so `runtime.score_response()` is untouched. `[!EXAMPLE]` is a callout *kind* against the existing callout container, not a new block. `## SCENARIO` is owed by Phase 9 whether or not any style uses it and is not this phase's cost.
+  4. Callouts, figures, print CSS (B4), and the Q1 reading measure/heading ramp render on Phase 4's token set with no new type sizes beyond the ones this phase adds to `theme.py`, and a bank using none of these blocks renders byte-identically to Phase 3 output.
+  5. Every item carries an optional one-sentence lintable **Educational Objective** line (UWorld pattern), consumable later by selection, dedup, Anki export, and the auditor without any of them re-deriving it.
+  6. The TERMS grammar reserves one optional ignorable `key=value` meta field (`zh=…`) so a bilingual reader is a later field-read, not a format break; nothing bilingual is built here.
+  7. **(round two, R5) Two-file lesson layout is the default**, and the rule is **separate the prose, never the item**. The subject-profile field `lesson_layout: "separate" | "inline"` overrides it — EMT and Math separate, CS inline, because a Bottom-Up CS lesson *is* its exercises. The field governs scaffolding, the authoring prompt, and one warning; it adds **no parser, renderer, or scorer branch**. The brief's stated hash-drift worry was **false and was re-argued**: `content_fingerprint()` (`model.py:259-294`) excludes `lesson_ref`, `objective`, and every rationale field, so rewriting a lesson for style cannot drift an item hash in either layout. The real argument is concurrent writers — Phase 11 SC4 commits each autonomous write separately and SC5 demands one-action reversibility, which is impossible without hunk surgery when a style pass shares a file with seeding. `[LESSON-SRC:]`'s arrow runs many banks to one lesson and must not be reversed; reversing it imports the Canvas item-bank failure, where editing an answered item breaks the bank-to-quiz link. **Unit:** a lesson file is one chapter and one reading session, subdivided by `###` headings, which are the objective-sized, LESSON-REF-targeted generation unit. An item belongs to exactly one lesson, which is true by construction today. Migration is `itembank lesson split|inline` — pure text transforms, item chunks byte-identical, no id or hash reminted.
+
+**Open decisions** (unresolved — see brief §7.7 and Research Brief 2 §4.4):
+
+- **OPEN — ruling 13** (constraint audit F6): criterion 3b claims the `lock` column "is what makes the registry safely model-writable", while 3c ships `<!-- style-ignore: -->` suppression and lets a style "enable, disable, re-severity, and parameterize a check". A model-writable file plus suppression plus re-severity is a short path to §4.1 or §4.5 being demoted to a warning by an ordinary-looking authoring action. Three hardening sentences are owed at `/gsd-discuss-phase 3.1`: (1) the locked house rows are **code constants in the linter**, not rows read out of `styles/house.md`, which documents them and cannot define or remove them; (2) `<!-- style-ignore: -->` **cannot suppress a locked rule**, and attempting it is itself an error; (3) a style may not re-severity a locked rule in any direction, and `severity: off` on a locked id is `style.override_locked`. **Default if unruled: adopt all three.**
+- **OPEN — ruling 1**: Adopt "Paper & Ledger" and vendor Source Serif 4 + iA Writer Quattro (both OFL), per the KaTeX license-review precedent? Blocks the font-vendoring task only; everything else in this phase proceeds either way.
+- **OPEN — ruling 2**: 18px lesson-reader body vs the locked 16px `text-body` token.
+- **OPEN — ruling 6**: Confirm "The Bottom Up" = Wienand-style runnable-artifact-first pedagogy (assumption logged in the subjects artifact).
+- **OPEN — ruling 7** (also blocks Phase 9): `subject_profiles` is a *closed* object per `09-02-PLAN.md`, so adding `lesson_layout` (criterion 7) is a registry version bump unless it is folded into 09-02 before Phase 9 is planned. **Default if unruled: fold into 09-02.**
+- **OPEN — ruling 8**: Is `[!KEY]` legal inside item rationales, or lesson-only? Changes the scope of `key.duplicate_id`. **Default if unruled: lesson-only.**
+- **OPEN — ruling 9** (also blocks Phase 6.2): May `[!CHECK:]` reference an item in another bank? **Default if unruled: no — narrower now, additive later.**
+
+**Named unknowns carried into planning** (Research Brief 2 §4.5 — record the gap, never a number):
+
+- **`executeprogram.com` mechanics are secondhand.** The site is JS-rendered and could not be read directly; Brilliant publishes no pedagogy document; Feynman has no primary source at all. `checked-prose` rests on reconstructed mechanics.
+- **The Runestone Parsons-to-`build` mapping is inference**, and `artifact-first`'s rank-4 placement partly rests on it. Falsify this early at plan time rather than after building.
+- **The PreTeXt label-stability claim is inference** from the PreTeXt Guide; `runestone.academy` returned 403.
+- **The seven-imperative prompt cap (3d) is extrapolated** from format-compliance research, not measured on pedagogical structure. Treat the cap as a starting value to measure, not a validated constant.
+- **No trustworthy open-weight prose-quality benchmark exists**, so any model choice for lesson authoring must be settled by running our own 18-rule check over generated lessons.
+- **There is no real bank yet**, so the criterion-7 layout argument is structural against Phase 11's criteria, not observed churn.
+
+**Plans**: TBD
+
+### Phase 3.2: Seeding, Import & Provenance (INSERTED 2026-08-10)
+
+**Goal**: Real content is in the bank before the phases that consume it are built, and every piece of it can name where it came from — so Phases 5 through 11 are dogfooded against a real EMT/Math/CS corpus instead of synthetic fixtures, and nothing in the bank is a transcription of a copyrighted source.
+**Mode:** mvp
+**Depends on**: Phase 1, Phase 3
+**Requirements**: TBD (assign at `/gsd-plan-phase 3.2`)
+**Research basis**: `.planning/research/2026-08-09-extraction-subjects-bilingual.md` (Q5), `2026-08-09-blind-spots.md` (B1, Q9, Q10). This is the milestone's largest roadmap change: the research named content and adherence, not features, as the real bottleneck, and no success criterion anywhere else measures actual use.
+**Success Criteria** (what must be TRUE):
+
+  1. An existing Anki `.apkg` imports into a bank through stdlib ZIP+SQLite reads alone, with a per-note report of what converted, what was skipped, and why — no note is silently dropped.
+  2. A draft→lint→retry seeding loop produces items a human approves one at a time before anything is written; nothing in this phase writes to a bank without an explicit accept. Autonomy beyond that stays Phase 11's problem.
+  3. `[SRC: <source-id> <locators>]` and `[OBJ: framework/objective-id]` resolve through an additive `## SOURCES` registry, and the objective coverage map is **computed on demand, never stored**, so it cannot go stale against the bank.
+  4. Paraphrase lint errors at ≥8 consecutive copied words and warns above Jaccard 0.25, using stdlib winnowing over fingerprints only — the source text itself is never stored, which is also the defensible posture for AAOS-derivative EMT content.
+  5. `[CASE:]` grouping is in the format contract (additive), so an NREMT-style case set is one authored construct that Phases 6 and 7 can serve as an exam-sim preset.
+  6. `[PREREQ:]` prerequisite edges are authorable and linted here, ahead of Phase 7's fringe-based selection consuming them.
+  7. A bank with none of `## SOURCES`, `[SRC:]`, `[OBJ:]`, `[CASE:]`, or `[PREREQ:]` parses and renders exactly as it does before this phase.
+  8. **(round two, R3.4) Long-lesson generation runs as six stages, in this order**: deterministic source selection, outline-only, per-section drafting, **deterministic checks before any model critique**, independent CoVe-style verification, then human accept. The ordering is the finding — spending model calls critiquing a draft that a lint pass would have rejected is waste, and a model critiquing before the deterministic gate anchors on its own text. Roughly nine model calls per lesson, so **authoring is a batch operation and the UI must say so** rather than presenting it as interactive.
+  9. **(round two, R3.4) The cheapest real anti-fabrication guard is a new `style.unsourced_specific` check**: numerals, units, and doses require a `[SRC:]`. This is a structural check, not a model judgement, and it lands here because seeding is where fabricated specifics enter the corpus.
+  10. **(round two, R2.1/3.1-3c) This phase's corpus is the calibration set for every style warning.** A warning ships enabled only with a recorded false-positive rate measured against this corpus; above roughly 20% it ships disabled by default. Phase 3.1 owns the checks; this phase owns the evidence that any of them are usable.
+  11. **(round two, R5) Seeding writes items; a style pass writes prose.** Because Phase 3.1 criterion 7 makes two-file the default, a seeding write and a style rewrite must not contend for the same file — which is what makes Phase 11's one-action reversibility possible without hunk surgery.
+
+**Named unknowns carried into planning**: **no benchmark for single-objective adherence in long generation exists** as of mid-2026 (Research Brief 2 §4.5). Criterion 8's staging is a structural argument, not a measured improvement; do not carry a percentage figure for it into any plan.
+**Sequencing note**: land this **before Phase 5**. Seeding is upstream of every phase that needs content to be judged against; building the check type, the hint ladder, or the selector first means tuning them against fixtures and re-tuning them against reality.
+**Open decisions**:
+
+- **OPEN — ruling 12** (constraint audit F3, revisit): SC1's *"through stdlib ZIP+SQLite reads alone"* is a relaxed preference baked into an acceptance criterion, and it may be **unmeetable** — Anki 2.1.50+ exports ship `collection.anki21b` zstd-compressed, and the standard library has no zstd decoder. **Verify against a real modern `.apkg` at plan time, before writing the plan.** The load-bearing requirement is criterion 1's second clause: lossless import with a per-note account of what converted, what was skipped, and why, no note silently dropped. **Default if unruled: prefer stdlib `zipfile`/`sqlite3`; if the archive's compression requires a dependency, take one and record it under the §4a supply-chain rule.**
+- **OPEN — ruling 4**: Weibao approves widening and moving 03.2 (the B1/Q10 seeding pull-forward). Recorded as adopted-pending-ruling; if declined, 03.2 shrinks back to provenance only and Phase 11 keeps the seeding loop.
+
+**Plans**: TBD
+
 ### Phase 4: Surface Redesign & Theming
 
-**Goal**: Every surface reads from one visual system, the accent colour follows the learner's OS choice, and `day` supports safe in-page editing instead of round-tripping through Obsidian.
+**Goal**: As a learner, I want to read every surface from one visual system with an accent colour that follows my OS choice and to edit day plans safely in-page, so that the app feels like one product and my day edits never silently overwrite each other.
 **Mode:** mvp
 **Depends on**: Phase 2
 **Requirements**: SURF-02, SURF-05, SURF-06, SURF-07, SURF-08, SURF-09
@@ -295,9 +417,24 @@ Plans:
 
 **Goal**: A learner can write and run their own code against a `check` item, in a real editor, and get a dichotomous verdict through the same scorer as every other item type; the item also establishes the reusable interaction contract future visual manipulatives will use.
 **Mode:** mvp
-**Depends on**: Nothing (parallel-eligible with Phase 1; coordinate `model.py`/`runtime.py` diffs with Phase 1)
+**Depends on**: Phase 3.2 (seeded content to score against); coordinate `model.py`/`runtime.py` diffs with Phase 1
 **Requirements**: CODE-01, CODE-02, CODE-03, CODE-04, CODE-05
 **UI hint**: yes
+**Absorbed from research (2026-08-10)**: CodeMirror 6 (MIT, ~300KB) is the editor, chosen because its `Diagnostic{from,to,severity,message}` shape maps 1:1 onto our existing lint records — no adapter layer, no second diagnostic vocabulary. Preview reuses **our own renderer** via `data-line` scroll sync; a second markdown engine is forbidden. This phase does the CM6 vendoring pipeline and learner-facing plumbing only; the full authoring surface is Phase 11. External-editor-plus-watch is a first-class peer path, and a server-rendered textarea with a lint list is the no-JS floor. The `check` type gains stdin/stdout test cases and a function-signature harness mode; Parsons problems are `build` items by convention, needing no new type. See `.planning/research/2026-08-09-lesson-display-editor.md` (Q2) and `2026-08-09-extraction-subjects-bilingual.md` (Q6 CS).
+**Additional success criteria (research-derived)**:
+
+  8. A `check` item can specify stdin/stdout cases *or* a function-signature harness, and both reach a verdict through `runtime.score_response()` — the harness mode is a configured strategy, not a second scorer.
+  9. Turning JavaScript off leaves a working textarea-plus-lint-list path to the same submitted response shape, and editing the same bank in an external editor with `--watch` reaches the same runtime call as the in-app editor.
+  10. **(round two, R1.1) The `artifact-first` / "Bottom Up" CS style needs nothing the `check` type does not already have.** Bottom-Up ordering and PRIMM pacing are orthogonal and compose as a Phase 3.1 style file; Parsons problems remain `build` items by convention. If plan time falsifies the Runestone Parsons-to-`build` mapping (a **named unknown**, Research Brief 2 §4.5), that is a Phase 3.1 style-ranking problem, not a new item type here.
+  11. **(round two, R4.1/R4.2) The `check` verdict reaches `score_response()` as a normalizer, not as a strategy that decides.** A registered normalizer has signature `(q, answer) -> str | None` and reduces code execution to a **per-case outcome vector**; the unchanged `score_response()` performs the single `==`. The return type has no channel for a verdict, which is the first and strongest accretion guard — a `check` implementation *cannot* become a second scorer, because it has nowhere to put a decision. Adding this normalizer requires **zero edits to `score_response()`**; a plan whose diff touches that function has failed this criterion, and a source-hash test pins it.
+  12. **(round two, R4.2) A timeout is not a verdict.** Return `None` plus an `error_category`, matching the None-not-False discipline already in the constructed-response path. The authority rule this phase is measured against: *re-running on another machine, from the recorded item version and the response alone, must produce the same verdict; no model, and no input not derivable from the item.* A killed-at-timeout run does not meet it and therefore does not produce one.
+  13. **(round two, R4.6c) A missing normalizer degrades to a human, never to a false verdict.** A registry miss leaves the item permanently pending and human-markable, at zero cost. `item.no_normalizer` is a warning; `item.tolerance_unstated` is an error.
+
+**Open decisions**:
+
+- **OPEN — ruling 5**: Does CM6 also replace the learner-facing textarea `CodeEditor` contract in `.planning/UI-SPEC.md` §4, or is CM6 authoring-only? Affects this phase's scope directly.
+- **OPEN — ruling 11** (constraint audit F2, highest live blast radius): `05-RESEARCH.md:168`, `05-CONTEXT.md:134` and `05-UI-SPEC.md:65` rule CodeMirror/Monaco/Ace "explicitly forbidden" on a vendored-asset budget and a stdlib/no-network posture. **No such budget exists** and the stdlib rule was relaxed 2026-08-09, so those three lines are **SUPERSEDED**. Phase 5 currently carries two incompatible editor plans: `05-05-PLAN.md` (the hand-rolled field the dead veto produced) and the CM6 adoption at line 421. Decide ruling 5 on merit — CM6's `Diagnostic{from,to,severity,message}` maps 1:1 onto our lint records, against the cost of a vendoring and update pipeline — **not** on an asset budget. `UI-SPEC.md` §8.2 (no keyboard trap, Tab inserts, Escape returns to navigation) is the one real constraint and must hold either way. **No default; resolve before `/gsd-plan-phase 5`.**
+- **OPEN — ruling 16** (constraint audit F17, revisit): `01-VALIDATION.md:25` and `03-VALIDATION.md:21` record "no pytest, no test-runner dependency" on the stdlib-only preference, and `05-RESEARCH.md:1194,1235` / `05-VALIDATION.md:63` fall back to **manual** UAT because "no JS test harness exists". That is a preference converting the §4.5 accessibility gates — the part that genuinely does not bend — into manual spot checks. With CM6 arriving here, does a test runner earn its cost? The §8 gates (keyboard path, focus, no-leak) are the argument that it does. **Default if unruled: take the runner and record it under the §4a supply-chain rule.**
 **Success Criteria** (what must be TRUE):
 
   1. A learner types code into a monospace field with working line numbers and a tab key that inserts a tab rather than moving focus.
@@ -332,7 +469,13 @@ Plans:
   4. Every response records which mode produced it, so a "correct" from drill mode is distinguishable from a "correct" from exam mode in the evidence.
   5. Rapidly resubmitting the same or an empty answer does not advance the hint tier faster than one tier per genuine attempt.
   6. A lesson can interleave a short explanation with a learner action, prediction, or attempt before revealing the next idea; feedback addresses the learner's move, and hints guide without simply handing over the answer.
+  7. **(research-derived, non-deferrable)** Every response event records latency and duration fields from the day this phase's events first land. The evidence log is append-only; a field not written now can never be backfilled, and every pacing, trend, and scheduling feature downstream reads them (B15).
+  8. **(research-derived)** A locked tier is *visible runtime state*, never first-person model reluctance: the UI says "Tier 3 unlocks after another attempt" in a dashed-border locked card. Socratic tutoring is commoditized at the prompt layer in every competitor, so the structural lock is the differentiator only if the learner can see it is structural.
+  9. **(research-derived)** An exam-sim feedback preset exists that serves a `[CASE:]` group under exam-mode feedback rules in one command.
+  10. **(round two, R3.3) A recorded skip does not release the cursor hold's semantics.** Phase 6.2's gate is a default rather than a lock, so this phase must state plainly which of skip and cursor-hold wins when both apply: a skipped gate advances the *reading position* and never the *hint tier*, and skipping is not an attempt. A `gate_skip` event and a hint-tier advance are different events about different things.
+  11. **(round two, R3.1) Hint-ladder depth distribution is this phase's usage measure.** A ratio with a stated denominator — the share of correct responses reached at each tier, over responses in modes where the ladder runs. It is a property of the system, not of the person; it is never shown to the learner with a target; and it exists so a ladder nobody climbs past tier 0 is visible as a design failure rather than as learner behaviour.
 
+**Absorbed from research (2026-08-10)**: refusal and redirect copy follows the Khanmigo redirect formula and the study-mode-wave findings in `.planning/research/2026-08-09-landscape-widening.md`; degraded-model states are already designed in `.planning/UI-SPEC.md` (B14).
 **Plans**: 2 plans
 
 Plans:
@@ -361,7 +504,10 @@ Plans:
   5. Committed learner actions, runtime observations, final semantic state, error category, opaque feedback anchor, and Phase-6-bounded hint entitlement are append-only evidence that a later teaching agent can query; raw pointer movement is neither accepted nor stored.
   6. The visual interaction works at 320 CSS px and 200% zoom with visible focus, status announcements, 24x24-or-larger pointer targets plus a non-drag alternative, pointer cancellation, and equivalent keyboard operation. Canvas remains reserved for a future dense simulation and may never replace the semantic HTML state/control fallback.
   7. GIFT export refuses every visual interaction loudly by item number and `gift.type_unsupported`; Canvas LMS/LTI, QTI export, advanced visual families, hosted identity, and grade passback remain backlog work.
+  8. **(round two, R4.3 — non-deferrable) The private versioned tolerance policy's version is written into the event.** Without it, a policy bump silently reinterprets every past visual verdict in the history. The evidence log is append-only, so a version field not written now can never be backfilled — this is the same class of one-way door as Phase 6 criterion 7.
+  9. **(round two, R4.1) Visual tolerance reaches `score_response()` as tolerance-as-quantization** — a registered normalizer of signature `(q, answer) -> str | None`, so the single `==` survives literally. Reproducibility ranking, strongest first: **bounds stated in the item** (primary), strategy name and version in the evidence (interpretability, not reproducibility), and a recorded seed (weakest — avoid). `item.tolerance_unstated` is an error, which is what makes the primary mechanism enforceable.
 
+**Absorbed from research (2026-08-10)**: the SVG protocol stands, and Desmos/GeoGebra are **rejected on licensing** rather than on capability — extend our own protocol with two or three math scene types instead of embedding a third-party engine. Canvas/LTI stays backlog. See `.planning/research/2026-08-09-extraction-subjects-bilingual.md` (Q6 Math).
 **Benchmark posture:** Brilliant is an explicit learn-by-doing quality target. Public patterns from Brilliant, Desmos/Amplify, GeoGebra, Khanmigo, H5P/QTI, and ALEKS inform prediction-before-explanation, meaningful manipulation, immediate targeted feedback, transparent state, accessibility, and authorability. This phase does not copy proprietary content, interaction details, branding, or pursue competitor feature parity.
 **Plans:** 3 plans
 
@@ -379,6 +525,33 @@ Plans:
 
 - [ ] 06.1-03-PLAN.md — Accessible mouse/touch/keyboard equivalence, canvas fallback boundary, GIFT loud refusal, and phase gate
 
+### Phase 6.2: Executable Textbook Loop (INSERTED 2026-08-10)
+
+**Goal**: A lesson reads like a textbook that will not let you skim it — a short passage, an inline check the learner must clear before the next idea appears, and the same idea returning on a schedule days later — built entirely from the lesson reader, the hint ladder, and the evidence log that already exist.
+**Mode:** mvp
+**Depends on**: Phase 3.1, Phase 5, Phase 6
+**Requirements**: TBD (assign at `/gsd-plan-phase 6.2`)
+**UI hint**: yes
+**Research basis**: Execute Program and Runestone loop patterns in `.planning/research/2026-08-09-landscape-widening.md`; brief §7.6.
+**Success Criteria** (what must be TRUE):
+
+  1. A lesson can gate its own continuation on an inline check: the next passage does not render until the check is cleared, and clearing it is a `runtime.score_response()` verdict like any other, not a lesson-local rule.
+  2. The gate is a **presentation policy over existing item types**, adding no seventh item type and no second scorer — a gated lesson and an ungated one differ by a declared block, not by a code path.
+  3. Clearing an inline check writes ordinary response evidence, so a lesson-embedded attempt and a quiz attempt on the same objective are indistinguishable to Phase 10's scheduler except by the `selection_mode`/context field that names where it happened.
+  4. An idea cleared inside a lesson re-appears in a later session through the normal retention queue rather than a lesson-specific schedule, proving the loop feeds one store.
+  5. A learner can always read ahead by an explicit, recorded choice — the gate is a default, not a lock, and skipping is evidence too.
+  6. A bank whose lessons declare no gates renders exactly as it does after Phase 3.1.
+  7. **(round two, R3.3) Build both — `[GATE: required|recommended|off]` — and the reason is stronger than the mastery-learning literature.** A hard gate is **theater on a plaintext file the learner owns**: it is a claim the product cannot keep, and a claim that cannot be kept is worse than an absent feature. The loop's value is the return, not the wall. A recorded skip preserves that value *better* than a hard gate does, because skipped-and-still-unclear is a prioritizable signal while a hard gate learns nothing.
+  8. **(round two, R3.3) Skip is a new `gate_skip` event type**, verified additive against `evidence.py`, and **explicitly not a `response` carrying a null score**. Conflating them would make a skip indistinguishable from an unmarked attempt in every downstream count.
+  9. **(round two, R3.1) Gate outcome split is this phase's usage measure** — the ratio of cleared to skipped gates, over gates encountered. Stated denominator, no target shown to the learner, and no streak.
+  10. **(round two, R1.1) The inline check is anchored by `[!CHECK: <id>]`**, the single new parse path Phase 3.1 adds. It carries no key and no scoring path, so this phase adds no scoring surface of its own — consistent with criterion 2's no-seventh-item-type rule.
+
+**Open decisions**:
+
+- **OPEN — ruling 9** (shared with Phase 3.1): May `[!CHECK:]` reference an item in another bank? **Default if unruled: no — narrower now, additive later.** Affects whether a gated lesson can pull its check from a shared bank or only from its own.
+
+**Plans**: TBD
+
 ### Phase 7: Selection Engine
 
 **Goal**: A session is assembled by rule, not by hand — targeted at an objective, a difficulty, or a discrimination pair — and the tool can say why it picked each item.
@@ -393,7 +566,13 @@ Plans:
   4. Requesting a discrimination pair for a named confusion serves both commonly-confused items together.
   5. For any selected item, the tool can state in plain terms why it was chosen over another candidate.
   6. A guided path can sequence prerequisites into bite-sized concept steps with periodic application checkpoints, while keeping the selector's reasons visible and rule-based.
+  7. **(research-derived — ALEKS fringe principle)** The selector serves an objective only when its `[PREREQ:]` edges (authored in Phase 3.2) are already mastered, so the learner is always working the fringe of what they know rather than a randomly-sampled objective. A learner may override, and the override is recorded.
+  8. **(research-derived)** Serving order can be blueprint-weighted — an exam blueprint's objective proportions become selection weights — and a `[CASE:]` group serves as one unit under the exam-sim preset.
+  9. **(research-derived)** Every selection rule is a **named, registrable strategy** with one interface (candidates in, ranked candidates plus a reason string out). Adding a rule is registering a strategy; it never edits a central `if`-chain, and `select --explain` names the strategy that ranked the winner.
+  10. **(round two, R3.1) Corpus reach is a selection-side measure, and this phase serves it.** The share of the bank's items the selector has ever served, over items eligible under any mode — a property of the selector, not of the learner. It exists so an engine that keeps re-serving the same fifty items is visible as a defect. Phase 3.2 owns the corpus; this phase owns the reach.
+  11. **(round two, R4.5) A pending model-suggested mark influences selection in no way, but is not nothing.** It counts as an attempt, it grants no mastery, and it never advances an interval. Weight, cooldown, and fringe eligibility all read accepted evidence only. This is a selection-side invariant and must be asserted here rather than assumed from Phase 8.
 
+**Absorbed from research (2026-08-10)**: ALEKS fringe-based selection, UWorld's Educational-Objective line as a selection input, jpdb-style utility weighting, and Brilliant's one-idea-per-screen sequencing wording for the "why this item" trace. See `.planning/research/2026-08-09-landscape-widening.md`.
 **Open decisions resolved here**: The selection-mode naming collision — resolved at plan time as a **distinct `selection_mode` field** (D-11), because `schemas/session.schema.json`, `schemas/response.schema.json` and `surfaces/daemon.py:SESSION_MODES` already enumerate `"remediation"` as a *feedback* mode; gated by a blocking `checkpoint:decision` in plan 07-04 because the evidence log is append-only. What the log records about a selection — resolved as a **`selection` event once per sitting plus `selection_mode` on every response event** (D-03), also gated in 07-04. Cooldown scope — resolved as **bank-scoped** (D-13), paid for by bumping `INDEX_VERSION` and adding a `bank` column to the disposable sqlite3 index in plan 07-03. `selection_weights.recency_decay` — resolved as **being** D-08's soft penalty rather than a second knob for the same thing (D-15), with `objective_miss_rate` and `difficulty_spread` retagged to Phase 10.
 **Plans**: 6 plans
 
@@ -434,7 +613,18 @@ Plans:
   3. With the network unplugged (or the model unreachable), sitting a quiz, scoring, lessons, the authored hint ladder, evidence, and reports all keep working — only the model-generated tier of hinting goes quiet.
   4. Marking a `short` answer against its rubric through the adapter lands each rubric point as `review_state: pending`, never as accepted evidence, until an explicit accept.
   5. Every model interaction — a hint given, a rubric suggestion — is logged to the evidence store and retrievable later by session.
+  6. **(research-derived)** The refusal the learner sees is runtime state, not model voice: a locked tier renders as a labeled structural lock with the unlock condition stated, and generated text renders in plain chrome inside a labeled container so a model never acquires a typographic voice of its own. Copy tables in `08-UI-SPEC.md` are updated to the study-mode-wave findings.
+  7. **(research-derived)** Adding a third backend (a second hosted CLI, a local llama.cpp server, a future vendor) is a new adapter module plus a config entry, with zero edits to tier-gate, evidence, or prompt-assembly code — proven by adding a stub backend in a test.
+  8. **(round two, PLANNING-DIRECTIVES §1 as amended 2026-08-10) This phase plans against a hosted Claude-Code-class backend as the design target.** Weibao, 2026-08-10: *"can establish that the main stuff should work with something like claude code for now to not worry so much."* Consequences, binding: the hosted adapter is built first and is the default; the local 24GB card is an **additional registration behind the same interface**, not a fork and not a prerequisite; prompt-size and latency budgets are written against the hosted model, and the local backend **declares its own limits**, so a plan assuming an 8K context everywhere is wrong. This does **not** relax Directive §4.1 — a hosted model decides nothing about correctness, and the tier-3 `pending` rule is not a function of which backend runs.
+  9. **(round two, R3.5) `itembank bench` is still owed, but it is off the critical path** — and **no plan or roadmap entry may carry an invented tok/s or latency figure** in the meantime. The recommended local pairing when the hardware lands is Qwen3-30B-A3B-Instruct-2507 Q4_K_M with gpt-oss-20b as a second backend, Vulkan over ROCm on gfx1100. That is a starting configuration to measure, not a validated one.
+  10. **(round two, R4.4 — decisive) Tier-3 promotability is a constant zero, not a spectrum.** Two independent findings force this: LLM judges are **non-reproducible even at temperature 0**, so tier 3 fails the R4.2 authority rule on physics *independently* of Directive §4.1; and judge bias survives explicit anti-bias prompting (d=4.25). Ofqual (14 Jan 2026) independently forbids AI as a sole marker. Therefore **tier 3 is not a scorer strategy at all** — it is a peer of the human marker, sitting outside `score_response()` entirely. Ranked approaches, best first: **self-assessment against a revealed model answer** (g=0.55/0.664, and a learner self-mark *is* a human accept, which dissolves the pending state rather than managing it), deferred human marking, then rubric decomposition — the last justified on **accept ergonomics, not accuracy**, since the within-task A/B does not exist and the one prompt-controlled study finds holistic matches atomic.
+  11. **(round two, R4.5) Presentation: self-mark first, and the suggestion never wears a grade's clothes.** The model suggestion sits behind a disclosure control `suggestion_reveal`, default `after-self-mark`, with all three values shipped per Directive §3. It renders as a `--pending` token only — **never a number, never a fraction, never a check or cross glyph**. Accept is the existing `mark_event`. A suggestion never accepted stays pending forever, which is a correct terminal state and not a queue to drain.
+  12. **(round two, R4.5) This phase adds a `mark_proposal` event type and must not widen the human-only guard.** `mark_event` raises `ValueError` on `marker != "human"` (`evidence.py:1058`), and that runtime enforcement is what makes criterion 4 true structurally rather than by convention. Three facts verified against the code change the shape of this work: a mark is **already** a separate append-only event about a response, `review_state` is **already** computed at read time, and `mark_event(rubric=...)` **already** stores per-criterion results as N booleans.
+  13. **(round two, R4.7) Partial credit is N booleans. No fractional score, no confidence weighting.** A derived "4 of 5" computed at read time is fine. The one-way door was built correctly in Phase 1 and does not need opening, so no `checkpoint:decision` is owed for it.
+  14. **(round two, R4.6d) Auto-accepting a tier-3 suggestion must be *impossible*, not off by default** — on four independent grounds, including that **no valid gate variable exists**, since model confidence is uncalibrated. There is no setting, no flag, and no autonomy level that turns it on. Batch accept by a human is the right concession to ergonomics and is the only one offered. Criterion 2's config-swap freedom stops exactly here.
 
+**Named unknowns carried into planning**: **no verified 7900 XTX throughput figure exists** for any candidate model (Research Brief 2 §4.5) — this is the reason criterion 9 forbids a carried number rather than asking for a better estimate. **No trustworthy open-weight prose-quality benchmark exists**, so backend choice for authoring is settled by running our own 18-rule check, not by a leaderboard.
+**Absorbed from research (2026-08-10)**: `.planning/research/2026-08-09-landscape-widening.md` (2025 study-mode wave: Socratic tutoring is commoditized at the prompt layer, so the visible runtime lock is the differentiator) and `2026-08-09-blind-spots.md` B14 (degraded-model UX already designed in UI-SPEC). Adapter interface and tier-gate mechanics stay **LOCKED**; only learner-facing copy, provenance presentation, and generated-hint surfaces change.
 **Open decisions resolved here**: Tier-gate enforcement mechanism — no prior art found for how the runtime detects and drops model output that reaches past the unlocked tier; this phase must design and test the actual detection/stripping mechanism as a first-class deliverable, not adapter plumbing added after the fact.
 **Plans**: TBD
 
@@ -454,7 +644,20 @@ Plans:
   4. An EMT lesson renders prose and tables correctly, matching the source markdown structure.
   5. Adding a fourth subject requires only a configuration entry (lesson medium, item types, verifier), not a new surface or a code fork.
   6. Each subject includes at least one guided-discovery sequence that cycles through context, learner action or prediction, immediate targeted feedback, and explanation instead of presenting a lecture followed by detached questions.
+  7. **(research-derived — EMT)** A `## SCENARIO` phased container exists in which **the runtime stages the information reveal**: vitals, history, and scene findings become available on the runtime's schedule, not all at once and not at the model's discretion. This is where the 2026 NREMT TEI patterns land; the existing six item types already cover the widget shapes.
+  8. **(research-derived — Math)** Numeric answer equivalence is decided by WeBWorK-style random-point evaluation in roughly 200 stdlib lines, behind one accept rule. `sympy` may later implement the same accept rule as a swappable strategy; the rule, not the library, is the contract.
+  9. **(research-derived)** A grep-grade local search route spans banks, lessons, and attempts (B6) — small, and the cheapest thing that makes a growing corpus usable.
+  10. Adding a fourth subject remains configuration only, now including its verifier strategy and its lesson medium — verified by adding one in a test, not by argument.
+  11. **(round two, R1.7) `??? for math` is answered: the form is Worked Example → Variation → Formalization (`math-worked`).** A section equals one knowledge point: claim, then `[!EXAMPLE]` annotated, then `[!CHECK]` varying exactly one dimension, then `[!KEY]` stating the formal result **after** the example rather than before it. `math-explore` (Experience First, Formalize Later) is the same four blocks inverted and costs one extra file, zero blocks, zero lint codes, and zero parser change — the cleanest Directive §3 case in the project, so **both ship**. `math-worked` is the default for first exposure. **KaTeX is delivery, not form**, and the Phase 6.1 SVG is a figure inside a section, not a style; neither answers this question and neither may be mistaken for the answer.
+  12. **(round two, R3.2) `## SCENARIO` is ordered `[STAGE:]` blocks with a closed two-value advance vocabulary — `on-ack` and `on-item`.** `on-elapsed` is **rejected** against `UI-SPEC.md:105`; `on-correct` is **rejected** because it gates a reveal on a verdict. **The reveal position is a derived integer replayed from existing evidence**, which is the mechanism that lets a model author the scenario file while never moving the pointer — criterion 7's "runtime stages the reveal" made structural rather than promised. No un-reveal and no answer locking. Cost: five lint codes, zero new item types, zero scorer change.
+  13. **(round two, ruling 7) `lesson_layout` is a subject-profile field**, and `subject_profiles` is a *closed* object per `09-02-PLAN.md`. Folding the field into 09-02 before this phase is planned avoids a registry version bump. EMT and Math are `separate`; CS is `inline`.
+  14. **(round two, R4.2/R4.3) Random-point Math evaluation qualifies as reproducible only once its seed is derived from the existing `content_hash`**, which makes the sample points a pure function of the item rather than of the run. Criterion 8's WeBWorK-style checker reaches `score_response()` as a normalizer producing an **agreement vector at pinned points**; the single `==` is unchanged. `sympy` later implementing the same accept rule is a config key plus a module — the proof that the rule, not the library, is the contract.
 
+**Absorbed from research (2026-08-10)**: `.planning/research/2026-08-09-extraction-subjects-bilingual.md` (Q6 per-subject verdicts). Desmos/GeoGebra rejected on licensing; the 6.1 SVG protocol is the math manipulable path.
+**Open decisions**:
+
+- **OPEN — ruling 7** (shared with Phase 3.1): fold `lesson_layout` into `09-02-PLAN.md`'s closed `subject_profiles` object, or accept a registry version bump? **Default if unruled: fold into 09-02.**
+- **OPEN — ruling 15** (constraint audit F7, revisit): `03-CONTEXT.md:158` and `03-04-PLAN.md:79` grant leave to **drop table rendering** "if a stdlib table renderer proves out of proportion" — an effort budget that only exists because `03-RESEARCH.md:228` refused `markdown`/`mistune`/`commonmark` unread ("Not evaluated further"). SC4 here requires that an EMT lesson renders prose **and tables** correctly, and `UI-SPEC.md` §8 Narrow requires tables to preserve headers via a horizontal-scroll wrapper with an accessible name or stacked definition rows. A learner-facing feature carrying a §8 obligation is not droppable on effort. The single-renderer decision itself stands, on the better ground that §4.2 forbids a second parser and Phase 5's preview reuses ours via `data-line` sync. **Default if unruled: table rendering is in scope and the §8 Narrow obligation is met.**
 **Plans**: 5 plans across 4 waves
 
 Plans:
@@ -475,6 +678,23 @@ Plans:
 
 - [ ] 09-05-PLAN.md - Add observation-only runnable lesson code and prove the four-profile integration matrix.
 
+### Phase 9.1: Audio Drill Export (INSERTED 2026-08-10)
+
+**Goal**: An objective leaves itembank as an audio drill pack — stem, pause, key, why — so a commute or a run is study time, with no app to build, no player to write, and no dependency the tool cannot do without.
+**Mode:** mvp
+**Depends on**: Phase 1, Phase 9
+**Requirements**: TBD (assign at `/gsd-plan-phase 9.1`)
+**Research basis**: `.planning/research/2026-08-09-blind-spots.md` B3 — named as real, cheap, and differentiating. Research also found (Q9) that consumption is phone- and audio-shaped while the desktop app optimizes authoring; this is the cheapest correction available.
+**Success Criteria** (what must be TRUE):
+
+  1. `itembank export audio --objective <id>` writes an audio file plus a plain-text transcript per pack, sequencing stem → timed pause → key → why.
+  2. The TTS engine is a **settings entry behind one interface** — `edge-tts` today, Piper locally, Kokoro on the 7900 XTX when it arrives — and swapping it is a config change with no code change, exactly like the model backend.
+  3. With no engine installed or reachable, the command still emits the transcript and a named, actionable refusal; it never half-writes an audio file.
+  4. Playback is any podcast app. No player, no sync service, and no mobile build is in scope.
+  5. Listening records nothing — an audio pack is a one-way export, and the evidence log stays the record of what was actually answered.
+
+**Plans**: TBD
+
 ### Phase 10: Retention, Pacing & Trends
 
 **Goal**: The tool tells the learner what's due today, stops a course being binged in one sitting, and raises or lowers what gets selected based on real performance history — with itembank's and Anki's notions of "due" shown as two labeled signals, never silently merged.
@@ -492,7 +712,14 @@ Plans:
   4. An objective answered correctly a month ago and untouched since is flagged at-risk in the longitudinal `/report` view, before it would actually be failed.
   5. The longitudinal report shows accuracy by objective over weeks, hint tier reached, and items pending manual marking, and every trend shown states the evidence it rests on.
   6. Recommendations favor short, focused sessions and surface the learner's strategy, surprise, or sticking point as optional reflection evidence without turning streaks or points into the definition of mastery.
+  7. **(research-derived)** **FSRS is the scheduler baseline**, its state derived by replaying the append-only evidence log — including Phase 3.1's `key_review` events — rather than stored as mutable per-item scheduling rows. Rebuilding scheduler state from the log alone must reproduce it exactly.
+  8. **(research-derived)** The scheduler sits behind one interface with FSRS as the default strategy, so a later algorithm change is a registered strategy plus a replay, not a migration.
+  9. **(research-derived)** Progress is named in WaniKani-style stages with a terminal "retired" state, and due ordering is jpdb-style utility-weighted — legible, non-punitive motivation with no streaks and no points.
+  10. **(round two, R3.1) Return rate is this phase's usage measure, and it is deliberately not a streak.** A ratio with a stated denominator — sittings that occurred over sittings that came due — and it is a property of the system's pacing, not a judgement of the person. It is never shown with a target, never renders as a consecutive count, and never produces a loss state. The anti-streak rule in `UI-SPEC.md` holds over any tension with it.
+  11. **(round two, R3.1) Lesson-to-item transfer is the most interesting measure available and is deliberately deferred**, because it is not computable from the evidence log as it stands. Recorded here with its cost rather than silently dropped, so a later phase can pick it up knowing why it was not built now.
+  12. **(round two, R4.5) A pending model suggestion never advances an interval and grants no mastery**, though it does count as an attempt. Scheduler state replayed from the log must read accepted marks only — a rule that has to hold here because this phase is where "what is due" is decided.
 
+**Absorbed from research (2026-08-10)**: FSRS, WaniKani stages, jpdb weighting (`.planning/research/2026-08-09-landscape-widening.md`); D2 memorizables entering the queue (`2026-08-09-differentiators-d1-d2-d3.md`); anti-punitive pacing copy already LOCKED in `.planning/UI-SPEC.md`.
 **Plans**: TBD
 
 ### Phase 11: Closed Authoring Loop & Curriculum Auditor
@@ -511,36 +738,217 @@ Plans:
   3. Every generated item passes `lint` before reaching a bank, and a second quality gate (distractor-overlap, near-duplicate stems, answer-leaking overlap, missing "would-be-correct" rationale) blocks a machine-authored item `lint` alone would pass.
   4. At report-only autonomy the tool only reports; at draft-and-approve a human accepts each item before it's written; at full autonomy each write is its own commit, distinctly tagged as machine-authored, and the tool states its own volume at the highest setting so batching isn't invisible.
   5. Every auditor write is undone by a single documented action (shadow copy or `git revert`), demonstrated once for a report-only-stage write and once for an autonomous one.
+  6. **(research-derived)** The auditor consumes Phase 3.2's **computed** coverage map rather than deriving coverage a second way, and the five `manual`-severity `LESSON-STYLE.md` rules are enforced here as model-judged, report-only findings.
+  7. **(research-derived)** The full CodeMirror 6 authoring surface lands here — diff, preview through our own renderer, approve, write — reusing the Phase 5 plumbing rather than introducing a second editor integration, and surfacing git diffs of the bank (B12).
+  8. **(round two, R2) Model-judged rules are enforced here at registry scale, and only the discourse-judgement class reaches this phase.** Structural counts and the shared lexical metrics pass both run on every `lint` in Phase 3.1; what is left for this phase is genuinely semantic and is **report-only**, never blocking a human's lint. The style check catalogue is **closed** — this phase may not define a check that Phase 3.1's catalogue does not contain, for the same reason Phase 3.1 cannot: `LINT_CODES` is a published API.
+  9. **(round two, R3.4) The six-stage generation pipeline is this phase's authoring loop**: deterministic source selection, outline-only, per-section drafting, deterministic checks **before** any model critique, independent CoVe-style verification, human accept. Roughly nine model calls per lesson, so criterion 4's autonomy ladder is governing a **batch** operation, and the UI must present it as one. A style `error` blocks a machine-authored write here; that is the whole point of the severity split.
+  10. **(round two, R1.6) `restyle` is this phase's operation and is model-driven, human-gated, and produces a new file.** It must never be conflated with the runtime's `render_style`, which is model-free and may only permute existing blocks. The mechanically impossible transforms are refused rather than approximated: expository→case-narrative, expository→Socratic, expository→worked-example, anything→Bottom-Up, case-narrative→anything.
+  11. **(round two, R5.2) One-action reversibility is what forced the two-file default.** SC4 commits each autonomous write separately and SC5 demands single-action undo, which is impossible without hunk surgery when a style pass and a seeding pass share a file. This criterion is the reason Phase 3.1 criterion 7 exists, and a plan that re-merges prose and items breaks it.
+  12. **(round two, R3.1) Style adherence density is this phase's usage measure** — style-rule violations per thousand words over generated lessons, with a stated denominator, shown to nobody as a target. Suppression counts (`<!-- style-ignore: -->`) are themselves a report here: a check suppressed everywhere is a check to retire, not a learner to correct.
 
+**Open decisions**:
+
+- **OPEN — ruling 14** (constraint audit F4, revisit): D-03 (`11-RESEARCH.md:15`, `11-CONTEXT.md:19`) defers PDF/DOCX because markdown/UTF-8 are first-class *"under the stdlib constraint"*, and `REQUIREMENTS.md:200` pre-loads the same framing. That constraint no longer binds, so the "open" decision below is really pre-answered by a dead rule. A syllabus is very often a PDF, and Phase 11 has no plans yet, so this is cheap to reopen. The deciding question is **locator fidelity for citation**, not stdlib coverage. **Default if unruled: markdown and UTF-8 stay the guaranteed lossless, locator-stable inputs; a PDF text extractor is a dependency decision made on merit at plan time.**
+- **OPEN — ruling 10**: Does the style exemplar earn its prompt tokens? Untested — the seven-imperative cap plus one exemplar (Phase 3.1 criterion 3d) is extrapolated from format-compliance research, not measured on pedagogical structure. **Default if unruled: ship it toggleable and measure.**
+
+**Named unknowns carried into planning**: **no benchmark for single-objective adherence in long generation** exists (Research Brief 2 §4.5), and **no trustworthy open-weight prose-quality benchmark** exists — so criterion 9's pipeline is justified structurally, and model choice for authoring is settled by running our own 18-rule check over generated lessons rather than by any published score.
+**Scope note (2026-08-10)**: this phase **shrinks**. Anki import and the human-gated seeding loop moved to Phase 3.2; the `[SRC:]`/`[OBJ:]` provenance standard and the coverage-map computation moved with them. What stays is the risky part the research agreed should stay late: the autonomy ladder, the citation contract, the second quality gate, and reversibility.
 **Open decisions resolved here**: Second quality gate algorithm (distractor-overlap heuristic, near-duplicate detection thresholds); syllabus input formats (markdown/text only, vs. PDF/DOCX that stdlib parses poorly); auditor reversibility mechanism (shadow copy vs. a git commit per write, depending on whether the private bank directory is git-tracked). These three converge with the top pitfalls flagged for this subsystem — the citation contract, the second quality gate, and reversibility are novel mechanisms with no working precedent in any examined product, and need fresh design at plan time, not just implementation.
 **Plans**: 5 plans across 4 waves
 
 ### Phase 12: ~~Packaging, Self-Update & Interop Export~~ (MOVED)
 
-This phase's full content — goal, requirements, success criteria, open decisions — now lives at **Phase 2.1**, inserted after Phase 2 on 2026-08-07. This numbered slot is retired: do not plan or execute against "Phase 12" and do not reuse this number for new work.
+This phase's full content — goal, requirements, success criteria, open decisions — now lives at **Phase 2.1**, inserted after Phase 2 on 2026-08-07. This numbered slot is retired: do not plan or execute against "Phase 12" and do not reuse this number for new work. The desktop-packaging work the 2026-08-09 research produced is **Phase 13**, a new number, not a revival of this one.
+
+### Phase 13: Desktop Packaging — Tauri Shell over the Python Sidecar
+
+**Goal**: itembank installs and launches like a real desktop application on Windows, and the thing inside the window is still the same Python runtime, the same scorer, and the same evidence store the CLI uses.
+**Mode:** mvp
+**Depends on**: Phase 2.1 (the `.pyz`, the updater, and the release channel it reuses)
+**Requirements**: TBD (assign at `/gsd-plan-phase 13`)
+**Research basis**: `.planning/research/2026-08-09-packaging.md` (Q8). Verdict: **keep the Python runtime.** Porting the runtime to a JS/Rust stack would temporarily create two scorers — the one anti-pattern this project forbids outright. SiYuan's kernel-behind-webview architecture is shipping proof of the pattern.
+**Success Criteria** (what must be TRUE):
+
+  1. A Tauri 2.x shell launches a PyInstaller-onedir Python sidecar and talks to it over the existing localhost HTTP surface — the sidecar is the same daemon Phase 2 built, reached the same way, with no second IPC protocol.
+  2. An NSIS installer installs, launches, and uninstalls cleanly on Windows, and a signed `tauri-plugin-updater` updates from the same GitHub Releases the Phase 2.1 updater already uses.
+  3. Killing the shell leaves no orphaned sidecar process and no held port; a second launch attaches or refuses cleanly rather than racing.
+  4. The installer is within roughly 25–45 MB, and an antivirus/code-signing checklist is written and executed — AV false positives on frozen Python are the named top risk, not a hypothetical one.
+  5. Every capability remains reachable from the CLI without the shell installed; the desktop app is a client of the runtime, never a precondition for it.
+  6. Linux (WebKitGTK) and macOS are **deferred to hardware**, with Electron recorded as the named Linux fallback rather than silently unresolved.
+
+**Open decisions**:
+
+- **OPEN — ruling 3**: Weibao confirms Q8 (keep Python, Tauri sidecar, NSIS) and this phase number. The direction is recorded as adopted-pending-ruling; nothing else in the roadmap depends on the answer.
+
+**Plans**: TBD
+
+## How this roadmap gets planned (added 2026-08-10)
+
+`.planning/PLANNING-DIRECTIVES.md` is binding on every planning session and holds
+Weibao's instructions verbatim. The three rules that change what a planner does:
+
+1. **Keep going.** Stop only for a hard-to-reverse decision, a quality fork the
+   research does not resolve, or a conflict with the five non-negotiables. Record
+   assumptions and continue rather than asking.
+2. **When two designs are both defensible, ship both** behind one interface and make
+   the choice a setting. This is affordable exactly because of the Extensibility
+   Rules below. It stops being affordable — and the rule stops applying — when the
+   two options would need two parsers, two scorers, or two evidence stores.
+3. **Claude plans, DeepSeek V4 executes.** Consequential decisions, UI above all,
+   are made by the more capable model before any code is written, so execution is
+   transcription rather than judgment. A plan that leaves a design decision to the
+   executor has failed at its job.
+
+Per phase, in order: `/gsd-discuss-phase <n>` → `/gsd-ui-phase <n>` if it has a
+learner-facing surface → `/gsd-plan-phase <n>`.
+
+**Research status**: **both passes are complete.**
+`.planning/RESEARCH-BRIEF-2-lesson-styles-2026-08-10.md` (the lesson-style registry
+plus five threads round one left loose) finished 2026-08-10 and its §4 verdicts were
+folded into Phases 3.1, 3.2, 5, 6, 6.1, 6.2, 7, 8, 9, 10, 11 and Extensibility Rule 8
+on the same day, additively and with no renumbering. **Phase 3.1 is unblocked.**
+Rulings 7–10 are recorded as OPEN on the phase each blocks, each with a default if
+unruled; none of them blocks starting.
+
+`.planning/research/2026-08-10-constraint-audit.md` (cargo-culted constraints across
+the planning corpus) finished 2026-08-10. Its constraint-basis block is now
+`PLANNING-DIRECTIVES.md` §4a, additive only — §4's five non-negotiables are unchanged
+and **no decision in this roadmap is reversed**. F1's six propagation sites were
+reworded to cite `VIS-01` (bank-authored JavaScript) instead of Directive §4.5; the
+rejection of explorable explanations stands. F2, F3, F6 and the four revisit
+candidates (F3, F4, F7, F17) are recorded as **rulings 11–16** on the phases they
+block. Ruling 11 (Phase 5 / CodeMirror 6) is the only one without a default and is
+the highest-priority item: Phase 5 currently carries two incompatible editor plans. Where the research could not determine
+something (brief §4.5), the phase carries a **named unknown** rather than a number —
+notably the 7900 XTX throughput figure, which no plan may invent.
+
+Next action per brief §6: `/gsd-discuss-phase 3.1`.
+
+## Extensibility Rules (cross-cutting, added 2026-08-10)
+
+The research adds twelve or so features across ten phases. That only stays
+affordable if each phase adds a **registration**, not a branch. These rules are
+phase acceptance criteria wherever they apply, and a reviewer may cite them
+against any plan.
+
+1. **One interface per swappable decision.** Model backend, TTS engine, scheduler
+   algorithm, numeric-equivalence checker, selection strategy, subject profile,
+   and lesson-block renderer are each one interface with named registered
+   implementations. Adding one is a new module plus a config entry.
+2. **No central `if`-chain may grow.** If a plan's diff adds a branch to a
+   dispatcher that already has three or more, the plan converts it to a registry
+   in the same commit.
+3. **Additive format only, and provably so.** Every phase adding grammar ships a
+   fixture bank using none of it and asserts byte-identical output against the
+   prior phase. This is the compatibility floor, tested rather than promised.
+4. **Strategies are named in evidence.** Whatever chose, scheduled, or scored
+   something writes its strategy name into the event, so a later algorithm change
+   is legible in the history instead of silently reinterpreting it.
+5. **Derived, never stored.** Coverage maps, scheduler state, and trends are
+   computed from the append-only log on demand. A cache is allowed only if it is
+   disposable and its staleness is detectable (the Phase 1 sqlite3 index is the
+   precedent).
+6. **The extension point is proven by a stub.** A phase claiming "adding another
+   X is configuration only" adds a throwaway second X in a test. An untested
+   extension point is a claim, not a seam.
+7. **Every capability keeps both surfaces.** A route and a CLI command, both
+   calling the same runtime function. A feature reachable from only one surface
+   is unfinished.
+
+   *Amended 2026-08-10 (`.planning/notes/2026-08-10-mcp-as-third-surface.md`).* When
+   V2-INT-02 lands, this becomes **three** surfaces and `SURFACE_PARITY`
+   (`surfaces/daemon.py:99`) grows a third column: route, CLI command, **MCP tool**.
+   It does not become a second parity map, and it does not become a second
+   dispatcher. The rule's teeth are that an unmapped entry fails a test; a third
+   column keeps those teeth for free, and a second map loses them quietly. An MCP
+   surface added any other way is a violation of this rule, not an extension of it.
+8. **One scorer, two normalizer registries, and a judgement path that is not a
+   scorer at all.** *(Rewritten 2026-08-10 from Research Brief 2 §4.3 R4. The prior
+   wording — "a registered strategy that declares its own authority" — was the
+   working hypothesis and is **overturned**: it hands every strategy the power to
+   decide and then asks it not to. The tier table below still describes the world
+   correctly; what changed is the mechanism underneath it.)*
+
+   Different item types genuinely need different verdict methods, and pretending
+   otherwise is what produces a second scorer. The researched design:
+
+   | Tier | Method | Item types | Authority | Reproducible? |
+   |---|---|---|---|---|
+   | 1 | Canonical-form equality | `mc`, `multi`, `table`, `dnd`, `build` | `accepted` | Yes — item + response alone |
+   | 2 | Executable or computed checker | `check` code, Math equivalence, `visual` tolerance | `accepted` | Yes — deterministic given the same bounds |
+   | 3 | Model judgement against a rubric | `short`, future open-text | **`pending`** until a human accepts | No |
+
+   **The mechanism.** Two registries of **normalizers**, signature
+   `(q, answer) -> str | None`, feeding the **unchanged** `score_response()`. All
+   three tier-2 checkers reduce to normalization — code to a per-case outcome
+   vector, math to an agreement vector at pinned points, visual to
+   tolerance-as-quantization — so the single `==` at `runtime.py:120-130` survives
+   **literally**, not rhetorically. A reviewer can point at one three-line function
+   and say every verdict passes through it.
+
+   **Four accretion guards, strongest first.** (1) The return type has **no channel
+   for a verdict**, so a strategy cannot smuggle one out. (2) **Authority is a
+   property of the code path, not a declaration** — nothing declares itself
+   trustworthy. (3) **Tier 3 is not a scorer strategy at all**: it is a peer of the
+   human marker, living outside `score_response()` entirely (Phase 8 criteria
+   10–12). (4) A source-hash test pins the function, so an edit to it fails CI.
+
+   **The authority rule, in one testable sentence:** *re-running on another machine,
+   from the recorded item version and the response alone, must produce the same
+   verdict; no model, and no input not derivable from the item.* A timeout is **not
+   a verdict** — return `None` plus an `error_category`, matching the None-not-False
+   discipline already in the constructed-response path. Sampling qualifies **only**
+   once the seed is derived from the existing `content_hash`, making the sample
+   points a pure function of the item.
+
+   **Tier 3 promotability is a constant zero, not a spectrum.** LLM judges are
+   non-reproducible even at temperature 0, so tier 3 fails the rule above on physics
+   *independently* of Directive §4.1. Auto-accepting a tier-3 suggestion must be
+   **impossible, not off by default**. Partial credit is **N booleans** — no
+   fractional score, no confidence weighting; a derived "4 of 5" computed at read
+   time is fine. Phase 1 built this door correctly and it does not need opening, so
+   **no `checkpoint:decision` is owed** for it.
+
+   **Cost of the whole R4 design:** 2 registries, 2 lint codes
+   (`item.tolerance_unstated` error, `item.no_normalizer` warning), 2 tests, 1
+   optional dependency (`sympy`), 1 config key, 1 event type (`mark_proposal`). No
+   new blocks, no parser change, **no edit to `score_response()`** — a plan whose
+   diff touches that function has failed.
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12.
+Phases execute in numeric order: 1 → 2 → 2.1 → 3 → 3.1 → 3.2 → 4 → 5 → 6 → 6.1 → 6.2 → 7 → 8 → 9 → 9.1 → 10 → 11 → 13.
 Phases 1, 2, 3, and 5 have no dependency on each other and are parallel-eligible per config
 (`parallelization: true`); their `Depends on` fields, not their numbering, are the source of truth
 for what can run concurrently.
+
+**Sequencing change 2026-08-10**: Phase 3.2 (Seeding, Import & Provenance) must land
+**before Phase 5**. Phase 5 onward are tuned against content; building them against
+synthetic fixtures means tuning them twice. Phase 5's `Depends on` was changed
+accordingly — it is no longer parallel-eligible with Phase 1.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Evidence Spine & Protocol Foundation | 11/11 | Complete    | 2026-08-07 |
 | 2. Daemon Consolidation & Settings Foundation | 6/6 | Complete    | 2026-08-08 |
+| 2.1 Packaging, Self-Update & Interop Export | 9/9 | Complete | 2026-08-08 |
 | 3. Lesson Format & In-App Reader | 6/6 | In Progress|  |
+| 3.1 Lesson Rich Blocks, Glossary & Style | 0/TBD | Not started | - |
+| 3.2 Seeding, Import & Provenance | 0/TBD | Not started | - |
 | 4. Surface Redesign & Theming | 6/6 | In Progress|  |
-| 5. Check Item Type & Code Editor | 0/TBD | Not started | - |
-| 6. Hint Ladder, Cursor-Hold & Feedback Modes | 0/TBD | Not started | - |
+| 5. Check Item Type & Code Editor | 0/7 | Planned | - |
+| 6. Hint Ladder, Cursor-Hold & Feedback Modes | 0/2 | Planned | - |
+| 6.1 Interactive Visual Assessment Protocol | 0/3 | Planned | - |
+| 6.2 Executable Textbook Loop | 0/TBD | Not started | - |
 | 7. Selection Engine | 0/6 | Planned | - |
 | 8. Model Adapter Interface & Tier-Gate Enforcement | 0/TBD | Not started | - |
-| 9. Subject-Invariant Loop — EMT, Math, CS Integration | 0/TBD | Not started | - |
+| 9. Subject-Invariant Loop — EMT, Math, CS Integration | 0/5 | Planned | - |
+| 9.1 Audio Drill Export | 0/TBD | Not started | - |
 | 10. Retention, Pacing & Trends | 0/TBD | Not started | - |
 | 11. Closed Authoring Loop & Curriculum Auditor | 0/TBD | Not started | - |
-| 12. Packaging, Self-Update & Interop Export | 0/TBD | Not started | - |
+| 12. ~~Packaging, Self-Update & Interop Export~~ | — | Retired (moved to 2.1) | - |
+| 13. Desktop Packaging — Tauri Shell over Python Sidecar | 0/TBD | Not started | - |
 
 ## Backlog
 
@@ -555,3 +963,107 @@ Future exploration should cover `hotspot`, `diagram`, `timeline`, `trace`, geome
 Plans:
 
 - [ ] TBD (promote with $gsd-review-backlog when ready)
+
+### Phase 999.2: Bilingual Reader (BACKLOG)
+
+**Goal:** Tappable, tracked-word-status reading over un-authored running prose — LingQ's actual product.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Phase 3.1 reserves one optional ignorable `key=value` meta field on `## TERMS`
+(`zh=…`) so authored bilingual glosses work today. The fork to a separate
+codebase happens only when un-authored prose must be tappable with tracked word
+status: that needs tokenization, lemmatization, and a per-word state store, which
+is a second product rather than a feature. Build nothing until then.
+See `.planning/research/2026-08-09-extraction-subjects-bilingual.md` (Q7).
+
+### Phase 999.3: MCP Surface — the runtime as a tool table (BACKLOG, added 2026-08-10)
+
+**Goal:** An AI tutor drives a real itembank session through MCP tools instead of
+scraping a page or shelling out, and every gate the HTTP surface enforces the MCP
+surface enforces identically, because it is the same handler.
+**Requirements:** V2-INT-02 (expanded 2026-08-10), V2-INT-03
+**Depends on:** Phase 2 (complete). Not Phase 8.
+**Design basis:** `.planning/notes/2026-08-10-mcp-as-third-surface.md`, against MCP
+spec revision **2026-07-28**.
+**Plans:** 0 plans
+
+**Why this is not Phase 8.** Phase 8 is itembank calling a model: the model is an
+upstream producer of hint text, and the gate asks *may this text render*. This is a
+model calling itembank: the model is a downstream client, and the gate asks *may
+this tool run, and what may it return*. They share no code. A plan that folds them
+together has confused "involves an LLM" with "is the same seam."
+
+**Success Criteria** (what must be TRUE):
+
+  1. A registered stdio MCP server exposes one tool per `surfaces/daemon.py:API_ROUTES`
+     entry, whose `inputSchema` is the corresponding published `schemas/*.json`
+     document **read off disk** by the same `resources.py` path `protocol_cli.py`
+     uses. Proven by a test that mutates a schema file and observes the tool
+     signature change without a code edit.
+  2. `SURFACE_PARITY` carries three columns and its existing test fails on a tool
+     without a route, or a route without a tool. No second parity map exists.
+  3. A pre-response tool call returns exactly `runtime.public_item()`. Proven by the
+     existing no-key-in-payload discipline: a test asserts the key, rationale, and
+     distractor analysis appear in **no** MCP response for an item with no recorded
+     response in the evidence store.
+  4. A tool call that reaches past the currently unlocked tier returns
+     `isError: true` with the unlock condition stated, and the tier is read in the
+     Python handler. Proven adversarially: an agent instructed to demand the answer
+     receives the same refusal as one that asks politely, because the tool
+     description participates in neither.
+  5. stdio and an HTTP mount on the Phase 2 daemon both dispatch the same tool table
+     through one framing function. Adding the second mount is a registration, not a
+     fork (Extensibility Rule 6: prove it with a stub third mount in a test).
+  6. The server implements `server/discover`, `tools/list`, `tools/call`, tolerates
+     `notifications/cancelled`, **and** retains a legacy `initialize` /
+     `notifications/initialized` path, because clients probe discover-first and fall
+     back on any error, and it is unverified which revision Claude Code and Codex
+     speak today.
+  7. The server writes **no non-MCP bytes to stdout**. This collides with the
+     codebase's `print()`-to-stdout convention and is the named top risk; logging on
+     the MCP path goes to stderr, enforced by a test that asserts every stdout line
+     parses as JSON-RPC.
+  8. The server validates every tool input against its schema before dispatch, per
+     the spec's MUST. `schema_validate.py` is reused; no validator dependency is added.
+  9. `outputSchema` is declared for every tool and the structured result is mirrored
+     into a TextContent block, per the spec's SHOULD.
+  10. Every capability stays reachable from the CLI with no MCP client installed. The
+      MCP surface is a client of the runtime, never a precondition for it.
+
+**Named unknowns carried into planning:**
+
+- Whether an MCP session and a browser session may share one session id. Leaning yes,
+  since the evidence store already distinguishes actors. Undecided.
+- Whether authoring tools (`lint`, `guard`, `export`) join the sitting tools in one
+  table or a second capability group. Leaning one table.
+- Whether `mark_proposal` (Phase 8 criterion 12) is reachable over MCP at all.
+  Leaning no, until Phase 8 lands.
+
+**Size estimate:** roughly 350 to 450 lines of stdlib Python for transport, dispatch,
+discover-plus-legacy, and six tools. Estimate, not measured. No dependency.
+
+Plans:
+
+- [ ] TBD (promote with `/gsd-review-backlog` when ready)
+
+### Recorded descopes (2026-08-10)
+
+| Item | Disposition |
+|---|---|
+| Native mobile apps (B2) | Descoped — iOS forbids the Python sidecar. Answer is responsive pages over `--lan` (shipped in Phase 2), a Tailscale recipe, and exports. Documentation, not a phase. |
+| Handwriting / stylus input (B10) | Explicitly descoped. |
+| OCR of photographed pages (B9) | Deferred to backlog; the photograph→model→draft loop later rides Phase 3.2's generation path. |
+| QTI / LTI / xAPI LRS (landscape verdict) | Skipped. Keep Anki TSV + JSON; align evidence **field names** with xAPI vocabulary so a future export is free. Canvas/LTI stays in 999.1. |
+| Dyslexia-specific typefaces (B13) | Research is negative. Ship measure and spacing controls instead (covered by the Phase 3.1 render pass). |
+| Backup/sync service (B7) | Convention, not code: a documented copy story plus export completeness, and the "one writing home" rule below. |
+| TanStack Charts for Phase 10 trends | **Rejected on merit, not on dependency** (`.planning/notes/2026-08-10-tanstack-verdict.md`). Measured 2026-08-10: **0.9.0 pre-alpha**, unstable API, **17 transitive d3 packages**, not vendorable as one file. Phase 10 renders trends as **Python-generated inline `<polyline>` SVG**: zero JS, works in the `.pyz`, the Tauri webview and a `--lan` phone tab identically, carries a real `<table>` fallback for `UI-SPEC.md` §8, and is styled by the existing `SHARED_CSS` semantic tokens. |
+| TanStack Table / Query / Router / Start | Rejected on merit. `table-core` is 111 KB + `@tanstack/store` 5.8 KB and exists to sort and filter thousands of rows client-side; itembank renders tables server-side from Python over banks of a few hundred items. The rest presuppose a JS application shell, which is Phase 13's question and not a library question. **What is adopted is TanStack's architecture, which this project already has**: headless separation (Core Value) and invalidation-over-refresh (Extensibility Rule 5). |
+| TanStack `virtual-core` | **Not rejected — seeded.** 23 KB, zero imports, one vendorable ESM file, no bundler. Held against a *measured* trigger (a real list over 1000 rows that is measurably slow), because the real cost is the `aria-setsize`/`aria-posinset` work virtualization forces under `UI-SPEC.md` §8, not the 23 KB. See `.planning/seeds/tanstack-virtual-core.md`. |
+
+**M1 — "one writing home" (adopt now, cheap now, expensive later).** The 7900 XTX
+machine that is coming makes multi-machine evidence forking a real corruption
+risk: two machines appending to two copies of an append-only log produce two
+histories that cannot be merged. The convention is that exactly one machine is
+the writer at a time, stated in the Phase 2.1 documentation, before a second
+machine exists.

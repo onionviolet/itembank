@@ -169,7 +169,29 @@
 ### Interop
 
 - **V2-INT-01**: QTI 3.0 export, once a real consumer exists
-- **V2-INT-02**: MCP as transport over the JSON API, never as a second parser or scorer
+- **V2-INT-02**: MCP as transport over the JSON API, never as a second parser or scorer.
+  **Expanded 2026-08-10** from `.planning/notes/2026-08-10-mcp-as-third-surface.md`,
+  against MCP spec revision **2026-07-28**. Design promoted to `ROADMAP.md` Phase 999.3.
+  Five conditions, binding on any plan that implements this:
+  1. The tool table is a **projection of `surfaces/daemon.py:API_ROUTES`**, and each
+     tool's `inputSchema` is the already-published `schemas/*.json` document read off
+     disk. No embedded copy, no second contract.
+  2. `SURFACE_PARITY` grows a third column (route, CLI command, MCP tool) rather than
+     gaining a second parity map, so Extensibility Rule 7 covers it unchanged.
+  3. Pre-response tools return `runtime.public_item()`. `explain_payload()` is
+     reachable **only** after a recorded response for that item exists in the evidence
+     store. The gate is the evidence log, not a request flag.
+  4. A refusal is `isError: true` with explanatory text, which is the spec's own shape
+     for a business-logic error. Tier state is read in the Python handler. **A tool
+     description is not a gate** (Directive §4.1).
+  5. stdio and an HTTP mount on the Phase 2 daemon are **both** built against one tool
+     table, per Directive §3. One dispatcher, two byte-transports. This does not trip
+     Directive §4.2.
+
+- **V2-INT-03** *(new, 2026-08-10)*: WebMCP (`navigator.modelContext`) as a fourth mount
+  of the V2-INT-02 tool table inside the Phase 13 shell. Blocked on stable browser
+  support; W3C Draft Community Group Report 2026-02-12, Chrome 149 origin trial only.
+  See `.planning/seeds/webmcp-tool-declaration.md`.
 
 ## Out of Scope
 
