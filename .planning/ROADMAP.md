@@ -674,14 +674,32 @@ Plans:
 **Named unknowns carried into planning**: **no verified 7900 XTX throughput figure exists** for any candidate model (Research Brief 2 §4.5) — this is the reason criterion 9 forbids a carried number rather than asking for a better estimate. **No trustworthy open-weight prose-quality benchmark exists**, so backend choice for authoring is settled by running our own 18-rule check, not by a leaderboard.
 **Absorbed from research (2026-08-10)**: `.planning/research/2026-08-09-landscape-widening.md` (2025 study-mode wave: Socratic tutoring is commoditized at the prompt layer, so the visible runtime lock is the differentiator) and `2026-08-09-blind-spots.md` B14 (degraded-model UX already designed in UI-SPEC). Adapter interface and tier-gate mechanics stay **LOCKED**; only learner-facing copy, provenance presentation, and generated-hint surfaces change.
 **Open decisions resolved here**: Tier-gate enforcement mechanism — no prior art found for how the runtime detects and drops model output that reaches past the unlocked tier; this phase must design and test the actual detection/stripping mechanism as a first-class deliverable, not adapter plumbing added after the fact.
-**Plans**: 0/6 plans executed
+**Plans**: 6 plans (replanned 2026-08-10 against round-two CONTEXT D-01..D-27)
 
-- [ ] 08-01-PLAN.md
-- [ ] 08-02-PLAN.md
-- [ ] 08-03-PLAN.md
-- [ ] 08-04-PLAN.md
-- [ ] 08-05-PLAN.md
-- [ ] 08-06-PLAN.md
+Plans:
+**Wave 0**
+
+- [ ] 08-01-PLAN.md — TRACER: the deterministic tier gate, bounded-plan contract, and the 30-case adversarial corpus (no provider yet)
+
+**Wave 1** *(blocked on Wave 0 completion)*
+
+- [ ] 08-02-PLAN.md — One adapter boundary: hosted CLI + local OpenAI-compatible transports, named profile registry, third-backend stub proof
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 08-03-PLAN.md — Evidence spine: model_interaction and mark_proposal events, descriptor-only drops, N-boolean human accept reference
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 08-04-PLAN.md — Runtime orchestration and CLI: hint/rubric-review commands, retry lineage, human-only proposal accept, agent usage contract
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 08-05-PLAN.md — Daemon routes, SURFACE_PARITY, AgentAssist/rubric UI, no-leak DOM tests, blocking human UAT
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 08-06-PLAN.md — Phase release gate: cross-surface scenario, offline matrix, authority regressions, contract audit
 
 ### Phase 9: Subject-Invariant Loop — EMT, Math, CS Integration
 
