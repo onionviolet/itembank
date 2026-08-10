@@ -10,7 +10,7 @@ duplicate-id warning, the one-level inheritance guard
 (`[STYLE-PARENT:]` != house is `style.parent_unknown`), and the code-owned
 lock (`LOCKED_RULE_IDS` literal + `style.override_locked`).
 """
-import os, re, shutil, sys, tempfile
+import os, re, shutil, subprocess, sys, tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -386,6 +386,116 @@ def test_stage_dirs_allowlist_ships_styles():
           "styles" in names, repr(names))
 
 
+def test_render_style_permutes_and_refuses():
+    """Task 3 Test 2: render_style permutes only existing blocks per the
+    target style's order.before rules and refuses each of the five named
+    D-11 transforms with the exact copy, writing no file on refusal
+    (03.1-UI-SPEC 9.6, ROADMAP 3b)."""
+    from surfaces import lesson as lesson_mod
+    tmp, bank, _ = temp_tree()
+    try:
+        with open(os.path.join(bank, "styles", "worked-example.md"), "w",
+                  encoding="utf-8") as fh:
+            fh.write(style_text([
+                ("example.before.variation", "order.before",
+                 "[!EXAMPLE], [!KEY]", "error", "", "yes"),
+            ], parent="house"))
+
+        def write_bank(style_id, body_lines):
+            lines = ["# Fixture bank", ""]
+            if style_id:
+                lines += ["[STYLE: %s]" % style_id, ""]
+            lines += ["## LESSON", ""] + body_lines
+            p = os.path.join(bank, "bank.md")
+            with open(p, "w", encoding="utf-8") as fh:
+                fh.write("\n".join(lines))
+            return p
+
+        # checked-prose -> worked-example is a legal permutation (not one
+        # of the five named refusals), and the target's order.before rule
+        # must move the [!EXAMPLE] ahead of the [!KEY] inside the section.
+        bank_file = write_bank("checked-prose", [
+            "### A heading", "", "Prose that introduces the idea.", "",
+            "> [!KEY] The rule to remember.", "",
+            "> [!EXAMPLE] A worked instance.", ""])
+        out = os.path.join(tmp, "permuted.html")
+        result = lesson_mod.render_style(bank_file, "worked-example", out=out)
+        if not os.path.exists(out):
+            fail("render_style wrote no output file: %r" % (result,))
+        html = open(out, encoding="utf-8").read()
+        key_pos = html.find('class="callout callout-key"')
+        ex_pos = html.find('class="callout callout-example"')
+        check("order.before permutes [!EXAMPLE] ahead of [!KEY]",
+              0 <= ex_pos < key_pos, (ex_pos, key_pos))
+        check("rendered page carries the style footer",
+              "style: worked-example \u00b7 rendered by render_style"
+              in html)
+
+        # The five named refusals fire with the exact copy and write
+        # nothing (D-11): expository->case-narrative, expository->Socratic,
+        # expository->worked-example, anything->Bottom-Up, and
+        # case-narrative->anything.
+        cases = [
+            ("expository", "case-narrative"),
+            ("expository", "socratic"),
+            ("expository", "worked-example"),
+            ("checked-prose", "artifact-first"),
+            ("case-narrative", "expository"),
+        ]
+        for src, tgt in cases:
+            write_bank(src, ["### A heading", "", "Prose.", "",
+                             "> [!KEY] A key.", ""])
+            out2 = os.path.join(tmp, "refused-%s-%s.html" % (src, tgt))
+            res = lesson_mod.render_style(bank_file, tgt, out=out2)
+            expected = ("render_style cannot turn %s into %s; that is a "
+                        "rewrite, not a rearrangement. No file was changed."
+                        % (src, tgt))
+            check("%s->%s refuses with the exact copy" % (src, tgt),
+                  res == expected, repr(res))
+            check("no file written on refusal",
+                  not os.path.exists(out2))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_render_style_cli_registered():
+    """The render_style CLI seam is registered (plan 03.1-04 Task 3): the
+    command exists with --style/--out and prints usage, so an authoring
+    agent can reach the refusal copy without a route."""
+    res = subprocess.run(
+        [sys.executable, os.path.join(ROOT, "itembank.py"),
+         "render-style", "--help"],
+        capture_output=True, text=True)
+    if res.returncode != 0:
+        fail("render-style --help failed: " + res.stdout + res.stderr)
+    check("render-style CLI is registered and documented",
+          "--style" in res.stdout and "--out" in res.stdout)
+
+
+def test_render_style_has_no_model_client():
+    """Task 3 Test 3: render_style is structurally model-free -- its
+    signature cannot accept a model client and an AST walk of its body
+    names no model-adapter symbol (D-11, Directive 4.1)."""
+    import ast
+    import inspect
+    from surfaces import lesson as lesson_mod
+    sig = inspect.signature(lesson_mod.render_style)
+    if {"model", "client", "adapter", "llm"} & set(sig.parameters):
+        fail("render_style's signature must not accept a model client")
+    tree = ast.parse(inspect.getsource(lesson_mod.render_style))
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            names.add(node.id)
+        elif isinstance(node, ast.Attribute):
+            names.add(node.attr)
+    banned = {"model_client", "client", "adapter", "llm", "chat",
+              "complete", "generate", "openai", "anthropic"}
+    hit = names & banned
+    check("render_style names no model-client symbol", not hit,
+          repr(sorted(hit)))
+
+
 def main():
     test_load_style_parses_voice_rules_exemplar()
     test_resolution_order_and_duplicate_warning()
@@ -396,6 +506,9 @@ def main():
     test_style_parents_predict_flag_and_house_documents_locks()
     test_rule6_stub_one_file_extensibility()
     test_stage_dirs_allowlist_ships_styles()
+    test_render_style_permutes_and_refuses()
+    test_render_style_cli_registered()
+    test_render_style_has_no_model_client()
     print("\nstyle_roundtrip: ALL TESTS PASSED")
 
 

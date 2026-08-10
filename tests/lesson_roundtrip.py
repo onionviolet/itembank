@@ -2511,6 +2511,66 @@ def test_drill_print_blanks_clozes_and_answers_last():
         fail("the Answers list must carry the keyed bodies")
 
 
+# ---- plan 03.1-04 Task 3: the style footer and the degraded style copy ----
+
+def test_lesson_page_style_footer():
+    """Task 3 Test 1: a lesson page rendered under a resolved named style
+    carries the exact footer `style: <id> \u00b7 rendered by render_style`;
+    a lesson with no style file carries `style: house` and never claims
+    render_style (03.1-UI-SPEC 9.6, 15)."""
+    tmp = tempfile.mkdtemp()
+    try:
+        styled = os.path.join(tmp, "styled.md")
+        open(styled, "w", encoding="utf-8").write(
+            "# Styled bank\n\n[STYLE: checked-prose]\n\n## LESSON\n\n"
+            "### A heading\n\nProse.\n\n"
+            "Q1. s\nA) a\nB) b\nCORRECT: A\n")
+        pg = lesson.lesson_page(styled, itembank.load(styled),
+                                itembank.parse_lesson(styled))
+        if "style: checked-prose \u00b7 rendered by render_style" not in pg:
+            fail("named-style page must carry the 9.6 footer")
+
+        plain = os.path.join(tmp, "plain.md")
+        open(plain, "w", encoding="utf-8").write(
+            "# Plain bank\n\n## LESSON\n\n### A heading\n\nProse.\n\n"
+            "Q1. s\nA) a\nB) b\nCORRECT: A\n")
+        pg2 = lesson.lesson_page(plain, itembank.load(plain),
+                                 itembank.parse_lesson(plain))
+        if "style: house" not in pg2:
+            fail("no-style page must carry the `style: house` footer")
+        if "rendered by render_style" in pg2:
+            fail("house fallback footer must not claim render_style")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_lesson_page_degraded_style_copy():
+    """Task 3 Test 4: a bank whose resolved style file is missing renders
+    the degraded --warn copy echoing the author-written id (never a
+    resolved absolute path), falls back to the house footer, and leaves the
+    reason to lint (03.1-UI-SPEC 9.6)."""
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "broken_style.md")
+        open(bank, "w", encoding="utf-8").write(
+            "# Broken style bank\n\n[STYLE: no-such-style]\n\n## LESSON\n\n"
+            "### A heading\n\nProse.\n\n"
+            "Q1. s\nA) a\nB) b\nCORRECT: A\n")
+        pg = lesson.lesson_page(bank, itembank.load(bank),
+                                itembank.parse_lesson(bank))
+        expected = ("The style file no-such-style could not be read. "
+                    "This lesson is shown in the house style. Run itembank "
+                    "lint %s for details." % os.path.basename(bank))
+        if expected not in pg:
+            fail("degraded style page must carry the 9.6 warn copy")
+        if "style: house" not in pg:
+            fail("degraded style page must fall back to the house footer")
+        if "no-such-style \u00b7 rendered" in pg:
+            fail("degraded page must not claim the missing style rendered it")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 test_slug()
 test_parse_lesson()
 test_prose_line_shaped_like_question_marker()
@@ -2617,4 +2677,6 @@ test_key_lint_no_front_missing_id_duplicate()
 test_key_card_renders_runtime_and_degraded()
 test_key_review_route_and_cli()
 test_drill_print_blanks_clozes_and_answers_last()
+test_lesson_page_style_footer()
+test_lesson_page_degraded_style_copy()
 print("ok: lesson roundtrip (slug, parse, fingerprint, LESSON-SRC, degraded state, route, CLI twin, both link directions, lesson lint, coupling guards)")
