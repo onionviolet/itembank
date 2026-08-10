@@ -5,12 +5,12 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: Surface Redesign & Theming
 status: executing
-stopped_at: Completed 04-06-PLAN.md
-last_updated: "2026-08-09T05:06:03.105Z"
+stopped_at: Phases 3.1, 3.2, 6.2, 9.1, 13 context gathered
+last_updated: "2026-08-10T17:40:54.937Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 02.1 execution started
 progress:
-  total_phases: 13
+  total_phases: 18
   completed_phases: 5
   total_plans: 79
   completed_plans: 38
@@ -220,6 +220,17 @@ None yet.
 
 - Phase 2.1 inserted after Phase 2: Packaging/Self-Update/GIFT export (formerly Phase 12) pulled forward to ship an early exe of the Phase 1+2 feature set and dogfood the self-updater through remaining phases (URGENT)
 - Phase 06.1 inserted after Phase 6: Interactive Visual Assessment Protocol (URGENT)
+- Phase 3.1 inserted after Phase 3: Lesson Rich Blocks, Glossary & Style — D1 TERMS/gloss gate, D2 [!KEY] memorizables with Anki round-trip, D3 LESSON-STYLE.md + 18 lint rules, Q1 reading layout and print CSS (research 2026-08-09) (URGENT)
+- Phase 3.2 inserted after Phase 3.1: Seeding, Import & Provenance — Anki .apkg import, human-gated draft-lint-retry seeding loop, [SRC:]/[OBJ:]/## SOURCES + paraphrase lint, [CASE:] and [PREREQ:] format; must land before Phase 5 (research B1/Q10) (URGENT)
+- Phase 6.2 inserted after Phase 6.1: Executable Textbook Loop — prose, inline gated check, spaced re-exposure over existing lesson/hint/evidence machinery (URGENT)
+- Phase 9.1 inserted after Phase 9: Audio Drill Export — itembank export audio, stem-pause-key-why packs, TTS engine behind one swappable interface (research B3) (URGENT)
+- Phase 13 inserted after Phase 11: Desktop Packaging — Tauri 2.x shell over PyInstaller Python sidecar, NSIS, signed updater; keep-the-Python verdict (research Q8), slot 12 stays retired (URGENT)
+- 2026-08-10 — round-two research folded into ROADMAP.md additively, **no phases added, removed, or renumbered** (`RESEARCH-BRIEF-2-lesson-styles-2026-08-10.md` §4, embedded per its §5 table). Phases 3.1, 3.2, 5, 6, 6.1, 6.2, 7, 8, 9, 10, 11 gained criteria; Extensibility Rule 8 was rewritten.
+- Phase 3.1 **unblocked**: criteria 3a/3b replaced their placeholders with the real specification (five-style registry, `expository` parent, one file per style, one inheritance level, house-vs-style split with a `lock` column) and gained 3c enforcement, 3d the seven-imperative prompt cap, 3e the one new parse path `[!CHECK:]`, and criterion 7 the two-file lesson layout.
+- Extensibility Rule 8 **rewritten**: the "strategy declares its own authority" hypothesis is overturned. Two normalizer registries feed an unchanged `score_response()`; tier 3 is not a scorer strategy at all. Tier table unchanged, mechanism replaced. No `checkpoint:decision` is owed for partial credit — Phase 1 built that door correctly.
+- Rulings 7-10 recorded as OPEN on the phase each blocks, each with a default if unruled: 7 (`lesson_layout` into closed `subject_profiles`) on 3.1 and 9; 8 (`[!KEY]` scope) on 3.1; 9 (cross-bank `[!CHECK:]`) on 3.1 and 6.2; 10 (does the exemplar earn its tokens) on 11.
+- Every brief §4.5 item recorded as a **named unknown** on its phase rather than as a number — the 7900 XTX throughput figure most of all, which Phase 8 criterion 9 explicitly forbids any plan from inventing.
+- Phase 8 now plans against a **hosted Claude-Code-class backend** per PLANNING-DIRECTIVES §1 as amended 2026-08-10; the local 24GB card is a second registration behind the same interface, not a prerequisite. Directive §4.1 is unrelaxed.
 
 ## Deferred Items
 
@@ -239,9 +250,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-09 (autonomous run, this thread)
-Stopped at: Phase 4 executed (6/6 plans), code-reviewed (7 findings fixed),
+Last session: 2026-08-10T17:40:54.888Z
+Stopped at: Phases 3.1, 3.2, 6.2, 9.1, 13 context gathered
 verified 5/5 with human items deferred; Phases 2.1/3/4 carry
 verification_deferred_human rows above.
-Resume file: .planning/HANDOFF-2026-08-09.md (resume with
+Resume file: .planning/phases/03.1-lesson-rich-blocks-glossary-style/03.1-CONTEXT.md
 $gsd-autonomous --from 5 in a fresh chat)
