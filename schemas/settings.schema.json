@@ -6,7 +6,7 @@
   "x-itembank-version": 1,
   "type": "object",
   "additionalProperties": false,
-  "required": ["theme", "accent", "daily_cap", "selection_weights", "auditor_autonomy", "model_backend", "update_policy", "daemon"],
+  "required": ["theme", "accent", "daily_cap", "selection_weights", "auditor_autonomy", "model_backend", "update_policy", "daemon", "reader"],
   "properties": {
     "theme": {
       "type": "string",
@@ -167,6 +167,49 @@
           "enum": ["app", "tab"],
           "default": "app",
           "x-itembank-phase": 2.1
+        }
+      }
+    },
+    "reader": {
+      "type": "object",
+      "description": "The lesson reader's settings (03.1-UI-SPEC section 14). Read by this phase (3.1).",
+      "additionalProperties": false,
+      "required": ["reader_nav", "example_layout", "print_gloss", "gloss_marks"],
+      "x-itembank-phase": 3.1,
+      "default": {
+        "reader_nav": "none",
+        "example_layout": "stacked",
+        "print_gloss": "appendix",
+        "gloss_marks": "all"
+      },
+      "properties": {
+        "reader_nav": {
+          "type": "string",
+          "description": "Whether the lesson reader shows a sections nav column. none is the locked default; column renders one optional <nav> in the same DOM (03.1-UI-SPEC sections 7.3 and 14).",
+          "enum": ["none", "column"],
+          "default": "none",
+          "x-itembank-phase": 3.1
+        },
+        "example_layout": {
+          "type": "string",
+          "description": "How [!EXAMPLE] callouts arrange their steps. stacked is the locked default; parallel is a one CSS-grid class on the same container (03.1-UI-SPEC sections 9.3 and 14).",
+          "enum": ["stacked", "parallel"],
+          "default": "stacked",
+          "x-itembank-phase": 3.1
+        },
+        "print_gloss": {
+          "type": "string",
+          "description": "How the gloss prints. appendix is the locked default (the full glossary <dl> prints, popovers hidden); inline un-hides each popover as a small bordered note, first use only (03.1-UI-SPEC sections 10.1 and 14).",
+          "enum": ["appendix", "inline"],
+          "default": "appendix",
+          "x-itembank-phase": 3.1
+        },
+        "gloss_marks": {
+          "type": "string",
+          "description": "How densely [[term]] triggers are marked. all is the locked default; first-use marks only the first occurrence per section; none renders every term as plain prose and leaves the glossary appendix as the only path (03.1-UI-SPEC sections 8.2 and 14).",
+          "enum": ["all", "first-use", "none"],
+          "default": "all",
+          "x-itembank-phase": 3.1
         }
       }
     },

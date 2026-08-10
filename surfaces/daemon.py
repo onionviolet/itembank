@@ -18,8 +18,8 @@ import urllib.parse, urllib.request, uuid
 
 import evidence
 import server
-from model import load, parse_bank, parse_lesson
-from runtime import explain_payload, read_session
+from model import lesson_slug, load, parse_bank, parse_lesson, parse_terms
+from runtime import explain_payload, glossable, read_session
 from surfaces import (day, launcher, lesson, presentation, quiz, session,
                       settings, study, update)
 from surfaces import theme
@@ -43,6 +43,7 @@ QUIZ_GET_RE = re.compile(r"^/quiz/(?P<stem>[^/]+)$")
 QUIZ_ANSWER_RE = re.compile(r"^/quiz/(?P<stem>[^/]+)/answer$")
 STUDY_GET_RE = re.compile(r"^/study/(?P<stem>[^/]+)$")
 LESSON_GET_RE = re.compile(r"^/lesson/(?P<stem>[^/]+)$")
+GLOSS_GET_RE = re.compile(r"^/gloss/(?P<stem>[^/]+)/(?P<slug>[^/]+)$")
 DAY_GET_RE = re.compile(r"^/day/(?P<stem>[^/]+)$")
 DAY_SAVE_RE = re.compile(r"^/day/(?P<stem>[^/]+)/save$")
 DAY_OPEN_RE = re.compile(r"^/day/(?P<stem>[^/]+)/open$")
@@ -90,6 +91,7 @@ ROUTES = (
     ("POST", QUIZ_ANSWER_RE, "handle_quiz_answer"),
     ("GET", STUDY_GET_RE, "handle_study_get"),
     ("GET", LESSON_GET_RE, "handle_lesson_get"),
+    ("GET", GLOSS_GET_RE, "handle_gloss_get"),
     ("GET", DAY_GET_RE, "handle_day_get"),
     ("POST", DAY_SAVE_RE, "handle_day_save"),
     ("POST", DAY_OPEN_RE, "handle_day_open"),
@@ -115,6 +117,7 @@ ROUTE_CLI = {
     ("POST", QUIZ_ANSWER_RE): "serve",
     ("GET", STUDY_GET_RE): "study",
     ("GET", LESSON_GET_RE): "lesson",
+    ("GET", GLOSS_GET_RE): "gloss",
     ("GET", "/day"): "day",
     ("GET", DAY_GET_RE): "day",
     ("POST", DAY_SAVE_RE): "day",
@@ -736,6 +739,40 @@ def handle_lesson_get(handler, stem):
     qs = load(path)
     page = lesson.lesson_page(path, qs, parse_lesson(path))
     handler.send_html(page.encode("utf-8"))
+
+
+def handle_gloss_get(handler, stem, slug):
+    """`GET /gloss/<stem>/<slug>` -- one term's definition from the bank's
+    `## TERMS` block, gated server-side by `glossable()` before any
+    definition leaves the process (D-20), with a `term_lookup` event
+    recorded through the one evidence writer (D-19, UI-SPEC §8.3/§8.5).
+
+    A suppressed term returns the same bare 404 an unknown slug gets, with
+    no event: per-term disclosure is exactly what §8.4 forbids, and an
+    indistinguishable 404 is how the route keeps that promise structurally.
+    The session_id and mode come from the daemon's own per-bank session
+    bookkeeping when present, falling back to a stable reader identity and
+    the practice default -- the route records provenance, never a guess.
+    """
+    path = handler.banks.get(stem)
+    if path is None:
+        handler.send_not_found(stem)
+        return
+    status, record = lesson.gloss_lookup(path, slug)
+    if status != "ok":
+        handler.send_not_found(slug)
+        return
+    sess = handler.sessions.get(stem) or {}
+    bank_dir = os.path.dirname(os.path.abspath(path)) or "."
+    event = evidence.term_lookup_event(
+        session_id=sess.get("session_id", "reader"),
+        bank=os.path.basename(path),
+        term_slug=lesson_slug(slug),
+        mode=sess.get("mode", "practice"),
+        source="session")
+    evidence.append_event(evidence.log_path(bank_dir), event)
+    handler.send_html(lesson.gloss_page(stem, record, lesson_slug(slug))
+                      .encode("utf-8"))
 
 
 def _plan_day_state(handler, stem):

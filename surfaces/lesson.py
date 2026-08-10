@@ -5,10 +5,12 @@ This is a read-only render of author-provided prose. It holds no answer key
 and reaches no verdict, and its links navigate rather than answer (D-10): the
 only way out of a lesson is to another surface, never to a score.
 """
-import html, os, re, sys
+import html, json, os, re, sys
 
-from model import grab, lesson_slug, load, parse_lesson
+from model import grab, lesson_slug, load, parse_lesson, parse_terms
+from runtime import glossable
 from surfaces.presentation import SHARED_CSS
+from surfaces import settings
 from surfaces.theme import THEME_CSS
 
 
@@ -23,6 +25,19 @@ WARN_SENTENCE = ("The external lesson file for this bank could not be read. "
 ORPHAN_COPY = "No items reference this section yet."
 BACKLINKS_LABEL = "Items testing this"
 CHIP_LABEL = "Read the lesson"
+
+# The plan 03.1-02 copywriting additions (03.1-UI-SPEC §15), verbatim: the
+# linter, the renderer, and the tests reproduce the same strings, so a CI
+# grep and an authoring agent read the same contract.
+GLOSSARY_HEADING = "Glossary"
+HELD_COPY = "Some definitions are held until you answer."
+UNAVAILABLE_COPY = ("Definitions are unavailable right now. The glossary is "
+                    "at the end of the lesson.")
+FULL_ENTRY_COPY = "Full entry"
+BACK_TO_QUESTION_COPY = "Back to the question"
+LOADING_COPY = "Loading the definition\u2026"
+SECTIONS_NAV_COPY = "Sections in this lesson"
+BACK_TO_FIRST_USE_COPY = "Back to first use"
 
 # Only the degraded state carries the warn note, so its style is substituted
 # in (like __THEME__) rather than shipped on every page -- a bank with no
@@ -90,10 +105,50 @@ th{background:var(--chip);color:var(--mut);font-weight:600}
   color:var(--mut);margin:0 0 var(--space-2);font-family:var(--font-ledger)}
 .callout-icon{display:inline-flex}
 .callout-body p:last-child{margin:0}
+.term{text-decoration:underline dotted;text-underline-offset:.15em;
+  color:currentColor;background:none;border:0;padding:0;font:inherit;
+  cursor:pointer}
+.term:hover,.term:focus-visible{outline:2px solid var(--accent);
+  outline-offset:2px}
+.gloss{max-width:min(38ch,calc(100vw - var(--space-4)));
+  border:1px solid var(--line);border-radius:var(--r-3);
+  background:var(--card);padding:var(--space-3);box-shadow:0 1px 0 var(--line)}
+.gloss-term{font-weight:600;margin:0 0 var(--space-1);font-size:18px}
+.gloss-def{margin:0 0 var(--space-2);font-size:18px;
+  line-height:var(--leading-lesson)}
+.gloss-more{margin:0;font-size:12px}
+.gloss-more a{color:var(--accent);text-decoration:none}
+.gloss-more a:hover,.gloss-more a:focus-visible{text-decoration:underline}
+#glossary{margin-top:var(--space-7)}
+#glossary h2{font-family:var(--font-ledger);font-size:12px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--mut);
+  margin:0 0 var(--space-3)}
+#glossary dl{margin:0}
+#glossary dt{font-weight:600;margin:var(--space-3) 0 var(--space-1);
+  font-size:18px}
+#glossary dd{margin:0 0 var(--space-3);font-size:18px;
+  line-height:var(--leading-lesson)}
+.gloss-back{display:block;font-size:12px;color:var(--accent);
+  text-decoration:none;margin-top:var(--space-1)}
+.gloss-back:hover,.gloss-back:focus-visible{text-decoration:underline}
+.held{font-family:var(--font-ledger);font-size:12px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--mut);margin:var(--space-6) 0 0}
+.reader-nav{margin:0 0 var(--space-4)}
+.reader-nav summary{cursor:pointer;color:var(--mut);font-size:12px;
+  font-family:var(--font-ledger);letter-spacing:.08em;
+  text-transform:uppercase}
+.reader-nav ul{list-style:none;margin:var(--space-2) 0 0;padding:0}
+.reader-nav li{margin:0 0 var(--space-1)}
+.reader-nav a{color:var(--accent);text-decoration:none}
+.reader-nav a:hover,.reader-nav a:focus-visible{text-decoration:underline}
+.callout-example.example-parallel{display:grid;
+  grid-template-columns:1fr 1fr;gap:var(--space-3)}
 @media print{
   @page{margin:18mm}
   h2{break-after:avoid}
   [popover]{display:none}
+  .reader-nav{display:none}
+  .gloss-back{display:none}
   .callout{box-shadow:none}
   .callout-check{border:0;border-top:1px solid var(--line);border-radius:0;
     background:none;padding:var(--space-2) 0 0}
@@ -115,11 +170,15 @@ __THEME__
 __SHARED_CSS__
 __LESSON_CSS__
 __WARN_CSS__
+__GLOSS_ANCHOR_CSS__
+__GLOSS_PRINT_CSS__
 </style></head><body><div class="wrap">
 <header>
   <h1>__TITLE__</h1>
   <div class="sub">__SUB__</div>
 </header>
+__READER_NAV__
+__GLOSS_SCRIPT__
 <div class="card">__BODY__</div>
 </div></body></html>"""
 
@@ -158,6 +217,126 @@ _CALLOUT_ICON = ('<svg width="16" height="16" viewBox="0 0 16 16" '
                  'fill="currentColor"/></svg>')
 
 
+# The one runtime-shipped, vendored, reviewed enhancement hook (03.1-UI-SPEC
+# §8.3/C6): the in-sitting gloss fetch. The reader page ships every
+# definition, so this is inert unless a trigger carries `data-gloss-fetch`
+# (the sitting variant a later plan fills). It intercepts activation, fills
+# the panel from the served contract, and on failure renders the locked
+# unavailable copy -- never a spinner and never a dead control. The
+# navigation href on the trigger remains a real fallback.
+GLOSS_ENHANCEMENT_JS = """<script>
+(function () {
+  var LOADING = %(loading)s;
+  var UNAVAILABLE = %(unavailable)s;
+  document.addEventListener("click", function (ev) {
+    var t = ev.target && ev.target.closest
+        ? ev.target.closest("[data-gloss-fetch]") : null;
+    if (!t) { return; }
+    var panel = document.getElementById(t.getAttribute("aria-details"));
+    var def = panel && panel.querySelector(".gloss-def");
+    if (!def || def.getAttribute("data-gloss-state") === "done") { return; }
+    def.textContent = LOADING;
+    def.setAttribute("data-gloss-state", "loading");
+    fetch(t.getAttribute("data-gloss-fetch"))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        def.textContent = d && d.def ? d.def : UNAVAILABLE;
+        def.setAttribute("data-gloss-state", "done");
+      })
+      .catch(function () {
+        def.textContent = UNAVAILABLE;
+        def.setAttribute("data-gloss-state", "done");
+      });
+  }, true);
+})();
+</script>""" % {"loading": json.dumps(LOADING_COPY),
+                 "unavailable": json.dumps(UNAVAILABLE_COPY)}
+
+
+def _gloss_trigger_html(ref_text, slug):
+    """One Popover-API trigger (03.1-UI-SPEC §8.1 DOM LOCKED): a real
+    `<button>` whose accessible name is the term text itself -- no
+    aria-label, no title, so a definition can never ride the trigger's
+    accessible name (C7)."""
+    return ('<button type="button" class="term" popovertarget="gloss-%s" '
+            'aria-details="gloss-%s">%s</button>'
+            % (slug, slug, html.escape(ref_text)))
+
+
+def _gloss_panel_html(record, slug):
+    """One `[popover]` panel: the definition ships with the page, so the
+    reader gloss works with the network unplugged and before any script
+    loads (§8.1). The `Full entry` link is the Chrome-voice target of the
+    glossary appendix."""
+    return ('<div id="gloss-%s" class="gloss" popover>'
+            '<p class="gloss-term">%s</p>'
+            '<p class="gloss-def">%s</p>'
+            '<p class="gloss-more"><a href="#term-%s">%s</a></p></div>'
+            % (slug, html.escape(record["canonical"]), _inline(record["def"]),
+               slug, html.escape(FULL_ENTRY_COPY)))
+
+
+def _glossary_html(gloss_map, first_uses):
+    """The glossary appendix (03.1-UI-SPEC §9.1): a `<dl>` in `<section
+    id="glossary">`, entries in authored order, each `<dt id="term-<slug>">`
+    matching the trigger's anchor, each `<dd>` ending with a Chrome-voice
+    back-anchor to the first marked use where one exists. Suppressed terms
+    are absent, never an empty `<dt>` (§8.4)."""
+    entries = []
+    for slug, rec in gloss_map.items():
+        back = ""
+        use_id = first_uses.get(slug)
+        if use_id:
+            back = (' <a class="gloss-back" href="#%s">%s</a>'
+                    % (use_id, html.escape(BACK_TO_FIRST_USE_COPY)))
+        entries.append('<dt id="term-%s">%s</dt><dd>%s%s</dd>'
+                       % (slug, html.escape(rec["canonical"]),
+                          _inline(rec["def"]), back))
+    return ('<section id="glossary"><h2>%s</h2><dl>%s</dl></section>'
+            % (html.escape(GLOSSARY_HEADING), "".join(entries)))
+
+
+def _gloss_anchor_css(marked_slugs):
+    """One per-lesson `<style>` block of anchor-name/position-anchor pairs,
+    keyed by slug -- never an inline style attribute on bank-derived markup
+    (03.1-UI-SPEC §8.1)."""
+    rules = []
+    for slug in sorted(marked_slugs):
+        rules.append(
+            'button.term[popovertarget="gloss-%s"]{anchor-name:--anchor-%s}'
+            '#gloss-%s{position:absolute;position-anchor:--anchor-%s;'
+            'position-try-fallbacks:flip-block,flip-inline}'
+            % (slug, slug, slug, slug))
+    return "\n".join(rules)
+
+
+def _gloss_print_css(print_gloss):
+    """print_gloss inline (03.1-UI-SPEC §10.1): un-hide each `[popover]`
+    panel as a small bordered note. Each term ships exactly one panel, so
+    the printed note count equals the distinct-term count by construction.
+    The appendix default needs no override: LESSON_CSS already hides
+    `[popover]` in print."""
+    if print_gloss == "inline":
+        return ('@media print{.gloss{display:block!important;'
+                'position:static!important;border:1px solid var(--line);'
+                'border-radius:var(--r-3);background:var(--card);'
+                'padding:var(--space-3);margin:0 0 var(--space-4);'
+                'box-shadow:none}.gloss-more{display:none}}')
+    return ""
+
+
+def _reader_nav_html(headings):
+    """The reader_nav column (03.1-UI-SPEC §7.3): a collapsed disclosure
+    listing every heading by slug, Chrome-voice summary."""
+    items = "".join(
+        '<li><a href="#%s">%s</a></li>'
+        % (h["slug"], html.escape(h["text"])) for h in headings)
+    return ('<nav class="reader-nav" aria-label="%s"><details>'
+            '<summary>%s</summary><ul>%s</ul></details></nav>'
+            % (html.escape(SECTIONS_NAV_COPY),
+               html.escape(SECTIONS_NAV_COPY), items))
+
+
 def _callout_spec(raw):
     """Map one `[!KIND]` marker to its locked `(slug, label)` pair, or None.
 
@@ -173,7 +352,7 @@ def _callout_spec(raw):
     return _CALLOUT_KINDS.get(kind)
 
 
-def _callout_html(spec, body):
+def _callout_html(spec, body, example_layout="stacked"):
     """One honest callout container (D-18): a `<section class="callout
     callout-<slug>">` whose Ledger-voice label and decorative icon are
     accompanied by the escape-first `_inline()` body pass every other text
@@ -181,6 +360,10 @@ def _callout_html(spec, body):
     reserved slot with the exact Ledger copy and no form, no key, and no
     scoring path (03.1-UI-SPEC §9.4, §15); authored body text under a check
     marker is reserved for the gate that fills the slot (Phase 6.2).
+
+    `example_layout` is the reader setting (03.1-UI-SPEC §9.3/§14): an
+    `[!EXAMPLE]` callout carries the `example-parallel` class when the
+    setting is `parallel`, and stays stacked (the default) otherwise.
     """
     slug, label = spec
     icon = '<span class="callout-icon">%s</span>' % _CALLOUT_ICON
@@ -189,9 +372,12 @@ def _callout_html(spec, body):
             "This check is available when you are reading with a session.")
     else:
         inner = _inline(body)
+    extra = ""
+    if slug == "example" and example_layout == "parallel":
+        extra = " example-parallel"
     return ('<section class="callout callout-%s"><p class="callout-label">'
             "%s%s</p><div class=\"callout-body\">%s</div></section>"
-            % (slug, icon, html.escape(label), inner))
+            % (slug + extra, icon, html.escape(label), inner))
 
 
 def _code_block(info, content):
@@ -341,12 +527,58 @@ def _inline(text):
     return text
 
 
-def _render_blocks(text):
+_GLOSS_MARK_RE = re.compile(r"\[\[([^\]]+)\]\]")
+
+
+def _gloss_placeholders(text, ctx):
+    """Replace `[[term]]` markers in one raw text run with placeholder
+    tokens that survive the inline pass, returning `(protected_text,
+    tokens)` where each token is the trigger HTML or the bare escaped term
+    text. Marking honours gloss_marks all|first-use|none; a term with no
+    `## TERMS` entry or a suppressed (non-glossable) one renders as bare
+    text with no affordance (UI-SPEC §8.2/§8.4/§16). The term's single
+    panel is emitted the first time the term is marked, so the printed
+    note count equals the distinct-term count by construction (§10.1).
+    """
+    tokens = []
+
+    def _rep(m):
+        ref_text = m.group(1).strip()
+        slug = lesson_slug(ref_text)
+        rec = ctx["gloss"].get(slug)
+        marked = rec is not None and ctx["marks"] != "none"
+        if marked and ctx["marks"] == "first-use":
+            key = (ctx["section"], slug)
+            if key in ctx["used"]:
+                marked = False
+            else:
+                ctx["used"].add(key)
+        if not marked:
+            tokens.append(html.escape(ref_text))
+        else:
+            tokens.append(_gloss_trigger_html(ref_text, slug))
+            if slug not in ctx["panels_emitted"]:
+                ctx["panels_emitted"].add(slug)
+                ctx["first_uses"][slug] = "use-%s" % slug
+                ctx["first_use_now"].add(slug)
+                ctx["panels"].append((slug, _gloss_panel_html(rec, slug)))
+        return "\x00G%d\x00" % (len(tokens) - 1)
+
+    return _GLOSS_MARK_RE.sub(_rep, text), tokens
+
+
+def _render_blocks(text, ctx=None):
     """The D-08 block classifier for one section: fenced placeholders,
     deeper heading levels, one level of list, pipe tables, then
     paragraphs. Structure is resolved first and every literal text run is
     escaped second -- never the raw source wholesale, which would also
     escape the markup the renderer itself emits.
+
+    `ctx` (when supplied) carries the reader settings and gloss map; the
+    gloss substitution runs over paragraph and list-item runs, and each
+    term's single panel is emitted right after the paragraph of its first
+    marked use -- invisible on screen (top-layer popover) and exactly the
+    "note after the paragraph that used it" print-inline reflow (§10.1).
     """
     protected, tokens = _protect_code(text)
     out = []
@@ -374,7 +606,8 @@ def _render_blocks(text):
             while i < len(lines) and lines[i].startswith(">"):
                 body.append(re.sub(r"^>\s?", "", lines[i]))
                 i += 1
-            out.append(_callout_html(spec, "\n".join(body)))
+            layout = ctx["example_layout"] if ctx is not None else "stacked"
+            out.append(_callout_html(spec, "\n".join(body), layout))
             continue
         hm = re.match(r"^#{4,}\s+(.+?)\s*$", line)
         if hm:
@@ -385,19 +618,43 @@ def _render_blocks(text):
             continue
         if re.match(r"^-\s+", line):
             items = []
+            panels_before = len(ctx["panels"]) if ctx is not None else 0
             while i < len(lines) and re.match(r"^-\s+", lines[i]):
-                items.append(_inline(re.sub(r"^-\s+", "", lines[i])))
+                raw_item = re.sub(r"^-\s+", "", lines[i])
+                if ctx is not None:
+                    ctx["first_use_now"].clear()
+                    raw_item, g_tokens = _gloss_placeholders(raw_item, ctx)
+                else:
+                    g_tokens = []
+                rendered = _inline(raw_item)
+                for gidx, tok in enumerate(g_tokens):
+                    rendered = rendered.replace("\x00G%d\x00" % gidx, tok)
+                items.append("<li>%s</li>" % rendered)
                 i += 1
-            out.append("<ul>%s</ul>"
-                       % "".join("<li>%s</li>" % it for it in items))
+            out.append("<ul>%s</ul>" % "".join(items))
+            if ctx is not None:
+                out.extend(panel for _slug, panel in ctx["panels"][panels_before:])
+                ctx["panels_len"] = len(ctx["panels"])
             continue
         if re.match(r"^\d+\.\s+", line):
             items = []
+            panels_before = len(ctx["panels"]) if ctx is not None else 0
             while i < len(lines) and re.match(r"^\d+\.\s+", lines[i]):
-                items.append(_inline(re.sub(r"^\d+\.\s+", "", lines[i])))
+                raw_item = re.sub(r"^\d+\.\s+", "", lines[i])
+                if ctx is not None:
+                    ctx["first_use_now"].clear()
+                    raw_item, g_tokens = _gloss_placeholders(raw_item, ctx)
+                else:
+                    g_tokens = []
+                rendered = _inline(raw_item)
+                for gidx, tok in enumerate(g_tokens):
+                    rendered = rendered.replace("\x00G%d\x00" % gidx, tok)
+                items.append("<li>%s</li>" % rendered)
                 i += 1
-            out.append("<ol>%s</ol>"
-                       % "".join("<li>%s</li>" % it for it in items))
+            out.append("<ol>%s</ol>" % "".join(items))
+            if ctx is not None:
+                out.extend(panel for _slug, panel in ctx["panels"][panels_before:])
+                ctx["panels_len"] = len(ctx["panels"])
             continue
         if "|" in line:
             j = i
@@ -424,11 +681,26 @@ def _render_blocks(text):
                 break
             buf.append(nxt)
             i += 1
-        out.append("<p>%s</p>" % _inline("\n".join(buf)))
+        if ctx is not None:
+            ctx["first_use_now"].clear()
+            raw, g_tokens = _gloss_placeholders("\n".join(buf), ctx)
+        else:
+            raw, g_tokens = "\n".join(buf), []
+        ids = ""
+        if ctx is not None and ctx["first_use_now"]:
+            ids = "".join(' id="use-%s"' % s
+                          for s in sorted(ctx["first_use_now"]))
+        para = "<p%s>%s</p>" % (ids, _inline(raw))
+        for gidx, tok in enumerate(g_tokens):
+            para = para.replace("\x00G%d\x00" % gidx, tok)
+        out.append(para)
+        if ctx is not None:
+            out.extend(panel for _slug, panel in ctx["panels"][ctx["panels_len"]:])
+            ctx["panels_len"] = len(ctx["panels"])
     return "\n".join(out)
 
 
-def render_markdown(text):
+def render_markdown(text, ctx=None):
     """A deliberately small stdlib block renderer for lesson prose, covering
     exactly D-08's declared scope: headings, paragraphs, lists, tables,
     inline code, fenced code, bold/italic and links -- nothing else, and no
@@ -448,11 +720,13 @@ def render_markdown(text):
         m = re.match(r"^###\s+(.+?)\s*$", lines[0])
         if m:
             heading = m.group(1).strip()
-            prose = _render_blocks("\n".join(lines[1:]))
+            if ctx is not None:
+                ctx["section"] = lesson_slug(heading)
+            prose = _render_blocks("\n".join(lines[1:]), ctx)
             out.append('<section id="%s"><h2>%s</h2>%s</section>'
                        % (lesson_slug(heading), html.escape(heading), prose))
         else:
-            out.append(_render_blocks(block))
+            out.append(_render_blocks(block, ctx))
     return "\n".join(out)
 
 
@@ -463,6 +737,43 @@ def backlinks(qs, slug):
     HTML; the renderer owns the row markup.
     """
     return [q for q in qs if q.get("lesson_slug") == slug]
+
+
+def _reader_context(bank_path, qs):
+    """The per-page reader settings and gloss map (03.1-UI-SPEC §14): read
+    from the bank-adjacent itembank.json through the one settings loader,
+    with the locked defaults. The gloss map holds only terms that pass the
+    runtime glossable() gate; suppressed terms are tracked for the generic
+    held line (§8.4)."""
+    cfg = settings.load_settings(
+        os.path.dirname(os.path.abspath(bank_path)) or ".")
+    reader = cfg.get("reader") or {}
+    ctx = {
+        "gloss": {},
+        "marks": reader.get("gloss_marks", "all"),
+        "print_inline": reader.get("print_gloss", "appendix") == "inline",
+        "example_layout": reader.get("example_layout", "stacked"),
+        "reader_nav": reader.get("reader_nav", "none"),
+        "section": "intro",
+        "used": set(),
+        "panels": [],
+        "panels_len": 0,
+        "panels_emitted": set(),
+        "first_uses": {},
+        "first_use_now": set(),
+        "held_line": "",
+        "suppressed": False,
+    }
+    terms = parse_terms(bank_path)
+    if terms is not None:
+        ok = {slug: glossable(qs, rec)
+              for slug, rec in terms["terms"].items()}
+        ctx["gloss"] = {slug: rec for slug, rec in terms["terms"].items()
+                        if ok.get(slug)}
+        ctx["suppressed"] = not all(ok.values())
+        if ctx["suppressed"] and ctx["gloss"]:
+            ctx["held_line"] = '<p class="held">%s</p>' % html.escape(HELD_COPY)
+    return ctx
 
 
 def _backlinks_html(stem, qs, slug):
@@ -508,6 +819,10 @@ def lesson_page(bank_path, qs, lesson, ref=None):
     title = (grab(r"(?m)^#\s+(.*?)\s*$", bank_text)
              or os.path.basename(bank_path))
     warn_css = ""
+    nav_html = ""
+    anchor_css = ""
+    print_css = ""
+    gloss_script = ""
     want = lesson_slug(ref) if ref else ""
     if lesson is None or not lesson.get("headings"):
         # An explicit --ref in a bank with no headings is the same miss as a
@@ -540,15 +855,33 @@ def lesson_page(bank_path, qs, lesson, ref=None):
         # prose (the Copywriting Contract), which a re-split of the whole
         # render's `</section>` boundaries cannot guarantee once a `--ref`
         # scope drops other headings.
-        body = "\n".join(
-            render_markdown("### %s\n\n%s" % (h["text"], h["body"]))
-            + _backlinks_html(stem, qs, h["slug"])
-            for idx in idxs for h in (lesson["headings"][idx],))
+        ctx = _reader_context(bank_path, qs)
+        parts = []
+        for idx in idxs:
+            h = lesson["headings"][idx]
+            ctx["section"] = h["slug"] or ("section-%d" % idx)
+            parts.append(render_markdown(
+                "### %s\n\n%s" % (h["text"], h["body"]), ctx)
+                + _backlinks_html(stem, qs, h["slug"]))
+        body = "\n".join(parts)
+        if ctx["gloss"]:
+            body += ctx["held_line"] + _glossary_html(
+                ctx["gloss"], ctx["first_uses"])
+            anchor_css = _gloss_anchor_css(ctx["panels_emitted"])
+            print_css = _gloss_print_css(
+                "inline" if ctx["print_inline"] else "appendix")
+            gloss_script = GLOSS_ENHANCEMENT_JS
+            if ctx["reader_nav"] == "column":
+                nav_html = _reader_nav_html(lesson["headings"])
     return (LESSON_TEMPLATE
             .replace("__THEME__", THEME_CSS)
             .replace("__SHARED_CSS__", SHARED_CSS)
             .replace("__LESSON_CSS__", LESSON_CSS)
             .replace("__WARN_CSS__", warn_css)
+            .replace("__GLOSS_ANCHOR_CSS__", anchor_css)
+            .replace("__GLOSS_PRINT_CSS__", print_css)
+            .replace("__READER_NAV__", nav_html)
+            .replace("__GLOSS_SCRIPT__", gloss_script)
             .replace("__TITLE__", html.escape(title) + " lesson")
             .replace("__SUB__", SUB_BYLINE)
             .replace("__BODY__", body))
@@ -578,4 +911,52 @@ def cmd_lesson(a):
     else:
         count = 0
     print("%d lesson section(s) -> %s" % (count, out))
+    return 0
+
+
+def gloss_lookup(bank_path, term):
+    """Resolve one gloss request the way both the /gloss route and the CLI
+    twin must (SURF-04): returns ("ok", record) for a glossable term,
+    ("unknown", None) for a slug with no `## TERMS` entry, and ("held",
+    None) for a term the runtime gate suppresses. One resolution, two
+    callers, so a route and a command can never disagree."""
+    qs = load(bank_path)
+    terms = parse_terms(bank_path)
+    if terms is None:
+        return "unknown", None
+    record = terms["terms"].get(lesson_slug(term))
+    if record is None:
+        return "unknown", None
+    if not glossable(qs, record):
+        return "held", None
+    return "ok", record
+
+
+def gloss_page(stem, record, slug):
+    """The served gloss page for the navigation path (03.1-UI-SPEC §8.3
+    degraded): the definition plus a real `Back to the question` link whose
+    href is the lesson anchor -- never a dead control, never a spinner."""
+    return ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            "<title>%s</title></head><body>"
+            "<p>%s</p><p>%s</p>"
+            '<p><a href="/lesson/%s#term-%s">%s</a></p>'
+            "</body></html>"
+            % (html.escape(record["canonical"]),
+               html.escape(record["canonical"]),
+               _inline(record["def"]),
+               html.escape(stem), slug,
+               html.escape(BACK_TO_QUESTION_COPY)))
+
+
+def cmd_gloss(a):
+    """The CLI twin of `GET /gloss/<stem>/<slug>`: prints the definition of
+    one glossable term, and exits non-zero for an unknown or suppressed
+    term -- the same resolution `gloss_lookup()` gives the route."""
+    status, record = gloss_lookup(a.bank, a.term)
+    if status == "unknown":
+        sys.exit("no term matching %r in %s" % (a.term, a.bank))
+    if status == "held":
+        sys.exit("the definition for %r is held until the item is answered"
+                 % a.term)
+    print(record["def"])
     return 0

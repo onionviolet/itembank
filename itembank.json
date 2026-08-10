@@ -22,6 +22,12 @@
     "open_browser": true,
     "window": "app"
   },
+  "reader": {
+    "reader_nav": "none",
+    "example_layout": "stacked",
+    "print_gloss": "appendix",
+    "gloss_marks": "all"
+  },
   "update": {
     "repo": "onionviolet/itembank",
     "check_interval_hours": 24

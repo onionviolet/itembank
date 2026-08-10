@@ -12,7 +12,7 @@ from surfaces.daemon import cmd_daemon
 from surfaces.day import cmd_day
 from surfaces.evidence_cli import (cmd_evidence, cmd_id_assign, cmd_mark, cmd_render,
                                    cmd_retract)
-from surfaces.lesson import cmd_lesson
+from surfaces.lesson import cmd_gloss, cmd_lesson
 from surfaces.migrate import cmd_migrate
 from surfaces.protocol_cli import cmd_schema
 from surfaces.quiz import cmd_build, cmd_serve
@@ -273,6 +273,12 @@ def main():
     s.add_argument("--ref", default="",
                    help="render only the section whose heading matches this text")
     s.set_defaults(fn=cmd_lesson)
+
+    s = sub.add_parser("gloss", help="print one term's definition from the "
+                       "bank's ## TERMS block, gated by the runtime")
+    s.add_argument("bank")
+    s.add_argument("term", help="the term to look up, matched by lesson_slug")
+    s.set_defaults(fn=cmd_gloss)
 
     s = sub.add_parser("export", help="export a bank as Anki TSV or GIFT for LMS import")
     s.add_argument("bank")
