@@ -362,7 +362,7 @@ Plans:
 **Goal**: Real content is in the bank before the phases that consume it are built, and every piece of it can name where it came from — so Phases 5 through 11 are dogfooded against a real EMT/Math/CS corpus instead of synthetic fixtures, and nothing in the bank is a transcription of a copyrighted source.
 **Mode:** mvp
 **Depends on**: Phase 1, Phase 3
-**Requirements**: TBD (assign at `/gsd-plan-phase 3.2`)
+**Requirements**: SEED-01, SEED-02, SEED-03, SEED-04, SEED-05, SEED-06, SEED-07, SEED-08, SEED-09
 **Research basis**: `.planning/research/2026-08-09-extraction-subjects-bilingual.md` (Q5), `2026-08-09-blind-spots.md` (B1, Q9, Q10). This is the milestone's largest roadmap change: the research named content and adherence, not features, as the real bottleneck, and no success criterion anywhere else measures actual use.
 **Success Criteria** (what must be TRUE):
 
@@ -385,7 +385,22 @@ Plans:
 - **OPEN — ruling 12** (constraint audit F3, revisit): SC1's *"through stdlib ZIP+SQLite reads alone"* is a relaxed preference baked into an acceptance criterion, and it may be **unmeetable** — Anki 2.1.50+ exports ship `collection.anki21b` zstd-compressed, and the standard library has no zstd decoder. **Verify against a real modern `.apkg` at plan time, before writing the plan.** The load-bearing requirement is criterion 1's second clause: lossless import with a per-note account of what converted, what was skipped, and why, no note silently dropped. **Default if unruled: prefer stdlib `zipfile`/`sqlite3`; if the archive's compression requires a dependency, take one and record it under the §4a supply-chain rule.**
 - **OPEN — ruling 4**: Weibao approves widening and moving 03.2 (the B1/Q10 seeding pull-forward). Recorded as adopted-pending-ruling; if declined, 03.2 shrinks back to provenance only and Phase 11 keeps the seeding loop.
 
-**Plans**: TBD
+**Plans**: 5 plans across 3 waves
+
+Plans:
+**Wave 1**
+
+- [ ] 03.2-01-PLAN.md — The .apkg importer: ZIP + zstd + sqlite3, note-type mapping with loud refusals, lint gate, per-note report
+- [ ] 03.2-02-PLAN.md — Provenance: ## SOURCES registry, [SRC:]/[OBJ:] resolution, on-demand coverage map
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 03.2-03-PLAN.md — The seeding loop: six-stage pipeline, one accept endpoint behind CLI + daemon, batch UI
+- [ ] 03.2-04-PLAN.md — Paraphrase lint (winnowing, tunable thresholds), style.unsourced_specific, [CASE:]/[PREREQ:] edges
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 03.2-05-PLAN.md — Phase verification: corpus-residency guard, calibration rates, requirement audit, full suite
 
 ### Phase 4: Surface Redesign & Theming
 

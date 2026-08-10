@@ -44,6 +44,18 @@
 - [ ] **LESSON-16**: The TERMS grammar reserves one optional ignorable `zh=` meta field, dropped from rendered output entirely
 - [ ] **LESSON-17**: Two-file lesson layout is the default; the subject-profile `lesson_layout` field overrides it and is folded into `09-02-PLAN.md` before Phase 9 executes
 
+### Seeding & provenance (Phase 3.2)
+
+- [ ] **SEED-01**: A modern Anki `.apkg` imports losslessly with an exhaustive per-note account (converted / skipped / refused, each with the note id and reason) — no note silently dropped; zstd-compressed collections decode through one pinned, checksummed, license-reviewed dependency
+- [ ] **SEED-02**: Draft → lint → retry → explicit human accept, one item at a time; nothing writes to a bank without an accept, and a cancelled run writes nothing
+- [ ] **SEED-03**: The accept loop ships as both a CLI command and a daemon route — one accept endpoint, two surfaces, never two implementations of the decision
+- [ ] **SEED-04**: `[SRC:]` and `[OBJ:]` resolve through an additive `## SOURCES` registry; an unresolvable id is a lint error naming the id and the file
+- [ ] **SEED-05**: Paraphrase lint uses stdlib winnowing over fingerprints only, errors at ≥8 consecutive copied words, warns above Jaccard 0.25 (both thresholds settings), and never stores source text
+- [ ] **SEED-06**: `[CASE:]` grouping and `[PREREQ:]` edges are authorable and linted here — cycle detection and unresolvable-target detection — ahead of Phases 6/7 consuming them
+- [ ] **SEED-07**: The real EMT / Math / CS corpus lives outside the repository (guard keeps it out of CI) and calibrates every Phase 3.1 style warning with recorded false-positive rates
+- [ ] **SEED-08**: The objective coverage map is computed on demand from the bank and registry, never stored
+- [ ] **SEED-09**: A bank using none of `## SOURCES`, `[SRC:]`, `[OBJ:]`, `[CASE:]`, or `[PREREQ:]` parses and renders byte-identically
+
 ### Teaching
 
 - [ ] **TEACH-01**: A wrong answer holds the session cursor instead of advancing, so a second attempt is possible
@@ -288,6 +300,15 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | LESSON-15 | Phase 3.1 | Pending |
 | LESSON-16 | Phase 3.1 | Pending |
 | LESSON-17 | Phase 3.1 | Pending |
+| SEED-01 | Phase 3.2 | Pending |
+| SEED-02 | Phase 3.2 | Pending |
+| SEED-03 | Phase 3.2 | Pending |
+| SEED-04 | Phase 3.2 | Pending |
+| SEED-05 | Phase 3.2 | Pending |
+| SEED-06 | Phase 3.2 | Pending |
+| SEED-07 | Phase 3.2 | Pending |
+| SEED-08 | Phase 3.2 | Pending |
+| SEED-09 | Phase 3.2 | Pending |
 | TEACH-01 | Phase 6 | Pending |
 | TEACH-02 | Phase 6 | Pending |
 | TEACH-03 | Phase 6 | Pending |
