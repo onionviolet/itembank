@@ -84,7 +84,8 @@ from evidence import (EVENT_SCHEMA_VERSION, INDEX_VERSION, KNOWN_EVENT_TYPES,  #
                       rebuild_index, render_attempt_md, render_daily_log,
                       render_session_json,
                       response_event, retracted_ids, retraction_event,
-                      session_events, subject_of, term_lookup_event, utc_now)
+                      key_review_event, session_events, subject_of,
+                      term_lookup_event, utc_now)
 from schema_validate import SUPPORTED, SchemaError, validate                  # noqa: E402
 
 __all__ = [
@@ -120,8 +121,8 @@ __all__ = [
     "response_event", "response_text", "retracted_ids", "retraction_event",
     "scan_legacy",
     "score_response", "section", "session_events", "session_path",
-    "session_summary", "session_view", "source_key", "subject_of",
-    "term_lookup_event", "upgrade_session", "utc_now",
+    "key_review_event", "session_summary", "session_view", "source_key",
+    "subject_of", "term_lookup_event", "upgrade_session", "utc_now",
     "validate", "wiring_bases", "write_day_log", "write_session",
 ]
 

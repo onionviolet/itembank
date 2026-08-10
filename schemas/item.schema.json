@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://itembank.local/schemas/item.schema.json",
   "title": "itembank served item",
-  "description": "What runtime.public_item() returns: the shape a learner may see before answering. This shape never carries an answer key, a rationale, or a model answer -- that boundary is what public_item exists to draw, and a consumer reading this contract cold should not look for one. explain_payload (not published here) is the after-answering counterpart.",
+  "description": "What runtime.public_item() returns: the shape a learner may see before answering. This shape never carries an answer key, a rationale, a model answer, or any objective field -- that boundary is what public_item exists to draw, and a consumer reading this contract cold should not look for one. The syllabus [OBJECTIVE:] reference and the one-sentence Educational Objective line moved into explain_payload() in plan 03.1-03 (C7). explain_payload (not published here) is the after-answering counterpart.",
   "x-itembank-version": 1,
   "type": "object",
-  "required": ["schema_version", "id", "number", "type", "stem", "objective", "difficulty", "response_schema"],
+  "required": ["schema_version", "id", "number", "type", "stem", "difficulty", "response_schema"],
   "properties": {
     "schema_version": {
       "const": 1
@@ -22,9 +22,6 @@
       "enum": ["mc", "multi", "table", "dnd", "build", "short"]
     },
     "stem": {
-      "type": "string"
-    },
-    "objective": {
       "type": "string"
     },
     "difficulty": {

@@ -7,7 +7,9 @@ only way out of a lesson is to another surface, never to a score.
 """
 import html, json, os, re, sys
 
-from model import grab, lesson_slug, load, parse_lesson, parse_terms
+import evidence
+from model import (grab, lesson_slug, load, parse_key_blocks, parse_lesson,
+                   parse_terms)
 from runtime import glossable
 from surfaces.presentation import SHARED_CSS
 from surfaces import settings
@@ -38,6 +40,11 @@ BACK_TO_QUESTION_COPY = "Back to the question"
 LOADING_COPY = "Loading the definition\u2026"
 SECTIONS_NAV_COPY = "Sections in this lesson"
 BACK_TO_FIRST_USE_COPY = "Back to first use"
+ADD_TO_REVIEW_COPY = "Add to review"
+REVIEW_UNAVAILABLE_COPY = ("Review scheduling is unavailable without the "
+                           "runtime. Run itembank export anki to take this "
+                           "key to Anki.")
+ANSWERS_HEADING = "Answers"
 
 # Only the degraded state carries the warn note, so its style is substituted
 # in (like __THEME__) rather than shipped on every page -- a bank with no
@@ -352,6 +359,101 @@ def _callout_spec(raw):
     return _CALLOUT_KINDS.get(kind)
 
 
+def _callout_kind_of(line):
+    """The dispatch key of one `> [!...]` line: the literal string "KEY"
+    for any [!KEY] variant (the plan 03.1-03 card), the locked `(slug,
+    label)` pair for the generic kinds, or None for an unknown kind that
+    must degrade to the pre-change paragraph output."""
+    m = _CALLOUT_MARK_RE.match(line)
+    if m is None:
+        return None
+    kind = m.group(1)
+    if kind == "KEY" or kind.startswith("KEY:"):
+        return "KEY"
+    return _callout_spec(kind)
+
+
+_KEY_CLOZE_RE = re.compile(r"\{\{([^{}]+)\}\}")
+
+
+def _cloze_visible(text):
+    """The on-screen form of a [!KEY] body: `{{...}}` markers render as
+    their enclosed text (03.1-UI-SPEC §9.2); blanking happens only in the
+    drill print sheet."""
+    return _KEY_CLOZE_RE.sub(lambda m: m.group(1), text)
+
+
+def _cloze_blank(text):
+    """The drill-print blanking pass: every `{{...}}` marker becomes a
+    fixed blank, so no answer is visible above the Answers list (§10.2)."""
+    return _KEY_CLOZE_RE.sub(lambda m: "____", text)
+
+
+def _parse_key_callout(raw_lines):
+    """The render-side parse of one `> [!KEY]` callout: id from the
+    `[ID:]` directive, title from the marker line, body from the remaining
+    `>` lines, cloze flag from the body -- the same field set
+    `model.parse_key_blocks()` returns, resolved here from the raw lines
+    the block renderer already holds."""
+    marker = _CALLOUT_MARK_RE.match(raw_lines[0])
+    title = marker.group(2).strip() if marker else ""
+    raw = "\n".join(raw_lines)
+    kid = grab(r"(?m)^>\s*\[ID:\s*(\S+)\s*\]", raw)
+    body = []
+    for line in raw_lines[1:]:
+        stripped = re.sub(r"^>\s?", "", line).strip()
+        if not stripped or re.match(r"^\[(ID|HASH):", stripped):
+            continue
+        body.append(line)
+    body_text = "\n".join(body).strip()
+    return {"id": kid, "title": title, "body": body_text,
+            "cloze": "{{" in body_text}
+
+
+def _key_card_html(raw_lines, ctx):
+    """The full [!KEY] index card (03.1-UI-SPEC §9.2): id anchor, Ledger
+    `Key point` label, Paper-voice body with `{{cloze}}` shown as its
+    enclosed text (blanked under ?print=drill), the Ledger footer naming
+    the minted id, and the real Add-to-review form only when a runtime is
+    serving the page -- otherwise the exact unavailable copy, never a dead
+    control (C9). An id-less block renders label + body with no footer and
+    no control (the §16 empty-state rule)."""
+    key = _parse_key_callout(raw_lines)
+    kid = key["id"]
+    anchor = ""
+    if kid:
+        anchor = ' id="key-%s"' % lesson_slug(kid)
+    if ctx is not None and ctx.get("drill"):
+        body = _cloze_blank(key["body"])
+    else:
+        body = _cloze_visible(key["body"])
+    inner = []
+    if key["title"]:
+        inner.append('<p class="key-title">%s</p>' % html.escape(key["title"]))
+    inner.append(_inline(body))
+    icon = '<span class="callout-icon">%s</span>' % _CALLOUT_ICON
+    label = '<p class="callout-label">%s%s</p>' % (
+        icon, html.escape("Key point"))
+    foot = ""
+    if kid:
+        foot += '<p class="callout-foot">%s</p>' % html.escape(
+            "key: %s \u00b7 exports to Anki" % kid)
+        if ctx is not None and ctx.get("runtime"):
+            foot += ('<form method="post" action="/key/%s/review" '
+                     'class="actions"><button type="submit" '
+                     'class="go primary">%s</button></form>'
+                     % (html.escape(kid), html.escape(ADD_TO_REVIEW_COPY)))
+        else:
+            foot += '<p class="callout-foot">%s</p>' % (
+                html.escape(REVIEW_UNAVAILABLE_COPY))
+    if ctx is not None and kid:
+        ctx.setdefault("key_answers", []).append(
+            (kid, _cloze_visible(key["body"])))
+    return ('<section class="callout callout-key"%s>%s'
+            '<div class="callout-body">%s</div>%s</section>'
+            % (anchor, label, "".join(inner), foot))
+
+
 def _callout_html(spec, body, example_layout="stacked"):
     """One honest callout container (D-18): a `<section class="callout
     callout-<slug>">` whose Ledger-voice label and decorative icon are
@@ -595,11 +697,20 @@ def _render_blocks(text, ctx=None):
             i += 1
             continue
         cm = _CALLOUT_MARK_RE.match(line)
-        if cm and _callout_spec(cm.group(1)) is not None:
-            # The one callout branch (D-18): a `> [!KIND]` marker starts a
-            # run whose body is every following `>`-prefixed line, closed at
-            # the first non-`>` line. Only locked kinds enter here; an
-            # unknown kind falls through to the paragraph path unchanged.
+        if cm and _callout_kind_of(line) is not None:
+            # The callout branch (D-18): a `> [!KIND]` marker starts a run
+            # whose body is every following `>`-prefixed line, closed at
+            # the first non-`>` line. Only locked kinds -- plus the plan
+            # 03.1-03 [!KEY] card -- enter here; an unknown kind falls
+            # through to the paragraph path unchanged.
+            if _callout_kind_of(line) == "KEY":
+                raw_lines = [line]
+                i += 1
+                while i < len(lines) and lines[i].startswith(">"):
+                    raw_lines.append(lines[i])
+                    i += 1
+                out.append(_key_card_html(raw_lines, ctx))
+                continue
             spec = _callout_spec(cm.group(1))
             body = [cm.group(2)] if cm.group(2) else []
             i += 1
@@ -674,10 +785,7 @@ def _render_blocks(text, ctx=None):
             if (re.match(r"^#{4,}\s", nxt) or re.match(r"^-\s+", nxt)
                     or re.match(r"^\d+\.\s+", nxt) or _TOKEN_RE.match(nxt)
                     or "|" in nxt
-                    or (_CALLOUT_MARK_RE.match(nxt)
-                        and _callout_spec(
-                            _CALLOUT_MARK_RE.match(nxt).group(1))
-                        is not None)):
+                    or _callout_kind_of(nxt) is not None):
                 break
             buf.append(nxt)
             i += 1
@@ -788,7 +896,7 @@ def _backlinks_html(stem, qs, slug):
         html.escape(BACKLINKS_LABEL), rows)
 
 
-def lesson_page(bank_path, qs, lesson, ref=None):
+def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False):
     """The one render both surfaces call: the daemon route and `cmd_lesson`
     write the same document because there is only one `lesson_page`.
 
@@ -802,6 +910,12 @@ def lesson_page(bank_path, qs, lesson, ref=None):
     with no lesson section at all -- the function returns None and leaves
     the hard stop to `cmd_lesson`, so the route, the CLI and a test can call
     it without inheriting a process-exit path (T-3-12).
+
+    `runtime` marks a daemon-served page: only then does a [!KEY] card carry
+    its Add-to-review form; a static render shows the exact unavailable copy
+    instead (C9). `drill` is the `?print=drill` second-stylesheet pass:
+    cloze markers blank server-side and an Answers list prints at the end
+    (03.1-UI-SPEC §10.2).
 
     A bank with no lesson section, or one whose section holds zero headings,
     renders the shared `No lesson yet` empty state -- never a crash and never
@@ -856,6 +970,9 @@ def lesson_page(bank_path, qs, lesson, ref=None):
         # render's `</section>` boundaries cannot guarantee once a `--ref`
         # scope drops other headings.
         ctx = _reader_context(bank_path, qs)
+        ctx["runtime"] = runtime
+        ctx["drill"] = drill
+        ctx["key_answers"] = []
         parts = []
         for idx in idxs:
             h = lesson["headings"][idx]
@@ -873,6 +990,12 @@ def lesson_page(bank_path, qs, lesson, ref=None):
             gloss_script = GLOSS_ENHANCEMENT_JS
             if ctx["reader_nav"] == "column":
                 nav_html = _reader_nav_html(lesson["headings"])
+        if drill and ctx.get("key_answers"):
+            answers = "".join(
+                "<li>%s</li>" % _inline(text)
+                for _kid, text in ctx["key_answers"])
+            body += ('<section id="answers"><h2>%s</h2><ol>%s</ol></section>'
+                     % (html.escape(ANSWERS_HEADING), answers))
     return (LESSON_TEMPLATE
             .replace("__THEME__", THEME_CSS)
             .replace("__SHARED_CSS__", SHARED_CSS)
@@ -959,4 +1082,32 @@ def cmd_gloss(a):
         sys.exit("the definition for %r is held until the item is answered"
                  % a.term)
     print(record["def"])
+    return 0
+
+
+def record_key_review(bank_path, key_id, mode="practice", session_id="reader"):
+    """The one key_review recording path shared by the daemon route and the
+    CLI twin (SURF-04): resolves the key id against the bank's parsed key
+    blocks, appends the event through the one evidence writer, and returns
+    the status string -- or None when the id names no block, so both
+    callers can 404/exit identically (T-031-11)."""
+    keys = parse_key_blocks(bank_path)
+    if not any(k.get("id") == key_id for k in keys):
+        return None
+    bank_dir = os.path.dirname(os.path.abspath(bank_path)) or "."
+    event = evidence.key_review_event(
+        session_id=session_id, bank=os.path.basename(bank_path),
+        key_id=key_id, mode=mode)
+    evidence.append_event(evidence.log_path(bank_dir), event)
+    return "Added to review."
+
+
+def cmd_key_review(a):
+    """The CLI twin of `POST /key/<id>/review`: records a key_review event
+    for a real [!KEY] block and prints the status string; an unknown id
+    exits non-zero, matching the route's 404."""
+    status = record_key_review(a.bank, a.key_id)
+    if status is None:
+        sys.exit("no [!KEY] block with id %r in %s" % (a.key_id, a.bank))
+    print(status)
     return 0

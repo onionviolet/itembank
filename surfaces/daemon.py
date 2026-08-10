@@ -18,7 +18,8 @@ import urllib.parse, urllib.request, uuid
 
 import evidence
 import server
-from model import lesson_slug, load, parse_bank, parse_lesson, parse_terms
+from model import (lesson_slug, load, parse_bank, parse_key_blocks,
+                   parse_lesson, parse_terms)
 from runtime import explain_payload, glossable, read_session
 from surfaces import (day, launcher, lesson, presentation, quiz, session,
                       settings, study, update)
@@ -44,6 +45,7 @@ QUIZ_ANSWER_RE = re.compile(r"^/quiz/(?P<stem>[^/]+)/answer$")
 STUDY_GET_RE = re.compile(r"^/study/(?P<stem>[^/]+)$")
 LESSON_GET_RE = re.compile(r"^/lesson/(?P<stem>[^/]+)$")
 GLOSS_GET_RE = re.compile(r"^/gloss/(?P<stem>[^/]+)/(?P<slug>[^/]+)$")
+KEY_REVIEW_RE = re.compile(r"^/key/(?P<key_id>[^/]+)/review$")
 DAY_GET_RE = re.compile(r"^/day/(?P<stem>[^/]+)$")
 DAY_SAVE_RE = re.compile(r"^/day/(?P<stem>[^/]+)/save$")
 DAY_OPEN_RE = re.compile(r"^/day/(?P<stem>[^/]+)/open$")
@@ -92,6 +94,7 @@ ROUTES = (
     ("GET", STUDY_GET_RE, "handle_study_get"),
     ("GET", LESSON_GET_RE, "handle_lesson_get"),
     ("GET", GLOSS_GET_RE, "handle_gloss_get"),
+    ("POST", KEY_REVIEW_RE, "handle_key_review"),
     ("GET", DAY_GET_RE, "handle_day_get"),
     ("POST", DAY_SAVE_RE, "handle_day_save"),
     ("POST", DAY_OPEN_RE, "handle_day_open"),
@@ -118,6 +121,7 @@ ROUTE_CLI = {
     ("GET", STUDY_GET_RE): "study",
     ("GET", LESSON_GET_RE): "lesson",
     ("GET", GLOSS_GET_RE): "gloss",
+    ("POST", KEY_REVIEW_RE): "key-review",
     ("GET", "/day"): "day",
     ("GET", DAY_GET_RE): "day",
     ("POST", DAY_SAVE_RE): "day",
@@ -730,15 +734,48 @@ def handle_lesson_get(handler, stem):
     """`GET /lesson/<stem>` -- the lesson reader for one bank, resolved
     through the startup allowlist and rendered by `lesson.lesson_page()`.
     No second copy of the lesson template lives here; the handler generates
-    no HTML of its own.
+    no HTML of its own. The page is daemon-served (runtime=True, so [!KEY]
+    cards carry their Add-to-review form) and honours `?print=drill` as the
+    drill-print pass (03.1-03 Task 3).
     """
     path = handler.banks.get(stem)
     if path is None:
         handler.send_not_found(stem)
         return
     qs = load(path)
-    page = lesson.lesson_page(path, qs, parse_lesson(path))
+    params = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query)
+    drill = "drill" in (params.get("print") or [])
+    page = lesson.lesson_page(path, qs, parse_lesson(path), runtime=True,
+                              drill=drill)
     handler.send_html(page.encode("utf-8"))
+
+
+def handle_key_review(handler, key_id):
+    """`POST /key/<id>/review` -- add a [!KEY] card to review. The key id is
+    resolved against the daemon's scanned banks' parsed key blocks (never
+    joined to a filesystem path), the existing loopback authority gate
+    applies, and a `key_review` event is recorded through the one evidence
+    writer (D-19, T-031-11). The status region announces `Added to review.`
+    once -- no streak, no count-up, no celebration (C17)."""
+    if _reject_cross_origin(handler):
+        return
+    for stem, path in handler.banks.items():
+        keys = parse_key_blocks(path)
+        if not any(k.get("id") == key_id for k in keys):
+            continue
+        sess = handler.sessions.get(stem) or {}
+        status = lesson.record_key_review(
+            path, key_id,
+            mode=sess.get("mode", "practice"),
+            session_id=sess.get("session_id", "reader"))
+        if status is None:
+            handler.send_not_found(key_id)
+            return
+        handler.send_html(
+            ('<div class="status" role="status">%s</div>' % html.escape(status))
+            .encode("utf-8"))
+        return
+    handler.send_not_found(key_id)
 
 
 def handle_gloss_get(handler, stem, slug):

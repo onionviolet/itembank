@@ -152,6 +152,14 @@ def _explain_sections(view):
     h.append("<h3>Answer</h3>")
     h.append('<div class="answer-text">%s</div>'
              % esc(ex.get("answer_text", "")))
+    if ex.get("educational_objective") or ex.get("objective"):
+        h.append(presentation.details_section(
+            "Educational objective",
+            "<p>%s</p>%s" % (
+                esc(ex.get("educational_objective") or ""),
+                ('<p class="sub">%s</p>' % esc(ex["objective"]))
+                if ex.get("objective") else ""),
+            data={"objective": ""}))
     if t in ("mc", "multi"):
         if ex.get("why"):
             h.append('<h3>Why this is best</h3><div class="why">%s</div>'
@@ -206,9 +214,11 @@ def _card_markup(view, index):
     text, never executable markup.
     """
     t = view["type"]
-    meta = ('<div class="meta"><span class="chip type">%s</span>%s</div>'
-            % (esc(t), ('<span class="chip">%s</span>' % esc(view.get("objective", ""))
-                        if view.get("objective") else "")))
+    # C7 (03.1-03): the syllabus reference and the Educational Objective
+    # line are answer-adjacent, so no objective chip may appear on a
+    # pre-answer card; both render only inside the revealed explanation.
+    meta = ('<div class="meta"><span class="chip type">%s</span></div>'
+            % esc(t))
     stem = '<h2 class="stem">%s</h2>' % esc(view["stem"])
     recall = ""
     if t in ("mc", "multi"):

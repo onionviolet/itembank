@@ -53,6 +53,7 @@ def parse_question(ch):
         "stem": stem,
         "difficulty": grab(r"\(difficulty:\s*([^)]+)\)", ch),
         "objective": grab(r"\[OBJECTIVE:\s*(.*?)\]", ch),
+        "objective_line": grab(r"(?m)^Objective:\s*(.*?)\s*$", ch),
         "lesson_ref": lesson_ref,
         "lesson_slug": lesson_slug(lesson_ref) if lesson_ref else "",
         "item_id": grab(r"(?m)^\[ID:\s*(\S+)\s*\]", ch),          # empty until id-assign (01-04)
@@ -878,6 +879,7 @@ LINT_CODES = tuple(sorted({
     "terms.unknown_ref", "terms.duplicate_slug", "terms.empty_block",
     "key.in_rationale", "key.duplicate_id",
     "key.no_front", "key.missing_id", "key.missing_hash",
+    "item.objective_line_multi_sentence",
     "bank.answer_position_skew",
 }))
 
@@ -903,6 +905,16 @@ def _rationale_texts(q):
 
 
 _KEY_ID_RE = re.compile(r"\[!KEY(?::\s*([^\]]+))?\]")
+
+
+def _is_multi_sentence(text):
+    """The one-sentence check for the `Objective:` line (LESSON-15): after
+    collapsing whitespace and stripping one trailing sentence terminator,
+    any remaining sentence-ending mark inside the line means more than one
+    sentence. A deliberate heuristic -- abbreviations like `e.g.` can
+    false-positive, so the finding is a warning, never a block."""
+    t = re.sub(r"\s+", " ", text.strip()).rstrip(".!?")
+    return bool(re.search(r"[.!?][\s\u2014-]", t))
 
 
 def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
@@ -996,6 +1008,11 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                             "OBJECTIVE %r has no subject prefix; use subject:path (for "
                             "example emt:airway.opa) so two subjects cannot average into "
                             "one trend line" % objective))
+        objective_line = q.get("objective_line") or ""
+        if objective_line and _is_multi_sentence(objective_line):
+            warnings.append(LintError(
+                "item.objective_line_multi_sentence", "objective_line", tag,
+                "Objective: must be a single sentence, got more than one"))
 
         # The per-item lesson check lives inside this loop so the finding is
         # tagged by the item's own number for free (D-05, ROADMAP SC3); a

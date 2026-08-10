@@ -36,12 +36,12 @@ LOG_FILENAME = "evidence.jsonl"
 INDEX_FILENAME = "evidence_index.sqlite3"
 
 # "retraction" was added by plan 01-07, "mark" by plan 01-09, "day_tick" by
-# plan 01-10, and "term_lookup" by plan 03.1-02 -- response events are the
-# only ones this build wrote before 01-07. events() skips and warns on
-# anything outside this set (D-09), so a log written by a later build's
-# event type degrades instead of crashing.
+# plan 01-10, "term_lookup" by plan 03.1-02, and "key_review" by plan
+# 03.1-03 -- response events are the only ones this build wrote before
+# 01-07. events() skips and warns on anything outside this set (D-09), so a
+# log written by a later build's event type degrades instead of crashing.
 KNOWN_EVENT_TYPES = ("response", "retraction", "mark", "day_tick",
-                     "term_lookup")
+                     "term_lookup", "key_review")
 
 # Bounds the tail scan `append_line_checked` and `recent_dedupe_keys` run to
 # decide whether an event is a duplicate. A dedupe_key contains the
@@ -1424,6 +1424,37 @@ def term_lookup_event(session_id, bank, term_slug, mode, source,
         "term_slug": term_slug,
         "mode": mode,
         "source": source,
+        "actor": actor,
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+KEY_REVIEW_EVENT_TYPE = "key_review"
+
+
+def key_review_event(session_id, bank, key_id, mode, ts=None, actor="learner"):
+    """Build one key_review event: a learner asked to add a [!KEY] card to
+    review, appended through the one writer (D-19). It is NOT a response
+    and carries no score key -- structurally, not merely by convention.
+    Phase 10 replays these events into scheduler state; this plan only
+    records them.
+
+    `dedupe_key` is a hash over (session_id, bank, key_id, mode), so
+    replaying the same review request reports `already_recorded` while a
+    different card or session always records.
+    """
+    if not key_id:
+        raise ValueError("key_review_event: key_id must be non-empty")
+    raw = "%s|%s|%s|%s" % (session_id, bank, key_id, mode)
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": KEY_REVIEW_EVENT_TYPE,
+        "ts": ts if ts is not None else utc_now(),
+        "session_id": session_id,
+        "bank": bank,
+        "key_id": key_id,
+        "mode": mode,
         "actor": actor,
         "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
     }

@@ -27,7 +27,7 @@ REPORT_VERSION = 1
 def public_item(q, shuffle_seed=0):
     """Return an item safe to show before the learner answers."""
     out = {"schema_version": ITEM_VERSION, "id": q["id"], "number": q["number"],
-           "type": q["type"], "stem": q["stem"], "objective": q.get("objective", ""),
+           "type": q["type"], "stem": q["stem"],
            "difficulty": q.get("difficulty", ""), "lesson_slug": q.get("lesson_slug", "")}
     if q["type"] in ("mc", "multi"):
         out["options"] = [{"key": k, "text": q["opts"][k]} for k in sorted(q["opts"])]
@@ -306,6 +306,11 @@ def explain_payload(q, reveal=True):
     key it could leak or grade against.
     """
     out = {"answer_text": answer_text(q), "why": q.get("why", ""),
+           # C7 (03.1-03): the syllabus reference and the one-sentence
+           # Educational Objective line are answer-adjacent, so both live in
+           # the post-verdict payload only -- never public_item().
+           "objective": q.get("objective", ""),
+           "educational_objective": q.get("objective_line", ""),
            "disc": q.get("disc", ""), "second": q.get("second", ""),
            "trap": q.get("trap", ""), "notes": q.get("notes") or []}
     t = q["type"]
