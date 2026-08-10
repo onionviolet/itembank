@@ -1998,6 +1998,257 @@ def test_glossable_gate():
         fail("an empty definition must pass the gate (nothing to leak)")
 
 
+# ---- plan 03.1-02 Task 3: glossary appendix, inline gloss, /gloss route ----
+
+def gloss_bank(tmp, terms_text, lesson_body, item=None, settings_text=None):
+    """A real bank with optional `## TERMS` and `## LESSON` plus an optional
+    bank-adjacent itembank.json (reader settings), laid out under `tmp`."""
+    bank = os.path.join(tmp, "gloss_bank.md")
+    if settings_text:
+        open(os.path.join(tmp, "itembank.json"), "w", encoding="utf-8").write(
+            settings_text)
+    parts = ["# Gloss bank\n"]
+    if terms_text:
+        parts.append("## TERMS\n\n%s\n" % terms_text.strip())
+    if lesson_body:
+        parts.append("## LESSON\n\n%s\n" % lesson_body.strip())
+    parts.append((item or clean_mc("Which is one?").replace(
+        "CORRECT: A", "CORRECT: C")).strip() + "\n")
+    open(bank, "w", encoding="utf-8").write("\n".join(parts))
+    return bank
+
+
+def test_glossary_appendix_renders_after_lesson():
+    """The glossary appendix renders as a `<dl>` in `<section
+    id="glossary">` under an `<h2>Glossary</h2>`, with `<dt
+    id="term-<slug>">` anchors matching the trigger slugs, after the last
+    lesson section; a bank with no `## TERMS` renders no glossary at all
+    (UI-SPEC §9.1)."""
+    tmp = tempfile.mkdtemp()
+    bank = gloss_bank(
+        tmp,
+        terms_text=("Airway | The passage from mouth to lungs.\n"
+                    "OPA | The rigid tube holds the tongue off the pharynx.\n"),
+        lesson_body="### Airway Basics\n\nSee [[Airway]] and [[OPA]].")
+    pg = lesson.lesson_page(bank, itembank.load(bank),
+                            itembank.parse_lesson(bank))
+    if '<section id="glossary"><h2>Glossary</h2>' not in pg:
+        fail("glossary appendix section/heading missing")
+    if '<dt id="term-airway">' not in pg or '<dt id="term-opa">' not in pg:
+        fail("glossary dt anchors missing")
+    gloss_at = pg.find('<section id="glossary">')
+    lesson_section_at = pg.rfind("<section id=", 0, gloss_at)
+    if not (0 < lesson_section_at < gloss_at):
+        fail("glossary must render after the last lesson section "
+             "(%d vs %d)" % (lesson_section_at, gloss_at))
+
+    plain = lesson.lesson_page(SMP_BANK, itembank.load(SMP_BANK),
+                               itembank.parse_lesson(SMP_BANK))
+    if 'id="glossary"' in plain or "<h2>Glossary</h2>" in plain:
+        fail("a bank with no ## TERMS must render no glossary section")
+
+
+def test_gloss_triggers_panels_and_no_leak():
+    """[[term]] renders a Popover-API trigger with the dotted underline and a
+    matching `[popover]` panel; a term whose definition would leak a keyed
+    answer renders as bare text with no element, class, data-* or held
+    per-term trace, and the generic held line appears at most once (D-20,
+    UI-SPEC §8.1/§8.4)."""
+    tmp = tempfile.mkdtemp()
+    bank = gloss_bank(
+        tmp,
+        terms_text=("Airway | The passage from mouth to lungs.\n"
+                    "One | Three is the keyed answer.\n"),
+        lesson_body="### Basics\n\nSee [[Airway]] and [[One]].")
+    pg = lesson.lesson_page(bank, itembank.load(bank),
+                            itembank.parse_lesson(bank))
+    if 'popovertarget="gloss-airway"' not in pg:
+        fail("glossable term must render a popover trigger")
+    if 'aria-details="gloss-airway"' not in pg:
+        fail("trigger must carry aria-details")
+    if '<div id="gloss-airway" class="gloss" popover>' not in pg:
+        fail("glossable term must ship its popover panel")
+    if "text-decoration:underline dotted" not in pg:
+        fail("trigger must carry the dotted-underline treatment")
+    if 'popovertarget="gloss-one"' in pg:
+        fail("suppressed term must have no trigger")
+    if 'aria-details="gloss-one"' in pg:
+        fail("suppressed term must leave no accessible-name trace")
+    if "and One." not in pg:
+        fail("suppressed term must render as bare text, got %r" %
+             pg[pg.find("See"):pg.find("See") + 60])
+    if '<dt id="term-one">' in pg:
+        fail("suppressed term must be absent from the glossary appendix")
+    if pg.count("Some definitions are held until you answer.") != 1:
+        fail("the generic held line must appear exactly once")
+    if "Definitions are unavailable right now." not in pg:
+        fail("the vendored in-sitting fetch hook must carry the unavailable copy")
+
+
+def test_gloss_marks_and_print_modes():
+    """gloss_marks all|first-use|none and print_gloss appendix|inline alter
+    the rendered output exactly as the spec tables describe; the inline
+    print reflow ships as a print-media block (UI-SPEC §8.2, §10.1, §14)."""
+    import json
+    tmp = tempfile.mkdtemp()
+    body = ("### Basics\n\nFirst [[Airway]].\n\nSecond [[Airway]].")
+    terms = "Airway | The passage from mouth to lungs.\n"
+
+    bank = gloss_bank(tmp, terms, body)
+    pg = lesson.lesson_page(bank, itembank.load(bank),
+                            itembank.parse_lesson(bank))
+    if pg.count('<button type="button" class="term"') != 2:
+        fail("gloss_marks all must mark every occurrence, got %d"
+             % pg.count('<button type="button" class="term"'))
+
+    bank = gloss_bank(tmp, terms, body,
+                      settings_text=json.dumps({"reader": {"gloss_marks":
+                                                           "first-use"}}))
+    pg = lesson.lesson_page(bank, itembank.load(bank),
+                            itembank.parse_lesson(bank))
+    if pg.count('<button type="button" class="term"') != 1:
+        fail("gloss_marks first-use must mark one occurrence per section")
+
+    bank = gloss_bank(tmp, terms, body,
+                      settings_text=json.dumps({"reader": {"gloss_marks":
+                                                           "none"}}))
+    pg = lesson.lesson_page(bank, itembank.load(bank),
+                            itembank.parse_lesson(bank))
+    if '<button type="button" class="term"' in pg:
+        fail("gloss_marks none must leave every term as plain prose")
+    if '<section id="glossary">' not in pg:
+        fail("gloss_marks none must keep the glossary appendix as the path")
+
+    bank = gloss_bank(tmp, terms, body,
+                      settings_text=json.dumps({"reader": {"print_gloss":
+                                                           "inline"}}))
+    pg = lesson.lesson_page(bank, itembank.load(bank),
+                            itembank.parse_lesson(bank))
+    if "display:block!important" not in pg:
+        fail("print_gloss inline must reflow popovers as printed notes")
+
+
+def test_gloss_example_layout_and_reader_nav():
+    """example_layout parallel adds the layout class to [!EXAMPLE]
+    callouts; reader_nav column renders the sections nav (UI-SPEC §7.3,
+    §9.3, §14)."""
+    import json
+    tmp = tempfile.mkdtemp()
+    body = ("### Basics\n\n> [!EXAMPLE] One worked example.\n")
+    bank = gloss_bank(tmp, "Airway | The passage from mouth to lungs.\n",
+                      body)
+    pg = lesson.lesson_page(bank, itembank.load(bank),
+                            itembank.parse_lesson(bank))
+    if 'class="callout callout-example example-parallel"' in pg:
+        fail("default example_layout must be stacked (no parallel class)")
+
+    bank = gloss_bank(
+        tmp, "Airway | The passage from mouth to lungs.\n", body,
+        settings_text=json.dumps({"reader": {"example_layout": "parallel"}}))
+    pg = lesson.lesson_page(bank, itembank.load(bank),
+                            itembank.parse_lesson(bank))
+    if 'class="callout callout-example example-parallel"' not in pg:
+        fail("example_layout parallel must add the layout class")
+
+    bank = gloss_bank(
+        tmp, "Airway | The passage from mouth to lungs.\n",
+        "### Basics\n\nProse.\n\n### Advanced\n\nMore.\n",
+        settings_text=json.dumps({"reader": {"reader_nav": "column"}}))
+    pg = lesson.lesson_page(bank, itembank.load(bank),
+                            itembank.parse_lesson(bank))
+    if 'class="reader-nav"' not in pg or "Sections in this lesson" not in pg:
+        fail("reader_nav column must render the sections nav")
+    if 'href="#basics"' not in pg or 'href="#advanced"' not in pg:
+        fail("reader nav must link every heading by slug")
+
+
+def test_gloss_route_and_cli_twin():
+    """GET /gloss/<stem>/<slug> serves a glossable definition and records a
+    term_lookup event; unknown and suppressed slugs 404 with no event; the
+    CLI twin `itembank gloss <bank> <term>` reaches the same resolution
+    (SURF-04)."""
+    tmp = tempfile.mkdtemp()
+    bank = gloss_bank(
+        tmp,
+        terms_text=("Airway | The passage from mouth to lungs.\n"
+                    "One | Three is the keyed answer.\n"),
+        lesson_body="### Basics\n\nSee [[Airway]] and [[One]].")
+    proc, url, _ = start_daemon(tmp)
+    try:
+        status, body = get(url + "/gloss/gloss_bank/airway")
+        if status != 200:
+            fail("GET /gloss/<stem>/<slug> returned %d" % status)
+        if "The passage from mouth to lungs." not in body:
+            fail("gloss route body missing the definition")
+        if "Back to the question" not in body:
+            fail("gloss route body missing the back link")
+
+        for slug in ("nope", "one"):
+            try:
+                get(url + "/gloss/gloss_bank/" + slug)
+                fail("GET /gloss for %r must 404" % slug)
+            except urllib.error.HTTPError as exc:
+                if exc.code != 404:
+                    fail("GET /gloss for %r returned %d, not 404"
+                         % (slug, exc.code))
+    finally:
+        proc.kill()
+        proc.wait()
+
+    log = itembank.log_path(tmp)
+    lookups = [e for e in itembank.events(log)
+               if e["event_type"] == "term_lookup"]
+    if len(lookups) != 1 or lookups[0]["term_slug"] != "airway":
+        fail("the route must record exactly one term_lookup for the served "
+             "slug, got %r" % lookups)
+    if lookups[0]["source"] != "session":
+        fail("the route must record source='session': %r" % lookups[0])
+
+    res = subprocess.run(
+        [sys.executable, os.path.join(ROOT, "itembank.py"), "gloss", bank,
+         "Airway"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
+    if res.returncode != 0 or "The passage from mouth to lungs." not in res.stdout:
+        fail("itembank gloss must print the definition, got %r" % res.stdout)
+    res2 = subprocess.run(
+        [sys.executable, os.path.join(ROOT, "itembank.py"), "gloss", bank,
+         "nope"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
+    if res2.returncode == 0:
+        fail("itembank gloss on an unknown term must exit non-zero")
+    res3 = subprocess.run(
+        [sys.executable, os.path.join(ROOT, "itembank.py"), "gloss", bank,
+         "One"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
+    if res3.returncode == 0:
+        fail("itembank gloss on a suppressed term must exit non-zero")
+
+
+def test_reader_settings_registered_in_schema():
+    """The four reader settings are registered in schemas/settings.schema.json
+    with their locked defaults and this phase's owner stamp (UI-SPEC §14)."""
+    schema = json.load(open(os.path.join(ROOT, "schemas",
+                                         "settings.schema.json"),
+                            encoding="utf-8"))
+    reader = schema.get("properties", {}).get("reader")
+    if not reader or reader.get("type") != "object":
+        fail("settings schema missing the reader group")
+    expected = {
+        "reader_nav": "none", "example_layout": "stacked",
+        "print_gloss": "appendix", "gloss_marks": "all",
+    }
+    props = reader.get("properties", {})
+    for key, default in expected.items():
+        sub = props.get(key)
+        if not sub or sub.get("default") != default:
+            fail("reader setting %r missing or default %r != %r"
+                 % (key, sub.get("default") if sub else None, default))
+        if sub.get("x-itembank-phase") != 3.1:
+            fail("reader setting %r must carry x-itembank-phase 3.1" % key)
+    if "reader" not in schema.get("required", []):
+        fail("reader must be a top-level required settings key")
+
+
 test_slug()
 test_parse_lesson()
 test_prose_line_shaped_like_question_marker()
@@ -2092,4 +2343,10 @@ test_terms_lint_empty_block_and_duplicate_slug()
 test_terms_lint_key_in_rationale_and_duplicate_id()
 test_terms_lint_sentinel_exported_and_default_unchanged()
 test_glossable_gate()
+test_glossary_appendix_renders_after_lesson()
+test_gloss_triggers_panels_and_no_leak()
+test_gloss_marks_and_print_modes()
+test_gloss_example_layout_and_reader_nav()
+test_gloss_route_and_cli_twin()
+test_reader_settings_registered_in_schema()
 print("ok: lesson roundtrip (slug, parse, fingerprint, LESSON-SRC, degraded state, route, CLI twin, both link directions, lesson lint, coupling guards)")

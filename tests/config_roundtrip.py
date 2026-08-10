@@ -111,7 +111,8 @@ def test_schema_names_every_project_key():
     schema = json.load(open(SCHEMA_PATH, encoding="utf-8"))
     keys = set(schema["properties"])
     expected = {"theme", "daily_cap", "selection_weights", "auditor_autonomy",
-                "model_backend", "update_policy", "daemon", "update", "accent"}
+                "model_backend", "update_policy", "daemon", "update", "accent",
+                "reader"}
     if keys != expected:
         fail("schema properties %r do not equal the expected key set %r" % (keys, expected))
     for name, sub in schema["properties"].items():
