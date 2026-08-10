@@ -256,6 +256,117 @@ def parse_lesson(bank_path):
             "detail": ""}
 
 
+_TERM_REF_RE = re.compile(r"\[\[([^\]]+)\]\]")
+_META_CELL_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*)=(.*)$", re.S)
+
+
+def _term_refs(text):
+    """`[[term]]` references in document order, each reduced to its slug by
+    the one slugifier -- the same value the trigger and the `<dt id>` anchor
+    use, so a lookup that agrees with an anchor by coincidence is impossible
+    (the D-03 rule, restated for terms)."""
+    return [{"text": m.group(1).strip(),
+             "slug": lesson_slug(m.group(1))}
+            for m in _TERM_REF_RE.finditer(text or "")]
+
+
+def _terms_row_cells(line):
+    """Split one `## TERMS` pipe row with the lesson reader's own cell
+    splitter, never a second implementation. Imported lazily because
+    surfaces/lesson.py imports this module at load time; a top-level import
+    here would cycle, and the reuse is the point (research's anti-pattern:
+    don't hand-roll a second splitter)."""
+    from surfaces.lesson import _is_separator_row, _split_cells
+    return _split_cells(line), _is_separator_row(line)
+
+
+def parse_terms(bank_path):
+    """A third, independent read over the bank file for a different purpose:
+    the `## TERMS` section's glossary records. Never called from inside
+    `load()` or `parse_bank()`, and it changes neither's return shape.
+
+    Mirrors `parse_lesson()`'s boundary rule exactly: iterate every chunk of
+    the unbounded split and stop accumulating the moment a chunk both matches
+    `Qn.` at its start and parses as a real question.
+
+    Returns `None` when the preamble carries no `## TERMS` section; otherwise
+    a dict with exactly:
+      `terms` -- slug -> record with keys `canonical`, `aliases`, `def`,
+          `xlat` and `see` (the last two empty when absent)
+      `refs`  -- `[[term]]` references from the lesson body, in document
+          order, each `{"text", "slug"}`
+      `ignored` -- reserved/unknown `key=value` meta fields (`zh=` and any
+          unrecognised key), captured and marked ignored, never rendered
+          (D-24): the reader drops them with no DOM trace, and 999.2 reads
+          them back from this list additively
+      `empty` -- True when the block parsed to zero term rows
+      `collisions` -- slug collisions among term keys and aliases, each
+          `{"slug", "texts"}` naming every canonical text that collided with
+          the first claimer
+    """
+    text = open(bank_path, encoding="utf-8").read()
+    preamble = []
+    for ch in re.split(r"(?m)^(?=Q\d+\.)", text):
+        if re.match(r"Q\d+\.", ch.strip()) and parse_question(ch) is not None:
+            break
+        preamble.append(ch)
+    head = "".join(preamble)
+
+    m = re.search(r"(?m)^##\s+TERMS\s*$", head)
+    if m is None:
+        return None
+
+    # Refs are collected from the lesson body -- the text the reader actually
+    # renders -- so a [[term]] that can never render is never flagged as
+    # unknown by the linter.
+    lm = re.search(r"(?m)^##\s+LESSON\s*$", head)
+    refs = _term_refs(head[lm.end():]) if lm else []
+
+    rows = []
+    ignored = []
+    for line in head[m.end():].splitlines():
+        if not line.strip():
+            continue
+        cells, is_sep = _terms_row_cells(line)
+        if is_sep or len(cells) < 2 or not cells[0]:
+            continue
+        canonical, definition = cells[0], cells[1]
+        aliases, meta = [], {}
+        for cell in cells[2:]:
+            mm = _META_CELL_RE.match(cell)
+            if mm:
+                meta[mm.group(1)] = mm.group(2).strip()
+            else:
+                aliases.append(cell)
+        rows.append({"canonical": canonical, "aliases": aliases,
+                     "def": definition,
+                     "xlat": meta.get("xlat", ""),
+                     "see": meta.get("see", "")})
+        ignored.extend({"row": canonical, "key": key, "value": value}
+                       for key, value in meta.items()
+                       if key not in ("xlat", "see"))
+
+    terms, claimed, collisions = {}, {}, {}
+    for row in rows:
+        slugs = [lesson_slug(row["canonical"])] + \
+                [lesson_slug(a) for a in row["aliases"]]
+        for slug in slugs:
+            if not slug:
+                continue
+            if slug in claimed and claimed[slug] != row["canonical"]:
+                collisions.setdefault(slug, []).append(row["canonical"])
+            else:
+                claimed.setdefault(slug, row["canonical"])
+        terms.setdefault(lesson_slug(row["canonical"]), row)
+
+    return {"terms": terms,
+            "refs": refs,
+            "ignored": ignored,
+            "empty": not rows,
+            "collisions": [{"slug": slug, "texts": texts}
+                           for slug, texts in collisions.items()]}
+
+
 def content_fingerprint(q):
     """A change-detection digest of the *tested* content only, never the
     rationale around it.
@@ -571,6 +682,14 @@ class LintError(collections.namedtuple("LintError", "code field item message")):
 LESSON_UNCHECKED = object()
 
 
+# The same sentinel pattern for the TERMS/key pass (plan 03.1-02): "the
+# caller did not supply TERMS data" (skip every terms/key check -- the
+# behaviour every pre-03.1-02 caller relies on) stays distinct from "the
+# caller supplied TERMS data and this bank has no `## TERMS` section", where
+# every [[term]] reference is unknown rather than skipped.
+TERMS_UNCHECKED = object()
+
+
 # The published code namespace. Adding a code here is additive; renaming or removing
 # one is a breaking change for every authoring agent that branches on it (D-16).
 # Built from a set-then-sorted so the tuple is provably sorted and duplicate-free
@@ -586,11 +705,36 @@ LINT_CODES = tuple(sorted({
     "item.missing_id", "item.duplicate_id", "item.missing_hash",
     "item.content_drift", "item.objective_unnamespaced", "item.lesson_ref_unknown",
     "lesson.duplicate_heading", "lesson.orphan_heading", "lesson.src_unreadable",
+    "terms.unknown_ref", "terms.duplicate_slug", "terms.empty_block",
+    "key.in_rationale", "key.duplicate_id",
     "bank.answer_position_skew",
 }))
 
 
-def lint(questions, lesson=LESSON_UNCHECKED):
+def _rationale_texts(q):
+    """Every author-written rationale string of an item, as (field, text)
+    pairs, for the key.in_rationale scan (D-05: a [!KEY] marker belongs in
+    the lesson, never inside an item rationale)."""
+    out = []
+    for f in ("why", "disc", "second", "trap", "model"):
+        v = q.get(f)
+        if v:
+            out.append((f, v))
+    da = q.get("da") or {}
+    for letter in sorted(da):
+        if da[letter]:
+            out.append(("da", da[letter]))
+    for f in ("notes", "rubric"):
+        for entry in q.get(f) or []:
+            if entry:
+                out.append((f, entry))
+    return out
+
+
+_KEY_ID_RE = re.compile(r"\[!KEY(?::\s*([^\]]+))?\]")
+
+
+def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED):
     """Return (errors, warnings) as lists of LintError records.
 
     str(record) reproduces the historical 'Qn: message' text exactly; the code and
@@ -604,6 +748,11 @@ def lint(questions, lesson=LESSON_UNCHECKED):
     run), None for a bank with no `## LESSON` section (every non-empty
     LESSON-REF is unknown, D-05), or a dict carrying an unreadable-source error
     (lesson.src_unreadable, no heading-level findings).
+
+    `terms` follows the same additive sentinel pattern: TERMS_UNCHECKED skips
+    every terms/key check; a caller that supplies TERMS data passes whatever
+    `parse_terms()` returned -- a dict (the checks run), or None for a bank
+    with no `## TERMS` section (every [[term]] reference is unknown).
     """
     errors, warnings = [], []
     seen_stems = {}
@@ -611,10 +760,20 @@ def lint(questions, lesson=LESSON_UNCHECKED):
     seen_item_ids = {}
     letter_hits = collections.Counter()
     lesson_on = lesson is not LESSON_UNCHECKED
+    terms_on = terms is not TERMS_UNCHECKED
     if lesson_on:
         known_slugs = set()
         if lesson:
             known_slugs = {h["slug"] for h in lesson["headings"]}
+    if terms_on:
+        known_terms = terms["terms"] if terms else {}
+        if terms:
+            term_refs = terms.get("refs", [])
+        elif isinstance(lesson, dict):
+            term_refs = _term_refs(lesson.get("body", ""))
+        else:
+            term_refs = []
+        lesson_body = lesson.get("body", "") if isinstance(lesson, dict) else ""
 
     for idx, q in enumerate(questions, 1):
         tag = "Q%d" % idx
@@ -669,6 +828,14 @@ def lint(questions, lesson=LESSON_UNCHECKED):
                 errors.append(LintError(
                     "item.lesson_ref_unknown", "lesson_ref", tag,
                     "LESSON-REF '%s' does not match any lesson heading" % ref))
+
+        if terms_on:
+            for rfield, rtext in _rationale_texts(q):
+                if "[!KEY" in rtext:
+                    errors.append(LintError(
+                        "key.in_rationale", rfield, tag,
+                        "a [!KEY] marker belongs in the lesson, never inside "
+                        "an item rationale (D-05)"))
 
         if t in ("mc", "multi"):
             if len(q["correct"]) != q["select"]:
@@ -817,6 +984,40 @@ def lint(questions, lesson=LESSON_UNCHECKED):
                         "lesson heading '%s' is not referenced by any item's "
                         "[LESSON-REF:] -- fine if it's background reading, but "
                         "check it wasn't meant to be tested" % h["text"]))
+
+    # Bank-level terms/key findings, in a deterministic order: collisions,
+    # then the empty-block warning, then unknown refs, then duplicate [!KEY]
+    # ids. `terms` None means no `## TERMS` section: every ref is unknown
+    # (mirroring the lesson=None rule), so the checks still run.
+    if terms_on:
+        if terms and terms.get("collisions"):
+            for c in terms["collisions"]:
+                first = terms["terms"][c["slug"]]["canonical"]
+                for text in c["texts"]:
+                    errors.append(LintError(
+                        "terms.duplicate_slug", "terms", "BANK",
+                        "term '%s' collides with '%s' after slugifying to "
+                        "'%s' -- rename one" % (text, first, c["slug"])))
+        if terms and terms.get("empty"):
+            warnings.append(LintError(
+                "terms.empty_block", "terms", "BANK",
+                "## TERMS block has no entries; it renders nothing"))
+        for ref in term_refs:
+            if ref["slug"] not in known_terms:
+                errors.append(LintError(
+                    "terms.unknown_ref", "refs", "BANK",
+                    "[[%s]] has no entry in ## TERMS" % ref["text"]))
+        key_ids = {}
+        for km in _KEY_ID_RE.finditer(lesson_body):
+            kid = km.group(1)
+            if not kid:
+                continue
+            if kid in key_ids:
+                errors.append(LintError(
+                    "key.duplicate_id", "key", "BANK",
+                    "duplicate [!KEY] id '%s' in the lesson -- rename one"
+                    % kid))
+            key_ids.setdefault(kid, True)
     return errors, warnings
 
 

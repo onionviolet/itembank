@@ -41,7 +41,12 @@
         "item.too_few_steps",
         "lesson.duplicate_heading",
         "lesson.orphan_heading",
-        "lesson.src_unreadable"
+        "lesson.src_unreadable",
+        "terms.unknown_ref",
+        "terms.duplicate_slug",
+        "terms.empty_block",
+        "key.in_rationale",
+        "key.duplicate_id"
       ]
     },
     "field": {

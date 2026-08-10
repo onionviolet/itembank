@@ -52,10 +52,10 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from model import (BANK_FILE_HINTS, LESSON_UNCHECKED, LETTERS, LINT_CODES,   # noqa: E402
-                   LintError, SPEC,
+                   LintError, SPEC, TERMS_UNCHECKED,
                    assign_ids, collapse, content_fingerprint, grab, lint, load,
                    lesson_slug, new_item_id, notes, parse_bank, parse_lesson,
-                   parse_question, section)
+                   parse_question, parse_terms, section)
 from runtime import (FIELD_SEP, ITEM_VERSION, PAIR_SEP, REPORT_VERSION,        # noqa: E402
                      SESSION_UPGRADES, SESSION_VERSION, answer_text,
                      canonical_key, canonical_response, explain_payload,
@@ -89,7 +89,7 @@ from schema_validate import SUPPORTED, SchemaError, validate                  # 
 __all__ = [
     "ANKI_ADDON_ID", "BANK_FILE_HINTS", "DAY_LANES", "EVENT_SCHEMA_VERSION",
     "FIELD_SEP", "FLOOR_LANES", "INDEX_VERSION", "ITEM_VERSION",
-    "LESSON_UNCHECKED", "LETTERS", "LINT_CODES", "LintError",
+    "LESSON_UNCHECKED", "LETTERS", "LINT_CODES", "LintError", "TERMS_UNCHECKED",
     "PAIR_SEP", "REPORT_VERSION", "SESSION_UPGRADES", "SESSION_VERSION", "SPEC",
     "SUPPORTED", "SchemaError",
     "__version__",
@@ -109,7 +109,7 @@ __all__ = [
     "normalize_answer", "notes",
     "objective_history", "objective_rollup", "page_item", "parse_bank",
     "parse_lanes",
-    "parse_lesson", "parse_plan", "parse_question",
+    "parse_lesson", "parse_plan", "parse_question", "parse_terms",
     "public_item", "read_attempt_md", "read_legacy_session", "read_session",
     "rebuild_index", "recent_dedupe_keys",
     "render_attempt_md", "render_daily_log", "render_session_json", "resolve_notes",
