@@ -808,7 +808,30 @@ Plans:
   12. **(round two, R4.5) A pending model suggestion never advances an interval and grants no mastery**, though it does count as an attempt. Scheduler state replayed from the log must read accepted marks only — a rule that has to hold here because this phase is where "what is due" is decided.
 
 **Absorbed from research (2026-08-10)**: FSRS, WaniKani stages, jpdb weighting (`.planning/research/2026-08-09-landscape-widening.md`); D2 memorizables entering the queue (`2026-08-09-differentiators-d1-d2-d3.md`); anti-punitive pacing copy already LOCKED in `.planning/UI-SPEC.md`.
-**Plans**: TBD
+**Plans**: 0/6 plans executed
+**Wave 1**
+
+- [ ] 10-01-PLAN.md
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 10-02-PLAN.md
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 10-03-PLAN.md
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 10-04-PLAN.md
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 10-05-PLAN.md
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 10-06-PLAN.md
 
 ### Phase 11: Closed Authoring Loop & Curriculum Auditor
 
@@ -1101,7 +1124,7 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 8. Model Adapter Interface & Tier-Gate Enforcement | 0/6 | Planned    |  |
 | 9. Subject-Invariant Loop — EMT, Math, CS Integration | 0/5 | Planned | - |
 | 9.1 Audio Drill Export | 0/4 | Planned | - |
-| 10. Retention, Pacing & Trends | 0/TBD | Not started | - |
+| 10. Retention, Pacing & Trends | 0/6 | Planned    |  |
 | 11. Closed Authoring Loop & Curriculum Auditor | 0/TBD | Not started | - |
 | 12. ~~Packaging, Self-Update & Interop Export~~ | — | Retired (moved to 2.1) | - |
 | 13. Desktop Packaging — Tauri Shell over Python Sidecar | 0/5 | Planned | - |
