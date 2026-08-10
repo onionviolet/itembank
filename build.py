@@ -31,7 +31,7 @@ STAGE_FILES = (
     "itembank.py", "model.py", "runtime.py", "server.py", "evidence.py",
     "schema_validate.py", "resources.py",
 )
-STAGE_DIRS = ("surfaces", "schemas")
+STAGE_DIRS = ("surfaces", "schemas", "styles")
 
 LAUNCHER_DIR = os.path.join(ROOT, "launchers")
 

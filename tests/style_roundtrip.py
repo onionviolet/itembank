@@ -74,10 +74,13 @@ def test_load_style_parses_voice_rules_exemplar():
              "error", "", "yes"),
             ("section-density", "density.max", "idea, 1", "warn", "", "no"),
         ], parent="house")
-        with open(os.path.join(bank, "styles", "expository.md"), "w",
+        # A fixture id that collides with no bundled style (the shipped
+        # catalogue ships ids like expository/worked-example, and D-09's
+        # duplicate warning is exactly what a same-id bank file must fire).
+        with open(os.path.join(bank, "styles", "basic-fixture.md"), "w",
                   encoding="utf-8") as fh:
             fh.write(src)
-        st = load_style("expository", bank)
+        st = load_style("basic-fixture", bank)
         if st is None:
             fail("load_style returned None for an existing style file")
         check("load_style parses voice zone",
@@ -109,8 +112,8 @@ def test_resolution_order_and_duplicate_warning():
     tmp, bank, user = temp_tree()
     old = patch_user_data_dir(user)
     try:
-        bank_file = os.path.join(bank, "styles", "expository.md")
-        user_file = os.path.join(user, "styles", "expository.md")
+        bank_file = os.path.join(bank, "styles", "resolve-fixture.md")
+        user_file = os.path.join(user, "styles", "resolve-fixture.md")
         os.makedirs(os.path.join(user, "styles"))
         with open(bank_file, "w", encoding="utf-8") as fh:
             fh.write(style_text([("bank-row", "order.before", "A, B",
@@ -119,7 +122,7 @@ def test_resolution_order_and_duplicate_warning():
             fh.write(style_text([("user-row", "order.before", "A, B",
                                   "warn", "", "no")]))
 
-        st = load_style("expository", bank)
+        st = load_style("resolve-fixture", bank)
         if st is None:
             fail("load_style returned None when bank-adjacent file exists")
         check("bank-adjacent styles/ wins over user data dir",
@@ -129,7 +132,7 @@ def test_resolution_order_and_duplicate_warning():
                   for w in st["warnings"]))
 
         os.remove(bank_file)
-        st2 = load_style("expository", bank)
+        st2 = load_style("resolve-fixture", bank)
         if st2 is None:
             fail("load_style returned None when user-level file exists")
         check("user data dir resolves when bank-adjacent is absent",
