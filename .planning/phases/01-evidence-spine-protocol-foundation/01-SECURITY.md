@@ -59,7 +59,7 @@ created: 2026-08-07
 | T-1-28 | Repudiation | Silent fallback to pre-migration tick reader | medium | mitigate | Fallback path prints notice naming `itembank migrate` | closed |
 | T-1-29 | Spoofing | Positional resolution attaching wrong item during migration | high | mitigate | No similarity/fuzzy matching present; resolution is opt-in and tagged in `source_ref.resolution` | closed |
 | T-1-30 | Repudiation | Migration reporting success while a record went missing | high | mitigate | Count mismatch between found/accounted exits non-zero with an error | closed |
-| T-1-SC | Tampering (supply chain) | npm/pip/cargo installs (carried across all 11 plans) | low | accept | No third-party packages installed anywhere in this phase; `sqlite3` ships with CPython | closed |
+| T-1-SC | Tampering (supply chain) | npm/pip/cargo installs (carried across all 11 plans) | low | accept | This phase vendors and installs no third-party artifact; `sqlite3` ships with CPython. The control is the project vendoring policy, not the absence of dependencies: every third-party artifact — library, font, JS bundle, toolchain — is vendored at a pinned version with a recorded SHA-256 and a named license review before use, per the KaTeX precedent (`09-03-PLAN.md`). Nothing in this phase reaches that gate. | closed |
 
 *Status: open · closed · open — below {block_on} threshold (non-blocking)*
 *Severity: critical > high > medium > low — only open threats at or above workflow.security_block_on count toward threats_open*
@@ -72,7 +72,7 @@ created: 2026-08-07
 | Risk ID | Threat Ref | Rationale | Accepted By | Date |
 |---------|------------|-----------|-------------|------|
 | R-1 | T-1-05 | hashlib/sha256 fingerprints (content_fingerprint, dedupe_key, idempotency_canon) are integrity/change-detection aids for a single local user, not an adversarial-input security boundary | Weibao (phase 01 plan authors) | 2026-08-07 |
-| R-2 | T-1-SC | Stdlib-only constraint means no third-party package supply chain exists in this phase | Weibao (phase 01 plan authors) | 2026-08-07 |
+| R-2 | T-1-SC | Phase 01 introduces no third-party artifact, so no supply chain is exposed here. Standing control for any artifact a later phase does introduce: pinned version, recorded SHA-256, named license review before vendoring, per `09-03-PLAN.md`. **Revised 2026-08-10** — the original rationale cited the stdlib-only constraint, which the 2026-08-09 amendment demoted to a preference; a preference is not a security control (constraint audit F5). | Weibao (phase 01 plan authors); revised 2026-08-10 | 2026-08-07 |
 
 ---
 
@@ -81,6 +81,7 @@ created: 2026-08-07
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
 | 2026-08-07 | 54 | 54 | 0 | gsd-secure-phase (L1 short-circuit: register_authored_at_plan_time=true, asvs_level=1, threats_open=0) |
+| 2026-08-10 | 54 | 54 | 0 | gsd-secure-phase (targeted repair, constraint audit F5 — T-1-SC mitigation and R-2 rationale restated on the vendoring policy after the stdlib-only constraint was relaxed to a preference on 2026-08-09; no new threats, no status change) |
 
 ---
 
