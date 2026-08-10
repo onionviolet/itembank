@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 03.1
 current_phase_name: lesson-rich-blocks-glossary-style
 status: executing
-stopped_at: Completed 03.1-02-PLAN.md
-last_updated: "2026-08-10T20:51:28.438Z"
-last_activity: 2026-08-10
-last_activity_desc: Phase 03.1 execution started
+stopped_at: Completed 03.1-03-PLAN.md
+last_updated: "2026-08-10T21:18:57.317Z"
+last_activity: 2026-08-10 â€” Phase 03.1 execution started
 progress:
   total_phases: 18
   completed_phases: 5
   total_plans: 104
-  completed_plans: 40
+  completed_plans: 41
+last_activity_desc: Phase 03.1 execution started
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 ## Current Position
 
 Phase: 03.1 (lesson-rich-blocks-glossary-style) â€” EXECUTING
-Plan: 3 of 7
+Plan: 4 of 7
 Status: Ready to execute
 Last activity: 2026-08-10 â€” Phase 03.1 execution started
 
-Progress: [â–ˆâ–ˆâ–ˆâ–ˆâ–‘â–‘â–‘â–‘â–‘â–‘] 38%
+Progress: [████░░░░░░] 39%
 
 ## Performance Metrics
 
@@ -96,6 +96,7 @@ Progress: [â–ˆâ–ˆâ–ˆâ–ˆâ–‘â–‘â–‘â–‘â–‘�
 | Phase 04 P06 | 30min | 2 tasks | 4 files |
 | Phase 03.1 P01 | 35 | 3 tasks | 6 files |
 | Phase 03.1 P02 | 140 | 3 tasks | 15 files |
+| Phase 03.1 P03 | 190 | 3 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -212,8 +213,13 @@ Recent decisions affecting current work:
 - [Phase 03.1]: 03.1-02: print_gloss:inline ships as one @media print block un-hiding each term's single panel; note count equals distinct-term count by construction (UI-SPEC 16 backstop)
 - [Phase 03.1]: 03.1-02: The 8.3 enhancement hook is a vendored inline script carrying the locked unavailable copy, inert on the reader (definitions ship with the page); the sitting fetch-on-open variant is 6.2's fill
 - [Phase 03.1]: 03.1-02: model.parse_terms reuses surfaces.lesson's cell splitter via a function-local import -- the plan-mandated reuse without a top-level import cycle
+- [Phase 03.1]: 03.1-03: key ids mint through the exact new_item_id()/taken set items use -- no separate key id namespace (research Pitfall 5)
+- [Phase 03.1]: 03.1-03: authored cloze grammar is any {{text}} marker -- {{text}} compiles to {{c1::text}} sequentially, {{n::text}} keeps n; on screen the enclosed text renders
+- [Phase 03.1]: 03.1-03: C7 closure -- public_item() drops the syllabus [OBJECTIVE:]; study's pre-answer objective chip removed; both render only in explain_payload() behind the verdict
+- [Phase 03.1]: 03.1-03: the /key/<id>/review route and `itembank key-review` share record_key_review(); key_review events carry no score and are replayed by Phase 10
 
 ## Deferred Verification
+
 |----------|------|--------|-------------|
 | *(none â€” this is the project's first milestone)* | | | |
 
@@ -227,8 +233,8 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-10T20:51:28.383Z
-Stopped at: Completed 03.1-02-PLAN.md
+Last session: 2026-08-10T21:18:57.284Z
+Stopped at: Completed 03.1-03-PLAN.md
 verified 5/5 with human items deferred; Phases 2.1/3/4 carry
 verification_deferred_human rows above.
 Resume file: None

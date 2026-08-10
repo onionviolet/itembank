@@ -339,7 +339,7 @@ Plans:
 - **No trustworthy open-weight prose-quality benchmark exists**, so any model choice for lesson authoring must be settled by running our own 18-rule check over generated lessons.
 - **There is no real bank yet**, so the criterion-7 layout argument is structural against Phase 11's criteria, not observed churn.
 
-**Plans**: 2/7 plans executed across 3 waves
+**Plans**: 3/7 plans executed across 3 waves
 
 Plans:
 **Wave 1**
@@ -349,7 +349,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 03.1-03-PLAN.md — [!KEY] cards, Anki keys export with round-tripping #guid, key_review, Educational Objective privacy
+- [x] 03.1-03-PLAN.md — [!KEY] cards, Anki keys export with round-tripping #guid, key_review, Educational Objective privacy
 - [ ] 03.1-04-PLAN.md — Style registry: five styles + house, LOCKED_RULE_IDS, render_style and the named refusals
 - [ ] 03.1-05-PLAN.md — Style enforcement cost classes, suppression + 50ms budget, StylePrompt capped imperatives
 
@@ -1065,7 +1065,7 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 2. Daemon Consolidation & Settings Foundation | 6/6 | Complete    | 2026-08-08 |
 | 2.1 Packaging, Self-Update & Interop Export | 9/9 | Complete | 2026-08-08 |
 | 3. Lesson Format & In-App Reader | 6/6 | In Progress|  |
-| 3.1 Lesson Rich Blocks, Glossary & Style | 2/7 | In Progress|  |
+| 3.1 Lesson Rich Blocks, Glossary & Style | 3/7 | In Progress|  |
 | 3.2 Seeding, Import & Provenance | 0/TBD | Not started | - |
 | 4. Surface Redesign & Theming | 6/6 | In Progress|  |
 | 5. Check Item Type & Code Editor | 0/7 | Planned | - |
