@@ -1,9 +1,9 @@
 ---
-status: deferred
+status: testing
 phase: 03-lesson-format-in-app-reader
 source: [03-VERIFICATION.md]
 started: 2026-08-08
-updated: 2026-08-08
+updated: 2026-08-10
 ---
 
 ## Current Test
@@ -14,21 +14,21 @@ expected: |
   Serving the ~62,000-word lesson at /lesson/big_bank scrolls top to bottom as
   one continuous document with no pagination, lazy loading, or perceptible
   stall.
-awaiting: final-product validation (deferred by user decision)
+awaiting: user response
 
 ## Tests
 
 ### 1. Full-chapter lesson scroll smoothness (UI-SPEC E1)
 expected: One continuous document, no pagination/lazy loading, no perceptible stall while scrolling the ~62k-word lesson.
-result: [pending - deferred]
+result: [pending]
 
 ### 2. Interactive click-through of both link directions (D-09 user flow)
 expected: Lesson backlink lands on the quiz with that item pinned first; the Read the lesson chip opens a new tab at the right heading; a direct /lesson/<bank>#<slug> fragment lands on that section.
-result: [pending - deferred] (structure and HTTP-level hrefs verified; interactive click-through deferred)
+result: [pending] (structure and HTTP-level hrefs verified; interactive click-through not yet run)
 
 ### 3. Independent spec-sufficiency trial (ROADMAP SC4 / LESSON-05)
 expected: A fresh model with only `itembank spec` authors a bank with a LESSON section, two headings, three items and a LESSON-REF tag that lints with 0 errors on the first attempt.
-result: [pending - deferred] (the orchestrator-run trial with the same spec output lints 0 errors on the first attempt; an independent-model run is deferred)
+result: [pending] (the orchestrator-run trial with the same spec output lints 0 errors on the first attempt; an independent-model run is not yet done)
 
 ## Summary
 

@@ -1,0 +1,1 @@
+No external API integration: Phase 4 restyles the app's own surfaces (index/quiz/study/report/settings/day); its `/api/*` references are the local daemon's first-party routes, not an external service.

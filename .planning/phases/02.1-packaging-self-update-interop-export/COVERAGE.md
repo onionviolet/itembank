@@ -22,7 +22,7 @@
 | `tag_name` parsing and version comparison | INTEGRATE | Strictly-newer refusal, Success Criterion 4. `parse_version()` / `is_newer()` |
 | Authenticated requests (`Authorization` header) | INTEGRATE | Optional, from `ITEMBANK_GITHUB_TOKEN` only. Enables a private repository and raises the 60-per-hour unauthenticated limit (D-09) |
 | Rate-limit response headers (`X-RateLimit-*`) | INTEGRATE | Distinguishes rate-limited from unreachable so an explicit invocation can print the right line while the background check stays silent |
-| `GET /repos/{owner}/{repo}/releases` (list all) | OPT-OUT | The `latest` endpoint answers the only question the updater asks. Listing spends rate-limit budget for a capability nothing consumes; an unparseable `latest` tag is skipped as no-update rather than walked back through history |
+| `GET /repos/{owner}/{repo}/releases` (list all) | OPT-OUT | The `latest` endpoint answers the only question the updater asks. Listing spends rate-limit budget for a capability nothing consumes; an unparseable `latest` tag is skipped as no-update. |
 | Draft and pre-release releases | OPT-OUT | D-07 forbids suffixed tags, so a pre-release has no representable version. Revisit only if the project ever adopts release candidates (`## Deferred Ideas`) |
 | Release `body` / release notes rendering | OPT-OUT | The UI-SPEC scopes the updater to CLI text plus one background startup line; there is no surface that would display notes. A browser affordance for the updater is explicitly a later-phase idea |
 | `POST /repos/{owner}/{repo}/releases` (create) | OPT-OUT | itembank never publishes a release. Publishing is a human step in the release process |
