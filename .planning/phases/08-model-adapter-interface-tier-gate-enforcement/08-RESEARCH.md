@@ -381,7 +381,7 @@ This is an implementation skeleton, not a published API; exact new field names a
 | A4 | A non-text quarantine descriptor is the safest default representation of a dropped response. | Don't Hand-Roll / Pitfalls | Local audit may need fuller raw output, requiring an explicit new disclosure control. |
 | A5 | New event/type and schema names (`model_review_proposal`, adapter schemas, test filenames) are proposed names, not existing contract values. | Architecture / Validation | Planner must lock names in its first implementation task. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does Phase 6 expose a callable permitted-tier/allowed-fact seam when it is implemented?**
    - What we know: Phase 6 makes its policy state machine the sole source of tier progression and defines the authored ladder. [VERIFIED: .planning/phases/06-hint-ladder-cursor-hold-feedback-modes/06-CONTEXT.md:18-31]
@@ -397,6 +397,8 @@ This is an implementation skeleton, not a published API; exact new field names a
    - What we know: The contract must support hosted CLI and local OpenAI-compatible HTTP without caller changes. [VERIFIED: .planning/phases/08-model-adapter-interface-tier-gate-enforcement/08-CONTEXT.md:17-20]
    - What's unclear: No executable or credential source is configured in this environment.
    - Recommendation: Treat executable path/arguments and environment-variable key as profile data, test them using a fake local executable, and keep the default backend disabled.
+
+**Resolutions (plan-time):** Q1 — Plan 08-01 declares the Phase 6 seam (`runtime.teaching_transition`, `runtime.authored_hint`) and preconditions execution on it; Plan 08-06 asserts the cross-phase integration end to end. Q2 — descriptor-only drop audit ships per D-16; raw dropped-output recovery stays deferred until a separate explicit security/UI decision. Q3 — the hosted CLI is the design-target profile built first and the default when a backend is enabled (D-18); executable/args/secret remain profile data tested with a fake executable, and the checked-in default backend stays `disabled` and credential-free.
 
 ## Environment Availability
 

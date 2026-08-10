@@ -193,7 +193,7 @@ Hosted/local transmission class is visible in audit provenance, not in learner-f
 | Gate | Evidence |
 |---|---|
 | Adapter parity | `python tests/model_adapter_roundtrip.py`: fake hosted executable and loopback OpenAI-compatible endpoint normalize to the same typed result under profile switch. |
-| Gate adversarial corpus | `python tests/tier_gate_roundtrip.py`: malformed/unknown/free-text/key/correct-option/higher-tier/fake-source/ambiguous fixtures all `drop`; legal bounded plan alone passes. |
+| Gate adversarial corpus | `python tests/model_gate_roundtrip.py`: malformed/unknown/free-text/key/correct-option/higher-tier/fake-source/ambiguous fixtures all `drop`; legal bounded plan alone passes. |
 | No-leak UI | DOM/JSON/ARIA/CSS-off assertions: only passed runtime payload enters UI; no private key/tier/fact/drop text/secret. |
 | Evidence and manual review | Pass/drop/unavailable log/retrieve safely; proposal remains pending; only explicit human `mark` settles it. |
 | Degradation | Disabled, timeout, malformed, refusal, unreachable tests preserve authored hint, scoring, lesson, sitting, evidence and report. |
