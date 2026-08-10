@@ -38,8 +38,8 @@
 - [ ] **LESSON-10**: The style registry ships five styles in order with `expository` as parent, one file per style, exactly one inheritance level, a locked house `lock` column, fixed selection precedence, and a `render_style`/`restyle` split that refuses named-impossible transforms
 - [ ] **LESSON-11**: Style enforcement runs as three cost classes on every lint, the check catalogue is closed, every warning ships with a recorded false-positive rate, `<!-- style-ignore: -->` exists, and the whole pass stays under 50ms on a 5000-word lesson
 - [ ] **LESSON-12**: The authoring model receives distilled imperatives capped at seven (configurable), placed last in the prompt, plus exactly one exemplar, never the style file or `## Voice` verbatim
-- [ ] **LESSON-13**: `[!CHECK: <id>]` is the single new parse path with no key and no scoring path, same-bank-only by lint rule; `[!EXAMPLE]` is a callout kind against the existing callout container
-- [ ] **LESSON-14**: Callouts, figures, print CSS, and the reading measure/heading ramp render on Phase 4's token set with no new type sizes; a bank using none of the new blocks renders byte-identically to Phase 3 output
+- [x] **LESSON-13**: `[!CHECK: <id>]` is the single new parse path with no key and no scoring path, same-bank-only by lint rule; `[!EXAMPLE]` is a callout kind against the existing callout container
+- [x] **LESSON-14**: Callouts, figures, print CSS, and the reading measure/heading ramp render on Phase 4's token set with no new type sizes; a bank using none of the new blocks renders byte-identically to Phase 3 output
 - [ ] **LESSON-15**: Every item carries an optional one-sentence lintable Educational Objective line, present in `explain_payload()` only, consumable by selection, dedup, Anki export, and the auditor without any of them re-deriving it
 - [ ] **LESSON-16**: The TERMS grammar reserves one optional ignorable `zh=` meta field, dropped from rendered output entirely
 - [ ] **LESSON-17**: Two-file lesson layout is the default; the subject-profile `lesson_layout` field overrides it and is folded into `09-02-PLAN.md` before Phase 9 executes
@@ -223,17 +223,22 @@
   **Expanded 2026-08-10** from `.planning/notes/2026-08-10-mcp-as-third-surface.md`,
   against MCP spec revision **2026-07-28**. Design promoted to `ROADMAP.md` Phase 999.3.
   Five conditions, binding on any plan that implements this:
+
   1. The tool table is a **projection of `surfaces/daemon.py:API_ROUTES`**, and each
      tool's `inputSchema` is the already-published `schemas/*.json` document read off
      disk. No embedded copy, no second contract.
+
   2. `SURFACE_PARITY` grows a third column (route, CLI command, MCP tool) rather than
      gaining a second parity map, so Extensibility Rule 7 covers it unchanged.
+
   3. Pre-response tools return `runtime.public_item()`. `explain_payload()` is
      reachable **only** after a recorded response for that item exists in the evidence
      store. The gate is the evidence log, not a request flag.
+
   4. A refusal is `isError: true` with explanatory text, which is the spec's own shape
      for a business-logic error. Tier state is read in the Python handler. **A tool
      description is not a gate** (Directive §4.1).
+
   5. stdio and an HTTP mount on the Phase 2 daemon are **both** built against one tool
      table, per Directive §3. One dispatcher, two byte-transports. This does not trip
      Directive §4.2.
@@ -305,8 +310,8 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | LESSON-10 | Phase 3.1 | Pending |
 | LESSON-11 | Phase 3.1 | Pending |
 | LESSON-12 | Phase 3.1 | Pending |
-| LESSON-13 | Phase 3.1 | Pending |
-| LESSON-14 | Phase 3.1 | Pending |
+| LESSON-13 | Phase 3.1 | Complete |
+| LESSON-14 | Phase 3.1 | Complete |
 | LESSON-15 | Phase 3.1 | Pending |
 | LESSON-16 | Phase 3.1 | Pending |
 | LESSON-17 | Phase 3.1 | Pending |

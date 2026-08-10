@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 04
-current_phase_name: Surface Redesign & Theming
+current_phase: 03.1
+current_phase_name: lesson-rich-blocks-glossary-style
 status: executing
-stopped_at: UI-SPECs approved for 3.1, 6, 6.2, 7, 13; project font-weight locked 400/600
-last_updated: "2026-08-10T19:18:30.660Z"
-last_activity: 2026-08-08
-last_activity_desc: Phase 02.1 execution started
+stopped_at: Completed 03.1-01-PLAN.md (reader tokens, template migration, callout container)
+last_updated: "2026-08-10T20:06:09.648Z"
+last_activity: 2026-08-10
+last_activity_desc: Phase 03.1 execution started
 progress:
   total_phases: 18
   completed_phases: 5
   total_plans: 104
-  completed_plans: 38
+  completed_plans: 39
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-07)
 
 **Core value:** One runtime, one scorer, one evidence store — and the runtime, not the model, decides what reaches the learner.
-**Current focus:** Phase 04 — Surface Redesign & Theming
+**Current focus:** Phase 03.1 — lesson-rich-blocks-glossary-style
 
 ## Current Position
 
-Phase: 04 (Surface Redesign & Theming) — EXECUTING
-Plan: 6 of 6
+Phase: 03.1 (lesson-rich-blocks-glossary-style) — EXECUTING
+Plan: 2 of 7
 Status: Ready to execute
-Last activity: 2026-08-08 — Phase 04 execution started
+Last activity: 2026-08-10 — Phase 03.1 execution started
 
-Progress: [█████░░░░░] 48%
+Progress: [████░░░░░░] 38%
 
 ## Performance Metrics
 
@@ -94,6 +94,7 @@ Progress: [█████░░░░░] 48%
 | Phase 04 P04 | 15 min | 2 tasks | 6 files |
 | Phase 04 P05 | 10min | 2 tasks | 2 files |
 | Phase 04 P06 | 30min | 2 tasks | 4 files |
+| Phase 03.1 P01 | 35 | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -199,6 +200,11 @@ Recent decisions affecting current work:
 - [Phase ?]: Day editor conflict/force markup ships server-side with the page; the client only toggles state and wires behavior, so recovery semantics survive no-JS and mid-fetch states.
 - [Phase ?]: Token refusals use the same 200 + {status: invalid, reason} shape as every other day edit refusal -- one client error path, no HTTP-status branching.
 - [Phase ?]: DAY_CSS migrated onto semantic tokens: --ok/--ok-bg for full/floor states, --bad/--bad-bg for chips/badges, --warn for amber, --accent for interaction only.
+- [Phase ?]: 03.1-01: lesson page keeps its own LESSON_TEMPLATE document but composes theme_css + SHARED_CSS + LESSON_CSS in the locked order (surface_shell appends SHARED_CSS last); the composition is imported, never duplicated
+- [Phase ?]: 03.1-01: LESSON_CSS uses only the locked project scale sizes (12/16/18/20/32) and 400/600 weights; fonts resolve only via --font-paper/--font-ledger tokens
+- [Phase ?]: 03.1-01: --r-2/--r-3 radius tokens landed in SHARED_CSS per UI-SPEC §2 ownership (callout contract requires --r-3; Task 1 enumerated voice/measure/leading only)
+- [Phase ?]: 03.1-01: [!CHECK: <id>] renders the inert reserved slot and drops the id entirely - no key, no form, no scoring path (D-18)
+- [Phase ?]: 03.1-01: Phase 3 warn-note assertions moved from raw var(--warn) grep to the rendered-element contract because SHARED_CSS legitimately carries the token
 
 ### Pending Todos
 
@@ -250,9 +256,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-10T18:03:57.539Z
-Stopped at: UI-SPECs approved for 3.1, 6, 6.2, 7, 13; project font-weight locked 400/600
+Last session: 2026-08-10T20:06:00.110Z
+Stopped at: Completed 03.1-01-PLAN.md (reader tokens, template migration, callout container)
 verified 5/5 with human items deferred; Phases 2.1/3/4 carry
 verification_deferred_human rows above.
-Resume file: .planning/phases/03.1-lesson-rich-blocks-glossary-style/03.1-UI-SPEC.md
+Resume file: None
 $gsd-autonomous --from 5 in a fresh chat)

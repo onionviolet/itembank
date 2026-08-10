@@ -314,6 +314,7 @@ Plans:
   3c. **Enforcement is three cost classes, not two.** Structural counts over the parsed heading tree and one shared lexical metrics pass both run on **every** lint; only discourse judgement defers to Phase 11. Structure is checkable because a style declares its section skeleton (the markdownlint MD043 pattern), which moves "worked examples precede variations" out of model-judged and into a deterministic count. Severity is **earned by construction**: `error` only for structural counts or author-controlled literal lists, and that is a ceiling a style may not raise. All eight of round one's error-severity rules survive. The check catalogue is **closed** — a style file may enable, disable, re-severity, and parameterize a check, but may never define one, because `LINT_CODES` is a published API and sprawl is the real scale risk. Every warning is calibrated against the Phase 3.2 corpus before shipping enabled, with its false-positive rate recorded; above roughly 20% it ships disabled by default. Local `<!-- style-ignore: -->` suppression must exist, because the failure mode is that an unsuppressable warning gets its whole category globally disabled; suppression counts are themselves a report that retires bad checks. A style `error` blocks a machine-authored write and never a human's `lint`. Budget: the whole style pass under 50ms for a 5000-word lesson, asserted by test.
   3d. **The authoring model does not receive the style file.** It receives **distilled imperatives, capped at seven, placed last in the prompt**, plus exactly one exemplar. Adherence collapses past roughly ten simultaneous instructions and shows a recency bias, so the cap and the position are the finding, not formatting taste. The `## Voice` prose zone is for the human and is never sent to a model.
   3e. **New blocks: one parse path, two additive entries.** `[!CHECK: <id>]` is the single new parse path — an inline placement anchor carrying no key and no scoring path, so `runtime.score_response()` is untouched. `[!EXAMPLE]` is a callout *kind* against the existing callout container, not a new block. `## SCENARIO` is owed by Phase 9 whether or not any style uses it and is not this phase's cost.
+
   4. Callouts, figures, print CSS (B4), and the Q1 reading measure/heading ramp render on Phase 4's token set with no new type sizes beyond the ones this phase adds to `theme.py`, and a bank using none of these blocks renders byte-identically to Phase 3 output.
   5. Every item carries an optional one-sentence lintable **Educational Objective** line (UWorld pattern), consumable later by selection, dedup, Anki export, and the auditor without any of them re-deriving it.
   6. The TERMS grammar reserves one optional ignorable `key=value` meta field (`zh=…`) so a bilingual reader is a later field-read, not a format break; nothing bilingual is built here.
@@ -338,12 +339,12 @@ Plans:
 - **No trustworthy open-weight prose-quality benchmark exists**, so any model choice for lesson authoring must be settled by running our own 18-rule check over generated lessons.
 - **There is no real bank yet**, so the criterion-7 layout argument is structural against Phase 11's criteria, not observed churn.
 
-**Plans**: 7 plans across 3 waves
+**Plans**: 1/7 plans executed across 3 waves
 
 Plans:
 **Wave 1**
 
-- [ ] 03.1-01-PLAN.md — Tokens + the one callout container; LESSON_TEMPLATE onto theme_css + SHARED_CSS + LESSON_CSS
+- [x] 03.1-01-PLAN.md — Tokens + the one callout container; LESSON_TEMPLATE onto theme_css + SHARED_CSS + LESSON_CSS
 - [ ] 03.1-02-PLAN.md — TERMS glossary: parse_terms, glossable() gate, Popover gloss + appendix, term_lookup
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -467,6 +468,7 @@ Plans:
 - **OPEN — ruling 5**: Does CM6 also replace the learner-facing textarea `CodeEditor` contract in `.planning/UI-SPEC.md` §4, or is CM6 authoring-only? Affects this phase's scope directly.
 - **OPEN — ruling 11** (constraint audit F2, highest live blast radius): `05-RESEARCH.md:168`, `05-CONTEXT.md:134` and `05-UI-SPEC.md:65` rule CodeMirror/Monaco/Ace "explicitly forbidden" on a vendored-asset budget and a stdlib/no-network posture. **No such budget exists** and the stdlib rule was relaxed 2026-08-09, so those three lines are **SUPERSEDED**. Phase 5 currently carries two incompatible editor plans: `05-05-PLAN.md` (the hand-rolled field the dead veto produced) and the CM6 adoption at line 421. Decide ruling 5 on merit — CM6's `Diagnostic{from,to,severity,message}` maps 1:1 onto our lint records, against the cost of a vendoring and update pipeline — **not** on an asset budget. `UI-SPEC.md` §8.2 (no keyboard trap, Tab inserts, Escape returns to navigation) is the one real constraint and must hold either way. **No default; resolve before `/gsd-plan-phase 5`.**
 - **OPEN — ruling 16** (constraint audit F17, revisit): `01-VALIDATION.md:25` and `03-VALIDATION.md:21` record "no pytest, no test-runner dependency" on the stdlib-only preference, and `05-RESEARCH.md:1194,1235` / `05-VALIDATION.md:63` fall back to **manual** UAT because "no JS test harness exists". That is a preference converting the §4.5 accessibility gates — the part that genuinely does not bend — into manual spot checks. With CM6 arriving here, does a test runner earn its cost? The §8 gates (keyboard path, focus, no-leak) are the argument that it does. **Default if unruled: take the runner and record it under the §4a supply-chain rule.**
+
 **Success Criteria** (what must be TRUE):
 
   1. A learner types code into a monospace field with working line numbers and a tab key that inserts a tab rather than moving focus.
@@ -704,6 +706,7 @@ Plans:
 
 - **OPEN — ruling 7** (shared with Phase 3.1): fold `lesson_layout` into `09-02-PLAN.md`'s closed `subject_profiles` object, or accept a registry version bump? **Default if unruled: fold into 09-02.**
 - **OPEN — ruling 15** (constraint audit F7, revisit): `03-CONTEXT.md:158` and `03-04-PLAN.md:79` grant leave to **drop table rendering** "if a stdlib table renderer proves out of proportion" — an effort budget that only exists because `03-RESEARCH.md:228` refused `markdown`/`mistune`/`commonmark` unread ("Not evaluated further"). SC4 here requires that an EMT lesson renders prose **and tables** correctly, and `UI-SPEC.md` §8 Narrow requires tables to preserve headers via a horizontal-scroll wrapper with an accessible name or stacked definition rows. A learner-facing feature carrying a §8 obligation is not droppable on effort. The single-renderer decision itself stands, on the better ground that §4.2 forbids a second parser and Phase 5's preview reuses ours via `data-line` sync. **Default if unruled: table rendering is in scope and the §8 Narrow obligation is met.**
+
 **Plans**: 5 plans across 4 waves
 
 Plans:
@@ -865,10 +868,12 @@ Weibao's instructions verbatim. The three rules that change what a planner does:
 1. **Keep going.** Stop only for a hard-to-reverse decision, a quality fork the
    research does not resolve, or a conflict with the five non-negotiables. Record
    assumptions and continue rather than asking.
+
 2. **When two designs are both defensible, ship both** behind one interface and make
    the choice a setting. This is affordable exactly because of the Extensibility
    Rules below. It stops being affordable — and the rule stops applying — when the
    two options would need two parsers, two scorers, or two evidence stores.
+
 3. **Claude plans, DeepSeek V4 executes.** Consequential decisions, UI above all,
    are made by the more capable model before any code is written, so execution is
    transcription rather than judgment. A plan that leaves a design decision to the
@@ -910,22 +915,28 @@ against any plan.
    algorithm, numeric-equivalence checker, selection strategy, subject profile,
    and lesson-block renderer are each one interface with named registered
    implementations. Adding one is a new module plus a config entry.
+
 2. **No central `if`-chain may grow.** If a plan's diff adds a branch to a
    dispatcher that already has three or more, the plan converts it to a registry
    in the same commit.
+
 3. **Additive format only, and provably so.** Every phase adding grammar ships a
    fixture bank using none of it and asserts byte-identical output against the
    prior phase. This is the compatibility floor, tested rather than promised.
+
 4. **Strategies are named in evidence.** Whatever chose, scheduled, or scored
    something writes its strategy name into the event, so a later algorithm change
    is legible in the history instead of silently reinterpreting it.
+
 5. **Derived, never stored.** Coverage maps, scheduler state, and trends are
    computed from the append-only log on demand. A cache is allowed only if it is
    disposable and its staleness is detectable (the Phase 1 sqlite3 index is the
    precedent).
+
 6. **The extension point is proven by a stub.** A phase claiming "adding another
    X is configuration only" adds a throwaway second X in a test. An untested
    extension point is a claim, not a seam.
+
 7. **Every capability keeps both surfaces.** A route and a CLI command, both
    calling the same runtime function. A feature reachable from only one surface
    is unfinished.
@@ -937,6 +948,7 @@ against any plan.
    dispatcher. The rule's teeth are that an unmapped entry fails a test; a third
    column keeps those teeth for free, and a second map loses them quietly. An MCP
    surface added any other way is a violation of this rule, not an extension of it.
+
 8. **One scorer, two normalizer registries, and a judgement path that is not a
    scorer at all.** *(Rewritten 2026-08-10 from Research Brief 2 §4.3 R4. The prior
    wording — "a registered strategy that declares its own authority" — was the
@@ -989,6 +1001,7 @@ against any plan.
    optional dependency (`sympy`), 1 config key, 1 event type (`mark_proposal`). No
    new blocks, no parser change, **no edit to `score_response()`** — a plan whose
    diff touches that function has failed.
+
 9. **A new API route reserves its tool name, and a key-bearing payload is gated on
    evidence.** *(Added 2026-08-10, extracted from backlog Phase 999.3 criteria 2 and 3
    during `/gsd-review-backlog`. Binds Phases 3 through 11 now. The phase itself stays
@@ -1010,9 +1023,11 @@ against any plan.
 
    - `surfaces/daemon.py:1261` and `:705` attach `explain` to a **submit result** —
      a response has necessarily been recorded to produce one.
+
    - `reveal` (`daemon.py:660`) is narrower than its name suggests: it controls only
      whether `explain_payload` returns the **short-item model answer**, and it defaults
      off. It is not the gate on the explain block itself.
+
    - `surfaces/study.py:29` passes `reveal=True` unconditionally, which is correct and
      deliberate: study is an answers-visible surface by definition, not a sitting.
 
@@ -1050,7 +1065,7 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 2. Daemon Consolidation & Settings Foundation | 6/6 | Complete    | 2026-08-08 |
 | 2.1 Packaging, Self-Update & Interop Export | 9/9 | Complete | 2026-08-08 |
 | 3. Lesson Format & In-App Reader | 6/6 | In Progress|  |
-| 3.1 Lesson Rich Blocks, Glossary & Style | 0/TBD | Not started | - |
+| 3.1 Lesson Rich Blocks, Glossary & Style | 1/7 | In Progress|  |
 | 3.2 Seeding, Import & Provenance | 0/TBD | Not started | - |
 | 4. Surface Redesign & Theming | 6/6 | In Progress|  |
 | 5. Check Item Type & Code Editor | 0/7 | Planned | - |
@@ -1121,8 +1136,10 @@ recorded constraints point the other way, and no one has answered them:
 1. `.claude/CLAUDE.md` **Users**: *"One. No accounts, no auth, no multi-tenancy, and no
    design work spent on them."* LTI is an authentication and identity protocol. It is
    the thing that sentence names.
+
 2. `.claude/CLAUDE.md` **Data residency**: *"No cloud sync, no hosted gradebook, no
    telemetry."* Grade passback is a hosted gradebook write.
+
 3. `ROADMAP.md` **Recorded descopes (2026-08-10)**: *"QTI / LTI / xAPI LRS (landscape
    verdict) | Skipped."* The descope table already skipped LTI and then pointed at this
    entry, which is circular. That circularity is the defect this split exposes.
@@ -1179,33 +1196,42 @@ together has confused "involves an LLM" with "is the same seam."
      document **read off disk** by the same `resources.py` path `protocol_cli.py`
      uses. Proven by a test that mutates a schema file and observes the tool
      signature change without a code edit.
+
   2. `SURFACE_PARITY` carries three columns and its existing test fails on a tool
      without a route, or a route without a tool. No second parity map exists.
+
   3. A pre-response tool call returns exactly `runtime.public_item()`. Proven by the
      existing no-key-in-payload discipline: a test asserts the key, rationale, and
      distractor analysis appear in **no** MCP response for an item with no recorded
      response in the evidence store.
+
   4. A tool call that reaches past the currently unlocked tier returns
      `isError: true` with the unlock condition stated, and the tier is read in the
      Python handler. Proven adversarially: an agent instructed to demand the answer
      receives the same refusal as one that asks politely, because the tool
      description participates in neither.
+
   5. stdio and an HTTP mount on the Phase 2 daemon both dispatch the same tool table
      through one framing function. Adding the second mount is a registration, not a
      fork (Extensibility Rule 6: prove it with a stub third mount in a test).
+
   6. The server implements `server/discover`, `tools/list`, `tools/call`, tolerates
      `notifications/cancelled`, **and** retains a legacy `initialize` /
      `notifications/initialized` path, because clients probe discover-first and fall
      back on any error, and it is unverified which revision Claude Code and Codex
      speak today.
+
   7. The server writes **no non-MCP bytes to stdout**. This collides with the
      codebase's `print()`-to-stdout convention and is the named top risk; logging on
      the MCP path goes to stderr, enforced by a test that asserts every stdout line
      parses as JSON-RPC.
+
   8. The server validates every tool input against its schema before dispatch, per
      the spec's MUST. `schema_validate.py` is reused; no validator dependency is added.
+
   9. `outputSchema` is declared for every tool and the structured result is mirrored
      into a TextContent block, per the spec's SHOULD.
+
   10. Every capability stays reachable from the CLI with no MCP client installed. The
       MCP surface is a client of the runtime, never a precondition for it.
 
@@ -1213,8 +1239,10 @@ together has confused "involves an LLM" with "is the same seam."
 
 - Whether an MCP session and a browser session may share one session id. Leaning yes,
   since the evidence store already distinguishes actors. Undecided.
+
 - Whether authoring tools (`lint`, `guard`, `export`) join the sitting tools in one
   table or a second capability group. Leaning one table.
+
 - Whether `mark_proposal` (Phase 8 criterion 12) is reachable over MCP at all.
   Leaning no, until Phase 8 lands.
 
