@@ -5,14 +5,14 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: Surface Redesign & Theming
 status: executing
-stopped_at: Phases 3.1, 3.2, 6.2, 9.1, 13 context gathered
-last_updated: "2026-08-10T17:40:54.937Z"
+stopped_at: UI-SPECs approved for 3.1, 6, 6.2, 7, 13; project font-weight locked 400/600
+last_updated: "2026-08-10T18:55:45.856Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 02.1 execution started
 progress:
   total_phases: 18
   completed_phases: 5
-  total_plans: 79
+  total_plans: 86
   completed_plans: 38
 ---
 
@@ -250,9 +250,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-10T17:40:54.888Z
-Stopped at: Phases 3.1, 3.2, 6.2, 9.1, 13 context gathered
+Last session: 2026-08-10T18:03:57.539Z
+Stopped at: UI-SPECs approved for 3.1, 6, 6.2, 7, 13; project font-weight locked 400/600
 verified 5/5 with human items deferred; Phases 2.1/3/4 carry
 verification_deferred_human rows above.
-Resume file: .planning/phases/03.1-lesson-rich-blocks-glossary-style/03.1-CONTEXT.md
+Resume file: .planning/phases/03.1-lesson-rich-blocks-glossary-style/03.1-UI-SPEC.md
 $gsd-autonomous --from 5 in a fresh chat)

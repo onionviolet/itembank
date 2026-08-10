@@ -300,7 +300,7 @@ Plans:
 **Goal**: A lesson can define its own vocabulary, mark what must be memorized, and be held to one written style contract — so reading material teaches like a textbook instead of rendering like a text file, and every block it adds is scored, exported, or linted by machinery that already exists.
 **Mode:** mvp
 **Depends on**: Phase 3, Phase 4 (tokens)
-**Requirements**: TBD (assign at `/gsd-plan-phase 3.1`)
+**Requirements**: LESSON-07, LESSON-08, LESSON-09, LESSON-10, LESSON-11, LESSON-12, LESSON-13, LESSON-14, LESSON-15, LESSON-16, LESSON-17
 **UI hint**: yes
 **Research basis**: `.planning/research/2026-08-09-differentiators-d1-d2-d3.md` (D1/D2/D3 grammar — use verbatim as this phase's format contract), `2026-08-09-lesson-display-editor.md` Q1, `2026-08-09-visual-design.md`, brief §7.2 Q3/Q4/Q7 and §7.6.
 **Round-two research: COMPLETE (2026-08-10)** — this phase is no longer blocked. R1 and R2 are answered in `.planning/RESEARCH-BRIEF-2-lesson-styles-2026-08-10.md` §4.3, with full verdicts in `.planning/research/2026-08-10-lesson-style-catalogue.md` (styles) and `2026-08-10-style-registry-mechanics.md` (registry shape). Criteria 3a and 3b below are rewritten from those verdicts and are now specifications, not placeholders. R2 enforcement lands as criterion 3c; R5 file layout as criterion 7.
@@ -338,7 +338,24 @@ Plans:
 - **No trustworthy open-weight prose-quality benchmark exists**, so any model choice for lesson authoring must be settled by running our own 18-rule check over generated lessons.
 - **There is no real bank yet**, so the criterion-7 layout argument is structural against Phase 11's criteria, not observed churn.
 
-**Plans**: TBD
+**Plans**: 7 plans across 3 waves
+
+Plans:
+**Wave 1**
+
+- [ ] 03.1-01-PLAN.md — Tokens + the one callout container; LESSON_TEMPLATE onto theme_css + SHARED_CSS + LESSON_CSS
+- [ ] 03.1-02-PLAN.md — TERMS glossary: parse_terms, glossable() gate, Popover gloss + appendix, term_lookup
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 03.1-03-PLAN.md — [!KEY] cards, Anki keys export with round-tripping #guid, key_review, Educational Objective privacy
+- [ ] 03.1-04-PLAN.md — Style registry: five styles + house, LOCKED_RULE_IDS, render_style and the named refusals
+- [ ] 03.1-05-PLAN.md — Style enforcement cost classes, suppression + 50ms budget, StylePrompt capped imperatives
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 03.1-06-PLAN.md — Font vendoring (Source Serif 4 + iA Writer Quattro), spec grammar documentation, lesson_layout fold into 09-02
+- [ ] 03.1-07-PLAN.md — Phase verification: the eight UI-SPEC §17 gates, requirement-coverage audit, full suite
 
 ### Phase 3.2: Seeding, Import & Provenance (INSERTED 2026-08-10)
 

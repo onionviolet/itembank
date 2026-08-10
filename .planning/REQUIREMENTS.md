@@ -32,6 +32,17 @@
 - [x] **LESSON-04**: `lint` fails, by item number, when a `LESSON-REF` names a heading that does not exist -- never a render-time crash
 - [ ] **LESSON-05**: `spec` documents both, so an authoring agent can write lessons without seeing the source
 - [x] **LESSON-06**: A lesson renders in the app as reading material, with its items reachable from it
+- [ ] **LESSON-07**: A `## TERMS` block plus `[[term]]` references render as a Popover-API hover gloss, degrade to a glossary appendix with no JavaScript, pass through a runtime `glossable()` gate so a gloss can never leak a keyed answer, and each lookup lands as a `term_lookup` event
+- [ ] **LESSON-08**: A `[!KEY]` callout is a GitHub-compatible block with a minted `[ID:]`/`[HASH:]`, exports to Anki TSV with a `#guid` that round-trips on re-export, supports `{{cloze}}`, and emits `key_review` events
+- [ ] **LESSON-09**: A style file carries a `## Voice` prose zone and a machine-parsed `## Rules` pipe table; machine-checkable rules are implemented, model-judged rules are declared `manual`, and a rule row claiming a lintable severity the linter does not implement is itself a lint error
+- [ ] **LESSON-10**: The style registry ships five styles in order with `expository` as parent, one file per style, exactly one inheritance level, a locked house `lock` column, fixed selection precedence, and a `render_style`/`restyle` split that refuses named-impossible transforms
+- [ ] **LESSON-11**: Style enforcement runs as three cost classes on every lint, the check catalogue is closed, every warning ships with a recorded false-positive rate, `<!-- style-ignore: -->` exists, and the whole pass stays under 50ms on a 5000-word lesson
+- [ ] **LESSON-12**: The authoring model receives distilled imperatives capped at seven (configurable), placed last in the prompt, plus exactly one exemplar, never the style file or `## Voice` verbatim
+- [ ] **LESSON-13**: `[!CHECK: <id>]` is the single new parse path with no key and no scoring path, same-bank-only by lint rule; `[!EXAMPLE]` is a callout kind against the existing callout container
+- [ ] **LESSON-14**: Callouts, figures, print CSS, and the reading measure/heading ramp render on Phase 4's token set with no new type sizes; a bank using none of the new blocks renders byte-identically to Phase 3 output
+- [ ] **LESSON-15**: Every item carries an optional one-sentence lintable Educational Objective line, present in `explain_payload()` only, consumable by selection, dedup, Anki export, and the auditor without any of them re-deriving it
+- [ ] **LESSON-16**: The TERMS grammar reserves one optional ignorable `zh=` meta field, dropped from rendered output entirely
+- [ ] **LESSON-17**: Two-file lesson layout is the default; the subject-profile `lesson_layout` field overrides it and is folded into `09-02-PLAN.md` before Phase 9 executes
 
 ### Teaching
 
@@ -249,6 +260,17 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | LESSON-04 | Phase 3 | Complete |
 | LESSON-05 | Phase 3 | Pending |
 | LESSON-06 | Phase 3 | Complete |
+| LESSON-07 | Phase 3.1 | Pending |
+| LESSON-08 | Phase 3.1 | Pending |
+| LESSON-09 | Phase 3.1 | Pending |
+| LESSON-10 | Phase 3.1 | Pending |
+| LESSON-11 | Phase 3.1 | Pending |
+| LESSON-12 | Phase 3.1 | Pending |
+| LESSON-13 | Phase 3.1 | Pending |
+| LESSON-14 | Phase 3.1 | Pending |
+| LESSON-15 | Phase 3.1 | Pending |
+| LESSON-16 | Phase 3.1 | Pending |
+| LESSON-17 | Phase 3.1 | Pending |
 | TEACH-01 | Phase 6 | Pending |
 | TEACH-02 | Phase 6 | Pending |
 | TEACH-03 | Phase 6 | Pending |
