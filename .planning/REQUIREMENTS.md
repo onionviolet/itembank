@@ -174,6 +174,14 @@
 - [x] **DEL-07**: Update behaviour toggles between opt-in-only and check-on-launch, and fails silently when offline
 - [x] **DEL-08**: GIFT export produces a file a real LMS importer accepts, and item types GIFT cannot express fail loudly by item number rather than exporting silently wrong
 
+### Desktop shell (Phase 13)
+
+- [ ] **DEL-09**: The Tauri shell talks to the sidecar over the existing localhost HTTP surface only, with the bound port and a per-launch token announced on the sidecar's stdout — no second IPC protocol, no fixed-port assumption
+- [ ] **DEL-10**: Killing the shell leaves no orphaned sidecar and no held port; on Windows the sidecar sits in a job object, and a second launch attaches to the running instance via a named mutex rather than racing it
+- [ ] **DEL-11**: The app installs per-user via NSIS (machine-wide option), uninstalling never deletes the evidence store, and the installed size lands in the 25–45 MB target as a PyInstaller onedir artifact
+- [ ] **DEL-12**: `tauri-plugin-updater` (signed) and the Phase 2.1 Python updater consume one GitHub Releases channel with their own manifest formats, one `notified_at` disclosure record covers both, and version coherence is checked at the sidecar handshake
+- [ ] **DEL-13**: The code-signing and AV checklist is executed (certificate named or unsigned shipped honestly, Microsoft false-positive submission, VirusTotal baseline), and every capability stays reachable from the CLI without the shell installed
+
 ## v2 Requirements
 
 ### Retention
@@ -368,6 +376,11 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | DEL-06 | Phase 12 | Complete |
 | DEL-07 | Phase 12 | Complete |
 | DEL-08 | Phase 12 | Complete |
+| DEL-09 | Phase 13 | Pending |
+| DEL-10 | Phase 13 | Pending |
+| DEL-11 | Phase 13 | Pending |
+| DEL-12 | Phase 13 | Pending |
+| DEL-13 | Phase 13 | Pending |
 
 **Coverage:**
 

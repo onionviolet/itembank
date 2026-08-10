@@ -796,7 +796,7 @@ This phase's full content — goal, requirements, success criteria, open decisio
 **Goal**: itembank installs and launches like a real desktop application on Windows, and the thing inside the window is still the same Python runtime, the same scorer, and the same evidence store the CLI uses.
 **Mode:** mvp
 **Depends on**: Phase 2.1 (the `.pyz`, the updater, and the release channel it reuses)
-**Requirements**: TBD (assign at `/gsd-plan-phase 13`)
+**Requirements**: DEL-09, DEL-10, DEL-11, DEL-12, DEL-13
 **Research basis**: `.planning/research/2026-08-09-packaging.md` (Q8). Verdict: **keep the Python runtime.** Porting the runtime to a JS/Rust stack would temporarily create two scorers — the one anti-pattern this project forbids outright. SiYuan's kernel-behind-webview architecture is shipping proof of the pattern.
 **Success Criteria** (what must be TRUE):
 
@@ -811,7 +811,22 @@ This phase's full content — goal, requirements, success criteria, open decisio
 
 - **OPEN — ruling 3**: Weibao confirms Q8 (keep Python, Tauri sidecar, NSIS) and this phase number. The direction is recorded as adopted-pending-ruling; nothing else in the roadmap depends on the answer.
 
-**Plans**: TBD
+**Plans**: 5 plans across 3 waves
+
+Plans:
+**Wave 1**
+
+- [ ] 13-01-PLAN.md — Sidecar handshake (port + token + version), token gate, single-instance attach/refuse, lifecycle fixture
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 13-02-PLAN.md — The Tauri shell: sidecar spawn, Job Object lifecycle, named mutex, window chrome, liveness states
+- [ ] 13-03-PLAN.md — PyInstaller onedir build, NSIS installer with evidence-store guard, install notice, headless CLI proof
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 13-04-PLAN.md — Updater: latest.json + minisign alongside SHA256SUMS.txt, tauri-plugin-updater, one-disclosure StatusNotice
+- [ ] 13-05-PLAN.md — Phase verification: executed AV/signing checklist, lifecycle/size/headless evidence, full suite
 
 ## How this roadmap gets planned (added 2026-08-10)
 
