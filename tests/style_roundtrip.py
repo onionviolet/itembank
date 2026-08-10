@@ -277,12 +277,122 @@ def test_resolve_style_precedence():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_shipped_styles_load_and_lint_clean():
+    """All five shipped styles plus house resolve through load_style()'s
+    bundled level with a ## Voice zone, a ## Rules pipe table and an
+    ## Exemplar; every rule row's kind is inside the closed STYLE_RULE_KINDS
+    set (D-16), and a lint pass over each resolved style emits no style.*
+    finding (plan 03.1-04 Task 2 acceptance: five styles load and lint
+    clean under D-16)."""
+    tmp, _, _ = temp_tree()
+    old = patch_user_data_dir(os.path.join(tmp, "empty-user"))
+    try:
+        for sid in ("house", "expository", "worked-example", "checked-prose",
+                    "artifact-first", "case-narrative"):
+            st = load_style(sid, None)
+            if st is None or st.get("error"):
+                fail("bundled style %r did not resolve at the bundled level "
+                     "(D-09)" % sid)
+            check("%s carries a ## Voice zone" % sid,
+                  bool(st["voice"].strip()))
+            check("%s carries a ## Rules table" % sid,
+                  len(st["rules"]) >= 2)
+            check("%s carries an ## Exemplar" % sid,
+                  bool(st["exemplar"].strip()))
+            bad = [r["id"] for r in st["rules"]
+                   if r.get("kind") not in STYLE_RULE_KINDS]
+            check("%s rule kinds are all in the closed set (D-16)" % sid,
+                  not bad, repr(bad))
+            errs, warns = lint([], style=st)
+            style_findings = [e for e in errs + warns
+                              if e.code.startswith("style.")]
+            check("%s lints clean under D-16" % sid,
+                  not style_findings,
+                  repr([str(e) for e in style_findings]))
+    finally:
+        model._user_data_dir = old
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_style_parents_predict_flag_and_house_documents_locks():
+    """The declared inheritance contract: expository is the content parent
+    and declares no machine [STYLE-PARENT:] directive, the other four
+    declare the exactly-one-level machine parent `house` (D-10 -- a
+    [STYLE-PARENT:] naming anything but house is style.parent_unknown), and
+    name expository as their content parent; checked-prose carries the
+    predict_first flag (D-08); styles/house.md documents every
+    LOCKED_RULE_IDS id in prose but never defines them (ruling 13)."""
+    bundled = {}
+    for sid in ("house", "expository", "worked-example", "checked-prose",
+                "artifact-first", "case-narrative"):
+        st = load_style(sid, None)
+        if st is None or st.get("error"):
+            fail("bundled style %r unavailable for the parent fixture" % sid)
+        bundled[sid] = st
+    check("expository declares no [STYLE-PARENT:] directive",
+          bundled["expository"]["parent"] == "")
+    for sid in ("worked-example", "checked-prose", "artifact-first",
+                "case-narrative"):
+        st = bundled[sid]
+        check("%s declares the one-level machine parent house (D-10)" % sid,
+              st["parent"] == "house")
+        check("%s names expository as its content parent" % sid,
+              "expository" in st["voice"] + st["exemplar"])
+    checked = bundled["checked-prose"]
+    check("checked-prose carries the predict_first flag (D-08)",
+          "predict_first" in checked["voice"] + checked["exemplar"])
+    house_text = bundled["house"]["voice"] + bundled["house"]["exemplar"]
+    for locked in sorted(LOCKED_RULE_IDS):
+        check("house.md documents locked id %s" % locked,
+              locked in house_text)
+
+
+def test_rule6_stub_one_file_extensibility():
+    """Extensibility Rule 6 (03.1-UI-SPEC 17.8): a throwaway sixth style
+    file added to a bank-adjacent styles/ dir loads through the existing
+    loader and lints clean with no parser, lint-code, or renderer change --
+    the test writes only the new file, which is the whole proof."""
+    tmp, bank, _ = temp_tree()
+    try:
+        sixth = style_text([
+            ("stub.order", "order.before", "[!EXAMPLE], [!KEY]",
+             "warn", "", "no")], parent="house")
+        with open(os.path.join(bank, "styles", "sixth.md"), "w",
+                  encoding="utf-8") as fh:
+            fh.write(sixth)
+        st = load_style("sixth", bank)
+        if st is None:
+            fail("a sixth style file did not load through load_style")
+        errs, warns = lint([], style=st)
+        check("Rule 6 stub lints clean with zero code change",
+              not [e for e in errs + warns if e.code.startswith("style.")])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_stage_dirs_allowlist_ships_styles():
+    """The artifact's bundled styles/ directory enters the release only
+    through build.py's STAGE_DIRS allowlist (T-031-SC) -- the same explicit
+    allowlist that keeps learner evidence and private banks out."""
+    src = open(os.path.join(ROOT, "build.py"), encoding="utf-8").read()
+    m = re.search(r"STAGE_DIRS\s*=\s*\(([^)]*)\)", src)
+    if not m:
+        fail("build.py has no STAGE_DIRS allowlist tuple")
+    names = [n.strip().strip("'\"") for n in m.group(1).split(",")]
+    check("styles/ is in build.py's STAGE_DIRS allowlist",
+          "styles" in names, repr(names))
+
+
 def main():
     test_load_style_parses_voice_rules_exemplar()
     test_resolution_order_and_duplicate_warning()
     test_parent_unknown_and_one_inheritance_level()
     test_locked_rule_ids_literal_and_override()
     test_resolve_style_precedence()
+    test_shipped_styles_load_and_lint_clean()
+    test_style_parents_predict_flag_and_house_documents_locks()
+    test_rule6_stub_one_file_extensibility()
+    test_stage_dirs_allowlist_ships_styles()
     print("\nstyle_roundtrip: ALL TESTS PASSED")
 
 
