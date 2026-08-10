@@ -35,6 +35,13 @@ STAGE_DIRS = ("surfaces", "schemas")
 
 LAUNCHER_DIR = os.path.join(ROOT, "launchers")
 
+# The stable name every launcher shim resolves at double-click time
+# (launchers/itembank.bat|.command|.desktop all name `itembank.pyz`). The
+# canonical, updater-picked artifact stays versioned (`itembank-<version>.pyz`,
+# see surfaces/update.py:_ASSET_RE); this is the same bytes under the name a
+# fresh download expects, so the two cannot drift.
+STABLE_ARTIFACT_NAME = "itembank.pyz"
+
 # One branch, no more: the update handoff attempt, guarded so a broken
 # updater can never stop the tool from starting. Every launch of the built
 # artifact first offers a newer, already-verified sibling the chance to take
@@ -113,6 +120,17 @@ def copy_launchers(out_dir):
             os.chmod(dst, os.stat(src).st_mode)
 
 
+def copy_stable_artifact(artifact, out_dir):
+    """Ship a stable `itembank.pyz` alongside the versioned artifact, so the
+    launcher shims -- which name one file that does not change between
+    releases -- resolve real bytes in a fresh release directory. Must run
+    before sha256sums() so the checksum file covers both names.
+    """
+    dst = os.path.join(out_dir, STABLE_ARTIFACT_NAME)
+    shutil.copy2(artifact, dst)
+    return dst
+
+
 def main():
     ap = argparse.ArgumentParser(description="Build the itembank release artifact.")
     ap.add_argument("--out", default="dist", help="output directory (default: dist)")
@@ -121,6 +139,7 @@ def main():
     artifact = build(a.out)
     print("%d bytes -> %s" % (os.path.getsize(artifact), artifact))
     copy_launchers(a.out)
+    copy_stable_artifact(artifact, a.out)
     sha256sums(a.out)
     n = sum(1 for f in os.listdir(a.out)
             if f != "SHA256SUMS.txt" and os.path.isfile(os.path.join(a.out, f)))

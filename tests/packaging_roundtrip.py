@@ -6,7 +6,7 @@ learner or agent does, not by inspecting `build.py`'s source.
 
 Standard library only, runnable as `python tests/packaging_roundtrip.py`.
 """
-import fnmatch, hashlib, os, shutil, subprocess, sys, tempfile, zipfile
+import fnmatch, hashlib, os, re, shutil, subprocess, sys, tempfile, zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -111,8 +111,9 @@ def test_no_evidence_or_bank_in_the_artifact(artifact):
         fail("artifact carries evidence/bank-shaped members: %r" % bad)
 
 
-def test_checksums_cover_every_artifact(out_dir):
+def test_checksums_cover_every_artifact(out_dir, artifact):
     build.copy_launchers(out_dir)
+    build.copy_stable_artifact(artifact, out_dir)
     checksums = build.sha256sums(out_dir)
     lines = [l for l in open(checksums, encoding="utf-8").read().splitlines() if l]
     listed = {}
@@ -130,6 +131,50 @@ def test_checksums_cover_every_artifact(out_dir):
         fail("SHA256SUMS.txt does not list itembank.bat")
     if not any(n.startswith("itembank-") and n.endswith(".pyz") for n in listed):
         fail("SHA256SUMS.txt does not list the .pyz artifact")
+
+
+def test_stable_launcher_artifact_ships(out_dir):
+    """The regression this phase actually shipped: every launcher shim names
+    `itembank.pyz`, and the release directory must contain exactly the
+    artifact's bytes under that name. This also proves every shim-referenced
+    `.pyz` basename exists in the release directory, so a future artifact
+    rename cannot silently break double-click again.
+    """
+    versioned = [n for n in os.listdir(out_dir)
+                 if n.startswith("itembank-") and n.endswith(".pyz")]
+    if not versioned:
+        fail("release directory has no versioned itembank-*.pyz artifact")
+    artifact = versioned[0]
+    artifact_digest = hashlib.sha256(
+        open(os.path.join(out_dir, artifact), "rb").read()).hexdigest()
+
+    stable = os.path.join(out_dir, build.STABLE_ARTIFACT_NAME)
+    if not os.path.exists(stable):
+        fail("release directory has no %s for the launchers to run"
+             % build.STABLE_ARTIFACT_NAME)
+    stable_digest = hashlib.sha256(open(stable, "rb").read()).hexdigest()
+    if stable_digest != artifact_digest:
+        fail("%s bytes differ from %s" % (build.STABLE_ARTIFACT_NAME, artifact))
+
+    checksums_path = os.path.join(out_dir, "SHA256SUMS.txt")
+    lines = [l for l in open(checksums_path, encoding="utf-8").read().splitlines() if l]
+    listed = {}
+    for line in lines:
+        digest, name = line.split("  ", 1)
+        listed[name] = digest
+    if listed.get(build.STABLE_ARTIFACT_NAME) != artifact_digest:
+        fail("SHA256SUMS.txt does not list %s with the artifact digest"
+             % build.STABLE_ARTIFACT_NAME)
+
+    for name in os.listdir(build.LAUNCHER_DIR):
+        text = open(os.path.join(build.LAUNCHER_DIR, name), encoding="utf-8").read()
+        refs = re.findall(r"itembank(?:-\d+\.\d+\.\d+)?\.pyz", text)
+        if not refs:
+            fail("%s names no .pyz artifact to launch" % name)
+        for ref in refs:
+            if ref not in listed:
+                fail("%s references %r, absent from the release directory"
+                     % (name, ref))
 
 
 def test_every_launcher_ships(out_dir):
@@ -186,7 +231,8 @@ def main():
         test_artifact_runs_every_resource_reading_command(artifact)
         test_artifact_is_plain_python_inside(artifact)
         test_no_evidence_or_bank_in_the_artifact(artifact)
-        test_checksums_cover_every_artifact(out_dir)
+        test_checksums_cover_every_artifact(out_dir, artifact)
+        test_stable_launcher_artifact_ships(out_dir)
         test_every_launcher_ships(out_dir)
         test_launchers_carry_the_locked_failure_sentence()
     finally:
