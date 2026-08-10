@@ -1066,20 +1066,20 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 2.1 Packaging, Self-Update & Interop Export | 9/9 | Complete | 2026-08-08 |
 | 3. Lesson Format & In-App Reader | 6/6 | In Progress|  |
 | 3.1 Lesson Rich Blocks, Glossary & Style | 3/7 | In Progress|  |
-| 3.2 Seeding, Import & Provenance | 0/TBD | Not started | - |
+| 3.2 Seeding, Import & Provenance | 0/5 | Planned | - |
 | 4. Surface Redesign & Theming | 6/6 | In Progress|  |
 | 5. Check Item Type & Code Editor | 0/7 | Planned | - |
 | 6. Hint Ladder, Cursor-Hold & Feedback Modes | 0/2 | Planned | - |
 | 6.1 Interactive Visual Assessment Protocol | 0/3 | Planned | - |
-| 6.2 Executable Textbook Loop | 0/TBD | Not started | - |
+| 6.2 Executable Textbook Loop | 0/4 | Planned | - |
 | 7. Selection Engine | 0/6 | Planned | - |
 | 8. Model Adapter Interface & Tier-Gate Enforcement | 0/TBD | Not started | - |
 | 9. Subject-Invariant Loop — EMT, Math, CS Integration | 0/5 | Planned | - |
-| 9.1 Audio Drill Export | 0/TBD | Not started | - |
+| 9.1 Audio Drill Export | 0/4 | Planned | - |
 | 10. Retention, Pacing & Trends | 0/TBD | Not started | - |
 | 11. Closed Authoring Loop & Curriculum Auditor | 0/TBD | Not started | - |
 | 12. ~~Packaging, Self-Update & Interop Export~~ | — | Retired (moved to 2.1) | - |
-| 13. Desktop Packaging — Tauri Shell over Python Sidecar | 0/TBD | Not started | - |
+| 13. Desktop Packaging — Tauri Shell over Python Sidecar | 0/5 | Planned | - |
 
 ## Backlog
 
