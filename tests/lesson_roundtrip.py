@@ -1759,6 +1759,207 @@ def test_spec_existing_contract_intact():
             fail("existing SPEC substring lost: %r" % keep)
 
 
+# ---- plan 03.1-02: TERMS parse, refs, and terms/key lint -------------------
+
+def terms_bank(tmp=None, terms_text=None, lesson_body="", item=None):
+    """A real bank file carrying an optional `## TERMS` block and optional
+    lesson body, so parse_terms and the terms lint pass run over the same
+    on-disk shape every real caller uses."""
+    tmp = tmp or tempfile.mkdtemp()
+    bank = os.path.join(tmp, "terms_bank.md")
+    parts = ["# Terms bank\n"]
+    if terms_text is not None:
+        parts.append("## TERMS\n\n%s\n" % terms_text.strip())
+    if lesson_body:
+        parts.append("## LESSON\n\n%s\n" % lesson_body.strip())
+    parts.append((item or clean_mc("Which is one?")).strip() + "\n")
+    open(bank, "w", encoding="utf-8").write("\n".join(parts))
+    return bank
+
+
+def test_parse_terms_basic():
+    """A `## TERMS` block of pipe rows parses into slug-keyed records with
+    canonical/aliases/def plus recognised meta (xlat), the reserved zh= is
+    dropped from the record, and [[term]] refs are collected from the lesson
+    body with their lesson_slug() values."""
+    bank = terms_bank(
+        terms_text=("Airway | The passage from mouth to lungs | Air passage | zh=Zhōngwén\n"
+                    "OPA | A rigid curved adjunct that holds the tongue off the pharynx | "
+                    "Oropharyngeal airway | xlat=气道\n"),
+        lesson_body="### Intro\n\nSee [[Airway]] and [[OPA]].",
+    )
+    t = itembank.parse_terms(bank)
+    if t is None:
+        fail("parse_terms returned None for a bank with ## TERMS")
+    if sorted(t["terms"]) != ["airway", "opa"]:
+        fail("term slugs wrong: %r" % sorted(t["terms"]))
+    aw = t["terms"]["airway"]
+    if aw["canonical"] != "Airway" or aw["def"] != "The passage from mouth to lungs":
+        fail("airway record wrong: %r" % aw)
+    if aw["aliases"] != ["Air passage"]:
+        fail("aliases wrong: %r" % aw["aliases"])
+    opa = t["terms"]["opa"]
+    if opa["aliases"] != ["Oropharyngeal airway"] or opa["xlat"] != "气道":
+        fail("opa record wrong: %r" % opa)
+    if any("zh" in str(v).lower() for v in aw.values()):
+        fail("reserved zh= must be dropped from the term record: %r" % aw)
+    if [r["text"] for r in t["refs"]] != ["Airway", "OPA"]:
+        fail("[[term]] refs wrong: %r" % t["refs"])
+    if [r["slug"] for r in t["refs"]] != ["airway", "opa"]:
+        fail("ref slugs must use lesson_slug: %r" % t["refs"])
+    if t["empty"] is not False:
+        fail("a two-row TERMS block must not be marked empty")
+
+
+def test_parse_terms_absent_and_question_parse_unchanged():
+    """A bank without `## TERMS` returns None, and adding a TERMS block does
+    not change load()/parse_bank() output (D-23 additive floor)."""
+    if itembank.parse_terms(SMP_BANK) is not None:
+        fail("sample_bank has no ## TERMS section; parse_terms should be None")
+    tmp = tempfile.mkdtemp()
+    base = clean_mc("Which is one?")
+    p_plain = os.path.join(tmp, "plain.md")
+    open(p_plain, "w", encoding="utf-8").write(base)
+    p_terms = os.path.join(tmp, "terms.md")
+    open(p_terms, "w", encoding="utf-8").write(
+        "# Tagged\n\n## TERMS\n\nAirway | The passage\n\n" + base)
+    plain_qs = itembank.parse_bank(open(p_plain, encoding="utf-8").read())
+    terms_qs = itembank.parse_bank(open(p_terms, encoding="utf-8").read())
+    if plain_qs != terms_qs:
+        fail("a ## TERMS block must not change parse_bank output")
+    if itembank.load(p_terms) != itembank.load(p_plain):
+        fail("load() must be identical with or without a TERMS block")
+
+
+def test_terms_meta_captured_and_marked_ignored():
+    """The reserved zh= meta and an unknown meta key are captured and marked
+    ignored, and neither appears in any parsed output field the renderer
+    consumes (D-24, LESSON-16)."""
+    bank = terms_bank(
+        terms_text="Airway | The passage | zh=Zhōngwén | xlat=气道 | mystery=1")
+    t = itembank.parse_terms(bank)
+    rec = t["terms"]["airway"]
+    for field in ("canonical", "aliases", "def", "xlat", "see"):
+        if "zh" in str(rec[field]).lower() or "mystery" in str(rec[field]).lower():
+            fail("ignored meta must not leak into record fields: %r" % rec)
+    if rec["xlat"] != "气道":
+        fail("recognised xlat= meta must populate the record: %r" % rec)
+    keys = sorted({i["key"] for i in t["ignored"]})
+    if keys != ["mystery", "zh"]:
+        fail("ignored meta keys wrong: %r" % keys)
+    if any(i["row"] != "Airway" for i in t["ignored"]):
+        fail("ignored meta must record its owning row: %r" % t["ignored"])
+
+
+def test_terms_lint_unknown_ref_and_no_block():
+    """A [[term]] with no matching ## TERMS entry is a BANK error naming the
+    ref; a bank with no TERMS block at all makes every ref unknown."""
+    tmp = tempfile.mkdtemp()
+    bank = terms_bank(tmp, terms_text="Airway | The passage",
+                      lesson_body="See [[Missing]].")
+    qs = itembank.load(bank)
+    errors, warnings = itembank.lint(qs, lesson=itembank.parse_lesson(bank),
+                                     terms=itembank.parse_terms(bank))
+    assert_codes_declared(errors + warnings)
+    unknown = [e for e in errors if e.code == "terms.unknown_ref"]
+    if len(unknown) != 1 or unknown[0].item != "BANK":
+        fail("unknown ref must be a single BANK error: %r" % errors)
+    if "Missing" not in unknown[0].message:
+        fail("unknown-ref message must name the ref: %r" % unknown[0].message)
+    if unknown[0].field != "refs":
+        fail("unknown-ref field must be 'refs', got %r" % unknown[0].field)
+
+    bank2 = terms_bank(tmp, terms_text=None, lesson_body="See [[Airway]].")
+    qs2 = itembank.load(bank2)
+    errors2, _ = itembank.lint(qs2, lesson=itembank.parse_lesson(bank2),
+                               terms=itembank.parse_terms(bank2))
+    unknown2 = [e for e in errors2 if e.code == "terms.unknown_ref"]
+    if len(unknown2) != 1:
+        fail("a bank with no TERMS block must flag every ref unknown: %r"
+             % errors2)
+
+
+def test_terms_lint_empty_block_and_duplicate_slug():
+    """A zero-entry ## TERMS block is a warning and still renders nothing; two
+    term keys or aliases that slug-collide are an error."""
+    tmp = tempfile.mkdtemp()
+    bank = terms_bank(tmp, terms_text="", lesson_body="See [[Airway]].")
+    qs = itembank.load(bank)
+    errors, warnings = itembank.lint(qs, lesson=itembank.parse_lesson(bank),
+                                     terms=itembank.parse_terms(bank))
+    empty = [w for w in warnings if w.code == "terms.empty_block"]
+    if len(empty) != 1 or empty[0].item != "BANK":
+        fail("zero-entry TERMS block must warn exactly once: %r" % warnings)
+    if [w for w in warnings
+            if w.code.startswith(("terms.", "key."))
+            and w.code != "terms.empty_block"]:
+        fail("empty-block bank must produce no other terms/key warnings: %r"
+             % warnings)
+
+    bank2 = terms_bank(tmp, terms_text="Air-way | One\nAir Way | Two")
+    qs2 = itembank.load(bank2)
+    errors2, _ = itembank.lint(qs2, lesson=itembank.parse_lesson(bank2),
+                               terms=itembank.parse_terms(bank2))
+    dup = [e for e in errors2 if e.code == "terms.duplicate_slug"]
+    if len(dup) != 1 or dup[0].item != "BANK":
+        fail("slug-colliding terms must be a BANK error: %r" % errors2)
+    if "air-way" not in dup[0].message:
+        fail("duplicate-slug message must name the colliding slug: %r"
+             % dup[0].message)
+
+    bank3 = terms_bank(tmp, terms_text="OPA | One | Oropharyngeal airway\n"
+                                       "Opa | Two")
+    qs3 = itembank.load(bank3)
+    errors3, _ = itembank.lint(qs3, lesson=itembank.parse_lesson(bank3),
+                               terms=itembank.parse_terms(bank3))
+    if len([e for e in errors3 if e.code == "terms.duplicate_slug"]) != 1:
+        fail("an alias slug-colliding with a term must be an error: %r"
+             % errors3)
+
+
+def test_terms_lint_key_in_rationale_and_duplicate_id():
+    """A [!KEY] marker inside an item rationale is an error tagged by that
+    item's Qn number (D-05); duplicate [!KEY] ids in the lesson body are a
+    BANK error."""
+    tmp = tempfile.mkdtemp()
+    item = clean_mc("Which is one?").replace(
+        "WHY BEST: One is the keyed answer.",
+        "WHY BEST: One is the keyed answer. [!KEY: opa-1]")
+    bank = terms_bank(tmp, terms_text="Airway | The passage", item=item)
+    qs = itembank.load(bank)
+    errors, _ = itembank.lint(qs, lesson=itembank.parse_lesson(bank),
+                              terms=itembank.parse_terms(bank))
+    key = [e for e in errors if e.code == "key.in_rationale"]
+    if len(key) != 1 or key[0].item != "Q1" or key[0].field != "why":
+        fail("key.in_rationale must be tagged by item and field: %r" % key)
+
+    bank2 = terms_bank(
+        tmp, terms_text="Airway | The passage",
+        lesson_body="> [!KEY: opa-1] First card\n\n> [!KEY: opa-1] Second card")
+    qs2 = itembank.load(bank2)
+    errors2, _ = itembank.lint(qs2, lesson=itembank.parse_lesson(bank2),
+                               terms=itembank.parse_terms(bank2))
+    dup_id = [e for e in errors2 if e.code == "key.duplicate_id"]
+    if len(dup_id) != 1 or dup_id[0].item != "BANK":
+        fail("duplicate [!KEY] ids must be a BANK error: %r" % errors2)
+    if "opa-1" not in dup_id[0].message:
+        fail("duplicate-id message must name the id: %r" % dup_id[0].message)
+
+
+def test_terms_lint_sentinel_exported_and_default_unchanged():
+    """TERMS_UNCHECKED is the exported sentinel default; lint(qs) without it
+    emits no terms/key finding (the additive pattern LESSON_UNCHECKED set)."""
+    if not hasattr(itembank, "TERMS_UNCHECKED"):
+        fail("TERMS_UNCHECKED sentinel is not exported by itembank")
+    if "TERMS_UNCHECKED" not in itembank.__all__:
+        fail("TERMS_UNCHECKED must be a member of itembank.__all__")
+    qs = itembank.load(LES_BANK)
+    errors, warnings = itembank.lint(qs)
+    for f in errors + warnings:
+        if f.code.startswith(("terms.", "key.")):
+            fail("default lint must not emit terms/key findings: %r" % f)
+
+
 test_slug()
 test_parse_lesson()
 test_prose_line_shaped_like_question_marker()
@@ -1845,4 +2046,11 @@ test_spec_lists_reader_scope()
 test_spec_item_tag_lives_in_shared_fields()
 test_spec_names_every_lesson_lint_code()
 test_spec_existing_contract_intact()
+test_parse_terms_basic()
+test_parse_terms_absent_and_question_parse_unchanged()
+test_terms_meta_captured_and_marked_ignored()
+test_terms_lint_unknown_ref_and_no_block()
+test_terms_lint_empty_block_and_duplicate_slug()
+test_terms_lint_key_in_rationale_and_duplicate_id()
+test_terms_lint_sentinel_exported_and_default_unchanged()
 print("ok: lesson roundtrip (slug, parse, fingerprint, LESSON-SRC, degraded state, route, CLI twin, both link directions, lesson lint, coupling guards)")
