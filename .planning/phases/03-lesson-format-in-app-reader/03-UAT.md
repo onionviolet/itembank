@@ -1,9 +1,9 @@
 ---
-status: diagnosed
+status: complete
 phase: 03-lesson-format-in-app-reader
 source: [03-VERIFICATION.md]
 started: 2026-08-08
-updated: 2026-08-10T23:10:00Z
+updated: 2026-08-10T23:35:00Z
 ---
 
 ## Current Test
@@ -42,7 +42,9 @@ blocked: 0
 ## Gaps
 
 - truth: "A lesson backlink lands on the quiz with that item pinned first"
-  status: failed
+  status: resolved
+  resolved_by: "inline gap fix (focus param on /api/start + served-client fragment send)"
+  resolved_at: 2026-08-10
   reason: "Automated: loading /quiz/pin_bank#q2 in headless Chrome renders Q1 first; the fragment is ignored by the daemon-served quiz client, so the D-09 pin flow does not work."
   severity: major
   test: 2
@@ -57,6 +59,27 @@ blocked: 0
     - "Server: /api/start focus support (or an equivalent ordering affordance) since the served client cannot reorder"
     - "Regression test: served quiz with #<id> renders that item first"
   debug_session: ""
+
+## Fix Log
+
+2026-08-10 — gap closed inline (same deviation as phase 2.1: the verify-work
+planner handoff was not used; the fix was implemented and verified directly):
+
+- `surfaces/session.py` `do_start()` accepts an optional `focus=<item id>`:
+  the focused item is moved to the front of the sitting (unknown ids degrade
+  to normal order, mirroring the file-open client's `if(at >= 0)` fallback).
+- `surfaces/daemon.py` `handle_api_start` parses the optional `focus` string
+  and passes it through.
+- `surfaces/quiz_page.py` SERVED_JS `start()` sends the page's `#<id>`
+  fragment as `focus` in the /api/start payload, so lesson backlinks
+  (`/quiz/<bank>#<id>`) now pin the referenced item first on the served quiz.
+- `tests/serve_roundtrip.py` asserts `focus` pins the requested item first
+  (placed after the main sitting so the tracked api_session_id used for
+  attempt-file regeneration is not disturbed).
+- Verification: full roundtrip suite passes (daemon_roundtrip re-run green in
+  isolation; one flaky failure was concurrent temp-dir churn from a parallel
+  workflow); live headless-Chrome check of `/quiz/pin_bank#q2` renders the
+  referenced item first with the Read-the-lesson chip intact.
 
 ## Note
 

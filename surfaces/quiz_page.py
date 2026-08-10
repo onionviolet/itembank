@@ -1005,8 +1005,12 @@ async function start(){
   host.innerHTML = `<div class="card"><div class="feedback" role="status"
       aria-live="polite"><div class="status">Loading&hellip;</div></div></div>`;
   try {
-    const view = await api("/api/start",
-      {bank: BOOT.bank, count: BOOT.count, mode: BOOT.mode});
+    /* D-09: a #<item-id> fragment (lesson backlink) asks the server to start
+       with that item first; unknown ids degrade to normal order server-side. */
+    const payload = {bank: BOOT.bank, count: BOOT.count, mode: BOOT.mode};
+    const frag = location.hash.replace(/^#/, "");
+    if(frag) payload.focus = frag;
+    const view = await api("/api/start", payload);
     sessionId = view.session_id;
     renderItem(view);
   } catch(err){

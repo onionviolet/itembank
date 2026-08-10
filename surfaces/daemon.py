@@ -1153,10 +1153,12 @@ def api_session_path(handler, session_id):
 
 def handle_api_start(handler):
     """`POST /api/start` -- `{"bank": "<stem>", "count", "objective", "mode",
-    "seed"}`. `bank` is resolved through the same stem allowlist the GET
+    "seed", "focus"}`. `bank` is resolved through the same stem allowlist the GET
     routes use: a value that is not a key in `handler.banks` is a 404, full
     stop -- it is never joined to a path, never normalised, never checked
     for traversal segments, because it is never treated as a path at all.
+    `focus`, when present, is an item id (the `#<id>` fragment a lesson
+    backlink carries); the sitting starts with that item first (D-09).
     The output path is computed server-side under `<root>/_attempts/`,
     exactly what `session.do_start` defaults to when no `out` is given;
     `out` is never read from the body (T-2-02).
@@ -1183,6 +1185,9 @@ def handle_api_start(handler):
     objective = data.get("objective", "")
     if not isinstance(objective, str):
         objective = ""
+    focus = data.get("focus")
+    if not isinstance(focus, str) or not focus:
+        focus = None
     out = os.path.join(os.path.abspath(handler.root), "_attempts",
                        "session_%s.json" % uuid.uuid4().hex[:12])
     # Both except clauses below are deliberate and both required, not one
@@ -1196,7 +1201,8 @@ def handle_api_start(handler):
     # items, a session already complete. Do not collapse these two clauses
     # into one in a later refactor.
     try:
-        result = session.do_start(path, count, objective, mode, seed, out, False)
+        result = session.do_start(path, count, objective, mode, seed, out, False,
+                                  focus)
     except SystemExit as exc:
         handler.send_error(400, str(exc.code))
         return

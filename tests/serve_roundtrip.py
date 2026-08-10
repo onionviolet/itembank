@@ -160,9 +160,11 @@ def check_static_offline(page, qs):
 
 # ---- canonical API flow helpers ---------------------------------------------
 
-def api_start(base, bank, count, mode):
-    return post(base + "api/start",
-                {"bank": bank, "count": count, "mode": mode})
+def api_start(base, bank, count, mode, focus=None):
+    payload = {"bank": bank, "count": count, "mode": mode}
+    if focus:
+        payload["focus"] = focus
+    return post(base + "api/start", payload)
 
 
 def api_submit(base, session_id, answer):
@@ -266,6 +268,16 @@ def main():
                 if exc.code != 400:
                     fail("forged %r returned HTTP %d, expected 400"
                          % (field, exc.code))
+
+        # D-09 pin: /api/start accepts focus=<item id> and starts the sitting
+        # there (the served analogue of the file client's #<id> fragment).
+        # Run after the main sitting so it cannot disturb the tracked
+        # api_session_id the attempt-file regeneration reads.
+        last_id = qs[-1]["id"]
+        pinned = api_start(base, stem, len(qs), "practice", focus=last_id)
+        if pinned["item"]["id"] != last_id:
+            fail("focus=%r did not pin that item first; got %r"
+                 % (last_id, pinned["item"]["id"]))
     finally:
         proc.terminate()
 

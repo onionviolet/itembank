@@ -51,7 +51,7 @@ def ms_since(ts):
     return max(0, int((now - served).total_seconds() * 1000))
 
 
-def do_start(bank_path, count, objective, mode, seed, out, force):
+def do_start(bank_path, count, objective, mode, seed, out, force, focus=None):
     # A non-positive count is rejected outright rather than handed to the
     # slice below: Python's slice semantics treat a negative stop index as
     # "up to but excluding the last |count| elements," so count=-1 would
@@ -71,6 +71,16 @@ def do_start(bank_path, count, objective, mode, seed, out, force):
     rng = random.Random(seed)
     rng.shuffle(candidates)
     items = candidates[:min(count, len(candidates))]
+    # D-09 pin support: an optional item id (the `#<id>` fragment a lesson
+    # backlink carries) moves that item to the front of the sitting, the served
+    # analogue of the file-open client's fragment reorder. An unknown id
+    # degrades to the normal order -- the same fallback the file client uses.
+    if focus:
+        hit = next((i for i, q in enumerate(qs) if q.get("id") == focus), None)
+        if hit is not None:
+            items = [i for i in items if i != hit]
+            items.insert(0, hit)
+            items = items[:count]
     out = out or os.path.join(os.path.dirname(os.path.abspath(bank_path)) or ".", "_attempts",
                               "session_%s.json" % uuid.uuid4().hex[:12])
     data = {"schema_version": SESSION_VERSION, "session_id": uuid.uuid4().hex,
