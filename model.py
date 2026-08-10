@@ -6,6 +6,8 @@ of what an authoring agent has to satisfy.
 """
 import collections, hashlib, os, re, sys, uuid
 
+import resources
+
 
 LETTERS = "ABCDEFGH"
 
@@ -424,6 +426,205 @@ def parse_key_blocks(bank_path):
                 "section_slug": heading["slug"],
             })
     return blocks
+
+
+def _user_data_dir():
+    """The platform per-user data directory, following the exact
+    win32/darwin/else branch surfaces/update.py already implements (D-09's
+    second resolution level). Read-only here -- resolution never creates
+    directories."""
+    home = os.path.expanduser("~")
+    if sys.platform == "win32":
+        base = os.environ.get("APPDATA",
+                              os.path.join(home, "AppData", "Roaming"))
+    elif sys.platform == "darwin":
+        base = os.path.join(home, "Library", "Application Support")
+    else:
+        base = os.environ.get("XDG_DATA_HOME",
+                              os.path.join(home, ".local", "share"))
+    return os.path.join(base, "itembank")
+
+
+_STYLE_DIRECTIVE_RE = re.compile(r"(?m)^\[STYLE:\s*([^\]]+?)\s*\]")
+
+
+def _style_directive(text):
+    """The first `[STYLE: <id>]` directive in a text region, or the empty
+    string. Directives are resolved by id only -- D-09's first-match-wins --
+    and ids slugify through lesson_slug() so a style id can never escape the
+    three resolution directories (T-031-13)."""
+    if not text:
+        return ""
+    m = _STYLE_DIRECTIVE_RE.search(text)
+    return m.group(1).strip() if m else ""
+
+
+def _bank_preamble(bank_path):
+    """The bank text before the first real question marker -- the region
+    where a bank-level `[STYLE:]` directive may live. Mirrors
+    parse_lesson()'s boundary rule exactly: stop accumulating the moment a
+    chunk both matches `Qn.` at its start and parses as a real question, so
+    an illustrative line shaped like a question marker cannot truncate the
+    preamble."""
+    text = open(bank_path, encoding="utf-8").read()
+    preamble = []
+    for ch in re.split(r"(?m)^(?=Q\d+\.)", text):
+        if re.match(r"Q\d+\.", ch.strip()) and parse_question(ch) is not None:
+            break
+        preamble.append(ch)
+    return "".join(preamble)
+
+
+def _parse_style_file(style_id, path, text, warnings):
+    """Parse one style file's `## Voice` prose zone, `## Rules` pipe table
+    and `## Exemplar` block into a plain dict. The pipe table reuses the
+    existing cell splitter (function-local import: surfaces.lesson imports
+    model, so a top-level model -> surfaces import would cycle -- the same
+    pattern plan 03.1-02 used for parse_terms). A duplicate rule id inside
+    one file is recorded in `duplicate_rules`; the caller owns the LintError
+    record."""
+    voice, rules_text, exemplar = "", "", ""
+    section = ""
+    for line in text.splitlines():
+        hm = re.match(r"^##\s+(\S+)\s*$", line)
+        if hm:
+            section = hm.group(1).lower()
+            continue
+        if section == "voice":
+            voice += line + "\n"
+        elif section == "rules":
+            rules_text += line + "\n"
+        elif section == "exemplar":
+            exemplar += line + "\n"
+
+    from surfaces.lesson import _is_separator_row, _split_cells
+    rules = []
+    duplicate_rules = []
+    seen = set()
+    past_separator = False
+    for row in rules_text.splitlines():
+        if not row.strip().startswith("|"):
+            continue
+        if _is_separator_row(row):
+            past_separator = True
+            continue
+        if not past_separator:
+            continue  # the header row precedes the separator
+        cells = _split_cells(row)
+        if len(cells) < 2:
+            continue
+        rule = {
+            "id": cells[0],
+            "kind": cells[1],
+            "params": cells[2] if len(cells) > 2 else "",
+            "severity": cells[3] if len(cells) > 3 else "warn",
+            "lock": cells[4] if len(cells) > 4 else "",
+            "prompt": cells[5] if len(cells) > 5 else "",
+        }
+        if rule["id"] in seen:
+            duplicate_rules.append(rule["id"])
+        seen.add(rule["id"])
+        rules.append(rule)
+    return {
+        "id": style_id,
+        "path": path,
+        "voice": voice.strip(),
+        "rules": rules,
+        "exemplar": exemplar.strip(),
+        "parent": grab(r"(?m)^\[STYLE-PARENT:\s*(.*?)\s*\]", text),
+        "warnings": warnings,
+        "duplicate_rules": duplicate_rules,
+        "error": "",
+        "detail": "",
+    }
+
+
+def load_style(style_id, base):
+    """Resolve one style id to its file across the three D-09 levels --
+    bank-adjacent `styles/`, the user data dir, then the bundled `styles/`
+    directory -- with first match by id winning. A duplicate id across
+    levels produces a warning naming both paths, never a silent shadow.
+
+    Returns None on absence (the caller decides how an absent id reads,
+    exactly like parse_lesson's None); a dict with `error` set to
+    `style.file_unreadable` when the first matching file cannot be read; or
+    the parsed Voice/Rules/Exemplar dict. Style ids slugify through
+    lesson_slug() before any path is built (T-031-13)."""
+    slug = lesson_slug(style_id)
+    if not slug:
+        return None
+    found = []
+    if base:
+        bank_path = os.path.join(base, "styles", slug + ".md")
+        if os.path.isfile(bank_path):
+            found.append(bank_path)
+    user_path = os.path.join(_user_data_dir(), "styles", slug + ".md")
+    if os.path.isfile(user_path):
+        found.append(user_path)
+    bundled_rel = "styles/" + slug + ".md"
+    try:
+        resources.read_bytes(bundled_rel)
+        found.append("bundled:" + slug)
+    except (OSError, KeyError, FileNotFoundError):
+        pass
+    if not found:
+        return None
+    warnings = []
+    if len(found) > 1:
+        warnings.append(
+            "style id '%s' exists at both %s and %s; %s wins (D-09)"
+            % (slug, found[0], found[1], found[0]))
+    chosen = found[0]
+    if chosen.startswith("bundled:"):
+        try:
+            text = resources.read_text(bundled_rel)
+        except (OSError, KeyError, FileNotFoundError) as exc:
+            return {"id": style_id, "path": chosen, "voice": "",
+                    "rules": [], "exemplar": "", "parent": "",
+                    "warnings": warnings, "duplicate_rules": [],
+                    "error": "style.file_unreadable", "detail": str(exc)}
+    else:
+        try:
+            text = open(chosen, encoding="utf-8").read()
+        except OSError as exc:
+            return {"id": style_id, "path": chosen, "voice": "",
+                    "rules": [], "exemplar": "", "parent": "",
+                    "warnings": warnings, "duplicate_rules": [],
+                    "error": "style.file_unreadable", "detail": str(exc)}
+    return _parse_style_file(style_id, chosen, text, warnings)
+
+
+def resolve_style(qs, bank_path, settings):
+    """Apply the locked selection precedence lesson -> bank -> subject
+    profile -> house (D-10) and resolve the winning id through load_style.
+
+    Returns {"id", "style", "level", "warnings"}: `id` is the winning style
+    id (always `house` in the fallback), `style` is load_style's dict or
+    None when the winning id resolves to nothing (lint then reports
+    style.file_unreadable -- never a silent house fallback, D-09), and
+    `level` names which precedence level supplied the id.
+
+    `qs` is reserved for future selection integration (the signature is part
+    of the plan's contract); resolution today is directive-driven."""
+    bank_dir = os.path.dirname(os.path.abspath(bank_path)) or "."
+    lesson = parse_lesson(bank_path)
+    lesson_id = _style_directive(lesson["body"]) if lesson else ""
+    if lesson_id:
+        return {"id": lesson_id, "style": load_style(lesson_id, bank_dir),
+                "level": "lesson", "warnings": []}
+    bank_id = _style_directive(_bank_preamble(bank_path))
+    if bank_id:
+        return {"id": bank_id, "style": load_style(bank_id, bank_dir),
+                "level": "bank", "warnings": []}
+    subject_id = ""
+    if isinstance(settings, dict):
+        subject_id = (settings.get("styles") or {}).get("subject_default") \
+            or ""
+    if subject_id:
+        return {"id": subject_id, "style": load_style(subject_id, bank_dir),
+                "level": "subject", "warnings": []}
+    house = load_style("house", bank_dir)
+    return {"id": "house", "style": house, "level": "house", "warnings": []}
 
 
 def content_fingerprint(q):
@@ -861,6 +1062,42 @@ TERMS_UNCHECKED = object()
 KEYS_UNCHECKED = object()
 
 
+# The same sentinel pattern for the style pass (plan 03.1-04): "the caller
+# did not supply style data" (skip every style check -- the behaviour every
+# pre-03.1-04 caller relies on) stays distinct from "the caller supplied
+# style data and the style file could not be read", where
+# style.file_unreadable fires instead of a silent house fallback (D-09:
+# an unresolvable id is never a silent shadow).
+STYLE_UNCHECKED = object()
+
+
+# The closed rule-kind catalogue (D-16, Pitfall 3): a style row may
+# parameterize exactly these kinds, and a row claiming anything else is
+# style.rule_unimplemented before the rule is ever applied. `house.mandate`
+# is the house-only kind that carries the Directive Â§4 non-negotiables; it
+# is documented in styles/house.md and owned by LOCKED_RULE_IDS below, never
+# by the file (ruling 13, Open Question 1).
+STYLE_RULE_KINDS = frozenset({
+    "order.before", "density.max", "style.require", "style.forbid",
+    "cadence.section", "open.with", "house.mandate",
+})
+
+
+# The locked house rows, as code constants (ruling 13, Open Question 1):
+# styles/house.md documents them in prose; this set decides. A style file may
+# not override, suppress, or re-severity a locked id (T-031-12). The five
+# Directive Â§4 non-negotiables split into six ids because Â§4.2 is two rows
+# (one parser, one scorer).
+LOCKED_RULE_IDS = frozenset({
+    "runtime.decides",        # Â§4.1 -- the runtime, not a model, decides what reaches the learner
+    "no.second.parser",       # Â§4.2 -- exactly one parser
+    "no.second.scorer",       # Â§4.2 -- exactly one scorer
+    "no.evidence.leave",      # Â§4.3 -- evidence and banks stay on disk
+    "format.additive",        # Â§4.4 -- format changes are additive
+    "accessibility.gates",    # Â§4.5 -- the nine UI-SPEC Â§8 gates
+})
+
+
 # The published code namespace. Adding a code here is additive; renaming or removing
 # one is a breaking change for every authoring agent that branches on it (D-16).
 # Built from a set-then-sorted so the tuple is provably sorted and duplicate-free
@@ -879,6 +1116,8 @@ LINT_CODES = tuple(sorted({
     "terms.unknown_ref", "terms.duplicate_slug", "terms.empty_block",
     "key.in_rationale", "key.duplicate_id",
     "key.no_front", "key.missing_id", "key.missing_hash",
+    "style.parent_unknown", "style.rule_unimplemented", "style.duplicate_id",
+    "style.file_unreadable", "style.override_locked", "style.ignore_locked",
     "item.objective_line_multi_sentence",
     "bank.answer_position_skew",
 }))
@@ -918,7 +1157,7 @@ def _is_multi_sentence(text):
 
 
 def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
-         keys=KEYS_UNCHECKED):
+         keys=KEYS_UNCHECKED, style=STYLE_UNCHECKED):
     """Return (errors, warnings) as lists of LintError records.
 
     str(record) reproduces the historical 'Qn: message' text exactly; the code and
@@ -942,6 +1181,14 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
     KEYS_UNCHECKED skips them; a caller that supplies key data passes
     whatever `parse_key_blocks()` returned -- an empty list is a real
     "no key blocks" result, not a skip.
+
+    `style` follows the same additive sentinel pattern (plan 03.1-04): the
+    style pass is off unless the caller passes style data -- whatever
+    `load_style()` returned. None means a directive named a style that
+    resolves to nothing (style.file_unreadable, never a silent house
+    fallback, D-09); a dict carrying `error` is an unreadable file; a parsed
+    dict runs the parent guard, the closed-kind check, the duplicate-id
+    check, and the locked-row guard.
     """
     errors, warnings = [], []
     seen_stems = {}
@@ -951,6 +1198,7 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
     lesson_on = lesson is not LESSON_UNCHECKED
     terms_on = terms is not TERMS_UNCHECKED
     keys_on = keys is not KEYS_UNCHECKED
+    style_on = style is not STYLE_UNCHECKED
     if lesson_on:
         known_slugs = set()
         if lesson:
@@ -1245,6 +1493,55 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                         "key.missing_hash", "hash", "BANK",
                         "a [!KEY] block carries [ID:] but no [HASH:]; run "
                         "`itembank id-assign` to record its fingerprint"))
+
+    # Style-registry findings (plan 03.1-04 Task 1), in deterministic order:
+    # unreadable file, parent guard, across-level duplicate warning,
+    # within-file duplicate rules, then per-row kind/lock/override checks.
+    if style_on:
+        if style is None:
+            errors.append(LintError(
+                "style.file_unreadable", "style", "BANK",
+                "no style file resolves for the requested style id -- run "
+                "`itembank lint` on the bank for details"))
+        elif style.get("error"):
+            errors.append(LintError(
+                "style.file_unreadable", "style", "BANK",
+                "style file %s could not be read (%s)"
+                % (style.get("path") or "?", style.get("detail") or "")))
+        else:
+            parent = style.get("parent") or ""
+            if parent and parent != "house":
+                errors.append(LintError(
+                    "style.parent_unknown", "parent", "BANK",
+                    "[STYLE-PARENT: %s] names a non-house style; inheritance "
+                    "is exactly one level (house -> style, D-10)"
+                    % parent))
+            for w in style.get("warnings") or []:
+                warnings.append(LintError(
+                    "style.duplicate_id", "style", "BANK", w))
+            for rid in style.get("duplicate_rules") or []:
+                errors.append(LintError(
+                    "style.duplicate_id", "rules", "BANK",
+                    "duplicate rule id '%s' in style %s -- rename one"
+                    % (rid, style.get("id") or "?")))
+            for row in style.get("rules") or []:
+                rid = row.get("id") or ""
+                if row.get("kind") not in STYLE_RULE_KINDS:
+                    errors.append(LintError(
+                        "style.rule_unimplemented", "rules", "BANK",
+                        "rule '%s' claims kind '%s', which the linter does "
+                        "not implement (D-16)" % (rid, row.get("kind") or "?")))
+                if rid in LOCKED_RULE_IDS:
+                    errors.append(LintError(
+                        "style.override_locked", "rules", "BANK",
+                        "rule '%s' names a locked house id; locked rows are "
+                        "code constants and may not be overridden, "
+                        "suppressed, or re-severed (T-031-12)" % rid))
+                if row.get("lock"):
+                    errors.append(LintError(
+                        "style.ignore_locked", "rules", "BANK",
+                        "rule '%s' carries a lock cell; only model.py's "
+                        "LOCKED_RULE_IDS may manage locks" % rid))
     return errors, warnings
 
 

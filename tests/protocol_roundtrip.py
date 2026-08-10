@@ -20,7 +20,7 @@ SCHEMAS_DIR = os.path.join(ROOT, "schemas")
 # rather than restating the literal, so the two files cannot drift -- a second
 # copy of the prefix list is the same class of drift this set exists to
 # prevent.
-LINT_PREFIXES = ("item", "bank", "lesson", "terms", "key")
+LINT_PREFIXES = ("item", "bank", "lesson", "terms", "key", "style")
 
 
 def fail(msg):

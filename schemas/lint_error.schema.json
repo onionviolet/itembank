@@ -50,7 +50,13 @@
         "key.duplicate_id",
         "key.no_front",
         "key.missing_id",
-        "key.missing_hash"
+        "key.missing_hash",
+        "style.parent_unknown",
+        "style.rule_unimplemented",
+        "style.duplicate_id",
+        "style.file_unreadable",
+        "style.override_locked",
+        "style.ignore_locked"
       ]
     },
     "field": {
