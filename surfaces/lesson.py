@@ -82,10 +82,24 @@ th{background:var(--chip);color:var(--mut);font-weight:600}
 .orphan{color:var(--mut);font-size:14px}
 .empty{text-align:center;padding:var(--space-6) var(--space-3)}
 .empty p{color:var(--mut);max-width:var(--measure-prose);margin:0 auto}
+.callout{background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r-3);box-shadow:0 1px 0 var(--line);
+  padding:var(--space-3);margin:0 0 var(--space-4)}
+.callout-label{display:flex;align-items:center;gap:var(--space-1);
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--mut);margin:0 0 var(--space-2);font-family:var(--font-ledger)}
+.callout-icon{display:inline-flex}
+.callout-body p:last-child{margin:0}
 @media print{
   @page{margin:18mm}
   h2{break-after:avoid}
   [popover]{display:none}
+  .callout{box-shadow:none}
+  .callout-check{border:0;border-top:1px solid var(--line);border-radius:0;
+    background:none;padding:var(--space-2) 0 0}
+  /* Check · <objective> label lands with the gate that fills the slot
+     (plan 03.1-04 / Phase 6.2); the reserved slot prints as a labelled
+     rule, never an empty box (03.1-UI-SPEC §9.4 D1). */
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 /* ?print=drill second-stylesheet placeholder hook: cloze blanking and the
@@ -118,6 +132,66 @@ def _truncate(text, limit):
 
 _TOKEN_RE = re.compile(r"^\x00K(\d+)\x00$")
 _FENCE_RE = re.compile(r"^(`{3,})\s*(.*?)\s*$")
+_CALLOUT_MARK_RE = re.compile(r"^>\s*\[!([A-Za-z][^\]]*)\]\s*(.*)$")
+
+# The locked callout kinds (03.1-UI-SPEC §9.2-§9.4): each maps to the exact
+# Ledger-voice label the renderer and the linter share (§15). The `CHECK:`
+# prefix is handled separately as the inert reserved slot (D-18). Adding a
+# kind is a one-line registration here -- the container and its degradation
+# contract do not change.
+_CALLOUT_KINDS = {
+    "KEY": ("key", "Key point"),
+    "EXAMPLE": ("example", "Example"),
+    "NOTE": ("note", "Note"),
+    "WARNING": ("warning", "Warning"),
+}
+
+# One in-repo decorative callout mark (03.1-UI-SPEC §2): a single 16×16
+# currentColor SVG glyph, aria-hidden, whose visible Ledger label carries
+# all semantics -- an icon that fails to render loses nothing.
+_CALLOUT_ICON = ('<svg width="16" height="16" viewBox="0 0 16 16" '
+                 'aria-hidden="true" focusable="false"><rect x="1.5" y="1.5" '
+                 'width="13" height="13" rx="2.5" fill="none" '
+                 'stroke="currentColor" stroke-width="1.5"/>'
+                 '<path d="M8 6.5v4" stroke="currentColor" stroke-width="1.5" '
+                 'stroke-linecap="round"/><circle cx="8" cy="4.3" r="1" '
+                 'fill="currentColor"/></svg>')
+
+
+def _callout_spec(raw):
+    """Map one `[!KIND]` marker to its locked `(slug, label)` pair, or None.
+
+    `CHECK:` (with or without an id) maps to the inert reserved slot; the id
+    is deliberately dropped -- the anchor carries no key and no scoring path
+    (D-18). Any other kind returns None so the block classifier falls
+    through to the pre-change paragraph output byte-for-byte: an unknown
+    kind never raises and never invents a container.
+    """
+    kind = raw.strip()
+    if kind.startswith("CHECK:"):
+        return ("check", "Check")
+    return _CALLOUT_KINDS.get(kind)
+
+
+def _callout_html(spec, body):
+    """One honest callout container (D-18): a `<section class="callout
+    callout-<slug>">` whose Ledger-voice label and decorative icon are
+    accompanied by the escape-first `_inline()` body pass every other text
+    run uses (T-031-01). The `[!CHECK: <id>]` variant renders the inert
+    reserved slot with the exact Ledger copy and no form, no key, and no
+    scoring path (03.1-UI-SPEC §9.4, §15); authored body text under a check
+    marker is reserved for the gate that fills the slot (Phase 6.2).
+    """
+    slug, label = spec
+    icon = '<span class="callout-icon">%s</span>' % _CALLOUT_ICON
+    if slug == "check":
+        inner = "<p>%s</p>" % html.escape(
+            "This check is available when you are reading with a session.")
+    else:
+        inner = _inline(body)
+    return ('<section class="callout callout-%s"><p class="callout-label">'
+            "%s%s</p><div class=\"callout-body\">%s</div></section>"
+            % (slug, icon, html.escape(label), inner))
 
 
 def _code_block(info, content):
@@ -288,6 +362,20 @@ def _render_blocks(text):
             out.append(tokens[int(tm.group(1))])
             i += 1
             continue
+        cm = _CALLOUT_MARK_RE.match(line)
+        if cm and _callout_spec(cm.group(1)) is not None:
+            # The one callout branch (D-18): a `> [!KIND]` marker starts a
+            # run whose body is every following `>`-prefixed line, closed at
+            # the first non-`>` line. Only locked kinds enter here; an
+            # unknown kind falls through to the paragraph path unchanged.
+            spec = _callout_spec(cm.group(1))
+            body = [cm.group(2)] if cm.group(2) else []
+            i += 1
+            while i < len(lines) and lines[i].startswith(">"):
+                body.append(re.sub(r"^>\s?", "", lines[i]))
+                i += 1
+            out.append(_callout_html(spec, "\n".join(body)))
+            continue
         hm = re.match(r"^#{4,}\s+(.+?)\s*$", line)
         if hm:
             # The grammar defines exactly two heading levels; any deeper
@@ -328,7 +416,11 @@ def _render_blocks(text):
             nxt = lines[i]
             if (re.match(r"^#{4,}\s", nxt) or re.match(r"^-\s+", nxt)
                     or re.match(r"^\d+\.\s+", nxt) or _TOKEN_RE.match(nxt)
-                    or "|" in nxt):
+                    or "|" in nxt
+                    or (_CALLOUT_MARK_RE.match(nxt)
+                        and _callout_spec(
+                            _CALLOUT_MARK_RE.match(nxt).group(1))
+                        is not None)):
                 break
             buf.append(nxt)
             i += 1

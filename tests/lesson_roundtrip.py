@@ -1007,6 +1007,83 @@ def test_lesson_parse_identity_phase3():
         fail("parsed lesson structure drifted from the Phase 3 golden")
 
 
+# ---- plan 03.1-01 Task 3: the one callout container -----------------------
+# One blockquote-marker branch in _render_blocks(); KEY/EXAMPLE/NOTE/
+# WARNING/CHECK render as kinds of the container, [!CHECK: <id>] renders the
+# inert reserved slot, and any unknown kind degrades to the pre-change
+# paragraph output byte-for-byte (D-18, 03.1-UI-SPEC §9.2-§9.4, §15).
+
+
+def test_callout_kinds_render_locked_labels():
+    """Test 1: the locked kinds render their exact labels and the [!CHECK:]
+    slot carries the exact inert copy with no form, no key, and no scoring
+    path (03.1-UI-SPEC §9.2-§9.4, §15)."""
+    h = lesson.render_markdown(
+        "> [!KEY] The key point body.\n\n"
+        "> [!EXAMPLE] An example body.\n\n"
+        "> [!NOTE] A note body.\n\n"
+        "> [!WARNING] A warning body.\n")
+    for want in ('class="callout callout-key"', "Key point",
+                 'class="callout callout-example"', "Example",
+                 'class="callout callout-note"', "Note",
+                 'class="callout callout-warning"', "Warning"):
+        if want not in h:
+            fail("callout kind missing %r: %r" % (want, h))
+    h2 = lesson.render_markdown(
+        "> [!CHECK: airway-opa-01] Reserved slot.\n")
+    if ("This check is available when you are reading with a session."
+            not in h2):
+        fail("the [!CHECK:] slot must render the exact inert copy "
+             "(03.1-UI-SPEC §15): %r" % h2)
+    for banned in ("airway-opa-01", "<form", "score_response", "scoring"):
+        if banned in h2:
+            fail("the [!CHECK:] slot must carry no key, form, or scoring "
+                 "path (D-18): %r leaked in %r" % (banned, h2))
+
+
+def test_callout_unknown_kind_degrades_to_paragraph():
+    """Test 2: an unknown [!...] kind falls through to the paragraph branch
+    and renders byte-identically to the pre-change renderer (explicit
+    unknown-kind degradation, D-18)."""
+    h = lesson.render_markdown("> [!NOPE] Just prose.\n")
+    if h != "<p>&gt; [!NOPE] Just prose.</p>":
+        fail("unknown callout kind must degrade to the pre-change paragraph "
+             "render: %r" % h)
+
+
+def test_callout_body_and_label_escaped():
+    """Test 3: every rendered callout body is HTML-escaped -- a body carrying
+    <script> or &lt; renders as escaped text with no executable tag
+    (T-031-01, 03.1-UI-SPEC §11)."""
+    h = lesson.render_markdown(
+        "> [!KEY] <script>alert(1)</script> & <b>x</b>\n")
+    if "<script>" in h or "<b>" in h:
+        fail("callout body leaked executable markup: %r" % h)
+    if "&lt;script&gt;" not in h or "&lt;b&gt;" not in h:
+        fail("callout body must render escaped text: %r" % h)
+
+
+def test_existing_block_branches_byte_identical_without_callouts():
+    """Test 4: the existing fenced-code, heading, list, and table branches
+    produce byte-identical output to the pre-change golden for prose with
+    none of the new constructs (03.1-UI-SPEC §12.4)."""
+    src = ("### H\n\nprose **bold**\n\n- a\n- b\n\n"
+           "| x | y |\n| --- | --- |\n| 1 | 2 |\n\n"
+           "```py\nx = 1\n```\n")
+    golden = ('<section id="h"><h2>H</h2><p>prose <strong>bold</strong></p>'
+              "\n<ul><li>a</li><li>b</li></ul>\n"
+              '<div class="scroll"><table><thead><tr><th>x</th><th>y</th>'
+              "</tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody>"
+              "</table></div>\n"
+              '<div class="scroll"><span class="lang">py</span>'
+              '<pre><code class="language-py">x = 1</code></pre></div>'
+              "</section>")
+    h = lesson.render_markdown(src)
+    if h != golden:
+        fail("existing block branches drifted from the pre-change golden: "
+             "%r" % h)
+
+
 # ---- plan 03-04 Task 2: inlines -- emphasis, inline code, links ------------
 # The inline pass runs over placeholder-protected, already-escaped text only:
 # code spans are lifted first so they are never re-scanned, escaping happens
@@ -1728,6 +1805,10 @@ test_lesson_style_composes_theme_shared_lesson()
 test_lesson_heading_ramp_locked()
 test_lesson_content_region_byte_identical_phase3()
 test_lesson_parse_identity_phase3()
+test_callout_kinds_render_locked_labels()
+test_callout_unknown_kind_degrades_to_paragraph()
+test_callout_body_and_label_escaped()
+test_existing_block_branches_byte_identical_without_callouts()
 test_render_inline_emphasis()
 test_render_inline_code()
 test_render_links()

@@ -44,7 +44,9 @@ body{margin:0;background:var(--bg);color:var(--ink);
   --font-ledger:ui-monospace,"iA Writer Quattro",monospace;
   --measure-prose:66ch;
   --measure-wide:90ch;
-  --leading-lesson:1.65
+  --leading-lesson:1.65;
+  --r-2:8px;
+  --r-3:12px
 }
 .surface{max-width:720px;margin:0 auto;padding:24px 16px 64px;min-width:0}
 .surface.wide{max-width:800px}
