@@ -1135,6 +1135,12 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 > removed, one entry split. The reasoning for each verdict is recorded inline below so
 > the next review argues with it rather than re-deriving it.
 
+### Small enhancements (recorded 2026-08-10)
+
+| Item | Disposition |
+|---|---|
+| OLED / true-black theme mode | Deferred to backlog. Small, well-scoped add: one `theme` enum value (`oled`) plus a true-black token set (`bg` `#000000`, dimmer card/chip, semantic contrast re-verified) and the `/settings` theme option. Natural home: a small follow-up to Phase 4 theming, or folded into Phase 13's desktop pass when native window chrome is revisited. Raised from Phase 4 UAT (2026-08-10). |
+
 ### Phase 999.1: Advanced Visual Item Families (BACKLOG)
 
 **Goal:** Extend the Phase 06.1 visual protocol beyond plot and number line into advanced visual families.
