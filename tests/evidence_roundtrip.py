@@ -1948,6 +1948,77 @@ def test_migration_reconciliation():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ---- plan 03.1-02: term_lookup events (D-19) -------------------------------
+
+def test_term_lookup_event():
+    """term_lookup is a first-class, additive event type: the builder mirrors
+    the response-event envelope with every key present, carries no score key,
+    appends through the one writer, dedupes on replay, and reads back through
+    both the raw and live readers (D-19)."""
+    tmp = tempfile.mkdtemp()
+    try:
+        log = itembank.log_path(tmp)
+        ev = itembank.term_lookup_event(
+            session_id="sess-1", bank="lesson_bank.md", term_slug="airway",
+            mode="practice", source="reader")
+        for key in ("schema_version", "event_id", "event_type", "ts",
+                    "session_id", "bank", "term_slug", "source", "mode",
+                    "actor", "dedupe_key"):
+            if key not in ev:
+                fail("term_lookup event missing key %r: %r" % (key, ev))
+        if ev["event_type"] != "term_lookup":
+            fail("event_type wrong: %r" % ev["event_type"])
+        if ev["source"] not in ("reader", "session"):
+            fail("source must be reader or session, got %r" % ev["source"])
+        if ev["actor"] != "learner":
+            fail("default actor must be 'learner', got %r" % ev["actor"])
+        if "score" in ev:
+            fail("a term_lookup event must carry no score key (D-19): %r" % ev)
+
+        res = itembank.append_event(log, ev)
+        if res["status"] != "recorded":
+            fail("first append must record, got %r" % res)
+        replay = itembank.append_event(log, ev)
+        if replay["status"] != "already_recorded":
+            fail("replaying the same lookup must dedupe, got %r" % replay)
+
+        read_back = list(itembank.events(log))
+        if len(read_back) != 1 or read_back[0]["term_slug"] != "airway":
+            fail("events() must yield the term_lookup event: %r" % read_back)
+        live = list(itembank.live_events(log))
+        if len(live) != 1 or live[0]["event_type"] != "term_lookup":
+            fail("live_events() must yield the term_lookup event: %r" % live)
+
+        # A reader that predates the type must degrade, not crash: a raw line
+        # carrying an event type outside KNOWN_EVENT_TYPES is skipped (D-09).
+        raw_unknown = os.path.join(tmp, "unknown.jsonl")
+        open(raw_unknown, "w", encoding="utf-8").write(
+            json.dumps({"schema_version": 1, "event_id": "x",
+                        "event_type": "future_event",
+                        "ts": "2026-01-01T00:00:00.000Z"}) + "\n")
+        if list(itembank.events(raw_unknown)) != []:
+            fail("a reader predating a type must skip it with a warning")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_term_lookup_registered_in_schema():
+    """The new type is registered in KNOWN_EVENT_TYPES and in the schema's
+    event_type enum plus a $defs shape -- never in the top-level required
+    list, matching the mark/retraction/day_tick precedent."""
+    if "term_lookup" not in itembank.KNOWN_EVENT_TYPES:
+        fail("term_lookup must be a member of KNOWN_EVENT_TYPES")
+    schema = json.load(open(os.path.join(ROOT, "schemas", "response.schema.json"),
+                            encoding="utf-8"))
+    enum = schema["properties"]["event_type"]["enum"]
+    if "term_lookup" not in enum:
+        fail("event_type enum must include term_lookup: %r" % enum)
+    if "term_lookup" not in schema["$defs"]:
+        fail("response.schema.json must carry a $defs.term_lookup shape")
+    if "term_lookup" in schema.get("required", []):
+        fail("term_lookup must not enter the top-level required list")
+
+
 def main():
     test_tracer_end_to_end()
     test_mode_recorded()
@@ -1967,11 +2038,13 @@ def main():
     test_serve_writes_events()
     test_day_ticks_are_events()
     test_migration_reconciliation()
+    test_term_lookup_event()
+    test_term_lookup_registered_in_schema()
     print("evidence contract: ok (tracer end-to-end, mode recorded, empty log, one writer, "
           "identity survives edit, missing/duplicate ids, fingerprint stability, hash "
           "states, lint order, duplicate-submit dedupe, retraction, objective query, "
           "index disposability, renders match log, mark flow, serve writes events, "
-          "day ticks are events, migration reconciliation)")
+          "day ticks are events, migration reconciliation, term_lookup)")
     return 0
 
 

@@ -1960,6 +1960,44 @@ def test_terms_lint_sentinel_exported_and_default_unchanged():
             fail("default lint must not emit terms/key findings: %r" % f)
 
 
+def test_glossable_gate():
+    """The runtime glossable() gate refuses a term whose definition would
+    leak keyed answer material -- the correct option label, a short item's
+    model answer, or the canonical key -- and admits an unrelated
+    definition; it is pure and deterministic (D-20, UI-SPEC §8.4)."""
+    mc = clean_mc("Which one is the key?").replace("CORRECT: A", "CORRECT: B")
+    short = ("Q2. State the opening manoeuvre.   (difficulty: recall)\n"
+             "[TYPE: short]\n"
+             "MODEL: The head-tilt lifts the tongue.\n\n"
+             "RUBRIC:\n- Names the manoeuvre.\n- States what it does.\n\n"
+             "CONFIDENCE: high\n")
+    qs = itembank.parse_bank(mc + short)
+    if len(qs) != 2:
+        fail("glossable fixture bank must parse to 2 items, got %d" % len(qs))
+
+    leaky_option = {"canonical": "Runner-up", "aliases": [], "def": (
+        "Two is the runner-up and would win if the stem changed.")}
+    if itembank.glossable(qs, leaky_option) is not False:
+        fail("a def containing the correct option label must be suppressed")
+    leaky_model = {"canonical": "Manoeuvre", "aliases": [], "def": (
+        "The head-tilt lifts the tongue. It opens the airway.")}
+    if itembank.glossable(qs, leaky_model) is not False:
+        fail("a def containing a short item's model answer must be suppressed")
+    leaky_key = {"canonical": "Keyed", "aliases": [], "def": (
+        "The keyed letter is B, placed with the stem.")}
+    if itembank.glossable(qs, leaky_key) is not False:
+        fail("a def containing the canonical key must be suppressed")
+    clean = {"canonical": "Airway", "aliases": [], "def": (
+        "The passage from mouth to lungs.")}
+    if itembank.glossable(qs, clean) is not True:
+        fail("an unrelated definition must pass the gate")
+    if itembank.glossable(qs, clean) != itembank.glossable(qs, clean):
+        fail("glossable must be deterministic across calls")
+    if itembank.glossable(qs, {"canonical": "Empty", "aliases": [], "def": ""}) \
+            is not True:
+        fail("an empty definition must pass the gate (nothing to leak)")
+
+
 test_slug()
 test_parse_lesson()
 test_prose_line_shaped_like_question_marker()
@@ -2053,4 +2091,5 @@ test_terms_lint_unknown_ref_and_no_block()
 test_terms_lint_empty_block_and_duplicate_slug()
 test_terms_lint_key_in_rationale_and_duplicate_id()
 test_terms_lint_sentinel_exported_and_default_unchanged()
+test_glossable_gate()
 print("ok: lesson roundtrip (slug, parse, fingerprint, LESSON-SRC, degraded state, route, CLI twin, both link directions, lesson lint, coupling guards)")
