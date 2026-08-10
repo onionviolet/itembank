@@ -2381,6 +2381,136 @@ def test_key_lint_no_front_missing_id_duplicate():
              % errors2)
 
 
+# ---- plan 03.1-03 Task 3: key card, key_review route, drill print ---------
+
+def test_key_card_renders_runtime_and_degraded():
+    """A [!KEY] block renders as the index card: id anchor, Ledger footer,
+    {{cloze}} shown as enclosed text, and a real Add-to-review form when the
+    daemon serves it; without the runtime the form is absent and the exact
+    degraded copy renders instead of a dead control (UI-SPEC §9.2/§15)."""
+    tmp = tempfile.mkdtemp()
+    bank = key_bank(
+        tmp,
+        "### Airway\n\n"
+        "> [!KEY] OPA indications\n"
+        "> [ID: 1111111111111111]\n"
+        "> [HASH: sha256:abc]\n"
+        "> The OPA is {{indicated when the tongue obstructs}}.\n")
+    qs = itembank.load(bank)
+    pg = lesson.lesson_page(bank, qs, itembank.parse_lesson(bank),
+                            runtime=True)
+    if '<section class="callout callout-key" id="key-1111111111111111">' \
+            not in pg:
+        fail("key card section/anchor missing")
+    if "Key point" not in pg:
+        fail("key card label missing")
+    if "key: 1111111111111111 \u00b7 exports to Anki" not in pg:
+        fail("key card Ledger footer missing")
+    if '<form method="post" action="/key/1111111111111111/review"' not in pg:
+        fail("key card review form missing")
+    if "Add to review" not in pg:
+        fail("Add to review control missing")
+    if "{{indicated when the tongue obstructs}}" in pg:
+        fail("{{cloze}} must render as its enclosed text on screen")
+    if "The OPA is indicated when the tongue obstructs." not in pg:
+        fail("cloze enclosed text must be visible")
+
+    pg2 = lesson.lesson_page(bank, qs, itembank.parse_lesson(bank))
+    if ("Review scheduling is unavailable without the runtime. Run itembank "
+            "export anki to take this key to Anki.") not in pg2:
+        fail("static render must carry the exact unavailable copy")
+    if "<form" in pg2:
+        fail("static render must omit the review form, never disable it")
+
+    bank2 = key_bank(
+        tmp,
+        "### Airway\n\n> [!KEY] Untagged\n> A body with no id.\n")
+    pg3 = lesson.lesson_page(bank2, itembank.load(bank2),
+                             itembank.parse_lesson(bank2), runtime=True)
+    if "exports to Anki" in pg3 or "<form" in pg3:
+        fail("an id-less key card must omit footer and review control "
+             "(%s)" % pg3[pg3.find("callout-key"):pg3.find("callout-key") + 200])
+
+
+def test_key_review_route_and_cli():
+    """POST /key/<id>/review records a key_review event and announces
+    'Added to review.'; an unknown key 404s with no event; the CLI twin
+    reaches the same recording path (SURF-04)."""
+    tmp = tempfile.mkdtemp()
+    bank = key_bank(
+        tmp,
+        "### Airway\n\n"
+        "> [!KEY] OPA indications\n"
+        "> [ID: 1111111111111111]\n"
+        "> [HASH: sha256:abc]\n"
+        "> The OPA is indicated when the tongue obstructs.\n")
+    proc, url, _ = start_daemon(tmp)
+    try:
+        req = urllib.request.Request(
+            url + "/key/1111111111111111/review", method="POST")
+        with urllib.request.urlopen(req, timeout=5) as res:
+            body = res.read().decode("utf-8")
+        if "Added to review." not in body:
+            fail("review POST must announce Added to review: %r" % body)
+        try:
+            urllib.request.urlopen(
+                urllib.request.Request(
+                    url + "/key/9999999999999999/review", method="POST"),
+                timeout=5)
+            fail("unknown key id must 404")
+        except urllib.error.HTTPError as exc:
+            if exc.code != 404:
+                fail("unknown key id returned %d, not 404" % exc.code)
+    finally:
+        proc.kill()
+        proc.wait()
+
+    log = itembank.log_path(tmp)
+    reviews = [e for e in itembank.events(log)
+               if e["event_type"] == "key_review"]
+    if len(reviews) != 1 or reviews[0]["key_id"] != "1111111111111111":
+        fail("the route must record exactly one key_review, got %r" % reviews)
+    if "score" in reviews[0]:
+        fail("a key_review event must carry no score key")
+
+    cli = subprocess.run(
+        [sys.executable, os.path.join(ROOT, "itembank.py"), "key-review",
+         bank, "1111111111111111"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
+    if cli.returncode != 0 or "Added to review." not in cli.stdout:
+        fail("key-review CLI twin failed: %r" % cli.stdout)
+    reviews2 = [e for e in itembank.events(log)
+                if e["event_type"] == "key_review"]
+    if len(reviews2) != 2:
+        fail("the CLI twin must record its own key_review event")
+
+
+def test_drill_print_blanks_clozes_and_answers_last():
+    """?print=drill blanks cloze content server-side and prints the Answers
+    list at the end: no answer text appears above it (UI-SPEC §10.2)."""
+    tmp = tempfile.mkdtemp()
+    bank = key_bank(
+        tmp,
+        "### Airway\n\n"
+        "> [!KEY] OPA indications\n"
+        "> [ID: 1111111111111111]\n"
+        "> [HASH: sha256:abc]\n"
+        "> The OPA is {{indicated when the tongue obstructs}}.\n")
+    qs = itembank.load(bank)
+    pg = lesson.lesson_page(bank, qs, itembank.parse_lesson(bank),
+                            runtime=True, drill=True)
+    answers_at = pg.find('<section id="answers">')
+    if answers_at < 0 or "<h2>Answers</h2>" not in pg:
+        fail("drill page missing the Answers section")
+    above = pg[:answers_at]
+    if "indicated when the tongue obstructs" in above:
+        fail("an answer is visible above the Answers list")
+    if "{{" in above:
+        fail("drill page must blank every cloze marker above the answers")
+    if "indicated when the tongue obstructs" not in pg[answers_at:]:
+        fail("the Answers list must carry the keyed bodies")
+
+
 test_slug()
 test_parse_lesson()
 test_prose_line_shaped_like_question_marker()
@@ -2484,4 +2614,7 @@ test_reader_settings_registered_in_schema()
 test_parse_key_blocks()
 test_key_id_minting_shared_namespace()
 test_key_lint_no_front_missing_id_duplicate()
+test_key_card_renders_runtime_and_degraded()
+test_key_review_route_and_cli()
+test_drill_print_blanks_clozes_and_answers_last()
 print("ok: lesson roundtrip (slug, parse, fingerprint, LESSON-SRC, degraded state, route, CLI twin, both link directions, lesson lint, coupling guards)")

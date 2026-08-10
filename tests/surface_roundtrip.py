@@ -330,10 +330,17 @@ def check_study_item_choice_payload():
     for kind in ("mc", "multi"):
         q = synthetic_q(kind)
         view = study_item(q)
-        for key in ("id", "type", "stem", "objective"):
+        for key in ("id", "type", "stem"):
             if view.get(key) != q[key]:
                 fail("%s study_item lost the stable %r shape: %r"
                      % (kind, key, view))
+        # C7 (03.1-03): objectives live in the post-verdict payload only.
+        if "objective" in view or "educational_objective" in view:
+            fail("%s study_item leaked an objective pre-answer: %r"
+                 % (kind, view))
+        if view.get("explain", {}).get("objective") != q["objective"]:
+            fail("%s study_item explain lost the syllabus objective: %r"
+                 % (kind, view.get("explain")))
         if not view.get("options") or len(view["options"]) != 3:
             fail("%s study_item carries no public options list: %r"
                  % (kind, view))
@@ -577,7 +584,9 @@ def check_study_reveal_order():
     sec = next(n for n in dom.all()
                if n["tag"] == "section" and "data-explain" in n["attrs"])
     labels = _label_sequence(sec)
-    expected = ["Answer", "Why this is best",
+    # C7 (03.1-03): the objective renders inside the reveal region, right
+    # after the verdict, never before it.
+    expected = ["Answer", "Educational objective", "Why this is best",
                 "A) Option one", "B) Option two", "C) Option three",
                 "Second-best answer", "Discriminator", "Common trap", "Notes"]
     if labels != expected:

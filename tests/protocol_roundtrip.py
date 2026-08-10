@@ -399,8 +399,12 @@ def test_runtime_matches_schemas():
         if errs:
             fail("report.schema.json (session summary): %s" % errs[0])
 
+        # C7 (03.1-03): public_item no longer carries the syllabus
+        # objective, so the evidence query reads it from the question dict.
+        objective = next(x for x in itembank.load(bank)
+                         if x["id"] == started["item"]["id"])["objective"]
         history = json.loads(
-            run(["evidence", "--objective", started["item"]["objective"], "--base", tmp], tmp))
+            run(["evidence", "--objective", objective, "--base", tmp], tmp))
         errs = itembank.validate(history, report_schema)
         if errs:
             fail("report.schema.json (objective history): %s" % errs[0])
@@ -459,6 +463,83 @@ def test_schema_command_output():
         fail("two runs of itembank schema --all produced different bytes")
 
 
+def test_educational_objective_private_until_verdict():
+    """C7/LESSON-15: the optional one-sentence Educational Objective line and
+    the syllabus [OBJECTIVE:] field appear only in explain_payload(), never
+    in public_item() or any pre-answer surface; a multi-sentence objective
+    warns (03.1-UI-SPEC §9.5)."""
+    tmp = tempfile.mkdtemp()
+    bank = os.path.join(tmp, "obj_bank.md")
+    open(bank, "w", encoding="utf-8").write(
+        "Q1. Which device opens the airway?   (difficulty: recall)\n"
+        "[OBJECTIVE: emt:airway]\n"
+        "Objective: Distinguish the OPA from the NPA indications.\n"
+        "A) OPA\nB) NPA\nC) King\nD) Combitube\n\n"
+        "CORRECT: A\n\n"
+        "WHY BEST: The OPA holds the tongue off the pharynx.\n\n"
+        "KEY DISCRIMINATOR: Indication vs contraindication.\n\n"
+        "SECOND-BEST: B. The NPA is softer; this would be correct if the "
+        "question asked for the nasal route.\n\n"
+        "DISTRACTOR ANALYSIS:\n"
+        "- A) Correct: the oral airway.\n"
+        "- B) The nasal airway; this would be correct if the question asked "
+        "for a nasal adjunct.\n"
+        "- C) A supraglottic device; this would be correct if the question "
+        "asked for a rescue airway.\n"
+        "- D) A supraglottic device; this would be correct if the question "
+        "asked for a rescue airway.\n\n"
+        "TRAP: Confusing OPA and NPA indications.\n\n"
+        "CONFIDENCE: high\n")
+    q = itembank.load(bank)[0]
+    pub = itembank.public_item(q)
+    for key in ("objective", "educational_objective"):
+        if key in pub:
+            fail("public_item must not expose %r pre-answer" % key)
+    ex = itembank.explain_payload(q)
+    if ex.get("educational_objective") != \
+            "Distinguish the OPA from the NPA indications.":
+        fail("explain_payload must carry the educational_objective line: %r"
+             % ex)
+    if ex.get("objective") != "emt:airway":
+        fail("the syllabus [OBJECTIVE:] must move into explain_payload: %r"
+             % ex)
+
+    from surfaces.quiz import page_for
+    # The served (pre-answer) page embeds public_item payloads only; the
+    # static offline build legitimately carries explanations, so C7 is
+    # asserted against the served surface.
+    _, page = page_for(bank, itembank.load(bank), serve=True)
+    if "Distinguish the OPA from the NPA indications." in page:
+        fail("pre-answer quiz HTML leaks the objective line")
+    if "emt:airway" in page:
+        fail("pre-answer quiz HTML leaks the syllabus objective")
+
+    bank2 = os.path.join(tmp, "obj_bank2.md")
+    open(bank2, "w", encoding="utf-8").write(
+        "Q1. Which device opens the airway?   (difficulty: recall)\n"
+        "Objective: First sentence. Second sentence.\n"
+        "A) OPA\nB) NPA\nC) King\nD) Combitube\n\n"
+        "CORRECT: A\n\n"
+        "WHY BEST: The OPA holds the tongue off the pharynx.\n\n"
+        "KEY DISCRIMINATOR: Indication vs contraindication.\n\n"
+        "SECOND-BEST: B. The NPA is softer; this would be correct if the "
+        "question asked for the nasal route.\n\n"
+        "DISTRACTOR ANALYSIS:\n"
+        "- A) Correct: the oral airway.\n"
+        "- B) The nasal airway; this would be correct if the question asked "
+        "for a nasal adjunct.\n"
+        "- C) A supraglottic device; this would be correct if the question "
+        "asked for a rescue airway.\n"
+        "- D) A supraglottic device; this would be correct if the question "
+        "asked for a rescue airway.\n\n"
+        "TRAP: Confusing OPA and NPA indications.\n\n"
+        "CONFIDENCE: high\n")
+    _, warnings = itembank.lint(itembank.load(bank2))
+    if not any(w.code == "item.objective_line_multi_sentence"
+               for w in warnings):
+        fail("a multi-sentence Objective: line must warn")
+
+
 def main():
     test_lint_error_shape()
     test_lint_codes_declared()
@@ -469,6 +550,7 @@ def main():
     test_event_schema_fields()
     test_runtime_matches_schemas()
     test_schema_command_output()
+    test_educational_objective_private_until_verdict()
     print("protocol contract: ok (%d lint codes declared, schema versions pinned, "
           "EVID-07 field set asserted, runtime output validated against schemas/, "
           "schema --all self-contained and stable)" % len(itembank.LINT_CODES))

@@ -85,7 +85,9 @@ def start_and_submit(cwd, bank, mode):
     submitted = json.loads(run(
         ["submit", session_file, "--answer", correct_answer(q), "--confidence", "high"],
         cwd))
-    return item["objective"], submitted, q
+    # C7 (03.1-03): the served item no longer carries the syllabus
+    # objective; the question dict is the authoritative source.
+    return q["objective"], submitted, q
 
 
 def test_tracer_end_to_end():
