@@ -285,8 +285,11 @@ def main():
 
     s = sub.add_parser("export", help="export a bank as Anki TSV or GIFT for LMS import")
     s.add_argument("bank")
-    s.add_argument("out")
-    s.add_argument("--format", choices=("basic", "cloze", "gift"), default="basic")
+    s.add_argument("out", nargs="?",
+                   help="output path (required for basic/cloze/gift; keys "
+                        "defaults to <bank>_keys.tsv)")
+    s.add_argument("--format", choices=("basic", "cloze", "gift", "keys"),
+                   default="basic")
     s.add_argument("--strict", action="store_true",
                    help="GIFT export only: promote the multi scoring-divergence "
                         "warning to a per-item failure")
