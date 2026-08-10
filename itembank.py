@@ -59,10 +59,10 @@ from model import (BANK_FILE_HINTS, LESSON_UNCHECKED, LETTERS, LINT_CODES,   # n
 from runtime import (FIELD_SEP, ITEM_VERSION, PAIR_SEP, REPORT_VERSION,        # noqa: E402
                      SESSION_UPGRADES, SESSION_VERSION, answer_text,
                      canonical_key, canonical_response, explain_payload,
-                     normalize_answer, page_item, public_item, read_session,
-                     response_text, score_response, session_path,
-                     session_summary, session_view, upgrade_session,
-                     write_session)
+                     glossable, normalize_answer, page_item, public_item,
+                     read_session, response_text, score_response,
+                     session_path, session_summary, session_view,
+                     upgrade_session, write_session)
 from surfaces.cli import main                                                  # noqa: E402
 from surfaces.day import (ANKI_ADDON_ID, DAY_LANES, FLOOR_LANES, anki_read,   # noqa: E402
                           day_history, day_info, day_page, day_status,
@@ -72,9 +72,10 @@ from surfaces.day import (ANKI_ADDON_ID, DAY_LANES, FLOOR_LANES, anki_read,   # 
                           wiring_bases, write_day_log)
 from surfaces.migrate import (read_attempt_md, read_legacy_session, scan_legacy,  # noqa: E402
                               source_key)
-from evidence import (EVENT_SCHEMA_VERSION, INDEX_VERSION, append_event,       # noqa: E402
-                      append_line, attempt_number, day_log_from_events,
-                      day_tick_event, dedupe_key, ensure_index,
+from evidence import (EVENT_SCHEMA_VERSION, INDEX_VERSION, KNOWN_EVENT_TYPES,  # noqa: E402
+                      append_event, append_line, attempt_number,
+                      day_log_from_events, day_tick_event, dedupe_key,
+                      ensure_index,
                       event_by_id, event_matches, evidence_dir, events,
                       idempotency_canon, index_for_log, index_path,
                       index_stale, iter_raw, live_events, locked, log_path,
@@ -83,12 +84,13 @@ from evidence import (EVENT_SCHEMA_VERSION, INDEX_VERSION, append_event,       #
                       rebuild_index, render_attempt_md, render_daily_log,
                       render_session_json,
                       response_event, retracted_ids, retraction_event,
-                      session_events, subject_of, utc_now)
+                      session_events, subject_of, term_lookup_event, utc_now)
 from schema_validate import SUPPORTED, SchemaError, validate                  # noqa: E402
 
 __all__ = [
     "ANKI_ADDON_ID", "BANK_FILE_HINTS", "DAY_LANES", "EVENT_SCHEMA_VERSION",
     "FIELD_SEP", "FLOOR_LANES", "INDEX_VERSION", "ITEM_VERSION",
+    "KNOWN_EVENT_TYPES",
     "LESSON_UNCHECKED", "LETTERS", "LINT_CODES", "LintError", "TERMS_UNCHECKED",
     "PAIR_SEP", "REPORT_VERSION", "SESSION_UPGRADES", "SESSION_VERSION", "SPEC",
     "SUPPORTED", "SchemaError",
@@ -100,8 +102,8 @@ __all__ = [
     "day_page", "day_status", "day_streak", "day_text", "day_tick_event", "dedupe_key",
     "ensure_index", "event_by_id", "event_matches", "evidence_dir", "events",
     "explain_payload",
-    "grab", "idempotency_canon", "index_for_log", "index_path", "index_stale",
-    "iter_raw",
+    "glossable", "grab", "idempotency_canon", "index_for_log", "index_path",
+    "index_stale", "iter_raw",
     "lane_behind",
     "lane_files", "lane_load", "lesson_slug", "lint", "lint_lane_decks", "lint_lane_paths",
     "live_events", "load", "load_day_log", "locked", "log_path",
@@ -116,8 +118,8 @@ __all__ = [
     "response_event", "response_text", "retracted_ids", "retraction_event",
     "scan_legacy",
     "score_response", "section", "session_events", "session_path",
-    "session_summary", "session_view", "source_key", "subject_of", "upgrade_session",
-    "utc_now",
+    "session_summary", "session_view", "source_key", "subject_of",
+    "term_lookup_event", "upgrade_session", "utc_now",
     "validate", "wiring_bases", "write_day_log", "write_session",
 ]
 

@@ -227,6 +227,49 @@ def answer_text(q):
     return q.get("model", "")
 
 
+def glossable(qs, term):
+    """The one gate between a term's definition and the learner: False when
+    the definition text could disclose keyed answer material from any
+    question in `qs`, True otherwise.
+
+    This is the same class of decision as `public_item()` withholding a key:
+    the runtime, not the author and not a model, decides what reaches the
+    learner (Directive §4.1, D-20). It is deliberately conservative -- on any
+    ambiguity it returns False. It is a pure function: no I/O, no side
+    effects, deterministic across calls. It is NOT a secrecy mechanism
+    against the file on disk: the learner owns the bank markdown, and
+    UI-SPEC §8.4 states that plainly.
+
+    The answer-bearing fragments are the plan's locked set: the correct
+    option labels, the canonical key output of `canonical_key()`, and the
+    collapsed key/answer text for short/build items.
+    """
+    def _collapse(s):
+        return " ".join(str(s or "").split()).lower()
+
+    definition = _collapse(term.get("def"))
+    if not definition:
+        return True
+    for q in qs:
+        t = q["type"]
+        if t in ("mc", "multi"):
+            frags = [q["opts"][c] for c in q["correct"]]
+        elif t == "short":
+            frags = [q.get("model", "")]
+        elif t == "build":
+            frags = list(q.get("steps") or [])
+        else:
+            frags = []
+        key = canonical_key(q)
+        if key is not None:
+            frags.append(key)
+        for frag in frags:
+            frag = _collapse(frag)
+            if frag and frag in definition:
+                return False
+    return True
+
+
 def response_text(q, answer):
     """Human-readable rendering of what the learner actually gave.
 

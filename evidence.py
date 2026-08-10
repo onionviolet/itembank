@@ -36,11 +36,12 @@ LOG_FILENAME = "evidence.jsonl"
 INDEX_FILENAME = "evidence_index.sqlite3"
 
 # "retraction" was added by plan 01-07, "mark" by plan 01-09, "day_tick" by
-# this plan (01-10) -- response events are the only ones this build wrote
-# before 01-07. events() skips and warns on anything outside this set
-# (D-09), so a log written by a later build's event type degrades instead
-# of crashing.
-KNOWN_EVENT_TYPES = ("response", "retraction", "mark", "day_tick")
+# plan 01-10, and "term_lookup" by plan 03.1-02 -- response events are the
+# only ones this build wrote before 01-07. events() skips and warns on
+# anything outside this set (D-09), so a log written by a later build's
+# event type degrades instead of crashing.
+KNOWN_EVENT_TYPES = ("response", "retraction", "mark", "day_tick",
+                     "term_lookup")
 
 # Bounds the tail scan `append_line_checked` and `recent_dedupe_keys` run to
 # decide whether an event is a duplicate. A dedupe_key contains the
@@ -1382,6 +1383,48 @@ def day_tick_event(date, lane, source="day"):
         "date": date,
         "lane": lane,
         "source": source,
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+TERM_LOOKUP_EVENT_TYPE = "term_lookup"
+
+
+def term_lookup_event(session_id, bank, term_slug, mode, source,
+                      ts=None, actor="learner"):
+    """Build one term_lookup event: a learner looked up a lesson term's
+    definition, appended through the one writer like every other fact
+    (D-19). It is NOT a response and carries no score key -- structurally,
+    not merely by convention: the returned dict has no `score` field at all.
+
+    `source` is the provenance the reader-path/session-path split owns
+    (UI-SPEC §8.5): "reader" for a lookup served by the lesson reader's own
+    path, "session" for a lookup inside a sitting. It is validated here
+    because the log is append-only: an ambiguous provenance cannot be
+    corrected later, only superseded.
+
+    `dedupe_key` is a hash over (session_id, bank, term_slug, source, mode),
+    so replaying an identical lookup reports `already_recorded` while a
+    genuinely different lookup always records.
+    """
+    if source not in ("reader", "session"):
+        raise ValueError(
+            "term_lookup_event: source must be 'reader' or 'session', "
+            "got %r" % (source,))
+    if not term_slug:
+        raise ValueError("term_lookup_event: term_slug must be non-empty")
+    raw = "%s|%s|%s|%s|%s" % (session_id, bank, term_slug, source, mode)
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": TERM_LOOKUP_EVENT_TYPE,
+        "ts": ts if ts is not None else utc_now(),
+        "session_id": session_id,
+        "bank": bank,
+        "term_slug": term_slug,
+        "mode": mode,
+        "source": source,
+        "actor": actor,
         "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
     }
 
