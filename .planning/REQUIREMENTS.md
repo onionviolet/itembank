@@ -194,6 +194,16 @@
 - [ ] **DEL-12**: `tauri-plugin-updater` (signed) and the Phase 2.1 Python updater consume one GitHub Releases channel with their own manifest formats, one `notified_at` disclosure record covers both, and version coherence is checked at the sidecar handshake
 - [ ] **DEL-13**: The code-signing and AV checklist is executed (certificate named or unsigned shipped honestly, Microsoft false-positive submission, VirusTotal baseline), and every capability stays reachable from the CLI without the shell installed
 
+### Audio drill export (Phase 9.1)
+
+- [ ] **AUDIO-01**: One `TTSEngine` interface with named registered implementations; adding an engine is a new module plus a settings entry, never a dispatcher branch, and the registry is the model-backend shape, not a second idiom
+- [ ] **AUDIO-02**: `edge-tts` (network, MP3-native), Piper (local, WAV), and `transcript-only` (the always-available null engine) all register by name; Kokoro is documented as a registration target and is not built
+- [ ] **AUDIO-03**: A pack sequences stem → timed pause → key → why, with the pause duration read from a per-item-type settings map rather than a constant
+- [ ] **AUDIO-04**: An unreachable or missing engine never silently falls back — the command emits the transcript, names the engine and the reason, exits non-zero, and never half-writes an audio file (temp-then-atomic-rename)
+- [ ] **AUDIO-05**: `itembank export audio --objective <id>` and a daemon route both ship, reaching one runtime implementation — neither surface is the real one
+- [ ] **AUDIO-06**: Output defaults to MP3 with WAV available; `--split per-item` and `--split per-pack` both ship (per-pack default); one transcript per pack is always emitted with the same text in the same order; files are named from the objective id and a content digest so unchanged re-exports are idempotent
+- [ ] **AUDIO-07**: Listening records nothing (the evidence log stays the record of what was answered); no player, sync, or mobile build; every third-party artifact is pinned with a recorded checksum and named license review; the command's own help text states that edge-tts sends item text to Microsoft
+
 ## v2 Requirements
 
 ### Retention
@@ -402,11 +412,18 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | DEL-11 | Phase 13 | Pending |
 | DEL-12 | Phase 13 | Pending |
 | DEL-13 | Phase 13 | Pending |
+| AUDIO-01 | Phase 9.1 | Pending |
+| AUDIO-02 | Phase 9.1 | Pending |
+| AUDIO-03 | Phase 9.1 | Pending |
+| AUDIO-04 | Phase 9.1 | Pending |
+| AUDIO-05 | Phase 9.1 | Pending |
+| AUDIO-06 | Phase 9.1 | Pending |
+| AUDIO-07 | Phase 9.1 | Pending |
 
 **Coverage:**
 
-- v1 requirements: 101 total
-- Mapped to phases: 101
+- v1 requirements: 108 total
+- Mapped to phases: 108
 - Unmapped: 0 ✓
 
 ---

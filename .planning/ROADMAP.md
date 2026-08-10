@@ -729,7 +729,7 @@ Plans:
 **Goal**: An objective leaves itembank as an audio drill pack — stem, pause, key, why — so a commute or a run is study time, with no app to build, no player to write, and no dependency the tool cannot do without.
 **Mode:** mvp
 **Depends on**: Phase 1, Phase 9
-**Requirements**: TBD (assign at `/gsd-plan-phase 9.1`)
+**Requirements**: AUDIO-01, AUDIO-02, AUDIO-03, AUDIO-04, AUDIO-05, AUDIO-06, AUDIO-07
 **Research basis**: `.planning/research/2026-08-09-blind-spots.md` B3 — named as real, cheap, and differentiating. Research also found (Q9) that consumption is phone- and audio-shaped while the desktop app optimizes authoring; this is the cheapest correction available.
 **Success Criteria** (what must be TRUE):
 
@@ -739,7 +739,21 @@ Plans:
   4. Playback is any podcast app. No player, no sync service, and no mobile build is in scope.
   5. Listening records nothing — an audio pack is a one-way export, and the evidence log stays the record of what was actually answered.
 
-**Plans**: TBD
+**Plans**: 4 plans across 3 waves
+
+Plans:
+**Wave 1**
+
+- [ ] 09.1-01-PLAN.md — TRACER: TTSEngine interface + registry + transcript-only engine + `itembank export audio` CLI, sequence/pause settings, transcript, digest naming, atomic write
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 09.1-02-PLAN.md — The engines: edge-tts (network, MP3-native) and Piper (local, WAV + lameenc MP3), pinned and license-reviewed, D-16 help-text disclosure
+- [ ] 09.1-03-PLAN.md — Pack assembly: timed pauses, MP3/WAV container policy, --split per-item|per-pack, digest-stable atomic writes, daemon route
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 09.1-04-PLAN.md — Phase verification: fake engine + transcript-diff + no-evidence fixtures, both-surfaces proof, requirement + supply-chain audits, full suite
 
 ### Phase 10: Retention, Pacing & Trends
 
