@@ -6,7 +6,8 @@ than an edit here and there.
 """
 import argparse, collections, json, os, sys
 
-from model import BANK_FILE_HINTS, SPEC, lint, load, parse_bank, parse_lesson
+from model import (BANK_FILE_HINTS, SPEC, lint, load, parse_bank,
+                   parse_key_blocks, parse_lesson, parse_terms)
 from surfaces.anki import cmd_export
 from surfaces.daemon import cmd_daemon
 from surfaces.day import cmd_day
@@ -35,7 +36,9 @@ def cmd_lint(a):
     # lesson: a LESSON-REF naming a missing heading is an error by item
     # number, never a render-time crash. `--force` is not offered here --
     # the whole point of lint is that it fails loudly.
-    errors, warnings = lint(qs, lesson=parse_lesson(a.bank))
+    errors, warnings = lint(qs, lesson=parse_lesson(a.bank),
+                            terms=parse_terms(a.bank),
+                            keys=parse_key_blocks(a.bank))
     if a.json:
         payload = {
             "schema_version": 1,

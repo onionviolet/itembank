@@ -367,6 +367,64 @@ def parse_terms(bank_path):
                            for slug, texts in collisions.items()]}
 
 
+_KEY_MARK_RE = re.compile(r"^>\s*\[!KEY(?::\s*([^\]]+))?\]\s*(.*)$")
+
+
+def parse_key_blocks(bank_path):
+    """An independent reader over the lesson body for `> [!KEY]` callouts
+    (D-05's lesson-only scope): each returns a dict with `id`, `hash`,
+    `title`, `body`, `cloze` and `section_slug`. Never called from inside
+    `load()` or `parse_bank()`, and it changes neither's return shape; a
+    lesson with no key blocks returns an empty list.
+
+    The `[ID:]`/`[HASH:]` directive lines use the same grab idiom as
+    `[LESSON-SRC:]` and are the block's machine identity -- minted by
+    `assign_ids()` through the exact taken set items use, never a separate
+    namespace (research Pitfall 5). `title` is the marker line's own text
+    when present; `cloze` is True when the body carries `{{...}}`/`{{n::...}}`
+    markers.
+    """
+    lesson = parse_lesson(bank_path)
+    if lesson is None:
+        return []
+    blocks = []
+    for heading in [{"slug": "", "body": lesson["intro"]}] + lesson["headings"]:
+        lines = (heading["body"] or "").split("\n")
+        i = 0
+        while i < len(lines):
+            m = _KEY_MARK_RE.match(lines[i])
+            if m is None:
+                i += 1
+                continue
+            raw_lines = [lines[i]]
+            body_lines = []
+            i += 1
+            while i < len(lines) and lines[i].startswith(">"):
+                raw_lines.append(lines[i])
+                body_lines.append(re.sub(r"^>\s?", "", lines[i]))
+                i += 1
+            raw = "\n".join(raw_lines)
+            title = m.group(2).strip()
+            body = []
+            for line in body_lines:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                if re.match(r"^\[(ID|HASH):", stripped):
+                    continue          # directives, consumed above
+                body.append(line)
+            body_text = "\n".join(body).strip()
+            blocks.append({
+                "id": grab(r"(?m)^>\s*\[ID:\s*(\S+)\s*\]", raw),
+                "hash": grab(r"(?m)^>\s*\[HASH:\s*(\S+)\s*\]", raw),
+                "title": title,
+                "body": body_text,
+                "cloze": "{{" in body_text,
+                "section_slug": heading["slug"],
+            })
+    return blocks
+
+
 def content_fingerprint(q):
     """A change-detection digest of the *tested* content only, never the
     rationale around it.
@@ -421,6 +479,98 @@ TERMINATOR = re.compile(
     r"STEP\)|MODEL:|RUBRIC:|WHY BEST:)")
 
 
+def _key_content_hash(block_lines):
+    """The change-detection digest of one `> [!KEY]` block's content --
+    title and body lines only, never its `[ID:]`/`[HASH:]` directive lines,
+    so minting an id never reads as content drift and editing the body
+    always does."""
+    parts = []
+    for line in block_lines:
+        stripped = re.sub(r"^>\s?", "", line).strip()
+        if re.match(r"^\[(ID|HASH):", stripped):
+            continue
+        if stripped:
+            parts.append(stripped)
+    return "sha256:" + hashlib.sha256(
+        ("\n".join(parts)).encode("utf-8")).hexdigest()[:16]
+
+
+def _assign_key_ids(chunk, taken, changes, key_count):
+    """Mint `[ID:]`/`[HASH:]` into every `> [!KEY]` block of one preamble
+    chunk, using the exact `new_item_id()`/taken-set path items use -- there
+    is no separate key id namespace (research Pitfall 5). Returns the
+    rewritten chunk text. `key_count` is a one-element list so the K-tags
+    stay sequential across chunks."""
+    lines = chunk.split("\n")
+    out = []
+    i = 0
+    while i < len(lines):
+        m = _KEY_MARK_RE.match(lines[i])
+        if m is None:
+            out.append(lines[i])
+            i += 1
+            continue
+        start = i
+        i += 1
+        while i < len(lines) and lines[i].startswith(">"):
+            i += 1
+        block_lines = lines[start:i]
+        raw = "\n".join(block_lines)
+        key_count[0] += 1
+        tag = "K%d" % key_count[0]
+
+        had_id = grab(r"(?m)^>\s*\[ID:\s*(\S+)\s*\]", raw)
+        item_id = had_id
+        id_action = "kept"
+        if not item_id:
+            item_id = new_item_id()
+            while item_id in taken:
+                item_id = new_item_id()
+            id_action = "assigned"
+        taken.add(item_id)
+
+        old_hash = grab(r"(?m)^>\s*\[HASH:\s*(\S+)\s*\]", raw)
+        new_hash = _key_content_hash(block_lines)
+        if not old_hash:
+            hash_action = "recorded"
+        elif old_hash != new_hash:
+            hash_action = "updated"
+        else:
+            hash_action = "unchanged"
+
+        changes.append({"item": tag, "item_id": item_id,
+                        "action": id_action, "hash_action": hash_action,
+                        "old_hash": old_hash, "new_hash": new_hash})
+
+        if id_action == "kept" and hash_action == "unchanged":
+            out.extend(block_lines)
+            continue
+
+        new_lines = []
+        inserted_id = False
+        inserted_hash = False
+        for line in block_lines:
+            if re.match(r"^>\s*\[ID:", line):
+                if had_id:
+                    new_lines.append("> [ID: %s]" % item_id)
+                    inserted_id = True
+                continue
+            if re.match(r"^>\s*\[HASH:", line):
+                if old_hash:
+                    new_lines.append("> [HASH: %s]" % new_hash)
+                    inserted_hash = True
+                continue
+            new_lines.append(line)
+        pos = 1
+        if not inserted_id:
+            new_lines.insert(pos, "> [ID: %s]" % item_id)
+            pos += 1
+        if not inserted_hash:
+            new_lines.insert(pos, "> [HASH: %s]" % new_hash)
+        out.extend(new_lines)
+    return "\n".join(out)
+
+
 def assign_ids(text, taken=None):
     """Pure text transform: mint a missing `[ID:]` and record or refresh
     `[HASH:]` for every question block in `text`. Returns `(new_text,
@@ -438,12 +588,24 @@ def assign_ids(text, taken=None):
     """
     if taken is None:
         taken = set()
+    # Prepass: every existing [ID:] in the bank -- item and key alike --
+    # joins the claimed set before anything is minted, so a key can never
+    # collide with an item id that already exists in this bank (Pitfall 5).
+    for ch in re.split(r"(?m)^(?=Q\d+\.)", text):
+        if re.match(r"Q\d+\.", ch.strip()):
+            q = parse_question(ch)
+            if q and q.get("item_id"):
+                taken.add(q["item_id"])
+        else:
+            for km in re.finditer(r"(?m)^>\s*\[ID:\s*(\S+)\s*\]", ch):
+                taken.add(km.group(1))
     changes = []
     out_chunks = []
     idx = 0
+    key_count = [0]
     for ch in re.split(r"(?m)^(?=Q\d+\.)", text):
         if not re.match(r"Q\d+\.", ch.strip()):
-            out_chunks.append(ch)
+            out_chunks.append(_assign_key_ids(ch, taken, changes, key_count))
             continue
         q = parse_question(ch)
         if q is None:
@@ -690,6 +852,14 @@ LESSON_UNCHECKED = object()
 TERMS_UNCHECKED = object()
 
 
+# The same sentinel for the [!KEY] block pass (plan 03.1-03): "the caller
+# did not supply key data" (skip every key-block check -- the behaviour
+# every pre-03.1-03 caller relies on) stays distinct from "the caller
+# supplied key data and this bank has no key blocks", where an empty list
+# is a legitimate no-op rather than a skip.
+KEYS_UNCHECKED = object()
+
+
 # The published code namespace. Adding a code here is additive; renaming or removing
 # one is a breaking change for every authoring agent that branches on it (D-16).
 # Built from a set-then-sorted so the tuple is provably sorted and duplicate-free
@@ -707,6 +877,7 @@ LINT_CODES = tuple(sorted({
     "lesson.duplicate_heading", "lesson.orphan_heading", "lesson.src_unreadable",
     "terms.unknown_ref", "terms.duplicate_slug", "terms.empty_block",
     "key.in_rationale", "key.duplicate_id",
+    "key.no_front", "key.missing_id", "key.missing_hash",
     "bank.answer_position_skew",
 }))
 
@@ -734,7 +905,8 @@ def _rationale_texts(q):
 _KEY_ID_RE = re.compile(r"\[!KEY(?::\s*([^\]]+))?\]")
 
 
-def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED):
+def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
+         keys=KEYS_UNCHECKED):
     """Return (errors, warnings) as lists of LintError records.
 
     str(record) reproduces the historical 'Qn: message' text exactly; the code and
@@ -753,6 +925,11 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED):
     every terms/key check; a caller that supplies TERMS data passes whatever
     `parse_terms()` returned -- a dict (the checks run), or None for a bank
     with no `## TERMS` section (every [[term]] reference is unknown).
+
+    `keys` follows it again for the [!KEY] block checks (plan 03.1-03):
+    KEYS_UNCHECKED skips them; a caller that supplies key data passes
+    whatever `parse_key_blocks()` returned -- an empty list is a real
+    "no key blocks" result, not a skip.
     """
     errors, warnings = [], []
     seen_stems = {}
@@ -761,6 +938,7 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED):
     letter_hits = collections.Counter()
     lesson_on = lesson is not LESSON_UNCHECKED
     terms_on = terms is not TERMS_UNCHECKED
+    keys_on = keys is not KEYS_UNCHECKED
     if lesson_on:
         known_slugs = set()
         if lesson:
@@ -774,6 +952,8 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED):
         else:
             term_refs = []
         lesson_body = lesson.get("body", "") if isinstance(lesson, dict) else ""
+    if keys_on:
+        seen_key_ids = {}
 
     for idx, q in enumerate(questions, 1):
         tag = "Q%d" % idx
@@ -1018,6 +1198,36 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED):
                     "duplicate [!KEY] id '%s' in the lesson -- rename one"
                     % kid))
             key_ids.setdefault(kid, True)
+
+    # Bank-level [!KEY] block findings (plan 03.1-03 Task 1), in document
+    # order: a body with neither title nor cloze has no Anki front; an
+    # unminted block warns for its missing id and hash; two blocks sharing
+    # an [ID:] are a duplicate-id error.
+    if keys_on:
+        for key in keys or []:
+            if not key.get("title") and not key.get("cloze"):
+                errors.append(LintError(
+                    "key.no_front", "body", "BANK",
+                    "a [!KEY] block needs a title or a {{cloze}} marker to "
+                    "have an Anki front (key.no_front)"))
+            kid = key.get("id") or ""
+            if not kid:
+                warnings.append(LintError(
+                    "key.missing_id", "id", "BANK",
+                    "a [!KEY] block has no [ID:] line; run `itembank "
+                    "id-assign` before this key can round-trip"))
+            else:
+                if kid in seen_key_ids:
+                    errors.append(LintError(
+                        "key.duplicate_id", "id", "BANK",
+                        "two [!KEY] blocks share the [ID:] %s -- rename one"
+                        % kid))
+                seen_key_ids.setdefault(kid, True)
+                if not key.get("hash"):
+                    warnings.append(LintError(
+                        "key.missing_hash", "hash", "BANK",
+                        "a [!KEY] block carries [ID:] but no [HASH:]; run "
+                        "`itembank id-assign` to record its fingerprint"))
     return errors, warnings
 
 

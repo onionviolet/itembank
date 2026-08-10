@@ -46,7 +46,10 @@
         "terms.duplicate_slug",
         "terms.empty_block",
         "key.in_rationale",
-        "key.duplicate_id"
+        "key.duplicate_id",
+        "key.no_front",
+        "key.missing_id",
+        "key.missing_hash"
       ]
     },
     "field": {
