@@ -97,10 +97,12 @@ Three sizes, two weights. No new size and no new weight is introduced by this ph
   no machine-under-study is displayed. A shell surface that reaches for Paper voice has found a
   spec gap, not a free choice.
 
-**Inherited inconsistency, recorded not resolved — OPEN.** `UI-SPEC.md` §7 says *"weights | 400 regular,
-700 bold | exactly two weights"*, while the shipped `presentation.py` SHARED_CSS uses `font-weight:600`
-throughout. This phase **matches the shipped code (400/600)** rather than introducing a third weight
-or silently forking. Reconciling the two is a Phase 4-adjacent cleanup and is named in §10.
+**Inherited inconsistency — RESOLVED 2026-08-10, no longer open.** This phase matched the shipped
+code at 400/600 while `UI-SPEC.md` §7 still said *"400 regular, 700 bold"*. The §7 weight ruling has
+since superseded that row and locked the pair as `--weight-normal` 400 / `--weight-emphasis` 600, on
+the measured evidence that shipped code is 37×`600` to 4×`700` and `presentation.py` is unanimous at
+600. **This phase's choice was correct and is now the project rule**; it needs no change. The six
+non-conforming shipped sites are named in the §7 ruling as a Phase 4 cleanup.
 
 ---
 
@@ -707,8 +709,9 @@ must be rewritten.
 3. **The learner's custom accent on shell-local failure documents** — currently the default palette
    snapshot. Fixing it costs a second settings reader in the shell; revisit only if a learner
    actually notices.
-4. **Font weight 400/700 (UI-SPEC §7) vs the shipped 600 in `presentation.py`** — a real
-   inconsistency this phase declined to fork on. Reconcile in a Phase 4-adjacent cleanup.
+4. ~~**Font weight 400/700 vs the shipped 600**~~ — **CLOSED 2026-08-10.** The UI-SPEC §7 weight
+   ruling locked 400/600 on measured evidence, vindicating this phase's choice. What remains is the
+   mechanical cleanup of six named shipped sites, tracked there, not here.
 5. **Linux liveness copy** — a blank WebKitGTK window is not "unreachable" and must not borrow that
    copy (D-13, deferred with hardware; Electron is the named fallback).
 6. **Tray residency, auto-start on login, OS notifications, `.md` file association** — deferred by

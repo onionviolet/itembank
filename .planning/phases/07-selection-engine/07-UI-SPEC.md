@@ -327,16 +327,17 @@ Inherited from project `UI-SPEC.md:319-327` and §7.1. **No new size and no new 
 |------|-------|-----------|--------|-------|----------|
 | Trace prose (lines 3, 4, 5, notes) | `text-body` | 16px / 1.5 | 400 | `--font-ledger` | the sentences a learner actually argues with |
 | Trace metadata (lines 0, 1, 2, header) | `text-xs` | 12px / 1.4 | 400 | `--font-ledger` | ids, filters, counts, snapshot marker — project §7 puts "labels, provenance, compact status" here |
-| `<summary>` `Why this item?` | `text-body` | 16px / 1.5 | 700 | `--font-chrome` | the one control on this surface |
-| Section heading in a report render | `text-heading` | 20px / 1.2 | 700 | `--font-chrome` | §6 reach readout only |
-| Display | `text-display` | 32px / 1.1 | 700 | — | **not used in this phase** |
+| `<summary>` `Why this item?` | `text-body` | 16px / 1.5 | 600 | `--font-chrome` | the one control on this surface |
+| Section heading in a report render | `text-heading` | 20px / 1.2 | 600 | `--font-chrome` | §6 reach readout only |
+| Display | `text-display` | 32px / 1.1 | 600 | — | **not used in this phase** |
 
-- **Exactly two weights: 400 and 700.** Project §7: *"exactly two weights; use structure rather
-  than a semibold tier."*
-- **Inherited discrepancy, flagged not fixed:** `surfaces/presentation.py` SHARED_CSS ships
-  `font-weight:600` in seven places today. That predates this phase and this phase creates none of
-  it. **New elements use 400/700 only.** Reconciling the shipped 600s is Phase 4 debt, not Phase 7
-  scope; recorded here so a checker attributes it correctly.
+- **Exactly two weights: `--weight-normal` 400 and `--weight-emphasis` 600.** Project §7 weight
+  ruling, 2026-08-10: *"the pair is 400 / 600."* Still one emphasis tier, still no semibold-plus-bold
+  ladder — the tier is simply numbered 600, matching the shipped primitives.
+- **Amended 2026-08-10.** This section previously read "400 and 700" and flagged the shipped
+  `font-weight:600` in `presentation.py` as debt. The §7 ruling reversed that: the shipped 600 is
+  the rule and the old 700 row was the stale artifact. **New elements use 400/600 only**, which now
+  agrees with the primitives rather than diverging from them. No debt is attributable to this phase.
 - **`text-lesson` (18px/1.65) is not used.** It is scoped to sustained authored lesson prose in
   Paper voice (project §7). A trace is neither.
 

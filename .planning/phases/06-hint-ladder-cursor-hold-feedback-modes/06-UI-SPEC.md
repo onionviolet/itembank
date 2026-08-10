@@ -105,10 +105,12 @@ tier 0 is a lesson *pointer*, not lesson prose.
 |------|-------|------|--------|-------------|-------------|
 | Label | `text-xs` | 12px | 400 | 1.4 | Tier headers, unlock-condition lines, mode chip, provenance, duration lines |
 | Body | `text-body` | 16px | 400 | 1.5 | Item stem, options, authored hint bodies, status copy |
-| Heading | `text-heading` | 20px | 700 | 1.2 | `Hints` section heading; report section headings |
-| Display | `text-display` | 32px | 1.1 | 700 | Report page heading only. **Never** used for a verdict. |
+| Heading | `text-heading` | 20px | 600 | 1.2 | `Hints` section heading; report section headings |
+| Display | `text-display` | 32px | 1.1 | 600 | Report page heading only. **Never** used for a verdict. |
 
-Exactly two weights: 400 and 700. No semibold tier. Hierarchy comes from structure and space.
+Exactly two weights: `--weight-normal` 400 and `--weight-emphasis` 600, per the UI-SPEC §7 weight
+ruling of 2026-08-10 (amended here from the superseded 400/700 row). One emphasis tier, not a
+semibold-plus-bold ladder. Hierarchy comes from structure and space.
 
 ### 3.1 Voice assignment — LOCKED, and this is where B7 bites
 

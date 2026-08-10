@@ -106,8 +106,8 @@ completeness, per the same convention Phase 2's and 2.1's `UI-SPEC.md` both used
 |------|------|--------|-------------|
 | Body (stem, prose) | 16.5px (`.stem`) / 16px (page body) | 400 | 1.55 |
 | Label (chip/meta/status) | 12.5px | 400–500 (existing `.chip`/`.hint` weight) | 1.4–1.5 |
-| Heading (h1) | 21px | 700 | 1.2 |
-| Display (results screen score) | 34px | 700 | 1.1 |
+| Heading (h1) | 21px | 600 | 1.2 |
+| Display (results screen score) | 34px | 600 | 1.1 |
 
 **New role this phase adds** — the code editor and its gutter, and the per-case Input/Expected/Your
 output blocks:
