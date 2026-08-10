@@ -275,7 +275,7 @@ Reject a response once it exceeds the cap; catch `HTTPError` before `URLError` b
 
 **What goes wrong:** A new model-interaction/proposal event is written successfully but existing readers skip it as unknown.
 
-**Why it happens:** Current allowed event types are exactly `("response", "retraction", "mark", "day_tick")`. [VERIFIED: evidence.py:38-43]
+**Why it happens:** Current allowed event types are `("response", "retraction", "mark", "day_tick", "term_lookup", "key_review")` — `term_lookup` and `key_review` were added by Phase 3.1, so the inventory must be read live, never assumed. [VERIFIED: evidence.py:43-44]
 
 **How to avoid:** Update the known-type inventory, raw/event schema definitions, index rebuild behavior, session retrieval, and dedicated event tests together. [ASSUMED]
 
