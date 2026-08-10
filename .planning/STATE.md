@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 03.1
 current_phase_name: lesson-rich-blocks-glossary-style
 status: executing
-stopped_at: Completed 03.1-01-PLAN.md (reader tokens, template migration, callout container)
-last_updated: "2026-08-10T20:06:09.648Z"
+stopped_at: Completed 03.1-02-PLAN.md
+last_updated: "2026-08-10T20:51:28.438Z"
 last_activity: 2026-08-10
 last_activity_desc: Phase 03.1 execution started
 progress:
   total_phases: 18
   completed_phases: 5
   total_plans: 104
-  completed_plans: 39
+  completed_plans: 40
 ---
 
 # Project State
@@ -22,17 +22,17 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-08-07)
 
-**Core value:** One runtime, one scorer, one evidence store — and the runtime, not the model, decides what reaches the learner.
-**Current focus:** Phase 03.1 — lesson-rich-blocks-glossary-style
+**Core value:** One runtime, one scorer, one evidence store â€” and the runtime, not the model, decides what reaches the learner.
+**Current focus:** Phase 03.1 â€” lesson-rich-blocks-glossary-style
 
 ## Current Position
 
-Phase: 03.1 (lesson-rich-blocks-glossary-style) — EXECUTING
-Plan: 2 of 7
+Phase: 03.1 (lesson-rich-blocks-glossary-style) â€” EXECUTING
+Plan: 3 of 7
 Status: Ready to execute
-Last activity: 2026-08-10 — Phase 03.1 execution started
+Last activity: 2026-08-10 â€” Phase 03.1 execution started
 
-Progress: [████░░░░░░] 38%
+Progress: [â–ˆâ–ˆâ–ˆâ–ˆâ–‘â–‘â–‘â–‘â–‘â–‘] 38%
 
 ## Performance Metrics
 
@@ -95,6 +95,7 @@ Progress: [████░░░░░░] 38%
 | Phase 04 P05 | 10min | 2 tasks | 2 files |
 | Phase 04 P06 | 30min | 2 tasks | 4 files |
 | Phase 03.1 P01 | 35 | 3 tasks | 6 files |
+| Phase 03.1 P02 | 140 | 3 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -105,10 +106,10 @@ Recent decisions affecting current work:
 
 - [Phase 3] 03-01: D-04 resolved option-a (user delegation) -- `lesson_ref`/`lesson_slug` stay EXCLUDED from `model.content_fingerprint()` and are locked by a regression assertion (fingerprint of a tagged item equals the byte-identical untagged item); tagging an item never raises `item.content_drift`.
 - [Roadmap]: Evidence spine (Phase 1) and daemon/settings/lesson/surfaces/check foundations (Phases 2-5) run as parallel-eligible tracks per `Depends on: Nothing`; the teaching loop, selection, model adapter, subject-loop integration, retention/trends, and the auditor form the dependent chain (Phases 6-11); packaging closes the milestone (Phase 12).
-- [Roadmap]: Three phases carry unresolved design questions flagged for their own research at plan time — Phase 1 (item identity scheme, Windows event-log durability), Phase 8 (tier-gate enforcement mechanism, no prior art), Phase 11 (second quality gate algorithm, syllabus input formats, auditor reversibility mechanism).
+- [Roadmap]: Three phases carry unresolved design questions flagged for their own research at plan time â€” Phase 1 (item identity scheme, Windows event-log durability), Phase 8 (tier-gate enforcement mechanism, no prior art), Phase 11 (second quality gate algorithm, syllabus input formats, auditor reversibility mechanism).
 - [Roadmap]: The auditor (Phase 11) is deliberately last among new subsystems; its pitfall guard rails (citation-per-claim, second quality gate, one-item-per-commit reversibility, graduated autonomy) are written as phase acceptance criteria, not follow-on hardening.
 - [Phase ?]: 01-01: evidence.py built as a peer module to runtime.py, never imported by model.py; advisory-locked single-write()-per-event append confirmed durable on this Windows machine via a real-OS-process spike that also reproduced the unlocked-O_APPEND corruption bpo-42606 predicts
-- [Phase ?]: 01-02: Task 1 checkpoint resolved as option-a — response_time_ms and confidence captured with real values (served_ts, --confidence flag); error_category and hint_tier recorded as explicit null with the reason stated in code, since no error taxonomy or hint ladder exists before Phase 6/8
+- [Phase ?]: 01-02: Task 1 checkpoint resolved as option-a â€” response_time_ms and confidence captured with real values (served_ts, --confidence flag); error_category and hint_tier recorded as explicit null with the reason stated in code, since no error taxonomy or hint ladder exists before Phase 6/8
 - [Phase ?]: 01-02: evidence.py's response_event()/append_event()/events()/attempt_number()/objective_history() built as the first real writer and reader over the evidence log; surfaces/session.py is the first caller, and model.py additively parses [ID:]/[HASH:] into item_id/content_hash (empty until plan 01-04 assigns them)
 - [Phase ?]: 01-03: LINT_CODES built from sorted(set(...)) rather than a hand-ordered tuple, so sortedness/no-duplicates is structural rather than maintained by eye
 - [Phase ?]: 01-04: content_fingerprint() hashes only tested-content fields (never rationale); assign_ids() is a pure text transform, cmd_id_assign is the only bank writer, checking D-05 cross-bank id-uniqueness in a read-only first pass before any write
@@ -175,9 +176,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 3] 03-03: lesson.src_unreadable echoes the bank-author-written basename, never a resolved absolute path (T-3-09), while the raw OS-error detail stays as the reason -- lint is the diagnostic surface the 03-02 reader defers the detail to
 - [Phase ?]: [Phase 3] 03-03: lesson.duplicate_heading is the first BANK-tagged error; bank-level findings trail per-item findings like bank.answer_position_skew, and tests/evidence_roundtrip.py's ordering assertion was extended to admit BANK errors last
 - [Phase ?]: [Phase 3] 03-03: accepted lint namespace prefixes live in tests/protocol_roundtrip.py's LINT_PREFIXES and are read (never restated) by the coupling tests, so the tuple, the schema enum and the accepted prefixes cannot drift apart
-- [Phase 03]: D-11 executed: --ref filters output to one heading plus its backlinks because the CLI has no anchor to jump to — A second matching rule or a render-then-scroll approach would disagree with the slug the tag and anchor already share
-- [Phase 03]: lesson_page returns None on a --ref miss so the route, CLI and tests share one render without inheriting an exit path — cmd_lesson owns the sys.exit hard stop, keeping the render function exit-free
-- [Phase 03]: Resolved the deferred 03-04 backlink-placement quirk: each heading's section renders from its own text/body with its backlinks directly beneath — Correct --ref filtering requires per-heading association; the old </section>-re-split nested sections and detached both backlink lists
+- [Phase 03]: D-11 executed: --ref filters output to one heading plus its backlinks because the CLI has no anchor to jump to â€” A second matching rule or a render-then-scroll approach would disagree with the slug the tag and anchor already share
+- [Phase 03]: lesson_page returns None on a --ref miss so the route, CLI and tests share one render without inheriting an exit path â€” cmd_lesson owns the sys.exit hard stop, keeping the render function exit-free
+- [Phase 03]: Resolved the deferred 03-04 backlink-placement quirk: each heading's section renders from its own text/body with its backlinks directly beneath â€” Correct --ref filtering requires per-heading association; the old </section>-re-split nested sections and detached both backlink lists
 - [Phase 04]: [Phase 4] 04-02: the day-document adapter was built as one coherent D-08..D-11 implementation, so Task 2's conflict/force assertions passed on first run (no RED); the Task 2 feat commit added the genuinely missing immediately-before-replace revision re-check (TOCTOU closure, T-04-05)
 - [Phase 04]: [Phase 4] 04-02: force is a CLI-level second confirmation (--force + --confirm-force OVERWRITE + the conflict's current revision), never a byte-gate bypass -- save(force=True) still requires SHA-256 equality with the fresh bytes and still fails on a third concurrent version
 - [Phase 04]: [Phase 4] 04-02: escaped pipes display as literal | and submitted pipes are stored as \| with backslashes escaped first, so _display(_encode(value)) == value; unchanged cells keep their raw bytes because only submitted cells are patched
@@ -202,49 +203,19 @@ Recent decisions affecting current work:
 - [Phase ?]: DAY_CSS migrated onto semantic tokens: --ok/--ok-bg for full/floor states, --bad/--bad-bg for chips/badges, --warn for amber, --accent for interaction only.
 - [Phase ?]: 03.1-01: lesson page keeps its own LESSON_TEMPLATE document but composes theme_css + SHARED_CSS + LESSON_CSS in the locked order (surface_shell appends SHARED_CSS last); the composition is imported, never duplicated
 - [Phase ?]: 03.1-01: LESSON_CSS uses only the locked project scale sizes (12/16/18/20/32) and 400/600 weights; fonts resolve only via --font-paper/--font-ledger tokens
-- [Phase ?]: 03.1-01: --r-2/--r-3 radius tokens landed in SHARED_CSS per UI-SPEC §2 ownership (callout contract requires --r-3; Task 1 enumerated voice/measure/leading only)
+- [Phase ?]: 03.1-01: --r-2/--r-3 radius tokens landed in SHARED_CSS per UI-SPEC Â§2 ownership (callout contract requires --r-3; Task 1 enumerated voice/measure/leading only)
 - [Phase ?]: 03.1-01: [!CHECK: <id>] renders the inert reserved slot and drops the id entirely - no key, no form, no scoring path (D-18)
 - [Phase ?]: 03.1-01: Phase 3 warn-note assertions moved from raw var(--warn) grep to the rendered-element contract because SHARED_CSS legitimately carries the token
+- [Phase 03.1]: 03.1-02: term_lookup carries an explicit source field ('reader'|'session') -- the append-only provenance UI-SPEC 8.5 owed at first write; the route records source='session'
+- [Phase 03.1]: 03.1-02: glossable() includes canonical_key() fragments per the plan's locked set; on any ambiguity it returns False (deliberately conservative)
+- [Phase 03.1]: 03.1-02: The /gloss route returns a bare 404 (no event) for suppressed terms, indistinguishable from an unknown slug -- the 8.4-safe branch of the plan's allowed pair
+- [Phase 03.1]: 03.1-02: print_gloss:inline ships as one @media print block un-hiding each term's single panel; note count equals distinct-term count by construction (UI-SPEC 16 backstop)
+- [Phase 03.1]: 03.1-02: The 8.3 enhancement hook is a vendored inline script carrying the locked unavailable copy, inert on the reader (definitions ship with the page); the sitting fetch-on-open variant is 6.2's fill
+- [Phase 03.1]: 03.1-02: model.parse_terms reuses surfaces.lesson's cell splitter via a function-local import -- the plan-mandated reuse without a top-level import cycle
 
-### Pending Todos
-
-None yet.
-
-### Blockers/Concerns
-
-- ~~[Phase 1]: Item identity scheme is an open decision~~ — RESOLVED in plan 01-04 (2026-08-06). Chose opaque `[ID:]` plus a `[HASH:]` content fingerprint over content-hash-as-ID. `model.py` gained `content_fingerprint()`/`new_item_id()`/`assign_ids()` and five identity lint checks; `itembank id-assign` is the only writer into a bank.
-- [Phase 8]: Tier-gate enforcement (detecting and dropping model output that reaches past the unlocked hint tier) has no prior-art analog found in research; expect original design work, not adapter plumbing.
-- [Phase 11]: Auditor autonomy beyond report-only is flagged `⚠️ Revisit` in PROJECT.md's Key Decisions — ship report-only and draft-and-approve fully proven before full audit-draft-lint-fix-commit is wired up.
-
-### Quick Tasks Completed
-
-| ID | Description | Date | Status |
-|----|-------------|------|--------|
-| 260806-u63 | Fix `iter_raw` crash on a torn multi-byte UTF-8 tail in `evidence.py` (closes Phase 1 verification gap / CR-01) | 2026-08-06 | complete ✓ |
-
-### Roadmap Evolution
-
-- Phase 2.1 inserted after Phase 2: Packaging/Self-Update/GIFT export (formerly Phase 12) pulled forward to ship an early exe of the Phase 1+2 feature set and dogfood the self-updater through remaining phases (URGENT)
-- Phase 06.1 inserted after Phase 6: Interactive Visual Assessment Protocol (URGENT)
-- Phase 3.1 inserted after Phase 3: Lesson Rich Blocks, Glossary & Style — D1 TERMS/gloss gate, D2 [!KEY] memorizables with Anki round-trip, D3 LESSON-STYLE.md + 18 lint rules, Q1 reading layout and print CSS (research 2026-08-09) (URGENT)
-- Phase 3.2 inserted after Phase 3.1: Seeding, Import & Provenance — Anki .apkg import, human-gated draft-lint-retry seeding loop, [SRC:]/[OBJ:]/## SOURCES + paraphrase lint, [CASE:] and [PREREQ:] format; must land before Phase 5 (research B1/Q10) (URGENT)
-- Phase 6.2 inserted after Phase 6.1: Executable Textbook Loop — prose, inline gated check, spaced re-exposure over existing lesson/hint/evidence machinery (URGENT)
-- Phase 9.1 inserted after Phase 9: Audio Drill Export — itembank export audio, stem-pause-key-why packs, TTS engine behind one swappable interface (research B3) (URGENT)
-- Phase 13 inserted after Phase 11: Desktop Packaging — Tauri 2.x shell over PyInstaller Python sidecar, NSIS, signed updater; keep-the-Python verdict (research Q8), slot 12 stays retired (URGENT)
-- 2026-08-10 — round-two research folded into ROADMAP.md additively, **no phases added, removed, or renumbered** (`RESEARCH-BRIEF-2-lesson-styles-2026-08-10.md` §4, embedded per its §5 table). Phases 3.1, 3.2, 5, 6, 6.1, 6.2, 7, 8, 9, 10, 11 gained criteria; Extensibility Rule 8 was rewritten.
-- Phase 3.1 **unblocked**: criteria 3a/3b replaced their placeholders with the real specification (five-style registry, `expository` parent, one file per style, one inheritance level, house-vs-style split with a `lock` column) and gained 3c enforcement, 3d the seven-imperative prompt cap, 3e the one new parse path `[!CHECK:]`, and criterion 7 the two-file lesson layout.
-- Extensibility Rule 8 **rewritten**: the "strategy declares its own authority" hypothesis is overturned. Two normalizer registries feed an unchanged `score_response()`; tier 3 is not a scorer strategy at all. Tier table unchanged, mechanism replaced. No `checkpoint:decision` is owed for partial credit — Phase 1 built that door correctly.
-- Rulings 7-10 recorded as OPEN on the phase each blocks, each with a default if unruled: 7 (`lesson_layout` into closed `subject_profiles`) on 3.1 and 9; 8 (`[!KEY]` scope) on 3.1; 9 (cross-bank `[!CHECK:]`) on 3.1 and 6.2; 10 (does the exemplar earn its tokens) on 11.
-- Every brief §4.5 item recorded as a **named unknown** on its phase rather than as a number — the 7900 XTX throughput figure most of all, which Phase 8 criterion 9 explicitly forbids any plan from inventing.
-- Phase 8 now plans against a **hosted Claude-Code-class backend** per PLANNING-DIRECTIVES §1 as amended 2026-08-10; the local 24GB card is a second registration behind the same interface, not a prerequisite. Directive §4.1 is unrelaxed.
-
-## Deferred Items
-
-Items acknowledged and carried forward from previous milestone close:
-
-| Category | Item | Status | Deferred At |
+## Deferred Verification
 |----------|------|--------|-------------|
-| *(none — this is the project's first milestone)* | | | |
+| *(none â€” this is the project's first milestone)* | | | |
 
 ## Deferred Verification
 
@@ -256,8 +227,8 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-10T20:06:00.110Z
-Stopped at: Completed 03.1-01-PLAN.md (reader tokens, template migration, callout container)
+Last session: 2026-08-10T20:51:28.383Z
+Stopped at: Completed 03.1-02-PLAN.md
 verified 5/5 with human items deferred; Phases 2.1/3/4 carry
 verification_deferred_human rows above.
 Resume file: None
