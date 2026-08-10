@@ -8,6 +8,7 @@ only way out of a lesson is to another surface, never to a score.
 import html, os, re, sys
 
 from model import grab, lesson_slug, load, parse_lesson
+from surfaces.presentation import SHARED_CSS
 from surfaces.theme import THEME_CSS
 
 
@@ -36,43 +37,70 @@ WARN_CSS = """.warn{color:var(--warn);font-size:14px;margin:14px auto 0;max-widt
 """
 
 
+# The lesson reader's own CSS layer (03.1-UI-SPEC §2 Reader CSS LOCKED):
+# structure and spacing only, riding the shared theme tokens and SHARED_CSS.
+# Fonts resolve by token -- --font-paper for Paper-voice prose, --font-ledger
+# for Ledger-voice labels -- never a literal family. Sizes are the locked
+# project scale (12/16/18/20/32) and the weight pair is 400/600; this layer
+# introduces no sixth size and no third weight. Every colour is var(--token):
+# no hex literal, no second palette (03.1-UI-SPEC §5).
+LESSON_CSS = r"""
+.wrap{max-width:var(--measure-prose);margin:0 auto;
+  padding:var(--space-4) var(--space-3) var(--space-7);
+  font-family:var(--font-paper)}
+header{margin-bottom:var(--space-4)}
+h1{font-size:32px;font-weight:600;line-height:1.1;margin:0 0 var(--space-3)}
+.sub{color:var(--mut);font-size:12px}
+.card{background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:var(--space-4) var(--space-4) var(--space-3)}
+section{margin-bottom:var(--space-4)}
+h2{font-size:20px;font-weight:600;line-height:1.2;margin:var(--space-6) 0 var(--space-3)}
+h3{font-size:16px;font-weight:600;line-height:1.4;margin:var(--space-5) 0 var(--space-2)}
+p,li{font-size:18px;line-height:var(--leading-lesson);
+  margin:0 0 var(--space-3)}
+.bl{margin-top:var(--space-2);padding-top:var(--space-2);
+  border-top:1px solid var(--line)}
+.blabel{display:block;font-size:12px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--mut);margin-bottom:var(--space-1);
+  font-family:var(--font-ledger)}
+.bl a{display:block;color:var(--accent);text-decoration:none;
+  margin:var(--space-1) 0}
+.bl a:hover,.bl a:focus-visible{text-decoration:underline;
+  outline:2px solid var(--accent);outline-offset:2px}
+.scroll{overflow-x:auto;margin:0 0 var(--space-2);
+  max-width:var(--measure-wide)}
+pre{margin:0;background:var(--chip);border-radius:8px;
+  padding:var(--space-2) var(--space-3)}
+pre code{display:block;font-family:var(--font-ledger);font-size:14px;
+  line-height:1.5;color:var(--ink)}
+.lang{display:block;font-size:12px;letter-spacing:.05em;color:var(--mut);
+  margin-bottom:var(--space-1);font-family:var(--font-ledger)}
+table{border-collapse:collapse;margin:0 0 var(--space-2);min-width:100%}
+th,td{border:1px solid var(--line);padding:var(--space-2);
+  text-align:left;font-size:14px}
+th{background:var(--chip);color:var(--mut);font-weight:600}
+.orphan{color:var(--mut);font-size:14px}
+.empty{text-align:center;padding:var(--space-6) var(--space-3)}
+.empty p{color:var(--mut);max-width:var(--measure-prose);margin:0 auto}
+@media print{
+  @page{margin:18mm}
+  h2{break-after:avoid}
+  [popover]{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* ?print=drill second-stylesheet placeholder hook: cloze blanking and the
+   Answers list land in plan 03.1-04 as a second stylesheet plus one
+   server-side blanking pass -- never a second renderer (03.1-UI-SPEC §10). */
+"""
+
+
 LESSON_TEMPLATE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>__TITLE__</title>
 <style>
 __THEME__
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);
-  font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-.wrap{max-width:800px;margin:0 auto;padding:22px 18px 96px}
-header{margin-bottom:18px}
-h1{font-size:21px;margin:0 0 4px;letter-spacing:-.01em}
-.sub{color:var(--mut);font-size:13.5px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;
-  padding:18px 18px 16px}
-section{margin-bottom:18px}
-h2{font-size:19px;margin:0 0 8px;line-height:1.3}
-p{margin:0 0 10px}
-.bl{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
-.blabel{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--mut);margin-bottom:6px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-.bl a{display:block;color:var(--accent);text-decoration:none;margin:4px 0}
-.bl a:hover,.bl a:focus-visible{text-decoration:underline;
-  outline:2px solid var(--accent);outline-offset:2px}
-.scroll{overflow-x:auto;margin:0 0 10px}
-pre{margin:0;background:var(--chip);border-radius:8px;padding:10px 12px}
-pre code{display:block;font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
-  font-size:13.5px;line-height:1.5;color:var(--ink)}
-.lang{display:block;font-size:11px;letter-spacing:.05em;color:var(--mut);
-  margin-bottom:6px;font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace}
-table{border-collapse:collapse;margin:0 0 10px;min-width:100%}
-th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;font-size:14.5px}
-th{background:var(--chip);color:var(--mut);font-weight:700}
-.orphan{color:var(--mut);font-size:14px}
-.empty{text-align:center;padding:36px 10px}
-.empty h2{font-size:19px;margin:0 0 8px}
-.empty p{color:var(--mut);max-width:520px;margin:0 auto}
+__SHARED_CSS__
+__LESSON_CSS__
 __WARN_CSS__
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head><body><div class="wrap">
 <header>
   <h1>__TITLE__</h1>
@@ -426,6 +454,8 @@ def lesson_page(bank_path, qs, lesson, ref=None):
             for idx in idxs for h in (lesson["headings"][idx],))
     return (LESSON_TEMPLATE
             .replace("__THEME__", THEME_CSS)
+            .replace("__SHARED_CSS__", SHARED_CSS)
+            .replace("__LESSON_CSS__", LESSON_CSS)
             .replace("__WARN_CSS__", warn_css)
             .replace("__TITLE__", html.escape(title) + " lesson")
             .replace("__SUB__", SUB_BYLINE)

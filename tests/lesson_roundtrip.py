@@ -896,6 +896,117 @@ def test_lesson_shared_fixture_carries_math_seam():
              "to")
 
 
+# ---- plan 03.1-01 Task 2: template migration onto the shared visual system --
+# 03.1-UI-SPEC §2 (Reader CSS LOCKED): LESSON_TEMPLATE stops carrying a
+# private type system and composes theme_css + SHARED_CSS + LESSON_CSS.
+# 03.1-UI-SPEC §12: byte identity covers the rendered content region with
+# the shared <style> block explicitly excluded -- the exclusion is the
+# recorded decision, not a convenient omission -- plus parse identity.
+
+GOLDEN_CONTENT_P3 = os.path.join(ROOT, "fixtures",
+                                 "lesson_golden_phase3_content.txt")
+GOLDEN_PARSE_P3 = os.path.join(ROOT, "fixtures",
+                               "lesson_golden_phase3_parse.json")
+
+
+def _lesson_content_region(pg):
+    """The rendered `__BODY__` region of LESSON_TEMPLATE -- the content
+    between `<div class="card">` and the card's closing `</div>`."""
+    m = re.search(r'<div class="card">(.*?)</div>\s*</div></body></html>',
+                  pg, re.S)
+    if not m:
+        fail("lesson page has no <div class=\"card\"> content region")
+    return m.group(1)
+
+
+def test_lesson_style_composes_theme_shared_lesson():
+    """Test 1: the rendered lesson page's <style> composes theme_css then
+    SHARED_CSS then LESSON_CSS, and LESSON_TEMPLATE carries no private type
+    system -- no font-size, font-family, line-height, or color literal
+    (03.1-UI-SPEC §2 Reader CSS LOCKED)."""
+    from surfaces.presentation import SHARED_CSS
+    from surfaces.lesson import LESSON_CSS, LESSON_TEMPLATE
+    pg = lesson.lesson_page(LES_BANK, itembank.load(LES_BANK),
+                            itembank.parse_lesson(LES_BANK))
+    m = re.search(r"<style>(.*?)</style>", pg, re.S)
+    if not m:
+        fail("lesson page carries no <style> block")
+    style = m.group(1)
+    theme_at = style.find(":root{")
+    shared_at = style.find("*{box-sizing:border-box}")
+    lesson_at = style.find(LESSON_CSS[:40])
+    if shared_at < 0 or lesson_at < 0:
+        fail("composed style missing SHARED_CSS or LESSON_CSS layer")
+    if not (theme_at < shared_at < lesson_at):
+        fail("style layers must compose theme_css then SHARED_CSS then "
+             "LESSON_CSS (got %d, %d, %d)" % (theme_at, shared_at,
+                                               lesson_at))
+    for banned in ("font-size", "font-family", "line-height"):
+        if banned in LESSON_TEMPLATE:
+            fail("LESSON_TEMPLATE must not carry a %s literal "
+                 "(03.1-UI-SPEC §2)" % banned)
+    if re.search(r"#[0-9a-fA-F]{3,8}\b", LESSON_TEMPLATE):
+        fail("LESSON_TEMPLATE must not carry a color literal")
+
+
+def test_lesson_heading_ramp_locked():
+    """Test 2: the locked heading ramp -- h1 text-display, h2 text-heading,
+    h3 text-body at 600, with the asymmetric space-6/space-3 and
+    space-5/space-2 margins (03.1-UI-SPEC §4 LOCKED)."""
+    pg = lesson.lesson_page(LES_BANK, itembank.load(LES_BANK),
+                            itembank.parse_lesson(LES_BANK))
+    m = re.search(r"<style>(.*?)</style>", pg, re.S)
+    style = m.group(1)
+    ramp = {
+        "h1{font-size:32px;font-weight:600;line-height:1.1;"
+        "margin:0 0 var(--space-3)}":
+            "h1 must render at text-display with margin space-3",
+        "h2{font-size:20px;font-weight:600;line-height:1.2;"
+        "margin:var(--space-6) 0 var(--space-3)}":
+            "h2 must render at text-heading with margins space-6/space-3",
+        "h3{font-size:16px;font-weight:600;line-height:1.4;"
+        "margin:var(--space-5) 0 var(--space-2)}":
+            "h3 must render at text-body 600 with margins space-5/space-2",
+    }
+    for rule, msg in ramp.items():
+        if rule not in style:
+            fail(msg + ": missing %r" % rule)
+    if "font-size:18px;line-height:var(--leading-lesson)" not in style:
+        fail("lesson prose must render at text-lesson 18px/1.65")
+    if "max-width:var(--measure-prose)" not in style:
+        fail("the prose column must cap at --measure-prose")
+
+
+def test_lesson_content_region_byte_identical_phase3():
+    """Test 3: for a bank using none of the new constructs, the rendered
+    content region is byte-identical to the Phase 3 golden with the shared
+    <style> block explicitly excluded (03.1-UI-SPEC §12.1-§12.2 LOCKED --
+    the exclusion is the recorded decision)."""
+    golden = open(GOLDEN_CONTENT_P3, encoding="utf-8").read()
+    pg = lesson.lesson_page(LES_BANK, itembank.load(LES_BANK),
+                            itembank.parse_lesson(LES_BANK))
+    content = _lesson_content_region(pg)
+    if content != golden:
+        fail("content region drifted from the Phase 3 golden "
+             "(%d chars, expected %d; style block excluded per "
+             "03.1-UI-SPEC §12)" % (len(content), len(golden)))
+
+
+def test_lesson_parse_identity_phase3():
+    """Test 4: the parsed question dicts and parsed lesson structure are
+    byte-equal to the Phase 3 goldens -- the parse is what Directive §4.4
+    actually protects (03.1-UI-SPEC §12.3)."""
+    golden = json.load(open(GOLDEN_PARSE_P3, encoding="utf-8"))
+    qs = itembank.load(LES_BANK)
+    les = itembank.parse_lesson(LES_BANK)
+    if json.dumps(qs, sort_keys=True) != json.dumps(golden["qs"],
+                                                    sort_keys=True):
+        fail("parsed question dicts drifted from the Phase 3 golden")
+    if json.dumps(les, sort_keys=True) != json.dumps(golden["lesson"],
+                                                     sort_keys=True):
+        fail("parsed lesson structure drifted from the Phase 3 golden")
+
+
 # ---- plan 03-04 Task 2: inlines -- emphasis, inline code, links ------------
 # The inline pass runs over placeholder-protected, already-escaped text only:
 # code spans are lifted first so they are never re-scanned, escaping happens
@@ -1311,7 +1422,7 @@ def test_lesson_src_degraded_daemon_and_cli():
     if status != 200:
         fail("a broken LESSON-SRC must serve 200, got %d" % status)
     for want in ("No lesson yet",
-                 "var(--warn)",
+                 'class="warn"',
                  "The external lesson file for this bank could not be read."):
         if want not in body:
             fail("degraded page missing %r" % want)
@@ -1345,7 +1456,12 @@ def test_lesson_plain_empty_state_has_no_warning():
                             itembank.parse_lesson(SMP_BANK))
     if "No lesson yet" not in pg:
         fail("plain empty state missing heading")
-    if "var(--warn)" in pg:
+    # The shared style block legitimately carries the --warn token for other
+    # surfaces; the contract is that the plain empty state renders no warn
+    # note element and substitutes no .warn rule (plan 03.1-01 migrated the
+    # lesson page onto SHARED_CSS; the style block is excluded from the §12
+    # byte-identity floor).
+    if 'class="warn"' in pg or ".warn{" in pg:
         fail("plain empty state must not carry the warning note")
     if "white-space:nowrap" in pg or "text-overflow" in pg:
         fail("plain empty state must not force no-wrap or ellipsis truncation")
@@ -1608,6 +1724,10 @@ test_render_overflow_containers()
 test_render_deep_heading_same_size()
 test_lesson_bank_fixture_renders_all_block_kinds()
 test_lesson_shared_fixture_carries_math_seam()
+test_lesson_style_composes_theme_shared_lesson()
+test_lesson_heading_ramp_locked()
+test_lesson_content_region_byte_identical_phase3()
+test_lesson_parse_identity_phase3()
 test_render_inline_emphasis()
 test_render_inline_code()
 test_render_links()
