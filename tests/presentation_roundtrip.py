@@ -693,6 +693,51 @@ def test_teaching_step_primary_action_contract():
         fail("the concise prompt was dropped")
 
 
+# ---- plan 03.1-01 Task 1: reading-surface voice/measure/leading tokens ----
+
+def test_voice_measure_leading_tokens_ship_in_shared_css():
+    """Test 1: the reading surface's five new design tokens land in
+    SHARED_CSS with the exact values 03.1-UI-SPEC §2 / §7.1 lock."""
+    sys.path.insert(0, ROOT)
+    from surfaces.presentation import SHARED_CSS
+    for want in ("--font-paper", "--font-ledger", "--measure-prose:66ch",
+                 "--measure-wide:90ch", "--leading-lesson:1.65"):
+        if want not in SHARED_CSS:
+            fail("SHARED_CSS must carry %r (03.1-UI-SPEC §2, §7.1)" % want)
+
+
+def test_font_tokens_name_fallbacks_and_only_presentation_names_families():
+    """Test 2: the fallback stacks name Georgia and ui-monospace, and the
+    vendored face names exist only inside surfaces/presentation.py — every
+    other surface references fonts by token, never by literal family."""
+    sys.path.insert(0, ROOT)
+    from surfaces.presentation import SHARED_CSS
+    if "Georgia" not in SHARED_CSS or "ui-monospace" not in SHARED_CSS:
+        fail("--font-paper/--font-ledger must carry the no-vendor fallbacks "
+             "Georgia and ui-monospace")
+    for name in ("Source Serif 4", "iA Writer Quattro"):
+        for root, _dirs, files in os.walk(os.path.join(ROOT, "surfaces")):
+            for fn in files:
+                if not fn.endswith(".py"):
+                    continue
+                path = os.path.join(root, fn)
+                if os.path.basename(path) == "presentation.py":
+                    continue
+                src = open(path, encoding="utf-8").read()
+                if name in src:
+                    fail("vendored face %r must be named only by "
+                         "presentation.py, found in %s" % (name, path))
+
+
+def test_no_hex_literal_added_to_shared_css():
+    """Test 3: the token additions introduce no color literal — a hex in
+    presentation.py would be a second palette (03.1-UI-SPEC §5)."""
+    sys.path.insert(0, ROOT)
+    from surfaces.presentation import SHARED_CSS
+    if re.search(r"#[0-9a-fA-F]{3,8}\b", SHARED_CSS):
+        fail("SHARED_CSS must contain no hex color literal")
+
+
 # ---- self-checks ------------------------------------------------------------
 
 def check_parser_and_assertions():
@@ -787,6 +832,9 @@ def main():
     test_lesson_compatible_prose_view()
     test_responsive_zoom_and_noscript_fallback()
     test_teaching_step_primary_action_contract()
+    test_voice_measure_leading_tokens_ship_in_shared_css()
+    test_font_tokens_name_fallbacks_and_only_presentation_names_families()
+    test_no_hex_literal_added_to_shared_css()
     print("ok: presentation Wave 0 harness -- semantic DOM parser, landmark/"
           "heading/status/native-control/focus/reduced-motion assertions, "
           "long-content/320px/state fixtures, behavior-free adapter probes, "

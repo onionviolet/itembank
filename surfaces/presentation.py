@@ -32,6 +32,20 @@ SHARED_CSS = r"""
 html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--ink);
   font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+/* Voice & measure tokens (03.1-UI-SPEC §2, §7.1): fonts resolve by token
+   only. --font-paper/--font-ledger prefer the vendored faces (Source Serif
+   4 / iA Writer Quattro -- landed in plan 03.1-02) and fall back to the
+   no-vendor stack Georgia / ui-monospace when no font file is present;
+   the @font-face rules for the vendored faces land in this same layer.
+   --measure-prose/--measure-wide are character measures, not pixel
+   spacing; --leading-lesson is the sustained-prose line height. */
+:root{
+  --font-paper:Georgia,"Source Serif 4",serif;
+  --font-ledger:ui-monospace,"iA Writer Quattro",monospace;
+  --measure-prose:66ch;
+  --measure-wide:90ch;
+  --leading-lesson:1.65
+}
 .surface{max-width:720px;margin:0 auto;padding:24px 16px 64px;min-width:0}
 .surface.wide{max-width:800px}
 h1{font-size:28px;font-weight:600;line-height:1.2;margin:0 0 8px}
