@@ -2249,6 +2249,138 @@ def test_reader_settings_registered_in_schema():
         fail("reader must be a top-level required settings key")
 
 
+# ---- plan 03.1-03 Task 1: [!KEY] blocks, shared id minting, key lint ------
+
+def key_bank(tmp, lesson_body, item=None, intro=""):
+    """A bank whose lesson body carries `> [!KEY]` callouts plus one clean
+    item, laid out under `tmp`."""
+    bank = os.path.join(tmp, "key_bank.md")
+    parts = ["# Key bank\n"]
+    if intro:
+        parts.append(intro.strip() + "\n")
+    parts.append("## LESSON\n\n%s\n" % lesson_body.strip())
+    parts.append((item or clean_mc("Which is one?")).strip() + "\n")
+    open(bank, "w", encoding="utf-8").write("\n".join(parts))
+    return bank
+
+
+def test_parse_key_blocks():
+    """`> [!KEY]` callouts in the lesson parse into {id, hash, title, body,
+    cloze, section_slug}; a lesson with none returns an empty list; the
+    question parse is untouched."""
+    tmp = tempfile.mkdtemp()
+    body = ("### Airway\n\n"
+            "> [!KEY] OPA indications\n"
+            "> [ID: 1111111111111111]\n"
+            "> [HASH: sha256:abcdef]\n"
+            "> The OPA is indicated when the tongue obstructs.\n\n"
+            "> [!KEY]\n"
+            "> Memorize {{cloze}} inline.\n\n"
+            "### More\n\nProse.\n")
+    bank = key_bank(tmp, body)
+    keys = itembank.parse_key_blocks(bank)
+    if len(keys) != 2:
+        fail("expected 2 key blocks, got %r" % keys)
+    first = keys[0]
+    if first["id"] != "1111111111111111" or first["hash"] != "sha256:abcdef":
+        fail("key id/hash directives wrong: %r" % first)
+    if first["title"] != "OPA indications":
+        fail("key title wrong: %r" % first)
+    if "tongue obstructs" not in first["body"]:
+        fail("key body wrong: %r" % first)
+    if first["cloze"] is not False or first["section_slug"] != "airway":
+        fail("first key cloze/section wrong: %r" % first)
+    second = keys[1]
+    if second["cloze"] is not True or second["title"] != "":
+        fail("second key cloze/title wrong: %r" % second)
+    if "Memorize" not in second["body"]:
+        fail("second key body wrong: %r" % second)
+
+    plain = key_bank(tmp, "### Airway\n\nJust prose.\n")
+    if itembank.parse_key_blocks(plain) != []:
+        fail("a lesson with no key blocks must parse to []")
+
+
+def test_key_id_minting_shared_namespace():
+    """`itembank id-assign` mints [!KEY] ids through the same taken set as
+    item ids: a key never collides with an existing item id, the minted
+    [ID:]/[HASH:] land in the bank text, a second run is a no-op, and no
+    separate key-id function exists (research Pitfall 5)."""
+    tmp = tempfile.mkdtemp()
+    item = clean_mc("Which is one?") + "[ID: aaaaaaaaaaaaaaaa]\n"
+    bank = key_bank(
+        tmp,
+        "### Airway\n\n> [!KEY] OPA indications\n"
+        "> The OPA holds the tongue off the pharynx.\n",
+        item=item)
+    res = subprocess.run(
+        [sys.executable, os.path.join(ROOT, "itembank.py"), "id-assign", bank],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
+    if res.returncode != 0:
+        fail("id-assign failed: " + res.stdout)
+    text = open(bank, encoding="utf-8").read()
+    key_id_m = re.search(r"> \[ID: ([0-9a-f]{16})\]", text)
+    if not key_id_m:
+        fail("id-assign did not mint a [ID:] into the key block:\n%s" % text)
+    if key_id_m.group(1) == "aaaaaaaaaaaaaaaa":
+        fail("key id collided with the item's id")
+    if "> [HASH: sha256:" not in text:
+        fail("id-assign did not record the key's [HASH:]")
+
+    before = text
+    res2 = subprocess.run(
+        [sys.executable, os.path.join(ROOT, "itembank.py"), "id-assign", bank],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
+    if open(bank, encoding="utf-8").read() != before:
+        fail("a second id-assign run must be a byte-identical no-op")
+    model_src = open(os.path.join(ROOT, "model.py"), encoding="utf-8").read()
+    if re.search(r"def new_key_id|def key_id\(", model_src):
+        fail("a separate key-id function must not exist")
+
+
+def test_key_lint_no_front_missing_id_duplicate():
+    """key.no_front errors on a body with neither title nor cloze;
+    key.missing_id/key.missing_hash warn on unminted blocks; key.duplicate_id
+    fires when two blocks share an [ID:] (D-05, UI-SPEC §16)."""
+    tmp = tempfile.mkdtemp()
+    bank = key_bank(
+        tmp,
+        "### Airway\n\n"
+        "> [!KEY]\n> A body with no title and no cloze.\n\n"
+        "> [!KEY] Titled\n> Fine body.\n\n"
+        "> [!KEY] Id'd\n> [ID: 2222222222222222]\n> Has id, no hash.\n")
+    qs = itembank.load(bank)
+    errors, warnings = itembank.lint(
+        qs, lesson=itembank.parse_lesson(bank),
+        terms=itembank.parse_terms(bank),
+        keys=itembank.parse_key_blocks(bank))
+    no_front = [e for e in errors if e.code == "key.no_front"]
+    if len(no_front) != 1 or no_front[0].item != "BANK":
+        fail("key.no_front must be a single BANK error: %r" % errors)
+    missing_id = [w for w in warnings if w.code == "key.missing_id"]
+    if len(missing_id) != 2:
+        fail("unminted key blocks must warn key.missing_id, got %r" % warnings)
+    missing_hash = [w for w in warnings if w.code == "key.missing_hash"]
+    if len(missing_hash) != 1:
+        fail("an id'd block without a hash must warn key.missing_hash, got %r"
+             % warnings)
+
+    bank2 = key_bank(
+        tmp,
+        "### Airway\n\n"
+        "> [!KEY] One\n> [ID: 1111111111111111]\n> First body.\n\n"
+        "> [!KEY] Two\n> [ID: 1111111111111111]\n> Second body.\n")
+    qs2 = itembank.load(bank2)
+    errors2, _ = itembank.lint(
+        qs2, lesson=itembank.parse_lesson(bank2),
+        terms=itembank.parse_terms(bank2),
+        keys=itembank.parse_key_blocks(bank2))
+    dup = [e for e in errors2 if e.code == "key.duplicate_id"]
+    if len(dup) != 1 or dup[0].item != "BANK":
+        fail("shared [ID:] across key blocks must be a BANK error: %r"
+             % errors2)
+
+
 test_slug()
 test_parse_lesson()
 test_prose_line_shaped_like_question_marker()
@@ -2349,4 +2481,7 @@ test_gloss_marks_and_print_modes()
 test_gloss_example_layout_and_reader_nav()
 test_gloss_route_and_cli_twin()
 test_reader_settings_registered_in_schema()
+test_parse_key_blocks()
+test_key_id_minting_shared_namespace()
+test_key_lint_no_front_missing_id_duplicate()
 print("ok: lesson roundtrip (slug, parse, fingerprint, LESSON-SRC, degraded state, route, CLI twin, both link directions, lesson lint, coupling guards)")
