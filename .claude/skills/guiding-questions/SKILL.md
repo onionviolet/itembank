@@ -64,7 +64,42 @@ What you may **never** do:
 - Decide the hint tier, imply a score, or claim a `short` answer was graded.
 - Replace the activity with generic chat, or retry indefinitely.
 
-## 5. Close with evidence
+## 5. Escalate: tier-gated hints, rubric review, selection preview
+
+The runtime owns the hint ladder — you never decide the tier. When the
+learner is stuck, request one error-specific hint:
+
+```bash
+python itembank.py hint --session s.json            # one error-specific hint
+python itembank.py hint --session s.json --retry    # regenerate as a parent-linked retry
+```
+
+`hint` returns the tier the runtime granted (`tier.index`, `unlock_path`),
+falls back to the authored tier when offline, and never accepts a
+caller-supplied tier (D-09). At most one generation per interaction id
+unless `--retry` (D-12). Present only what the runtime returned — never the
+key and never a higher tier.
+
+For a `short` response, you may request rubric guidance but never settle a
+mark:
+
+```bash
+python itembank.py rubric-review --session s.json   # pending per-point suggestions
+```
+
+A model suggestion surfaces as a single `pending` token until a human marks
+the response (D-25) — never a score, check, or cross.
+
+To preview what a selection will draw before starting a session (objective,
+type, difficulty, count, seed), use the inspectable selection preview:
+
+```bash
+python itembank.py select bank.md --objective "Airway / positioning" --count 5 --explain
+```
+
+`--explain` prints the "why this item" trace; without it, the selection JSON.
+
+## 6. Close with evidence
 
 ```bash
 python itembank.py report s.json

@@ -17,6 +17,11 @@ session_*.json
 *_quiz.html
 *_study.html
 
+# Machine-specific Reasonix config (permissions grants, sandbox mirrors, the
+# optional OCR plugin) -- never ships. The portable template is
+# reasonix.toml.example; copy it if you want local config.
+reasonix.toml
+
 __pycache__/
 *.pyc
 .DS_Store

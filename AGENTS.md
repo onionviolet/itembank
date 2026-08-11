@@ -131,16 +131,22 @@ Repo playbooks live in two mirrored trees so every agent finds them:
 | `curriculum-design` | Turn a syllabus into objective-by-objective coverage, find gaps |
 | `guiding-questions` | Run a Socratic tutoring session with the JSON protocol |
 | `author-bank` | The write → lint → fix loop for new items |
+| `ocr` | Read text out of images via a local Ollama vision model (optional; needs the model pulled) |
 
-- **Codex and agents.md readers**: skills are at `.agents/skills/<name>/SKILL.md`
-  and are discovered automatically from the repo root.
-- **Claude Code**: skills are mirrored at `.claude/skills/<name>/SKILL.md`
-  (project-level). Invoke with `/name` or let Claude auto-match the description.
-- **Other tools**: install by pointing your tool's skill root at
-  `.agents/skills/` (the two trees are identical; edit either and mirror).
+Where each tool finds the playbooks:
 
-The two trees are mirrors of the same playbooks — keep them in sync when
-editing.
+- **Codex, Gemini CLI, Cursor, GitHub Copilot, and other agents.md readers**:
+  `.agents/skills/<name>/SKILL.md`, auto-discovered from the repo root.
+- **Claude Code**: mirrored at `.claude/skills/<name>/SKILL.md` (project-level).
+  Invoke with `/name` or let Claude auto-match the description.
+- **Reasonix**: auto-discovers `.agents/skills/` as a convention root — no
+  config needed. The optional OCR plugin wiring is personal config, shown
+  in `reasonix.toml.example` (the file itself is gitignored).
+- **Anything else**: point your tool's skill root at `.agents/skills/`.
+
+The two trees are mirrors of the same playbooks — edit either and copy to
+the other; CI runs `diff -rq .agents/skills .claude/skills` and fails on
+drift.
 
 ## Where to look next
 
