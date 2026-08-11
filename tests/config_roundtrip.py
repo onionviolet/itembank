@@ -114,7 +114,7 @@ def test_schema_names_every_project_key():
     expected = {"theme", "daily_cap", "selection_weights", "selection",
                 "auditor_autonomy", "model_backend", "suggestion_reveal",
                 "update_policy", "daemon", "update", "accent", "reader",
-                "style", "paraphrase", "retention"}
+                "style", "paraphrase", "retention", "audio"}
     if keys != expected:
         fail("schema properties %r do not equal the expected key set %r" % (keys, expected))
     for name, sub in schema["properties"].items():

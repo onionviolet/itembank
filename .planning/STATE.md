@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 08
-current_phase_name: model-adapter-interface-tier-gate-enforcement
+current_phase: 09.1
+current_phase_name: audio-drill-export
 status: executing
 stopped_at: Completed 08-05-PLAN.md
 last_updated: "2026-08-11T14:48:12.553Z"
 last_activity: 2026-08-11
-last_activity_desc: "Phase 08 plan 08-05 completed (identifier-safe assist routes + AgentAssist learner surface + blocking UAT PASS); phases 03.1, 06.1, 06.2 merged into main (closed)"
+last_activity_desc: "Phase 08 plan 08-05 completed (identifier-safe assist routes + AgentAssist learner surface + blocking UAT PASS); phases 03.1, 06.1, 06.2, 09.1 merged into main (closed)"
 progress:
   total_phases: 18
   completed_phases: 10
@@ -137,6 +137,10 @@ Progress: [███████░░░] 64%
 | Phase 08-model-adapter-interface-tier-gate-enforcement P08-03 | 22min | 3 tasks | 3 files |
 | Phase 08-model-adapter-interface-tier-gate-enforcement P08-04 | 55 | 3 tasks | 9 files |
 | Phase 08-model-adapter-interface-tier-gate-enforcement P08-05 | ~35min | 3 tasks | 7 files |
+| Phase 09.1-audio-drill-export 09.1-01 | ~50min | 3 tasks | 6 files |
+| Phase 09.1-audio-drill-export 09.1-02 | ~45min | 3 tasks | 5 files |
+| Phase 09.1-audio-drill-export 09.1-03 | ~50min | 3 tasks | 6 files |
+| Phase 09.1-audio-drill-export 09.1-04 | ~40min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -297,19 +301,7 @@ Recent decisions affecting current work:
 - [Phase 08]: model_interaction and mark_proposal events are registered in KNOWN_EVENT_TYPES and the schema enum in the same commit as each builder (D-23); dedupe is one-generation-per-interaction with retries linked via parent_interaction_id (D-12)
 - [Phase 08]: mark_event(proposal_ref=None) folds the reference into the dedupe raw string so accepting two different proposals for the same response records two distinct human marks; the marker != 'human' guard stays byte-for-byte unchanged (D-14/D-23)
 - [Phase 08] 08-03: requirements TEACH-07/08/09, MODEL-03, MODEL-05 NOT yet marked complete -- the shared-ID gate (#2388) blocks them because 08-04/05/06 still declare them without SUMMARYs; requirements.mark-complete re-evaluates when the last declaring plan finishes
-- [Phase 7] 07: CLOSED 2026-08-11 for its binding scope — SEL-01..05 verified (6/6 plans; `python tests/selection_roundtrip.py` 18/18 green); UAT 3/4 automated pass + explain-legibility manual (E1 backstop sample in 07-VERIFICATION.md). The five roadmap criteria beyond the binding scope (guided path, fringe mastery-gate, blueprint/[CASE:] weights, corpus reach, pending-mark invariant) are recorded as actionable gaps in 07-VERIFICATION.md with recommended homes (07.1 wave or Phases 10/11); closed per project decision, gaps not silently dropped
-- [Phase 08]: 08-04: the CLI hint command is now the model-orchestrated diagnostic hint (--session/--retry); the Phase 6 explicit tier-reveal stays in the runtime teaching transition and the daemon /api/hint (via a stumped=None sentinel on do_hint) until plan 08-05 rewires the route
-- [Phase 08]: 08-04: one generation per interaction id is structural (evidence dedupe over session_id+interaction_id); retry=True mints a uuid4 child id with parent_interaction_id pointing at the most recent interaction -- cost and repeated failures stay visible in evidence
-- [Phase 08]: 08-04: tier-3 suggestions are pending-only; the only accept paths are the learner's explicit self-mark and the reviewer's explicit human batch accept, both through mark_event with proposal_ref, and no auto-accept flag exists anywhere (D-25)
-- [Phase 08]: 08-05: the daemon relays only typed runtime payloads — both new /api/hint and /api/rubric-review routes resolve the session through session_index and wrap session.do_hint/do_rubric_review in the house SystemExit->400/Exception->500 containment, and API_FORBIDDEN_FIELDS refuses tier/profile/facts/candidate/proposal/marker/verdict with 400 before any handler (D-09)
-- [Phase 08]: 08-05: SURFACE_PARITY is one three-column map (route, CLI command, reserved MCP tool name) covering every API_ROUTES entry per Extensibility Rule 9(a); the parity test fails on a route without a CLI or tool name
-- [Phase 08]: 08-05: the learner assist is plain chrome with exact 08-UI-SPEC copy — one bounded status line, Generated support disclosure, labeled structural lock with no model voice, and pending-only rubric rows with no accept control in the browser; Record human mark stays CLI-only
-- [Phase 06.1] 06.1-01: the visual protocol is protocol integer 1 with its own `VISUAL_PROTOCOL_VERSION` in the same envelope shape Phase 5 defines (`version`/`type`/`renderer_config`/`response_schema` + `interaction_result`), so the two compose additively when the concurrent phase-05 branch merges; SCALAR grammar, tolerance policy, observation, and feedback intent live in runtime.py as the one grammar/scorer source
-- [Phase 06.1] 06.1-01: `_visual_verdict` (not `*_score`) is the visual scoring helper, deliberately named to keep tests/scoring_roundtrip.py's structural one-scorer scan (`def *score*(`) at exactly `score_response`
-- [Phase 06.1] 06.1-02: model lint reuses the runtime grammar through a lazy `import runtime` (the mirror of runtime's own lazy `import model`), so authoring lint and the scorer can never drift apart; 12 `item.visual_*` codes are field-addressed with the raw `[VISUAL:]`/`[SCORING:]` text kept on the parsed item so malformed JSON names its field
-- [Phase 06.1] 06.1-02: the `visual_action` event's dedupe identity is (session_id, item identity, interaction_version, action_id) through the existing `append_event` writer; `do_interact` reports conflict when an action id is reused with different action/state, and the final response event reconciles to the last committed state
-- [Phase 06.1] 06.1-03: the served renderer keeps committed and tentative state separate and posts ONLY explicit successful commits through /api/interact (place_point, then move_point, select_numberline_point, set_interval); pointer-down/move, focus, hover, cancelled, and unchanged states append nothing; the static build refuses visual items with `served_required` and no key (D-03/A-05)
-- [Phase 06.1] 06.1-03: GIFT refuses every visual item by original item number with `gift.type_unsupported` in both default and strict modes, before any field scan or renderer, never approximating the interaction
+- [Phase 09.1] 09.1-01..04: audio drill export complete on branch gsd/phase-09.1-audio-export -- one TTSEngine interface + registry (model-backend shape), transcript-only engine, edge-tts (LGPL-3.0 pin) + piper (bundled-binary sidecar decision; the wheel-bearing piper-tts is GPL-3.0-or-later and is NOT imported), assemble_pack one-writer with per-pack/per-item split, /api/export_audio daemon route, digest-stable atomic writes, no evidence write (D-01..D-16 all covered; AUDIO-01..07 marked complete in REQUIREMENTS.md)
 
 ## Deferred Verification
 
@@ -330,4 +322,4 @@ Recent decisions affecting current work:
 Last session: 2026-08-11T14:48:12.553Z
 Stopped at: Completed 08-05-PLAN.md
 Resume file: None
-Deferred human verification: Phases 2.1/3/4 (see Deferred Verification table above)
+Deferred human verification: Phases 2.1/3/4 (see Deferred Verification table above); 09.1 manual audio-quality checks (see 09.1-UAT.md)

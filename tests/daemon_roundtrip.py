@@ -1088,18 +1088,20 @@ def check_disclosure_route():
 
 def check_api_route_scope():
     """D-04's four session routes plus Phase 6's `/api/hint`, plan 06.1-02's
-    `/api/interact`, plan 08-05's `/api/rubric-review`, and Phase 10's
-    `/api/override` and `/api/lesson-complete`, and the count is asserted
-    rather than trusted. Every entry is mirrored in ROUTE_CLI
-    (route-without-CLI-twin fails here) and in SURFACE_PARITY with its
-    reserved MCP tool name (Extensibility Rule 9(a)).
+    `/api/interact`, plan 08-05's `/api/rubric-review`, Phase 10's
+    `/api/override` and `/api/lesson-complete`, and Phase 09.1's
+    `/api/export_audio`, and the count is asserted rather than trusted.
+    Every entry is mirrored in ROUTE_CLI (route-without-CLI-twin fails
+    here) and in SURFACE_PARITY with its reserved MCP tool name
+    (Extensibility Rule 9(a)).
     """
-    if len(daemon.API_ROUTES) != 9:
-        fail("D-04 + Phase 6 + 06.1-02 + 08-05 + 10-04/10-05 scope /api/* "
-             "to exactly nine routes; API_ROUTES has %d"
+    if len(daemon.API_ROUTES) != 10:
+        fail("D-04 + Phase 6 + 06.1-02 + 08-05 + 10-04/10-05 + 09.1 scope "
+             "/api/* to exactly ten routes; API_ROUTES has %d"
              % len(daemon.API_ROUTES))
     if not {"start", "next", "submit", "hint", "interact", "report",
-            "override", "rubric-review"} <= set(daemon.ROUTE_CLI.values()):
+            "override", "rubric-review", "export"} <= \
+            set(daemon.ROUTE_CLI.values()):
         fail("ROUTE_CLI is missing one of the session CLI commands")
     if ("POST", "/api/lesson-complete") not in daemon.ROUTE_CLI or \
             daemon.ROUTE_CLI[("POST", "/api/lesson-complete")] != "lesson":
@@ -1336,6 +1338,83 @@ def check_api_override_route():
         shutil.rmtree(workdir, ignore_errors=True)
     print("  /api/override: locked block, forged-input containment, one "
           "sitting-bound event, expiry")
+
+
+def check_api_export_audio():
+    """09.1-03 Task 3: `POST /api/export_audio` and the CLI produce identical
+    pack file names and transcript for the same fixture -- one implementation,
+    two surfaces (D-08); the ROUTE_CLI inventory holds with the new route; an
+    invalid body (missing objective, unknown engine, traversal out_dir)
+    returns a named error response and writes no files (D-04).
+    """
+    from surfaces import audio as audio_surface
+    workdir = tempfile.mkdtemp()
+    try:
+        shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+        proc, url, lines = start_daemon(workdir)
+        try:
+            base = url.rstrip("/")
+            out_dir = "_attempts/audio"
+            payload = {"bank": "sample_bank", "objective": "Public notification",
+                       "out_dir": out_dir, "engine": "transcript-only"}
+            status, body = json_request(base + "/api/export_audio", payload)
+            if status != 200:
+                fail("POST /api/export_audio returned %d: %r"
+                     % (status, body))
+            if not isinstance(body, dict) or not body.get("transcript"):
+                fail("export_audio response has no transcript path: %r" % body)
+            if not isinstance(body.get("audio"), list):
+                fail("export_audio response audio is not a list: %r" % body)
+            route_names = sorted(
+                os.path.basename(p) for p in [body["transcript"]] + body["audio"])
+            if not route_names:
+                fail("export_audio route produced no files")
+            # The CLI must produce the same pack file names for the same inputs.
+            cli_out = os.path.join(workdir, out_dir.replace("/", os.sep))
+            r = subprocess.run(
+                [sys.executable, os.path.join(ROOT, "itembank.py"), "export",
+                 "audio", os.path.join(workdir, "sample_bank.md"),
+                 "--objective", "Public notification",
+                 "--engine", "transcript-only", "--out", cli_out],
+                capture_output=True, text=True, encoding="utf-8", cwd=ROOT)
+            if r.returncode != 0:
+                fail("CLI export audio exited %d: %s"
+                     % (r.returncode, r.stdout + r.stderr))
+            cli_names = sorted(os.listdir(cli_out))
+            if cli_names != route_names:
+                fail("route and CLI produced different pack file names: %r vs %r"
+                     % (route_names, cli_names))
+
+            # Invalid bodies refuse by name and write nothing.
+            before = snapshot_dirs(workdir)
+            status, body = json_request(base + "/api/export_audio",
+                                        {"bank": "sample_bank",
+                                         "out_dir": out_dir})
+            if status != 400:
+                fail("missing objective returned %d, expected 400" % status)
+            status, body = json_request(base + "/api/export_audio",
+                                        {"bank": "sample_bank",
+                                         "objective": "Public notification",
+                                         "engine": "no-such-engine",
+                                         "out_dir": out_dir})
+            if status != 400:
+                fail("unknown engine returned %d, expected 400" % status)
+            if "no-such-engine" not in str(body):
+                fail("unknown engine refusal does not name the engine: %r" % body)
+            status, body = json_request(base + "/api/export_audio",
+                                        {"bank": "sample_bank",
+                                         "objective": "Public notification",
+                                         "out_dir": "../escape"})
+            if status != 400:
+                fail("traversal out_dir returned %d, expected 400" % status)
+            after = snapshot_dirs(workdir)
+            if after != before:
+                fail("invalid export_audio bodies wrote files: %r"
+                     % (after - before))
+        finally:
+            proc.terminate()
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
 
 
 def snapshot_dirs(root):
@@ -3152,6 +3231,7 @@ def main():
         check_disclosure_route,
         check_api_route_scope,
         check_api_override_route,
+        check_api_export_audio,
         check_surface_parity,
         check_api_sitting,
         check_api_duplicate_submit_dedupes,

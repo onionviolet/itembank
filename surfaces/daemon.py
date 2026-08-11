@@ -25,6 +25,7 @@ from model import (lesson_slug, load, parse_bank, parse_key_blocks,
 from runtime import explain_payload, glossable, read_session, upgrade_session
 from surfaces import (day, launcher, lesson, presentation, quiz, retention_view,
                       seeding, session, settings, study, update)
+from surfaces import audio as audio_surface
 from surfaces import theme
 
 
@@ -100,11 +101,12 @@ DAY_EDIT_ALLOWED_FIELDS = ("revision", "edits", "force_token", "confirmation",
 SEED_ACCEPT_ALLOWED_FIELDS = ("bank", "action", "draft")
 
 # The `/api/*` session routes: D-04's four plus Phase 6's `/api/hint`,
-# plan 08-05's `/api/rubric-review`, and Phase 10's `/api/override` and
-# `/api/lesson-complete`. Fixed literals, not stem-parameterised: a session
+# plan 06.1-02's `/api/interact`, plan 08-05's `/api/rubric-review`, Phase
+# 10's `/api/override` and `/api/lesson-complete`, and Phase 09.1's
+# `/api/export_audio`. Fixed literals, not stem-parameterised: a session
 # or a bank is addressed by an opaque identifier in the JSON body (T-2-01),
 # never by a path segment, so there is no `<stem>`/`<id>` group in any of
-# these patterns at all. The eight-entry length is asserted by
+# these patterns at all. The ten-entry length is asserted by
 # `check_api_route_scope` in `tests/daemon_roundtrip.py`, and every entry
 # is mirrored in ROUTE_CLI and SURFACE_PARITY (Extensibility Rule 9(a)).
 API_ROUTES = (
@@ -117,6 +119,7 @@ API_ROUTES = (
     ("POST", "/api/override", "handle_api_override"),
     ("POST", "/api/lesson-complete", "handle_api_lesson_complete"),
     ("POST", "/api/rubric-review", "handle_api_rubric_review"),
+    ("POST", "/api/export_audio", "handle_api_export_audio"),
 )
 
 # Order is load-bearing: every fixed literal route comes before every
@@ -174,6 +177,7 @@ ROUTE_CLI = {
     ("POST", "/api/override"): "override",
     ("POST", "/api/lesson-complete"): "lesson",
     ("POST", "/api/rubric-review"): "rubric-review",
+    ("POST", "/api/export_audio"): "export",
     ("GET", QUIZ_GET_RE): "serve",
     ("POST", QUIZ_ANSWER_RE): "serve",
     ("GET", STUDY_GET_RE): "study",
@@ -206,6 +210,7 @@ SURFACE_PARITY = (
     (("POST", "/api/override"), "override", "override"),
     (("POST", "/api/lesson-complete"), "lesson", "lesson_complete"),
     (("POST", "/api/rubric-review"), "rubric-review", "rubric_review"),
+    (("POST", "/api/export_audio"), "export", "export_audio"),
 )
 
 
@@ -2443,6 +2448,81 @@ def handle_api_report(handler):
         handler.send_server_error(exc)
         return
     handler.send_json(result)
+
+
+def handle_api_export_audio(handler):
+    """`POST /api/export_audio` -- the daemon half of D-08: `{"bank",
+    "objective", "out_dir", "engine"?, "split"?, "container"?}`. The bank is
+    resolved through the same scanned-stem allowlist the other /api/* routes
+    use (never a raw path, T-2-01), and the request calls the SAME runtime
+    call the CLI reaches (`audio_surface.export_audio`) -- one implementation,
+    two surfaces (D-08). The response carries the written pack file names and
+    the transcript path.
+
+    `out_dir` is an output DIRECTORY for the pack, joined under the daemon's
+    served root (never an absolute path from the client, never `..`); the
+    default is `<root>/_attempts/audio`. A refusal (unknown bank, unknown
+    objective, unknown or unavailable engine, invalid body) returns the
+    named-error shape other /api handlers use and writes no files (D-04).
+    """
+    if _reject_cross_origin(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    bank = data.get("bank")
+    bank_path = handler.banks.get(bank) if isinstance(bank, str) else None
+    if bank_path is None:
+        handler.send_not_found(bank if isinstance(bank, str) else "")
+        return
+    objective = data.get("objective")
+    if not isinstance(objective, str) or not objective:
+        handler.send_error(400, "export_audio requires a non-empty objective")
+        return
+    out_dir = data.get("out_dir")
+    if not isinstance(out_dir, str) or not out_dir:
+        out_dir = os.path.join("_attempts", "audio")
+    root = os.path.abspath(handler.root)
+    joined = os.path.normpath(os.path.join(root, out_dir))
+    if not (joined == root or joined.startswith(root + os.sep)):
+        handler.send_error(400, "export_audio out_dir must stay under the "
+                                "served root")
+        return
+    engine = data.get("engine")
+    if engine is not None and not isinstance(engine, str):
+        handler.send_error(400, "export_audio engine must be a string")
+        return
+    split = data.get("split")
+    if split not in (None, "per-pack", "per-item"):
+        handler.send_error(400, "export_audio split must be per-pack or "
+                                "per-item")
+        return
+    container = data.get("container")
+    if container not in (None, "mp3", "wav"):
+        handler.send_error(400, "export_audio container must be mp3 or wav")
+        return
+    try:
+        cfg = settings.load_settings(handler.root)
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    try:
+        result = audio_surface.export_audio(
+            bank_path, objective, joined, engine=engine, split=split,
+            container=container, settings=cfg)
+    except audio_surface.EngineError as exc:
+        handler.send_error(400, "export_audio: %s" % exc)
+        return
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    except Exception as exc:
+        handler.send_server_error(exc)
+        return
+    handler.send_json({"engine": result["engine"],
+                       "base": result["base"],
+                       "transcript": result["transcript"],
+                       "audio": result["audio"]})
 
 
 class DaemonHandler(server.Handler):

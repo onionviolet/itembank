@@ -780,27 +780,27 @@ Plans:
 **Research basis**: `.planning/research/2026-08-09-blind-spots.md` B3 — named as real, cheap, and differentiating. Research also found (Q9) that consumption is phone- and audio-shaped while the desktop app optimizes authoring; this is the cheapest correction available.
 **Success Criteria** (what must be TRUE):
 
-  1. `itembank export audio --objective <id>` writes an audio file plus a plain-text transcript per pack, sequencing stem → timed pause → key → why.
-  2. The TTS engine is a **settings entry behind one interface** — `edge-tts` today, Piper locally, Kokoro on the 7900 XTX when it arrives — and swapping it is a config change with no code change, exactly like the model backend.
-  3. With no engine installed or reachable, the command still emits the transcript and a named, actionable refusal; it never half-writes an audio file.
-  4. Playback is any podcast app. No player, no sync service, and no mobile build is in scope.
-  5. Listening records nothing — an audio pack is a one-way export, and the evidence log stays the record of what was actually answered.
+  1. ✅ `itembank export audio --objective <id>` writes an audio file plus a plain-text transcript per pack, sequencing stem → timed pause → key → why.
+  2. ✅ The TTS engine is a **settings entry behind one interface** — `edge-tts` today, Piper locally, Kokoro on the 7900 XTX when it arrives — and swapping it is a config change with no code change, exactly like the model backend.
+  3. ✅ With no engine installed or reachable, the command still emits the transcript and a named, actionable refusal; it never half-writes an audio file.
+  4. ✅ Playback is any podcast app. No player, no sync service, and no mobile build is in scope.
+  5. ✅ Listening records nothing — an audio pack is a one-way export, and the evidence log stays the record of what was actually answered.
 
 **Plans**: 4 plans across 3 waves
 
 Plans:
 **Wave 1**
 
-- [ ] 09.1-01-PLAN.md — TRACER: TTSEngine interface + registry + transcript-only engine + `itembank export audio` CLI, sequence/pause settings, transcript, digest naming, atomic write
+- [x] 09.1-01-PLAN.md — TRACER: TTSEngine interface + registry + transcript-only engine + `itembank export audio` CLI, sequence/pause settings, transcript, digest naming, atomic write
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 09.1-02-PLAN.md — The engines: edge-tts (network, MP3-native) and Piper (local, WAV + lameenc MP3), pinned and license-reviewed, D-16 help-text disclosure
-- [ ] 09.1-03-PLAN.md — Pack assembly: timed pauses, MP3/WAV container policy, --split per-item|per-pack, digest-stable atomic writes, daemon route
+- [x] 09.1-02-PLAN.md — The engines: edge-tts (network, MP3-native) and Piper (local, WAV + lameenc MP3), pinned and license-reviewed, D-16 help-text disclosure
+- [x] 09.1-03-PLAN.md — Pack assembly: timed pauses, MP3/WAV container policy, --split per-item|per-pack, digest-stable atomic writes, daemon route
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 09.1-04-PLAN.md — Phase verification: fake engine + transcript-diff + no-evidence fixtures, both-surfaces proof, requirement + supply-chain audits, full suite
+- [x] 09.1-04-PLAN.md — Phase verification: fake engine + transcript-diff + no-evidence fixtures, both-surfaces proof, requirement + supply-chain audits, full suite
 
 ### Phase 10: Retention, Pacing & Trends
 

@@ -555,6 +555,130 @@
           "x-itembank-phase": 10
         }
       }
+    },
+    "audio": {
+      "type": "object",
+      "description": "The audio drill pack export (phase 9.1): which TTS engine speaks, which container the pack uses, whether a pack is one file or one file per item, the per-item-type pause map, and the per-engine voice/model entries. engine names a registered engine; an unknown or unreachable engine never silently falls back (D-04). Read by this phase (9.1).",
+      "additionalProperties": false,
+      "required": ["engine", "container", "split", "pause", "edge_tts", "piper"],
+      "x-itembank-phase": 9.1,
+      "default": {
+        "engine": "edge-tts",
+        "container": "mp3",
+        "split": "per-pack",
+        "pause": {
+          "mc": 1.5,
+          "multi": 2.0,
+          "short": 2.0,
+          "cloze": 2.5,
+          "build": 4.0,
+          "table": 3.0,
+          "dnd": 3.0,
+          "check": 3.0
+        },
+        "edge_tts": {
+          "voice": "en-US-GuyNeural"
+        },
+        "piper": {
+          "voice": "en_US-lessac-medium",
+          "model": ""
+        }
+      },
+      "properties": {
+        "engine": {
+          "type": "string",
+          "enum": ["edge-tts", "piper", "transcript-only"],
+          "default": "edge-tts",
+          "description": "The registered TTS engine behind the one TTSEngine interface (D-01/D-02): edge-tts (network, MP3-native), piper (local, WAV), transcript-only (the always-available null engine). An engine name with no registration, or an engine that is unreachable or missing its dependency, refuses by name and never silently substitutes another voice (D-04).",
+          "x-itembank-phase": 9.1
+        },
+        "container": {
+          "type": "string",
+          "enum": ["mp3", "wav"],
+          "default": "mp3",
+          "description": "The pack container (D-09): mp3 by default because every podcast app accepts it, wav available for engines that emit it natively. Each engine resolves the container in its own way (edge-tts writes MP3 natively, piper converts through its pinned encoder or passes WAV through).",
+          "x-itembank-phase": 9.1
+        },
+        "split": {
+          "type": "string",
+          "enum": ["per-pack", "per-item"],
+          "default": "per-pack",
+          "description": "How one objective's pack is split (D-10): per-pack writes one audio file per objective, per-item one file per item. A flag selects a mode of one writer, never two code paths.",
+          "x-itembank-phase": 9.1
+        },
+        "pause": {
+          "type": "object",
+          "description": "Timed pause in seconds between stem and key and between key and why, per item type (D-06/D-07). Starting values recorded here and tuned against real use, not invented precisely.",
+          "additionalProperties": false,
+          "required": ["mc", "multi", "short", "cloze", "build", "table", "dnd", "check"],
+          "x-itembank-phase": 9.1,
+          "default": {
+            "mc": 1.5,
+            "multi": 2.0,
+            "short": 2.0,
+            "cloze": 2.5,
+            "build": 4.0,
+            "table": 3.0,
+            "dnd": 3.0,
+            "check": 3.0
+          },
+          "properties": {
+            "mc": {"type": "number", "minimum": 0, "maximum": 30, "default": 1.5, "description": "Pause after a single-select recall stem.", "x-itembank-phase": 9.1},
+            "multi": {"type": "number", "minimum": 0, "maximum": 30, "default": 2.0, "description": "Pause after a multi-select stem.", "x-itembank-phase": 9.1},
+            "short": {"type": "number", "minimum": 0, "maximum": 30, "default": 2.0, "description": "Pause after a constructed-response stem.", "x-itembank-phase": 9.1},
+            "cloze": {"type": "number", "minimum": 0, "maximum": 30, "default": 2.5, "description": "Pause after a cloze stem.", "x-itembank-phase": 9.1},
+            "build": {"type": "number", "minimum": 0, "maximum": 30, "default": 4.0, "description": "Pause after an ordering stem -- longer, the ordering is the task.", "x-itembank-phase": 9.1},
+            "table": {"type": "number", "minimum": 0, "maximum": 30, "default": 3.0, "description": "Pause after a classification-table stem.", "x-itembank-phase": 9.1},
+            "dnd": {"type": "number", "minimum": 0, "maximum": 30, "default": 3.0, "description": "Pause after a drag-and-drop classification stem.", "x-itembank-phase": 9.1},
+            "check": {"type": "number", "minimum": 0, "maximum": 30, "default": 3.0, "description": "Pause after a check-item stem.", "x-itembank-phase": 9.1}
+          }
+        },
+        "edge_tts": {
+          "type": "object",
+          "description": "edge-tts voice selection. Sending item text to Microsoft's endpoint is the same accepted risk already recorded for hosted models, and the export command's own help text states it (D-16).",
+          "additionalProperties": false,
+          "required": ["voice"],
+          "x-itembank-phase": 9.1,
+          "default": {
+            "voice": "en-US-GuyNeural"
+          },
+          "properties": {
+            "voice": {
+              "type": "string",
+              "minLength": 1,
+              "default": "en-US-GuyNeural",
+              "description": "The edge-tts voice name.",
+              "x-itembank-phase": 9.1
+            }
+          }
+        },
+        "piper": {
+          "type": "object",
+          "description": "Piper voice and model selection for the local, offline engine (D-02).",
+          "additionalProperties": false,
+          "required": ["voice", "model"],
+          "x-itembank-phase": 9.1,
+          "default": {
+            "voice": "en_US-lessac-medium",
+            "model": ""
+          },
+          "properties": {
+            "voice": {
+              "type": "string",
+              "minLength": 1,
+              "default": "en_US-lessac-medium",
+              "description": "The Piper voice name.",
+              "x-itembank-phase": 9.1
+            },
+            "model": {
+              "type": "string",
+              "default": "",
+              "description": "Path or name of the Piper model artifact; empty until the engine's model resolution lands (plan 09.1-02).",
+              "x-itembank-phase": 9.1
+            }
+          }
+        }
+      }
     }
   }
 }
