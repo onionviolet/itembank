@@ -22,7 +22,7 @@ the problem is solved.
 | Installed size within 25-45 MiB (D-09) | executed | `tests/packaging_roundtrip.py#test_onedir_sidecar_runs_and_is_sized` -- measured 28.8 MiB |
 | Headless CLI loop without the shell (D-12) | executed | `tests/packaging_roundtrip.py#test_headless_loop_without_the_shell` |
 | One disclosure, one record (13-UI-SPEC 7.2) | executed | `test_disclosure_state_and_forbidden_words` + `daemon_roundtrip.py#check_disclosure_route` |
-| Full suite (all `tests/*_roundtrip.py` + `cargo test`) | pending | Filled below after the final run |
+| Full suite (all `tests/*_roundtrip.py` + `cargo test`) | executed | See "Full-suite results" below; phase-owned suites green, six WIP-blocked suites recorded (four recovered during the run) |
 
 ## Verification-gate mapping (DEL-09..13)
 
