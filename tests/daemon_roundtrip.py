@@ -2732,6 +2732,32 @@ def check_gate_route_unreachable_no_reveal():
         shutil.rmtree(workdir, ignore_errors=True)
 
 
+def check_gate_print_no_evidence():
+    """06.2-04 Gate 6 (section 8.3): the print request changes no evidence
+    -- the log length is identical before and after `?print=1` (a print is
+    not a skip)."""
+    workdir, bank_path, log = _write_gate_dir()
+    proc, url, lines = start_daemon(workdir)
+    try:
+        stem = "gate_daemon"
+        before = len(list(evidence.events(log)))
+        status, page = get(url + "lesson/%s?print=1" % stem)
+        after = len(list(evidence.events(log)))
+        if after != before:
+            fail("a print request must record nothing (%d -> %d events)"
+                 % (before, after))
+        if "Second-section prose" not in page:
+            fail("print must serve the complete ungated document")
+        if "more section below this check" in page:
+            fail("print must not render a truncation boundary")
+        if "Check \u00b7 emt:airway.adjunct" not in page:
+            fail("print must render each check as the D1 labelled rule")
+        print("gate print route: complete, D1 rules, log length unchanged")
+    finally:
+        proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
 def main():
     checks = (
         check_index_populated,
@@ -2798,6 +2824,7 @@ def main():
         check_gate_route_skip_single_event,
         check_gate_route_reload_no_resubmit,
         check_gate_route_unreachable_no_reveal,
+        check_gate_print_no_evidence,
     )
     for check in checks:
         check()

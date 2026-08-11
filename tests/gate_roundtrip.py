@@ -1188,6 +1188,204 @@ def test_gate_unresolvable_check_degrades():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ---- plan 06.2-04: the twelve verification gates --------------------------
+
+
+def test_gate_print_fixture():
+    """Gate 6 (section 8): ?print=1 serves the complete ungated document;
+    every check prints as 3.1's D1 rule with its LOCKED `Check · <objective>`
+    string; no truncation boundary appears; the print records nothing."""
+    tmp = tempfile.mkdtemp()
+    try:
+        path = _write_bank(tmp)
+        qs = itembank.load(path)
+        by_id = {q["id"]: q for q in qs}
+        ctx = {"policy": "off", "as_authored": "required", "states": {},
+               "resolve": lambda cid: by_id.get(cid), "skip": "off",
+               "degraded": False, "unreachable": False, "print": True,
+               "stem": "gate_bank", "bank": "gate_bank.md",
+               "session_id": "s", "log": "", "mode": "practice"}
+        page = lesson.lesson_page(path, qs, itembank.parse_lesson(path),
+                                  runtime=True, gate=ctx)
+        if "Second Section" not in page:
+            fail("print must serve the complete ungated document")
+        if "more section below this check" in page:
+            fail("print must never render a truncation boundary")
+        if "Check \u00b7 emt:airway.adjunct" not in page:
+            fail("print must render the D1 rule with the locked "
+                 "Check · <objective> label")
+        if "<form" in page or "Read ahead" in page:
+            fail("print must carry no live controls")
+        print("gate print: complete ungated, D1 labels, no boundary")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_gate_calm_progress():
+    """Gate 10 (section 9): no element in the gated reader carries a count
+    of cleared checks, a percentage, a progress track, a streak, a
+    check/cross glyph, an exclamation mark, or any CSS
+    transition/animation/scroll-behavior:smooth on the band, the revealed
+    section, or the boundary."""
+    tmp = tempfile.mkdtemp()
+    try:
+        path = _write_bank(tmp)
+        qs = itembank.load(path)
+        ctx = _gate_ctx(path, qs, policy="required")
+        page = lesson.lesson_page(path, qs, itembank.parse_lesson(path),
+                                  runtime=True, gate=ctx)
+        for banned in ("progress", "streak", "percent",
+                       "2 of 5", "\u2713", "\u2717", "\u2714", "\u2715"):
+            if banned in page:
+                fail("the gated reader must not carry %r" % banned)
+        # The band copy has no exclamation mark (the reject list in 9).
+        band = page[page.find('<section class="gate">'):]
+        if "!" in band:
+            fail("the band copy must carry no exclamation mark")
+        # A percentage only appears as a CSS width (`min-width:100%` on
+        # tables), never as a progress figure: the band's visible text and
+        # the .gate rule block must be percent-free.
+        band_text = re.sub(r"<[^>]+>", " ", band)
+        gate_css = lesson.LESSON_CSS
+        gate_rules = gate_css[gate_css.find(".gate{"):gate_css.find(".gate-boundary .gate-note") + 30]
+        if "%" in band_text or "%" in gate_rules:
+            fail("the band or the .gate CSS must carry no percentage")
+        outside_print = gate_css.split("@media print")[0]
+        for banned in ("transition", "animation", "scroll-behavior:smooth"):
+            if banned in outside_print:
+                fail("the gate CSS must carry no %r" % banned)
+        print("gate calm-progress: no count, progress, glyph, or motion")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_gate_voice_tokens():
+    """Gate 11 (section 4.1): every section-15 string renders in the voice
+    its row assigns, asserted by computed font-family TOKEN name -- the
+    band header/notes are Ledger (var(--font-ledger)), the item text is
+    Paper (var(--font-paper)) -- never a literal family name."""
+    css = lesson.LESSON_CSS
+    gate = css[css.find(".gate{"):css.find(".gate-boundary{")]
+    if "font-family:var(--font-ledger)" not in gate:
+        fail("the band label/note must use the Ledger font token")
+    if "font-family:var(--font-paper)" not in gate:
+        fail("the check item text must use the Paper font token")
+    for fam in ("Georgia", "Times", "Helvetica", "Arial", "Courier",
+                "Source Serif", "iA Writer"):
+        if fam in gate:
+            fail("the gate CSS must never name a literal family %r" % fam)
+    print("gate voice: token-named families, no literal family")
+    tmp = tempfile.mkdtemp()
+    try:
+        path = _write_bank(tmp)
+        qs = itembank.load(path)
+        ctx = _gate_ctx(path, qs, policy="required")
+        page = lesson.lesson_page(path, qs, itembank.parse_lesson(path),
+                                  runtime=True, gate=ctx)
+        for label in ("Check \u00b7 required to continue",
+                      "Read ahead without answering",
+                      "1 more section below this check."):
+            if label not in page:
+                fail("section-15 copy %r missing from the gated page" % label)
+        print("gate voice: section-15 strings render verbatim")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_gate_responsive_snapshots():
+    """Gate 9 (section 13): responsive snapshots for [GATE:] all three
+    values x gate_skip both values, with reader_nav: column in at least
+    one combination -- the page carries the viewport meta, the band and
+    its controls wrap (no nowrap/ellipsis), and every combination renders
+    both submit buttons."""
+    tmp = tempfile.mkdtemp()
+    try:
+        for gate_value in ("required", "recommended", "off"):
+            for skip in ("always", "after-attempt"):
+                path = _write_bank(tmp, gate=gate_value)
+                qs = itembank.load(path)
+                ctx = _gate_ctx(path, qs, policy=gate_value, skip=skip)
+                ctx["reader_nav"] = "column"
+                page = lesson.lesson_page(path, qs,
+                                          itembank.parse_lesson(path),
+                                          runtime=True, gate=ctx)
+                if 'name="viewport"' not in page:
+                    fail("the lesson page must carry the viewport meta")
+                for banned in ("white-space:nowrap", "text-overflow:ellipsis"):
+                    if banned in lesson.SHARED_CSS or banned in lesson.LESSON_CSS:
+                        fail("no %r anywhere in the reader CSS" % banned)
+                if gate_value != "off":
+                    if 'value="check"' not in page:
+                        fail("[GATE: %s] x gate_skip %s lost the check button"
+                             % (gate_value, skip))
+                    if skip == "always" \
+                            and "Read ahead without answering" not in page:
+                        fail("[GATE: %s] x gate_skip always lost the skip "
+                             "button" % gate_value)
+        print("gate responsive: viewport, wrap-only controls, all combos")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_gate_cross_phase_divergence_guard():
+    """Gate 12 (D-01 ≡ D-06): the unresolvable [!CHECK:] lint code and
+    message are read from the same constant the linter and the renderer
+    share -- surfaces/lesson.py imports model.CHECK_UNRESOLVED_COPY by
+    identity, so the two phases (3.1's slot, 6.2's gate) cannot drift."""
+    import surfaces.lesson as lesson_mod
+    if lesson_mod.CHECK_UNRESOLVED_COPY is not CHECK_UNRESOLVED_COPY:
+        fail("lesson.py must import the SAME CHECK_UNRESOLVED_COPY object "
+             "-- a duplicate literal would let the phases drift")
+    tmp = tempfile.mkdtemp()
+    try:
+        # The renderer's degraded line and the linter's message both come
+        # from the one constant.
+        path = _write_bank(tmp, check="nope")
+        qs = itembank.load(path)
+        ctx = _gate_ctx(path, qs, policy="required")
+        page = lesson.lesson_page(path, qs, itembank.parse_lesson(path),
+                                  runtime=True, gate=ctx)
+        if CHECK_UNRESOLVED_COPY.replace("<bank>", "gate_bank.md") \
+                .replace("bank", "gate_bank.md") not in page \
+                and "This check refers to an item that is not in this bank." \
+                not in page:
+            fail("the renderer must use the shared constant's copy")
+        errors, _ = itembank.lint(qs, lesson=itembank.parse_lesson(path))
+        hits = [e for e in errors if e.code == "lesson.check_ref_unknown"]
+        if not hits or CHECK_UNRESOLVED_COPY not in hits[0].message:
+            fail("the linter must emit the shared constant's message")
+        print("gate divergence guard: one constant, linter and renderer")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_gate_focus_recommended_no_growth():
+    """Gate 4 tail: after a submit under recommended, the DOM did not grow
+    and no autofocus is placed (focus stays on the submitted control --
+    the document did not grow, section 7.1)."""
+    tmp = tempfile.mkdtemp()
+    try:
+        path = _write_bank(tmp)
+        qs = itembank.load(path)
+        les = itembank.parse_lesson(path)
+        ctx = _gate_ctx(path, qs, policy="recommended")
+        before = lesson.lesson_page(path, qs, les, runtime=True, gate=ctx)
+        # A cleared state under recommended renders the whole lesson with
+        # no autofocus (no reveal happened).
+        ctx2 = _gate_ctx(path, qs, policy="recommended",
+                         states={"q1": "cleared"})
+        after = lesson.lesson_page(path, qs, les, runtime=True, gate=ctx2)
+        if "autofocus" in after:
+            fail("recommended must not place focus (the DOM did not grow)")
+        if "Second Section" not in after:
+            fail("recommended renders the whole lesson before and after")
+        if "Second Section" not in before:
+            fail("recommended renders the whole lesson before and after")
+        print("gate focus: recommended clears in place, no growth, no focus")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     test_gate_directive_parses_and_defaults()
     test_gate_grammar_additive()
@@ -1218,9 +1416,15 @@ def main():
     test_gate_outcome_split_pair_level()
     test_gate_outcome_split_excludes_recommended()
     test_gate_outcome_split_report_copy()
+    test_gate_print_fixture()
+    test_gate_calm_progress()
+    test_gate_voice_tokens()
+    test_gate_responsive_snapshots()
+    test_gate_cross_phase_divergence_guard()
+    test_gate_focus_recommended_no_growth()
     print("ok: gate roundtrip (GATE grammar, gate_skip event, context "
           "field, gate_state derivation, gate band render policy, skip "
-          "control + settings, outcome split)")
+          "control + settings, outcome split, twelve verification gates)")
 
 
 if __name__ == "__main__":
