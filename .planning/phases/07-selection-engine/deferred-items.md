@@ -85,3 +85,12 @@ the phase-7 suite is green on either side of the migration.
   `[OBJECTIVE]`, and `q["pair"]` still parses). The alternation is instead
   pinned by a stem-purity assertion in `check_pair_singleton_lint`, which the
   same mutation does fail (verified, reverted).
+
+## Coordination: `c08aa42` absorbed 07-03's index work (2026-08-10)
+
+The concurrent session's `feat(06-01)` commit `c08aa42` swept up the staged
+07-03 changes to `evidence.py` (bank column, objective/bank rows, `bank=`
+filter), `schemas/report.schema.json` (two documented properties) and
+`surfaces/evidence_cli.py` (--bank threading). All content is present in HEAD;
+the remaining 07-03 pieces were committed separately (`d8a21ce` cli --bank,
+`b8fc6cc` tests). Labels in history are mixed; no content was lost.

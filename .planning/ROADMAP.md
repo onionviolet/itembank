@@ -622,7 +622,7 @@ Plans:
 
 **Absorbed from research (2026-08-10)**: ALEKS fringe-based selection, UWorld's Educational-Objective line as a selection input, jpdb-style utility weighting, and Brilliant's one-idea-per-screen sequencing wording for the "why this item" trace. See `.planning/research/2026-08-09-landscape-widening.md`.
 **Open decisions resolved here**: The selection-mode naming collision — resolved at plan time as a **distinct `selection_mode` field** (D-11), because `schemas/session.schema.json`, `schemas/response.schema.json` and `surfaces/daemon.py:SESSION_MODES` already enumerate `"remediation"` as a *feedback* mode; gated by a blocking `checkpoint:decision` in plan 07-04 because the evidence log is append-only. What the log records about a selection — resolved as a **`selection` event once per sitting plus `selection_mode` on every response event** (D-03), also gated in 07-04. Cooldown scope — resolved as **bank-scoped** (D-13), paid for by bumping `INDEX_VERSION` and adding a `bank` column to the disposable sqlite3 index in plan 07-03. `selection_weights.recency_decay` — resolved as **being** D-08's soft penalty rather than a second knob for the same thing (D-15), with `objective_miss_rate` and `difficulty_spread` retagged to Phase 10.
-**Plans**: 2/6 plans executed
+**Plans**: 3/6 plans executed
 
 Plans:
 **Wave 1**
@@ -632,7 +632,7 @@ Plans:
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [x] 07-02-PLAN.md — `[PAIR:]` and `[PREREQ:]` in the format contract, their two lint codes, and the pair/prerequisite filters
-- [ ] 07-03-PLAN.md — Bank-scoped exposure: `INDEX_VERSION` 2, a `bank` column, wider history rows, `itembank evidence --bank`
+- [x] 07-03-PLAN.md — Bank-scoped exposure: `INDEX_VERSION` 2, a `bank` column, wider history rows, `itembank evidence --bank`
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -1120,7 +1120,7 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 6. Hint Ladder, Cursor-Hold & Feedback Modes | 0/2 | Planned | - |
 | 6.1 Interactive Visual Assessment Protocol | 0/3 | Planned | - |
 | 6.2 Executable Textbook Loop | 0/4 | Planned | - |
-| 7. Selection Engine | 2/6 | In Progress|  |
+| 7. Selection Engine | 3/6 | In Progress|  |
 | 8. Model Adapter Interface & Tier-Gate Enforcement | 0/6 | Planned    |  |
 | 9. Subject-Invariant Loop — EMT, Math, CS Integration | 0/5 | Planned | - |
 | 9.1 Audio Drill Export | 0/4 | Planned | - |
