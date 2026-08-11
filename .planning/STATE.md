@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 08
 current_phase_name: model-adapter-interface-tier-gate-enforcement
 status: executing
-stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-08-11T00:00:00.000Z"
+stopped_at: Completed 08-02-PLAN.md
+last_updated: "2026-08-11T05:22:41Z"
 last_activity: 2026-08-11
-last_activity_desc: Phase 08 plan 08-01 completed (tier gate + 30-case corpus)
+last_activity_desc: Phase 08 plan 08-02 completed (model adapter interface, named profile registry, secret env refs)
 progress:
   total_phases: 18
   completed_phases: 9
   total_plans: 104
-  completed_plans: 61
+  completed_plans: 62
 ---
 
 # Project State
@@ -28,9 +28,9 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 ## Current Position
 
 Phase: 08 (model-adapter-interface-tier-gate-enforcement) — EXECUTING
-Plan: 1 of 6 complete
+Plan: 2 of 6 complete
 Status: Executing Phase 08
-Last activity: 2026-08-11 — 08-01 (tier gate + corpus) completed
+Last activity: 2026-08-11 — 08-02 (model adapter interface + profile registry) completed
 
 Progress: [██████░░░░] 58%
 
@@ -261,6 +261,10 @@ Recent decisions affecting current work:
 - [Phase 8] 08-01: learner_payload is the single constructor surfaces may call; pass -> status+generated, drop/unavailable -> status + null generated, never a reason/tier/fact/provider/detector detail (D-08)
 - [Phase 8] 08-01: protected-fragment overlap detection normalizes with casefold + whitespace collapse and a MIN_FRAGMENT_LEN=4 floor so the conservative ambiguity rule stays useful
 - [Phase 8] 08-01: the authored-fallback seam reuses the Phase 6 runtime.authored_hint(q, tier, canonical) — not the plan's stated (q, tier) — and keeps the ladder usable at the unlocked tier on drop/unavailable (MODEL-03)
+- [Phase 8] 08-02: model_backend became a named profile registry {active, profiles} of fixed records (name, transport hosted_cli|openai_compatible, command|endpoint, model, timeout_seconds, max_output_bytes, context_window, secret_env) plus the top-level suggestion_reveal enum defaulting to after-self-mark (D-22); the shipped default is disabled (active "" + empty profiles), so a fresh install never phones a provider
+- [Phase 8] 08-02: the shared profile resolver (surfaces/settings.resolve_profile, re-exported by model_adapter) validates unique names and the two known transports' required fields at read time — settings.invalid_value for a bad registry, adapter.profile_unknown for a missing active name — and DEFERS unrecognized transport names to TRANSPORT_REGISTRY, so a third backend is a registry entry plus a config entry with zero resolver edits (D-27), and an unregistered transport resolves to typed adapter.transport_unknown
+- [Phase 8] 08-02: credentials are resolved from os.environ[profile.secret_env] by name at invoke time only; the settings file stores the env-var name, never the value, and the value never enters requests, results, logs, or evidence (D-03/D-15) — enforced structurally by the schema's additionalProperties false and asserted by a flatten() scan over request/result bodies
+- [Phase 8] 08-02: the two shipped transports (hosted_cli subprocess, openai_compatible urllib) produce the same normalized request/result shape under a config-only switch, preserving backend class (hosted|local) in private audit metadata (D-17/D-18); every failure family is one typed unavailable result with a named adapter.* code (D-04)
 
 ## Deferred Verification
 
@@ -277,7 +281,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-11T03:03:43.371Z
-Stopped at: Completed 08-01-PLAN.md (tier gate + 30-case corpus + payload boundary)
+Last session: 2026-08-11T05:22:41Z
+Stopped at: Completed 08-02-PLAN.md (model adapter interface + named profile registry + secret env refs)
 Resume file: None
 Deferred human verification: Phases 2.1/3/4 (see Deferred Verification table above)
