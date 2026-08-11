@@ -69,6 +69,17 @@ SIDECAR_PORT_HELD_COPY = (
 # Same directories `cmd_guard` skips, plus the two this daemon itself writes
 # into -- neither an attempt file nor the evidence log is ever a candidate
 # bank or day plan.
+# The D-09 locked sentence for refusing check execution when the daemon is
+# reachable from the network and check.allow_lan is false (plan 05-03 Task 3).
+# Reproduced exactly from the 05-UI-SPEC Copywriting Contract's "LAN execution
+# refusal" row; a decision, not a fault report.
+LAN_REFUSAL_COPY = (
+    "Code execution is turned off while itembank is serving on your network "
+    "(--lan). Ask whoever runs itembank to turn on check.allow_lan in settings "
+    "if this device should be trusted, or answer this item from the machine "
+    "itembank is running on.")
+
+
 SKIP_DIRS = {".git", ".github", "_attempts", "_evidence"}
 
 QUIZ_GET_RE = re.compile(r"^/quiz/(?P<stem>[^/]+)$")
@@ -704,6 +715,24 @@ def _reject_cross_origin_write(handler):
     return False
 
 
+def _refuse_check_execution(handler, q):
+    """Refuse executing a check item's code when the daemon is bound to all
+    interfaces and check.allow_lan is false (D-09, plan 05-03 Task 3). A
+    loopback-bound daemon always executes; allow_lan true always executes.
+    check.allow_lan is read live through settings (never cached at bind), so
+    toggling it takes effect on the next submit. Returns True when the caller
+    must refuse and write nothing -- the decision is made before the runner is
+    ever invoked."""
+    if q is None or q.get("type") != "check":
+        return False
+    if not getattr(handler, "lan", False):
+        return False
+    cfg = settings.load_settings(handler.root)
+    if (cfg.get("check") or {}).get("allow_lan"):
+        return False
+    return True
+
+
 THEME_ACTIONS = ("preview", "pick", "save", "reset")
 THEME_ALLOWED_FIELDS = ("action", "source", "confirm")
 
@@ -847,6 +876,9 @@ def handle_quiz_answer(handler, stem):
         if q is None:
             handler.send_error(404, "no item %r in this bank" % data.get("id"))
             return
+        if _refuse_check_execution(handler, q):
+            handler.send_json({"refused": LAN_REFUSAL_COPY})
+            return
         elapsed_ms = data.get("elapsed_ms")
         if not isinstance(elapsed_ms, int) or isinstance(elapsed_ms, bool):
             # Absent, non-integer, or an older cached page that never sent
@@ -896,6 +928,9 @@ def handle_quiz_answer(handler, stem):
             result["explain"] = explain_payload(q, bool(sess.get("reveal")))
         _refresh_attempt_view(sess, api_id, qs, path)
         payload = result
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
     except Exception as exc:                    # never let a bad POST kill the daemon
         handler.send_server_error(exc)
         return
@@ -1593,6 +1628,9 @@ def handle_api_submit(handler):
                 q = qs[idx]
     except Exception:
         q = None
+    if _refuse_check_execution(handler, q):
+        handler.send_json({"refused": LAN_REFUSAL_COPY})
+        return
     try:
         result = session.do_action(
             path, {"kind": "submit", "answer": answer},
@@ -1699,6 +1737,11 @@ class DaemonHandler(server.Handler):
     # this process and the shell that read it off the handshake -- never
     # persisted, never a CLI argument (T-13-01, T-13-04).
     sidecar_token = None
+    # Whether this daemon is bound to all interfaces (--lan), pinned by
+    # serve_scoped from cmd_daemon's lan value. Default False (loopback):
+    # a caller that passes nothing -- cmd_serve, cmd_day, cmd_sidecar -- gets
+    # the loopback assumption, which is what they all want.
+    lan = False
 
     def send_not_found(self, name):
         """The documented not-found copy: the stem the client asked for and
@@ -1925,6 +1968,7 @@ def serve_scoped(root, banks, plans, port, host="127.0.0.1", open_path="/",
     DaemonHandler.day_states = {}                  # built lazily, one per served plan
     DaemonHandler.day_extra = extra.get("day_extra", {})
     DaemonHandler.day_force_tokens = {}            # one-use edit-conflict gates
+    DaemonHandler.lan = extra.get("lan", False)    # bind mode; loopback by default
 
     bound = srv if srv is not None else _bind(port, host)
     with bound:
@@ -2055,7 +2099,8 @@ def cmd_daemon(a):
                   "daemon. itembank has no accounts and no authentication by design.")
 
     serve_scoped(root, banks, plans, port, host=host, open_path="/", no_open=no_open,
-                extra={"sessions": sessions, "collisions": collisions},
+                extra={"sessions": sessions, "collisions": collisions,
+                        "lan": lan},
                 on_bound=on_bound, srv=srv, window=window)
     return 0
 
