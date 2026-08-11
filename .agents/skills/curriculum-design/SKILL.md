@@ -25,6 +25,18 @@ python itembank.py stats bank.md       # objective coverage of one bank (stats t
 `stats` prints the item mix, distinct objectives with item counts, difficulty
 spread, and answer-position skew. Use it before and after you propose work.
 
+For the objective-level map with citations, use the on-demand coverage map
+(D-12) — computed from the bank and its `## SOURCES` registry at request
+time, never stored:
+
+```bash
+python itembank.py coverage bank.md       # objective -> item tags, citation-backed
+```
+
+`stats` is the item-mix/position report; `coverage` is the objective→items
+map tied to the bank's `## SOURCES` registry (the sources each objective's
+items cite).
+
 ## 2. Extract the objectives
 
 From the syllabus, list every objective as a stable, hierarchical name the
@@ -84,13 +96,15 @@ Then validate the proposal against the real tool before claiming it works:
 
 ```bash
 python itembank.py lint bank.md       # every new item lints clean
+python itembank.py coverage bank.md   # the objective map re-computed, gaps visible
 python itembank.py stats bank.md      # objective coverage now shows the gap closed
 ```
 
 ## Boundaries
 
-- Coverage claims must be grounded in `stats` output and item counts, not in
-  prose. If you cannot cite the item, do not claim coverage.
+- Coverage claims must be grounded in `coverage`/`stats` output and item
+  counts, not in prose. If you cannot cite the item (via `coverage` or the
+  `## SOURCES` registry), do not claim coverage.
 - Do not generate questions beyond what the user asked for — propose, then
   write on approval (or use the `author-bank` skill when asked to write).
 - Never commit real banks or learner data to this repository.

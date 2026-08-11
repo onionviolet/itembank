@@ -189,6 +189,18 @@ def gift_item(q, errors, warnings, strict=False):
             "%s: Q%d: type 'build' (ordering) has no GIFT equivalent -- "
             "not exported" % (GIFT_TYPE_UNSUPPORTED, q["number"]))
         return None
+    if t == "visual":
+        # D-09 (plan 06.1-03): a plot/number-line visual item cannot be
+        # represented losslessly in GIFT -- approximating it as numeric,
+        # matching, embedded markup, or prose would change what is being
+        # assessed. Refuse by original item number with the stable
+        # gift.type_unsupported code in both default and strict modes, before
+        # any field scan or renderer runs, and never approximate.
+        errors.append(
+            "%s: Q%d: type 'visual' (interactive plot/number-line) has no "
+            "GIFT equivalent -- not exported" %
+            (GIFT_TYPE_UNSUPPORTED, q["number"]))
+        return None
     field = unexpressible_field(q)
     if field is not None:
         errors.append(

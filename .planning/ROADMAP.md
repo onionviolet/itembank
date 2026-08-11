@@ -92,7 +92,7 @@ are recorded on the phases they block; none blocks starting.
 - [ ] **Phase 5: Check Item Type & Code Editor** - A `check` item type runs the learner's own code in a real editor and scores it through the one scorer.
 - [x] **Phase 6: Hint Ladder, Cursor-Hold & Feedback Modes** - A wrong answer holds the cursor, hints unlock one authored tier at a time, and feedback behavior follows session mode. (completed 2026-08-10)
 - [ ] **Phase 6.2: Executable Textbook Loop (INSERTED 2026-08-10)** - Prose, an inline check the learner must clear to continue, then spaced re-exposure of the same idea — the Execute Program / Runestone loop over the existing lesson, hint, and evidence machinery.
-- [ ] **Phase 7: Selection Engine** - Sessions are assembled by an inspectable rule engine — objective, difficulty, discrimination pairs, no accidental repeats.
+- [x] **Phase 7: Selection Engine** - Sessions are assembled by an inspectable rule engine — objective, difficulty, discrimination pairs, no accidental repeats. (completed 2026-08-11)
 - [ ] **Phase 8: Model Adapter Interface & Tier-Gate Enforcement** - The tutoring model sees the key and writes hints about the learner's actual error; the runtime gates the tier, not the model.
 - [ ] **Phase 9: Subject-Invariant Loop — EMT, Math, CS Integration** - One loop — lesson, hint, verify — carries a learner through EMT prose, Math LaTeX, and runnable CS code.
 - [ ] **Phase 9.1: Audio Drill Export (INSERTED 2026-08-10)** - `itembank export audio` turns an objective into a stem→pause→key→why drill pack, so the commute is study time and the TTS engine is a config entry, not a dependency.
@@ -608,16 +608,16 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 06.2-01-PLAN.md — Gate grammar, gate_skip event, response context field, gate_state derivation
+- [x] 06.2-01-PLAN.md — Gate grammar, gate_skip event, response context field, gate_state derivation
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 06.2-02-PLAN.md — The gate band: activate 3.1's D2 slot, three renderings, truncation, mode-degrade, compatibility floor
-- [ ] 06.2-03-PLAN.md — The recorded-skip control, check/skip routes, settings, and the outcome-split report
+- [x] 06.2-02-PLAN.md — The gate band: activate 3.1's D2 slot, three renderings, truncation, mode-degrade, compatibility floor
+- [x] 06.2-03-PLAN.md — The recorded-skip control, check/skip routes, settings, and the outcome-split report
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 06.2-04-PLAN.md — Phase verification: the twelve UI-SPEC §13 gates, requirement audit, full suite
+- [x] 06.2-04-PLAN.md — Phase verification: the twelve UI-SPEC §13 gates, requirement audit, full suite
 
 ### Phase 7: Selection Engine
 
@@ -693,7 +693,7 @@ Plans:
 **Named unknowns carried into planning**: **no verified 7900 XTX throughput figure exists** for any candidate model (Research Brief 2 §4.5) — this is the reason criterion 9 forbids a carried number rather than asking for a better estimate. **No trustworthy open-weight prose-quality benchmark exists**, so backend choice for authoring is settled by running our own 18-rule check, not by a leaderboard.
 **Absorbed from research (2026-08-10)**: `.planning/research/2026-08-09-landscape-widening.md` (2025 study-mode wave: Socratic tutoring is commoditized at the prompt layer, so the visible runtime lock is the differentiator) and `2026-08-09-blind-spots.md` B14 (degraded-model UX already designed in UI-SPEC). Adapter interface and tier-gate mechanics stay **LOCKED**; only learner-facing copy, provenance presentation, and generated-hint surfaces change.
 **Open decisions resolved here**: Tier-gate enforcement mechanism — no prior art found for how the runtime detects and drops model output that reaches past the unlocked tier; this phase must design and test the actual detection/stripping mechanism as a first-class deliverable, not adapter plumbing added after the fact.
-**Plans**: 3/6 plans executed (replanned 2026-08-10 against round-two CONTEXT D-01..D-27)
+**Plans**: 5/6 plans executed (replanned 2026-08-10 against round-two CONTEXT D-01..D-27)
 
 Plans:
 **Wave 0**
@@ -710,11 +710,11 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 08-04-PLAN.md — Runtime orchestration and CLI: hint/rubric-review commands, retry lineage, human-only proposal accept, agent usage contract
+- [x] 08-04-PLAN.md — Runtime orchestration and CLI: hint/rubric-review commands, retry lineage, human-only proposal accept, agent usage contract
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 08-05-PLAN.md — Daemon routes, SURFACE_PARITY, AgentAssist/rubric UI, no-leak DOM tests, blocking human UAT
+- [x] 08-05-PLAN.md — Daemon routes, SURFACE_PARITY, AgentAssist/rubric UI, no-leak DOM tests, blocking human UAT
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -780,27 +780,27 @@ Plans:
 **Research basis**: `.planning/research/2026-08-09-blind-spots.md` B3 — named as real, cheap, and differentiating. Research also found (Q9) that consumption is phone- and audio-shaped while the desktop app optimizes authoring; this is the cheapest correction available.
 **Success Criteria** (what must be TRUE):
 
-  1. `itembank export audio --objective <id>` writes an audio file plus a plain-text transcript per pack, sequencing stem → timed pause → key → why.
-  2. The TTS engine is a **settings entry behind one interface** — `edge-tts` today, Piper locally, Kokoro on the 7900 XTX when it arrives — and swapping it is a config change with no code change, exactly like the model backend.
-  3. With no engine installed or reachable, the command still emits the transcript and a named, actionable refusal; it never half-writes an audio file.
-  4. Playback is any podcast app. No player, no sync service, and no mobile build is in scope.
-  5. Listening records nothing — an audio pack is a one-way export, and the evidence log stays the record of what was actually answered.
+  1. ✅ `itembank export audio --objective <id>` writes an audio file plus a plain-text transcript per pack, sequencing stem → timed pause → key → why.
+  2. ✅ The TTS engine is a **settings entry behind one interface** — `edge-tts` today, Piper locally, Kokoro on the 7900 XTX when it arrives — and swapping it is a config change with no code change, exactly like the model backend.
+  3. ✅ With no engine installed or reachable, the command still emits the transcript and a named, actionable refusal; it never half-writes an audio file.
+  4. ✅ Playback is any podcast app. No player, no sync service, and no mobile build is in scope.
+  5. ✅ Listening records nothing — an audio pack is a one-way export, and the evidence log stays the record of what was actually answered.
 
 **Plans**: 4 plans across 3 waves
 
 Plans:
 **Wave 1**
 
-- [ ] 09.1-01-PLAN.md — TRACER: TTSEngine interface + registry + transcript-only engine + `itembank export audio` CLI, sequence/pause settings, transcript, digest naming, atomic write
+- [x] 09.1-01-PLAN.md — TRACER: TTSEngine interface + registry + transcript-only engine + `itembank export audio` CLI, sequence/pause settings, transcript, digest naming, atomic write
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 09.1-02-PLAN.md — The engines: edge-tts (network, MP3-native) and Piper (local, WAV + lameenc MP3), pinned and license-reviewed, D-16 help-text disclosure
-- [ ] 09.1-03-PLAN.md — Pack assembly: timed pauses, MP3/WAV container policy, --split per-item|per-pack, digest-stable atomic writes, daemon route
+- [x] 09.1-02-PLAN.md — The engines: edge-tts (network, MP3-native) and Piper (local, WAV + lameenc MP3), pinned and license-reviewed, D-16 help-text disclosure
+- [x] 09.1-03-PLAN.md — Pack assembly: timed pauses, MP3/WAV container policy, --split per-item|per-pack, digest-stable atomic writes, daemon route
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 09.1-04-PLAN.md — Phase verification: fake engine + transcript-diff + no-evidence fixtures, both-surfaces proof, requirement + supply-chain audits, full suite
+- [x] 09.1-04-PLAN.md — Phase verification: fake engine + transcript-diff + no-evidence fixtures, both-surfaces proof, requirement + supply-chain audits, full suite
 
 ### Phase 10: Retention, Pacing & Trends
 
@@ -1132,18 +1132,18 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 2. Daemon Consolidation & Settings Foundation | 6/6 | Complete    | 2026-08-08 |
 | 2.1 Packaging, Self-Update & Interop Export | 9/9 | Complete | 2026-08-08 |
 | 3. Lesson Format & In-App Reader | 6/6 | In Progress|  |
-| 3.1 Lesson Rich Blocks, Glossary & Style | 3/7 | In Progress|  |
+| 3.1 Lesson Rich Blocks, Glossary & Style | 7/7 | Complete (human-verify items open; see 03.1-GATES.md) | 2026-08-11 |
 | 3.2 Seeding, Import & Provenance | 0/5 | Planned | - |
 | 4. Surface Redesign & Theming | 6/6 | In Progress|  |
 | 5. Check Item Type & Code Editor | 0/7 | Planned | - |
 | 6. Hint Ladder, Cursor-Hold & Feedback Modes | 2/2 | Complete    | 2026-08-10 |
-| 6.1 Interactive Visual Assessment Protocol | 0/3 | Planned | - |
-| 6.2 Executable Textbook Loop | 0/4 | Planned | - |
-| 7. Selection Engine | 6/6 | Gaps - see 07-VERIFICATION.md|  |
-| 8. Model Adapter Interface & Tier-Gate Enforcement | 3/6 | In Progress|  |
+| 6.1 Interactive Visual Assessment Protocol | 3/3 | Complete | 2026-08-11 |
+| 6.2 Executable Textbook Loop | 4/4 | Complete | 2026-08-11 |
+| 7. Selection Engine | 6/6 | Complete (roadmap gaps in 07-VERIFICATION.md) | 2026-08-11 |
+| 8. Model Adapter Interface & Tier-Gate Enforcement | 5/6 | In Progress|  |
 | 9. Subject-Invariant Loop — EMT, Math, CS Integration | 0/5 | Planned | - |
 | 9.1 Audio Drill Export | 0/4 | Planned | - |
-| 10. Retention, Pacing & Trends | 0/6 | Planned    |  |
+| 10. Retention, Pacing & Trends | 6/6 | Complete | 2026-08-11 |
 | 11. Closed Authoring Loop & Curriculum Auditor | 0/TBD | Not started | - |
 | 12. ~~Packaging, Self-Update & Interop Export~~ | — | Retired (moved to 2.1) | - |
 | 13. Desktop Packaging — Tauri Shell over Python Sidecar | 5/5 | Complete    | 2026-08-10 |
@@ -1366,7 +1366,13 @@ scraping HTML or reimplementing scoring.
 **Depends on:** nothing in this roadmap. It is a maintenance obligation, not
 a feature: every later phase that changes the CLI or the session protocol
 changes what the skills must say.
-**Plans:** 0 plans
+**Plans:** 1 plan — [999.5-01](phases/999.5-agent-onboarding-skill-library/999.5-01-SUMMARY.md)
+shipped 2026-08-11: skills synced to the shipped surface (hint ladder,
+rubric-review, select, coverage, guard, seed), per-tool discovery documented
+in README/AGENTS.md (Claude Code, Codex, Gemini CLI, Cursor, Reasonix),
+`reasonix.toml` de-shipped (gitignored; portable `reasonix.toml.example`),
+and CI now asserts the skill mirrors stay byte-identical and no machine path
+leaks into agent docs.
 
 **Why this is backlog.** The on-ramp already exists (2026-08-10) and documents
 the *shipped* surface — that is why it is truthful. It becomes load-bearing

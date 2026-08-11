@@ -6,7 +6,7 @@
   "x-itembank-version": 1,
   "type": "object",
   "additionalProperties": false,
-  "required": ["theme", "accent", "daily_cap", "selection_weights", "selection", "auditor_autonomy", "model_backend", "suggestion_reveal", "update_policy", "daemon", "reader", "style", "paraphrase"],
+  "required": ["theme", "accent", "daily_cap", "selection_weights", "selection", "auditor_autonomy", "model_backend", "suggestion_reveal", "update_policy", "daemon", "reader", "style", "paraphrase", "retention"],
   "properties": {
     "theme": {
       "type": "string",
@@ -262,15 +262,18 @@
     },
     "reader": {
       "type": "object",
-      "description": "The lesson reader's settings (03.1-UI-SPEC section 14). Read by this phase (3.1).",
+      "description": "The lesson reader's settings (03.1-UI-SPEC section 14; 06.2-UI-SPEC section 10 for the gate rows). Read by this phase (3.1/6.2).",
       "additionalProperties": false,
-      "required": ["reader_nav", "example_layout", "print_gloss", "gloss_marks"],
+      "required": ["reader_nav", "example_layout", "print_gloss", "gloss_marks",
+                    "gate_skip", "gate_policy"],
       "x-itembank-phase": 3.1,
       "default": {
         "reader_nav": "none",
         "example_layout": "stacked",
         "print_gloss": "appendix",
-        "gloss_marks": "all"
+        "gloss_marks": "all",
+        "gate_skip": "always",
+        "gate_policy": "as-authored"
       },
       "properties": {
         "reader_nav": {
@@ -300,6 +303,20 @@
           "enum": ["all", "first-use", "none"],
           "default": "all",
           "x-itembank-phase": 3.1
+        },
+        "gate_skip": {
+          "type": "string",
+          "description": "When the recorded-skip control appears in a gate band (06.2-UI-SPEC section 6.2, DEFAULT always). always renders it from the first render; after-attempt renders the Ledger line 'Read ahead becomes available after one attempt.' until one recorded attempt exists -- never a disabled control with no reason (C9).",
+          "enum": ["always", "after-attempt"],
+          "default": "always",
+          "x-itembank-phase": 6.2
+        },
+        "gate_policy": {
+          "type": "string",
+          "description": "A learner-level gate override (06.2-UI-SPEC section 10.1, DEFAULT as-authored). off renders every lesson ungated (the whole lesson in the DOM, checks as 3.1's inert slots) and may only weaken a declared gate, never strengthen one -- the enum has no strengthening value by construction.",
+          "enum": ["as-authored", "off"],
+          "default": "as-authored",
+          "x-itembank-phase": 6.2
         }
       }
     },
@@ -385,6 +402,281 @@
           "maximum": 1,
           "default": 0.25,
           "x-itembank-phase": 3.2
+        }
+      }
+    },
+    "retention": {
+      "type": "object",
+      "description": "The retention, pacing and trends thresholds (Phase 10). Every value is bounded here with conservative defaults so later tuning is a settings change, never a code change (D-06, D-23); the weak threshold must stay below the mastery threshold and the weight floor below the ceiling (retention.py rejects contradictory pairs with a named error). Read by this phase (10).",
+      "additionalProperties": false,
+      "required": ["min_settled_attempts", "weak_accuracy", "mastery_accuracy",
+                   "mastery_success_days", "at_risk_after_days",
+                   "review_interval_days", "lesson_review_after_days",
+                   "weight_min", "weight_max", "max_weight_step",
+                   "weak_boost", "due_boost", "at_risk_boost",
+                   "mastery_reduction", "focused_session_count"],
+      "x-itembank-phase": 10,
+      "default": {
+        "min_settled_attempts": 3,
+        "weak_accuracy": 0.60,
+        "mastery_accuracy": 0.85,
+        "mastery_success_days": 3,
+        "at_risk_after_days": 28,
+        "review_interval_days": 7,
+        "lesson_review_after_days": 14,
+        "weight_min": 0.75,
+        "weight_max": 1.25,
+        "max_weight_step": 0.10,
+        "weak_boost": 0.20,
+        "due_boost": 0.10,
+        "at_risk_boost": 0.20,
+        "mastery_reduction": 0.15,
+        "focused_session_count": 5
+      },
+      "properties": {
+        "min_settled_attempts": {
+          "type": "integer",
+          "description": "Settled outcomes (auto-scored bool, or a constructed response with an accepted human mark) needed before an objective receives a state label at all. Fewer is unknown (D-03).",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 3,
+          "x-itembank-phase": 10
+        },
+        "weak_accuracy": {
+          "type": "number",
+          "description": "Recent settled accuracy below this is the weak state. Must be lower than mastery_accuracy (retention.py rejects equality/inversion with a named error).",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.6,
+          "x-itembank-phase": 10
+        },
+        "mastery_accuracy": {
+          "type": "number",
+          "description": "Recent settled accuracy at or above this, together with mastery_success_days distinct local days of confirmed success, is the mastered state.",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.85,
+          "x-itembank-phase": 10
+        },
+        "mastery_success_days": {
+          "type": "integer",
+          "description": "Distinct local days with a confirmed success required for the mastered state.",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 3,
+          "x-itembank-phase": 10
+        },
+        "at_risk_after_days": {
+          "type": "integer",
+          "description": "A previously-confirmed-successful objective with no confirming evidence for at least this many days is at-risk (D-14: prior success plus silence, never predicted failure).",
+          "minimum": 1,
+          "maximum": 3650,
+          "default": 28,
+          "x-itembank-phase": 10
+        },
+        "review_interval_days": {
+          "type": "integer",
+          "description": "The configured objective review interval: a stable objective whose latest settled evidence is at least this old is due (D-04/D-06).",
+          "minimum": 1,
+          "maximum": 3650,
+          "default": 7,
+          "x-itembank-phase": 10
+        },
+        "lesson_review_after_days": {
+          "type": "integer",
+          "description": "Days after an explicit lesson completion event before its referenced objectives enter the review queue as due (SCHED-04, 10-02).",
+          "minimum": 1,
+          "maximum": 3650,
+          "default": 14,
+          "x-itembank-phase": 10
+        },
+        "weight_min": {
+          "type": "number",
+          "description": "Floor of the bounded objective weight multiplier (D-11). Must be below weight_max.",
+          "minimum": 0.1,
+          "maximum": 1,
+          "default": 0.75,
+          "x-itembank-phase": 10
+        },
+        "weight_max": {
+          "type": "number",
+          "description": "Ceiling of the bounded objective weight multiplier (D-11). Must be above weight_min.",
+          "minimum": 1,
+          "maximum": 3,
+          "default": 1.25,
+          "x-itembank-phase": 10
+        },
+        "max_weight_step": {
+          "type": "number",
+          "description": "Maximum absolute change to one objective's normalized weight between snapshots (D-12: gradual, capped, so one bad session cannot cause an extreme next session).",
+          "minimum": 0.01,
+          "maximum": 1,
+          "default": 0.1,
+          "x-itembank-phase": 10
+        },
+        "weak_boost": {
+          "type": "number",
+          "description": "Formula term: added to the raw weight of a weak objective (10-RESEARCH.md initial formula).",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.2,
+          "x-itembank-phase": 10
+        },
+        "due_boost": {
+          "type": "number",
+          "description": "Formula term: added to the raw weight of a due objective (10-RESEARCH.md initial formula).",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.1,
+          "x-itembank-phase": 10
+        },
+        "at_risk_boost": {
+          "type": "number",
+          "description": "Formula term: added to the raw weight of an at-risk objective (10-RESEARCH.md initial formula).",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.2,
+          "x-itembank-phase": 10
+        },
+        "mastery_reduction": {
+          "type": "number",
+          "description": "Formula term: subtracted from the raw weight of a mastered objective, keeping it out of ordinary rotation without making it unreachable (D-11).",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.15,
+          "x-itembank-phase": 10
+        },
+        "focused_session_count": {
+          "type": "integer",
+          "description": "The bounded size of the focused-session recommendation (D-04).",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 5,
+          "x-itembank-phase": 10
+        }
+      }
+    },
+    "audio": {
+      "type": "object",
+      "description": "The audio drill pack export (phase 9.1): which TTS engine speaks, which container the pack uses, whether a pack is one file or one file per item, the per-item-type pause map, and the per-engine voice/model entries. engine names a registered engine; an unknown or unreachable engine never silently falls back (D-04). Read by this phase (9.1).",
+      "additionalProperties": false,
+      "required": ["engine", "container", "split", "pause", "edge_tts", "piper"],
+      "x-itembank-phase": 9.1,
+      "default": {
+        "engine": "edge-tts",
+        "container": "mp3",
+        "split": "per-pack",
+        "pause": {
+          "mc": 1.5,
+          "multi": 2.0,
+          "short": 2.0,
+          "cloze": 2.5,
+          "build": 4.0,
+          "table": 3.0,
+          "dnd": 3.0,
+          "check": 3.0
+        },
+        "edge_tts": {
+          "voice": "en-US-GuyNeural"
+        },
+        "piper": {
+          "voice": "en_US-lessac-medium",
+          "model": ""
+        }
+      },
+      "properties": {
+        "engine": {
+          "type": "string",
+          "enum": ["edge-tts", "piper", "transcript-only"],
+          "default": "edge-tts",
+          "description": "The registered TTS engine behind the one TTSEngine interface (D-01/D-02): edge-tts (network, MP3-native), piper (local, WAV), transcript-only (the always-available null engine). An engine name with no registration, or an engine that is unreachable or missing its dependency, refuses by name and never silently substitutes another voice (D-04).",
+          "x-itembank-phase": 9.1
+        },
+        "container": {
+          "type": "string",
+          "enum": ["mp3", "wav"],
+          "default": "mp3",
+          "description": "The pack container (D-09): mp3 by default because every podcast app accepts it, wav available for engines that emit it natively. Each engine resolves the container in its own way (edge-tts writes MP3 natively, piper converts through its pinned encoder or passes WAV through).",
+          "x-itembank-phase": 9.1
+        },
+        "split": {
+          "type": "string",
+          "enum": ["per-pack", "per-item"],
+          "default": "per-pack",
+          "description": "How one objective's pack is split (D-10): per-pack writes one audio file per objective, per-item one file per item. A flag selects a mode of one writer, never two code paths.",
+          "x-itembank-phase": 9.1
+        },
+        "pause": {
+          "type": "object",
+          "description": "Timed pause in seconds between stem and key and between key and why, per item type (D-06/D-07). Starting values recorded here and tuned against real use, not invented precisely.",
+          "additionalProperties": false,
+          "required": ["mc", "multi", "short", "cloze", "build", "table", "dnd", "check"],
+          "x-itembank-phase": 9.1,
+          "default": {
+            "mc": 1.5,
+            "multi": 2.0,
+            "short": 2.0,
+            "cloze": 2.5,
+            "build": 4.0,
+            "table": 3.0,
+            "dnd": 3.0,
+            "check": 3.0
+          },
+          "properties": {
+            "mc": {"type": "number", "minimum": 0, "maximum": 30, "default": 1.5, "description": "Pause after a single-select recall stem.", "x-itembank-phase": 9.1},
+            "multi": {"type": "number", "minimum": 0, "maximum": 30, "default": 2.0, "description": "Pause after a multi-select stem.", "x-itembank-phase": 9.1},
+            "short": {"type": "number", "minimum": 0, "maximum": 30, "default": 2.0, "description": "Pause after a constructed-response stem.", "x-itembank-phase": 9.1},
+            "cloze": {"type": "number", "minimum": 0, "maximum": 30, "default": 2.5, "description": "Pause after a cloze stem.", "x-itembank-phase": 9.1},
+            "build": {"type": "number", "minimum": 0, "maximum": 30, "default": 4.0, "description": "Pause after an ordering stem -- longer, the ordering is the task.", "x-itembank-phase": 9.1},
+            "table": {"type": "number", "minimum": 0, "maximum": 30, "default": 3.0, "description": "Pause after a classification-table stem.", "x-itembank-phase": 9.1},
+            "dnd": {"type": "number", "minimum": 0, "maximum": 30, "default": 3.0, "description": "Pause after a drag-and-drop classification stem.", "x-itembank-phase": 9.1},
+            "check": {"type": "number", "minimum": 0, "maximum": 30, "default": 3.0, "description": "Pause after a check-item stem.", "x-itembank-phase": 9.1}
+          }
+        },
+        "edge_tts": {
+          "type": "object",
+          "description": "edge-tts voice selection. Sending item text to Microsoft's endpoint is the same accepted risk already recorded for hosted models, and the export command's own help text states it (D-16).",
+          "additionalProperties": false,
+          "required": ["voice"],
+          "x-itembank-phase": 9.1,
+          "default": {
+            "voice": "en-US-GuyNeural"
+          },
+          "properties": {
+            "voice": {
+              "type": "string",
+              "minLength": 1,
+              "default": "en-US-GuyNeural",
+              "description": "The edge-tts voice name.",
+              "x-itembank-phase": 9.1
+            }
+          }
+        },
+        "piper": {
+          "type": "object",
+          "description": "Piper voice and model selection for the local, offline engine (D-02).",
+          "additionalProperties": false,
+          "required": ["voice", "model"],
+          "x-itembank-phase": 9.1,
+          "default": {
+            "voice": "en_US-lessac-medium",
+            "model": ""
+          },
+          "properties": {
+            "voice": {
+              "type": "string",
+              "minLength": 1,
+              "default": "en_US-lessac-medium",
+              "description": "The Piper voice name.",
+              "x-itembank-phase": 9.1
+            },
+            "model": {
+              "type": "string",
+              "default": "",
+              "description": "Path or name of the Piper model artifact; empty until the engine's model resolution lands (plan 09.1-02).",
+              "x-itembank-phase": 9.1
+            }
+          }
         }
       }
     }

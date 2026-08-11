@@ -448,10 +448,10 @@ def test_schema_command_output():
         fail("--all's spec does not equal model.SPEC verbatim")
 
     names = sorted(payload.get("contracts", {}))
-    if names != ["item", "lint_error", "report", "response", "selection",
-                 "session"]:
-        fail("--all's contracts dict does not carry all six names in sorted "
-             "order: %r" % names)
+    if names != ["agent_usage", "item", "lint_error", "report", "response",
+                 "selection", "session"]:
+        fail("--all's contracts dict does not carry all seven names in "
+             "sorted order: %r" % names)
 
     for name, doc in payload["contracts"].items():
         try:
@@ -553,6 +553,214 @@ def test_educational_objective_private_until_verdict():
         fail("a multi-sentence Objective: line must warn")
 
 
+def test_lesson_completion_contract():
+    """Plan 10-02 (SCHED-04/D-24): the response/evidence schema validates
+    the real versioned lesson-completion event and the committed fixture,
+    rejects malformed variants (missing slug, empty/duplicate/non-namespaced
+    objectives, client path), keeps every earlier evidence variant valid,
+    and never accepts a model event as completion or mastery evidence
+    (D-16, T-10-09).
+    """
+    response_schema = load_schema("response.schema.json")
+    tmp = tempfile.mkdtemp()
+    try:
+        # A REAL CLI-written completion validates.
+        bank = os.path.join(tmp, "lesson_bank.md")
+        shutil.copyfile(os.path.join(ROOT, "fixtures", "lesson_bank.md"), bank)
+        run(["lesson", bank, "--ref", "The Airway, Step By Step",
+             "--complete", "--zone", "UTC"], tmp)
+        log = os.path.join(tmp, "_evidence", "evidence.jsonl")
+        lines = [l for l in open(log, encoding="utf-8").read().splitlines()
+                 if l.strip()]
+        ev = json.loads(lines[-1])
+        if ev["event_type"] != "lesson_complete":
+            fail("the CLI-written completion is not a lesson_complete event: %r"
+                 % ev["event_type"])
+        errs = itembank.validate(ev, response_schema)
+        if errs:
+            fail("real lesson_complete event failed the schema: %s" % errs[0])
+        # The event carries stable identifiers only -- no client path.
+        for banned in ("/", "\\", ".."):
+            if banned in ev["bank"]:
+                fail("bank must be a basename with no path separator: %r"
+                     % ev["bank"])
+
+        # The committed fixture (completion + compensating retraction)
+        # validates as a whole.
+        fixture = os.path.join(ROOT, "fixtures", "lesson_retention_events.jsonl")
+        for i, line in enumerate(open(fixture, encoding="utf-8").read().splitlines(), 1):
+            if not line.strip():
+                continue
+            errs = itembank.validate(json.loads(line), response_schema)
+            if errs:
+                fail("fixture line %d failed the schema: %s" % (i, errs[0]))
+
+        # Malformed variants are rejected, each for the named reason.
+        base = {"schema_version": 2, "event_id": "x1", "event_type": "lesson_complete",
+                "ts": "2026-08-10T12:00:00.000Z", "session_id": "reader",
+                "bank": "lesson_bank.md", "lesson_slug": "the-airway-step-by-step",
+                "subject": "emt", "objectives": ["emt:airway"], "zone": "UTC",
+                "actor": "learner", "dedupe_key": "k"}
+        cases = {
+            "missing slug": dict(base, **{"lesson_slug": ""}),
+            "empty objective list": dict(base, **{"objectives": []}),
+            "duplicate objectives": dict(base, **{"objectives": ["emt:a", "emt:a"]}),
+            "non-namespaced subject": dict(base, **{"subject": "", "objectives": ["airway"]}),
+            "client path": dict(base, **{"bank_path": "/abs/b.md"}),
+        }
+        for name, malformed in cases.items():
+            errs = itembank.validate(malformed, response_schema)
+            if not errs:
+                fail("malformed variant %r must be rejected by the schema" % name)
+
+        # Earlier evidence variants stay valid (one closed + one per catch-all).
+        import evidence as evidence_mod
+        earlier = [
+            evidence_mod.response_event(
+                "s1", {"objective": "emt:airway", "id": "q1",
+                       "type": "mc", "item_id": ""}, "B", True,
+                "practice", 1, "lesson_bank.md"),
+            evidence_mod.hint_event(
+                "s1", {"objective": "emt:airway", "id": "q1", "type": "mc"},
+                1, True, "memory", "authored", "attempt"),
+            evidence_mod.mark_event("s1", "", "q1", "e1", True),
+            evidence_mod.retraction_event("e1", "test"),
+            evidence_mod.day_tick_event("2026-08-10", "lane"),
+            evidence_mod.term_lookup_event("s1", "b.md", "airway", "practice",
+                                           "reader"),
+            evidence_mod.key_review_event("s1", "b.md", "k1", "practice"),
+            evidence_mod.selection_event("s1", "b.md", {"selection_mode": "practice"},
+                                         ["q1"]),
+        ]
+        for ev in earlier:
+            errs = itembank.validate(ev, response_schema)
+            if errs:
+                fail("earlier event variant %r no longer validates: %s"
+                     % (ev["event_type"], errs[0]))
+
+        # A model proposal never matches the completion shape and never feeds
+        # the retention queue (D-16, T-10-09).
+        model_event = dict(base, **{"event_type": "model_proposal",
+                                    "event_id": "m1", "dedupe_key": "k2"})
+        errs = itembank.validate(model_event, response_schema)
+        if not errs:
+            fail("a model_proposal event must not validate as evidence")
+        import retention
+        log_lines = [json.dumps(base, sort_keys=True),
+                     json.dumps(model_event, sort_keys=True)]
+        with open(log, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(log_lines) + "\n")
+        events = evidence_mod.capture_events(log)
+        snapshot = retention.capture(events, zone="UTC")
+        rows = retention.lesson_queue(snapshot)
+        if len(rows) != 1 or rows[0]["event_id"] != "x1":
+            fail("a model event must not add queue rows: %r" % rows)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_selection_retention_provenance():
+    """Plan 10-03 (D-01/D-10/T-10-13): a real started session validates with
+    its retention snapshot id and public bounded weight map; its matching
+    selection event validates with the identical snapshot id and the full
+    component map; forged retention data (paths, answer keys, hidden tiers,
+    malformed snapshot references) is rejected by the published schemas; and
+    a pre-Phase-10 selection event (no retention) still validates.
+    """
+    session_schema = load_schema("session.schema.json")
+    response_schema = load_schema("response.schema.json")
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "selection_bank.md")
+        shutil.copyfile(os.path.join(ROOT, "fixtures", "selection_bank.md"), bank)
+        ev_dir = os.path.join(tmp, "_evidence")
+        os.makedirs(ev_dir)
+        src = open(os.path.join(ROOT, "fixtures", "selection_evidence.jsonl"),
+                   encoding="utf-8").read()
+        open(os.path.join(ev_dir, "evidence.jsonl"), "w", encoding="utf-8").write(src)
+        started = json.loads(run(
+            ["start", bank, "--count", "3", "--seed", "0",
+             "--mode", "practice", "--selection-mode", "practice"], tmp))
+        session_file = started["session_file"]
+        data = json.load(open(session_file, encoding="utf-8"))
+        ret = data.get("retention")
+        if not ret or not ret.get("snapshot_id"):
+            fail("a started session must carry its retention binding: %r"
+                 % (ret,))
+        errs = itembank.validate(data, session_schema)
+        if errs:
+            fail("session with retention failed session.schema.json: %s"
+                 % errs[0])
+        sid = ret["snapshot_id"]
+
+        log = os.path.join(tmp, "_evidence", "evidence.jsonl")
+        sel = None
+        for line in open(log, encoding="utf-8").read().splitlines():
+            ev = json.loads(line)
+            if ev.get("event_type") == "selection":
+                sel = ev
+        if sel is None:
+            fail("no selection event recorded for the started sitting")
+        errs = itembank.validate(sel, response_schema)
+        if errs:
+            fail("selection event failed response.schema.json: %s" % errs[0])
+        eret = sel.get("retention") or {}
+        if eret.get("snapshot_id") != sid:
+            fail("selection event snapshot id differs from the session's")
+        for obj, entry in (eret.get("objective_weights") or {}).items():
+            if entry.get("snapshot_id") != sid:
+                fail("weight entry %r names a different snapshot" % obj)
+            if not isinstance(entry.get("components"), dict):
+                fail("weight entry %r must carry named components" % obj)
+
+        # A pre-Phase-10 selection event (no retention) still validates.
+        old_sel = {k: v for k, v in sel.items() if k != "retention"}
+        errs = itembank.validate(old_sel, response_schema)
+        if errs:
+            fail("a pre-10 selection event must still validate: %s" % errs[0])
+
+        # Forged retention data is rejected by the schemas (T-10-13):
+        # a client path / answer key / hidden tier never validates at any
+        # level, and a malformed snapshot reference is refused.
+        forged = [
+            ("top-level path", dict(sel, **{"bank_path": "/abs/b.md"})),
+            ("weight answer key", dict(sel, **{"retention": dict(
+                eret, **{"objective_weights": {
+                    "water:x": {"weight": 1.0, "components": {},
+                                "snapshot_id": sid, "answer": "B"}}})})),
+            ("weight hidden tier", dict(sel, **{"retention": dict(
+                eret, **{"objective_weights": {
+                    "water:x": {"weight": 1.0, "components": {},
+                                "snapshot_id": sid, "hint_tier": 2}}})})),
+            ("negative weight", dict(sel, **{"retention": dict(
+                eret, **{"objective_weights": {
+                    "water:x": {"weight": -1, "components": {},
+                                "snapshot_id": sid}}})})),
+            ("empty snapshot ref", dict(sel, **{"retention": dict(
+                eret, **{"objective_weights": {
+                    "water:x": {"weight": 1.0, "components": {},
+                                "snapshot_id": ""}}})})),
+            ("missing components", dict(sel, **{"retention": dict(
+                eret, **{"objective_weights": {
+                    "water:x": {"weight": 1.0, "snapshot_id": sid}}})})),
+        ]
+        for name, malformed in forged:
+            errs = itembank.validate(malformed, response_schema)
+            if not errs:
+                fail("forged selection event %r must be rejected by the "
+                     "schema" % name)
+
+        # The same allowlisting holds for the session's retention binding.
+        forged_session = dict(data, **{"retention": dict(
+            ret, **{"objective_weights": {
+                "water:x": {"weight": 1.0, "answer": "B"}}})})
+        errs = itembank.validate(forged_session, session_schema)
+        if not errs:
+            fail("a forged session retention map must be rejected")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     test_lint_error_shape()
     test_lint_codes_declared()
@@ -564,9 +772,13 @@ def main():
     test_runtime_matches_schemas()
     test_schema_command_output()
     test_educational_objective_private_until_verdict()
+    test_lesson_completion_contract()
+    test_selection_retention_provenance()
     print("protocol contract: ok (%d lint codes declared, schema versions pinned, "
           "EVID-07 field set asserted, runtime output validated against schemas/, "
-          "schema --all self-contained and stable)" % len(itembank.LINT_CODES))
+          "schema --all self-contained and stable, lesson-completion contract "
+          "validated, selection retention provenance validated)"
+          % len(itembank.LINT_CODES))
     return 0
 
 

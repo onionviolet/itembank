@@ -8,8 +8,9 @@ only way out of a lesson is to another surface, never to a score.
 import html, json, os, re, sys
 
 import evidence
-from model import (grab, lesson_slug, load, load_style, parse_key_blocks,
-                   parse_lesson, parse_terms, resolve_style)
+import retention
+from model import (CHECK_UNRESOLVED_COPY, grab, lesson_slug, load, load_style,
+                   parse_key_blocks, parse_lesson, parse_terms, resolve_style)
 from runtime import glossable
 from surfaces.presentation import SHARED_CSS
 from surfaces import settings
@@ -45,6 +46,32 @@ REVIEW_UNAVAILABLE_COPY = ("Review scheduling is unavailable without the "
                            "runtime. Run itembank export anki to take this "
                            "key to Anki.")
 ANSWERS_HEADING = "Answers"
+
+# The Phase 6.2 gate copy (06.2-UI-SPEC section 15, verbatim -- the linter,
+# the renderer, and the tests reproduce the same strings). Inherited rows
+# (the inert slot, the D1 print label, the held-definitions and gloss lines)
+# are 3.1's and are reproduced by reference above/unchanged.
+CHECK_ANSWER_COPY = "Check answer"
+GATE_HEADER_REQUIRED = "Check \u00b7 required to continue"
+GATE_HEADER_RECOMMENDED = "Check \u00b7 recommended"
+SKIP_COPY = "Read ahead without answering"
+MODE_DEGRADE_COPY = ("This sitting holds feedback until it ends, so checks "
+                     "do not gate reading here.")
+BOUNDARY_MANY = "{n} more sections below this check."
+BOUNDARY_ONE = "1 more section below this check."
+SKIP_RECORDED_COPY = "Read ahead recorded. This check stays open."
+SKIP_AFTER_ATTEMPT_COPY = ("Read ahead becomes available after one attempt.")
+REVEAL_CLAUSE_COPY = "The next section is below."
+TOC_FILTERED_COPY = "More sections appear as you clear each check."
+RUNTIME_UNREACHABLE_COPY = ("This check cannot be submitted while the runtime "
+                            "is unreachable. Run itembank daemon and reload.")
+CLEARED_IN_SITTING_COPY = "Cleared in this sitting."
+READ_AHEAD_IN_SITTING_COPY = "Read ahead in this sitting."
+VERDICT_CORRECT_COPY = "Correct"
+VERDICT_NOT_CORRECT_COPY = "Not correct"
+GATE_DENOMINATOR_COPY = "Of {n} required gates encountered"
+GATE_EXCLUSION_COPY = ("Recommended gates are not counted \u2014 reading "
+                       "past one is not a recorded choice.")
 
 # The style footer and refusal copy (03.1-UI-SPEC 9.6, 15): the only place
 # these strings live, so the renderer, the CLI, and the tests reproduce one
@@ -165,7 +192,45 @@ th{background:var(--chip);color:var(--mut);font-weight:600}
 .reader-nav a:hover,.reader-nav a:focus-visible{text-decoration:underline}
 .callout-example.example-parallel{display:grid;
   grid-template-columns:1fr 1fr;gap:var(--space-3)}
+/* Phase 6.2's exactly-one rule block (06.2-UI-SPEC section 5.1): the gate
+   band fills 3.1's reserved slot with the same box -- --card, 1px --line,
+   --r-3, space-3 padding, space-4 block margin, 66ch measure -- plus its
+   Ledger header, the check item at text-body 16/1.5 Paper voice, the
+   actions row, and the mode-degrade/status notes. No new family, size,
+   weight, or colour literal: every value is a var(--token) and the sizes
+   are the locked project scale (12/16). The truncation boundary is the
+   one companion rule, a full-measure 1px --line rule. */
+.gate{background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r-3);padding:var(--space-3);
+  margin:0 0 var(--space-4)}
+.gate-label{font-family:var(--font-ledger);font-size:12px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--mut);
+  margin:0 0 var(--space-2)}
+.gate-stem{font-size:16px;line-height:1.5;margin:0 0 var(--space-2);
+  font-family:var(--font-paper)}
+.gate-opt{display:flex;gap:var(--space-2);align-items:flex-start;
+  margin:0 0 var(--space-1);font-size:16px;line-height:1.5;
+  font-family:var(--font-paper)}
+.gate-opt input{margin-top:.3em}
+.gate-row{display:flex;gap:var(--space-2);align-items:center;
+  margin:0 0 var(--space-1);font-size:16px;line-height:1.5;
+  font-family:var(--font-paper)}
+.gate-row select{font:inherit}
+.gate-note{font-family:var(--font-ledger);font-size:12px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--mut);
+  margin:var(--space-2) 0 0}
+.gate-verdict{font-family:var(--font-ledger);font-size:12px;
+  letter-spacing:.08em;text-transform:uppercase;margin:var(--space-2) 0 0}
+.gate-verdict.y{color:var(--ok)}.gate-verdict.n{color:var(--bad)}
+.gate-warn{font-family:var(--font-ledger);font-size:12px;color:var(--warn);
+  margin:var(--space-2) 0 0}
+.gate-boundary{border:0;border-top:1px solid var(--line);
+  margin:var(--space-5) 0 0;padding:var(--space-2) 0 0}
+.gate-boundary .gate-note{margin:0}
 @media print{
+  .gate{box-shadow:none;border:0;border-top:1px solid var(--line);
+    border-radius:0;background:none;padding:var(--space-2) 0 0}
+}
   @page{margin:18mm}
   h2{break-after:avoid}
   [popover]{display:none}
@@ -199,6 +264,7 @@ __GLOSS_PRINT_CSS__
   <h1>__TITLE__</h1>
   <div class="sub">__SUB__</div>
 </header>
+__STATUS__
 __READER_NAV__
 __GLOSS_SCRIPT__
 <div class="card">__STYLE_WARN____BODY__</div>
@@ -361,18 +427,26 @@ def _reader_nav_html(headings):
 
 
 def _callout_spec(raw):
-    """Map one `[!KIND]` marker to its locked `(slug, label)` pair, or None.
+    """Map one `[!KIND]` marker to its locked `(slug, label, check_id)`
+    triple, or None.
 
-    `CHECK:` (with or without an id) maps to the inert reserved slot; the id
-    is deliberately dropped -- the anchor carries no key and no scoring path
-    (D-18). Any other kind returns None so the block classifier falls
-    through to the pre-change paragraph output byte-for-byte: an unknown
-    kind never raises and never invents a container.
+    `CHECK:` (with or without an id) maps to the reserved slot; the id is
+    kept so Phase 6.2's live band can resolve the check item -- the inert
+    slot drops it exactly as 3.1 did (the anchor carries no key and no
+    scoring path until the band activates it). Any other kind returns None
+    so the block classifier falls through to the pre-change paragraph
+    output byte-for-byte: an unknown kind never raises and never invents a
+    container.
     """
     kind = raw.strip()
     if kind.startswith("CHECK:"):
-        return ("check", "Check")
-    return _CALLOUT_KINDS.get(kind)
+        m = re.match(r"^CHECK:\s*(\S+)", kind)
+        check_id = m.group(1) if m else ""
+        return ("check", "Check", check_id)
+    slug, label = _CALLOUT_KINDS.get(kind, (None, None))
+    if slug is None:
+        return None
+    return (slug, label, None)
 
 
 def _callout_kind_of(line):
@@ -470,28 +544,187 @@ def _key_card_html(raw_lines, ctx):
             % (anchor, label, "".join(inner), foot))
 
 
-def _callout_html(spec, body, example_layout="stacked"):
+def _gate_check_answer(q):
+    """The check item's response controls as server-rendered HTML (no
+    JavaScript): the same object the quiz surface shows, reduced to its
+    public fields only -- stem and options, never the key, rationale,
+    distractor analysis, or objective line (06.2-UI-SPEC section 5.4).
+    """
+    esc = html.escape
+    out = ['<p class="gate-stem">%s</p>' % esc(q["stem"])]
+    t = q["type"]
+    if t in ("mc", "multi"):
+        kind = "radio" if t == "mc" else "checkbox"
+        for k in sorted(q.get("opts") or {}):
+            out.append(
+                '<label class="gate-opt"><input type="%s" name="option" '
+                'value="%s"> <span>%s) %s</span></label>'
+                % (kind, esc(k), esc(k), esc(q["opts"][k])))
+    elif t in ("table", "dnd"):
+        cats = q.get("cats") or []
+        for i, r in enumerate(q.get("rows") or []):
+            opts = "".join(
+                '<option value="%s">%s</option>' % (esc(c), esc(c))
+                for c in cats)
+            out.append(
+                '<div class="gate-row"><span>%s</span> <select name="row_%d">'
+                "<option value=\"\"></option>%s</select></div>"
+                % (esc(r["text"]), i, opts))
+    elif t == "build":
+        import random
+        steps = list(q.get("steps") or [])
+        random.Random(0).shuffle(steps)
+        for i, s in enumerate(steps):
+            opts = "".join(
+                '<option value="%s">%s</option>' % (esc(x), esc(x))
+                for x in steps)
+            out.append(
+                '<div class="gate-row"><select name="step_%d">'
+                '<option value=""></option>%s</select></div>' % (i, opts))
+    elif t == "short":
+        out.append('<div class="gate-row"><textarea name="answer" rows="3">'
+                   "</textarea></div>")
+    return "\n".join(out)
+
+
+def _gate_band_html(check_id, ctx):
+    """The live gate band (06.2-UI-SPEC section 5.2): the same box as 3.1's
+    reserved slot, filled with the check item's public projection, the
+    Ledger header, and one `<form method="post">` whose two named submit
+    buttons are `name="action" value="check"` first and `value="skip"`
+    second -- check first in DOM order so Enter submits the check. The skip
+    control is an ordinary control, never a transgression (C16); no
+    JavaScript anywhere.
+
+    When the check id resolves to no item in the bank, the band degrades to
+    the D1 labelled rule with the warn-tone line and never gates -- reading
+    continues (06.2-UI-SPEC section 14 error row). When the runtime is
+    unreachable the band states the reason and offers no submission and no
+    reveal (section 12.1). In diagnostic/exam sittings a declared required
+    gate renders as recommended with the exact degrade line and no skip
+    control (section 5.7).
+    """
+    gate = ctx.get("gate")
+    q = gate["resolve"](check_id) if gate else None
+    esc = html.escape
+    declared = gate.get("as_authored") or gate["policy"]
+    header = (GATE_HEADER_REQUIRED if declared == "required"
+              else GATE_HEADER_RECOMMENDED)
+    if q is None:
+        # Unresolvable check: D1 labelled rule, warn tone, never gates.
+        return ('<section class="callout callout-check"><p class="callout-label">'
+                "%s</p><p class=\"gate-warn\">%s</p></section>"
+                % (esc("Check"), esc(CHECK_UNRESOLVED_COPY
+                                    % {"bank": gate["bank"]})))
+    state = (gate.get("states") or {}).get(check_id, "open")
+    if gate.get("print"):
+        # ?print=1 / ?print=drill: 3.1's D1 labelled rule with the check's
+        # own objective (06.2-UI-SPEC section 8.1); a print is not a skip.
+        label = "Check \u00b7 %s" % (q.get("objective") or "")
+        return ('<section class="callout callout-check"><p class="callout-label">'
+                "%s</p></section>" % esc(label))
+    if state == "cleared":
+        verdict = ('<p class="gate-verdict y">%s</p>'
+                   % esc(VERDICT_CORRECT_COPY))
+        return ('<section class="gate"><p class="gate-label">%s</p>%s%s</section>'
+                % (esc(header), _gate_check_answer(q), verdict))
+    if gate.get("unreachable"):
+        # C9: never a disabled button with no reason; the reason is stated
+        # beside the controls, and no section is revealed.
+        return ('<section class="gate"><p class="gate-label">%s</p>%s'
+                '<p class="gate-note">%s</p></section>'
+                % (esc(header), _gate_check_answer(q),
+                   esc(RUNTIME_UNREACHABLE_COPY)))
+    degrade_line = ""
+    skip_button = ""
+    skip_note = ""
+    if gate.get("degraded"):
+        degrade_line = ('<p class="gate-note">%s</p>' % esc(MODE_DEGRADE_COPY))
+    elif gate.get("skip") == "after-attempt" and not gate.get("attempted"):
+        # gate_skip: after-attempt -- the condition is stated in real
+        # Ledger-voice text until one recorded attempt exists; never a
+        # disabled button with no reason (C9, 06.2-UI-SPEC section 6.2).
+        skip_note = ('<p class="gate-note">%s</p>'
+                     % esc(SKIP_AFTER_ATTEMPT_COPY))
+    elif gate.get("skip") != "off":
+        skip_button = ('<button type="submit" name="action" '
+                       'value="skip" class="go">%s</button>'
+                       % esc(SKIP_COPY))
+    form = ('<form method="post" action="/lesson/%s/check" class="gate-form">'
+            '<input type="hidden" name="check" value="%s">'
+            "%s<div class=\"actions\">"
+            '<button type="submit" name="action" value="check" '
+            'class="go primary">%s</button>%s'
+            "</div></form>"
+            % (esc(gate["stem"]), esc(check_id), _gate_check_answer(q),
+               esc(CHECK_ANSWER_COPY), skip_button))
+    if gate.get("degraded") and not gate.get("unreachable"):
+        # The item stays answerable in a degraded sitting (feedback is
+        # deferred, not withheld); the line states why the gate does not run.
+        form = ('<form method="post" action="/lesson/%s/check" class="gate-form">'
+                '<input type="hidden" name="check" value="%s">'
+                "%s<div class=\"actions\">"
+                '<button type="submit" name="action" value="check" '
+                'class="go primary">%s</button>'
+                "</div></form>"
+                % (esc(gate["stem"]), esc(check_id), _gate_check_answer(q),
+                   esc(CHECK_ANSWER_COPY)))
+    return ('<section class="gate"><p class="gate-label">%s</p>%s%s%s</section>'
+            % (esc(header), form, skip_note, degrade_line))
+
+
+def _gate_boundary_html(n):
+    """The truncation boundary (06.2-UI-SPEC section 5.3): a full-measure
+    1px --line rule, space-5 below the band, one Ledger-voice line. Two
+    copy rows, so a plural bug cannot ship; never rendered for n == 0
+    (nothing below the check)."""
+    if n <= 0:
+        return ""
+    line = BOUNDARY_ONE if n == 1 else BOUNDARY_MANY.format(n=n)
+    return ('<div class="gate-boundary"><p class="gate-note">%s</p></div>'
+            % html.escape(line))
+
+
+def _check_ids(lesson):
+    """The `[!CHECK: <id>]` references in a parsed lesson, in document
+    order -- the ids the daemon derives gate state for (plan 06.2-03)."""
+    if not isinstance(lesson, dict):
+        return []
+    return [m.group(1) for m in
+            re.finditer(r"\[!CHECK:\s*([^\s\]]+)\s*\]",
+                        lesson.get("body", ""))]
+
+
+def _callout_html(spec, body, ctx=None):
     """One honest callout container (D-18): a `<section class="callout
     callout-<slug>">` whose Ledger-voice label and decorative icon are
     accompanied by the escape-first `_inline()` body pass every other text
     run uses (T-031-01). The `[!CHECK: <id>]` variant renders the inert
     reserved slot with the exact Ledger copy and no form, no key, and no
-    scoring path (03.1-UI-SPEC §9.4, §15); authored body text under a check
-    marker is reserved for the gate that fills the slot (Phase 6.2).
+    scoring path (03.1-UI-SPEC §9.4, §15) -- or, when a gate context is
+    active, the live band (06.2-UI-SPEC §5.2).
 
-    `example_layout` is the reader setting (03.1-UI-SPEC §9.3/§14): an
-    `[!EXAMPLE]` callout carries the `example-parallel` class when the
-    setting is `parallel`, and stays stacked (the default) otherwise.
+    `ctx` (when supplied) carries the gate policy; `example_layout` is the
+    reader setting (03.1-UI-SPEC §9.3/§14): an `[!EXAMPLE]` callout carries
+    the `example-parallel` class when the setting is `parallel`, and stays
+    stacked (the default) otherwise.
     """
-    slug, label = spec
+    slug, label, check_id = spec
     icon = '<span class="callout-icon">%s</span>' % _CALLOUT_ICON
     if slug == "check":
-        inner = "<p>%s</p>" % html.escape(
-            "This check is available when you are reading with a session.")
-    else:
-        inner = _inline(body)
+        gate = ctx.get("gate") if ctx is not None else None
+        if gate is None:
+            inner = "<p>%s</p>" % html.escape(
+                "This check is available when you are reading with a session.")
+            return ('<section class="callout callout-check">'
+                    '<p class="callout-label">%s%s</p>'
+                    '<div class="callout-body">%s</div></section>'
+                    % (icon, html.escape(label), inner))
+        return _gate_band_html(check_id, ctx)
+    inner = _inline(body)
     extra = ""
-    if slug == "example" and example_layout == "parallel":
+    if slug == "example" and ctx is not None \
+            and ctx.get("example_layout") == "parallel":
         extra = " example-parallel"
     return ('<section class="callout callout-%s"><p class="callout-label">'
             "%s%s</p><div class=\"callout-body\">%s</div></section>"
@@ -733,8 +966,27 @@ def _render_blocks(text, ctx=None):
             while i < len(lines) and lines[i].startswith(">"):
                 body.append(re.sub(r"^>\s?", "", lines[i]))
                 i += 1
-            layout = ctx["example_layout"] if ctx is not None else "stacked"
-            out.append(_callout_html(spec, "\n".join(body), layout))
+            out.append(_callout_html(spec, "\n".join(body), ctx))
+            # G1 truncation (06.2-UI-SPEC section 5.2): under required,
+            # the server emits nothing below the first OPEN check -- the
+            # band already rendered, so the rest of this section and every
+            # later section is withheld. A cleared OR skipped check
+            # releases its section (a skip advances the reading position,
+            # section 6.3), so truncation stops only at "open". The flag
+            # is read by render_markdown and lesson_page to stop and to
+            # size the boundary. An unresolvable check never gates
+            # (reading continues).
+            if (ctx is not None and ctx.get("gate")
+                    and ctx["gate"]["policy"] == "required"
+                    and not ctx["gate"].get("degraded")
+                    and spec[0] == "check"
+                    and ctx["gate"]["resolve"](spec[2]) is not None
+                    and (ctx["gate"].get("states") or {}).get(spec[2],
+                                                             "open")
+                    == "open"):
+                ctx["gate_stop"] = True
+            if ctx is not None and ctx.get("gate_stop"):
+                break
             continue
         hm = re.match(r"^#{4,}\s+(.+?)\s*$", line)
         if hm:
@@ -837,6 +1089,8 @@ def render_markdown(text, ctx=None):
     """
     out = []
     for block in re.split(r"(?m)(?=^###\s)", text):
+        if ctx is not None and ctx.get("gate_stop"):
+            break
         block = block.strip()
         if not block:
             continue
@@ -847,8 +1101,17 @@ def render_markdown(text, ctx=None):
             if ctx is not None:
                 ctx["section"] = lesson_slug(heading)
             prose = _render_blocks("\n".join(lines[1:]), ctx)
-            out.append('<section id="%s"><h2>%s</h2>%s</section>'
-                       % (lesson_slug(heading), html.escape(heading), prose))
+            focus_attr = ""
+            if (ctx is not None and ctx.get("focus_section")
+                    and ctx["section"] == ctx["focus_section"]):
+                # The post-redirect-get focus target (06.2-UI-SPEC section
+                # 7.1): the newly revealed section's h2 carries the
+                # platform mechanism for moving focus after a navigation
+                # with no script.
+                focus_attr = ' tabindex="-1" autofocus'
+            out.append('<section id="%s"><h2%s>%s</h2>%s</section>'
+                       % (lesson_slug(heading), focus_attr,
+                          html.escape(heading), prose))
         else:
             out.append(_render_blocks(block, ctx))
     return "\n".join(out)
@@ -913,7 +1176,7 @@ def _backlinks_html(stem, qs, slug):
 
 
 def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
-                style_override=None):
+                style_override=None, gate=None, focus=None, announce=None):
     """The one render both surfaces call: the daemon route and `cmd_lesson`
     write the same document because there is only one `lesson_page`.
 
@@ -949,6 +1212,23 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
     `style_override` is render_style's seam: the page renders under that
     style id whether or not the bank declares it, so the permuted output is
     honest about which style produced it (D-11).
+
+    `gate` is the Phase 6.2 policy context -- a dict with `policy`
+    (required|recommended|off), `states` (check id -> open|cleared|skipped,
+    derived from the evidence log by the caller), `resolve` (check id ->
+    item or None), and the provenance the band needs (stem, bank, skip,
+    degraded, unreachable, print, attempted). When `gate` is None -- a
+    static render, `cmd_lesson`, no session, `[GATE: off]`, or the print
+    path with policy off -- the reader renders exactly as Phase 3.1's:
+    every [!CHECK:] is the inert reserved slot (D-14, the compatibility
+    floor). The one render path carries the policy; there is no second
+    reader (D-05).
+
+    `focus` names a section slug whose rendered `<h2>` carries
+    `tabindex="-1" autofocus` -- the post-redirect-get focus mechanism for
+    a gate reveal (06.2-UI-SPEC section 7.1: focus moves only when the
+    document grew). `announce` is the composed status-region text
+    (section 7.2), rendered inside the single `role=status` region.
     """
     bank_text = open(bank_path, encoding="utf-8").read()
     title = (grab(r"(?m)^#\s+(.*?)\s*$", bank_text)
@@ -958,6 +1238,10 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
     anchor_css = ""
     print_css = ""
     gloss_script = ""
+    status_html = ""
+    if announce:
+        status_html = ('<div class="status" role="status">%s</div>'
+                       % html.escape(announce))
     want = lesson_slug(ref) if ref else ""
     if lesson is None or not lesson.get("headings"):
         # An explicit --ref in a bank with no headings is the same miss as a
@@ -994,23 +1278,56 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
         ctx["runtime"] = runtime
         ctx["drill"] = drill
         ctx["key_answers"] = []
+        if gate is not None:
+            ctx["gate"] = gate
+            ctx["gate_stop"] = False
+        if focus:
+            ctx["focus_section"] = focus
         parts = []
+        stop_at = None
         for idx in idxs:
             h = lesson["headings"][idx]
             ctx["section"] = h["slug"] or ("section-%d" % idx)
-            parts.append(render_markdown(
+            rendered = render_markdown(
                 "### %s\n\n%s" % (h["text"], h["body"]), ctx)
-                + _backlinks_html(stem, qs, h["slug"]))
+            if ctx.get("gate_stop"):
+                # G1 truncation: the section ends at the band; the rest of
+                # this section and every later section is withheld, and the
+                # section's own backlinks (which would land after the band)
+                # are withheld too -- the boundary is the last element.
+                parts.append(rendered)
+                stop_at = idx
+                break
+            parts.append(rendered + _backlinks_html(stem, qs, h["slug"]))
         body = "\n".join(parts)
+        if stop_at is not None and gate is not None \
+                and gate["policy"] == "required":
+            # The boundary names how many full sections remain below the
+            # check (06.2-UI-SPEC section 5.3); n == 0 renders no line.
+            n = len(lesson["headings"]) - stop_at - 1
+            body += _gate_boundary_html(n)
         if ctx["gloss"]:
+            gloss_map = ctx["gloss"]
+            if stop_at is not None:
+                # Gated-read appendix filter (06.2-UI-SPEC section 5.6):
+                # only terms marked in revealed sections render; a term that
+                # appears only below an uncleared gate would otherwise reach
+                # the DOM through the appendix's back door.
+                gloss_map = {slug: rec for slug, rec in gloss_map.items()
+                             if slug in ctx["panels_emitted"]}
             body += ctx["held_line"] + _glossary_html(
-                ctx["gloss"], ctx["first_uses"])
+                gloss_map, ctx["first_uses"])
             anchor_css = _gloss_anchor_css(ctx["panels_emitted"])
             print_css = _gloss_print_css(
                 "inline" if ctx["print_inline"] else "appendix")
             gloss_script = GLOSS_ENHANCEMENT_JS
             if ctx["reader_nav"] == "column":
-                nav_html = _reader_nav_html(lesson["headings"])
+                if stop_at is not None:
+                    nav_html = (_reader_nav_html(lesson["headings"][:stop_at + 1])
+                                + '<p class="gate-note">%s</p>'
+                                % html.escape(TOC_FILTERED_COPY))
+                else:
+                    nav_html = _reader_nav_html(lesson["headings"])
         if drill and ctx.get("key_answers"):
             answers = "".join(
                 "<li>%s</li>" % _inline(text)
@@ -1056,6 +1373,7 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
             .replace("__GLOSS_PRINT_CSS__", print_css)
             .replace("__READER_NAV__", nav_html)
             .replace("__GLOSS_SCRIPT__", gloss_script)
+            .replace("__STATUS__", status_html)
             .replace("__STYLE_WARN__", style_warn_html)
             .replace("__STYLE_FOOT__", style_foot)
             .replace("__TITLE__", html.escape(title) + " lesson")
@@ -1246,6 +1564,8 @@ def cmd_lesson(a):
     heading that does not exist (T-3-12); a bank with no lesson section, or
     with an unreadable external source, writes its page and exits 0.
     """
+    if getattr(a, "complete", False):
+        return cmd_lesson_complete(a)
     qs = load(a.bank)
     lesson = parse_lesson(a.bank)
     out = a.out or os.path.splitext(a.bank)[0] + "_lesson.html"
@@ -1261,6 +1581,68 @@ def cmd_lesson(a):
     else:
         count = 0
     print("%d lesson section(s) -> %s" % (count, out))
+    return 0
+
+
+def cmd_lesson_complete(a):
+    """`itembank lesson BANK --ref HEADING --complete` (plan 10-02,
+    SCHED-04/D-24): the ONE explicit completion seam. Resolves the heading
+    through the Phase 3 slugifier and reader (`model.lesson_slug`,
+    `model.parse_lesson`, `model.load` -- never a second parser, slugger, or
+    a filesystem path from client input), discovers the sorted unique
+    objectives of items referencing it, appends exactly one
+    `lesson_complete` event through the ONE evidence writer, then captures
+    once and prints the event status, the configured interval, the derived
+    next-review date, the reason, and the snapshot id from that projection.
+
+    The command is idempotent: retrying the same completion reports
+    `already_recorded` and appends nothing (D-02). A completion without
+    `--ref`, an unknown heading, or a heading no item references with an
+    [OBJECTIVE:] line is refused with a named explanation and writes
+    nothing. The read/render path stays side-effect-free -- completion is a
+    separate branch, never a side effect of rendering or scrolling.
+    """
+    if not getattr(a, "ref", None):
+        sys.exit("lesson --complete requires --ref HEADING: a completion "
+                 "names exactly one Phase 3 lesson heading")
+    qs = load(a.bank)
+    lesson = parse_lesson(a.bank)
+    slug = lesson_slug(a.ref)
+    if lesson is None or not any(h["slug"] == slug for h in lesson["headings"]):
+        sys.exit("no lesson heading matching %r in %s" % (a.ref, a.bank))
+    objectives = sorted({q.get("objective", "") for q in qs
+                         if q.get("lesson_slug") == slug and q.get("objective")})
+    if not objectives:
+        sys.exit("lesson.no_referenced_objective: no item referencing %r "
+                 "carries an [OBJECTIVE:] line, so nothing can enter the "
+                 "review queue" % (a.ref,))
+    subject = evidence.subject_of(objectives[0])
+    if not subject or any(evidence.subject_of(o) != subject for o in objectives):
+        sys.exit("lesson.no_single_subject: items referencing %r must share "
+                 "one namespaced subject to record a completion" % (a.ref,))
+    bank_dir = os.path.dirname(os.path.abspath(a.bank)) or "."
+    event = evidence.lesson_complete_event(
+        session_id="reader", bank=os.path.basename(a.bank),
+        lesson_slug=slug, subject=subject, objectives=objectives,
+        zone=getattr(a, "zone", None) or "UTC")
+    result = evidence.append_event(evidence.log_path(bank_dir), event)
+    cfg = {}
+    try:
+        from surfaces import settings as _settings
+        cfg = _settings.load_settings(bank_dir)
+    except Exception:
+        cfg = {}
+    events = evidence.capture_events(evidence.log_path(bank_dir))
+    snapshot = retention.capture(events, zone=event["zone"], cfg=cfg)
+    rows = [r for r in retention.lesson_queue(snapshot)
+            if r["event_id"] == result["event_id"]]
+    print("%s lesson completion for %r (%d objective(s) -> review queue)"
+          % (result["status"], a.ref, len(rows)))
+    for r in rows:
+        print("  %s: next review %s (%d day(s), reason: %s)"
+              % (r["objective"], r["next_review_date"], r["interval_days"],
+                 r["reason"]))
+    print("snapshot: %s" % snapshot["claim"]["snapshot_id"])
     return 0
 
 

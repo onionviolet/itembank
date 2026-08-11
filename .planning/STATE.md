@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 11
-current_phase_name: closed-authoring-loop-curriculum-auditor
-status: completed
-stopped_at: Completed 11-05-PLAN.md (all five plans; see HANDOFF-PHASE11.md)
-last_updated: "2026-08-11T06:10:00.000Z"
+current_phase: 09.1
+current_phase_name: audio-drill-export
+status: executing
+stopped_at: Completed 08-05-PLAN.md
+last_updated: "2026-08-11T14:48:12.553Z"
 last_activity: 2026-08-11
-last_activity_desc: Phase 11 plans 11-01..11-05 completed (closed authoring loop + curriculum auditor; verification + UAT written)
+last_activity_desc: "Phase 08 plan 08-05 completed (identifier-safe assist routes + AgentAssist learner surface + blocking UAT PASS); phases 03.1, 06.1, 06.2, 09.1 merged into main (closed)"
 progress:
   total_phases: 18
   completed_phases: 10
-  total_plans: 109
-  completed_plans: 68
+  total_plans: 104
+  completed_plans: 67
 ---
 
 # Project State
@@ -22,17 +22,39 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-08-07)
 
-**Core value:** One runtime, one scorer, one evidence store â€” and the runtime, not the model, decides what reaches the learner.
+**Core value:** One runtime, one scorer, one evidence store — and the runtime, not the model, decides what reaches the learner.
 **Current focus:** Phase 08 — model-adapter-interface-tier-gate-enforcement
+
+## Completed Phases Note
+
+**Phase 6.2 — Executable Textbook Loop (completed 2026-08-11 on branch
+`gsd/phase-06.2-textbook-loop`):** the lesson gate is a presentation policy
+over existing item types. `[GATE: required|recommended|off]` parses
+additively; the gate band activates 3.1's reserved slot with one form and
+zero JavaScript; `required` truncates at the server (no DOM leak), a
+recorded `gate_skip` event is its own evidence type (never a null-score
+response), the check/skip routes score and record through the one
+runtime/evidence path with `context="lesson_gate"`, and the gate outcome
+split is a derived, stated-denominator report. Twelve UI-SPEC §13 gates are
+executable fixtures; one human-verify item (screen-reader announcement) is
+recorded in 06.2-GATES.md. Six GATE-01..06 requirements delivered.
 
 ## Current Position
 
 Phase: 08 (model-adapter-interface-tier-gate-enforcement) — EXECUTING
-Plan: 3 of 6 complete
+Plan: 5 of 6 complete
 Status: Ready to execute
-Last activity: 2026-08-11 — 08-02 (model adapter interface + profile registry) completed
+Last activity: 2026-08-11 — 08-05 (identifier-safe assist routes + AgentAssist learner surface) completed
 
-Progress: [██████░░░░] 61%
+> **Branch note (gsd/phase-03.1-finish):** Phase 03.1
+> (lesson-rich-blocks-glossary-style) is CLOSED — plans 01-07 complete with
+> SUMMARYs, `03.1-VERIFICATION.md` (status `human_needed`, 7/7 truths
+> statically verified) and `03.1-UAT.md` recorded. Live automated-suite runs
+> and the three perceptual/browser human-verify items remain open; see
+> `03.1-GATES.md` and the Deferred Verification table. The milestone's
+> active phase stays 08 (main).
+
+Progress: [███████░░░] 64%
 
 ## Performance Metrics
 
@@ -113,11 +135,12 @@ Progress: [██████░░░░] 61%
 | Phase 07 P06 | 45min | 3 tasks | 11 files |
 | Phase 06 P02 | 150 min | 3 tasks | 11 files |
 | Phase 08-model-adapter-interface-tier-gate-enforcement P08-03 | 22min | 3 tasks | 3 files |
-| Phase 11 P01 (tracer) | — | 1 task | 6 files |
-| Phase 11 P02 (schemas) | — | 2 tasks | 8 files |
-| Phase 11 P03 (coverage) | — | 3 tasks | 11 files |
-| Phase 11 P04 (quality/retry/autonomy) | — | 3 tasks | 8 files |
-| Phase 11 P05 (adapter/writer/undo) | — | 3 tasks | 10 files |
+| Phase 08-model-adapter-interface-tier-gate-enforcement P08-04 | 55 | 3 tasks | 9 files |
+| Phase 08-model-adapter-interface-tier-gate-enforcement P08-05 | ~35min | 3 tasks | 7 files |
+| Phase 09.1-audio-drill-export 09.1-01 | ~50min | 3 tasks | 6 files |
+| Phase 09.1-audio-drill-export 09.1-02 | ~45min | 3 tasks | 5 files |
+| Phase 09.1-audio-drill-export 09.1-03 | ~50min | 3 tasks | 6 files |
+| Phase 09.1-audio-drill-export 09.1-04 | ~40min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -238,6 +261,10 @@ Recent decisions affecting current work:
 - [Phase 03.1]: 03.1-03: authored cloze grammar is any {{text}} marker -- {{text}} compiles to {{c1::text}} sequentially, {{n::text}} keeps n; on screen the enclosed text renders
 - [Phase 03.1]: 03.1-03: C7 closure -- public_item() drops the syllabus [OBJECTIVE:]; study's pre-answer objective chip removed; both render only in explain_payload() behind the verdict
 - [Phase 03.1]: 03.1-03: the /key/<id>/review route and `itembank key-review` share record_key_review(); key_review events carry no score and are replayed by Phase 10
+- [Phase 03.1]: 03.1-05: style enforcement ships as three cost classes over a closed catalogue (STYLE_CHECK_CATALOGUE) — error severity is earned by construction (structural counts or literal lists) and a style may never raise a check above its catalogue rating (D-13); suppression counts are the report that retires bad checks and locked ids cannot be suppressed (style.ignore_locked fires before the ignore table, T-031-19)
+- [Phase 03.1]: 03.1-05: warning calibration is a seam, not a number — STYLE_WARNING_FP_RATES + WARNING_FP_THRESHOLD 0.20 are consumed by Phase 3.2's `itembank calibrate`; StylePrompt.prompt_context emits capped imperatives (default 7, a setting) + exactly one exemplar, placed last, never the ## Voice zone (D-17)
+- [Phase 03.1]: 03.1-06: the two OFL-1.1 faces are vendored per the KaTeX precedent (pinned tag/commit, recorded SHA-256 + git-blob SHA-1, license + reserved-names notes beside each file, files shipped unmodified); @font-face lives only in presentation.py's SHARED_CSS token layer with the Georgia/ui-monospace fallback; lesson_layout ("separate" | "inline") is folded into 09-02-PLAN.md before Phase 9 executes with no registry version bump (D-04)
+- [Phase 03.1]: 03.1-07: the eight UI-SPEC section-17 gates map to fixtures in 03.1-GATES.md with recorded gaps + human-verify items (cross-browser Popover behavior, ClearType 18px render, 1280/768/375px snapshots); the full-suite green run is recorded as a required action in a python-capable environment, never claimed from this session (approval gate declines python — 03.2-05-SUMMARY precedent)
 - [Phase ?]: 13-01: 'itembank sidecar' is the single shell entry point; the --sidecar flag on daemon was removed (plan wording resolved to the command).
 - [Phase ?]: 13-01: token gate covers every route except /__itembank__ (401); page navigations are gated because the shell injects the header on every request (13-02).
 - [Phase ?]: 13-01: attach failure exits 1 with the 3.3(e) copy, name filled and pid deferred to the shell; attach exits 0 with the already-running line.
@@ -274,6 +301,7 @@ Recent decisions affecting current work:
 - [Phase 08]: model_interaction and mark_proposal events are registered in KNOWN_EVENT_TYPES and the schema enum in the same commit as each builder (D-23); dedupe is one-generation-per-interaction with retries linked via parent_interaction_id (D-12)
 - [Phase 08]: mark_event(proposal_ref=None) folds the reference into the dedupe raw string so accepting two different proposals for the same response records two distinct human marks; the marker != 'human' guard stays byte-for-byte unchanged (D-14/D-23)
 - [Phase 08] 08-03: requirements TEACH-07/08/09, MODEL-03, MODEL-05 NOT yet marked complete -- the shared-ID gate (#2388) blocks them because 08-04/05/06 still declare them without SUMMARYs; requirements.mark-complete re-evaluates when the last declaring plan finishes
+- [Phase 09.1] 09.1-01..04: audio drill export complete on branch gsd/phase-09.1-audio-export -- one TTSEngine interface + registry (model-backend shape), transcript-only engine, edge-tts (LGPL-3.0 pin) + piper (bundled-binary sidecar decision; the wheel-bearing piper-tts is GPL-3.0-or-later and is NOT imported), assemble_pack one-writer with per-pack/per-item split, /api/export_audio daemon route, digest-stable atomic writes, no evidence write (D-01..D-16 all covered; AUDIO-01..07 marked complete in REQUIREMENTS.md)
 
 ## Deferred Verification
 
@@ -287,10 +315,11 @@ Recent decisions affecting current work:
 | 2.1 | verification_deferred_human | $gsd-verify-work 2.1 |
 | 3 | verification_deferred_human | $gsd-verify-work 3 |
 | 4 | verification_deferred_human | $gsd-verify-work 4 |
+| 03.1 | verification_deferred_human | $gsd-verify-work 03.1 — live full-suite + schema_validate run; cross-browser Popover; ClearType 18px render at 375/1280px; 1280/768/375px snapshots (see 03.1-GATES.md + 03.1-UAT.md) |
 
 ## Session Continuity
 
-Last session: 2026-08-11T05:49:09.127Z
-Stopped at: Completed 08-03-PLAN.md
+Last session: 2026-08-11T14:48:12.553Z
+Stopped at: Completed 08-05-PLAN.md
 Resume file: None
-Deferred human verification: Phases 2.1/3/4 (see Deferred Verification table above)
+Deferred human verification: Phases 2.1/3/4 (see Deferred Verification table above); 09.1 manual audio-quality checks (see 09.1-UAT.md)

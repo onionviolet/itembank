@@ -11,3 +11,38 @@
 #   Platform wheel hashes (e.g. the cp313 win_amd64 wheel) must be re-recorded
 #   at first install time; see 03.2-01-SUMMARY.md.
 zstandard==0.25.0 --hash=sha256:7713e1179d162cf5c7906da876ec2ccb9c3a9dcbdffef0cc7f70c3667a205f0b
+
+# edge-tts 7.2.8 -- the network TTS engine for the audio drill pack (plan
+# 09.1-02, D-02/D-09/D-16). Streams MP3 natively; no encoder needed. Sends
+# item text to Microsoft's endpoint, stated in the command's own help text.
+#
+# License: LGPL-3.0 (MIT only for src/edge_tts/srt_composer.py), read from
+# the pinned version's LICENSE at vendoring time 2026-08-11 -- resolves
+# research A2's "GPL-3.0 reported" ambiguity in favor of the usable LGPL
+# posture. Optional engine; imported lazily, never at module scope.
+# Checksum: sha256 of the sdist (edge-tts-7.2.8.tar.gz), from PyPI.
+#   Wheel edge_tts-7.2.8-py3-none-any.whl sha256:361fe48ce7ef613adbe30f664e3765dd71029c6cb57427279eff8ad6df2eb211
+edge-tts==7.2.8 --hash=sha256:fcf185a0d527a0d2d003f9d5841facc1d5e0e7b3b88d5df9c32990402c6b8cd0
+
+# lameenc 1.8.4 -- the one pinned MP3 encoder for Piper's engine-scoped MP3
+# path (plan 09.1-02, D-09): Piper emits WAV; MP3 conversion goes through this
+# encoder and only when the container setting says mp3. WAV passes through
+# untouched.
+#
+# License: LGPL-3.0-or-later (PyPI license_expression; wheels carry the LAME
+# LGPL), verified at vendoring time 2026-08-11. No sdist on PyPI; the pin's
+# checksum is the cp311 win_amd64 wheel, from PyPI.
+#   Other platform wheels must be re-recorded at first install time, the
+#   zstandard precedent.
+lameenc==1.8.4 --hash=sha256:28e51e725de35fe9492cfeb83f19e5f676765342139794e50d5d5e3827c124ff
+
+# Piper -- recorded decision, no pip pin (plan 09.1-02, D-15, research A3).
+# The only wheel-bearing pip distribution (piper-tts 1.3.0+) is
+# GPL-3.0-or-later (the OHF-Voice/piper1-gpl fork), which cannot be imported
+# into this project; the MIT original (rhasspy/piper) has no clean Windows
+# wheels for the pinned Python. The engine therefore drives a BUNDLED piper
+# binary plus an MIT-licensed voice model via subprocess (the Phase 13 sidecar
+# pattern), never importing GPL code. The binary and model artifacts are
+# recorded at first install time with their checksums, same as the zstandard
+# platform-wheel note above.
+
