@@ -75,3 +75,23 @@ DISTRACTOR ANALYSIS:
 TRAP: Counting the half-step tick as a whole unit.
 
 CONFIDENCE: high
+
+Q4. Select the heart on the organ diagram.   (difficulty: recall)
+[OBJECTIVE: anatomy:organs.locate]
+[TYPE: visual]
+[INTERACTION: hotspot]
+[VISUAL: {"version":1,"plane":{"width":"10","height":"6"},"regions":[{"id":"heart","label":"Heart","shape":"circle","coords":["2","3","1.5"]},{"id":"liver","label":"Liver","shape":"rect","coords":["6","2","3","2"]}],"initial":{"region":null},"actions":["select_hotspot"],"accessibility":{"description":"A diagram with a heart and a liver. Select the heart."}}]
+[SCORING: {"kind":"hotspot","accepted":[{"region":"heart"}],"tolerance":{},"partial_credit":false}]
+
+WHY BEST: The heart is the circular region on the left of the diagram.
+
+KEY DISCRIMINATOR: The correct region is identified by label and shape, not position alone.
+
+SECOND-BEST: The liver is the rectangle on the right; it would be correct if the prompt asked for the right-side organ.
+
+DISTRACTOR ANALYSIS:
+- The liver is the rectangle on the right; this would be correct if the item asked for the right-side organ.
+
+TRAP: Picking the leftmost region without reading the label.
+
+CONFIDENCE: high

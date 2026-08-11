@@ -184,18 +184,58 @@ SCALAR_MAX_NUMERATOR = 1_000_000_000
 SCALAR_MAX_DENOMINATOR = 1_000_000
 VISUAL_MAX_TICKS = 201
 
-VISUAL_INTERACTIONS = ("plot", "numberline")
-VISUAL_KINDS = ("point", "numberline_point", "interval")
+VISUAL_INTERACTIONS = ("plot", "numberline", "hotspot", "timeline",
+                       "diagram", "trace")
+VISUAL_KINDS = ("point", "numberline_point", "interval", "hotspot",
+                "timeline_event", "diagram_connection", "trace_path")
 # The only protocol-1 committed-action types (D-05); final submit is the
 # ordinary response event and is never duplicated as a visual action.
+# Phase 999.1 adds the advanced families additively (D-999.1-01): protocol
+# integer stays 1 and the envelope shape is unchanged; only these allowlists
+# grow, so plot/numberline items stay byte-compatible.
 VISUAL_ACTIONS = ("place_point", "move_point",
-                  "select_numberline_point", "set_interval")
-# The closed allowlist of authored scene members (T-06.1-03): anything else is
-# rejected before a renderer sees it.
-_VISUAL_SCENE_MEMBERS = frozenset({"version", "axes", "axis", "initial",
-                                   "actions", "accessibility"})
+                  "select_numberline_point", "set_interval",
+                  "select_hotspot", "place_timeline_event",
+                  "move_timeline_event", "connect_diagram",
+                  "place_trace_point", "move_trace_point")
+# The closed allowlist of authored scene members per interaction
+# (T-06.1-03/D-999.1-04): each family accepts exactly its own set; anything
+# else is rejected before a renderer sees it.
+_VISUAL_SCENE_MEMBERS = {
+    "plot": frozenset({"version", "axes", "initial", "actions",
+                       "accessibility"}),
+    "numberline": frozenset({"version", "axis", "initial", "actions",
+                             "accessibility"}),
+    "hotspot": frozenset({"version", "plane", "regions", "initial",
+                          "actions", "accessibility"}),
+    "timeline": frozenset({"version", "axis", "events", "initial",
+                           "actions", "accessibility"}),
+    "diagram": frozenset({"version", "plane", "nodes", "initial",
+                          "actions", "accessibility"}),
+    "trace": frozenset({"version", "axes", "point_count", "initial",
+                        "actions", "accessibility"}),
+}
+# The response kinds each interaction family accepts (D-999.1-02).
+_VISUAL_KIND_BY_INTERACTION = {
+    "plot": ("point",),
+    "numberline": ("numberline_point", "interval"),
+    "hotspot": ("hotspot",),
+    "timeline": ("timeline_event",),
+    "diagram": ("diagram_connection",),
+    "trace": ("trace_path",),
+}
 _VISUAL_SCORING_MEMBERS = frozenset({"kind", "accepted", "tolerance",
                                      "partial_credit", "feedback"})
+# Stable authored identifier grammar for the advanced families: bounded
+# length, no whitespace or punctuation beyond `-`/`_`, and nothing that the
+# script-bearing scan (below) would flag. Ids are semantic data, never code.
+_VISUAL_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+# Scene-size bounds (T-999.1-04/08/12): the advanced families stay small.
+VISUAL_MAX_REGIONS = 200
+VISUAL_MAX_EVENTS = 100
+VISUAL_MAX_NODES = 100
+VISUAL_MAX_TRACE_POINTS = 50
+_VISUAL_SHAPES = ("rect", "circle", "polygon")
 # Script-bearing tokens scanned recursively over scene/scoring JSON; a match
 # rejects the member before rendering (T-06.1-03). Event-handler keys are
 # matched as bare words (`onload`), and common executable call patterns are
@@ -289,6 +329,265 @@ def visual_axes(q):
     return None
 
 
+# ---- phase 999.1 scene validation (advanced visual families) ----------------
+# One strict per-interaction scene builder used by the contract, lint, and
+# scoring paths: a malformed scene raises ValueError with a field-addressed
+# message; scoring wraps it leniently (`_visual_scene_data`) so anything
+# unparseable fails closed as invalid. Coordinate grammar is the 06.1 SCALAR
+# grammar -- browser floats and pixels are never scene or scoring inputs.
+
+def _visual_plane(scene, item_id):
+    """Validate `plane: {width, height}` as positive SCALARs."""
+    plane = scene.get("plane")
+    if not isinstance(plane, dict) or set(plane) != {"width", "height"}:
+        raise ValueError("geometry: visual item %s: plane must be "
+                         "{width, height}" % item_id)
+    w = canonical_scalar(plane.get("width", ""))
+    h = canonical_scalar(plane.get("height", ""))
+    if w is None or h is None or fractions.Fraction(w) <= 0 \
+            or fractions.Fraction(h) <= 0:
+        raise ValueError("geometry: visual item %s: plane width/height must "
+                         "be positive SCALARs" % item_id)
+    return {"width": w, "height": h}
+
+
+def _visual_region_coords(coords, shape, plane, item_id, where):
+    """Validate one region's `coords` in plane units; returns canonical
+    SCALARs. rect: [x, y, w, h]; circle: [cx, cy, r]; polygon: [[x, y], ...]
+    with at least 3 in-plane vertices."""
+    W = fractions.Fraction(plane["width"])
+    H = fractions.Fraction(plane["height"])
+    if shape in ("rect", "circle"):
+        want = 4 if shape == "rect" else 3
+        if not isinstance(coords, list) or len(coords) != want:
+            raise ValueError("geometry: visual item %s: %s.coords needs %d "
+                             "SCALARs" % (item_id, where, want))
+        vals = [canonical_scalar(v) for v in coords]
+        if None in vals:
+            raise ValueError("geometry: visual item %s: %s.coords must be "
+                             "SCALARs" % (item_id, where))
+        fs = [fractions.Fraction(v) for v in vals]
+        if shape == "rect":
+            x, y, w, h = fs
+            if w <= 0 or h <= 0 or x < 0 or y < 0 or x + w > W or y + h > H:
+                raise ValueError("geometry: visual item %s: %s rect must sit "
+                                 "inside the plane" % (item_id, where))
+        else:
+            cx, cy, r = fs
+            if r <= 0 or cx - r < 0 or cx + r > W or cy - r < 0 \
+                    or cy + r > H:
+                raise ValueError("geometry: visual item %s: %s circle must "
+                                 "sit inside the plane" % (item_id, where))
+        return [str(v) for v in vals]
+    if not isinstance(coords, list) or len(coords) < 3:
+        raise ValueError("geometry: visual item %s: %s polygon needs at "
+                         "least 3 vertices" % (item_id, where))
+    out = []
+    for j, v in enumerate(coords):
+        if not isinstance(v, list) or len(v) != 2:
+            raise ValueError("geometry: visual item %s: %s polygon vertex %d "
+                             "must be [x, y]" % (item_id, where, j))
+        x, y = canonical_scalar(v[0]), canonical_scalar(v[1])
+        if x is None or y is None:
+            raise ValueError("geometry: visual item %s: %s polygon vertex %d "
+                             "must be SCALARs" % (item_id, where, j))
+        fx, fy = fractions.Fraction(x), fractions.Fraction(y)
+        if fx < 0 or fx > W or fy < 0 or fy > H:
+            raise ValueError("geometry: visual item %s: %s polygon vertex %d "
+                             "is outside the plane" % (item_id, where, j))
+        out.append([x, y])
+    return out
+
+
+def _visual_named_list(scene, key, item_id, maximum, noun):
+    """Validate a list of `{id, label, ...}` entries with unique ids; returns
+    `{id: entry}` with the entry's label stripped. Raises on malformed or
+    duplicate ids."""
+    entries = scene.get(key)
+    if not isinstance(entries, list) or not entries or len(entries) > maximum:
+        raise ValueError("geometry: visual item %s: %s must be a non-empty "
+                         "list of at most %d entries"
+                         % (item_id, key, maximum))
+    out = {}
+    for i, raw in enumerate(entries):
+        where = "%s[%d]" % (key, i)
+        if not isinstance(raw, dict):
+            raise ValueError("geometry: visual item %s: %s must be an "
+                             "object" % (item_id, where))
+        rid = raw.get("id")
+        if not isinstance(rid, str) or not _VISUAL_ID_RE.match(rid):
+            raise ValueError("geometry: visual item %s: %s.id is not a valid "
+                             "identifier" % (item_id, where))
+        if rid in out:
+            raise ValueError("duplicate_id: visual item %s: duplicate %s id "
+                             "%r" % (item_id, noun, rid))
+        label = raw.get("label")
+        if not isinstance(label, str) or not label.strip():
+            raise ValueError("geometry: visual item %s: %s.label is "
+                             "required" % (item_id, where))
+        out[rid] = dict(raw, label=label.strip())
+    return out
+
+
+def _visual_initial_ok(interaction, scene, data, item_id):
+    """Validate the family's `initial` renderer state so the public
+    renderer_config is trustworthy. Raises on malformed state."""
+    initial = scene.get("initial")
+    if initial is None:
+        return
+    if not isinstance(initial, dict):
+        raise ValueError("geometry: visual item %s: initial must be an "
+                         "object" % item_id)
+    if interaction == "hotspot":
+        region = initial.get("region")
+        if region is not None and region not in data["regions"]:
+            raise ValueError("geometry: visual item %s: initial.region %r is "
+                             "not a known region" % (item_id, region))
+    elif interaction == "timeline":
+        placements = initial.get("placements") or []
+        if not isinstance(placements, list) or len(placements) > len(data["events"]):
+            raise ValueError("geometry: visual item %s: initial.placements "
+                             "must be a bounded list" % item_id)
+        seen = set()
+        for raw in placements:
+            if not isinstance(raw, dict) or set(raw) != {"event", "value"}:
+                raise ValueError("geometry: visual item %s: a placement must "
+                                 "be {event, value}" % item_id)
+            ev, value = raw.get("event"), canonical_scalar(raw.get("value", ""))
+            if ev not in data["events"] or value is None:
+                raise ValueError("geometry: visual item %s: a placement names "
+                                 "an unknown event or bad value" % item_id)
+            if ev in seen or not _scalar_in_axis(data["axis"], value):
+                raise ValueError("geometry: visual item %s: a placement is "
+                                 "duplicated or out of axis bounds" % item_id)
+            seen.add(ev)
+    elif interaction == "diagram":
+        connections = initial.get("connections") or []
+        if not isinstance(connections, list):
+            raise ValueError("geometry: visual item %s: initial.connections "
+                             "must be a list" % item_id)
+        for raw in connections:
+            if not isinstance(raw, dict) or set(raw) != {"from", "to"} \
+                    or raw.get("from") not in data["nodes"] \
+                    or raw.get("to") not in data["nodes"]:
+                raise ValueError("geometry: visual item %s: a connection "
+                                 "names unknown nodes" % item_id)
+    elif interaction == "trace":
+        points = initial.get("points") or []
+        if not isinstance(points, list) \
+                or len(points) != data["point_count"]:
+            raise ValueError("geometry: visual item %s: initial.points must "
+                             "match point_count" % item_id)
+        axes = data["axes"]
+        for raw in points:
+            if not isinstance(raw, dict) or set(raw) != {"x", "y"}:
+                raise ValueError("geometry: visual item %s: a trace point "
+                                 "must be {x, y}" % item_id)
+            x, y = canonical_scalar(raw.get("x", "")), canonical_scalar(raw.get("y", ""))
+            if x is None or y is None \
+                    or not _scalar_in_axis(axes["x"], x) \
+                    or not _scalar_in_axis(axes["y"], y):
+                raise ValueError("geometry: visual item %s: a trace point is "
+                                 "invalid or out of domain" % item_id)
+
+
+def _visual_scene(q, interaction):
+    """Strictly validate one family's authored scene; returns the canonical
+    per-interaction scene data or raises ValueError with a field-addressed
+    message (see `_visual_scene_data` for the shape)."""
+    scene = q.get("visual") or {}
+    item_id = q["id"]
+    if interaction in ("plot", "numberline"):
+        axes = visual_axes(q)
+        if axes is None:
+            raise ValueError("geometry: visual item %s: scene axes are "
+                             "invalid (SCALAR min/max, positive step, at most "
+                             "%d ticks)" % (item_id, VISUAL_MAX_TICKS))
+        return axes
+    if interaction == "hotspot":
+        data = {"plane": _visual_plane(scene, item_id),
+                "regions": _visual_named_list(scene, "regions", item_id,
+                                              VISUAL_MAX_REGIONS, "region")}
+        regions = scene.get("regions")
+        for i, raw in enumerate(regions):
+            shape = raw.get("shape")
+            if shape not in _VISUAL_SHAPES:
+                raise ValueError("geometry: visual item %s: regions[%d].shape "
+                                 "must be one of %s"
+                                 % (item_id, i, ", ".join(_VISUAL_SHAPES)))
+            data["regions"][raw["id"]]["shape"] = shape
+            data["regions"][raw["id"]]["coords"] = _visual_region_coords(
+                raw.get("coords"), shape, data["plane"], item_id,
+                "regions[%d]" % i)
+        _visual_initial_ok(interaction, scene, data, item_id)
+        return data
+    if interaction == "timeline":
+        axis = canonical_axis(scene.get("axis"))
+        if axis is None:
+            raise ValueError("geometry: visual item %s: axis is invalid "
+                             "(SCALAR min/max, positive step, at most %d "
+                             "ticks)" % (item_id, VISUAL_MAX_TICKS))
+        data = {"axis": axis,
+                "events": _visual_named_list(scene, "events", item_id,
+                                             VISUAL_MAX_EVENTS, "event")}
+        _visual_initial_ok(interaction, scene, data, item_id)
+        return data
+    if interaction == "diagram":
+        data = {"plane": _visual_plane(scene, item_id),
+                "nodes": _visual_named_list(scene, "nodes", item_id,
+                                            VISUAL_MAX_NODES, "node")}
+        nodes = scene.get("nodes")
+        for i, raw in enumerate(nodes):
+            x, y = canonical_scalar(raw.get("x", "")), \
+                canonical_scalar(raw.get("y", ""))
+            if x is None or y is None \
+                    or fractions.Fraction(x) < 0 \
+                    or fractions.Fraction(x) > fractions.Fraction(data["plane"]["width"]) \
+                    or fractions.Fraction(y) < 0 \
+                    or fractions.Fraction(y) > fractions.Fraction(data["plane"]["height"]):
+                raise ValueError("geometry: visual item %s: nodes[%d] x/y "
+                                 "must be SCALARs inside the plane"
+                                 % (item_id, i))
+            data["nodes"][raw["id"]]["x"] = x
+            data["nodes"][raw["id"]]["y"] = y
+        _visual_initial_ok(interaction, scene, data, item_id)
+        return data
+    # trace
+    axes = visual_axes(q)
+    if axes is None:
+        raise ValueError("geometry: visual item %s: scene axes are invalid "
+                         "(SCALAR min/max, positive step, at most %d ticks)"
+                         % (item_id, VISUAL_MAX_TICKS))
+    count = scene.get("point_count")
+    if not isinstance(count, int) or isinstance(count, bool) \
+            or count < 1 or count > VISUAL_MAX_TRACE_POINTS:
+        raise ValueError("geometry: visual item %s: point_count must be an "
+                         "integer in 1..%d" % (item_id, VISUAL_MAX_TRACE_POINTS))
+    data = {"axes": axes, "point_count": count}
+    _visual_initial_ok(interaction, scene, data, item_id)
+    return data
+
+
+def _visual_scene_data(q):
+    """Lenient per-family scene lookup for scoring/observation paths: the
+    canonical scene dict from `_visual_scene`, or None when the scene is
+    absent or malformed. Scoring re-validates defensively and treats anything
+    unparseable as invalid (fail closed)."""
+    interaction = q.get("interaction")
+    if interaction not in VISUAL_INTERACTIONS:
+        return None
+    try:
+        return _visual_scene(q, interaction)
+    except ValueError:
+        return None
+
+
+def _visual_region_ids(q):
+    """The known hotspot region ids (empty when the scene is malformed)."""
+    data = _visual_scene_data(q)
+    return set(data["regions"]) if data else set()
+
+
 def _scalar_in_axis(axis, value):
     lo, hi = fractions.Fraction(axis["min"]), fractions.Fraction(axis["max"])
     v = fractions.Fraction(value)
@@ -340,6 +639,53 @@ def canonical_visual_response(q, answer):
         if value is None:
             return None
         return {"kind": "numberline_point", "value": value}
+    if kind == "hotspot":
+        if set(answer) != {"kind", "region"}:
+            return None
+        region = answer.get("region")
+        if not isinstance(region, str) or not _VISUAL_ID_RE.match(region):
+            return None
+        return {"kind": "hotspot", "region": region}
+    if kind == "timeline_event":
+        if set(answer) != {"kind", "event", "value"}:
+            return None
+        event = answer.get("event")
+        value = canonical_scalar(answer.get("value", ""))
+        if not isinstance(event, str) or not _VISUAL_ID_RE.match(event) \
+                or value is None:
+            return None
+        return {"kind": "timeline_event", "event": event, "value": value}
+    if kind == "diagram_connection":
+        if set(answer) != {"kind", "from", "to"}:
+            return None
+        frm, to = answer.get("from"), answer.get("to")
+        if not isinstance(frm, str) or not _VISUAL_ID_RE.match(frm) \
+                or not isinstance(to, str) or not _VISUAL_ID_RE.match(to) \
+                or frm == to:
+            return None
+        return {"kind": "diagram_connection", "from": frm, "to": to}
+    if kind == "trace_path":
+        if set(answer) != {"kind", "points"}:
+            return None
+        points = answer.get("points")
+        if not isinstance(points, list):
+            return None
+        scene = q.get("visual") or {}
+        count = scene.get("point_count")
+        if not isinstance(count, int) or isinstance(count, bool) \
+                or count < 1 or count > VISUAL_MAX_TRACE_POINTS \
+                or len(points) != count:
+            return None
+        out = []
+        for raw in points:
+            if not isinstance(raw, dict) or set(raw) != {"x", "y"}:
+                return None
+            x, y = canonical_scalar(raw.get("x", "")), \
+                canonical_scalar(raw.get("y", ""))
+            if x is None or y is None:
+                return None
+            out.append({"x": x, "y": y})
+        return {"kind": "trace_path", "points": out}
     # interval
     if set(answer) != {"kind", "start", "end", "start_closed", "end_closed"}:
         return None
@@ -383,6 +729,9 @@ def _visual_verdict(q, answer):
     state = canonical_visual_response(q, answer)
     if state is None:
         return False
+    if state["kind"] in ("hotspot", "timeline_event", "diagram_connection",
+                         "trace_path"):
+        return _advanced_visual_verdict(q, state)
     axes = visual_axes(q)
     if axes is None:
         return False
@@ -408,40 +757,126 @@ def _visual_verdict(q, answer):
     return False
 
 
-def visual_state_in_domain(q, state, axes=None):
-    axes = axes or visual_axes(q)
-    if axes is None:
-        return False
+def _advanced_visual_verdict(q, state):
+    """The one boolean verdict for the phase-999.1 families, reached only
+    through `score_response()`'s `_visual_verdict` dispatch (never named
+    `*_score`, so the structural one-scorer scan stays green).
+
+    Exact-id families (hotspot, diagram) compare the canonical state directly
+    and reject any non-zero tolerance; continuous families (timeline, trace)
+    validate domain/grid then compare within the private per-coordinate
+    tolerance. Invalid responses -- unknown ids, malformed shapes, count
+    mismatches, out-of-domain values, forged fields -- fail closed as False.
+    """
     kind = state["kind"]
-    if kind == "point":
-        return (_scalar_in_axis(axes["x"], state["x"])
-                and _scalar_in_axis(axes["y"], state["y"]))
-    if kind == "numberline_point":
-        return _scalar_in_axis(axes["axis"], state["value"])
-    return (_scalar_in_axis(axes["axis"], state["start"])
-            and _scalar_in_axis(axes["axis"], state["end"]))
+    if not visual_state_in_domain(q, state):
+        return False
+    scoring = q.get("scoring") or {}
+    tolerance = scoring.get("tolerance") or {}
+    if kind in ("hotspot", "diagram_connection"):
+        if any(fractions.Fraction(canonical_scalar(v) or "0") > 0
+               for v in tolerance.values()):
+            return False
+        for accepted in (scoring.get("accepted") or []):
+            acc = _canonical_accepted_state(q, accepted)
+            if acc is not None and visual_state_in_domain(q, acc) \
+                    and acc == state:
+                return True
+        return False
+    tol = {}
+    for key, raw in tolerance.items():
+        t = canonical_scalar(raw)
+        if t is None:
+            return False
+        tol[key] = fractions.Fraction(t)
+    discrete = not any(f > 0 for f in tol.values())
+    if discrete and not visual_state_on_grid(q, state):
+        return False
+    for accepted in (scoring.get("accepted") or []):
+        acc = _canonical_accepted_state(q, accepted)
+        if acc is None:
+            continue
+        if visual_within_tolerance(state, acc, tol):
+            return True
+    return False
+
+
+def visual_state_in_domain(q, state, axes=None):
+    kind = state["kind"]
+    if kind in ("point", "numberline_point", "interval"):
+        axes = axes or visual_axes(q)
+        if axes is None:
+            return False
+        if kind == "point":
+            return (_scalar_in_axis(axes["x"], state["x"])
+                    and _scalar_in_axis(axes["y"], state["y"]))
+        if kind == "numberline_point":
+            return _scalar_in_axis(axes["axis"], state["value"])
+        return (_scalar_in_axis(axes["axis"], state["start"])
+                and _scalar_in_axis(axes["axis"], state["end"]))
+    if kind == "hotspot":
+        return state["region"] in _visual_region_ids(q)
+    if kind == "timeline_event":
+        data = _visual_scene_data(q)
+        if not data or state["event"] not in data["events"]:
+            return False
+        return _scalar_in_axis(data["axis"], state["value"])
+    if kind == "diagram_connection":
+        data = _visual_scene_data(q)
+        return bool(data) and state["from"] in data["nodes"] \
+            and state["to"] in data["nodes"]
+    if kind == "trace_path":
+        data = _visual_scene_data(q)
+        if not data:
+            return False
+        axes = data["axes"]
+        return all(_scalar_in_axis(axes["x"], p["x"])
+                   and _scalar_in_axis(axes["y"], p["y"])
+                   for p in state["points"])
+    return False
 
 
 def visual_state_on_grid(q, state, axes=None):
     """Whether every coordinate lands exactly on a declared tick. Only
-    meaningful for discrete (zero-tolerance) items."""
-    axes = axes or visual_axes(q)
-    if axes is None:
-        return False
+    meaningful for discrete (zero-tolerance) items; exact-id families have no
+    grid concept and are always on grid (they compare by canonical id)."""
     kind = state["kind"]
-    if kind == "point":
-        return (_scalar_on_grid(axes["x"], state["x"])
-                and _scalar_on_grid(axes["y"], state["y"]))
-    if kind == "numberline_point":
-        return _scalar_on_grid(axes["axis"], state["value"])
-    return (_scalar_on_grid(axes["axis"], state["start"])
-            and _scalar_on_grid(axes["axis"], state["end"]))
+    if kind in ("point", "numberline_point", "interval"):
+        axes = axes or visual_axes(q)
+        if axes is None:
+            return False
+        if kind == "point":
+            return (_scalar_on_grid(axes["x"], state["x"])
+                    and _scalar_on_grid(axes["y"], state["y"]))
+        if kind == "numberline_point":
+            return _scalar_on_grid(axes["axis"], state["value"])
+        return (_scalar_on_grid(axes["axis"], state["start"])
+                and _scalar_on_grid(axes["axis"], state["end"]))
+    if kind == "hotspot":
+        return True
+    if kind == "timeline_event":
+        data = _visual_scene_data(q)
+        if not data or state["event"] not in data["events"]:
+            return False
+        return _scalar_on_grid(data["axis"], state["value"])
+    if kind == "diagram_connection":
+        return True
+    if kind == "trace_path":
+        data = _visual_scene_data(q)
+        if not data:
+            return False
+        axes = data["axes"]
+        return all(_scalar_on_grid(axes["x"], p["x"])
+                   and _scalar_on_grid(axes["y"], p["y"])
+                   for p in state["points"])
+    return False
 
 
 def visual_within_tolerance(state, accepted, tol):
     """Per-coordinate `|submitted - accepted| <= tolerance`, with closure
     equality for intervals. A tolerance of 0 is exact equality after
-    canonicalization. `tol` maps coordinate names to Fractions."""
+    canonicalization. `tol` maps coordinate names to Fractions. Exact-id
+    families compare canonical state directly."""
     kind = state["kind"]
     if state["kind"] != accepted["kind"]:
         return False
@@ -455,10 +890,23 @@ def visual_within_tolerance(state, accepted, tol):
             and within(state["y"], accepted["y"], "y")
     if kind == "numberline_point":
         return within(state["value"], accepted["value"], "value")
-    return (within(state["start"], accepted["start"], "start")
-            and within(state["end"], accepted["end"], "end")
-            and state["start_closed"] == accepted["start_closed"]
-            and state["end_closed"] == accepted["end_closed"])
+    if kind == "interval":
+        return (within(state["start"], accepted["start"], "start")
+                and within(state["end"], accepted["end"], "end")
+                and state["start_closed"] == accepted["start_closed"]
+                and state["end_closed"] == accepted["end_closed"])
+    if kind in ("hotspot", "diagram_connection"):
+        return state == accepted
+    if kind == "timeline_event":
+        return state["event"] == accepted["event"] \
+            and within(state["value"], accepted["value"], "value")
+    if kind == "trace_path":
+        if len(state["points"]) != len(accepted["points"]):
+            return False
+        return all(within(p["x"], a["x"], "x")
+                   and within(p["y"], a["y"], "y")
+                   for p, a in zip(state["points"], accepted["points"]))
+    return False
 
 
 def _reject_visual_exec(member, where):
@@ -486,9 +934,21 @@ def _visual_response_schema(kind):
     if kind == "numberline_point":
         return {"type": "object", "kind": "numberline_point",
                 "fields": {"value": "scalar"}}
-    return {"type": "object", "kind": "interval",
-            "fields": {"start": "scalar", "end": "scalar",
-                       "start_closed": "boolean", "end_closed": "boolean"}}
+    if kind == "interval":
+        return {"type": "object", "kind": "interval",
+                "fields": {"start": "scalar", "end": "scalar",
+                           "start_closed": "boolean", "end_closed": "boolean"}}
+    if kind == "hotspot":
+        return {"type": "object", "kind": "hotspot",
+                "fields": {"region": "identifier"}}
+    if kind == "timeline_event":
+        return {"type": "object", "kind": "timeline_event",
+                "fields": {"event": "identifier", "value": "scalar"}}
+    if kind == "diagram_connection":
+        return {"type": "object", "kind": "diagram_connection",
+                "fields": {"from": "identifier", "to": "identifier"}}
+    return {"type": "object", "kind": "trace_path",
+            "fields": {"points": "point_list"}}
 
 
 def _visual_interaction_contract(q):
@@ -514,7 +974,7 @@ def _visual_interaction_contract(q):
     if not isinstance(scene, dict) or not isinstance(scoring, dict):
         raise ValueError("visual item %s: VISUAL and SCORING must be JSON "
                          "objects" % q["id"])
-    unknown = set(scene) - _VISUAL_SCENE_MEMBERS
+    unknown = set(scene) - _VISUAL_SCENE_MEMBERS[interaction]
     if unknown:
         raise ValueError("visual item %s: unknown VISUAL member(s) %s"
                          % (q["id"], ", ".join(sorted(unknown))))
@@ -529,15 +989,17 @@ def _visual_interaction_contract(q):
     if kind not in VISUAL_KINDS:
         raise ValueError("visual item %s: unknown SCORING kind %r"
                          % (q["id"], kind))
+    if kind not in _VISUAL_KIND_BY_INTERACTION.get(interaction, ()):
+        raise ValueError("visual item %s: SCORING kind %r does not match "
+                         "INTERACTION %r" % (q["id"], kind, interaction))
     if scoring.get("partial_credit") is not False:
         raise ValueError("visual item %s: protocol %d is dichotomous; "
                          "partial_credit must be false"
                          % (q["id"], VISUAL_PROTOCOL_VERSION))
-    axes = visual_axes(q)
-    if axes is None:
-        raise ValueError("visual item %s: scene axes are invalid (SCALAR "
-                         "min/max, positive step, at most %d ticks)"
-                         % (q["id"], VISUAL_MAX_TICKS))
+    scene_data = _visual_scene(q, interaction)
+    if scene_data is None:
+        raise ValueError("visual item %s: scene geometry is invalid"
+                         % q["id"])
 
     actions = scene.get("actions")
     if not isinstance(actions, list) or not actions \
@@ -559,7 +1021,7 @@ def _visual_interaction_contract(q):
                          "non-empty list" % q["id"])
     for raw in accepted:
         state = _canonical_accepted_state(q, raw)
-        if state is None or not visual_state_in_domain(q, state, axes):
+        if state is None or not visual_state_in_domain(q, state):
             raise ValueError("visual item %s: an accepted state is invalid "
                              "or out of domain" % q["id"])
     tolerance = scoring.get("tolerance") or {}
@@ -570,20 +1032,89 @@ def _visual_interaction_contract(q):
         if canonical_scalar(raw) is None or fractions.Fraction(raw) < 0:
             raise ValueError("visual item %s: tolerance %r is not a "
                              "non-negative SCALAR" % (q["id"], key))
+    if kind in ("hotspot", "diagram_connection") and any(
+            fractions.Fraction(canonical_scalar(v)) > 0
+            for v in tolerance.values()):
+        raise ValueError("visual item %s: %s scoring is exact-id; tolerance "
+                         "must be zero" % (q["id"], kind))
 
     renderer_config = {"actions": list(actions),
                        "accessibility": {"description":
                                          str(accessibility["description"])}}
     if interaction == "plot":
-        renderer_config["axes"] = {"x": axes["x"], "y": axes["y"]}
+        renderer_config["axes"] = {"x": scene_data["x"], "y": scene_data["y"]}
         renderer_config["initial"] = scene.get("initial") or {"points": []}
-    else:
-        renderer_config["axis"] = axes["axis"]
+    elif interaction == "numberline":
+        renderer_config["axis"] = scene_data["axis"]
         renderer_config["initial"] = scene.get("initial") or {
             "points": [], "interval": None}
+    elif interaction == "hotspot":
+        renderer_config["plane"] = scene_data["plane"]
+        renderer_config["regions"] = [
+            {"id": rid, "label": r["label"], "shape": r["shape"],
+             "coords": r["coords"]}
+            for rid, r in scene_data["regions"].items()]
+        renderer_config["initial"] = scene.get("initial") or {"region": None}
+    elif interaction == "timeline":
+        renderer_config["axis"] = scene_data["axis"]
+        renderer_config["events"] = [
+            {"id": eid, "label": label}
+            for eid, label in scene_data["events"].items()]
+        renderer_config["initial"] = scene.get("initial") or {"placements": []}
+    elif interaction == "diagram":
+        renderer_config["plane"] = scene_data["plane"]
+        renderer_config["nodes"] = [
+            {"id": nid, "label": n["label"], "x": n["x"], "y": n["y"]}
+            for nid, n in scene_data["nodes"].items()]
+        renderer_config["initial"] = scene.get("initial") or {
+            "connections": []}
+    else:  # trace
+        renderer_config["axes"] = {"x": scene_data["axes"]["x"],
+                                    "y": scene_data["axes"]["y"]}
+        renderer_config["point_count"] = scene_data["point_count"]
+        renderer_config["initial"] = scene.get("initial") or {"points": []}
     return {"version": VISUAL_PROTOCOL_VERSION, "type": "visual",
             "interaction": interaction, "renderer_config": renderer_config,
             "response_schema": _visual_response_schema(kind)}
+
+
+def _advanced_observation(q, state, kind, data):
+    """Observation classification for the phase-999.1 families: known ids,
+    in-bounds values, point count, and grid/domain categories. Never reads
+    the accepted answer or tolerance amounts (D-06)."""
+    if kind == "hotspot":
+        if state["region"] in data["regions"]:
+            return None, ["known_region"]
+        return "unknown_region", []
+    if kind == "timeline_event":
+        if state["event"] not in data["events"]:
+            return "unknown_event", []
+        invariants = ["known_event"]
+        if not _scalar_in_axis(data["axis"], state["value"]):
+            return "out_of_domain", invariants
+        invariants.append("in_bounds")
+        tolerance = (q.get("scoring") or {}).get("tolerance") or {}
+        discrete = not any(fractions.Fraction(
+            canonical_scalar(v) or "0") > 0 for v in tolerance.values())
+        if discrete and not _scalar_on_grid(data["axis"], state["value"]):
+            return "off_grid", invariants
+        return None, invariants
+    if kind == "diagram_connection":
+        nodes = data["nodes"]
+        if state["from"] not in nodes or state["to"] not in nodes:
+            return "unknown_node", []
+        return None, ["known_nodes", "distinct_nodes"]
+    # trace_path
+    if len(state["points"]) != data["point_count"]:
+        return "wrong_point_count", []
+    invariants = ["point_count"]
+    axes = data["axes"]
+    for p in state["points"]:
+        if not (_scalar_in_axis(axes["x"], p["x"])
+                and _scalar_in_axis(axes["y"], p["y"])):
+            return "out_of_domain", invariants
+    invariants.append("in_bounds")
+    return None, invariants
 
 
 def visual_observation(q, state, verdict, hint_tier=None):
@@ -610,24 +1141,34 @@ def visual_observation(q, state, verdict, hint_tier=None):
     if state is None:
         error_category = "invalid_response"
     else:
-        axes = visual_axes(q)
-        if axes is None:
-            error_category = "invalid_response"
-        else:
-            if visual_state_in_domain(q, state, axes):
-                invariants.append("in_bounds")
+        kind = state["kind"]
+        if kind in ("hotspot", "timeline_event", "diagram_connection",
+                    "trace_path"):
+            data = _visual_scene_data(q)
+            if data is None:
+                error_category = "invalid_response"
             else:
-                error_category = "out_of_domain"
-            tolerance = (q.get("scoring") or {}).get("tolerance") or {}
-            discrete = not any(fractions.Fraction(
-                canonical_scalar(v) or "0") > 0 for v in tolerance.values())
-            if state["kind"] == "interval":
-                invariants.append("ordered")
-            if discrete and error_category is None \
-                    and not visual_state_on_grid(q, state, axes):
-                error_category = "off_grid"
-            elif not discrete and error_category is None:
-                invariants.append("continuous")
+                error_category, invariants = _advanced_observation(
+                    q, state, kind, data)
+        else:
+            axes = visual_axes(q)
+            if axes is None:
+                error_category = "invalid_response"
+            else:
+                if visual_state_in_domain(q, state, axes):
+                    invariants.append("in_bounds")
+                else:
+                    error_category = "out_of_domain"
+                tolerance = (q.get("scoring") or {}).get("tolerance") or {}
+                discrete = not any(fractions.Fraction(
+                    canonical_scalar(v) or "0") > 0 for v in tolerance.values())
+                if state["kind"] == "interval":
+                    invariants.append("ordered")
+                if discrete and error_category is None \
+                        and not visual_state_on_grid(q, state, axes):
+                    error_category = "off_grid"
+                elif not discrete and error_category is None:
+                    invariants.append("continuous")
     anchors = (q.get("scoring") or {}).get("feedback") or {}
     if not isinstance(anchors, dict):
         anchors = {}

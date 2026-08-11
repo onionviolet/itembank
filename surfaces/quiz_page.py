@@ -1171,8 +1171,227 @@ function asShort(q, body, act, card){
    serializer, so equivalent states produce byte-identical canonical SCALAR
    strings. The serialized semantic response is submitted through the normal
    served /api/submit path; this page never computes a verdict. */
+/* ---- hotspot renderer (phase 999.1-01) -------------------------------------
+   Click-on-region mapping: the learner selects one named region of a plane.
+   Scene comes from q.interaction_contract.renderer_config only (plane,
+   regions, initial, actions, accessibility) -- never the answer region or
+   any scoring field. Pointer, keyboard and the radio-list semantic control
+   reduce through ONE state object and ONE serializer; a changed explicit
+   commit posts a single select_hotspot action through /api/interact and the
+   final submit stays the ordinary response event. */
+function renderHotspot(q, c, body, act, card){
+  const rc = c.renderer_config || {};
+  const plane = rc.plane || {width:"10", height:"6"};
+  const regions = Array.isArray(rc.regions) ? rc.regions : [];
+  const initial = rc.initial || {};
+  const acc = rc.accessibility || {};
+  const desc = acc.description || q.stem;
+  const W = 400, H = 240;
+  const host = document.createElement("div");
+  host.className = "visual-host";
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", desc);
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  svg.setAttribute("class", "visual-svg");
+  host.appendChild(svg);
+  body.appendChild(host);
+  const status = document.createElement("div");
+  status.className = "visual-status";
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-live", "polite");
+  body.appendChild(status);
+  const checkBtn = mkSubmit(act, "make a prediction, then commit your move before checking it");
+  checkBtn.textContent = "Check response";
+
+  /* plane units -> svg pixels (DRAWING ONLY; the submitted state is a region
+     id, never a coordinate). */
+  function num(s){
+    if(typeof s !== "string") return NaN;
+    const m = s.trim().match(/^([+-]?\d+)\/(\d+)$/);
+    if(m) return (+m[1]) / (+m[2]);
+    return parseFloat(s);
+  }
+  const Wf = num(plane.width) || 10, Hf = num(plane.height) || 6;
+  function SX(x){ return num(x) / Wf * W; }
+  function SY(y){ return num(y) / Hf * H; }
+
+  function contains(reg, x, y){
+    const co = reg.coords || [];
+    if(reg.shape === "rect" && co.length === 4){
+      return x >= SX(co[0]) && x <= SX(co[0]) + SX(co[2])
+          && y >= SY(co[1]) && y <= SY(co[1]) + SY(co[3]);
+    }
+    if(reg.shape === "circle" && co.length === 3){
+      const dx = x - SX(co[0]), dy = y - SY(co[1]);
+      return dx * dx + dy * dy <= SX(co[2]) * SX(co[2]);
+    }
+    if(reg.shape === "polygon" && co.length >= 3){
+      let inside = false;
+      for(let i = 0, j = co.length - 1; i < co.length; j = i++){
+        const xi = SX(co[i][0]), yi = SY(co[i][1]);
+        const xj = SX(co[j][0]), yj = SY(co[j][1]);
+        if(((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi))
+          inside = !inside;
+      }
+      return inside;
+    }
+    return false;
+  }
+
+  function shapePath(reg){
+    const co = reg.coords || [];
+    if(reg.shape === "rect" && co.length === 4)
+      return `<rect x="${SX(co[0])}" y="${SY(co[1])}" width="${SX(co[2])}" height="${SY(co[3])}"/>`;
+    if(reg.shape === "circle" && co.length === 3)
+      return `<circle cx="${SX(co[0])}" cy="${SY(co[1])}" r="${SX(co[2])}"/>`;
+    if(reg.shape === "polygon" && co.length >= 3)
+      return `<polygon points="${co.map(v => SX(v[0]) + "," + SY(v[1])).join(" ")}"/>`;
+    return "";
+  }
+
+  function draw(s){
+    let h = `<rect x="1" y="1" width="${W-2}" height="${H-2}" fill="var(--card)" stroke="currentColor"/>`;
+    regions.forEach(reg=>{
+      const sel = s.region === reg.id;
+      h += shapePath(reg).replace(/>$/, ` fill="${sel ? "var(--accent)" : "var(--card)"}" stroke="currentColor" stroke-width="1.5"/>`);
+      const co = reg.coords || [];
+      let lx = 0, ly = 0;
+      if(reg.shape === "rect" && co.length >= 2){ lx = SX(co[0]) + SX(co[2])/2; ly = SY(co[1]) + SY(co[3])/2; }
+      else if(reg.shape === "circle" && co.length >= 2){ lx = SX(co[0]); ly = SY(co[1]); }
+      else if(reg.shape === "polygon" && co.length >= 1){
+        co.forEach(v => { lx += SX(v[0]); ly += SY(v[1]); });
+        lx /= co.length; ly /= co.length;
+      }
+      h += `<text x="${lx}" y="${ly}" font-size="11" text-anchor="middle" dominant-baseline="middle" fill="var(--ink)">${esc(reg.label)}</text>`;
+    });
+    svg.innerHTML = h;
+  }
+
+  /* ---- state: committed vs tentative (D-04/D-05) --------------------------- */
+  const committed = {kind:"hotspot", region: (initial.region) || null};
+  const tentative = {kind:"hotspot", region: (initial.region) || null};
+  const actionId = () => (crypto.randomUUID ? crypto.randomUUID()
+    : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, ch=>{
+        const r = Math.random()*16|0, v = ch==="x"?r:(r&0x3|0x8);
+        return v.toString(16); }));
+  function snapshot(s){ return {kind:"hotspot", region: s.region}; }
+  function sameState(a, b){ return JSON.stringify(snapshot(a)) === JSON.stringify(snapshot(b)); }
+  function filled(s){ return !!s.region; }
+  function adopt(s){ committed.region = s.region; }
+  function revertTentative(){
+    tentative.region = committed.region;
+    draw(tentative);
+    syncControls();
+    status.textContent = "Move cancelled. Your last committed state is still here.";
+  }
+
+  async function commitMove(){
+    if(!filled(tentative)) return;
+    if(sameState(tentative, committed)){
+      status.textContent = "No change to commit.";
+      return;
+    }
+    const aid = actionId();
+    try {
+      const v = await api("/api/interact", {
+        session_id: sessionId, interaction_version: c.version,
+        action_id: aid, action_type: "select_hotspot",
+        state: snapshot(tentative),
+      });
+      adopt(tentative);
+      if(v.status === "recorded" || v.status === "already_recorded"){
+        status.textContent = "Move committed. You can adjust it or check your response.";
+      } else {
+        status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+        revertTentative();
+      }
+    } catch(err){
+      status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+    }
+  }
+
+  svg.addEventListener("pointerdown", e => e.preventDefault());
+  svg.addEventListener("pointerup", e => {
+    const r = svg.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width * W;
+    const y = (e.clientY - r.top) / r.height * H;
+    const hit = regions.find(reg => contains(reg, x, y));
+    if(!hit) return;
+    const before = JSON.stringify(snapshot(tentative));
+    tentative.region = hit.id;
+    draw(tentative);
+    syncControls();
+    if(JSON.stringify(snapshot(tentative)) !== before) commitMove();
+  });
+  svg.addEventListener("pointercancel", revertTentative);
+  svg.setAttribute("tabindex", "0");
+  svg.addEventListener("keydown", e => {
+    if(e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown"){
+      e.preventDefault();
+      const at = regions.findIndex(r => r.id === tentative.region);
+      const delta = (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 1;
+      if(regions.length){
+        const nxt = regions[Math.max(0, Math.min(regions.length - 1, (at < 0 ? 0 : at) + delta))];
+        tentative.region = nxt.id;
+        draw(tentative); syncControls();
+      }
+      return;
+    }
+    if(e.key === "Enter" || e.key === " "){ e.preventDefault(); commitMove(); return; }
+    if(e.key === "Escape"){ e.preventDefault(); revertTentative(); }
+  });
+
+  /* ---- adjacent semantic HTML control: radio list of region labels ------- */
+  const controls = document.createElement("div");
+  controls.className = "visual-controls";
+  const radios = [];
+  regions.forEach(reg=>{
+    const row = document.createElement("label");
+    row.className = "visual-ctl";
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "hotspot-region";
+    radio.value = reg.id;
+    radio.onchange = ()=>{
+      tentative.region = reg.id;
+      draw(tentative);
+      commitMove();
+    };
+    radios.push(radio);
+    row.appendChild(radio);
+    row.appendChild(document.createTextNode(" " + reg.label));
+    controls.appendChild(row);
+  });
+  host.appendChild(controls);
+  function syncControls(){
+    radios.forEach(r => { r.checked = r.value === tentative.region; });
+  }
+
+  const commitBtn = document.createElement("button");
+  commitBtn.className = "go ghost"; commitBtn.type = "button";
+  commitBtn.textContent = "Commit move"; commitBtn.disabled = true;
+  commitBtn.onclick = commitMove;
+  act.appendChild(commitBtn);
+
+  draw(tentative);
+  syncControls();
+  commitBtn.disabled = !filled(committed);
+  checkBtn.disabled = !filled(committed);
+  checkBtn.onclick = ()=>{
+    if(!filled(committed)){
+      status.textContent = "Commit your move before checking it.";
+      return;
+    }
+    checkBtn.disabled = true; commitBtn.disabled = true;
+    settle(q, JSON.stringify(snapshot(committed)), card, act, null);
+  };
+}
+
 function asVisual(q, body, act, card){
   const c = q.interaction_contract || {};
+  const interaction = (c.interaction || "").trim();
+  if(interaction === "hotspot") return renderHotspot(q, c, body, act, card);
   const rc = c.renderer_config || {};
   const kind = (c.response_schema || {}).kind || "point";
   const axes = rc.axes || {};
