@@ -8,12 +8,12 @@ status: executing
 stopped_at: Completed 08-05-PLAN.md
 last_updated: "2026-08-11T14:48:12.553Z"
 last_activity: 2026-08-11
-last_activity_desc: Phase 08 plan 08-05 completed (identifier-safe assist routes + AgentAssist learner surface + blocking UAT PASS)
+last_activity_desc: Phase 08 plan 08-05 completed (identifier-safe assist routes + AgentAssist learner surface + blocking UAT PASS); phase 03.1 merged into main (closed)
 progress:
   total_phases: 18
-  completed_phases: 9
+  completed_phases: 10
   total_plans: 104
-  completed_plans: 65
+  completed_plans: 66
 ---
 
 # Project State
@@ -32,7 +32,15 @@ Plan: 5 of 6 complete
 Status: Ready to execute
 Last activity: 2026-08-11 — 08-05 (identifier-safe assist routes + AgentAssist learner surface) completed
 
-Progress: [██████░░░░] 63%
+> **Branch note (gsd/phase-03.1-finish):** Phase 03.1
+> (lesson-rich-blocks-glossary-style) is CLOSED — plans 01-07 complete with
+> SUMMARYs, `03.1-VERIFICATION.md` (status `human_needed`, 7/7 truths
+> statically verified) and `03.1-UAT.md` recorded. Live automated-suite runs
+> and the three perceptual/browser human-verify items remain open; see
+> `03.1-GATES.md` and the Deferred Verification table. The milestone's
+> active phase stays 08 (main).
+
+Progress: [███████░░░] 64%
 
 ## Performance Metrics
 
@@ -235,6 +243,10 @@ Recent decisions affecting current work:
 - [Phase 03.1]: 03.1-03: authored cloze grammar is any {{text}} marker -- {{text}} compiles to {{c1::text}} sequentially, {{n::text}} keeps n; on screen the enclosed text renders
 - [Phase 03.1]: 03.1-03: C7 closure -- public_item() drops the syllabus [OBJECTIVE:]; study's pre-answer objective chip removed; both render only in explain_payload() behind the verdict
 - [Phase 03.1]: 03.1-03: the /key/<id>/review route and `itembank key-review` share record_key_review(); key_review events carry no score and are replayed by Phase 10
+- [Phase 03.1]: 03.1-05: style enforcement ships as three cost classes over a closed catalogue (STYLE_CHECK_CATALOGUE) — error severity is earned by construction (structural counts or literal lists) and a style may never raise a check above its catalogue rating (D-13); suppression counts are the report that retires bad checks and locked ids cannot be suppressed (style.ignore_locked fires before the ignore table, T-031-19)
+- [Phase 03.1]: 03.1-05: warning calibration is a seam, not a number — STYLE_WARNING_FP_RATES + WARNING_FP_THRESHOLD 0.20 are consumed by Phase 3.2's `itembank calibrate`; StylePrompt.prompt_context emits capped imperatives (default 7, a setting) + exactly one exemplar, placed last, never the ## Voice zone (D-17)
+- [Phase 03.1]: 03.1-06: the two OFL-1.1 faces are vendored per the KaTeX precedent (pinned tag/commit, recorded SHA-256 + git-blob SHA-1, license + reserved-names notes beside each file, files shipped unmodified); @font-face lives only in presentation.py's SHARED_CSS token layer with the Georgia/ui-monospace fallback; lesson_layout ("separate" | "inline") is folded into 09-02-PLAN.md before Phase 9 executes with no registry version bump (D-04)
+- [Phase 03.1]: 03.1-07: the eight UI-SPEC section-17 gates map to fixtures in 03.1-GATES.md with recorded gaps + human-verify items (cross-browser Popover behavior, ClearType 18px render, 1280/768/375px snapshots); the full-suite green run is recorded as a required action in a python-capable environment, never claimed from this session (approval gate declines python — 03.2-05-SUMMARY precedent)
 - [Phase ?]: 13-01: 'itembank sidecar' is the single shell entry point; the --sidecar flag on daemon was removed (plan wording resolved to the command).
 - [Phase ?]: 13-01: token gate covers every route except /__itembank__ (401); page navigations are gated because the shell injects the header on every request (13-02).
 - [Phase ?]: 13-01: attach failure exits 1 with the 3.3(e) copy, name filled and pid deferred to the shell; attach exits 0 with the already-running line.
@@ -291,6 +303,7 @@ Recent decisions affecting current work:
 | 2.1 | verification_deferred_human | $gsd-verify-work 2.1 |
 | 3 | verification_deferred_human | $gsd-verify-work 3 |
 | 4 | verification_deferred_human | $gsd-verify-work 4 |
+| 03.1 | verification_deferred_human | $gsd-verify-work 03.1 — live full-suite + schema_validate run; cross-browser Popover; ClearType 18px render at 375/1280px; 1280/768/375px snapshots (see 03.1-GATES.md + 03.1-UAT.md) |
 
 ## Session Continuity
 
