@@ -870,8 +870,19 @@ def page_item(q, reveal=True, offline=False):
     the explanation. That makes the static file the one surface holding a key on
     the client, which is a property of having no server rather than a second
     scoring model, and it is stated in the README rather than left implicit.
+
+    A visual item is the deliberate exception (plan 06.1-03, D-03/A-05): the
+    interactive protocol is only safe in served/API mode, where the runtime
+    owns scoring and answer release. The static build therefore refuses a
+    visual item with an explicit `served_required` flag and never carries a
+    key, tolerance, accepted state, or any private scoring material -- the
+    OFFLINE_JS client renders the honest served-runtime-required state.
     """
     out = public_item(q)
+    if q["type"] == "visual" and offline:
+        out["served_required"] = True
+        out.pop("key", None)
+        return out
     if offline:
         out["key"] = canonical_key(q)
         out["explain"] = explain_payload(q, reveal)

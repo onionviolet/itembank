@@ -301,8 +301,23 @@ function render(){
   host.innerHTML = "";
   host.appendChild(card);
   ({mc:asChoice, multi:asChoice, table:asAssign, dnd:asAssign, build:asBuild,
-    short:asShort, visual:asVisual}[q.type])(q, body, act, card);
+    short:asShort, visual:asVisualOffline}[q.type])(q, body, act, card);
   card.scrollIntoView({block:"start", behavior: REDUCED ? "auto" : "smooth"});
+}
+
+/* ---- visual assessment, offline (plan 06.1-03, D-03/A-05) ------------------
+   The static build has no process behind it, so it cannot score a visual item
+   or protect its answer. It renders the honest served-runtime-required state:
+   no scorer, no key, no private scene fields, and no dead control. The copy
+   is the 06.1-UI-SPEC Copywriting Contract's exact offline refusal text. */
+function asVisualOffline(q, body, act, card){
+  const note = document.createElement("div");
+  note.className = "status";
+  note.setAttribute("role", "note");
+  note.textContent = "This visual item needs a served itembank session because "
+    + "scoring and answer protection happen there. Open it with itembank serve "
+    + "or the daemon.";
+  body.appendChild(note);
 }
 
 /* ---- multiple choice (native radio) + multiple response (native checkboxes) */
@@ -984,7 +999,6 @@ function asVisual(q, body, act, card){
   const acc = rc.accessibility || {};
   const desc = acc.description || q.stem;
   const initial = rc.initial || {};
-  const state = {kind};
   const host = document.createElement("div");
   host.className = "visual-host";
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -1083,7 +1097,8 @@ function asVisual(q, body, act, card){
 
   const W = 400, H = 240, L = 34, R = 10, T = 14, B = 26;
 
-  function draw(){
+  function draw(s){
+    s = s || tentative;
     let h = "";
     if(isPlot){
       h += `<line x1="${L}" y1="${H-B}" x2="${W-R}" y2="${H-B}" stroke="currentColor"/>`;
@@ -1098,9 +1113,9 @@ function asVisual(q, body, act, card){
         h += `<line x1="${L-5}" y1="${y}" x2="${L}" y2="${y}" stroke="currentColor"/>`;
         h += `<text x="${L-8}" y="${y+3}" font-size="10" text-anchor="end">${esc(tk.v)}</text>`;
       });
-      if(state.kind === "point" && state.x && state.y){
-        const x = L + clamp01(toFrac(fracParse(state.x), mnX, mxX)) * (W - L - R);
-        const y = H - B - clamp01(toFrac(fracParse(state.y), mnY, mxY)) * (H - T - B);
+      if(s.kind === "point" && s.x && s.y){
+        const x = L + clamp01(toFrac(fracParse(s.x), mnX, mxX)) * (W - L - R);
+        const y = H - B - clamp01(toFrac(fracParse(s.y), mnY, mxY)) * (H - T - B);
         h += `<circle cx="${x}" cy="${y}" r="6" fill="var(--accent)"/>`;
       }
     } else {
@@ -1111,54 +1126,172 @@ function asVisual(q, body, act, card){
         h += `<line x1="${x}" y1="${mid-5}" x2="${x}" y2="${mid+5}" stroke="currentColor"/>`;
         h += `<text x="${x}" y="${mid+20}" font-size="10" text-anchor="middle">${esc(tk.v)}</text>`;
       });
-      if(state.kind === "numberline_point" && state.value){
-        const x = L + clamp01(toFrac(fracParse(state.value), mnX, mxX)) * (W - L - R);
+      if(s.kind === "numberline_point" && s.value){
+        const x = L + clamp01(toFrac(fracParse(s.value), mnX, mxX)) * (W - L - R);
         h += `<circle cx="${x}" cy="${mid}" r="6" fill="var(--accent)"/>`;
       }
-      if(state.kind === "interval" && state.start && state.end){
-        const x1 = L + clamp01(toFrac(fracParse(state.start), mnX, mxX)) * (W - L - R);
-        const x2 = L + clamp01(toFrac(fracParse(state.end), mnX, mxX)) * (W - L - R);
+      if(s.kind === "interval" && s.start && s.end){
+        const x1 = L + clamp01(toFrac(fracParse(s.start), mnX, mxX)) * (W - L - R);
+        const x2 = L + clamp01(toFrac(fracParse(s.end), mnX, mxX)) * (W - L - R);
         h += `<line x1="${x1}" y1="${mid}" x2="${x2}" y2="${mid}" stroke="var(--accent)" stroke-width="5"/>`;
-        h += `<circle cx="${x1}" cy="${mid}" r="5" fill="${state.start_closed ? "var(--accent)" : "var(--card)"}" stroke="var(--accent)"/>`;
-        h += `<circle cx="${x2}" cy="${mid}" r="5" fill="${state.end_closed ? "var(--accent)" : "var(--card)"}" stroke="var(--accent)"/>`;
+        h += `<circle cx="${x1}" cy="${mid}" r="5" fill="${s.start_closed ? "var(--accent)" : "var(--card)"}" stroke="var(--accent)"/>`;
+        h += `<circle cx="${x2}" cy="${mid}" r="5" fill="${s.end_closed ? "var(--accent)" : "var(--card)"}" stroke="var(--accent)"/>`;
       }
     }
     svg.innerHTML = h;
   }
 
-  function setState(patch){
-    Object.assign(state, patch);
+  /* ---- state: committed vs tentative (D-04/D-05) ---------------------------
+     `state` is the last committed semantic state; `tentative` is in-progress
+     editing that produces NO evidence until an explicit commit. Pointer
+     down/move, focus, hover, pan/zoom, Escape-cancelled moves, and unchanged
+     values never append anything. A commit is exactly: native
+     control/Enter/Space, a tap, or pointer-up after a changed drag -- each
+     posts ONE semantic action through /api/interact and renders only the
+     runtime's observation. */
+  const committed = {kind};
+  const tentative = {kind};
+  const actionId = () => (crypto.randomUUID ? crypto.randomUUID()
+    : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c=>{
+        const r = Math.random()*16|0, v = c==="x"?r:(r&0x3|0x8);
+        return v.toString(16); }));
+
+  function snapshot(s){ // canonical semantic state dict (wire shape)
+    if(kind === "point") return {kind:"point", x:s.x, y:s.y};
+    if(kind === "numberline_point") return {kind:"numberline_point", value:s.value};
+    return {kind:"interval", start:s.start, end:s.end,
+            start_closed:!!s.start_closed, end_closed:!!s.end_closed};
+  }
+  function sameState(a, b){
+    return JSON.stringify(snapshot(a)) === JSON.stringify(snapshot(b));
+  }
+  function filled(s){
+    return kind === "point" ? (s.x && s.y)
+      : kind === "numberline_point" ? s.value
+      : (s.start && s.end);
+  }
+  function adopt(s){ // tentative becomes committed
+    Object.keys(committed).forEach(k=>{ if(k!=="kind") delete committed[k]; });
+    Object.assign(committed, s);
+    commitBtn.disabled = !filled(committed);
+    checkBtn.disabled = !filled(committed);
+  }
+  function revertTentative(){
+    Object.keys(tentative).forEach(k=>{ if(k!=="kind") delete tentative[k]; });
+    Object.assign(tentative, committed);
+    draw(tentative);
     syncControls();
-    draw();
-    const filled = kind === "point" ? (state.x && state.y)
-      : kind === "numberline_point" ? state.value
-      : (state.start && state.end);
-    submit.disabled = !filled;
+    status.textContent = "Move cancelled. Your last committed state is still here.";
+  }
+
+  function syncControls(){
+    const sels = controls.querySelectorAll("select");
+    const wants = kind === "point" ? [tentative.x, tentative.y]
+      : kind === "numberline_point" ? [tentative.value] : [tentative.start, tentative.end];
+    sels.forEach((sel, i)=>{ if(wants[i]) sel.value = wants[i]; });
+    if(kind === "interval"){
+      const chks = controls.querySelectorAll("input[type=checkbox]");
+      chks[0].checked = !!tentative.start_closed;
+      chks[1].checked = !!tentative.end_closed;
+    }
   }
 
   /* ---- the ONE serializer: canonical SCALAR strings, exact wire shapes ---- */
   function serialize(){
-    if(kind === "point") return JSON.stringify({kind:"point", x:state.x, y:state.y});
-    if(kind === "numberline_point") return JSON.stringify({kind:"numberline_point", value:state.value});
-    return JSON.stringify({kind:"interval", start:state.start, end:state.end,
-                           start_closed:!!state.start_closed, end_closed:!!state.end_closed});
+    return JSON.stringify(snapshot(tentative));
+  }
+
+  async function commitMove(){
+    /* The explicit commit boundary: pointer-up after a changed drag, tap, or
+       native Enter/Space. An unchanged value commits nothing (D-04). */
+    if(!filled(tentative)) return;
+    if(sameState(tentative, committed)){
+      status.textContent = "No change to commit.";
+      return;
+    }
+    const aid = actionId();
+    try {
+      const v = await api("/api/interact", {
+        session_id: sessionId,
+        interaction_version: c.version,
+        action_id: aid,
+        action_type: kind === "point"
+            ? (filled(committed) ? "move_point" : "place_point")
+          : kind === "numberline_point" ? "select_numberline_point" : "set_interval",
+        state: snapshot(tentative),
+      });
+      adopt(tentative);
+      if(v.status === "recorded" || v.status === "already_recorded"){
+        status.textContent = "Move committed. You can adjust it or check your response.";
+      } else {
+        status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+        revertTentative();
+      }
+    } catch(err){
+      status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+    }
   }
 
   svg.addEventListener("pointerdown", e => { e.preventDefault(); });
   svg.addEventListener("pointerup", e => {
+    const before = JSON.stringify(snapshot(tentative));
     if(kind === "point"){
       const x = snap(xTicks, domainX(e.clientX));
       const y = snap(yTicks, domainY(e.clientY));
-      setState({x: x.v, y: y.v});
+      Object.assign(tentative, {x: x.v, y: y.v});
     } else if(kind === "numberline_point"){
-      setState({value: snap(valueTicks, domainX(e.clientX)).v});
+      Object.assign(tentative, {value: snap(valueTicks, domainX(e.clientX)).v});
     } else {
       const hit = snap(valueTicks, domainX(e.clientX)).v;
-      if(!state.start || (state.start && state.end)) setState({start: hit, end: undefined});
-      else setState({end: hit});
+      if(!tentative.start || (tentative.start && tentative.end))
+        Object.assign(tentative, {start: hit, end: undefined});
+      else Object.assign(tentative, {end: hit});
     }
-    status.textContent = "Placed " + (kind === "point" ? state.x + ", " + state.y
-      : kind === "numberline_point" ? state.value : state.start + " to " + state.end) + ".";
+    draw(tentative);
+    syncControls();
+    if(JSON.stringify(snapshot(tentative)) !== before) commitMove();   // changed drag/tap
+  });
+  svg.addEventListener("pointercancel", revertTentative);
+  svg.addEventListener("pointerleave", e => { if(e.buttons === 0) return; });
+  svg.setAttribute("tabindex", "0");
+  svg.addEventListener("keydown", e => {
+    /* Arrows step by declared units on the focused scene; Enter/Space commit
+       the tentative move; Escape cancels (D-07). */
+    const step = fracParse(axis.step);
+    if(!step) return;
+    if(e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown"){
+      e.preventDefault();
+      const delta = e.key === "ArrowLeft" || e.key === "ArrowDown" ? -1 : 1;
+      if(kind === "point"){
+        const moveX = e.key === "ArrowLeft" || e.key === "ArrowRight";
+        const cur = moveX ? (tentative.x || axis.min) : (tentative.y || axis.min);
+        const idx = valueTicks.findIndex(t => t.v === cur);
+        const tks = moveX ? xTicks : yTicks;
+        const at = tks.findIndex(t => t.v === cur);
+        const nxt = tks[Math.max(0, Math.min(tks.length-1, (at < 0 ? 0 : at) + delta))];
+        if(nxt) Object.assign(tentative, moveX ? {x: nxt.v} : {y: nxt.v});
+      } else if(kind === "numberline_point"){
+        const at = valueTicks.findIndex(t => t.v === (tentative.value || axis.min));
+        const nxt = valueTicks[Math.max(0, Math.min(valueTicks.length-1, (at < 0 ? 0 : at) + delta))];
+        if(nxt) Object.assign(tentative, {value: nxt.v});
+      } else {
+        const focus = e.shiftKey ? "start" : "end";
+        const at = valueTicks.findIndex(t => t.v === (tentative[focus] || axis.min));
+        const nxt = valueTicks[Math.max(0, Math.min(valueTicks.length-1, (at < 0 ? 0 : at) + delta))];
+        if(nxt) Object.assign(tentative, {[focus]: nxt.v});
+      }
+      draw(tentative); syncControls();
+      return;
+    }
+    if(e.key === "Enter" || e.key === " "){
+      e.preventDefault();
+      commitMove();
+      return;
+    }
+    if(e.key === "Escape"){
+      e.preventDefault();
+      revertTentative();
+    }
   });
 
   /* ---- adjacent semantic HTML controls: same state, same serializer ------- */
@@ -1172,20 +1305,20 @@ function asVisual(q, body, act, card){
   const controls = document.createElement("div");
   controls.className = "visual-controls";
   if(kind === "point"){
-    const sx = valueSelect(xTicks, v=>setState({x: v}));
-    const sy = valueSelect(yTicks, v=>setState({y: v}));
+    const sx = valueSelect(xTicks, v=>{ Object.assign(tentative, {x: v}); draw(tentative); });
+    const sy = valueSelect(yTicks, v=>{ Object.assign(tentative, {y: v}); draw(tentative); });
     controls.appendChild(labelCtl("x", sx));
     controls.appendChild(labelCtl("y", sy));
   } else if(kind === "numberline_point"){
     controls.appendChild(labelCtl("point", valueSelect(valueTicks,
-      v=>setState({value: v}))));
+      v=>{ Object.assign(tentative, {value: v}); draw(tentative); })));
   } else {
-    const s1 = valueSelect(valueTicks, v=>setState({start: v}));
-    const s2 = valueSelect(valueTicks, v=>setState({end: v}));
+    const s1 = valueSelect(valueTicks, v=>{ Object.assign(tentative, {start: v}); draw(tentative); });
+    const s2 = valueSelect(valueTicks, v=>{ Object.assign(tentative, {end: v}); draw(tentative); });
     const c1 = document.createElement("input"); c1.type = "checkbox";
-    c1.onchange = ()=>setState({start_closed: c1.checked});
+    c1.onchange = ()=>Object.assign(tentative, {start_closed: c1.checked});
     const c2 = document.createElement("input"); c2.type = "checkbox";
-    c2.onchange = ()=>setState({end_closed: c2.checked});
+    c2.onchange = ()=>Object.assign(tentative, {end_closed: c2.checked});
     const r1 = labelCtl("start", s1, c1);
     const r2 = labelCtl("end", s2, c2);
     r1.appendChild(document.createTextNode(" closed"));
@@ -1202,45 +1335,33 @@ function asVisual(q, body, act, card){
     if(extra) row.appendChild(extra);
     return row;
   }
-  function syncControls(){
-    const sels = controls.querySelectorAll("select");
-    const wants = kind === "point" ? [state.x, state.y]
-      : kind === "numberline_point" ? [state.value] : [state.start, state.end];
-    sels.forEach((sel, i)=>{ if(wants[i]) sel.value = wants[i]; });
-    if(kind === "interval"){
-      const chks = controls.querySelectorAll("input[type=checkbox]");
-      chks[0].checked = !!state.start_closed;
-      chks[1].checked = !!state.end_closed;
-    }
-  }
+
+  /* ---- actions: Commit move, then Check response (UI-SPEC copy) ----------- */
+  const commitBtn = document.createElement("button");
+  commitBtn.className = "go ghost"; commitBtn.type = "button";
+  commitBtn.textContent = "Commit move"; commitBtn.disabled = true;
+  commitBtn.onclick = commitMove;
+  act.appendChild(commitBtn);
+  const checkBtn = mkSubmit(act, "make a prediction, then commit your move before checking it");
+  checkBtn.textContent = "Check response";
 
   if(kind === "point" && initial.points && initial.points.length){
-    setState({x: initial.points[0].x, y: initial.points[0].y});
+    Object.assign(committed, {x: initial.points[0].x, y: initial.points[0].y});
   }
-  draw();
+  Object.assign(tentative, committed);
+  draw(tentative);
   syncControls();
+  commitBtn.disabled = !filled(committed);
+  checkBtn.disabled = !filled(committed);
 
-  function paint(v){
-    /* The served submit returns the runtime-bounded result. Only the
-       observation's allowed fields are shown: error category and the
-       Phase-6 hint tier -- never accepted states or tolerance. */
-    const ir = v.interaction_result;
-    if(ir && ir.observations && ir.observations.length){
-      const ob = ir.observations[0];
-      if(ob.error_category){
-        status.textContent = "That placement " +
-          (ob.error_category === "out_of_domain" ? "is outside the grid."
-           : ob.error_category === "off_grid" ? "is not on a tick."
-           : ob.error_category === "invalid_response" ? "is not a valid placement."
-           : "does not match.");
-      }
+  checkBtn.onclick = ()=>{
+    if(!filled(committed)){
+      status.textContent = "Commit your move before checking it.";
+      return;
     }
-  }
-  function revert(){ submit.disabled = true; }
-  submit.onclick = ()=>{
-    submit.disabled = true;
-    submit.remove();
-    settle(q, serialize(), card, act, paint, revert);
+    checkBtn.disabled = true;
+    commitBtn.disabled = true;
+    settle(q, JSON.stringify(snapshot(committed)), card, act, null);
   };
 }
 
