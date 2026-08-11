@@ -18,6 +18,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 import model                                                # noqa: E402
 import schema_validate                                      # noqa: E402
+import selection                                            # noqa: E402
 
 BANK = os.path.join(ROOT, "fixtures", "selection_bank.md")
 HISTORY = os.path.join(ROOT, "fixtures", "selection_evidence.jsonl")
@@ -63,19 +64,79 @@ def check_fixture_history_matches_response_schema():
 
 
 def check_objective_filter():
-    pending("check_objective_filter", "07-01")
+    qs = model.load(BANK)
+    items, _ = selection.select(
+        qs, {"objective": "water:regulatory.reporting", "count": 30, "seed": 0},
+        history=[])
+    if len(items) != 7:
+        fail("objective filter returned %d items, expected the fixture's 7"
+             % len(items))
+    for q in items:
+        if q.get("objective") != "water:regulatory.reporting":
+            fail("objective filter returned %r on objective %r"
+                 % (q["id"], q.get("objective")))
+    print("check_objective_filter: 7/7 on water:regulatory.reporting")
 
 
 def check_determinism():
-    pending("check_determinism", "07-01")
+    qs = model.load(BANK)
+    spec = {"objective": "", "count": 8, "seed": 42}
+    first, _ = selection.select(qs, spec, history=[])
+    second, _ = selection.select(qs, spec, history=[])
+    a = [q["id"] for q in first]
+    b = [q["id"] for q in second]
+    if a != b:
+        fail("same bank/spec/history/seed produced different orders: %r vs %r"
+             % (a, b))
+    third, _ = selection.select(
+        qs, {"objective": "", "count": 8, "seed": 43}, history=[])
+    c = [q["id"] for q in third]
+    if c == a:
+        fail("a different seed produced the same order -- the seed is ignored")
+    print("check_determinism: seed 42 stable, seed 43 differs")
 
 
 def check_trace_names_runner_up():
-    pending("check_trace_names_runner_up", "07-01")
+    qs = model.load(BANK)
+    _, trace = selection.select(
+        qs, {"objective": "water:regulatory.reporting", "count": 3, "seed": 5},
+        history=[])
+    for block in trace["chosen"]:
+        reason = block.get("reason") or ""
+        runner_up = block.get("runner_up")
+        if not reason or len(reason) < 20 or " " not in reason:
+            fail("%s: reason is not plain prose: %r" % (block["item_ref"], reason))
+        if runner_up is None:
+            fail("%s: no runner-up named although the pool exceeds the count"
+                 % block["item_ref"])
+        if runner_up["item_ref"] == block["item_ref"]:
+            fail("%s: runner-up is the item itself" % block["item_ref"])
+        if not runner_up.get("reason"):
+            fail("%s: runner-up has no reason" % block["item_ref"])
+    print("check_trace_names_runner_up: %d blocks name a distinct runner-up"
+          % len(trace["chosen"]))
 
 
 def check_trace_leaks_no_key():
-    pending("check_trace_leaks_no_key", "07-01")
+    qs = model.load(BANK)
+    _, trace = selection.select(
+        qs, {"objective": "", "count": len(qs), "seed": 1}, history=[])
+    rendered = json.dumps(trace, ensure_ascii=False)
+    for q in qs:
+        tag = q["id"]
+        if q["type"] in ("mc", "multi"):
+            for letter in q["correct"]:
+                if ('"%s"' % letter) in rendered:
+                    fail("%s: trace carries the correct letter %s as a value"
+                         % (tag, letter))
+        for field in ("why", "disc", "second", "trap"):
+            text = q.get(field) or ""
+            if text and text in rendered:
+                fail("%s: trace leaks the %s rationale" % (tag, field))
+        for letter, opt in (q.get("opts") or {}).items():
+            if opt and opt in rendered:
+                fail("%s: trace leaks option %s text" % (tag, letter))
+    print("check_trace_leaks_no_key: no key, rationale, or option text leaked")
 
 
 def check_pair_served_together():
