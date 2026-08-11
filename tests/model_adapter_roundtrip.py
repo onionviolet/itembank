@@ -263,7 +263,12 @@ class _FakeServer:
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
-                self.wfile.write(data)
+                try:
+                    self.wfile.write(data)
+                except BrokenPipeError:
+                    # The client (a timed-out transport) is already gone; the
+                    # timeout row's server thread must not spew a traceback.
+                    pass
 
             def log_message(self, *args):
                 pass
@@ -314,10 +319,14 @@ def test_openai_parity_and_config_switch():
     server = None
     try:
         server = _FakeServer(mode="ok")
-        hosted = hosted_profile(tmp, name="hosted")
+        # The same request, the same active profile name "local", and two
+        # settings documents that differ ONLY in the profile record's
+        # transport -- the identical invoke call is the config-only switch
+        # (MODEL-02).
+        hosted = hosted_profile(tmp, name="local")
         local = local_profile(server, name="local")
         request = sample_request("local")
-        rh = model_adapter.invoke(request, make_settings("hosted", [hosted]))
+        rh = model_adapter.invoke(request, make_settings("local", [hosted]))
         rl = model_adapter.invoke(request, make_settings("local", [local]))
         for r in (rh, rl):
             if r["status"] != "ok":
@@ -369,7 +378,7 @@ def test_failure_matrix_typed_unavailable():
     adapter.* code and no exception escapes (MODEL-03); authored hints stay
     usable afterwards."""
     tmp = tempfile.mkdtemp()
-    server = None
+    servers = []
     try:
         cases = []
         unused = hosted_profile(tmp, name="unused")
@@ -404,31 +413,39 @@ def test_failure_matrix_typed_unavailable():
         cases.append(("unreachable", make_settings("unreachable", [unreachable]),
                       "adapter.unreachable"))
 
-        server = _FakeServer(mode="refuse")
-        http_fail = local_profile(server, name="http_fail")
+        # Every loopback server stays alive until the matrix loop below has
+        # run, so each row exercises its own live endpoint.
+        http_fail_server = _FakeServer(mode="refuse")
+        servers.append(http_fail_server)
+        http_fail = local_profile(http_fail_server, name="http_fail")
         cases.append(("http-error", make_settings("http_fail", [http_fail]),
                       "adapter.http_error"))
-        server.close()
-        server = _FakeServer(mode="timeout")
-        http_timeout = local_profile(server, name="http_timeout", timeout=1)
+        http_timeout_server = _FakeServer(mode="timeout")
+        servers.append(http_timeout_server)
+        http_timeout = local_profile(http_timeout_server, name="http_timeout",
+                                     timeout=1)
         cases.append(("http-timeout", make_settings("http_timeout", [http_timeout]),
                       "adapter.timeout"))
-        server.close()
-        server = _FakeServer(mode="malformed")
-        http_malformed = local_profile(server, name="http_malformed")
+        http_malformed_server = _FakeServer(mode="malformed")
+        servers.append(http_malformed_server)
+        http_malformed = local_profile(http_malformed_server,
+                                       name="http_malformed")
         cases.append(("http-malformed",
                       make_settings("http_malformed", [http_malformed]),
                       "adapter.malformed_response"))
-        server.close()
-        server = _FakeServer(mode="oversize")
-        http_oversize = local_profile(server, name="http_oversize", max_bytes=2048)
+        http_oversize_server = _FakeServer(mode="oversize")
+        servers.append(http_oversize_server)
+        http_oversize = local_profile(http_oversize_server, name="http_oversize",
+                                      max_bytes=2048)
         cases.append(("http-oversize",
                       make_settings("http_oversize", [http_oversize]),
                       "adapter.output_cap_exceeded"))
 
+        # profile "" on the request means "use the active profile", so each
+        # matrix row exercises exactly its own configured failure.
         for label, settings, code in cases:
             try:
-                result = model_adapter.invoke(sample_request("x"), settings)
+                result = model_adapter.invoke(sample_request(""), settings)
             except Exception as exc:
                 fail("%s raised out of invoke: %r" % (label, exc))
             if result["status"] != "unavailable":
@@ -447,8 +464,8 @@ def test_failure_matrix_typed_unavailable():
             if errs:
                 fail("%s result does not validate: %s" % (label, errs[0]))
     finally:
-        if server:
-            server.close()
+        for s in servers:
+            s.close()
         shutil.rmtree(tmp, ignore_errors=True)
 
 

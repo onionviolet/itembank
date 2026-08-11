@@ -18,6 +18,8 @@ import json
 import os
 import subprocess
 import time
+import urllib.error
+import urllib.request
 
 import resources
 import schema_validate
@@ -163,11 +165,67 @@ def _transport_hosted_cli(request, request_json, profile, settings):
 
 
 # hosted_cli first (D-18: the hosted CLI is the design target and the default
-# when a backend is enabled), then any later registration. Adding a third
-# backend is a registry entry plus a config entry, with zero edits to
-# tier-gate, evidence, or prompt-assembly code (D-27).
+# when a backend is enabled), then the local OpenAI-compatible HTTP transport
+# behind the same interface (MODEL-01). Adding a third backend is a registry
+# entry plus a config entry, with zero edits to tier-gate, evidence, or
+# prompt-assembly code (D-27).
+def _transport_openai_compatible(request, request_json, profile, settings):
+    """The local OpenAI-compatible HTTP transport: urllib POST to the
+    profile's endpoint with a per-profile timeout and a read capped at
+    max_output_bytes plus one to detect oversize (update.py's "nothing here
+    raises" shape). HTTPError precedes URLError because the former subclasses
+    the latter; a timeout inside URLError is its own named code."""
+    interaction_id = request["interaction_id"]
+    endpoint = profile.get("endpoint")
+    timeout = profile.get("timeout_seconds") or 60
+    max_bytes = profile.get("max_output_bytes") or 65536
+    headers = {"Content-Type": "application/json"}
+    token = _secret_value(profile)
+    if token:
+        headers["Authorization"] = "Bearer " + token
+    req = urllib.request.Request(endpoint, data=request_json.encode("utf-8"),
+                                 method="POST", headers=headers)
+    start = time.monotonic()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = resp.read(max_bytes + 1)
+    except urllib.error.HTTPError as exc:
+        return unavailable_result("adapter.http_error",
+                                  "endpoint returned HTTP %d" % exc.code,
+                                  interaction_id)
+    except urllib.error.URLError as exc:
+        if isinstance(exc.reason, TimeoutError):
+            return unavailable_result("adapter.timeout",
+                                      "endpoint timed out after %ss" % timeout,
+                                      interaction_id)
+        return unavailable_result("adapter.unreachable",
+                                  "endpoint unreachable: %s" % endpoint,
+                                  interaction_id)
+    except TimeoutError:
+        return unavailable_result("adapter.timeout",
+                                  "endpoint timed out after %ss" % timeout,
+                                  interaction_id)
+    except OSError:
+        return unavailable_result("adapter.unreachable",
+                                  "endpoint unreachable: %s" % endpoint,
+                                  interaction_id)
+    elapsed_ms = int((time.monotonic() - start) * 1000)
+    if len(body) > max_bytes:
+        return unavailable_result("adapter.output_cap_exceeded",
+                                  "endpoint body exceeded %d bytes" % max_bytes,
+                                  interaction_id)
+    try:
+        candidate = json.loads(body.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return unavailable_result("adapter.malformed_response",
+                                  "endpoint returned non-JSON body",
+                                  interaction_id)
+    return _ok_result(request, "local", profile, candidate, elapsed_ms)
+
+
 TRANSPORT_REGISTRY = {
     "hosted_cli": _transport_hosted_cli,
+    "openai_compatible": _transport_openai_compatible,
 }
 
 
