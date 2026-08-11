@@ -220,13 +220,262 @@ def test_adapter_never_touches_evidence():
         fail("model_adapter.py references the evidence store")
 
 
+# ---- Task 2: hosted/local parity and the full failure matrix ----------------
+
+class _FakeServer:
+    """A threaded loopback OpenAI-compatible endpoint whose behaviour is set
+    at construction: ok returns a fixed hint_plan body; refuse returns HTTP
+    503; timeout sleeps past the profile timeout; malformed and oversize
+    return the named bodies. Every request body is captured so a test can
+    assert what actually left the machine (secrets never ride along)."""
+
+    def __init__(self, mode="ok"):
+        self.mode = mode
+        self.received = []
+        ctx = {"mode": mode, "received": self.received}
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length") or 0)
+                ctx["received"].append(self.rfile.read(length).decode("utf-8"))
+                mode = ctx["mode"]
+                if mode == "refuse":
+                    self.send_response(503)
+                    data = b"refused"
+                elif mode == "timeout":
+                    time.sleep(2)
+                    self.send_response(200)
+                    data = b"{}"
+                elif mode == "malformed":
+                    self.send_response(200)
+                    data = b"not json"
+                elif mode == "oversize":
+                    self.send_response(200)
+                    data = b"x" * 10000
+                else:
+                    self.send_response(200)
+                    payload = {"kind": "hint_plan",
+                               "interaction_id": "int-00000001",
+                               "focus_span": "the wrong answer",
+                               "fact_ids": ["tier2.trap"],
+                               "move": "anchor_error"}
+                    data = json.dumps(payload).encode("utf-8")
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+            def log_message(self, *args):
+                pass
+
+        self.server = HTTPServer(("127.0.0.1", 0), Handler)
+        self.thread = threading.Thread(target=self.server.serve_forever,
+                                       daemon=True)
+        self.thread.start()
+
+    @property
+    def port(self):
+        return self.server.server_address[1]
+
+    def close(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=2)
+
+
+def local_profile(server_or_port, name="local", timeout=5, max_bytes=65536,
+                  model="qwen", secret_env=None):
+    endpoint = "http://127.0.0.1:%d/v1/chat/completions" % (
+        server_or_port.port if hasattr(server_or_port, "port")
+        else server_or_port)
+    profile = {"name": name, "transport": "openai_compatible",
+               "endpoint": endpoint, "model": model,
+               "timeout_seconds": timeout, "max_output_bytes": max_bytes,
+               "context_window": 8192}
+    if secret_env:
+        profile["secret_env"] = secret_env
+    return profile
+
+
+def closed_port():
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+def test_openai_parity_and_config_switch():
+    """A fake loopback OpenAI-compatible server returns the same normalized
+    result shape as the hosted CLI for the same request, and switching the
+    active profile is a settings-only change (MODEL-02): the identical
+    invoke(request, settings) call produces the parity shape."""
+    tmp = tempfile.mkdtemp()
+    server = None
+    try:
+        server = _FakeServer(mode="ok")
+        hosted = hosted_profile(tmp, name="hosted")
+        local = local_profile(server, name="local")
+        request = sample_request("local")
+        rh = model_adapter.invoke(request, make_settings("hosted", [hosted]))
+        rl = model_adapter.invoke(request, make_settings("local", [local]))
+        for r in (rh, rl):
+            if r["status"] != "ok":
+                fail("parity transport status is %r: %r" % (r["status"], r))
+        if rh["candidate"] != rl["candidate"]:
+            fail("candidate shapes differ between transports: %r vs %r"
+                 % (rh["candidate"], rl["candidate"]))
+        if rh["interaction_id"] != rl["interaction_id"] or \
+                rh["error"] != rl["error"] or rh["status"] != rl["status"]:
+            fail("parity fields differ: %r vs %r" % (rh, rl))
+        if rh["provider"]["backend_class"] != "hosted" or \
+                rl["provider"]["backend_class"] != "local":
+            fail("backend classes wrong: %r vs %r"
+                 % (rh["provider"], rl["provider"]))
+        if rh["provider"]["profile"] != "local" or \
+                rl["provider"]["profile"] != "local":
+            fail("provider profile differs: %r vs %r"
+                 % (rh["provider"], rl["provider"]))
+        for r in (rh, rl):
+            if not isinstance(r["elapsed_ms"], int) or r["elapsed_ms"] < 0:
+                fail("elapsed_ms is not a non-negative int: %r" % r["elapsed_ms"])
+    finally:
+        if server:
+            server.close()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_stable_replay():
+    """Identical requests replay with the same normalized shape: the request
+    is serialized with stable key ordering, and the normalized result is
+    deterministic modulo elapsed_ms."""
+    tmp = tempfile.mkdtemp()
+    try:
+        profile = hosted_profile(tmp, name="hosted")
+        settings = make_settings("hosted", [profile])
+        request = sample_request("hosted")
+        r1 = model_adapter.invoke(request, settings)
+        r2 = model_adapter.invoke(request, settings)
+        for key in ("status", "interaction_id", "candidate", "provider", "error"):
+            if r1[key] != r2[key]:
+                fail("replay changed normalized %r: %r vs %r"
+                     % (key, r1[key], r2[key]))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_failure_matrix_typed_unavailable():
+    """Every failure-matrix row returns status unavailable with a named
+    adapter.* code and no exception escapes (MODEL-03); authored hints stay
+    usable afterwards."""
+    tmp = tempfile.mkdtemp()
+    server = None
+    try:
+        cases = []
+        unused = hosted_profile(tmp, name="unused")
+        cases.append(("disabled-active", make_settings("", [unused]),
+                      "adapter.profile_disabled"))
+        cases.append(("disabled-profiles", make_settings("some", []),
+                      "adapter.profile_disabled"))
+        missing = {"name": "gone", "transport": "hosted_cli",
+                   "command": ["/nonexistent/itembank-hosted-bin"],
+                   "model": "x", "timeout_seconds": 5,
+                   "max_output_bytes": 65536, "context_window": 4096}
+        cases.append(("missing-exe", make_settings("gone", [missing]),
+                      "adapter.executable_missing"))
+        refuse = hosted_profile(tmp, name="refuse", script_kind="refuse")
+        cases.append(("nonzero-exit", make_settings("refuse", [refuse]),
+                      "adapter.provider_refused"))
+        timeout_cli = hosted_profile(tmp, name="timeout", script_kind="timeout",
+                                     timeout=1)
+        cases.append(("timeout", make_settings("timeout", [timeout_cli]),
+                      "adapter.timeout"))
+        malformed = hosted_profile(tmp, name="malformed",
+                                   script_kind="malformed")
+        cases.append(("malformed-json", make_settings("malformed", [malformed]),
+                      "adapter.malformed_response"))
+        oversize = hosted_profile(tmp, name="oversize", script_kind="oversize",
+                                  max_bytes=2048)
+        cases.append(("oversized-output",
+                      make_settings("oversize", [oversize]),
+                      "adapter.output_cap_exceeded"))
+
+        unreachable = local_profile(closed_port(), name="unreachable")
+        cases.append(("unreachable", make_settings("unreachable", [unreachable]),
+                      "adapter.unreachable"))
+
+        server = _FakeServer(mode="refuse")
+        http_fail = local_profile(server, name="http_fail")
+        cases.append(("http-error", make_settings("http_fail", [http_fail]),
+                      "adapter.http_error"))
+        server.close()
+        server = _FakeServer(mode="timeout")
+        http_timeout = local_profile(server, name="http_timeout", timeout=1)
+        cases.append(("http-timeout", make_settings("http_timeout", [http_timeout]),
+                      "adapter.timeout"))
+        server.close()
+        server = _FakeServer(mode="malformed")
+        http_malformed = local_profile(server, name="http_malformed")
+        cases.append(("http-malformed",
+                      make_settings("http_malformed", [http_malformed]),
+                      "adapter.malformed_response"))
+        server.close()
+        server = _FakeServer(mode="oversize")
+        http_oversize = local_profile(server, name="http_oversize", max_bytes=2048)
+        cases.append(("http-oversize",
+                      make_settings("http_oversize", [http_oversize]),
+                      "adapter.output_cap_exceeded"))
+
+        for label, settings, code in cases:
+            try:
+                result = model_adapter.invoke(sample_request("x"), settings)
+            except Exception as exc:
+                fail("%s raised out of invoke: %r" % (label, exc))
+            if result["status"] != "unavailable":
+                fail("%s status is %r, not unavailable: %r"
+                     % (label, result["status"], result))
+            if result["error"]["code"] != code:
+                fail("%s error code is %r, expected %r"
+                     % (label, result["error"]["code"], code))
+            if result["candidate"] is not None:
+                fail("%s carries a candidate: %r" % (label, result["candidate"]))
+            if result["elapsed_ms"] is not None:
+                fail("%s carries elapsed_ms on an unavailable result: %r"
+                     % (label, result["elapsed_ms"]))
+            schema = json.load(open(SCHEMA_PATH, encoding="utf-8"))
+            errs = schema_validate.validate(result, schema)
+            if errs:
+                fail("%s result does not validate: %s" % (label, errs[0]))
+    finally:
+        if server:
+            server.close()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_authored_fallback_after_unavailable():
+    """MODEL-03's offline floor: after an adapter failure, the authored hint
+    ladder still resolves -- the model layer going quiet never blocks study."""
+    import runtime
+    import itembank
+    qs = itembank.load(os.path.join(ROOT, "fixtures", "sample_bank.md"))
+    hint = runtime.authored_hint(qs[0], 2, None)
+    if not hint["available"] or not hint["content"]:
+        fail("authored tier-2 hint unavailable: %r" % hint)
+
+
 def main():
     test_hosted_cli_roundtrip()
     test_request_envelope_and_unknown_field()
     test_missing_executable_and_nonzero_exit()
     test_adapter_never_touches_evidence()
+    test_openai_parity_and_config_switch()
+    test_stable_replay()
+    test_failure_matrix_typed_unavailable()
+    test_authored_fallback_after_unavailable()
     print("model adapter: ok (hosted CLI roundtrip, request envelope, "
-          "executable-missing/refusal typed unavailable)")
+          "executable-missing/refusal typed unavailable, hosted/local parity "
+          "under a config-only switch, full failure matrix typed unavailable, "
+          "authored fallback intact)")
     return 0
 
 
