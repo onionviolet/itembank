@@ -63,6 +63,7 @@ from runtime import (FIELD_SEP, ITEM_VERSION, PAIR_SEP, REPORT_VERSION,        #
                      read_session, response_text, score_response,
                      session_path, session_summary, session_view,
                      upgrade_session, write_session)
+from selection import DEFAULT_COUNT, SPEC_FIELDS, select                       # noqa: E402
 from surfaces.cli import main                                                  # noqa: E402
 from surfaces.day import (ANKI_ADDON_ID, DAY_LANES, FLOOR_LANES, anki_read,   # noqa: E402
                           day_history, day_info, day_page, day_status,
@@ -90,12 +91,12 @@ from schema_validate import SUPPORTED, SchemaError, validate                  # 
 
 __all__ = [
     "ANKI_ADDON_ID", "BANK_FILE_HINTS", "DAY_LANES", "EVENT_SCHEMA_VERSION",
-    "FIELD_SEP", "FLOOR_LANES", "INDEX_VERSION", "ITEM_VERSION",
+    "DEFAULT_COUNT", "FIELD_SEP", "FLOOR_LANES", "INDEX_VERSION", "ITEM_VERSION",
     "KNOWN_EVENT_TYPES",
     "KEYS_UNCHECKED", "LESSON_UNCHECKED", "LETTERS", "LINT_CODES", "LintError",
     "TERMS_UNCHECKED",
     "PAIR_SEP", "REPORT_VERSION", "SESSION_UPGRADES", "SESSION_VERSION", "SPEC",
-    "SUPPORTED", "SchemaError",
+    "SPEC_FIELDS", "SUPPORTED", "SchemaError",
     "__version__",
     "anki_read", "answer_text", "append_event", "append_line", "assign_ids",
     "attempt_number", "canonical_key", "canonical_response", "collapse",
@@ -120,7 +121,7 @@ __all__ = [
     "render_attempt_md", "render_daily_log", "render_session_json", "resolve_notes",
     "response_event", "response_text", "retracted_ids", "retraction_event",
     "scan_legacy",
-    "score_response", "section", "session_events", "session_path",
+    "score_response", "section", "select", "session_events", "session_path",
     "key_review_event", "session_summary", "session_view", "source_key",
     "subject_of", "term_lookup_event", "upgrade_session", "utc_now",
     "validate", "wiring_bases", "write_day_log", "write_session",

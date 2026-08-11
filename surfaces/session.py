@@ -23,6 +23,7 @@ that is still correct for the CLI; containing it is the daemon's job
 import datetime, json, os, sys
 
 import evidence
+import selection
 from model import lint, load
 from runtime import (REPORT_VERSION, SESSION_VERSION, normalize_answer, read_session,
                      score_response, session_path, session_summary, session_view,
@@ -51,26 +52,21 @@ def ms_since(ts):
     return max(0, int((now - served).total_seconds() * 1000))
 
 
-def do_start(bank_path, count, objective, mode, seed, out, force, focus=None):
-    # A non-positive count is rejected outright rather than handed to the
-    # slice below: Python's slice semantics treat a negative stop index as
-    # "up to but excluding the last |count| elements," so count=-1 would
-    # otherwise silently produce nearly the entire bank instead of erroring
-    # on the obviously-invalid input. Checked here, not per-caller, so both
-    # the CLI's --count and /api/start's count field get the same guard.
-    if not isinstance(count, int) or isinstance(count, bool) or count < 1:
-        sys.exit("count must be a positive integer, got %r" % (count,))
+def do_start(bank_path, spec, mode, out, force):
+    # The D-09 focus pin is a session-level concern, not a selection filter:
+    # it rides inside the spec dict so the signature stays the same for every
+    # caller, and it is consumed here before the spec reaches `select()`,
+    # which refuses fields it does not know.
+    focus = spec.get("focus")
+    sel_spec = {k: v for k, v in spec.items() if k != "focus"}
     qs = load(bank_path)
     errors, _ = lint(qs)
     if errors and not force:
         sys.exit("refusing to start a bank with errors; run lint or pass --force")
-    import random, uuid
-    candidates = [i for i, q in enumerate(qs) if not objective or q.get("objective") == objective]
-    if not candidates:
-        sys.exit("no items match objective %r" % objective)
-    rng = random.Random(seed)
-    rng.shuffle(candidates)
-    items = candidates[:min(count, len(candidates))]
+    import uuid
+    items, trace = selection.select(qs, sel_spec, history=[])
+    index = {q["id"]: i for i, q in enumerate(qs)}
+    items = [index[q["id"]] for q in items]
     # D-09 pin support: an optional item id (the `#<id>` fragment a lesson
     # backlink carries) moves that item to the front of the sitting, the served
     # analogue of the file-open client's fragment reorder. An unknown id
@@ -80,22 +76,25 @@ def do_start(bank_path, count, objective, mode, seed, out, force, focus=None):
         if hit is not None:
             items = [i for i in items if i != hit]
             items.insert(0, hit)
-            items = items[:count]
+            items = items[:sel_spec.get("count", selection.DEFAULT_COUNT)]
     out = out or os.path.join(os.path.dirname(os.path.abspath(bank_path)) or ".", "_attempts",
                               "session_%s.json" % uuid.uuid4().hex[:12])
     data = {"schema_version": SESSION_VERSION, "session_id": uuid.uuid4().hex,
             "bank": os.path.abspath(bank_path), "items": items, "cursor": 0,
             "responses": [], "status": "active", "mode": mode,
-            "objective": objective or "", "seed": seed,
+            "objective": sel_spec.get("objective") or "",
+            "seed": sel_spec.get("seed", 0),
             "served_ts": evidence.utc_now()}
     write_session(out, data)
     result = session_view(data, qs)
     result["session_file"] = session_path(out)
+    result["trace"] = trace
     return result
 
 
 def cmd_start(a):
-    result = do_start(a.bank, a.count, a.objective, a.mode, a.seed, a.out, a.force)
+    spec = {"objective": a.objective, "count": a.count, "seed": a.seed}
+    result = do_start(a.bank, spec, a.mode, a.out, a.force)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
