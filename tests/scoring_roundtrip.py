@@ -111,9 +111,13 @@ def main():
     # T-R4-01 (plan 05-01): score_response is byte-identical after the
     # registry conversion, pinned by source hash. Any later phase editing the
     # scorer fails this named test and must argue for it in a plan rather than
-    # in a diff. Recorded against the final post-guard source.
+    # in a diff. Recorded against the final post-guard source. Re-pinned on
+    # the main merge: phase 06.1's visual branch entered the sole scorer (the
+    # visual verdict is special-cased before the canonical comparison), while
+    # phase 05's check behaviour -- a None canonical is never a False verdict
+    # (timeout) -- is preserved below it.
     import hashlib, inspect
-    pinned = "2620a7da77a43eecef3e501cfe7cae6e152e3cb0c5041d22e1997944087a9fbb"
+    pinned = "7471f61b39d25c77090bd81b6ca5f2f42e2c7f921068097b203ffdd934be3514"
     src = inspect.getsource(itembank.score_response)
     if hashlib.sha256(src.encode("utf-8")).hexdigest() != pinned:
         fail("T-R4-01: runtime.score_response drifted from its pinned source "
