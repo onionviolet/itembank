@@ -10,10 +10,14 @@ the POSIX and Windows kill paths, and runs a synthetic grandchild-spawning
 fixture through the runner to prove the process-tree kill reaches a process
 that outlives its direct child.
 
+The Windows half of this file is the only automated coverage the Windows kill
+path gets: CI runs Linux only, and plan 05-04 is where a human runs these
+assertions on the target Windows machine and records the result.
+
 Standard library only, no framework, runnable as
 python tests/check_kill_roundtrip.py
 """
-import ctypes, os, re, subprocess, sys, time
+import ctypes, os, re, subprocess, sys, tempfile, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -200,6 +204,56 @@ def check_windows_kill_paths():
     runner._FORCE_TASKKILL_FALLBACK = False
 
 
+# ---- Task 3: the grandchild-spawning kill test -----------------------------
+
+def check_grandchild_kill():
+    """Run the grandchild-spawning fixture through the runner and prove the
+    tree-wide kill reaches a process that outlives the direct child.
+
+    Its Windows half is the only automated coverage the Windows kill path gets;
+    CI is Linux-only and plan 05-04 is where a human runs it on the target
+    machine and records the result.
+    """
+    fixture = os.path.join(ROOT, "fixtures", "grandchild_spawner.py")
+    fd, heartbeat = tempfile.mkstemp(prefix="gsd_hb_", suffix=".txt")
+    os.close(fd)
+    try:
+        os.environ["GRANDCHILD_HEARTBEAT"] = heartbeat
+        source = open(fixture, encoding="utf-8").read()
+        q = make_q("")
+        t0 = time.monotonic()
+        res = runner.run_cases(q, source, timeout_seconds=1,
+                               max_output_bytes=65536)
+        elapsed = time.monotonic() - t0
+        if not res or not res[0]["timed_out"]:
+            fail("grandchild spawner was not killed at the deadline: %r" % res)
+        if elapsed > 3.0:
+            fail("grandchild kill returned in %.2fs; the deadline kill must "
+                 "return within a bounded margin of the 1s deadline" % elapsed)
+        size0 = os.path.getsize(heartbeat)
+        time.sleep(1.5)   # > ten 0.1s heartbeat intervals
+        size1 = os.path.getsize(heartbeat)
+        if size1 != size0:
+            fail("heartbeat file grew from %d to %d bytes after the runner "
+                 "returned -- a grandchild survived the kill"
+                 % (size0, size1))
+    finally:
+        if "GRANDCHILD_HEARTBEAT" in os.environ:
+            del os.environ["GRANDCHILD_HEARTBEAT"]
+        if os.path.exists(heartbeat):
+            try:
+                os.remove(heartbeat)
+            except OSError:
+                pass
+        # Safety net: if the kill path is buggy, make sure nothing is still
+        # writing to the heartbeat path on a developer's own machine. CI's
+        # ephemeral VM reclaims a leak regardless.
+        if os.name == "posix":
+            subprocess.run(["pkill", "-f", heartbeat],
+                           stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL)
+
+
 def main():
     check_cap_kill_fires_early()
     check_truncated_forces_false_even_when_prefix_matches()
@@ -209,6 +263,7 @@ def main():
     check_import_no_windll()
     check_windows_constants_and_layouts()
     check_windows_kill_paths()
+    check_grandchild_kill()
     print("check kill roundtrip: ok")
     return 0
 
