@@ -6,7 +6,7 @@
   "x-itembank-version": 1,
   "type": "object",
   "additionalProperties": false,
-  "required": ["theme", "accent", "daily_cap", "selection_weights", "selection", "auditor_autonomy", "model_backend", "update_policy", "daemon", "reader", "style"],
+  "required": ["theme", "accent", "daily_cap", "selection_weights", "selection", "auditor_autonomy", "model_backend", "update_policy", "daemon", "reader", "style", "paraphrase"],
   "properties": {
     "theme": {
       "type": "string",
@@ -293,6 +293,35 @@
           "maximum": 1,
           "default": 0.2,
           "x-itembank-phase": 3.1
+        }
+      }
+    },
+    "paraphrase": {
+      "type": "object",
+      "description": "The winnowing paraphrase lint's thresholds (plan 03.2-04, D-13): an item transcribing >= winnow_threshold consecutive words of a source is an error; a fingerprint Jaccard overlap above jaccard_threshold is a warning. Both are settings because they need tuning against the real corpus without a code change. Read by this phase (3.2).",
+      "additionalProperties": false,
+      "required": ["winnow_threshold", "jaccard_threshold"],
+      "x-itembank-phase": 3.2,
+      "default": {
+        "winnow_threshold": 8,
+        "jaccard_threshold": 0.25
+      },
+      "properties": {
+        "winnow_threshold": {
+          "type": "integer",
+          "description": "The number of consecutive copied words that make a paraphrase a transcription (prov.paraphrase_copy, D-13). Default 8.",
+          "minimum": 2,
+          "maximum": 100,
+          "default": 8,
+          "x-itembank-phase": 3.2
+        },
+        "jaccard_threshold": {
+          "type": "number",
+          "description": "The fingerprint Jaccard overlap above which an item warns for being too close to its source (prov.paraphrase_overlap, D-13). Default 0.25.",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.25,
+          "x-itembank-phase": 3.2
         }
       }
     }

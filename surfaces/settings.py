@@ -48,10 +48,24 @@ SETTINGS_CODES = tuple(sorted({
 STYLE_SETTINGS_DEFAULTS = {"imperative_cap": 7, "warn_fp_threshold": 0.20}
 
 
+# The plan 03.2-04 paraphrase lint settings group defaults (D-13). The
+# schema remains the source of truth -- defaults_from_schema() mirrors it
+# into itembank.json -- and this accessor exists so the linter and the
+# roundtrip tests can read the shipped defaults without a settings load.
+PARAPHRASE_SETTINGS_DEFAULTS = {"winnow_threshold": 8, "jaccard_threshold": 0.25}
+
+
 def style_defaults():
     """The `style` settings group's shipped defaults: `imperative_cap`
     (default 7, D-17) and `warn_fp_threshold` (default 0.20, D-14)."""
     return dict(STYLE_SETTINGS_DEFAULTS)
+
+
+def paraphrase_defaults():
+    """The `paraphrase` settings group's shipped defaults (D-13):
+    `winnow_threshold` (default 8 consecutive copied words -> error) and
+    `jaccard_threshold` (default 0.25 fingerprint overlap -> warning)."""
+    return dict(PARAPHRASE_SETTINGS_DEFAULTS)
 
 
 def settings_path(base):

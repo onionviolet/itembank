@@ -36,6 +36,10 @@
     "imperative_cap": 7,
     "warn_fp_threshold": 0.2
   },
+  "paraphrase": {
+    "winnow_threshold": 8,
+    "jaccard_threshold": 0.25
+  },
   "selection": {
     "cooldown_responses": 20
   }
