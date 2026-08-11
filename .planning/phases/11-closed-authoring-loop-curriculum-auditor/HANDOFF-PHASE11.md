@@ -2,7 +2,7 @@
 
 **Branch:** `gsd/phase-11-auditor` (worktree: `C:\Users\wayba\Downloads\CTF\itembank\.phase11-wt`)
 **Base:** `5aab199` (main HEAD at worktree creation)
-**Status:** EXECUTED — 5/5 plans, 12/12 tasks, all gates green. **Not merged, not pushed.**
+**Status:** EXECUTED — 5/5 plans, 12/12 tasks, all gates green. **Merged with main and finalized for merge (`2c84132`); not pushed.**
 **Handed off:** 2026-08-11
 
 ## What was delivered
@@ -33,8 +33,8 @@ Modified: `model_adapter.py`, `schemas/model_adapter.schema.json`, `surfaces/cli
 
 ## Notes for the integrator / next phases
 
-1. **Do not merge until the Phase 8 chat lands its `surfaces/session.py` rubric-review work** and the main tree's uncommitted phase 05/08/10 changes are committed; this branch is based on `5aab199` and will merge cleanly only against a tree that contains the Phase 8 committed state it was cut from. `model_adapter_roundtrip` is green here because the worktree carries the committed Phase 8 adapter; the *uncommitted* main-tree phase-08 changes are not part of this branch.
-2. `.planning/config.json` contains no per-phase status keys (reviewed end to end); state lives in `.planning/STATE.md`, which this branch updates to `current_phase: 11`, `status: completed`, `completed_phases: 10`, `completed_plans: 68`. The main-tree STATE.md is concurrently written by other chats — expect a merge-resolution pass there.
+1. ~~Do not merge until...~~ **Merged.** `git merge main` landed on this branch as `2c84132` (2026-08-11) after main had advanced 50 commits (phases 03.1, 06.1, 06.2, 07, 08-04/05, 09.1, 10, 999.5, 13-03/04/05). The branch is now up to date with main and carries no pending integration work from this side.
+2. `.planning/config.json` contains no per-phase status keys (reviewed end to end); state lives in `.planning/STATE.md`. **The merge resolved `.planning/STATE.md` to main's version (both sides had rewritten it; this branch's phase-11 status update was dropped by design — the orchestrator reconciles STATE.md/ROADMAP.md/config.json centrally after all phase branches merge).** Do not expect `current_phase: 11` in STATE.md until that central pass runs.
 3. `11-UAT.md` lists the four supplemental human checks (approval UX, locator inspection, model-unavailable flow, undo/conflict presentation) that remain experiential; the automated authority for each is cited.
 4. PDF/DOCX remain an explicit unsupported/lossy gate (`fixtures/audit/locator_fidelity_cases.py`, 18 gold cases). A future adapter may claim support only for structures that round-trip exactly; the gate will fail any builder drift by sha256.
 5. The `audit` CLI is the sole Phase 11 surface. Daemon/frontend routes are UI-BLOCKED pending `11-UI-SPEC` approval; `surfaces/audit_cli.py` and the domain modules are ready for a thin route twin.
@@ -42,9 +42,30 @@ Modified: `model_adapter.py`, `schemas/model_adapter.schema.json`, `surfaces/cli
 7. Machine-authored Git writes commit one unit + its manifest per commit under `<repo>/.itembank/audit/manifests/`; the applied-state metadata update is post-commit on disk, and undo resets only the writer's own metadata before `git revert`. Verify this layout is acceptable for your vault repos before enabling `--write` on real banks.
 8. `--base` on `audit author` resolves `itembank.json` (model backend); a disabled backend (default) makes authoring fail closed with a retained report and zero writes.
 
+## Post-merge finalization (2026-08-11)
+
+**Merge conflicts resolved** (3 files; all others merged cleanly):
+
+| File | Conflict | Resolution |
+|---|---|---|
+| `.planning/STATE.md` | both sides rewrote the state front-matter and tables | kept **main's version** (theirs); orchestrator reconciles centrally — see note 2 |
+| `build.py` | both sides edited `STAGE_FILES` (main added `retention.py`; this branch added `auditor.py`, `authoring.py`, `audit_writer.py`) | kept **both** — the merged tuple contains all four additions |
+| `surfaces/cli.py` | main converted the file CRLF→LF and added Phase 9.1 audio/export commands; this branch added the Phase 11 audit subcommands | took main's LF version and **re-applied this branch's four additive chunks** (`cmd_audit` import, `_configured_author_callable`, the `audit source\|coverage\|material\|author\|undo` subparser block, `_load_settings_for`) — file stays LF to match main |
+
+`model_adapter.py` and `schemas/model_adapter.schema.json` were changed only by this branch and merged cleanly (main never touched them).
+
+**Post-merge suite (full `tests/*.py`, run live in this worktree):** 48/51 pass, including all six Phase 11 audit tests (`audit_roundtrip`, `audit_cli_roundtrip`, `audit_coverage_roundtrip`, `audit_quality_roundtrip`, `audit_authoring_roundtrip`, `audit_writer_roundtrip`), `model_adapter_roundtrip`, the Phase 8/10/06.1/09.1 suites, `itembank.py lint fixtures/sample_bank.md` (0 errors), and `schema_validate.py` against a live runtime payload (0 errors). Three non-regression failures, all **pre-existing on main** (verified by running them in a clean `main` worktree):
+
+- `tests/evidence_roundtrip.py` — main's own `evidence.py` still carries `INDEX_VERSION = 2` while its test asserts a v3 rebuild; fails identically on clean main.
+- `tests/gate_roundtrip.py` — main's `objective_history()` rows project no `context` key while its own test expects `["lesson_gate", "quiz"]`; fails identically on clean main.
+- `tests/packaging_roundtrip.py` — requires the Phase 13 Windows sidecar build (`powershell -File scripts/build_shell.ps1` → `dist/itembank-sidecar-onedir`); a build-artifact prerequisite, not a code regression. All pre-sidecar packaging checks (incl. `python build.py` with the merged `STAGE_FILES`) pass.
+- `tests/phase_062_audit.py` passes with its documented `--quick` flag (its full mode re-runs the whole `tests/*_roundtrip.py` suite internally and would inherit the two pre-existing failures above).
+
+**No regressions were introduced by the merge** — no fix commits were required.
+
 ## Files created for review
 
 - `.planning/phases/11-closed-authoring-loop-curriculum-auditor/11-01..05-SUMMARY.md`
 - `.planning/phases/11-closed-authoring-loop-curriculum-auditor/11-VERIFICATION.md`
 - `.planning/phases/11-closed-authoring-loop-curriculum-auditor/11-UAT.md`
-- `.planning/STATE.md` (updated)
+- `.planning/STATE.md` (updated — superseded by main's version at merge, see note 2)
