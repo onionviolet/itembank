@@ -45,7 +45,7 @@ def parse_question(ch):
     stem = grab(
         r"Q\d+\.\s*(.*?)\s*(?:\(difficulty:|\n\[OBJECTIVE|\n\[TYPE|\n\[SELECT"
         r"|\n\[CATEGORIES|\n\[ID|\n\[HASH|\n[A-H]\)|\nROW\)|\nITEM\)|\nSTEP\)"
-        r"|\nMODEL:|\nRUBRIC:|\nWHY BEST:|\n\[LESSON-REF)",
+        r"|\nMODEL:|\nRUBRIC:|\nWHY BEST:|\n\[LESSON-REF|\n\[PAIR|\n\[PREREQ)",
         ch, re.S)
     lesson_ref = grab(r"\[LESSON-REF:\s*(.*?)\]", ch)
     common = {
@@ -56,6 +56,9 @@ def parse_question(ch):
         "difficulty": grab(r"\(difficulty:\s*([^)]+)\)", ch),
         "objective": grab(r"\[OBJECTIVE:\s*(.*?)\]", ch),
         "objective_line": grab(r"(?m)^Objective:\s*(.*?)\s*$", ch),
+        "pair": grab(r"(?m)^\[PAIR:\s*(.*?)\s*\]\s*$", ch),
+        "prereq": [p.strip() for p in
+                   grab(r"(?m)^\[PREREQ:\s*(.*?)\s*\]\s*$", ch).split(",") if p.strip()],
         "lesson_ref": lesson_ref,
         "lesson_slug": lesson_slug(lesson_ref) if lesson_ref else "",
         "item_id": grab(r"(?m)^\[ID:\s*(\S+)\s*\]", ch),          # empty until id-assign (01-04)
@@ -632,13 +635,16 @@ def content_fingerprint(q):
     rationale around it.
 
     Deliberately excludes `why`, `disc`, `second`, `trap`, `conf`, `da`,
-    `notes`, `objective`, `difficulty`, `number`, `id`, `item_id` and
-    `content_hash` -- the hash's job is to detect that stem, options, correct
+    `notes`, `objective`, `difficulty`, `number`, `id`, `item_id`, `pair`,
+    `prereq` and `content_hash` -- the hash's job is to detect that stem, options, correct
     answers, categories, rows, steps, model answer or rubric changed, and
     D-04 already accepts the residual risk that a genuine rewrite of what a
     question asks, while its rationale text stays untouched, still inherits
     the old item's trend data. The drift warning this feeds is the only
     signal for that case.
+
+    `pair` and `prereq` are pedagogy metadata (D-12): editing a confusion-set
+    name or a prerequisite objective must not orphan an item's evidence history.
 
     This digest is an integrity check, not a security boundary: this project
     has one local user and no adversary in its threat model.
@@ -884,6 +890,8 @@ SHARED FIELDS (all types)
   [ID: <opaque item id>]                                     optional, machine-assigned
   [HASH: sha256:<digest>]                                    optional, machine-assigned
   [LESSON-REF: <heading text>]                               optional, links to a lesson heading
+  [PAIR: <confusion set name>]                               optional
+  [PREREQ: <objective>[, <objective>...]]                    optional
   WHY BEST:            why the keyed answer is correct
   KEY DISCRIMINATOR:   the one distinction the item turns on
   SECOND-BEST:         the runner-up, and what would make it win
@@ -896,6 +904,12 @@ SHARED FIELDS (all types)
   and is never edited by hand. [HASH:] is a fingerprint of the tested content,
   used only to detect that an item changed. The ID is what evidence is recorded
   against, so deleting it orphans that item's history.
+
+  [PAIR:] names a confusion set: the same name on two or more items is what
+  makes them a set, and a name on exactly one item is an authoring mistake
+  (`lint` warns). [PREREQ:] lists objectives this item assumes the learner
+  already holds; each entry should name an objective some item in the bank
+  teaches (`lint` warns when it does not).
 
 THE FIVE ITEM TYPES
 
@@ -1112,6 +1126,7 @@ LINT_CODES = tuple(sorted({
     "item.missing_trap", "item.low_confidence", "item.duplicate_stem",
     "item.missing_id", "item.duplicate_id", "item.missing_hash",
     "item.content_drift", "item.objective_unnamespaced", "item.lesson_ref_unknown",
+    "item.pair_singleton", "item.prereq_unknown",
     "lesson.duplicate_heading", "lesson.orphan_heading", "lesson.src_unreadable",
     "terms.unknown_ref", "terms.duplicate_slug", "terms.empty_block",
     "key.in_rationale", "key.duplicate_id",
@@ -1195,6 +1210,9 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
     seen_ids = {}
     seen_item_ids = {}
     letter_hits = collections.Counter()
+    all_objectives = {q.get("objective", "") for q in questions
+                      if q.get("objective")}
+    pair_counts = {}
     lesson_on = lesson is not LESSON_UNCHECKED
     terms_on = terms is not TERMS_UNCHECKED
     keys_on = keys is not KEYS_UNCHECKED
@@ -1261,6 +1279,15 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
             warnings.append(LintError(
                 "item.objective_line_multi_sentence", "objective_line", tag,
                 "Objective: must be a single sentence, got more than one"))
+        if q.get("pair"):
+            pair_counts.setdefault(q["pair"], []).append(tag)
+        for prereq in q.get("prereq") or []:
+            if prereq not in all_objectives:
+                warnings.append(LintError(
+                    "item.prereq_unknown", "prereq", tag,
+                    "prereq %r is not an objective any item in this bank "
+                    "teaches; check the spelling or add the teaching item"
+                    % prereq))
 
         # The per-item lesson check lives inside this loop so the finding is
         # tagged by the item's own number for free (D-05, ROADMAP SC3); a
@@ -1383,6 +1410,14 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                 "only if this bank is consumed by something that does NOT shuffle: a printed "
                 "exam, an export, or another tool."
                 % (n / total * 100, top, n, total)))
+
+    for pair_name, tags in sorted(pair_counts.items()):
+        if len(tags) == 1:
+            warnings.append(LintError(
+                "item.pair_singleton", "pair", tags[0],
+                "pair %r appears on exactly one item (%s); a pair of one is "
+                "an authoring mistake, not a valid state"
+                % (pair_name, tags[0])))
 
     # Bank-level lesson findings, in document order for the headings so two
     # runs over the same bank produce byte-identical output. An unreadable
