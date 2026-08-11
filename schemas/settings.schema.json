@@ -6,7 +6,7 @@
   "x-itembank-version": 1,
   "type": "object",
   "additionalProperties": false,
-  "required": ["theme", "accent", "daily_cap", "selection_weights", "selection", "auditor_autonomy", "model_backend", "update_policy", "daemon", "reader", "style", "paraphrase"],
+  "required": ["theme", "accent", "daily_cap", "selection_weights", "selection", "auditor_autonomy", "model_backend", "update_policy", "daemon", "reader", "style", "paraphrase", "retention"],
   "properties": {
     "theme": {
       "type": "string",
@@ -322,6 +322,157 @@
           "maximum": 1,
           "default": 0.25,
           "x-itembank-phase": 3.2
+        }
+      }
+    },
+    "retention": {
+      "type": "object",
+      "description": "The retention, pacing and trends thresholds (Phase 10). Every value is bounded here with conservative defaults so later tuning is a settings change, never a code change (D-06, D-23); the weak threshold must stay below the mastery threshold and the weight floor below the ceiling (retention.py rejects contradictory pairs with a named error). Read by this phase (10).",
+      "additionalProperties": false,
+      "required": ["min_settled_attempts", "weak_accuracy", "mastery_accuracy",
+                   "mastery_success_days", "at_risk_after_days",
+                   "review_interval_days", "lesson_review_after_days",
+                   "weight_min", "weight_max", "max_weight_step",
+                   "weak_boost", "due_boost", "at_risk_boost",
+                   "mastery_reduction", "focused_session_count"],
+      "x-itembank-phase": 10,
+      "default": {
+        "min_settled_attempts": 3,
+        "weak_accuracy": 0.60,
+        "mastery_accuracy": 0.85,
+        "mastery_success_days": 3,
+        "at_risk_after_days": 28,
+        "review_interval_days": 7,
+        "lesson_review_after_days": 14,
+        "weight_min": 0.75,
+        "weight_max": 1.25,
+        "max_weight_step": 0.10,
+        "weak_boost": 0.20,
+        "due_boost": 0.10,
+        "at_risk_boost": 0.20,
+        "mastery_reduction": 0.15,
+        "focused_session_count": 5
+      },
+      "properties": {
+        "min_settled_attempts": {
+          "type": "integer",
+          "description": "Settled outcomes (auto-scored bool, or a constructed response with an accepted human mark) needed before an objective receives a state label at all. Fewer is unknown (D-03).",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 3,
+          "x-itembank-phase": 10
+        },
+        "weak_accuracy": {
+          "type": "number",
+          "description": "Recent settled accuracy below this is the weak state. Must be lower than mastery_accuracy (retention.py rejects equality/inversion with a named error).",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.6,
+          "x-itembank-phase": 10
+        },
+        "mastery_accuracy": {
+          "type": "number",
+          "description": "Recent settled accuracy at or above this, together with mastery_success_days distinct local days of confirmed success, is the mastered state.",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.85,
+          "x-itembank-phase": 10
+        },
+        "mastery_success_days": {
+          "type": "integer",
+          "description": "Distinct local days with a confirmed success required for the mastered state.",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 3,
+          "x-itembank-phase": 10
+        },
+        "at_risk_after_days": {
+          "type": "integer",
+          "description": "A previously-confirmed-successful objective with no confirming evidence for at least this many days is at-risk (D-14: prior success plus silence, never predicted failure).",
+          "minimum": 1,
+          "maximum": 3650,
+          "default": 28,
+          "x-itembank-phase": 10
+        },
+        "review_interval_days": {
+          "type": "integer",
+          "description": "The configured objective review interval: a stable objective whose latest settled evidence is at least this old is due (D-04/D-06).",
+          "minimum": 1,
+          "maximum": 3650,
+          "default": 7,
+          "x-itembank-phase": 10
+        },
+        "lesson_review_after_days": {
+          "type": "integer",
+          "description": "Days after an explicit lesson completion event before its referenced objectives enter the review queue as due (SCHED-04, 10-02).",
+          "minimum": 1,
+          "maximum": 3650,
+          "default": 14,
+          "x-itembank-phase": 10
+        },
+        "weight_min": {
+          "type": "number",
+          "description": "Floor of the bounded objective weight multiplier (D-11). Must be below weight_max.",
+          "minimum": 0.1,
+          "maximum": 1,
+          "default": 0.75,
+          "x-itembank-phase": 10
+        },
+        "weight_max": {
+          "type": "number",
+          "description": "Ceiling of the bounded objective weight multiplier (D-11). Must be above weight_min.",
+          "minimum": 1,
+          "maximum": 3,
+          "default": 1.25,
+          "x-itembank-phase": 10
+        },
+        "max_weight_step": {
+          "type": "number",
+          "description": "Maximum absolute change to one objective's normalized weight between snapshots (D-12: gradual, capped, so one bad session cannot cause an extreme next session).",
+          "minimum": 0.01,
+          "maximum": 1,
+          "default": 0.1,
+          "x-itembank-phase": 10
+        },
+        "weak_boost": {
+          "type": "number",
+          "description": "Formula term: added to the raw weight of a weak objective (10-RESEARCH.md initial formula).",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.2,
+          "x-itembank-phase": 10
+        },
+        "due_boost": {
+          "type": "number",
+          "description": "Formula term: added to the raw weight of a due objective (10-RESEARCH.md initial formula).",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.1,
+          "x-itembank-phase": 10
+        },
+        "at_risk_boost": {
+          "type": "number",
+          "description": "Formula term: added to the raw weight of an at-risk objective (10-RESEARCH.md initial formula).",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.2,
+          "x-itembank-phase": 10
+        },
+        "mastery_reduction": {
+          "type": "number",
+          "description": "Formula term: subtracted from the raw weight of a mastered objective, keeping it out of ordinary rotation without making it unreachable (D-11).",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.15,
+          "x-itembank-phase": 10
+        },
+        "focused_session_count": {
+          "type": "integer",
+          "description": "The bounded size of the focused-session recommendation (D-04).",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 5,
+          "x-itembank-phase": 10
         }
       }
     }

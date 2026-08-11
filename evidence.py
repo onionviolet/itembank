@@ -1075,6 +1075,28 @@ def live_events(log):
         yield ev
 
 
+def capture_events(log):
+    """Materialize the append-only log into ONE immutable in-memory sequence
+    of live events (D-01, D-02).
+
+    Phase 10's snapshot contract needs every derived claim -- objective
+    state, trend row, weight, recommendation, cap decision -- to read the
+    same event sequence, so that appending to the log after a render can
+    never silently change claims the render already returned. This is that
+    single materialization point: it applies the existing compensating-
+    retraction filter (`live_events`) exactly once and returns a tuple, so
+    a caller that captures twice gets two independent immutable snapshots,
+    and appending after capture cannot alter the already-returned one.
+
+    The returned tuple is JSON-native and immutable by construction; marks
+    are NOT folded in here (they stay a join the caller performs via
+    `marks_by_event`, because a mark is a separate fact about a response).
+    This is the one primitive Phase 10's `retention.capture` reads; no
+    Phase 10 code opens a second reader, filter, cache, store, or writer.
+    """
+    return tuple(live_events(log))
+
+
 def event_by_id(log, event_id):
     """The raw event dict for `event_id`, or `None` — used to validate a
     retract target before anything is appended. Reads through `events()`,

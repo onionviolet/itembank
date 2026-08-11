@@ -16,7 +16,7 @@ from surfaces.daemon import (cmd_cli_twin, cmd_daemon, cmd_disclosure,
                              cmd_sidecar)
 from surfaces.day import cmd_day
 from surfaces.evidence_cli import (cmd_evidence, cmd_id_assign, cmd_mark, cmd_render,
-                                   cmd_retract)
+                                   cmd_retract, cmd_trends)
 from surfaces.import_anki import cmd_import_anki
 from surfaces.lesson import cmd_gloss, cmd_key_review, cmd_lesson, cmd_render_style
 from surfaces.migrate import cmd_migrate
@@ -678,6 +678,27 @@ def main():
     s.add_argument("--base", default=".",
                    help="directory holding _evidence/ (default: current directory)")
     s.set_defaults(fn=cmd_evidence)
+
+    s = sub.add_parser("trends", help="longitudinal retention report: due "
+                       "objectives, week series, weights, and evidence claim "
+                       "from one captured snapshot (Phase 10)")
+    s.add_argument("--weeks", type=int, default=4, choices=(1, 2, 4, 8, 12),
+                   help="report window in weeks (default: 4)")
+    s.add_argument("--subject", default="",
+                   help="filter the report to one namespaced subject")
+    s.add_argument("--objective", default="",
+                   help="filter the report to one objective")
+    s.add_argument("--cutoff", default="",
+                   help="ISO-8601 UTC cutoff timestamp (default: now)")
+    s.add_argument("--zone", default="UTC",
+                   help="local-day zone: UTC, local, UTC+HH:MM/UTC-HH:MM, or an "
+                        "IANA name (default: UTC)")
+    s.add_argument("--json", action="store_true",
+                   help="emit the machine-readable report payload instead of "
+                        "plain text")
+    s.add_argument("--base", default=".",
+                   help="directory holding _evidence/ (default: current directory)")
+    s.set_defaults(fn=cmd_trends)
 
     s = sub.add_parser("retract", help="undo a recorded evidence event by appending a "
                        "reasoned compensating event; nothing is ever deleted (D-10)")

@@ -28,8 +28,9 @@ import json
 import os
 import sys
 
-import model
 import evidence
+import model
+import retention
 
 
 def cmd_evidence(a):
@@ -347,4 +348,41 @@ def cmd_id_assign(a):
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     print("%d ids assigned, %d hashes recorded, %d hashes updated" %
           (total_assigned, total_recorded, total_updated))
+    return 0
+
+
+def cmd_trends(a):
+    """`itembank trends` -- the longitudinal retention report, JSON or
+    plain text, both renderings of the SAME `retention.retention_report`
+    payload (D-15): no arithmetic in the renderer, no second derivation.
+
+    Reads the append-only log once via `evidence.capture_events` and hands
+    the captured sequence to the pure derivation layer; the report's claim
+    names cutoff, zone, window, filters, event count and settings version.
+    The default `--weeks 4` selects the report window; `--subject` and
+    `--objective` narrow the filters recorded in the claim. With no
+    evidence the report renders honestly (unknown states, null rates),
+    never a fabricated trend (D-03).
+    """
+    base = a.base or "."
+    log = evidence.log_path(base)
+    events = evidence.capture_events(log) if os.path.exists(log) else ()
+    cfg = {}
+    try:
+        from surfaces import settings as _settings
+        cfg = _settings.load_settings(base)
+    except Exception:
+        cfg = {}
+    filters = {}
+    if getattr(a, "subject", None):
+        filters["subject"] = a.subject
+    if getattr(a, "objective", None):
+        filters["objective"] = a.objective
+    payload = retention.retention_report(
+        events, cutoff=a.cutoff or None, zone=a.zone or "UTC",
+        weeks=a.weeks, filters=filters, cfg=cfg)
+    if a.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(retention.report_text(payload))
     return 0

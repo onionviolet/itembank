@@ -112,7 +112,8 @@ def test_schema_names_every_project_key():
     keys = set(schema["properties"])
     expected = {"theme", "daily_cap", "selection_weights", "selection",
                 "auditor_autonomy", "model_backend", "update_policy", "daemon",
-                "update", "accent", "reader", "style", "paraphrase"}
+                "update", "accent", "reader", "style", "paraphrase",
+                "retention"}
     if keys != expected:
         fail("schema properties %r do not equal the expected key set %r" % (keys, expected))
     for name, sub in schema["properties"].items():
@@ -198,11 +199,14 @@ def test_config_no_args_prints_table():
         fail("itembank config exited %d: %s" % (r.returncode, r.stderr))
     for name in ("theme", "daily_cap", "selection_weights", "selection",
                  "auditor_autonomy", "model_backend", "update_policy", "daemon",
-                 "update"):
+                 "update", "retention"):
         if name not in r.stdout:
             fail("config table is missing key %r" % name)
-    if r.stdout.count("inert") < 5:
-        fail("config table names fewer than 5 inert keys: %r" % r.stdout.count("inert"))
+    # At THIS_PHASE 10 only phase-11+ keys are inert: auditor_autonomy
+    # (phase 11). daily_cap/model_backend/retention/selection_weights all
+    # became read-by-this-phase.
+    if "auditor_autonomy" not in r.stdout or "inert" not in r.stdout:
+        fail("config table must still mark phase-11 auditor_autonomy inert")
     for line in r.stdout.splitlines():
         stripped = line.strip()
         if stripped.startswith("daemon") and "inert" in line:
@@ -210,18 +214,23 @@ def test_config_no_args_prints_table():
     shutil.rmtree(base, ignore_errors=True)
 
 
-def test_phase_7_keys_read_not_inert():
-    """Phase 7 reads selection.cooldown_responses and
-    selection_weights.recency_decay, so their table rows may not say
-    'inert'; the two Phase 10 weights must still say inert."""
+def test_phase_10_keys_read_not_inert():
+    """Phase 10 reads the retention group, daily_cap, model_backend and the
+    two Phase 10 selection weights, so their table rows may not say 'inert';
+    only phase-11+ keys stay inert."""
     base = fresh_base()
     r = run([], base)
     if r.returncode != 0:
         fail("itembank config exited %d: %s" % (r.returncode, r.stderr))
     read_by_this_phase = ("selection", "selection.cooldown_responses",
-                          "selection_weights.recency_decay")
-    inert_by_later_phase = ("selection_weights.objective_miss_rate",
-                            "selection_weights.difficulty_spread")
+                          "selection_weights.recency_decay",
+                          "selection_weights.objective_miss_rate",
+                          "selection_weights.difficulty_spread",
+                          "daily_cap", "model_backend", "retention",
+                          "retention.review_interval_days",
+                          "retention.at_risk_after_days",
+                          "retention.focused_session_count")
+    inert_by_later_phase = ("auditor_autonomy",)
     for line in r.stdout.splitlines():
         stripped = line.strip()
         first_token = stripped.split()[0] if stripped.split() else ""
@@ -229,7 +238,7 @@ def test_phase_7_keys_read_not_inert():
             fail("%r is marked inert, but this phase reads it: %r" %
                  (first_token, line))
         if first_token in inert_by_later_phase and "inert" not in line:
-            fail("%r must be inert until Phase 10: %r" %
+            fail("%r must be inert until Phase 11: %r" %
                  (first_token, line))
     shutil.rmtree(base, ignore_errors=True)
 
@@ -515,7 +524,9 @@ def test_phase_4_theme_keys_read_not_inert():
                  % (token, line))
     # selection_weights left the inert list when phase 7 started reading
     # its recency_decay key (D-15); the group row is active at THIS_PHASE 7.
-    inert_groups = ("daily_cap", "auditor_autonomy", "model_backend")
+    # At THIS_PHASE 10, daily_cap and model_backend are also read; only
+    # phase-11+ keys (auditor_autonomy) stay inert.
+    inert_groups = ("auditor_autonomy",)
     for group in inert_groups:
         if not any(token == group and "inert" in line for token, line in rows):
             fail("%r is no longer marked inert" % group)
