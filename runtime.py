@@ -146,26 +146,6 @@ def _check_observation(q, index, case_result):
     }
 
 
-def interaction_result(q, source, verdict, run_result):
-    """The normalized post-submit result for a check item, used by every
-    submitting surface.
-
-    It does not grade: `verdict` must be the exact value already returned by
-     `score_response()` -- True, False, or None for a run the deadline killed
-    (criterion 12). The ordered observations stay present even for a None
-    verdict so the learner sees which case timed out, but no surface may
-    render a pending response as pass or fail.
-    """
-    return {
-        "version": INTERACTION_VERSION,
-        "type": "check",
-        "response": source,
-        "verdict": verdict,
-        "observations": [_check_observation(q, i, r)
-                         for i, r in enumerate(run_result or [])],
-    }
-
-
 def normalize_answer(answer):
     if isinstance(answer, str):
         try:
@@ -811,13 +791,26 @@ def visual_observation(q, state, verdict, hint_tier=None):
 
 
 def interaction_result(q, response, verdict, observations):
-    """The normalized post-submit result envelope for a visual item, consumed
-    by the served submit path and any agent adapter. It does not grade:
-    `verdict` is exactly what `score_response()` returned, and `observations`
-    is the ordered list of runtime-bounded observations built by
-    `visual_observation`. No accepted state, tolerance, or reveal content is
-    carried here.
+    """The normalized post-submit result envelope for both interactive
+    types, consumed by the served submit path and any agent adapter. It
+    does not grade: `verdict` is exactly what `score_response()` returned
+    (True, False, or None for a run the deadline killed -- criterion 12).
+
+    For a check item, `observations` is the raw per-case run_result from
+    the runner and is normalized here into the stable case_observation
+    shape; for a visual item it is already the ordered list of
+    runtime-bounded observations built by `visual_observation`. No accepted
+    state, tolerance, or reveal content is carried in either shape.
     """
+    if q["type"] == "check":
+        return {
+            "version": INTERACTION_VERSION,
+            "type": "check",
+            "response": response,
+            "verdict": verdict,
+            "observations": [_check_observation(q, i, r)
+                             for i, r in enumerate(observations or [])],
+        }
     return {
         "version": VISUAL_PROTOCOL_VERSION,
         "type": "visual",
