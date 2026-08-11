@@ -2,7 +2,7 @@
 phase: 13-desktop-packaging-tauri-sidecar
 goal: "A signed, installable desktop app whose inside is still the same Python runtime - one transport, one scorer, honest liveness, shared-channel updates."
 requirement_ids: DEL-09, DEL-10, DEL-11, DEL-12, DEL-13
-status: passed_with_human_items
+status: human_needed
 verified: 2026-08-10
 method: inline verification (subagent dispatch unreliable in this runtime per AGENTS.md)
 ---
