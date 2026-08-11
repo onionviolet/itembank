@@ -50,6 +50,8 @@
         "C": "A capillary refill of two seconds",
         "D": "A pulse oximetry reading of 98 percent"
       },
+      "pair": "",
+      "prereq": [],
       "second": "A. Full sentences mean the airway is patent right now, and this\nwould be correct if the question asked which finding clears the airway.",
       "select": 1,
       "stem": "Which finding most clearly suggests the airway is at risk?",
@@ -90,6 +92,8 @@
         "D": "A heart rate of 140 in an adult",
         "E": "Skin that is warm and dry"
       },
+      "pair": "",
+      "prereq": [],
       "second": "Not applicable; the remaining options describe perfusion and\nhydration findings with no airway content.",
       "select": 2,
       "stem": "Which two findings together point to an airway that is becoming obstructed?",
@@ -111,6 +115,8 @@
       "number": 3,
       "objective": "emt:airway",
       "objective_line": "",
+      "pair": "",
+      "prereq": [],
       "rubric": [
         "Names repositioning as the first intervention because tongue obstruction is the usual cause",
         "States that a suspected cervical spine injury is the reason to use a jaw-thrust",

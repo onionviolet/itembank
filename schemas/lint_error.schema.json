@@ -32,6 +32,8 @@
         "item.model_too_long",
         "item.objective_unnamespaced",
         "item.objective_line_multi_sentence",
+        "item.pair_singleton",
+        "item.prereq_unknown",
         "item.row_category_unknown",
         "item.rubric_point_too_long",
         "item.select_mismatch",
