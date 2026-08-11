@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/model_adapter.schema.json",
+  "title": "itembank model-adapter request/result contract",
+  "description": "The closed provider-neutral envelope shared by every model backend (D-01/D-02). A request names one operation (hint or rubric_review), an immutable interaction id, a backend profile, and the runtime-granted payload; a result carries a normalized candidate or a typed unavailable/refusal error. Surfaces never parse provider-native output. The contract structurally carries no score, no tier decision, and no accepted-mark field (MODEL-05): permitted_tier is the runtime's grant (D-09), never a model output.",
+  "x-itembank-version": 1,
+  "type": "object",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/request"
+    },
+    {
+      "$ref": "#/$defs/result"
+    }
+  ],
+  "$defs": {
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "operation", "interaction_id", "profile", "version", "payload"],
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "description": "The adapter protocol version; const 1."
+        },
+        "operation": {
+          "type": "string",
+          "enum": ["hint", "rubric_review"],
+          "description": "The one bounded operation: hint generation or rubric point review."
+        },
+        "interaction_id": {
+          "type": "string",
+          "minLength": 8,
+          "description": "The immutable interaction id the runtime minted (D-12)."
+        },
+        "profile": {
+          "type": "string",
+          "description": "The model_backend profile name that should serve this request; empty resolves the active profile."
+        },
+        "version": {
+          "const": "1",
+          "description": "The operation payload shape version."
+        },
+        "payload": {
+          "$ref": "#/$defs/payload"
+        }
+      }
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The runtime-granted request payload. Permissive on required keys by design: rubric_points is required only for operation rubric_review, enforced by the adapter's runtime check (adapter.request_invalid), not by this schema. item_context, learner_response, permitted_tier and fact_manifest accompany hint requests.",
+      "properties": {
+        "item_context": {
+          "oneOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The item fields the runtime permits the model to see (never the key)."
+        },
+        "learner_response": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The learner's most recent genuine wrong response (D-10)."
+        },
+        "permitted_tier": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The Phase 6 tier the runtime has unlocked -- a grant, never a model choice (D-09)."
+        },
+        "fact_manifest": {
+          "oneOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The tier's allowed fact ids and texts the model may reference."
+        },
+        "rubric_points": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The authored rubric points to review; required (non-null) at runtime for operation rubric_review."
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "interaction_id", "status", "candidate", "provider", "elapsed_ms", "error"],
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "description": "The adapter protocol version; const 1."
+        },
+        "interaction_id": {
+          "type": "string",
+          "minLength": 8,
+          "description": "Echoes the request's immutable interaction id."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "refused", "unavailable"],
+          "description": "ok: a candidate came back; refused: the provider answered but refused; unavailable: no candidate, typed error."
+        },
+        "candidate": {
+          "oneOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The parsed provider plan (validated later by the tier gate), or null on refusal/unavailable."
+        },
+        "provider": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/provider"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Backend-class and profile audit metadata (D-17); null when no profile resolved."
+        },
+        "elapsed_ms": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Measured wall time in ms; never an invented tok/s or latency figure (D-19)."
+        },
+        "error": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/error"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Typed error code and message; null on ok."
+        }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["backend_class", "profile"],
+      "properties": {
+        "backend_class": {
+          "type": "string",
+          "enum": ["hosted", "local"],
+          "description": "hosted for the hosted CLI transport, local for an OpenAI-compatible endpoint (D-17)."
+        },
+        "profile": {
+          "type": "string",
+          "description": "The profile name that served the request."
+        }
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^adapter\\.[a-z_]+$",
+          "description": "The named adapter.* code; stable values callers may branch on."
+        },
+        "message": {
+          "type": "string",
+          "description": "A human-readable reason; never contains a secret."
+        }
+      }
+    }
+  }
+}

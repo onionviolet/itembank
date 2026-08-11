@@ -170,6 +170,64 @@ def write_settings(base, data):
     os.replace(tmp, target)
 
 
+def resolve_profile(settings_data, name=None):
+    """The active model_backend profile resolver, shared by the adapter and
+    `itembank config` (RESEARCH.md Architectural Responsibility Map row 1:
+    configuration and adapter read the same validated settings). Returns
+    (profile_or_None, error_or_None); exactly one is non-None.
+
+    A duplicate profile name or a profile missing its transport-required
+    field is settings.invalid_value (a bad registry, never a silent
+    fallback); an active name that matches no profile is
+    adapter.profile_unknown; an empty active profile or empty profiles array
+    is adapter.profile_disabled (a typed unavailable, never a crash).
+    """
+    mb = (settings_data or {}).get("model_backend")
+    if not isinstance(mb, dict):
+        return None, {"code": "settings.invalid_value",
+                      "message": "model_backend is not an object"}
+    active = mb.get("active") or ""
+    profiles = mb.get("profiles") or []
+    if not isinstance(profiles, list):
+        return None, {"code": "settings.invalid_value",
+                      "message": "model_backend.profiles is not an array"}
+    if not active or not profiles:
+        return None, {"code": "adapter.profile_disabled",
+                      "message": "no active model backend profile (model_backend.active "
+                                 "is empty or profiles is empty)"}
+    by_name = {}
+    for i, profile in enumerate(profiles):
+        if not isinstance(profile, dict):
+            return None, {"code": "settings.invalid_value",
+                          "message": "model_backend.profiles[%d] is not an object" % i}
+        pname = profile.get("name")
+        if not isinstance(pname, str) or not pname:
+            return None, {"code": "settings.invalid_value",
+                          "message": "model_backend.profiles[%d] has no non-empty name" % i}
+        if pname in by_name:
+            return None, {"code": "settings.invalid_value",
+                          "message": "duplicate model backend profile name %r" % pname}
+        transport = profile.get("transport")
+        if transport == "hosted_cli" and not profile.get("command"):
+            return None, {"code": "settings.invalid_value",
+                          "message": "profile %r (hosted_cli) requires a command array"
+                          % pname}
+        if transport == "openai_compatible" and not profile.get("endpoint"):
+            return None, {"code": "settings.invalid_value",
+                          "message": "profile %r (openai_compatible) requires an endpoint"
+                          % pname}
+        if transport not in ("hosted_cli", "openai_compatible"):
+            return None, {"code": "settings.invalid_value",
+                          "message": "profile %r has an unknown transport %r"
+                          % (pname, transport)}
+        by_name[pname] = profile
+    target = name or active
+    if target not in by_name:
+        return None, {"code": "adapter.profile_unknown",
+                      "message": "no model backend profile named %r" % target}
+    return by_name[target], None
+
+
 def get_at(data, dotted):
     node = data
     for part in dotted.split("."):
