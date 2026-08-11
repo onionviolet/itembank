@@ -196,13 +196,13 @@
 
 ### Audio drill export (Phase 9.1)
 
-- [ ] **AUDIO-01**: One `TTSEngine` interface with named registered implementations; adding an engine is a new module plus a settings entry, never a dispatcher branch, and the registry is the model-backend shape, not a second idiom
-- [ ] **AUDIO-02**: `edge-tts` (network, MP3-native), Piper (local, WAV), and `transcript-only` (the always-available null engine) all register by name; Kokoro is documented as a registration target and is not built
-- [ ] **AUDIO-03**: A pack sequences stem → timed pause → key → why, with the pause duration read from a per-item-type settings map rather than a constant
-- [ ] **AUDIO-04**: An unreachable or missing engine never silently falls back — the command emits the transcript, names the engine and the reason, exits non-zero, and never half-writes an audio file (temp-then-atomic-rename)
-- [ ] **AUDIO-05**: `itembank export audio --objective <id>` and a daemon route both ship, reaching one runtime implementation — neither surface is the real one
-- [ ] **AUDIO-06**: Output defaults to MP3 with WAV available; `--split per-item` and `--split per-pack` both ship (per-pack default); one transcript per pack is always emitted with the same text in the same order; files are named from the objective id and a content digest so unchanged re-exports are idempotent
-- [ ] **AUDIO-07**: Listening records nothing (the evidence log stays the record of what was answered); no player, sync, or mobile build; every third-party artifact is pinned with a recorded checksum and named license review; the command's own help text states that edge-tts sends item text to Microsoft
+- [x] **AUDIO-01**: One `TTSEngine` interface with named registered implementations; adding an engine is a new module plus a settings entry, never a dispatcher branch, and the registry is the model-backend shape, not a second idiom
+- [x] **AUDIO-02**: `edge-tts` (network, MP3-native), Piper (local, WAV), and `transcript-only` (the always-available null engine) all register by name; Kokoro is documented as a registration target and is not built
+- [x] **AUDIO-03**: A pack sequences stem → timed pause → key → why, with the pause duration read from a per-item-type settings map rather than a constant
+- [x] **AUDIO-04**: An unreachable or missing engine never silently falls back — the command emits the transcript, names the engine and the reason, exits non-zero, and never half-writes an audio file (temp-then-atomic-rename)
+- [x] **AUDIO-05**: `itembank export audio --objective <id>` and a daemon route both ship, reaching one runtime implementation — neither surface is the real one
+- [x] **AUDIO-06**: Output defaults to MP3 with WAV available; `--split per-item` and `--split per-pack` both ship (per-pack default); one transcript per pack is always emitted with the same text in the same order; files are named from the objective id and a content digest so unchanged re-exports are idempotent
+- [x] **AUDIO-07**: Listening records nothing (the evidence log stays the record of what was answered); no player, sync, or mobile build; every third-party artifact is pinned with a recorded checksum and named license review; the command's own help text states that edge-tts sends item text to Microsoft
 
 ## v2 Requirements
 
@@ -417,13 +417,13 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | DEL-11 | Phase 13 | Complete |
 | DEL-12 | Phase 13 | Complete |
 | DEL-13 | Phase 13 | Complete |
-| AUDIO-01 | Phase 9.1 | Pending |
-| AUDIO-02 | Phase 9.1 | Pending |
-| AUDIO-03 | Phase 9.1 | Pending |
-| AUDIO-04 | Phase 9.1 | Pending |
-| AUDIO-05 | Phase 9.1 | Pending |
-| AUDIO-06 | Phase 9.1 | Pending |
-| AUDIO-07 | Phase 9.1 | Pending |
+| AUDIO-01 | Phase 9.1 | Complete |
+| AUDIO-02 | Phase 9.1 | Complete |
+| AUDIO-03 | Phase 9.1 | Complete |
+| AUDIO-04 | Phase 9.1 | Complete |
+| AUDIO-05 | Phase 9.1 | Complete |
+| AUDIO-06 | Phase 9.1 | Complete |
+| AUDIO-07 | Phase 9.1 | Complete |
 
 **Coverage:**
 

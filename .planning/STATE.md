@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 08
-current_phase_name: model-adapter-interface-tier-gate-enforcement
+current_phase: 09.1
+current_phase_name: audio-drill-export
 status: executing
-stopped_at: Completed 08-03-PLAN.md
-last_updated: "2026-08-11T05:49:10.021Z"
+stopped_at: Completed 09.1-01..04 (audio drill export fully executed)
+last_updated: "2026-08-11T12:00:00.000Z"
 last_activity: 2026-08-11
-last_activity_desc: Phase 08 plan 08-03 completed (model interaction + rubric proposal evidence events)
+last_activity_desc: Phase 09.1 audio-drill-export completed (TTSEngine registry, edge-tts/piper engines, pack assembly, daemon route; 4/4 plans, verification passed)
 progress:
   total_phases: 18
-  completed_phases: 9
+  completed_phases: 10
   total_plans: 104
-  completed_plans: 63
+  completed_plans: 67
 ---
 
 # Project State
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-07)
 
 **Core value:** One runtime, one scorer, one evidence store â€” and the runtime, not the model, decides what reaches the learner.
-**Current focus:** Phase 08 — model-adapter-interface-tier-gate-enforcement
+**Current focus:** Phase 09.1 — audio-drill-export (COMPLETE; concurrent chats own phases 05/08/10)
 
 ## Current Position
 
-Phase: 08 (model-adapter-interface-tier-gate-enforcement) — EXECUTING
-Plan: 3 of 6 complete
-Status: Ready to execute
-Last activity: 2026-08-11 — 08-02 (model adapter interface + profile registry) completed
+Phase: 09.1 (audio-drill-export) — COMPLETE (4/4 plans; verification passed)
+Plan: all of 09.1-01..04 complete
+Status: executed on branch gsd/phase-09.1-audio-export (worktree .phase091-wt)
+Last activity: 2026-08-11 — 09.1-04 (verification: transcript-diff, no-evidence, audits, full suite) completed
 
 Progress: [██████░░░░] 61%
 
@@ -113,6 +113,10 @@ Progress: [██████░░░░] 61%
 | Phase 07 P06 | 45min | 3 tasks | 11 files |
 | Phase 06 P02 | 150 min | 3 tasks | 11 files |
 | Phase 08-model-adapter-interface-tier-gate-enforcement P08-03 | 22min | 3 tasks | 3 files |
+| Phase 09.1-audio-drill-export 09.1-01 | ~50min | 3 tasks | 6 files |
+| Phase 09.1-audio-drill-export 09.1-02 | ~45min | 3 tasks | 5 files |
+| Phase 09.1-audio-drill-export 09.1-03 | ~50min | 3 tasks | 6 files |
+| Phase 09.1-audio-drill-export 09.1-04 | ~40min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -269,6 +273,7 @@ Recent decisions affecting current work:
 - [Phase 08]: model_interaction and mark_proposal events are registered in KNOWN_EVENT_TYPES and the schema enum in the same commit as each builder (D-23); dedupe is one-generation-per-interaction with retries linked via parent_interaction_id (D-12)
 - [Phase 08]: mark_event(proposal_ref=None) folds the reference into the dedupe raw string so accepting two different proposals for the same response records two distinct human marks; the marker != 'human' guard stays byte-for-byte unchanged (D-14/D-23)
 - [Phase 08] 08-03: requirements TEACH-07/08/09, MODEL-03, MODEL-05 NOT yet marked complete -- the shared-ID gate (#2388) blocks them because 08-04/05/06 still declare them without SUMMARYs; requirements.mark-complete re-evaluates when the last declaring plan finishes
+- [Phase 09.1] 09.1-01..04: audio drill export complete on branch gsd/phase-09.1-audio-export -- one TTSEngine interface + registry (model-backend shape), transcript-only engine, edge-tts (LGPL-3.0 pin) + piper (bundled-binary sidecar decision; the wheel-bearing piper-tts is GPL-3.0-or-later and is NOT imported), assemble_pack one-writer with per-pack/per-item split, /api/export_audio daemon route, digest-stable atomic writes, no evidence write (D-01..D-16 all covered; AUDIO-01..07 marked complete in REQUIREMENTS.md)
 
 ## Deferred Verification
 
@@ -285,7 +290,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-11T05:49:09.127Z
-Stopped at: Completed 08-03-PLAN.md
+Last session: 2026-08-11T12:00:00.000Z
+Stopped at: Completed 09.1-04 (audio drill export; branch gsd/phase-09.1-audio-export, worktree .phase091-wt)
 Resume file: None
-Deferred human verification: Phases 2.1/3/4 (see Deferred Verification table above)
+Deferred human verification: Phases 2.1/3/4 (see Deferred Verification table above); 09.1 manual audio-quality checks (see 09.1-UAT.md)
