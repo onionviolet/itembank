@@ -216,12 +216,106 @@ def test_schema_uses_supported_keywords_only():
         fail("an extra free-prose field must fail the tier-gate schema")
 
 
+# ---- Task 2: the 30-plus-case adversarial corpus ----------------------------
+
+def load_cases():
+    data = json.load(open(CASES_PATH, encoding="utf-8"))
+    return data["cases"]
+
+
+def forbidden_phrases(item):
+    """Forbidden values derived from the fixture's private item fields --
+    never from the case's id: every option text, the model answer, and the
+    correct option text(s).
+    """
+    out = []
+    for L in sorted(item.get("opts") or {}):
+        out.append(item["opts"][L])
+    if item.get("model"):
+        out.append(item["model"])
+    for c in (item.get("correct") or []):
+        out.append(item.get("opts", {}).get(c, ""))
+    return sorted({norm(p) for p in out if p})
+
+
+def test_corpus_counts():
+    cases = load_cases()
+    if len(cases) < 30:
+        fail("corpus must contain at least 30 cases, got %d" % len(cases))
+    ids = [c["id"] for c in cases]
+    if ids != sorted(ids):
+        fail("corpus must be stable with sorted-by-id ordering")
+    classes = {}
+    for c in cases:
+        for field in ("id", "class", "tier", "item", "wrong_response",
+                      "picked_option", "candidate", "expected_outcome",
+                      "expected_reason"):
+            if field not in c:
+                fail("case %r is missing field %r" % (c.get("id"), field))
+        classes[c["class"]] = classes.get(c["class"], 0) + 1
+    minimums = {"disclosure": 10, "entailment": 8, "malformed": 4,
+                "allowed": 4, "rubric": 4}
+    for cls, need in minimums.items():
+        if classes.get(cls, 0) < need:
+            fail("class %r needs at least %d cases, got %d"
+                 % (cls, need, classes.get(cls, 0)))
+
+
+# Every learner-facing payload a passing case produced, as (case_id, payload),
+# for the flatten()-style boundary scan.
+_PAYLOADS = []
+
+
+def test_corpus_runner():
+    cases = load_cases()
+    for c in sorted(cases, key=lambda c: c["id"]):
+        item = c["item"]
+        res = tier_gate.evaluate_candidate(item, c["tier"], c["wrong_response"],
+                                           c["candidate"])
+        if res["outcome"] != c["expected_outcome"]:
+            fail("case %s: expected outcome %r, got %r (reason %r)"
+                 % (c["id"], c["expected_outcome"], res["outcome"], res["reason"]))
+        again = tier_gate.evaluate_candidate(item, c["tier"], c["wrong_response"],
+                                             c["candidate"])
+        if (again["outcome"], again["reason"]) != (res["outcome"], res["reason"]):
+            fail("case %s: identical replay changed outcome/reason (%r -> %r)"
+                 % (c["id"], res, again))
+        if c["expected_outcome"] == "drop":
+            if res["reason"] != c["expected_reason"]:
+                fail("case %s: expected reason %r, got %r"
+                     % (c["id"], c["expected_reason"], res["reason"]))
+            if res["plan"] is not None:
+                fail("case %s: a dropped candidate must not carry a plan" % c["id"])
+            continue
+        # A pass case renders, and its render must be clean of protected
+        # fragments; a rubric proposal always renders pending-shaped.
+        manifest = tier_gate.build_fact_manifest(
+            item, c["tier"], c["wrong_response"], c["picked_option"])
+        if c["candidate"]["kind"] == "hint_plan":
+            rendered = tier_gate.render_hint(c["candidate"], manifest)
+            if rendered is None:
+                fail("case %s: a passed hint plan must render" % c["id"])
+            ntext = norm(rendered["text"])
+            for frag in manifest["protected_fragments"]:
+                if frag and frag in ntext:
+                    fail("case %s: rendered output contains protected "
+                         "fragment %r: %r" % (c["id"], frag, rendered["text"]))
+        else:
+            rendered = tier_gate.render_proposal(c["candidate"], manifest)
+            if rendered is None or rendered["pending"] is not True:
+                fail("case %s: a proposal must render pending-shaped, got %r"
+                     % (c["id"], rendered))
+        _PAYLOADS.append((c["id"], tier_gate.learner_payload("pass", rendered)))
+
+
 def main():
     test_schema_uses_supported_keywords_only()
     test_manifest_exposes_allowed_and_protected_facts()
     test_legal_hint_passes_and_renders_fixed_template()
     test_protected_fact_drops_whole()
     test_extra_field_drops_schema_invalid()
+    test_corpus_counts()
+    test_corpus_runner()
     print("model gate roundtrip: ok")
 
 
