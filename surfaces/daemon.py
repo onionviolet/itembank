@@ -925,7 +925,12 @@ def handle_quiz_answer(handler, stem):
             result.pop("score", None)
             result.pop("explain", None)
         if result.get("action") in ("advance", "complete") and q is not None:
-            result["explain"] = explain_payload(q, bool(sess.get("reveal")))
+            # The rebuild applies the reveal policy, and for a check item it
+            # must carry the one run's per-case result (05-05 Task 1) or the
+            # actual output would be dropped from the page's explanation.
+            result["explain"] = explain_payload(
+                q, bool(sess.get("reveal")),
+                run_result=result.get("run_result"))
         _refresh_attempt_view(sess, api_id, qs, path)
         payload = result
     except SystemExit as exc:
@@ -1652,7 +1657,8 @@ def handle_api_submit(handler):
         mode in ("practice", "drill", "remediation")
     if q is not None and release_explain:
         result["explain"] = explain_payload(
-            q, bool(cfg.get("reveal")) if cfg is not None else False)
+            q, bool(cfg.get("reveal")) if cfg is not None else False,
+            run_result=result.get("run_result"))
     if mode in ("diagnostic", "exam") and result.get("action") != "advance":
         # D-12/D-13: diagnostic and unmarked exam responses carry no verdict,
         # answer, hint, explanation, or key -- the score is stripped here so

@@ -400,12 +400,19 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
     write_session(session_file, next_data)
 
     if action.get("kind") == "submit":
-        return {"accepted": accepted, "item_id": q["id"], "score": score,
-                "action": action_name, "status": next_data["status"],
-                "evidence": recorded_event,
-                "hint_tier": result.get("hint_tier"),
-                "interaction_result": result.get("interaction_result"),
-                "next": session_view(next_data, qs)}
+        ret = {"accepted": accepted, "item_id": q["id"], "score": score,
+               "action": action_name, "status": next_data["status"],
+               "evidence": recorded_event,
+               "hint_tier": result.get("hint_tier"),
+               "interaction_result": result.get("interaction_result"),
+               "next": session_view(next_data, qs)}
+        if q["type"] == "check":
+            # The one run's per-case result rides along so a surface can
+            # build the explain payload from that exact run (05-05 Task 1).
+            # Only a check item carries it; every other type's body is
+            # byte-identical to before, asserted by check_roundtrip.
+            ret["run_result"] = run_result
+        return ret
     return {"accepted": accepted, "item_id": q["id"], "action": action_name,
             "hint": result.get("hint"),
             "status": next_data["status"], "evidence": evidence_result,

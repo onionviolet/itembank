@@ -134,7 +134,10 @@ def record_answer(bank_path, qs, session_id, log, out_path, mode, q, response, e
     with open(tmp, "w", encoding="utf-8") as fh:
         fh.write(md)
     os.replace(tmp, out_path)
-    return score
+    # The per-case run result rides along so the caller can build an explain
+    # payload from the one run that produced the score (05-05 Task 1); it is
+    # None for every non-check type, and the score is unchanged.
+    return (score, run_result)
 
 
 def cmd_build(a):
