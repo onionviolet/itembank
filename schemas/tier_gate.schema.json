@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/tier_gate.schema.json",
+  "title": "itembank tier-gate candidate contract",
+  "description": "The closed candidate envelope the tier gate accepts from a provider: exactly one of hint_plan or rubric_proposal, no unknown fields, no learner-facing free-prose channel. The gate itself enforces the bounded-policy edges the in-repo validator cannot express (maxItems 2 fact_ids, maxLength 240 rationale) after schema validation; see tier_gate.evaluate_candidate.",
+  "x-itembank-version": 1,
+  "type": "object",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/hint_plan"
+    },
+    {
+      "$ref": "#/$defs/rubric_proposal"
+    }
+  ],
+  "$defs": {
+    "hint_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "interaction_id", "focus_span", "fact_ids", "move"],
+      "properties": {
+        "kind": {
+          "const": "hint_plan",
+          "description": "Discriminates the candidate envelope; a candidate that does not name one is rejected."
+        },
+        "interaction_id": {
+          "type": "string",
+          "minLength": 8,
+          "description": "The immutable interaction id the runtime minted; at most one generation per id (D-12)."
+        },
+        "focus_span": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A normalized-whitespace exact substring of the learner's most recent genuine wrong response; zero or more-than-one matches drop (D-10)."
+        },
+        "fact_ids": {
+          "type": "array",
+          "items": {"type": "string"},
+          "minItems": 1,
+          "description": "References into the runtime-built fact manifest; at most 2 distinct entries (gate-enforced), each allowed and non-ambiguous, never a provider label."
+        },
+        "move": {
+          "type": "string",
+          "enum": ["anchor_error", "guide_fact", "prompt_reflection"],
+          "description": "The one tutoring move the runtime renderer is allowed to emit; templates never assert correctness of any option."
+        }
+      }
+    },
+    "rubric_proposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "interaction_id", "points"],
+      "properties": {
+        "kind": {
+          "const": "rubric_proposal",
+          "description": "Discriminates the candidate envelope; a candidate that does not name one is rejected."
+        },
+        "interaction_id": {
+          "type": "string",
+          "minLength": 8,
+          "description": "The immutable interaction id the runtime minted."
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["point_index", "status", "rationale"],
+            "properties": {
+              "point_index": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Index into the item's authored rubric point list."
+              },
+              "status": {
+                "type": "string",
+                "enum": ["pass", "fail", "uncertain"],
+                "description": "A per-point suggestion only; it never mutates the response score or creates an accepted mark (D-14)."
+              },
+              "rationale": {
+                "type": "string",
+                "description": "Bounded provider rationale for this point; maxLength 240 is gate-enforced because the in-repo validator does not implement maxLength. Scanned for protected-fragment overlap."
+              }
+            }
+          },
+          "description": "Empty is valid and renders as pending/unknown, never a default pass."
+        }
+      }
+    }
+  }
+}
