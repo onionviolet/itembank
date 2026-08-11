@@ -282,6 +282,10 @@
           "type": "string",
           "const": "human"
         },
+        "proposal_ref": {
+          "type": ["string", "null"],
+          "description": "The event_id of the mark_proposal event this human mark accepts (plan 08-03, D-14). Always present on the event dict; null when the mark accepts no proposal. Folding it into the dedupe key means accepting two different proposals for the same response records two distinct human marks. The marker != 'human' guard is untouched: this remains the human-only accept path."
+        },
         "dedupe_key": {
           "type": "string"
         }

@@ -1099,7 +1099,7 @@ def event_by_id(log, event_id):
 
 
 def mark_event(session_id, item_id, item_ref, marks_event, verdict, rubric=None,
-                notes="", marker="human"):
+                notes="", marker="human", proposal_ref=None):
     """Build one mark event: a timestamped, first-class fact about the
     response event named by `marks_event`, appended alongside it rather
     than mutating it.
@@ -1114,11 +1114,18 @@ def mark_event(session_id, item_id, item_ref, marks_event, verdict, rubric=None,
     one as pending review instead, so any other value raises `ValueError`
     rather than being recorded as a settled fact (T-1-24).
 
+    `proposal_ref` links this human mark to the exact mark_proposal event it
+    accepts (D-14/D-24): it is recorded on the event and folded into the
+    dedupe raw string (None encodes as empty), so accepting two different
+    proposals for the same response records two distinct human marks rather
+    than deduping into one.
+
     `dedupe_key` is computed over `(session_id, marks_event, verdict, a
-    canonical encoding of rubric)`, so replaying an identical batch is
-    idempotent (`append_event` reports `already_recorded`), while a
-    genuinely corrected verdict or rubric — a different tuple — always
-    records as a new, live mark that `marks_by_event` then prefers.
+    canonical encoding of rubric, proposal_ref)`, so replaying an identical
+    batch is idempotent (`append_event` reports `already_recorded`), while a
+    genuinely corrected verdict, rubric, or proposal reference -- a
+    different tuple -- always records as a new, live mark that
+    `marks_by_event` then prefers.
     """
     if marker != "human":
         raise ValueError(
@@ -1128,7 +1135,8 @@ def mark_event(session_id, item_id, item_ref, marks_event, verdict, rubric=None,
     rubric = [{"point": r["point"], "pass": bool(r["pass"])} for r in (rubric or [])]
     rubric_canon = json.dumps(rubric, ensure_ascii=False, sort_keys=True)
     verdict = bool(verdict)
-    raw = "%s|%s|%s|%s" % (session_id, marks_event, verdict, rubric_canon)
+    raw = "%s|%s|%s|%s|%s" % (session_id, marks_event, verdict, rubric_canon,
+                               proposal_ref or "")
     return {
         "schema_version": EVENT_SCHEMA_VERSION,
         "event_id": new_event_id(),
@@ -1142,6 +1150,7 @@ def mark_event(session_id, item_id, item_ref, marks_event, verdict, rubric=None,
         "rubric": rubric,
         "notes": notes or "",
         "marker": marker,
+        "proposal_ref": proposal_ref,
         "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
     }
 
@@ -1853,6 +1862,29 @@ def proposals_for(log, session_id, response_event_id=None):
             and ev.get("session_id") == session_id
             and (response_event_id is None
                  or ev.get("response_event_id") == response_event_id)]
+
+
+def proposal_summary(proposal):
+    """Derive {points, pass_count, uncertain_count, pending} from a
+    mark_proposal event's N per-point statuses -- a pure read-time
+    derivation that never stores a fractional score anywhere (D-24). A
+    "4 of 5" style count is computed here, at read time, from the statuses
+    alone.
+
+    `pending` is True when any point is `uncertain` or the points array is
+    empty -- a suggestion with open points stays pending until a human
+    decides (D-22). An unaccepted proposal stays pending forever; this
+    function never fabricates a default pass (D-25).
+    """
+    pts = proposal.get("points") or []
+    pass_count = sum(1 for p in pts if p.get("status") == "pass")
+    uncertain_count = sum(1 for p in pts if p.get("status") == "uncertain")
+    return {
+        "points": len(pts),
+        "pass_count": pass_count,
+        "uncertain_count": uncertain_count,
+        "pending": len(pts) == 0 or uncertain_count > 0,
+    }
 
 
 def day_log_from_events(log):
