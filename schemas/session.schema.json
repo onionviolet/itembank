@@ -44,6 +44,11 @@
       "type": "string",
       "enum": ["diagnostic", "practice", "exam", "remediation", "drill"]
     },
+    "selection_mode": {
+      "type": "string",
+      "enum": ["diagnostic", "practice", "remediation", "exam"],
+      "description": "The selection composition that chose this session's items; `mode` is the feedback policy that governs what the learner is shown. Optional: a session written before plan 07-04 has none."
+    },
     "objective": {
       "type": "string",
       "description": "Empty string when the session was not limited to one objective"

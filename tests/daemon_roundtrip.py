@@ -1017,15 +1017,45 @@ def check_cli_twin_route():
         proc.terminate()
 
 
+def check_disclosure_route():
+    """13-04: `GET /disclosure` returns the one-disclosure render-hook state
+    (13-UI-SPEC 7.2) -- the locked 02.1 copy, the resolved settings path, and
+    show flipping off once the daemon-owned notified_at record exists.
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        status, body = get(url + "disclosure")
+        if status != 200:
+            fail("GET /disclosure returned %d, expected 200" % status)
+        state = json.loads(body)
+        if state.get("show") is not True:
+            fail("a fresh daemon's disclosure state should show")
+        if "Nothing but the request leaves this machine." not in state.get("copy", ""):
+            fail("the disclosure copy drifted from the locked 02.1 text")
+        if not state.get("settings_path", "").endswith("itembank.json"):
+            fail("the disclosure settings_path is not the resolved file: %r"
+                 % state.get("settings_path"))
+        from surfaces import update
+        update.write_check_state(workdir, notified_at="2026-08-10T00:00:00Z")
+        status, body = get(url + "disclosure")
+        state2 = json.loads(body)
+        if state2.get("show") is not False:
+            fail("writing notified_at must flip show off (one record)")
+    finally:
+        proc.terminate()
+
+
 def check_api_route_scope():
-    """D-04 scopes `/api/*` to exactly four routes this phase, and the count
+    """D-04's four session routes plus Phase 6's `/api/hint`, and the count
     is asserted rather than trusted.
     """
-    if len(daemon.API_ROUTES) != 4:
-        fail("D-04 scopes /api/* to exactly four routes this phase; API_ROUTES has "
+    if len(daemon.API_ROUTES) != 5:
+        fail("D-04 + Phase 6 scope /api/* to exactly five routes; API_ROUTES has "
              "%d" % len(daemon.API_ROUTES))
-    if not {"start", "next", "submit", "report"} <= set(daemon.ROUTE_CLI.values()):
-        fail("ROUTE_CLI is missing one of the four session CLI commands")
+    if not {"start", "next", "submit", "hint", "report"} <= set(daemon.ROUTE_CLI.values()):
+        fail("ROUTE_CLI is missing one of the five session CLI commands")
 
 
 def snapshot_dirs(root):
@@ -1056,6 +1086,13 @@ def api_correct_answer(by_id, item):
     necessarily its key).
     """
     return serve_roundtrip.correct_answer(by_id[item["id"]])
+
+
+def short_holds_cursor(by_id, item):
+    """Phase 6: a `short` response stays pending for a human marker and
+    never advances the cursor, so a driving loop must stop at it rather
+    than spin."""
+    return by_id[item["id"]]["type"] == "short"
 
 
 def check_api_sitting():
@@ -1147,18 +1184,31 @@ def check_api_survives_routine_error():
         by_id = api_by_id()
         state = started
         while state["status"] == "active":
+            if short_holds_cursor(by_id, state["item"]):
+                break
             answer = api_correct_answer(by_id, state["item"])
             result = post(url + "api/submit", {"session_id": session_id, "answer": answer})
             state = result["next"]
-        if state["status"] != "complete":
-            fail("driving a full sitting over /api/* did not reach status complete")
-
+        # Phase 6: the short item stays pending for a human marker, so the
+        # driving loop above stops there. Record it, then exercise the
+        # routine-error path (a session file a later build wrote, which
+        # read_session must refuse by name, never crash the daemon on).
+        result = post(url + "api/submit", {"session_id": session_id,
+                                           "answer": "leave for a marker"})
+        if result.get("action") != "defer_feedback":
+            fail("a pending short response must defer feedback")
+        session_file = started["session_file"]
+        with open(session_file, encoding="utf-8") as fh:
+            corrupt = json.load(fh)
+        corrupt["schema_version"] = 999
+        with open(session_file, "w", encoding="utf-8") as fh:
+            json.dump(corrupt, fh)
         try:
             post(url + "api/submit", {"session_id": session_id, "answer": "anything"})
-            fail("submitting past a complete session did not return a 4xx")
+            fail("submitting against a future-versioned session did not return a 4xx")
         except urllib.error.HTTPError as exc:
             if exc.code < 400 or exc.code >= 500:
-                fail("submitting past a complete session returned HTTP %d, expected 4xx"
+                fail("the routine-error submit returned HTTP %d, expected 4xx"
                      % exc.code)
 
         # The test with teeth: without this second assertion the check above
@@ -1462,6 +1512,8 @@ def check_api_cli_parity():
         session_id = started["session_id"]
         state = started
         while state["status"] == "active":
+            if short_holds_cursor(by_id, state["item"]):
+                break
             answer = api_correct_answer(by_id, state["item"])
             result = post(url + "api/submit", {"session_id": session_id, "answer": answer})
             state = result["next"]
@@ -1473,6 +1525,8 @@ def check_api_cli_parity():
     first = agent_roundtrip.run("start", cli_bank, "--count", "6", "--seed", "7",
                                 "--mode", "practice", "--out", cli_session)
     while first["status"] == "active":
+        if short_holds_cursor(by_id, first["item"]):
+            break
         answer = api_correct_answer(by_id, first["item"])
         result = agent_roundtrip.run("submit", cli_session, "--answer",
                                      json.dumps(answer))
@@ -1546,6 +1600,11 @@ def drive_sitting(url, session_id, by_id, short_answer="leave this one for a hum
     while state["status"] == "active":
         item = state["item"]
         q = by_id[item["id"]]
+        if q["type"] == "short":
+            # A pending short never advances; record it and stop.
+            post(url + "api/submit", {"session_id": session_id,
+                                      "answer": short_answer})
+            break
         answer = short_answer if q["type"] == "short" else api_correct_answer(by_id, item)
         result = post(url + "api/submit", {"session_id": session_id, "answer": answer})
         state = result["next"]
@@ -1572,6 +1631,11 @@ def check_report_populated():
             q = by_id[item["id"]]
             if q["type"] == "short":
                 answer = "leave this one for a human marker"
+                result = post(url + "api/submit",
+                              {"session_id": session_id, "answer": answer})
+                if result.get("action") != "defer_feedback":
+                    fail("a pending short response must defer feedback")
+                break
             elif not wrong_done:
                 answer = serve_roundtrip.wrong_answer(q)
                 wrong_done = True
@@ -2400,6 +2464,7 @@ def main():
         check_day_edit_conflict_and_force,
         check_route_cli_inventory,
         check_cli_twin_route,
+        check_disclosure_route,
         check_api_route_scope,
         check_api_sitting,
         check_api_duplicate_submit_dedupes,

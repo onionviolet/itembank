@@ -446,6 +446,109 @@ def test_evidence_location_is_identical_with_and_without_the_shell():
              % (sidecar_log, cli_log))
 
 
+def test_latest_json_shape():
+    """13-04 task 1 (D-08): the release pipeline publishes latest.json with
+    the documented tauri-plugin-updater shape beside SHA256SUMS.txt from the
+    same tag -- one channel, two consumers -- and the hook writes nothing
+    until the installer and its minisign signature exist.
+    """
+    from surfaces import update as update_module  # noqa: F401  (channel sanity)
+    out_dir = tempfile.mkdtemp()
+    try:
+        signature = ("untrusted comment: minisign signature from a build "
+                     "secret\nRFBAAABEXAMPLE==")
+        path = build.latest_json(out_dir, "v0.3.0",
+                                 "itembank-0.3.0-setup.exe", signature)
+        doc = json.load(open(path, encoding="utf-8"))
+        for key in ("version", "notes", "pub_date", "platforms"):
+            if key not in doc:
+                fail("latest.json is missing %r" % key)
+        if doc["version"] != "0.3.0":
+            fail("latest.json version %r did not drop the v prefix"
+                 % doc["version"])
+        plat = doc["platforms"]["windows-x86_64"]
+        if plat["signature"] != signature:
+            fail("latest.json signature drifted from the minisign output")
+        expected_url = ("https://github.com/onionviolet/itembank/releases/"
+                        "download/v0.3.0/itembank-0.3.0-setup.exe")
+        if plat["url"] != expected_url:
+            fail("latest.json url %r != %r" % (plat["url"], expected_url))
+
+        if build.latest_json_hook(out_dir) is not None:
+            fail("latest_json_hook published a manifest without the installer "
+                 "and signature present")
+        installer = os.path.join(out_dir, "itembank-0.3.0-setup.exe")
+        open(installer, "w").write("synthetic installer bytes")
+        open(os.path.join(out_dir, "itembank-0.3.0-setup.exe.sig"),
+             "w", encoding="utf-8").write(signature)
+        published = build.latest_json_hook(out_dir)
+        if published is None or not os.path.exists(published):
+            fail("latest_json_hook did not publish with installer+sig present")
+        sha = os.path.join(out_dir, "SHA256SUMS.txt")
+        if not os.path.exists(sha):
+            build.sha256sums(out_dir)
+        checksums = open(sha, encoding="utf-8").read()
+        if "latest.json" not in checksums:
+            fail("latest.json is not covered by SHA256SUMS.txt")
+    finally:
+        shutil.rmtree(out_dir, ignore_errors=True)
+
+
+def test_disclosure_state_and_forbidden_words():
+    """13-04 task 2 (13-UI-SPEC 7.2): the one-disclosure render hook carries
+    the locked 02.1 copy plus exactly the single additive settings-path line,
+    flips show off once notified_at is written, and no telemetry word appears
+    in updater copy.
+    """
+    from surfaces import update
+    base = tempfile.mkdtemp()
+    try:
+        state = update.disclosure_state(base)
+        locked_copy = state["copy"]
+        if state["show"] is not True:
+            fail("a fresh base should show the disclosure")
+        if "Nothing but the request leaves this machine." not in state["copy"]:
+            fail("disclosure copy drifted from the locked 02.1 text")
+        if 'Set "update_policy": "opt_in"' not in state["copy"]:
+            fail("disclosure copy lost the opt_in sentence")
+        if "This notice appears once." not in state["copy"]:
+            fail("disclosure copy lost the appears-once sentence")
+        if not state["settings_path"].endswith("itembank.json"):
+            fail("settings_path is not the resolved itembank.json path: %r"
+                 % state["settings_path"])
+        update.write_check_state(base, notified_at="2026-08-10T00:00:00Z")
+        flipped = update.disclosure_state(base)
+        if flipped["show"] is not False:
+            fail("writing notified_at must flip show off (one record)")
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+    # The shell's additive line and the locked update-available copy.
+    shell_notice = ("Your settings file is at ")
+    update_available = ("A new itembank version is available: v<latest> "
+                        "(you're on v<current>).")
+    restart_copy = ("Installing restarts itembank. Finish anything in "
+                    "progress first.")
+    ui_spec = open(
+        os.path.join(ROOT, ".planning", "phases",
+                     "13-desktop-packaging-tauri-sidecar", "13-UI-SPEC.md"),
+        encoding="utf-8").read()
+    if update_available not in ui_spec:
+        fail("the in-window update-available copy drifted from 13-UI-SPEC 7.3")
+    if restart_copy not in ui_spec:
+        fail("the restart copy drifted from 13-UI-SPEC 7.3")
+    forbidden = ("usage", "analytics", "telemetry", "diagnostics",
+                 "anonymous", "help us improve", "opt out of data collection",
+                 "crash reports")
+    copy_sources = [locked_copy + shell_notice, update_available, restart_copy]
+    for source in copy_sources:
+        low = source.lower()
+        for word in forbidden:
+            if word in low:
+                fail("forbidden telemetry word %r appears in updater copy"
+                     % word)
+
+
 def main():
     out_dir = tempfile.mkdtemp()
     try:
@@ -462,6 +565,8 @@ def main():
         test_install_notice_cannot_ship_placeholders()
         test_headless_loop_without_the_shell()
         test_evidence_location_is_identical_with_and_without_the_shell()
+        test_latest_json_shape()
+        test_disclosure_state_and_forbidden_words()
     finally:
         shutil.rmtree(out_dir, ignore_errors=True)
     test_onedir_sidecar_runs_and_is_sized()

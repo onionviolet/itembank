@@ -12,10 +12,14 @@ Standard library only, runnable as `python tests/selection_roundtrip.py`.
 """
 import json
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+import evidence                                            # noqa: E402
 import model                                                # noqa: E402
 import schema_validate                                      # noqa: E402
 import selection                                            # noqa: E402
@@ -267,11 +271,112 @@ def check_prereq_unknown_lint():
 
 
 def check_selection_mode_recorded():
-    pending("check_selection_mode_recorded", "07-04")
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "selection_bank.md")
+        shutil.copyfile(BANK, bank)
+        out = os.path.join(tmp, "s.json")
+        r = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "itembank.py"), "start", bank,
+             "--count", "3", "--seed", "1", "--selection-mode", "remediation",
+             "--mode", "exam", "--out", out],
+            cwd=ROOT, capture_output=True, text=True)
+        if r.returncode != 0:
+            fail("start --selection-mode remediation --mode exam failed: %r"
+                 % r.stdout[-300:])
+        data = json.load(open(out, encoding="utf-8"))
+        if data.get("selection_mode") != "remediation":
+            fail("session selection_mode is %r, expected remediation"
+                 % data.get("selection_mode"))
+        if data.get("mode") != "exam":
+            fail("session feedback mode is %r, expected exam -- the two "
+                 "fields must be set independently" % data.get("mode"))
+        schema = json.load(open(os.path.join(ROOT, "schemas",
+                                             "session.schema.json"),
+                                encoding="utf-8"))
+        errs = schema_validate.validate(data, schema)
+        if errs:
+            fail("session fails session.schema.json: %s" % "; ".join(errs))
+        print("check_selection_mode_recorded: selection_mode and mode are "
+              "distinct recorded fields")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def check_selection_spec_recorded():
-    pending("check_selection_spec_recorded", "07-04")
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "selection_bank.md")
+        shutil.copyfile(BANK, bank)
+        out = os.path.join(tmp, "s.json")
+        tool = os.path.join(ROOT, "itembank.py")
+        r = subprocess.run(
+            [sys.executable, tool, "start", bank,
+             "--count", "3", "--seed", "7", "--selection-mode", "practice",
+             "--out", out],
+            cwd=ROOT, capture_output=True, text=True)
+        if r.returncode != 0:
+            fail("start failed: %r" % r.stdout[-300:])
+        log = os.path.join(tmp, "_evidence", "evidence.jsonl")
+        events = [json.loads(l) for l in open(log, encoding="utf-8")]
+        data = json.load(open(out, encoding="utf-8"))
+        sess = data["session_id"]
+        sel = [e for e in events
+               if e.get("event_type") == "selection"
+               and e.get("session_id") == sess]
+        if len(sel) != 1:
+            fail("expected exactly one selection event for the session, got %d"
+                 % len(sel))
+        spec = sel[0]["selection_spec"]
+        if (spec.get("objective") != "" or spec.get("count") != 3
+                or spec.get("seed") != 7
+                or spec.get("selection_mode") != "practice"):
+            fail("recorded selection_spec does not round-trip the request: %r"
+                 % spec)
+        qs = model.load(bank)
+        served = [evidence.evidence_key(qs[i]) for i in data["items"]]
+        if sel[0]["items"] != served:
+            fail("selection event items %r != session served items %r"
+                 % (sel[0]["items"], served))
+        if set(spec) - set(selection.SPEC_FIELDS):
+            fail("recorded selection_spec carries keys outside SPEC_FIELDS: %r"
+                 % (set(spec) - set(selection.SPEC_FIELDS)))
+        # Submit one answer; the response event must name the same composition.
+        q = qs[data["items"][0]]
+        t = q["type"]
+        if t == "mc":
+            answer = q["correct"][0]
+        elif t == "multi":
+            answer = json.dumps(list(q["correct"]))
+        elif t in ("table", "dnd"):
+            answer = json.dumps({str(i): row["cat"]
+                                 for i, row in enumerate(q["rows"])})
+        elif t == "build":
+            answer = json.dumps(list(q["steps"]))
+        else:
+            answer = "A constructed response."
+        r2 = subprocess.run(
+            [sys.executable, tool, "submit", out, "--answer", answer],
+            cwd=ROOT, capture_output=True, text=True)
+        if r2.returncode != 0:
+            fail("submit failed: %r" % r2.stdout[-300:])
+        events2 = [json.loads(l) for l in open(log, encoding="utf-8")]
+        resp = [e for e in events2
+                if e.get("event_type") == "response"
+                and e.get("session_id") == sess]
+        if not resp or resp[-1].get("selection_mode") != "practice":
+            fail("response event does not carry the selection_mode that "
+                 "served it")
+        # Deleting the session file must not destroy the record.
+        os.remove(out)
+        events3 = [json.loads(l) for l in open(log, encoding="utf-8")]
+        if not any(e.get("event_type") == "selection"
+                   and e.get("session_id") == sess for e in events3):
+            fail("deleting the session file lost the selection record")
+        print("check_selection_spec_recorded: one selection event per sitting, "
+              "spec + items recorded, survives session deletion")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def check_mode_compositions_differ():

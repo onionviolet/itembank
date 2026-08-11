@@ -23,7 +23,14 @@ import model  # noqa: F401  (the question shape `select` consumes comes from mod
 # this phase appends its own field to this tuple in the same commit that wires
 # it.
 SPEC_FIELDS = ("objective", "count", "seed", "exclude_item_ids",
-               "pair", "prerequisite")
+               "pair", "prerequisite", "selection_mode")
+
+# The four selection compositions. These strings deliberately share three of
+# `daemon.SESSION_MODES`' values (`diagnostic`, `practice`, `exam`) and one
+# orphan (`remediation`) -- they live in a DIFFERENT field than the feedback
+# policy `mode` for exactly that reason (D-11). A future reader who "tidies"
+# one into the other is undoing a one-way door.
+SELECTION_MODES = ("diagnostic", "practice", "remediation", "exam")
 
 # Matches `surfaces/cli.py`'s `--count` default and `handle_api_start`'s
 # `data.get("count", 10)`.
@@ -100,6 +107,14 @@ def select(questions, spec, history):
     if not isinstance(count, int) or isinstance(count, bool) or count < 1:
         sys.exit("count must be a positive integer, got %r" % (count,))
 
+    # `practice` is the default rather than `diagnostic`: a diagnostic
+    # composition deliberately ignores cooldown and spreads at most one item
+    # per objective, which is the wrong shape for an ordinary sitting.
+    selection_mode = spec.get("selection_mode", "practice")
+    if selection_mode not in SELECTION_MODES:
+        sys.exit("unknown selection_mode %r; known modes: %s"
+                 % (selection_mode, ", ".join(SELECTION_MODES)))
+
     objective = spec.get("objective") or ""
     pair = spec.get("pair") or ""
     prereq = spec.get("prerequisite") or ""
@@ -166,7 +181,8 @@ def select(questions, spec, history):
             "runner_up": runner_up,
         })
 
-    resolved = {"objective": objective, "count": count, "seed": seed}
+    resolved = {"objective": objective, "count": count, "seed": seed,
+                "selection_mode": selection_mode}
     if pair:
         resolved["pair"] = pair
     if prereq:
