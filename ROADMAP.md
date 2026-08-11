@@ -27,12 +27,24 @@ learner evidence remain in private storage.
 - Offline HTML quiz and loopback server with incremental attempt writes.
 - Deterministic JSON sessions with `start`, `next`, `submit`, and `report`.
 - Answer-key withholding and deterministic scoring for structured responses.
-- Local session evidence grouped by objective.
+- Local session evidence grouped by objective, with `retract`, `render`, and
+  `mark` as auditable compensating events.
 - Dependency-free flashcard and Learn surface through `study`.
-- Generic Basic and Cloze Anki TSV export through `export`.
-- Synthetic fixture tests for server, agent, study, and export paths.
+- Generic Basic and Cloze Anki TSV export, plus GIFT for LMS import.
+- Synthetic fixture tests for server, agent, study, lesson, and export paths.
 - Repository guard against real question-bank content.
 - Daily cross-subject surface (`day`): dated-plan parsing, floor rule, streak log.
+- Daemon consolidation: one process, one port, every surface (Phase 2).
+- Packaging and self-update: one `.pyz` release plus per-OS launcher shims,
+  SHA256SUMS, opt-in version check (Phase 2.1).
+- Lesson format and in-app reader: `## LESSON` grammar, `[LESSON-SRC:]`
+  external sources, `[LESSON-REF:]` links, the slug rule (Phase 3).
+- Lesson rich blocks: `## TERMS` glossary behind a runtime gate, `[!KEY]`
+  callouts with Anki round-trip, one-sentence `Objective:` lines, a
+  five-style registry with `render-style` (Phase 3.1).
+- Agent onboarding: `AGENTS.md` plus four repo skills (`absorb-book`,
+  `curriculum-design`, `guiding-questions`, `author-bank`) in interoperable
+  SKILL.md format, mirrored for Codex and Claude Code.
 
 ## Next improvements, in order
 
@@ -68,7 +80,30 @@ learner evidence remain in private storage.
 - Provide an agent usage contract covering permissions, answer leakage, retries,
   manual grading, and what the agent may or may not infer.
 
-### 5. Strengthen content quality
+### 5. Teach the wrong answer (hint ladder and feedback modes)
+
+- Add a deterministic hint ladder (lesson pointer → objective → trap →
+  rationale for the picked option → discriminator → reveal), one tier per
+  call, wrong answers holding the cursor.
+- Make feedback a property of session mode: drill reveals immediately,
+  practice runs the ladder, diagnostic and exam stay silent until the sitting
+  ends or the attempt is marked.
+- Record `hints_used` per response so `report` distinguishes "right at tier 1"
+  from "right at tier 4".
+- Gate content reveals in the runtime, never by model reluctance: the locked
+  tier is visible runtime state.
+
+### 6. Model adapter and tier-gate enforcement
+
+- Let a tutoring model read the item, the key, the rationale, and the
+  learner's actual wrong answer — and write about *that* error at the tier the
+  runtime permits; an adversarially prompted reveal is dropped, never shown.
+- Keep backend swap a config change: hosted CLI and local OpenAI-compatible
+  servers share one code path, and everything degrades offline.
+- Route `short` rubric marking through the adapter to a `pending` review
+  state; auto-accepting a model suggestion must be impossible.
+
+### 7. Strengthen content quality
 
 - Validate objective coverage and prerequisite references.
 - Detect near-duplicate stems and answer explanations.
@@ -76,7 +111,7 @@ learner evidence remain in private storage.
 - Add ambiguity, unsupported-superlative, and answer-leakage warnings.
 - Add fixture banks for every linter rule and every response type.
 
-### 6. Keep the boundaries honest
+### 8. Keep the boundaries honest
 
 - Do not add question generation to the runtime.
 - Do not auto-grade prose into mastery without a review state.

@@ -128,6 +128,38 @@ The runtime owns answer keys, scoring, session position, and attempt recording.
 An agent owns explanation and remediation choices. This separation prevents a
 tutor from silently changing the test or grading its own explanation.
 
+## Using itembank with an AI coding agent
+
+The same loops work whether the agent is you, a coding agent you pointed at
+this repo, or a tutor you spawned. Everything an agent needs to start cold is
+in `AGENTS.md` at the repository root (read by Codex, Cursor, Gemini CLI, and
+Claude Code), with the full project context in `.claude/CLAUDE.md`.
+
+**Repo skills.** This repository ships four playbooks that an agent can invoke
+by name, in `.agents/skills/` (Codex and agents.md readers) and mirrored in
+`.claude/skills/` (Claude Code):
+
+| Skill | What it does |
+|---|---|
+| `absorb-book` | Turn a textbook, chapter, or notes into lesson + bank content |
+| `curriculum-design` | Map a syllabus to objective coverage and find the gaps |
+| `guiding-questions` | Tutor a learner through the JSON session protocol, one diagnostic question at a time |
+| `author-bank` | Write or extend items and make them lint clean |
+
+The two skill trees are identical mirrors — edit either and copy to the other.
+
+**The rules of the road for any agent** (full contract in `AGENTS.md` and
+`.planning/UI-SPEC.md` §9):
+
+- The runtime, not the model, decides what reaches the learner: keys, tiers,
+  and scoring are the runtime's call. An agent may ask one diagnostic question
+  per wrong answer and choose among the permitted explanation forms, but never
+  reveal the key or decide a tier.
+- `short` answers are recorded, never auto-graded; they stay `pending` until a
+  marker grades them against the rubric.
+- Never commit a real question bank to this repository — real banks live in
+  private storage; `fixtures/` is synthetic.
+
 `study` and `export` are generic bank surfaces. Subject-specific pipelines such
 as Mandarin TTS and `.apkg` packaging remain separate because they require
 content-specific dependencies and network behavior.
@@ -349,6 +381,9 @@ surfaces/day.py           the day cockpit
 surfaces/cli.py           argparse, and the commands that need no surface
 surfaces/theme.py         the one palette
 GRADING.md                how to mark an attempt file; hand this to your marker
+AGENTS.md                 agent on-ramp: layers, boundaries, authoring + tutoring loops
+.agents/skills/           agent playbooks (absorb-book, curriculum-design, guiding-questions, author-bank)
+.claude/skills/           same playbooks, mirrored for Claude Code
 fixtures/sample_bank.md   synthetic, exercises all six types, lints clean
 fixtures/broken_bank.md   deliberately defective; CI asserts lint catches each defect
 tests/serve_roundtrip.py  asserts a served sitting reaches disk and leaks no key

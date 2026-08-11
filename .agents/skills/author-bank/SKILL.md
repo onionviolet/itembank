@@ -1,0 +1,96 @@
+---
+name: author-bank
+description: Write or extend itembank question banks that lint clean. Use when asked to author items — the write → lint → fix loop, with the distractor, position-skew, and confidence rules the linter enforces.
+---
+
+# Author an itembank bank
+
+You write items in the itembank format and make them lint clean. The linter
+is your reviewer: it names every structural and quality error by item number,
+and you fix what it names — you never argue with it and never skip an `error`.
+
+## 1. Read the contract first
+
+```bash
+python itembank.py spec
+```
+
+The contract defines the item grammar, the six types, the lesson section, and
+the lint codes. Read it before drafting. Do not invent fields.
+
+## 2. Draft the bank
+
+Items are `Qn.` blocks with shared fields:
+
+```markdown
+Q1. Stem text   (difficulty: application)
+[ID: ...]                      # added by `id-assign`, not by hand
+[OBJECTIVE: Airway / positioning]
+[LESSON-REF: The Airway, Step By Step]   # optional, links to a lesson heading
+
+A) Option A
+B) Option B
+C) Option C
+D) Option D
+
+CORRECT: B
+
+WHY BEST: The one-sentence reason B is right.
+
+KEY DISCRIMINATOR: The single fact the item turns on.
+
+SECOND-BEST: C. Why C is tempting and wrong here.
+
+DISTRACTOR ANALYSIS:
+- A) When this WOULD be correct (every distractor must say this).
+- B) Correct: why B is right.
+- C) When this WOULD be correct.
+- D) When this WOULD be correct.
+
+TRAP: The misread this item punishes.
+
+CONFIDENCE: high
+```
+
+Type variants: `[TYPE: multi]` + `[SELECT: 2]`, `[TYPE: table]` +
+`[CATEGORIES: ...]`, `[TYPE: build]` (ordered steps), `[TYPE: dnd]` (sort into
+buckets), `[TYPE: short]` (constructed response — never auto-graded; add a
+`RUBRIC:` so a marker can grade it).
+
+## 3. Lint and fix
+
+```bash
+python itembank.py lint bank.md
+```
+
+Rules that matter (all enforced — write to them, do not fight them):
+
+- **Every distractor must say when it WOULD be correct.** This is the first
+  thing dropped under length pressure and it is a hard error.
+- **No answer-position skew.** Correct letters must spread; clustering on one
+  letter is flagged.
+- `SELECT:` count matches keyed count; keys name existing options.
+- `table` categories are declared; `build` steps are unique; stems do not
+  duplicate.
+- Missing `WHY BEST:` is an error; `CONFIDENCE: low` items draw a lint
+  warning on every lint — raise the confidence or accept the warning.
+
+Iterate: lint → fix → lint, until `error` count is zero. Warnings advise —
+resolve the quality ones.
+
+## 4. Finish
+
+```bash
+python itembank.py id-assign bank.md    # mint ids + fingerprints (the only writer)
+python itembank.py stats bank.md        # coverage + difficulty spread
+python itembank.py study bank.md        # flashcards, optional sanity check
+```
+
+## Boundaries
+
+- Never commit a real bank to this repository (private content lives
+  elsewhere; `fixtures/` is synthetic).
+- Never auto-grade prose: `short` items are recorded, left `pending`, and
+  marked later against the rubric.
+- The runtime decides what a learner sees — an item's `TRAP:` and rationale
+  are key material, not teaching text to blurt out mid-session.

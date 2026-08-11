@@ -1335,6 +1335,47 @@ Plans:
 
 - [ ] TBD (promote per the trigger above)
 
+### Phase 999.5: Agent Onboarding & Skill Library (BACKLOG, added 2026-08-10)
+
+**Goal:** Keep the agent on-ramp — `AGENTS.md` and the four repo skills
+(`absorb-book`, `curriculum-design`, `guiding-questions`, `author-bank`) —
+in sync with the shipped command surface, and add skills as later phases
+land. The skills are the living, prose half of the agentic goal: a fresh
+agent reads `AGENTS.md`, invokes a playbook, and runs the loop without
+scraping HTML or reimplementing scoring.
+**Requirements:** TBD (feeds MODEL-04's agent usage contract, Phase 8)
+**Depends on:** nothing in this roadmap. It is a maintenance obligation, not
+a feature: every later phase that changes the CLI or the session protocol
+changes what the skills must say.
+**Plans:** 0 plans
+
+**Why this is backlog.** The on-ramp already exists (2026-08-10) and documents
+the *shipped* surface — that is why it is truthful. It becomes load-bearing
+the moment a phase ships a command that changes what a skill says. The named
+trigger points, so the next review is a lookup and not a re-argument:
+
+- **Phase 6 (hint ladder, cursor-hold)** — `guiding-questions` must gain the
+  hint tier: `hint`-style command, cursor-hold semantics, `hints_used` in
+  `report`. Today it correctly documents `submit` auto-advancing; Phase 6
+  changes that sentence.
+- **Phase 7 (selection engine)** — `guiding-questions` gains `--objective`/
+  `--mode` selection semantics and the inspectable "why this item" reason.
+- **Phase 8 (model adapter, agent usage contract)** — the formal
+  machine-readable contract (`schemas/agent_usage.schema.json`, `itembank
+  usage`) ships; the skills must reference it and stop being the only agent
+  contract. Add a model-adapter skill or extend `guiding-questions` with the
+  adapter's tier-gated hinting.
+- **Phase 11 (curriculum auditor)** — `curriculum-design` gains the
+  auditor's citation-per-coverage-claim loop.
+- **Phase 999.3 (MCP surface)** — add an MCP skill mapping tools to the
+  existing playbooks, or extend `guiding-questions`; the MCP surface must not
+  arrive with a second parser/scorer (Extensibility Rule 9).
+
+**Maintenance convention:** the two skill trees (`.agents/skills/` and
+`.claude/skills/`) are byte-identical mirrors; editing one requires mirroring
+the other in the same change. Skills document only the shipped surface —
+a planned command is never written into a skill before it exists.
+
 ### Recorded descopes (2026-08-10)
 
 | Item | Disposition |
