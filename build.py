@@ -32,7 +32,8 @@ import itembank                                                              # n
 # learner evidence and any private bank out of the artifact (T-02.1-01).
 STAGE_FILES = (
     "itembank.py", "model.py", "runtime.py", "server.py", "evidence.py",
-    "schema_validate.py", "selection.py", "resources.py", "subjects.py",
+    "schema_validate.py", "selection.py", "retention.py", "resources.py",
+    "subjects.py",
 )
 STAGE_DIRS = ("surfaces", "schemas", "styles", "fonts", "vendor")
 

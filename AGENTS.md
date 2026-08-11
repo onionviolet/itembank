@@ -102,6 +102,20 @@ Your side of the contract (see UI-SPEC.md §9 for the full list):
 - A learner's response may be `submit`-ted multiple times only as the runtime
   allows; you never change the test or the scoring.
 
+## Commit discipline (standing rule)
+
+**One atomic commit per plan.** When executing a GSD plan (or any phase
+task), commit exactly once per plan, after that plan's own verification
+passes, and only that plan's files. Do not batch two plans into one commit,
+do not commit another plan's in-flight work, and do not leave a plan's work
+uncommitted in a worktree — a nested worktree under the main checkout can be
+removed by a concurrent process, and uncommitted work is then lost. If the
+working tree carries another agent's uncommitted edits (this repo is
+sometimes executed by concurrent chats), stage only your own plan's files by
+name, never `git add -A`. Commit messages follow the repo's
+`<type>(<plan>): <summary>` shape, e.g. `feat(10-01): ...` or
+`test(10-02): ...`.
+
 ## Testing
 
 Every test is stdlib-only and self-contained. There is no pytest dependency:

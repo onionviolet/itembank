@@ -18,14 +18,16 @@ import urllib.parse, urllib.request, uuid
 
 import evidence
 import resources
+import retention
 import selection
 import server
 import subjects
 from model import (lesson_slug, load, parse_bank, parse_key_blocks,
                    parse_lesson, parse_terms)
 from runtime import explain_payload, glossable, read_session, upgrade_session
-from surfaces import (day, launcher, lesson, presentation, quiz, seeding,
-                      session, settings, study, update)
+from surfaces import (day, launcher, lesson, presentation, quiz, retention_view,
+                      seeding, session, settings, study, update)
+from surfaces import audio as audio_surface
 from surfaces import theme
 
 
@@ -119,6 +121,9 @@ KATEX_ASSETS.update({
         "application/javascript; charset=utf-8"),
 })
 del _font, _ext, _mime
+
+LESSON_CHECK_RE = re.compile(r"^/lesson/(?P<stem>[^/]+)/check$")
+LESSON_SKIP_RE = re.compile(r"^/lesson/(?P<stem>[^/]+)/skip$")
 GLOSS_GET_RE = re.compile(r"^/gloss/(?P<stem>[^/]+)/(?P<slug>[^/]+)$")
 KEY_REVIEW_RE = re.compile(r"^/key/(?P<key_id>[^/]+)/review$")
 DAY_GET_RE = re.compile(r"^/day/(?P<stem>[^/]+)$")
@@ -140,20 +145,26 @@ DAY_EDIT_ALLOWED_FIELDS = ("revision", "edits", "force_token", "confirmation",
 # the same authority-shaped-field discipline every mutating route here takes.
 SEED_ACCEPT_ALLOWED_FIELDS = ("bank", "action", "draft")
 
-# The `/api/*` session routes: D-04's four plus Phase 6's `/api/hint` and
-# plan 08-05's `/api/rubric-review`. Fixed literals, not stem-parameterised: a
-# session or a bank is addressed by an opaque identifier in the JSON body
-# (T-2-01), never by a path segment, so there is no `<stem>`/`<id>` group in
-# any of these patterns at all. The six-entry length is asserted by
-# `check_api_route_scope` in `tests/daemon_roundtrip.py` and by this plan's
-# own acceptance criteria.
+# The `/api/*` session routes: D-04's four plus Phase 6's `/api/hint`,
+# plan 06.1-02's `/api/interact`, plan 08-05's `/api/rubric-review`, Phase
+# 10's `/api/override` and `/api/lesson-complete`, and Phase 09.1's
+# `/api/export_audio`. Fixed literals, not stem-parameterised: a session
+# or a bank is addressed by an opaque identifier in the JSON body (T-2-01),
+# never by a path segment, so there is no `<stem>`/`<id>` group in any of
+# these patterns at all. The ten-entry length is asserted by
+# `check_api_route_scope` in `tests/daemon_roundtrip.py`, and every entry
+# is mirrored in ROUTE_CLI and SURFACE_PARITY (Extensibility Rule 9(a)).
 API_ROUTES = (
     ("POST", "/api/start", "handle_api_start"),
     ("POST", "/api/next", "handle_api_next"),
     ("POST", "/api/submit", "handle_api_submit"),
     ("POST", "/api/hint", "handle_api_hint"),
+    ("POST", "/api/interact", "handle_api_interact"),
     ("POST", "/api/report", "handle_api_report"),
+    ("POST", "/api/override", "handle_api_override"),
+    ("POST", "/api/lesson-complete", "handle_api_lesson_complete"),
     ("POST", "/api/rubric-review", "handle_api_rubric_review"),
+    ("POST", "/api/export_audio", "handle_api_export_audio"),
 )
 
 # Order is load-bearing: every fixed literal route comes before every
@@ -179,6 +190,8 @@ ROUTES = (
     ("POST", QUIZ_ANSWER_RE, "handle_quiz_answer"),
     ("GET", STUDY_GET_RE, "handle_study_get"),
     ("GET", LESSON_GET_RE, "handle_lesson_get"),
+    ("POST", LESSON_CHECK_RE, "handle_lesson_check"),
+    ("POST", LESSON_SKIP_RE, "handle_lesson_skip"),
     ("GET", GLOSS_GET_RE, "handle_gloss_get"),
     ("POST", KEY_REVIEW_RE, "handle_key_review"),
     ("GET", DAY_GET_RE, "handle_day_get"),
@@ -205,13 +218,19 @@ ROUTE_CLI = {
     ("POST", "/api/next"): "next",
     ("POST", "/api/submit"): "submit",
     ("POST", "/api/hint"): "hint",
+    ("POST", "/api/interact"): "interact",
     ("POST", "/api/report"): "report",
+    ("POST", "/api/override"): "override",
+    ("POST", "/api/lesson-complete"): "lesson",
     ("POST", "/api/rubric-review"): "rubric-review",
     ("GET", KATEX_ASSET_RE): "daemon",
+    ("POST", "/api/export_audio"): "export",
     ("GET", QUIZ_GET_RE): "serve",
     ("POST", QUIZ_ANSWER_RE): "serve",
     ("GET", STUDY_GET_RE): "study",
     ("GET", LESSON_GET_RE): "lesson",
+    ("POST", LESSON_CHECK_RE): "lesson-check",
+    ("POST", LESSON_SKIP_RE): "lesson-skip",
     ("GET", GLOSS_GET_RE): "gloss",
     ("POST", KEY_REVIEW_RE): "key-review",
     ("GET", "/day"): "day",
@@ -226,15 +245,19 @@ ROUTE_CLI = {
 # (MCP) arrives as a third column here, never as a second parity map, and an
 # unmapped entry fails `check_surface_parity` instead of shipping silently.
 # Each row is (route, CLI command, reserved MCP tool name); the tool names
-# are the locked reserved vocabulary the plan names (start, next, submit,
-# report, hint, rubric_review).
+# are the locked reserved vocabulary (start, next, submit, report, hint,
+# override, lesson_complete, rubric_review).
 SURFACE_PARITY = (
     (("POST", "/api/start"), "start", "start"),
     (("POST", "/api/next"), "next", "next"),
     (("POST", "/api/submit"), "submit", "submit"),
     (("POST", "/api/hint"), "hint", "hint"),
+    (("POST", "/api/interact"), "interact", "interact"),
     (("POST", "/api/report"), "report", "report"),
+    (("POST", "/api/override"), "override", "override"),
+    (("POST", "/api/lesson-complete"), "lesson", "lesson_complete"),
     (("POST", "/api/rubric-review"), "rubric-review", "rubric_review"),
+    (("POST", "/api/export_audio"), "export", "export_audio"),
 )
 
 
@@ -550,11 +573,116 @@ def _report_card(summary, status, position=None, total=None):
         % (html.escape(status), pct, progress, partial, figures, rows))
 
 
+def _retention_report_body(payload, params):
+    """The retention overview / drilldown page body, rendered from the
+    SAME `retention.retention_report` payload `itembank trends` prints
+    (D-15): no browser-side arithmetic, no second derivation, no paths or
+    keys. `params` carries the allowlisted weeks/subject/objective query
+    identifiers; the week controls and drilldown links preserve the
+    current selection."""
+    claim = payload.get("claim") or {}
+    subject = params.get("subject")
+    objective = params.get("objective")
+    weeks = params.get("weeks")
+    base = "/report"
+    q = ["weeks=%d" % weeks] if weeks else []
+    if subject:
+        q.append("subject=" + urllib.parse.quote(subject))
+    href = base + ("?" + "&".join(q) if q else "")
+    parts = [retention_view.snapshot_stamp(claim)]
+    week_links = "".join(
+        '<a class="go%s" href="%s">%dw</a>'
+        % (" active" if (weeks or 4) == w else "",
+           base + "?weeks=%d" % w + ("&subject=" + urllib.parse.quote(subject)
+                                     if subject else ""), w)
+        for w in (1, 2, 4, 8, 12))
+    parts.append('<p class="weeks">Window: %s</p>' % week_links)
+
+    def obj_href(obj):
+        extra = "&objective=" + urllib.parse.quote(obj)
+        return base + "?weeks=%d" % (weeks or 4) + \
+            ("&subject=" + urllib.parse.quote(subject) if subject else "") + extra
+
+    if objective:
+        row = (payload.get("objectives") or {}).get(objective)
+        if row is None:
+            parts.append('<p class="empty">No objective %r in this snapshot.</p>'
+                         % html.escape(objective))
+        else:
+            back = base + ("?weeks=%d" % (weeks or 4)) + \
+                ("&subject=" + urllib.parse.quote(row.get("subject") or "")
+                 if row.get("subject") else "")
+            parts.append('<p class="back"><a href="%s">&larr; %s</a></p>'
+                         % (html.escape(back),
+                            html.escape(row.get("subject") or "subjects")))
+            parts.append("<h2>%s</h2>" % html.escape(objective))
+            parts.append(retention_view.objective_detail(row, claim))
+            parts.append(retention_view.evidence_drawer(row, claim,
+                                                        row.get("subject")))
+    elif subject:
+        parts.append("<h2>Subject %s</h2>" % html.escape(subject))
+        rows = []
+        for obj, o in sorted((payload.get("objectives") or {}).items()):
+            if evidence.subject_of(obj) != subject:
+                continue
+            state = o.get("state") or "unknown"
+            rows.append(
+                "<tr><th scope=row><a href=\"%s\">%s</a></th><td>%s</td>"
+                "<td>%d</td><td>%d</td><td>%d</td><td>%s</td></tr>"
+                % (html.escape(obj_href(obj)), html.escape(obj),
+                   retention_view.objective_state(state),
+                   o.get("attempts", 0), o.get("settled", 0),
+                   o.get("correct", 0), html.escape(o.get("last_evidence") or "")))
+        if not rows:
+            parts.append('<p class="empty">No objectives for %r in this '
+                         'snapshot.</p>' % html.escape(subject))
+        parts.append('<div class="trend-wrap"><table class="trend">'
+                     "<thead><tr><th>Objective</th><th>State</th>"
+                     "<th>Attempts</th><th>Settled</th><th>Correct</th>"
+                     "<th>Last evidence</th></tr></thead><tbody>%s</tbody>"
+                     "</table></div>" % "".join(rows))
+    else:
+        parts.append("<h2>Subjects</h2>")
+        rows = []
+        for s, sub in sorted((payload.get("subjects") or {}).items()):
+            rows.append(
+                "<tr><th scope=row><a href=\"%s\">%s</a></th><td>%d</td>"
+                "<td>%d</td><td>%d</td><td>%d</td></tr>"
+                % (html.escape(base + "?weeks=%d" % (weeks or 4)
+                               + "&subject=" + urllib.parse.quote(s)),
+                   html.escape(s), sub.get("objective_count", 0),
+                   sub.get("attempts", 0), sub.get("settled", 0),
+                   sub.get("due", 0)))
+        parts.append('<div class="trend-wrap"><table class="trend">'
+                     "<thead><tr><th>Subject</th><th>Objectives</th>"
+                     "<th>Attempts</th><th>Settled</th><th>Due</th>"
+                     "</tr></thead><tbody>%s</tbody></table></div>"
+                     % "".join(rows))
+    rr = payload.get("return_rate")
+    if rr is not None:
+        parts.append('<p class="return-rate">Return rate: %s (%d occurred / '
+                     "%d due sittings)</p>"
+                     % (retention_view._fmt_rate(rr.get("rate")),
+                        rr.get("occurred", 0), rr.get("due", 0)))
+    parts.append(retention_view.trend_text(payload))
+    parts.append(retention_view.trend_table(payload))
+    return "\n".join(parts)
+
+
+REPORT_FAILURE_COPY = ("This report could not be derived from the current "
+                       "evidence snapshot. Try again or run the report "
+                       "command; no recommendation was made.")
+
+
 def handle_report_get(handler):
-    """`GET /report?session=<id>` -- a session's summary as a page on the
-    same port every other surface uses, rendered from exactly the dict
-    `session.do_report()` returns -- the same body `itembank report`
-    prints, so the page and the command can never disagree (SURF-04).
+    """`GET /report` -- TWO branches. With `?session=<id>` it renders a
+    session's summary from exactly the dict `session.do_report()` returns
+    (the same body `itembank report` prints, SURF-04). Without `session`
+    (10-05 Task 3) it renders the retention overview / subject / objective
+    drilldown from the SAME `retention.retention_report` payload
+    `itembank trends` prints, with allowlisted week/subject/objective
+    query identifiers (D-15); snapshot failure serves the locked report-
+    failure copy and makes no recommendation.
 
     `session_id` comes off the query string and is resolved through the
     same `session_index(root)`-backed `api_session_path` lookup `/api/*`
@@ -563,6 +691,50 @@ def handle_report_get(handler):
     """
     params = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query)
     session_id = (params.get("session") or [""])[0]
+    if not session_id:
+        # 10-05 Task 3: `GET /report` without `session` is the retention
+        # overview / drilldown surface. The page renders the SAME payload
+        # `itembank trends` prints (D-15); the report failure copy is
+        # served when the snapshot cannot be derived, and no recommendation
+        # is made (T-10-22).
+        theme_block = theme.theme_css(settings.load_settings(handler.root))
+        try:
+            weeks_raw = (params.get("weeks") or [""])[0]
+            try:
+                weeks = int(weeks_raw) if weeks_raw else 4
+            except ValueError:
+                weeks = 4
+            if weeks not in (1, 2, 4, 8, 12):
+                handler.send_error(400, "weeks must be one of 1, 2, 4, 8, 12")
+                return
+            subject = (params.get("subject") or [""])[0] or None
+            objective = (params.get("objective") or [""])[0] or None
+            filters = {}
+            if subject:
+                filters["subject"] = subject
+            if objective:
+                filters["objective"] = objective
+            log = evidence.log_path(handler.root)
+            events = evidence.capture_events(log) \
+                if os.path.exists(log) else ()
+            payload = retention.retention_report(
+                events, weeks=weeks, filters=filters,
+                cfg=settings.load_settings(handler.root))
+            body = _retention_report_body(payload, {"weeks": weeks,
+                                                    "subject": subject,
+                                                    "objective": objective})
+        except Exception:
+            body = '<p class="empty">%s</p>' % html.escape(REPORT_FAILURE_COPY)
+        title = "Retention & trends"
+        if objective:
+            title = "Objective report"
+        elif subject:
+            title = "Subject report"
+        page = presentation.surface_shell(
+            title, body, theme_css=theme_block,
+            back={"href": "/", "label": "itembank"})
+        handler.send_html(page.encode("utf-8"))
+        return
     path = api_session_path(handler, session_id)
     if path is None:
         handler.send_not_found(session_id)
@@ -595,10 +767,55 @@ def handle_report_get(handler):
             data = read_session(path)
             position, total = data["cursor"], len(data["items"])
         body = _report_card(summary, status, position, total)
+    # The gate outcome split (06.2-UI-SPEC section 11, GATE-06): the
+    # report-surface readout, derived from the evidence log at request
+    # time -- never stored, and never rendered in the reading column.
+    # The lesson's declared check->mode map is what marks a pair as a
+    # required gate (a recommended gate is excluded by construction).
+    data = read_session(path)
+    bank_path = data.get("bank")
+    gate_html = ""
+    if bank_path and os.path.exists(bank_path):
+        les = parse_lesson(bank_path)
+        gate_modes = {}
+        if les:
+            for cid in lesson._check_ids(les):
+                gate_modes[cid] = les.get("gate") or "recommended"
+        split = evidence.gate_outcome_split(
+            evidence.log_path(os.path.dirname(bank_path)),
+            os.path.basename(bank_path), data.get("session_id", ""),
+            gate_modes=gate_modes)
+        gate_html = _gate_outcome_html(split)
     page = presentation.surface_shell(
-        "itembank report", body, theme_css=theme_block,
+        "itembank report", body + gate_html, theme_css=theme_block,
         back={"href": "/", "label": "itembank"})
     handler.send_html(page.encode("utf-8"))
+
+
+def _gate_outcome_html(split):
+    """The gate outcome split readout (06.2-UI-SPEC section 11): a plain
+    Ledger-voice table under the stated denominator, no target, no streak,
+    no percentage-fill bar against a 100% track. The empty state renders
+    the denominator line and no ratio."""
+    rows = ""
+    if split["denominator"]:
+        for label, count, share in (
+                ("cleared", split["cleared"], split["share_cleared"]),
+                ("skipped", split["skipped"], split["share_skipped"])):
+            share_text = ("%d%%" % round(share * 100)) if share is not None \
+                else "\u2014"
+            rows += ("<tr><td>%s</td><td>%d</td><td>%s</td></tr>"
+                     % (html.escape(label), count, share_text))
+        table = ("<table><thead><tr><th>Outcome</th><th>Count</th>"
+                 "<th>Share</th></tr></thead><tbody>%s</tbody></table>" % rows)
+    else:
+        table = ""
+    return ('<div class="gate-outcome"><p class="status" data-field='
+            '"gate-denominator">%s</p>%s<p class="status" data-field='
+            '"gate-exclusion">%s</p></div>'
+            % (html.escape(lesson.GATE_DENOMINATOR_COPY.format(
+                n=split["denominator"])), table,
+               html.escape(lesson.GATE_EXCLUSION_COPY)))
 
 
 def sessions_by_bank(root, banks):
@@ -885,7 +1102,8 @@ def handle_quiz_get(handler, stem):
                             post_path="/quiz/%s/answer" % stem,
                             bank_stem=stem, mode=sess.get("mode", "practice"),
                             lesson_base="/lesson/%s" % stem,
-                            lesson_slugs=lesson_slugs, theme_css=theme_block)
+                            lesson_slugs=lesson_slugs, theme_css=theme_block,
+                            assist=True)
     handler.send_html(page.encode("utf-8"))
 
 
@@ -1002,6 +1220,138 @@ def handle_katex_asset(handler, name):
         handler.send_not_found(name)
         return
     handler.send_bytes(body, mime)
+def _resolve_check(qs, check_id):
+    """The one check-item resolution: by positional id or opaque [ID:], the
+    same set the linter's lesson.check_ref_unknown accepts (D-01)."""
+    for q in qs:
+        if q["id"] == check_id or q.get("item_id") == check_id:
+            return q
+    return None
+
+
+def _gate_answer_from_form(q, fields):
+    """Serialise a gate band form submission into the answer shape the one
+    scorer (`runtime.score_response`) and the one writer
+    (`evidence.response_event`) expect -- the same shape `submit --answer`
+    takes, so a lesson-gate attempt and a quiz attempt are the same object
+    to every consumer (D-08). `fields` is `parse_qs`-shaped ({name:
+    [values]}) because multi-select checkboxes repeat their name."""
+    def one(name):
+        vals = fields.get(name) or []
+        return vals[-1] if vals else ""
+    t = q["type"]
+    if t in ("mc", "multi"):
+        values = [v for v in (fields.get("option") or []) if v]
+        if t == "mc":
+            return values[0] if values else ""
+        return sorted(set(values))
+    if t in ("table", "dnd"):
+        out = {}
+        for i in range(len(q.get("rows") or [])):
+            v = one("row_%d" % i)
+            if v:
+                out[str(i)] = v
+        return out
+    if t == "build":
+        out = []
+        for i in range(len(q.get("steps") or [])):
+            v = one("step_%d" % i)
+            if v:
+                out.append(v)
+        return out
+    return one("answer")
+
+
+def _section_after_check(lesson, check_id):
+    """The slug of the section that follows the one carrying the check, or
+    None when the check sits in the last section -- the gate-reveal focus
+    target (06.2-UI-SPEC section 7.1)."""
+    for idx, h in enumerate((lesson or {}).get("headings") or []):
+        if "[!CHECK: %s]" % check_id in (h.get("body") or ""):
+            rest = (lesson.get("headings") or [])[idx + 1:]
+            return rest[0]["slug"] if rest else None
+    return None
+
+
+def _log_unreachable(bank_dir):
+    """True when the evidence log cannot be appended to -- the runtime
+    surface a live gate depends on is unavailable, so the band states the
+    section-12.1 copy and never reveals (C9, "no reveal without its
+    event"). The probe is cheap and never writes: the log's parent must be
+    creatable as a directory and the log must not be a directory."""
+    log = evidence.log_path(bank_dir)
+    parent = os.path.dirname(log)
+    try:
+        if os.path.isdir(log):
+            return True
+        os.makedirs(parent, exist_ok=True)
+    except OSError:
+        return True
+    try:
+        if not os.path.exists(log):
+            return not os.access(parent, os.W_OK)
+        return not os.access(log, os.W_OK)
+    except OSError:
+        return True
+
+
+def _lesson_gate_ctx(handler, stem, path, qs, les, print_mode=False):
+    """The Phase 6.2 gate context one lesson render needs, built exactly
+    once per request: the resolved policy (gate_policy setting -> declared
+    [GATE:] -> the diagnostic/exam degrade), the per-check states derived
+    from the evidence log (D-06, never a second store), the item resolver,
+    and the provenance the band needs.
+
+    Returns None when the lesson renders ungated (gate_policy: off, a
+    declared [GATE: off], or no session) -- the 3.1 compatibility floor.
+    The print path returns a ctx with policy "off" and print True so every
+    check prints as 3.1's D1 labelled rule (06.2-UI-SPEC section 8.2).
+    """
+    bank_dir = os.path.dirname(os.path.abspath(path)) or "."
+    cfg = settings.load_settings(bank_dir)
+    reader = cfg.get("reader") or {}
+    gate_policy = reader.get("gate_policy", "as-authored")
+    skip_setting = reader.get("gate_skip", "always")
+    as_authored = (les or {}).get("gate") or "recommended"
+    sess = handler.sessions.get(stem) or {}
+    mode = sess.get("mode", "practice")
+    session_id = sess.get("session_id", "reader")
+    log = evidence.log_path(bank_dir)
+    if print_mode:
+        return {"policy": "off", "as_authored": as_authored, "states": {},
+                "attempted": {}, "resolve": _resolve_check_factory(qs),
+                "skip": "off", "degraded": False, "unreachable": False,
+                "print": True, "stem": stem, "bank": os.path.basename(path),
+                "session_id": session_id, "log": log, "mode": mode}
+    if gate_policy == "off" or as_authored == "off":
+        return None
+    degraded = mode in ("diagnostic", "exam") and as_authored == "required"
+    policy = "recommended" if degraded else as_authored
+    resolve = _resolve_check_factory(qs)
+    states = {}
+    attempted = {}
+    for cid in lesson._check_ids(les):
+        states[cid] = evidence.gate_state(log, session_id, cid)
+        q = resolve(cid)
+        if q is not None:
+            attempted[cid] = any(
+                ev.get("event_type") == evidence.RESPONSE_EVENT_TYPE
+                and ev.get("session_id") == session_id
+                and (ev.get("item_ref") == cid
+                     or ev.get("item_id") == cid)
+                for ev in evidence.live_events(log))
+    return {"policy": policy, "as_authored": as_authored, "states": states,
+            "attempted": attempted, "resolve": resolve,
+            "skip": skip_setting, "degraded": degraded,
+            "unreachable": _log_unreachable(bank_dir),
+            "print": False, "stem": stem, "bank": os.path.basename(path),
+            "session_id": session_id, "log": log, "mode": mode}
+
+
+def _resolve_check_factory(qs):
+    by_id = {q["id"]: q for q in qs}
+    by_id.update({q["item_id"]: q for q in qs if q.get("item_id")})
+    return lambda cid: by_id.get(cid)
 
 
 def handle_lesson_get(handler, stem):
@@ -1010,13 +1360,17 @@ def handle_lesson_get(handler, stem):
     No second copy of the lesson template lives here; the handler generates
     no HTML of its own. The page is daemon-served (runtime=True, so [!KEY]
     cards carry their Add-to-review form) and honours `?print=drill` as the
-    drill-print pass (03.1-03 Task 3).
+    drill-print pass (03.1-03 Task 3); `?print=1` forces the gate policy
+    off so a gated lesson prints complete and ungated (06.2-UI-SPEC
+    section 8.2). A `?focus=<slug>` query (from a 303 after a gate reveal)
+    renders that section's h2 with tabindex=-1 autofocus (section 7.1).
     """
     path = handler.banks.get(stem)
     if path is None:
         handler.send_not_found(stem)
         return
     qs = load(path)
+    les = parse_lesson(path)
     params = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query)
     drill = "drill" in (params.get("print") or [])
     # 09-04: the lesson reader resolves the subject profile exactly as a
@@ -1031,9 +1385,126 @@ def handle_lesson_get(handler, stem):
                 os.path.dirname(os.path.abspath(path)) or "."))
     except subjects.SubjectProfileError:
         profile = None
-    page = lesson.lesson_page(path, qs, parse_lesson(path), runtime=True,
-                              drill=drill, profile=profile)
+    print_mode = bool(params.get("print"))
+    gate = _lesson_gate_ctx(handler, stem, path, qs, les,
+                            print_mode=print_mode)
+    focus = (params.get("focus") or [""])[0] or None
+    # The composed announcement (06.2-UI-SPEC section 7.2): the gate band
+    # contributes exactly one clause after a reveal -- the reveal clause
+    # after a cleared check, the skip string after a skip. Composed here so
+    # the redirect target carries the intent and the page renders the text
+    # inside the single role=status region.
+    reveal = (params.get("reveal") or [""])[0] or None
+    announce = None
+    if reveal == "skip":
+        announce = lesson.SKIP_RECORDED_COPY
+    elif reveal == "check":
+        announce = lesson.REVEAL_CLAUSE_COPY
+    page = lesson.lesson_page(path, qs, les, runtime=True, drill=drill,
+                              gate=gate, focus=focus, announce=announce,
+                              profile=profile)
     handler.send_html(page.encode("utf-8"))
+
+
+def handle_lesson_check(handler, stem):
+    """`POST /lesson/<stem>/check` -- the gate band's check submission:
+    scores through `runtime.score_response()` via the one shared
+    `quiz.record_gate_check` path, records ordinary response evidence with
+    context="lesson_gate" (D-08), and issues a 303 to the re-rendered
+    lesson so a reload never re-submits the check (section 7.1). Under
+    required with a cleared check the next section renders and focus
+    targets its h2; the composed announcement appends `The next section is
+    below.` (7.2).
+    """
+    if _reject_cross_origin_write(handler):
+        return
+    path = handler.banks.get(stem)
+    if path is None:
+        handler.send_not_found(stem)
+        return
+    try:
+        qs = load(path)
+        les = parse_lesson(path)
+        fields = handler.read_form()
+        check_id = (fields.get("check") or [""])[-1]
+        q = _resolve_check(qs, check_id)
+        if q is None:
+            handler.send_error(404, "no item %r in this bank" % check_id)
+            return
+        answer = _gate_answer_from_form(q, fields)
+        sess = handler.sessions[stem]
+        bank_dir = os.path.dirname(os.path.abspath(path)) or "."
+        log = evidence.log_path(bank_dir)
+        session_id = sess.get("session_id", "reader")
+        score = quiz.record_gate_check(
+            path, check_id, answer, mode=sess.get("mode", "practice"),
+            session_id=session_id)
+        if score is None:
+            handler.send_error(404, "no item %r in this bank" % check_id)
+            return
+        gate = _lesson_gate_ctx(handler, stem, path, qs, les)
+        next_slug = None
+        if gate is not None and gate["policy"] == "required" \
+                and not gate.get("degraded") \
+                and evidence.gate_state(log, session_id, check_id) == "cleared":
+            next_slug = _section_after_check(les, check_id)
+        if next_slug:
+            target = ("/lesson/%s?focus=%s&reveal=check#%s"
+                      % (stem, next_slug, next_slug))
+        else:
+            target = "/lesson/%s" % stem
+        handler.send_redirect(target)
+    except Exception as exc:
+        handler.send_server_error(exc)
+
+
+def handle_lesson_skip(handler, stem):
+    """`POST /lesson/<stem>/skip` -- the recorded-skip action (D-11, C17):
+    appends exactly one `gate_skip` event (never a response, never a hint
+    tier), re-renders with the next section appended, and leaves the band
+    live and answerable. A skip that was not recorded never advances the
+    reading position (section 6.3): the event is written through the one
+    shared `quiz.record_gate_skip` path before the redirect, and an
+    unwritable log renders the section-12.1 copy instead of revealing.
+    """
+    if _reject_cross_origin_write(handler):
+        return
+    path = handler.banks.get(stem)
+    if path is None:
+        handler.send_not_found(stem)
+        return
+    try:
+        qs = load(path)
+        les = parse_lesson(path)
+        fields = handler.read_form()
+        check_id = (fields.get("check") or [""])[-1]
+        gate = _lesson_gate_ctx(handler, stem, path, qs, les)
+        if gate is None or gate.get("degraded") or gate.get("unreachable"):
+            # A degraded sitting records no gate_skip (there is nothing to
+            # skip); an unreachable runtime must not reveal without its
+            # event. Re-render with the honest copy (section 12.1).
+            page = lesson.lesson_page(path, qs, les, runtime=True, gate=gate)
+            handler.send_html(page.encode("utf-8"))
+            return
+        sess = handler.sessions[stem]
+        status = quiz.record_gate_skip(
+            path, check_id, mode=sess.get("mode", "practice"),
+            session_id=sess.get("session_id", "reader"))
+        if status is None:
+            handler.send_error(404, "no item %r in this bank" % check_id)
+            return
+        if status == "off":
+            handler.send_error(400, "an off lesson offers no skip")
+            return
+        next_slug = _section_after_check(les, check_id)
+        if next_slug:
+            target = ("/lesson/%s?focus=%s&reveal=skip#%s"
+                      % (stem, next_slug, next_slug))
+        else:
+            target = "/lesson/%s?reveal=skip" % stem
+        handler.send_redirect(target)
+    except Exception as exc:
+        handler.send_server_error(exc)
 
 
 def handle_key_review(handler, key_id):
@@ -1128,6 +1599,10 @@ def _plan_day_state(handler, stem):
     lanes_path = override.get("lanes_path") or os.path.join(plan_dir, "lanes.md")
     iso = override.get("iso") or datetime.date.today().isoformat()
     state = day.day_state(path, log_path, lanes_path, iso, base="/day/%s" % stem)
+    # 10-05: the daemon's scanned banks ride on the day state so the Today
+    # panel can offer focused starts and lesson recovery; the scoped
+    # `itembank day` launch has none, and the page degrades honestly.
+    state["banks"] = dict(handler.banks)
     handler.day_states[stem] = state
     return state
 
@@ -1508,6 +1983,44 @@ def handle_api_start(handler):
     focus = data.get("focus")
     if not isinstance(focus, str) or not focus:
         focus = None
+    # 10-05 (T-10-19): a focused start from Today carries the displayed
+    # snapshot claim. The handler re-captures CURRENT evidence and
+    # re-derives the snapshot at the displayed cutoff: the id is a pure
+    # hash of (cutoff, zone, window, filters, settings, event identities),
+    # so it matches exactly when no evidence has changed since the display
+    # and differs on any change or forgery -- reject with refresh guidance
+    # and NO session/event. A valid action derives every private authority
+    # server-side (cap, weights, path, override); client cap/weight/path/
+    # answer/hidden/model fields are never read here.
+    snapshot = data.get("snapshot")
+    if snapshot is not None:
+        if not isinstance(snapshot, dict) or \
+                not isinstance(snapshot.get("snapshot_id"), str) or \
+                not snapshot["snapshot_id"]:
+            handler.send_error(400, "snapshot must carry a non-empty "
+                                    "snapshot_id")
+            return
+        log = evidence.log_path(os.path.dirname(os.path.abspath(path)) or ".")
+        live = evidence.capture_events(log) if os.path.exists(log) else ()
+        cfg = settings.load_settings(
+            os.path.dirname(os.path.abspath(path)) or ".")
+        try:
+            cutoff = snapshot.get("cutoff") or None
+            zone = snapshot.get("local_day_zone") or "UTC"
+            weeks = (snapshot.get("window") or {}).get("weeks") or 4
+            filters = snapshot.get("filters") or {}
+            fresh = retention.capture(live, cutoff=cutoff, zone=zone,
+                                      weeks=weeks, filters=filters, cfg=cfg)
+        except Exception:
+            handler.send_error(
+                400, "Today\u2019s snapshot could not be re-derived; refresh "
+                     "Today and try again. No session was started.")
+            return
+        if fresh["claim"]["snapshot_id"] != snapshot["snapshot_id"]:
+            handler.send_error(
+                400, "Today\u2019s snapshot is stale; refresh Today and try "
+                     "again. No session was started.")
+            return
     # The D-09 focus pin and the selection fields ride inside the spec dict
     # the working tree's `session.do_start(bank_path, spec, mode, out, force)`
     # takes -- the same signature `itembank start`'s own CLI path uses.
@@ -1548,6 +2061,157 @@ def handle_api_start(handler):
         if sess_cfg is not None:
             sess_cfg["api_session_id"] = result["session_id"]
     handler.send_json(result)
+
+
+def handle_api_override(handler):
+    """`POST /api/override` -- `{"bank", "objective", "count", "seed",
+    "mode", "selection_mode", "token"}`. The daemon twin of
+    `itembank override` (plan 10-04, D-08): starts one additional sitting
+    past a reached cap, but ONLY with the exact explicit confirmation phrase
+    in `token`, and writes exactly one append-only cap_override event bound
+    to the server-generated session id. The subject is derived server-side
+    from the namespaced `objective` -- a client-supplied subject, cap,
+    snapshot or override value is refused/ignored (T-10-14, T-10-15); a
+    wrong or missing token, or an objective with no namespace, is a 400 and
+    writes nothing. Same containment as every handle_api_*: cross-origin
+    reject, api_read_json, SystemExit -> 400, Exception -> path-free 500.
+    """
+    if _reject_cross_origin(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    bank = data.get("bank")
+    path = handler.banks.get(bank) if isinstance(bank, str) else None
+    if path is None:
+        handler.send_not_found(bank if isinstance(bank, str) else "")
+        return
+    token = data.get("token")
+    if not isinstance(token, str) or not token:
+        handler.send_error(400, "override requires the exact explicit "
+                                "confirmation token")
+        return
+    objective = data.get("objective", "")
+    if not isinstance(objective, str) or not objective:
+        handler.send_error(400, "override requires a namespaced objective so "
+                                "the subject can be derived server-side")
+        return
+    count = data.get("count", 10)
+    if not isinstance(count, int) or isinstance(count, bool):
+        count = 10
+    seed = data.get("seed", 0)
+    if not isinstance(seed, int) or isinstance(seed, bool):
+        seed = 0
+    mode = data.get("mode", "diagnostic")
+    if mode not in SESSION_MODES:
+        mode = "diagnostic"
+    selection_mode = data.get("selection_mode", "practice")
+    if selection_mode not in selection.SELECTION_MODES:
+        selection_mode = "practice"
+    spec = {"objective": objective, "count": count, "seed": seed,
+            "selection_mode": selection_mode}
+    out = os.path.join(os.path.abspath(handler.root), "_attempts",
+                       "session_%s.json" % uuid.uuid4().hex[:12])
+    try:
+        result = session.do_start(path, spec, mode, out, False,
+                                  override_token=token)
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    except Exception as exc:
+        handler.send_server_error(exc)
+        return
+    sess_cfg = handler.sessions.get(bank)
+    if sess_cfg is not None:
+        sess_cfg["api_session_id"] = result["session_id"]
+    handler.send_json(result)
+
+
+def handle_api_lesson_complete(handler):
+    """`POST /api/lesson-complete` -- `{"bank": "<stem>", "ref": "<heading>"}`.
+    The daemon twin of `itembank lesson BANK --ref HEADING --complete`
+    (plan 10-02, SCHED-04/D-24): the ONE explicit completion seam. The
+    heading is resolved through the Phase 3 slugifier and reader (never a
+    second parser, slugger, or a filesystem path from client input), the
+    sorted unique objectives of items referencing it are discovered, one
+    `lesson_complete` event is appended through the ONE evidence writer,
+    and the derived next-review queue rows for that event are returned.
+    Merely viewing/opening a lesson writes nothing; an unknown heading, a
+    heading no item references with an [OBJECTIVE:] line, or a
+    multi-subject reference set is refused with a named explanation and
+    writes nothing. Same containment as every handle_api_*: cross-origin
+    reject, api_read_json, SystemExit -> 400, Exception -> path-free 500.
+    """
+    if _reject_cross_origin(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    bank = data.get("bank")
+    path = handler.banks.get(bank) if isinstance(bank, str) else None
+    if path is None:
+        handler.send_not_found(bank if isinstance(bank, str) else "")
+        return
+    ref = data.get("ref")
+    if not isinstance(ref, str) or not ref:
+        handler.send_error(400, "lesson completion requires a ref: a "
+                                "completion names exactly one Phase 3 "
+                                "lesson heading")
+        return
+    try:
+        qs = load(path)
+        lesson = parse_lesson(path)
+        slug = lesson_slug(ref)
+        if lesson is None or not any(h["slug"] == slug
+                                     for h in lesson["headings"]):
+            handler.send_error(400, "no lesson heading matching %r in %s"
+                                % (ref, os.path.basename(path)))
+            return
+        objectives = sorted({q.get("objective", "") for q in qs
+                             if q.get("lesson_slug") == slug
+                             and q.get("objective")})
+        if not objectives:
+            handler.send_error(
+                400, "lesson.no_referenced_objective: no item referencing "
+                     "%r carries an [OBJECTIVE:] line, so nothing can enter "
+                     "the review queue" % (ref,))
+            return
+        subject = evidence.subject_of(objectives[0])
+        if not subject or any(evidence.subject_of(o) != subject
+                              for o in objectives):
+            handler.send_error(
+                400, "lesson.no_single_subject: items referencing %r must "
+                     "share one namespaced subject to record a completion"
+                     % (ref,))
+            return
+        zone = data.get("zone") if isinstance(data.get("zone"), str) \
+            else "UTC"
+        bank_dir = os.path.dirname(os.path.abspath(path)) or "."
+        event = evidence.lesson_complete_event(
+            session_id="reader", bank=os.path.basename(path),
+            lesson_slug=slug, subject=subject, objectives=objectives,
+            zone=zone)
+        result = evidence.append_event(evidence.log_path(bank_dir), event)
+        cfg = settings.load_settings(bank_dir)
+        events = evidence.capture_events(evidence.log_path(bank_dir))
+        snapshot = retention.capture(events, zone=zone, cfg=cfg)
+        rows = [r for r in retention.lesson_queue(snapshot)
+                if r["event_id"] == result["event_id"]]
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    except Exception as exc:
+        handler.send_server_error(exc)
+        return
+    handler.send_json({
+        "status": result["status"],
+        "event_id": result["event_id"],
+        "ref": ref,
+        "subject": subject,
+        "objectives": objectives,
+        "queue": rows,
+        "snapshot_id": snapshot["claim"]["snapshot_id"],
+    })
 
 
 def handle_api_next(handler):
@@ -1797,6 +2461,53 @@ def handle_api_rubric_review(handler):
     handler.send_json(result)
 
 
+def handle_api_interact(handler):
+    """`POST /api/interact` -- the browser twin of `itembank interact`
+    (plan 06.1-02 Task 3, D-04/D-05). The body accepts exactly
+    `session_id`, `interaction_version`, `action_id`, `action_type`, and
+    canonical semantic `state`; the session and current item are resolved
+    server-side, and client fields claiming an item, path, score, key,
+    tolerance, tier, observation, or evidence are rejected by name. Returns
+    the same JSON shape as the CLI command: the versioned runtime
+    observation plus the append result (recorded / already_recorded /
+    conflict / refused).
+    """
+    if _reject_cross_origin(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    session_id = data.get("session_id")
+    path = api_session_path(handler, session_id)
+    if path is None:
+        handler.send_not_found(session_id if isinstance(session_id, str) else "")
+        return
+    # The five-field request; every authority-shaped field is refused by
+    # name (T-06.1-06). The session item is never client-chosen.
+    action = {"interaction_version": data.get("interaction_version"),
+              "action_id": data.get("action_id"),
+              "action_type": data.get("action_type"),
+              "state": data.get("state")}
+    bad = [k for k in data
+           if k not in ("session_id", "interaction_version", "action_id",
+                        "action_type", "state")]
+    if bad:
+        handler.send_error(
+            400, "field(s) %s are not accepted by /api/interact; the session "
+            "is addressed by session_id and the item is resolved server-side"
+            % ", ".join(sorted(bad)))
+        return
+    try:
+        result = session.do_interact(path, action)
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    except Exception as exc:
+        handler.send_server_error(exc)
+        return
+    handler.send_json(result)
+
+
 def handle_api_report(handler):
     """`POST /api/report` -- `{"session_id": "<id>"}`."""
     if _reject_cross_origin(handler):
@@ -1820,6 +2531,81 @@ def handle_api_report(handler):
     handler.send_json(result)
 
 
+def handle_api_export_audio(handler):
+    """`POST /api/export_audio` -- the daemon half of D-08: `{"bank",
+    "objective", "out_dir", "engine"?, "split"?, "container"?}`. The bank is
+    resolved through the same scanned-stem allowlist the other /api/* routes
+    use (never a raw path, T-2-01), and the request calls the SAME runtime
+    call the CLI reaches (`audio_surface.export_audio`) -- one implementation,
+    two surfaces (D-08). The response carries the written pack file names and
+    the transcript path.
+
+    `out_dir` is an output DIRECTORY for the pack, joined under the daemon's
+    served root (never an absolute path from the client, never `..`); the
+    default is `<root>/_attempts/audio`. A refusal (unknown bank, unknown
+    objective, unknown or unavailable engine, invalid body) returns the
+    named-error shape other /api handlers use and writes no files (D-04).
+    """
+    if _reject_cross_origin(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    bank = data.get("bank")
+    bank_path = handler.banks.get(bank) if isinstance(bank, str) else None
+    if bank_path is None:
+        handler.send_not_found(bank if isinstance(bank, str) else "")
+        return
+    objective = data.get("objective")
+    if not isinstance(objective, str) or not objective:
+        handler.send_error(400, "export_audio requires a non-empty objective")
+        return
+    out_dir = data.get("out_dir")
+    if not isinstance(out_dir, str) or not out_dir:
+        out_dir = os.path.join("_attempts", "audio")
+    root = os.path.abspath(handler.root)
+    joined = os.path.normpath(os.path.join(root, out_dir))
+    if not (joined == root or joined.startswith(root + os.sep)):
+        handler.send_error(400, "export_audio out_dir must stay under the "
+                                "served root")
+        return
+    engine = data.get("engine")
+    if engine is not None and not isinstance(engine, str):
+        handler.send_error(400, "export_audio engine must be a string")
+        return
+    split = data.get("split")
+    if split not in (None, "per-pack", "per-item"):
+        handler.send_error(400, "export_audio split must be per-pack or "
+                                "per-item")
+        return
+    container = data.get("container")
+    if container not in (None, "mp3", "wav"):
+        handler.send_error(400, "export_audio container must be mp3 or wav")
+        return
+    try:
+        cfg = settings.load_settings(handler.root)
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    try:
+        result = audio_surface.export_audio(
+            bank_path, objective, joined, engine=engine, split=split,
+            container=container, settings=cfg)
+    except audio_surface.EngineError as exc:
+        handler.send_error(400, "export_audio: %s" % exc)
+        return
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    except Exception as exc:
+        handler.send_server_error(exc)
+        return
+    handler.send_json({"engine": result["engine"],
+                       "base": result["base"],
+                       "transcript": result["transcript"],
+                       "audio": result["audio"]})
+
+
 class DaemonHandler(server.Handler):
     """The one `Handler` subclass this phase adds. Its state -- the
     `banks`/`plans` allowlists, the served root, and each bank's session
@@ -1840,6 +2626,27 @@ class DaemonHandler(server.Handler):
     # this process and the shell that read it off the handshake -- never
     # persisted, never a CLI argument (T-13-01, T-13-04).
     sidecar_token = None
+
+    def send_error(self, code, message=None, explain=None):
+        """Encoding-safe 4xx/5xx (10-04 containment). The built-in
+        `send_error` encodes the HTTP reason phrase as latin-1, which
+        raises `UnicodeEncodeError` on any non-latin-1 character -- 10-04's
+        locked cap copy carries U+2019 ("Today's"), so the at-cap 400 would
+        kill the request thread and close the connection with no response.
+        The exact message (whatever its encoding) is sent in a UTF-8 body;
+        only the HTTP reason phrase stays the standard ASCII phrase. Never
+        a path or a traceback (T-2-05).
+        """
+        import http.client
+        phrase = http.client.responses.get(code, "Error")
+        text = message if isinstance(message, str) else (explain or phrase)
+        body = ("<!doctype html><html lang=en><head><meta charset=utf-8>"
+                "<title>%d %s</title></head><body><h1>%s</h1><p>%s</p>"
+                "</body></html>"
+                % (code, html.escape(phrase), html.escape(phrase),
+                   html.escape(text)))
+        self.send_bytes(body.encode("utf-8"), "text/html; charset=utf-8",
+                        status=code)
 
     def send_not_found(self, name):
         """The documented not-found copy: the stem the client asked for and

@@ -3,6 +3,7 @@
 import inspect
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -60,8 +61,15 @@ def check_cli_reaches_shared_do_functions():
 def main():
     check_cli_reaches_shared_do_functions()
     with tempfile.TemporaryDirectory() as tmp:
+        # Run against a temp COPY of the fixture bank so the evidence log
+        # lands in tmp/_evidence, never fixtures/_evidence: plan 10-03 makes
+        # start retention-aware, and accumulated evidence beside the shared
+        # fixture would reorder this sitting (the short item is served first
+        # once its objective is weighted ahead, leaving zero auto attempts).
+        bank = Path(tmp) / "sample_bank.md"
+        shutil.copyfile(BANK, bank)
         session = Path(tmp) / "session.json"
-        first = run("start", BANK, "--count", "6", "--seed", "7",
+        first = run("start", bank, "--count", "6", "--seed", "7",
                     "--mode", "practice", "--out", session)
         assert first["status"] == "active"
         assert "correct" not in first["item"]

@@ -1087,15 +1087,26 @@ def check_disclosure_route():
 
 
 def check_api_route_scope():
-    """D-04's four session routes plus Phase 6's `/api/hint` and plan 08-05's
-    `/api/rubric-review`, and the count is asserted rather than trusted.
+    """D-04's four session routes plus Phase 6's `/api/hint`, plan 06.1-02's
+    `/api/interact`, plan 08-05's `/api/rubric-review`, Phase 10's
+    `/api/override` and `/api/lesson-complete`, and Phase 09.1's
+    `/api/export_audio`, and the count is asserted rather than trusted.
+    Every entry is mirrored in ROUTE_CLI (route-without-CLI-twin fails
+    here) and in SURFACE_PARITY with its reserved MCP tool name
+    (Extensibility Rule 9(a)).
     """
-    if len(daemon.API_ROUTES) != 6:
-        fail("D-04 + Phase 6 + 08-05 scope /api/* to exactly six routes; "
-             "API_ROUTES has %d" % len(daemon.API_ROUTES))
-    if not {"start", "next", "submit", "hint", "report",
-            "rubric-review"} <= set(daemon.ROUTE_CLI.values()):
-        fail("ROUTE_CLI is missing one of the six session CLI commands")
+    if len(daemon.API_ROUTES) != 10:
+        fail("D-04 + Phase 6 + 06.1-02 + 08-05 + 10-04/10-05 + 09.1 scope "
+             "/api/* to exactly ten routes; API_ROUTES has %d"
+             % len(daemon.API_ROUTES))
+    if not {"start", "next", "submit", "hint", "interact", "report",
+            "override", "rubric-review", "export"} <= \
+            set(daemon.ROUTE_CLI.values()):
+        fail("ROUTE_CLI is missing one of the session CLI commands")
+    if ("POST", "/api/lesson-complete") not in daemon.ROUTE_CLI or \
+            daemon.ROUTE_CLI[("POST", "/api/lesson-complete")] != "lesson":
+        fail("POST /api/lesson-complete must map to the lesson CLI twin "
+             "(`itembank lesson --complete`)")
 
 
 def check_surface_parity():
@@ -1127,13 +1138,283 @@ def check_surface_parity():
     tools = [r[2] for r in rows]
     if len(set(tools)) != len(tools):
         fail("SURFACE_PARITY tool names are not unique: %r" % tools)
-    # The reserved tool names the plan locks: an API route without its
+    # The reserved tool names the plans lock: an API route without its
     # reserved name present is exactly the silent third-surface regression
     # Rule 9(a) exists to stop.
-    if not {"start", "next", "submit", "report", "hint",
-            "rubric_review"} <= set(tools):
+    if not {"start", "next", "submit", "report", "hint", "override",
+            "lesson_complete", "rubric_review"} <= set(tools):
         fail("SURFACE_PARITY is missing a reserved MCP tool name; have %r"
              % sorted(tools))
+
+
+def namespaced_response_event(session_id, objective, ts, score=True,
+                              item_ref=None, bank="sel_bank.md"):
+    """One synthetic namespaced response for the 10-04 daemon pacing
+    corpus, mirroring evidence.response_event's shape."""
+    item_ref = item_ref or ("Q" + evidence.new_event_id()[:8])
+    return {
+        "schema_version": evidence.EVENT_SCHEMA_VERSION,
+        "event_id": evidence.new_event_id(),
+        "event_type": "response",
+        "ts": ts,
+        "session_id": session_id,
+        "item_id": "",
+        "item_ref": item_ref,
+        "item_type": "mc",
+        "bank": bank,
+        "objective": objective,
+        "subject": evidence.subject_of(objective),
+        "mode": "practice",
+        "attempt_number": 1,
+        "answer": "B",
+        "canonical": "B",
+        "score": score,
+        "response_time_ms": 1000,
+        "confidence": None,
+        "error_category": None,
+        "hint_tier": None,
+        "selection_mode": "practice",
+        "review_state": "n/a",
+        "dedupe_key": evidence.dedupe_key(session_id, item_ref, 1, "B"),
+        "source_ref": None,
+    }
+
+
+def check_api_override_route():
+    """POST /api/override (10-04, D-08): the daemon twin of `itembank
+    override`. At cap, ordinary /api/start is blocked with the exact locked
+    copy; a wrong confirmation token is a 400 and writes nothing; with the
+    exact token and a namespaced objective it starts exactly one sitting,
+    appends ONE cap_override event bound to the generated session id /
+    subject / local day / snapshot, and a fresh at-cap start is blocked
+    again (no persistent bypass). Client-forged subject/cap/snapshot
+    values are ignored -- the binding and the event carry only
+    server-derived numbers (T-10-14/T-10-15).
+    """
+    import datetime
+    from datetime import timezone
+    workdir = tempfile.mkdtemp()
+    try:
+        shutil.copy(os.path.join(ROOT, "fixtures", "selection_bank.md"),
+                    os.path.join(workdir, "sel_bank.md"))
+        write_settings_file(workdir, {"daily_cap": 1})
+        today = datetime.date.today()
+        ts = datetime.datetime(today.year, today.month, today.day, 9, 0,
+                               tzinfo=timezone.utc
+                               ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        evdir = os.path.join(workdir, "_evidence")
+        os.makedirs(evdir, exist_ok=True)
+        proc, url, lines = start_daemon(workdir)
+        try:
+            # Below cap on a fresh subject: client-forged subject/cap are
+            # ignored -- the binding is server-derived -- and the fourth
+            # selection profile (exam) runs through the same gate.
+            # (snapshot_id is NOT in this set: 10-05 makes it a validated
+            # field -- a forged/stale id is a 400, covered by its own case.)
+            status, body = json_request(
+                url + "api/start",
+                {"bank": "sel_bank", "objective": "water:notification.boil",
+                 "count": 2, "selection_mode": "exam",
+                 "subject": "forged", "cap": 999})
+            if status != 200:
+                fail("below-cap start with forged fields returned HTTP %d: %r"
+                     % (status, body))
+            if body["cap"]["subject"] != "water":
+                fail("forged subject must never reach the binding: %r"
+                     % body["cap"])
+            if body["cap"]["cap"] != 1 or body["cap"]["count"] != 0:
+                fail("forged cap must never reach the binding: %r" % body["cap"])
+
+            # A forged/stale snapshot claim is rejected with refresh
+            # guidance and no session (T-10-19).
+            attempts_dir = os.path.join(workdir, "_attempts")
+            before_attempts = set(os.listdir(attempts_dir)) \
+                if os.path.isdir(attempts_dir) else set()
+            status, body = json_request(
+                url + "api/start",
+                {"bank": "sel_bank",
+                 "objective": "water:notification.boil", "count": 2,
+                 "snapshot": {"snapshot_id": "forged"}})
+            if status != 400 or "stale" not in str(body).lower():
+                fail("a forged snapshot claim must be rejected as stale: "
+                     "HTTP %d %r" % (status, body))
+            after_attempts = set(os.listdir(attempts_dir)) \
+                if os.path.isdir(attempts_dir) else set()
+            if after_attempts != before_attempts:
+                fail("a stale-snapshot start must write no session")
+
+            # Now the day's live evidence lands (one water response today
+            # vs daily_cap 1), so the subject is at cap.
+            with open(os.path.join(evdir, "evidence.jsonl"), "a",
+                      encoding="utf-8") as fh:
+                fh.write(json.dumps(namespaced_response_event(
+                    "seed", "water:distribution.residual", ts, score=True,
+                    item_ref="S1"), sort_keys=True) + "\n")
+
+            # At cap (1 live water response today vs daily_cap 1): ordinary
+            # start is blocked with the exact locked copy, even when the
+            # caller forges subject/cap/override values.
+            status, body = json_request(
+                url + "api/start",
+                {"bank": "sel_bank",
+                 "objective": "water:distribution.residual", "count": 2,
+                 "subject": "emt", "cap": 999, "override": True})
+            if status != 400:
+                fail("at-cap /api/start returned HTTP %d, expected 400" % status)
+            if "Today\u2019s water cap is reached (1 of 1 ordinary attempts)." \
+                    not in str(body):
+                fail("at-cap /api/start did not carry the exact locked copy: %r"
+                     % body)
+
+            # Wrong confirmation token: 400, nothing written.
+            status, body = json_request(
+                url + "api/override",
+                {"bank": "sel_bank",
+                 "objective": "water:distribution.residual", "count": 2,
+                 "token": "not the phrase"})
+            if status != 400:
+                fail("override with a wrong token returned HTTP %d, expected "
+                     "400" % status)
+            log = evidence.log_path(workdir)
+            overrides = [ev for ev in evidence.live_events(log)
+                         if ev.get("event_type") == evidence.CAP_OVERRIDE_EVENT_TYPE]
+            if overrides:
+                fail("a rejected override must append no cap_override event")
+
+            # Confirmed override: one event, bound to the generated session.
+            status, body = json_request(
+                url + "api/override",
+                {"bank": "sel_bank",
+                 "objective": "water:distribution.residual", "count": 2,
+                 "token": session.OVERRIDE_CONFIRMATION,
+                 "subject": "forged-subject", "cap": 777})
+            if status != 200:
+                fail("confirmed override returned HTTP %d: %r" % (status, body))
+            result = body
+            if result["cap"]["subject"] != "water":
+                fail("override binding subject must be server-derived, got %r"
+                     % result["cap"]["subject"])
+            if result["cap"]["cap"] != 1 or result["cap"]["count"] != 1:
+                fail("override binding must carry the real 1/1 cap/count, got %r"
+                     % result["cap"])
+            overrides = [ev for ev in evidence.live_events(log)
+                         if ev.get("event_type") == evidence.CAP_OVERRIDE_EVENT_TYPE]
+            if len(overrides) != 1:
+                fail("confirmed override must append exactly one cap_override "
+                     "event, found %d" % len(overrides))
+            ev = overrides[0]
+            if ev["session_id"] != result["session_id"]:
+                fail("override event must bind to the generated session id")
+            if ev["subject"] != "water" or ev["cap"] != 1 or ev["count"] != 1:
+                fail("override event must carry server-derived subject/cap/"
+                     "count: %r" % ev)
+            if ev["local_date"] != today.isoformat():
+                fail("override event local_date %r != %s"
+                     % (ev["local_date"], today.isoformat()))
+            if result["cap"]["override_event_id"] != ev["event_id"]:
+                fail("session binding must name the override event id")
+
+            # The override authorizes only that sitting: answer one item,
+            # then a fresh at-cap start is blocked again (D-08 expiry --
+            # there is no persistent bypass).
+            session_id = result["session_id"]
+            nxt = post(url + "api/next", {"session_id": session_id})
+            answer = api_correct_answer(
+                api_by_id(os.path.join(workdir, "sel_bank.md")), nxt["item"])
+            submitted = post(url + "api/submit",
+                             {"session_id": session_id, "answer": answer})
+            if submitted["accepted"] is not True:
+                fail("the override sitting's submit was not accepted")
+            status, _ = json_request(
+                url + "api/start",
+                {"bank": "sel_bank",
+                 "objective": "water:distribution.residual", "count": 2})
+            if status != 400:
+                fail("after the override sitting, a fresh at-cap start must "
+                     "be blocked again; got HTTP %d" % status)
+        finally:
+            proc.terminate()
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+    print("  /api/override: locked block, forged-input containment, one "
+          "sitting-bound event, expiry")
+
+
+def check_api_export_audio():
+    """09.1-03 Task 3: `POST /api/export_audio` and the CLI produce identical
+    pack file names and transcript for the same fixture -- one implementation,
+    two surfaces (D-08); the ROUTE_CLI inventory holds with the new route; an
+    invalid body (missing objective, unknown engine, traversal out_dir)
+    returns a named error response and writes no files (D-04).
+    """
+    from surfaces import audio as audio_surface
+    workdir = tempfile.mkdtemp()
+    try:
+        shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+        proc, url, lines = start_daemon(workdir)
+        try:
+            base = url.rstrip("/")
+            out_dir = "_attempts/audio"
+            payload = {"bank": "sample_bank", "objective": "Public notification",
+                       "out_dir": out_dir, "engine": "transcript-only"}
+            status, body = json_request(base + "/api/export_audio", payload)
+            if status != 200:
+                fail("POST /api/export_audio returned %d: %r"
+                     % (status, body))
+            if not isinstance(body, dict) or not body.get("transcript"):
+                fail("export_audio response has no transcript path: %r" % body)
+            if not isinstance(body.get("audio"), list):
+                fail("export_audio response audio is not a list: %r" % body)
+            route_names = sorted(
+                os.path.basename(p) for p in [body["transcript"]] + body["audio"])
+            if not route_names:
+                fail("export_audio route produced no files")
+            # The CLI must produce the same pack file names for the same inputs.
+            cli_out = os.path.join(workdir, out_dir.replace("/", os.sep))
+            r = subprocess.run(
+                [sys.executable, os.path.join(ROOT, "itembank.py"), "export",
+                 "audio", os.path.join(workdir, "sample_bank.md"),
+                 "--objective", "Public notification",
+                 "--engine", "transcript-only", "--out", cli_out],
+                capture_output=True, text=True, encoding="utf-8", cwd=ROOT)
+            if r.returncode != 0:
+                fail("CLI export audio exited %d: %s"
+                     % (r.returncode, r.stdout + r.stderr))
+            cli_names = sorted(os.listdir(cli_out))
+            if cli_names != route_names:
+                fail("route and CLI produced different pack file names: %r vs %r"
+                     % (route_names, cli_names))
+
+            # Invalid bodies refuse by name and write nothing.
+            before = snapshot_dirs(workdir)
+            status, body = json_request(base + "/api/export_audio",
+                                        {"bank": "sample_bank",
+                                         "out_dir": out_dir})
+            if status != 400:
+                fail("missing objective returned %d, expected 400" % status)
+            status, body = json_request(base + "/api/export_audio",
+                                        {"bank": "sample_bank",
+                                         "objective": "Public notification",
+                                         "engine": "no-such-engine",
+                                         "out_dir": out_dir})
+            if status != 400:
+                fail("unknown engine returned %d, expected 400" % status)
+            if "no-such-engine" not in str(body):
+                fail("unknown engine refusal does not name the engine: %r" % body)
+            status, body = json_request(base + "/api/export_audio",
+                                        {"bank": "sample_bank",
+                                         "objective": "Public notification",
+                                         "out_dir": "../escape"})
+            if status != 400:
+                fail("traversal out_dir returned %d, expected 400" % status)
+            after = snapshot_dirs(workdir)
+            if after != before:
+                fail("invalid export_audio bodies wrote files: %r"
+                     % (after - before))
+        finally:
+            proc.terminate()
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
 
 
 def snapshot_dirs(root):
@@ -1325,17 +1606,27 @@ def check_api_start_traversal():
     """A `bank` field naming a path outside the served directory -- absolute,
     or with parent-directory segments -- returns 4xx, creates no directory
     and writes no file (T-2-01, T-2-02).
+
+    The snapshot is scoped to the served root plus the one escape target
+    the hostile values aim at, never the whole parent directory: other
+    processes (sibling phase worktrees) legitimately create temp
+    workdirs under the same parent while this suite runs, so a
+    parent-wide snapshot would flake on their activity rather than on
+    this server's behavior.
     """
     workdir = tempfile.mkdtemp()
     shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
     proc, url, lines = start_daemon(workdir)
     try:
-        parent = os.path.dirname(workdir)
-        before = snapshot_dirs(parent)
+        escaped = os.path.abspath(os.path.join(workdir, "..", "escaped"))
+        if os.path.exists(escaped):
+            fail("escape target %r already exists; the traversal check needs "
+                 "a clean scratch space" % escaped)
+        before = snapshot_dirs(workdir)
         hostile_values = (
             "../../etc/passwd",
             "..\\..\\Windows\\System32\\evil",
-            os.path.abspath(os.path.join(workdir, "..", "escaped")),
+            escaped,
         )
         for hostile in hostile_values:
             try:
@@ -1346,10 +1637,13 @@ def check_api_start_traversal():
                 if exc.code < 400 or exc.code >= 500:
                     fail("a path-shaped bank field returned HTTP %d, expected 4xx"
                          % exc.code)
-        after = snapshot_dirs(parent)
+        after = snapshot_dirs(workdir)
         if after != before:
-            fail("a hostile bank field on /api/start created a new directory: %r"
-                 % (after - before))
+            fail("a hostile bank field on /api/start created a new directory "
+                 "under the served root: %r" % (after - before))
+        if os.path.exists(escaped):
+            fail("a hostile bank field on /api/start created the escape target %r"
+                 % escaped)
         attempts_dir = os.path.join(workdir, "_attempts")
         if os.path.isdir(attempts_dir) and os.listdir(attempts_dir):
             fail("a hostile bank field on /api/start wrote a session file")
@@ -1548,54 +1842,67 @@ def check_serve_attempt_refresh():
     attempt view atomically after API submissions, and its progress line is
     based on the API session id, not a stale page-owned counter.
     """
-    out = os.path.join(tempfile.mkdtemp(), "attempt.md")
-    proc = subprocess.Popen(
-        [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "serve", BANK,
-         "--no-open", "--port", "0", "--out", out],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    lines = []
-    threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
-                     daemon=True).start()
-    base = None
-    for _ in range(60):
-        time.sleep(0.1)
-        m = re.search(r"http://127\.0\.0\.1:\d+/", "".join(lines))
-        if m:
-            base = m.group(0)
-            break
-    if not base:
-        proc.terminate()
-        fail("scoped serve never printed a URL. Output was:\n" + "".join(lines))
+    workdir = tempfile.mkdtemp()
     try:
-        qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
-        _, page = get(base + "quiz/sample_bank")
-        boot = serve_roundtrip.served_boot(page)
-        started = post(base + "api/start",
-                       {"bank": boot["bank"], "count": boot["count"],
-                        "mode": boot["mode"]})
-        session_id = started["session_id"]
-        answer = api_correct_answer(api_by_id(), started["item"])
-        submitted = post(base + "api/submit",
-                         {"session_id": session_id, "answer": answer})
-        if submitted["score"] is not True:
-            fail("scoped serve API submit scored %r, expected True"
-                 % submitted["score"])
+        # Serve a temp COPY of the fixture bank so the evidence log lands in
+        # workdir/_evidence, never fixtures/_evidence: plan 10-03 makes start
+        # retention-aware, and accumulated evidence beside the shared fixture
+        # would reorder the served sitting (the short item is served first
+        # once its objective is weighted ahead, so the auto answer scores
+        # None instead of True). Same hermeticity fix class as
+        # tests/agent_roundtrip.py.
+        bank = os.path.join(workdir, "sample_bank.md")
+        shutil.copy(BANK, bank)
+        out = os.path.join(workdir, "attempt.md")
+        proc = subprocess.Popen(
+            [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "serve", bank,
+             "--no-open", "--port", "0", "--out", out],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        lines = []
+        threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
+                         daemon=True).start()
+        base = None
+        for _ in range(60):
+            time.sleep(0.1)
+            m = re.search(r"http://127\.0\.0\.1:\d+/", "".join(lines))
+            if m:
+                base = m.group(0)
+                break
+        if not base:
+            proc.terminate()
+            fail("scoped serve never printed a URL. Output was:\n" + "".join(lines))
+        try:
+            qs = itembank.parse_bank(open(bank, encoding="utf-8").read())
+            _, page = get(base + "quiz/sample_bank")
+            boot = serve_roundtrip.served_boot(page)
+            started = post(base + "api/start",
+                           {"bank": boot["bank"], "count": boot["count"],
+                            "mode": boot["mode"]})
+            session_id = started["session_id"]
+            answer = api_correct_answer(api_by_id(bank), started["item"])
+            submitted = post(base + "api/submit",
+                             {"session_id": session_id, "answer": answer})
+            if submitted["score"] is not True:
+                fail("scoped serve API submit scored %r, expected True"
+                     % submitted["score"])
 
-        text = open(out, encoding="utf-8").read()
-        if "[auto: correct]" not in text:
-            fail("configured attempt view was not refreshed after the API submit")
-        output = "".join(lines)
-        log = evidence.log_path(os.path.dirname(os.path.abspath(BANK)) or ".")
-        api_count = len(set(ev["item_ref"]
-                            for ev in evidence.session_events(log, session_id)))
-        want_progress = "  %d/%d answered, saved" % (api_count, len(qs))
-        if want_progress not in output:
-            fail("scoped serve progress did not print the API session count: %r"
-                 % output[-400:])
-        if api_count < 1:
-            fail("the API session recorded no events for the progress count")
+            text = open(out, encoding="utf-8").read()
+            if "[auto: correct]" not in text:
+                fail("configured attempt view was not refreshed after the API submit")
+            output = "".join(lines)
+            log = evidence.log_path(os.path.dirname(os.path.abspath(bank)) or ".")
+            api_count = len(set(ev["item_ref"]
+                                for ev in evidence.session_events(log, session_id)))
+            want_progress = "  %d/%d answered, saved" % (api_count, len(qs))
+            if want_progress not in output:
+                fail("scoped serve progress did not print the API session count: %r"
+                     % output[-400:])
+            if api_count < 1:
+                fail("the API session recorded no events for the progress count")
+        finally:
+            proc.terminate()
     finally:
-        proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
 
 
 def check_wave0_helpers():
@@ -2009,7 +2316,10 @@ def check_report_not_found():
     shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
     proc, url, lines = start_daemon(workdir)
     try:
-        for query in ("", "session=nope",
+        # 10-05 Task 3: GET /report WITHOUT a session is now the retention
+        # overview (200, honest empty state), so only the session-addressed
+        # 404 cases remain.
+        for query in ("session=nope",
                       "session=" + urllib.parse.quote("../../etc/passwd", safe="")):
             target = url + "report" + ("?" + query if query else "")
             try:
@@ -2028,6 +2338,12 @@ def check_report_not_found():
                 if workdir in body:
                     fail("the /report 404 body leaked the served directory for query "
                          "%r" % query)
+        status, body = get(url + "report")
+        if status != 200:
+            fail("GET /report without a session (retention overview) returned %d, "
+                 "expected 200" % status)
+        if "Not enough evidence yet" not in body:
+            fail("the empty retention overview is missing the honest sparse copy")
         status, _ = get(url)
         if status != 200:
             fail("the daemon did not survive the /report not-found cases: GET / "
@@ -2632,6 +2948,261 @@ def check_settings_driven_port():
         proc.terminate()
 
 
+def form_post(url, fields):
+    """POST urlencoded form fields (the gate band's `<form method="post">`
+    shape) and follow the 303 the gate routes issue; returns
+    `(final_url, body)` -- the redirect is followed as a GET, which is
+    exactly the post-redirect-get contract the reload test asserts."""
+    body = urllib.parse.urlencode(fields).encode()
+    req = urllib.request.Request(
+        url, data=body, method="POST",
+        headers={"Content-Type": "application/x-www-form-urlencoded"})
+    with urllib.request.urlopen(req, timeout=5) as res:
+        return res.geturl(), res.read().decode("utf-8")
+
+
+GATE_BANK = """# Gate daemon fixture
+[GATE: required]
+
+## LESSON
+
+### First Section
+
+Prose above the check.
+
+> [!CHECK: q1]
+
+### Second Section
+
+Second-section prose with its own check.
+
+> [!CHECK: q2]
+
+### Third Section
+
+Third-section prose.
+
+Q1. Which adjunct opens an airway?   (difficulty: recall)
+[OBJECTIVE: emt:airway.adjunct]
+A) A tongue depressor
+B) An oropharyngeal airway
+C) Oxygen tubing
+D) A stethoscope
+CORRECT: B
+WHY BEST: The oropharyngeal airway is the standard airway adjunct.
+KEY DISCRIMINATOR: A device that holds the tongue off the pharynx.
+SECOND-BEST: A. A tongue depressor holds the tongue; correct only if the question asked about visualization.
+DISTRACTOR ANALYSIS:
+- A) A visualization aid; would be correct if the question asked how to see the airway.
+- B) Correct: the standard adjunct.
+- C) Delivers oxygen; would be correct if the question asked about oxygenation.
+- D) A diagnostic tool; would be correct if the question asked how to auscultate.
+TRAP: Confusing oxygen delivery with airway opening.
+CONFIDENCE: high
+
+Q2. Second check item.   (difficulty: recall)
+[OBJECTIVE: emt:airway.adjunct]
+A) One
+B) Two
+C) Three
+D) Four
+CORRECT: A
+WHY BEST: It is the first.
+KEY DISCRIMINATOR: Ordinal.
+SECOND-BEST: B. Second; correct if the question asked for two.
+DISTRACTOR ANALYSIS:
+- A) Correct.
+- B) Would be correct if asked for two.
+- C) Would be correct if asked for three.
+- D) Would be correct if asked for four.
+TRAP: Counting.
+CONFIDENCE: high
+"""
+
+
+def _write_gate_dir():
+    """A temp dir holding the gate bank, plus the daemon's expected
+    `_attempts` layout. Returns (workdir, bank_path, log)."""
+    workdir = tempfile.mkdtemp()
+    bank_path = os.path.join(workdir, "gate_daemon.md")
+    open(bank_path, "w", encoding="utf-8").write(GATE_BANK)
+    log = evidence.log_path(workdir)
+    return workdir, bank_path, log
+
+
+def _gate_events(log, session_id=None):
+    """Live gate-relevant events for assertion."""
+    return [ev for ev in evidence.live_events(log)
+            if ev.get("event_type") in ("response", "gate_skip")]
+
+
+def check_gate_route_check_and_reveal():
+    """06.2-03 Task 2 Test 1: POST /lesson/<stem>/check scores via the one
+    runtime path, records response evidence with context="lesson_gate",
+    and 303s; under required with a cleared check the next section appears
+    and the reveal target's h2 carries the focus attributes."""
+    workdir, bank_path, log = _write_gate_dir()
+    proc, url, lines = start_daemon(workdir)
+    try:
+        stem = "gate_daemon"
+        status, page = get(url + "lesson/" + stem)
+        if "2 more sections below this check." not in page:
+            fail("the served gated lesson must truncate below the check")
+        if "Second-section prose" in page:
+            fail("the served gated lesson leaked the below-gate section")
+        final, page2 = form_post(url + "lesson/%s/check" % stem,
+                                 {"check": "q1", "action": "check",
+                                  "option": "B"})
+        if "second-section" not in final:
+            fail("the check 303 must target the next section, got %r" % final)
+        if "Second-section prose" not in page2:
+            fail("clearing the check must reveal the next section")
+        if 'tabindex="-1" autofocus' not in page2:
+            fail("the revealed section's h2 must carry the focus attributes")
+        if "The next section is below." not in page2:
+            fail("the reveal clause must compose into the status region")
+        evs = _gate_events(log)
+        responses = [e for e in evs if e.get("event_type") == "response"]
+        if len(responses) != 1:
+            fail("exactly one response event must be recorded, got %d"
+                 % len(responses))
+        if responses[0].get("context") != "lesson_gate":
+            fail("the recorded response must carry context=lesson_gate")
+        if responses[0].get("score") is not True:
+            fail("the check response must score through the one scorer")
+        print("gate route check: scores, records lesson_gate, 303 reveal")
+    finally:
+        proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def check_gate_route_skip_single_event():
+    """06.2-03 Task 2 Test 2 + 3: POST /lesson/<stem>/skip records exactly
+    one gate_skip (no response, no hint-tier advance), reveals the next
+    section, keeps the band live and answerable, and announces the skip
+    string once through the status region."""
+    workdir, bank_path, log = _write_gate_dir()
+    proc, url, lines = start_daemon(workdir)
+    try:
+        stem = "gate_daemon"
+        final, page = form_post(url + "lesson/%s/skip" % stem,
+                                {"check": "q1", "action": "skip"})
+        if "second-section" not in final:
+            fail("the skip 303 must target the next section, got %r" % final)
+        if "Second-section prose" not in page:
+            fail("skipping must reveal the next section")
+        if "Read ahead recorded. This check stays open." not in page:
+            fail("the skip must announce through the status region")
+        # The band stays live: the check form with both buttons is still
+        # on the page.
+        if 'value="check"' not in page or "Read ahead without answering" not in page:
+            fail("the skipped band must stay answerable")
+        evs = _gate_events(log)
+        skips = [e for e in evs if e.get("event_type") == "gate_skip"]
+        responses = [e for e in evs if e.get("event_type") == "response"]
+        if len(skips) != 1:
+            fail("exactly one gate_skip must be recorded, got %d" % len(skips))
+        if responses:
+            fail("a skip must never record a response event")
+        if skips[0].get("check_item_id") != "q1":
+            fail("the gate_skip must name the skipped check")
+        if skips[0].get("gate_mode") != "required":
+            fail("the gate_skip must record the resolved gate mode")
+        # A second skip POST for the same check dedupes: still one event.
+        form_post(url + "lesson/%s/skip" % stem,
+                  {"check": "q1", "action": "skip"})
+        evs2 = _gate_events(log)
+        skips2 = [e for e in evs2 if e.get("event_type") == "gate_skip"]
+        if len(skips2) != 1:
+            fail("a repeat skip must dedupe to one event, got %d"
+                 % len(skips2))
+        print("gate route skip: one gate_skip, no response, band stays live")
+    finally:
+        proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def check_gate_route_reload_no_resubmit():
+    """06.2-03 Task 2 Test 5: the reload-after-POST path does not
+    re-submit the check -- the 303 redirect is a GET, so the evidence log
+    is unchanged by re-requesting the landing page."""
+    workdir, bank_path, log = _write_gate_dir()
+    proc, url, lines = start_daemon(workdir)
+    try:
+        stem = "gate_daemon"
+        final, page = form_post(url + "lesson/%s/check" % stem,
+                                {"check": "q1", "action": "check",
+                                 "option": "B"})
+        before = len(_gate_events(log))
+        get(final)      # the reload-after-POST GET
+        get(final)
+        after = len(_gate_events(log))
+        if after != before:
+            fail("reloading the landing page re-submitted the check "
+                 "(%d -> %d events)" % (before, after))
+        print("gate route reload: PRG holds, no re-submission")
+    finally:
+        proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def check_gate_route_unreachable_no_reveal():
+    """06.2-03 Task 2 Test 4: with the evidence runtime unreachable, the
+    band renders the section-12.1 copy, no control is a disabled button
+    with no reason, no spinner persists, and no section is revealed."""
+    workdir = tempfile.mkdtemp()
+    try:
+        bank_path = os.path.join(workdir, "gate_daemon.md")
+        open(bank_path, "w", encoding="utf-8").write(GATE_BANK)
+        # Make the evidence log path un-writable: a FILE at the _evidence
+        # path blocks the log's parent directory creation.
+        open(os.path.join(workdir, "_evidence"), "w", encoding="utf-8").write("x")
+        proc, url, lines = start_daemon(workdir)
+        try:
+            status, page = get(url + "lesson/gate_daemon")
+            if ("This check cannot be submitted while the runtime is "
+                    "unreachable. Run itembank daemon and reload.") not in page:
+                fail("the unreachable band must render the section-12.1 copy")
+            if "Second-section prose" in page:
+                fail("an unreachable runtime must never reveal a section")
+            if re.search(r'<button[^>]*disabled', page):
+                fail("the degraded band must not carry disabled buttons "
+                     "without a reason")
+            if "spinner" in page.lower() or "loading" in page.lower():
+                fail("the degraded band must not show a spinner")
+            print("gate route unreachable: 12.1 copy, no reveal, no spinner")
+        finally:
+            proc.terminate()
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def check_gate_print_no_evidence():
+    """06.2-04 Gate 6 (section 8.3): the print request changes no evidence
+    -- the log length is identical before and after `?print=1` (a print is
+    not a skip)."""
+    workdir, bank_path, log = _write_gate_dir()
+    proc, url, lines = start_daemon(workdir)
+    try:
+        stem = "gate_daemon"
+        before = len(list(evidence.events(log)))
+        status, page = get(url + "lesson/%s?print=1" % stem)
+        after = len(list(evidence.events(log)))
+        if after != before:
+            fail("a print request must record nothing (%d -> %d events)"
+                 % (before, after))
+        if "Second-section prose" not in page:
+            fail("print must serve the complete ungated document")
+        if "more section below this check" in page:
+            fail("print must not render a truncation boundary")
+        if "Check \u00b7 emt:airway.adjunct" not in page:
+            fail("print must render each check as the D1 labelled rule")
+        print("gate print route: complete, D1 rules, log length unchanged")
+    finally:
+        proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
 def main():
     checks = (
         check_index_populated,
@@ -2659,6 +3230,8 @@ def main():
         check_cli_twin_route,
         check_disclosure_route,
         check_api_route_scope,
+        check_api_override_route,
+        check_api_export_audio,
         check_surface_parity,
         check_api_sitting,
         check_api_duplicate_submit_dedupes,
@@ -2696,6 +3269,11 @@ def main():
         check_startup_lan_binds_all,
         check_lan_path_validation_unchanged,
         check_settings_driven_port,
+        check_gate_route_check_and_reveal,
+        check_gate_route_skip_single_event,
+        check_gate_route_reload_no_resubmit,
+        check_gate_route_unreachable_no_reveal,
+        check_gate_print_no_evidence,
     )
     for check in checks:
         check()
