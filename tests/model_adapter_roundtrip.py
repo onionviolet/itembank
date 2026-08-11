@@ -232,12 +232,14 @@ class _FakeServer:
     def __init__(self, mode="ok"):
         self.mode = mode
         self.received = []
-        ctx = {"mode": mode, "received": self.received}
+        self.headers = []
+        ctx = {"mode": mode, "received": self.received, "headers": self.headers}
 
         class Handler(BaseHTTPRequestHandler):
             def do_POST(self):
                 length = int(self.headers.get("Content-Length") or 0)
                 ctx["received"].append(self.rfile.read(length).decode("utf-8"))
+                ctx["headers"].append(dict(self.headers))
                 mode = ctx["mode"]
                 if mode == "refuse":
                     self.send_response(503)
@@ -480,6 +482,210 @@ def test_authored_fallback_after_unavailable():
         fail("authored tier-2 hint unavailable: %r" % hint)
 
 
+# ---- Task 3: the named profile registry, secret env references, and --------
+# ---- the third-backend stub proof ------------------------------------------
+
+def test_profile_registry_validation():
+    """Settings accept model_backend as {active, profiles} with unique profile
+    names; a duplicate name, an unknown active profile, or a profile missing
+    its transport-required field is a typed reason -- settings.invalid_value
+    for a bad registry, adapter.profile_unknown for a missing active name --
+    never a silent fallback (RESEARCH Pitfall 3, T-08-13)."""
+    tmp = tempfile.mkdtemp()
+    try:
+        a = hosted_profile(tmp, name="a")
+        b = hosted_profile(tmp, name="b")
+        settings = make_settings("a", [a, b])
+        profile, reason = settings_surface.resolve_profile(settings)
+        if profile is None or reason is not None:
+            fail("a valid unique-name registry did not resolve: %r %r"
+                 % (profile, reason))
+        if profile.get("name") != "a":
+            fail("the active profile resolved to %r, not 'a'"
+                 % profile.get("name"))
+
+        dup = make_settings("a", [a, dict(a, name="b"), b])
+        profile, reason = settings_surface.resolve_profile(dup)
+        if profile is not None or reason is None or \
+                reason["code"] != "settings.invalid_value":
+            fail("a duplicate profile name is not settings.invalid_value: %r %r"
+                 % (profile, reason))
+
+        unknown = make_settings("ghost", [a])
+        profile, reason = settings_surface.resolve_profile(unknown)
+        if profile is not None or reason is None or \
+                reason["code"] != "adapter.profile_unknown":
+            fail("an unknown active profile is not adapter.profile_unknown: %r %r"
+                 % (profile, reason))
+
+        missing_cmd = dict(a)
+        del missing_cmd["command"]
+        profile, reason = settings_surface.resolve_profile(
+            make_settings("a", [missing_cmd]))
+        if profile is not None or reason is None or \
+                reason["code"] != "settings.invalid_value":
+            fail("a hosted_cli profile missing command is not "
+                 "settings.invalid_value: %r %r" % (profile, reason))
+
+        missing_endpoint = dict(local_profile(closed_port(), name="loc"))
+        del missing_endpoint["endpoint"]
+        profile, reason = settings_surface.resolve_profile(
+            make_settings("loc", [missing_endpoint]))
+        if profile is not None or reason is None or \
+                reason["code"] != "settings.invalid_value":
+            fail("an openai_compatible profile missing endpoint is not "
+                 "settings.invalid_value: %r %r" % (profile, reason))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_load_settings_rejects_bad_registry():
+    """A schema-invalid model_backend registry (a profile missing a required
+    field) is rejected by load_settings with a named settings.* code -- never
+    a silent fallback to disabled."""
+    tmp = tempfile.mkdtemp()
+    try:
+        base = os.path.join(tmp, "base")
+        os.makedirs(base)
+        data = {"model_backend": {"active": "a", "profiles": [
+            {"name": "a", "transport": "hosted_cli", "command": ["x"]},
+        ]}}
+        json.dump(data, open(os.path.join(base, "itembank.json"), "w",
+                             encoding="utf-8"))
+        try:
+            settings_surface.load_settings(base)
+        except SystemExit as exc:
+            msg = str(exc)
+            if "settings." not in msg:
+                fail("a bad registry was rejected with a non-settings code: %r"
+                     % msg)
+        else:
+            fail("a profile missing required fields loaded silently")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_stub_third_backend_registration():
+    """A stub third backend registers through TRANSPORT_REGISTRY and invoke
+    routes to it with zero edits to tier-gate, evidence, or prompt-assembly
+    code (D-27): one registry entry plus one config entry, and the same
+    invoke(request, settings) call serves it. The result envelope keeps the
+    no-score contract (MODEL-05)."""
+    called = {}
+
+    def stub_transport(request, request_json, profile, settings):
+        called["profile"] = profile.get("name")
+        return model_adapter._ok_result(
+            request, "hosted", profile,
+            {"kind": "hint_plan", "interaction_id": request["interaction_id"],
+             "focus_span": "stubbed", "fact_ids": [], "move": "anchor_error"},
+            1)
+
+    model_adapter.TRANSPORT_REGISTRY["stub_transport"] = stub_transport
+    try:
+        profile = {"name": "stub", "transport": "stub_transport",
+                   "model": "stub-model", "timeout_seconds": 5,
+                   "max_output_bytes": 65536, "context_window": 4096}
+        result = model_adapter.invoke(
+            sample_request("stub"), make_settings("stub", [profile]))
+        if result["status"] != "ok":
+            fail("the stub backend did not route through invoke: %r" % result)
+        if result["candidate"].get("kind") != "hint_plan":
+            fail("the stub candidate did not round-trip: %r" % result)
+        if called.get("profile") != "stub":
+            fail("the stub transport did not receive the active profile: %r"
+                 % called)
+        for key in ("score", "tier", "accepted_mark"):
+            if key in result:
+                fail("the result envelope carries a %r field (MODEL-05)" % key)
+    finally:
+        del model_adapter.TRANSPORT_REGISTRY["stub_transport"]
+
+
+def test_secrets_from_env_never_inline():
+    """Credentials are read from the environment by name (secret_env), never
+    stored inline in itembank.json and never present in any request, result,
+    log, or evidence field (D-03/D-15); the shipped default config is
+    disabled (active "" and empty profiles)."""
+    shipped = settings_surface.load_settings(ROOT)
+    mb = shipped.get("model_backend")
+    if not isinstance(mb, dict) or mb.get("active") != "" or \
+            mb.get("profiles") != []:
+        fail("the shipped default model_backend is not disabled: %r" % mb)
+
+    raw_settings = open(SETTINGS_ON_DISK, encoding="utf-8").read()
+    for needle in ("sk-", "hunter2", "Bearer "):
+        if needle in raw_settings:
+            fail("a credential pattern %r is inline in itembank.json" % needle)
+
+    env_name = "ITEMBANK_TEST_SECRET_%d" % os.getpid()
+    tmp = tempfile.mkdtemp()
+    server = None
+    try:
+        server = _FakeServer(mode="ok")
+        profile = local_profile(server, name="local", secret_env=env_name)
+        settings = make_settings("local", [profile])
+        if "hunter2" in json.dumps(settings):
+            fail("the secret value is present in the settings document")
+        os.environ[env_name] = "hunter2"
+        try:
+            result = model_adapter.invoke(sample_request("local"), settings)
+        finally:
+            del os.environ[env_name]
+        if result["status"] != "ok":
+            fail("a secret-bearing profile did not route: %r" % result)
+        if not any("hunter2" in (h.get("Authorization") or "")
+                   for h in server.headers):
+            fail("the env secret did not reach the Authorization header")
+        if "hunter2" in server.received[0]:
+            fail("the secret value reached the request body")
+        for key, value in flatten(result):
+            if value == "hunter2":
+                fail("the secret value reached result field %r" % key)
+    finally:
+        if server:
+            server.close()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_suggestion_reveal_enum_and_default():
+    """suggestion_reveal validates to the three enum values, defaults to
+    after-self-mark, and reads back through load_settings (D-22)."""
+    schema = json.load(open(SETTINGS_SCHEMA_PATH, encoding="utf-8"))
+    sub = schema["properties"]["suggestion_reveal"]
+    if sub["enum"] != ["after-self-mark", "before-self-mark", "after-mark"]:
+        fail("suggestion_reveal enum is not the three shipped values: %r"
+             % sub["enum"])
+    if sub["default"] != "after-self-mark":
+        fail("suggestion_reveal default is not after-self-mark: %r"
+             % sub["default"])
+    if sub.get("x-itembank-phase") != 8:
+        fail("suggestion_reveal is not x-itembank-phase 8")
+    for value in ("after-self-mark", "before-self-mark", "after-mark"):
+        if schema_validate.validate(value, sub):
+            fail("valid suggestion_reveal %r failed the schema" % value)
+    if not schema_validate.validate("mid-mark", sub):
+        fail("invalid suggestion_reveal 'mid-mark' passed the schema")
+
+    loaded = settings_surface.load_settings(ROOT)
+    if loaded.get("suggestion_reveal") != "after-self-mark":
+        fail("suggestion_reveal did not read back as after-self-mark: %r"
+             % loaded.get("suggestion_reveal"))
+
+    tmp = tempfile.mkdtemp()
+    try:
+        base = os.path.join(tmp, "base")
+        os.makedirs(base)
+        json.dump({"theme": "system"},
+                  open(os.path.join(base, "itembank.json"), "w",
+                       encoding="utf-8"))
+        loaded2 = settings_surface.load_settings(base)
+        if loaded2.get("suggestion_reveal") != "after-self-mark":
+            fail("a missing suggestion_reveal did not read as the default")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     test_hosted_cli_roundtrip()
     test_request_envelope_and_unknown_field()
@@ -489,10 +695,16 @@ def main():
     test_stable_replay()
     test_failure_matrix_typed_unavailable()
     test_authored_fallback_after_unavailable()
+    test_profile_registry_validation()
+    test_load_settings_rejects_bad_registry()
+    test_stub_third_backend_registration()
+    test_secrets_from_env_never_inline()
+    test_suggestion_reveal_enum_and_default()
     print("model adapter: ok (hosted CLI roundtrip, request envelope, "
           "executable-missing/refusal typed unavailable, hosted/local parity "
           "under a config-only switch, full failure matrix typed unavailable, "
-          "authored fallback intact)")
+          "authored fallback intact, profile registry validation, stub third "
+          "backend, secret env references, suggestion_reveal contract)")
     return 0
 
 
