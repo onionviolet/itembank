@@ -58,9 +58,9 @@
 
 ### Teaching
 
-- [ ] **TEACH-01**: A wrong answer holds the session cursor instead of advancing, so a second attempt is possible
-- [ ] **TEACH-02**: A `hint` command and route return the next tier: lesson pointer, objective, trap, the rationale for the option actually picked, the discriminator, then the reveal
-- [ ] **TEACH-03**: Hints used are recorded per response, so "right at tier 1" and "right at tier 4" are different outcomes in `report`
+- [x] **TEACH-01**: A wrong answer holds the session cursor instead of advancing, so a second attempt is possible
+- [x] **TEACH-02**: A `hint` command and route return the next tier: lesson pointer, objective, trap, the rationale for the option actually picked, the discriminator, then the reveal
+- [x] **TEACH-03**: Hints used are recorded per response, so "right at tier 1" and "right at tier 4" are different outcomes in `report`
 - [ ] **TEACH-04**: The tutoring model reads the item, key, rationale, and the learner's specific wrong answer, and writes a hint about that error
 - [ ] **TEACH-05**: The runtime decides which tier the model may speak at; model output reaching past the unlocked tier is dropped, not shown
 - [ ] **TEACH-06**: A learner cannot argue the model into revealing, because the gate is code and not instruction
@@ -70,12 +70,12 @@
 
 ### Modes
 
-- [ ] **MODE-01**: Feedback policy is a property of the session mode, chosen per sitting
-- [ ] **MODE-02**: Drill mode reveals the correct answer and explanation immediately on a wrong answer, then advances
-- [ ] **MODE-03**: Practice mode runs the hint ladder with the cursor held, revealing at the final tier
-- [ ] **MODE-04**: Diagnostic mode gives no feedback until the sitting ends
-- [ ] **MODE-05**: Exam mode gives no feedback until the attempt file is marked
-- [ ] **MODE-06**: The mode used is recorded with every response
+- [x] **MODE-01**: Feedback policy is a property of the session mode, chosen per sitting
+- [x] **MODE-02**: Drill mode reveals the correct answer and explanation immediately on a wrong answer, then advances
+- [x] **MODE-03**: Practice mode runs the hint ladder with the cursor held, revealing at the final tier
+- [x] **MODE-04**: Diagnostic mode gives no feedback until the sitting ends
+- [x] **MODE-05**: Exam mode gives no feedback until the attempt file is marked
+- [x] **MODE-06**: The mode used is recorded with every response
 
 ### Selection
 
@@ -324,21 +324,21 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | SEED-07 | Phase 3.2 | Pending |
 | SEED-08 | Phase 3.2 | Pending |
 | SEED-09 | Phase 3.2 | Pending |
-| TEACH-01 | Phase 6 | Pending |
-| TEACH-02 | Phase 6 | Pending |
-| TEACH-03 | Phase 6 | Pending |
+| TEACH-01 | Phase 6 | Complete |
+| TEACH-02 | Phase 6 | Complete |
+| TEACH-03 | Phase 6 | Complete |
 | TEACH-04 | Phase 8 | Pending |
 | TEACH-05 | Phase 8 | Pending |
 | TEACH-06 | Phase 8 | Pending |
 | TEACH-07 | Phase 8 | Pending |
 | TEACH-08 | Phase 8 | Pending |
 | TEACH-09 | Phase 8 | Pending |
-| MODE-01 | Phase 6 | Pending |
-| MODE-02 | Phase 6 | Pending |
-| MODE-03 | Phase 6 | Pending |
-| MODE-04 | Phase 6 | Pending |
-| MODE-05 | Phase 6 | Pending |
-| MODE-06 | Phase 6 | Pending |
+| MODE-01 | Phase 6 | Complete |
+| MODE-02 | Phase 6 | Complete |
+| MODE-03 | Phase 6 | Complete |
+| MODE-04 | Phase 6 | Complete |
+| MODE-05 | Phase 6 | Complete |
+| MODE-06 | Phase 6 | Complete |
 | SEL-01 | Phase 7 | Complete |
 | SEL-02 | Phase 7 | Complete |
 | SEL-03 | Phase 7 | Complete |

@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 2.1
 current_phase_name: Packaging, Self-Update & Interop Export (INSERTED, moved from Phase 12)
 status: planning
-stopped_at: Completed 07-06-PLAN.md
-last_updated: "2026-08-11T01:40:03.690Z"
+stopped_at: Completed 06-02-PLAN.md
+last_updated: "2026-08-11T03:03:43.477Z"
 last_activity: 2026-08-10
 last_activity_desc: Phase 03.1 execution started
 progress:
   total_phases: 18
-  completed_phases: 7
+  completed_phases: 9
   total_plans: 104
-  completed_plans: 56
+  completed_plans: 60
 ---
 
 # Project State
@@ -32,7 +32,7 @@ Plan: Not started
 Status: Ready to plan
 Last activity: 2026-08-10 — Phase 13 complete, transitioned to Phase 2.1
 
-Progress: [█████░░░░░] 54%
+Progress: [██████░░░░] 58%
 
 ## Performance Metrics
 
@@ -110,6 +110,7 @@ Progress: [█████░░░░░] 54%
 | Phase 13 P05 | 40min | 2 tasks | 2 files |
 | Phase 07 P05 | 45min | 3 tasks | 7 files |
 | Phase 07 P06 | 45min | 3 tasks | 11 files |
+| Phase 06 P02 | 150 min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -242,6 +243,9 @@ Recent decisions affecting current work:
 - [Phase 6] 06-01: a genuine wrong practice response unlocks (never shows) the next tier; hint/stumped reveal exactly one fixed tier and append a hint event only when shown -- tier 0 is the lesson pointer and only becomes a hint event at the moment it is actually shown (D-04/D-05/D-07).
 - [Phase 6] 06-01: after the authored reveal (tier 5) is shown, the next submit action advances even on a repeat of the last canonical response -- D-06 forbids manufacturing further attempts, and holding the card after full disclosure would do exactly that.
 - [Phase 6] 06-01: teaching_outcomes omits a fully-retracted item entirely (D-10 read-side suppression) and never counts stumped as a wrong response; correct-after-tier is only labeled when at least one hint was shown, so two identical correct responses at tier 1 and tier 4 produce different rows (TEACH-03).
+- [Phase 6] 06-02: every sitting action goes through session.do_action -- the CLI, /api/*, and the served browser share one adapter, one runtime transition, and one evidence writer; handle_quiz_answer is a compatibility wrapper over the API session, no direct scoring path remains.
+- [Phase 6] 06-02: renderer_meta is the ONLY Phase 6 renderer handoff -- one opaque UTF-8 string capped at 256 bytes, discarded before policy/persistence/evidence/response/logs; observation/canvas state belongs to Phase 06.1 and is refused by name on both action envelope and legacy answer form.
+- [Phase 6] 06-02: the served browser advances only on runtime-returned advance/complete; a practice hold keeps the card interactive for a materially different retry, the stumped control reveals exactly one fixed tier, and diagnostic/exam responses carry no verdict (score stripped) until their release gates.
 - [Phase ?]: INDEX_VERSION 1->2: the disposable index gained a bank column (D-13); the bump alone forces one rebuild and the index stays a cache (delete-and-requery and stale-version rebuild are test-asserted)
 - [Phase ?]: 13-02: the shell spawns the externalBin sidecar directly (not Command::sidecar) so the process handle is available for the job object; dev fallback is python itembank.py sidecar.
 - [Phase ?]: 13-02: token injection is a shell-local loopback HTTP proxy (WebView2 cannot set navigation headers) - one HTTP transport, proxy adds X-Itembank-Token and strips Origin.
@@ -268,7 +272,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-11T01:40:03.658Z
-Stopped at: Completed 07-06-PLAN.md
+Last session: 2026-08-11T03:03:43.371Z
+Stopped at: Completed 06-02-PLAN.md
 Resume file: None
 Deferred human verification: Phases 2.1/3/4 (see Deferred Verification table above)
