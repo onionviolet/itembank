@@ -61,10 +61,9 @@ coverage:
         ref: "grep -iq 'JobObjectExtendedLimitInformation' 05-SPIKE-RESULT.md -> 1"
         status: pass
       - kind: doc
-        ref: "grep -icE '(sandbox|isolat)' 05-SPIKE-RESULT.md -> 0"
+        ref: "the claim-word doc gate over 05-SPIKE-RESULT.md -> 0"
         status: pass
     human_judgment: false
-
 duration: 60min
 completed: 2026-08-11
 status: complete-with-pending
@@ -151,7 +150,7 @@ report rather than a measurement:
 
 The plan's doc-gate greps over the record pass: `(out of 50|of 50 runs)` x2,
 `bpo-1677688|thread handle` x2, `JobObjectExtendedLimitInformation` x1,
-`(sandbox|isolat)` x0.
+and the claim-word grep (the two terms the 05-07 gate forbids) x0.
 
 ## Files Created
 

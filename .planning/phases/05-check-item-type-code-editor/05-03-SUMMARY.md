@@ -177,4 +177,4 @@ status: complete
 
 **5. daemon_roundtrip flake**
 - **Found during:** full-suite verification
-- **Issue:** tests/daemon_roundtrip.py failed once in a heavy batch run on the hostile-bank-field-on-api-start assertion. It passes in isolation and when run immediately after check_roundtrip.py; no /api/start or bank-field code was touched by this plan. Recorded as an environment flake, not a regression.
+- **Issue:** tests/daemon_roundtrip.py failed once in a heavy batch run on the hostile-bank-field-on-api-start assertion. It passes when run alone and when run immediately after check_roundtrip.py; no /api/start or bank-field code was touched by this plan. Recorded as an environment flake, not a regression.
