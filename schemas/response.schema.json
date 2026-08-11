@@ -59,7 +59,7 @@
         },
         "item_type": {
           "type": "string",
-          "enum": ["mc", "multi", "table", "dnd", "build", "short"]
+          "enum": ["mc", "multi", "table", "dnd", "build", "short", "visual"]
         },
         "bank": {
           "type": "string",
@@ -235,7 +235,7 @@
           "type": "string",
           "enum": ["mark", "retraction", "day_tick", "term_lookup",
                    "key_review", "selection", "model_interaction",
-                   "mark_proposal"]
+                   "mark_proposal", "visual_action"]
         }
       }
     },

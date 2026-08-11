@@ -197,12 +197,16 @@ _VISUAL_SCENE_MEMBERS = frozenset({"version", "axes", "axis", "initial",
 _VISUAL_SCORING_MEMBERS = frozenset({"kind", "accepted", "tolerance",
                                      "partial_credit", "feedback"})
 # Script-bearing tokens scanned recursively over scene/scoring JSON; a match
-# rejects the member before rendering (T-06.1-03).
+# rejects the member before rendering (T-06.1-03). Event-handler keys are
+# matched as bare words (`onload`), and common executable call patterns are
+# matched in values (`alert(`, `eval(`, ...).
 _VISUAL_EXEC_RE = re.compile(
-    r"<\s*script|javascript:|on(?:click|load|mouse|pointer|touch|key|input|"
-    r"change|focus|blur|submit|error|dblclick|wheel)\s*=|"
-    r"eval\s*\(|new\s+Function|setTimeout|setInterval|document\.|window\.|"
-    r"innerHTML\s*=", re.I)
+    r"<\s*script|javascript:|eval\s*\(|new\s+Function|setTimeout|setInterval|"
+    r"document\.|window\.|innerHTML\s*=|alert\s*\(|prompt\s*\(|confirm\s*\(|"
+    r"location\.|localStorage|sessionStorage|fetch\s*\(|XMLHttpRequest|"
+    r"(?:^|[^A-Za-z0-9])on(?:click|load|mouse|pointer|touch|key|input|change|"
+    r"focus|blur|submit|error|dblclick|wheel|unload|resize|scroll|over|out)"
+    r"\b", re.I)
 
 # One SCALAR: a signed base-10 integer/decimal with at most six fractional
 # digits, or a rational `INTEGER/POSITIVE_INTEGER`. Exponents, NaN,

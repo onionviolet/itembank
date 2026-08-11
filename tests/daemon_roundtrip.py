@@ -1087,14 +1087,16 @@ def check_disclosure_route():
 
 
 def check_api_route_scope():
-    """D-04's four session routes plus Phase 6's `/api/hint`, and the count
-    is asserted rather than trusted.
+    """D-04's four session routes plus Phase 6's `/api/hint` plus plan
+    06.1-02's `/api/interact` (the visual committed-action twin), and the
+    count is asserted rather than trusted.
     """
-    if len(daemon.API_ROUTES) != 5:
-        fail("D-04 + Phase 6 scope /api/* to exactly five routes; API_ROUTES has "
-             "%d" % len(daemon.API_ROUTES))
-    if not {"start", "next", "submit", "hint", "report"} <= set(daemon.ROUTE_CLI.values()):
-        fail("ROUTE_CLI is missing one of the five session CLI commands")
+    if len(daemon.API_ROUTES) != 6:
+        fail("D-04 + Phase 6 + plan 06.1-02 scope /api/* to exactly six "
+             "routes; API_ROUTES has %d" % len(daemon.API_ROUTES))
+    if not {"start", "next", "submit", "hint", "interact", "report"} \
+            <= set(daemon.ROUTE_CLI.values()):
+        fail("ROUTE_CLI is missing one of the six session CLI commands")
 
 
 def snapshot_dirs(root):

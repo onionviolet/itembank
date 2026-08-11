@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/visual_interaction.schema.json",
+  "title": "itembank visual interaction contract",
+  "description": "The published protocol-integer-1 visual interaction contract (plan 06.1-02, D-04/D-05): the exact committed-action request accepted by POST /api/interact and `itembank interact`, the versioned runtime observation returned, and the `visual_action` evidence event appended by evidence.visual_action_event(). Everything here is semantic domain data: canonical SCALAR strings and stable ids, never pixels, pointer trajectories, screenshots, accepted states, tolerance amounts, or reveal content. The final submit remains the ordinary response event and is never duplicated as a visual action.",
+  "x-itembank-version": 1,
+  "type": "object",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/interact_request"
+    },
+    {
+      "$ref": "#/$defs/observation"
+    },
+    {
+      "$ref": "#/$defs/visual_action_event"
+    }
+  ],
+  "$defs": {
+    "interact_request": {
+      "type": "object",
+      "description": "The exact five-field committed-action request (06.1-RESEARCH.md item 2): session_id, interaction_version, action_id (lowercase canonical UUID-v4, stable across retries), action_type, and the canonical semantic state. The server resolves the session and current item; no item/path/score/key/tolerance/tier/observation/evidence field is accepted.",
+      "additionalProperties": false,
+      "required": ["session_id", "interaction_version", "action_id", "action_type", "state"],
+      "properties": {
+        "session_id": {
+          "type": "string"
+        },
+        "interaction_version": {
+          "const": 1
+        },
+        "action_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "action_type": {
+          "type": "string",
+          "enum": ["place_point", "move_point",
+                   "select_numberline_point", "set_interval"]
+        },
+        "state": {
+          "$ref": "#/$defs/semantic_state"
+        }
+      }
+    },
+    "semantic_state": {
+      "type": "object",
+      "description": "One canonical semantic state: exactly one of the three protocol-1 wire shapes, with canonical SCALAR strings. Interval endpoints are already ordered ascending with closure flags swapped when needed.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "x", "y"],
+          "properties": {
+            "kind": {
+              "const": "point"
+            },
+            "x": {
+              "type": "string"
+            },
+            "y": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": {
+              "const": "numberline_point"
+            },
+            "value": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "start", "end", "start_closed", "end_closed"],
+          "properties": {
+            "kind": {
+              "const": "interval"
+            },
+            "start": {
+              "type": "string"
+            },
+            "end": {
+              "type": "string"
+            },
+            "start_closed": {
+              "type": "boolean"
+            },
+            "end_closed": {
+              "type": "boolean"
+            }
+          }
+        }
+      ]
+    },
+    "observation": {
+      "type": "object",
+      "description": "The versioned runtime observation returned for one committed action (D-06): the submitted canonical semantic state, a deterministic error/invariant category, the ordered authored invariants that held, an opaque authored feedback anchor, and only the hint tier the Phase-6 policy already permitted for the session. It never carries accepted states, tolerance amounts, or reveal content, and a client or agent field cannot raise the tier.",
+      "additionalProperties": false,
+      "required": ["submitted", "error_category", "invariants",
+                   "feedback_anchor", "hint_tier", "tolerance_policy_version"],
+      "properties": {
+        "submitted": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/semantic_state"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "error_category": {
+          "type": ["string", "null"],
+          "description": "None, or one of the deterministic protocol-1 categories (invalid_response, out_of_domain, off_grid)."
+        },
+        "invariants": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Ordered stable authored invariant ids that held (in_bounds, on_grid, ordered, continuous)."
+        },
+        "feedback_anchor": {
+          "type": ["string", "null"],
+          "description": "An opaque authored feedback anchor id, or null when the author declared none."
+        },
+        "hint_tier": {
+          "type": ["integer", "null"],
+          "description": "The highest Phase-6 hint tier already permitted for the session -- supplied by the runtime policy, never read from the client."
+        },
+        "tolerance_policy_version": {
+          "type": "integer",
+          "description": "The tolerance policy version recorded so evidence stays interpretable after additive upgrades."
+        }
+      }
+    },
+    "visual_action_event": {
+      "type": "object",
+      "description": "The appended `visual_action` evidence event (06.1-RESEARCH.md item 2): the common audit fields plus interaction_version, action_id, action_type, canonical before/after state, error_category, ordered invariants, opaque feedback_anchor, hint_tier, and dedupe_key. Pointer telemetry, CSS/SVG coordinates, screenshots, private accepted states/tolerance, client verdict/tier, and reveal content are structurally absent.",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "event_id", "event_type", "ts", "session_id",
+        "item_id", "item_ref", "item_type", "bank", "objective", "subject",
+        "mode", "source_ref", "interaction_version", "action_id",
+        "action_type", "before_state", "after_state", "error_category",
+        "invariants", "feedback_anchor", "hint_tier", "dedupe_key"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "integer"
+        },
+        "event_id": {
+          "type": "string"
+        },
+        "event_type": {
+          "const": "visual_action"
+        },
+        "ts": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "item_id": {
+          "type": "string"
+        },
+        "item_ref": {
+          "type": "string"
+        },
+        "item_type": {
+          "type": "string"
+        },
+        "bank": {
+          "type": ["string", "null"]
+        },
+        "objective": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "mode": {
+          "type": ["string", "null"]
+        },
+        "source_ref": {
+          "type": ["object", "null"]
+        },
+        "interaction_version": {
+          "const": 1
+        },
+        "action_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "action_type": {
+          "type": "string",
+          "enum": ["place_point", "move_point",
+                   "select_numberline_point", "set_interval"]
+        },
+        "before_state": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/semantic_state"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "after_state": {
+          "$ref": "#/$defs/semantic_state"
+        },
+        "error_category": {
+          "type": ["string", "null"]
+        },
+        "invariants": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "feedback_anchor": {
+          "type": ["string", "null"]
+        },
+        "hint_tier": {
+          "type": ["integer", "null"]
+        },
+        "dedupe_key": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

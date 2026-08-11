@@ -20,16 +20,20 @@ exactly the conditions it always has, with the same message text, because
 that is still correct for the CLI; containing it is the daemon's job
 (`surfaces/daemon.py`'s `/api/*` handlers), not this module's.
 """
-import datetime, json, os, sys
+import datetime, json, os, re, sys
 
 import evidence
 import selection
 from model import lint, load
-from runtime import (REPORT_VERSION, SESSION_VERSION, normalize_answer, read_session,
+from runtime import (REPORT_VERSION, SESSION_VERSION, VISUAL_ACTIONS,
+                     VISUAL_PROTOCOL_VERSION, VISUAL_TOLERANCE_POLICY_VERSION,
+                     canonical_visual_response, normalize_answer, read_session,
                      reconcile_teaching_state, score_response, session_path,
                      session_summary, session_view, teaching_key,
                      teaching_transition, write_session, public_item,
-                     invoke_hint)
+                     invoke_hint,
+                     visual_observation as runtime_visual_observation,
+                     visual_state_in_domain)
 
 
 # Phase 6 renderer handoff (06-02, D-12): the only thing a served client may
@@ -214,6 +218,138 @@ def do_submit(session_file, answer, confidence):
                      confidence=confidence)
 
 
+ACTION_ID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+
+
+def do_interact(session_file, action):
+    """The ONE interaction mutation path for a visual item (plan 06.1-02
+    Task 3, D-04/D-05): commit one semantic state-changing action and append
+    exactly one `visual_action` evidence event.
+
+    `action` is the exact five-field request `{"interaction_version",
+    "action_id", "action_type", "state"}` (the session is resolved
+    server-side from `session_file`). Everything else -- item identity,
+    before-state, observation fields, and Phase-6 hint entitlement -- is
+    derived here or by the runtime, never accepted from the client. Final
+    submit remains the ordinary response event and is never duplicated as a
+    visual action.
+
+    Returns {"status": "recorded"|"already_recorded"|"conflict"|"refused",
+    ...} -- a duplicate action id/action/state replays with
+    `already_recorded`, reusing an action id with different action/state is a
+    `conflict`, and nonvisual sessions, stale versions, unknown actions,
+    malformed/out-of-domain state, and completed sessions are named refusals.
+    """
+    data = read_session(session_file)
+    if data["status"] != "active":
+        sys.exit("session is already complete")
+    qs = load(data["bank"])
+    if data["cursor"] >= len(data["items"]):
+        data["status"] = "complete"
+        write_session(session_file, data)
+        sys.exit("session is already complete")
+    q = qs[data["items"][data["cursor"]]]
+    if q["type"] != "visual":
+        sys.exit("current item is not a visual item; interact applies only "
+                 "to visual assessments")
+
+    if not isinstance(action, dict):
+        sys.exit("interact action must be an object")
+    # The five-field request (D-05); anything else is refused by name.
+    allowed = {"interaction_version", "action_id", "action_type", "state"}
+    unknown = set(action) - allowed
+    if unknown:
+        sys.exit("interact carries unknown field(s): %s"
+                 % ", ".join(sorted(unknown)))
+    interaction_version = action.get("interaction_version")
+    action_id = action.get("action_id")
+    action_type = action.get("action_type")
+    state = action.get("state")
+    if interaction_version != VISUAL_PROTOCOL_VERSION:
+        sys.exit("interaction_version %r is not the current visual protocol "
+                 "version %d" % (interaction_version, VISUAL_PROTOCOL_VERSION))
+    if not isinstance(action_id, str) or not ACTION_ID_RE.match(action_id):
+        sys.exit("action_id must be a lowercase canonical UUID-v4 string")
+    if action_type not in VISUAL_ACTIONS:
+        sys.exit("unknown action_type %r (protocol %d supports %s)"
+                 % (action_type, VISUAL_PROTOCOL_VERSION,
+                    ", ".join(VISUAL_ACTIONS)))
+
+    # The committed semantic state is canonicalized and validated by the
+    # runtime grammar -- never trusted raw (T-06.1-06).
+    after_state = canonical_visual_response(q, state)
+    if after_state is None:
+        sys.exit("state is not a valid canonical semantic response for this "
+                 "item")
+    if not visual_state_in_domain(q, after_state):
+        sys.exit("state is outside the authored domain")
+    before_state = None
+    log = evidence.log_path(os.path.dirname(data["bank"]))
+    item_key = evidence.evidence_key(q)
+    trail = evidence.visual_actions(log, data["session_id"], item_id=item_key)
+    if trail:
+        before_state = trail[-1].get("after_state")
+
+    # Phase-6 hint entitlement: the highest tier already permitted for this
+    # item's teaching state -- never raised by the client (D-06).
+    live = [ev for ev in evidence.live_events(log)
+            if ev.get("session_id") == data["session_id"]
+            and evidence.evidence_key({"item_id": ev.get("item_id", ""),
+                                       "id": ev.get("item_ref", "")}) == item_key]
+    rec = reconcile_teaching_state(data, q, {item_key: live}) \
+        .get("teaching_state", {}).get(item_key)
+    hint_tier = rec["highest_tier_shown"] if rec \
+        and rec["highest_tier_shown"] >= 0 else None
+
+    verdict = None
+    observation = runtime_visual_observation(
+        q, after_state, verdict, hint_tier=hint_tier)
+
+    event = evidence.visual_action_event(
+        data["session_id"], q, VISUAL_PROTOCOL_VERSION, action_id, action_type,
+        before_state, after_state, observation["error_category"],
+        observation["invariants"], observation["feedback_anchor"], hint_tier,
+        os.path.basename(data["bank"]), mode=data.get("mode"))
+    written = evidence.append_event(log, event)
+    if written["status"] == "already_recorded":
+        # Same dedupe identity (session, item, version, action id). Whether
+        # this is a benign replay or an id conflict is decided by comparing
+        # the stored event's action/state with the request.
+        existing = next((ev for ev in evidence.visual_actions(
+            log, data["session_id"], item_id=item_key)
+            if ev.get("action_id") == action_id), None)
+        if existing is not None and (
+                existing.get("action_type") != action_type
+                or existing.get("after_state") != after_state):
+            return {"status": "conflict", "item_id": q["id"],
+                    "action_id": action_id,
+                    "reason": "action id reused with different action/state",
+                    "evidence": written}
+        return {"status": "already_recorded", "item_id": q["id"],
+                "action_id": action_id,
+                "observation": _action_observation(existing or event),
+                "evidence": written}
+    return {"status": "recorded", "item_id": q["id"], "action_id": action_id,
+            "action_type": action_type, "before_state": before_state,
+            "after_state": after_state, "observation": observation,
+            "hint_tier": hint_tier, "evidence": written}
+
+
+def _action_observation(event):
+    """The bounded observation projection for a replayed action event: the
+    same fields a fresh commit returns, read back from evidence -- never
+    recomputed or client-supplied."""
+    return {
+        "submitted": event.get("after_state"),
+        "error_category": event.get("error_category"),
+        "invariants": event.get("invariants") or [],
+        "feedback_anchor": event.get("feedback_anchor"),
+        "hint_tier": event.get("hint_tier"),
+        "tolerance_policy_version": VISUAL_TOLERANCE_POLICY_VERSION,
+    }
+
+
 def do_hint(session_file, retry=False, stumped=None):
     """Request one error-specific hint through the runtime orchestration
     (plan 08-04): `runtime.invoke_hint` sequences adapter -> gate -> evidence
@@ -372,6 +508,20 @@ def cmd_submit(a):
 
 def cmd_hint(a):
     result = do_hint(a.session, retry=bool(a.retry))
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_interact(a):
+    """The CLI twin of POST /api/interact: parse `--action JSON` and call the
+    same `do_interact` body the route calls, printing the same JSON shape."""
+    try:
+        action = json.loads(a.action)
+    except (TypeError, ValueError) as exc:
+        sys.exit("--action must be a JSON object: %s" % exc)
+    if not isinstance(action, dict):
+        sys.exit("--action must be a JSON object")
+    result = do_interact(a.session, action)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
