@@ -13,6 +13,7 @@ Q1. An operator reads 0.9 mg/L free chlorine at the plant outlet but 0.1 mg/L at
 [ID: c3d14e8380044438]
 [HASH: sha256:33fb0a979d1c3872]
 [OBJECTIVE: water:distribution.residual]
+[PAIR: distribution-vs-boil]
 
 A) The far-end tap was sampled during a planned flushing program
 B) The outlet analyzer was calibrated with stale reagents and is reading high
@@ -206,8 +207,8 @@ Q8. An operator finds two zones with low residuals: one with a confirmed leak an
 [HASH: sha256:f20b789f73412d01]
 [OBJECTIVE: water:distribution.residual]
 
-B) Increase booster chlorination in both zones
 A) Rebuild the zone boundaries so each is served by a nearer source
+B) Increase booster chlorination in both zones
 C) Switch both zones to chloramine to slow decay
 D) Require daily flushing in both zones until readings recover
 
@@ -233,6 +234,7 @@ Q9. What condition is the trigger for issuing a boil-water notice?   (difficulty
 [ID: d24926658abb49af]
 [HASH: sha256:709dff7baf78d09b]
 [OBJECTIVE: water:notification.boil]
+[PAIR: distribution-vs-boil]
 
 A) A scheduled valve-exercise program
 B) A turbidity reading one unit below the treatment goal
@@ -374,9 +376,9 @@ Q14. During a boil-water notice, a school asks whether bottled water is required
 [HASH: sha256:0a58b6f533031689]
 [OBJECTIVE: water:notification.boil]
 
-C) Tap water is fine for hand washing if soap is used, because the notice targets water that may be ingested
-B) Bottled water is required for all uses including flushing toilets
 A) Boiled water is required only for dishwashing, not for drinking
+B) Bottled water is required for all uses including flushing toilets
+C) Tap water is fine for hand washing if soap is used, because the notice targets water that may be ingested
 D) Hand washing must use only alcohol-based sanitizer for the notice's duration
 
 CORRECT: C
@@ -430,8 +432,8 @@ Q16. A notice was issued at 9:00 a.m. after a pressure event. Which timing requi
 [HASH: sha256:c16a31d791372493]
 [OBJECTIVE: water:notification.boil]
 
-B) Notification within 24 hours, with the public notice issued as soon as practicable after the event is confirmed
 A) Notification only after the notice is lifted
+B) Notification within 24 hours, with the public notice issued as soon as practicable after the event is confirmed
 C) Notification within 30 days, alongside the monthly report
 D) Notification is the regulator's job, not the utility's
 
@@ -457,6 +459,8 @@ Q17. What is the purpose of adding coagulant in the conventional treatment train
 [ID: 34111b429b054ef0]
 [HASH: sha256:2f8024e8485e7141]
 [OBJECTIVE: water:treatment.coagulation]
+[PAIR: coagulation-train]
+[PREREQ: water:distribution.residual]
 
 A) To raise the pH of the finished water
 B) To add fluoride for dental health
@@ -485,6 +489,8 @@ Q18. A raw-water sample is turbid but the particles settle very slowly on their 
 [ID: 82abce71147b419a]
 [HASH: sha256:71e4e9e57af78c1b]
 [OBJECTIVE: water:treatment.coagulation]
+[PAIR: coagulation-train]
+[PREREQ: water:distribution.residual]
 
 A) Chlorine at the plant outlet
 B) Coagulant, followed by gentle mixing so the destabilised particles form floc
@@ -515,6 +521,8 @@ Q19. Which conditions favour effective coagulation?   (difficulty: application)
 [TYPE: multi]
 [SELECT: 2]
 [OBJECTIVE: water:treatment.coagulation]
+[PAIR: coagulation-train]
+[PREREQ: water:distribution.residual]
 
 A) Adequate mixing energy to disperse the coagulant quickly
 B) The highest possible pH regardless of the coagulant type
@@ -547,6 +555,7 @@ Q20. Classify each action as COAGULATION or POST-COAGULATION in the treatment tr
 [TYPE: table]
 [CATEGORIES: Coagulation | Post-coagulation]
 [OBJECTIVE: water:treatment.coagulation]
+[PREREQ: water:distribution.residual]
 
 ROW) Adding alum to raw water :: Coagulation
 ROW) Gentle stirring to grow floc :: Coagulation
@@ -569,6 +578,7 @@ Q21. Jar tests on today's raw water suggest a coagulant dose of 25 mg/L, but the
 [ID: c989c8eeab8e43aa]
 [HASH: sha256:7709bb535cc0e5ce]
 [OBJECTIVE: water:treatment.coagulation]
+[PREREQ: water:distribution.residual]
 
 A) Run at 15 mg/L because the historical dose has never failed
 B) Run at 25 mg/L, confirm with settled-water turbidity, and review why today's raw water needs more
@@ -597,10 +607,11 @@ Q22. After coagulation and settling, the floc blanket in the clarifier collapses
 [ID: c66fd740115c48fa]
 [HASH: sha256:3e10ddfb9ca5d0c8]
 [OBJECTIVE: water:treatment.coagulation]
+[PREREQ: water:distribution.residual]
 
-C) Whether the coagulant dose still matches the current raw-water quality
-B) Whether the finished-water tank is full
 A) Whether the billing meters are accurate
+B) Whether the finished-water tank is full
+C) Whether the coagulant dose still matches the current raw-water quality
 D) Whether the filters are due for backwashing
 
 CORRECT: C
@@ -628,6 +639,7 @@ Q23. Put the coagulation-stage steps in order.   (difficulty: recall)
 [HASH: sha256:bc9fc709327bfa32]
 [TYPE: build]
 [OBJECTIVE: water:treatment.coagulation]
+[PREREQ: water:distribution.residual]
 
 STEP) Rapid mix the coagulant into the raw water
 STEP) Gentle mixing to grow microfloc into settleable floc
@@ -791,6 +803,7 @@ Q29. A utility missed the monthly report deadline by three days because its data
 [HASH: sha256:a43e71b089280ff7]
 [TYPE: short]
 [OBJECTIVE: water:regulatory.reporting]
+[PREREQ: water:distribution.residual, water:notification.boil]
 
 MODEL: The utility must notify the regulator of the missed deadline as soon as it is known, explain the system failure, and submit the completed report with a corrective step to prevent recurrence, such as a manual backup process. Silence is not an option because a late report is a compliance event regardless of the reason: the regulator cannot distinguish a technical failure from concealment if it is not told, and the delay itself must be on the record.
 
@@ -807,6 +820,7 @@ Q30. An operator finds a 2019 sampling record that was never reported to the reg
 [ID: e011cd2cc2d144bf]
 [HASH: sha256:187d412f51dfe27f]
 [OBJECTIVE: water:regulatory.reporting]
+[PREREQ: water:distribution.residual, water:notification.boil]
 
 A) Report the discovery and the unreported result to the regulator, with the reason it was missed and the corrective step taken
 B) File the record silently with the current report so the history is complete

@@ -22,7 +22,8 @@ import model  # noqa: F401  (the question shape `select` consumes comes from mod
 # wired yet is refused loudly rather than silently ignored: each later plan in
 # this phase appends its own field to this tuple in the same commit that wires
 # it.
-SPEC_FIELDS = ("objective", "count", "seed", "exclude_item_ids")
+SPEC_FIELDS = ("objective", "count", "seed", "exclude_item_ids",
+               "pair", "prerequisite")
 
 # Matches `surfaces/cli.py`'s `--count` default and `handle_api_start`'s
 # `data.get("count", 10)`.
@@ -37,9 +38,30 @@ def filter_by_spec(questions, spec, excluded):
     D-05, because numbers move when a bank is edited.
     """
     objective = spec.get("objective") or ""
-    return [q for q in questions
-            if (not objective or q.get("objective") == objective)
-            and evidence.evidence_key(q) not in excluded]
+    pair = spec.get("pair") or ""
+    prereq = spec.get("prerequisite") or ""
+    out = [q for q in questions
+           if (not objective or q.get("objective") == objective)
+           and evidence.evidence_key(q) not in excluded]
+    if pair:
+        out = filter_by_pair(out, pair)
+    if prereq:
+        out = filter_by_prereq(out, prereq)
+    return out
+
+
+def filter_by_pair(candidates, name):
+    """Every candidate whose `q["pair"]` equals `name` -- exact string
+    comparison over an in-memory list, never regex and never a scan of
+    anything unbounded (T-07-01)."""
+    return [q for q in candidates if q.get("pair") == name]
+
+
+def filter_by_prereq(candidates, objective):
+    """Every candidate whose `q["prereq"]` list contains `objective` -- exact
+    membership over an in-memory list, never a path or SQL interpolation
+    (T-07-05)."""
+    return [q for q in candidates if objective in (q.get("prereq") or [])]
 
 
 def order_shuffled(indices, rng):
@@ -79,18 +101,46 @@ def select(questions, spec, history):
         sys.exit("count must be a positive integer, got %r" % (count,))
 
     objective = spec.get("objective") or ""
+    pair = spec.get("pair") or ""
+    prereq = spec.get("prerequisite") or ""
     seed = spec.get("seed", 0)
     excluded = set(spec.get("exclude_item_ids") or [])
     candidates = filter_by_spec(questions, spec, excluded)
+    if pair and not candidates:
+        known = sorted({q.get("pair") for q in questions if q.get("pair")})
+        sys.exit("no items carry pair %r; known pairs: %s"
+                 % (pair, ", ".join(known) if known else "(none)"))
     if not candidates:
         sys.exit("no items match objective %r" % objective)
 
-    rng = random.Random(seed)
-    order = order_shuffled(list(range(len(candidates))), rng)
-    items = [candidates[i] for i in order[:count]]
+    notes = []
+    if pair:
+        # D-07: the whole confusion set is served together, adjacently, in
+        # ascending bank order; serving one half of a pair is worse than
+        # serving neither, so the count is raised to hold the set and the
+        # raise is recorded in the trace.
+        count = max(count, len(candidates))
+        items = list(candidates)
+        order = list(range(len(candidates)))
+        notes.append("count raised to %d to hold the whole %r pair"
+                     % (count, pair))
+    else:
+        rng = random.Random(seed)
+        order = order_shuffled(list(range(len(candidates))), rng)
+        items = [candidates[i] for i in order[:count]]
 
     chosen = []
     for pos, q in enumerate(items):
+        admitted = []
+        if objective:
+            admitted.append("it is on objective %r" % objective)
+        if pair:
+            admitted.append("it is one of %d items in the confusion set %r"
+                            % (len(candidates), pair))
+        if prereq:
+            admitted.append("it builds on prerequisite %r" % prereq)
+        opening = ("chosen because " + ", ".join(admitted)
+                   if admitted else "chosen because")
         runner_up = None
         if pos + count < len(order):
             rq = candidates[order[pos + count]]
@@ -100,15 +150,14 @@ def select(questions, spec, history):
                 "reason": "it fell outside the requested count of %d" % count,
             }
         if runner_up is None:
-            reason = ("chosen because it is on objective %r and the seed %r "
-                      "placed it %d of %d matching items; there was no other "
-                      "candidate outside the requested count"
-                      % (objective, seed, pos + 1, len(candidates)))
+            reason = ("%s and the seed %r placed it %d of %d matching items; "
+                      "there was no other candidate outside the requested "
+                      "count" % (opening, seed, pos + 1, len(candidates)))
         else:
-            reason = ("chosen because it is on objective %r and the seed %r "
-                      "placed it %d of %d matching items; the runner-up %s "
-                      "%s" % (objective, seed, pos + 1, len(candidates),
-                              runner_up["item_ref"], runner_up["reason"]))
+            reason = ("%s and the seed %r placed it %d of %d matching items; "
+                      "the runner-up %s %s"
+                      % (opening, seed, pos + 1, len(candidates),
+                         runner_up["item_ref"], runner_up["reason"]))
         chosen.append({
             "item_id": evidence.evidence_key(q),
             "item_ref": q["id"],
@@ -118,12 +167,16 @@ def select(questions, spec, history):
         })
 
     resolved = {"objective": objective, "count": count, "seed": seed}
+    if pair:
+        resolved["pair"] = pair
+    if prereq:
+        resolved["prerequisite"] = prereq
     if excluded:
         resolved["exclude_item_ids"] = sorted(excluded)
     trace = {
         "spec": resolved,
         "evidence": {"log": "", "responses": len(history), "source": "none"},
         "chosen": chosen,
-        "notes": [],
+        "notes": notes,
     }
     return items, trace
