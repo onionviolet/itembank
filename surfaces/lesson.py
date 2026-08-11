@@ -8,6 +8,7 @@ only way out of a lesson is to another surface, never to a score.
 import html, json, os, re, sys
 
 import evidence
+import retention
 from model import (grab, lesson_slug, load, load_style, parse_key_blocks,
                    parse_lesson, parse_terms, resolve_style)
 from runtime import glossable
@@ -1246,6 +1247,8 @@ def cmd_lesson(a):
     heading that does not exist (T-3-12); a bank with no lesson section, or
     with an unreadable external source, writes its page and exits 0.
     """
+    if getattr(a, "complete", False):
+        return cmd_lesson_complete(a)
     qs = load(a.bank)
     lesson = parse_lesson(a.bank)
     out = a.out or os.path.splitext(a.bank)[0] + "_lesson.html"
@@ -1261,6 +1264,68 @@ def cmd_lesson(a):
     else:
         count = 0
     print("%d lesson section(s) -> %s" % (count, out))
+    return 0
+
+
+def cmd_lesson_complete(a):
+    """`itembank lesson BANK --ref HEADING --complete` (plan 10-02,
+    SCHED-04/D-24): the ONE explicit completion seam. Resolves the heading
+    through the Phase 3 slugifier and reader (`model.lesson_slug`,
+    `model.parse_lesson`, `model.load` -- never a second parser, slugger, or
+    a filesystem path from client input), discovers the sorted unique
+    objectives of items referencing it, appends exactly one
+    `lesson_complete` event through the ONE evidence writer, then captures
+    once and prints the event status, the configured interval, the derived
+    next-review date, the reason, and the snapshot id from that projection.
+
+    The command is idempotent: retrying the same completion reports
+    `already_recorded` and appends nothing (D-02). A completion without
+    `--ref`, an unknown heading, or a heading no item references with an
+    [OBJECTIVE:] line is refused with a named explanation and writes
+    nothing. The read/render path stays side-effect-free -- completion is a
+    separate branch, never a side effect of rendering or scrolling.
+    """
+    if not getattr(a, "ref", None):
+        sys.exit("lesson --complete requires --ref HEADING: a completion "
+                 "names exactly one Phase 3 lesson heading")
+    qs = load(a.bank)
+    lesson = parse_lesson(a.bank)
+    slug = lesson_slug(a.ref)
+    if lesson is None or not any(h["slug"] == slug for h in lesson["headings"]):
+        sys.exit("no lesson heading matching %r in %s" % (a.ref, a.bank))
+    objectives = sorted({q.get("objective", "") for q in qs
+                         if q.get("lesson_slug") == slug and q.get("objective")})
+    if not objectives:
+        sys.exit("lesson.no_referenced_objective: no item referencing %r "
+                 "carries an [OBJECTIVE:] line, so nothing can enter the "
+                 "review queue" % (a.ref,))
+    subject = evidence.subject_of(objectives[0])
+    if not subject or any(evidence.subject_of(o) != subject for o in objectives):
+        sys.exit("lesson.no_single_subject: items referencing %r must share "
+                 "one namespaced subject to record a completion" % (a.ref,))
+    bank_dir = os.path.dirname(os.path.abspath(a.bank)) or "."
+    event = evidence.lesson_complete_event(
+        session_id="reader", bank=os.path.basename(a.bank),
+        lesson_slug=slug, subject=subject, objectives=objectives,
+        zone=getattr(a, "zone", None) or "UTC")
+    result = evidence.append_event(evidence.log_path(bank_dir), event)
+    cfg = {}
+    try:
+        from surfaces import settings as _settings
+        cfg = _settings.load_settings(bank_dir)
+    except Exception:
+        cfg = {}
+    events = evidence.capture_events(evidence.log_path(bank_dir))
+    snapshot = retention.capture(events, zone=event["zone"], cfg=cfg)
+    rows = [r for r in retention.lesson_queue(snapshot)
+            if r["event_id"] == result["event_id"]]
+    print("%s lesson completion for %r (%d objective(s) -> review queue)"
+          % (result["status"], a.ref, len(rows)))
+    for r in rows:
+        print("  %s: next review %s (%d day(s), reason: %s)"
+              % (r["objective"], r["next_review_date"], r["interval_days"],
+                 r["reason"]))
+    print("snapshot: %s" % snapshot["claim"]["snapshot_id"])
     return 0
 
 

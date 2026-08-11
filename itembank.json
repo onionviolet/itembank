@@ -40,6 +40,23 @@
     "winnow_threshold": 8,
     "jaccard_threshold": 0.25
   },
+  "retention": {
+    "min_settled_attempts": 3,
+    "weak_accuracy": 0.6,
+    "mastery_accuracy": 0.85,
+    "mastery_success_days": 3,
+    "at_risk_after_days": 28,
+    "review_interval_days": 7,
+    "lesson_review_after_days": 14,
+    "weight_min": 0.75,
+    "weight_max": 1.25,
+    "max_weight_step": 0.1,
+    "weak_boost": 0.2,
+    "due_boost": 0.1,
+    "at_risk_boost": 0.2,
+    "mastery_reduction": 0.15,
+    "focused_session_count": 5
+  },
   "selection": {
     "cooldown_responses": 20
   }

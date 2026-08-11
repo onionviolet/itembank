@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://itembank.local/schemas/response.schema.json",
   "title": "itembank evidence event",
-  "description": "One line of _evidence/evidence.jsonl, built by evidence.response_event() / evidence.hint_event() and written by evidence.append_event() alone. Version 2 (Phase 6) adds the closed hint event shape and an integer-or-null response hint_tier (D-15/D-16) while keeping version-1 reads compatible. The response_event branch is the response shape: additionalProperties is false and every key is required, so a consumer can tell 'not captured' from 'this field did not exist in that era'. mark, retraction, day_tick, term_lookup, key_review, model_interaction and mark_proposal events get real bodies from the matching evidence constructors (described in $defs below) and are accepted by a permissive catch-all branch so a log mixing event types validates as a whole.",
+  "description": "One line of _evidence/evidence.jsonl, built by evidence.response_event() / evidence.hint_event() / evidence.lesson_complete_event() and written by evidence.append_event() alone. Version 2 (Phase 6) adds the closed hint event shape and an integer-or-null response hint_tier (D-15/D-16) while keeping version-1 reads compatible. Plan 10-02 adds the closed lesson-completion event shape (SCHED-04/D-24) and plan 10-04 the cap_override event: the only evidence that ever places a lesson's objectives in the review queue -- an explicit completion action, never reading time or page visibility. The response_event branch is the response shape: additionalProperties is false and every key is required, so a consumer can tell 'not captured' from 'this field did not exist in that era'. mark, retraction, day_tick, term_lookup, key_review, model_interaction and mark_proposal events get real bodies from the matching evidence constructors (described in $defs below) and are accepted by a permissive catch-all branch so a log mixing event types validates as a whole.",
   "x-itembank-version": 2,
   "type": "object",
   "oneOf": [
@@ -11,6 +11,15 @@
     },
     {
       "$ref": "#/$defs/hint_event"
+    },
+    {
+      "$ref": "#/$defs/lesson_complete_event"
+    },
+    {
+      "$ref": "#/$defs/cap_override_event"
+    },
+    {
+      "$ref": "#/$defs/selection_event"
     },
     {
       "$ref": "#/$defs/other_event"
@@ -234,8 +243,250 @@
         "event_type": {
           "type": "string",
           "enum": ["mark", "retraction", "day_tick", "term_lookup",
-                   "key_review", "selection", "model_interaction",
-                   "mark_proposal"]
+                   "key_review", "model_interaction", "mark_proposal"],
+          "description": "lesson_complete, cap_override and selection are deliberately absent: each has its own closed branch, so a malformed event of those types must FAIL validation rather than be accepted by this permissive branch. model_interaction and mark_proposal (plan 08-03) are accepted here."
+        }
+      }
+    },
+    "selection_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The selection event's real shape (plan 07-04; Phase 10 retention fields added by plan 10-03, D-01/D-10/T-10-13): the one record per sitting of what was asked for. `selection_spec` carries only the allowlisted selection fields; `retention`, when present, is the sitting's server-derived binding -- one snapshot id, the bounded normalized objective-weight map with each entry's named components and matching snapshot id, and the optional component trace. A forged map, client path, answer key, hidden tier, or model payload never validates here (additionalProperties is false at every level).",
+      "required": [
+        "schema_version", "event_id", "event_type", "ts", "session_id",
+        "bank", "selection_mode", "selection_spec", "items", "dedupe_key"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "event_id": {
+          "type": "string"
+        },
+        "event_type": {
+          "const": "selection"
+        },
+        "ts": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "bank": {
+          "type": "string",
+          "description": "The bank file's basename only (T-1-06)"
+        },
+        "selection_mode": {
+          "type": "string",
+          "enum": ["diagnostic", "practice", "remediation", "exam"]
+        },
+        "selection_spec": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The resolved selection spec, allowlisted to selection.SPEC_FIELDS by the builder",
+          "properties": {
+            "objective": {"type": "string"},
+            "count": {"type": "integer"},
+            "seed": {"type": "integer"},
+            "exclude_item_ids": {"type": "array", "items": {"type": "string"}},
+            "pair": {"type": "string"},
+            "prerequisite": {"type": "string"},
+            "selection_mode": {"type": "string"},
+            "prereq_satisfied": {"type": "boolean"},
+            "type": {"type": "string"},
+            "difficulty": {"type": "string"}
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dedupe_key": {
+          "type": "string"
+        },
+        "retention": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["snapshot_id", "objective_weights"],
+          "properties": {
+            "snapshot_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "objective_weights": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["weight", "components", "snapshot_id"],
+                "properties": {
+                  "weight": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "components": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "number"
+                    }
+                  },
+                  "snapshot_id": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            },
+            "trace": {
+              "type": ["object", "null"],
+              "description": "The returned selection trace's retention block (present when the composition consumed weights), or null"
+            }
+          }
+        }
+      }
+    },
+    "lesson_complete_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The lesson_complete event's real shape (plan 10-02, SCHED-04/D-24): a learner explicitly completed a named Phase 3 lesson heading. It names the bank basename only -- never a client-derived path (T-10-07) -- plus the Phase 3 lesson slug, the single namespaced subject the referenced objectives share, and the sorted unique referenced objectives (every objective must be namespaced; duplicates are rejected). The event proves an explicit completion action, not reading time or page visibility: no view, scroll, or model event can match this shape.",
+      "required": [
+        "schema_version", "event_id", "event_type", "ts", "session_id",
+        "bank", "lesson_slug", "subject", "objectives", "zone",
+        "actor", "dedupe_key"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "event_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event_type": {
+          "const": "lesson_complete"
+        },
+        "ts": {
+          "type": "string",
+          "description": "ISO-8601 UTC to millisecond precision, matching evidence.utc_now()"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bank": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The bank file's basename only, never an absolute path (T-1-06/T-10-07)"
+        },
+        "lesson_slug": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The Phase 3 model.lesson_slug() of the completed heading"
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^:]+$",
+          "description": "The non-empty namespace shared by the referenced objectives (evidence.subject_of); a full objective here would be a malformed subject"
+        },
+        "objectives": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^:]+:.+$",
+            "description": "A namespaced objective; an unnamespaced objective is rejected"
+          }
+        },
+        "zone": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Local-day zone the next-review date is derived in: an IANA name, 'UTC', or a fixed offset such as 'UTC+09:00'"
+        },
+        "actor": {
+          "type": "string"
+        },
+        "dedupe_key": {
+          "type": "string",
+          "description": "A sha256 hex digest over (bank, lesson_slug, subject, sorted objectives, zone), so retrying the identical completion dedupes"
+        }
+      }
+    },
+    "cap_override_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The cap_override event's real shape (plan 10-04, D-08): the one audited exception that lets a subject's sitting start after its daily cap was reached. It names only server-derived facts -- the generated session_id it authorizes, the bank basename, the non-empty namespaced subject, the local calendar date and zone the count was decided in, the one snapshot id, the exact cap/count shown to the learner, and the constant sitting scope. It is not a response: structurally it carries no score key at all. The exception applies only within the named session's active lifetime; a later sitting or a later day sees the ordinary count again (there is no persistent cap-disable setting).",
+      "required": [
+        "schema_version", "event_id", "event_type", "ts", "session_id",
+        "bank", "subject", "local_date", "zone", "snapshot_id",
+        "cap", "count", "scope", "dedupe_key"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "event_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event_type": {
+          "const": "cap_override"
+        },
+        "ts": {
+          "type": "string",
+          "description": "ISO-8601 UTC to millisecond precision, matching evidence.utc_now()"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The server-generated session id this exception authorizes and no other"
+        },
+        "bank": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The bank file's basename only, never an absolute path (T-1-06/T-10-07)"
+        },
+        "subject": {
+          "type": "string",
+          "pattern": "^[^:]+$",
+          "description": "The non-empty namespace whose cap was reached (evidence.subject_of); a full objective here would be a malformed subject"
+        },
+        "local_date": {
+          "type": "string",
+          "description": "The local calendar date (ISO-8601) the count/cap were decided on"
+        },
+        "zone": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The local-day zone label the count was decided in"
+        },
+        "snapshot_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The one snapshot id the cap decision referenced"
+        },
+        "cap": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The configured daily cap at decision time"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The live ordinary-attempt count shown to the learner at decision time"
+        },
+        "scope": {
+          "type": "string",
+          "const": "sitting",
+          "description": "The exception is scoped to one sitting; no other scope is legal"
+        },
+        "dedupe_key": {
+          "type": "string",
+          "description": "A sha256 hex digest over (session_id, subject, local_date, snapshot_id, cap), so retrying the identical confirmed override for the same generated session reconciles rather than appending a second exception"
         }
       }
     },

@@ -16,6 +16,8 @@ import sys
 import resources
 import schema_validate
 
+import retention
+
 
 # Archive-relative path (see resources.py): resolves inside a checkout and
 # inside a .pyz alike, unlike the __file__-relative path this replaced.
@@ -27,7 +29,7 @@ SETTINGS_FILE = "itembank.json"
 # this number is "read by this phase" rather than reported as inert. A float
 # so a sub-phase (2.1) can sit strictly between its parent (2) and the next
 # whole phase (3) without renumbering anything.
-THIS_PHASE = 7
+THIS_PHASE = 10
 
 # The published dotted error-code namespace (D-06), extending Phase 1's D-16
 # lint-code precedent. Built from a set-then-sorted tuple so it is provably
@@ -66,6 +68,15 @@ def paraphrase_defaults():
     `winnow_threshold` (default 8 consecutive copied words -> error) and
     `jaccard_threshold` (default 0.25 fingerprint overlap -> warning)."""
     return dict(PARAPHRASE_SETTINGS_DEFAULTS)
+
+
+def retention_defaults():
+    """The `retention` settings group's shipped defaults (Phase 10, D-06):
+    the conservative researched thresholds and weight terms, mirrored from
+    `retention.RETENTION_SETTINGS_DEFAULTS` -- the same accessor pattern as
+    the style/paraphrase groups, so tests and the pure module read one set
+    of numbers without a settings load."""
+    return dict(retention.RETENTION_SETTINGS_DEFAULTS)
 
 
 def settings_path(base):

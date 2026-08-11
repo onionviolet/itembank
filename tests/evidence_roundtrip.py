@@ -1615,6 +1615,7 @@ def test_serve_writes_events():
         qs = itembank.load(bank)
         log = itembank.log_path(tmp)
         out = os.path.join(tmp, "attempt.md")
+        by_id = {q["id"]: q for q in qs}
 
         proc, quiz_url, _banner_session = start_serve(bank, out, "drill")
         try:
@@ -1629,7 +1630,6 @@ def test_serve_writes_events():
                              (item.get("id"), leak))
 
             answer_url = served_post_path(quiz_url, page)
-            by_id = {q["id"]: q for q in qs}
             # The served session answers its CURRENT item (cursor order),
             # not a client-chosen id. Replicate the serve session's own
             # selection (count 6, seed 0, practice composition) to learn the
@@ -1668,10 +1668,40 @@ def test_serve_writes_events():
         finally:
             proc.terminate()
 
+        # A second sitting, a different mode: by_mode keeps the two scores
+        # in separate buckets (EVID-08, proven from the browser surface).
+        # The exam sitting follows the drill sitting, so its practice-
+        # composed selection is retention-weighted (plan 10-03) and serves
+        # whichever objective the weights favour -- exam feedback policy,
+        # not item order, is what this block is proving. Learn the served
+        # CURRENT item with the same probe the drill block uses, and answer
+        # it correctly: a genuinely recorded exam answer must defer feedback
+        # and leak neither a score nor an explanation.
+        out2 = os.path.join(tmp, "attempt2.md")
+        proc2, quiz_url2, _ = start_serve(bank, out2, "exam")
+        try:
+            page2 = urllib.request.urlopen(quiz_url2, timeout=5).read().decode("utf-8")
+            answer_url2 = served_post_path(quiz_url2, page2)
+            probe2 = json.loads(run(
+                ["start", bank, "--count", "6", "--seed", "0",
+                 "--mode", "exam", "--out", os.path.join(tmp, "probe_exam.json")], tmp))
+            exam_current = by_id[probe2["item"]["id"]]
+            r4 = post_answer(answer_url2, exam_current["id"],
+                             serve_correct_answer(exam_current),
+                             elapsed_ms=999)
+            if r4.get("action") != "defer_feedback":
+                fail("exam-mode answer must defer feedback: %r" % r4)
+            if "explain" in r4 or "score" in r4:
+                fail("exam-mode answer leaked feedback: %r" % r4)
+        finally:
+            proc2.terminate()
+
         lines = [l for l in open(log, encoding="utf-8").read().splitlines() if l.strip()]
-        response_lines = [l for l in lines if json.loads(l)["event_type"] == "response"]
+        response_lines = [l for l in lines
+                          if json.loads(l)["event_type"] == "response"
+                          and json.loads(l).get("mode") == "drill"]
         if len(response_lines) != 3:
-            fail("expected 3 response lines (3 genuine submits), found %d"
+            fail("expected 3 drill response lines (3 genuine submits), found %d"
                  % len(response_lines))
         events_by_ref = {}
         for l in response_lines:
@@ -1693,26 +1723,12 @@ def test_serve_writes_events():
             fail("the attempt file on disk is not byte-identical to "
                  "render_attempt_md()'s output for this session")
 
-        # A second sitting, a different mode, the same item: by_mode keeps
-        # the two scores in separate buckets (EVID-08, proven from the
-        # browser surface).
-        out2 = os.path.join(tmp, "attempt2.md")
-        proc2, quiz_url2, _ = start_serve(bank, out2, "exam")
-        try:
-            page2 = urllib.request.urlopen(quiz_url2, timeout=5).read().decode("utf-8")
-            answer_url2 = served_post_path(quiz_url2, page2)
-            r4 = post_answer(answer_url2, by_id["q1"]["id"],
-                             serve_correct_answer(by_id["q1"]),
-                             elapsed_ms=999)
-            if r4.get("action") != "defer_feedback":
-                fail("exam-mode answer must defer feedback: %r" % r4)
-            if "explain" in r4 or "score" in r4:
-                fail("exam-mode answer leaked feedback: %r" % r4)
-        finally:
-            proc2.terminate()
-
-        objective = current.get("objective") or ""
-        result = parse_json_tail(run(["evidence", "--objective", objective,
+        # by_mode keeps the two sittings' scores in separate buckets
+        # (EVID-08, proven from the browser surface): the drill responses
+        # above and the exam response below share this bank's log, and the
+        # rollup counts them per mode -- never summed into one figure --
+        # whichever objectives each sitting happened to serve.
+        result = parse_json_tail(run(["evidence", "--bank", os.path.basename(bank),
                                       "--base", tmp], tmp))
         by_mode = result["by_mode"]
         if not {"drill", "exam"} <= set(by_mode):

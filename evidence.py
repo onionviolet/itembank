@@ -41,13 +41,16 @@ INDEX_FILENAME = "evidence_index.sqlite3"
 
 # "retraction" was added by plan 01-07, "mark" by plan 01-09, "day_tick" by
 # plan 01-10, "term_lookup" by plan 03.1-02, "key_review" by plan 03.1-03,
-# "hint" by plan 06-01, "selection" by plan 07-04, "model_interaction" by
-# plan 08-03, and "mark_proposal" by plan 08-03 -- response events are the only ones this build
-# wrote before 01-07. events() skips and warns on anything outside this set
-# (D-09), so a log written by a later build's event type degrades instead of
-# crashing.
+# plan 01-10, "term_lookup" by plan 03.1-02, "key_review" by plan 03.1-03,
+# "hint" by plan 06-01, "selection" by plan 07-04, "lesson_complete" by
+# plan 10-02, "cap_override" by plan 10-04, and "model_interaction" /
+# "mark_proposal" by plan 08-03 -- response events are the only ones this
+# build wrote before 01-07. events() skips and warns on anything outside
+# this set (D-09), so a log written by a later build's event type degrades
+# instead of crashing.
 KNOWN_EVENT_TYPES = ("response", "retraction", "mark", "day_tick",
                      "term_lookup", "key_review", "hint", "selection",
+                     "lesson_complete", "cap_override",
                      "model_interaction", "mark_proposal")
 
 # The record of what a sitting asked for (D-03): one event per session, so a
@@ -414,7 +417,7 @@ def response_event(session_id, q, answer, score, mode, attempt_num, bank,
     }
 
 
-def selection_event(session_id, bank, spec, item_keys):
+def selection_event(session_id, bank, spec, item_keys, retention=None):
     """Build one selection event: the record of what a sitting asked for,
     appended once per session (D-03) and separate from the responses because
     the request is one fact about a sitting, not one fact per answer.
@@ -424,12 +427,19 @@ def selection_event(session_id, bank, spec, item_keys):
     answer key can ever enter the log under this event (T-07-03). `item_keys`
     is the ordered list of `evidence_key(q)` values that were served.
 
+    `retention` (plan 10-03) is the sitting's server-derived Phase 10
+    binding: the one snapshot id, the bounded normalized objective-weight map
+    (each entry with its weight, named components and snapshot id), and the
+    optional component trace. It is allowlisted to exactly those keys before
+    recording -- a client path, answer key, hidden tier, or model payload is
+    never echoed into the log (D-01, D-10, T-10-13).
+
     `dedupe_key` is derived from the session id alone, so a retried start for
     the same session reconciles (`already_recorded`) rather than doubling.
     """
     from selection import SPEC_FIELDS
     spec = {k: v for k, v in (spec or {}).items() if k in SPEC_FIELDS}
-    return {
+    event = {
         "schema_version": EVENT_SCHEMA_VERSION,
         "event_id": new_event_id(),
         "event_type": SELECTION_EVENT_TYPE,
@@ -443,6 +453,26 @@ def selection_event(session_id, bank, spec, item_keys):
             session_id, "selection", 0,
             json.dumps(spec, ensure_ascii=False, sort_keys=True)),
     }
+    if retention is not None:
+        if not isinstance(retention, dict):
+            raise ValueError("selection_event: retention must be an object "
+                             "or None")
+        snapshot_id = retention.get("snapshot_id")
+        objective_weights = retention.get("objective_weights")
+        if not isinstance(snapshot_id, str) or not snapshot_id:
+            raise ValueError("selection_event: retention.snapshot_id must be "
+                             "a non-empty string")
+        if not isinstance(objective_weights, dict):
+            raise ValueError("selection_event: retention.objective_weights "
+                             "must be an object")
+        cleaned = {
+            "snapshot_id": snapshot_id,
+            "objective_weights": objective_weights,
+        }
+        if retention.get("trace") is not None:
+            cleaned["trace"] = retention["trace"]
+        event["retention"] = cleaned
+    return event
 
 
 def append_event(log, event):
@@ -1077,6 +1107,28 @@ def live_events(log):
         yield ev
 
 
+def capture_events(log):
+    """Materialize the append-only log into ONE immutable in-memory sequence
+    of live events (D-01, D-02).
+
+    Phase 10's snapshot contract needs every derived claim -- objective
+    state, trend row, weight, recommendation, cap decision -- to read the
+    same event sequence, so that appending to the log after a render can
+    never silently change claims the render already returned. This is that
+    single materialization point: it applies the existing compensating-
+    retraction filter (`live_events`) exactly once and returns a tuple, so
+    a caller that captures twice gets two independent immutable snapshots,
+    and appending after capture cannot alter the already-returned one.
+
+    The returned tuple is JSON-native and immutable by construction; marks
+    are NOT folded in here (they stay a join the caller performs via
+    `marks_by_event`, because a mark is a separate fact about a response).
+    This is the one primitive Phase 10's `retention.capture` reads; no
+    Phase 10 code opens a second reader, filter, cache, store, or writer.
+    """
+    return tuple(live_events(log))
+
+
 def event_by_id(log, event_id):
     """The raw event dict for `event_id`, or `None` — used to validate a
     retract target before anything is appended. Reads through `events()`,
@@ -1683,6 +1735,144 @@ def key_review_event(session_id, bank, key_id, mode, ts=None, actor="learner"):
         "key_id": key_id,
         "mode": mode,
         "actor": actor,
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+LESSON_COMPLETE_EVENT_TYPE = "lesson_complete"
+
+
+def lesson_complete_event(session_id, bank, lesson_slug, subject, objectives,
+                          zone="UTC", ts=None, actor="learner"):
+    """Build one lesson_complete event: a learner explicitly completed a
+    named Phase 3 lesson heading, appended through the one writer (SCHED-04,
+    D-24). It is the ONLY way a lesson enters the objective review queue --
+    no page view, scroll, or model activity can manufacture it (D-24,
+    T-10-06), and it is not a response: structurally, it carries no score
+    key at all.
+
+    The event names the server/CLI-resolved facts only: the bank's basename
+    (never a client-derived path, T-10-07), the Phase 3 `lesson_slug()` of
+    the completed heading, the single namespaced subject the referenced
+    objectives share, and the sorted unique referenced objectives. Every
+    field is validated here because the log is append-only: an ambiguous
+    completion cannot be corrected later, only superseded.
+
+    `zone` is the local-day zone the completion's next-review date must be
+    derived in (an IANA name, "UTC", or a fixed offset such as "UTC+09:00");
+    retention projects the event's `ts` into it. `dedupe_key` hashes
+    (bank, lesson_slug, subject, sorted objectives, zone) alone -- NOT a
+    timestamp -- so retrying the identical completion is idempotent
+    (`append_event` reports `already_recorded`), while a compensating
+    retraction (D-10) makes the same completion record again as the next
+    live one.
+    """
+    if not session_id:
+        raise ValueError("lesson_complete_event: session_id must be non-empty")
+    if not bank or "/" in bank or "\\" in bank or os.sep in bank:
+        raise ValueError(
+            "lesson_complete_event: bank must be a basename, never a path "
+            "(got %r)" % (bank,))
+    if not lesson_slug:
+        raise ValueError(
+            "lesson_complete_event: lesson_slug must be a non-empty Phase 3 "
+            "lesson slug")
+    objectives = sorted({o for o in (objectives or []) if o})
+    if not objectives:
+        raise ValueError(
+            "lesson_complete_event: objectives must be a non-empty list of "
+            "namespaced objectives")
+    if any(":" not in o for o in objectives):
+        raise ValueError(
+            "lesson_complete_event: every referenced objective must be "
+            "namespaced (got %r)" % (objectives,))
+    if not subject or ":" in subject:
+        raise ValueError(
+            "lesson_complete_event: subject must be the non-empty namespace "
+            "shared by the referenced objectives (got %r)" % (subject,))
+    if not zone:
+        raise ValueError("lesson_complete_event: zone must be non-empty")
+    raw = "%s|%s|%s|%s|%s" % (bank, lesson_slug, subject,
+                              json.dumps(objectives, ensure_ascii=False,
+                                         sort_keys=True), zone)
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": LESSON_COMPLETE_EVENT_TYPE,
+        "ts": ts if ts is not None else utc_now(),
+        "session_id": session_id,
+        "bank": bank,
+        "lesson_slug": lesson_slug,
+        "subject": subject,
+        "objectives": objectives,
+        "zone": zone,
+        "actor": actor,
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+CAP_OVERRIDE_EVENT_TYPE = "cap_override"
+
+
+def cap_override_event(session_id, bank, subject, local_date, zone,
+                       snapshot_id, cap, count, ts=None):
+    """Build one cap_override event (plan 10-04, D-08): the audited
+    exception that lets one additional per-subject sitting start after the
+    daily cap was reached. It is the record of a deliberate, explicit choice
+    -- NOT a persistent bypass (no setting, no flag, no standing
+    authorization): the event is bound to the one server-generated
+    `session_id` it authorizes, and every later cap check ignores it as a
+    count while honoring it only for that session's live lifetime.
+
+    Like every non-response event it is structurally scoreless (no `score`
+    key at all). All values are server-derived and validated here because
+    the log is append-only: `subject` is the non-empty namespace (no colon),
+    `local_date` is the local calendar date in `zone`, `snapshot_id` is the
+    one snapshot the count was decided on, `cap`/`count` are the exact
+    numbers shown to the learner, and `scope` is the constant "sitting".
+    `dedupe_key` hashes (session_id, subject, local_date, snapshot_id, cap)
+    -- NOT a timestamp -- so retrying the identical confirmed override for
+    the same generated session reconciles (`already_recorded`) instead of
+    appending a second exception.
+    """
+    if not session_id:
+        raise ValueError("cap_override_event: session_id must be non-empty")
+    if not bank or "/" in bank or "\\" in bank or os.sep in bank:
+        raise ValueError(
+            "cap_override_event: bank must be a basename, never a path "
+            "(got %r)" % (bank,))
+    if not subject or ":" in subject:
+        raise ValueError(
+            "cap_override_event: subject must be the non-empty namespace "
+            "(got %r)" % (subject,))
+    if not local_date:
+        raise ValueError("cap_override_event: local_date must be non-empty")
+    if not zone:
+        raise ValueError("cap_override_event: zone must be non-empty")
+    if not snapshot_id:
+        raise ValueError("cap_override_event: snapshot_id must be non-empty")
+    if not isinstance(cap, int) or isinstance(cap, bool) or cap < 1:
+        raise ValueError("cap_override_event: cap must be a positive integer "
+                         "(got %r)" % (cap,))
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        raise ValueError("cap_override_event: count must be a non-negative "
+                         "integer (got %r)" % (count,))
+    raw = "%s|%s|%s|%s|%s" % (session_id, subject, local_date, snapshot_id,
+                               cap)
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": CAP_OVERRIDE_EVENT_TYPE,
+        "ts": ts if ts is not None else utc_now(),
+        "session_id": session_id,
+        "bank": bank,
+        "subject": subject,
+        "local_date": local_date,
+        "zone": zone,
+        "snapshot_id": snapshot_id,
+        "cap": cap,
+        "count": count,
+        "scope": "sitting",
         "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
     }
 

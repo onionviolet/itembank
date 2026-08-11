@@ -16,15 +16,15 @@ from surfaces.daemon import (cmd_cli_twin, cmd_daemon, cmd_disclosure,
                              cmd_sidecar)
 from surfaces.day import cmd_day
 from surfaces.evidence_cli import (cmd_evidence, cmd_id_assign, cmd_mark, cmd_render,
-                                   cmd_retract)
+                                   cmd_retract, cmd_trends)
 from surfaces.import_anki import cmd_import_anki
 from surfaces.lesson import cmd_gloss, cmd_key_review, cmd_lesson, cmd_render_style
 from surfaces.migrate import cmd_migrate
 from surfaces.protocol_cli import cmd_schema, cmd_usage
 from surfaces.quiz import cmd_build, cmd_serve
 from surfaces.selection_cli import cmd_select
-from surfaces.session import (cmd_hint, cmd_next, cmd_report, cmd_rubric_review,
-                              cmd_start, cmd_submit)
+from surfaces.session import (cmd_hint, cmd_next, cmd_override, cmd_report,
+                              cmd_rubric_review, cmd_start, cmd_submit)
 from surfaces.settings import cmd_config
 from surfaces import seeding
 from surfaces.study import cmd_study
@@ -608,7 +608,41 @@ def main():
                    help="named selection profile from settings")
     s.add_argument("--out", help="session JSON path")
     s.add_argument("--force", action="store_true", help="start despite lint errors")
+    s.add_argument("--subject", default=None,
+                   help="subject namespace whose per-day cap gates this "
+                        "sitting (default: derived from --objective's "
+                        "namespace)")
+    s.add_argument("--override-cap", default="", metavar="CONFIRM",
+                   help="start one additional sitting after the cap is "
+                        "reached; CONFIRM must be exactly the override "
+                        "confirmation phrase (see `itembank override --help`)")
     s.set_defaults(fn=cmd_start)
+
+    s = sub.add_parser("override", help="start one additional sitting past "
+                                        "today's cap after explicit confirmation")
+    s.add_argument("bank")
+    s.add_argument("--subject", default=None,
+                   help="subject namespace at cap; the override is bound to "
+                        "exactly this subject for one sitting")
+    s.add_argument("--confirm", default="", metavar="CONFIRM",
+                   help="exact confirmation phrase required (start uses "
+                        "--override-cap with the same value)")
+    s.add_argument("--count", type=int, default=None)
+    s.add_argument("--objective", default=None)
+    s.add_argument("--prerequisite", default=None)
+    s.add_argument("--prereq-satisfied", action="store_true", default=None)
+    s.add_argument("--type", default=None)
+    s.add_argument("--difficulty", default=None)
+    s.add_argument("--mode", default="diagnostic",
+                   choices=("diagnostic", "practice", "exam", "remediation", "drill"))
+    s.add_argument("--selection-mode", default="practice",
+                   choices=selection.SELECTION_MODES)
+    s.add_argument("--seed", type=int, default=None)
+    s.add_argument("--pair", default=None)
+    s.add_argument("--profile", default=None)
+    s.add_argument("--out", help="session JSON path")
+    s.add_argument("--force", action="store_true", help="start despite lint errors")
+    s.set_defaults(fn=cmd_override)
 
     s = sub.add_parser("select", help="preview a selection without starting a session")
     s.add_argument("bank")
@@ -688,6 +722,27 @@ def main():
                    help="directory holding _evidence/ (default: current directory)")
     s.set_defaults(fn=cmd_evidence)
 
+    s = sub.add_parser("trends", help="longitudinal retention report: due "
+                       "objectives, week series, weights, and evidence claim "
+                       "from one captured snapshot (Phase 10)")
+    s.add_argument("--weeks", type=int, default=4, choices=(1, 2, 4, 8, 12),
+                   help="report window in weeks (default: 4)")
+    s.add_argument("--subject", default="",
+                   help="filter the report to one namespaced subject")
+    s.add_argument("--objective", default="",
+                   help="filter the report to one objective")
+    s.add_argument("--cutoff", default="",
+                   help="ISO-8601 UTC cutoff timestamp (default: now)")
+    s.add_argument("--zone", default="UTC",
+                   help="local-day zone: UTC, local, UTC+HH:MM/UTC-HH:MM, or an "
+                        "IANA name (default: UTC)")
+    s.add_argument("--json", action="store_true",
+                   help="emit the machine-readable report payload instead of "
+                        "plain text")
+    s.add_argument("--base", default=".",
+                   help="directory holding _evidence/ (default: current directory)")
+    s.set_defaults(fn=cmd_trends)
+
     s = sub.add_parser("retract", help="undo a recorded evidence event by appending a "
                        "reasoned compensating event; nothing is ever deleted (D-10)")
     s.add_argument("event_id")
@@ -746,6 +801,14 @@ def main():
     s.add_argument("--out")
     s.add_argument("--ref", default="",
                    help="render only the section whose heading matches this text")
+    s.add_argument("--complete", action="store_true",
+                   help="record an explicit completion of the --ref heading: the "
+                        "referenced objectives enter the derived review queue "
+                        "(valid only with --ref)")
+    s.add_argument("--zone", default="UTC",
+                   help="local-day zone for a --complete event: an IANA name, "
+                        "'UTC', or a fixed offset such as 'UTC+09:00' "
+                        "(default: UTC)")
     s.set_defaults(fn=cmd_lesson)
 
     s = sub.add_parser("render-style", help="render the lesson permuted "

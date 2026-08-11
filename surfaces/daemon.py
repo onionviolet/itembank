@@ -17,13 +17,14 @@ import datetime, errno, hashlib, html, json, os, re, secrets, socket, socketserv
 import urllib.parse, urllib.request, uuid
 
 import evidence
+import retention
 import selection
 import server
 from model import (lesson_slug, load, parse_bank, parse_key_blocks,
                    parse_lesson, parse_terms)
 from runtime import explain_payload, glossable, read_session, upgrade_session
-from surfaces import (day, launcher, lesson, presentation, quiz, seeding,
-                      session, settings, study, update)
+from surfaces import (day, launcher, lesson, presentation, quiz, retention_view,
+                      seeding, session, settings, study, update)
 from surfaces import theme
 
 
@@ -96,19 +97,22 @@ DAY_EDIT_ALLOWED_FIELDS = ("revision", "edits", "force_token", "confirmation",
 # the same authority-shaped-field discipline every mutating route here takes.
 SEED_ACCEPT_ALLOWED_FIELDS = ("bank", "action", "draft")
 
-# The `/api/*` session routes: D-04's four plus Phase 6's `/api/hint` and
-# plan 08-05's `/api/rubric-review`. Fixed literals, not stem-parameterised: a
-# session or a bank is addressed by an opaque identifier in the JSON body
-# (T-2-01), never by a path segment, so there is no `<stem>`/`<id>` group in
-# any of these patterns at all. The six-entry length is asserted by
-# `check_api_route_scope` in `tests/daemon_roundtrip.py` and by this plan's
-# own acceptance criteria.
+# The `/api/*` session routes: D-04's four plus Phase 6's `/api/hint`,
+# plan 08-05's `/api/rubric-review`, and Phase 10's `/api/override` and
+# `/api/lesson-complete`. Fixed literals, not stem-parameterised: a session
+# or a bank is addressed by an opaque identifier in the JSON body (T-2-01),
+# never by a path segment, so there is no `<stem>`/`<id>` group in any of
+# these patterns at all. The eight-entry length is asserted by
+# `check_api_route_scope` in `tests/daemon_roundtrip.py`, and every entry
+# is mirrored in ROUTE_CLI and SURFACE_PARITY (Extensibility Rule 9(a)).
 API_ROUTES = (
     ("POST", "/api/start", "handle_api_start"),
     ("POST", "/api/next", "handle_api_next"),
     ("POST", "/api/submit", "handle_api_submit"),
     ("POST", "/api/hint", "handle_api_hint"),
     ("POST", "/api/report", "handle_api_report"),
+    ("POST", "/api/override", "handle_api_override"),
+    ("POST", "/api/lesson-complete", "handle_api_lesson_complete"),
     ("POST", "/api/rubric-review", "handle_api_rubric_review"),
 )
 
@@ -161,6 +165,8 @@ ROUTE_CLI = {
     ("POST", "/api/submit"): "submit",
     ("POST", "/api/hint"): "hint",
     ("POST", "/api/report"): "report",
+    ("POST", "/api/override"): "override",
+    ("POST", "/api/lesson-complete"): "lesson",
     ("POST", "/api/rubric-review"): "rubric-review",
     ("GET", QUIZ_GET_RE): "serve",
     ("POST", QUIZ_ANSWER_RE): "serve",
@@ -180,14 +186,16 @@ ROUTE_CLI = {
 # (MCP) arrives as a third column here, never as a second parity map, and an
 # unmapped entry fails `check_surface_parity` instead of shipping silently.
 # Each row is (route, CLI command, reserved MCP tool name); the tool names
-# are the locked reserved vocabulary the plan names (start, next, submit,
-# report, hint, rubric_review).
+# are the locked reserved vocabulary (start, next, submit, report, hint,
+# override, lesson_complete, rubric_review).
 SURFACE_PARITY = (
     (("POST", "/api/start"), "start", "start"),
     (("POST", "/api/next"), "next", "next"),
     (("POST", "/api/submit"), "submit", "submit"),
     (("POST", "/api/hint"), "hint", "hint"),
     (("POST", "/api/report"), "report", "report"),
+    (("POST", "/api/override"), "override", "override"),
+    (("POST", "/api/lesson-complete"), "lesson", "lesson_complete"),
     (("POST", "/api/rubric-review"), "rubric-review", "rubric_review"),
 )
 
@@ -504,11 +512,116 @@ def _report_card(summary, status, position=None, total=None):
         % (html.escape(status), pct, progress, partial, figures, rows))
 
 
+def _retention_report_body(payload, params):
+    """The retention overview / drilldown page body, rendered from the
+    SAME `retention.retention_report` payload `itembank trends` prints
+    (D-15): no browser-side arithmetic, no second derivation, no paths or
+    keys. `params` carries the allowlisted weeks/subject/objective query
+    identifiers; the week controls and drilldown links preserve the
+    current selection."""
+    claim = payload.get("claim") or {}
+    subject = params.get("subject")
+    objective = params.get("objective")
+    weeks = params.get("weeks")
+    base = "/report"
+    q = ["weeks=%d" % weeks] if weeks else []
+    if subject:
+        q.append("subject=" + urllib.parse.quote(subject))
+    href = base + ("?" + "&".join(q) if q else "")
+    parts = [retention_view.snapshot_stamp(claim)]
+    week_links = "".join(
+        '<a class="go%s" href="%s">%dw</a>'
+        % (" active" if (weeks or 4) == w else "",
+           base + "?weeks=%d" % w + ("&subject=" + urllib.parse.quote(subject)
+                                     if subject else ""), w)
+        for w in (1, 2, 4, 8, 12))
+    parts.append('<p class="weeks">Window: %s</p>' % week_links)
+
+    def obj_href(obj):
+        extra = "&objective=" + urllib.parse.quote(obj)
+        return base + "?weeks=%d" % (weeks or 4) + \
+            ("&subject=" + urllib.parse.quote(subject) if subject else "") + extra
+
+    if objective:
+        row = (payload.get("objectives") or {}).get(objective)
+        if row is None:
+            parts.append('<p class="empty">No objective %r in this snapshot.</p>'
+                         % html.escape(objective))
+        else:
+            back = base + ("?weeks=%d" % (weeks or 4)) + \
+                ("&subject=" + urllib.parse.quote(row.get("subject") or "")
+                 if row.get("subject") else "")
+            parts.append('<p class="back"><a href="%s">&larr; %s</a></p>'
+                         % (html.escape(back),
+                            html.escape(row.get("subject") or "subjects")))
+            parts.append("<h2>%s</h2>" % html.escape(objective))
+            parts.append(retention_view.objective_detail(row, claim))
+            parts.append(retention_view.evidence_drawer(row, claim,
+                                                        row.get("subject")))
+    elif subject:
+        parts.append("<h2>Subject %s</h2>" % html.escape(subject))
+        rows = []
+        for obj, o in sorted((payload.get("objectives") or {}).items()):
+            if evidence.subject_of(obj) != subject:
+                continue
+            state = o.get("state") or "unknown"
+            rows.append(
+                "<tr><th scope=row><a href=\"%s\">%s</a></th><td>%s</td>"
+                "<td>%d</td><td>%d</td><td>%d</td><td>%s</td></tr>"
+                % (html.escape(obj_href(obj)), html.escape(obj),
+                   retention_view.objective_state(state),
+                   o.get("attempts", 0), o.get("settled", 0),
+                   o.get("correct", 0), html.escape(o.get("last_evidence") or "")))
+        if not rows:
+            parts.append('<p class="empty">No objectives for %r in this '
+                         'snapshot.</p>' % html.escape(subject))
+        parts.append('<div class="trend-wrap"><table class="trend">'
+                     "<thead><tr><th>Objective</th><th>State</th>"
+                     "<th>Attempts</th><th>Settled</th><th>Correct</th>"
+                     "<th>Last evidence</th></tr></thead><tbody>%s</tbody>"
+                     "</table></div>" % "".join(rows))
+    else:
+        parts.append("<h2>Subjects</h2>")
+        rows = []
+        for s, sub in sorted((payload.get("subjects") or {}).items()):
+            rows.append(
+                "<tr><th scope=row><a href=\"%s\">%s</a></th><td>%d</td>"
+                "<td>%d</td><td>%d</td><td>%d</td></tr>"
+                % (html.escape(base + "?weeks=%d" % (weeks or 4)
+                               + "&subject=" + urllib.parse.quote(s)),
+                   html.escape(s), sub.get("objective_count", 0),
+                   sub.get("attempts", 0), sub.get("settled", 0),
+                   sub.get("due", 0)))
+        parts.append('<div class="trend-wrap"><table class="trend">'
+                     "<thead><tr><th>Subject</th><th>Objectives</th>"
+                     "<th>Attempts</th><th>Settled</th><th>Due</th>"
+                     "</tr></thead><tbody>%s</tbody></table></div>"
+                     % "".join(rows))
+    rr = payload.get("return_rate")
+    if rr is not None:
+        parts.append('<p class="return-rate">Return rate: %s (%d occurred / '
+                     "%d due sittings)</p>"
+                     % (retention_view._fmt_rate(rr.get("rate")),
+                        rr.get("occurred", 0), rr.get("due", 0)))
+    parts.append(retention_view.trend_text(payload))
+    parts.append(retention_view.trend_table(payload))
+    return "\n".join(parts)
+
+
+REPORT_FAILURE_COPY = ("This report could not be derived from the current "
+                       "evidence snapshot. Try again or run the report "
+                       "command; no recommendation was made.")
+
+
 def handle_report_get(handler):
-    """`GET /report?session=<id>` -- a session's summary as a page on the
-    same port every other surface uses, rendered from exactly the dict
-    `session.do_report()` returns -- the same body `itembank report`
-    prints, so the page and the command can never disagree (SURF-04).
+    """`GET /report` -- TWO branches. With `?session=<id>` it renders a
+    session's summary from exactly the dict `session.do_report()` returns
+    (the same body `itembank report` prints, SURF-04). Without `session`
+    (10-05 Task 3) it renders the retention overview / subject / objective
+    drilldown from the SAME `retention.retention_report` payload
+    `itembank trends` prints, with allowlisted week/subject/objective
+    query identifiers (D-15); snapshot failure serves the locked report-
+    failure copy and makes no recommendation.
 
     `session_id` comes off the query string and is resolved through the
     same `session_index(root)`-backed `api_session_path` lookup `/api/*`
@@ -517,6 +630,50 @@ def handle_report_get(handler):
     """
     params = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query)
     session_id = (params.get("session") or [""])[0]
+    if not session_id:
+        # 10-05 Task 3: `GET /report` without `session` is the retention
+        # overview / drilldown surface. The page renders the SAME payload
+        # `itembank trends` prints (D-15); the report failure copy is
+        # served when the snapshot cannot be derived, and no recommendation
+        # is made (T-10-22).
+        theme_block = theme.theme_css(settings.load_settings(handler.root))
+        try:
+            weeks_raw = (params.get("weeks") or [""])[0]
+            try:
+                weeks = int(weeks_raw) if weeks_raw else 4
+            except ValueError:
+                weeks = 4
+            if weeks not in (1, 2, 4, 8, 12):
+                handler.send_error(400, "weeks must be one of 1, 2, 4, 8, 12")
+                return
+            subject = (params.get("subject") or [""])[0] or None
+            objective = (params.get("objective") or [""])[0] or None
+            filters = {}
+            if subject:
+                filters["subject"] = subject
+            if objective:
+                filters["objective"] = objective
+            log = evidence.log_path(handler.root)
+            events = evidence.capture_events(log) \
+                if os.path.exists(log) else ()
+            payload = retention.retention_report(
+                events, weeks=weeks, filters=filters,
+                cfg=settings.load_settings(handler.root))
+            body = _retention_report_body(payload, {"weeks": weeks,
+                                                    "subject": subject,
+                                                    "objective": objective})
+        except Exception:
+            body = '<p class="empty">%s</p>' % html.escape(REPORT_FAILURE_COPY)
+        title = "Retention & trends"
+        if objective:
+            title = "Objective report"
+        elif subject:
+            title = "Subject report"
+        page = presentation.surface_shell(
+            title, body, theme_css=theme_block,
+            back={"href": "/", "label": "itembank"})
+        handler.send_html(page.encode("utf-8"))
+        return
     path = api_session_path(handler, session_id)
     if path is None:
         handler.send_not_found(session_id)
@@ -1048,6 +1205,10 @@ def _plan_day_state(handler, stem):
     lanes_path = override.get("lanes_path") or os.path.join(plan_dir, "lanes.md")
     iso = override.get("iso") or datetime.date.today().isoformat()
     state = day.day_state(path, log_path, lanes_path, iso, base="/day/%s" % stem)
+    # 10-05: the daemon's scanned banks ride on the day state so the Today
+    # panel can offer focused starts and lesson recovery; the scoped
+    # `itembank day` launch has none, and the page degrades honestly.
+    state["banks"] = dict(handler.banks)
     handler.day_states[stem] = state
     return state
 
@@ -1428,6 +1589,44 @@ def handle_api_start(handler):
     focus = data.get("focus")
     if not isinstance(focus, str) or not focus:
         focus = None
+    # 10-05 (T-10-19): a focused start from Today carries the displayed
+    # snapshot claim. The handler re-captures CURRENT evidence and
+    # re-derives the snapshot at the displayed cutoff: the id is a pure
+    # hash of (cutoff, zone, window, filters, settings, event identities),
+    # so it matches exactly when no evidence has changed since the display
+    # and differs on any change or forgery -- reject with refresh guidance
+    # and NO session/event. A valid action derives every private authority
+    # server-side (cap, weights, path, override); client cap/weight/path/
+    # answer/hidden/model fields are never read here.
+    snapshot = data.get("snapshot")
+    if snapshot is not None:
+        if not isinstance(snapshot, dict) or \
+                not isinstance(snapshot.get("snapshot_id"), str) or \
+                not snapshot["snapshot_id"]:
+            handler.send_error(400, "snapshot must carry a non-empty "
+                                    "snapshot_id")
+            return
+        log = evidence.log_path(os.path.dirname(os.path.abspath(path)) or ".")
+        live = evidence.capture_events(log) if os.path.exists(log) else ()
+        cfg = settings.load_settings(
+            os.path.dirname(os.path.abspath(path)) or ".")
+        try:
+            cutoff = snapshot.get("cutoff") or None
+            zone = snapshot.get("local_day_zone") or "UTC"
+            weeks = (snapshot.get("window") or {}).get("weeks") or 4
+            filters = snapshot.get("filters") or {}
+            fresh = retention.capture(live, cutoff=cutoff, zone=zone,
+                                      weeks=weeks, filters=filters, cfg=cfg)
+        except Exception:
+            handler.send_error(
+                400, "Today\u2019s snapshot could not be re-derived; refresh "
+                     "Today and try again. No session was started.")
+            return
+        if fresh["claim"]["snapshot_id"] != snapshot["snapshot_id"]:
+            handler.send_error(
+                400, "Today\u2019s snapshot is stale; refresh Today and try "
+                     "again. No session was started.")
+            return
     # The D-09 focus pin and the selection fields ride inside the spec dict
     # the working tree's `session.do_start(bank_path, spec, mode, out, force)`
     # takes -- the same signature `itembank start`'s own CLI path uses.
@@ -1468,6 +1667,157 @@ def handle_api_start(handler):
         if sess_cfg is not None:
             sess_cfg["api_session_id"] = result["session_id"]
     handler.send_json(result)
+
+
+def handle_api_override(handler):
+    """`POST /api/override` -- `{"bank", "objective", "count", "seed",
+    "mode", "selection_mode", "token"}`. The daemon twin of
+    `itembank override` (plan 10-04, D-08): starts one additional sitting
+    past a reached cap, but ONLY with the exact explicit confirmation phrase
+    in `token`, and writes exactly one append-only cap_override event bound
+    to the server-generated session id. The subject is derived server-side
+    from the namespaced `objective` -- a client-supplied subject, cap,
+    snapshot or override value is refused/ignored (T-10-14, T-10-15); a
+    wrong or missing token, or an objective with no namespace, is a 400 and
+    writes nothing. Same containment as every handle_api_*: cross-origin
+    reject, api_read_json, SystemExit -> 400, Exception -> path-free 500.
+    """
+    if _reject_cross_origin(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    bank = data.get("bank")
+    path = handler.banks.get(bank) if isinstance(bank, str) else None
+    if path is None:
+        handler.send_not_found(bank if isinstance(bank, str) else "")
+        return
+    token = data.get("token")
+    if not isinstance(token, str) or not token:
+        handler.send_error(400, "override requires the exact explicit "
+                                "confirmation token")
+        return
+    objective = data.get("objective", "")
+    if not isinstance(objective, str) or not objective:
+        handler.send_error(400, "override requires a namespaced objective so "
+                                "the subject can be derived server-side")
+        return
+    count = data.get("count", 10)
+    if not isinstance(count, int) or isinstance(count, bool):
+        count = 10
+    seed = data.get("seed", 0)
+    if not isinstance(seed, int) or isinstance(seed, bool):
+        seed = 0
+    mode = data.get("mode", "diagnostic")
+    if mode not in SESSION_MODES:
+        mode = "diagnostic"
+    selection_mode = data.get("selection_mode", "practice")
+    if selection_mode not in selection.SELECTION_MODES:
+        selection_mode = "practice"
+    spec = {"objective": objective, "count": count, "seed": seed,
+            "selection_mode": selection_mode}
+    out = os.path.join(os.path.abspath(handler.root), "_attempts",
+                       "session_%s.json" % uuid.uuid4().hex[:12])
+    try:
+        result = session.do_start(path, spec, mode, out, False,
+                                  override_token=token)
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    except Exception as exc:
+        handler.send_server_error(exc)
+        return
+    sess_cfg = handler.sessions.get(bank)
+    if sess_cfg is not None:
+        sess_cfg["api_session_id"] = result["session_id"]
+    handler.send_json(result)
+
+
+def handle_api_lesson_complete(handler):
+    """`POST /api/lesson-complete` -- `{"bank": "<stem>", "ref": "<heading>"}`.
+    The daemon twin of `itembank lesson BANK --ref HEADING --complete`
+    (plan 10-02, SCHED-04/D-24): the ONE explicit completion seam. The
+    heading is resolved through the Phase 3 slugifier and reader (never a
+    second parser, slugger, or a filesystem path from client input), the
+    sorted unique objectives of items referencing it are discovered, one
+    `lesson_complete` event is appended through the ONE evidence writer,
+    and the derived next-review queue rows for that event are returned.
+    Merely viewing/opening a lesson writes nothing; an unknown heading, a
+    heading no item references with an [OBJECTIVE:] line, or a
+    multi-subject reference set is refused with a named explanation and
+    writes nothing. Same containment as every handle_api_*: cross-origin
+    reject, api_read_json, SystemExit -> 400, Exception -> path-free 500.
+    """
+    if _reject_cross_origin(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    bank = data.get("bank")
+    path = handler.banks.get(bank) if isinstance(bank, str) else None
+    if path is None:
+        handler.send_not_found(bank if isinstance(bank, str) else "")
+        return
+    ref = data.get("ref")
+    if not isinstance(ref, str) or not ref:
+        handler.send_error(400, "lesson completion requires a ref: a "
+                                "completion names exactly one Phase 3 "
+                                "lesson heading")
+        return
+    try:
+        qs = load(path)
+        lesson = parse_lesson(path)
+        slug = lesson_slug(ref)
+        if lesson is None or not any(h["slug"] == slug
+                                     for h in lesson["headings"]):
+            handler.send_error(400, "no lesson heading matching %r in %s"
+                                % (ref, os.path.basename(path)))
+            return
+        objectives = sorted({q.get("objective", "") for q in qs
+                             if q.get("lesson_slug") == slug
+                             and q.get("objective")})
+        if not objectives:
+            handler.send_error(
+                400, "lesson.no_referenced_objective: no item referencing "
+                     "%r carries an [OBJECTIVE:] line, so nothing can enter "
+                     "the review queue" % (ref,))
+            return
+        subject = evidence.subject_of(objectives[0])
+        if not subject or any(evidence.subject_of(o) != subject
+                              for o in objectives):
+            handler.send_error(
+                400, "lesson.no_single_subject: items referencing %r must "
+                     "share one namespaced subject to record a completion"
+                     % (ref,))
+            return
+        zone = data.get("zone") if isinstance(data.get("zone"), str) \
+            else "UTC"
+        bank_dir = os.path.dirname(os.path.abspath(path)) or "."
+        event = evidence.lesson_complete_event(
+            session_id="reader", bank=os.path.basename(path),
+            lesson_slug=slug, subject=subject, objectives=objectives,
+            zone=zone)
+        result = evidence.append_event(evidence.log_path(bank_dir), event)
+        cfg = settings.load_settings(bank_dir)
+        events = evidence.capture_events(evidence.log_path(bank_dir))
+        snapshot = retention.capture(events, zone=zone, cfg=cfg)
+        rows = [r for r in retention.lesson_queue(snapshot)
+                if r["event_id"] == result["event_id"]]
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    except Exception as exc:
+        handler.send_server_error(exc)
+        return
+    handler.send_json({
+        "status": result["status"],
+        "event_id": result["event_id"],
+        "ref": ref,
+        "subject": subject,
+        "objectives": objectives,
+        "queue": rows,
+        "snapshot_id": snapshot["claim"]["snapshot_id"],
+    })
 
 
 def handle_api_next(handler):
@@ -1760,6 +2110,27 @@ class DaemonHandler(server.Handler):
     # this process and the shell that read it off the handshake -- never
     # persisted, never a CLI argument (T-13-01, T-13-04).
     sidecar_token = None
+
+    def send_error(self, code, message=None, explain=None):
+        """Encoding-safe 4xx/5xx (10-04 containment). The built-in
+        `send_error` encodes the HTTP reason phrase as latin-1, which
+        raises `UnicodeEncodeError` on any non-latin-1 character -- 10-04's
+        locked cap copy carries U+2019 ("Today's"), so the at-cap 400 would
+        kill the request thread and close the connection with no response.
+        The exact message (whatever its encoding) is sent in a UTF-8 body;
+        only the HTTP reason phrase stays the standard ASCII phrase. Never
+        a path or a traceback (T-2-05).
+        """
+        import http.client
+        phrase = http.client.responses.get(code, "Error")
+        text = message if isinstance(message, str) else (explain or phrase)
+        body = ("<!doctype html><html lang=en><head><meta charset=utf-8>"
+                "<title>%d %s</title></head><body><h1>%s</h1><p>%s</p>"
+                "</body></html>"
+                % (code, html.escape(phrase), html.escape(phrase),
+                   html.escape(text)))
+        self.send_bytes(body.encode("utf-8"), "text/html; charset=utf-8",
+                        status=code)
 
     def send_not_found(self, name):
         """The documented not-found copy: the stem the client asked for and

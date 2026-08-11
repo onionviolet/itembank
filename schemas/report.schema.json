@@ -10,6 +10,9 @@
     },
     {
       "$ref": "#/$defs/objective_history"
+    },
+    {
+      "$ref": "#/$defs/retention_report"
     }
   ],
   "$defs": {
@@ -171,6 +174,234 @@
         "bank": {
           "type": ["string", "null"],
           "description": "The recorded bank basename of the response this row projects (plan 07-03, D-13). A document written before phase 7 has none."
+        }
+      }
+    },
+    "evidence_claim": {
+      "type": "object",
+      "required": ["snapshot_id", "cutoff", "local_day_zone", "window",
+                   "filters", "live_event_count", "settings_version"],
+      "properties": {
+        "snapshot_id": {
+          "type": "string",
+          "description": "Opaque deterministic id of the one immutable evidence snapshot every claim in this report derives from (D-01)."
+        },
+        "cutoff": {
+          "type": "string",
+          "description": "ISO-8601 UTC cutoff timestamp of the capture."
+        },
+        "local_day_zone": {
+          "type": "string",
+          "description": "The local-day zone policy (UTC, local, fixed offset, or IANA name) that every date-derived signal used."
+        },
+        "window": {
+          "type": "object",
+          "required": ["weeks"],
+          "properties": {
+            "weeks": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 52
+            }
+          }
+        },
+        "filters": {
+          "type": "object",
+          "description": "The objective/subject/bank filters this report was derived under, named so a filtered claim is never mistaken for an unfiltered one (D-15)."
+        },
+        "live_event_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "settings_version": {
+          "type": "string",
+          "description": "Content hash of the retention settings this snapshot was derived under."
+        }
+      }
+    },
+    "retention_objective_row": {
+      "type": "object",
+      "required": ["state", "due", "attempts", "settled", "correct",
+                   "pending", "accuracy", "recent_accuracy", "success_days",
+                   "highest_hint", "average_hint", "last_evidence",
+                   "risk_reason", "snapshot_id", "weeks", "scheduler"],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["unknown", "weak", "mastered", "at-risk", "due", "stable"]
+        },
+        "due": {
+          "type": "boolean"
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "settled": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "correct": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pending": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "accuracy": {
+          "type": ["number", "null"],
+          "description": "Raw correct/settled rate; null when there is no settled evidence (D-03), never zero."
+        },
+        "recent_accuracy": {
+          "type": ["number", "null"],
+          "description": "Accuracy over the most recent min_settled_attempts settled outcomes; null when none exist."
+        },
+        "success_days": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "highest_hint": {
+          "type": ["integer", "null"],
+          "description": "Highest Phase 6 hint tier recorded for this objective; null when no hint was ever used."
+        },
+        "average_hint": {
+          "type": ["number", "null"]
+        },
+        "last_evidence": {
+          "type": ["string", "null"],
+          "description": "ISO local date of the most recent live response event; null with no evidence."
+        },
+        "risk_reason": {
+          "type": ["string", "null"],
+          "description": "Evidence-anchored reason for the state, or null for unknown/stable (D-14: at-risk names last proven success and silence)."
+        },
+        "snapshot_id": {
+          "type": "string"
+        },
+        "weeks": {
+          "type": "object",
+          "description": "Per-bucket (1w/2w/4w/8w/12w) longitudinal series with raw counts beside rates."
+        },
+        "scheduler": {
+          "type": ["object", "null"],
+          "description": "Derived scheduler state (strategy, interval, due date, stage) replayed from the log, or null with no reviews (D-17/D-18/D-19)."
+        }
+      }
+    },
+    "retention_report": {
+      "type": "object",
+      "required": ["schema_version", "kind", "claim", "overview", "subjects",
+                   "objectives", "weights", "recommendation", "due_order",
+                   "return_rate"],
+      "properties": {
+        "schema_version": {
+          "const": 2,
+          "description": "The retention report variant (Phase 10); the session-summary and objective-history variants keep schema_version 1."
+        },
+        "kind": {
+          "const": "retention_report"
+        },
+        "claim": {
+          "$ref": "#/$defs/evidence_claim"
+        },
+        "overview": {
+          "type": "object",
+          "required": ["objective_count", "subject_count", "attempts",
+                       "settled", "correct", "states", "snapshot_id"],
+          "properties": {
+            "objective_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "subject_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "settled": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "correct": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "states": {
+              "type": "object",
+              "description": "State name to objective count; absent states are simply not keys."
+            },
+            "snapshot_id": {
+              "type": "string"
+            }
+          }
+        },
+        "subjects": {
+          "type": "object",
+          "description": "Subject name to subject rollup."
+        },
+        "objectives": {
+          "type": "object",
+          "description": "Objective name to retention_objective_row; only objectives with captured evidence appear."
+        },
+        "weights": {
+          "type": "object",
+          "description": "Objective name to bounded normalized weight with named components and snapshot id (D-11/D-12)."
+        },
+        "recommendation": {
+          "type": "object",
+          "required": ["reason", "session_count", "objectives", "reflection"],
+          "properties": {
+            "reason": {
+              "type": "string"
+            },
+            "session_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "objectives": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reflection": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "snapshot_id": {
+              "type": "string"
+            }
+          }
+        },
+        "due_order": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "return_rate": {
+          "type": "object",
+          "required": ["occurred", "due", "rate"],
+          "properties": {
+            "occurred": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "due": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rate": {
+              "type": ["number", "null"],
+              "description": "occurred/due with the denominator stated; null when there were no due sittings (D-20, D-03)."
+            }
+          }
         }
       }
     }
