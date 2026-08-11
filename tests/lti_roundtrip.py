@@ -836,11 +836,16 @@ def check_launch_calls_daemon_in_process():
 
 
 def check_route_scope_and_no_second_scorer():
-    """D-01/LTI-02: API_ROUTES unchanged (five routes), no scoring call and
-    no runtime import in the LTI surface; the wrap seam names the daemon's
-    own handle_api_* functions."""
-    if len(daemon.API_ROUTES) != 5:
-        fail("API_ROUTES changed; LTI must not add /api/* routes")
+    """D-01/LTI-02: the LTI surface adds no /api/* route of its own -- the
+    daemon's API_ROUTES stays whatever the daemon module ships (its length
+    is daemon_roundtrip's `check_api_route_scope`'s job, not this phase's) --
+    and the wrap seam names the daemon's own handle_api_* functions. No
+    scoring call and no runtime import in the LTI surface."""
+    api_handlers = [handler for _, _, handler in daemon.API_ROUTES]
+    if not {"handle_api_start", "handle_api_next", "handle_api_submit",
+            "handle_api_hint", "handle_api_report"} <= set(api_handlers):
+        fail("API_ROUTES lost an LTI-wrapped session handler; LTI must not "
+             "add /api/* routes")
     if not {"start", "next", "submit", "hint", "report"} <= set(daemon.ROUTE_CLI.values()):
         fail("ROUTE_CLI session coverage lost")
     for name, handler_name in lti.LTI_API_WRAP.items():
@@ -852,6 +857,13 @@ def check_route_scope_and_no_second_scorer():
     if "score_response" in src or "from runtime" in src or "import runtime" in src:
         fail("surfaces/lti.py contains a scoring call or runtime import "
              "(D-01: no second scorer)")
+    for line in src.splitlines():
+        if "daemon.API_ROUTES" not in line:
+            continue
+        code = line.split("#", 1)[0]
+        if "=" in code:
+            fail("surfaces/lti.py assigns or mutates daemon.API_ROUTES; LTI "
+                 "must not add /api/* routes (D-01)")
     if "getattr(daemon, handler_name" not in src:
         fail("surfaces/lti.py does not dispatch to the daemon handlers "
              "in-process")
