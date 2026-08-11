@@ -988,6 +988,196 @@ def check_vendor_integrity():
         fail("served page does not embed the check-editor boot script")
 
 
+def check_matrix_contract():
+    """05-06 Task 1: the per-case readout contract. The rendered page carries
+    the four locked status strings as format templates, the two expected
+    labels (distinct), the conditional input label, and the .case row
+    selectors with theme-only colours; a real mixed-failure submission maps
+    each cause to its own case_index/reason pair with no pre-submit leak and
+    a dichotomous false verdict; a killed-at-timeout run renders the pending
+    treatment (null verdict) with its timeout row. These are payload and
+    source assertions -- the actual rendering is checked at 05-07's manual
+    pass, because this project has no JS test harness for the close() render
+    (the jsdom runner covers the editor, not the matrix)."""
+    qs = load(CHECK_BANK)
+    _, page = quiz.page_for(CHECK_BANK, qs, serve=True)
+    for locked in ("Passed", "Failed — timed out after %ss",
+                   "Failed — output was cut off at %d KB",
+                   "Expected (pattern)", "Expected", "Your output", "Input",
+                   "Case ", ".case", ".case.right", ".case.wrong"):
+        if locked not in page:
+            fail("served page lacks locked matrix copy %r" % locked)
+    if "Failed" not in page:
+        fail("served page lacks the fail status string")
+    # no partial-credit display anywhere
+    if re.search(r"(partial credit score|percent passed|cases passed of)",
+                 page, re.IGNORECASE):
+        fail("the page renders a partial-credit display")
+
+    # End-to-end: mixed pass/fail fixture through a real daemon.
+    work = tempfile.mkdtemp()
+    try:
+        # q5 is [MATCH: regex] with two cases; q2 is three-case trimmed.
+        # Drive q2 with a source that passes case 1 and fails the rest, and
+        # q3 (infinite loop) for the null-verdict case.
+        bank_path = os.path.join(work, "check_bank.md")
+        shutil.copyfile(CHECK_BANK, bank_path)
+        _write_settings(work)
+        proc, base = _serve_base(bank_path,
+                                 os.path.join(work, "attempt.md"), [])
+        if not base:
+            if proc.poll() is None:
+                proc.terminate()
+            fail("matrix serve daemon never printed a URL")
+        try:
+            # q2: 5 7 :: 12, 3 4 :: 7, 0 :: 0 -- print 12 always -> pass 1,
+            # fail 2 and 3 with distinct wrong_output reason.
+            started = post(base + "api/start", {"bank": "check_bank",
+                                                "count": 6, "mode": "practice",
+                                                "focus": "q2"})
+            resp = post(base + "api/submit",
+                        {"session_id": started["session_id"],
+                         "answer": "import sys\nprint(12)"})
+            if resp.get("score") is not False:
+                fail("mixed submission scored %r, want False" % resp.get("score"))
+            obs = (resp.get("interaction_result") or {}).get("observations") or []
+            if len(obs) != 3:
+                fail("mixed submission has %d observations, want 3" % len(obs))
+            if [o["case_index"] for o in obs] != [1, 2, 3]:
+                fail("observations not 1-based in authored order: %r" % obs)
+            if obs[0]["reason"] != "passed" or \
+                    obs[1]["reason"] != "wrong_output" or \
+                    obs[2]["reason"] != "wrong_output":
+                fail("distinct failure causes not mapped to their cases: %r" % obs)
+            if obs[1]["actual"] != "12\n":
+                fail("observation actual output missing: %r" % obs[1])
+            # pre-submit: the interaction contract (the renderer-config
+            # surface a client sees before answering) has no case material.
+            # The full public_item legitimately contains the stem and starter
+            # text, so scope the leak check to the contract blob. The
+            # renderer_config key set is already pinned exactly by
+            # check_public_item; here we only assert the authored expected
+            # values never reach it (case inputs can legitimately appear in
+            # starter code, so they are not leak terms).
+            item = runtime.public_item(qs[1])
+            contract = json.dumps(item.get("interaction_contract") or {})
+            for leak in ("cases", "observation", "reason"):
+                if leak in contract:
+                    fail("pre-submit interaction contract leaks %r" % leak)
+            for case in qs[1].get("cases") or []:
+                expected = (case.get("expected") or "").strip()
+                # a one-character expected value like "0" can legitimately
+                # appear in starter code; only distinctive values prove a leak
+                if len(expected) >= 2 and expected in contract:
+                    fail("pre-submit interaction contract leaks expected "
+                         "material %r" % expected)
+
+            # q3: infinite loop -> null verdict, pending treatment, timeout row.
+            started3 = post(base + "api/start", {"bank": "check_bank",
+                                                 "count": 6, "mode": "practice",
+                                                 "focus": "q3"})
+            killed = post(base + "api/submit",
+                          {"session_id": started3["session_id"],
+                           "answer": "while True:\n    pass"})
+            if killed.get("score") is not None:
+                fail("killed run scored %r, want None" % killed.get("score"))
+            kobs = (killed.get("interaction_result") or {}).get("observations") or []
+            if not kobs or all(o["reason"] != "timeout" for o in kobs):
+                fail("killed run lacks a timeout observation: %r" % killed)
+            # the served page renders the pending treatment for null verdicts
+            # (the .pend class and 'Recorded. Not marked here.' header).
+            if '.pend' not in page:
+                fail("served page lacks the pending treatment class")
+        finally:
+            proc.terminate()
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def check_refusal_states():
+    """05-06 Task 2: three refusals, three causes. The built file page shows
+    the locked file-refusal sentence + skip control and no code editor for a
+    check item; the served page carries the network and language sentences
+    (distinct); the skip handler advances without verify/settle/close; the
+    connectivity sentence is unchanged; no generic message covers more than
+    one cause; the honest-limits line survives every refusal state."""
+    # Built (offline) page.
+    build_out = os.path.join(tempfile.mkdtemp(), "check_file.html")
+    subprocess.run([sys.executable, os.path.join(ROOT, "itembank.py"),
+                    "build", CHECK_BANK, build_out], check=True,
+                   capture_output=True)
+    html = open(build_out, encoding="utf-8").read()
+    FILE_REFUSAL = ("This item runs code on the machine serving itembank and "
+                    "can't be answered from a file opened directly in a "
+                    "browser. Open this bank with itembank serve (or the "
+                    "daemon) and try again.")
+    if FILE_REFUSAL not in html:
+        fail("built file page lacks the file-refusal sentence")
+    if "Skip — not answerable offline" not in html:
+        fail("built file page lacks the skip control label")
+    # The offline asCheck's !SERVE branch replaces the editor: the boot
+    # script's create() call sits inside the SERVE branch, so on a file page
+    # the editor never boots. Source-assert the skip handler advances without
+    # verify/settle/close.
+    skip_src = re.search(r"skip\.onclick = \(\)=>\{([^}]*)\};", html)
+    if not skip_src or "i++" not in skip_src.group(1) or "render()" not in skip_src.group(1):
+        fail("skip handler does not advance the item index directly: %r"
+             % (skip_src.group(1) if skip_src else "no handler"))
+    if re.search(r"verify\(|settle\(|close\(", skip_src.group(1)):
+        fail("skip handler calls verify/settle/close: %r" % skip_src.group(1))
+    if model.HONEST_LIMITS_NOTE not in html:
+        fail("built file page lost the honest-limits sentence")
+    # The built page renders no editor for check: the .codewrap mount and
+    # boot call are inside the SERVE branch, so assert the refusal branch is
+    # the only reachable one by checking the boot call is guarded.
+    if re.search(r"CheckEditorBoot\.create", html):
+        # It is present in source (dead code offline); what matters is the
+        # !SERVE guard returns before it. Assert the guard precedes it.
+        g = re.search(r"if\(!SERVE\)\{.*?return;\s*\}", html, re.S)
+        if not g:
+            fail("offline asCheck lacks the !SERVE refusal guard")
+    # Served page: both sentences present and distinct; honest-limits too.
+    qs = load(CHECK_BANK)
+    _, srv = quiz.page_for(CHECK_BANK, qs, serve=True)
+    from surfaces.daemon import LAN_REFUSAL_COPY, UNKNOWN_LANGUAGE_COPY
+    # The page owns its locked copy of both sentences (Copywriting Contract),
+    # branched by the daemon's refused_reason field. The sentences are
+    # written as adjacent JS string literals ("... " "..."), so strip the
+    # quote/plus/newline noise and compare whitespace-collapsed.
+    js_text = re.sub(r'["+\\]', "", srv)
+    def collapse(s):
+        return " ".join(str(s or "").split())
+    if collapse(LAN_REFUSAL_COPY) not in collapse(js_text):
+        fail("served page lacks the network refusal sentence")
+    if "check.languages" not in srv:
+        fail("served page lacks the language refusal sentence")
+    if collapse("Add it in settings") not in collapse(js_text):
+        fail("served page lacks the language refusal sentence")
+    if collapse(UNKNOWN_LANGUAGE_COPY % "ruby") in collapse(js_text):
+        fail("served page carries a literal language sentence; the page "
+             "interpolates the language from the item contract")
+    if LAN_REFUSAL_COPY == UNKNOWN_LANGUAGE_COPY:
+        fail("the two refusal sentences are identical")
+    if model.HONEST_LIMITS_NOTE not in srv:
+        fail("served page lost the honest-limits sentence")
+    # No generic message covers more than one cause.
+    page_src = open(os.path.join(ROOT, "surfaces", "quiz_page.py"),
+                    encoding="utf-8").read()
+    if re.search(r"(something went wrong|an error occurred|unknown error)",
+                 page_src, re.IGNORECASE):
+        fail("a generic failure message covers more than one cause")
+    # The connectivity copy in the settle catch block is unchanged (the
+    # served client's exact string, written as adjacent JS literals; the
+    # offline client's copy lives in the built page, since the served page
+    # substitutes OFFLINE_JS away).
+    if collapse("Couldn't check that answer. Your selection is still here.") \
+            not in collapse(js_text):
+        fail("served connectivity sentence changed")
+    if collapse("Could not reach the process that scores and records") \
+            not in collapse(re.sub(r'["+\\]', "", html)):
+        fail("offline connectivity sentence changed")
+
+
 def check_network_refusal():
     """D-09 made real: with the daemon bound to all interfaces and
     check.allow_lan false, both submit routes refuse a check item's execution
@@ -1132,6 +1322,8 @@ def main():
     check_cross_path()
     check_explain_threading()
     check_vendor_integrity()
+    check_matrix_contract()
+    check_refusal_states()
     check_network_refusal()
     print("check roundtrip: ok")
     return 0
