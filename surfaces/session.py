@@ -275,7 +275,7 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
     run_result = None
     check_source = None
     if q["type"] == "check":
-        source = action.get("answer")
+        source = normalize_answer(action.get("answer"))
         if not isinstance(source, str):
             sys.exit("a check item requires source text as its answer")
         check_source = source
