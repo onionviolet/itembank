@@ -12,6 +12,7 @@ from model import (BANK_FILE_HINTS, SPEC, STYLE_CHECK_CATALOGUE, coverage_map,
                    parse_lesson, parse_sources, parse_terms,
                    warning_ship_state)
 from surfaces.anki import cmd_export
+from surfaces.audio import cmd_export_audio
 from surfaces.daemon import (cmd_cli_twin, cmd_daemon, cmd_disclosure,
                              cmd_sidecar)
 from surfaces.day import cmd_day
@@ -485,6 +486,15 @@ def cmd_calibrate(a):
     return 0
 
 
+def _cmd_export(a):
+    """`itembank export audio <bank> --objective <id>` dispatches to the audio
+    drill-pack exporter; any other first token is the legacy flat export form,
+    which must keep parsing and behaving byte-identically (D-08, AUDIO-05)."""
+    if a.bank == "audio":
+        return cmd_export_audio(a)
+    return cmd_export(a)
+
+
 def main():
     # Imported lazily and inside main(), not at module scope: itembank.py
     # itself does `from surfaces.cli import main`, and the built .pyz's
@@ -759,18 +769,38 @@ def main():
     s.add_argument("key_id", help="the [!KEY] block's minted [ID:] value")
     s.set_defaults(fn=cmd_key_review)
 
-    s = sub.add_parser("export", help="export a bank as Anki TSV or GIFT for LMS import")
+    s = sub.add_parser("export", help="export a bank as Anki TSV or GIFT for LMS "
+                                      "import, or one objective as an audio drill "
+                                      "pack (stem, timed pause, key, why) plus a "
+                                      "plain-text transcript")
     s.add_argument("bank")
     s.add_argument("out", nargs="?",
                    help="output path (required for basic/cloze/gift; keys "
-                        "defaults to <bank>_keys.tsv)")
+                        "defaults to <bank>_keys.tsv; for `export audio` this "
+                        "is the bank file)")
     s.add_argument("--format", choices=("basic", "cloze", "gift", "keys"),
                    default="basic")
     s.add_argument("--strict", action="store_true",
                    help="GIFT export only: promote the multi scoring-divergence "
                         "warning to a per-item failure")
     s.add_argument("--force", action="store_true", help="export despite lint errors")
-    s.set_defaults(fn=cmd_export)
+    s.add_argument("--objective", metavar="ID",
+                   help="audio export: the objective id to turn into a drill pack")
+    s.add_argument("--engine", metavar="NAME",
+                   help="audio export: the registered TTS engine "
+                        "(edge-tts | piper | transcript-only; default from "
+                        "settings audio.engine). edge-tts sends item text to "
+                        "Microsoft's endpoint; piper runs locally; "
+                        "transcript-only writes no audio")
+    s.add_argument("--split", choices=("per-pack", "per-item"),
+                   help="audio export: one file per objective (per-pack, the "
+                        "default) or one file per item (per-item)")
+    s.add_argument("--container", choices=("mp3", "wav"),
+                   help="audio export: output container (default mp3)")
+    s.add_argument("--out", dest="out_dir", metavar="DIR",
+                   help="audio export: output directory for the pack "
+                        "(default: the bank's directory)")
+    s.set_defaults(fn=_cmd_export)
 
     s = sub.add_parser("day", help="today's work across every subject, ticked and logged")
     s.add_argument("plan", help="markdown document holding a dated plan table")

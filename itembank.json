@@ -40,6 +40,28 @@
     "winnow_threshold": 8,
     "jaccard_threshold": 0.25
   },
+  "audio": {
+    "engine": "edge-tts",
+    "container": "mp3",
+    "split": "per-pack",
+    "pause": {
+      "mc": 1.5,
+      "multi": 2.0,
+      "short": 2.0,
+      "cloze": 2.5,
+      "build": 4.0,
+      "table": 3.0,
+      "dnd": 3.0,
+      "check": 3.0
+    },
+    "edge_tts": {
+      "voice": "en-US-GuyNeural"
+    },
+    "piper": {
+      "voice": "en_US-lessac-medium",
+      "model": ""
+    }
+  },
   "selection": {
     "cooldown_responses": 20
   }
