@@ -74,6 +74,15 @@ def q3():
     return qs()[2]
 
 
+def q1_wrong():
+    """A genuine wrong answer for q1 (correct is B)."""
+    return "C"
+
+
+def q1_right():
+    return "B"
+
+
 def item_key(q):
     return evidence.evidence_key(q)
 
@@ -88,7 +97,8 @@ def test_transition_rejects_unknown_action():
     except SystemExit:
         pass
     try:
-        runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "B", "mode": "drill"})
+        runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "C",
+                                              "mode": "drill"})
         fail("teaching_transition accepted a mode-carrying action")
     except SystemExit:
         pass
@@ -96,7 +106,7 @@ def test_transition_rejects_unknown_action():
 
 def test_practice_wrong_holds_and_unlocks_one_tier():
     s = session(mode="practice", items=(0,), cursor=0)
-    r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "B"})
+    r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": q1_wrong()})
     if r["action"] != "hold":
         fail("practice wrong submit must hold, got %r" % r["action"])
     if r["session"]["cursor"] != 0:
@@ -112,9 +122,9 @@ def test_practice_wrong_holds_and_unlocks_one_tier():
 
 def test_practice_duplicate_and_empty_unlock_nothing():
     s = session(mode="practice", items=(0,), cursor=0)
-    r1 = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "B"})
+    r1 = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": q1_wrong()})
     s = r1["session"]
-    r2 = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "B"})
+    r2 = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": q1_wrong()})
     if r2["action"] != "hold":
         fail("a canonical-identical replay must hold, got %r" % r2["action"])
     rec = r2["session"]["teaching_state"][item_key(q1())]
@@ -130,7 +140,8 @@ def test_practice_duplicate_and_empty_unlock_nothing():
 
 def test_practice_hint_reveals_one_fixed_tier_in_order():
     s = session(mode="practice", items=(0,), cursor=0)
-    s = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "B"})["session"]
+    s = runtime.teaching_transition(s, q1(),
+                                    {"kind": "submit", "answer": q1_wrong()})["session"]
     r = runtime.teaching_transition(s, q1(), {"kind": "hint"})
     if r["action"] != "reveal_tier":
         fail("hint must reveal_tier, got %r" % r["action"])
@@ -161,7 +172,8 @@ def test_practice_hint_without_attempt_unlocks_tier_zero():
 
 def test_practice_stumped_reveals_exactly_next_tier():
     s = session(mode="practice", items=(0,), cursor=0)
-    s = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "B"})["session"]
+    s = runtime.teaching_transition(s, q1(),
+                                    {"kind": "submit", "answer": q1_wrong()})["session"]
     r = runtime.teaching_transition(s, q1(), {"kind": "stumped"})
     if r["action"] != "reveal_tier":
         fail("stumped must reveal_tier, got %r" % r["action"])
@@ -175,10 +187,11 @@ def test_practice_stumped_reveals_exactly_next_tier():
 
 def test_practice_correct_retry_advances_and_records_tier():
     s = session(mode="practice", items=(0, 1), cursor=0)
-    s = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "B"})["session"]
+    s = runtime.teaching_transition(s, q1(),
+                                    {"kind": "submit", "answer": q1_wrong()})["session"]
     s = runtime.teaching_transition(s, q1(), {"kind": "hint"})["session"]
     s = runtime.teaching_transition(s, q1(), {"kind": "hint"})["session"]
-    r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "B"})
+    r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": q1_right()})
     if r["action"] != "advance":
         fail("a correct retry must advance, got %r" % r["action"])
     if r["session"]["cursor"] != 1:
@@ -190,21 +203,23 @@ def test_practice_correct_retry_advances_and_records_tier():
 
 def test_practice_changed_answer_opens_new_attempt():
     s = session(mode="practice", items=(0,), cursor=0)
-    s = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "B"})["session"]
-    r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "C"})
+    s = runtime.teaching_transition(s, q1(),
+                                    {"kind": "submit", "answer": "C"})["session"]
+    r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "D"})
     if r["action"] != "hold":
         fail("a changed wrong answer must hold, got %r" % r["action"])
     rec = r["session"]["teaching_state"][item_key(q1())]
     if rec["attempt_count"] != 2:
         fail("a materially different response must open attempt 2, got %r"
              % rec["attempt_count"])
-    if rec["last_genuine_canonical"] != "C":
+    if rec["last_genuine_canonical"] != "D":
         fail("last genuine canonical must follow the latest picked option")
 
 
 def test_practice_tier_three_is_response_specific():
     s = session(mode="practice", items=(0,), cursor=0)
-    s = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "B"})["session"]
+    s = runtime.teaching_transition(s, q1(),
+                                    {"kind": "submit", "answer": "C"})["session"]
     s = runtime.teaching_transition(s, q1(), {"kind": "hint"})["session"]
     s = runtime.teaching_transition(s, q1(), {"kind": "hint"})["session"]
     s = runtime.teaching_transition(s, q1(), {"kind": "hint"})["session"]
@@ -215,19 +230,19 @@ def test_practice_tier_three_is_response_specific():
     if not tier["available"]:
         fail("tier 3 must be available for a genuine picked option")
     q = q1()
-    canonical = runtime.canonical_response(q, "B")
-    expected = (q.get("da") or {}).get("B", "")
+    canonical = runtime.canonical_response(q, "C")
+    expected = (q.get("da") or {}).get("C", "")
     if tier["content"] != expected:
         fail("tier 3 content must be the picked option's analysis, got %r" % tier["content"])
     if r["hint"]["for_response"] != canonical:
         fail("tier 3 must name the canonical response it was resolved for")
     # A changed answer changes the tier-3 content but keeps previously shown tiers.
     s2 = runtime.teaching_transition(
-        s, q1(), {"kind": "submit", "answer": "C"})["session"]
+        s, q1(), {"kind": "submit", "answer": "D"})["session"]
     r2 = runtime.teaching_transition(s2, q1(), {"kind": "hint"})
     if r2["hint"]["tier"]["index"] != 3:
         fail("after unlocking tier 3 twice, the next reveal must still be tier 3")
-    expected_c = (q.get("da") or {}).get("C", "")
+    expected_c = (q.get("da") or {}).get("D", "")
     if r2["hint"]["tier"]["content"] != expected_c:
         fail("tier 3 must track the changed picked option, got %r" % r2["hint"]["tier"])
 
@@ -250,20 +265,21 @@ def test_six_fixed_tiers_and_unavailable_slots():
 
 def test_practice_reveal_then_advance():
     s = session(mode="practice", items=(0, 1), cursor=0)
-    s = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "B"})["session"]
+    s = runtime.teaching_transition(s, q1(),
+                                    {"kind": "submit", "answer": q1_wrong()})["session"]
     for i in range(6):
         r = runtime.teaching_transition(s, q1(), {"kind": "stumped"})
         if r["hint"]["tier"]["index"] != i:
             fail("stumped ladder must reveal tier %d, got %r" % (i, r["hint"]["tier"]))
         s = r["session"]
-    r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "B"})
+    r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": q1_wrong()})
     if r["action"] != "advance":
         fail("after the reveal, the next action must advance, got %r" % r["action"])
 
 
 def test_practice_last_item_completes():
     s = session(mode="practice", items=(0,), cursor=0)
-    r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "A"})
+    r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": q1_right()})
     if r["action"] != "complete":
         fail("correct answer on the last item must complete, got %r" % r["action"])
     if r["session"]["status"] != "complete" or r["session"]["cursor"] != 1:
@@ -272,7 +288,7 @@ def test_practice_last_item_completes():
 
 def test_drill_reveals_and_advances():
     s = session(mode="drill", items=(0, 1), cursor=0)
-    r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "B"})
+    r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": q1_wrong()})
     if r["action"] != "advance":
         fail("drill must advance immediately, got %r" % r["action"])
     if r["session"]["cursor"] != 1:
@@ -283,7 +299,7 @@ def test_drill_reveals_and_advances():
 
 def test_diagnostic_defers_until_completion():
     s = session(mode="diagnostic", items=(0, 1), cursor=0)
-    r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "B"})
+    r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": q1_wrong()})
     if r["action"] != "defer_feedback":
         fail("diagnostic must defer feedback, got %r" % r["action"])
     if r["session"]["cursor"] != 0:
@@ -294,7 +310,7 @@ def test_diagnostic_defers_until_completion():
 
 def test_exam_defers_until_accepted_mark():
     s = session(mode="exam", items=(0, 1), cursor=0)
-    r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "B"})
+    r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": q1_wrong()})
     if r["action"] != "defer_feedback":
         fail("exam must defer feedback, got %r" % r["action"])
     if r["session"]["cursor"] != 0:
@@ -315,7 +331,7 @@ def test_short_response_stays_pending():
 def test_mode_immutable_and_selection_mode_untouched():
     s = session(mode="practice", items=(0,), cursor=0)
     s["selection_mode"] = "spaced"
-    r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "B"})
+    r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": q1_wrong()})
     if r["session"].get("selection_mode") != "spaced":
         fail("selection_mode must never be consulted or modified by feedback policy")
     if r["session"]["mode"] != "practice":
@@ -335,7 +351,8 @@ def test_v1_session_upgrades_to_v2():
     if 1 not in runtime.SESSION_UPGRADES:
         fail("SESSION_UPGRADES must register a v1-to-v2 upgrade")
     # A resumed v2 session keeps working through the transition.
-    r = runtime.teaching_transition(upgraded, q1(), {"kind": "submit", "answer": "B"})
+    r = runtime.teaching_transition(upgraded, q1(),
+                                    {"kind": "submit", "answer": q1_wrong()})
     if r["action"] != "hold":
         fail("an upgraded session must execute the teaching transition")
 
@@ -344,17 +361,17 @@ def test_evidence_reconciliation_repairs_crash_window():
     # Evidence already holds one wrong response + one shown hint for q1; the
     # session's teaching_state is stale (empty). reconcile via evidence_state
     # must repair the state without replaying disclosure.
-    canon_b = runtime.canonical_response(q1(), "B")
+    canon_b = runtime.canonical_response(q1(), "C")
     ev_response = evidence.response_event(
-        "sess-reconcile", q1(), "B", False, "practice", 1, "lesson_bank.md",
+        "sess-reconcile", q1(), "C", False, "practice", 1, "lesson_bank.md",
         hint_tier=None)
     ev_hint = evidence.hint_event(
         "sess-reconcile", q1(), 0, True, "lesson", "authored", "attempt",
         response_event_id=ev_response["event_id"], response_canonical=canon_b,
-        attempt_num=1)
+        attempt_num=1, bank="lesson_bank.md")
     state = {item_key(q1()): [ev_response, ev_hint]}
     s = session(mode="practice", items=(0,), cursor=0)
-    r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "B"},
+    r = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": "C"},
                                     evidence_state=state)
     if r["action"] != "hold":
         fail("reconciled replay must hold, got %r" % r["action"])
@@ -371,10 +388,10 @@ def test_evidence_reconciliation_repairs_crash_window():
 
 def test_hint_event_contract_and_dedupe():
     q = q1()
-    canon = runtime.canonical_response(q, "B")
+    canon = runtime.canonical_response(q, "C")
     ev = evidence.hint_event("s", q, 1, True, "objective", "authored", "attempt",
                              response_event_id="r1", response_canonical=canon,
-                             attempt_num=1)
+                             attempt_num=1, bank="lesson_bank.md")
     required = ("schema_version", "event_id", "event_type", "ts", "session_id",
                 "item_id", "item_ref", "item_type", "bank", "mode", "attempt_number",
                 "response_event_id", "response_canonical", "tier_index", "tier_name",
@@ -395,27 +412,34 @@ def test_hint_event_contract_and_dedupe():
     # A stumped hint for the same tier has a distinct dedupe key.
     stumped = evidence.hint_event("s", q, 1, True, "objective", "authored",
                                   "stumped", response_event_id="r1",
-                                  response_canonical=canon, attempt_num=1)
+                                  response_canonical=canon, attempt_num=1,
+                                  bank="lesson_bank.md")
     if stumped["dedupe_key"] == ev["dedupe_key"]:
         fail("attempt and stumped unlock must never share a dedupe key")
     # Same tier+path+attempt replays to the same key (idempotent).
     again = evidence.hint_event("s", q, 1, True, "objective", "authored", "attempt",
                                 response_event_id="r1", response_canonical=canon,
-                                attempt_num=1)
+                                attempt_num=1, bank="lesson_bank.md")
     if again["dedupe_key"] != ev["dedupe_key"]:
         fail("an identical hint replay must reproduce the same dedupe key")
 
 
 def test_response_event_v2_hint_tier_null_vs_zero():
     q = q1()
-    ev_null = evidence.response_event("s", q, "B", False, "practice", 1,
+    ev_null = evidence.response_event("s", q, "C", False, "practice", 1,
                                       "lesson_bank.md", hint_tier=None)
-    ev_zero = evidence.response_event("s", q, "B", False, "practice", 1,
+    ev_zero = evidence.response_event("s", q, "C", False, "practice", 1,
                                       "lesson_bank.md", hint_tier=0)
     if ev_null["hint_tier"] is not None:
         fail("hint_tier=None must stay null (no ladder), got %r" % ev_null["hint_tier"])
     if ev_zero["hint_tier"] != 0:
         fail("hint_tier=0 must record zero (tier 0 shown), got %r" % ev_zero["hint_tier"])
+    # Every v2 response event validates against the published contract.
+    schema = load_schema(RESPONSE_SCHEMA)
+    for ev in (ev_null, ev_zero):
+        errs = schema_validate.validate(ev, schema)
+        if errs:
+            fail("v2 response event fails response.schema.json: %s" % errs[0])
 
 
 def _write_event(log, ev):
@@ -441,12 +465,13 @@ def test_teaching_outcomes_from_live_events():
         log = os.path.join(tmp, "_evidence", "evidence.jsonl")
         sid = "sess-outcomes"
         q_a, q_b, q_short = q1(), q2(), q3()
-        canon_wrong = runtime.canonical_response(q_a, "B")
-        canon_right = runtime.canonical_response(q_a, "A")
+        # A separate, fully-retracted item (a synthetic copy with its own
+        # positional id) whose events must vanish from the derivation.
+        q_unused = dict(qs()[0], id="q9", item_id="")
 
         # q_a: first-try correct.
         _write_event(log, evidence.response_event(
-            sid, q_a, "A", True, "practice", 1, "lesson_bank.md", hint_tier=None))
+            sid, q_a, "B", True, "practice", 1, "lesson_bank.md", hint_tier=None))
         # q_b: two genuine wrong attempts, an attempt-unlocked hint, a
         # stumped-unlocked hint, then a correct retry at tier 1.
         ev_wrong1 = evidence.response_event(
@@ -454,13 +479,15 @@ def test_teaching_outcomes_from_live_events():
         ev_hint1 = evidence.hint_event(
             sid, q_b, 0, True, "lesson", "authored", "attempt",
             response_event_id=ev_wrong1["event_id"],
-            response_canonical=evidence.idempotency_canon(q_b, ["A"]), attempt_num=1)
+            response_canonical=evidence.idempotency_canon(q_b, ["A"]),
+            attempt_num=1, bank="lesson_bank.md")
         ev_wrong2 = evidence.response_event(
             sid, q_b, ["C"], False, "practice", 2, "lesson_bank.md", hint_tier=0)
         ev_hint2 = evidence.hint_event(
             sid, q_b, 1, True, "objective", "authored", "stumped",
             response_event_id=ev_wrong2["event_id"],
-            response_canonical=evidence.idempotency_canon(q_b, ["C"]), attempt_num=2)
+            response_canonical=evidence.idempotency_canon(q_b, ["C"]),
+            attempt_num=2, bank="lesson_bank.md")
         ev_right = evidence.response_event(
             sid, q_b, ["A", "B"], True, "practice", 3, "lesson_bank.md", hint_tier=1)
         for ev in (ev_wrong1, ev_hint1, ev_wrong2, ev_hint2, ev_right):
@@ -472,23 +499,24 @@ def test_teaching_outcomes_from_live_events():
         _write_event(log, ev_short)
         ev_mark = evidence.mark_event(
             sid, q_short.get("item_id", ""), q_short["id"], ev_short["event_id"],
-            True, rubric=None, actor="human")
+            True, rubric=None)
         _write_event(log, ev_mark)
 
         # A retracted response (and its hint) must vanish from the derivation.
-        q_unused = q_a
+        q_unused = dict(qs()[0], id="q9", item_id="")
         ev_retract_target = evidence.response_event(
             sid, q_unused, "C", False, "practice", 1, "lesson_bank.md", hint_tier=None)
         ev_retract_hint = evidence.hint_event(
             sid, q_unused, 0, True, "lesson", "authored", "attempt",
             response_event_id=ev_retract_target["event_id"],
-            response_canonical=evidence.idempotency_canon(q_unused, "C"), attempt_num=1)
+            response_canonical=evidence.idempotency_canon(q_unused, "C"),
+            attempt_num=1, bank="lesson_bank.md")
         _write_event(log, ev_retract_target)
         _write_event(log, ev_retract_hint)
         _write_event(log, evidence.retraction_event(
-            [ev_retract_target["event_id"]], reason="test retraction"))
+            ev_retract_target["event_id"], reason="test retraction"))
         _write_event(log, evidence.retraction_event(
-            [ev_retract_hint["event_id"]], reason="test retraction"))
+            ev_retract_hint["event_id"], reason="test retraction"))
 
         _validate_events(log, load_schema(RESPONSE_SCHEMA))
 
@@ -516,9 +544,15 @@ def test_teaching_outcomes_from_live_events():
         if rows.get(item_key(q_unused)):
             fail("a fully-retracted item must not contribute a counted outcome")
 
-        # Report shape validates against the extended report schema.
+        # Report shape validates against the extended report schema: the
+        # session-summary variant accepts the teaching_outcomes block.
         report = {"schema_version": runtime.REPORT_VERSION, "session_id": sid,
-                  "status": "active", "summary": outcomes}
+                  "status": "active", "summary": {
+                      "schema_version": runtime.REPORT_VERSION,
+                      "auto_attempts": 4, "auto_correct": 2, "pending_manual": 1,
+                      "objectives": {"emt:airway": {"attempts": 4, "correct": 2,
+                                                    "pending": 1}},
+                      "teaching_outcomes": rows}}
         errs = schema_validate.validate(report["summary"], load_schema(REPORT_SCHEMA))
         if errs:
             fail("teaching_outcomes summary fails report.schema.json: %s" % errs[0])
@@ -537,12 +571,12 @@ def test_retraction_suppresses_hints_through_live_events():
         ev_hint = evidence.hint_event(sid, q, 0, True, "lesson", "authored",
                                       "attempt", response_event_id=ev_resp["event_id"],
                                       response_canonical=evidence.idempotency_canon(q, "B"),
-                                      attempt_num=1)
+                                      attempt_num=1, bank="lesson_bank.md")
         _write_event(log, ev_resp)
         _write_event(log, ev_hint)
         if len(evidence.hint_events(log, sid)) != 1:
             fail("hint_events must find the one live hint")
-        _write_event(log, evidence.retraction_event([ev_hint["event_id"]],
+        _write_event(log, evidence.retraction_event(ev_hint["event_id"],
                                                     reason="retract hint"))
         if len(evidence.hint_events(log, sid)) != 0:
             fail("a retracted hint must vanish from hint_events")

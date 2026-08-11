@@ -2,13 +2,15 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://itembank.local/schemas/session.schema.json",
   "title": "itembank session file",
-  "description": "The resumable JSON session file written by 'itembank start' and read/written by 'next' and 'submit'. A session read whose schema_version is older than this document's current version is upgraded forward through runtime.upgrade_session before this shape is checked; a newer schema_version is rejected by name rather than guessed at.",
-  "x-itembank-version": 1,
+  "description": "The resumable JSON session file written by 'itembank start' and read/written by 'next' and 'submit'. A session read whose schema_version is older than this document's current version is upgraded forward through runtime.upgrade_session before this shape is checked; a newer schema_version is rejected by name rather than guessed at. Version 2 (Phase 6) adds the versioned per-item teaching_state contract (D-03); the v1-to-v2 upgrade in runtime.SESSION_UPGRADES initializes it to an empty object.",
+  "x-itembank-version": 2,
   "type": "object",
-  "required": ["schema_version", "session_id", "bank", "items", "cursor", "responses", "status", "mode", "objective", "seed"],
+  "required": ["schema_version", "session_id", "bank", "items", "cursor",
+               "responses", "status", "mode", "objective", "seed",
+               "teaching_state"],
   "properties": {
     "schema_version": {
-      "const": 1
+      "const": 2
     },
     "session_id": {
       "type": "string"
@@ -53,9 +55,69 @@
     "served_ts": {
       "type": "string",
       "description": "ISO-8601 UTC timestamp of when the current item was served, used to compute response_time_ms. Optional: a session written before plan 01-02 has none."
+    },
+    "teaching_state": {
+      "type": "object",
+      "description": "Versioned per-item teaching state (D-03, Phase 6): keyed by the stable item identity (opaque [ID:] when assigned, else 'ref:<positional id>'). Each record tracks attempt count, highest tier unlocked/shown, the last genuine canonical response, its response event id, and the ordered shown-tier snapshots. The v1-to-v2 upgrade initializes this to an empty object; a v1 session read through runtime.upgrade_session always carries it.",
+      "additionalProperties": {
+        "$ref": "#/$defs/teaching_record"
+      }
     }
   },
   "$defs": {
+    "teaching_record": {
+      "type": "object",
+      "required": ["attempt_count", "highest_tier_unlocked", "highest_tier_shown",
+                   "last_genuine_canonical", "last_response_event_id",
+                   "shown_tiers"],
+      "properties": {
+        "attempt_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of materially distinct, non-empty canonical responses (D-04); duplicate and empty replays never increment it."
+        },
+        "highest_tier_unlocked": {
+          "type": "integer",
+          "minimum": -1,
+          "description": "Highest fixed tier made available by genuine attempts/stumped actions; -1 means nothing unlocked yet."
+        },
+        "highest_tier_shown": {
+          "type": "integer",
+          "minimum": -1,
+          "description": "Highest fixed tier actually shown via hint/stumped reveal; -1 means nothing shown yet."
+        },
+        "last_genuine_canonical": {
+          "type": ["string", "null"],
+          "description": "The idempotency-canonical form of the most recent genuine response, or null when none exists; used to distinguish a materially different retry from a duplicate replay."
+        },
+        "last_response_event_id": {
+          "type": ["string", "null"],
+          "description": "The event_id of the most recent genuine response event, when one has been recorded."
+        },
+        "shown_tiers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["index", "name", "unlock_path"],
+            "properties": {
+              "index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5
+              },
+              "name": {
+                "type": "string"
+              },
+              "unlock_path": {
+                "type": "string",
+                "enum": ["attempt", "stumped"]
+              }
+            }
+          },
+          "description": "Ordered snapshots of every tier shown, in the order shown."
+        }
+      }
+    },
     "response_record": {
       "type": "object",
       "required": ["item_id", "objective", "type", "answer", "score"],

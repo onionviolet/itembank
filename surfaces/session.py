@@ -84,7 +84,8 @@ def do_start(bank_path, spec, mode, out, force):
             "responses": [], "status": "active", "mode": mode,
             "objective": sel_spec.get("objective") or "",
             "seed": sel_spec.get("seed", 0),
-            "served_ts": evidence.utc_now()}
+            "served_ts": evidence.utc_now(),
+            "teaching_state": {}}
     write_session(out, data)
     result = session_view(data, qs)
     result["session_file"] = session_path(out)

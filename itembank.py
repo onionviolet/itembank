@@ -56,13 +56,15 @@ from model import (BANK_FILE_HINTS, KEYS_UNCHECKED, LESSON_UNCHECKED,        # n
                    assign_ids, collapse, content_fingerprint, grab, lint, load,
                    lesson_slug, new_item_id, notes, parse_bank, parse_lesson,
                    parse_key_blocks, parse_question, parse_terms, section)
-from runtime import (FIELD_SEP, ITEM_VERSION, PAIR_SEP, REPORT_VERSION,        # noqa: E402
-                     SESSION_UPGRADES, SESSION_VERSION, answer_text,
+from runtime import (FEEDBACK_POLICIES, FIELD_SEP, HINT_TIERS, ITEM_VERSION,  # noqa: E402
+                     PAIR_SEP, REPORT_VERSION, SESSION_UPGRADES,
+                     SESSION_VERSION, answer_text, authored_hint,
                      canonical_key, canonical_response, explain_payload,
-                     glossable, normalize_answer, page_item, public_item,
-                     read_session, response_text, score_response,
-                     session_path, session_summary, session_view,
-                     upgrade_session, write_session)
+                     glossable, new_teaching_record, normalize_answer,
+                     page_item, public_item, read_session, reconcile_teaching_state,
+                     response_text, score_response, session_path,
+                     session_summary, session_view, teaching_key,
+                     teaching_transition, upgrade_session, write_session)
 from selection import DEFAULT_COUNT, SPEC_FIELDS, select                       # noqa: E402
 from surfaces.cli import main                                                  # noqa: E402
 from surfaces.day import (ANKI_ADDON_ID, DAY_LANES, FLOOR_LANES, anki_read,   # noqa: E402
@@ -82,6 +84,7 @@ from evidence import (EVENT_SCHEMA_VERSION, INDEX_VERSION, KNOWN_EVENT_TYPES,  #
                       index_stale, iter_raw, live_events, locked, log_path,
                       mark_event, marks_by_event, new_event_id,
                       objective_history, objective_rollup, recent_dedupe_keys,
+                      hint_event, hint_events, teaching_outcomes,
                       rebuild_index, render_attempt_md, render_daily_log,
                       render_session_json,
                       response_event, retracted_ids, retraction_event,
@@ -91,7 +94,9 @@ from schema_validate import SUPPORTED, SchemaError, validate                  # 
 
 __all__ = [
     "ANKI_ADDON_ID", "BANK_FILE_HINTS", "DAY_LANES", "EVENT_SCHEMA_VERSION",
+    "FEEDBACK_POLICIES",
     "DEFAULT_COUNT", "FIELD_SEP", "FLOOR_LANES", "INDEX_VERSION", "ITEM_VERSION",
+    "HINT_TIERS",
     "KNOWN_EVENT_TYPES",
     "KEYS_UNCHECKED", "LESSON_UNCHECKED", "LETTERS", "LINT_CODES", "LintError",
     "TERMS_UNCHECKED",
@@ -105,13 +110,14 @@ __all__ = [
     "day_page", "day_status", "day_streak", "day_text", "day_tick_event", "dedupe_key",
     "ensure_index", "event_by_id", "event_matches", "evidence_dir", "events",
     "explain_payload",
-    "glossable", "grab", "idempotency_canon", "index_for_log", "index_path",
+    "glossable", "grab", "hint_event", "hint_events", "idempotency_canon",
+    "index_for_log", "index_path",
     "index_stale", "iter_raw",
     "lane_behind",
     "lane_files", "lane_load", "lesson_slug", "lint", "lint_lane_decks", "lint_lane_paths",
     "live_events", "load", "load_day_log", "locked", "log_path",
     "main", "mark_event", "marks_by_event", "new_event_id", "new_item_id",
-    "normalize_answer", "notes",
+    "new_teaching_record", "normalize_answer", "notes",
     "objective_history", "objective_rollup", "page_item", "parse_bank",
     "parse_lanes",
     "parse_key_blocks", "parse_lesson", "parse_plan", "parse_question",
@@ -121,9 +127,12 @@ __all__ = [
     "render_attempt_md", "render_daily_log", "render_session_json", "resolve_notes",
     "response_event", "response_text", "retracted_ids", "retraction_event",
     "scan_legacy",
-    "score_response", "section", "select", "session_events", "session_path",
+    "reconcile_teaching_state", "score_response", "section", "select",
+    "session_events", "session_path",
     "key_review_event", "session_summary", "session_view", "source_key",
-    "subject_of", "term_lookup_event", "upgrade_session", "utc_now",
+    "subject_of", "teaching_key", "teaching_outcomes", "teaching_transition",
+    "term_lookup_event", "upgrade_session", "utc_now",
+    "authored_hint",
     "validate", "wiring_bases", "write_day_log", "write_session",
 ]
 

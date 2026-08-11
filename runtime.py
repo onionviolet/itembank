@@ -19,7 +19,13 @@ import collections, json, os, sys
 
 # Each published contract carries its own version because they evolve
 # independently; the matching documents live under `schemas/`.
-SESSION_VERSION = 1
+#
+# Version 2 (Phase 6) adds the versioned `teaching_state`: per-item attempt
+# count, highest tier unlocked/shown, the last genuine canonical response and
+# its response event id, and the ordered shown-tier snapshots (D-03). The
+# v1-to-v2 upgrade in SESSION_UPGRADES initializes an empty teaching_state so
+# a session written before the hint ladder resumes under the new contract.
+SESSION_VERSION = 2
 ITEM_VERSION = 1
 REPORT_VERSION = 1
 
@@ -135,10 +141,12 @@ def session_path(path):
 
 
 # Registered forward-upgrade functions, keyed by the source version each one
-# upgrades from. Empty today because version 1 is the only version that has
-# ever existed; the registry exists so the first bump is a one-function
-# change to SESSION_UPGRADES rather than a rewrite of read_session.
-SESSION_UPGRADES = {}
+# upgrades from. Version 1 is the only older version that has ever existed;
+# the registry exists so every bump is a one-function change to
+# SESSION_UPGRADES rather than a rewrite of read_session.
+SESSION_UPGRADES = {
+    1: lambda data: dict(data, teaching_state={}),
+}
 
 
 def upgrade_session(data):
@@ -345,3 +353,324 @@ def page_item(q, reveal=True, offline=False):
         out["key"] = canonical_key(q)
         out["explain"] = explain_payload(q, reveal)
     return out
+
+
+# ---- phase 6: the one feedback-policy engine -------------------------------
+# D-01/D-02: one mode-keyed policy table and one teaching transition own every
+# scoring, cursor-movement, tier-gating and disclosure decision for a sitting.
+# A surface (CLI, daemon, browser) is a client of the returned action, never a
+# second implementer of the rules. The transition is a pure function: it takes
+# a session dict, an item and a Phase 6 action, and returns the next session
+# dict plus an action. It never writes files, and it never accepts renderer,
+# canvas, observation, or metadata parameters -- concrete interactive visual
+# action/observation semantics belong exclusively to Phase 06.1.
+
+# The six fixed authored tiers (D-07/D-08). An unavailable tier stays in its
+# numbered slot: `authored_hint` returns `available: false` at the same index
+# rather than shifting later content forward.
+HINT_TIERS = (
+    {"name": "lesson", "label": "lesson pointer"},
+    {"name": "objective", "label": "objective"},
+    {"name": "trap", "label": "trap"},
+    {"name": "rationale", "label": "picked-option rationale"},
+    {"name": "discriminator", "label": "discriminator"},
+    {"name": "reveal", "label": "authored reveal"},
+)
+
+# One policy table keyed ONLY by feedback mode (D-01/D-10..D-13). `selection`
+# is the Phase 7 axis and is deliberately absent: feedback policy never
+# consults selection_mode.
+FEEDBACK_POLICIES = {
+    "drill": {"wrong": "advance", "right": "advance"},
+    "practice": {"wrong": "hold", "right": "advance"},
+    "diagnostic": {"wrong": "defer_feedback", "right": "defer_feedback"},
+    "exam": {"wrong": "defer_feedback", "right": "defer_feedback"},
+    # remediation was not one of the four planned Phase 6 modes, but it ships
+    # in the session mode enum; practice's held-retry ladder is the honest
+    # teaching behavior for it rather than an unhandled mode.
+    "remediation": {"wrong": "hold", "right": "advance"},
+    # 'legacy' appears only on events migrated from a pre-mode store; a
+    # live session can never carry it, and a legacy mode must not pretend to
+    # be a policy it never was.
+    "legacy": {"wrong": "defer_feedback", "right": "defer_feedback"},
+}
+
+
+def new_teaching_record():
+    """One item's persisted teaching state (D-03)."""
+    return {"attempt_count": 0, "highest_tier_unlocked": -1,
+            "highest_tier_shown": -1, "last_genuine_canonical": None,
+            "last_response_event_id": None,
+            "shown_tiers": []}
+
+
+def _idempotent_canon(q, answer):
+    """The canonical form the transition compares for duplicate detection.
+
+    `canonical_response()` returns None for a constructed (short) response by
+    design; idempotency still needs something comparable, so a short answer's
+    whitespace-collapsed, lowercased text is used. This mirrors
+    `evidence.idempotency_canon()` -- the two must agree, and the transition
+    computes it locally to stay import-cycle-free.
+    """
+    canon = canonical_response(q, answer)
+    if canon is not None:
+        return canon
+    text = " ".join(str(answer or "").split()).lower()
+    return "short:" + text
+
+
+def teaching_key(q):
+    """The stable key teaching_state is indexed by: the opaque item id when
+    one has been assigned, else the positional reference -- identical to
+    `evidence.evidence_key()` (which cannot be imported here without a cycle).
+    """
+    return q.get("item_id") or ("ref:" + q["id"])
+
+
+def authored_hint(q, tier, canonical):
+    """The sole private-tier resolver for the six fixed authored tiers
+    (D-07/D-08/D-09). Missing content returns `available: false` at the same
+    index. Tier 3 is response-specific: it resolves the distractor analysis
+    for the learner's latest genuine picked option.
+    """
+    t = HINT_TIERS[tier]
+    name = t["name"]
+    if tier == 0:
+        slug = q.get("lesson_slug") or ""
+        return {"index": 0, "name": name, "available": bool(slug),
+                "content": slug, "label": t["label"]}
+    if tier == 1:
+        obj = q.get("objective") or ""
+        return {"index": 1, "name": name, "available": bool(obj),
+                "content": obj, "label": t["label"]}
+    if tier == 2:
+        trap = q.get("trap") or ""
+        return {"index": 2, "name": name, "available": bool(trap),
+                "content": trap, "label": t["label"]}
+    if tier == 3:
+        content = ""
+        if canonical and q["type"] in ("mc", "multi"):
+            option = str(canonical).split(",")[0].strip()
+            content = (q.get("da") or {}).get(option, "")
+        return {"index": 3, "name": name, "available": bool(content),
+                "content": content, "label": t["label"],
+                "for_response": canonical}
+    if tier == 4:
+        disc = q.get("disc") or ""
+        return {"index": 4, "name": name, "available": bool(disc),
+                "content": disc, "label": t["label"]}
+    # tier == 5: the authored reveal -- the full post-response explanation.
+    return {"index": 5, "name": name, "available": True,
+            "content": explain_payload(q, reveal=True), "label": t["label"]}
+
+
+def _record_from_evidence(q, events):
+    """Pure fold of an item's live response/hint events into a teaching
+    record -- the crash-window reconciliation input (D-15/D-16). `events` is
+    the item's already-live (post-retraction) event list.
+    """
+    rec = new_teaching_record()
+    key = None
+    for ev in events:
+        et = ev.get("event_type")
+        if et == "response":
+            rec["attempt_count"] += 1
+            rec["last_genuine_canonical"] = ev.get("canonical")
+            rec["last_response_event_id"] = ev.get("event_id")
+            ht = ev.get("hint_tier")
+            if isinstance(ht, int):
+                rec["highest_tier_shown"] = max(rec["highest_tier_shown"], ht)
+                rec["highest_tier_unlocked"] = max(rec["highest_tier_unlocked"], ht)
+        elif et == "hint":
+            idx = ev.get("tier_index")
+            if isinstance(idx, int):
+                rec["highest_tier_shown"] = max(rec["highest_tier_shown"], idx)
+                rec["highest_tier_unlocked"] = max(rec["highest_tier_unlocked"], idx)
+                rec["shown_tiers"].append({"index": idx,
+                                           "name": ev.get("tier_name"),
+                                           "unlock_path": ev.get("unlock_path")})
+    return rec
+
+
+def _next_reveal(q, rec, unlock_path):
+    """Compute the next tier to reveal from a teaching record.
+
+    Returns (hint_payload, new_record). When every tier is already shown,
+    returns a payload with `tier: None` and `exhausted: True` -- disclosure
+    never repeats, and no new hint event is authorized.
+    """
+    next_index = rec["highest_tier_shown"] + 1
+    if next_index >= len(HINT_TIERS):
+        shown = list(rec["shown_tiers"])
+        return {"tier": None, "shown": shown, "exhausted": True}, rec
+    tier = authored_hint(q, next_index, rec["last_genuine_canonical"])
+    rec = dict(rec)
+    rec["highest_tier_shown"] = next_index
+    rec["highest_tier_unlocked"] = max(rec["highest_tier_unlocked"], next_index)
+    rec["shown_tiers"] = list(rec["shown_tiers"]) + [
+        {"index": next_index, "name": tier["name"], "unlock_path": unlock_path}]
+    payload = {"tier": tier, "unlock_path": unlock_path,
+               "shown": [s["index"] for s in rec["shown_tiers"]],
+               "for_response": rec["last_genuine_canonical"]}
+    return payload, rec
+
+
+def reconcile_teaching_state(session, q, evidence_state=None):
+    """Fold live evidence into the session's teaching state for one item.
+
+    `evidence_state` is a dict keyed by item key whose values are that item's
+    live (post-retraction) response/hint event lists. When supplied, the
+    item's record is rebuilt from those events, repairing a crash window in
+    which evidence was durable but the session write was not -- without
+    replaying any disclosure. Returns the session dict.
+    """
+    state = session.get("teaching_state")
+    if not isinstance(state, dict):
+        state = {}
+        session = dict(session, teaching_state=state)
+    if evidence_state:
+        key = teaching_key(q)
+        events = evidence_state.get(key)
+        if events:
+            state[key] = _record_from_evidence(q, events)
+    return session
+
+
+def teaching_transition(session, q, action, evidence_state=None):
+    """The one teaching transition (D-01/D-02): the sole authority for
+    scoring, cursor movement, tier unlock/show state, completion, and
+    disclosure. Accepts only Phase 6 action kinds -- submit, hint, stumped.
+
+    Returns {"action": ..., "session": next_session, "hint": ...|None,
+    "reveal": ...|None, "hint_tier": int|None}. The session adapter persists
+    the returned session and appends response/hint events; the transition
+    itself never writes files.
+    """
+    kind = action.get("kind")
+    if kind not in ("submit", "hint", "stumped"):
+        sys.exit("unknown teaching action %r (expected submit, hint, or stumped)"
+                 % (kind,))
+    mode = action.get("mode")
+    if mode is not None and mode != session["mode"]:
+        sys.exit("action mode %r does not match session mode %r; a sitting's "
+                 "feedback mode is immutable (D-14)" % (mode, session["mode"]))
+
+    session = reconcile_teaching_state(session, q, evidence_state)
+    state = session["teaching_state"]
+    rec = state.get(teaching_key(q))
+    if rec is None:
+        rec = new_teaching_record()
+
+    if kind in ("hint", "stumped"):
+        unlock_path = "stumped" if kind == "stumped" else "attempt"
+        payload, next_rec = _next_reveal(q, rec, unlock_path)
+        state = dict(state)
+        state[teaching_key(q)] = next_rec
+        return {"action": "reveal_tier", "hint": payload,
+                "session": dict(session, teaching_state=state)}
+
+    # kind == "submit"
+    answer = normalize_answer(action.get("answer"))
+    canon = _idempotent_canon(q, answer)
+    genuine = bool(canon) and canon != rec["last_genuine_canonical"]
+    score = score_response(q, answer)
+    hint_tier = rec["highest_tier_shown"] if rec["highest_tier_shown"] >= 0 else None
+
+    if (rec["highest_tier_shown"] >= len(HINT_TIERS) - 1
+            and rec["highest_tier_shown"] >= 0):
+        # The reveal has been shown: the next submit action advances without
+        # manufacturing further attempts (D-06) -- even a repeat of the last
+        # canonical response, because the disclosure already happened and
+        # holding the card forever would manufacture exactly the false
+        # attempts D-06 forbids.
+        next_rec = dict(rec, attempt_count=rec["attempt_count"] + 1,
+                        last_genuine_canonical=canon)
+        state = dict(state)
+        state[teaching_key(q)] = next_rec
+        cursor, status = _advance_cursor(session)
+        return {"action": "advance",
+                "session": dict(session, teaching_state=state,
+                                cursor=cursor, status=status),
+                "hint_tier": hint_tier}
+
+    if not genuine:
+        # Empty, canonical-identical, or deduped replays unlock nothing and
+        # move nothing (D-04/D-05).
+        return {"action": "hold", "session": session,
+                "hint_tier": hint_tier, "tier_unlocked": None}
+
+    policy = FEEDBACK_POLICIES.get(session["mode"], FEEDBACK_POLICIES["practice"])
+
+    if score is None:
+        # A constructed response is pending review, never wrong (T-06-05).
+        next_rec = dict(rec, attempt_count=rec["attempt_count"] + 1,
+                        last_genuine_canonical=canon)
+        state = dict(state)
+        state[teaching_key(q)] = next_rec
+        return {"action": "defer_feedback", "session": dict(session, teaching_state=state),
+                "hint_tier": None}
+
+    if score is False:
+        if policy["wrong"] == "advance":
+            # Drill: score once, reveal immediately, advance (D-10).
+            next_rec = dict(rec, attempt_count=rec["attempt_count"] + 1,
+                            last_genuine_canonical=canon)
+            state = dict(state)
+            state[teaching_key(q)] = next_rec
+            cursor, status = _advance_cursor(session)
+            return {"action": "advance",
+                    "session": dict(session, teaching_state=state,
+                                    cursor=cursor, status=status),
+                    "hint_tier": None, "reveal": explain_payload(q, reveal=True)}
+        if policy["wrong"] == "defer_feedback":
+            next_rec = dict(rec, attempt_count=rec["attempt_count"] + 1,
+                            last_genuine_canonical=canon)
+            state = dict(state)
+            state[teaching_key(q)] = next_rec
+            return {"action": "defer_feedback",
+                    "session": dict(session, teaching_state=state),
+                    "hint_tier": None}
+        # practice/remediation hold: at most one tier unlocks per genuine
+        # wrong attempt (D-05); the lesson pointer is tier 0, and it becomes
+        # available now.
+        unlocked = max(rec["highest_tier_unlocked"] + 1, 0)
+        if unlocked > len(HINT_TIERS) - 1:
+            unlocked = len(HINT_TIERS) - 1
+        next_rec = dict(rec, attempt_count=rec["attempt_count"] + 1,
+                        highest_tier_unlocked=unlocked,
+                        last_genuine_canonical=canon)
+        state = dict(state)
+        state[teaching_key(q)] = next_rec
+        return {"action": "hold", "session": dict(session, teaching_state=state),
+                "hint_tier": hint_tier, "tier_unlocked": unlocked}
+
+    # score is True.
+    if policy["right"] == "defer_feedback":
+        next_rec = dict(rec, attempt_count=rec["attempt_count"] + 1,
+                        last_genuine_canonical=canon)
+        state = dict(state)
+        state[evidence_key(q)] = next_rec
+        return {"action": "defer_feedback",
+                "session": dict(session, teaching_state=state),
+                "hint_tier": None}
+    next_rec = dict(rec, attempt_count=rec["attempt_count"] + 1,
+                    last_genuine_canonical=canon)
+    state = dict(state)
+    state[teaching_key(q)] = next_rec
+    cursor, status = _advance_cursor(session)
+    action_name = "complete" if status == "complete" else "advance"
+    return {"action": action_name,
+            "session": dict(session, teaching_state=state,
+                            cursor=cursor, status=status),
+            "hint_tier": hint_tier}
+
+
+def _advance_cursor(session):
+    """Cursor advance shared by every advancing action; returns the next
+    cursor and status."""
+    cursor = session["cursor"] + 1
+    status = session["status"]
+    if cursor >= len(session["items"]):
+        status = "complete"
+    return cursor, status
