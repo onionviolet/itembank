@@ -903,3 +903,120 @@ def invoke_hint(session_file, retry=False):
         generated = tier_gate.learner_payload("pass", rendered).get("generated")
     return {"status": outcome, "generated": generated, "authored": authored,
             "interaction_id": interaction_id, "evidence": write_result}
+
+
+def invoke_rubric_review(session_file):
+    """The ONE orchestration path for a rubric-review request (plan 08-04
+    Task 2).
+
+    Requires the current item to be a short response whose most recent live
+    response is still pending (never already-marked); any other state is a
+    typed refusal with a named reason and NO evidence write (D-13). On a
+    genuine pending short response it sequences: build the rubric_review
+    request with the item's rubric points -> model_adapter.invoke with
+    surfaces.settings.load_settings -> tier_gate.evaluate_candidate
+    (rubric_proposal shape, gate tier 5 -- the reviewer sees the whole
+    authored ladder while correct/model stay always-protected) -> append the
+    model_interaction event (D-15) and, on pass, the mark_proposal event
+    linked to the response and interaction (D-13) -> return
+    {"status": "pending", "points": [...]} where the whole payload reads as
+    pending and no model path can settle a mark (D-14/D-25).
+    """
+    import evidence
+    import model
+    import model_adapter
+    import tier_gate
+    from surfaces import settings as _settings
+
+    data = read_session(session_file)
+    if data["status"] != "active":
+        sys.exit("session is already complete")
+    qs = model.load(data["bank"])
+    if data["cursor"] >= len(data["items"]):
+        data["status"] = "complete"
+        write_session(session_file, data)
+        sys.exit("session is already complete")
+    q = qs[data["items"][data["cursor"]]]
+
+    log = evidence.log_path(os.path.dirname(data["bank"]))
+    item_key = evidence.evidence_key(q)
+    live_responses = [ev for ev in evidence.live_events(log)
+                      if ev.get("event_type") == evidence.RESPONSE_EVENT_TYPE
+                      and ev.get("session_id") == data["session_id"]
+                      and evidence.evidence_key({
+                          "item_id": ev.get("item_id", ""),
+                          "id": ev.get("item_ref", "")}) == item_key]
+
+    def _refusal(reason):
+        return {"status": "refused", "reason": reason,
+                "item_id": q.get("id", ""), "interaction_id": None}
+
+    if q["type"] != "short":
+        return _refusal("not_short")
+    if not live_responses:
+        return _refusal("no_response")
+    latest = live_responses[-1]
+    if latest["event_id"] in evidence.marks_by_event(log):
+        return _refusal("already_marked")
+
+    interaction_id = _new_interaction_id()
+    settings_data = _settings.load_settings(os.path.dirname(data["bank"]) or ".")
+    # The bank's authored rubric parses as a list of point texts; the adapter
+    # payload wants one object per point (the model reviews point text).
+    rubric_points = []
+    for rp in (q.get("rubric") or []):
+        if isinstance(rp, dict):
+            rubric_points.append(rp)
+        else:
+            rubric_points.append({"point": str(rp)})
+    request = model_adapter.request_from_operation(
+        "rubric_review", interaction_id, "",
+        item_context=_hint_item_context(q),
+        learner_response=latest.get("answer"),
+        permitted_tier=None,
+        rubric_points=rubric_points)
+    result = model_adapter.invoke(request, settings_data)
+    candidate = result.get("candidate")
+
+    outcome = "unavailable"
+    gate_reason = None
+    points = []
+    if candidate is not None:
+        gate = tier_gate.evaluate_candidate(
+            q, 5, latest.get("answer") or "", candidate)
+        if gate["outcome"] == "pass":
+            outcome = "pass"
+            points = list(gate["plan"].get("points") or [])
+        else:
+            outcome = "drop"
+            gate_reason = gate["reason"]
+
+    backend_class, profile = _backend_descriptors(result)
+    ev = evidence.model_interaction_event(
+        data["session_id"], os.path.basename(data["bank"]), q.get("id", ""),
+        "rubric_review", interaction_id, outcome, gate_reason, 5,
+        backend_class, profile,
+        request_fingerprint=_interaction_fingerprint(request),
+        response_fingerprint=_interaction_fingerprint(candidate)
+        if candidate is not None else None,
+        elapsed_ms=result.get("elapsed_ms"),
+        output_bytes=len(json.dumps(candidate, ensure_ascii=False))
+        if candidate is not None else 0,
+        pass_payload=None)
+    write_result = evidence.append_event(log, ev)
+
+    proposal_event_id = None
+    if outcome == "pass":
+        proposal = evidence.mark_proposal_event(
+            data["session_id"], os.path.basename(data["bank"]),
+            q.get("item_id") or "", q.get("id", ""),
+            latest["event_id"], interaction_id, points)
+        prop_result = evidence.append_event(log, proposal)
+        proposal_event_id = prop_result.get("event_id") or proposal["event_id"]
+
+    return {"status": "pending", "points": points,
+            "interaction_id": interaction_id,
+            "proposal_event_id": proposal_event_id,
+            "suggestion_reveal": settings_data.get("suggestion_reveal",
+                                                   "after-self-mark"),
+            "evidence": write_result}

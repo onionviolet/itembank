@@ -29,7 +29,7 @@ from runtime import (REPORT_VERSION, SESSION_VERSION, normalize_answer, read_ses
                      reconcile_teaching_state, score_response, session_path,
                      session_summary, session_view, teaching_key,
                      teaching_transition, write_session, public_item,
-                     invoke_hint)
+                     invoke_hint, invoke_rubric_review)
 
 
 # Phase 6 renderer handoff (06-02, D-12): the only thing a served client may
@@ -374,6 +374,31 @@ def cmd_hint(a):
     result = do_hint(a.session, retry=bool(a.retry))
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
+
+
+def do_rubric_review(session_file):
+    """Request pending per-point rubric suggestions for the current short
+    response (plan 08-04 Task 2): `runtime.invoke_rubric_review` sequences
+    adapter -> gate -> evidence. Refusals are named with no evidence write,
+    and no model path can settle a mark (D-13/D-14/D-25)."""
+    return invoke_rubric_review(session_file)
+
+
+def cmd_rubric_review(a):
+    result = do_rubric_review(a.session)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def render_suggestion(suggestion_reveal="after-self-mark"):
+    """The ONLY surface representation of a model rubric suggestion (D-22):
+    a single pending token -- never a number, fraction, check, or cross
+    glyph. The suggestion_reveal setting decides WHEN the suggestion is
+    disclosed relative to the learner's own mark; whatever the timing, the
+    rendered form is the pending token. The per-point pass/fail/uncertain
+    statuses live in the evidence proposal event and stay out of any
+    learner-facing render until a human settles the proposal."""
+    return "pending"
 
 
 def cmd_report(a):

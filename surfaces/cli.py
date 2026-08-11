@@ -23,7 +23,8 @@ from surfaces.migrate import cmd_migrate
 from surfaces.protocol_cli import cmd_schema
 from surfaces.quiz import cmd_build, cmd_serve
 from surfaces.selection_cli import cmd_select
-from surfaces.session import cmd_hint, cmd_next, cmd_report, cmd_start, cmd_submit
+from surfaces.session import (cmd_hint, cmd_next, cmd_report, cmd_rubric_review,
+                              cmd_start, cmd_submit)
 from surfaces.settings import cmd_config
 from surfaces import seeding
 from surfaces.study import cmd_study
@@ -651,6 +652,12 @@ def main():
                         "most one generation per interaction id otherwise (D-12)")
     s.set_defaults(fn=cmd_hint)
 
+    s = sub.add_parser("rubric-review", help="request pending per-point rubric "
+                        "suggestions for the current short response; a model "
+                        "suggestion can never settle a mark (D-25)")
+    s.add_argument("--session", required=True, help="the session JSON path")
+    s.set_defaults(fn=cmd_rubric_review)
+
     s = sub.add_parser("report", help="summarize a JSON assessment session")
     s.add_argument("session")
     s.set_defaults(fn=cmd_report)
@@ -712,8 +719,12 @@ def main():
     s.add_argument("--file", help="NDJSON batch file, one mark per line; '-' reads stdin")
     s.add_argument("--marks", help="inline JSON array of marks")
     s.add_argument("--item", help="single-mark convenience form: the item_ref to mark")
+    s.add_argument("--proposal", help="single-proposal accept form: the event id "
+                   "of the mark_proposal to accept; requires --verdict (plan 08-04)")
+    s.add_argument("--rubric", help="JSON array of {point, pass} booleans for the "
+                   "single-form marks (--item/--proposal)")
     s.add_argument("--verdict", choices=("pass", "fail"), default=None,
-                   help="required with --item")
+                   help="required with --item or --proposal")
     s.set_defaults(fn=cmd_mark)
 
     s = sub.add_parser("id-assign", help="assign opaque ids and content-hash fingerprints "
