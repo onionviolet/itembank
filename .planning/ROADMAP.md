@@ -92,7 +92,7 @@ are recorded on the phases they block; none blocks starting.
 - [ ] **Phase 5: Check Item Type & Code Editor** - A `check` item type runs the learner's own code in a real editor and scores it through the one scorer.
 - [x] **Phase 6: Hint Ladder, Cursor-Hold & Feedback Modes** - A wrong answer holds the cursor, hints unlock one authored tier at a time, and feedback behavior follows session mode. (completed 2026-08-10)
 - [ ] **Phase 6.2: Executable Textbook Loop (INSERTED 2026-08-10)** - Prose, an inline check the learner must clear to continue, then spaced re-exposure of the same idea — the Execute Program / Runestone loop over the existing lesson, hint, and evidence machinery.
-- [ ] **Phase 7: Selection Engine** - Sessions are assembled by an inspectable rule engine — objective, difficulty, discrimination pairs, no accidental repeats.
+- [x] **Phase 7: Selection Engine** - Sessions are assembled by an inspectable rule engine — objective, difficulty, discrimination pairs, no accidental repeats. (completed 2026-08-11)
 - [ ] **Phase 8: Model Adapter Interface & Tier-Gate Enforcement** - The tutoring model sees the key and writes hints about the learner's actual error; the runtime gates the tier, not the model.
 - [ ] **Phase 9: Subject-Invariant Loop — EMT, Math, CS Integration** - One loop — lesson, hint, verify — carries a learner through EMT prose, Math LaTeX, and runnable CS code.
 - [ ] **Phase 9.1: Audio Drill Export (INSERTED 2026-08-10)** - `itembank export audio` turns an objective into a stem→pause→key→why drill pack, so the commute is study time and the TTS engine is a config entry, not a dependency.
@@ -1139,7 +1139,7 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 6. Hint Ladder, Cursor-Hold & Feedback Modes | 2/2 | Complete    | 2026-08-10 |
 | 6.1 Interactive Visual Assessment Protocol | 0/3 | Planned | - |
 | 6.2 Executable Textbook Loop | 0/4 | Planned | - |
-| 7. Selection Engine | 6/6 | Gaps - see 07-VERIFICATION.md|  |
+| 7. Selection Engine | 6/6 | Complete (roadmap gaps in 07-VERIFICATION.md) | 2026-08-11 |
 | 8. Model Adapter Interface & Tier-Gate Enforcement | 3/6 | In Progress|  |
 | 9. Subject-Invariant Loop — EMT, Math, CS Integration | 0/5 | Planned | - |
 | 9.1 Audio Drill Export | 0/4 | Planned | - |

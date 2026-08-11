@@ -6,7 +6,7 @@ current_phase: 08
 current_phase_name: model-adapter-interface-tier-gate-enforcement
 status: executing
 stopped_at: Completed 08-03-PLAN.md
-last_updated: "2026-08-11T05:49:10.021Z"
+last_updated: "2026-08-11T06:20:00.000Z"
 last_activity: 2026-08-11
 last_activity_desc: Phase 08 plan 08-03 completed (model interaction + rubric proposal evidence events)
 progress:
@@ -269,6 +269,7 @@ Recent decisions affecting current work:
 - [Phase 08]: model_interaction and mark_proposal events are registered in KNOWN_EVENT_TYPES and the schema enum in the same commit as each builder (D-23); dedupe is one-generation-per-interaction with retries linked via parent_interaction_id (D-12)
 - [Phase 08]: mark_event(proposal_ref=None) folds the reference into the dedupe raw string so accepting two different proposals for the same response records two distinct human marks; the marker != 'human' guard stays byte-for-byte unchanged (D-14/D-23)
 - [Phase 08] 08-03: requirements TEACH-07/08/09, MODEL-03, MODEL-05 NOT yet marked complete -- the shared-ID gate (#2388) blocks them because 08-04/05/06 still declare them without SUMMARYs; requirements.mark-complete re-evaluates when the last declaring plan finishes
+- [Phase 7] 07: CLOSED 2026-08-11 for its binding scope — SEL-01..05 verified (6/6 plans; `python tests/selection_roundtrip.py` 18/18 green); UAT 3/4 automated pass + explain-legibility manual (E1 backstop sample in 07-VERIFICATION.md). The five roadmap criteria beyond the binding scope (guided path, fringe mastery-gate, blueprint/[CASE:] weights, corpus reach, pending-mark invariant) are recorded as actionable gaps in 07-VERIFICATION.md with recommended homes (07.1 wave or Phases 10/11); closed per project decision, gaps not silently dropped
 
 ## Deferred Verification
 
