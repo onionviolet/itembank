@@ -882,7 +882,16 @@ def handle_quiz_answer(handler, stem):
             session_file = out
         result = session.do_action(
             session_file, {"kind": "submit", "answer": data.get("response")},
-            confidence=None, renderer_meta=None)
+            confidence=None, renderer_meta=None, elapsed_ms=elapsed_ms)
+        try:
+            pre3 = read_session(session_file)
+            legacy_mode = pre3.get("mode")
+        except Exception:
+            legacy_mode = None
+        if legacy_mode in ("diagnostic", "exam"):
+            # D-12/D-13: the legacy served route also withholds verdicts.
+            result.pop("score", None)
+            result.pop("explain", None)
         if result.get("action") in ("advance", "complete") and q is not None:
             result["explain"] = explain_payload(q, bool(sess.get("reveal")))
         _refresh_attempt_view(sess, api_id, qs, path)

@@ -612,7 +612,76 @@ async function api(url, payload){
    scoring code exists anywhere in this script. */
 async function verify(q, response){
   const v = await api("/api/submit", {session_id: sessionId, answer: response});
-  return {score: v.score, explain: v.explain || {}, next: v.next};
+  return {action: v.action, score: v.score, explain: v.explain || {},
+          hint_tier: v.hint_tier, next: v.next};
+}
+
+async function hintFor(q, card, act, stumped){
+  const fb = feedbackFor(card);
+  fb.innerHTML = `<div class="status">Revealing the next hint&hellip;</div>`;
+  try {
+    const v = await api("/api/hint", {session_id: sessionId, stumped: !!stumped});
+    if(v.action !== "reveal_tier" || !v.hint) throw new Error("unexpected hint payload");
+    renderLadder(card, v.hint);
+    act.innerHTML = "";
+    addHintControls(q, card, act);
+    fb.innerHTML = `<div class="status">Hint shown. The card is still yours --
+      answer again whenever you're ready.</div>`;
+  } catch(err){
+    fb.innerHTML = `<div class="status">Couldn't reveal a hint right now
+      (${esc(err.message)}).</div>`;
+    addHintControls(q, card, act);
+  }
+}
+
+function addHintControls(q, card, act){
+  const next = document.createElement("button");
+  next.className = "go"; next.type = "button";
+  next.textContent = "Show next hint";
+  next.onclick = ()=>{ act.innerHTML = ""; hintFor(q, card, act, false); };
+  act.appendChild(next);
+  const stumped = document.createElement("button");
+  stumped.className = "go ghost"; stumped.type = "button";
+  stumped.textContent = "I'm stumped — show the next hint";
+  stumped.onclick = ()=>{ act.innerHTML = ""; hintFor(q, card, act, true); };
+  act.appendChild(stumped);
+  next.focus();
+}
+
+function renderLadder(card, hint){
+  const hostEl = card.querySelector(".ladder") ||
+    (()=>{ const d = document.createElement("div");
+           d.className = "ladder"; card.appendChild(d); return d; })();
+  const tier = hint.tier;
+  let h = `<h3 class="ladder-title">Hints</h3>`;
+  const shown = hint.shown || [];
+  for(let idx = 0; idx < 6; idx++){
+    const isNew = tier && tier.index === idx;
+    if(shown.indexOf(idx) >= 0 || isNew){
+      const t = isNew ? tier : {name: ["lesson","objective","trap","rationale",
+        "discriminator","reveal"][idx], available: true, content: ""};
+      h += `<div class="tier tier-shown"><span class="tier-k">TIER ${idx}</span>
+        <span class="tier-name">${esc(t.name)}</span>`;
+      if(isNew){
+        if(t.available){
+          const content = typeof t.content === "string" ? esc(t.content)
+            : (t.content && t.content.why ? esc(t.content.why) : "");
+          h += `<div class="tier-body">${content}</div>`;
+        } else {
+          h += `<div class="tier-body mut">This tier has no authored content.</div>`;
+        }
+      } else {
+        h += `<div class="tier-body mut">Already shown.</div>`;
+      }
+      h += `</div>`;
+    } else {
+      h += `<div class="tier tier-locked"><span class="tier-k">TIER ${idx}</span>
+        <span class="tier-name">${esc(["lesson","objective","trap","rationale",
+          "discriminator","reveal"][idx])}</span>
+        <span class="tier-lock">Locked</span></div>`;
+    }
+  }
+  hostEl.innerHTML = h;
 }
 
 function lessonChip(q){
@@ -658,7 +727,7 @@ async function settle(q, response, card, act, paint, revert){
   try {
     const v = await verify(q, response);
     if(paint) paint(v);
-    close(q, card, act, v);
+    close(q, card, act, v, revert);
   } catch(err){
     /* API failure: keep the current item and the entered response visible,
        offer a retry, and never manufacture a verdict the server did not issue. */
@@ -905,13 +974,33 @@ function mkSubmit(act, hint){
   return b;
 }
 
-function close(q, card, act, v){
+function close(q, card, act, v, revert){
   const ex = v.explain || {};
   const right = v.score;
   const pending = (right === null || right === undefined);
-  if(!pending){ autoTotal++; if(right){ score++; } else { miss.push({q, ex}); } }
   act.innerHTML = "";
   const fb = feedbackFor(card);
+  if(v.action === "hold"){
+    if(revert) revert();
+    fb.innerHTML = `<div class="verdict n">Not correct yet — the card stays
+      open. A hint is available.</div>`;
+    addHintControls(q, card, act);
+    return;
+  }
+  if(v.action === "defer_feedback"){
+    fb.innerHTML = `<div class="pend">Recorded. ${q.type === "short"
+      ? "Not marked here — a human marker reviews it." : ""}</div>`;
+    if(q.type === "short") addHintControls(q, card, act);
+    return;
+  }
+  if(v.action === "reveal_tier"){
+    if(revert) revert();
+    renderLadder(card, v.hint || {tier: null, shown: []});
+    addHintControls(q, card, act);
+    return;
+  }
+  /* advance / complete: the runtime released the verdict and explanation. */
+  if(!pending){ autoTotal++; if(right){ score++; } else { miss.push({q, ex}); } }
   const exp = document.createElement("div");
   exp.className = "exp";
   const blk = (t,val)=> val ? `<div class="blk"><h4>${t}</h4><div>${esc(val)}</div></div>` : "";

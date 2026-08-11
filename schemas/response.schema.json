@@ -25,7 +25,8 @@
         "schema_version", "event_id", "event_type", "ts", "session_id", "item_id",
         "item_ref", "item_type", "bank", "objective", "subject", "mode",
         "attempt_number", "answer", "canonical", "score", "response_time_ms",
-        "confidence", "error_category", "hint_tier", "review_state", "dedupe_key",
+        "confidence", "error_category", "hint_tier", "selection_mode",
+        "review_state", "dedupe_key",
         "source_ref"
       ],
       "properties": {
@@ -232,7 +233,8 @@
         },
         "event_type": {
           "type": "string",
-          "enum": ["mark", "retraction", "day_tick", "term_lookup", "key_review"]
+          "enum": ["mark", "retraction", "day_tick", "term_lookup",
+                   "key_review", "selection"]
         }
       }
     },

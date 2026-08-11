@@ -232,7 +232,8 @@ def _validate_renderer_meta(renderer_meta):
                  % RENDERER_META_MAX_BYTES)
 
 
-def do_action(session_file, action, confidence=None, renderer_meta=None):
+def do_action(session_file, action, confidence=None, renderer_meta=None,
+              elapsed_ms=None):
     """The ONE session adapter for every sitting action (D-01/D-02): it
     loads/upgrades the session and bank, resolves the current item, reads
     live response/hint/mark evidence, reconciles teaching state, invokes
@@ -275,14 +276,18 @@ def do_action(session_file, action, confidence=None, renderer_meta=None):
         answer = normalize_answer(action.get("answer"))
         score = score_response(q, answer)
         canon = evidence.idempotency_canon(q, answer)
-        # The attempt number comes from the reconciled teaching state: a
-        # crash-window replay of the SAME canonical response reproduces the
-        # original event's attempt number, so append_event dedupes it to
-        # already_recorded instead of minting a fresh attempt (D-04/D-17).
-        attempt_num = rec["attempt_count"] if rec and rec["attempt_count"] else 1
+        # The attempt number comes from the live evidence rule
+        # (evidence.attempt_number): a replay of the SAME canonical response
+        # reproduces the original attempt number -- so append_event dedupes
+        # it to already_recorded -- while a genuinely different answer opens
+        # the next attempt (D-04/D-17).
+        attempt_num = evidence.attempt_number(log, data["session_id"],
+                                              item_key, canon)
         event = evidence.response_event(
             data["session_id"], q, answer, score, data["mode"], attempt_num,
-            os.path.basename(data["bank"]), response_time_ms=ms_since(data.get("served_ts")),
+            os.path.basename(data["bank"]),
+            response_time_ms=elapsed_ms if elapsed_ms is not None
+            else ms_since(data.get("served_ts")),
             confidence=confidence, hint_tier=result.get("hint_tier"),
             selection_mode=data.get("selection_mode"))
         evidence_result = evidence.append_event(log, event)
