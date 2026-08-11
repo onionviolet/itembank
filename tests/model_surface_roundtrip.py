@@ -324,14 +324,251 @@ def test_hint_no_genuine_wrong_response_generates_nothing():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ---- Task 2: rubric review, pending suggestions, human-only accept --------
+
+def _short_pending_session(tmp):
+    """A session on the short bank whose current item has one pending
+    short-answer response, with the fake backend installed so rubric review
+    reaches a candidate."""
+    install_fake_backend(tmp)
+    bank = write_bank(tmp, SHORT_BANK)
+    session = start_session(tmp, bank)
+    run(["submit", session, "--answer",
+         json.dumps("The OPA lifts the tongue to open the airway.")], tmp)
+    return session
+
+
+def test_rubric_review_pending_suggestions_short_only():
+    """D-13/D-22: do_rubric_review on a genuine pending short response
+    returns {"status": "pending", "points": [...]} with one suggestion per
+    rubric point, appends a mark_proposal event linked to the response event
+    and to the interaction, reads suggestion_reveal from settings, and never
+    settles a mark -- marks_by_event stays empty and review_state stays
+    pending."""
+    tmp = tempfile.mkdtemp()
+    try:
+        session = _short_pending_session(tmp)
+        result = session_surface.do_rubric_review(session)
+
+        if result["status"] != "pending":
+            fail("rubric review must return status pending, got %r" % result)
+        points = result.get("points")
+        if not points or len(points) != 3:
+            fail("rubric review must carry one suggestion per rubric point, got %r"
+                 % points)
+        for p in points:
+            if not isinstance(p.get("point_index"), int) or \
+                    p.get("status") not in ("pass", "fail", "uncertain") or \
+                    not isinstance(p.get("rationale"), str):
+                fail("each point must carry point_index/status/rationale, got %r"
+                     % p)
+        if not result.get("interaction_id"):
+            fail("rubric review must mint an interaction id: %r" % result)
+        if result.get("suggestion_reveal") != "after-self-mark":
+            fail("the shipped default suggestion_reveal must be read from "
+                 "settings: %r" % result)
+
+        log = evidence.log_path(tmp)
+        sid = session_id_of(session)
+        interactions = evidence.model_interactions(log, sid)
+        if len(interactions) != 1 or \
+                interactions[0]["operation"] != "rubric_review":
+            fail("rubric review must append one rubric_review interaction: %r"
+                 % interactions)
+        responses = evidence.session_events(log, sid)
+        if not responses:
+            fail("the short response event must exist")
+        resp = responses[-1]
+        proposals = evidence.proposals_for(log, sid,
+                                           response_event_id=resp["event_id"])
+        if len(proposals) != 1:
+            fail("one mark_proposal event must be linked to the response, got %r"
+                 % proposals)
+        proposal = proposals[0]
+        if proposal["response_event_id"] != resp["event_id"]:
+            fail("the proposal must reference the response event")
+        if proposal["interaction_id"] != result["interaction_id"]:
+            fail("the proposal must reference the interaction")
+        if resp["event_id"] in evidence.marks_by_event(log):
+            fail("a model-only path must never settle a mark")
+        rendered = evidence.render_session_json(log, sid, [], "bank.md")
+        row = next((r for r in rendered["responses"]
+                    if r["item_id"] == resp["item_ref"]), None)
+        if row is None or row["review_state"] != "pending":
+            fail("review_state must stay pending, got %r" % row)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_rubric_review_refuses_with_named_reason_and_no_write():
+    """D-13 edge probes: a non-short item or an already-marked response is a
+    typed refusal with a named reason and no evidence write at all."""
+    tmp = tempfile.mkdtemp()
+    try:
+        # Non-short current item: mc session with one genuine wrong answer.
+        install_fake_backend(tmp)
+        mc_bank = write_bank(tmp, MC_BANK)
+        mc_session = start_session(tmp, mc_bank)
+        run(["submit", mc_session, "--answer", json.dumps("B")], tmp)
+        refused = session_surface.do_rubric_review(mc_session)
+        if refused["status"] != "refused" or not refused.get("reason"):
+            fail("rubric review on a non-short item must refuse with a named "
+                 "reason, got %r" % refused)
+        log = evidence.log_path(tmp)
+        if evidence.model_interactions(log, session_id_of(mc_session)) or \
+                evidence.proposals_for(log, session_id_of(mc_session)):
+            fail("a refusal must write no interaction and no proposal event")
+
+        # Already-marked short response: mark it, then ask again.
+        short_session = _short_pending_session(tmp)
+        sid = session_id_of(short_session)
+        run(["mark", "--session", sid, "--item", "Q1", "--verdict", "pass",
+             "--base", tmp], tmp)
+        again = session_surface.do_rubric_review(short_session)
+        if again["status"] != "refused" or again.get("reason") != "already_marked":
+            fail("rubric review on an already-marked response must refuse with "
+                 "reason already_marked, got %r" % again)
+        log2 = evidence.log_path(tmp)
+        proposals_before = len(evidence.proposals_for(log2, sid))
+        interactions_before = len(evidence.model_interactions(log2, sid))
+        if proposals_before != 0 or interactions_before != 0:
+            fail("the refused rubric review must write nothing; found %d "
+                 "proposal(s), %d interaction(s)"
+                 % (proposals_before, interactions_before))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_cmd_mark_proposal_human_accept():
+    """D-14: cmd_mark --proposal <event_id> resolves the proposal to its
+    response event and records mark_event(marker='human', proposal_ref=...);
+    the proposal event stays separate and the response reads as marked."""
+    tmp = tempfile.mkdtemp()
+    try:
+        session = _short_pending_session(tmp)
+        sid = session_id_of(session)
+        result = session_surface.do_rubric_review(session)
+        proposal_event_id = result["proposal_event_id"]
+        if not proposal_event_id:
+            fail("rubric review must return its proposal event id: %r" % result)
+
+        marked = run(["mark", "--session", sid, "--proposal", proposal_event_id,
+                      "--verdict", "pass", "--base", tmp], tmp)
+        log = evidence.log_path(tmp)
+        responses = evidence.session_events(log, sid)
+        resp = responses[-1]
+        marks = evidence.marks_by_event(log)
+        mark = marks.get(resp["event_id"])
+        if mark is None:
+            fail("--proposal accept must record a settled mark: %r" % marks)
+        if mark["marker"] != "human":
+            fail("an accepted mark must be marker 'human', got %r" % mark["marker"])
+        if mark["proposal_ref"] != proposal_event_id:
+            fail("the accepted mark must carry proposal_ref, got %r" % mark)
+        proposals = evidence.proposals_for(log, sid)
+        if len(proposals) != 1 or proposals[0]["event_id"] != proposal_event_id:
+            fail("the proposal event must stay separate: %r" % proposals)
+        rendered = evidence.render_session_json(log, sid, [], "bank.md")
+        row = next((r for r in rendered["responses"]
+                    if r["item_id"] == resp["item_ref"]), None)
+        if row is None or row["review_state"] != "marked":
+            fail("the response must read as marked after the human accept, got %r"
+                 % row)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_cmd_mark_proposal_batch_all_or_nothing():
+    """D-25 + the cmd_mark batch discipline: a --marks batch whose entries
+    carry proposal ids validates every entry before appending any; an
+    unknown proposal id anywhere exits non-zero with nothing appended."""
+    tmp = tempfile.mkdtemp()
+    try:
+        session = _short_pending_session(tmp)
+        sid = session_id_of(session)
+        result = session_surface.do_rubric_review(session)
+        good_id = result["proposal_event_id"]
+
+        bad_batch = [{"proposal": good_id, "verdict": "pass"},
+                     {"proposal": "no-such-proposal-1234567890abcdef",
+                      "verdict": "pass"}]
+        r = run_raw(["mark", "--session", sid, "--marks", json.dumps(bad_batch),
+                     "--base", tmp], tmp)
+        if r.returncode == 0:
+            fail("a batch naming one unknown proposal id must exit non-zero")
+        log = evidence.log_path(tmp)
+        responses = evidence.session_events(log, sid)
+        if responses:
+            resp = responses[-1]
+            if resp["event_id"] in evidence.marks_by_event(log):
+                fail("a failed batch must append nothing -- the valid entry "
+                     "must not be recorded on its own")
+        # A fully valid batch records exactly one human mark.
+        good_batch = [{"proposal": good_id, "verdict": "pass"}]
+        r2 = run_raw(["mark", "--session", sid, "--marks", json.dumps(good_batch),
+                      "--base", tmp], tmp)
+        if r2.returncode != 0:
+            fail("a valid proposal batch must exit 0: %s" % r2.stderr)
+        marks = evidence.marks_by_event(log)
+        if len(marks) != 1:
+            fail("a valid proposal batch must record exactly one mark, got %r"
+                 % marks)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_suggestion_pending_token_only_and_no_auto_accept():
+    """D-22/D-25: the surface representation of a suggestion is a single
+    pending token -- never a number, fraction, check, or cross glyph -- the
+    suggestion_reveal setting is read from settings, and no auto-accept flag
+    or setting exists anywhere."""
+    tmp = tempfile.mkdtemp()
+    try:
+        for setting in ("after-self-mark", "before-self-mark", "after-mark"):
+            open(os.path.join(tmp, "itembank.json"), "w", encoding="utf-8").write(
+                json.dumps({"suggestion_reveal": setting}))
+            loaded = settings_surface.load_settings(tmp)
+            if loaded.get("suggestion_reveal") != setting:
+                fail("suggestion_reveal must read back from settings")
+            token = session_surface.render_suggestion(
+                loaded.get("suggestion_reveal"))
+            if token != "pending":
+                fail("a suggestion must render only as the pending token, got %r"
+                     % token)
+            for glyph in ("0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+                          "/", "%", "✓", "✗", "✘", "✔", "☑", "☒"):
+                if glyph in token:
+                    fail("a suggestion must never render a %r glyph: %r"
+                         % (glyph, token))
+
+        settings_text = open(os.path.join(ROOT, "schemas",
+                                          "settings.schema.json"),
+                             encoding="utf-8").read()
+        session_src = inspect.getsource(session_surface)
+        runtime_src = inspect.getsource(runtime)
+        for needle in ("auto_accept", "auto-accept", "autoaccept"):
+            if needle in settings_text or needle in session_src \
+                    or needle in runtime_src:
+                fail("no auto-accept flag may exist (D-25), found %r" % needle)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     test_hint_offline_disabled_backend_typed_unavailable()
     test_hint_idempotent_second_call()
     test_hint_retry_lineage()
     test_cmd_hint_prints_json_exits_zero_and_parity()
     test_hint_no_genuine_wrong_response_generates_nothing()
+    test_rubric_review_pending_suggestions_short_only()
+    test_rubric_review_refuses_with_named_reason_and_no_write()
+    test_cmd_mark_proposal_human_accept()
+    test_cmd_mark_proposal_batch_all_or_nothing()
+    test_suggestion_pending_token_only_and_no_auto_accept()
     print("model surface contract: ok (offline typed hint + authored, "
-          "idempotency, retry lineage, CLI parity, no-wrong edge)")
+          "idempotency, retry lineage, CLI parity, no-wrong edge, pending "
+          "rubric suggestions, named refusals, human-only proposal accept, "
+          "all-or-nothing batch, pending-token-only + no auto-accept)")
     return 0
 
 
