@@ -31,6 +31,7 @@ TLS is stdlib `ssl` with user-supplied cert/key paths; the documented
 reverse-proxy posture is the alternative (`docs/lti-hosting.md`, plan 03).
 """
 import base64
+import datetime
 import html
 import json
 import os
@@ -42,7 +43,7 @@ import urllib.parse
 import urllib.request
 
 from model import load, parse_lesson
-from surfaces import daemon
+from surfaces import daemon, session
 from surfaces import presentation, quiz, theme
 from surfaces import settings as settings_surface
 
@@ -1065,13 +1066,66 @@ def handle_resource_link(claims, registration, stem, ctx, launch_store):
 
 
 def maybe_passback(session_file, claims, issuer, cfg):
-    """The plan-02 stub of the completion-time passback interface, with a
-    clear contract plan 03 fills in without touching the copy: returns a
-    `(status, reason)` pair -- `("not_configured", None)` when the launch
-    carried no AGS scope (the opt-in gate, D-04), `("ok", None)` on a
-    successful gradebook copy, `("refused", reason)` on any refusal (plan
-    03). `completion_line` maps the pair to the verbatim UI-SPEC line."""
-    return ("not_configured", None)
+    """The completion-time passback gate (D-04, LTI-05): copies the
+    runtime's score to the LMS gradebook exactly once, at session
+    completion, only when (a) the launch carried the AGS score scope, (b)
+    the session is complete, and (c) the runtime report produced a score.
+    `short` items still pending are never auto-graded: the graded fraction
+    publishes with `gradingProgress: PendingManual`, and a line item that
+    rejects that yields no numeric publish plus a named refusal (R-02's
+    fallback). Returns `("not_configured" | "ok" | "refused", reason)`; the
+    evidence store is never written by this function or the AGS client
+    (D-04)."""
+    endpoint = claims.get(AGS_ENDPOINT_CLAIM) or {}
+    if not isinstance(endpoint, dict):
+        endpoint = {}
+    scopes = endpoint.get("scope") or []
+    if AGS_SCOPE_SCORE not in scopes:
+        return ("not_configured", None)      # opt-in per launch
+    registration = load_registration(cfg, issuer=issuer)
+    pem, _registration = load_tool_private_key(cfg)
+    report = session.do_report(session_file)   # the one report; score source
+    if report.get("status") != "complete":
+        # Passback happens only at session completion (D-04): an active
+        # sitting -- including one parked at a pending short item waiting
+        # for a marker -- never publishes.
+        return ("refused", "session is not complete; passback happens at "
+                           "completion")
+    summary = report.get("summary") or {}
+    auto = summary.get("auto_attempts") or 0
+    correct = summary.get("auto_correct") or 0
+    pending = summary.get("pending_manual") or 0
+    if auto <= 0:
+        # Nothing graded: no numeric publish is possible or honest (a
+        # session whose only items are pending prose has no score to copy).
+        return ("refused", "no graded items to publish; the score stays local")
+    client = AGSClient(registration, claims)
+    try:
+        token = client.token(pem)
+    except LTIError as exc:
+        return ("refused", exc.detail or exc.kind)
+    try:
+        lineitem = client.probe_line_item(token)
+    except LTIError:
+        lineitem = None
+    if not lineitem:
+        custom = claims.get("custom") or {}
+        label = (custom.get("objective") or "itembank assignment")
+        try:
+            lineitem = client.create_line_item(token, label, auto)
+        except LTIError as exc:
+            return ("refused", exc.detail or exc.kind)
+        if not lineitem:
+            return ("refused", "line item could not be created for resource %r"
+                    % client.resource_id)
+    grading = "PendingManual" if pending else "FullyGraded"
+    try:
+        client.publish_score(token, lineitem, correct, auto, grading)
+    except LTIError as exc:
+        # The PendingManual rejection fallback (R-02): no numeric publish,
+        # the named refusal stays local, the learner is never blocked.
+        return ("refused", exc.detail or exc.kind)
+    return ("ok", None)
 
 
 def completion_line(passback):
@@ -1082,6 +1136,150 @@ def completion_line(passback):
     one in every case, D-09/T-994-18)."""
     status, _reason = passback
     return COMPLETION_OK if status == "ok" else COMPLETION_REFUSED
+
+
+# ---------------------------------------------------------------------------
+# The AGS client (plan 03): outbound-only, completion-time, idempotent score
+# copy (D-04, LTI-05). Reads the runtime report, never recomputes (D-01).
+# ---------------------------------------------------------------------------
+
+AGS_LINEITEM_TYPE = "application/vnd.ims.lis.v2.lineitem+json"
+AGS_SCORE_TYPE = "application/vnd.ims.lis.v1.score+json"
+AGS_HTTP_TIMEOUT = 10
+RESOURCE_LINK_CLAIM = "https://purl.imsglobal.org/spec/lti/claim/resource_link"
+
+
+class AGSClient:
+    """The LTI Advantage Assignment and Grade Services client: exchanges an
+    OAuth2 client-credentials token (JWT-bearer assertion signed with the
+    tool's private key, RESEARCH section 4.2), probes the line items
+    collection and creates the line item only when absent (keyed by
+    resourceId = the resource-link id -- the idempotence anchor), then
+    publishes the score payload read from the runtime report. The evidence
+    store stays the local record; the published score is a copy, not a
+    second store (D-04/R-02)."""
+
+    # Idempotence: (resourceId, userId, scoreGiven, scoreMaximum,
+    # gradingProgress) already published this process -> re-publish no-op.
+    _published = set()
+
+    def __init__(self, registration, claims):
+        self.registration = registration
+        self.claims = claims
+        endpoint = claims.get(AGS_ENDPOINT_CLAIM) or {}
+        self.lineitems_url = endpoint.get("lineitems") or ""
+        self.scopes = endpoint.get("scope") or []
+        self.sub = claims.get("sub") or ""
+        rl = claims.get(RESOURCE_LINK_CLAIM) or {}
+        self.resource_id = rl.get("id") or ""
+
+    def _request(self, method, url, body=None, content_type=None, token=None):
+        req = urllib.request.Request(url, data=body, method=method)
+        if content_type:
+            req.add_header("Content-Type", content_type)
+        if token:
+            req.add_header("Authorization", "Bearer " + token)
+        try:
+            with urllib.request.urlopen(req, timeout=AGS_HTTP_TIMEOUT) as resp:
+                raw = resp.read()
+                try:
+                    return resp.status, json.loads(raw.decode("utf-8"))
+                except ValueError:
+                    return resp.status, {}
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")[:200]
+            raise LTIError("ags_http_%d" % exc.code,
+                           detail="AGS %s %s refused: HTTP %d %s"
+                                  % (method, url, exc.code, detail))
+        except Exception as exc:
+            raise LTIError("ags_unreachable",
+                           detail="AGS %s %s failed: %s"
+                                  % (method, url, exc.__class__.__name__))
+
+    def token(self, private_key_pem):
+        """The OAuth2 client-credentials grant with a JWT-bearer client
+        assertion signed by the tool's private key (RESEARCH 4.2,
+        T-994-13)."""
+        platform = self.registration["platform"]
+        client_id = platform["client_id"]
+        token_url = platform["token_endpoint"]
+        assertion = sign_jwt_rs256({
+            "iss": client_id, "sub": client_id, "aud": token_url,
+            "iat": int(time.time()), "exp": int(time.time()) + 300,
+            "jti": secrets.token_hex(8)}, private_key_pem)
+        body = urllib.parse.urlencode({
+            "grant_type": "client_credentials",
+            "client_assertion_type":
+                "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+            "client_assertion": assertion,
+            "scope": " ".join(self.scopes)}).encode("utf-8")
+        _status, data = self._request(
+            "POST", token_url, body=body,
+            content_type="application/x-www-form-urlencoded")
+        token = data.get("access_token")
+        if not isinstance(token, str) or not token:
+            raise LTIError("ags_token_refused",
+                           detail="token endpoint returned no access_token")
+        return token
+
+    def probe_line_item(self, token):
+        """Probe the line items collection for this resourceId (probe-first,
+        create-if-absent, RESEARCH 4.3/A3). Tries the resourceId filter, then
+        falls back to fetching the collection and matching client-side."""
+        try:
+            _status, data = self._request(
+                "GET", self.lineitems_url + ("&" if "?" in self.lineitems_url
+                                             else "?") +
+                urllib.parse.urlencode({"resourceId": self.resource_id}),
+                token=token)
+        except LTIError:
+            _status, data = self._request("GET", self.lineitems_url, token=token)
+        if isinstance(data, dict):
+            items = data.get("lineitems") or []
+        elif isinstance(data, list):
+            items = data
+        else:
+            items = []
+        for item in items or []:
+            if item.get("resourceId") == self.resource_id:
+                return item.get("id") or item.get("url") or ""
+        return None
+
+    def create_line_item(self, token, label, score_maximum):
+        """Create the line item only when absent, keyed by resourceId =
+        the resource-link id (the idempotence anchor, T-994-15)."""
+        payload = {"label": label, "scoreMaximum": score_maximum,
+                   "resourceId": self.resource_id, "tag": "itembank"}
+        _status, data = self._request(
+            "POST", self.lineitems_url,
+            body=json.dumps(payload).encode("utf-8"),
+            content_type=AGS_LINEITEM_TYPE, token=token)
+        return data.get("id") or ""
+
+    def publish_score(self, token, lineitem_url, score_given, score_maximum,
+                      grading):
+        """POST the score payload (RESEARCH 4.4): userId = the launch sub
+        (the LMS's own key -- never stored or routed on here, D-02/R-05),
+        scoreGiven/scoreMaximum read from the runtime report (never
+        recomputed, D-01), activityProgress Completed. A re-publish of the
+        exact same score is a no-op (idempotence, T-994-15)."""
+        key = (self.resource_id, self.sub, score_given, score_maximum, grading)
+        if key in self._published:
+            return False
+        payload = {
+            "userId": self.sub, "scoreGiven": score_given,
+            "scoreMaximum": score_maximum,
+            "activityProgress": "Completed",
+            "gradingProgress": grading,
+            "timestamp": datetime.datetime.now(
+                datetime.timezone.utc).isoformat(),
+        }
+        _status, _data = self._request(
+            "POST", lineitem_url.rstrip("/") + "/scores",
+            body=json.dumps(payload).encode("utf-8"),
+            content_type=AGS_SCORE_TYPE, token=token)
+        self._published.add(key)
+        return True
 
 
 # ---------------------------------------------------------------------------

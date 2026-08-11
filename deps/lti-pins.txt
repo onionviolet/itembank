@@ -1,0 +1,41 @@
+# LTI surface optional dependencies (phase 999.4, Directive 4a / D-08)
+# ---------------------------------------------------------------------
+# The LTI 1.3 surface's two optional, pinned, checksummed, license-reviewed
+# imports. They are OPTIONAL: `surfaces/lti.py` guards on their presence and
+# refuses by name with the install command when absent; every non-LTI command
+# stays byte-identical (degrade, never block).
+#
+# JOSE framing (base64url, JWS assembly) is hand-rolled stdlib over
+# cryptography's RSA primitives per 999.4-RESEARCH.md section 5. PyJWT's own
+# encode/decode paths are NOT used by this implementation; it is pinned as the
+# reviewed companion of the same supply-chain unit (D-08) and as the accepted
+# fallback if the hand-rolled path is ever replaced.
+#
+# License review (named, 2026-08-11, verified against PyPI metadata):
+#   cryptography  -- Apache-2.0 OR BSD-3-Clause (dual), permissive.
+#   PyJWT         -- MIT, permissive.
+#
+# CVE disposition (reviewed 2026-08-11 against PyPI/OSV records):
+#   PyJWT 2.10.1 has published advisories (crit-header bypass, HMAC
+#   algorithm confusion, detached-payload DoS) fixed in 2.12.0/2.13.0, and
+#   cryptography 43.0.0 has x509-verification advisories fixed in 49.0.0.
+#   None of the affected code paths is exercised by this implementation:
+#   PyJWT decode is never called (JOSE is hand-rolled), and cryptography's
+#   x509 CertificateBuilder/verification modules are used only by the test
+#   fixture for the TLS self-signed cert (x509 builder, not verifier). The
+#   runtime surface is cryptography's RSA primitives (generate, PKCS1v15
+#   verify/sign, PEM load) plus the stdlib urllib. The pinned versions are
+#   the exact versions this phase was implemented and verified against;
+#   future code that touches JWT decode or x509 verification must upgrade to
+#   PyJWT>=2.13.0 and cryptography>=49.0.0 first (the `itembank lti doctor`
+#   install command is the single place that prints the current pin).
+#
+# Checksums: sha256 of the wheel artifacts, recorded at implementation time.
+#   cryptography-43.0.0-cp39-abi3-manylinux_2_28_x86_64.whl
+#     sha256: cb013933d4c127349b3948aa8aaf2f12c0353ad0eccd715ca789c8a0f671646f
+#   PyJWT-2.10.1-py3-none-any.whl
+#     sha256: dcdd193e30abefd5debf142f9adfcdd2b58004e644f25406ffaebd50bd98dacb
+#   Platform wheel hashes for other interpreters/OSes must be re-recorded at
+#   first install time (the zstandard precedent in requirements.txt).
+cryptography==43.0.0 --hash=sha256:cb013933d4c127349b3948aa8aaf2f12c0353ad0eccd715ca789c8a0f671646f
+PyJWT==2.10.1 --hash=sha256:dcdd193e30abefd5debf142f9adfcdd2b58004e644f25406ffaebd50bd98dacb

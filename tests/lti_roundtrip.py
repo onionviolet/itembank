@@ -23,11 +23,13 @@ import os
 import re
 import shutil
 import socketserver
+import ssl
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -37,7 +39,7 @@ import itembank                                            # noqa: E402
 import runtime                                             # noqa: E402
 import schema_validate                                     # noqa: E402
 import server                                              # noqa: E402
-from surfaces import cli, daemon, lti, settings             # noqa: E402
+from surfaces import cli, daemon, lti, session, settings             # noqa: E402
 from model import load                                      # noqa: E402
 
 BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
@@ -99,7 +101,7 @@ class FakePlatform:
     ISSUER = "https://fake.canvas.example"
 
     def __init__(self, deployments=("deploy-1",), kid="fake-platform-key",
-                 jwks_status=200, jwks_body=None):
+                 jwks_status=200, jwks_body=None, reject_scores=False):
         plat = self
         self.key, self.key_pem = make_rsa_keypair()
         self.kid = kid
@@ -112,6 +114,7 @@ class FakePlatform:
         self.lineitem_status = 200
         self.jwks_status = jwks_status
         self.jwks_body = jwks_body
+        self.reject_scores = reject_scores
 
         class _H(http.server.BaseHTTPRequestHandler):
             def log_message(self, *a):
@@ -132,7 +135,7 @@ class FakePlatform:
                         urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query))
                     self._json(json.dumps({"ok": True}))
                 elif self.path.startswith("/lineitems"):
-                    plat._lineitems_get()
+                    self._lineitems_get()
                 else:
                     self.send_response(404)
                     self.send_header("Content-Length", "0")
@@ -147,9 +150,9 @@ class FakePlatform:
                         "access_token": "fake-access-token",
                         "token_type": "Bearer", "expires_in": 3600}))
                 elif self.path.startswith("/lineitems") and "/scores" not in self.path:
-                    plat._lineitems_post(raw)
+                    self._lineitems_post(raw)
                 elif "/scores" in self.path:
-                    plat._scores_post(raw)
+                    self._scores_post(raw)
                 else:
                     self.send_response(404)
                     self.send_header("Content-Length", "0")
@@ -191,6 +194,9 @@ class FakePlatform:
                     "tag": body.get("tag", "")}))
 
             def _scores_post(self, raw):
+                if plat.reject_scores:
+                    self._json(json.dumps({"error": "rejected"}), 400)
+                    return
                 try:
                     body = json.loads(raw)
                 except ValueError:
@@ -206,6 +212,13 @@ class FakePlatform:
         self.authorize_url = self.base + "/authorize"
         self.token_url = self.base + "/token"
         self.lineitems_url = self.base + "/lineitems"
+
+    def ags_endpoint_claim(self, scopes=None):
+        """The AGS endpoint claim a launch carries when AGS is granted
+        (RESEARCH 4.1): lineitems URL plus the granted scopes."""
+        scopes = scopes or [lti.AGS_SCOPE_LINEITEM, lti.AGS_SCOPE_SCORE]
+        return {"lineitems": self.lineitems_url,
+                "lineitem": self.lineitems_url + "/1", "scope": scopes}
 
     def close(self):
         self.server.shutdown()
@@ -263,10 +276,19 @@ class ToolHarness:
         with open(key_path, "wb") as fh:
             fh.write(self.tool_key_pem)
         # Bind the tool server first so public_base_url can carry its port.
-        self.server = socketserver.TCPServer(("127.0.0.1", 0), lti.LTIHandler)
+        # With tls={"cert":..., "key":...} the bind wraps the socket in
+        # stdlib ssl (D-05/LTI-06); otherwise plain HTTP (the documented
+        # reverse-proxy posture).
+        self.tls = tls
+        if tls:
+            self.server = server.bind_tls(
+                lti.LTIHandler, 0, "127.0.0.1", tls["cert"], tls["key"])
+        else:
+            self.server = socketserver.TCPServer(("127.0.0.1", 0), lti.LTIHandler)
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.tool_port = self.server.server_address[1]
-        self.base = public_base_url or ("http://127.0.0.1:%d" % self.tool_port)
+        scheme = "https" if tls else "http"
+        self.base = public_base_url or ("%s://127.0.0.1:%d" % (scheme, self.tool_port))
         cfg = {
             "lti": {
                 "enabled": enabled,
@@ -311,12 +333,21 @@ class ToolHarness:
         params.update(overrides)
         return self.base + "/lti/login?" + urllib.parse.urlencode(params)
 
+    def _opener(self):
+        """No-redirect opener; with TLS the https handler uses an
+        unverified context (the fixture cert is self-signed)."""
+        if not self.tls:
+            return _NO_REDIRECT_OPENER
+        ctx = ssl._create_unverified_context()
+        return urllib.request.build_opener(
+            _NoRedirect, urllib.request.HTTPSHandler(context=ctx))
+
     def get(self, url):
         """GET with redirects NOT followed, so the authorize Location can be
         inspected (the browser would follow it; the test parses it)."""
         req = urllib.request.Request(url)
         try:
-            with _NO_REDIRECT_OPENER.open(req) as resp:
+            with self._opener().open(req) as resp:
                 return resp.status, dict(resp.headers), resp.read()
         except urllib.error.HTTPError as exc:
             return exc.code, dict(exc.headers), exc.read()
@@ -326,7 +357,7 @@ class ToolHarness:
         req = urllib.request.Request(self.base + path, data=body, method="POST")
         req.add_header("Content-Type", "application/x-www-form-urlencoded")
         try:
-            with urllib.request.urlopen(req) as resp:
+            with self._opener().open(req) as resp:
                 return resp.status, dict(resp.headers), resp.read()
         except urllib.error.HTTPError as exc:
             return exc.code, dict(exc.headers), exc.read()
@@ -338,7 +369,7 @@ class ToolHarness:
         for k, v in (headers or {}).items():
             req.add_header(k, v)
         try:
-            with urllib.request.urlopen(req) as resp:
+            with self._opener().open(req) as resp:
                 return resp.status, dict(resp.headers), resp.read()
         except urllib.error.HTTPError as exc:
             return exc.code, dict(exc.headers), exc.read()
@@ -351,6 +382,7 @@ def reset_handler_state():
     lti.OIDCLoginHandler.settings = {}
     lti.OIDCLoginHandler.nonce_store = lti.NonceStore()
     lti.LTIHandler.launch_ctx = {}
+    lti.AGSClient._published = set()
 
 
 def launch_flow(harness, platform, claims=None, state=None, nonce=None,
@@ -973,7 +1005,15 @@ def complete_sitting(harness, platform, objective):
     """Launch the player for `objective`, start the session through the LTI
     /api/start wrap, answer every item correctly, and return the final
     /api/submit response (status == complete)."""
-    s, _, body = resource_link_launch(harness, platform, objective)
+    last, _sid, _claims = complete_sitting_detailed(harness, platform, objective)
+    return last
+
+
+def complete_sitting_detailed(harness, platform, objective, claims_extra=None):
+    """Like complete_sitting but returns (last_response, session_id, claims)
+    and accepts extra launch claims (the AGS endpoint claim etc.)."""
+    s, _, body = resource_link_launch(harness, platform, objective,
+                                      claims_extra=claims_extra)
     if s != 200:
         fail("player launch failed (HTTP %d)" % s)
     page = body.decode("utf-8", "replace")
@@ -1004,10 +1044,16 @@ def complete_sitting(harness, platform, objective):
         last = json.loads(body.decode("utf-8"))
         if last.get("status") == "complete":
             break
+        if last.get("action") == "defer_feedback":
+            # A pending short item parks the sitting at the marker's desk
+            # (the runtime never advances pending prose); the caller handles
+            # that state explicitly.
+            break
         item = (last.get("next") or {}).get("item")
-    if last.get("status") != "complete":
+    if last.get("status") != "complete" and last.get("action") != "defer_feedback":
         fail("sitting did not complete: %r" % last)
-    return last
+    claims = (lti.LTIHandler.launch_ctx.get(session_id) or {}).get("claims")
+    return last, session_id, claims
 
 
 def check_deep_link_picker():
@@ -1264,6 +1310,296 @@ def check_privacy_copy_verbatim():
         platform.close()
 
 
+def make_self_signed(cert_path, key_path):
+    """A self-signed TLS fixture certificate (plan 03 Task 3): minted with
+    the pinned cryptography x509 builder, written as PEM."""
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID
+    import datetime as _dt
+    from ipaddress import ip_address
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "127.0.0.1")])
+    now = _dt.datetime.now(_dt.timezone.utc)
+    cert = (x509.CertificateBuilder()
+            .subject_name(name).issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now - _dt.timedelta(days=1))
+            .not_valid_after(now + _dt.timedelta(days=30))
+            .add_extension(x509.SubjectAlternativeName(
+                [x509.IPAddress(ip_address("127.0.0.1"))]), critical=False)
+            .sign(key, hashes.SHA256()))
+    with open(key_path, "wb") as fh:
+        fh.write(key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption()))
+    with open(cert_path, "wb") as fh:
+        fh.write(cert.public_bytes(serialization.Encoding.PEM))
+
+
+def ags_launch_extra(platform, resource_id="resource-1", scopes=None):
+    """The launch claims that grant AGS: the endpoint claim plus the
+    resource-link id (the idempotence anchor)."""
+    return {
+        lti.AGS_ENDPOINT_CLAIM: platform.ags_endpoint_claim(scopes=scopes),
+        lti.RESOURCE_LINK_CLAIM: {"id": resource_id},
+    }
+
+
+def check_ags_passback_opt_in_idempotent():
+    """AGS passback is opt-in per launch, completion-only, sourced from the
+    runtime report, and idempotent (D-04, LTI-05, RESEARCH 4)."""
+    platform = FakePlatform()
+    harness = ToolHarness(platform)
+    try:
+        last, sid, claims = complete_sitting_detailed(
+            harness, platform, "Treatment processes",
+            claims_extra=ags_launch_extra(platform))
+        completion = last.get("lti_completion") or {}
+        if completion.get("ok") is not True \
+                or completion.get("line") != lti.COMPLETION_OK:
+            fail("AGS success did not render the OK completion line: %r"
+                 % completion)
+        if len(platform.scores) != 1:
+            fail("AGS published %d scores, expected exactly one"
+                 % len(platform.scores))
+        score = platform.scores[0]
+        if score.get("userId") != "learner-1":
+            fail("score userId is not the launch sub")
+        if score.get("scoreGiven") != 1 or score.get("scoreMaximum") != 1:
+            fail("score is not the runtime report's graded fraction: %r" % score)
+        if score.get("activityProgress") != "Completed":
+            fail("activityProgress is not Completed")
+        if score.get("gradingProgress") != "FullyGraded":
+            fail("gradingProgress is not FullyGraded for a fully graded sitting")
+        if not score.get("timestamp"):
+            fail("score carries no timestamp")
+        if len(platform.created_line_items) != 1:
+            fail("line item was not created exactly once")
+        li = platform.created_line_items[0]
+        if li.get("resourceId") != "resource-1" or li.get("scoreMaximum") != 1:
+            fail("line item is not keyed by resourceId with the report maximum")
+        if len(platform.token_grants) != 1:
+            fail("token grant did not happen exactly once")
+        grant = platform.token_grants[0]
+        if grant.get("grant_type") != ["client_credentials"]:
+            fail("token grant is not client_credentials")
+        if not (grant.get("client_assertion") or [""])[0]:
+            fail("token grant carries no JWT-bearer client assertion")
+
+        # Idempotence: a re-publish of the same score is a no-op.
+        session_file = daemon.session_index(harness.tmp)[sid]
+        lti.maybe_passback(session_file, claims, platform.ISSUER, harness.cfg)
+        if len(platform.scores) != 1:
+            fail("re-publish was not a no-op: %d score posts"
+                 % len(platform.scores))
+    finally:
+        harness.close()
+        platform.close()
+
+
+def check_ags_opt_in_gate_no_scope():
+    """A launch without the AGS score scope never publishes -- a silent
+    no-op, never an error (opt-in per launch, D-04)."""
+    platform = FakePlatform()
+    harness = ToolHarness(platform)
+    try:
+        # The launch grants only the lineitem scope, not the score scope.
+        extra = ags_launch_extra(
+            platform, scopes=[lti.AGS_SCOPE_LINEITEM])
+        last, _sid, _claims = complete_sitting_detailed(
+            harness, platform, "Treatment processes", claims_extra=extra)
+        completion = last.get("lti_completion") or {}
+        if completion.get("ok") is not False \
+                or completion.get("line") != lti.COMPLETION_REFUSED:
+            fail("launch without the score scope did not render the refusal "
+                 "completion line")
+        if platform.scores:
+            fail("launch without the score scope published a score")
+        if platform.token_grants:
+            fail("launch without the score scope still exchanged a token")
+    finally:
+        harness.close()
+        platform.close()
+
+
+def check_ags_pending_prose_never_auto_graded():
+    """short items pending review are never auto-graded (D-04, RESEARCH
+    4.5): a sitting parked at a pending short item never publishes (the
+    completion gate), and a completed session whose report still shows
+    pending prose publishes the graded fraction with gradingProgress
+    PendingManual -- a line item that rejects PendingManual yields no
+    numeric publish plus a named refusal (R-02 fallback).
+
+    Phase finding (recorded in the SUMMARY): the runtime's learner flow
+    parks a pending short item without advancing, so a *completed* session
+    with pending prose is not reachable through the learner path in this
+    build. The test constructs that state from the real session file with
+    the runtime's own writer (`runtime.write_session`), advancing cursor to
+    the end exactly as the runtime's `_advance_cursor` arithmetic does --
+    the marker-closed state a future close-session feature will produce."""
+    platform = FakePlatform()
+    harness = ToolHarness(platform)
+    try:
+        # Drive the real sitting on "Regulatory framework" (Q5 dnd graded +
+        # Q6 short pending): the session parks at Q6, status active.
+        last, sid, claims = complete_sitting_detailed(
+            harness, platform, "Regulatory framework",
+            claims_extra=ags_launch_extra(platform, resource_id="resource-1"))
+        if last.get("status") != "active" or last.get("action") != "defer_feedback":
+            fail("sitting did not park at the pending short item: %r" % last)
+        if "lti_completion" in last:
+            fail("an active sitting must not fire the completion signal")
+        session_file = daemon.session_index(harness.tmp)[sid]
+        status, reason = lti.maybe_passback(
+            session_file, claims, platform.ISSUER, harness.cfg)
+        if status != "refused" or "not complete" not in reason:
+            fail("passback fired on an active sitting: %r" % (status,))
+        if platform.scores:
+            fail("an active sitting must not publish a score")
+
+        # The marker-closed state: the runtime's own completion arithmetic
+        # applied to the real session file (cursor past the end).
+        data = runtime.read_session(session_file)
+        data["cursor"] = len(data["items"])
+        data["status"] = "complete"
+        runtime.write_session(session_file, data)
+        report = session.do_report(session_file)
+        if report["summary"]["pending_manual"] != 1:
+            fail("closed session does not show the pending short item")
+
+        status, reason = lti.maybe_passback(
+            session_file, claims, platform.ISSUER, harness.cfg)
+        if status != "ok":
+            fail("PendingManual publish should succeed: %r %s" % (status, reason))
+        score = platform.scores[-1]
+        if score.get("gradingProgress") != "PendingManual":
+            fail("pending prose was not published as PendingManual: %r" % score)
+        if score.get("scoreMaximum") != 1 or score.get("scoreGiven") != 1:
+            fail("the graded fraction is wrong for a 1-graded + 1-pending "
+                 "sitting: %r" % score)
+        if score.get("userId") != "learner-1":
+            fail("score userId is not the launch sub")
+
+        # A line item that rejects PendingManual: no numeric publish + the
+        # named local refusal (R-02 fallback).
+        platform2 = FakePlatform(reject_scores=True)
+        harness2 = ToolHarness(platform2)
+        try:
+            last2, sid2, claims2 = complete_sitting_detailed(
+                harness2, platform2, "Regulatory framework",
+                claims_extra=ags_launch_extra(platform2,
+                                              resource_id="resource-2"))
+            session_file2 = daemon.session_index(harness2.tmp)[sid2]
+            data2 = runtime.read_session(session_file2)
+            data2["cursor"] = len(data2["items"])
+            data2["status"] = "complete"
+            runtime.write_session(session_file2, data2)
+            status2, reason2 = lti.maybe_passback(
+                session_file2, claims2, platform2.ISSUER, harness2.cfg)
+            if status2 != "refused":
+                fail("rejected PendingManual publish must refuse: %r" % status2)
+            if not reason2:
+                fail("rejected PendingManual publish must name the refusal")
+            if platform2.scores:
+                fail("a rejected PendingManual publish must not record a score")
+        finally:
+            harness2.close()
+            platform2.close()
+    finally:
+        harness.close()
+        platform.close()
+
+
+def check_ags_evidence_byte_identity():
+    """The LTI surface adds no evidence writes: the evidence log is
+    byte-identical across an AGS round trip (D-04)."""
+    platform = FakePlatform()
+    harness = ToolHarness(platform)
+    try:
+        _last, sid, claims = complete_sitting_detailed(
+            harness, platform, "Treatment processes",
+            claims_extra=ags_launch_extra(platform))
+        ev_path = os.path.join(harness.tmp, "_evidence", "evidence.jsonl")
+        if not os.path.exists(ev_path):
+            fail("no evidence log was written by the sitting")
+        before = open(ev_path, "rb").read()
+        session_file = daemon.session_index(harness.tmp)[sid]
+        lti.maybe_passback(session_file, claims, platform.ISSUER, harness.cfg)
+        after = open(ev_path, "rb").read()
+        if before != after:
+            fail("the AGS round trip wrote to the evidence log")
+    finally:
+        harness.close()
+        platform.close()
+
+
+def check_tls_bind_loopback_handshake():
+    """With lti.tls_cert/tls_key set, the LTI bind wraps the socket in
+    stdlib ssl -- proven by a loopback TLS handshake against a self-signed
+    fixture cert (D-05, LTI-06); the loopback default stays plain HTTP."""
+    tmp = tempfile.mkdtemp(prefix="lti_tls_")
+    try:
+        cert = os.path.join(tmp, "cert.pem")
+        key = os.path.join(tmp, "key.pem")
+        make_self_signed(cert, key)
+        platform = FakePlatform()
+        harness = ToolHarness(platform, tls={"cert": cert, "key": key})
+        try:
+            s, _, body = harness.get(harness.base + "/lti/jwks")
+            if s != 200 or b'"keys"' not in body:
+                fail("TLS bind did not serve the JWKS over https (HTTP %d)"
+                     % s)
+            s, _, _ = harness.get(harness.login_url())
+            if s != 302:
+                fail("TLS bind login initiation did not redirect")
+            # The configured base URL is https -- the one knob drives it.
+            if not harness.base.startswith("https://"):
+                fail("public_base_url over TLS is not https")
+        finally:
+            harness.close()
+            platform.close()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def check_dep_pin_record_and_hosting_doc():
+    """Plan 03 Task 3: the dependency pin record lists cryptography and
+    PyJWT at pinned versions with recorded checksums and a named license
+    review (D-08, Directive 4a); the hosting doc covers both postures and
+    the privacy statement; the manual Canvas checklist is recorded in
+    VALIDATION and referenced from the hosting doc (R-01 fallback)."""
+    pins = open(os.path.join(ROOT, "deps", "lti-pins.txt"),
+                encoding="utf-8").read()
+    for needle in ("cryptography==43.0.0", "PyJWT==2.10.1",
+                   "sha256:", "Apache-2.0 OR BSD-3-Clause", "MIT",
+                   "CVE"):
+        if needle not in pins:
+            fail("dependency pin record missing %r" % needle)
+    if "license review" not in pins.lower():
+        fail("dependency pin record has no named license review")
+    hosting = open(os.path.join(ROOT, "docs", "lti-hosting.md"),
+                   encoding="utf-8").read()
+    normalized_hosting = " ".join(hosting.split())
+    if " ".join(lti.PRIVACY_STATEMENT.split()) not in normalized_hosting:
+        fail("docs/lti-hosting.md lacks the D-09 privacy statement")
+    for needle in ("reverse proxy", "public_base_url", "stdlib",
+                   "999.4-VALIDATION"):
+        if needle not in hosting:
+            fail("docs/lti-hosting.md missing %r" % needle)
+    validation = open(os.path.join(
+        ROOT, ".planning", "phases", "999.4-canvas-lms-integration-lti",
+        "999.4-VALIDATION.md"), encoding="utf-8").read()
+    for needle in ("Manual-Only Verifications", "developer key",
+                   "PendingManual", "gradebook"):
+        if needle not in validation:
+            fail("999.4-VALIDATION.md manual checklist missing %r" % needle)
+
+
 def main():
     checks = [
         check_registry_one_platform_per_issuer,
@@ -1284,6 +1620,12 @@ def main():
         check_resource_link_refusals,
         check_completion_framing,
         check_privacy_copy_verbatim,
+        check_ags_passback_opt_in_idempotent,
+        check_ags_opt_in_gate_no_scope,
+        check_ags_pending_prose_never_auto_graded,
+        check_ags_evidence_byte_identity,
+        check_tls_bind_loopback_handshake,
+        check_dep_pin_record_and_hosting_doc,
     ]
     for check in checks:
         reset_handler_state()
