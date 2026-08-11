@@ -286,11 +286,13 @@ def main():
         recorded = [ev for ev in evidence.live_events(log)
                     if ev.get("event_type") == "response"
                     and ev.get("session_id") == session_id]
-        # len(qs) auto items each answered once, plus the deliberate wrong
-        # answer (which held and was retried) and the pending short answer.
-        if len(recorded) != len(qs) + 1:
+        # The sitting answers every item up to and including the pending
+        # short one (which stalls the cursor): 5 auto answers, the deliberate
+        # wrong answer held and retried on the first item, and the short
+        # answer -- one event per genuine submit, 6 total.
+        if len(recorded) != len(qs):
             fail("API sitting recorded %d response events, expected %d"
-                 % (len(recorded), len(qs) + 1))
+                 % (len(recorded), len(qs)))
 
         # Test 3: forged authority/path/verdict fields are rejected.
         for field in ("item_id", "score", "key", "explanation",
