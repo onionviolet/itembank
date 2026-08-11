@@ -13,7 +13,7 @@ that outlives its direct child.
 Standard library only, no framework, runnable as
 python tests/check_kill_roundtrip.py
 """
-import os, re, sys, time
+import ctypes, os, re, subprocess, sys, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -139,12 +139,76 @@ def check_source_greps():
             fail("kill primitive %r appears outside kill_tree's body" % prim)
 
 
+# ---- Task 2: Windows Job Object kill-on-close, taskkill fallback -----------
+
+def check_import_no_windll():
+    # CI is Linux-only; a WinDLL call at import time would break every test
+    # there. Guard the import so any such call raises.
+    code = ("import ctypes, sys\n"
+            "sys.path.insert(0, %r)\n"
+            "def boom(*a, **k):\n"
+            "    raise RuntimeError('WinDLL called at import')\n"
+            "ctypes.WinDLL = boom\n"
+            "import runner\n"
+            "print('import-ok')\n" % ROOT)
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True)
+    if r.returncode or b"import-ok" not in r.stdout:
+        fail("runner.py calls a Windows DLL at import time: %s"
+             % r.stderr.decode("utf-8", "replace"))
+
+
+def check_windows_constants_and_layouts():
+    if runner.JobObjectExtendedLimitInformation != 9:
+        fail("JobObjectExtendedLimitInformation is %r, want 9"
+             % runner.JobObjectExtendedLimitInformation)
+    if not runner.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE:
+        fail("JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE is falsy: %r"
+             % runner.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE)
+    ext = ctypes.sizeof(runner.JOBOBJECT_EXTENDED_LIMIT_INFORMATION)
+    basic = ctypes.sizeof(runner.JOBOBJECT_BASIC_LIMIT_INFORMATION)
+    if not (ext > basic):
+        fail("extended limit info (%d bytes) must embed the basic block "
+             "(%d bytes)" % (ext, basic))
+    src = open(os.path.join(ROOT, "runner.py"), encoding="utf-8").read()
+    if len(re.findall(r"JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE", src)) < 1:
+        fail("JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE is not defined in runner.py")
+    if "bpo-1677688" not in src:
+        fail("the accepted spawn window must be written into runner.py "
+             "(bpo-1677688)")
+
+
+def check_windows_kill_paths():
+    if sys.platform != "win32":
+        return   # the Windows kill paths are 05-04's manual pass on Linux CI
+    q = make_q("")
+    # Primary path: closing the job handle kills the whole tree.
+    runner._FORCE_TASKKILL_FALLBACK = False
+    runner._last_kill_path = None
+    runner.run_cases(q, "while True:" + NL + "    pass", timeout_seconds=1,
+                     max_output_bytes=65536)
+    if runner._last_kill_path != "job":
+        fail("primary Windows kill path is %r, want 'job'"
+             % runner._last_kill_path)
+    # Forced fallback: taskkill /T /F must still kill the tree.
+    runner._FORCE_TASKKILL_FALLBACK = True
+    runner._last_kill_path = None
+    runner.run_cases(q, "while True:" + NL + "    pass", timeout_seconds=1,
+                     max_output_bytes=65536)
+    if runner._last_kill_path != "taskkill":
+        fail("forced fallback kill path is %r, want 'taskkill'"
+             % runner._last_kill_path)
+    runner._FORCE_TASKKILL_FALLBACK = False
+
+
 def main():
     check_cap_kill_fires_early()
     check_truncated_forces_false_even_when_prefix_matches()
     check_flags_independent()
     check_timeout_not_a_verdict()
     check_source_greps()
+    check_import_no_windll()
+    check_windows_constants_and_layouts()
+    check_windows_kill_paths()
     print("check kill roundtrip: ok")
     return 0
 
