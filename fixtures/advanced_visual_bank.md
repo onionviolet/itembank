@@ -197,3 +197,66 @@ DISTRACTOR ANALYSIS:
 TRAP: Treating the tolerance as exclusive so that 6 and 8 fail when they should pass.
 
 CONFIDENCE: high
+
+Q10. Connect premise A to the conclusion in this argument diagram.   (difficulty: analysis)
+[OBJECTIVE: logic:argument.structure]
+[TYPE: visual]
+[INTERACTION: diagram]
+[VISUAL: {"version":1,"plane":{"width":"8","height":"6"},"nodes":[{"id":"a","label":"Premise A","x":"2","y":"4"},{"id":"b","label":"Premise B","x":"6","y":"4"},{"id":"c","label":"Conclusion","x":"4","y":"1"}],"initial":{"connections":[]},"actions":["connect_diagram"],"accessibility":{"description":"An argument diagram with two premises at the top and a conclusion at the bottom. Connect premise A to the conclusion."}}]
+[SCORING: {"kind":"diagram_connection","accepted":[{"from":"a","to":"c"}],"tolerance":{},"partial_credit":false}]
+
+WHY BEST: Premise A is the left-hand premise and the conclusion is the bottom node; the argument runs from premise to conclusion.
+
+KEY DISCRIMINATOR: The connection is ordered — premise A to the conclusion, not the conclusion to premise A, and not premise B.
+
+SECOND-BEST: Premise B is the right-hand premise; it would be correct if the prompt asked for the second premise.
+
+DISTRACTOR ANALYSIS:
+- Premise B to the conclusion swaps the premise; this would be correct if the prompt named premise B.
+- Reversing the direction (conclusion to premise A) changes what the edge means; this would be correct only in a conclusion-to-premise diagram.
+
+TRAP: Connecting any premise to the conclusion without checking which premise the prompt names.
+
+CONFIDENCE: high
+
+Q11. Trace the V-shaped path by placing three points exactly on it.   (difficulty: application)
+[OBJECTIVE: geometry:paths.trace]
+[TYPE: visual]
+[INTERACTION: trace]
+[VISUAL: {"version":1,"axes":{"x":{"min":"0","max":"4","step":"1"},"y":{"min":"0","max":"4","step":"1"}},"point_count":3,"initial":{"points":[{"x":"0","y":"0"},{"x":"2","y":"2"},{"x":"4","y":"0"}]},"actions":["place_trace_point","move_trace_point"],"accessibility":{"description":"A grid from 0 to 4 on both axes with a V-shaped reference path. Place three points exactly on the path."}}]
+[SCORING: {"kind":"trace_path","accepted":[{"points":[{"x":"0","y":"0"},{"x":"2","y":"2"},{"x":"4","y":"0"}]}],"tolerance":{"x":"0","y":"0"},"partial_credit":false}]
+
+WHY BEST: The V dips at (2, 2) between the two endpoints; the three points (0, 0), (2, 2) and (4, 0) reproduce it exactly.
+
+KEY DISCRIMINATOR: The order matters — (0, 0) then (2, 2) then (4, 0) — and every point must land exactly on a grid cell.
+
+SECOND-BEST: (2, 0) sits on the baseline; it would be correct if the path were a straight horizontal line.
+
+DISTRACTOR ANALYSIS:
+- (2, 0) is the midpoint of the baseline, not the V's dip; this would be correct if the path were flat.
+- Reordering the points (endpoint first) breaks the element-wise comparison; this would be correct if order did not matter.
+
+TRAP: Placing the middle point on the baseline because the V's dip is easy to miss at a glance.
+
+CONFIDENCE: high
+
+Q12. Trace the valley by placing three points within half a unit of it.   (difficulty: analysis)
+[OBJECTIVE: geometry:paths.trace.tolerance]
+[TYPE: visual]
+[INTERACTION: trace]
+[VISUAL: {"version":1,"axes":{"x":{"min":"0","max":"4","step":"1/2"},"y":{"min":"0","max":"4","step":"1/2"}},"point_count":3,"initial":{"points":[{"x":"0","y":"2"},{"x":"2","y":"0"},{"x":"4","y":"2"}]},"actions":["place_trace_point","move_trace_point"],"accessibility":{"description":"A grid marked in half steps with a valley-shaped reference path. Place three points within half a unit of the path."}}]
+[SCORING: {"kind":"trace_path","accepted":[{"points":[{"x":"0","y":"2"},{"x":"2","y":"0"},{"x":"4","y":"2"}]}],"tolerance":{"x":"1/2","y":"1/2"},"partial_credit":false}]
+
+WHY BEST: Each accepted point tolerates a half-unit shift in x and y, so (1/2, 3/2) is still within range of the valley's left arm at (0, 2).
+
+KEY DISCRIMINATOR: The tolerance is inclusive — a point exactly half a unit away passes, a full unit away fails, and every point is compared element-wise in order.
+
+SECOND-BEST: (1, 1) is a full unit from the left arm; it would be correct only under a tolerance of one.
+
+DISTRACTOR ANALYSIS:
+- (1, 1) sits a full unit from (0, 2) in x; this would be correct if the tolerance were one.
+- Reordering the points fails the element-wise comparison; this would be correct if order did not matter.
+
+TRAP: Shifting a point by a whole unit and assuming the half-unit tolerance still covers it.
+
+CONFIDENCE: high

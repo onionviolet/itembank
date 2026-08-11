@@ -77,9 +77,8 @@ def hotspot_items(qs):
 def check_parser():
     qs = load_bank()
     visual = [q for q in qs if q["type"] == "visual"]
-    if len(visual) != 9:
-        fail("expected 9 visual items (4 carried-over + 3 hotspot + 2 "
-             "timeline), parsed %d" % len(visual))
+    if len(visual) != 12:
+        fail("expected 12 visual items, parsed %d" % len(visual))
     hs = hotspot_items(qs)
     if len(hs) != 3:
         fail("expected 3 hotspot items, parsed %d" % len(hs))
@@ -295,7 +294,7 @@ def load_log(work):
 def fresh_session(work):
     isolated = os.path.join(work, "advanced_visual_bank.md")
     shutil.copyfile(BANK, isolated)
-    started = run(["start", isolated, "--count", "9", "--mode", "practice",
+    started = run(["start", isolated, "--count", "12", "--mode", "practice",
                    "--out", os.path.join(work, "session.json")], work)
     session_file = started["session_file"]
     qs = load_bank(isolated)
@@ -326,6 +325,12 @@ def _correct_for(q):
         return json.dumps({"kind": "timeline_event",
                            "event": q["scoring"]["accepted"][0]["event"],
                            "value": q["scoring"]["accepted"][0]["value"]})
+    if q["interaction"] == "diagram":
+        return json.dumps({"kind": "diagram_connection", "from": "a",
+                           "to": "c"})
+    if q["interaction"] == "trace":
+        return json.dumps({"kind": "trace_path",
+                           "points": q["scoring"]["accepted"][0]["points"]})
     if q["interaction"] == "plot":
         return json.dumps({"kind": "point", "x": "2", "y": "3"})
     if q["scoring"]["kind"] == "interval":
@@ -474,7 +479,7 @@ def check_served():
         if "<canvas" in html:
             fail("served page uses canvas for the hotspot slice")
 
-        start = api(base, "start", {"bank": stem, "mode": "practice", "count": 9})
+        start = api(base, "start", {"bank": stem, "mode": "practice", "count": 12})
         if start["status"] != "active":
             fail("POST /api/start did not return an active session")
         item = start["item"]
@@ -483,7 +488,7 @@ def check_served():
             fail("served first item is %r, expected visual" % item["type"])
         sid = start["session_id"]
         seen = set()
-        for _ in range(9):
+        for _ in range(12):
             cur = api(base, "next", {"session_id": sid}) if seen else start
             q = cur["item"]
             num = q.get("number")
@@ -494,7 +499,7 @@ def check_served():
                                      "answer": _correct_for_item_num(q)})
             if v.get("score") is not True:
                 fail("served submit of Q%d returned score %r" % (num, v.get("score")))
-        if seen != set(range(1, 10)):
+        if seen != set(range(1, 13)):
             fail("sitting did not serve every fixture item: %s" % sorted(seen))
     finally:
         if proc:
@@ -504,7 +509,7 @@ def check_served():
             except subprocess.TimeoutExpired:
                 proc.kill()
         shutil.rmtree(work, ignore_errors=True)
-    ok("served: renderHotspot dispatch, no canvas, full 9-item sitting scores")
+    ok("served: renderHotspot dispatch, no canvas, full 12-item sitting scores")
 
 
 def _correct_for_item_num(q):
@@ -525,6 +530,15 @@ def _correct_for_item_num(q):
     if q["number"] == 9:
         return json.dumps({"kind": "timeline_event", "event": "industrial",
                            "value": "7"})
+    if q["number"] == 10:
+        return json.dumps({"kind": "diagram_connection", "from": "a",
+                           "to": "c"})
+    if q["number"] in (11, 12):
+        pts = [{"x": "0", "y": "0"}, {"x": "2", "y": "2"},
+               {"x": "4", "y": "0"}] if q["number"] == 11 else \
+              [{"x": "0", "y": "2"}, {"x": "2", "y": "0"},
+               {"x": "4", "y": "2"}]
+        return json.dumps({"kind": "trace_path", "points": pts})
     return json.dumps({"kind": "numberline_point",
                        "value": "3/2" if q["number"] == 4 else "1/2"})
 

@@ -326,6 +326,15 @@ def visual_axes(q):
         if axis is None:
             return None
         return {"axis": axis}
+    if interaction == "trace":
+        # The trace family reuses the plot's two-axis geometry (999.1).
+        axes = scene.get("axes")
+        if not isinstance(axes, dict):
+            return None
+        x, y = canonical_axis(axes.get("x")), canonical_axis(axes.get("y"))
+        if x is None or y is None:
+            return None
+        return {"x": x, "y": y}
     return None
 
 

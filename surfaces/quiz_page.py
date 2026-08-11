@@ -1195,6 +1195,7 @@ function vfParse(s){
   if(d < 0){ n = -n; d = -d; } return [n, d];
 }
 function vfStr(f){ return f[1] === 1 ? String(f[0]) : f[0] + "/" + f[1]; }
+function vfNum(s){ const f = vfParse(s); return f ? f[0] / f[1] : NaN; }
 function vfAdd(a, b){ const n = a[0]*b[1] + b[0]*a[1], d = a[1]*b[1];
   const g = vfGCD(n, d); return [n/g, d/g]; }
 function vfMul(a, k){ const n = a[0]*k, d = a[1]; const g = vfGCD(n, d);
@@ -1399,6 +1400,445 @@ function renderTimeline(q, c, body, act, card){
   function syncControls(){
     if(evSel.value !== tentative.event) evSel.value = tentative.event || "";
     if(tentative.value && valSel.value !== tentative.value) valSel.value = tentative.value;
+  }
+
+  const commitBtn = document.createElement("button");
+  commitBtn.className = "go ghost"; commitBtn.type = "button";
+  commitBtn.textContent = "Commit move"; commitBtn.disabled = true;
+  commitBtn.onclick = commitMove;
+  act.appendChild(commitBtn);
+
+  draw(tentative);
+  syncControls();
+  commitBtn.disabled = !filled(committed);
+  checkBtn.disabled = !filled(committed);
+  checkBtn.onclick = ()=>{
+    if(!filled(committed)){
+      status.textContent = "Commit your move before checking it.";
+      return;
+    }
+    checkBtn.disabled = true; commitBtn.disabled = true;
+    settle(q, JSON.stringify(snapshot(committed)), card, act, null);
+  };
+}
+
+/* ---- diagram renderer (phase 999.1-03) -------------------------------------
+   Node-connection: the learner connects one authored node to another. Scene
+   comes from the interaction_contract renderer_config only (plane, nodes,
+   initial, actions, accessibility) -- never the answer connection or any
+   scoring field. Pointer (click source then target), keyboard and the
+   from/to select controls reduce through ONE state object and ONE
+   serializer; a changed explicit commit posts connect_diagram. */
+function renderDiagram(q, c, body, act, card){
+  const rc = c.renderer_config || {};
+  const plane = rc.plane || {width:"8", height:"6"};
+  const nodes = Array.isArray(rc.nodes) ? rc.nodes : [];
+  const initial = rc.initial || {};
+  const acc = rc.accessibility || {};
+  const desc = acc.description || q.stem;
+  const W = 400, H = 240, R = 16;
+  const host = document.createElement("div");
+  host.className = "visual-host";
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", desc);
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  svg.setAttribute("class", "visual-svg");
+  host.appendChild(svg);
+  body.appendChild(host);
+  const status = document.createElement("div");
+  status.className = "visual-status";
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-live", "polite");
+  body.appendChild(status);
+  const checkBtn = mkSubmit(act, "make a prediction, then commit your move before checking it");
+  checkBtn.textContent = "Check response";
+
+  const Wf = vfNum(plane.width) || 8, Hf = vfNum(plane.height) || 6;
+  function X(n){ return vfNum(n.x) / Wf * (W - 2) + 1; }
+  function Y(n){ return vfNum(n.y) / Hf * (H - 2) + 1; }
+  function nodeAt(clientX, clientY){
+    const r = svg.getBoundingClientRect();
+    const x = (clientX - r.left) / r.width * W;
+    const y = (clientY - r.top) / r.height * H;
+    let best = null, bestD = Infinity;
+    nodes.forEach(n=>{
+      const dx = x - X(n), dy = y - Y(n);
+      const d = Math.sqrt(dx*dx + dy*dy);
+      if(d < bestD){ bestD = d; best = n; }
+    });
+    return (best && bestD <= R) ? best : null;
+  }
+
+  const committed = {kind:"diagram_connection", from: null, to: null};
+  const tentative = {kind:"diagram_connection", from: null, to: null};
+  const conn = (initial.connections && initial.connections.length)
+    ? initial.connections[0] : null;
+  if(conn){ committed.from = conn.from; committed.to = conn.to; }
+  Object.assign(tentative, committed);
+
+  function snapshot(s){ return {kind:"diagram_connection", from: s.from, to: s.to}; }
+  function sameState(a, b){ return JSON.stringify(snapshot(a)) === JSON.stringify(snapshot(b)); }
+  function filled(s){ return !!(s.from && s.to); }
+  function label(id){ const n = nodes.find(n => n.id === id); return n ? n.label : id; }
+  function adopt(s){ committed.from = s.from; committed.to = s.to; }
+  function revertTentative(){
+    tentative.from = committed.from; tentative.to = committed.to;
+    draw(tentative); syncControls();
+    status.textContent = "Move cancelled. Your last committed state is still here.";
+  }
+
+  function draw(s){
+    let h = `<rect x="1" y="1" width="${W-2}" height="${H-2}" fill="var(--card)" stroke="currentColor"/>`;
+    if(s.from && s.to){
+      const a = nodes.find(n => n.id === s.from), b = nodes.find(n => n.id === s.to);
+      if(a && b){
+        const x1 = X(a), y1 = Y(a), x2 = X(b), y2 = Y(b);
+        const ang = Math.atan2(y2 - y1, x2 - x1);
+        const tipX = x2 - Math.cos(ang) * (R + 4), tipY = y2 - Math.sin(ang) * (R + 4);
+        h += `<line x1="${x1}" y1="${y1}" x2="${tipX}" y2="${tipY}" stroke="var(--accent)" stroke-width="2"/>`;
+        h += `<polygon points="${tipX},${tipY} ${tipX - 9*Math.cos(ang - 0.45)},${tipY - 9*Math.sin(ang - 0.45)} ${tipX - 9*Math.cos(ang + 0.45)},${tipY - 9*Math.sin(ang + 0.45)}" fill="var(--accent)"/>`;
+      }
+    }
+    nodes.forEach(n=>{
+      const x = X(n), y = Y(n);
+      const isFrom = s.from === n.id, isTo = s.to === n.id;
+      h += `<circle cx="${x}" cy="${y}" r="${R}" fill="${isFrom || isTo ? "var(--accent)" : "var(--chip)"}" stroke="currentColor"/>`;
+      h += `<text x="${x}" y="${y}" font-size="11" text-anchor="middle" dominant-baseline="middle" fill="var(--ink)">${esc(label(n.id))}</text>`;
+    });
+    svg.innerHTML = h;
+  }
+
+  const actionId = () => (crypto.randomUUID ? crypto.randomUUID()
+    : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, ch=>{
+        const r = Math.random()*16|0, v = ch==="x"?r:(r&0x3|0x8);
+        return v.toString(16); }));
+
+  async function commitMove(){
+    if(!filled(tentative)) return;
+    if(sameState(tentative, committed)){
+      status.textContent = "No change to commit.";
+      return;
+    }
+    const aid = actionId();
+    try {
+      const v = await api("/api/interact", {
+        session_id: sessionId, interaction_version: c.version,
+        action_id: aid, action_type: "connect_diagram",
+        state: snapshot(tentative),
+      });
+      adopt(tentative);
+      if(v.status === "recorded" || v.status === "already_recorded"){
+        status.textContent = "Move committed. You can adjust it or check your response.";
+      } else {
+        status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+        revertTentative();
+      }
+    } catch(err){
+      status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+    }
+  }
+
+  svg.addEventListener("pointerdown", e => e.preventDefault());
+  svg.addEventListener("pointerup", e => {
+    const hit = nodeAt(e.clientX, e.clientY);
+    if(!hit) return;
+    const before = JSON.stringify(snapshot(tentative));
+    if(!tentative.from){
+      tentative.from = hit.id;
+    } else if(!tentative.to){
+      if(hit.id === tentative.from){
+        tentative.from = null;
+      } else {
+        tentative.to = hit.id;
+      }
+    } else {
+      tentative.from = hit.id; tentative.to = null;
+    }
+    draw(tentative); syncControls();
+    if(JSON.stringify(snapshot(tentative)) !== before) commitMove();
+  });
+  svg.addEventListener("pointercancel", revertTentative);
+  svg.setAttribute("tabindex", "0");
+  svg.addEventListener("keydown", e => {
+    if(e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown"){
+      e.preventDefault();
+      if(!nodes.length) return;
+      const cur = tentative.to || tentative.from || nodes[0].id;
+      const at = nodes.findIndex(n => n.id === cur);
+      const delta = (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 1;
+      const nxt = nodes[Math.max(0, Math.min(nodes.length - 1, (at < 0 ? 0 : at) + delta))];
+      if(tentative.to){ tentative.to = nxt.id; } else { tentative.from = nxt.id; }
+      draw(tentative); syncControls();
+      return;
+    }
+    if(e.key === "Enter" || e.key === " "){ e.preventDefault(); commitMove(); return; }
+    if(e.key === "Escape"){ e.preventDefault(); revertTentative(); }
+  });
+
+  const controls = document.createElement("div");
+  controls.className = "visual-controls";
+  function nodeSelect(onPick){
+    const sel = document.createElement("select");
+    nodes.forEach(n=>{
+      const o = document.createElement("option");
+      o.value = n.id; o.textContent = n.label; sel.appendChild(o);
+    });
+    sel.onchange = ()=>{ onPick(sel.value); };
+    return sel;
+  }
+  const fromSel = nodeSelect(v => { tentative.from = v; draw(tentative); });
+  const toSel = nodeSelect(v => { tentative.to = v; draw(tentative); });
+  controls.appendChild(labelCtl("from", fromSel));
+  controls.appendChild(labelCtl("to", toSel));
+  host.appendChild(controls);
+  function labelCtl(label, sel){
+    const row = document.createElement("label");
+    row.className = "visual-ctl";
+    row.appendChild(document.createTextNode(label + " "));
+    row.appendChild(sel);
+    return row;
+  }
+  function syncControls(){
+    if(tentative.from && fromSel.value !== tentative.from) fromSel.value = tentative.from;
+    if(tentative.to && toSel.value !== tentative.to) toSel.value = tentative.to;
+  }
+
+  const commitBtn = document.createElement("button");
+  commitBtn.className = "go ghost"; commitBtn.type = "button";
+  commitBtn.textContent = "Commit move"; commitBtn.disabled = true;
+  commitBtn.onclick = commitMove;
+  act.appendChild(commitBtn);
+
+  draw(tentative);
+  syncControls();
+  commitBtn.disabled = !filled(committed);
+  checkBtn.disabled = !filled(committed);
+  checkBtn.onclick = ()=>{
+    if(!filled(committed)){
+      status.textContent = "Commit your move before checking it.";
+      return;
+    }
+    checkBtn.disabled = true; commitBtn.disabled = true;
+    settle(q, JSON.stringify(snapshot(committed)), card, act, null);
+  };
+}
+
+/* ---- trace renderer (phase 999.1-03) ---------------------------------------
+   Re-trace a reference polyline: the learner places an ordered list of
+   point_count points. Scene comes from the interaction_contract
+   renderer_config only (axes, point_count, initial reference path, actions,
+   accessibility) -- the answer path stays in the private SCORING envelope
+   and is never rendered. Pointer (click places the next point in order),
+   keyboard, and per-point x/y selects reduce through ONE state object and
+   ONE serializer; a changed explicit commit posts place_trace_point /
+   move_trace_point with the full canonical path. */
+function renderTrace(q, c, body, act, card){
+  const rc = c.renderer_config || {};
+  const axes = rc.axes || {};
+  const ax = {x: axes.x || {min:"0", max:"4", step:"1"},
+              y: axes.y || {min:"0", max:"4", step:"1"}};
+  const pointCount = (typeof rc.point_count === "number" && rc.point_count >= 1)
+    ? rc.point_count : 1;
+  const initial = rc.initial || {};
+  const ref = Array.isArray(initial.points) ? initial.points : [];
+  const acc = rc.accessibility || {};
+  const desc = acc.description || q.stem;
+  const W = 400, H = 240, L = 34, R = 10, T = 14, B = 26;
+  const host = document.createElement("div");
+  host.className = "visual-host";
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", desc);
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  svg.setAttribute("class", "visual-svg");
+  host.appendChild(svg);
+  body.appendChild(host);
+  const status = document.createElement("div");
+  status.className = "visual-status";
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-live", "polite");
+  body.appendChild(status);
+  const checkBtn = mkSubmit(act, "make a prediction, then commit your move before checking it");
+  checkBtn.textContent = "Check response";
+
+  const xTicks = vfTicks(ax.x), yTicks = vfTicks(ax.y);
+  const mnX = vfParse(ax.x.min), mxX = vfParse(ax.x.max);
+  const mnY = vfParse(ax.y.min), mxY = vfParse(ax.y.max);
+  function X(v){ return L + vfPos(vfParse(v), mnX, mxX) * (W - L - R); }
+  function Y(v){ return H - B - vfPos(vfParse(v), mnY, mxY) * (H - T - B); }
+  function snap(tks, f){
+    let best = tks[0], bestD = Infinity;
+    tks.forEach(tk=>{
+      const d = Math.abs(vfCmp(f, tk.f));
+      if(d < bestD){ bestD = d; best = tk; }
+    });
+    return best;
+  }
+  function domain(clientX, clientY, tks, mn, mx, isY){
+    const r = svg.getBoundingClientRect();
+    const t = Math.max(0, Math.min(1, isY
+      ? (1 - (clientY - r.top) / r.height)
+      : (clientX - r.left) / r.width));
+    const f = [mn[0]*mx[1] + Math.round(t * (mx[0]*mn[1] - mn[0]*mx[1])), mn[1]*mx[1]];
+    const g = vfGCD(f[0], f[1]); return snap(tks, [f[0]/g, f[1]/g]);
+  }
+
+  const committed = {kind:"trace_path", points: []};
+  const tentative = {kind:"trace_path", points: []};
+  /* The reference polyline (`ref`, from initial.points) is scene data drawn
+     for orientation only -- the learner's placed points start empty and the
+     submitted path is exactly what they place. The answer path never
+     leaves the server. */
+  tentative.points = committed.points.map(p => ({x: p.x, y: p.y}));
+
+  function snapshot(s){
+    return {kind:"trace_path",
+            points: s.points.map(p => ({x: p.x, y: p.y}))};
+  }
+  function sameState(a, b){ return JSON.stringify(snapshot(a)) === JSON.stringify(snapshot(b)); }
+  function filled(s){ return s.points.length === pointCount; }
+  function adopt(s){ committed.points = s.points.map(p => ({x: p.x, y: p.y})); }
+  function revertTentative(){
+    tentative.points = committed.points.map(p => ({x: p.x, y: p.y}));
+    draw(tentative); syncControls();
+    status.textContent = "Move cancelled. Your last committed state is still here.";
+  }
+
+  function draw(s){
+    let h = `<line x1="${L}" y1="${H-B}" x2="${W-R}" y2="${H-B}" stroke="currentColor"/>`;
+    h += `<line x1="${L}" y1="${T}" x2="${L}" y2="${H-B}" stroke="currentColor"/>`;
+    xTicks.forEach(tk=>{
+      const x = X(tk.v);
+      h += `<line x1="${x}" y1="${H-B}" x2="${x}" y2="${H-B+5}" stroke="currentColor"/>`;
+      h += `<text x="${x}" y="${H-B+18}" font-size="10" text-anchor="middle">${esc(tk.v)}</text>`;
+    });
+    yTicks.forEach(tk=>{
+      const y = Y(tk.v);
+      h += `<line x1="${L-5}" y1="${y}" x2="${L}" y2="${y}" stroke="currentColor"/>`;
+      h += `<text x="${L-8}" y="${y+3}" font-size="10" text-anchor="end">${esc(tk.v)}</text>`;
+    });
+    if(ref.length >= 2){
+      const pts = ref.map(p => X(p.x) + "," + Y(p.y)).join(" ");
+      h += `<polyline points="${pts}" fill="none" stroke="var(--line)" stroke-width="2" stroke-dasharray="4 3"/>`;
+    }
+    if(s.points.length >= 2){
+      const pts = s.points.map(p => X(p.x) + "," + Y(p.y)).join(" ");
+      h += `<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2"/>`;
+    }
+    s.points.forEach((p, i)=>{
+      const x = X(p.x), y = Y(p.y);
+      h += `<circle cx="${x}" cy="${y}" r="6" fill="var(--accent)" stroke="var(--ink)"/>`;
+      h += `<text x="${x+9}" y="${y-6}" font-size="10" fill="var(--accent)">${i+1}</text>`;
+    });
+    svg.innerHTML = h;
+  }
+
+  const actionId = () => (crypto.randomUUID ? crypto.randomUUID()
+    : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, ch=>{
+        const r = Math.random()*16|0, v = ch==="x"?r:(r&0x3|0x8);
+        return v.toString(16); }));
+
+  async function commitMove(){
+    if(!filled(tentative)) return;
+    if(sameState(tentative, committed)){
+      status.textContent = "No change to commit.";
+      return;
+    }
+    const aid = actionId();
+    try {
+      const v = await api("/api/interact", {
+        session_id: sessionId, interaction_version: c.version,
+        action_id: aid,
+        action_type: filled(committed) ? "move_trace_point" : "place_trace_point",
+        state: snapshot(tentative),
+      });
+      adopt(tentative);
+      if(v.status === "recorded" || v.status === "already_recorded"){
+        status.textContent = "Move committed. You can adjust it or check your response.";
+      } else {
+        status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+        revertTentative();
+      }
+    } catch(err){
+      status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+    }
+  }
+
+  svg.addEventListener("pointerdown", e => e.preventDefault());
+  svg.addEventListener("pointerup", e => {
+    if(tentative.points.length >= pointCount) return;
+    const tkX = domain(e.clientX, e.clientY, xTicks, mnX, mxX, false);
+    const tkY = domain(e.clientY, e.clientX, yTicks, mnY, mxY, true);
+    tentative.points.push({x: tkX.v, y: tkY.v});
+    draw(tentative); syncControls();
+  });
+  svg.addEventListener("pointercancel", revertTentative);
+  svg.setAttribute("tabindex", "0");
+  svg.addEventListener("keydown", e => {
+    if(e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown"){
+      e.preventDefault();
+      if(!tentative.points.length) return;
+      const last = tentative.points[tentative.points.length - 1];
+      const moveX = e.key === "ArrowLeft" || e.key === "ArrowRight";
+      const tks = moveX ? xTicks : yTicks;
+      const at = tks.findIndex(t => t.v === (moveX ? last.x : last.y));
+      const delta = (e.key === "ArrowLeft" || e.key === "ArrowDown") ? -1 : 1;
+      const nxt = tks[Math.max(0, Math.min(tks.length-1, (at < 0 ? 0 : at) + delta))];
+      if(moveX) last.x = nxt.v; else last.y = nxt.v;
+      draw(tentative); syncControls();
+      return;
+    }
+    if(e.key === "Enter" || e.key === " "){ e.preventDefault(); commitMove(); return; }
+    if(e.key === "Escape"){ e.preventDefault(); revertTentative(); }
+  });
+
+  const controls = document.createElement("div");
+  controls.className = "visual-controls";
+  function valueSelect(tks, onPick){
+    const sel = document.createElement("select");
+    tks.forEach(tk=>{
+      const o = document.createElement("option");
+      o.value = tk.v; o.textContent = tk.v; sel.appendChild(o);
+    });
+    sel.onchange = ()=>{ onPick(sel.value); };
+    return sel;
+  }
+  const selPairs = [];
+  for(let i = 0; i < pointCount; i++){
+    const sx = valueSelect(xTicks, v => {
+      if(!tentative.points[i]) tentative.points[i] = {x: v, y: null};
+      tentative.points[i].x = v; draw(tentative);
+    });
+    const sy = valueSelect(yTicks, v => {
+      if(!tentative.points[i]) tentative.points[i] = {x: null, y: v};
+      tentative.points[i].y = v; draw(tentative);
+    });
+    selPairs.push([sx, sy]);
+    const row = document.createElement("label");
+    row.className = "visual-ctl";
+    row.appendChild(document.createTextNode("p" + (i+1) + " "));
+    row.appendChild(sx);
+    row.appendChild(sy);
+    controls.appendChild(row);
+  }
+  const clearBtn = document.createElement("button");
+  clearBtn.type = "button"; clearBtn.className = "go ghost";
+  clearBtn.textContent = "Clear last point";
+  clearBtn.onclick = ()=>{
+    if(tentative.points.length) tentative.points.pop();
+    draw(tentative); syncControls();
+  };
+  controls.appendChild(clearBtn);
+  host.appendChild(controls);
+  function syncControls(){
+    for(let i = 0; i < pointCount; i++){
+      const p = tentative.points[i];
+      if(p){
+        if(selPairs[i][0].value !== p.x) selPairs[i][0].value = p.x || "";
+        if(selPairs[i][1].value !== p.y) selPairs[i][1].value = p.y || "";
+      }
+    }
   }
 
   const commitBtn = document.createElement("button");
@@ -1643,6 +2083,8 @@ function asVisual(q, body, act, card){
   const interaction = (c.interaction || "").trim();
   if(interaction === "hotspot") return renderHotspot(q, c, body, act, card);
   if(interaction === "timeline") return renderTimeline(q, c, body, act, card);
+  if(interaction === "diagram") return renderDiagram(q, c, body, act, card);
+  if(interaction === "trace") return renderTrace(q, c, body, act, card);
   const rc = c.renderer_config || {};
   const kind = (c.response_schema || {}).kind || "point";
   const axes = rc.axes || {};
