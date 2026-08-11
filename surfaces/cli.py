@@ -19,6 +19,7 @@ from surfaces.evidence_cli import (cmd_evidence, cmd_id_assign, cmd_mark, cmd_re
                                    cmd_retract)
 from surfaces.import_anki import cmd_import_anki
 from surfaces.lesson import cmd_gloss, cmd_key_review, cmd_lesson, cmd_render_style
+from surfaces.quiz import cmd_lesson_check, cmd_lesson_skip
 from surfaces.migrate import cmd_migrate
 from surfaces.protocol_cli import cmd_schema
 from surfaces.quiz import cmd_build, cmd_serve
@@ -771,6 +772,21 @@ def main():
     s.add_argument("bank")
     s.add_argument("key_id", help="the [!KEY] block's minted [ID:] value")
     s.set_defaults(fn=cmd_key_review)
+
+    s = sub.add_parser("lesson-check", help="score and record one gate band "
+                       "check submission (the CLI twin of POST "
+                       "/lesson/<stem>/check)")
+    s.add_argument("bank")
+    s.add_argument("check", help="the [!CHECK:] id of the item to score")
+    s.add_argument("--answer", required=True,
+                   help="the learner response as submit --answer JSON")
+    s.set_defaults(fn=cmd_lesson_check)
+
+    s = sub.add_parser("lesson-skip", help="record one gate_skip event (the "
+                       "CLI twin of POST /lesson/<stem>/skip)")
+    s.add_argument("bank")
+    s.add_argument("check", help="the [!CHECK:] id being skipped")
+    s.set_defaults(fn=cmd_lesson_skip)
 
     s = sub.add_parser("export", help="export a bank as Anki TSV or GIFT for LMS import")
     s.add_argument("bank")

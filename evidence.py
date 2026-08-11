@@ -511,6 +511,83 @@ def gate_state(log, session_id, check_item_id):
     return "open"
 
 
+def gate_outcome_split(log, bank, session_id, gate_modes=None):
+    """The gate outcome split (06.2-UI-SPEC section 11, GATE-06): cleared
+    vs skipped over the distinct required-gate pairs encountered in one
+    session, computed from live events at request time -- derived, never
+    stored (Extensibility Rule 5).
+
+    Pair-level aggregation (06.2-RESEARCH section 8): each distinct
+    (session, check) pair resolves to exactly one outcome -- any live
+    lesson-gate response means "cleared" regardless of a prior skip; a
+    live gate_skip with no subsequent response means "skipped". The
+    denominator is the count of distinct *required*-gate pairs; recommended
+    gates are excluded because reading past one produces no event and
+    counting it would be inventing a number (C8).
+
+    A pair is classified as required when (a) `gate_modes` (the lesson's
+    declared check-id -> gate-mode map, which the report path derives from
+    `parse_lesson()`) names it required, or (b) the pair carries a
+    gate_skip whose `gate_mode` is "required" -- the skip records the mode
+    the gate actually rendered under. A pair with no required evidence is
+    not counted.
+    """
+    pairs = {}
+    for ev in live_events(log):
+        if ev.get("session_id") != session_id:
+            continue
+        if ev.get("bank") != bank:
+            continue
+        if ev.get("event_type") == RESPONSE_EVENT_TYPE:
+            if ev.get("context") != LESSON_GATE_CONTEXT:
+                continue
+            cid = ev.get("item_ref") or ev.get("item_id")
+            if not cid:
+                continue
+            pair = pairs.setdefault(cid, {"cleared": False, "skipped": False,
+                                          "required": None,
+                                          "served_recommended": False})
+            pair["cleared"] = True
+        elif ev.get("event_type") == GATE_SKIP_EVENT_TYPE:
+            cid = ev.get("check_item_id")
+            if not cid:
+                continue
+            pair = pairs.setdefault(cid, {"cleared": False, "skipped": False,
+                                          "required": None,
+                                          "served_recommended": False})
+            pair["skipped"] = True
+            if ev.get("gate_mode") == "required":
+                pair["required"] = True
+            elif ev.get("gate_mode") == "recommended":
+                # The skip records the mode the gate actually rendered
+                # under -- a degraded sitting renders a declared required
+                # gate as recommended and excludes it (section 5.7/11).
+                pair["served_recommended"] = True
+    cleared = 0
+    skipped = 0
+    for cid, pair in pairs.items():
+        if pair.get("served_recommended"):
+            continue
+        if gate_modes is not None:
+            required = gate_modes.get(cid) == "required"
+        else:
+            required = pair["required"] is True
+        if not required:
+            continue
+        if pair["cleared"]:
+            cleared += 1
+        elif pair["skipped"]:
+            skipped += 1
+    total = cleared + skipped
+    return {
+        "denominator": total,
+        "cleared": cleared,
+        "skipped": skipped,
+        "share_cleared": (round(cleared / total, 3) if total else None),
+        "share_skipped": (round(skipped / total, 3) if total else None),
+    }
+
+
 def selection_event(session_id, bank, spec, item_keys):
     """Build one selection event: the record of what a sitting asked for,
     appended once per session (D-03) and separate from the responses because

@@ -68,6 +68,9 @@ CLEARED_IN_SITTING_COPY = "Cleared in this sitting."
 READ_AHEAD_IN_SITTING_COPY = "Read ahead in this sitting."
 VERDICT_CORRECT_COPY = "Correct"
 VERDICT_NOT_CORRECT_COPY = "Not correct"
+GATE_DENOMINATOR_COPY = "Of {n} required gates encountered"
+GATE_EXCLUSION_COPY = ("Recommended gates are not counted \u2014 reading "
+                       "past one is not a recorded choice.")
 
 # The style footer and refusal copy (03.1-UI-SPEC 9.6, 15): the only place
 # these strings live, so the renderer, the CLI, and the tests reproduce one
@@ -260,6 +263,7 @@ __GLOSS_PRINT_CSS__
   <h1>__TITLE__</h1>
   <div class="sub">__SUB__</div>
 </header>
+__STATUS__
 __READER_NAV__
 __GLOSS_SCRIPT__
 <div class="card">__STYLE_WARN____BODY__</div>
@@ -632,36 +636,40 @@ def _gate_band_html(check_id, ctx):
                    esc(RUNTIME_UNREACHABLE_COPY)))
     degrade_line = ""
     skip_button = ""
+    skip_note = ""
     if gate.get("degraded"):
         degrade_line = ('<p class="gate-note">%s</p>' % esc(MODE_DEGRADE_COPY))
+    elif gate.get("skip") == "after-attempt" and not gate.get("attempted"):
+        # gate_skip: after-attempt -- the condition is stated in real
+        # Ledger-voice text until one recorded attempt exists; never a
+        # disabled button with no reason (C9, 06.2-UI-SPEC section 6.2).
+        skip_note = ('<p class="gate-note">%s</p>'
+                     % esc(SKIP_AFTER_ATTEMPT_COPY))
     elif gate.get("skip") != "off":
-        # gate_skip: always renders the control from the first render;
-        # after-attempt states its condition in Ledger text until one
-        # recorded attempt exists -- never a disabled button (C9). The
-        # plan 06.2-03 routes pass `attempted`; plan 06.2-02's band ships
-        # the always default.
         skip_button = ('<button type="submit" name="action" '
                        'value="skip" class="go">%s</button>'
                        % esc(SKIP_COPY))
     form = ('<form method="post" action="/lesson/%s/check" class="gate-form">'
+            '<input type="hidden" name="check" value="%s">'
             "%s<div class=\"actions\">"
             '<button type="submit" name="action" value="check" '
             'class="go primary">%s</button>%s'
             "</div></form>"
-            % (esc(gate["stem"]), _gate_check_answer(q),
+            % (esc(gate["stem"]), esc(check_id), _gate_check_answer(q),
                esc(CHECK_ANSWER_COPY), skip_button))
     if gate.get("degraded") and not gate.get("unreachable"):
         # The item stays answerable in a degraded sitting (feedback is
         # deferred, not withheld); the line states why the gate does not run.
         form = ('<form method="post" action="/lesson/%s/check" class="gate-form">'
+                '<input type="hidden" name="check" value="%s">'
                 "%s<div class=\"actions\">"
                 '<button type="submit" name="action" value="check" '
                 'class="go primary">%s</button>'
                 "</div></form>"
-                % (esc(gate["stem"]), _gate_check_answer(q),
+                % (esc(gate["stem"]), esc(check_id), _gate_check_answer(q),
                    esc(CHECK_ANSWER_COPY)))
-    return ('<section class="gate"><p class="gate-label">%s</p>%s%s</section>'
-            % (esc(header), form, degrade_line))
+    return ('<section class="gate"><p class="gate-label">%s</p>%s%s%s</section>'
+            % (esc(header), form, skip_note, degrade_line))
 
 
 def _gate_boundary_html(n):
@@ -959,12 +967,14 @@ def _render_blocks(text, ctx=None):
                 i += 1
             out.append(_callout_html(spec, "\n".join(body), ctx))
             # G1 truncation (06.2-UI-SPEC section 5.2): under required,
-            # the server emits nothing below the first uncleared check --
-            # the band already rendered, so the rest of this section and
-            # every later section is withheld. The flag is read by
-            # render_markdown and lesson_page to stop and to size the
-            # boundary. An unresolvable check never gates (reading
-            # continues); a cleared check releases its section.
+            # the server emits nothing below the first OPEN check -- the
+            # band already rendered, so the rest of this section and every
+            # later section is withheld. A cleared OR skipped check
+            # releases its section (a skip advances the reading position,
+            # section 6.3), so truncation stops only at "open". The flag
+            # is read by render_markdown and lesson_page to stop and to
+            # size the boundary. An unresolvable check never gates
+            # (reading continues).
             if (ctx is not None and ctx.get("gate")
                     and ctx["gate"]["policy"] == "required"
                     and not ctx["gate"].get("degraded")
@@ -972,7 +982,7 @@ def _render_blocks(text, ctx=None):
                     and ctx["gate"]["resolve"](spec[2]) is not None
                     and (ctx["gate"].get("states") or {}).get(spec[2],
                                                              "open")
-                    != "cleared"):
+                    == "open"):
                 ctx["gate_stop"] = True
             if ctx is not None and ctx.get("gate_stop"):
                 break
@@ -1090,8 +1100,17 @@ def render_markdown(text, ctx=None):
             if ctx is not None:
                 ctx["section"] = lesson_slug(heading)
             prose = _render_blocks("\n".join(lines[1:]), ctx)
-            out.append('<section id="%s"><h2>%s</h2>%s</section>'
-                       % (lesson_slug(heading), html.escape(heading), prose))
+            focus_attr = ""
+            if (ctx is not None and ctx.get("focus_section")
+                    and ctx["section"] == ctx["focus_section"]):
+                # The post-redirect-get focus target (06.2-UI-SPEC section
+                # 7.1): the newly revealed section's h2 carries the
+                # platform mechanism for moving focus after a navigation
+                # with no script.
+                focus_attr = ' tabindex="-1" autofocus'
+            out.append('<section id="%s"><h2%s>%s</h2>%s</section>'
+                       % (lesson_slug(heading), focus_attr,
+                          html.escape(heading), prose))
         else:
             out.append(_render_blocks(block, ctx))
     return "\n".join(out)
@@ -1156,7 +1175,7 @@ def _backlinks_html(stem, qs, slug):
 
 
 def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
-                style_override=None, gate=None):
+                style_override=None, gate=None, focus=None, announce=None):
     """The one render both surfaces call: the daemon route and `cmd_lesson`
     write the same document because there is only one `lesson_page`.
 
@@ -1203,6 +1222,12 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
     every [!CHECK:] is the inert reserved slot (D-14, the compatibility
     floor). The one render path carries the policy; there is no second
     reader (D-05).
+
+    `focus` names a section slug whose rendered `<h2>` carries
+    `tabindex="-1" autofocus` -- the post-redirect-get focus mechanism for
+    a gate reveal (06.2-UI-SPEC section 7.1: focus moves only when the
+    document grew). `announce` is the composed status-region text
+    (section 7.2), rendered inside the single `role=status` region.
     """
     bank_text = open(bank_path, encoding="utf-8").read()
     title = (grab(r"(?m)^#\s+(.*?)\s*$", bank_text)
@@ -1212,6 +1237,10 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
     anchor_css = ""
     print_css = ""
     gloss_script = ""
+    status_html = ""
+    if announce:
+        status_html = ('<div class="status" role="status">%s</div>'
+                       % html.escape(announce))
     want = lesson_slug(ref) if ref else ""
     if lesson is None or not lesson.get("headings"):
         # An explicit --ref in a bank with no headings is the same miss as a
@@ -1251,6 +1280,8 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
         if gate is not None:
             ctx["gate"] = gate
             ctx["gate_stop"] = False
+        if focus:
+            ctx["focus_section"] = focus
         parts = []
         stop_at = None
         for idx in idxs:
@@ -1341,6 +1372,7 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
             .replace("__GLOSS_PRINT_CSS__", print_css)
             .replace("__READER_NAV__", nav_html)
             .replace("__GLOSS_SCRIPT__", gloss_script)
+            .replace("__STATUS__", status_html)
             .replace("__STYLE_WARN__", style_warn_html)
             .replace("__STYLE_FOOT__", style_foot)
             .replace("__TITLE__", html.escape(title) + " lesson")

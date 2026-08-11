@@ -26,7 +26,9 @@
     "reader_nav": "none",
     "example_layout": "stacked",
     "print_gloss": "appendix",
-    "gloss_marks": "all"
+    "gloss_marks": "all",
+    "gate_skip": "always",
+    "gate_policy": "as-authored"
   },
   "update": {
     "repo": "onionviolet/itembank",

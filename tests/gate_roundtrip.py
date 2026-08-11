@@ -14,7 +14,7 @@ Plan 06.2-01 owns four requirement areas and their fixtures:
 
 Standard library only, runnable as `python tests/gate_roundtrip.py`.
 """
-import json, os, re, shutil, sys, tempfile
+import json, os, re, shutil, subprocess, sys, tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -456,6 +456,279 @@ def test_gate_state_is_pure_read():
     if "live_events" not in fn:
         fail("gate_state must read through live_events")
     print("gate_state: pure read, no writes, no cache")
+
+
+# ---- plan 06.2-03: the recorded-skip control, settings, outcome split ----
+
+
+def test_gate_skip_control_register():
+    """Task 1 Test 1: the skip control is a real submit button with the
+    exact label, in the same .actions row as the check button (space-3
+    apart via the shared .actions gap), both >=44px via the .go class, no
+    --bad/--warn/accent fill, no icon, no confirmation."""
+    tmp = tempfile.mkdtemp()
+    try:
+        path = _write_bank(tmp)
+        qs = itembank.load(path)
+        ctx = _gate_ctx(path, qs, policy="required")
+        page = lesson.lesson_page(path, qs, itembank.parse_lesson(path),
+                                  runtime=True, gate=ctx)
+        m = re.search(
+            r'<div class="actions">.*?</div>', page, re.S)
+        if not m:
+            fail("the band must carry one .actions row")
+        actions = m.group(0)
+        if "Read ahead without answering" not in actions:
+            fail("the skip control must sit in the same .actions row")
+        if 'value="check"' not in actions or 'value="skip"' not in actions:
+            fail("the .actions row must carry both named submit buttons")
+        if "warn" in actions or "bad" in actions or "accent" in actions:
+            fail("the skip control must not be styled as a transgression")
+        if "<svg" in actions or "icon" in actions.lower():
+            fail("the skip control must carry no icon")
+        if "confirm" in actions.lower() or "are you sure" in actions.lower():
+            fail("the skip control must not be gated behind a confirmation")
+        if "min-height:44px" not in lesson.SHARED_CSS:
+            fail("the shared .go control must guarantee 44px min-height")
+        print("gate skip control: ordinary register, no transgression")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_gate_skip_after_attempt_conditional():
+    """Task 1 Test 2: gate_skip always renders the control from the first
+    render; after-attempt renders the Ledger line until one recorded
+    attempt exists -- never a disabled button."""
+    tmp = tempfile.mkdtemp()
+    try:
+        path = _write_bank(tmp)
+        qs = itembank.load(path)
+        les = itembank.parse_lesson(path)
+        always = _gate_ctx(path, qs, policy="required", skip="always")
+        page = lesson.lesson_page(path, qs, les, runtime=True, gate=always)
+        if "Read ahead without answering" not in page:
+            fail("gate_skip: always must render the control from the first "
+                 "render")
+        if "Read ahead becomes available after one attempt." in page:
+            fail("gate_skip: always must not render the after-attempt line")
+        # after-attempt, no attempt yet: the Ledger line, never a disabled
+        # button.
+        pending = _gate_ctx(path, qs, policy="required", skip="after-attempt")
+        page2 = lesson.lesson_page(path, qs, les, runtime=True, gate=pending)
+        if "Read ahead becomes available after one attempt." not in page2:
+            fail("after-attempt must state its condition in Ledger text")
+        if "Read ahead without answering" in page2:
+            fail("after-attempt with no attempt must not render the button")
+        if re.search(r'<button[^>]*disabled[^>]*>', page2):
+            fail("after-attempt must never render a disabled button")
+        # after one recorded attempt, the control appears.
+        ctx = _gate_ctx(path, qs, policy="required", skip="after-attempt",
+                        attempted={"q1": True})
+        page3 = lesson.lesson_page(path, qs, les, runtime=True, gate=ctx)
+        if "Read ahead without answering" not in page3:
+            fail("after-attempt with a recorded attempt must render the "
+                 "control")
+        print("gate skip after-attempt: condition stated, never disabled")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_gate_settings_roundtrip():
+    """Task 1 Test 4: gate_skip and gate_policy validate through itembank
+    config (validate-then-write) and appear in `itembank config` output
+    with their locked defaults."""
+    base = tempfile.mkdtemp()
+    try:
+        # Defaults appear in the table.
+        out = subprocess.check_output(
+            [sys.executable, os.path.join(ROOT, "itembank.py"), "config",
+             "--base", base], text=True)
+        if "gate_skip" not in out or "gate_policy" not in out:
+            fail("itembank config must list gate_skip and gate_policy")
+        if "always" not in out or "as-authored" not in out:
+            fail("the gate settings' locked defaults must appear")
+        # Validate-then-write: legal values round-trip.
+        for key, value in (("reader.gate_skip", "after-attempt"),
+                           ("reader.gate_policy", "off")):
+            r = subprocess.run(
+                [sys.executable, os.path.join(ROOT, "itembank.py"), "config",
+                 "set", key, value, "--base", base],
+                capture_output=True, text=True)
+            if r.returncode != 0:
+                fail("config set %s %s failed: %s" % (key, value, r.stderr))
+        # Illegal values are rejected and never touch the file.
+        before = open(os.path.join(base, "itembank.json"),
+                      encoding="utf-8").read()
+        for key, value in (("reader.gate_skip", "sometimes"),
+                           ("reader.gate_policy", "required-everywhere")):
+            r = subprocess.run(
+                [sys.executable, os.path.join(ROOT, "itembank.py"), "config",
+                 "set", key, value, "--base", base],
+                capture_output=True, text=True)
+            if r.returncode == 0:
+                fail("config set %s %s must be rejected" % (key, value))
+        after = open(os.path.join(base, "itembank.json"),
+                     encoding="utf-8").read()
+        if before != after:
+            fail("a rejected config set mutated itembank.json")
+        print("gate settings: defaults shown, validate-then-write enforced")
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+
+def test_gate_policy_off_weakens_only():
+    """Task 1 Test 3: gate_policy off renders any lesson ungated (the whole
+    lesson in the DOM, band as the inert 3.1 slot) and can only weaken,
+    never strengthen -- a recommended lesson cannot become required."""
+    tmp = tempfile.mkdtemp()
+    try:
+        path = _write_bank(tmp)   # [GATE: required] in _bank_text
+        qs = itembank.load(path)
+        les = itembank.parse_lesson(path)
+        # gate_policy off -> the daemon passes gate=None (3.1 floor).
+        page = lesson.lesson_page(path, qs, les, runtime=True, gate=None)
+        if "Second Section" not in page:
+            fail("gate_policy off must render the whole lesson")
+        if ("This check is available when you are reading with a session."
+                not in page):
+            fail("gate_policy off must render the inert 3.1 slot")
+        if '<section class="gate">' in page:
+            fail("gate_policy off must not render the live band")
+        # The settings schema has no strengthening value by construction.
+        schema = json.load(open(os.path.join(ROOT, "schemas",
+                                             "settings.schema.json"),
+                                encoding="utf-8"))
+        enum = schema["properties"]["reader"]["properties"]["gate_policy"]
+        if enum["enum"] != ["as-authored", "off"]:
+            fail("gate_policy must offer only as-authored|off (weaken-only)")
+        print("gate_policy off: weakens only, whole lesson, inert slots")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _split_fixture_log(tmp):
+    """A fresh log dir plus helpers that append gate events for a
+    session."""
+    bank_dir = os.path.join(tmp, "_evidence")
+    os.makedirs(bank_dir, exist_ok=True)
+    log = evidence.log_path(bank_dir)
+    q = {"id": "q1", "item_id": "it-1", "type": "mc", "stem": "s",
+         "opts": {"A": "a", "B": "b"}, "correct": ["B"],
+         "objective": "emt:airway.adjunct", "select": 1}
+
+    def clear(session_id, cid, bank="b.md"):
+        qq = dict(q)
+        qq["id"] = cid
+        qq["item_id"] = "it-" + cid
+        evidence.append_event(log, evidence.response_event(
+            session_id=session_id, q=qq, answer="B", score=True,
+            mode="practice", attempt_num=1, bank=bank,
+            context="lesson_gate"))
+
+    def skip(session_id, cid, mode="required", bank="b.md"):
+        evidence.append_event(log, evidence.gate_skip_event(
+            session_id=session_id, bank=bank, lesson_slug="l",
+            check_item_id=cid, check_item_ref=cid, objective="o",
+            gate_mode=mode))
+    return log, clear, skip
+
+
+def test_gate_outcome_split_pair_level():
+    """Task 3 Test 1: the outcome split is computed per distinct (session,
+    check) pair -- cleared wins over a prior skip; a skip with no response
+    is skipped; the denominator counts distinct pairs, not events."""
+    tmp = tempfile.mkdtemp()
+    try:
+        log, clear, skip = _split_fixture_log(tmp)
+        # q1: skip then clear -> cleared (pair-level resolution).
+        skip("s1", "q1")
+        clear("s1", "q1")
+        # q2: skip only -> skipped.
+        skip("s1", "q2")
+        # q3: cleared only (required evidence via gate_modes).
+        clear("s1", "q3")
+        modes = {"q1": "required", "q2": "required", "q3": "required"}
+        split = evidence.gate_outcome_split(log, "b.md", "s1",
+                                            gate_modes=modes)
+        if split["denominator"] != 3:
+            fail("denominator must count 3 distinct pairs, got %r"
+                 % split["denominator"])
+        if split["cleared"] != 2:
+            fail("skip-then-clear must resolve to cleared, got %r"
+                 % split["cleared"])
+        if split["skipped"] != 1:
+            fail("skip-only must resolve to skipped, got %r"
+                 % split["skipped"])
+        # Duplicate events on the same pair never inflate the count.
+        skip("s1", "q2")
+        split2 = evidence.gate_outcome_split(log, "b.md", "s1",
+                                             gate_modes=modes)
+        if split2 != split:
+            fail("repeated events must not change the pair-level split")
+        print("gate outcome split: pair-level, cleared-wins, distinct "
+              "denominator")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_gate_outcome_split_excludes_recommended():
+    """Task 3 Test 2: recommended gates are excluded from the denominator
+    -- a recommended pair never appears in the count."""
+    tmp = tempfile.mkdtemp()
+    try:
+        log, clear, skip = _split_fixture_log(tmp)
+        clear("s1", "q1")                     # required (declared)
+        skip("s1", "q2", mode="recommended")  # recommended: excluded
+        modes = {"q1": "required", "q2": "recommended"}
+        split = evidence.gate_outcome_split(log, "b.md", "s1",
+                                            gate_modes=modes)
+        if split["denominator"] != 1 or split["cleared"] != 1 \
+                or split["skipped"] != 0:
+            fail("recommended pairs must be excluded, got %r" % split)
+        # A pair whose only skip recorded "recommended" (a degraded
+        # sitting) is excluded even though the lesson declares required.
+        log2, _c, _s = _split_fixture_log(tmp)
+        _s("s1", "q1", mode="recommended")
+        modes2 = {"q1": "required"}
+        split2 = evidence.gate_outcome_split(log2, "b.md", "s1",
+                                             gate_modes=modes2)
+        if split2["denominator"] != 0:
+            fail("a recommended-served pair must be excluded, got %r"
+                 % split2)
+        print("gate outcome split: recommended excluded verbatim")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_gate_outcome_split_report_copy():
+    """Task 3 Test 3: the report renders `Of {n} required gates
+    encountered` with the count table (rows cleared/skipped, columns count
+    and share), no target, no streak, no percentage-fill bar; the empty
+    state renders `Of 0 required gates encountered` with no ratio."""
+    from surfaces.daemon import _gate_outcome_html
+    split = {"denominator": 2, "cleared": 1, "skipped": 1,
+             "share_cleared": 0.5, "share_skipped": 0.5}
+    html_out = _gate_outcome_html(split)
+    if "Of 2 required gates encountered" not in html_out:
+        fail("the denominator copy must render verbatim")
+    if ("Recommended gates are not counted" not in html_out
+            or "reading past one is not a recorded choice" not in html_out):
+        fail("the exclusion line must render verbatim")
+    if "<tr><td>cleared</td><td>1</td><td>50%</td></tr>" not in html_out:
+        fail("the cleared row must render count and share")
+    if "<tr><td>skipped</td><td>1</td><td>50%</td></tr>" not in html_out:
+        fail("the skipped row must render count and share")
+    for banned in ("streak", "progress", "100%", "track", "target"):
+        if banned in html_out.lower():
+            fail("the report must not carry %r" % banned)
+    empty = _gate_outcome_html({"denominator": 0, "cleared": 0,
+                                "skipped": 0, "share_cleared": None,
+                                "share_skipped": None})
+    if "Of 0 required gates encountered" not in empty:
+        fail("the empty state must render the zero denominator")
+    if "<table>" in empty:
+        fail("the empty state must render no ratio table")
+    print("gate outcome report: denominator, count/share table, empty state")
 
 
 # ---- plan 06.2-02: the render policy (the gate band) ----------------------
@@ -938,8 +1211,16 @@ def main():
     test_gate_mode_degrade()
     test_gate_compatibility_floor()
     test_gate_unresolvable_check_degrades()
+    test_gate_skip_control_register()
+    test_gate_skip_after_attempt_conditional()
+    test_gate_settings_roundtrip()
+    test_gate_policy_off_weakens_only()
+    test_gate_outcome_split_pair_level()
+    test_gate_outcome_split_excludes_recommended()
+    test_gate_outcome_split_report_copy()
     print("ok: gate roundtrip (GATE grammar, gate_skip event, context "
-          "field, gate_state derivation, gate band render policy)")
+          "field, gate_state derivation, gate band render policy, skip "
+          "control + settings, outcome split)")
 
 
 if __name__ == "__main__":

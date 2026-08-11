@@ -262,15 +262,18 @@
     },
     "reader": {
       "type": "object",
-      "description": "The lesson reader's settings (03.1-UI-SPEC section 14). Read by this phase (3.1).",
+      "description": "The lesson reader's settings (03.1-UI-SPEC section 14; 06.2-UI-SPEC section 10 for the gate rows). Read by this phase (3.1/6.2).",
       "additionalProperties": false,
-      "required": ["reader_nav", "example_layout", "print_gloss", "gloss_marks"],
+      "required": ["reader_nav", "example_layout", "print_gloss", "gloss_marks",
+                    "gate_skip", "gate_policy"],
       "x-itembank-phase": 3.1,
       "default": {
         "reader_nav": "none",
         "example_layout": "stacked",
         "print_gloss": "appendix",
-        "gloss_marks": "all"
+        "gloss_marks": "all",
+        "gate_skip": "always",
+        "gate_policy": "as-authored"
       },
       "properties": {
         "reader_nav": {
@@ -300,6 +303,20 @@
           "enum": ["all", "first-use", "none"],
           "default": "all",
           "x-itembank-phase": 3.1
+        },
+        "gate_skip": {
+          "type": "string",
+          "description": "When the recorded-skip control appears in a gate band (06.2-UI-SPEC section 6.2, DEFAULT always). always renders it from the first render; after-attempt renders the Ledger line 'Read ahead becomes available after one attempt.' until one recorded attempt exists -- never a disabled control with no reason (C9).",
+          "enum": ["always", "after-attempt"],
+          "default": "always",
+          "x-itembank-phase": 6.2
+        },
+        "gate_policy": {
+          "type": "string",
+          "description": "A learner-level gate override (06.2-UI-SPEC section 10.1, DEFAULT as-authored). off renders every lesson ungated (the whole lesson in the DOM, checks as 3.1's inert slots) and may only weaken a declared gate, never strengthen one -- the enum has no strengthening value by construction.",
+          "enum": ["as-authored", "off"],
+          "default": "as-authored",
+          "x-itembank-phase": 6.2
         }
       }
     },
