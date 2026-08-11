@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 13
-current_phase_name: desktop-packaging-tauri-sidecar
+current_phase: 03.2
+current_phase_name: seeding-import-provenance
 status: executing
-stopped_at: Completed 07-02-PLAN.md
-last_updated: "2026-08-11T00:47:26.980Z"
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-08-11T00:56:41.149Z"
 last_activity: 2026-08-10
 last_activity_desc: Phase 03.1 execution started
 progress:
   total_phases: 18
   completed_phases: 5
   total_plans: 104
-  completed_plans: 45
+  completed_plans: 46
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-07)
 
 **Core value:** One runtime, one scorer, one evidence store â€” and the runtime, not the model, decides what reaches the learner.
-**Current focus:** Phase 13 — desktop-packaging-tauri-sidecar
+**Current focus:** Phase 03.2 — seeding-import-provenance
 
 ## Current Position
 
-Phase: 13 (desktop-packaging-tauri-sidecar) — EXECUTING
-Plan: 4 of 5
+Phase: 03.2 (seeding-import-provenance) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-08-10 — Phase 13 execution started
+Last activity: 2026-08-10 — Phase 03.2 execution started
 
-Progress: [████░░░░░░] 43%
+Progress: [████░░░░░░] 44%
 
 ## Performance Metrics
 
@@ -100,6 +100,7 @@ Progress: [████░░░░░░] 43%
 | Phase 13 P01 | 16min | 3 tasks | 3 files |
 | Phase 07 P01 | 50min | 3 tasks | 8 files |
 | Phase 07 P02 | 25min | 3 tasks | 6 files |
+| Phase 06 P01 | 95 min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -228,6 +229,10 @@ Recent decisions affecting current work:
 - [Phase ?]: order_shuffled() reproduces the old inline rng.shuffle byte-identically; plan 07-05 owns any seed-literal churn
 - [Phase ?]: pair/prereq are pedagogy metadata: excluded from content_fingerprint (D-12), verified with zero hash churn when the fixture was tagged
 - [Phase ?]: A pair request serves the whole set adjacently in ascending bank order and raises count to hold it; an unknown pair names the known pair list
+- [Phase 6] 06-01: v2 evidence contract confirmed at the Task 1 gate -- response events record integer-or-null hint_tier (null means no tier shown, 0 means tier 0 shown), hint events link session/item/attempt/response with fixed tier index/name, availability, source authored, and unlock path; readers keep accepting v1 events while writers emit v2 (D-15/D-16).
+- [Phase 6] 06-01: a genuine wrong practice response unlocks (never shows) the next tier; hint/stumped reveal exactly one fixed tier and append a hint event only when shown -- tier 0 is the lesson pointer and only becomes a hint event at the moment it is actually shown (D-04/D-05/D-07).
+- [Phase 6] 06-01: after the authored reveal (tier 5) is shown, the next submit action advances even on a repeat of the last canonical response -- D-06 forbids manufacturing further attempts, and holding the card after full disclosure would do exactly that.
+- [Phase 6] 06-01: teaching_outcomes omits a fully-retracted item entirely (D-10 read-side suppression) and never counts stumped as a wrong response; correct-after-tier is only labeled when at least one hint was shown, so two identical correct responses at tier 1 and tier 4 produce different rows (TEACH-03).
 
 ## Deferred Verification
 
@@ -244,7 +249,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-11T00:47:26.945Z
-Stopped at: Completed 07-02-PLAN.md
+Last session: 2026-08-11T00:56:11.703Z
+Stopped at: Completed 06-01-PLAN.md
 Resume file: None
 Deferred human verification: Phases 2.1/3/4 (see Deferred Verification table above)
