@@ -773,6 +773,140 @@ def _start_session(base, stem, focus):
     return started["session_id"]
 
 
+def check_explain_threading():
+    """05-05 Task 1: the per-case run result reaches both surfaces from the
+    one run that produced the score. Both the browser answer route and
+    /api/submit return an explain object carrying one entry per case in
+    authored order, each with the authored input and expected text plus the
+    actual output and the two bound flags, the runner is invoked exactly
+    once per submission, and a non-check item's response body is unchanged
+    (no run_result key)."""
+    work = tempfile.mkdtemp()
+    try:
+        # A one-case bank whose source writes a marker line: if the surface
+        # re-ran the runner to build the explanation, the file would hold
+        # two lines instead of one (05-05 Task 1's once-only assertion).
+        once_bank = os.path.join(work, "once_check.md")
+        open(once_bank, "w", encoding="utf-8").write(
+            "# Once bank\n\n"
+            "Q1. Write a program that prints the sum.   (difficulty: recall)\n"
+            "[ID: 9000000000000042]\n"
+            "[TYPE: check]\n[OBJECTIVE: cs:io.sum]\n"
+            "[MATCH: trimmed]\n"
+            "CASE) 5 7 :: 12\n"
+            "TRAP: x\nCONFIDENCE: high\n")
+        marker = os.path.join(work, "spawns.txt")
+        _write_settings(work)
+        proc, base = _serve_base(once_bank,
+                                 os.path.join(work, "attempt.md"), [])
+        if not base:
+            if proc.poll() is None:
+                proc.terminate()
+            fail("once-bank serve daemon never printed a URL")
+        try:
+            src = ("open(%r, 'a').write('x' + chr(10))\n"
+                   "print(sum(int(x) for x in "
+                   "__import__('sys').stdin.read().split()))"
+                   % marker)
+            started = post(base + "api/start", {"bank": "once_check",
+                                                "count": 1,
+                                                "mode": "practice",
+                                                "focus": "q1"})
+            sid = started["session_id"]
+            brow = post(base + "quiz/once_check/answer",
+                        {"id": "q1", "interaction_version": 1,
+                         "response": src})
+            cases = (brow.get("explain") or {}).get("cases")
+            if not cases or len(cases) != 1:
+                fail("browser explain has no per-case entry: %r" % brow)
+            row = cases[0]
+            for key in ("case_index", "input", "expected", "actual",
+                        "timed_out", "truncated"):
+                if key not in row:
+                    fail("browser explain row lacks %r: %r" % (key, row))
+            if row["input"] != "5 7" or row["expected"] != "12":
+                fail("browser explain row input/expected are %r" % row)
+            if row["actual"] != "12\n":
+                fail("browser explain actual output is %r" % row["actual"])
+            if row["timed_out"] is not False or row["truncated"] is not False:
+                fail("browser explain bound flags are %r" % row)
+            if brow["interaction_result"]["observations"][0]["reason"] != "passed":
+                fail("browser observation reason is %r"
+                     % brow["interaction_result"]["observations"][0])
+            # The side effect ran exactly once (one runner invocation, not a
+            # second call to build the explanation).
+            if not os.path.exists(marker) or \
+                    open(marker, encoding="utf-8").read().count("\n") != 1:
+                fail("runner was invoked more than once per submission: "
+                     "marker file has %r"
+                     % (open(marker, encoding="utf-8").read()
+                        if os.path.exists(marker) else "no file"))
+
+            # The agent path carries the identical per-case entries (a fresh
+            # session -- the browser submit above already advanced its cursor).
+            started2 = post(base + "api/start", {"bank": "once_check",
+                                                 "count": 1,
+                                                 "mode": "practice",
+                                                 "focus": "q1"})
+            ag = post(base + "api/submit", {"session_id": started2["session_id"],
+                                            "answer": src})
+            acases = (ag.get("explain") or {}).get("cases")
+            if not acases or len(acases) != 1:
+                fail("api/submit explain has no per-case entry: %r" % ag)
+            for key in ("case_index", "input", "expected", "actual",
+                        "timed_out", "truncated"):
+                if acases[0].get(key) != row.get(key):
+                    fail("api/submit %r differs from the browser row: %r vs %r"
+                         % (key, acases[0], row))
+        finally:
+            proc.terminate()
+
+        # A non-check item's response body is byte-identical: no run_result
+        # key appears, and the key set is exactly the pre-change one.
+        mc_bank = os.path.join(work, "mc_bank.md")
+        open(mc_bank, "w", encoding="utf-8").write(
+            "# MC bank\n\n"
+            "Q1. Pick one.   (difficulty: recall)\n"
+            "[ID: 9000000000000043]\n"
+            "[TYPE: mc]\n[OBJECTIVE: cs:x.y]\n"
+            "A) alpha\nB) beta\nC) gamma\nD) delta\n"
+            "CORRECT: A\n"
+            "WHY BEST: alpha is the one.\n"
+            "SECOND-BEST: beta is close but wrong.\n"
+            "KEY DISCRIMINATOR: k\n"
+            "DISTRACTOR ANALYSIS:\n"
+            "- B would be correct only if beta were the one.\n"
+            "- C would be correct only if gamma were the one.\n"
+            "- D would be correct only if delta were the one.\n"
+            "TRAP: x\nCONFIDENCE: high\n")
+        proc2, base2 = _serve_base(mc_bank,
+                                   os.path.join(work, "attempt_mc.md"), [])
+        if not base2:
+            if proc2.poll() is None:
+                proc2.terminate()
+            fail("mc serve daemon never printed a URL")
+        try:
+            started = post(base2 + "api/start", {"bank": "mc_bank",
+                                                 "count": 1,
+                                                 "mode": "practice",
+                                                 "focus": "q1"})
+            resp = post(base2 + "quiz/mc_bank/answer",
+                        {"id": "q1", "interaction_version": 1,
+                         "response": "A"})
+            if "run_result" in resp:
+                fail("a non-check response body gained a run_result key: %r"
+                     % resp)
+            want = {"accepted", "item_id", "score", "action", "status",
+                    "evidence", "hint_tier", "interaction_result", "next",
+                    "explain"}
+            if set(resp) != want:
+                fail("mc response key set is %r, want %r" % (set(resp), want))
+        finally:
+            proc2.terminate()
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
 def check_network_refusal():
     """D-09 made real: with the daemon bound to all interfaces and
     check.allow_lan false, both submit routes refuse a check item's execution
@@ -915,6 +1049,7 @@ def main():
     check_http_roundtrip()
     check_agent_path()
     check_cross_path()
+    check_explain_threading()
     check_network_refusal()
     print("check roundtrip: ok")
     return 0
