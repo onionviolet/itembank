@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 08
-current_phase_name: model-adapter-interface-tier-gate-enforcement
-status: executing
-stopped_at: Completed 08-04-PLAN.md
-last_updated: "2026-08-11T06:31:30.474Z"
+current_phase: 09
+current_phase_name: subject-invariant-loop-emt-math-cs-integration
+status: held-partial
+stopped_at: "09-01/09-02 complete, 09-03 approval pending; 09-04 held on KaTeX approval, 09-05 held on Phase 5 (gsd/phase-05-check incomplete, ALIVE). See HANDOFF-PHASE09.md + .continue-here."
+last_updated: "2026-08-11T08:15:00.000Z"
 last_activity: 2026-08-11
-last_activity_desc: Phase 08 plan 08-03 completed (model interaction + rubric proposal evidence events)
+last_activity_desc: "Phase 09 plans 09-01 (subject-profile seam) and 09-02 (subject_profiles registry) completed; 09-03 KaTeX gate record written pending human approval"
 progress:
   total_phases: 18
   completed_phases: 9
   total_plans: 104
-  completed_plans: 64
+  completed_plans: 66
 ---
 
 # Project State
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-07)
 
 **Core value:** One runtime, one scorer, one evidence store â€” and the runtime, not the model, decides what reaches the learner.
-**Current focus:** Phase 08 — model-adapter-interface-tier-gate-enforcement
+**Current focus:** Phase 09 — subject-invariant-loop-emt-math-cs-integration
 
 ## Current Position
 
-Phase: 08 (model-adapter-interface-tier-gate-enforcement) — EXECUTING
-Plan: 4 of 6 complete
-Status: Ready to execute
-Last activity: 2026-08-11 — 08-02 (model adapter interface + profile registry) completed
+Phase: 09 (subject-invariant-loop-emt-math-cs-integration) — HELD (partial)
+Plans 09-01 and 09-02 complete and committed; 09-03 supply-chain record written with approval PENDING; 09-04 (KaTeX vendoring) blocked on the human approval gate; 09-05 (runnable code + four-profile matrix) blocked on Phase 5, which was ALIVE and mid-05-04 at last poll (03:10 CDT).
+Status: Held — see HANDOFF-PHASE09.md and .continue-here in the worktree
+Last activity: 2026-08-11 — 09-02 (subject_profiles settings registry + configuration-only fourth profile) completed
 
 Progress: [██████░░░░] 62%
 
