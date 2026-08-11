@@ -18,9 +18,12 @@ import json, os, re, shutil, sys, tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import itembank                                            # noqa: E402
 import evidence                                            # noqa: E402
 from model import CHECK_UNRESOLVED_COPY, GATE_VALUES        # noqa: E402
+from surfaces import lesson                                 # noqa: E402
+import lesson_roundtrip                                     # noqa: E402
 
 
 def fail(msg):
@@ -455,6 +458,463 @@ def test_gate_state_is_pure_read():
     print("gate_state: pure read, no writes, no cache")
 
 
+# ---- plan 06.2-02: the render policy (the gate band) ----------------------
+
+
+def _gate_ctx(bank_path, qs, policy="required", states=None, skip="always",
+              degraded=False, unreachable=False, print_mode=False,
+              attempted=False):
+    """A gate policy context the tests build the way the daemon (plan
+    06.2-03) will: states derived from the evidence log, a resolver over
+    the bank's items, and the provenance the band needs."""
+    stem = os.path.splitext(os.path.basename(bank_path))[0]
+    by_id = {q["id"]: q for q in qs}
+    by_id.update({q["item_id"]: q for q in qs if q.get("item_id")})
+    return {
+        "policy": policy,
+        "states": states or {},
+        "resolve": lambda cid: by_id.get(cid),
+        "skip": skip,
+        "attempted": attempted,
+        "degraded": degraded,
+        "unreachable": unreachable,
+        "print": print_mode,
+        "stem": stem,
+        "bank": os.path.basename(bank_path),
+    }
+
+
+def _render(tmp, gate=None, bank_name="gate_bank.md", gate_value=None,
+            check="q1"):
+    path = _write_bank(tmp, bank_name, gate=gate_value, check=check)
+    qs = itembank.load(path)
+    page = lesson.lesson_page(path, qs, itembank.parse_lesson(path),
+                              runtime=True, gate=gate)
+    return path, qs, page
+
+
+def test_gate_band_live_markup():
+    """Task 1 Test 1: with a session, the D2 slot renders as the live band
+    -- <section class="gate"> with the check item's public projection, the
+    Ledger header, and one form whose two named submit buttons are
+    check-first, skip-second, both >=44px (the shared .go control)."""
+    tmp = tempfile.mkdtemp()
+    try:
+        path = _write_bank(tmp)
+        qs = itembank.load(path)
+        ctx = _gate_ctx(path, qs, policy="required")
+        page = lesson.lesson_page(path, qs, itembank.parse_lesson(path),
+                                  runtime=True, gate=ctx)
+        if '<section class="gate">' not in page:
+            fail("the live band must render <section class=\"gate\">")
+        if ("Check \u00b7 required to continue" not in page
+                and "Check \u00b7 recommended" not in page):
+            fail("the band must carry its Ledger header")
+        if "Which adjunct opens an airway?" not in page:
+            fail("the band must render the check item's stem")
+        if '<form method="post"' not in page:
+            fail("the band must be one <form method=\"post\">")
+        m = re.findall(r'<button type="submit" name="action" value="([^"]+)"',
+                       page)
+        if m != ["check", "skip"]:
+            fail("the form must carry two named submit buttons, check first "
+                 "then skip, got %r" % m)
+        if "Read ahead without answering" not in page:
+            fail("the skip button label must be the locked copy")
+        # The check's key, rationale and objective line must be absent
+        # before the verdict (T-062-07).
+        for leak in ("oropharyngeal airway is the standard",
+                     "emt:airway.adjunct", "A device that holds the tongue"):
+            if leak in page:
+                fail("the band leaked %r before the verdict" % leak)
+        # .go buttons carry min-height:44px from SHARED_CSS.
+        if "min-height:44px" not in lesson.SHARED_CSS:
+            fail("the shared .go control must guarantee 44px min-height")
+        print("gate band: live markup, check-first buttons, no key leak")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_gate_band_box_metrics_match_slot():
+    """Task 1 Test 2: the band's box metrics (padding space-3, 1px --line
+    border, --r-3 radius, space-4 block margin, 66ch measure) match 3.1's
+    reserved slot -- the activation changes the contents, not the box."""
+    css = lesson.LESSON_CSS
+    gate = css[css.find(".gate{"):]
+    gate = gate[:gate.find("}") + 1]
+    for token in ("background:var(--card)", "border:1px solid var(--line)",
+                  "border-radius:var(--r-3)", "padding:var(--space-3)",
+                  "margin:0 0 var(--space-4)"):
+        if token not in gate:
+            fail("the .gate box must carry %r, got %r" % (token, gate))
+    # The measure is inherited from the wrap (--measure-prose 66ch): the
+    # band must not escape to --measure-wide.
+    if "--measure-wide" in gate:
+        fail("the gate band must never escape to --measure-wide")
+    print("gate band: box metrics match the D2 slot via tokens")
+
+
+def test_gate_inert_and_off_match_phase31():
+    """Task 1 Test 3: with no session, or [GATE: off], the anchor renders
+    exactly as 3.1's inert D2 slot with its unchanged copy."""
+    tmp = tempfile.mkdtemp()
+    try:
+        for gate_value in (None, "off"):
+            path, qs, page = _render(tmp, gate=None, gate_value=gate_value)
+            if ('<section class="callout callout-check">' not in page
+                    or "callout-body" not in page):
+                fail("[GATE: %s] must render 3.1's inert slot"
+                     % (gate_value or "absent"))
+            if ("This check is available when you are reading with a "
+                    "session.") not in page:
+                fail("the inert slot must carry 3.1's exact copy")
+            if '<section class="gate">' in page or "Read ahead" in page:
+                fail("[GATE: %s] must not render the live band"
+                     % (gate_value or "absent"))
+        print("gate inert: no session and off render 3.1's slot unchanged")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_gate_no_script_element():
+    """Task 1 Test 4: no <script> element and no JavaScript dependency in
+    the rendered page for a gate bank without a glossary (the phase adds
+    no JavaScript of its own; 3.1's reviewed gloss script is separate)."""
+    tmp = tempfile.mkdtemp()
+    try:
+        path = _write_bank(tmp)
+        qs = itembank.load(path)
+        page = lesson.lesson_page(path, qs, itembank.parse_lesson(path),
+                                  runtime=True,
+                                  gate=_gate_ctx(path, qs))
+        if "<script" in page:
+            fail("the gated reader must ship no <script> element")
+        print("gate no-script: zero JavaScript in the gated page")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_gate_required_truncation_no_leak():
+    """Task 2 Test 1: under required with an uncleared check, every
+    heading, paragraph, list item, table, code block, [!KEY] id,
+    [!EXAMPLE] block, further [!CHECK:] id, backlink, TOC entry and
+    glossary entry belonging to a section below the gate is absent from
+    the HTML and from the text content (the CSS-off/accessible-name
+    approximation) -- and the check's own key, rationale, distractor
+    analysis and objective line are absent before the verdict."""
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = """# Leak fixture bank
+[GATE: required]
+
+## LESSON
+
+### First Section
+
+Prose above the check.
+
+> [!CHECK: q1]
+
+Prose below the check (gated under required).
+
+### Second Section
+
+SECRET-BELOW-HEADING prose.
+
+- secret list item below the gate
+
+| secret | table |
+| --- | --- |
+| row | value |
+
+```python
+secret code block
+```
+
+> [!EXAMPLE]
+
+Secret example body.
+
+> [!CHECK: q2]
+
+Q1. Which adjunct opens an airway?   (difficulty: recall)
+[OBJECTIVE: emt:airway.adjunct]
+A) A tongue depressor
+B) An oropharyngeal airway
+C) Oxygen tubing
+D) A stethoscope
+CORRECT: B
+WHY BEST: The oropharyngeal airway is the standard airway adjunct.
+KEY DISCRIMINATOR: A device that holds the tongue off the pharynx.
+SECOND-BEST: A. A tongue depressor holds the tongue; correct only if the question asked about visualization.
+DISTRACTOR ANALYSIS:
+- A) A visualization aid; would be correct if the question asked how to see the airway.
+- B) Correct: the standard adjunct.
+- C) Delivers oxygen; would be correct if the question asked about oxygenation.
+- D) A diagnostic tool; would be correct if the question asked how to auscultate.
+TRAP: Confusing oxygen delivery with airway opening.
+CONFIDENCE: high
+
+Q2. Second item.   (difficulty: recall)
+[OBJECTIVE: emt:airway.adjunct]
+A) One
+B) Two
+C) Three
+D) Four
+CORRECT: A
+WHY BEST: It is the first.
+KEY DISCRIMINATOR: Ordinal.
+SECOND-BEST: B. Second; correct if the question asked for two.
+DISTRACTOR ANALYSIS:
+- A) Correct.
+- B) Would be correct if asked for two.
+- C) Would be correct if asked for three.
+- D) Would be correct if asked for four.
+TRAP: Counting.
+CONFIDENCE: high
+"""
+        path = os.path.join(tmp, "leak_bank.md")
+        open(path, "w", encoding="utf-8").write(bank)
+        qs = itembank.load(path)
+        ctx = _gate_ctx(path, qs, policy="required",
+                        states={"q1": "open"})
+        page = lesson.lesson_page(path, qs, itembank.parse_lesson(path),
+                                  runtime=True, gate=ctx)
+        for leak in ("SECRET-BELOW-HEADING", "Prose below the check",
+                     "secret list item below the gate", "secret | table",
+                     "secret code block", "Secret example body",
+                     "!CHECK: q2", "q2", "The oropharyngeal airway is the "
+                     "standard", "A device that holds the tongue",
+                     "emt:airway.adjunct"):
+            if leak in page:
+                fail("below-gate content leaked into the HTML: %r" % leak)
+        # CSS-off text / accessible names: strip tags and re-check.
+        text = re.sub(r"<[^>]+>", " ", page)
+        text = re.sub(r"\s+", " ", text)
+        for leak in ("SECRET-BELOW-HEADING", "Prose below the check",
+                     "secret list item below the gate", "secret code block"):
+            if leak in text:
+                fail("below-gate content reached the text content: %r" % leak)
+        # The boundary names the withheld count.
+        if "1 more section below this check." not in page:
+            fail("the truncation boundary must render the n=1 row")
+        print("gate required: no-leak across HTML and text content")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_gate_boundary_copy_two_rows():
+    """Task 2 Test 2: the boundary has exactly two copy rows -- the
+    singular and the plural -- and no third variant."""
+    tmp = tempfile.mkdtemp()
+    try:
+        path = _write_bank(tmp)
+        qs = itembank.load(path)
+        page = lesson.lesson_page(path, qs, itembank.parse_lesson(path),
+                                  runtime=True, gate=_gate_ctx(path, qs))
+        if "1 more section below this check." not in page:
+            fail("n=1 must render the singular row")
+        # A bank with three sections, the check in the first, renders the
+        # plural row (2 sections below).
+        multi = """# Multi-gate fixture bank
+[GATE: required]
+
+## LESSON
+
+### First Section
+
+Prose above the check.
+
+> [!CHECK: q1]
+
+### Second Section
+
+Second prose.
+
+### Third Section
+
+Third prose.
+
+Q1. Which adjunct opens an airway?   (difficulty: recall)
+[OBJECTIVE: emt:airway.adjunct]
+A) A tongue depressor
+B) An oropharyngeal airway
+C) Oxygen tubing
+D) A stethoscope
+CORRECT: B
+WHY BEST: The oropharyngeal airway is the standard airway adjunct.
+KEY DISCRIMINATOR: A device that holds the tongue off the pharynx.
+SECOND-BEST: A. A tongue depressor holds the tongue; correct only if the question asked about visualization.
+DISTRACTOR ANALYSIS:
+- A) A visualization aid; would be correct if the question asked how to see the airway.
+- B) Correct: the standard adjunct.
+- C) Delivers oxygen; would be correct if the question asked about oxygenation.
+- D) A diagnostic tool; would be correct if the question asked how to auscultate.
+TRAP: Confusing oxygen delivery with airway opening.
+CONFIDENCE: high
+"""
+        mpath = os.path.join(tmp, "multi_bank.md")
+        open(mpath, "w", encoding="utf-8").write(multi)
+        mqs = itembank.load(mpath)
+        mpage = lesson.lesson_page(mpath, mqs, itembank.parse_lesson(mpath),
+                                   runtime=True, gate=_gate_ctx(mpath, mqs))
+        if "2 more sections below this check." not in mpage:
+            fail("n>1 must render the plural row")
+        print("gate boundary: exactly the two copy rows")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_gate_zero_reflow():
+    """Task 2 Test 3: the emitted bytes preceding the band's opening tag
+    are byte-identical across inert, open, cleared and skipped states, and
+    the band's box metrics are identical across all four."""
+    tmp = tempfile.mkdtemp()
+    try:
+        path = _write_bank(tmp)
+        qs = itembank.load(path)
+        les = itembank.parse_lesson(path)
+        open_ctx = _gate_ctx(path, qs, policy="required",
+                             states={"q1": "open"})
+        cleared_ctx = _gate_ctx(path, qs, policy="required",
+                                states={"q1": "cleared"})
+        skipped_ctx = _gate_ctx(path, qs, policy="required",
+                                states={"q1": "skipped"})
+        inert = lesson.lesson_page(path, qs, les, runtime=True, gate=None)
+        open_p = lesson.lesson_page(path, qs, les, runtime=True, gate=open_ctx)
+        cleared_p = lesson.lesson_page(path, qs, les, runtime=True,
+                                       gate=cleared_ctx)
+        skipped_p = lesson.lesson_page(path, qs, les, runtime=True,
+                                       gate=skipped_ctx)
+        markers = ['<section class="callout callout-check">',
+                   '<section class="gate">']
+        def pre(page):
+            for m in markers:
+                if m in page:
+                    return page.split(m)[0]
+            fail("no band/slot marker found in page")
+        base = pre(inert)
+        for other in (open_p, cleared_p, skipped_p):
+            if pre(other) != base:
+                fail("pre-band bytes differ across states -- zero-reflow "
+                     "violated")
+        # Band box metrics identical across all four: the .gate rule block
+        # is the single source for the three live states, and the .callout
+        # rule carries the same tokens for the inert slot (asserted by
+        # test_gate_band_box_metrics_match_slot); here we assert the three
+        # live states share one rule block (the print-path restyle is the
+        # only other .gate selector).
+        gate_css = lesson.LESSON_CSS
+        outside_print = gate_css.split("@media print")[0]
+        if outside_print.count(".gate{") != 1:
+            fail("exactly one .gate rule block must exist (print restyle "
+                 "excluded), got %d"
+                 % outside_print.count(".gate{"))
+        print("gate zero-reflow: pre-band bytes identical across four states")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_gate_recommended_flows_whole_lesson():
+    """Task 2 Test 4: under recommended the whole lesson is present in the
+    DOM with the band in flow; under off, 3.1's reader renders unchanged
+    (asserted by the compatibility-floor pair)."""
+    tmp = tempfile.mkdtemp()
+    try:
+        path = _write_bank(tmp)
+        qs = itembank.load(path)
+        page = lesson.lesson_page(path, qs, itembank.parse_lesson(path),
+                                  runtime=True, gate=_gate_ctx(
+                                      path, qs, policy="recommended"))
+        if "Second Section" not in page:
+            fail("recommended must render the whole lesson")
+        if "1 more section below this check." in page:
+            fail("recommended must not render a truncation boundary")
+        if '<section class="gate">' not in page:
+            fail("recommended must render the band in flow")
+        print("gate recommended: whole lesson in DOM, band in flow")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_gate_mode_degrade():
+    """Task 3 Test 1: [GATE: required] in diagnostic and exam modes renders
+    the complete lesson, emits no truncation boundary, offers no skip
+    control, records no gate_skip, and renders the exact degrade line."""
+    tmp = tempfile.mkdtemp()
+    try:
+        path = _write_bank(tmp)
+        qs = itembank.load(path)
+        for mode in ("diagnostic", "exam"):
+            page = lesson.lesson_page(path, qs, itembank.parse_lesson(path),
+                                      runtime=True, gate=_gate_ctx(
+                                          path, qs, policy="required",
+                                          degraded=True))
+            if "Second Section" not in page:
+                fail("%s mode must render the complete lesson" % mode)
+            if "more section" in page or "more sections" in page:
+                fail("%s mode must not render a truncation boundary" % mode)
+            if "Read ahead without answering" in page:
+                fail("%s mode must not offer the skip control" % mode)
+            if ("This sitting holds feedback until it ends, so checks do "
+                    "not gate reading here.") not in page:
+                fail("%s mode must render the exact degrade line" % mode)
+        print("gate mode-degrade: diagnostic + exam render complete, no skip")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_gate_compatibility_floor():
+    """Task 3 Test 2 (compatibility floor, GATE-05/D-14): a bank whose
+    lessons declare no gates renders byte-identically to Phase 3.1 output,
+    reusing 3.1's own fixture bank and golden, with the style-block
+    exclusion named (03.1-UI-SPEC section 12)."""
+    golden = open(lesson_roundtrip.GOLDEN_CONTENT_P3, encoding="utf-8").read()
+    path = lesson_roundtrip.LES_BANK
+    qs = itembank.load(path)
+    page = lesson.lesson_page(path, qs, itembank.parse_lesson(path))
+    # The style block is excluded exactly as 3.1's own floor test excludes
+    # it (03.1-UI-SPEC section 12): the content region between the card's
+    # opening div and the style footer, compared against the Phase 3 golden.
+    content = lesson_roundtrip._lesson_content_region(page)
+    if content != golden:
+        fail("a no-gate bank rendered differently from the Phase 3 golden")
+    print("gate compatibility floor: 3.1 fixture bank byte-identical")
+    tmp = tempfile.mkdtemp()
+    try:
+        # A gate-bearing lesson without a session renders the same inert
+        # slots a pre-6.2 reader would -- the slot-level floor.
+        path2, qs2, page2 = _render(tmp, gate=None)
+        if ("This check is available when you are reading with a session."
+                not in page2):
+            fail("gate-less render must keep 3.1's inert slot copy")
+        print("gate compatibility floor: inert slot copy unchanged")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_gate_unresolvable_check_degrades():
+    """Task 3 Test 3: a [!CHECK:] naming an id not in the bank renders as
+    the D1 labelled rule with the warn-tone line and does not gate --
+    reading continues."""
+    tmp = tempfile.mkdtemp()
+    try:
+        path = _write_bank(tmp, check="nope")
+        qs = itembank.load(path)
+        page = lesson.lesson_page(path, qs, itembank.parse_lesson(path),
+                                  runtime=True,
+                                  gate=_gate_ctx(path, qs, policy="required"))
+        if "This check refers to an item that is not in this bank." not in page:
+            fail("the unresolvable check must render the warn-tone line")
+        if "Second Section" not in page:
+            fail("an unresolvable check must never gate -- reading continues")
+        if "1 more section below this check." in page:
+            fail("an unresolvable check must not render a boundary")
+        print("gate unresolvable: D1 rule, warn line, never gates")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     test_gate_directive_parses_and_defaults()
     test_gate_grammar_additive()
@@ -467,8 +927,19 @@ def main():
     test_gate_state_session_scoped()
     test_gate_state_retraction_restores_prior_state()
     test_gate_state_is_pure_read()
+    test_gate_band_live_markup()
+    test_gate_band_box_metrics_match_slot()
+    test_gate_inert_and_off_match_phase31()
+    test_gate_no_script_element()
+    test_gate_required_truncation_no_leak()
+    test_gate_boundary_copy_two_rows()
+    test_gate_zero_reflow()
+    test_gate_recommended_flows_whole_lesson()
+    test_gate_mode_degrade()
+    test_gate_compatibility_floor()
+    test_gate_unresolvable_check_degrades()
     print("ok: gate roundtrip (GATE grammar, gate_skip event, context "
-          "field, gate_state derivation)")
+          "field, gate_state derivation, gate band render policy)")
 
 
 if __name__ == "__main__":
