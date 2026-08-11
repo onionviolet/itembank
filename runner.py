@@ -26,7 +26,8 @@ That is all. The learner's code runs with the full rights of the user running
 itembank and may reach the filesystem and the network; this module stops
 accidents, and model.HONEST_LIMITS_NOTE states exactly that.
 """
-import ast, json, os, re, signal, subprocess, sys, tempfile, threading, time
+import ast, ctypes, json, os, re, signal, subprocess, sys, tempfile, threading, time
+from ctypes import wintypes
 
 import model
 
@@ -48,7 +49,70 @@ DEFAULT_MAX_OUTPUT_BYTES = 65536
 # the kill so the threads reach EOF and exit in milliseconds; the
 # timeout is a guard so a pathological stall cannot hang a case that
 # a next case in the same submission depends on.
+
 _DRAIN_JOIN_TIMEOUT = 5
+
+
+# --- Windows Job Object with kill-on-close (plan 05-02 Task 2) --------------
+# The three ctypes structures the job API needs, plus the two constants. The
+# field order and widths are what 05-RESEARCH.md records from Microsoft Learn:
+# DWORD for 32-bit fields and c_size_t (pointer-width) for the pointer ones, or
+# SetInformationJobObject rejects the struct as the wrong size on 64-bit. The
+# symbols are defined at module scope so the size checks and the structures are
+# introspectable on Linux CI, but nothing here calls ctypes.WinDLL -- that only
+# happens inside new_job_object/assign_to_job/kill_tree, so the module imports
+# cleanly on POSIX. JobObjectExtendedLimitInformation is Assumption A3: widely
+# cited as 9 but not re-verified against a primary enum table this session; it
+# fails loudly (SetInformationJobObject returns false) if wrong, and plan 05-04
+# confirms it on the target machine.
+JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
+JobObjectExtendedLimitInformation = 9     # JOBOBJECTINFOCLASS enum value
+
+
+class IO_COUNTERS(ctypes.Structure):
+    _fields_ = [
+        ("ReadOperationCount",  ctypes.c_ulonglong),
+        ("WriteOperationCount", ctypes.c_ulonglong),
+        ("OtherOperationCount", ctypes.c_ulonglong),
+        ("ReadTransferCount",   ctypes.c_ulonglong),
+        ("WriteTransferCount",  ctypes.c_ulonglong),
+        ("OtherTransferCount",  ctypes.c_ulonglong),
+    ]
+
+
+class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+    _fields_ = [
+        ("PerProcessUserTimeLimit", ctypes.c_int64),   # LARGE_INTEGER
+        ("PerJobUserTimeLimit",     ctypes.c_int64),
+        ("LimitFlags",              wintypes.DWORD),
+        ("MinimumWorkingSetSize",   ctypes.c_size_t),
+        ("MaximumWorkingSetSize",   ctypes.c_size_t),
+        ("ActiveProcessLimit",      wintypes.DWORD),
+        ("Affinity",                ctypes.c_size_t),  # ULONG_PTR
+        ("PriorityClass",           wintypes.DWORD),
+        ("SchedulingClass",         wintypes.DWORD),
+    ]
+
+
+class JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
+    _fields_ = [
+        ("BasicLimitInformation", JOBOBJECT_BASIC_LIMIT_INFORMATION),
+        ("IoInfo",                IO_COUNTERS),
+        ("ProcessMemoryLimit",    ctypes.c_size_t),
+        ("JobMemoryLimit",        ctypes.c_size_t),
+        ("PeakProcessMemoryUsed", ctypes.c_size_t),
+        ("PeakJobMemoryUsed",     ctypes.c_size_t),
+    ]
+
+
+# The two bounds tests share one kill trigger. The private switch and the two
+# trace slots let the kill test (and plan 05-04's spike record) tell which
+# Windows path actually ran, and force the taskkill fallback without a real
+# job-object failure.
+_FORCE_TASKKILL_FALLBACK = False
+_last_kill_path = None      # which kill path ran last (group/job/fallback)
+_last_job_error = None      # repr of the WinError that fell to the fallback
+
 
 
 class UnknownLanguage(Exception):
@@ -198,15 +262,19 @@ def drain_pipe(pipe, cap_bytes, buf, truncated, stop_event):
                 stop_event.set()
 
 
-def kill_tree(proc, job_handle=None):
-    """The single kill path both the deadline branch and the output-cap
-    branch call -- never a second kill mechanism for the second trigger.
-    POSIX: SIGKILL the child's process group (spawned with its own session)
-    so grandchildren that did not detach die with it; Windows: taskkill /T /F
-    /PID. The direct child is reaped with wait() so it cannot linger as a
-    zombie until the parent exits. job_handle exists for plan 05-02, which
-    promotes a Windows Job Object behind this same signature."""
+def kill_tree(proc, job_handle=None, proc_handle=None):
+    """The single kill path both the deadline branch and the output-cap branch
+    call -- never a second kill mechanism for the second trigger. POSIX:
+    SIGKILL the child's process group (spawned with its own session) so
+    grandchildren that did not detach die with it. Windows: closing a
+    kill-on-close job handle terminates the whole job (no separate
+    TerminateProcess call), falling back to taskkill /T /F /PID when no job was
+    built. The direct child is reaped with wait() so it cannot linger as a
+    zombie until the parent exits. Which path ran is recorded on _last_kill_path
+    so the kill test and plan 05-04's spike record can tell them apart."""
+    global _last_kill_path
     if os.name == "posix":
+        _last_kill_path = "killpg"
         try:
             os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
         except (ProcessLookupError, PermissionError):
@@ -214,7 +282,16 @@ def kill_tree(proc, job_handle=None):
                 proc.kill()
             except OSError:
                 pass
+    elif job_handle:
+        _last_kill_path = "job"
+        kernel32 = ctypes.WinDLL("kernel32")
+        CloseHandle = kernel32.CloseHandle
+        CloseHandle.argtypes = [wintypes.HANDLE]
+        CloseHandle(job_handle)      # the kill: closes the job, kills the tree
+        if proc_handle:
+            CloseHandle(proc_handle) # release the extra process reference
     else:
+        _last_kill_path = "taskkill"
         subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
@@ -223,18 +300,98 @@ def kill_tree(proc, job_handle=None):
         pass
 
 
+def new_job_object():
+    """Create a Windows job object configured with
+    JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, so closing the last handle to the job
+    terminates every process in it. Windows only; raises on POSIX. Never
+    returns a falsy handle -- a job that was not configured must not be
+    mistaken for one that was."""
+    if sys.platform != "win32":
+        raise OSError("job objects are a Windows mechanism")
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    CreateJobObjectW = kernel32.CreateJobObjectW
+    CreateJobObjectW.restype = wintypes.HANDLE
+    CreateJobObjectW.argtypes = [wintypes.LPVOID, wintypes.LPCWSTR]
+    hjob = CreateJobObjectW(None, None)
+    if not hjob:
+        raise ctypes.WinError(ctypes.get_last_error())
+    info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+    info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+    SetInformationJobObject = kernel32.SetInformationJobObject
+    SetInformationJobObject.restype = wintypes.BOOL
+    SetInformationJobObject.argtypes = [wintypes.HANDLE, ctypes.c_int,
+                                        ctypes.c_void_p, wintypes.DWORD]
+    ok = SetInformationJobObject(hjob, JobObjectExtendedLimitInformation,
+                                 ctypes.byref(info), ctypes.sizeof(info))
+    if not ok:
+        raise ctypes.WinError(ctypes.get_last_error())
+    return hjob
+
+
+def assign_to_job(handle, pid):
+    """Assign a freshly spawned process (by the pid Popen exposes) into a job
+    object, so it inherits the job's kill-on-close membership. Windows only.
+    Returns the process handle opened for the assignment; the caller (kill_tree)
+    closes it. Raises ctypes.WinError on failure."""
+    if sys.platform != "win32":
+        raise OSError("job objects are a Windows mechanism")
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    PROCESS_ALL_ACCESS = 0x1F0FFF
+    OpenProcess = kernel32.OpenProcess
+    OpenProcess.restype = wintypes.HANDLE
+    OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    hproc = OpenProcess(PROCESS_ALL_ACCESS, False, pid)
+    if not hproc:
+        raise ctypes.WinError(ctypes.get_last_error())
+    AssignProcessToJobObject = kernel32.AssignProcessToJobObject
+    AssignProcessToJobObject.restype = wintypes.BOOL
+    AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+    ok = AssignProcessToJobObject(handle, hproc)
+    if not ok:
+        raise ctypes.WinError(ctypes.get_last_error())
+    return hproc
+
+
 def _spawn_and_drain(argv, stdin_text, timeout_seconds, max_output_bytes):
     """One subprocess: stdin written then closed immediately -- so a program
     reading to EOF finishes its own read instead of sitting out the deadline
     -- stdout and stderr drained on two threads (never sequentially, which is
     the pipe-buffer deadlock), and killed by deadline or output cap through
     the one kill_tree path. Returns (stdout, timed_out, truncated)."""
+    global _last_job_error
     kwargs = {}
+    job_handle = None
+    proc_handle = None
     if os.name == "posix":
         kwargs["start_new_session"] = True   # the child leads its own group
+    elif sys.platform == "win32" and not _FORCE_TASKKILL_FALLBACK:
+        # Create the kill-on-close job before spawning so there is no gap in
+        # which the child could run outside any job.
+        try:
+            job_handle = new_job_object()
+        except OSError as exc:
+            _last_job_error = repr(exc)
+            job_handle = None
     proc = subprocess.Popen(argv, stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             **kwargs)
+    if job_handle is not None:
+        # Assign the child to the job as the very next statement after Popen
+        # returns, with no I/O, no logging and no other call in between.
+        # subprocess.Popen cannot spawn suspended and resume afterwards --
+        # CPython's Windows child-creation closes the child's thread handle
+        # before returning, tracked upstream as bpo-1677688 -- so the
+        # textbook race-free create-then-assign-then-resume sequence is not
+        # reachable through the public API. D-16 accepts the resulting window
+        # rather than dropping to the private process-creation module: a
+        # grandchild created inside it escapes the job. Plan 05-04 measures
+        # that window over 50 iterations rather than claiming it is zero.
+        try:
+            proc_handle = assign_to_job(job_handle, proc.pid)
+        except OSError as exc:
+            _last_job_error = repr(exc)
+            job_handle = None
+            proc_handle = None
     stop = threading.Event()
     out_buf, out_trunc = [], threading.Event()
     err_buf, err_trunc = [], threading.Event()
@@ -258,12 +415,12 @@ def _spawn_and_drain(argv, stdin_text, timeout_seconds, max_output_bytes):
     deadline = time.monotonic() + timeout_seconds
     while True:
         if stop.is_set():
-            kill_tree(proc, None)
+            kill_tree(proc, job_handle, proc_handle)
             break
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             timed_out = True
-            kill_tree(proc, None)
+            kill_tree(proc, job_handle, proc_handle)
             break
         try:
             proc.wait(timeout=min(0.05, remaining))
