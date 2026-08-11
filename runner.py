@@ -44,6 +44,11 @@ LANGUAGES = {"python": ["{interpreter}", "-I", "{source}"]}
 
 DEFAULT_TIMEOUT_SECONDS = 5
 DEFAULT_MAX_OUTPUT_BYTES = 65536
+# Bound on joining a drain thread after a kill. The pipes close on
+# the kill so the threads reach EOF and exit in milliseconds; the
+# timeout is a guard so a pathological stall cannot hang a case that
+# a next case in the same submission depends on.
+_DRAIN_JOIN_TIMEOUT = 5
 
 
 class UnknownLanguage(Exception):
@@ -265,7 +270,8 @@ def _spawn_and_drain(argv, stdin_text, timeout_seconds, max_output_bytes):
             break
         except subprocess.TimeoutExpired:
             continue
-    t_out.join(); t_err.join()
+    t_out.join(timeout=_DRAIN_JOIN_TIMEOUT)
+    t_err.join(timeout=_DRAIN_JOIN_TIMEOUT)
     actual = b"".join(out_buf).decode("utf-8", "replace")
     truncated = out_trunc.is_set() or err_trunc.is_set()
     return actual, timed_out, truncated
