@@ -20,7 +20,7 @@ SCHEMAS_DIR = os.path.join(ROOT, "schemas")
 # rather than restating the literal, so the two files cannot drift -- a second
 # copy of the prefix list is the same class of drift this set exists to
 # prevent.
-LINT_PREFIXES = ("item", "bank", "lesson", "terms", "key", "style")
+LINT_PREFIXES = ("item", "bank", "lesson", "terms", "key", "style", "prov")
 
 
 def fail(msg):
@@ -300,12 +300,20 @@ def test_event_schema_fields():
 
         auto_scored_checked = short_checked = False
         data = json.load(open(session_file, encoding="utf-8"))
+        seen = set()
         while data["status"] == "active":
             nxt = json.loads(run(["next", session_file], tmp))
             if nxt["status"] != "active":
                 break
             item = nxt["item"]
             q = qs[item["id"]]
+            # Phase 6: a `short` response stays pending for a human marker
+            # and never advances the cursor, so submit it once and stop.
+            if q["type"] == "short":
+                short_checked = True
+            if q["id"] in seen:
+                break
+            seen.add(q["id"])
             answer = correct_answer(q)
             json.loads(run(
                 ["submit", session_file, "--answer", answer, "--confidence", "medium"], tmp))
@@ -440,8 +448,10 @@ def test_schema_command_output():
         fail("--all's spec does not equal model.SPEC verbatim")
 
     names = sorted(payload.get("contracts", {}))
-    if names != ["item", "lint_error", "report", "response", "session"]:
-        fail("--all's contracts dict does not carry all five names in sorted order: %r" % names)
+    if names != ["item", "lint_error", "report", "response", "selection",
+                 "session"]:
+        fail("--all's contracts dict does not carry all six names in sorted "
+             "order: %r" % names)
 
     for name, doc in payload["contracts"].items():
         try:

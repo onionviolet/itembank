@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/selection.schema.json",
+  "title": "itembank selection spec",
+  "description": "The one selection request every surface builds -- the CLI, POST /api/start, and a named settings profile all expand to this dict, and recording it on the session and in the evidence log is what makes a sitting reproducible. Every field is optional: an empty spec is a valid request for a default session.",
+  "x-itembank-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {
+    "objective": {
+      "type": "string",
+      "description": "The namespaced objective to select from; empty string means no objective filter."
+    },
+    "prerequisite": {
+      "type": "string",
+      "description": "A single objective identifier; filters to items that name it in [PREREQ:]."
+    },
+    "prereq_satisfied": {
+      "type": "boolean",
+      "description": "When true, narrows to items every one of whose [PREREQ:] objectives has a recorded correct response."
+    },
+    "type": {
+      "type": "string",
+      "enum": ["mc", "multi", "table", "dnd", "build", "short"],
+      "description": "The item type to select; plain equality against q[\"type\"]."
+    },
+    "difficulty": {
+      "type": "string",
+      "description": "The difficulty annotation to select. The recall|application|analysis convention is a convention, not a lint-enforced enum; an unmatched value simply selects nothing."
+    },
+    "selection_mode": {
+      "type": "string",
+      "enum": ["diagnostic", "practice", "remediation", "exam"],
+      "description": "The selection composition (diagnostic/practice/remediation/exam) -- distinct from the feedback-policy `mode` in session.schema.json."
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "How many items to serve; defaults to 10."
+    },
+    "seed": {
+      "type": "integer",
+      "description": "Deterministic item-selection seed."
+    },
+    "exclude_item_ids": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Opaque [ID:] values to exclude, never item numbers -- numbers move when a bank is edited."
+    },
+    "pair": {
+      "type": "string",
+      "description": "A confusion-set name; serves every item in that set together."
+    },
+    "profile": {
+      "type": "string",
+      "description": "A named selection profile from settings; expanded key-by-key under explicit flags."
+    }
+  }
+}

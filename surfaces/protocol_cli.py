@@ -22,6 +22,8 @@ from model import SPEC
 # behind, what comes back out in a report, and one lint finding.
 CONTRACTS = (
     ("item", "what a learner sees before answering, from `itembank next`/`start`"),
+    ("selection", "the one selection request every surface builds, recorded on the "
+                  "session and in the evidence log"),
     ("session", "the resumable session file `start`/`next`/`submit`/`report` share"),
     ("response", "one recorded evidence event, one line of `_evidence/evidence.jsonl`"),
     ("report", "a session summary or an objective's response history"),
@@ -43,6 +45,10 @@ COMMANDS = (
      "description": "assign opaque item ids and content-hash fingerprints; the only "
                      "command that writes into a bank",
      "contract": None},
+    {"command": "itembank select BANK.md --selection-mode MODE --explain",
+     "description": "preview a selection and read, in plain English, why each item "
+                     "was chosen over a named alternative",
+     "contract": "selection"},
     {"command": "itembank start BANK.md --count N --mode MODE --out SESSION.json",
      "description": "start a resumable session; writes SESSION.json and prints its "
                      "first item",
@@ -96,6 +102,6 @@ def cmd_schema(a):
         print("  %-12s v%-3d  %s" % (name, doc["x-itembank-version"], summary))
     print("\nRun `itembank schema NAME` for one document, or "
           "`itembank schema --all` for the whole contract -- the bank format, "
-          "all five documents, and the command sequence to run a session -- "
+          "all six documents, and the command sequence to run a session -- "
           "in one object.")
     return 0
