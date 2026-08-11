@@ -99,8 +99,17 @@ def cmd_audit_author(a, author_callable=None):
         "mode": a.mode,
     }
     bank_text = open(a.bank, encoding="utf-8", newline="").read()
-    config = {"target_path": a.bank, "state_dir": a.state_dir,
-              "blocking_warnings": []}
+    config = {
+        "target_path": a.bank,
+        "state_dir": a.state_dir,
+        "blocking_warnings": [],
+        # full autonomy is an explicit CLI opt-in (--mode full), never
+        # inferred from model output or a prior run (D-13, T-11-21).
+        "full_opt_in": a.mode == "full",
+        "approved_write_ids": list(getattr(a, "approve", []) or []),
+        "caps": {"per_run": getattr(a, "cap_run", 0) or 0,
+                 "per_objective": getattr(a, "cap_objective", 0) or 0},
+    }
     writer = audit_writer.write_units if a.write else None
 
     try:

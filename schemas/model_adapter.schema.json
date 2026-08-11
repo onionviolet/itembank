@@ -25,8 +25,8 @@
         },
         "operation": {
           "type": "string",
-          "enum": ["hint", "rubric_review"],
-          "description": "The one bounded operation: hint generation or rubric point review."
+          "enum": ["hint", "rubric_review", "author"],
+          "description": "The bounded operation: hint generation, rubric point review, or bounded item authoring (Phase 11 additive author operation; the author request carries the public format contract, the bounded authoring request, the attempt number, and versioned structured findings -- never repository contents)."
         },
         "interaction_id": {
           "type": "string",
@@ -110,6 +110,42 @@
             }
           ],
           "description": "The authored rubric points to review; required (non-null) at runtime for operation rubric_review."
+        },
+        "author_request": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["schema_version", "contract", "request", "attempt", "findings"],
+              "properties": {
+                "schema_version": { "const": 1 },
+                "contract": {
+                  "type": "string",
+                  "description": "The public format contract (model.SPEC) -- the only format information the repository-blind author receives."
+                },
+                "request": {
+                  "type": "object",
+                  "description": "The bounded authoring request (authoring_request.schema.json shape); exact scope/citation bounds."
+                },
+                "attempt": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "The attempt number; retries stop at the configured cap."
+                },
+                "findings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  },
+                  "description": "Versioned structured scope/lint/quality findings from earlier attempts (D-06); never hand-relayed prose."
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The Phase 11 bounded authoring payload for operation author. Provider output remains untrusted and is validated by the authoring pipeline, never accepted by the adapter."
         }
       }
     },
