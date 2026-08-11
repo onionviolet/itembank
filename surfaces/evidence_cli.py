@@ -55,10 +55,11 @@ def cmd_evidence(a):
     session_id = a.session or None
     mode = a.mode or None
     since = a.since or None
+    bank = a.bank or None
 
-    if not (objective or subject or session_id):
-        sys.exit("evidence: give at least one of --objective, --subject or "
-                  "--session to query")
+    if not (objective or subject or session_id or bank):
+        sys.exit("evidence: give at least one of --objective, --subject, "
+                  "--session or --bank to query")
 
     # objective_history() is the ONE call site that runs ensure_index() --
     # deliberately not duplicated here, so a query that skipped it (a
@@ -68,7 +69,7 @@ def cmd_evidence(a):
     # asking whether the index it should have refreshed is in fact fresh.
     rows = evidence.objective_history(
         log, objective, prefix=a.prefix, subject=subject, mode=mode,
-        session_id=session_id, since=since)
+        session_id=session_id, since=since, bank=bank)
     by_mode = evidence.objective_rollup(rows)
     try:
         post_stale, _ = evidence.index_stale(log, index)
@@ -81,11 +82,12 @@ def cmd_evidence(a):
         1 for ev in evidence.events(log)
         if ev.get("event_type") == evidence.RESPONSE_EVENT_TYPE
         and evidence.event_matches(ev, objective, a.prefix, subject, mode,
-                                   session_id, since)
+                                   session_id, since, bank)
         and ev.get("event_id") in retracted_ids)
 
-    result = {"schema_version": evidence.EVENT_SCHEMA_VERSION,
-              "objective": objective or "", "count": len(rows),
+    result = {"schema_version": evidence.REPORT_VERSION,
+              "objective": objective or "", "bank": a.bank or "",
+              "count": len(rows),
               "retracted": retracted_count, "by_mode": by_mode,
               "index": status, "index_rebuilt": bool(a.rebuild_index),
               "events": rows}

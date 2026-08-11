@@ -34,6 +34,61 @@
         "objectives": {
           "type": "object",
           "description": "Objective name to {attempts, correct, pending}, unmapped responses grouped under the literal key '(unmapped)'"
+        },
+        "teaching_outcomes": {
+          "type": "object",
+          "description": "Per-item teaching outcomes (D-17, TEACH-03, Phase 6) keyed by the stable item identity (opaque [ID:] when assigned, else 'ref:<positional id>'), derived from live response/hint/mark events by evidence.teaching_outcomes() -- never from a mutable counter. Optional: a summary written before plan 06-01 (or by a caller that has not yet joined live evidence) has none.",
+          "additionalProperties": {
+            "$ref": "#/$defs/teaching_outcome_row"
+          }
+        }
+      }
+    },
+    "teaching_outcome_row": {
+      "type": "object",
+      "required": ["item_id", "item_ref", "outcome", "first_try_correct",
+                   "correct_after_attempts", "correct_after_tier",
+                   "stumped_at_tier", "revealed", "hints_used", "highest_tier"],
+      "properties": {
+        "item_id": {
+          "type": "string"
+        },
+        "item_ref": {
+          "type": "string"
+        },
+        "outcome": {
+          "type": "string",
+          "enum": ["first_try_correct", "correct_after_attempts",
+                   "correct_after_tier", "accepted_mark", "revealed",
+                   "stumped", "pending", "unresolved"]
+        },
+        "first_try_correct": {
+          "type": "boolean"
+        },
+        "correct_after_attempts": {
+          "type": ["integer", "null"],
+          "description": "Total genuine attempts through the first correct response, or null when no correct response exists."
+        },
+        "correct_after_tier": {
+          "type": ["integer", "null"],
+          "description": "Same as correct_after_attempts when at least one hint had been shown, else null -- two otherwise-identical correct responses at tier 1 and tier 4 must produce different rows (TEACH-03)."
+        },
+        "stumped_at_tier": {
+          "type": ["integer", "null"],
+          "description": "The lowest tier at which the learner used the stumped control, or null when they never did. Stumped is not a wrong response."
+        },
+        "revealed": {
+          "type": "boolean",
+          "description": "True when the authored reveal (tier 5) was shown."
+        },
+        "hints_used": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of live hint events for this item -- never a mutable counter."
+        },
+        "highest_tier": {
+          "type": ["integer", "null"],
+          "description": "Highest tier shown, or null when no tier was shown."
         }
       }
     },
@@ -46,6 +101,10 @@
         },
         "objective": {
           "type": "string"
+        },
+        "bank": {
+          "type": "string",
+          "description": "Plan 07-03. The bank basename this query was scoped to, or \"\" when no --bank filter was given. Optional: a document written before phase 7 has none."
         },
         "count": {
           "type": "integer"
@@ -104,6 +163,14 @@
         },
         "response_time_ms": {
           "type": ["integer", "null"]
+        },
+        "objective": {
+          "type": ["string", "null"],
+          "description": "The recorded objective of the response this row projects (plan 07-03). A document written before phase 7 has none."
+        },
+        "bank": {
+          "type": ["string", "null"],
+          "description": "The recorded bank basename of the response this row projects (plan 07-03, D-13). A document written before phase 7 has none."
         }
       }
     }

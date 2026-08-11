@@ -2,136 +2,239 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://itembank.local/schemas/response.schema.json",
   "title": "itembank evidence event",
-  "description": "One line of _evidence/evidence.jsonl, built by evidence.response_event() and written by evidence.append_event() alone. additionalProperties is false and every key below is required, so a missing key is a validation failure rather than a shrug: a consumer must be able to tell 'not captured' from 'this field did not exist in that era', and that only works if every key is always present. This document's required/properties describe the response event shape only. event_type may also carry mark, retraction, day_tick, term_lookup or key_review; those get real event bodies from evidence.retraction_event() (plan 01-07), evidence.mark_event() (plan 01-09), evidence.day_tick_event() (plan 01-10), evidence.term_lookup_event() (plan 03.1-02) and evidence.key_review_event() (plan 03.1-03), described in $defs below, but are not yet enforced by the required/properties above -- a retraction, mark, day_tick, term_lookup or key_review line in evidence.jsonl does not validate against this top-level document.",
-  "x-itembank-version": 1,
+  "description": "One line of _evidence/evidence.jsonl, built by evidence.response_event() / evidence.hint_event() and written by evidence.append_event() alone. Version 2 (Phase 6) adds the closed hint event shape and an integer-or-null response hint_tier (D-15/D-16) while keeping version-1 reads compatible. The response_event branch is the response shape: additionalProperties is false and every key is required, so a consumer can tell 'not captured' from 'this field did not exist in that era'. mark, retraction, day_tick, term_lookup and key_review events get real bodies from the matching evidence constructors (described in $defs below) and are accepted by a permissive catch-all branch so a log mixing event types validates as a whole.",
+  "x-itembank-version": 2,
   "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "schema_version", "event_id", "event_type", "ts", "session_id", "item_id",
-    "item_ref", "item_type", "bank", "objective", "subject", "mode",
-    "attempt_number", "answer", "canonical", "score", "response_time_ms",
-    "confidence", "error_category", "hint_tier", "review_state", "dedupe_key",
-    "source_ref"
+  "oneOf": [
+    {
+      "$ref": "#/$defs/response_event"
+    },
+    {
+      "$ref": "#/$defs/hint_event"
+    },
+    {
+      "$ref": "#/$defs/other_event"
+    }
   ],
-  "properties": {
-    "schema_version": {
-      "const": 1
-    },
-    "event_id": {
-      "type": "string",
-      "description": "A uuid4 hex identifying this event"
-    },
-    "event_type": {
-      "type": "string",
-      "enum": ["response", "mark", "retraction", "day_tick", "term_lookup",
-               "key_review"],
-      "description": "This build writes only 'response'. 'retraction' was given a body in plan 01-07, 'mark' in plan 01-09, 'day_tick' in plan 01-10, 'term_lookup' in plan 03.1-02, and 'key_review' in plan 03.1-03."
-    },
-    "ts": {
-      "type": "string",
-      "description": "ISO-8601 UTC to millisecond precision, matching evidence.utc_now()"
-    },
-    "session_id": {
-      "type": "string"
-    },
-    "item_id": {
-      "type": "string",
-      "description": "The opaque [ID:] identity field when assigned (plan 01-04); empty string on an item that has never had id-assign run against it"
-    },
-    "item_ref": {
-      "type": "string",
-      "description": "The Qn-derived positional id, always present regardless of whether item_id has been assigned"
-    },
-    "item_type": {
-      "type": "string",
-      "enum": ["mc", "multi", "table", "dnd", "build", "short"]
-    },
-    "bank": {
-      "type": "string",
-      "description": "The bank file's basename only, never an absolute path (T-1-06) -- a consumer should not expect a resolvable path here"
-    },
-    "objective": {
-      "type": "string"
-    },
-    "subject": {
-      "type": "string",
-      "description": "The text before the first ':' in a namespaced objective (evidence.subject_of); empty string on an unnamespaced or empty objective"
-    },
-    "mode": {
-      "type": "string",
-      "enum": ["diagnostic", "practice", "exam", "remediation", "drill", "legacy"],
-      "description": "Captured live on every surface; this is what makes a drill-mode correct distinguishable from an exam-mode correct. 'legacy' is written only by itembank migrate (plan 01-11), for an imported record whose source (an attempt markdown file, which never recorded a mode) carries no mode of its own."
-    },
-    "attempt_number": {
-      "type": "integer",
-      "description": "One more than the count of prior response events for this session and this item"
-    },
-    "answer": {
-      "description": "The learner's raw response, shaped per item type -- a string, an array, or an object"
-    },
-    "canonical": {
-      "type": "string",
-      "description": "evidence.idempotency_canon()'s output: runtime.canonical_response() when it returns one, or 'short:' + sha256 of the whitespace-collapsed, lowercased answer text when canonical_response() returns null (a short item has no canonical form of its own). This is the same value fed into dedupe_key, so the two can never compare against different things (D-17, plan 01-07); never null."
-    },
-    "score": {
-      "type": ["boolean", "null"],
-      "description": "true, false, or null for a constructed response not yet marked -- not-yet-marked and marked-wrong are different states"
-    },
-    "response_time_ms": {
-      "type": ["integer", "null"],
-      "description": "Captured live; milliseconds between the item being served and the response being submitted; null only when the session carries no served_ts."
-    },
-    "confidence": {
-      "type": ["string", "null"],
-      "enum": ["high", "medium", "low", null],
-      "description": "Captured live where the surface offers it (submit --confidence); null when the learner did not say, which is different from low confidence."
-    },
-    "error_category": {
-      "type": "null",
-      "description": "Reserved, always null in schema version 1. No error taxonomy exists; it depends on the tutoring work in Phases 6 and 8. A guessed category would be recorded as fact and read as fact by later trend work, so it is recorded as unknown instead."
-    },
-    "hint_tier": {
-      "type": "null",
-      "description": "Reserved, always null in schema version 1. The hint ladder is Phase 6. Null means no ladder existed, which is a different fact from 'the ladder existed and the learner reached tier 0'; conflating them is unrecoverable once written."
-    },
-    "review_state": {
-      "type": "string",
-      "enum": ["n/a", "pending", "marked"],
-      "description": "'n/a' for an auto-scored item, 'pending' for a constructed response awaiting a marker, 'marked' once a mark event lands."
-    },
-    "dedupe_key": {
-      "type": "string",
-      "description": "A sha256 hex digest identifying one attempt at one item in one session"
-    },
-    "source_ref": {
-      "type": ["object", "null"],
-      "description": "Null for a live-path response event. For an event imported by itembank migrate (plan 01-11), an object naming where the record came from and how its item_id was resolved -- never a guess left unstated (D-14).",
+  "required": ["schema_version"],
+  "$defs": {
+    "response_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "event_id", "event_type", "ts", "session_id", "item_id",
+        "item_ref", "item_type", "bank", "objective", "subject", "mode",
+        "attempt_number", "answer", "canonical", "score", "response_time_ms",
+        "confidence", "error_category", "hint_tier", "review_state", "dedupe_key",
+        "source_ref"
+      ],
       "properties": {
-        "kind": {
-          "type": "string",
-          "enum": ["attempt_md", "session_json"],
-          "description": "Which legacy store this record came from"
+        "schema_version": {
+          "const": 2
         },
-        "path": {
+        "event_id": {
           "type": "string",
-          "description": "The legacy source file's basename only, never a full path"
+          "description": "A uuid4 hex identifying this event"
         },
-        "ref": {
+        "event_type": {
           "type": "string",
-          "description": "The reference identifying this record within its source file -- an attempt file's item heading number, or a session file's array-index-plus-item_id"
+          "const": "response",
+          "description": "This branch is the response shape only. 'hint' has its own closed branch (Phase 6); mark/retraction/day_tick/term_lookup/key_review events fall to the catch-all branch."
         },
-        "resolution": {
+        "ts": {
           "type": "string",
-          "enum": ["unresolved", "position"],
-          "description": "'unresolved' by default (item_id is empty string); 'position' only when --resolve-by-position matched this record's positional reference against today's bank by current item number"
+          "description": "ISO-8601 UTC to millisecond precision, matching evidence.utc_now()"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "item_id": {
+          "type": "string",
+          "description": "The opaque [ID:] identity field when assigned (plan 01-04); empty string on an item that has never had id-assign run against it"
+        },
+        "item_ref": {
+          "type": "string",
+          "description": "The Qn-derived positional id, always present regardless of whether item_id has been assigned"
+        },
+        "item_type": {
+          "type": "string",
+          "enum": ["mc", "multi", "table", "dnd", "build", "short"]
+        },
+        "bank": {
+          "type": "string",
+          "description": "The bank file's basename only, never an absolute path (T-1-06) -- a consumer should not expect a resolvable path here"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string",
+          "description": "The text before the first ':' in a namespaced objective (evidence.subject_of); empty string on an unnamespaced or empty objective"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["diagnostic", "practice", "exam", "remediation", "drill", "legacy"],
+          "description": "Captured live on every surface; this is what makes a drill-mode correct distinguishable from an exam-mode correct. 'legacy' is written only by itembank migrate (plan 01-11), for an imported record whose source (an attempt markdown file, which never recorded a mode) carries no mode of its own."
+        },
+        "attempt_number": {
+          "type": "integer",
+          "description": "One more than the count of prior response events for this session and this item"
+        },
+        "answer": {
+          "description": "The learner's raw response, shaped per item type -- a string, an array, or an object"
+        },
+        "canonical": {
+          "type": "string",
+          "description": "evidence.idempotency_canon()'s output: runtime.canonical_response() when it returns one, or 'short:' + sha256 of the whitespace-collapsed, lowercased answer text when canonical_response() returns null (a short item has no canonical form of its own). This is the same value fed into dedupe_key, so the two can never compare against different things (D-17, plan 01-07); never null."
+        },
+        "score": {
+          "type": ["boolean", "null"],
+          "description": "true, false, or null for a constructed response not yet marked -- not-yet-marked and marked-wrong are different states"
+        },
+        "response_time_ms": {
+          "type": ["integer", "null"],
+          "description": "Captured live; milliseconds between the item being served and the response being submitted; null only when the session carries no served_ts."
+        },
+        "confidence": {
+          "type": ["string", "null"],
+          "enum": ["high", "medium", "low", null],
+          "description": "Captured live where the surface offers it (submit --confidence); null when the learner did not say, which is different from low confidence."
+        },
+        "error_category": {
+          "type": "null",
+          "description": "Reserved, always null in this phase. No error taxonomy exists; it depends on the tutoring work in Phase 8. A guessed category would be recorded as fact and read as fact by later trend work, so it is recorded as unknown instead."
+        },
+        "hint_tier": {
+          "type": ["integer", "null"],
+          "description": "The highest tier actually shown at submission time (D-15, Phase 6). Null means no tier was shown -- a different fact from 'tier 0 was shown', which records 0; conflating them is unrecoverable once written. Version-1 events wrote null always."
+        },
+        "review_state": {
+          "type": "string",
+          "enum": ["n/a", "pending", "marked"],
+          "description": "'n/a' for an auto-scored item, 'pending' for a constructed response awaiting a marker, 'marked' once a mark event lands."
+        },
+        "dedupe_key": {
+          "type": "string",
+          "description": "A sha256 hex digest identifying one attempt at one item in one session"
+        },
+        "source_ref": {
+          "type": ["object", "null"],
+          "description": "Null for a live-path response event. For an event imported by itembank migrate (plan 01-11), an object naming where the record came from and how its item_id was resolved -- never a guess left unstated (D-14).",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": ["attempt_md", "session_json"],
+              "description": "Which legacy store this record came from"
+            },
+            "path": {
+              "type": "string",
+              "description": "The legacy source file's basename only, never a full path"
+            },
+            "ref": {
+              "type": "string",
+              "description": "The reference identifying this record within its source file -- an attempt file's item heading number, or a session file's array-index-plus-item_id"
+            },
+            "resolution": {
+              "type": "string",
+              "enum": ["unresolved", "position"],
+              "description": "'unresolved' by default (item_id is empty string); 'position' only when --resolve-by-position matched this record's positional reference against today's bank by current item number"
+            }
+          }
         }
       }
-    }
-  },
-  "$defs": {
+    },
+    "hint_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "event_id", "event_type", "ts", "session_id",
+        "item_id", "item_ref", "item_type", "bank", "mode", "attempt_number",
+        "response_event_id", "response_canonical", "tier_index", "tier_name",
+        "available", "source", "unlock_path", "dedupe_key"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "event_id": {
+          "type": "string"
+        },
+        "event_type": {
+          "const": "hint"
+        },
+        "ts": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "item_id": {
+          "type": "string"
+        },
+        "item_ref": {
+          "type": "string"
+        },
+        "item_type": {
+          "type": "string"
+        },
+        "bank": {
+          "type": ["string", "null"]
+        },
+        "mode": {
+          "type": ["string", "null"]
+        },
+        "attempt_number": {
+          "type": ["integer", "null"]
+        },
+        "response_event_id": {
+          "type": ["string", "null"]
+        },
+        "response_canonical": {
+          "type": "string"
+        },
+        "tier_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "tier_name": {
+          "type": "string"
+        },
+        "available": {
+          "type": "boolean"
+        },
+        "source": {
+          "type": "string",
+          "const": "authored"
+        },
+        "unlock_path": {
+          "type": "string",
+          "enum": ["attempt", "stumped"]
+        },
+        "dedupe_key": {
+          "type": "string"
+        }
+      }
+    },
+    "other_event": {
+      "type": "object",
+      "required": ["schema_version", "event_id", "event_type"],
+      "properties": {
+        "schema_version": {
+          "type": "integer"
+        },
+        "event_id": {
+          "type": "string"
+        },
+        "event_type": {
+          "type": "string",
+          "enum": ["mark", "retraction", "day_tick", "term_lookup", "key_review"]
+        }
+      }
+    },
     "mark_event": {
       "type": "object",
-      "description": "The mark event's real shape (plan 01-09, D-12): a first-class, timestamped fact about a response event, appended alongside it and never a mutation of it -- the response event's own score stays null forever, and review_state is computed at read time from evidence.marks_by_event(), never written back. Not yet wired into a top-level oneOf with the response shape above, so this remains descriptive rather than enforced against a raw evidence.jsonl line.",
+      "description": "The mark event's real shape (plan 01-09, D-12): a first-class, timestamped fact about a response event, appended alongside it and never a mutation of it -- the response event's own score stays null forever, and review_state is computed at read time from evidence.marks_by_event(), never written back.",
       "properties": {
         "event_type": {
           "const": "mark"
@@ -140,20 +243,16 @@
           "type": "string"
         },
         "item_id": {
-          "type": "string",
-          "description": "The opaque [ID:] identity field copied from the response event being marked, empty string when that item has never had id-assign run against it"
+          "type": "string"
         },
         "item_ref": {
-          "type": "string",
-          "description": "The Qn-derived positional id copied from the response event being marked"
+          "type": "string"
         },
         "marks_event": {
-          "type": "string",
-          "description": "The event_id of the response event this mark is about"
+          "type": "string"
         },
         "verdict": {
-          "type": "boolean",
-          "description": "true for pass, false for fail -- dichotomous, matching every other scored surface in this tool; PARTIAL exists only in GRADING.md's procedure to describe an answer, never to award half credit"
+          "type": "boolean"
         },
         "rubric": {
           "type": "array",
@@ -174,18 +273,16 @@
         },
         "marker": {
           "type": "string",
-          "const": "human",
-          "description": "Always 'human' in this phase; a model verdict is not accepted evidence until Phase 8 (TEACH-09)"
+          "const": "human"
         },
         "dedupe_key": {
-          "type": "string",
-          "description": "sha256 over (session_id, marks_event, verdict, a canonical encoding of rubric), so replaying an identical batch reports already_recorded and a corrected verdict or rubric always records a new, live mark"
+          "type": "string"
         }
       }
     },
     "retraction_event": {
       "type": "object",
-      "description": "Reserved shape for a retraction event -- D-10's compensating-append undo, given a real body by evidence.retraction_event() in plan 01-07 (retracts/reason/actor/dedupe_key alongside the standard envelope). Not yet wired into a top-level oneOf with the response shape above, so this remains descriptive rather than enforced against a raw evidence.jsonl line.",
+      "description": "D-10's compensating-append undo, given a real body by evidence.retraction_event() in plan 01-07 (retracts/reason/actor/dedupe_key alongside the standard envelope).",
       "properties": {
         "event_type": {
           "const": "retraction"
@@ -194,32 +291,28 @@
     },
     "day_tick_event": {
       "type": "object",
-      "description": "The day_tick event's real shape (plan 01-10): a lane marked done on a date, appended by the day POST route rather than mutating daily_log.md in place. Not yet wired into a top-level oneOf with the response shape above, so this remains descriptive rather than enforced against a raw evidence.jsonl line.",
+      "description": "The day_tick event's real shape (plan 01-10): a lane marked done on a date, appended by the day POST route rather than mutating daily_log.md in place.",
       "properties": {
         "event_type": {
           "const": "day_tick"
         },
         "date": {
-          "type": "string",
-          "description": "YYYY-MM-DD and a real calendar date; evidence.day_tick_event() rejects anything else with a ValueError"
+          "type": "string"
         },
         "lane": {
-          "type": "string",
-          "description": "One of surfaces/day.py's DAY_LANES; validated by the day POST route before this event is built, not by evidence.py itself"
+          "type": "string"
         },
         "source": {
-          "type": "string",
-          "description": "Always 'day' in this build -- reserved for a future non-interactive ticker"
+          "type": "string"
         },
         "dedupe_key": {
-          "type": "string",
-          "description": "sha256 over (date, lane) alone, so ticking the same lane on the same date twice always reports already_recorded"
+          "type": "string"
         }
       }
     },
     "term_lookup": {
       "type": "object",
-      "description": "The term_lookup event's real shape (plan 03.1-02, D-19): a learner looked up a lesson term's definition; it is not a response and carries no score key. Not yet wired into a top-level oneOf with the response shape above, so this remains descriptive rather than enforced against a raw evidence.jsonl line.",
+      "description": "The term_lookup event's real shape (plan 03.1-02, D-19): a learner looked up a lesson term's definition; it is not a response and carries no score key.",
       "properties": {
         "event_type": {
           "const": "term_lookup"
@@ -228,37 +321,32 @@
           "type": "string"
         },
         "bank": {
-          "type": "string",
-          "description": "The bank file's basename only, never an absolute path (T-1-06)"
+          "type": "string"
         },
         "term_slug": {
-          "type": "string",
-          "description": "The lesson_slug() value of the term whose definition was looked up"
+          "type": "string"
         },
         "mode": {
           "type": "string"
         },
         "source": {
           "type": "string",
-          "enum": ["reader", "session"],
-          "description": "reader for the lesson reader path, session for a sitting path -- provenance is append-only and cannot be added later (UI-SPEC §8.5)"
+          "enum": ["reader", "session"]
         },
         "actor": {
-          "type": "string",
-          "description": "The acting party; 'learner' in this build"
+          "type": "string"
         },
         "ts": {
           "type": "string"
         },
         "dedupe_key": {
-          "type": "string",
-          "description": "sha256 over (session_id, bank, term_slug, source, mode), so replaying an identical lookup reports already_recorded"
+          "type": "string"
         }
       }
     },
     "key_review": {
       "type": "object",
-      "description": "The key_review event's real shape (plan 03.1-03, D-19): a learner asked to add a [!KEY] card to review; it is not a response and carries no score key. Phase 10 replays these events into scheduler state. Not yet wired into a top-level oneOf with the response shape above, so this remains descriptive rather than enforced against a raw evidence.jsonl line.",
+      "description": "The key_review event's real shape (plan 03.1-03, D-19): a learner asked to add a [!KEY] card to review; it is not a response and carries no score key. Phase 10 replays these events into scheduler state.",
       "properties": {
         "event_type": {
           "const": "key_review"
@@ -267,26 +355,22 @@
           "type": "string"
         },
         "bank": {
-          "type": "string",
-          "description": "The bank file's basename only, never an absolute path (T-1-06)"
+          "type": "string"
         },
         "key_id": {
-          "type": "string",
-          "description": "The [!KEY] block's minted [ID:] value, resolved against the bank's parsed key blocks"
+          "type": "string"
         },
         "mode": {
           "type": "string"
         },
         "actor": {
-          "type": "string",
-          "description": "The acting party; 'learner' in this build"
+          "type": "string"
         },
         "ts": {
           "type": "string"
         },
         "dedupe_key": {
-          "type": "string",
-          "description": "sha256 over (session_id, bank, key_id, mode), so replaying the same review request reports already_recorded"
+          "type": "string"
         }
       }
     }

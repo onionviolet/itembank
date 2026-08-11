@@ -26,22 +26,27 @@ import re
 import sys
 import uuid
 
-from runtime import SESSION_VERSION, canonical_response, response_text
+from runtime import REPORT_VERSION, SESSION_VERSION, canonical_response, response_text
 
 
-EVENT_SCHEMA_VERSION = 1
+# Version 2 (Phase 6): response events may carry an integer-or-null
+# `hint_tier` (D-15) and a new `hint` event type exists (D-16). Readers keep
+# accepting version-1 events: the version check in `events()` is a
+# greater-than comparison, and version-1 shapes are unchanged.
+EVENT_SCHEMA_VERSION = 2
 
 EVIDENCE_DIRNAME = "_evidence"
 LOG_FILENAME = "evidence.jsonl"
 INDEX_FILENAME = "evidence_index.sqlite3"
 
 # "retraction" was added by plan 01-07, "mark" by plan 01-09, "day_tick" by
-# plan 01-10, "term_lookup" by plan 03.1-02, and "key_review" by plan
-# 03.1-03 -- response events are the only ones this build wrote before
-# 01-07. events() skips and warns on anything outside this set (D-09), so a
-# log written by a later build's event type degrades instead of crashing.
+# plan 01-10, "term_lookup" by plan 03.1-02, "key_review" by plan 03.1-03,
+# and "hint" by plan 06-01 -- response events are the only ones this build
+# wrote before 01-07. events() skips and warns on anything outside this set
+# (D-09), so a log written by a later build's event type degrades instead of
+# crashing.
 KNOWN_EVENT_TYPES = ("response", "retraction", "mark", "day_tick",
-                     "term_lookup", "key_review")
+                     "term_lookup", "key_review", "hint")
 
 # Bounds the tail scan `append_line_checked` and `recent_dedupe_keys` run to
 # decide whether an event is a duplicate. A dedupe_key contains the
@@ -354,11 +359,17 @@ def dedupe_key(session_id, item_key, attempt_num, canon):
 
 
 def response_event(session_id, q, answer, score, mode, attempt_num, bank,
-                    response_time_ms=None, confidence=None, source_ref=None):
+                    response_time_ms=None, confidence=None, source_ref=None,
+                    hint_tier=None):
     """Build one full response event dict. Every key named in this plan's
     must_haves is present on every event — reserved fields carry an explicit
     `None`, never an absent key, so a consumer can tell "not captured" from
     "field did not exist in this era" (Task 1 decision, option-a).
+
+    `hint_tier` is the highest tier actually shown when this response was
+    submitted (D-15): None means the ladder did not apply or no tier existed,
+    0 means tier 0 was shown -- null-versus-zero is preserved exactly. Defaults
+    to None so pre-Phase-6 callers (and v1-shaped records) stay byte-compatible.
 
     `canonical` stores `idempotency_canon()`'s output, not
     `runtime.canonical_response()`'s directly — the same value fed into
@@ -388,8 +399,8 @@ def response_event(session_id, q, answer, score, mode, attempt_num, bank,
         "score": score,
         "response_time_ms": response_time_ms,
         "confidence": confidence,
-        "error_category": None,   # no error taxonomy exists before Phase 6
-        "hint_tier": None,        # no hint ladder exists before Phase 8
+        "error_category": None,   # no error taxonomy exists before Phase 8
+        "hint_tier": hint_tier,   # integer-or-null since Phase 6 (D-15)
         "review_state": "pending" if q["type"] == "short" else "n/a",
         "dedupe_key": dedupe_key(session_id, key, attempt_num, canon),
         "source_ref": source_ref,
@@ -483,7 +494,7 @@ def _like_escape(s):
 
 
 def event_matches(ev, objective, prefix=False, subject=None, mode=None,
-                   session_id=None, since=None):
+                   session_id=None, since=None, bank=None):
     """The one filter predicate both `objective_history()`'s live-scan
     fallback and its indexed SQL path implement identically, and that
     `surfaces/evidence_cli.py` reuses to count retracted rows under the
@@ -513,6 +524,8 @@ def event_matches(ev, objective, prefix=False, subject=None, mode=None,
         return False
     if since and (ev.get("ts") or "") < since:
         return False
+    if bank and ev.get("bank") != bank:
+        return False
     return True
 
 
@@ -529,11 +542,12 @@ def _row_from_index_tuple(r):
         "ts": r[0], "session_id": r[1], "item_id": r[2], "item_ref": r[3],
         "mode": r[4], "score": json.loads(r[5]) if r[5] is not None else None,
         "attempt_number": r[6], "confidence": r[7], "response_time_ms": r[8],
+        "objective": r[9], "bank": r[10],
     }
 
 
 def _objective_history_indexed(index, objective, prefix, subject, mode,
-                                session_id, since):
+                                session_id, since, bank):
     """The SQL half of `objective_history()`. T-1-19: every filter value is
     bound as a `?` parameter -- never concatenated or `%`-formatted into the
     query text -- so a filter value can shape which parameter it binds to,
@@ -567,9 +581,13 @@ def _objective_history_indexed(index, objective, prefix, subject, mode,
         if since:
             clauses.append("ts >= ?")
             params.append(since)
+        if bank:
+            clauses.append("bank = ?")
+            params.append(bank)
         parts = [
             "SELECT ts, session_id, item_id, item_ref, mode, score, ",
-            "attempt_number, confidence, response_time_ms FROM events WHERE ",
+            "attempt_number, confidence, response_time_ms, objective, bank "
+            "FROM events WHERE ",
             " AND ".join(clauses),
             " ORDER BY ts, seq",
         ]
@@ -581,7 +599,7 @@ def _objective_history_indexed(index, objective, prefix, subject, mode,
 
 
 def _objective_history_fallback(log, objective, prefix, subject, mode,
-                                 session_id, since):
+                                 session_id, since, bank):
     """The linear-scan half of `objective_history()`, used when the index
     could not be built or extended at all (`ensure_index()` returned
     `"fallback"`). Reads through `live_events`, never `events` -- a
@@ -594,7 +612,8 @@ def _objective_history_fallback(log, objective, prefix, subject, mode,
     for idx, ev in enumerate(live_events(log)):
         if ev.get("event_type") != RESPONSE_EVENT_TYPE:
             continue
-        if not event_matches(ev, objective, prefix, subject, mode, session_id, since):
+        if not event_matches(ev, objective, prefix, subject, mode, session_id,
+                             since, bank):
             continue
         rows.append((ev.get("ts", ""), idx, {
             "ts": ev.get("ts"),
@@ -606,13 +625,15 @@ def _objective_history_fallback(log, objective, prefix, subject, mode,
             "attempt_number": ev.get("attempt_number"),
             "confidence": ev.get("confidence"),
             "response_time_ms": ev.get("response_time_ms"),
+            "objective": ev.get("objective"),
+            "bank": ev.get("bank"),
         }))
     rows.sort(key=lambda r: (r[0], r[1]))
     return [r[2] for r in rows]
 
 
 def objective_history(log, objective, prefix=False, subject=None, mode=None,
-                       session_id=None, since=None):
+                       session_id=None, since=None, bank=None):
     """Every LIVE response event matching the given filters, oldest first,
     sorted by `(ts, log order)` so events sharing a timestamp keep a
     stable, reproducible order across repeated queries and across an index
@@ -631,6 +652,7 @@ def objective_history(log, objective, prefix=False, subject=None, mode=None,
     ignores `objective` entirely. `mode=`, `session_id=` and `since=` (an
     ISO date compared as a string prefix against `ts`, which sorts
     correctly because timestamps are ISO-8601 UTC) are additional filters.
+    `bank=` filters on the recorded bank basename (phase 7, D-13).
     Never recomputes a score -- reads the recorded `score` field.
     """
     index = index_for_log(log)
@@ -638,7 +660,8 @@ def objective_history(log, objective, prefix=False, subject=None, mode=None,
     if status == "used":
         try:
             return _objective_history_indexed(
-                index, objective, prefix, subject, mode, session_id, since)
+                index, objective, prefix, subject, mode, session_id, since,
+                bank)
         except Exception as exc:
             print("warn  evidence index unavailable (%s); falling back to a "
                   "full log scan" % exc)
@@ -648,7 +671,7 @@ def objective_history(log, objective, prefix=False, subject=None, mode=None,
             except Exception:
                 pass
     return _objective_history_fallback(
-        log, objective, prefix, subject, mode, session_id, since)
+        log, objective, prefix, subject, mode, session_id, since, bank)
 
 
 def objective_rollup(rows):
@@ -688,14 +711,16 @@ def objective_rollup(rows):
 # it still imports this module and still records and reads evidence
 # through the live_events() linear-scan fallback in objective_history().
 
-INDEX_VERSION = 1   # The projection's OWN version, bumped whenever the table
+INDEX_VERSION = 2   # The projection's OWN version, bumped whenever the table
                      # shape below changes, which forces a full rebuild
                      # rather than a subtly wrong query against an old
                      # shape. This is not a published contract the way
                      # schemas/*.json are -- the index is disposable, so
                      # bumping this number costs a rebuild and nothing
                      # else, which is exactly why it lives here and not in
-                     # schemas/.
+                     # schemas/. Version 2 (phase 7): the projection gained
+                     # a `bank` column so a bank-scoped exposure query
+                     # (D-13) has a fast path.
 
 
 def _index_connect(path):
@@ -720,10 +745,12 @@ def _create_index_schema(con):
         confidence TEXT,
         response_time_ms INTEGER,
         review_state TEXT,
+        bank TEXT,
         retracted INTEGER DEFAULT 0)""")
     con.execute("CREATE INDEX idx_objective ON events(objective, ts)")
     con.execute("CREATE INDEX idx_subject ON events(subject, ts)")
     con.execute("CREATE INDEX idx_session ON events(session_id, ts)")
+    con.execute("CREATE INDEX idx_bank ON events(bank, ts)")
     con.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
 
 
@@ -737,14 +764,14 @@ def _insert_response_row(con, ev):
     con.execute(
         "INSERT OR IGNORE INTO events (event_id, ts, session_id, item_id, "
         "item_ref, objective, subject, mode, item_type, score, "
-        "attempt_number, confidence, response_time_ms, review_state) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "attempt_number, confidence, response_time_ms, review_state, bank) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (ev.get("event_id"), ev.get("ts"), ev.get("session_id"),
          ev.get("item_id"), ev.get("item_ref"), ev.get("objective", ""),
          ev.get("subject", ""), ev.get("mode"), ev.get("item_type"),
          json.dumps(ev.get("score")), ev.get("attempt_number"),
          ev.get("confidence"), ev.get("response_time_ms"),
-         ev.get("review_state")))
+         ev.get("review_state"), ev.get("bank", "")))
 
 
 def _mark_index_retracted(con, ids):
@@ -1138,6 +1165,155 @@ def marks_by_event(log):
     return marks
 
 
+# ---- hint events and teaching outcomes (06-01) -----------------------------
+# D-15/D-16: every response records the highest tier actually shown using
+# null-versus-zero semantics, and every newly shown hint is its own
+# append-only event linked to the response/attempt state that authorized it.
+# Reports derive tier/attempt/stumped/reveal outcomes from these live events
+# and never trust a mutable counter.
+
+HINT_EVENT_TYPE = "hint"
+
+
+def hint_event(session_id, q, tier_index, available, tier_name, source,
+               unlock_path, response_event_id=None, response_canonical=None,
+               attempt_num=None, bank=None, ts=None):
+    """Build one hint event: a first-class, timestamped fact that a fixed
+    authored tier was shown, linked to the response/attempt that authorized
+    it (D-16). `unlock_path` is `attempt` or `stumped`; `source` is
+    `authored` in this phase (generated/model hints are Phase 8).
+
+    The dedupe key covers (session, item, tier, unlock path), so showing the
+    same tier through the same path twice is idempotent, while a stumped
+    unlock and an attempt unlock of the same tier are two distinct events.
+    """
+    if source != "authored":
+        raise ValueError("hint_event: source must be 'authored' in this phase "
+                         "(got %r); generated hints are Phase 8" % (source,))
+    if unlock_path not in ("attempt", "stumped"):
+        raise ValueError("hint_event: unlock_path must be 'attempt' or "
+                         "'stumped', got %r" % (unlock_path,))
+    key = evidence_key(q)
+    canon = response_canonical if response_canonical is not None else ""
+    raw = "%s|%s|%s|%d|%s" % (session_id, key, unlock_path, tier_index, canon)
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": HINT_EVENT_TYPE,
+        "ts": ts or utc_now(),
+        "session_id": session_id,
+        "item_id": q.get("item_id", ""),
+        "item_ref": q["id"],
+        "item_type": q["type"],
+        "bank": os.path.basename(bank) if bank else None,
+        "mode": q.get("mode"),
+        "attempt_number": attempt_num,
+        "response_event_id": response_event_id,
+        "response_canonical": canon,
+        "tier_index": tier_index,
+        "tier_name": tier_name,
+        "available": available,
+        "source": source,
+        "unlock_path": unlock_path,
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+def hint_events(log, session_id, item_key=None):
+    """Every LIVE hint event for `session_id` (optionally one item), in log
+    order. Built on `live_events`, never `events`, so a retracted hint
+    vanishes exactly as it vanishes from a report (D-10/D-16)."""
+    return [ev for ev in live_events(log)
+            if ev.get("event_type") == HINT_EVENT_TYPE
+            and ev.get("session_id") == session_id
+            and (item_key is None
+                 or evidence_key({"item_id": ev.get("item_id", ""),
+                                  "id": ev.get("item_ref", "")}) == item_key)]
+
+
+def teaching_outcomes(log, session_id):
+    """Derive per-item teaching outcomes (D-17, TEACH-03) from live response,
+    hint, and mark events -- never from a mutable counter and never from the
+    session's teaching_state.
+
+    Returns {"schema_version": REPORT_VERSION, "session_id": session_id,
+    "teaching_outcomes": {item_key: row}}. Each row carries first_try_correct,
+    correct_after_attempts (total attempts to the first correct response),
+    correct_after_tier (same, but a hint had been shown), stumped_at_tier,
+    revealed, hints_used (live hint events), highest_tier (highest tier shown
+    or None), and one of the D-17 outcome labels: first_try_correct,
+    correct_after_attempts, correct_after_tier, accepted_mark, revealed,
+    stumped, pending, or unresolved. A stumped action never counts as a wrong
+    response; a retracted event never counts at all.
+    """
+    resp_by_item = {}
+    hint_by_item = {}
+    marks = {}
+    for ev in live_events(log):
+        if ev.get("session_id") != session_id:
+            continue
+        et = ev.get("event_type")
+        key = evidence_key({"item_id": ev.get("item_id", ""),
+                            "id": ev.get("item_ref", "")})
+        if et == RESPONSE_EVENT_TYPE:
+            resp_by_item.setdefault(key, []).append(ev)
+        elif et == HINT_EVENT_TYPE:
+            hint_by_item.setdefault(key, []).append(ev)
+        elif et == MARK_EVENT_TYPE:
+            marks[ev.get("marks_event")] = ev
+
+    rows = {}
+    for key, resps in resp_by_item.items():
+        hints = hint_by_item.get(key, [])
+        hints_used = len(hints)
+        highest = max((h["tier_index"] for h in hints
+                       if isinstance(h.get("tier_index"), int)), default=None)
+        stumped = min((h["tier_index"] for h in hints
+                       if h.get("unlock_path") == "stumped"
+                       and isinstance(h.get("tier_index"), int)), default=None)
+        revealed = any(h.get("tier_index") == 5 for h in hints)
+        first = resps[0]
+        first_try_correct = first.get("score") is True
+        correct = next((r for r in resps if r.get("score") is True), None)
+        correct_after = len(resps) if correct is not None else None
+        if correct is not None and hints_used:
+            outcome = "correct_after_tier"
+        elif correct is not None:
+            outcome = "first_try_correct" if first_try_correct \
+                else "correct_after_attempts"
+        elif revealed:
+            outcome = "revealed"
+        elif stumped is not None:
+            outcome = "stumped"
+        elif any(resp.get("score") is None
+                 and marks.get(resp.get("event_id"), {}).get("verdict") is True
+                 for resp in resps):
+            outcome = "accepted_mark"
+        elif any(resp.get("score") is None for resp in resps):
+            outcome = "pending"
+        else:
+            outcome = "unresolved"
+        rows[key] = {
+            "item_id": first.get("item_id", ""),
+            "item_ref": first.get("item_ref", ""),
+            "outcome": outcome,
+            "first_try_correct": first_try_correct,
+            "correct_after_attempts": correct_after,
+            "correct_after_tier": correct_after if hints_used else None,
+            "stumped_at_tier": stumped,
+            "revealed": revealed,
+            "hints_used": hints_used,
+            "highest_tier": highest,
+        }
+    # An item whose every response was retracted has no live record at all:
+    # it must not contribute a counted row (D-10) -- but an item with a live
+    # response and no correct answer is `unresolved`, which is a real,
+    # counted outcome.
+    return {"schema_version": REPORT_VERSION,
+            "session_id": session_id,
+            "teaching_outcomes": rows}
+
+
 def render_attempt_md(log, session_id, qs, bank_path):
     """The attempt markdown for one session, computed fresh from the log
     every time this is called (D-11) -- never read back in as an input by
@@ -1331,6 +1507,10 @@ def render_session_json(log, session_id, qs, bank_path):
         "mode": mode,
         "objective": objective,
         "seed": 0,
+        # The v2 session contract (Phase 6) requires teaching_state; a
+        # recovered view cannot know tiers that were never recorded, so it
+        # reports the honest empty state rather than fabricating one.
+        "teaching_state": {},
     }
 
 

@@ -283,7 +283,10 @@ def test_event_schema_fields():
     required array, plus the dispositions the schema documents.
     """
     response_doc = load_schema("response.schema.json")
-    required_keys = set(response_doc["required"])
+    # Phase 6 moved the closed response shape into $defs.response_event so
+    # the top-level document can also describe the hint event via oneOf; the
+    # response event's required key set lives there now.
+    required_keys = set(response_doc["$defs"]["response_event"]["required"])
 
     tmp = tempfile.mkdtemp()
     try:

@@ -2012,13 +2012,19 @@ def test_term_lookup_registered_in_schema():
         fail("term_lookup must be a member of KNOWN_EVENT_TYPES")
     schema = json.load(open(os.path.join(ROOT, "schemas", "response.schema.json"),
                             encoding="utf-8"))
-    enum = schema["properties"]["event_type"]["enum"]
-    if "term_lookup" not in enum:
-        fail("event_type enum must include term_lookup: %r" % enum)
+    # Phase 6 moved the response shape into $defs.response_event (a const
+    # discriminator) so the top-level document can also describe the hint
+    # event via oneOf; the other event types ride the catch-all branch.
+    if schema["$defs"]["response_event"]["properties"]["event_type"].get("const") != "response":
+        fail("response_event branch must discriminate on event_type const")
     if "term_lookup" not in schema["$defs"]:
         fail("response.schema.json must carry a $defs.term_lookup shape")
-    if "term_lookup" in schema.get("required", []):
-        fail("term_lookup must not enter the top-level required list")
+    if "term_lookup" not in schema["$defs"]["other_event"]["properties"]["event_type"]["enum"]:
+        fail("the catch-all branch must accept term_lookup")
+    if "hint_event" not in schema["$defs"]:
+        fail("response.schema.json must carry a $defs.hint_event shape")
+    if schema["$defs"]["hint_event"]["properties"]["event_type"].get("const") != "hint":
+        fail("hint_event branch must discriminate on event_type const")
 
 
 def main():
