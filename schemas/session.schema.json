@@ -59,6 +59,45 @@
           "type": "string",
           "minLength": 1
         },
+        "cap": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Phase 10 (10-04, D-07/D-08): the per-subject daily-cap binding this sitting was authorized under -- the server-derived subject, the live local-day ordinary-attempt count and configured cap at start, the local day/zone/snapshot they were decided on, and the audited cap_override event id when this is the one confirmed one-sitting exception (null for an ordinary sitting). The override event authorizes exactly this sitting and expires with it; there is no persistent cap-disable setting. Optional: a session written before plan 10-04 has none.",
+          "required": ["subject", "count", "cap", "local_day", "zone",
+                       "snapshot_id", "override_event_id"],
+          "properties": {
+            "subject": {
+              "type": "string",
+              "description": "The subject namespace derived server-side from the selection spec / objective namespace; empty for an unnamespaced sitting with no cap gate."
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Live ordinary response events for the subject on the local day at start, pending included, retracted/deduped excluded."
+            },
+            "cap": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "description": "The configured daily_cap value at start, or null when no cap applied."
+            },
+            "local_day": {
+              "type": "string",
+              "description": "The local calendar date (ISO-8601) the cap counts were decided on."
+            },
+            "zone": {
+              "type": "string",
+              "description": "The local-day zone label the count was decided in."
+            },
+            "snapshot_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "override_event_id": {
+              "type": ["string", "null"],
+              "description": "The event_id of the one cap_override event authorizing this sitting, or null for an ordinary sitting."
+            }
+          }
+        },
         "objective_weights": {
           "type": "object",
           "additionalProperties": {

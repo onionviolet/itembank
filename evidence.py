@@ -41,14 +41,14 @@ INDEX_FILENAME = "evidence_index.sqlite3"
 
 # "retraction" was added by plan 01-07, "mark" by plan 01-09, "day_tick" by
 # plan 01-10, "term_lookup" by plan 03.1-02, "key_review" by plan 03.1-03,
-# "hint" by plan 06-01, "selection" by plan 07-04, and "lesson_complete" by
-# plan 10-02 -- response events are the only ones this build
-# wrote before 01-07. events() skips and warns on anything outside this set
-# (D-09), so a log written by a later build's event type degrades instead of
-# crashing.
+# "hint" by plan 06-01, "selection" by plan 07-04, "lesson_complete" by
+# plan 10-02, and "cap_override" by plan 10-04 -- response events are the
+# only ones this build wrote before 01-07. events() skips and warns on
+# anything outside this set (D-09), so a log written by a later build's event
+# type degrades instead of crashing.
 KNOWN_EVENT_TYPES = ("response", "retraction", "mark", "day_tick",
                      "term_lookup", "key_review", "hint", "selection",
-                     "lesson_complete")
+                     "lesson_complete", "cap_override")
 
 # The record of what a sitting asked for (D-03): one event per session, so a
 # deleted session file never destroys the ability to reproduce the sitting.
@@ -1795,6 +1795,72 @@ def lesson_complete_event(session_id, bank, lesson_slug, subject, objectives,
         "objectives": objectives,
         "zone": zone,
         "actor": actor,
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+CAP_OVERRIDE_EVENT_TYPE = "cap_override"
+
+
+def cap_override_event(session_id, bank, subject, local_date, zone,
+                       snapshot_id, cap, count, ts=None):
+    """Build one cap_override event (plan 10-04, D-08): the audited
+    exception that lets one additional per-subject sitting start after the
+    daily cap was reached. It is the record of a deliberate, explicit choice
+    -- NOT a persistent bypass (no setting, no flag, no standing
+    authorization): the event is bound to the one server-generated
+    `session_id` it authorizes, and every later cap check ignores it as a
+    count while honoring it only for that session's live lifetime.
+
+    Like every non-response event it is structurally scoreless (no `score`
+    key at all). All values are server-derived and validated here because
+    the log is append-only: `subject` is the non-empty namespace (no colon),
+    `local_date` is the local calendar date in `zone`, `snapshot_id` is the
+    one snapshot the count was decided on, `cap`/`count` are the exact
+    numbers shown to the learner, and `scope` is the constant "sitting".
+    `dedupe_key` hashes (session_id, subject, local_date, snapshot_id, cap)
+    -- NOT a timestamp -- so retrying the identical confirmed override for
+    the same generated session reconciles (`already_recorded`) instead of
+    appending a second exception.
+    """
+    if not session_id:
+        raise ValueError("cap_override_event: session_id must be non-empty")
+    if not bank or "/" in bank or "\\" in bank or os.sep in bank:
+        raise ValueError(
+            "cap_override_event: bank must be a basename, never a path "
+            "(got %r)" % (bank,))
+    if not subject or ":" in subject:
+        raise ValueError(
+            "cap_override_event: subject must be the non-empty namespace "
+            "(got %r)" % (subject,))
+    if not local_date:
+        raise ValueError("cap_override_event: local_date must be non-empty")
+    if not zone:
+        raise ValueError("cap_override_event: zone must be non-empty")
+    if not snapshot_id:
+        raise ValueError("cap_override_event: snapshot_id must be non-empty")
+    if not isinstance(cap, int) or isinstance(cap, bool) or cap < 1:
+        raise ValueError("cap_override_event: cap must be a positive integer "
+                         "(got %r)" % (cap,))
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        raise ValueError("cap_override_event: count must be a non-negative "
+                         "integer (got %r)" % (count,))
+    raw = "%s|%s|%s|%s|%s" % (session_id, subject, local_date, snapshot_id,
+                               cap)
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": CAP_OVERRIDE_EVENT_TYPE,
+        "ts": ts if ts is not None else utc_now(),
+        "session_id": session_id,
+        "bank": bank,
+        "subject": subject,
+        "local_date": local_date,
+        "zone": zone,
+        "snapshot_id": snapshot_id,
+        "cap": cap,
+        "count": count,
+        "scope": "sitting",
         "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
     }
 

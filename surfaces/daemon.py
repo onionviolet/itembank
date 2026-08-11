@@ -96,18 +96,20 @@ DAY_EDIT_ALLOWED_FIELDS = ("revision", "edits", "force_token", "confirmation",
 # the same authority-shaped-field discipline every mutating route here takes.
 SEED_ACCEPT_ALLOWED_FIELDS = ("bank", "action", "draft")
 
-# The `/api/*` session routes: D-04's four plus Phase 6's `/api/hint`.
-# Fixed literals, not stem-parameterised: a session or a bank is addressed
-# by an opaque identifier in the JSON body (T-2-01), never by a path
-# segment, so there is no `<stem>`/`<id>` group in any of these patterns at
-# all. The five-entry length is asserted by `check_api_route_scope` in
-# `tests/daemon_roundtrip.py` and by this plan's own acceptance criteria.
+# The `/api/*` session routes: D-04's four plus Phase 6's `/api/hint` and
+# Phase 10's `/api/override`. Fixed literals, not stem-parameterised: a
+# session or a bank is addressed by an opaque identifier in the JSON body
+# (T-2-01), never by a path segment, so there is no `<stem>`/`<id>` group in
+# any of these patterns at all. The six-entry length is asserted by
+# `check_api_route_scope` in `tests/daemon_roundtrip.py`, and every entry is
+# mirrored in ROUTE_CLI and SURFACE_PARITY (Extensibility Rule 9(a)).
 API_ROUTES = (
     ("POST", "/api/start", "handle_api_start"),
     ("POST", "/api/next", "handle_api_next"),
     ("POST", "/api/submit", "handle_api_submit"),
     ("POST", "/api/hint", "handle_api_hint"),
     ("POST", "/api/report", "handle_api_report"),
+    ("POST", "/api/override", "handle_api_override"),
 )
 
 # Order is load-bearing: every fixed literal route comes before every
@@ -159,6 +161,7 @@ ROUTE_CLI = {
     ("POST", "/api/submit"): "submit",
     ("POST", "/api/hint"): "hint",
     ("POST", "/api/report"): "report",
+    ("POST", "/api/override"): "override",
     ("GET", QUIZ_GET_RE): "serve",
     ("POST", QUIZ_ANSWER_RE): "serve",
     ("GET", STUDY_GET_RE): "study",
@@ -170,6 +173,23 @@ ROUTE_CLI = {
     ("POST", DAY_SAVE_RE): "day",
     ("POST", DAY_OPEN_RE): "day",
     ("POST", DAY_EDIT_RE): "day",
+}
+
+# SURFACE_PARITY (Extensibility Rule 9(a)): every `/api/*` route maps to its
+# CLI command AND its reserved future MCP tool name -- the third surface's
+# projection of API_ROUTES (REQUIREMENTS V2-INT-02), defined here so a route
+# added without all three names fails the build instead of shipping
+# silently. The tool need not exist yet; the name being present is what keeps
+# the parity test meaningful the day a dispatcher is written, and stops MCP
+# arriving as a second parity map. The key set is asserted equal to
+# API_ROUTES by tests/daemon_roundtrip.py.
+SURFACE_PARITY = {
+    ("POST", "/api/start"): {"cli": "start", "mcp_tool": "itembank_start"},
+    ("POST", "/api/next"): {"cli": "next", "mcp_tool": "itembank_next"},
+    ("POST", "/api/submit"): {"cli": "submit", "mcp_tool": "itembank_submit"},
+    ("POST", "/api/hint"): {"cli": "hint", "mcp_tool": "itembank_hint"},
+    ("POST", "/api/report"): {"cli": "report", "mcp_tool": "itembank_report"},
+    ("POST", "/api/override"): {"cli": "override", "mcp_tool": "itembank_override"},
 }
 
 
@@ -1443,6 +1463,70 @@ def handle_api_start(handler):
     handler.send_json(result)
 
 
+def handle_api_override(handler):
+    """`POST /api/override` -- `{"bank", "objective", "count", "seed",
+    "mode", "selection_mode", "token"}`. The daemon twin of
+    `itembank override` (plan 10-04, D-08): starts one additional sitting
+    past a reached cap, but ONLY with the exact explicit confirmation phrase
+    in `token`, and writes exactly one append-only cap_override event bound
+    to the server-generated session id. The subject is derived server-side
+    from the namespaced `objective` -- a client-supplied subject, cap,
+    snapshot or override value is refused/ignored (T-10-14, T-10-15); a
+    wrong or missing token, or an objective with no namespace, is a 400 and
+    writes nothing. Same containment as every handle_api_*: cross-origin
+    reject, api_read_json, SystemExit -> 400, Exception -> path-free 500.
+    """
+    if _reject_cross_origin(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    bank = data.get("bank")
+    path = handler.banks.get(bank) if isinstance(bank, str) else None
+    if path is None:
+        handler.send_not_found(bank if isinstance(bank, str) else "")
+        return
+    token = data.get("token")
+    if not isinstance(token, str) or not token:
+        handler.send_error(400, "override requires the exact explicit "
+                                "confirmation token")
+        return
+    objective = data.get("objective", "")
+    if not isinstance(objective, str) or not objective:
+        handler.send_error(400, "override requires a namespaced objective so "
+                                "the subject can be derived server-side")
+        return
+    count = data.get("count", 10)
+    if not isinstance(count, int) or isinstance(count, bool):
+        count = 10
+    seed = data.get("seed", 0)
+    if not isinstance(seed, int) or isinstance(seed, bool):
+        seed = 0
+    mode = data.get("mode", "diagnostic")
+    if mode not in SESSION_MODES:
+        mode = "diagnostic"
+    selection_mode = data.get("selection_mode", "practice")
+    if selection_mode not in selection.SELECTION_MODES:
+        selection_mode = "practice"
+    spec = {"objective": objective, "count": count, "seed": seed,
+            "selection_mode": selection_mode}
+    out = os.path.join(os.path.abspath(handler.root), "_attempts",
+                       "session_%s.json" % uuid.uuid4().hex[:12])
+    try:
+        result = session.do_start(path, spec, mode, out, False,
+                                  override_token=token)
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    except Exception as exc:
+        handler.send_server_error(exc)
+        return
+    sess_cfg = handler.sessions.get(bank)
+    if sess_cfg is not None:
+        sess_cfg["api_session_id"] = result["session_id"]
+    handler.send_json(result)
+
+
 def handle_api_next(handler):
     """`POST /api/next` -- `{"session_id": "<id>"}`. `session_id` is resolved
     through `session_index`; a miss is a 404.
@@ -1699,6 +1783,27 @@ class DaemonHandler(server.Handler):
     # this process and the shell that read it off the handshake -- never
     # persisted, never a CLI argument (T-13-01, T-13-04).
     sidecar_token = None
+
+    def send_error(self, code, message=None, explain=None):
+        """Encoding-safe 4xx/5xx (10-04 containment). The built-in
+        `send_error` encodes the HTTP reason phrase as latin-1, which
+        raises `UnicodeEncodeError` on any non-latin-1 character -- 10-04's
+        locked cap copy carries U+2019 ("Today's"), so the at-cap 400 would
+        kill the request thread and close the connection with no response.
+        The exact message (whatever its encoding) is sent in a UTF-8 body;
+        only the HTTP reason phrase stays the standard ASCII phrase. Never
+        a path or a traceback (T-2-05).
+        """
+        import http.client
+        phrase = http.client.responses.get(code, "Error")
+        text = message if isinstance(message, str) else (explain or phrase)
+        body = ("<!doctype html><html lang=en><head><meta charset=utf-8>"
+                "<title>%d %s</title></head><body><h1>%s</h1><p>%s</p>"
+                "</body></html>"
+                % (code, html.escape(phrase), html.escape(phrase),
+                   html.escape(text)))
+        self.send_bytes(body.encode("utf-8"), "text/html; charset=utf-8",
+                        status=code)
 
     def send_not_found(self, name):
         """The documented not-found copy: the stem the client asked for and

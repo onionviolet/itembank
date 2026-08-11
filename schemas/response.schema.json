@@ -16,6 +16,9 @@
       "$ref": "#/$defs/lesson_complete_event"
     },
     {
+      "$ref": "#/$defs/cap_override_event"
+    },
+    {
       "$ref": "#/$defs/selection_event"
     },
     {
@@ -410,6 +413,80 @@
         "dedupe_key": {
           "type": "string",
           "description": "A sha256 hex digest over (bank, lesson_slug, subject, sorted objectives, zone), so retrying the identical completion dedupes"
+        }
+      }
+    },
+    "cap_override_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The cap_override event's real shape (plan 10-04, D-08): the one audited exception that lets a subject's sitting start after its daily cap was reached. It names only server-derived facts -- the generated session_id it authorizes, the bank basename, the non-empty namespaced subject, the local calendar date and zone the count was decided in, the one snapshot id, the exact cap/count shown to the learner, and the constant sitting scope. It is not a response: structurally it carries no score key at all. The exception applies only within the named session's active lifetime; a later sitting or a later day sees the ordinary count again (there is no persistent cap-disable setting).",
+      "required": [
+        "schema_version", "event_id", "event_type", "ts", "session_id",
+        "bank", "subject", "local_date", "zone", "snapshot_id",
+        "cap", "count", "scope", "dedupe_key"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "event_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event_type": {
+          "const": "cap_override"
+        },
+        "ts": {
+          "type": "string",
+          "description": "ISO-8601 UTC to millisecond precision, matching evidence.utc_now()"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The server-generated session id this exception authorizes and no other"
+        },
+        "bank": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The bank file's basename only, never an absolute path (T-1-06/T-10-07)"
+        },
+        "subject": {
+          "type": "string",
+          "pattern": "^[^:]+$",
+          "description": "The non-empty namespace whose cap was reached (evidence.subject_of); a full objective here would be a malformed subject"
+        },
+        "local_date": {
+          "type": "string",
+          "description": "The local calendar date (ISO-8601) the count/cap were decided on"
+        },
+        "zone": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The local-day zone label the count was decided in"
+        },
+        "snapshot_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The one snapshot id the cap decision referenced"
+        },
+        "cap": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The configured daily cap at decision time"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The live ordinary-attempt count shown to the learner at decision time"
+        },
+        "scope": {
+          "type": "string",
+          "const": "sitting",
+          "description": "The exception is scoped to one sitting; no other scope is legal"
+        },
+        "dedupe_key": {
+          "type": "string",
+          "description": "A sha256 hex digest over (session_id, subject, local_date, snapshot_id, cap), so retrying the identical confirmed override for the same generated session reconciles rather than appending a second exception"
         }
       }
     },

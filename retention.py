@@ -901,6 +901,105 @@ def return_rate(summaries, scheduler, snapshot):
 
 
 # ---------------------------------------------------------------------------
+# Daily cap (10-04, D-07/D-08/D-09): a pure projection over the SAME capture
+# everything else derives from. Nothing here reads a log, a session file, an
+# Anki count, a day tick, a model, or a cache; nothing is written; nothing is
+# chosen. `daily_cap` is the one cap knob and lives at the top level of
+# settings; this module reads the value a caller passes and never imports a
+# surface.
+# ---------------------------------------------------------------------------
+
+def cap_decision(snapshot, subject=None, cap=None):
+    """The per-subject daily-cap decision for one snapshot (D-07, T-10-18).
+
+    `subject` is a subject namespace derived server-side from the selection
+    spec / objective namespace. The count is the number of LIVE ordinary
+    response events for that subject on the snapshot's local day -- pending
+    manual responses count (D-09, pacing only), a retracted or deduplicated
+    event does not (the snapshot's events are already live, and a deduped
+    retry was never appended), and an event on a different local day does
+    not. A `day_tick`, a session cursor, an Anki count, a model event, and a
+    cache all have no `response` event_type and cannot enter the count.
+
+    With no subject (unnamespaced start) the cap is not scoped: `blocked` is
+    False and `remaining` is None, because the cap is a per-subject
+    measurement and an unnamed subject has nothing to measure. With `cap`
+    None (no configured cap) the decision is likewise never blocked. The
+    returned dict names the exact count/cap/date/zone/snapshot the caller
+    must show, so the block message and the override event carry the same
+    numbers (D-13).
+    """
+    if not subject:
+        return {"subject": "", "count": 0, "cap": None, "blocked": False,
+                "remaining": None,
+                "local_day": snapshot["local_day"].isoformat(),
+                "zone": snapshot["zone_label"],
+                "snapshot_id": snapshot["claim"]["snapshot_id"],
+                "claim": snapshot["claim"]}
+    if not isinstance(cap, int) or isinstance(cap, bool) or cap < 1:
+        cap = None
+    tz = snapshot["tz"]
+    local = snapshot["local_day"]
+    count = 0
+    for ev in snapshot["events"]:
+        if ev.get("event_type") != evidence.RESPONSE_EVENT_TYPE:
+            continue
+        if evidence.subject_of(ev.get("objective") or "") != subject:
+            continue
+        if local_date(ev.get("ts"), tz) != local:
+            continue
+        count += 1
+    blocked = cap is not None and count >= cap
+    return {
+        "subject": subject,
+        "count": count,
+        "cap": cap,
+        "blocked": blocked,
+        "remaining": (cap - count) if (cap is not None and not blocked) else None,
+        "local_day": local.isoformat(),
+        "zone": snapshot["zone_label"],
+        "snapshot_id": snapshot["claim"]["snapshot_id"],
+        "claim": snapshot["claim"],
+    }
+
+
+def subject_pacing(snapshot, cap=None):
+    """Per-subject pacing for the `day` surface from ONE capture (10-04 Task
+    2): each configured subject's ordinary attempt count on the snapshot's
+    local day, its cap, and its number of due objectives (D-01/D-07). This
+    replaces any tick/session/Anki/cache derived load as the pacing
+    authority. Same counting rule as `cap_decision`; every row carries the
+    snapshot claim so no rendered number lacks its evidence marker (D-13).
+    """
+    tz = snapshot["tz"]
+    local = snapshot["local_day"]
+    counts = {}
+    for ev in snapshot["events"]:
+        if ev.get("event_type") != evidence.RESPONSE_EVENT_TYPE:
+            continue
+        if local_date(ev.get("ts"), tz) != local:
+            continue
+        subj = evidence.subject_of(ev.get("objective") or "") or "(unnamespaced)"
+        counts[subj] = counts.get(subj, 0) + 1
+    due = {}
+    for row in objective_summaries(snapshot):
+        subj = row["subject"] or "(unnamespaced)"
+        if objective_state(row, snapshot)["due"]:
+            due[subj] = due.get(subj, 0) + 1
+    subjects = {}
+    for subj in sorted(set(counts) | set(due)):
+        subjects[subj] = {
+            "subject": subj,
+            "count": counts.get(subj, 0),
+            "cap": cap,
+            "blocked": cap is not None and counts.get(subj, 0) >= cap,
+            "due": due.get(subj, 0),
+            "snapshot_id": snapshot["claim"]["snapshot_id"],
+        }
+    return {"subjects": subjects, "claim": snapshot["claim"]}
+
+
+# ---------------------------------------------------------------------------
 # The surface-neutral report payload (D-13/D-15) and its plain-text twin.
 # ---------------------------------------------------------------------------
 

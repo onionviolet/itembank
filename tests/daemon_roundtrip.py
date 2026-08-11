@@ -1087,14 +1087,205 @@ def check_disclosure_route():
 
 
 def check_api_route_scope():
-    """D-04's four session routes plus Phase 6's `/api/hint`, and the count
-    is asserted rather than trusted.
+    """D-04's four session routes plus Phase 6's `/api/hint` and Phase 10's
+    `/api/override`, and the count is asserted rather than trusted. Every
+    entry is mirrored in ROUTE_CLI (route-without-CLI-twin fails here) and
+    in SURFACE_PARITY with its reserved MCP tool name (Extensibility Rule
+    9(a)).
     """
-    if len(daemon.API_ROUTES) != 5:
-        fail("D-04 + Phase 6 scope /api/* to exactly five routes; API_ROUTES has "
-             "%d" % len(daemon.API_ROUTES))
-    if not {"start", "next", "submit", "hint", "report"} <= set(daemon.ROUTE_CLI.values()):
-        fail("ROUTE_CLI is missing one of the five session CLI commands")
+    if len(daemon.API_ROUTES) != 6:
+        fail("D-04 + Phase 6 + 10-04 scope /api/* to exactly six routes; "
+             "API_ROUTES has %d" % len(daemon.API_ROUTES))
+    if not {"start", "next", "submit", "hint", "report", "override"} <= \
+            set(daemon.ROUTE_CLI.values()):
+        fail("ROUTE_CLI is missing one of the six session CLI commands")
+    parity_keys = set(daemon.SURFACE_PARITY)
+    route_keys = set((m, p) for m, p, _ in daemon.API_ROUTES)
+    if parity_keys != route_keys:
+        fail("SURFACE_PARITY keys (%d) must equal API_ROUTES keys (%d)"
+             % (len(parity_keys), len(route_keys)))
+    for key, entry in daemon.SURFACE_PARITY.items():
+        if not isinstance(entry.get("mcp_tool"), str) or \
+                not entry.get("mcp_tool").startswith("itembank_"):
+            fail("SURFACE_PARITY %r must reserve an itembank_* MCP tool name"
+                 % (key,))
+        if entry.get("cli") not in daemon.ROUTE_CLI.values():
+            fail("SURFACE_PARITY %r names a CLI twin %r that is not in "
+                 "ROUTE_CLI" % (key, entry.get("cli")))
+
+
+def namespaced_response_event(session_id, objective, ts, score=True,
+                              item_ref=None, bank="sel_bank.md"):
+    """One synthetic namespaced response for the 10-04 daemon pacing
+    corpus, mirroring evidence.response_event's shape."""
+    item_ref = item_ref or ("Q" + evidence.new_event_id()[:8])
+    return {
+        "schema_version": evidence.EVENT_SCHEMA_VERSION,
+        "event_id": evidence.new_event_id(),
+        "event_type": "response",
+        "ts": ts,
+        "session_id": session_id,
+        "item_id": "",
+        "item_ref": item_ref,
+        "item_type": "mc",
+        "bank": bank,
+        "objective": objective,
+        "subject": evidence.subject_of(objective),
+        "mode": "practice",
+        "attempt_number": 1,
+        "answer": "B",
+        "canonical": "B",
+        "score": score,
+        "response_time_ms": 1000,
+        "confidence": None,
+        "error_category": None,
+        "hint_tier": None,
+        "selection_mode": "practice",
+        "review_state": "n/a",
+        "dedupe_key": evidence.dedupe_key(session_id, item_ref, 1, "B"),
+        "source_ref": None,
+    }
+
+
+def check_api_override_route():
+    """POST /api/override (10-04, D-08): the daemon twin of `itembank
+    override`. At cap, ordinary /api/start is blocked with the exact locked
+    copy; a wrong confirmation token is a 400 and writes nothing; with the
+    exact token and a namespaced objective it starts exactly one sitting,
+    appends ONE cap_override event bound to the generated session id /
+    subject / local day / snapshot, and a fresh at-cap start is blocked
+    again (no persistent bypass). Client-forged subject/cap/snapshot
+    values are ignored -- the binding and the event carry only
+    server-derived numbers (T-10-14/T-10-15).
+    """
+    import datetime
+    from datetime import timezone
+    workdir = tempfile.mkdtemp()
+    try:
+        shutil.copy(os.path.join(ROOT, "fixtures", "selection_bank.md"),
+                    os.path.join(workdir, "sel_bank.md"))
+        write_settings_file(workdir, {"daily_cap": 1})
+        today = datetime.date.today()
+        ts = datetime.datetime(today.year, today.month, today.day, 9, 0,
+                               tzinfo=timezone.utc
+                               ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        evdir = os.path.join(workdir, "_evidence")
+        os.makedirs(evdir, exist_ok=True)
+        proc, url, lines = start_daemon(workdir)
+        try:
+            # Below cap on a fresh subject: client-forged subject/cap are
+            # ignored -- the binding is server-derived -- and the fourth
+            # selection profile (exam) runs through the same gate.
+            status, body = json_request(
+                url + "api/start",
+                {"bank": "sel_bank", "objective": "water:notification.boil",
+                 "count": 2, "selection_mode": "exam",
+                 "subject": "forged", "cap": 999, "snapshot_id": "forged"})
+            if status != 200:
+                fail("below-cap start with forged fields returned HTTP %d: %r"
+                     % (status, body))
+            if body["cap"]["subject"] != "water":
+                fail("forged subject must never reach the binding: %r"
+                     % body["cap"])
+            if body["cap"]["cap"] != 1 or body["cap"]["count"] != 0:
+                fail("forged cap must never reach the binding: %r" % body["cap"])
+
+            # Now the day's live evidence lands (one water response today
+            # vs daily_cap 1), so the subject is at cap.
+            with open(os.path.join(evdir, "evidence.jsonl"), "a",
+                      encoding="utf-8") as fh:
+                fh.write(json.dumps(namespaced_response_event(
+                    "seed", "water:distribution.residual", ts, score=True,
+                    item_ref="S1"), sort_keys=True) + "\n")
+
+            # At cap (1 live water response today vs daily_cap 1): ordinary
+            # start is blocked with the exact locked copy, even when the
+            # caller forges subject/cap/snapshot/override values.
+            status, body = json_request(
+                url + "api/start",
+                {"bank": "sel_bank",
+                 "objective": "water:distribution.residual", "count": 2,
+                 "subject": "emt", "cap": 999, "snapshot_id": "forged",
+                 "override": True})
+            if status != 400:
+                fail("at-cap /api/start returned HTTP %d, expected 400" % status)
+            if "Today\u2019s water cap is reached (1 of 1 ordinary attempts)." \
+                    not in str(body):
+                fail("at-cap /api/start did not carry the exact locked copy: %r"
+                     % body)
+
+            # Wrong confirmation token: 400, nothing written.
+            status, body = json_request(
+                url + "api/override",
+                {"bank": "sel_bank",
+                 "objective": "water:distribution.residual", "count": 2,
+                 "token": "not the phrase"})
+            if status != 400:
+                fail("override with a wrong token returned HTTP %d, expected "
+                     "400" % status)
+            log = evidence.log_path(workdir)
+            overrides = [ev for ev in evidence.live_events(log)
+                         if ev.get("event_type") == evidence.CAP_OVERRIDE_EVENT_TYPE]
+            if overrides:
+                fail("a rejected override must append no cap_override event")
+
+            # Confirmed override: one event, bound to the generated session.
+            status, body = json_request(
+                url + "api/override",
+                {"bank": "sel_bank",
+                 "objective": "water:distribution.residual", "count": 2,
+                 "token": session.OVERRIDE_CONFIRMATION,
+                 "subject": "forged-subject", "cap": 777})
+            if status != 200:
+                fail("confirmed override returned HTTP %d: %r" % (status, body))
+            result = body
+            if result["cap"]["subject"] != "water":
+                fail("override binding subject must be server-derived, got %r"
+                     % result["cap"]["subject"])
+            if result["cap"]["cap"] != 1 or result["cap"]["count"] != 1:
+                fail("override binding must carry the real 1/1 cap/count, got %r"
+                     % result["cap"])
+            overrides = [ev for ev in evidence.live_events(log)
+                         if ev.get("event_type") == evidence.CAP_OVERRIDE_EVENT_TYPE]
+            if len(overrides) != 1:
+                fail("confirmed override must append exactly one cap_override "
+                     "event, found %d" % len(overrides))
+            ev = overrides[0]
+            if ev["session_id"] != result["session_id"]:
+                fail("override event must bind to the generated session id")
+            if ev["subject"] != "water" or ev["cap"] != 1 or ev["count"] != 1:
+                fail("override event must carry server-derived subject/cap/"
+                     "count: %r" % ev)
+            if ev["local_date"] != today.isoformat():
+                fail("override event local_date %r != %s"
+                     % (ev["local_date"], today.isoformat()))
+            if result["cap"]["override_event_id"] != ev["event_id"]:
+                fail("session binding must name the override event id")
+
+            # The override authorizes only that sitting: answer one item,
+            # then a fresh at-cap start is blocked again (D-08 expiry --
+            # there is no persistent bypass).
+            session_id = result["session_id"]
+            nxt = post(url + "api/next", {"session_id": session_id})
+            answer = api_correct_answer(
+                api_by_id(os.path.join(workdir, "sel_bank.md")), nxt["item"])
+            submitted = post(url + "api/submit",
+                             {"session_id": session_id, "answer": answer})
+            if submitted["accepted"] is not True:
+                fail("the override sitting's submit was not accepted")
+            status, _ = json_request(
+                url + "api/start",
+                {"bank": "sel_bank",
+                 "objective": "water:distribution.residual", "count": 2})
+            if status != 400:
+                fail("after the override sitting, a fresh at-cap start must "
+                     "be blocked again; got HTTP %d" % status)
+        finally:
+            proc.terminate()
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+    print("  /api/override: locked block, forged-input containment, one "
+          "sitting-bound event, expiry")
 
 
 def snapshot_dirs(root):
@@ -1286,17 +1477,27 @@ def check_api_start_traversal():
     """A `bank` field naming a path outside the served directory -- absolute,
     or with parent-directory segments -- returns 4xx, creates no directory
     and writes no file (T-2-01, T-2-02).
+
+    The snapshot is scoped to the served root plus the one escape target
+    the hostile values aim at, never the whole parent directory: other
+    processes (sibling phase worktrees) legitimately create temp
+    workdirs under the same parent while this suite runs, so a
+    parent-wide snapshot would flake on their activity rather than on
+    this server's behavior.
     """
     workdir = tempfile.mkdtemp()
     shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
     proc, url, lines = start_daemon(workdir)
     try:
-        parent = os.path.dirname(workdir)
-        before = snapshot_dirs(parent)
+        escaped = os.path.abspath(os.path.join(workdir, "..", "escaped"))
+        if os.path.exists(escaped):
+            fail("escape target %r already exists; the traversal check needs "
+                 "a clean scratch space" % escaped)
+        before = snapshot_dirs(workdir)
         hostile_values = (
             "../../etc/passwd",
             "..\\..\\Windows\\System32\\evil",
-            os.path.abspath(os.path.join(workdir, "..", "escaped")),
+            escaped,
         )
         for hostile in hostile_values:
             try:
@@ -1307,10 +1508,13 @@ def check_api_start_traversal():
                 if exc.code < 400 or exc.code >= 500:
                     fail("a path-shaped bank field returned HTTP %d, expected 4xx"
                          % exc.code)
-        after = snapshot_dirs(parent)
+        after = snapshot_dirs(workdir)
         if after != before:
-            fail("a hostile bank field on /api/start created a new directory: %r"
-                 % (after - before))
+            fail("a hostile bank field on /api/start created a new directory "
+                 "under the served root: %r" % (after - before))
+        if os.path.exists(escaped):
+            fail("a hostile bank field on /api/start created the escape target %r"
+                 % escaped)
         attempts_dir = os.path.join(workdir, "_attempts")
         if os.path.isdir(attempts_dir) and os.listdir(attempts_dir):
             fail("a hostile bank field on /api/start wrote a session file")
@@ -2543,6 +2747,7 @@ def main():
         check_cli_twin_route,
         check_disclosure_route,
         check_api_route_scope,
+        check_api_override_route,
         check_api_sitting,
         check_api_duplicate_submit_dedupes,
         check_api_survives_routine_error,

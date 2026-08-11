@@ -14,6 +14,7 @@ tool still holds no content of its own.
 import html, json, os, re, sys
 
 import evidence
+import retention
 from surfaces import presentation, settings
 from surfaces.theme import theme_css
 
@@ -397,6 +398,58 @@ def anki_read(decks):
     return None, None
 
 
+# ---- Anki, read-only and owner-labelled (10-04, D-05/SCHED-03) -------------
+# Anki is an OPTIONAL read-only external card signal. It can never change an
+# itembank pacing claim (that would require writing to it, and there are
+# deliberately NO Anki write methods in this module -- only deckNames and
+# findCards reads), never supplies evidence, and never blocks local report,
+# day, or session behavior. When it is unavailable the exact locked copy is
+# shown and all local evidence functions remain usable offline.
+
+ANKI_UNAVAILABLE_COPY = "Anki is unavailable; card counts are not shown."
+
+
+def anki_line(counts):
+    """The owner-labelled Anki line, or None. Due/new are summed across the
+    requested decks into ONE external signal and never summed with the
+    itembank objective counts -- the two owners are never added (D-05)."""
+    if not counts:
+        return None
+    due = sum(v[0] for v in counts.values())
+    new = sum(v[1] for v in counts.values())
+    return "Anki: %d due · %d new" % (due, new)
+
+
+def pacing_lines(pacing):
+    """One line per subject from a `retention.subject_pacing` dict: the
+    ordinary count/cap on the snapshot's local day and the due objective
+    count, exactly the numbers the cap gate enforces (D-07)."""
+    out = []
+    for subj in sorted(pacing["subjects"]):
+        s = pacing["subjects"][subj]
+        cap = "unlimited" if s["cap"] is None else str(s["cap"])
+        out.append("%s: %d of %s ordinary attempts today · %d due objective(s)"
+                   % (subj, s["count"], cap, s["due"]))
+    return out
+
+
+def day_pacing(state, cfg=None):
+    """The ONE capture per `day` render/--check call (T-10-17): the evidence
+    snapshot and every itembank pacing claim (count/cap/due per subject)
+    come from this single immutable capture -- never from a tick row, a
+    session cursor, an Anki count, or the render cache. The returned pacing
+    dict carries the shared claim marker, so no rendered number lacks its
+    evidence provenance (D-01/D-13)."""
+    if cfg is None:
+        from surfaces import settings as _settings
+        cfg = _settings.load_settings(
+            os.path.dirname(os.path.abspath(state["plan_path"])) or ".")
+    events = evidence.capture_events(state["evidence_log"]) \
+        if os.path.exists(state["evidence_log"]) else ()
+    snapshot = retention.capture(events, cfg=cfg)
+    return retention.subject_pacing(snapshot, cap=cfg.get("daily_cap"))
+
+
 # ---- git evidence --------------------------------------------------------------
 # Ticks are an opinion; a commit touching the lane's file is evidence, and the
 # two disagreeing is the thing worth seeing. Uncommitted edits count too, since
@@ -626,6 +679,13 @@ accent-color:var(--bad)}
 @media (max-width:520px){
 .editor .panes{flex-direction:column}
 .editor .acts button{flex:1 1 auto}}
+.pacing,.anki{margin:10px 0;padding:10px 12px;border:1px solid var(--line);
+border-radius:10px;background:var(--bg)}
+.pacing ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+.pacing li,.anki{font-size:.9rem;color:var(--ink)}
+.pacing .snap{font-size:.72rem;color:var(--mut);margin:6px 0 0}
+.owner{font-weight:600;color:var(--accent);text-transform:uppercase;font-size:.7rem;
+letter-spacing:.04em;margin-right:6px}
 """
 
 
@@ -998,6 +1058,31 @@ def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None,
         chips.append('<span class="chip %s">%s <b>%dd</b></span>'
                      % (cls, e(name), days))
     chips = '<div class="chips">%s</div>' % "".join(chips) if chips else ""
+    # 10-04: the itembank pacing block (per-subject count/cap + due
+    # objectives from ONE snapshot, owner-labelled) and the separate
+    # owner-labelled Anki line -- two owners, never summed (D-05). The
+    # pacing block is rendered fresh on every render; a cached Anki line
+    # carries its age note in `notes`.
+    pacing = ""
+    if info.get("pacing") and info["pacing"].get("subjects"):
+        p_rows = "".join(
+            '<li><span class="owner">itembank</span> %s: <b>%d</b> of %s '
+            "ordinary attempts today \u00b7 <b>%d</b> due objective(s)</li>"
+            % (e(subj), s["count"],
+               "unlimited" if s["cap"] is None else str(s["cap"]), s["due"])
+            for subj, s in sorted(info["pacing"]["subjects"].items()))
+        pacing = ('<section class="pacing" aria-label="itembank pacing">'
+                  "<ul>%s</ul>"
+                  '<p class="snap">itembank snapshot <code>%s</code></p>'
+                  "</section>"
+                  % (p_rows, e(info["pacing"]["claim"]["snapshot_id"])))
+    anki = ""
+    if info.get("anki_unavailable"):
+        anki = ('<div class="anki"><span class="owner">Anki</span> %s</div>'
+                % e(ANKI_UNAVAILABLE_COPY))
+    elif info.get("anki_line"):
+        anki = ('<div class="anki"><span class="owner">Anki</span> %s</div>'
+                % e(info["anki_line"]))
     notes = "".join('<div class="note">%s</div>' % e(m)
                     for m in info.get("notes", []))
     # `base` is the plan-scoped POST prefix (T-2-12): one process serving
@@ -1084,6 +1169,7 @@ def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None,
             "%s<div class=verdict id=verdict></div>"
             "%s"
             "%s"
+            "%s%s"
             "%s<div class=note>Plan read from <code>%s</code>. Ticks are written to disk "
             "as you make them.</div>"
             "<script>window.__day__=%s;\n%s</script></body></html>"
@@ -1092,7 +1178,8 @@ def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None,
                "".join('<i class="%s" title="%s: %s"></i>'
                        % ("" if h["status"] == "miss" else h["status"], h["date"], h["status"])
                        for h in hist),
-               "".join(lanes), editor, empty_row, notes, e(plan_path),
+               "".join(lanes), editor, empty_row, pacing, anki, notes,
+               e(plan_path),
                presentation.script_safe_json(boot), DAY_JS))
 
 
@@ -1137,7 +1224,14 @@ def day_info(plan, log, iso, plan_path, lanes_path):
     decks = [w["deck"] for w in wiring.values() if w.get("deck")]
     counts, deck_names = anki_read(decks) if decks else (None, None)
     if decks and counts is None:
-        info["notes"].append("Anki is closed, so card counts are omitted.")
+        # The exact locked unavailable copy (10-UI-SPEC.md); a failure must
+        # never render as a stale or zero-looking card count (D-05).
+        info["anki_unavailable"] = True
+    else:
+        info["anki_served"] = True
+        line = anki_line(counts)
+        if line:
+            info["anki_line"] = line
     if deck_names:
         for err in lint_lane_decks(wiring, deck_names):
             info["notes"].append("Wiring: %s (%s)" % (err, os.path.basename(lanes_path)))
@@ -1181,6 +1275,16 @@ def day_text(iso, weekday, row, log, streak, info):
         if badges:
             L.append("      %-9s %s" % ("", badges))
     L.append("  %s so far. Floor = %s." % (day_status(done), ", ".join(FLOOR_LANES)))
+    # 10-04: snapshot-derived per-subject pacing, then the separate
+    # owner-labelled Anki signal -- two owners, never summed (D-05).
+    if info.get("pacing"):
+        for line in pacing_lines(info["pacing"]):
+            L.append("  " + line)
+        L.append("    itembank snapshot %s" % info["pacing"]["claim"]["snapshot_id"])
+    if info.get("anki_unavailable"):
+        L.append("  " + ANKI_UNAVAILABLE_COPY)
+    elif info.get("anki_line"):
+        L.append("  " + info["anki_line"])
     for m in info["notes"]:
         L.append("  note: %s" % m)
     if not row:
@@ -1201,6 +1305,12 @@ def day_state(plan_path, log_path, lanes_path, iso, base=""):
     `day_page`: the default empty string keeps `cmd_day`'s single-plan
     launch posting to root-relative paths exactly as before; a daemon
     serving several plans gives each state its own `/day/<stem>`.
+
+    10-04 (T-10-17): `cache` is explicitly NOT a claim authority. It holds
+    at most the lanes info and the external Anki read (whose latency is the
+    only reason caching exists at all); `day_render` re-captures the
+    evidence snapshot and every itembank pacing claim fresh on every render
+    and never reads a pacing value out of this dict.
     """
     from datetime import date
     today = date.fromisoformat(iso)
@@ -1233,6 +1343,12 @@ def day_render(state):
     encoded bytes. The one render function the CLI and the daemon both
     call (D-08 extended to the day surface) -- no second copy of this
     substitution chain lives in `surfaces/daemon.py`.
+
+    10-04 (T-10-17): the render cache can cover only external Anki latency
+    and the lanes info. Every itembank pacing claim is captured FRESH on
+    every render from ONE evidence snapshot (`day_pacing`), so a cached
+    value can never become a pacing or cap claim; a cached Anki line
+    discloses its age separately (D-05/SCHED-03) and is never evidence.
     """
     import time
     from surfaces import day_document
@@ -1241,9 +1357,17 @@ def day_render(state):
         cache["info"] = day_info(state["plan"], state["log"], state["iso"],
                                  state["plan_path"], state["lanes_path"])
         cache["at"] = time.time()
-    row = state["plan"].get(state["iso"], {})
     cfg = settings.load_settings(
         os.path.dirname(os.path.abspath(state["plan_path"])) or ".")
+    info = dict(cache["info"])
+    info["notes"] = list(info.get("notes", []))
+    info["pacing"] = day_pacing(state, cfg)
+    if info.get("anki_line") is not None:
+        age = max(0, int(time.time() - cache["at"]))
+        info["notes"].append(
+            "Anki counts are a cached read (%ds old, up to 60s); Anki is an "
+            "external read-only signal and is never evidence." % age)
+    row = state["plan"].get(state["iso"], {})
     css = theme_css(cfg)
     snapshot = day_document.snapshot(state["plan_path"],
                                      state["today"].year, state["iso"])
@@ -1251,7 +1375,7 @@ def day_render(state):
                     state["log"].get(state["iso"], set()),
                     day_streak(state["log"], state["today"]),
                     day_history(state["log"], state["today"]),
-                    state["plan_path"], cache["info"],
+                    state["plan_path"], info,
                     base=state.get("base", ""), theme_css=css,
                     snapshot=snapshot).encode("utf-8")
 
@@ -1427,6 +1551,14 @@ def cmd_day(a):
         state = day_state(a.plan, log_path, lanes_path, iso)
         row = state["plan"].get(iso, {})
         info = day_info(state["plan"], state["log"], iso, a.plan, lanes_path)
+        # 10-04: the --check branch captures the evidence snapshot ONCE for
+        # every itembank pacing claim (count/cap/due per subject via
+        # day_pacing), separate from the optional Anki read day_info already
+        # did -- two owners, never summed, Anki never blocking (D-05/D-07).
+        # There is no render cache here: everything is one fresh capture.
+        cfg = settings.load_settings(
+            os.path.dirname(os.path.abspath(a.plan)) or ".")
+        info["pacing"] = day_pacing(state, cfg)
         print(day_text(iso, today.strftime("%A"), row, state["log"],
                        day_streak(state["log"], today), info))
         print("  log: %s" % log_path)

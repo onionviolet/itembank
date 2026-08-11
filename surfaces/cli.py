@@ -23,7 +23,8 @@ from surfaces.migrate import cmd_migrate
 from surfaces.protocol_cli import cmd_schema
 from surfaces.quiz import cmd_build, cmd_serve
 from surfaces.selection_cli import cmd_select
-from surfaces.session import cmd_hint, cmd_next, cmd_report, cmd_start, cmd_submit
+from surfaces.session import (cmd_hint, cmd_next, cmd_override, cmd_report,
+                              cmd_start, cmd_submit)
 from surfaces.settings import cmd_config
 from surfaces import seeding
 from surfaces.study import cmd_study
@@ -607,7 +608,41 @@ def main():
                    help="named selection profile from settings")
     s.add_argument("--out", help="session JSON path")
     s.add_argument("--force", action="store_true", help="start despite lint errors")
+    s.add_argument("--subject", default=None,
+                   help="subject namespace whose per-day cap gates this "
+                        "sitting (default: derived from --objective's "
+                        "namespace)")
+    s.add_argument("--override-cap", default="", metavar="CONFIRM",
+                   help="start one additional sitting after the cap is "
+                        "reached; CONFIRM must be exactly the override "
+                        "confirmation phrase (see `itembank override --help`)")
     s.set_defaults(fn=cmd_start)
+
+    s = sub.add_parser("override", help="start one additional sitting past "
+                                        "today's cap after explicit confirmation")
+    s.add_argument("bank")
+    s.add_argument("--subject", default=None,
+                   help="subject namespace at cap; the override is bound to "
+                        "exactly this subject for one sitting")
+    s.add_argument("--confirm", default="", metavar="CONFIRM",
+                   help="exact confirmation phrase required (start uses "
+                        "--override-cap with the same value)")
+    s.add_argument("--count", type=int, default=None)
+    s.add_argument("--objective", default=None)
+    s.add_argument("--prerequisite", default=None)
+    s.add_argument("--prereq-satisfied", action="store_true", default=None)
+    s.add_argument("--type", default=None)
+    s.add_argument("--difficulty", default=None)
+    s.add_argument("--mode", default="diagnostic",
+                   choices=("diagnostic", "practice", "exam", "remediation", "drill"))
+    s.add_argument("--selection-mode", default="practice",
+                   choices=selection.SELECTION_MODES)
+    s.add_argument("--seed", type=int, default=None)
+    s.add_argument("--pair", default=None)
+    s.add_argument("--profile", default=None)
+    s.add_argument("--out", help="session JSON path")
+    s.add_argument("--force", action="store_true", help="start despite lint errors")
+    s.set_defaults(fn=cmd_override)
 
     s = sub.add_parser("select", help="preview a selection without starting a session")
     s.add_argument("bank")
