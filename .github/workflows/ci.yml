@@ -51,7 +51,15 @@ jobs:
                     open(sys.argv[2], 'w', encoding='utf-8'))" /tmp/start.json /tmp/item.json
           python schema_validate.py schemas/item.schema.json /tmp/item.json
           python itembank.py submit /tmp/s.json --answer A --confidence high
-          python schema_validate.py schemas/response.schema.json --jsonl /tmp/_evidence/evidence.jsonl
+          # The log is a multi-type append-only stream (response, hint,
+          # selection, ...) and response.schema.json is one type's contract,
+          # not the stream's -- filter to response-typed lines before the
+          # per-type validation (plan 07-04).
+          python -c "import json, sys
+          lines = [l for l in open('/tmp/_evidence/evidence.jsonl', encoding='utf-8')
+                   if json.loads(l).get('event_type') == 'response']
+          open('/tmp/evidence_responses.jsonl', 'w', encoding='utf-8').writelines(lines)" 
+          python schema_validate.py schemas/response.schema.json --jsonl /tmp/evidence_responses.jsonl
           python itembank.py report /tmp/s.json > /tmp/report.json
           python -c "import json, sys
           json.dump(json.load(open(sys.argv[1], encoding='utf-8'))['summary'],

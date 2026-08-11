@@ -108,6 +108,10 @@
           "type": ["integer", "null"],
           "description": "The highest tier actually shown at submission time (D-15, Phase 6). Null means no tier was shown -- a different fact from 'tier 0 was shown', which records 0; conflating them is unrecoverable once written. Version-1 events wrote null always."
         },
+        "selection_mode": {
+          "type": ["string", "null"],
+          "description": "The selection composition that served this item (plan 07-04); `mode` names the feedback policy that governed what was shown. Null when the event predates phase 7."
+        },
         "review_state": {
           "type": "string",
           "enum": ["n/a", "pending", "marked"],

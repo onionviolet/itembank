@@ -114,10 +114,14 @@ def test_tracer_end_to_end():
 
         log = os.path.join(tmp, "_evidence", "evidence.jsonl")
         lines = [l for l in open(log, encoding="utf-8").read().splitlines() if l.strip()]
-        if len(lines) != 1:
-            fail("expected exactly one line in evidence.jsonl, found %d" % len(lines))
-
-        raw = json.loads(lines[0])
+        if len(lines) != 2:
+            fail("expected selection + response lines in evidence.jsonl, found %d"
+                 % len(lines))
+        parsed = [json.loads(l) for l in lines]
+        if not any(e.get("event_type") == "selection"
+                   and e.get("selection_spec") is not None for e in parsed):
+            fail("start did not record the selection event (D-03)")
+        raw = next(e for e in parsed if e.get("event_type") == "response")
         missing = EXPECTED_KEYS - set(raw)
         if missing:
             fail("raw log line missing keys: %r" % sorted(missing))

@@ -547,6 +547,7 @@ def teaching_transition(session, q, action, evidence_state=None):
     the returned session and appends response/hint events; the transition
     itself never writes files.
     """
+    import evidence  # function-local: module-level would cycle (line 426)
     kind = action.get("kind")
     if kind not in ("submit", "hint", "stumped"):
         sys.exit("unknown teaching action %r (expected submit, hint, or stumped)"
@@ -650,7 +651,7 @@ def teaching_transition(session, q, action, evidence_state=None):
         next_rec = dict(rec, attempt_count=rec["attempt_count"] + 1,
                         last_genuine_canonical=canon)
         state = dict(state)
-        state[evidence_key(q)] = next_rec
+        state[evidence.evidence_key(q)] = next_rec
         return {"action": "defer_feedback",
                 "session": dict(session, teaching_state=state),
                 "hint_tier": None}

@@ -76,6 +76,7 @@ from surfaces.day import (ANKI_ADDON_ID, DAY_LANES, FLOOR_LANES, anki_read,   # 
 from surfaces.migrate import (read_attempt_md, read_legacy_session, scan_legacy,  # noqa: E402
                               source_key)
 from evidence import (EVENT_SCHEMA_VERSION, INDEX_VERSION, KNOWN_EVENT_TYPES,  # noqa: E402
+                      SELECTION_EVENT_TYPE,
                       append_event, append_line, attempt_number,
                       day_log_from_events, day_tick_event, dedupe_key,
                       ensure_index,
@@ -88,6 +89,7 @@ from evidence import (EVENT_SCHEMA_VERSION, INDEX_VERSION, KNOWN_EVENT_TYPES,  #
                       rebuild_index, render_attempt_md, render_daily_log,
                       render_session_json,
                       response_event, retracted_ids, retraction_event,
+                      selection_event,
                       key_review_event, session_events, subject_of,
                       term_lookup_event, utc_now)
 from schema_validate import SUPPORTED, SchemaError, validate                  # noqa: E402
@@ -100,8 +102,9 @@ __all__ = [
     "KNOWN_EVENT_TYPES",
     "KEYS_UNCHECKED", "LESSON_UNCHECKED", "LETTERS", "LINT_CODES", "LintError",
     "TERMS_UNCHECKED",
-    "PAIR_SEP", "REPORT_VERSION", "SESSION_UPGRADES", "SESSION_VERSION", "SPEC",
-    "SPEC_FIELDS", "SUPPORTED", "SchemaError",
+    "PAIR_SEP", "REPORT_VERSION", "SELECTION_EVENT_TYPE",
+    "SESSION_UPGRADES", "SESSION_VERSION", "SPEC", "SPEC_FIELDS",
+    "SUPPORTED", "SchemaError",
     "__version__",
     "anki_read", "answer_text", "append_event", "append_line", "assign_ids",
     "attempt_number", "canonical_key", "canonical_response", "collapse",
@@ -128,6 +131,7 @@ __all__ = [
     "response_event", "response_text", "retracted_ids", "retraction_event",
     "scan_legacy",
     "reconcile_teaching_state", "score_response", "section", "select",
+    "selection_event",
     "session_events", "session_path",
     "key_review_event", "session_summary", "session_view", "source_key",
     "subject_of", "teaching_key", "teaching_outcomes", "teaching_transition",

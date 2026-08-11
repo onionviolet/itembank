@@ -41,12 +41,16 @@ INDEX_FILENAME = "evidence_index.sqlite3"
 
 # "retraction" was added by plan 01-07, "mark" by plan 01-09, "day_tick" by
 # plan 01-10, "term_lookup" by plan 03.1-02, "key_review" by plan 03.1-03,
-# and "hint" by plan 06-01 -- response events are the only ones this build
+# "hint" by plan 06-01, and "selection" by plan 07-04 -- response events are the only ones this build
 # wrote before 01-07. events() skips and warns on anything outside this set
 # (D-09), so a log written by a later build's event type degrades instead of
 # crashing.
 KNOWN_EVENT_TYPES = ("response", "retraction", "mark", "day_tick",
-                     "term_lookup", "key_review", "hint")
+                     "term_lookup", "key_review", "hint", "selection")
+
+# The record of what a sitting asked for (D-03): one event per session, so a
+# deleted session file never destroys the ability to reproduce the sitting.
+SELECTION_EVENT_TYPE = "selection"
 
 # Bounds the tail scan `append_line_checked` and `recent_dedupe_keys` run to
 # decide whether an event is a duplicate. A dedupe_key contains the
@@ -360,7 +364,7 @@ def dedupe_key(session_id, item_key, attempt_num, canon):
 
 def response_event(session_id, q, answer, score, mode, attempt_num, bank,
                     response_time_ms=None, confidence=None, source_ref=None,
-                    hint_tier=None):
+                    hint_tier=None, selection_mode=None):
     """Build one full response event dict. Every key named in this plan's
     must_haves is present on every event — reserved fields carry an explicit
     `None`, never an absent key, so a consumer can tell "not captured" from
@@ -401,9 +405,41 @@ def response_event(session_id, q, answer, score, mode, attempt_num, bank,
         "confidence": confidence,
         "error_category": None,   # no error taxonomy exists before Phase 8
         "hint_tier": hint_tier,   # integer-or-null since Phase 6 (D-15)
+        "selection_mode": selection_mode,   # the composition that served this item (07-04)
         "review_state": "pending" if q["type"] == "short" else "n/a",
         "dedupe_key": dedupe_key(session_id, key, attempt_num, canon),
         "source_ref": source_ref,
+    }
+
+
+def selection_event(session_id, bank, spec, item_keys):
+    """Build one selection event: the record of what a sitting asked for,
+    appended once per session (D-03) and separate from the responses because
+    the request is one fact about a sitting, not one fact per answer.
+
+    `spec` is the resolved selection spec as passed to `select()`; only keys
+    in `selection.SPEC_FIELDS` are recorded, so no item text, option text or
+    answer key can ever enter the log under this event (T-07-03). `item_keys`
+    is the ordered list of `evidence_key(q)` values that were served.
+
+    `dedupe_key` is derived from the session id alone, so a retried start for
+    the same session reconciles (`already_recorded`) rather than doubling.
+    """
+    from selection import SPEC_FIELDS
+    spec = {k: v for k, v in (spec or {}).items() if k in SPEC_FIELDS}
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": SELECTION_EVENT_TYPE,
+        "ts": utc_now(),
+        "session_id": session_id,
+        "bank": bank,
+        "selection_mode": spec.get("selection_mode", "practice"),
+        "selection_spec": spec,
+        "items": list(item_keys),
+        "dedupe_key": dedupe_key(
+            session_id, "selection", 0,
+            json.dumps(spec, ensure_ascii=False, sort_keys=True)),
     }
 
 
