@@ -25,9 +25,13 @@ CONTRACTS = (
     ("selection", "the one selection request every surface builds, recorded on the "
                   "session and in the evidence log"),
     ("session", "the resumable session file `start`/`next`/`submit`/`report` share"),
-    ("response", "one recorded evidence event, one line of `_evidence/evidence.jsonl`"),
-    ("report", "a session summary or an objective's response history"),
+    ("response", "one recorded evidence event, one line of `_evidence/evidence.jsonl` "
+                 "-- response, hint, and (Phase 10) explicit lesson completion"),
+    ("report", "a session summary, an objective's response history, or the Phase 10 "
+               "retention/trends report with its complete evidence claim"),
     ("lint_error", "one finding from `itembank lint --json`'s `errors`/`warnings` arrays"),
+    ("agent_usage", "the permissions, disclosure, retry, and manual-grading contract "
+                    "for model-facing agents"),
 )
 
 CONTRACT_NAMES = tuple(name for name, _ in CONTRACTS)
@@ -77,6 +81,19 @@ def _load_schema_text(name):
     return resources.read_text(_schema_path(name))
 
 
+def cmd_usage(a):
+    """Print the agent usage contract byte-for-byte off disk, then one
+    one-line human summary. The bytes are the contract; the summary is a
+    convenience, never a paraphrase an agent should trust."""
+    print(_load_schema_text("agent_usage"), end="")
+    print()
+    print("# An agent may request hints and rubric-review suggestions, read "
+          "pending proposals, and accept them only by explicit human action; "
+          "it may never write evidence, score responses, select items, "
+          "advance tiers, read dropped text, or auto-accept.")
+    return 0
+
+
 def cmd_schema(a):
     if a.all:
         contracts = dict((name, json.loads(_load_schema_text(name))) for name in CONTRACT_NAMES)
@@ -102,6 +119,6 @@ def cmd_schema(a):
         print("  %-12s v%-3d  %s" % (name, doc["x-itembank-version"], summary))
     print("\nRun `itembank schema NAME` for one document, or "
           "`itembank schema --all` for the whole contract -- the bank format, "
-          "all six documents, and the command sequence to run a session -- "
+          "all seven documents, and the command sequence to run a session -- "
           "in one object.")
     return 0

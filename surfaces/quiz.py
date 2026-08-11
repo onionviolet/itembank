@@ -5,14 +5,15 @@ and saves nothing. `serve` puts the same page behind a loopback server that
 scores every response and writes the attempt file, so the browser never holds an
 answer. Both are clients of the runtime.
 """
-import collections, html, os, sys, uuid
+import collections, html, json, os, sys, uuid
 
 import evidence
 from model import HONEST_LIMITS_NOTE, grab, lint, load, parse_lesson
 from runtime import INTERACTION_VERSION, page_item, score_response
 from surfaces.session import run_check_source
 from surfaces import presentation, settings
-from surfaces.quiz_page import OFFLINE_JS, SERVED_JS, TEMPLATE
+from surfaces.quiz_page import (AGENT_ASSIST_HTML, ASSIST_JS, OFFLINE_JS,
+                                SERVED_JS, TEMPLATE)
 from surfaces.theme import THEME_CSS, theme_css
 
 # The vendored CodeMirror 6 bundle (plan 05-05 Task 2, ruling 5/11 + the
@@ -46,14 +47,110 @@ def _cm6_boot():
     return _CM6_BOOT_CACHE
 
 
+def _resolve_check_item(qs, check_id):
+    """The one check-item resolution shared by the daemon routes and the
+    CLI twins (D-01): by positional id or opaque [ID:]."""
+    for q in qs:
+        if q["id"] == check_id or q.get("item_id") == check_id:
+            return q
+    return None
+
+
+def record_gate_check(bank_path, check_id, answer, mode="practice",
+                      session_id="reader"):
+    """The one gate-check recording path shared by the daemon route and the
+    CLI twin (SURF-04): resolves the check item, scores through
+    `runtime.score_response()` (the one verdict path), and records ordinary
+    response evidence with context="lesson_gate" (D-08) -- a lesson-gate
+    attempt is the same object as a quiz attempt to every consumer.
+    Returns None when the check id names no item."""
+    qs = load(bank_path)
+    q = _resolve_check_item(qs, check_id)
+    if q is None:
+        return None
+    score = score_response(q, answer)
+    bank_dir = os.path.dirname(os.path.abspath(bank_path)) or "."
+    log = evidence.log_path(bank_dir)
+    canon = evidence.idempotency_canon(q, answer)
+    key = evidence.evidence_key(q)
+    attempt = evidence.attempt_number(log, session_id, key, canon)
+    event = evidence.response_event(
+        session_id=session_id, q=q,
+        answer=(json.dumps(answer, ensure_ascii=False)
+                if isinstance(answer, (dict, list)) else answer),
+        score=score, mode=mode, attempt_num=attempt,
+        bank=os.path.basename(bank_path), context="lesson_gate")
+    evidence.append_event(log, event)
+    return score
+
+
+def record_gate_skip(bank_path, check_id, mode="practice", session_id="reader"):
+    """The one gate_skip recording path shared by the daemon route and the
+    CLI twin (SURF-04): resolves the check and appends exactly one
+    gate_skip event through the one evidence writer (D-07). Returns None
+    when the check id names no item; returns "off" when the lesson declares
+    [GATE: off] and therefore offers no skip."""
+    qs = load(bank_path)
+    q = _resolve_check_item(qs, check_id)
+    if q is None:
+        return None
+    les = parse_lesson(bank_path)
+    as_authored = (les or {}).get("gate") or "recommended"
+    if as_authored == "off":
+        return "off"
+    bank_dir = os.path.dirname(os.path.abspath(bank_path)) or "."
+    event = evidence.gate_skip_event(
+        session_id=session_id, bank=os.path.basename(bank_path),
+        lesson_slug=os.path.splitext(os.path.basename(bank_path))[0],
+        check_item_id=check_id, check_item_ref=q["id"],
+        objective=q.get("objective", ""), gate_mode=as_authored)
+    evidence.append_event(evidence.log_path(bank_dir), event)
+    return "Read ahead recorded. This check stays open."
+
+
+def cmd_lesson_check(a):
+    """The CLI twin of `POST /lesson/<stem>/check` (SURF-04): scores the
+    check item's answer through the one scorer and records response
+    evidence with context="lesson_gate"; prints the verdict. An unknown
+    check id exits non-zero, matching the route's 404."""
+    try:
+        answer = json.loads(a.answer) if a.answer.strip() else ""
+    except (ValueError, TypeError):
+        answer = a.answer
+    score = record_gate_check(a.bank, a.check, answer)
+    if score is None:
+        sys.exit("no item matching check id %r in %s" % (a.check, a.bank))
+    print("recorded score=%s" % ("null" if score is None else
+                                 ("correct" if score else "not correct")))
+    return 0
+
+
+def cmd_lesson_skip(a):
+    """The CLI twin of `POST /lesson/<stem>/skip` (SURF-04): records
+    exactly one gate_skip event and prints the status string; an unknown
+    check id exits non-zero (the route's 404), and an [GATE: off] lesson
+    refuses the skip."""
+    status = record_gate_skip(a.bank, a.check)
+    if status is None:
+        sys.exit("no item matching check id %r in %s" % (a.check, a.bank))
+    if status == "off":
+        sys.exit("this lesson declares [GATE: off] and offers no skip")
+    print(status)
+    return 0
+
+
 def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
              lesson_base="", lesson_slugs=None, bank_stem=None, mode=None,
-             theme_css=None):
+             theme_css=None, assist=False):
     """Render one quiz page. `theme_css`, when given, is the per-render
     generated token block (the daemon passes
     `theme.theme_css(load_settings(root))` so quiz shares the one palette
     with index/report/settings -- plan 04-04 Task 2); when omitted the
     module's THEME_CSS constant keeps every existing caller byte-identical.
+    `assist`, when true and the page is served, threads the plan 08-05
+    AgentAssist payload (AGENT_ASSIST_HTML + ASSIST_JS) into the assist slot
+    -- the daemon is the only caller that sets it, so build/offline mode
+    ships no assist at all.
     """
     text = open(bank_path, encoding="utf-8").read()
     title = grab(r"(?m)^#\s+(.*?)\s*$", text) or os.path.basename(bank_path)
@@ -119,6 +216,8 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
            if has_check else "")
     cm6_boot_html = ("<script id=\"cm6-boot\">" + _cm6_boot() + "</script>"
                      if has_check else "")
+    assist_html = AGENT_ASSIST_HTML if (serve and assist) else ""
+    assist_js = ASSIST_JS if (serve and assist) else ""
     return mix, (TEMPLATE
                  .replace("__THEME__", THEME_CSS if theme_css is None
                           else theme_css)
@@ -130,6 +229,8 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                  .replace("__HONEST_LIMITS__", HONEST_LIMITS_NOTE)
                  .replace("__CM6_TAG__", cm6)
                  .replace("__CM6_BOOT__", cm6_boot_html)
+                 .replace("__ASSIST__", assist_html)
+                 .replace("__ASSIST_JS__", assist_js)
                  .replace("__OFFLINE_JS__", "" if serve else offline_js)
                  .replace("__SERVED_JS__", served_js if serve else "")
                  .replace("__BOOT__", presentation.script_safe_json(boot))

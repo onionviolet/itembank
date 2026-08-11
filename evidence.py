@@ -41,16 +41,45 @@ INDEX_FILENAME = "evidence_index.sqlite3"
 
 # "retraction" was added by plan 01-07, "mark" by plan 01-09, "day_tick" by
 # plan 01-10, "term_lookup" by plan 03.1-02, "key_review" by plan 03.1-03,
-# "hint" by plan 06-01, and "selection" by plan 07-04 -- response events are the only ones this build
-# wrote before 01-07. events() skips and warns on anything outside this set
-# (D-09), so a log written by a later build's event type degrades instead of
-# crashing.
+# "hint" by plan 06-01, "selection" by plan 07-04, "lesson_complete" by
+# plan 10-02, "cap_override" by plan 10-04, "model_interaction" /
+# "mark_proposal" by plan 08-03, "visual_action" by plan 06.1-02, and
+# "gate_skip" by plan 06.2-01 -- response events are the only ones this
+# build wrote before 01-07. events() skips and warns on anything outside
+# this set (D-09), so a log written by a later build's event type degrades
+# instead of crashing.
 KNOWN_EVENT_TYPES = ("response", "retraction", "mark", "day_tick",
-                     "term_lookup", "key_review", "hint", "selection")
+                     "term_lookup", "key_review", "hint", "selection",
+                     "lesson_complete", "cap_override",
+                     "model_interaction", "mark_proposal", "visual_action",
+                     "gate_skip")
 
 # The record of what a sitting asked for (D-03): one event per session, so a
 # deleted session file never destroys the ability to reproduce the sitting.
 SELECTION_EVENT_TYPE = "selection"
+
+# A committed semantic state-changing action on a visual item (plan 06.1-02,
+# D-04/D-05): appended only on a successful commit -- native
+# control/Enter/Space, tap, or pointer-up after a changed drag. Pointer
+# telemetry, focus, hover, tentative state, cancelled gestures, and unchanged
+# commits never append. Final submit stays the ordinary response event.
+VISUAL_ACTION_EVENT_TYPE = "visual_action"
+
+# The Phase 6.2 gate_skip event (D-07): a learner read ahead past a gated
+# check without answering. It is deliberately its own event type, never a
+# `response` carrying a null score -- conflating them would make a skip
+# indistinguishable from an unmarked attempt in every downstream count.
+GATE_SKIP_EVENT_TYPE = "gate_skip"
+
+# The two gate modes that may be skipped. "off" never offers a skip: an
+# off lesson is the 3.1 reader, so there is nothing to record.
+GATE_MODES = ("required", "recommended")
+
+# The one context value that marks a response event as served by a lesson
+# gate rather than by a quiz sitting (D-08). The default "quiz" keeps every
+# pre-6.2 call site byte-compatible; "lesson_gate" is written only by the
+# one new call site this phase adds (CONTEXT D-08, 06.2-RESEARCH section 2).
+LESSON_GATE_CONTEXT = "lesson_gate"
 
 # Bounds the tail scan `append_line_checked` and `recent_dedupe_keys` run to
 # decide whether an event is a duplicate. A dedupe_key contains the
@@ -364,7 +393,7 @@ def dedupe_key(session_id, item_key, attempt_num, canon):
 
 def response_event(session_id, q, answer, score, mode, attempt_num, bank,
                     response_time_ms=None, confidence=None, source_ref=None,
-                    hint_tier=None, selection_mode=None, *,
+                    hint_tier=None, selection_mode=None, context="quiz", *,
                     check_source=None, interaction_version=None,
                     error_category=None):
     """Build one full response event dict. Every key named in this plan's
@@ -410,13 +439,171 @@ def response_event(session_id, q, answer, score, mode, attempt_num, bank,
         "interaction_version": interaction_version,   # the public interaction-contract version that served a `check` item, null otherwise (05-01)
         "hint_tier": hint_tier,   # integer-or-null since Phase 6 (D-15)
         "selection_mode": selection_mode,   # the composition that served this item (07-04)
+        "context": context,   # "quiz" (default) or "lesson_gate" (06.2, D-08)
         "review_state": "pending" if q["type"] == "short" else "n/a",
         "dedupe_key": dedupe_key(session_id, key, attempt_num, canon),
         "source_ref": source_ref,
     }
 
 
-def selection_event(session_id, bank, spec, item_keys):
+def gate_skip_event(session_id, bank, lesson_slug, check_item_id,
+                     check_item_ref, objective, gate_mode):
+    """Build one gate_skip event: a learner read ahead past the gated check
+    named by `check_item_id` without answering (D-07, 06.2-UI-SPEC section
+    6.3). Mirrors `day_tick_event()`/`mark_event()` exactly: its own
+    envelope, a deliberately narrow dedupe key, and `ValueError` on a
+    malformed argument -- and, structurally, **no `score` key at all**, not
+    even `None` (criterion 8's concrete form: a skip is not a response).
+
+    `gate_mode` is the resolved gate mode the learner skipped past, never
+    "off": an off lesson offers no skip, so recording one would be
+    fabricating an event that never happened. `dedupe_key` is a hash over
+    `(session_id, check_item_id)` alone, so a retried skip POST for the
+    same check in the same sitting records once and reports
+    `already_recorded` -- exactly the shape `day_tick_event()` uses for a
+    lane ticked twice.
+    """
+    if gate_mode not in GATE_MODES:
+        raise ValueError(
+            "gate_skip_event: gate_mode must be one of %r, got %r"
+            % (GATE_MODES, gate_mode))
+    if not check_item_id:
+        raise ValueError(
+            "gate_skip_event: check_item_id must be a non-empty string")
+    raw = "%s|%s" % (session_id, check_item_id)
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": GATE_SKIP_EVENT_TYPE,
+        "ts": utc_now(),
+        "session_id": session_id,
+        "bank": bank,
+        "lesson_slug": lesson_slug,
+        "check_item_id": check_item_id,
+        "check_item_ref": check_item_ref,
+        "objective": objective,
+        "gate_mode": gate_mode,
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+def gate_state(log, session_id, check_item_id):
+    """The derived gate state for one (session, check) pair -- "open",
+    "cleared", or "skipped" -- read from the one evidence log, never stored
+    as per-lesson progress (D-06).
+
+    Resolution is pair-level (06.2-RESEARCH section 8): any live response
+    event with context "lesson_gate" for the pair means "cleared"
+    regardless of a prior skip; a live gate_skip with no subsequent
+    response means "skipped"; otherwise "open". Reads through
+    `live_events()` -- the same retraction discipline every other view uses
+    (D-10) -- so a retracted response returns the gate to its prior state.
+    Session-scoped by construction: the `session_id` argument is part of
+    every match, so a check cleared in an earlier sitting gates again in a
+    new one (06.2-UI-SPEC section 14 DEFAULT).
+
+    `check_item_id` is the id the lesson's `[!CHECK: <id>]` names; a
+    response event may record it as either the positional `item_ref` or the
+    opaque `item_id`, and both are matched.
+    """
+    cleared = False
+    skipped = False
+    for ev in live_events(log):
+        if ev.get("session_id") != session_id:
+            continue
+        if ev.get("event_type") == RESPONSE_EVENT_TYPE:
+            if (ev.get("context") == LESSON_GATE_CONTEXT
+                    and (ev.get("item_ref") == check_item_id
+                         or ev.get("item_id") == check_item_id)):
+                cleared = True
+        elif ev.get("event_type") == GATE_SKIP_EVENT_TYPE:
+            if ev.get("check_item_id") == check_item_id:
+                skipped = True
+    if cleared:
+        return "cleared"
+    if skipped:
+        return "skipped"
+    return "open"
+
+
+def gate_outcome_split(log, bank, session_id, gate_modes=None):
+    """The gate outcome split (06.2-UI-SPEC section 11, GATE-06): cleared
+    vs skipped over the distinct required-gate pairs encountered in one
+    session, computed from live events at request time -- derived, never
+    stored (Extensibility Rule 5).
+
+    Pair-level aggregation (06.2-RESEARCH section 8): each distinct
+    (session, check) pair resolves to exactly one outcome -- any live
+    lesson-gate response means "cleared" regardless of a prior skip; a
+    live gate_skip with no subsequent response means "skipped". The
+    denominator is the count of distinct *required*-gate pairs; recommended
+    gates are excluded because reading past one produces no event and
+    counting it would be inventing a number (C8).
+
+    A pair is classified as required when (a) `gate_modes` (the lesson's
+    declared check-id -> gate-mode map, which the report path derives from
+    `parse_lesson()`) names it required, or (b) the pair carries a
+    gate_skip whose `gate_mode` is "required" -- the skip records the mode
+    the gate actually rendered under. A pair with no required evidence is
+    not counted.
+    """
+    pairs = {}
+    for ev in live_events(log):
+        if ev.get("session_id") != session_id:
+            continue
+        if ev.get("bank") != bank:
+            continue
+        if ev.get("event_type") == RESPONSE_EVENT_TYPE:
+            if ev.get("context") != LESSON_GATE_CONTEXT:
+                continue
+            cid = ev.get("item_ref") or ev.get("item_id")
+            if not cid:
+                continue
+            pair = pairs.setdefault(cid, {"cleared": False, "skipped": False,
+                                          "required": None,
+                                          "served_recommended": False})
+            pair["cleared"] = True
+        elif ev.get("event_type") == GATE_SKIP_EVENT_TYPE:
+            cid = ev.get("check_item_id")
+            if not cid:
+                continue
+            pair = pairs.setdefault(cid, {"cleared": False, "skipped": False,
+                                          "required": None,
+                                          "served_recommended": False})
+            pair["skipped"] = True
+            if ev.get("gate_mode") == "required":
+                pair["required"] = True
+            elif ev.get("gate_mode") == "recommended":
+                # The skip records the mode the gate actually rendered
+                # under -- a degraded sitting renders a declared required
+                # gate as recommended and excludes it (section 5.7/11).
+                pair["served_recommended"] = True
+    cleared = 0
+    skipped = 0
+    for cid, pair in pairs.items():
+        if pair.get("served_recommended"):
+            continue
+        if gate_modes is not None:
+            required = gate_modes.get(cid) == "required"
+        else:
+            required = pair["required"] is True
+        if not required:
+            continue
+        if pair["cleared"]:
+            cleared += 1
+        elif pair["skipped"]:
+            skipped += 1
+    total = cleared + skipped
+    return {
+        "denominator": total,
+        "cleared": cleared,
+        "skipped": skipped,
+        "share_cleared": (round(cleared / total, 3) if total else None),
+        "share_skipped": (round(skipped / total, 3) if total else None),
+    }
+
+
+def selection_event(session_id, bank, spec, item_keys, retention=None):
     """Build one selection event: the record of what a sitting asked for,
     appended once per session (D-03) and separate from the responses because
     the request is one fact about a sitting, not one fact per answer.
@@ -426,12 +613,19 @@ def selection_event(session_id, bank, spec, item_keys):
     answer key can ever enter the log under this event (T-07-03). `item_keys`
     is the ordered list of `evidence_key(q)` values that were served.
 
+    `retention` (plan 10-03) is the sitting's server-derived Phase 10
+    binding: the one snapshot id, the bounded normalized objective-weight map
+    (each entry with its weight, named components and snapshot id), and the
+    optional component trace. It is allowlisted to exactly those keys before
+    recording -- a client path, answer key, hidden tier, or model payload is
+    never echoed into the log (D-01, D-10, T-10-13).
+
     `dedupe_key` is derived from the session id alone, so a retried start for
     the same session reconciles (`already_recorded`) rather than doubling.
     """
     from selection import SPEC_FIELDS
     spec = {k: v for k, v in (spec or {}).items() if k in SPEC_FIELDS}
-    return {
+    event = {
         "schema_version": EVENT_SCHEMA_VERSION,
         "event_id": new_event_id(),
         "event_type": SELECTION_EVENT_TYPE,
@@ -445,6 +639,97 @@ def selection_event(session_id, bank, spec, item_keys):
             session_id, "selection", 0,
             json.dumps(spec, ensure_ascii=False, sort_keys=True)),
     }
+    if retention is not None:
+        if not isinstance(retention, dict):
+            raise ValueError("selection_event: retention must be an object "
+                             "or None")
+        snapshot_id = retention.get("snapshot_id")
+        objective_weights = retention.get("objective_weights")
+        if not isinstance(snapshot_id, str) or not snapshot_id:
+            raise ValueError("selection_event: retention.snapshot_id must be "
+                             "a non-empty string")
+        if not isinstance(objective_weights, dict):
+            raise ValueError("selection_event: retention.objective_weights "
+                             "must be an object")
+        cleaned = {
+            "snapshot_id": snapshot_id,
+            "objective_weights": objective_weights,
+        }
+        if retention.get("trace") is not None:
+            cleaned["trace"] = retention["trace"]
+        event["retention"] = cleaned
+    return event
+
+
+def visual_action_event(session_id, q, interaction_version, action_id,
+                        action_type, before_state, after_state, error_category,
+                        invariants, feedback_anchor, hint_tier, bank,
+                        mode=None, source_ref=None):
+    """Build one `visual_action` event (plan 06.1-02, D-04/D-05): a committed
+    semantic state-changing action on a visual item, appended only after a
+    successful commit, never for pointer-down/move, focus, hover, tentative
+    state, cancelled gestures, or unchanged commits.
+
+    The event carries exactly the common audit fields plus
+    `interaction_version`, `action_id`, `action_type`, canonical
+    `before_state`/`after_state`, `error_category`, ordered `invariants`,
+    opaque `feedback_anchor`, `hint_tier`, and `dedupe_key` (06.1-RESEARCH.md
+    Resolved Questions item 2). It never accepts raw pointer events, CSS/SVG
+    coordinates, screenshots, private accepted states/tolerance, a client
+    verdict or hint tier, or authored reveal text.
+
+    `action_id` is the client-generated lowercase canonical UUID-v4 string,
+    stable across retries. The dedupe identity is
+    `(session_id, item identity, interaction_version, action_id)`; an
+    identical retry dedupes to `already_recorded`, while `do_interact`
+    reports a conflict when the same action id is reused with different
+    action/state.
+    """
+    key = evidence_key(q)
+    raw = "%s|%s|%d|%s" % (session_id, key, interaction_version, action_id)
+    objective = q.get("objective", "")
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": VISUAL_ACTION_EVENT_TYPE,
+        "ts": utc_now(),
+        "session_id": session_id,
+        "item_id": q.get("item_id", ""),
+        "item_ref": q["id"],
+        "item_type": q["type"],
+        "bank": os.path.basename(bank) if bank else None,
+        "objective": objective,
+        "subject": subject_of(objective),
+        "mode": mode,
+        "source_ref": source_ref,
+        "interaction_version": interaction_version,
+        "action_id": action_id,
+        "action_type": action_type,
+        "before_state": before_state,
+        "after_state": after_state,
+        "error_category": error_category,
+        "invariants": list(invariants or []),
+        "feedback_anchor": feedback_anchor,
+        "hint_tier": hint_tier,
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+def visual_actions(log, session_id, item_id=None):
+    """The tutor-facing read view over committed visual actions (D-06):
+    every LIVE `visual_action` event for `session_id` (optionally one item),
+    in commit order, with a bounded agent-facing projection. Built on
+    `live_events`, so a retracted action vanishes exactly as it vanishes from
+    a report. Never returns raw pointer telemetry or private scoring
+    material -- only the semantic states and runtime observations that were
+    appended.
+    """
+    return [ev for ev in live_events(log)
+            if ev.get("event_type") == VISUAL_ACTION_EVENT_TYPE
+            and ev.get("session_id") == session_id
+            and (item_id is None
+                 or evidence_key({"item_id": ev.get("item_id", ""),
+                                  "id": ev.get("item_ref", "")}) == item_id)]
 
 
 def append_event(log, event):
@@ -1079,6 +1364,28 @@ def live_events(log):
         yield ev
 
 
+def capture_events(log):
+    """Materialize the append-only log into ONE immutable in-memory sequence
+    of live events (D-01, D-02).
+
+    Phase 10's snapshot contract needs every derived claim -- objective
+    state, trend row, weight, recommendation, cap decision -- to read the
+    same event sequence, so that appending to the log after a render can
+    never silently change claims the render already returned. This is that
+    single materialization point: it applies the existing compensating-
+    retraction filter (`live_events`) exactly once and returns a tuple, so
+    a caller that captures twice gets two independent immutable snapshots,
+    and appending after capture cannot alter the already-returned one.
+
+    The returned tuple is JSON-native and immutable by construction; marks
+    are NOT folded in here (they stay a join the caller performs via
+    `marks_by_event`, because a mark is a separate fact about a response).
+    This is the one primitive Phase 10's `retention.capture` reads; no
+    Phase 10 code opens a second reader, filter, cache, store, or writer.
+    """
+    return tuple(live_events(log))
+
+
 def event_by_id(log, event_id):
     """The raw event dict for `event_id`, or `None` — used to validate a
     retract target before anything is appended. Reads through `events()`,
@@ -1101,7 +1408,7 @@ def event_by_id(log, event_id):
 
 
 def mark_event(session_id, item_id, item_ref, marks_event, verdict, rubric=None,
-                notes="", marker="human"):
+                notes="", marker="human", proposal_ref=None):
     """Build one mark event: a timestamped, first-class fact about the
     response event named by `marks_event`, appended alongside it rather
     than mutating it.
@@ -1116,11 +1423,18 @@ def mark_event(session_id, item_id, item_ref, marks_event, verdict, rubric=None,
     one as pending review instead, so any other value raises `ValueError`
     rather than being recorded as a settled fact (T-1-24).
 
+    `proposal_ref` links this human mark to the exact mark_proposal event it
+    accepts (D-14/D-24): it is recorded on the event and folded into the
+    dedupe raw string (None encodes as empty), so accepting two different
+    proposals for the same response records two distinct human marks rather
+    than deduping into one.
+
     `dedupe_key` is computed over `(session_id, marks_event, verdict, a
-    canonical encoding of rubric)`, so replaying an identical batch is
-    idempotent (`append_event` reports `already_recorded`), while a
-    genuinely corrected verdict or rubric — a different tuple — always
-    records as a new, live mark that `marks_by_event` then prefers.
+    canonical encoding of rubric, proposal_ref)`, so replaying an identical
+    batch is idempotent (`append_event` reports `already_recorded`), while a
+    genuinely corrected verdict, rubric, or proposal reference -- a
+    different tuple -- always records as a new, live mark that
+    `marks_by_event` then prefers.
     """
     if marker != "human":
         raise ValueError(
@@ -1130,7 +1444,8 @@ def mark_event(session_id, item_id, item_ref, marks_event, verdict, rubric=None,
     rubric = [{"point": r["point"], "pass": bool(r["pass"])} for r in (rubric or [])]
     rubric_canon = json.dumps(rubric, ensure_ascii=False, sort_keys=True)
     verdict = bool(verdict)
-    raw = "%s|%s|%s|%s" % (session_id, marks_event, verdict, rubric_canon)
+    raw = "%s|%s|%s|%s|%s" % (session_id, marks_event, verdict, rubric_canon,
+                               proposal_ref or "")
     return {
         "schema_version": EVENT_SCHEMA_VERSION,
         "event_id": new_event_id(),
@@ -1144,6 +1459,7 @@ def mark_event(session_id, item_id, item_ref, marks_event, verdict, rubric=None,
         "rubric": rubric,
         "notes": notes or "",
         "marker": marker,
+        "proposal_ref": proposal_ref,
         "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
     }
 
@@ -1465,24 +1781,23 @@ def render_attempt_md(log, session_id, qs, bank_path):
                 L.append("MARK: pending -- run `itembank mark --session %s --item %s "
                          "--verdict pass|fail` to record a verdict" %
                          (session_id, ev.get("item_ref")))
+        elif ev.get("item_type") == "check":
+            # The evidence answer for a check item is the results vector;
+            # the learner's own source lives in check_source. Render the
+            # source so a marker or later reader sees what was written
+            # (plan 05-07), bounded by response_text's line cap -- the
+            # full text is always in the log's check_source.
+            L.append("**Source, submitted:**")
+            L.append("")
+            L.append("```")
+            L.append(response_text(q, ev.get("check_source")) if q
+                     else str(ev.get("check_source") or ""))
+            L.append("```")
+            L.append("")
+            L.append("**Result vector:** %s" % (ev.get("answer") or "(none)"))
         else:
-            if ev.get("item_type") == "check":
-                # The evidence answer for a check item is the results vector;
-                # the learner's own source lives in check_source. Render the
-                # source so a marker or later reader sees what was written
-                # (plan 05-07), bounded by response_text's line cap -- the
-                # full text is always in the log's check_source.
-                L.append("**Source, submitted:**")
-                L.append("")
-                L.append("```")
-                L.append(response_text(q, ev.get("check_source")) if q
-                         else str(ev.get("check_source") or ""))
-                L.append("```")
-                L.append("")
-                L.append("**Result vector:** %s" % (ev.get("answer") or "(none)"))
-            else:
-                answer_val = response_text(q, ev.get("answer")) if q else ""
-                L.append("**Selected:** %s" % (answer_val or "(nothing)"))
+            answer_val = response_text(q, ev.get("answer")) if q else ""
+            L.append("**Selected:** %s" % (answer_val or "(nothing)"))
         L.append("")
     return "\n".join(L)
 
@@ -1692,6 +2007,344 @@ def key_review_event(session_id, bank, key_id, mode, ts=None, actor="learner"):
         "mode": mode,
         "actor": actor,
         "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+LESSON_COMPLETE_EVENT_TYPE = "lesson_complete"
+
+
+def lesson_complete_event(session_id, bank, lesson_slug, subject, objectives,
+                          zone="UTC", ts=None, actor="learner"):
+    """Build one lesson_complete event: a learner explicitly completed a
+    named Phase 3 lesson heading, appended through the one writer (SCHED-04,
+    D-24). It is the ONLY way a lesson enters the objective review queue --
+    no page view, scroll, or model activity can manufacture it (D-24,
+    T-10-06), and it is not a response: structurally, it carries no score
+    key at all.
+
+    The event names the server/CLI-resolved facts only: the bank's basename
+    (never a client-derived path, T-10-07), the Phase 3 `lesson_slug()` of
+    the completed heading, the single namespaced subject the referenced
+    objectives share, and the sorted unique referenced objectives. Every
+    field is validated here because the log is append-only: an ambiguous
+    completion cannot be corrected later, only superseded.
+
+    `zone` is the local-day zone the completion's next-review date must be
+    derived in (an IANA name, "UTC", or a fixed offset such as "UTC+09:00");
+    retention projects the event's `ts` into it. `dedupe_key` hashes
+    (bank, lesson_slug, subject, sorted objectives, zone) alone -- NOT a
+    timestamp -- so retrying the identical completion is idempotent
+    (`append_event` reports `already_recorded`), while a compensating
+    retraction (D-10) makes the same completion record again as the next
+    live one.
+    """
+    if not session_id:
+        raise ValueError("lesson_complete_event: session_id must be non-empty")
+    if not bank or "/" in bank or "\\" in bank or os.sep in bank:
+        raise ValueError(
+            "lesson_complete_event: bank must be a basename, never a path "
+            "(got %r)" % (bank,))
+    if not lesson_slug:
+        raise ValueError(
+            "lesson_complete_event: lesson_slug must be a non-empty Phase 3 "
+            "lesson slug")
+    objectives = sorted({o for o in (objectives or []) if o})
+    if not objectives:
+        raise ValueError(
+            "lesson_complete_event: objectives must be a non-empty list of "
+            "namespaced objectives")
+    if any(":" not in o for o in objectives):
+        raise ValueError(
+            "lesson_complete_event: every referenced objective must be "
+            "namespaced (got %r)" % (objectives,))
+    if not subject or ":" in subject:
+        raise ValueError(
+            "lesson_complete_event: subject must be the non-empty namespace "
+            "shared by the referenced objectives (got %r)" % (subject,))
+    if not zone:
+        raise ValueError("lesson_complete_event: zone must be non-empty")
+    raw = "%s|%s|%s|%s|%s" % (bank, lesson_slug, subject,
+                              json.dumps(objectives, ensure_ascii=False,
+                                         sort_keys=True), zone)
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": LESSON_COMPLETE_EVENT_TYPE,
+        "ts": ts if ts is not None else utc_now(),
+        "session_id": session_id,
+        "bank": bank,
+        "lesson_slug": lesson_slug,
+        "subject": subject,
+        "objectives": objectives,
+        "zone": zone,
+        "actor": actor,
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+CAP_OVERRIDE_EVENT_TYPE = "cap_override"
+
+
+def cap_override_event(session_id, bank, subject, local_date, zone,
+                       snapshot_id, cap, count, ts=None):
+    """Build one cap_override event (plan 10-04, D-08): the audited
+    exception that lets one additional per-subject sitting start after the
+    daily cap was reached. It is the record of a deliberate, explicit choice
+    -- NOT a persistent bypass (no setting, no flag, no standing
+    authorization): the event is bound to the one server-generated
+    `session_id` it authorizes, and every later cap check ignores it as a
+    count while honoring it only for that session's live lifetime.
+
+    Like every non-response event it is structurally scoreless (no `score`
+    key at all). All values are server-derived and validated here because
+    the log is append-only: `subject` is the non-empty namespace (no colon),
+    `local_date` is the local calendar date in `zone`, `snapshot_id` is the
+    one snapshot the count was decided on, `cap`/`count` are the exact
+    numbers shown to the learner, and `scope` is the constant "sitting".
+    `dedupe_key` hashes (session_id, subject, local_date, snapshot_id, cap)
+    -- NOT a timestamp -- so retrying the identical confirmed override for
+    the same generated session reconciles (`already_recorded`) instead of
+    appending a second exception.
+    """
+    if not session_id:
+        raise ValueError("cap_override_event: session_id must be non-empty")
+    if not bank or "/" in bank or "\\" in bank or os.sep in bank:
+        raise ValueError(
+            "cap_override_event: bank must be a basename, never a path "
+            "(got %r)" % (bank,))
+    if not subject or ":" in subject:
+        raise ValueError(
+            "cap_override_event: subject must be the non-empty namespace "
+            "(got %r)" % (subject,))
+    if not local_date:
+        raise ValueError("cap_override_event: local_date must be non-empty")
+    if not zone:
+        raise ValueError("cap_override_event: zone must be non-empty")
+    if not snapshot_id:
+        raise ValueError("cap_override_event: snapshot_id must be non-empty")
+    if not isinstance(cap, int) or isinstance(cap, bool) or cap < 1:
+        raise ValueError("cap_override_event: cap must be a positive integer "
+                         "(got %r)" % (cap,))
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        raise ValueError("cap_override_event: count must be a non-negative "
+                         "integer (got %r)" % (count,))
+    raw = "%s|%s|%s|%s|%s" % (session_id, subject, local_date, snapshot_id,
+                               cap)
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": CAP_OVERRIDE_EVENT_TYPE,
+        "ts": ts if ts is not None else utc_now(),
+        "session_id": session_id,
+        "bank": bank,
+        "subject": subject,
+        "local_date": local_date,
+        "zone": zone,
+        "snapshot_id": snapshot_id,
+        "cap": cap,
+        "count": count,
+        "scope": "sitting",
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+# ---- model interactions (08-03) --------------------------------------------
+# D-12/D-15/D-16: every attempted model interaction -- a generated hint or a
+# rubric review -- is one durable, append-only evidence fact carrying the
+# backend/profile, operation, timing, request/output fingerprints, outcome,
+# gate result, and permitted tier. A dropped candidate stores descriptors
+# only: raw dropped text is never written, so no normal retrieval path can
+# re-expose it (T-08-21).
+
+MODEL_INTERACTION_EVENT_TYPE = "model_interaction"
+
+
+def model_interaction_event(session_id, bank, item_ref, operation, interaction_id,
+                            outcome, gate_reason, permitted_tier, backend_class,
+                            profile, request_fingerprint, response_fingerprint,
+                            elapsed_ms, output_bytes, pass_payload=None,
+                            parent_interaction_id=None, ts=None):
+    """Build one model_interaction event: a first-class, timestamped fact
+    that one model generation was attempted (D-12/D-15).
+
+    `operation` is `hint` or `rubric_review`; `outcome` is `pass`, `drop`,
+    or `unavailable` (D-08); `backend_class` is `hosted` or `local` (D-17);
+    `gate_reason` carries plan 08-01's machine-readable reason code (e.g.
+    `gate.ambiguous`) or None. `pass_payload` is stored only when `outcome`
+    is `pass` -- a dropped or unavailable candidate never leaves its text in
+    evidence (D-16). The returned dict carries no `score` key at all,
+    structurally mirroring term_lookup/key_review: an interaction is a fact
+    about the model, never accepted evidence about the learner.
+
+    `dedupe_key` is a hash over (session_id, interaction_id), so at most one
+    generation is recorded per interaction id (D-12): appending the same
+    interaction twice reports `already_recorded`. An explicit retry is a NEW
+    interaction id whose `parent_interaction_id` names the original, keeping
+    cost and repeated failures visible without reusing the dedupe key.
+    """
+    if not interaction_id:
+        raise ValueError("model_interaction_event: interaction_id must be "
+                         "non-empty")
+    if operation not in ("hint", "rubric_review"):
+        raise ValueError("model_interaction_event: operation must be 'hint' "
+                         "or 'rubric_review', got %r" % (operation,))
+    if outcome not in ("pass", "drop", "unavailable"):
+        raise ValueError("model_interaction_event: outcome must be 'pass', "
+                         "'drop' or 'unavailable', got %r" % (outcome,))
+    if backend_class not in ("hosted", "local"):
+        raise ValueError("model_interaction_event: backend_class must be "
+                         "'hosted' or 'local', got %r" % (backend_class,))
+    payload = pass_payload if outcome == "pass" else None
+    raw = "%s|%s" % (session_id, interaction_id)
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": MODEL_INTERACTION_EVENT_TYPE,
+        "ts": ts if ts is not None else utc_now(),
+        "session_id": session_id,
+        "bank": bank,
+        "item_ref": item_ref,
+        "operation": operation,
+        "interaction_id": interaction_id,
+        "outcome": outcome,
+        "gate_reason": gate_reason,
+        "permitted_tier": permitted_tier,
+        "backend_class": backend_class,
+        "profile": profile,
+        "request_fingerprint": request_fingerprint,
+        "response_fingerprint": response_fingerprint,
+        "elapsed_ms": elapsed_ms,
+        "output_bytes": output_bytes,
+        "pass_payload": payload,
+        "parent_interaction_id": parent_interaction_id,
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+def model_interactions(log, session_id):
+    """Every LIVE model_interaction event for `session_id`, in log order.
+
+    Reads through `live_events`, never `events`, so a retracted interaction
+    vanishes from a report exactly as it vanishes from a count (D-10).
+    Reports and the CLI query this one shape instead of each re-filtering
+    `events()` themselves (08-03).
+    """
+    return [ev for ev in live_events(log)
+            if ev.get("event_type") == MODEL_INTERACTION_EVENT_TYPE
+            and ev.get("session_id") == session_id]
+
+
+# ---- mark proposals (08-03) -------------------------------------------------
+# D-13/D-14/D-23: a rubric-review outcome is a per-point pass|fail|uncertain
+# pending suggestion linked to the genuine short-answer response event and to
+# the interaction that produced it. A proposal is structurally incapable of
+# settling a mark: it carries no score key and no verdict field, and the
+# settled-mark readers (marks_by_event, the review_state derivation) filter
+# on the mark event type only (T-08-20).
+
+MARK_PROPOSAL_EVENT_TYPE = "mark_proposal"
+
+
+def mark_proposal_event(session_id, bank, item_id, item_ref, response_event_id,
+                        interaction_id, points, ts=None):
+    """Build one mark_proposal event: a first-class, timestamped pending
+    suggestion for the response event named by `response_event_id`, produced
+    by the model interaction named by `interaction_id` (D-13).
+
+    `points` is a list of per-point suggestions, each carrying `point_index`
+    (a non-negative integer), `status` (pass, fail, or uncertain), and a
+    `rationale` bounded at 240 characters. An empty `points` array is valid
+    and reads back as pending/unknown, never a default pass (D-22).
+
+    The returned dict carries no `score` key and no `verdict` field --
+    structurally, not merely by convention: a proposal can never be mistaken
+    for the settled mark that only a human's `mark_event(marker="human",
+    proposal_ref=...)` creates (D-14/D-23).
+
+    `dedupe_key` is a hash over (session_id, response_event_id,
+    interaction_id), so one proposal per response-interaction pair is
+    structural: a second identical proposal reports `already_recorded`.
+    """
+    if not response_event_id:
+        raise ValueError("mark_proposal_event: response_event_id must be "
+                         "non-empty")
+    if not interaction_id:
+        raise ValueError("mark_proposal_event: interaction_id must be "
+                         "non-empty")
+    out_points = []
+    for i, p in enumerate(points or []):
+        point_index = p.get("point_index")
+        status = p.get("status")
+        rationale = p.get("rationale", "")
+        if (not isinstance(point_index, int) or isinstance(point_index, bool)
+                or point_index < 0):
+            raise ValueError(
+                "mark_proposal_event: point %d point_index must be a "
+                "non-negative integer, got %r" % (i, point_index))
+        if status not in ("pass", "fail", "uncertain"):
+            raise ValueError(
+                "mark_proposal_event: point %d status must be 'pass', 'fail' "
+                "or 'uncertain', got %r" % (i, status))
+        if not isinstance(rationale, str) or len(rationale) > 240:
+            raise ValueError(
+                "mark_proposal_event: point %d rationale must be a string of "
+                "at most 240 characters" % (i,))
+        out_points.append({"point_index": point_index, "status": status,
+                           "rationale": rationale})
+    raw = "%s|%s|%s" % (session_id, response_event_id, interaction_id)
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": MARK_PROPOSAL_EVENT_TYPE,
+        "ts": ts if ts is not None else utc_now(),
+        "session_id": session_id,
+        "bank": bank,
+        "item_id": item_id,
+        "item_ref": item_ref,
+        "response_event_id": response_event_id,
+        "interaction_id": interaction_id,
+        "points": out_points,
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+def proposals_for(log, session_id, response_event_id=None):
+    """Every LIVE mark_proposal event for `session_id`, optionally filtered
+    to one response event, in log order.
+
+    Reads through `live_events`, never `events` (post-retraction discipline,
+    D-10): a retracted proposal disappears from this reader as it does from
+    a count. A proposal this reader still returns has never been accepted --
+    `proposal_summary` derives its pending state, and only a human's
+    `mark_event(marker="human", proposal_ref=...)` settles it (D-22).
+    """
+    return [ev for ev in live_events(log)
+            if ev.get("event_type") == MARK_PROPOSAL_EVENT_TYPE
+            and ev.get("session_id") == session_id
+            and (response_event_id is None
+                 or ev.get("response_event_id") == response_event_id)]
+
+
+def proposal_summary(proposal):
+    """Derive {points, pass_count, uncertain_count, pending} from a
+    mark_proposal event's N per-point statuses -- a pure read-time
+    derivation that never stores a fractional score anywhere (D-24). A
+    "4 of 5" style count is computed here, at read time, from the statuses
+    alone.
+
+    `pending` is True when any point is `uncertain` or the points array is
+    empty -- a suggestion with open points stays pending until a human
+    decides (D-22). An unaccepted proposal stays pending forever; this
+    function never fabricates a default pass (D-25).
+    """
+    pts = proposal.get("points") or []
+    pass_count = sum(1 for p in pts if p.get("status") == "pass")
+    uncertain_count = sum(1 for p in pts if p.get("status") == "uncertain")
+    return {
+        "points": len(pts),
+        "pass_count": pass_count,
+        "uncertain_count": uncertain_count,
+        "pending": len(pts) == 0 or uncertain_count > 0,
     }
 
 

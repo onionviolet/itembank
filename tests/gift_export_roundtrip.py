@@ -19,6 +19,7 @@ ITEMBANK = os.path.join(ROOT, "itembank.py")
 SAMPLE_BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
 ESCAPES_BANK = os.path.join(ROOT, "fixtures", "gift_escapes_bank.md")
 BUILD_ONLY_BANK = os.path.join(ROOT, "fixtures", "gift_build_only_bank.md")
+VISUAL_GIFT_BANK = os.path.join(ROOT, "fixtures", "visual_gift_bank.md")
 
 # A minimal, synthetic, lint-clean bank with no `build` item -- used only to prove
 # the all-clear export path (nothing skipped) prints the plain success line and
@@ -355,6 +356,43 @@ def test_all_build_bank_exports_nothing_loudly():
     shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_visual_items_refused_by_item_number():
+    """D-09 (plan 06.1-03): a mixed bank exports its expressible item and
+    refuses every plot/number-line visual item by original item number with
+    `gift.type_unsupported` in both default and strict modes. No lossy
+    approximation is produced, and the private SCORING envelope and scene
+    accessibility sentinels never reach the partial document.
+    """
+    qs = load(VISUAL_GIFT_BANK)
+    visual_numbers = [q["number"] for q in qs if q["type"] == "visual"]
+    if not visual_numbers or len(visual_numbers) != 2:
+        fail("visual_gift_bank.md does not carry two visual items: %r"
+             % visual_numbers)
+    expressible = [q["number"] for q in qs if q["type"] == "mc"]
+    if expressible != [1]:
+        fail("visual_gift_bank.md expressible item is Q%d, expected Q1"
+             % expressible[0])
+    for strict in (False, True):
+        document, errors, warnings = gift.render_gift(qs, strict=strict)
+        for num in visual_numbers:
+            matches = [e for e in errors
+                       if e.startswith(gift.GIFT_TYPE_UNSUPPORTED) and "Q%d" % num in e]
+            if not matches:
+                fail("strict=%r: no visual Q%d refusal carrying the dotted code in %r"
+                     % (strict, num, errors))
+        if "::Q2::" in document or "::Q3::" in document:
+            fail("strict=%r: a visual item was written into the GIFT document" % strict)
+        if "::Q1::" not in document:
+            fail("strict=%r: the expressible Q1 was not exported" % strict)
+        for sentinel in ("accepted", "tolerance", "partial_credit", "SCORING",
+                         "coordinate grid", "number line from -2"):
+            if sentinel in document:
+                fail("strict=%r: private/scene sentinel %r leaked into the "
+                     "partial GIFT document" % (strict, sentinel))
+    print("visual items refused loudly by item number with gift.type_unsupported; "
+          "expressible half intact; no private/scene leakage")
+
+
 def main():
     test_every_expressible_type_renders()
     test_every_escape_set_character_is_escaped()
@@ -367,13 +405,15 @@ def main():
     test_unescapable_field_is_named()
     test_partial_export_summary_and_exit_code()
     test_all_build_bank_exports_nothing_loudly()
+    test_visual_items_refused_by_item_number()
     print("GIFT export contract: ok (exact renders for all five expressible types, "
           "every escape-set character escaped, repeated matching categories "
           "preserved, deterministic export, multi divergence warned by item number, "
           "no second scorer or parser, build always refused by item number in both "
           "modes, --strict promotes multi to a per-item failure, unescapable fields "
           "named per field kind, partial and all-skipped exports summarise and exit "
-          "distinctly from a complete export)")
+          "distinctly from a complete export, visual items refused by item number "
+          "with gift.type_unsupported in both modes)")
     return 0
 
 

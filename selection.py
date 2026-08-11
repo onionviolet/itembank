@@ -26,6 +26,14 @@ SPEC_FIELDS = ("objective", "count", "seed", "exclude_item_ids",
                "pair", "prerequisite", "selection_mode", "prereq_satisfied",
                "type", "difficulty")
 
+# Phase 10 (10-03): the one additive retention context the selector accepts.
+# It is server-derived only -- a snapshot claim plus the bounded normalized
+# objective-weight map from retention.py -- and nothing else may ride in it
+# (T-10-10). Unknown keys, non-finite or non-positive weights, and a
+# mismatched snapshot are refused rather than echoed into the trace.
+RETENTION_CONTEXT_KEYS = ("snapshot", "objective_weights")
+WEIGHT_ENTRY_KEYS = ("weight", "components", "snapshot_id")
+
 # The four selection compositions. These strings deliberately share three of
 # `daemon.SESSION_MODES`' values (`diagnostic`, `practice`, `exam`) and one
 # orphan (`remediation`) -- they live in a DIFFERENT field than the feedback
@@ -240,7 +248,117 @@ def expand_spec(settings, spec):
     return spec
 
 
-def select(questions, spec, history, cooldown=None, decay=None):
+def _validate_retention_context(retention_context):
+    """Validate the additive server-derived retention context (10-03,
+    T-10-10/T-10-13): exactly the two known keys, a snapshot claim with a
+    non-empty snapshot id, and an objective -> weight-entry map in which
+    every entry carries exactly `weight` (positive finite number),
+    `components` (dict of finite numbers) and `snapshot_id` matching the
+    context snapshot. Returns the validated weight map, or None for no
+    context. Anything else exits with a named refusal -- a forged map, a
+    client path, an answer key, a hidden tier, or a model payload is never
+    echoed into the session or trace."""
+    if retention_context is None:
+        return None
+    if not isinstance(retention_context, dict):
+        sys.exit("retention_context must be an object or None")
+    unknown = sorted(set(retention_context) - set(RETENTION_CONTEXT_KEYS))
+    if unknown:
+        sys.exit("unknown retention_context field(s) %r; known fields: %s"
+                 % (unknown, ", ".join(RETENTION_CONTEXT_KEYS)))
+    snapshot = retention_context.get("snapshot")
+    weights = retention_context.get("objective_weights")
+    if not isinstance(snapshot, dict) or \
+            not isinstance(snapshot.get("snapshot_id"), str) or \
+            not snapshot["snapshot_id"]:
+        sys.exit("retention_context.snapshot must be a claim dict carrying a "
+                 "non-empty snapshot_id")
+    if not isinstance(weights, dict):
+        sys.exit("retention_context.objective_weights must be an object")
+    import math
+    sid = snapshot["snapshot_id"]
+    for obj, entry in weights.items():
+        if not isinstance(obj, str) or not obj:
+            sys.exit("retention_context.objective_weights keys must be "
+                     "non-empty objective strings")
+        if not isinstance(entry, dict):
+            sys.exit("retention weight for %r must be an object" % obj)
+        unknown = sorted(set(entry) - set(WEIGHT_ENTRY_KEYS))
+        if unknown:
+            sys.exit("unknown retention weight field(s) %r on %r; known "
+                     "fields: %s" % (unknown, obj,
+                                     ", ".join(WEIGHT_ENTRY_KEYS)))
+        value = entry.get("weight")
+        if isinstance(value, bool) or not isinstance(value, (int, float)) \
+                or not math.isfinite(value) or value <= 0:
+            sys.exit("retention weight for %r must be a positive finite "
+                     "number, got %r" % (obj, value))
+        if entry.get("snapshot_id") != sid:
+            sys.exit("retention context mismatch: objective %r names "
+                     "snapshot %r but the context names %r"
+                     % (obj, entry.get("snapshot_id"), sid))
+        comps = entry.get("components")
+        if not isinstance(comps, dict):
+            sys.exit("retention weight for %r must carry a components "
+                     "object" % obj)
+        for name, cvalue in comps.items():
+            if isinstance(cvalue, bool) or \
+                    not isinstance(cvalue, (int, float)) or \
+                    not math.isfinite(cvalue):
+                sys.exit("retention component %r on %r must be a finite "
+                         "number, got %r" % (name, obj, cvalue))
+    return weights
+
+
+def _weight_of(question, weights):
+    """The validated normalized multiplier for `question`'s objective, or the
+    neutral 1.0 when the map has no entry (an objective with no evidence is
+    never invented a weight by the selector)."""
+    entry = (weights or {}).get(question.get("objective", ""))
+    return entry.get("weight", 1.0) if isinstance(entry, dict) else 1.0
+
+
+def _mastered_objectives(weights):
+    """The set of objectives Phase 10 labelled mastered, read from the
+    recorded weight components (mastery_reduction is applied exactly when the
+    state is mastered) -- the selector never re-derives state itself."""
+    out = set()
+    for obj, entry in (weights or {}).items():
+        if isinstance(entry, dict) and \
+                (entry.get("components") or {}).get("mastery", 0.0) < 0:
+            out.add(obj)
+    return out
+
+
+def order_weighted(candidates, rng, rank=None, weights=None, notes=None):
+    """Practice/remediation ordering under the retention context (D-11):
+    non-mastered objectives first, descending normalized objective weight;
+    mastered objectives are deferred to an explicit fallback so they leave
+    ordinary rotation while a non-mastered eligible objective exists, yet
+    never become unreachable (when every eligible objective is mastered, the
+    bounded lower-weight fallback is still served). Recency rank breaks
+    weight ties, then the seeded order -- the weight composes AFTER Phase 7's
+    eligibility, cooldown and recency terms, never before them."""
+    mastered = _mastered_objectives(weights)
+    non = [q for q in candidates if (q.get("objective") or "") not in mastered]
+    mas = [q for q in candidates if (q.get("objective") or "") in mastered]
+    if notes is not None and mas:
+        if non:
+            notes.append(
+                "%d item(s) on mastered objective(s) deferred to the fallback: "
+                "mastered material leaves ordinary rotation while non-mastered "
+                "eligible work exists" % len(mas))
+        else:
+            notes.append("every eligible objective is mastered; serving the "
+                         "bounded lower-weight fallback")
+    by_weight = lambda q: -_weight_of(q, weights)
+    ordered = _seeded_sort(non, rng, by_weight, rank)
+    ordered += _seeded_sort(mas, rng, by_weight, rank)
+    return ordered
+
+
+def select(questions, spec, history, cooldown=None, decay=None, *,
+           retention_context=None):
     """Turn a selection request plus the evidence history into an ordered item
     list and a trace (D-01/D-04/D-09). Pure and deterministic given its three
     arguments: same bank, same spec, same history, same seed in, same items in
@@ -250,7 +368,19 @@ def select(questions, spec, history, cooldown=None, decay=None):
     the caller already read (the tracer passes an empty list; plan 07-05 wires
     the real evidence read). `items` is a list of the selected question dicts,
     each the same object that arrived in `questions`.
+
+    `retention_context` (10-03) is the one additive, keyword-only server-
+    derived context: a snapshot claim plus the bounded normalized objective-
+    weight map. It is validated before anything else (forged maps are refused)
+    and consumed only by the practice/remediation compositions: exam selection
+    is byte-for-byte evidence-neutral and diagnostic keeps Phase 7's coverage
+    policy (D-12). `retention.py` never chooses items; this function remains
+    the sole chooser (D-10).
     """
+    weights = _validate_retention_context(retention_context)
+    # Only the practice/remediation compositions consume weights; the pair
+    # path, exam and diagnostic never do (D-12).
+    weighted = False
     unknown = sorted(set(spec) - set(SPEC_FIELDS))
     if unknown:
         sys.exit("unknown selection field(s) %r; known fields: %s"
@@ -348,9 +478,23 @@ def select(questions, spec, history, cooldown=None, decay=None):
                                             ", ".join(readmitted)))
             candidates = windowed
 
-        ordered_pool = mode_row["order"](
-            candidates, rng,
-            ranks if exposure_policy == "hard_and_soft" else None)
+        # Phase 10 (10-03): the practice/remediation compositions consume the
+        # validated retention weights at the ordering step -- AFTER Phase 7's
+        # eligibility, cooldown and recency terms, never before them (D-11).
+        # Exam and diagnostic keep their Phase 7 ordering byte-for-byte
+        # (D-12); the pair composition serves whole confusion sets and never
+        # reorders them.
+        weighted = (retention_context is not None
+                    and selection_mode in ("practice", "remediation"))
+        if weighted:
+            ordered_pool = order_weighted(
+                candidates, rng,
+                ranks if exposure_policy == "hard_and_soft" else None,
+                weights, notes)
+        else:
+            ordered_pool = mode_row["order"](
+                candidates, rng,
+                ranks if exposure_policy == "hard_and_soft" else None)
         if mode_row["count"] == "spread":
             items = ordered_pool[:min(count, len(ordered_pool))]
         elif mode_row["count"] == "exact_keep_pairs":
@@ -383,6 +527,20 @@ def select(questions, spec, history, cooldown=None, decay=None):
         if exposure_policy == "hard_and_soft" and key in ranks:
             admitted.append("recency lowered its position (%.2f penalty)"
                             % ranks[key])
+        if weighted:
+            # The final normalized multiplier plus its named components, and
+            # the one snapshot id every claim in this sitting references
+            # (D-01/D-10).
+            weight = _weight_of(q, weights)
+            comps = (weights.get(q.get("objective", "")) or {}).get(
+                "components") or {}
+            comp_text = ", ".join("%s %+.2f" % (name, value)
+                                  for name, value in sorted(comps.items())
+                                  if value)
+            admitted.append(
+                "objective weight %.3f (%s) from retention snapshot %s"
+                % (weight, comp_text or "no components",
+                   retention_context["snapshot"]["snapshot_id"]))
         opening = "chosen because " + ", ".join(admitted)
         runner_up = None
         if len(items) < len(ordered_pool):
@@ -398,13 +556,19 @@ def select(questions, spec, history, cooldown=None, decay=None):
         else:
             reason = ("%s; the runner-up %s %s"
                       % (opening, runner_up["item_ref"], runner_up["reason"]))
-        chosen.append({
+        chosen_block = {
             "item_id": key,
             "item_ref": q["id"],
             "objective": q.get("objective", ""),
             "reason": reason,
             "runner_up": runner_up,
-        })
+        }
+        if weighted:
+            chosen_block["objective_weight"] = weight
+            chosen_block["components"] = dict(comps)
+            chosen_block["retention_snapshot_id"] = \
+                retention_context["snapshot"]["snapshot_id"]
+        chosen.append(chosen_block)
 
     resolved = {"objective": objective, "count": count, "seed": seed,
                 "selection_mode": selection_mode}
@@ -420,4 +584,11 @@ def select(questions, spec, history, cooldown=None, decay=None):
         "chosen": chosen,
         "notes": notes,
     }
+    if weighted:
+        # The full component trace: one identical snapshot id plus every
+        # objective's final multiplier and named components (D-01/D-10/D-11).
+        trace["retention"] = {
+            "snapshot_id": retention_context["snapshot"]["snapshot_id"],
+            "objective_weights": weights,
+        }
     return items, trace

@@ -16,6 +16,8 @@ import sys
 import resources
 import schema_validate
 
+import retention
+
 
 # Archive-relative path (see resources.py): resolves inside a checkout and
 # inside a .pyz alike, unlike the __file__-relative path this replaced.
@@ -27,7 +29,7 @@ SETTINGS_FILE = "itembank.json"
 # this number is "read by this phase" rather than reported as inert. A float
 # so a sub-phase (2.1) can sit strictly between its parent (2) and the next
 # whole phase (3) without renumbering anything.
-THIS_PHASE = 7
+THIS_PHASE = 10
 
 # The published dotted error-code namespace (D-06), extending Phase 1's D-16
 # lint-code precedent. Built from a set-then-sorted tuple so it is provably
@@ -54,6 +56,13 @@ STYLE_SETTINGS_DEFAULTS = {"imperative_cap": 7, "warn_fp_threshold": 0.20}
 # roundtrip tests can read the shipped defaults without a settings load.
 PARAPHRASE_SETTINGS_DEFAULTS = {"winnow_threshold": 8, "jaccard_threshold": 0.25}
 
+# The Phase 6.2 gate settings group defaults (06.2-UI-SPEC section 10):
+# `gate_skip` (always default) and `gate_policy` (as-authored default, may
+# only weaken a declared gate -- the enum has no strengthening value). The
+# schema remains the source of truth; this accessor exists so the daemon
+# and the roundtrip tests can read the shipped defaults without a load.
+GATE_SETTINGS_DEFAULTS = {"gate_skip": "always", "gate_policy": "as-authored"}
+
 
 def style_defaults():
     """The `style` settings group's shipped defaults: `imperative_cap`
@@ -66,6 +75,21 @@ def paraphrase_defaults():
     `winnow_threshold` (default 8 consecutive copied words -> error) and
     `jaccard_threshold` (default 0.25 fingerprint overlap -> warning)."""
     return dict(PARAPHRASE_SETTINGS_DEFAULTS)
+
+
+def retention_defaults():
+    """The `retention` settings group's shipped defaults (Phase 10, D-06):
+    the conservative researched thresholds and weight terms, mirrored from
+    `retention.RETENTION_SETTINGS_DEFAULTS` -- the same accessor pattern as
+    the style/paraphrase groups, so tests and the pure module read one set
+    of numbers without a settings load."""
+    return dict(retention.RETENTION_SETTINGS_DEFAULTS)
+
+
+def gate_defaults():
+    """The Phase 6.2 `reader` gate settings' shipped defaults (06.2-UI-SPEC
+    section 10): `gate_skip` (always) and `gate_policy` (as-authored)."""
+    return dict(GATE_SETTINGS_DEFAULTS)
 
 
 def settings_path(base):
@@ -168,6 +192,70 @@ def write_settings(base, data):
         json.dump(data, fh, ensure_ascii=False, indent=2)
         fh.write("\n")
     os.replace(tmp, target)
+
+
+def resolve_profile(settings_data, name=None):
+    """The active model_backend profile resolver, shared by the adapter and
+    `itembank config` (RESEARCH.md Architectural Responsibility Map row 1:
+    configuration and adapter read the same validated settings). Returns
+    (profile_or_None, error_or_None); exactly one is non-None.
+
+    A duplicate profile name or a profile missing its transport-required
+    field is settings.invalid_value (a bad registry, never a silent
+    fallback); an active name that matches no profile is
+    adapter.profile_unknown; an empty active profile or empty profiles array
+    is adapter.profile_disabled (a typed unavailable, never a crash). An
+    unrecognized transport name is NOT rejected here: it routes if a
+    TRANSPORT_REGISTRY entry exists (D-27 -- a third backend is a module
+    plus a config entry, no resolver edit), and the adapter resolves an
+    unregistered transport to adapter.transport_unknown -- still typed
+    unavailable, never a silent fallback.
+    """
+    mb = (settings_data or {}).get("model_backend")
+    if not isinstance(mb, dict):
+        return None, {"code": "settings.invalid_value",
+                      "message": "model_backend is not an object"}
+    active = mb.get("active") or ""
+    profiles = mb.get("profiles") or []
+    if not isinstance(profiles, list):
+        return None, {"code": "settings.invalid_value",
+                      "message": "model_backend.profiles is not an array"}
+    if not active or not profiles:
+        return None, {"code": "adapter.profile_disabled",
+                      "message": "no active model backend profile (model_backend.active "
+                                 "is empty or profiles is empty)"}
+    by_name = {}
+    for i, profile in enumerate(profiles):
+        if not isinstance(profile, dict):
+            return None, {"code": "settings.invalid_value",
+                          "message": "model_backend.profiles[%d] is not an object" % i}
+        pname = profile.get("name")
+        if not isinstance(pname, str) or not pname:
+            return None, {"code": "settings.invalid_value",
+                          "message": "model_backend.profiles[%d] has no non-empty name" % i}
+        if pname in by_name:
+            return None, {"code": "settings.invalid_value",
+                          "message": "duplicate model backend profile name %r" % pname}
+        transport = profile.get("transport")
+        if not isinstance(transport, str) or not transport:
+            return None, {"code": "settings.invalid_value",
+                          "message": "profile %r has no transport" % pname}
+        if transport == "hosted_cli" and not profile.get("command"):
+            return None, {"code": "settings.invalid_value",
+                          "message": "profile %r (hosted_cli) requires a command array"
+                          % pname}
+        if transport == "openai_compatible" and not profile.get("endpoint"):
+            return None, {"code": "settings.invalid_value",
+                          "message": "profile %r (openai_compatible) requires an endpoint"
+                          % pname}
+        # Any other transport name is deferred to the adapter's
+        # TRANSPORT_REGISTRY (see the docstring's D-27 note).
+        by_name[pname] = profile
+    target = name or active
+    if target not in by_name:
+        return None, {"code": "adapter.profile_unknown",
+                      "message": "no model backend profile named %r" % target}
+    return by_name[target], None
 
 
 def get_at(data, dotted):

@@ -214,6 +214,46 @@ textarea.ans:disabled{opacity:.75}
   h1.stem{font-size:20px}
   .feedback{min-height:120px}
 }
+/* AgentAssist (plan 08-05): optional, subordinate, collapsed, opt-in
+   generated support. Phase 4 tokens only; no fixed or minimum widths, so
+   320px/200% zoom never scrolls horizontally. */
+.agent-assist{margin:14px 0 0;font-size:13.5px;max-width:72ch}
+.assist summary{cursor:pointer;padding:4px 0;font-size:11px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--mut);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.assist summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.assist-body{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.assist-status{color:var(--mut);font-size:12.5px;margin:0}
+.assist-actions{display:flex;flex-wrap:wrap;gap:8px}
+.assist-copy{color:var(--mut);margin:0}
+.generated{background:var(--card);border:1px solid var(--line);
+  border-left:3px solid var(--accent);border-radius:0 9px 9px 0;
+  padding:12px 14px}
+.generated h4,.authored-hint h4,.rubric h4{margin:0 0 5px;font-size:11px;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--mut);
+  font-family:ui-monospace,Menlo,Consolas,monospace}
+.generated-disclosure{color:var(--mut);font-size:12.5px;margin:0 0 8px}
+.generated-text{margin:0;overflow-wrap:anywhere}
+.authored-hint{margin-top:10px;background:var(--card);border:1px solid var(--line);
+  border-radius:9px;padding:12px 14px}
+.authored-hint p{margin:0;overflow-wrap:anywhere}
+.assist-lock{display:flex;gap:10px;align-items:flex-start;background:var(--chip);
+  border:1px solid var(--line);border-radius:9px;padding:12px 14px}
+.lock-glyph{font-size:18px;line-height:1.2}
+.lock-label{font-weight:600;margin:0 0 4px}
+.lock-copy{color:var(--mut);margin:0 0 8px;overflow-wrap:anywhere}
+.rubric-rows{list-style:none;margin:0;padding:0;display:flex;
+  flex-direction:column;gap:8px}
+.rubric-row{display:flex;gap:10px;align-items:flex-start;background:var(--card);
+  border:1px solid var(--line);border-radius:9px;padding:10px 12px}
+.rubric-token{flex:0 0 auto;font-size:10.5px;letter-spacing:.08em;
+  text-transform:uppercase;font-family:ui-monospace,Menlo,Consolas,monospace;
+  color:var(--warn);background:var(--chip);border:1px solid var(--line);
+  border-radius:5px;padding:2px 7px}
+.rubric-rationale{margin:0;overflow-wrap:anywhere}
+.provenance{margin-top:10px;font-size:12.5px;color:var(--mut)}
+.provenance summary{cursor:pointer}
+.assist-id{overflow-wrap:anywhere;word-break:break-all}
 @media (prefers-reduced-motion:reduce){
   *{transition:none!important}
   html{scroll-behavior:auto!important}
@@ -231,6 +271,7 @@ textarea.ans:disabled{opacity:.75}
   <div id="detail-body" class="detail-body"></div>
 </details>
 <div id="host"></div>
+<div id="assist-slot">__ASSIST__</div>
 </div>
 __CM6_TAG__
 __CM6_BOOT__
@@ -240,7 +281,212 @@ __OFFLINE_JS__
 <script id="served">
 __SERVED_JS__
 </script>
+<script id="assist">
+__ASSIST_JS__
+</script>
 </body></html>"""
+
+
+# The locked 08-UI-SPEC Copywriting Contract strings for the assist region
+# (phase 8 UI-SPEC copy tables are binding; tests assert each verbatim).
+ASSIST_COPY = {
+    "summary": "Help and evidence",
+    "request": "Get optional guidance",
+    "preparing": "Preparing optional guidance\u2026",
+    "generated_heading": "Generated support",
+    "generated_disclosure": ("This guidance is generated from the current "
+                             "attempt and the help available at this step."),
+    "unavailable": ("Generated help is unavailable. You can keep learning "
+                    "with the lesson and authored hints."),
+    "policy_drop": ("Generated help is unavailable for this step. Continue "
+                    "with the available hint or try another attempt."),
+    "cancelled": ("Optional guidance was cancelled. Your current work is "
+                  "unchanged."),
+    "already_requested": ("Optional guidance was already requested for this "
+                          "attempt. Continue with the available hint or make "
+                          "another attempt."),
+    "retry": "Try generated guidance again",
+    "pending_heading": ("Pending rubric suggestion \u2014 human review "
+                        "required"),
+    "rubric_empty": ("No complete rubric suggestion is available. This "
+                     "response is still waiting for a human mark."),
+    "lock_label": "Optional guidance is locked",
+    "authored_heading": "Authored hint",
+    "provenance_summary": "Generated support details",
+}
+
+
+# The assist chrome, substituted into TEMPLATE's __ASSIST__ slot only for the
+# daemon-served page (build/offline mode ships no assist). Native
+# details/summary, one opt-in button, one bounded status line, a generated
+# support container, a provenance disclosure, and the structural lock /
+# pending rubric containers the client fills -- no accept or mark control.
+AGENT_ASSIST_HTML = (r"""<section class="agent-assist" data-agent-assist
+  aria-label="Optional generated guidance">
+  <details class="assist" id="assist">
+    <summary>__ASSIST_SUMMARY__</summary>
+    <div class="assist-body">
+      <div class="assist-actions">
+        <button type="button" class="go ghost" id="assist-request">__ASSIST_REQUEST__</button>
+      </div>
+      <p class="assist-status" id="assist-status" role="status"
+        aria-live="polite"></p>
+      <div class="assist-outcome" id="assist-outcome" hidden></div>
+    </div>
+  </details>
+</section>"""
+    .replace("__ASSIST_SUMMARY__", ASSIST_COPY["summary"])
+    .replace("__ASSIST_REQUEST__", ASSIST_COPY["request"]))
+
+
+# The AgentAssist client (plan 08-05). Wires the served client to POST
+# /api/hint and POST /api/rubric-review, renders only the typed payload
+# fields, announces each lifecycle state once through the single polite
+# status region, and never reads or renders a reason code, a tier, a
+# profile, a backend class, a fact manifest, a candidate body, or provider
+# detail. It never creates an accept or mark control: the browser may render
+# a pending suggestion, never settle one (D-14/D-25).
+ASSIST_JS = (r"""/* AgentAssist client: renders only typed /api payloads in
+   fixed chrome. No authority vocabulary is read or rendered here. */
+const Assist = (function(){
+  const statusEl = document.getElementById("assist-status");
+  const outcomeEl = document.getElementById("assist-outcome");
+  const requestBtn = document.getElementById("assist-request");
+  let sessionId = null;
+  let itemType = null;
+  let requested = false;      /* at most one automatic generation per item */
+
+  const esc = s => (s==null?"":String(s)).replace(/[&<>]/g,
+    c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+  function setStatus(text){
+    if(statusEl) statusEl.textContent = text || "";
+  }
+  function setBusy(busy){
+    if(requestBtn) requestBtn.disabled = !!busy;
+  }
+  function render(html){
+    if(!outcomeEl) return;
+    outcomeEl.hidden = !html;
+    outcomeEl.innerHTML = html || "";
+  }
+  function setSession(id){ sessionId = id; }
+  function onItem(q){
+    itemType = (q && q.type) || null;
+    requested = false;
+    setStatus("");
+    setBusy(false);
+    render("");
+  }
+  async function api(path, payload){
+    const res = await fetch(path, {method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(payload)});
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    return res.json();
+  }
+  function authoredHtml(authored){
+    if(!authored || !authored.available ||
+       typeof authored.content !== "string" || !authored.content) return "";
+    return `<div class="authored-hint"><h4>__ASSIST_AUTHORED_HEADING__</h4>
+      <p>${esc(authored.content)}</p></div>`;
+  }
+  function lockHtml(copy){
+    return `<div class="assist-lock">
+      <span class="lock-glyph" aria-hidden="true">&#128274;</span>
+      <div>
+        <p class="lock-label">__ASSIST_LOCK_LABEL__</p>
+        <p class="lock-copy">${esc(copy)}</p>
+        <button type="button" class="go ghost" id="assist-retry">__ASSIST_RETRY__</button>
+      </div></div>`;
+  }
+  function provenanceHtml(id){
+    if(!id) return "";
+    return `<details class="provenance"><summary>__ASSIST_PROVENANCE_SUMMARY__</summary>
+      <p><span class="provenance-label">__ASSIST_GENERATED_HEADING__</span>
+      &middot; interaction <span class="mono assist-id">${esc(id)}</span></p>
+      </details>`;
+  }
+  function renderHint(v){
+    if(v && v.status === "pass" && v.generated && v.generated.text){
+      render(`<div class="generated">
+          <h4>__ASSIST_GENERATED_HEADING__</h4>
+          <p class="generated-disclosure">__ASSIST_GENERATED_DISCLOSURE__</p>
+          <p class="generated-text">${esc(v.generated.text)}</p>
+        </div>` + provenanceHtml(v.interaction_id));
+      return;
+    }
+    if(v && (v.status === "unavailable" || v.status === "drop")){
+      const copy = v.status === "drop"
+        ? "__ASSIST_POLICY_DROP__" : "__ASSIST_UNAVAILABLE__";
+      render(lockHtml(copy) + authoredHtml(v.authored));
+      const retry = document.getElementById("assist-retry");
+      if(retry) retry.onclick = () => { request(true); };
+      return;
+    }
+    if(v && v.status === "cancelled"){
+      render(`<p class="assist-copy">__ASSIST_CANCELLED__</p>`);
+      return;
+    }
+    render(lockHtml("__ASSIST_UNAVAILABLE__"));
+  }
+  function renderRubric(v){
+    const points = (v && v.points) || [];
+    if(v && v.status === "pending" && points.length){
+      const rows = points.map(p => {
+        const rationale = (p && p.rationale)
+          ? `<div class="rubric-rationale">${esc(p.rationale)}</div>` : "";
+        return `<li class="rubric-row">
+          <span class="rubric-token">pending</span>
+          <div>${rationale}</div></li>`;
+      }).join("");
+      render(`<div class="rubric">
+        <h4>__ASSIST_PENDING_HEADING__</h4>
+        <ul class="rubric-rows">${rows}</ul></div>`);
+      return;
+    }
+    render(`<p class="assist-copy">__ASSIST_RUBRIC_EMPTY__</p>`);
+  }
+  function request(retry){
+    if(!sessionId) return;
+    if(requested && !retry){
+      render(`<p class="assist-copy">__ASSIST_ALREADY_REQUESTED__</p>`);
+      return;
+    }
+    requested = true;
+    setBusy(true);
+    setStatus("__ASSIST_PREPARING__");
+    const path = itemType === "short" ? "/api/rubric-review" : "/api/hint";
+    const payload = {session_id: sessionId};
+    if(retry) payload.retry = true;
+    api(path, payload).then(v => {
+      setStatus("");
+      if(itemType === "short") renderRubric(v); else renderHint(v);
+    }).catch(() => {
+      setStatus("");
+      render(lockHtml("__ASSIST_UNAVAILABLE__"));
+      const retryBtn = document.getElementById("assist-retry");
+      if(retryBtn) retryBtn.onclick = () => { request(true); };
+    }).then(() => { setBusy(false); });
+  }
+  if(requestBtn) requestBtn.onclick = () => { request(false); };
+  return {setSession, onItem};
+})();
+window.Assist = Assist;
+"""
+    .replace("__ASSIST_PREPARING__", ASSIST_COPY["preparing"])
+    .replace("__ASSIST_GENERATED_HEADING__", ASSIST_COPY["generated_heading"])
+    .replace("__ASSIST_GENERATED_DISCLOSURE__", ASSIST_COPY["generated_disclosure"])
+    .replace("__ASSIST_UNAVAILABLE__", ASSIST_COPY["unavailable"])
+    .replace("__ASSIST_POLICY_DROP__", ASSIST_COPY["policy_drop"])
+    .replace("__ASSIST_CANCELLED__", ASSIST_COPY["cancelled"])
+    .replace("__ASSIST_ALREADY_REQUESTED__", ASSIST_COPY["already_requested"])
+    .replace("__ASSIST_RETRY__", ASSIST_COPY["retry"])
+    .replace("__ASSIST_PENDING_HEADING__", ASSIST_COPY["pending_heading"])
+    .replace("__ASSIST_RUBRIC_EMPTY__", ASSIST_COPY["rubric_empty"])
+    .replace("__ASSIST_LOCK_LABEL__", ASSIST_COPY["lock_label"])
+    .replace("__ASSIST_AUTHORED_HEADING__", ASSIST_COPY["authored_heading"])
+    .replace("__ASSIST_PROVENANCE_SUMMARY__", ASSIST_COPY["provenance_summary"]))
 
 
 # The static `build` compatibility client. This is the only place the
@@ -254,7 +500,8 @@ const LESSON_LABEL = "__LESSON_LABEL__";
 const LETTERS = "ABCDEFGH";
 const LABEL = {mc:"multiple choice", multi:"multiple response",
                table:"options table", build:"build list", dnd:"drag-and-drop",
-               short:"short answer", check:"code check"};
+               short:"short answer", check:"code check",
+               visual:"visual assessment"};
 const FS = "\u001f", PS = "\u001e";   /* must match FIELD_SEP and PAIR_SEP */
 const REDUCED = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 let i = 0, score = 0, autoTotal = 0;
@@ -357,8 +604,23 @@ function render(){
   host.innerHTML = "";
   host.appendChild(card);
   ({mc:asChoice, multi:asChoice, table:asAssign, dnd:asAssign, build:asBuild,
-    short:asShort, check:asCheck}[q.type])(q, body, act, card);
+    short:asShort, check:asCheck, visual:asVisualOffline}[q.type])(q, body, act, card);
   card.scrollIntoView({block:"start", behavior: REDUCED ? "auto" : "smooth"});
+}
+
+/* ---- visual assessment, offline (plan 06.1-03, D-03/A-05) ------------------
+   The static build has no process behind it, so it cannot score a visual item
+   or protect its answer. It renders the honest served-runtime-required state:
+   no scorer, no key, no private scene fields, and no dead control. The copy
+   is the 06.1-UI-SPEC Copywriting Contract's exact offline refusal text. */
+function asVisualOffline(q, body, act, card){
+  const note = document.createElement("div");
+  note.className = "status";
+  note.setAttribute("role", "note");
+  note.textContent = "This visual item needs a served itembank session because "
+    + "scoring and answer protection happen there. Open it with itembank serve "
+    + "or the daemon.";
+  body.appendChild(note);
 }
 
 /* ---- multiple choice (native radio) + multiple response (native checkboxes) */
@@ -788,7 +1050,8 @@ const LESSON_LABEL = "__LESSON_LABEL__";
 const LETTERS = "ABCDEFGH";
 const LABEL = {mc:"multiple choice", multi:"multiple response",
                table:"options table", build:"build list", dnd:"drag-and-drop",
-               short:"short answer", check:"code check"};
+               short:"short answer", check:"code check",
+               visual:"visual assessment"};
 const FS = "\u001f", PS = "\u001e";   /* must match FIELD_SEP and PAIR_SEP */
 const REDUCED = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 let sessionId = null, i = 0, total = 0, score = 0, autoTotal = 0;
@@ -816,75 +1079,7 @@ async function api(url, payload){
 async function verify(q, response){
   const v = await api("/api/submit", {session_id: sessionId, answer: response});
   return {action: v.action, score: v.score, explain: v.explain || {},
-          hint_tier: v.hint_tier, next: v.next};
-}
-
-async function hintFor(q, card, act, stumped){
-  const fb = feedbackFor(card);
-  fb.innerHTML = `<div class="status">Revealing the next hint&hellip;</div>`;
-  try {
-    const v = await api("/api/hint", {session_id: sessionId, stumped: !!stumped});
-    if(v.action !== "reveal_tier" || !v.hint) throw new Error("unexpected hint payload");
-    renderLadder(card, v.hint);
-    act.innerHTML = "";
-    addHintControls(q, card, act);
-    fb.innerHTML = `<div class="status">Hint shown. The card is still yours --
-      answer again whenever you're ready.</div>`;
-  } catch(err){
-    fb.innerHTML = `<div class="status">Couldn't reveal a hint right now
-      (${esc(err.message)}).</div>`;
-    addHintControls(q, card, act);
-  }
-}
-
-function addHintControls(q, card, act){
-  const next = document.createElement("button");
-  next.className = "go"; next.type = "button";
-  next.textContent = "Show next hint";
-  next.onclick = ()=>{ act.innerHTML = ""; hintFor(q, card, act, false); };
-  act.appendChild(next);
-  const stumped = document.createElement("button");
-  stumped.className = "go ghost"; stumped.type = "button";
-  stumped.textContent = "I'm stumped — show the next hint";
-  stumped.onclick = ()=>{ act.innerHTML = ""; hintFor(q, card, act, true); };
-  act.appendChild(stumped);
-  next.focus();
-}
-
-function renderLadder(card, hint){
-  const hostEl = card.querySelector(".ladder") ||
-    (()=>{ const d = document.createElement("div");
-           d.className = "ladder"; card.appendChild(d); return d; })();
-  const tier = hint.tier;
-  let h = `<h3 class="ladder-title">Hints</h3>`;
-  const shown = hint.shown || [];
-  for(let idx = 0; idx < 6; idx++){
-    const isNew = tier && tier.index === idx;
-    if(shown.indexOf(idx) >= 0 || isNew){
-      const t = isNew ? tier : {name: ["lesson","objective","trap","rationale",
-        "discriminator","reveal"][idx], available: true, content: ""};
-      h += `<div class="tier tier-shown"><span class="tier-k">TIER ${idx}</span>
-        <span class="tier-name">${esc(t.name)}</span>`;
-      if(isNew){
-        if(t.available){
-          const content = typeof t.content === "string" ? esc(t.content)
-            : (t.content && t.content.why ? esc(t.content.why) : "");
-          h += `<div class="tier-body">${content}</div>`;
-        } else {
-          h += `<div class="tier-body mut">This tier has no authored content.</div>`;
-        }
-      } else {
-        h += `<div class="tier-body mut">Already shown.</div>`;
-      }
-      h += `</div>`;
-    } else {
-      h += `<div class="tier tier-locked"><span class="tier-k">TIER ${idx}</span>
-        <span class="tier-name">${esc(["lesson","objective","trap","rationale",
-          "discriminator","reveal"][idx])}</span>
-        <span class="tier-lock">Locked</span></div>`;
-    }
-  }
-  hostEl.innerHTML = h;
+          next: v.next};
 }
 
 function lessonChip(q){
@@ -977,7 +1172,10 @@ function renderItem(view){
   host.innerHTML = "";
   host.appendChild(card);
   ({mc:asChoice, multi:asChoice, table:asAssign, dnd:asAssign, build:asBuild,
-    short:asShort, check:asCheck}[q.type])(q, body, act, card);
+    short:asShort, check:asCheck, visual:asVisual}[q.type])(q, body, act, card);
+  /* AgentAssist (plan 08-05): the assist client resets per item so the
+     Get optional guidance control targets the current item's operation. */
+  if(window.Assist) window.Assist.onItem(q);
   /* Restore focus to the first meaningful control of the new item. */
   const first = card.querySelector("input, button, textarea");
   if(first && !REDUCED) first.focus({preventScroll:true});
@@ -1169,6 +1367,7 @@ function asShort(q, body, act, card){
   };
 }
 
+
 /* ---- check: vendored CodeMirror 6 code field ---------------------------- */
 function asCheck(q, body, act, card){
   const cfg = (q.interaction_contract && q.interaction_contract.renderer_config) || {};
@@ -1285,6 +1484,393 @@ function checkMatrix(rows, timeoutSecs, capKB){
     h += `</div>`;
   });
   return h + `</div>`;
+
+}
+
+
+/* ---- visual assessment (plan 06.1-01) --------------------------------------
+   asVisual is the one renderer-registry adapter for declarative plot and
+   number-line contracts. It reads ONLY q.interaction_contract
+   (renderer_config scene + response_schema), never a key, tolerance or
+   scoring field. All input paths -- SVG pointer, tap, and the adjacent
+   native semantic controls -- reduce through ONE state object and ONE
+   serializer, so equivalent states produce byte-identical canonical SCALAR
+   strings. The serialized semantic response is submitted through the normal
+   served /api/submit path; this page never computes a verdict. */
+function asVisual(q, body, act, card){
+  const c = q.interaction_contract || {};
+  const rc = c.renderer_config || {};
+  const kind = (c.response_schema || {}).kind || "point";
+  const axes = rc.axes || {};
+  const axis = rc.axis || {min:"0", max:"1", step:"1"};
+  const acc = rc.accessibility || {};
+  const desc = acc.description || q.stem;
+  const initial = rc.initial || {};
+  const host = document.createElement("div");
+  host.className = "visual-host";
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", desc);
+  svg.setAttribute("viewBox", "0 0 400 240");
+  svg.setAttribute("class", "visual-svg");
+  host.appendChild(svg);
+  body.appendChild(host);
+  const status = document.createElement("div");
+  status.className = "visual-status";
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-live", "polite");
+  body.appendChild(status);
+  const submit = mkSubmit(act, "commit your placement");
+
+  /* ---- exact SCALAR arithmetic: parse "2" | "1/2" | "2.5" to [n,d] -------- */
+  function fracGCD(a, b){ a = Math.abs(a); b = Math.abs(b);
+    while(b){ const t = a % b; a = b; b = t; } return a || 1; }
+  function fracParse(s){
+    if(typeof s !== "string") return null;
+    s = s.trim();
+    let m = s.match(/^([+-]?\d+)\/(\d+)$/);
+    if(m){ let n = +m[1], d = +m[2]; if(!d) return null;
+      const g = fracGCD(n, d); n /= g; d /= g;
+      if(d < 0){ n = -n; d = -d; } return [n, d]; }
+    m = s.match(/^([+-]?\d+)(?:\.(\d{1,6}))?$/);
+    if(!m) return null;
+    const sign = m[1][0] === "-" ? -1 : 1;
+    const whole = Math.abs(+m[1]);
+    let d = 1, frac = 0;
+    if(m[2]){ d = Math.pow(10, m[2].length); frac = +m[2]; }
+    let n = sign * (whole * d + frac);
+    const g = fracGCD(n, d); n /= g; d /= g;
+    if(d < 0){ n = -n; d = -d; } return [n, d];
+  }
+  function fracStr(f){ return f[1] === 1 ? String(f[0]) : f[0] + "/" + f[1]; }
+  function fracAdd(a, b){ const n = a[0]*b[1] + b[0]*a[1], d = a[1]*b[1];
+    const g = fracGCD(n, d); return [n/g, d/g]; }
+  function fracMulInt(a, k){ const n = a[0]*k, d = a[1];
+    const g = fracGCD(n, d); return [n/g, d/g]; }
+  function fracSub(a, b){ return fracAdd(a, [-b[0], b[1]]); }
+  function fracCmp(a, b){ return a[0]*b[1] - b[0]*a[1]; }   /* sign of a-b */
+
+  /* ticks(min,max,step) -> [{v: canonical scalar string, f: [n,d]}] */
+  function ticks(ax){
+    const lo = fracParse(ax.min), hi = fracParse(ax.max), st = fracParse(ax.step);
+    if(!lo || !hi || !st || st[0] <= 0) return [];
+    const out = [];
+    for(let k = 0; ; k++){
+      const f = fracAdd(lo, fracMulInt(st, k));
+      if(fracCmp(f, hi) > 0) break;
+      out.push({v: fracStr(f), f});
+    }
+    return out;
+  }
+  /* normalized position of fraction f between mn and mx, as a float in [0,1]
+     -- used for DRAWING ONLY; the submitted value is always a canonical
+     SCALAR string, never this float. */
+  function toFrac(f, mn, mx){
+    const num = (f[0]*mn[1] - mn[0]*f[1]) * mx[1];
+    const den = (mx[0]*mn[1] - mn[0]*mx[1]) * f[1];
+    if(!den) return 0;
+    return num / den;
+  }
+  function clamp01(t){ return Math.max(0, Math.min(1, t)); }
+  function snap(tks, f){
+    let best = 0, bestDist = Infinity;
+    for(let k = 0; k < tks.length; k++){
+      const d = Math.abs(fracCmp(f, tks[k].f));
+      if(d < bestDist){ bestDist = d; best = k; }
+    }
+    return tks[best];
+  }
+
+  const px = ticks(axes.x || axis), py = ticks(axes.y || axis);
+  const valueTicks = ticks(axis);
+  const xTicks = px.length ? px : valueTicks;
+  const yTicks = py.length ? py : valueTicks;
+  const isPlot = !!(axes.x && axes.y);
+  const mnX = fracParse(axes.x ? axes.x.min : axis.min);
+  const mxX = fracParse(axes.x ? axes.x.max : axis.max);
+  const mnY = fracParse(axes.y ? axes.y.min : axis.min);
+  const mxY = fracParse(axes.y ? axes.y.max : axis.max);
+
+  function domainX(clientX){
+    const r = svg.getBoundingClientRect();
+    const t = clamp01((clientX - r.left) / r.width);
+    return fracAdd(mnX, fracMulInt(fracSub(mxX, mnX), t));
+  }
+  function domainY(clientY){
+    const r = svg.getBoundingClientRect();
+    const t = clamp01((clientY - r.top) / r.height);
+    return fracAdd(mnY, fracMulInt(fracSub(mxY, mnY), t));
+  }
+
+  const W = 400, H = 240, L = 34, R = 10, T = 14, B = 26;
+
+  function draw(s){
+    s = s || tentative;
+    let h = "";
+    if(isPlot){
+      h += `<line x1="${L}" y1="${H-B}" x2="${W-R}" y2="${H-B}" stroke="currentColor"/>`;
+      h += `<line x1="${L}" y1="${T}" x2="${L}" y2="${H-B}" stroke="currentColor"/>`;
+      px.forEach(tk=>{
+        const x = L + clamp01(toFrac(tk.f, mnX, mxX)) * (W - L - R);
+        h += `<line x1="${x}" y1="${H-B}" x2="${x}" y2="${H-B+5}" stroke="currentColor"/>`;
+        h += `<text x="${x}" y="${H-B+18}" font-size="10" text-anchor="middle">${esc(tk.v)}</text>`;
+      });
+      py.forEach(tk=>{
+        const y = H - B - clamp01(toFrac(tk.f, mnY, mxY)) * (H - T - B);
+        h += `<line x1="${L-5}" y1="${y}" x2="${L}" y2="${y}" stroke="currentColor"/>`;
+        h += `<text x="${L-8}" y="${y+3}" font-size="10" text-anchor="end">${esc(tk.v)}</text>`;
+      });
+      if(s.kind === "point" && s.x && s.y){
+        const x = L + clamp01(toFrac(fracParse(s.x), mnX, mxX)) * (W - L - R);
+        const y = H - B - clamp01(toFrac(fracParse(s.y), mnY, mxY)) * (H - T - B);
+        h += `<circle cx="${x}" cy="${y}" r="6" fill="var(--accent)"/>`;
+      }
+    } else {
+      const mid = H / 2;
+      h += `<line x1="${L}" y1="${mid}" x2="${W-R}" y2="${mid}" stroke="currentColor"/>`;
+      valueTicks.forEach(tk=>{
+        const x = L + clamp01(toFrac(tk.f, mnX, mxX)) * (W - L - R);
+        h += `<line x1="${x}" y1="${mid-5}" x2="${x}" y2="${mid+5}" stroke="currentColor"/>`;
+        h += `<text x="${x}" y="${mid+20}" font-size="10" text-anchor="middle">${esc(tk.v)}</text>`;
+      });
+      if(s.kind === "numberline_point" && s.value){
+        const x = L + clamp01(toFrac(fracParse(s.value), mnX, mxX)) * (W - L - R);
+        h += `<circle cx="${x}" cy="${mid}" r="6" fill="var(--accent)"/>`;
+      }
+      if(s.kind === "interval" && s.start && s.end){
+        const x1 = L + clamp01(toFrac(fracParse(s.start), mnX, mxX)) * (W - L - R);
+        const x2 = L + clamp01(toFrac(fracParse(s.end), mnX, mxX)) * (W - L - R);
+        h += `<line x1="${x1}" y1="${mid}" x2="${x2}" y2="${mid}" stroke="var(--accent)" stroke-width="5"/>`;
+        h += `<circle cx="${x1}" cy="${mid}" r="5" fill="${s.start_closed ? "var(--accent)" : "var(--card)"}" stroke="var(--accent)"/>`;
+        h += `<circle cx="${x2}" cy="${mid}" r="5" fill="${s.end_closed ? "var(--accent)" : "var(--card)"}" stroke="var(--accent)"/>`;
+      }
+    }
+    svg.innerHTML = h;
+  }
+
+  /* ---- state: committed vs tentative (D-04/D-05) ---------------------------
+     `state` is the last committed semantic state; `tentative` is in-progress
+     editing that produces NO evidence until an explicit commit. Pointer
+     down/move, focus, hover, pan/zoom, Escape-cancelled moves, and unchanged
+     values never append anything. A commit is exactly: native
+     control/Enter/Space, a tap, or pointer-up after a changed drag -- each
+     posts ONE semantic action through /api/interact and renders only the
+     runtime's observation. */
+  const committed = {kind};
+  const tentative = {kind};
+  const actionId = () => (crypto.randomUUID ? crypto.randomUUID()
+    : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c=>{
+        const r = Math.random()*16|0, v = c==="x"?r:(r&0x3|0x8);
+        return v.toString(16); }));
+
+  function snapshot(s){ // canonical semantic state dict (wire shape)
+    if(kind === "point") return {kind:"point", x:s.x, y:s.y};
+    if(kind === "numberline_point") return {kind:"numberline_point", value:s.value};
+    return {kind:"interval", start:s.start, end:s.end,
+            start_closed:!!s.start_closed, end_closed:!!s.end_closed};
+  }
+  function sameState(a, b){
+    return JSON.stringify(snapshot(a)) === JSON.stringify(snapshot(b));
+  }
+  function filled(s){
+    return kind === "point" ? (s.x && s.y)
+      : kind === "numberline_point" ? s.value
+      : (s.start && s.end);
+  }
+  function adopt(s){ // tentative becomes committed
+    Object.keys(committed).forEach(k=>{ if(k!=="kind") delete committed[k]; });
+    Object.assign(committed, s);
+    commitBtn.disabled = !filled(committed);
+    checkBtn.disabled = !filled(committed);
+  }
+  function revertTentative(){
+    Object.keys(tentative).forEach(k=>{ if(k!=="kind") delete tentative[k]; });
+    Object.assign(tentative, committed);
+    draw(tentative);
+    syncControls();
+    status.textContent = "Move cancelled. Your last committed state is still here.";
+  }
+
+  function syncControls(){
+    const sels = controls.querySelectorAll("select");
+    const wants = kind === "point" ? [tentative.x, tentative.y]
+      : kind === "numberline_point" ? [tentative.value] : [tentative.start, tentative.end];
+    sels.forEach((sel, i)=>{ if(wants[i]) sel.value = wants[i]; });
+    if(kind === "interval"){
+      const chks = controls.querySelectorAll("input[type=checkbox]");
+      chks[0].checked = !!tentative.start_closed;
+      chks[1].checked = !!tentative.end_closed;
+    }
+  }
+
+  /* ---- the ONE serializer: canonical SCALAR strings, exact wire shapes ---- */
+  function serialize(){
+    return JSON.stringify(snapshot(tentative));
+  }
+
+  async function commitMove(){
+    /* The explicit commit boundary: pointer-up after a changed drag, tap, or
+       native Enter/Space. An unchanged value commits nothing (D-04). */
+    if(!filled(tentative)) return;
+    if(sameState(tentative, committed)){
+      status.textContent = "No change to commit.";
+      return;
+    }
+    const aid = actionId();
+    try {
+      const v = await api("/api/interact", {
+        session_id: sessionId,
+        interaction_version: c.version,
+        action_id: aid,
+        action_type: kind === "point"
+            ? (filled(committed) ? "move_point" : "place_point")
+          : kind === "numberline_point" ? "select_numberline_point" : "set_interval",
+        state: snapshot(tentative),
+      });
+      adopt(tentative);
+      if(v.status === "recorded" || v.status === "already_recorded"){
+        status.textContent = "Move committed. You can adjust it or check your response.";
+      } else {
+        status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+        revertTentative();
+      }
+    } catch(err){
+      status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+    }
+  }
+
+  svg.addEventListener("pointerdown", e => { e.preventDefault(); });
+  svg.addEventListener("pointerup", e => {
+    const before = JSON.stringify(snapshot(tentative));
+    if(kind === "point"){
+      const x = snap(xTicks, domainX(e.clientX));
+      const y = snap(yTicks, domainY(e.clientY));
+      Object.assign(tentative, {x: x.v, y: y.v});
+    } else if(kind === "numberline_point"){
+      Object.assign(tentative, {value: snap(valueTicks, domainX(e.clientX)).v});
+    } else {
+      const hit = snap(valueTicks, domainX(e.clientX)).v;
+      if(!tentative.start || (tentative.start && tentative.end))
+        Object.assign(tentative, {start: hit, end: undefined});
+      else Object.assign(tentative, {end: hit});
+    }
+    draw(tentative);
+    syncControls();
+    if(JSON.stringify(snapshot(tentative)) !== before) commitMove();   // changed drag/tap
+  });
+  svg.addEventListener("pointercancel", revertTentative);
+  svg.addEventListener("pointerleave", e => { if(e.buttons === 0) return; });
+  svg.setAttribute("tabindex", "0");
+  svg.addEventListener("keydown", e => {
+    /* Arrows step by declared units on the focused scene; Enter/Space commit
+       the tentative move; Escape cancels (D-07). */
+    const step = fracParse(axis.step);
+    if(!step) return;
+    if(e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown"){
+      e.preventDefault();
+      const delta = e.key === "ArrowLeft" || e.key === "ArrowDown" ? -1 : 1;
+      if(kind === "point"){
+        const moveX = e.key === "ArrowLeft" || e.key === "ArrowRight";
+        const cur = moveX ? (tentative.x || axis.min) : (tentative.y || axis.min);
+        const idx = valueTicks.findIndex(t => t.v === cur);
+        const tks = moveX ? xTicks : yTicks;
+        const at = tks.findIndex(t => t.v === cur);
+        const nxt = tks[Math.max(0, Math.min(tks.length-1, (at < 0 ? 0 : at) + delta))];
+        if(nxt) Object.assign(tentative, moveX ? {x: nxt.v} : {y: nxt.v});
+      } else if(kind === "numberline_point"){
+        const at = valueTicks.findIndex(t => t.v === (tentative.value || axis.min));
+        const nxt = valueTicks[Math.max(0, Math.min(valueTicks.length-1, (at < 0 ? 0 : at) + delta))];
+        if(nxt) Object.assign(tentative, {value: nxt.v});
+      } else {
+        const focus = e.shiftKey ? "start" : "end";
+        const at = valueTicks.findIndex(t => t.v === (tentative[focus] || axis.min));
+        const nxt = valueTicks[Math.max(0, Math.min(valueTicks.length-1, (at < 0 ? 0 : at) + delta))];
+        if(nxt) Object.assign(tentative, {[focus]: nxt.v});
+      }
+      draw(tentative); syncControls();
+      return;
+    }
+    if(e.key === "Enter" || e.key === " "){
+      e.preventDefault();
+      commitMove();
+      return;
+    }
+    if(e.key === "Escape"){
+      e.preventDefault();
+      revertTentative();
+    }
+  });
+
+  /* ---- adjacent semantic HTML controls: same state, same serializer ------- */
+  function valueSelect(tks, onPick){
+    const sel = document.createElement("select");
+    tks.forEach(tk=>{ const o = document.createElement("option");
+      o.value = tk.v; o.textContent = tk.v; sel.appendChild(o); });
+    sel.onchange = ()=>{ onPick(sel.value); };
+    return sel;
+  }
+  const controls = document.createElement("div");
+  controls.className = "visual-controls";
+  if(kind === "point"){
+    const sx = valueSelect(xTicks, v=>{ Object.assign(tentative, {x: v}); draw(tentative); });
+    const sy = valueSelect(yTicks, v=>{ Object.assign(tentative, {y: v}); draw(tentative); });
+    controls.appendChild(labelCtl("x", sx));
+    controls.appendChild(labelCtl("y", sy));
+  } else if(kind === "numberline_point"){
+    controls.appendChild(labelCtl("point", valueSelect(valueTicks,
+      v=>{ Object.assign(tentative, {value: v}); draw(tentative); })));
+  } else {
+    const s1 = valueSelect(valueTicks, v=>{ Object.assign(tentative, {start: v}); draw(tentative); });
+    const s2 = valueSelect(valueTicks, v=>{ Object.assign(tentative, {end: v}); draw(tentative); });
+    const c1 = document.createElement("input"); c1.type = "checkbox";
+    c1.onchange = ()=>Object.assign(tentative, {start_closed: c1.checked});
+    const c2 = document.createElement("input"); c2.type = "checkbox";
+    c2.onchange = ()=>Object.assign(tentative, {end_closed: c2.checked});
+    const r1 = labelCtl("start", s1, c1);
+    const r2 = labelCtl("end", s2, c2);
+    r1.appendChild(document.createTextNode(" closed"));
+    r2.appendChild(document.createTextNode(" closed"));
+    controls.appendChild(r1);
+    controls.appendChild(r2);
+  }
+  host.appendChild(controls);
+  function labelCtl(label, sel, extra){
+    const row = document.createElement("label");
+    row.className = "visual-ctl";
+    row.appendChild(document.createTextNode(label + " "));
+    row.appendChild(sel);
+    if(extra) row.appendChild(extra);
+    return row;
+  }
+
+  /* ---- actions: Commit move, then Check response (UI-SPEC copy) ----------- */
+  const commitBtn = document.createElement("button");
+  commitBtn.className = "go ghost"; commitBtn.type = "button";
+  commitBtn.textContent = "Commit move"; commitBtn.disabled = true;
+  commitBtn.onclick = commitMove;
+  act.appendChild(commitBtn);
+  const checkBtn = mkSubmit(act, "make a prediction, then commit your move before checking it");
+  checkBtn.textContent = "Check response";
+
+  if(kind === "point" && initial.points && initial.points.length){
+    Object.assign(committed, {x: initial.points[0].x, y: initial.points[0].y});
+  }
+  Object.assign(tentative, committed);
+  draw(tentative);
+  syncControls();
+  commitBtn.disabled = !filled(committed);
+  checkBtn.disabled = !filled(committed);
+
+  checkBtn.onclick = ()=>{
+    if(!filled(committed)){
+      status.textContent = "Commit your move before checking it.";
+      return;
+    }
+    checkBtn.disabled = true;
+    commitBtn.disabled = true;
+    settle(q, JSON.stringify(snapshot(committed)), card, act, null);
+  };
+
 }
 
 function mkSubmit(act, hint){
@@ -1310,12 +1896,12 @@ function close(q, card, act, v, revert){
     const langName = ((q.interaction_contract || {}).renderer_config || {}).language || "python";
     const lang = (v.refused_reason === "language")
       ? "This item requests the '" + langName + "' language, which isn't "
-        "enabled in this itembank's settings (check.languages). Add it in "
-        "settings, or ask whoever set up this bank to fix its [LANG:] value."
+        + "enabled in this itembank's settings (check.languages). Add it in "
+        + "settings, or ask whoever set up this bank to fix its [LANG:] value."
       : "Code execution is turned off while itembank is serving on your "
-        "network (--lan). Ask whoever runs itembank to turn on "
-        "check.allow_lan in settings if this device should be trusted, or "
-        "answer this item from the machine itembank is running on.";
+        + "network (--lan). Ask whoever runs itembank to turn on "
+        + "check.allow_lan in settings if this device should be trusted, or "
+        + "answer this item from the machine itembank is running on.";
     const div = document.createElement("div");
     div.className = "refused " + (v.refused_reason === "language" ? "err" : "pend");
     div.textContent = lang;
@@ -1331,20 +1917,12 @@ function close(q, card, act, v, revert){
   if(v.action === "hold"){
     if(revert) revert();
     fb.innerHTML = `<div class="verdict n">Not correct yet — the card stays
-      open. A hint is available.</div>`;
-    addHintControls(q, card, act);
+      open. Optional guidance is available under Help and evidence below.</div>`;
     return;
   }
   if(v.action === "defer_feedback"){
     fb.innerHTML = `<div class="pend">Recorded. ${q.type === "short"
       ? "Not marked here — a human marker reviews it." : ""}</div>`;
-    if(q.type === "short") addHintControls(q, card, act);
-    return;
-  }
-  if(v.action === "reveal_tier"){
-    if(revert) revert();
-    renderLadder(card, v.hint || {tier: null, shown: []});
-    addHintControls(q, card, act);
     return;
   }
   /* advance / complete: the runtime released the verdict and explanation. */
@@ -1456,6 +2034,7 @@ async function start(){
     if(frag) payload.focus = frag;
     const view = await api("/api/start", payload);
     sessionId = view.session_id;
+    if(window.Assist) window.Assist.setSession(sessionId);
     renderItem(view);
   } catch(err){
     host.innerHTML = `<div class="done empty">

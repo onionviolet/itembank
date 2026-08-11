@@ -4,7 +4,7 @@ Everything here reads markdown and returns plain dicts. It knows nothing about
 scoring, sessions or surfaces, which is what lets `spec` and `lint` be the whole
 of what an authoring agent has to satisfy.
 """
-import collections, hashlib, os, re, sys, uuid
+import collections, hashlib, json, os, re, sys, uuid
 
 import resources
 
@@ -188,7 +188,229 @@ def parse_question(ch):
         common.update({"model": model, "rubric": rubric, "notes": notes(ch)})
         return common
 
+    if qtype == "visual":
+        # Interactive visual assessment (phase 06.1). `[INTERACTION:]` names
+        # the one protocol-1 interaction family, `[VISUAL:]` is the declarative
+        # scene/actions/accessibility configuration, and `[SCORING:]` is the
+        # private scoring envelope (accepted states, tolerance). Both JSON
+        # fields are parsed as data here and never executed; the public
+        # projection of the scene happens in runtime.public_item, which omits
+        # every SCORING member.
+        interaction = grab(r"(?m)^\[INTERACTION:\s*(\w+)\s*\]", ch).lower()
+        visual_raw = grab(r"(?m)^\[VISUAL:\s*(.+?)\s*\]\s*$", ch)
+        scoring_raw = grab(r"(?m)^\[SCORING:\s*(.+?)\s*\]\s*$", ch)
+        if not stem:
+            return None
+        common.update({
+            "interaction": interaction,
+            "visual": _json_or_none(visual_raw),
+            "scoring": _json_or_none(scoring_raw),
+            # The raw bracketed text is kept so lint can tell "malformed
+            # JSON" (raw present, parse failed) apart from "field absent"
+            # (raw empty) and address the offending field by name.
+            "visual_raw": visual_raw,
+            "scoring_raw": scoring_raw,
+        })
+        return common
+
     return None
+
+
+def _json_or_none(raw):
+    """Parse one bracketed JSON field (`[VISUAL: ...]` / `[SCORING: ...]`)
+    into a dict, or None when absent or malformed. The model layer parses
+    JSON as data; executable content is rejected later by the runtime's
+    closed allowlist before any renderer sees it."""
+    if not raw:
+        return None
+    try:
+        value = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+# The visual lint families (plan 06.1-02, D-01/D-03): each maps to one stable
+# dotted code addressed by the offending field, so an authoring agent can
+# repair an item without a lookup table. The grammar itself (SCALAR, axis,
+# state, executable-content rejection) lives in runtime.py -- the single
+# source the scorer uses -- and these findings reuse it through a lazy import,
+# the same pattern runtime.py uses for `import model`. The model layer never
+# re-implements the grammar; it only reports where the authored JSON violates
+# it. Unknown-member and malformed-JSON checks happen here against the raw
+# text the parser kept, so a field is named even when the JSON never parsed.
+VISUAL_SCENE_MEMBERS = frozenset({"version", "axes", "axis", "initial",
+                                  "actions", "accessibility"})
+VISUAL_SCORING_MEMBERS = frozenset({"kind", "accepted", "tolerance",
+                                    "partial_credit", "feedback"})
+
+
+def _visual_lint_findings(q, tag):
+    """Named, field-addressed lint findings for one visual item (D-01/D-03,
+    T-06.1-05). Returns a list of LintError records -- every finding is an
+    error, because malformed/unsafe/inaccessible visual configuration must
+    fail lint before a learner ever sees the item.
+
+    The grammar checks delegate to runtime.py (the one grammar) through a
+    lazy import; the model layer only maps violations to codes and fields.
+    """
+    import runtime as _runtime  # function-local, mirrors runtime's import model
+
+    interaction = (q.get("interaction") or "").strip()
+    visual_raw = q.get("visual_raw") or ""
+    scoring_raw = q.get("scoring_raw") or ""
+    visual = q.get("visual")
+    scoring = q.get("scoring")
+
+    if not interaction:
+        return [LintError("item.visual_unknown_interaction", "interaction", tag,
+                          "visual item has no [INTERACTION:] line")]
+    if interaction not in _runtime.VISUAL_INTERACTIONS:
+        return [LintError("item.visual_unknown_interaction", "interaction", tag,
+                          "unknown INTERACTION %r (protocol %d supports %s)"
+                          % (interaction, _runtime.VISUAL_PROTOCOL_VERSION,
+                             ", ".join(_runtime.VISUAL_INTERACTIONS)))]
+
+    findings = []
+    if visual_raw and not isinstance(visual, dict):
+        findings.append(LintError(
+            "item.visual_json_malformed", "visual", tag,
+            "[VISUAL:] is not valid JSON"))
+    if scoring_raw and not isinstance(scoring, dict):
+        findings.append(LintError(
+            "item.visual_json_malformed", "scoring", tag,
+            "[SCORING:] is not valid JSON"))
+    if not isinstance(visual, dict) or not isinstance(scoring, dict):
+        # Nothing further can be validated without the parsed JSON.
+        return findings
+
+    # Unknown members first: a top-level member outside the closed allowlist
+    # is an authoring error even when it also looks script-bearing (the
+    # executable check below catches nested ones).
+    unknown = sorted(set(visual) - VISUAL_SCENE_MEMBERS)
+    if unknown:
+        findings.append(LintError(
+            "item.visual_unknown_member", "visual", tag,
+            "unknown VISUAL member(s): %s" % ", ".join(unknown)))
+    unknown = sorted(set(scoring) - VISUAL_SCORING_MEMBERS)
+    if unknown:
+        findings.append(LintError(
+            "item.visual_unknown_member", "scoring", tag,
+            "unknown SCORING member(s): %s" % ", ".join(unknown)))
+
+    # Executable/script-bearing members anywhere in the scene or envelope
+    # (T-06.1-05): a script-bearing bank fails closed even when its JSON is
+    # otherwise valid.
+    try:
+        _runtime._reject_visual_exec(visual, "VISUAL")
+        _runtime._reject_visual_exec(scoring, "SCORING")
+    except ValueError as exc:
+        findings.append(LintError("item.visual_executable_member", "visual",
+                                  tag, str(exc)))
+
+    # Actions: a non-empty subset of the locked protocol-1 action vocabulary.
+    actions = visual.get("actions")
+    if not isinstance(actions, list) or not actions \
+            or any(a not in _runtime.VISUAL_ACTIONS for a in actions):
+        findings.append(LintError(
+            "item.visual_unknown_action", "actions", tag,
+            "actions must be a non-empty subset of %s"
+            % ", ".join(_runtime.VISUAL_ACTIONS)))
+
+    # Accessibility: the D-07 gate -- a visual item needs an accessible
+    # description; the SVG's name/description and the semantic fallback are
+    # built from it, so an empty one is an error, not a warning.
+    accessibility = visual.get("accessibility")
+    if not isinstance(accessibility, dict) \
+            or not str(accessibility.get("description") or "").strip():
+        findings.append(LintError(
+            "item.visual_empty_accessibility", "accessibility", tag,
+            "accessibility.description is required (D-07)"))
+
+    # Scoring kind: one of the three protocol-1 response kinds, matching the
+    # interaction family, and the protocol is dichotomous (D-02).
+    kind = scoring.get("kind")
+    if kind not in _runtime.VISUAL_KINDS:
+        findings.append(LintError(
+            "item.visual_unknown_scoring_kind", "kind", tag,
+            "unknown SCORING kind %r (protocol %d supports %s)"
+            % (kind, _runtime.VISUAL_PROTOCOL_VERSION,
+               ", ".join(_runtime.VISUAL_KINDS))))
+    if scoring.get("partial_credit") is not False:
+        findings.append(LintError(
+            "item.visual_invalid_scoring_kind", "partial_credit", tag,
+            "protocol %d is dichotomous; partial_credit must be false"
+            % _runtime.VISUAL_PROTOCOL_VERSION))
+
+    # Axis geometry: every min/max/step is a SCALAR (invalid scalar is
+    # reported separately so precision problems name the field), step is
+    # positive, span divides into at most 200 whole steps (201 ticks).
+    def _axis_field(axis, axis_name):
+        if not isinstance(axis, dict):
+            findings.append(LintError(
+                "item.visual_invalid_axis", axis_name, tag,
+                "%s must be an object with min, max, step" % axis_name))
+            return
+        for field in ("min", "max", "step"):
+            value = axis.get(field)
+            if _runtime.canonical_scalar(value) is None:
+                findings.append(LintError(
+                    "item.visual_invalid_scalar", field, tag,
+                    "%s.%s = %r is not a valid SCALAR (protocol %d grammar)"
+                    % (axis_name, field, value, _runtime.VISUAL_PROTOCOL_VERSION)))
+        if _runtime.canonical_axis(axis) is None:
+            findings.append(LintError(
+                "item.visual_invalid_axis", axis_name, tag,
+                "%s is invalid (positive SCALAR step, max > min, at most %d "
+                "ticks)" % (axis_name, _runtime.VISUAL_MAX_TICKS)))
+
+    if interaction == "plot":
+        axes = visual.get("axes")
+        if not isinstance(axes, dict) or "x" not in axes or "y" not in axes:
+            findings.append(LintError(
+                "item.visual_invalid_axis", "axes", tag,
+                "plot scene needs axes.x and axes.y"))
+        else:
+            _axis_field(axes["x"], "axes.x")
+            _axis_field(axes["y"], "axes.y")
+    else:
+        _axis_field(visual.get("axis"), "axis")
+
+    # Accepted states must canonicalize and stay in the authored domain, and
+    # tolerance must be a non-negative SCALAR. The runtime raises ValueError
+    # for these, which is mapped to the field-addressed code.
+    try:
+        _runtime._visual_interaction_contract(q)
+    except ValueError as exc:
+        message = str(exc)
+        if "accepted state" in message:
+            findings.append(LintError(
+                "item.visual_invalid_scalar", "accepted", tag, message))
+        elif "tolerance" in message and "non-negative SCALAR" in message:
+            findings.append(LintError(
+                "item.visual_invalid_tolerance", "tolerance", tag, message))
+        elif "accessibility" in message:
+            findings.append(LintError(
+                "item.visual_empty_accessibility", "accessibility", tag,
+                message))
+        else:
+            findings.append(LintError(
+                "item.visual_invalid_scalar", "scoring", tag, message))
+
+    # Duplicate/unstable scene ids (D-07: stable ids are part of the
+    # accessibility/evidence contract -- a point id must be stable and unique
+    # so committed actions and evidence can name it).
+    initial = visual.get("initial") or {}
+    ids = []
+    for point in initial.get("points") or []:
+        if isinstance(point, dict) and point.get("id"):
+            ids.append(str(point["id"]))
+    if len(ids) != len(set(ids)):
+        findings.append(LintError(
+            "item.visual_duplicate_id", "initial", tag,
+            "scene point ids must be unique (found %d ids, %d unique)"
+            % (len(ids), len(set(ids)))))
+    return findings
 
 
 def section(label, ch):
@@ -293,6 +515,13 @@ def parse_lesson(bank_path):
                     "error": "lesson.src_unreadable", "detail": str(exc)}
         source = resolved
 
+    # The Phase 6.2 gate directive (D-02): one [GATE:] in the effective
+    # lesson preamble (the bank's own, or the external file's when
+    # [LESSON-SRC:] replaced it), following the exact [LESSON-SRC:] grab
+    # pattern -- additive grammar, default "recommended" when absent, and
+    # the value validated at lint time, never here (a parse must not raise).
+    gate = grab(r"(?m)^\[GATE:\s*(.*?)\s*\]", head) or "recommended"
+
     m = re.search(r"(?m)^##\s+LESSON\s*$", head)
     if m is None:
         return None
@@ -317,6 +546,7 @@ def parse_lesson(bank_path):
     for h in headings:
         h["body"] = "\n".join(h["body"]).strip()
     return {"source": source,
+            "gate": gate,
             "body": lesson_text.strip(),
             "intro": "\n".join(intro).strip(),
             "headings": headings,
@@ -1221,6 +1451,17 @@ def content_fingerprint(q):
             parts.append("case:%d=%s::%s" % (i, collapse(c["stdin"]),
                                              collapse(c["expected"])))
         parts.append("starter=" + collapse(q.get("starter", "")))
+    elif t == "visual":
+        # The tested content of a visual item is the declarative scene and
+        # the private scoring envelope together: changing either the prompt's
+        # scene or the accepted/tolerance material must change the
+        # fingerprint. JSON is hashed in its canonical (sorted) form so
+        # reformatting the bank does not drift the digest.
+        parts.append("interaction=" + collapse(q.get("interaction") or ""))
+        parts.append("visual=" + json.dumps(q.get("visual") or {},
+                                            sort_keys=True, separators=(",", ":")))
+        parts.append("scoring=" + json.dumps(q.get("scoring") or {},
+                                             sort_keys=True, separators=(",", ":")))
     payload = FINGERPRINT_SEP.join(parts)
     return "sha256:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
@@ -1557,6 +1798,51 @@ THE SIX ITEM TYPES
 """
     + _check_section()
     + r"""
+
+7. Visual assessment.  Interactive plot or number-line item (protocol integer 1,
+   phase 06.1). The scene and the private scoring envelope are declarative JSON
+   fields, parsed as data and never executed; the served runtime projects only
+   the key-free scene, and `score_response()` is the only scorer.
+     [TYPE: visual]
+     [INTERACTION: plot | numberline]
+     [VISUAL: {"version":1,"axes":{"x":{"min":"-5","max":"5","step":"1"},"y":{"min":"-5","max":"5","step":"1"}},"initial":{"points":[]},"actions":["place_point","move_point"],"accessibility":{"description":"A coordinate grid. Place a point."}}]
+     [SCORING: {"kind":"point","accepted":[{"x":"2","y":"3"}],"tolerance":{"x":"0","y":"0"},"partial_credit":false}]
+
+   `[INTERACTION:]` names the interaction family: `plot` (two axes x and y) or
+   `numberline` (one axis). `[VISUAL:]` is the public scene: `version` (the
+   protocol integer, 1), `axes`/`axis` (each with SCALAR `min`, `max`, `step`,
+   step strictly positive and the span at most 200 whole steps, i.e. 201 ticks),
+   `initial` (the starting committed state), `actions` (a non-empty subset of
+   the four locked action types `place_point`, `move_point`,
+   `select_numberline_point`, `set_interval`), and `accessibility.description`
+   (required: the SVG's name/description and the semantic fallback are built
+   from it). `[SCORING:]` is private -- it never leaves the server. `kind` is
+   one of `point`, `numberline_point`, `interval`; `accepted` lists the
+   accepted semantic states; `tolerance` is per-field non-negative SCALAR (0 =
+   exact discrete compare); `partial_credit` must be false (dichotomous).
+
+   SCALAR grammar (protocol integer 1): a signed base-10 integer or decimal
+   with at most six fractional digits, or a rational INTEGER/POSITIVE_INTEGER.
+   Exponents, NaN, infinities, mixed numbers, units and symbolic expressions
+   are invalid. The runtime canonicalizes with fractions.Fraction (rational
+   reduction, trailing-zero removal, -0 -> "0", bounded numerator/denominator);
+   browser floats and pixels are never evidence or scoring inputs. Wire
+   responses are exactly:
+     {"kind":"point","x":SCALAR,"y":SCALAR}
+     {"kind":"numberline_point","value":SCALAR}
+     {"kind":"interval","start":SCALAR,"end":SCALAR,"start_closed":BOOL,"end_closed":BOOL}
+   Interval endpoints canonicalize into ascending order with closure flags
+   swapped when needed. The public `interaction_contract` (version, type,
+   interaction, renderer_config, response_schema) is what a renderer or agent
+   receives; accepted states, tolerance, and reveal content are never in it.
+
+   SVG/HTML role policy (D-07): HTML owns the prompt, controls, status and
+   semantic fallback; SVG owns the retained plot/number-line geometry. A canvas
+   renderer is permitted only for a dense simulation while the identical
+   semantic HTML state/control path remains present and operable. Committed
+   semantic actions and runtime observations are append-only evidence; raw
+   pointer movement is never recorded.
+
 DISTRACTOR ANALYSIS
   For mc and multi, one line per option, keyed by letter:
      - A) why this attracts, and the scenario where it WOULD be correct
@@ -1629,7 +1915,44 @@ LESSON LINT CODES
   lesson.src_unreadable     error     LESSON-SRC names a missing or out-of-tree
                                       file
   lesson.orphan_heading     warning   a heading no item references; a lesson
-                                      legitimately teaches more than it tests""")
+                                      legitimately teaches more than it tests
+VISUAL LINT CODES
+  item.visual_json_malformed       error   [VISUAL:] or [SCORING:] is not valid JSON
+  item.visual_unknown_interaction  error   INTERACTION is not plot or numberline
+  item.visual_unknown_action       error   an action is outside the four locked types
+  item.visual_unknown_scoring_kind error   SCORING.kind is not point/numberline_point/interval
+  item.visual_unknown_member       error   a top-level VISUAL/SCORING member is outside
+                                           the closed allowlist
+  item.visual_invalid_axis         error   axis min/max/step geometry is invalid
+  item.visual_invalid_scalar       error   a SCALAR violates the protocol-1 grammar
+  item.visual_invalid_tolerance    error   a tolerance is not a non-negative SCALAR
+  item.visual_invalid_scoring_kind error   partial_credit is not false (dichotomous)
+  item.visual_empty_accessibility  error   accessibility.description is empty
+  item.visual_duplicate_id         error   scene point ids are duplicated
+  item.visual_executable_member    error   a script-bearing/executable member is present
+  lesson.invalid_gate       error     [GATE:] names a value outside
+                                      required|recommended|off
+  lesson.check_ref_unknown  error     [!CHECK: <id>] names no item in its own
+                                      bank (D-01)
+""")
+
+# The Phase 6.2 gate grammar (06.2-CONTEXT D-02): one [GATE:] directive in
+# the lesson preamble with exactly three legal values; a lesson declaring
+# none defaults to "recommended". The value is validated at lint time -- an
+# invalid value is a named lint error, never a render-time crash and never
+# a silent default (T-062-01).
+GATE_VALUES = ("required", "recommended", "off")
+
+# The one source of truth for the unresolvable [!CHECK:] copy (06.2-UI-SPEC
+# section 15, LOCKED): the linter, the lesson renderer and the tests all
+# read this constant -- never a duplicate string literal -- so the
+# cross-phase divergence guard (06.2-UI-SPEC section 13 gate 12) holds by
+# construction. The literal `<bank>` placeholder is filled with the bank
+# basename by the renderer; the linter is `itembank lint`, so its message
+# carries the sentence verbatim.
+CHECK_UNRESOLVED_COPY = ("This check refers to an item that is not in this "
+                         "bank. Run itembank lint <bank> for details.")
+
 
 BANK_FILE_HINTS = ("_mc_bank", "_exam_bank", "_question_bank", "_quiz_bank")
 
@@ -1771,7 +2094,15 @@ LINT_CODES = tuple(sorted({
     "style.sentence_length", "style.filler_phrase", "style.banned_hector",
     "style.forbidden_phrase",
     "item.objective_line_multi_sentence",
+    "item.visual_json_malformed", "item.visual_unknown_interaction",
+    "item.visual_unknown_action", "item.visual_unknown_scoring_kind",
+    "item.visual_unknown_member", "item.visual_invalid_axis",
+    "item.visual_invalid_scalar", "item.visual_invalid_tolerance",
+    "item.visual_invalid_scoring_kind",
+    "item.visual_empty_accessibility", "item.visual_duplicate_id",
+    "item.visual_executable_member",
     "bank.answer_position_skew",
+    "lesson.invalid_gate", "lesson.check_ref_unknown",
 }))
 
 
@@ -2722,6 +3053,10 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                     "[TOLERANCE:] is stated; float comparison would be "
                     "machine-dependent (D-20)"))
 
+        elif t == "visual":
+            for finding in _visual_lint_findings(q, tag):
+                errors.append(finding)
+
         if uses_check:
             from runtime import NORMALIZERS
             if t not in NORMALIZERS:
@@ -2810,6 +3145,28 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                         "lesson heading '%s' is not referenced by any item's "
                         "[LESSON-REF:] -- fine if it's background reading, but "
                         "check it wasn't meant to be tested" % h["text"]))
+            # Phase 6.2 gate findings (D-02, D-01): the [GATE:] value is
+            # validated against the closed set, and every [!CHECK: <id>]
+            # must resolve to an item in this same bank -- a cross-bank or
+            # unresolvable reference is a named lint error whose copy is the
+            # shared CHECK_UNRESOLVED_COPY constant, never a duplicate
+            # literal (06.2-UI-SPEC section 13 gate 12).
+            gate = lesson.get("gate") or "recommended"
+            if gate not in GATE_VALUES:
+                errors.append(LintError(
+                    "lesson.invalid_gate", "gate", "BANK",
+                    "[GATE: %s] is not one of %s -- use required, "
+                    "recommended, or off" % (gate, "/".join(GATE_VALUES))))
+            known_check_ids = {q.get("id") for q in questions}
+            known_check_ids.update(
+                q.get("item_id") for q in questions if q.get("item_id"))
+            for cm in re.finditer(r"\[!CHECK:\s*([^\s\]]+)\s*\]",
+                                  lesson.get("body", "")):
+                cid = cm.group(1)
+                if cid and cid not in known_check_ids:
+                    errors.append(LintError(
+                        "lesson.check_ref_unknown", "refs", "BANK",
+                        "[!CHECK: %s] %s" % (cid, CHECK_UNRESOLVED_COPY)))
 
     # Bank-level terms/key findings, in a deterministic order: collisions,
     # then the empty-block warning, then unknown refs, then duplicate [!KEY]

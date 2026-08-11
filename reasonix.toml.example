@@ -1,0 +1,22 @@
+# reasonix.toml.example — portable template for local Reasonix configuration.
+#
+# Reasonix needs NO config for this repository. It auto-discovers the agent
+# skills in `.agents/skills/` as a convention root (same tree Codex and other
+# agents.md readers use), and reads `AGENTS.md` / `CLAUDE.md` for the on-ramp.
+# Copy this file to `reasonix.toml` ONLY if you want to change something; the
+# file is gitignored so your edits stay local and never ship.
+
+# ---------------------------------------------------------------------------
+# Optional: OCR plugin — vision bridge for text-only models (e.g. DeepSeek).
+# Backend: a local Ollama vision model on this machine, default qwen2.5vl:7b.
+# Requires the model first:  ollama pull qwen2.5vl:7b
+# `command` must resolve to a Python on this machine, and the script path
+# points at YOUR checkout of this repo. Uncomment and fill in, or wire the
+# same plugin in your user-global Reasonix config instead.
+# ---------------------------------------------------------------------------
+# [[plugins]]
+# name = "ocr"
+# type = "stdio"
+# command = "python"
+# args = ["<checkout>/scripts/ocr_mcp.py"]
+# env = { OLLAMA_HOST = "http://localhost:11434" }   # optional override

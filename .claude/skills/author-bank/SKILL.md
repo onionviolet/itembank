@@ -84,7 +84,14 @@ resolve the quality ones.
 python itembank.py id-assign bank.md    # mint ids + fingerprints (the only writer)
 python itembank.py stats bank.md        # coverage + difficulty spread
 python itembank.py study bank.md        # flashcards, optional sanity check
+python itembank.py guard .              # ship gate: no real bank committed (CI enforces it)
 ```
+
+Assisted drafting (optional, model-backed): `python itembank.py seed bank.md`
+runs the one-accept loop — it drafts candidate items and reads
+`accept` / `skip` / `cancel` per draft. It refuses by name when no model
+backend is reachable, and its output still goes through the same lint loop
+above; it is a drafting aid, not a bypass.
 
 ## Boundaries
 

@@ -135,9 +135,8 @@ this repo, or a tutor you spawned. Everything an agent needs to start cold is
 in `AGENTS.md` at the repository root (read by Codex, Cursor, Gemini CLI, and
 Claude Code), with the full project context in `.claude/CLAUDE.md`.
 
-**Repo skills.** This repository ships four playbooks that an agent can invoke
-by name, in `.agents/skills/` (Codex and agents.md readers) and mirrored in
-`.claude/skills/` (Claude Code):
+**Repo skills.** This repository ships five playbooks that an agent can
+invoke by name. The two trees are byte-identical mirrors:
 
 | Skill | What it does |
 |---|---|
@@ -145,8 +144,21 @@ by name, in `.agents/skills/` (Codex and agents.md readers) and mirrored in
 | `curriculum-design` | Map a syllabus to objective coverage and find the gaps |
 | `guiding-questions` | Tutor a learner through the JSON session protocol, one diagnostic question at a time |
 | `author-bank` | Write or extend items and make them lint clean |
+| `ocr` | Read text out of images via a local Ollama vision model — the vision bridge for text-only models (optional; needs `ollama pull qwen2.5vl:7b`) |
 
-The two skill trees are identical mirrors — edit either and copy to the other.
+**Where each tool finds the skills** (the SKILL.md files carry the standard
+`name` + `description` frontmatter every tool reads):
+
+| Tool | Skill location | Setup |
+|---|---|---|
+| Claude Code | `.claude/skills/` | auto-discovered |
+| Codex | `.agents/skills/` | auto-discovered |
+| Gemini CLI, Cursor, GitHub Copilot, and other agents.md readers | `.agents/skills/` | auto-discovered |
+| Reasonix | `.agents/skills/` | auto-discovered as a convention root — no config needed; the optional OCR plugin wiring lives in `reasonix.toml.example` |
+| Anything else | point its skill root at `.agents/skills/` | see your tool's docs |
+
+The two trees are byte-identical mirrors — edit either and copy to the
+other; CI runs `diff -rq` on them and fails on drift.
 
 **The rules of the road for any agent** (full contract in `AGENTS.md` and
 `.planning/UI-SPEC.md` §9):
@@ -431,8 +443,8 @@ surfaces/cli.py           argparse, and the commands that need no surface
 surfaces/theme.py         the one palette
 GRADING.md                how to mark an attempt file; hand this to your marker
 AGENTS.md                 agent on-ramp: layers, boundaries, authoring + tutoring loops
-.agents/skills/           agent playbooks (absorb-book, curriculum-design, guiding-questions, author-bank)
-.claude/skills/           same playbooks, mirrored for Claude Code
+.agents/skills/           agent playbooks (absorb-book, curriculum-design, guiding-questions, author-bank, ocr)
+.claude/skills/           same playbooks, mirrored for Claude Code (CI keeps the two trees byte-identical)
 fixtures/sample_bank.md   synthetic, exercises all six types, lints clean
 fixtures/broken_bank.md   deliberately defective; CI asserts lint catches each defect
 tests/serve_roundtrip.py  asserts a served sitting reaches disk and leaks no key

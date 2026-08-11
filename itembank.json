@@ -11,10 +11,10 @@
   },
   "auditor_autonomy": "report_only",
   "model_backend": {
-    "kind": "none",
-    "endpoint": "",
-    "model": ""
+    "active": "",
+    "profiles": []
   },
+  "suggestion_reveal": "after-self-mark",
   "update_policy": "check_on_launch",
   "daemon": {
     "port": 8730,
@@ -26,7 +26,9 @@
     "reader_nav": "none",
     "example_layout": "stacked",
     "print_gloss": "appendix",
-    "gloss_marks": "all"
+    "gloss_marks": "all",
+    "gate_skip": "always",
+    "gate_policy": "as-authored"
   },
   "update": {
     "repo": "onionviolet/itembank",
@@ -39,6 +41,45 @@
   "paraphrase": {
     "winnow_threshold": 8,
     "jaccard_threshold": 0.25
+  },
+    "retention": {
+    "min_settled_attempts": 3,
+    "weak_accuracy": 0.6,
+    "mastery_accuracy": 0.85,
+    "mastery_success_days": 3,
+    "at_risk_after_days": 28,
+    "review_interval_days": 7,
+    "lesson_review_after_days": 14,
+    "weight_min": 0.75,
+    "weight_max": 1.25,
+    "max_weight_step": 0.1,
+    "weak_boost": 0.2,
+    "due_boost": 0.1,
+    "at_risk_boost": 0.2,
+    "mastery_reduction": 0.15,
+    "focused_session_count": 5
+  },
+  "audio": {
+    "engine": "edge-tts",
+    "container": "mp3",
+    "split": "per-pack",
+    "pause": {
+      "mc": 1.5,
+      "multi": 2.0,
+      "short": 2.0,
+      "cloze": 2.5,
+      "build": 4.0,
+      "table": 3.0,
+      "dnd": 3.0,
+      "check": 3.0
+    },
+    "edge_tts": {
+      "voice": "en-US-GuyNeural"
+    },
+    "piper": {
+      "voice": "en_US-lessac-medium",
+      "model": ""
+    }
   },
   "selection": {
     "cooldown_responses": 20
