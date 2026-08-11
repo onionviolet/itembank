@@ -1,0 +1,4 @@
+﻿- [Phase 6] 06-01: v2 evidence contract confirmed at the Task 1 gate: response events record integer-or-null hint_tier, hint events link session/item/attempt/response with tier and unlock path; v1 reads kept while writers emit v2.
+- [Phase 6] 06-01: a genuine wrong practice response unlocks (never shows) the next tier; hint/stumped reveal exactly one fixed tier and append a hint event only when shown.
+- [Phase 6] 06-01: after the authored reveal (tier 5) is shown, the next submit advances even on a repeat of the last canonical response (D-06).
+- [Phase 6] 06-01: teaching_outcomes omits fully-retracted items and never counts stumped as wrong; correct-after-tier requires a shown hint.

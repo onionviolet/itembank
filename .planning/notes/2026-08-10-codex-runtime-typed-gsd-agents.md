@@ -2,7 +2,8 @@
 
 - **Date:** 2026-08-10
 - **Context:** `/gsd-plan-phase 3.1 --skip-research` handoff pickup, running in the Codex desktop app.
-- **Status:** workaround in effect; typed dispatch blocked by model/effort mismatch.
+- **Status:** RESOLVED 2026-08-10 (pin fix) — typed dispatch should now launch;
+  historical failure record below.
 - **Verification:** live `spawn_agent` attempts with `agent_type="gsd-planner"`, 2026-08-10.
 
 ---
@@ -43,10 +44,11 @@ and inject the role instructions manually:
 ## 4. Why it matters for token spend
 
 Each typed-spawn attempt costs a full tool round-trip and produces zero work.
-Future runs in this runtime should **skip typed GSD agent dispatch entirely**
-and go straight to the generic-agent + role-injection path. Revisit this note if
-the runtime's supported reasoning tiers change (e.g. `xhigh` becomes valid for
-`deepseek-v4-flash`).
+As written, this section instructed future runs to skip typed dispatch, but
+that guidance was superseded the same day by the pin fix — see section 8:
+typed spawns should now launch. If the runtime's supported reasoning tiers
+change again (e.g. `xhigh` becomes valid for `deepseek-v4-flash`), revisit
+this note.
 
 ## 5. Where the fix would live (permanent)
 
@@ -95,3 +97,26 @@ conclusion stands: **spawn and follow-up payload delivery are both broken
 in this runtime; do not spend turns re-probing it.** See
 `2026-08-10-cost-effectiveness-inline-vs-subagents.md` for the measurement
 protocol and the one allowed re-probe prompt.
+
+## 8. UPDATE (2026-08-10, later same day): pins fixed
+
+The permanent fix described in section 5 was applied: the nine GSD role files
+that pinned `model_reasoning_effort = "xhigh"` now use `max`
+(`C:/Users/wayba/.codex/agents/*.toml`), which this runtime's router accepts
+for `deepseek-v4-flash` (catalog `C:/Users/wayba/.codex/models.json` lists
+`low | high | max`). The global AGENTS.md was updated to match.
+
+- Typed GSD spawns should now launch normally; do not pre-emptively route to
+  the generic-agent workaround.
+- If a typed spawn is still refused, use the generic-agent workaround once,
+  then inline (documented deviation).
+- The payload-delivery issue (sections 6-7) is a separate failure mode and is
+  NOT fixed by the pin change — still verify on disk before trusting a
+  subagent turn.
+- The GSD installer may reset pins on reinstall; reapply `xhigh -> max` if so.
+- Live-verified later on 2026-08-10: a typed `gsd-executor` spawn launched
+  (no router refusal, task id returned) but never completed a turn — it sat
+  `running` until interrupted and produced no file, consistent with a bootstrap
+  hang without real plan context. The pin fix is confirmed; delivery and
+  turn-completion are separate, still-open issues. See
+  `2026-08-10-subagent-dispatch-recipe.md` and the cost note section 8.

@@ -285,35 +285,31 @@ Use ordered `mathDelimiters` with display `$$...$$` before inline `$...$`; inclu
 
 ## Assumptions Log
 
-| # | Claim | Section | Risk if Wrong |
-|---|-------|---------|---------------|
-| A1 | The profile registry should be a `subject_profiles` object in `itembank.json` rather than a new standalone file. | Summary / Pattern 1 | Planner may need to choose a different schema location while preserving D-01 through D-04. |
-| A2 | The selector module should be named `subjects.py`. | Recommended Project Structure | Naming only; no architectural impact. |
-| A3 | The exact KaTeX release should be chosen by a human after reviewing the same-day latest release rather than automatically pinning it. | Package Legitimacy Audit | A release-specific issue could remain if review is skipped. |
-| A4 | The reader adapter should target a dedicated lesson-content element rather than `document.body`. | Anti-Patterns | A broader target could alter chrome or future dynamic content. |
-| A5 | Narrow-table behavior will be horizontal scroll within an accessible semantic table. | Architectural / UI | UI planning may select wrapping with equivalent accessibility instead. |
+| # | Status | Claim | Section | Risk if Wrong |
+|---|---|-------|---------|---------------|
+| A1 | RESOLVED in 09-02 | The versioned registry is the required `subject_profiles` object in `schemas/settings.schema.json` / `itembank.json`, consumed through an internal loader boundary. | Summary / Pattern 1 | A later bank-local source must remain additive behind the same loader rather than changing persisted session interpretation. |
+| A2 | BOUNDED DISCRETION | The selector module is named `subjects.py`. | Recommended Project Structure | Naming only; no architectural impact. |
+| A3 | RESOLVED by blocking gate in 09-03 | The exact KaTeX version is an execution input chosen only after official ownership, immutable tag, MIT license, tarball SHA-256, and complete browser/font inventory are approved and recorded. | Package Legitimacy Audit | 09-04 must halt if the approval record is absent or the fetched bytes differ. |
+| A4 | RESOLVED in 09-UI-SPEC / 09-04 | The adapter targets only the dedicated `#lesson-content` element and leaves `pre`/`code` nodes untouched. | Anti-Patterns | A broader target would alter chrome or code examples. |
+| A5 | RESOLVED in 09-UI-SPEC / 09-01 | Narrow EMT tables use a labeled keyboard-focusable horizontal-scroll wrapper plus controlled cell wrapping while retaining native table/header/cell semantics. | Architectural / UI | A page-level overflow or flattened substitute would violate D-13. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Where will the versioned profile registry live?**
-   - What we know: Settings schema is the published configuration boundary and currently rejects unknown top-level keys: `"additionalProperties": false`. [VERIFIED: `schemas/settings.schema.json:7-10`]
-   - What's unclear: Whether profiles need independent bank-local distribution or only user settings.
-   - Recommendation: Put the initial registry in settings because LOOP-05 explicitly calls for configuration; preserve an internal loader boundary so a future bank-local source can remain additive. [ASSUMED]
+1. **RESOLVED — Where the versioned profile registry lives**
+   - Settlement: Plans 09-01/09-02 place shipped EMT, Math, and CS profile data under required `subject_profiles` settings in `schemas/settings.schema.json` and `itembank.json`. `subjects.load_registry()` is the internal source boundary; the conservative unknown-subject profile remains code-owned per D-03.
+   - Basis: D-01/D-02 require versioned data profiles and LOOP-05 requires configuration-only extension. The public settings schema is already the closed configuration boundary.
 
-2. **Which KaTeX release should be vendored?**
-   - What we know: Registry latest `0.18.2` was published today and package legitimacy returns SUS for recency. [VERIFIED: npm registry]
-   - What's unclear: The reviewed release/version and license-notice workflow the repository will accept.
-   - Recommendation: Add a human checkpoint that verifies the upstream release contents, license, checksum/source tag, and chosen immutable version before it enters `vendor/`. [ASSUMED]
+2. **RESOLVED — How the exact KaTeX release is selected**
+   - Settlement: Planning does not fabricate a version choice. Plan 09-03 is a blocking, never-auto-approved supply-chain gate that must record one immutable version, official source/tag, MIT license result, npm tarball SHA-256, and complete browser/font inventory in `09-03-SUMMARY.md`. Plan 09-04 may fetch only that recorded tarball and must stop on a checksum or inventory mismatch.
+   - Basis: D-07 requires local vendoring; the Package Legitimacy Audit classifies the same-day release as SUS on recency. This closes the decision mechanism and leaves the exact approved value as a required execution-time input.
 
-3. **How should narrow EMT tables behave?**
-   - What we know: D-13 locks semantic tables and forbids screenshot flattening.
-   - What's unclear: Whether the UI contract prefers horizontal scroll, controlled wrapping, or a hybrid.
-   - Recommendation: Resolve in Phase 9 UI planning; acceptance must retain `table`, header, and cell semantics at the narrow viewport. [ASSUMED]
+3. **RESOLVED — Narrow EMT table behavior**
+   - Settlement: `09-UI-SPEC.md` chooses the hybrid recommended by the research: native semantic table markup inside a labeled keyboard-focusable horizontal-scroll wrapper, with ordinary prose wrapping and long tokens allowed to break. The wrapper owns overflow; the lesson page never widens. Plan 09-01 and the final matrix in 09-05 verify 320 CSS px, 200% zoom, source order, and header/cell semantics.
+   - Basis: D-12/D-13 require the shared renderer, semantic structure, and accessible narrow behavior while leaving the exact presentation to UI planning.
 
-4. **Are Phases 3, 5, and 6 implemented before Phase 9 execution begins?**
-   - What we know: Phase 9 depends on all three, while the current checkout has none of `surfaces/lesson.py` or `runner.py`. [VERIFIED: repository source inventory, 2026-08-08]
-   - What's unclear: Execution order versus planning order.
-   - Recommendation: First plan task must assert upstream public contracts/tests exist; block implementation rather than recreating their behavior. [ASSUMED]
+4. **RESOLVED — Phase 3/5/6 execution dependency**
+   - Settlement: Phase 9 execution is hard-gated on the real Phase 3 lesson reader/tests, Phase 5 runner/check tests, and Phase 6 teaching-transition/hint tests. Plans 09-01 and 09-05 carry explicit runnable preconditions; a missing or failing upstream contract halts execution. Phase 9 must not recreate or locally substitute any of those owners.
+   - Basis: ROADMAP declares Phase 3, Phase 5, and Phase 6 as dependencies, and D-05/D-09/D-14 require integration through their actual public seams.
 
 ## Environment Availability
 

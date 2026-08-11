@@ -13,7 +13,7 @@ add their failing feature assertions here first.
 Standard library only, no test framework, runnable as
 `python tests/presentation_roundtrip.py`.
 """
-import html.parser, json, os, re, shutil, subprocess, sys, tempfile, threading, time
+import html.parser, hashlib, json, os, re, shutil, subprocess, sys, tempfile, threading, time
 import urllib.error, urllib.request
 
 
@@ -738,6 +738,196 @@ def test_no_hex_literal_added_to_shared_css():
         fail("SHARED_CSS must contain no hex color literal")
 
 
+# ---- plan 03.1-06 Task 1: vendored font records (supply chain) -------------
+
+FONT_DIRS = ("source-serif", "ia-writer-quattro")
+
+
+def load_manifest():
+    """fonts/MANIFEST.json, the phase's supply-chain gate: the four
+    Registry-Safety preconditions live here or the vendoring did not
+    happen."""
+    path = os.path.join(ROOT, "fonts", "MANIFEST.json")
+    if not os.path.exists(path):
+        fail("fonts/MANIFEST.json is missing -- the vendoring records are "
+             "the supply-chain gate (plan 03.1-06 Task 1)")
+    return json.load(open(path, encoding="utf-8"))
+
+
+def test_font_vendoring_records_and_staging():
+    """Test 1 + Test 3: each vendored font directory carries its OFL 1.1
+    license, a RESERVED-NAMES note naming the reserved font names, and a
+    MANIFEST row with the pinned tag and sha256; build.py STAGE_DIRS
+    includes fonts/ so the artifact ships the families."""
+    man = load_manifest()
+    families = man.get("families") or {}
+    for key in FONT_DIRS:
+        d = os.path.join(ROOT, "fonts", key)
+        if not os.path.isdir(d):
+            fail("fonts/%s must exist with license and reserved-names "
+                 "records beside the vendored files" % key)
+        if not os.path.exists(os.path.join(d, "LICENSE.md")):
+            fail("fonts/%s must carry the OFL 1.1 license text" % key)
+        if not os.path.exists(os.path.join(d, "RESERVED-NAMES.md")):
+            fail("fonts/%s must carry a RESERVED-NAMES note" % key)
+        rn = open(os.path.join(d, "RESERVED-NAMES.md"),
+                  encoding="utf-8").read()
+        row = families.get(key)
+        if not row:
+            fail("MANIFEST must have a family row for %s" % key)
+        if not row.get("tag"):
+            fail("MANIFEST row %s must record the pinned tag" % key)
+        for name in row.get("reserved_font_names") or []:
+            if name not in rn:
+                fail("RESERVED-NAMES note must name %r for %s" % (name, key))
+        if not row.get("files"):
+            fail("MANIFEST row %s must list its woff2 files" % key)
+        for fr in row["files"]:
+            if not fr.get("name") or not fr.get("url"):
+                fail("MANIFEST file row %r must name the file and its "
+                     "pinned URL" % fr)
+    rs = man.get("registry_safety") or {}
+    for want in ("preconditions_recorded", "cleartype_render_check"):
+        if want not in rs:
+            fail("MANIFEST must record Registry-Safety precondition %r"
+                 % want)
+    src = open(os.path.join(ROOT, "build.py"), encoding="utf-8").read()
+    if re.search(r"STAGE_DIRS\s*=\s*\([^)]*fonts", src) is None:
+        fail("build.py STAGE_DIRS must include fonts/ so the artifact ships "
+             "the families")
+
+
+def test_font_sha256_matches_bytes_or_defers_honestly():
+    """Test 2: when the woff2 is on disk, the recorded SHA-256 must equal
+    the recomputed digest of the fetched bytes; a deferred fetch must be
+    recorded in MANIFEST with a re-run pointer and the no-vendor fallback
+    (Georgia/ui-monospace) kept -- never a silent byte, never an unofficial
+    URL."""
+    man = load_manifest()
+    fetch = man.get("fetch") or {}
+    if fetch.get("status") == "deferred":
+        if not fetch.get("rerun"):
+            fail("a deferred fetch must record a re-run pointer in "
+                 "MANIFEST (plan 03.1-06 Task 1 acceptance)")
+        return
+    for key in FONT_DIRS:
+        for fr in man["families"][key]["files"]:
+            p = os.path.join(ROOT, "fonts", key, fr["name"])
+            if not os.path.isfile(p):
+                fail("woff2 %s is missing from fonts/%s" % (fr["name"], key))
+            digest = hashlib.sha256(open(p, "rb").read()).hexdigest()
+            if digest != fr.get("sha256"):
+                fail("sha256 for fonts/%s/%s recorded %r but bytes compute "
+                     "%r" % (key, fr["name"], fr.get("sha256"), digest))
+
+
+# ---- plan 03.1-06 Task 2: @font-face rules in the token layer -------------
+
+def font_faces(css):
+    """The `@font-face{...}` declaration bodies in a CSS string."""
+    return re.findall(r"@font-face\{([^{}]*)\}", css)
+
+
+def test_at_font_face_rules_in_token_layer():
+    """Test 1: SHARED_CSS carries @font-face rules whose family names are
+    exactly the faces --font-paper/--font-ledger resolve to, each src points
+    at a MANIFEST-recorded woff2 under fonts/, and every face ships
+    font-display:swap."""
+    sys.path.insert(0, ROOT)
+    from surfaces.presentation import SHARED_CSS
+    faces = font_faces(SHARED_CSS)
+    if not faces:
+        fail("SHARED_CSS must contain @font-face rules for the vendored "
+             "faces (plan 03.1-06 Task 2)")
+    families = set()
+    srcs = []
+    for body in faces:
+        fm = re.search(r"font-family:\s*\"([^\"]+)\"", body)
+        sm = re.search(r"url\(\s*\"([^\"]+)\"\s*\)\s*format\(\s*\"woff2\"\s*\)",
+                       body)
+        if not fm or not sm:
+            fail("each @font-face must declare a quoted family and a woff2 "
+                 "url: %r" % body)
+        if "font-display:swap" not in body:
+            fail("each @font-face must ship font-display:swap: %r" % body)
+        families.add(fm.group(1))
+        srcs.append(sm.group(1))
+    if families != {"Source Serif 4", "iA Writer Quattro"}:
+        fail("@font-face families must be exactly the two vendored faces, "
+             "got %r" % families)
+    paper = token_value(SHARED_CSS, "font-paper")
+    ledger = token_value(SHARED_CSS, "font-ledger")
+    if not paper.startswith('"Source Serif 4",'):
+        fail("--font-paper must prefer the vendored face first: %r" % paper)
+    if not ledger.startswith('"iA Writer Quattro",'):
+        fail("--font-ledger must prefer the vendored face first: %r" % ledger)
+    man = load_manifest()
+    recorded = set()
+    for key in FONT_DIRS:
+        for fr in man["families"][key]["files"]:
+            recorded.add("fonts/%s/%s" % (key, fr["name"]))
+    for s in srcs:
+        if s not in recorded:
+            fail("@font-face src %r does not match a MANIFEST-recorded file"
+                 % s)
+
+
+def test_font_faces_degrade_when_fonts_absent():
+    """Test 2: with the vendored font files absent (temporarily hidden),
+    the token stack still carries the Georgia/ui-monospace fallback after
+    the vendored face -- the @font-face rules degrade (their srcs resolve
+    to nothing) and no literal family lives outside presentation.py. Only
+    the font FILES are hidden, never the whole fonts/ directory, so the
+    test also runs on mounts where the vendoring directory itself is held
+    open by another process."""
+    sys.path.insert(0, ROOT)
+    from surfaces.presentation import SHARED_CSS
+    faces = font_faces(SHARED_CSS)
+    if not faces:
+        fail("no @font-face rules to test for absence degradation")
+    srcs = [re.search(r"url\(\s*\"([^\"]+)\"", f).group(1) for f in faces]
+    for s in srcs:
+        if not s.startswith("fonts/"):
+            fail("font-face src escapes the fonts/ directory: %r" % s)
+    moved = []
+    try:
+        for s in srcs:
+            p = os.path.join(ROOT, s)
+            if os.path.exists(p):
+                os.rename(p, p + ".absent-plan-03-1-06")
+                moved.append(p)
+        for s in srcs:
+            if os.path.exists(os.path.join(ROOT, s)):
+                fail("font file present during the absence test: %r" % s)
+        paper = token_value(SHARED_CSS, "font-paper")
+        ledger = token_value(SHARED_CSS, "font-ledger")
+        if not paper.startswith('"Source Serif 4",') or "Georgia" not in paper:
+            fail("--font-paper must keep the Georgia fallback after the "
+                 "vendored face: %r" % paper)
+        if not ledger.startswith('"iA Writer Quattro",') \
+                or "ui-monospace" not in ledger:
+            fail("--font-ledger must keep the ui-monospace fallback after "
+                 "the vendored face: %r" % ledger)
+    finally:
+        for p in moved:
+            os.rename(p + ".absent-plan-03-1-06", p)
+
+
+def test_no_family_literal_in_surface_templates():
+    """Test 3: lesson.py, study.py, day.py and quiz_page.py carry no
+    font-family literal naming a vendored family after this task; family
+    names exist only inside the token layer (03.1-UI-SPEC §2, §7.4)."""
+    for fn in ("lesson.py", "study.py", "day.py", "quiz_page.py"):
+        path = os.path.join(ROOT, "surfaces", fn)
+        if not os.path.exists(path):
+            continue
+        src = open(path, encoding="utf-8").read()
+        for decl in re.findall(r"font-family:\s*([^;}\"\n]+)", src):
+            if "Source Serif" in decl or "iA Writer" in decl:
+                fail("%s declares a vendored family literally: %r"
+                     % (fn, decl.strip()))
+
+
 # ---- self-checks ------------------------------------------------------------
 
 def check_parser_and_assertions():
@@ -834,6 +1024,11 @@ def main():
     test_teaching_step_primary_action_contract()
     test_voice_measure_leading_tokens_ship_in_shared_css()
     test_font_tokens_name_fallbacks_and_only_presentation_names_families()
+    test_font_vendoring_records_and_staging()
+    test_font_sha256_matches_bytes_or_defers_honestly()
+    test_at_font_face_rules_in_token_layer()
+    test_font_faces_degrade_when_fonts_absent()
+    test_no_family_literal_in_surface_templates()
     test_no_hex_literal_added_to_shared_css()
     print("ok: presentation Wave 0 harness -- semantic DOM parser, landmark/"
           "heading/status/native-control/focus/reduced-motion assertions, "

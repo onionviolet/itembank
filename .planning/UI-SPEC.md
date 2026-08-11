@@ -160,7 +160,7 @@ No consideration is dismissed. Any future element that does not fit these surfac
 | `SourceCitation` | Displays source-authored quote/locator separately from generated synthesis. | Citation link/locator, source fingerprint/version, confidence, and disagreement chip; generated text labeled “Generated synthesis.” |
 | `StatusNotice` | Typed recovery copy for local, model, tool, or policy errors. | `role=alert` only for action-blocking changes; otherwise `status`; never exposes hidden answer/key in fallback text. |
 | `VisualInteraction` | Declarative SVG/HTML scene maps pointer/touch/keyboard actions to semantic response only. | Visible instructions + equivalent native controls/state; persist committed semantic action, not raw pointer noise. |
-| `CodeEditor` | Existing textarea + line gutter contract, source visible after submit. | Tab/Shift+Tab behavior, focus-within outline, no wrap/gutter drift, keyboard result readout; retains Phase 5 copy verbatim. |
+| `CodeEditor` | Vendored CodeMirror 6 editor (ruling 5/11, RESOLVED 2026-08-11 — supersedes the textarea + line-gutter contract), source visible after submit. | Tab/Shift+Tab behavior, focus-within outline, no wrap/gutter drift, keyboard result readout; retains Phase 5 copy verbatim. |
 | `RecommendationCard` | One recommendation, reason, confidence/sufficiency, and inspectable evidence. | Unknown is an explicit state, not `0%`; allows “review evidence” but not opaque accept/reject. |
 | `DiffApproval` | Shows proposed machine/human mutation versus current bank plus citations/gate results. | Approve/reject are separate buttons; approval requires explicit confirmation, records actor, and exposes undo id. |
 

@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "reviewer_date": "2026-08-10",
+  "registry_safety": {
+    "rule": "No byte is fetched until the four Registry-Safety preconditions are recorded (03.1-UI-SPEC Registry Safety; Directive 4a supply-chain rule; KaTeX / 09-03-PLAN.md precedent).",
+    "preconditions_recorded": true,
+    "record_file": "fonts/REGISTRY-SAFETY.md",
+    "cleartype_render_check": "recorded human-verify item at phase end: 18px rendering of both faces on Windows ClearType at 375px and 1280px; Source Serif 4 ships the TTF-instance woff2 (upstream recommends TTF over CFF2 on Windows)"
+  },
+  "fetch": {
+    "status": "shipped",
+    "reason": "Fetch completed 2026-08-11 from the pinned raw.githubusercontent.com URLs (Source Serif 4 tag 4.005R; iA Writer Quattro pinned commit f32c04c3058a75d7ce28919ce70fe8800817491b). Each file's git blob SHA-1 was independently confirmed against the recorded immutable content hash before shipping; SHA-256 recorded in families[*].files[*].sha256 and recomputed by tests/presentation_roundtrip.py.",
+    "rerun": null
+  },
+  "families": {
+    "source-serif": {
+      "family": "Source Serif 4",
+      "license": "SIL OFL 1.1",
+      "tag": "4.005R",
+      "source": "https://github.com/adobe-fonts/source-serif/releases/tag/4.005R",
+      "archive_asset": "source-serif-4.005_WOFF2.zip",
+      "archive_size": 11623196,
+      "files": [
+        {
+          "name": "SourceSerif4-Regular.ttf.woff2",
+          "weight": 400,
+          "size": 76260,
+          "git_blob_sha1": "0263fc304226d90e224e53053855ad138303b70b",
+          "url": "https://raw.githubusercontent.com/adobe-fonts/source-serif/4.005R/WOFF2/TTF/SourceSerif4-Regular.ttf.woff2",
+          "sha256": "6b053e98f0838afe81f3e784727be4583a7c13bb42f198dc5202ecffee0aaee0",
+          "status": "shipped"
+        },
+        {
+          "name": "SourceSerif4-Semibold.ttf.woff2",
+          "weight": 600,
+          "size": 80732,
+          "git_blob_sha1": "dd55f4e95ec9c29fb566d8617104afca31f0eeef",
+          "url": "https://raw.githubusercontent.com/adobe-fonts/source-serif/4.005R/WOFF2/TTF/SourceSerif4-Semibold.ttf.woff2",
+          "sha256": "457a13ac92e977d82e376038a2daac7fdb5433610910bf5787bdf6c1c3781865",
+          "status": "shipped"
+        }
+      ],
+      "license_path": "fonts/source-serif/LICENSE.md",
+      "reserved_names_note": "fonts/source-serif/RESERVED-NAMES.md",
+      "reserved_font_names": [
+        "Source"
+      ]
+    },
+    "ia-writer-quattro": {
+      "family": "iA Writer Quattro",
+      "license": "SIL OFL 1.1",
+      "tag": "f32c04c3058a75d7ce28919ce70fe8800817491b (commit; iaolo/iA-Fonts publishes no release tags)",
+      "source": "https://github.com/iaolo/iA-Fonts/tree/f32c04c3058a75d7ce28919ce70fe8800817491b/iA%20Writer%20Quattro",
+      "files": [
+        {
+          "name": "iAWriterQuattroS-Regular.woff2",
+          "weight": 400,
+          "size": 44416,
+          "git_blob_sha1": "a25cdbcdd3f2127e7c2f6d0fe2832a83ae2fc6e5",
+          "url": "https://raw.githubusercontent.com/iaolo/iA-Fonts/f32c04c3058a75d7ce28919ce70fe8800817491b/iA%20Writer%20Quattro/Webfonts/iAWriterQuattroS-Regular.woff2",
+          "sha256": "c8d49e112617397e4565fdd3d2c3b725ffacd0dc52ef18254785aa3d6c1ec1ae",
+          "status": "shipped"
+        },
+        {
+          "name": "iAWriterQuattroS-Bold.woff2",
+          "weight": 700,
+          "size": 45252,
+          "git_blob_sha1": "d4c3f631f473d67dda90083bab4edd696b27b484",
+          "url": "https://raw.githubusercontent.com/iaolo/iA-Fonts/f32c04c3058a75d7ce28919ce70fe8800817491b/iA%20Writer%20Quattro/Webfonts/iAWriterQuattroS-Bold.woff2",
+          "sha256": "a65d4271cc91ac6d7cc39780dcc35891ce40ce27f6fbb7067a2eff26a67a4571",
+          "status": "shipped"
+        }
+      ],
+      "license_path": "fonts/ia-writer-quattro/LICENSE.md",
+      "reserved_names_note": "fonts/ia-writer-quattro/RESERVED-NAMES.md",
+      "reserved_font_names": [
+        "iA Writer",
+        "Plex"
+      ]
+    }
+  }
+}

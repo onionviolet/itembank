@@ -34,14 +34,33 @@ body{margin:0;background:var(--bg);color:var(--ink);
   font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 /* Voice & measure tokens (03.1-UI-SPEC §2, §7.1): fonts resolve by token
    only. --font-paper/--font-ledger prefer the vendored faces (Source Serif
-   4 / iA Writer Quattro -- landed in plan 03.1-02) and fall back to the
-   no-vendor stack Georgia / ui-monospace when no font file is present;
-   the @font-face rules for the vendored faces land in this same layer.
-   --measure-prose/--measure-wide are character measures, not pixel
-   spacing; --leading-lesson is the sustained-prose line height. */
+   4 / iA Writer Quattro -- landed in plan 03.1-01) and fall back to the
+   no-vendor stack Georgia / ui-monospace when no font file is present; the
+   @font-face rules for the vendored faces live in this same token layer
+   (plan 03.1-06 Task 2). A @font-face whose src cannot load (file absent)
+   makes its family unavailable, so the token stack degrades to the
+   fallback with no surface knowing a family name. --measure-prose/
+   --measure-wide are character measures, not pixel spacing;
+   --leading-lesson is the sustained-prose line height. */
+/* Vendored faces (03.1-06 Task 1): paths are relative to the served
+   document and match fonts/MANIFEST.json file rows; weights are the
+   reading surface's 400/600 pair for the paper voice and 400/700 for the
+   ledger voice (UI-SPEC §7 "two weights per face"). */
+@font-face{font-family:"Source Serif 4";font-style:normal;font-weight:400;
+  src:url("fonts/source-serif/SourceSerif4-Regular.ttf.woff2") format("woff2");
+  font-display:swap}
+@font-face{font-family:"Source Serif 4";font-style:normal;font-weight:600;
+  src:url("fonts/source-serif/SourceSerif4-Semibold.ttf.woff2") format("woff2");
+  font-display:swap}
+@font-face{font-family:"iA Writer Quattro";font-style:normal;font-weight:400;
+  src:url("fonts/ia-writer-quattro/iAWriterQuattroS-Regular.woff2") format("woff2");
+  font-display:swap}
+@font-face{font-family:"iA Writer Quattro";font-style:normal;font-weight:700;
+  src:url("fonts/ia-writer-quattro/iAWriterQuattroS-Bold.woff2") format("woff2");
+  font-display:swap}
 :root{
-  --font-paper:Georgia,"Source Serif 4",serif;
-  --font-ledger:ui-monospace,"iA Writer Quattro",monospace;
+  --font-paper:"Source Serif 4",Georgia,serif;
+  --font-ledger:"iA Writer Quattro",ui-monospace,monospace;
   --measure-prose:66ch;
   --measure-wide:90ch;
   --leading-lesson:1.65;

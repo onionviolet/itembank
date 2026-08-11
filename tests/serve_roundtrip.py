@@ -23,7 +23,7 @@ its "MARK:" / "[auto: ...]" text reflects that render's own vocabulary.
 Standard library only, no test framework, runnable as
 `python tests/serve_roundtrip.py`.
 """
-import json, os, re, subprocess, sys, tempfile, threading, time
+import json, os, re, shutil, subprocess, sys, tempfile, threading, time
 import urllib.error, urllib.parse, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -175,9 +175,16 @@ def api_submit(base, session_id, answer):
 def main():
     qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
     stem = os.path.splitext(os.path.basename(BANK))[0]
+    # Isolate this test's bank (and its evidence log) from the shared
+    # fixtures directory: other tests that drive the real fixtures bank
+    # pollute `fixtures/_evidence/evidence.jsonl`, which used to make this
+    # sitting's recorded-event count order-dependent.
+    work_root = tempfile.mkdtemp()
+    isolated_bank = os.path.join(work_root, "sample_bank.md")
+    shutil.copyfile(BANK, isolated_bank)
     out = os.path.join(tempfile.mkdtemp(), "attempt.md")
     proc = subprocess.Popen(
-        [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "serve", BANK,
+        [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "serve", isolated_bank,
          "--no-open", "--port", "0", "--out", out],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     lines = []
@@ -275,7 +282,7 @@ def main():
             fail("the sitting never submitted a wrong auto answer")
 
         # Test 2: evidence recorded exactly once, under the API session id.
-        log = evidence.log_path(os.path.dirname(os.path.abspath(BANK)) or ".")
+        log = evidence.log_path(work_root)
         recorded = [ev for ev in evidence.live_events(log)
                     if ev.get("event_type") == "response"
                     and ev.get("session_id") == session_id]

@@ -286,19 +286,15 @@ def scope_findings(request, parsed_draft):
 | A2 | Jaccard ≥ 0.85 with a six-token floor is an appropriate default near-duplicate threshold. | Second Quality Gate | False positives/negatives may require profile tuning. |
 | A3 | A three-token correct-option run absent from distractors is a useful answer-leak detector. | Second Quality Gate | It may flag legitimate technical phrasing. |
 | A4 | Git eligibility should require target-path clean status and shadow undo should use optimistic fingerprint matching. | Reversibility | Git or shadow semantics may need a dedicated recovery procedure. |
-| A5 | A Phase 11-specific model-adapter call can be supplied by the named Phase 8 dependency without exposing repository files. | Architecture Patterns | The exact Phase 8 API may differ and needs integration verification before implementation. |
+| A5 | Phase 11 consumes the named Phase 8 dependency through `model_adapter.invoke(request, profile)` and an additive strict `author` operation without exposing repository files. | Architecture Patterns | Phase 8 has not executed yet, so its artifact/schema/test existence is a blocking execution precondition verified before the binding task. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Phase 8 adapter API availability**
-   - What we know: Phase 11 depends on Phase 8 and the settings schema reserves a `model_backend` group. [VERIFIED: .planning/ROADMAP.md:479-482; schemas/settings.schema.json:71-102]
-   - What's unclear: No Phase 8 adapter implementation was found in the present bounded source seam scan. [ASSUMED]
-   - Recommendation: Make the authoring engine accept an injected provider-neutral callable and add the concrete adapter binding only after confirming Phase 8's published API. [ASSUMED]
+1. **Phase 8 adapter API availability — RESOLVED**
+   - Resolution: Phase 8 has research/context but no executed PLAN or live adapter artifact yet, so Phase 11 retains the roadmap's hard Phase 8 execution dependency. The binding target is Phase 8's published provider-neutral artifact and symbol, `model_adapter.py::invoke(request, profile)`, not a Phase 11 transport. Phase 11 additively registers the `author` operation in the same strict adapter schema, uses `surfaces.settings.load_settings(base)["model_backend"]` for the profile, and binds the callable in the actual CLI composition root, `surfaces/cli.py::main`. A configured fake hosted executable must complete the public author command without callable injection after Phase 8 executes; typed unavailable remains only a failure-path outcome. [VERIFIED: .planning/phases/08-model-adapter-interface-tier-gate-enforcement/08-RESEARCH.md:61-64,76,158-170; surfaces/cli.py:101-115,349-350; surfaces/settings.py:86-125]
 
-2. **UI route contract**
-   - What we know: The roadmap declares Phase 11 diff/preview/approval/reversibility surfaces UI-blocked pending `.planning/UI-SPEC.md`. [VERIFIED: .planning/ROADMAP.md:483-484]
-   - What's unclear: Exact route names and page interactions are not yet locked. [ASSUMED]
-   - Recommendation: Plan upstream contracts/CLI first and put daemon/UI endpoints behind the UI contract task. [ASSUMED]
+2. **UI route contract — RESOLVED**
+   - Resolution: Phase 11 creates no daemon or frontend route. The deterministic frontend gate was false, the UI-dependent surfaces remain blocked pending `.planning/UI-SPEC.md`, and the locked public surface for this phase is the CLI command family (`itembank audit source|material|author|undo`) over the reusable domain functions. A later UI-approved phase may add a route twin without changing the Phase 11 domain contract. [VERIFIED: .planning/ROADMAP.md:495-502; .planning/phases/11-closed-authoring-loop-curriculum-auditor/11-CONTEXT.md; surfaces/cli.py:101-115]
 
 ## Environment Availability
 
@@ -306,9 +302,9 @@ def scope_findings(request, parsed_draft):
 |------------|-------------|-----------|---------|----------|
 | Python | All Phase 11 code/tests | ✓ | 3.13.5 | — |
 | Git | Tracked-bank reversible writer | ✓ | 2.54.0.windows.1 | Shadow backend for a non-tracked target. [ASSUMED] |
-| External model adapter | Authoring loop | Not established in scanned live source | — | Provider-neutral injected seam; block actual model run until Phase 8 binding is confirmed. [ASSUMED] |
+| External model adapter | Authoring loop | Phase 8 contract planned; implementation is an execution precondition | `model_adapter.invoke(request, profile)` | Phase 11 binds this exact provider-neutral API in `surfaces/cli.py::main` and proves a configured fake hosted adapter; it does not add a separate transport. [VERIFIED: Phase 8 RESEARCH.md:61-64,76,158-170] |
 
-**Missing dependencies with no fallback:** A concrete Phase 8 model-adapter binding is required before live generation can run. [ASSUMED]
+**Missing dependencies with no fallback:** Phase 8 must execute and publish `model_adapter.py`, its strict schema, and passing adapter contract tests before Phase 11's public author-command integration task runs. This is an explicit cross-phase precondition, not a Phase 11 scope reduction. [VERIFIED: .planning/ROADMAP.md Phase 11 dependency]
 
 **Missing dependencies with fallback:** A non-Git bank uses the shadow backend. [ASSUMED]
 
@@ -327,7 +323,7 @@ def scope_findings(request, parsed_draft):
 
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |--------|----------|-----------|-------------------|-------------|
-| AUTH-01 / AUTH-03 | Stub adapter receives public contract; malformed first draft gets structured findings and clean retry writes only after all gates. | integration | `python tests/audit_roundtrip.py` | ❌ Wave 0 |
+| AUTH-01 / AUTH-03 | Configured Phase 8 hosted-adapter fixture receives the public contract; malformed first draft gets structured findings and clean retry writes only after all gates, with no callable injection in the public command test. | integration | `python tests/audit_cli_roundtrip.py` | ❌ Wave 0 |
 | AUTH-02 | Count/type/objective/citation mismatch is rejected and leaves bank unchanged. | unit + integration | `python tests/audit_roundtrip.py` | ❌ Wave 0 |
 | AUDIT-01 / AUDIT-03 | Markdown/text locator fidelity and citation-required `unknown` state. | unit | `python tests/audit_roundtrip.py` | ❌ Wave 0 |
 | AUDIT-02 / AUDIT-04 | Objective coverage/gap report; candidate material does not authorize a write. | integration | `python tests/audit_roundtrip.py` | ❌ Wave 0 |

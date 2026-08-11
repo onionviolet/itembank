@@ -236,16 +236,18 @@ The existing reader returns `(due, new)` per configured deck or `(None, None)` w
 | A3 | Lesson completion needs a new or confirmed evidence integration seam for SCHED-04. | Open Questions | Queue may lack a reliable entry event. |
 | A4 | `retention.py` is the best new module name/boundary. | Recommended Project Structure | Low; can be renamed before implementation. |
 
-## Open Questions
+## Open Questions — RESOLVED during planning
 
 1. **What exact evidence event proves a lesson was completed for SCHED-04?**
    - What we know: Existing response events expose objective, timestamp, score, and `review_state`; current event types are `"response"`, `"retraction"`, `"mark"`, and `"day_tick"`. [VERIFIED: evidence.py:35-43] [VERIFIED: evidence.py:371-395]
    - What's unclear: No read source established a lesson-completion event or lesson/objective mapping.
    - Recommendation: Plan a small additive, versioned completion/review-queue event only after Phase 3 defines the lesson contract; do not infer completion from a page view. [ASSUMED]
+   - **RESOLVED — planning lock (2026-08-08):** Plan 10-02 adds explicit `itembank lesson BANK --ref HEADING --complete`. Phase 3's `model.parse_lesson`, `model.lesson_slug`, and item `lesson_slug` resolve the heading to sorted unique namespaced objectives; the action appends one versioned `lesson_complete` event only through `evidence.append_event`. A view, render, or scroll writes nothing. `retention.py` consumes the captured live event, derives `next_review_date` from bounded `lesson_review_after_days`, carries the snapshot claim into the queue row/reason, and loses the row on a fresh capture after compensating retraction. No queue store or inferred completion is introduced. [LOCKED: 10-02-PLAN.md]
 2. **How will Phase 7 expose the explicit history/weight seam?**
    - What we know: Its locked context calls for `select(questions, spec, history) -> (items, trace)` and Phase 10 weights. [VERIFIED: .planning/phases/07-selection-engine/07-CONTEXT.md]
    - What's unclear: `selection.py` is not present in the current worktree. [VERIFIED: filesystem check 2026-08-08]
    - Recommendation: Make the Phase 10 plan depend on the finalized Phase 7 public signature and trace schema; do not guess a parallel interface. [ASSUMED]
+   - **RESOLVED — planning lock (2026-08-08):** Phase 7 plan 07-06 owns `selection.select(questions, spec, history) -> (items, trace)` and its selection event. Plan 10-03 preserves all three-argument callers and adds only optional keyword-only `retention_context=None`; `surfaces.session` captures evidence server-side and passes the normalized bounded objective map plus snapshot, while `selection.select` remains the sole item chooser and records component influence/snapshot in its existing trace/event. Practice/remediation consume the context, diagnostic preserves Phase 7 coverage policy, and exam ignores it. No parallel selector, client-supplied weights, or mutable weight cache is introduced. [LOCKED: 07-06-PLAN.md, 10-03-PLAN.md]
 
 ## Environment Availability
 
