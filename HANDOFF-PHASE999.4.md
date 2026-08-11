@@ -1,10 +1,10 @@
 # Autonomous Run Handoff — Phase 999.4 (Canvas LMS integration via LTI)
 
 **Project:** itembank
-**Branch:** `gsd/phase-999.4-exec` (worktree `C:\Users\wayba\Downloads\CTF\itembank\.phase9994x-wt`)
+**Branch:** `gsd/phase-999.4-exec` (worktree `C:\Users\wayba\Downloads\CTF\itembank\.phase9994-wt`)
 **Created from:** `gsd/phase-999.4-plan` (the planning branch — CONTEXT/RESEARCH/UI-SPEC/VALIDATION and the three plans were present)
 **Executed:** 2026-08-11, all three waves, one atomic commit per plan
-**Not merged, not pushed** — per the run instructions.
+**Finalized for merge:** 2026-08-11 — `main` merged in (branch up to date), post-merge suite + schema validation green, handoff current. Not yet merged into `main`, not pushed — per the run instructions.
 
 ## Where we are
 
@@ -17,29 +17,62 @@
 Phase docs: `999.4-0N-SUMMARY.md` (×3), `999.4-VERIFICATION.md`,
 `999.4-UAT.md`, `999.4-VALIDATION.md` (statuses green), `STATE.md` updated.
 
+## Merge into main and post-merge verification (2026-08-11)
+
+`main` was merged into `gsd/phase-999.4-exec` (`a25cc9d`) and the branch is
+up to date. Six conflicts resolved, keeping both phases' behavior:
+
+| File | Resolution |
+|---|---|
+| `schemas/settings.schema.json` | `required` gains both `lti` (999.4) and `retention` (10); the `lti`, `retention` and `audio` property blocks all ship; JSON re-verified |
+| `surfaces/cli.py` | evidence import gains `cmd_trends` (main); the `lti` subparser family kept (999.4) |
+| `surfaces/quiz.py` | `page_for` carries `lti_framing`/`boot_extra` (999.4) *and* `assist` (08-05); both `__LTI_FRAMING__` and `__ASSIST__`/`__ASSIST_JS__` slots substituted |
+| `tests/config_roundtrip.py` | schema key set expects `lti` + `retention` + `audio` |
+| `.planning/REQUIREMENTS.md` | AUDIO rows `Complete` (main) + LTI rows `Pending` (999.4) both kept |
+| `.planning/STATE.md` | kept main's version — orchestrator reconciles centrally; not hand-edited per run instructions |
+
+One merge-adaptation fix on top: `test(999.4-04)` reworked the LTI
+route-scope check — main grew `daemon.API_ROUTES` from 5 to 10, so the
+hardcoded count was a merge casualty. The check now asserts the phase's
+real invariant (the five wrapped session handlers are present, and
+`surfaces/lti.py` never assigns/mutates `daemon.API_ROUTES`); route-count
+ownership stays with `daemon_roundtrip.check_api_route_scope`.
+
+**Post-merge suite:** 46 test files — 42 green, 4 failures, all
+pre-existing on `main` (verified by running them against a pristine `main`
+extraction), none introduced by this merge:
+- `evidence_roundtrip.py` — expects `meta.index_version` "3"; `evidence.py`
+  ships `INDEX_VERSION = 2` on `main` (a 3 existed in 06.2 history and was
+  later reverted; the test was never re-synced).
+- `gate_roundtrip.py` — expects `objective_history` rows to carry `context`
+  (`["lesson_gate", "quiz"]`); `main`'s rows come back `[None, None]`.
+- `packaging_roundtrip.py` — environment-gated: needs the machine-built
+  Windows bundle `dist/itembank-sidecar-onedir` (documented pre-existing).
+- `phase_062_audit.py` — re-runs the suite, inherits the three above.
+
+Also green after the merge: `tests/lti_roundtrip.py` (24 checks), `itembank.py
+lint fixtures/sample_bank.md` (0 errors), `itembank.py build` of the sample,
+and the CI `schema_validate.py` flow (session, item, response, report,
+history, lint_error errors+warnings) — 0 failures.
+
 ## How to resume / next steps
 
-1. **Review the branch.** `git -C .phase9994x-wt log --oneline -4` and
-   `git -C .phase9994x-wt diff gsd/phase-999.4-plan..gsd/phase-999.4-exec`.
-   The worktree is ready to merge (`git worktree remove` after review; a
-   merge was deliberately left undone per the run instructions — the
-   planner's worktree `.phase9994-wt` and the main tree were untouched).
-2. **Run the phase tests:** `python tests/lti_roundtrip.py` (24 checks) and
-   the full suite `tests/*_roundtrip.py`.
-3. **UAT (manual-only, R-01 fallback):** the live-Canvas install → launch →
+1. **Merge the branch into `main`** when the orchestrator is ready: `gsd/phase-999.4-exec` is up to date with `main` (merged `a25cc9d`) and the post-merge suite is green. Do NOT edit `.planning/ROADMAP.md`, `.planning/STATE.md` or `.planning/config.json` — the orchestrator reconciles them centrally after all phase branches merge (STATE.md was kept at main's version in the merge for exactly this reason).
+2. **UAT (manual-only, R-01 fallback):** the live-Canvas install → launch →
    deep-link → learner completion → AGS passback → gradebook checklist in
    `999.4-UAT.md` / `999.4-VALIDATION.md`. The automated suite never fakes
    a live Canvas result.
-4. **`$gsd-verify-work 999.4`** when the manual items are ratified, then
-   merge `gsd/phase-999.4-exec` and update REQUIREMENTS.md statuses
+3. **`$gsd-verify-work 999.4`** when the manual items are ratified, then
+   update REQUIREMENTS.md statuses
    (LTI-01..LTI-07 currently Pending → Implemented/Verified).
 
 ## Decisions and findings a fresh chat must know
 
 - **D-01 spine:** the LTI surface calls the daemon's `handle_api_*`
   functions in-process through a shim handler; `API_ROUTES`/`ROUTE_CLI`/
-  `check_api_route_scope` are byte-unchanged; no scoring outside runtime.py
-  (grep-asserted).
+  `check_api_route_scope` are byte-unchanged in the daemon; no scoring
+  outside runtime.py (grep-asserted). The 999.4 route-scope test was
+  reworked post-merge (`test(999.4-04)`) — see the merge section above.
 - **Registration resolution:** the launch handler resolves the platform
   from the server-issued `state` (never an unverified `iss` claim); the
   message type is branched from the *verified* claims.
