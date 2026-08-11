@@ -26,8 +26,16 @@ import evidence
 import selection
 from model import lint, load
 from runtime import (REPORT_VERSION, SESSION_VERSION, normalize_answer, read_session,
-                     score_response, session_path, session_summary, session_view,
-                     write_session)
+                     reconcile_teaching_state, score_response, session_path,
+                     session_summary, session_view, teaching_key,
+                     teaching_transition, write_session, public_item)
+
+
+# Phase 6 renderer handoff (06-02, D-12): the only thing a served client may
+# send beyond the Phase 6 action envelope is one short opaque renderer
+# identification string. It is validated here and discarded before policy,
+# persistence, evidence, response, or logs.
+RENDERER_META_MAX_BYTES = 256
 
 
 def ms_since(ts):
@@ -52,21 +60,10 @@ def ms_since(ts):
     return max(0, int((now - served).total_seconds() * 1000))
 
 
-def do_start(bank_path, spec, mode, out, force):
-    # The D-09 focus pin is a session-level concern, not a selection filter:
-    # it rides inside the spec dict so the signature stays the same for every
-    # caller, and it is consumed here before the spec reaches `select()`,
-    # which refuses fields it does not know.
-    focus = spec.get("focus")
-    sel_spec = {k: v for k, v in spec.items() if k != "focus"}
-    qs = load(bank_path)
-    errors, _ = lint(qs)
-    if errors and not force:
-        sys.exit("refusing to start a bank with errors; run lint or pass --force")
-    import uuid
-    # D-09: the caller reads the bank-scoped evidence snapshot once and
-    # passes it in -- selection.py still opens no file. A missing log means
-    # no history, never an error (degrade, never block).
+def _load_history_and_settings(bank_path):
+    """Shared by `do_start` and `do_select`: the bank-scoped evidence snapshot
+    (read once, D-09), the cooldown/decay settings, and the evidence source
+    label -- so both surfaces converge on one history read."""
     log = evidence.log_path(
         os.path.dirname(os.path.abspath(bank_path)) or ".")
     history = []
@@ -84,7 +81,7 @@ def do_start(bank_path, spec, mode, out, force):
     except Exception:
         history = []
     from surfaces import settings as _settings
-    cooldown, decay = 20, 0.2
+    cooldown, decay, cfg = 20, 0.2, {}
     try:
         cfg = _settings.load_settings(
             os.path.dirname(os.path.abspath(bank_path)) or ".")
@@ -92,6 +89,24 @@ def do_start(bank_path, spec, mode, out, force):
         decay = (cfg.get("selection_weights") or {}).get("recency_decay", 0.2)
     except Exception:
         pass
+    return log, history, evidence_source, cooldown, decay, cfg
+
+
+def do_start(bank_path, spec, mode, out, force):
+    # The D-09 focus pin is a session-level concern, not a selection filter:
+    # it rides inside the spec dict so the signature stays the same for every
+    # caller, and it is consumed here before the spec reaches `select()`,
+    # which refuses fields it does not know.
+    focus = spec.get("focus")
+    sel_spec = {k: v for k, v in spec.items() if k != "focus"}
+    qs = load(bank_path)
+    errors, _ = lint(qs)
+    if errors and not force:
+        sys.exit("refusing to start a bank with errors; run lint or pass --force")
+    import uuid
+    log, history, evidence_source, cooldown, decay, cfg = \
+        _load_history_and_settings(bank_path)
+    sel_spec = selection.expand_spec(cfg, sel_spec)
     items, trace = selection.select(
         qs, sel_spec, history=history, cooldown=cooldown, decay=decay)
     trace["evidence"] = {"log": log, "responses": len(history),
@@ -134,9 +149,40 @@ def do_start(bank_path, spec, mode, out, force):
     return result
 
 
+def do_select(bank_path, spec, force):
+    """Preview a selection: same load/lint/history as `do_start`, returns
+    `public_item()` payloads plus the trace, writes no session file and
+    appends no evidence event -- a preview that recorded itself would poison
+    the very cooldown history it is previewing."""
+    qs = load(bank_path)
+    errors, _ = lint(qs)
+    if errors and not force:
+        sys.exit("refusing to select from a bank with errors; run lint or "
+                 "pass --force")
+    log, history, evidence_source, cooldown, decay, cfg = \
+        _load_history_and_settings(bank_path)
+    spec = selection.expand_spec(cfg, spec)
+    items, trace = selection.select(
+        qs, spec, history=history, cooldown=cooldown, decay=decay)
+    trace["evidence"] = {"log": log, "responses": len(history),
+                         "source": evidence_source}
+    return {"schema_version": 1, "bank": os.path.basename(bank_path),
+            "spec": trace["spec"],
+            "items": [public_item(q) for q in items],
+            "trace": trace}
+
+
 def cmd_start(a):
-    spec = {"objective": a.objective, "count": a.count, "seed": a.seed,
-            "selection_mode": a.selection_mode}
+    spec = {}
+    for key in ("objective", "prerequisite", "type", "difficulty",
+                "selection_mode", "seed", "count", "pair", "profile"):
+        value = getattr(a, key, None)
+        if value is not None:
+            spec[key] = value
+    if getattr(a, "prereq_satisfied", None):
+        spec["prereq_satisfied"] = True
+    if getattr(a, "exclude", None):
+        spec["exclude_item_ids"] = list(a.exclude)
     result = do_start(a.bank, spec, a.mode, a.out, a.force)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
@@ -161,6 +207,42 @@ def cmd_next(a):
 
 
 def do_submit(session_file, answer, confidence):
+    """Compatibility wrapper: the CLI/legacy submit path becomes a Phase 6
+    submit action over the one session adapter."""
+    return do_action(session_file, {"kind": "submit", "answer": answer},
+                     confidence=confidence)
+
+
+def do_hint(session_file, stumped=False):
+    """The explicit hint action: reveal exactly one fixed tier, appending a
+    hint event when a tier is actually shown (D-05/D-07/D-16)."""
+    return do_action(session_file, {"kind": "stumped" if stumped else "hint"})
+
+
+def _validate_renderer_meta(renderer_meta):
+    """The renderer handoff gate: absent or one opaque UTF-8 string of at
+    most 256 bytes. Anything else is refused before any policy work; the
+    accepted value is discarded by the caller, never persisted."""
+    if renderer_meta is None:
+        return
+    if not isinstance(renderer_meta, str):
+        sys.exit("renderer_meta must be a string or absent")
+    if len(renderer_meta.encode("utf-8")) > RENDERER_META_MAX_BYTES:
+        sys.exit("renderer_meta must be at most %d UTF-8 bytes"
+                 % RENDERER_META_MAX_BYTES)
+
+
+def do_action(session_file, action, confidence=None, renderer_meta=None):
+    """The ONE session adapter for every sitting action (D-01/D-02): it
+    loads/upgrades the session and bank, resolves the current item, reads
+    live response/hint/mark evidence, reconciles teaching state, invokes
+    `runtime.teaching_transition`, appends the response and/or hint event
+    through `evidence.append_event`, applies only returned cursor/status/
+    teaching-state changes, and atomically writes the session after evidence
+    is durable. No surface reimplements policy; no renderer/observation
+    parameter reaches the runtime transition.
+    """
+    _validate_renderer_meta(renderer_meta)     # discarded before policy
     data = read_session(session_file)
     if data["status"] != "active":
         sys.exit("session is already complete")
@@ -170,38 +252,99 @@ def do_submit(session_file, answer, confidence):
         write_session(session_file, data)
         sys.exit("session is already complete")
     q = qs[data["items"][data["cursor"]]]
-    answer = normalize_answer(answer)
-    score = score_response(q, answer)
 
-    response_time_ms = ms_since(data.get("served_ts"))
     log = evidence.log_path(os.path.dirname(data["bank"]))
     item_key = evidence.evidence_key(q)
-    canon = evidence.idempotency_canon(q, answer)
-    attempt_num = evidence.attempt_number(log, data["session_id"], item_key, canon)
-    event = evidence.response_event(
-        data["session_id"], q, answer, score, data["mode"], attempt_num,
-        os.path.basename(data["bank"]), response_time_ms=response_time_ms,
-        confidence=confidence)
-    evidence_result = evidence.append_event(log, event)
+    # The pure evidence fold for crash-window repair: rebuild this item's
+    # teaching state from live events before the transition sees it.
+    live = [ev for ev in evidence.live_events(log)
+            if ev.get("session_id") == data["session_id"]
+            and evidence.evidence_key({"item_id": ev.get("item_id", ""),
+                                       "id": ev.get("item_ref", "")}) == item_key]
+    evidence_state = {item_key: live}
+    data = reconcile_teaching_state(data, q, evidence_state)
+    rec = data["teaching_state"].get(item_key)
 
-    # A retry after a crash between the evidence append and the session
-    # write is the session catching up, not a new response: appending a
-    # second entry here for the same answer would double-count it in every
-    # later report and objective-history summary. The evidence log already
-    # has exactly one event for it either way (D-17).
-    if evidence_result["status"] == "recorded":
-        data["responses"].append({"item_id": q["id"], "objective": q.get("objective", ""),
-                                   "type": q["type"], "answer": answer, "score": score,
-                                   "status": evidence_result["status"]})
+    result = teaching_transition(data, q, action)
+    action_name = result["action"]
+    next_data = result["session"]
+    accepted = True
+    recorded_event = None
 
-    data["cursor"] += 1
-    if data["cursor"] >= len(data["items"]):
-        data["status"] = "complete"
-    data["served_ts"] = evidence.utc_now()   # next item's clock starts now
-    write_session(session_file, data)
-    return {"accepted": True, "item_id": q["id"], "score": score,
-            "status": data["status"], "evidence": evidence_result,
-            "next": session_view(data, qs)}
+    if action.get("kind") == "submit":
+        answer = normalize_answer(action.get("answer"))
+        score = score_response(q, answer)
+        canon = evidence.idempotency_canon(q, answer)
+        # The attempt number comes from the reconciled teaching state: a
+        # crash-window replay of the SAME canonical response reproduces the
+        # original event's attempt number, so append_event dedupes it to
+        # already_recorded instead of minting a fresh attempt (D-04/D-17).
+        attempt_num = rec["attempt_count"] if rec and rec["attempt_count"] else 1
+        event = evidence.response_event(
+            data["session_id"], q, answer, score, data["mode"], attempt_num,
+            os.path.basename(data["bank"]), response_time_ms=ms_since(data.get("served_ts")),
+            confidence=confidence, hint_tier=result.get("hint_tier"),
+            selection_mode=data.get("selection_mode"))
+        evidence_result = evidence.append_event(log, event)
+        accepted = evidence_result["status"] == "recorded"
+        recorded_event = evidence_result
+        if not accepted:
+            # A crash-window replay: evidence already has this event. The
+            # transition already reconciled the state, so no second unlock or
+            # cursor movement happens; report already_recorded.
+            next_data["cursor"] = data["cursor"]
+            next_data["status"] = data["status"]
+        else:
+            # The session JSON stays the resumability mechanism it always
+            # was; only a genuinely recorded response is appended (an
+            # already_recorded replay never double-counts).
+            next_data["responses"] = list(next_data.get("responses") or []) + [{
+                "item_id": q["id"], "objective": q.get("objective", ""),
+                "type": q["type"], "answer": answer, "score": score,
+                "status": "recorded"}]
+    else:
+        # hint / stumped
+        evidence_result = None
+        tier = (result.get("hint") or {}).get("tier")
+        if tier is not None and tier.get("index") is not None:
+            hint_ev = evidence.hint_event(
+                data["session_id"], q, tier["index"], tier.get("available", True),
+                tier.get("name", ""), "authored",
+                result["hint"].get("unlock_path", "attempt"),
+                response_event_id=rec["last_response_event_id"] if rec else None,
+                response_canonical=rec["last_genuine_canonical"] if rec else None,
+                attempt_num=rec["attempt_count"] if rec else None,
+                bank=os.path.basename(data["bank"]))
+            evidence_result = evidence.append_event(log, hint_ev)
+
+    next_data["served_ts"] = evidence.utc_now()
+    write_session(session_file, next_data)
+
+    if action.get("kind") == "submit":
+        return {"accepted": accepted, "item_id": q["id"], "score": score,
+                "action": action_name, "status": next_data["status"],
+                "evidence": recorded_event,
+                "hint_tier": result.get("hint_tier"),
+                "next": session_view(next_data, qs)}
+    return {"accepted": accepted, "item_id": q["id"], "action": action_name,
+            "hint": result.get("hint"),
+            "status": next_data["status"], "evidence": evidence_result,
+            "next": session_view(next_data, qs)}
+
+
+def do_report(session_file):
+    """The report: the session summary joined with live-derived teaching
+    outcomes (D-17) and the runtime's diagnostic/exam review availability.
+    Never reads a mutable hint counter."""
+    data = read_session(session_file)
+    log = evidence.log_path(os.path.dirname(data["bank"]))
+    outcomes = evidence.teaching_outcomes(log, data["session_id"])
+    summary = session_summary(data)
+    summary["teaching_outcomes"] = outcomes["teaching_outcomes"]
+    return {"schema_version": REPORT_VERSION, "session_id": data["session_id"],
+            "status": data["status"], "summary": summary,
+            "review_available": {"diagnostic": data["status"] == "complete",
+                                 "exam": False}}
 
 
 def cmd_submit(a):
@@ -210,10 +353,10 @@ def cmd_submit(a):
     return 0
 
 
-def do_report(session_file):
-    data = read_session(session_file)
-    return {"schema_version": REPORT_VERSION, "session_id": data["session_id"],
-            "status": data["status"], "summary": session_summary(data)}
+def cmd_hint(a):
+    result = do_hint(a.session, stumped=bool(a.stumped))
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
 
 
 def cmd_report(a):

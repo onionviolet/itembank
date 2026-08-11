@@ -23,7 +23,8 @@ import model  # noqa: F401  (the question shape `select` consumes comes from mod
 # this phase appends its own field to this tuple in the same commit that wires
 # it.
 SPEC_FIELDS = ("objective", "count", "seed", "exclude_item_ids",
-               "pair", "prerequisite", "selection_mode", "prereq_satisfied")
+               "pair", "prerequisite", "selection_mode", "prereq_satisfied",
+               "type", "difficulty")
 
 # The four selection compositions. These strings deliberately share three of
 # `daemon.SESSION_MODES`' values (`diagnostic`, `practice`, `exam`) and one
@@ -53,8 +54,12 @@ def filter_by_spec(questions, spec, excluded):
     objective = spec.get("objective") or ""
     pair = spec.get("pair") or ""
     prereq = spec.get("prerequisite") or ""
+    item_type = spec.get("type") or ""
+    difficulty = spec.get("difficulty") or ""
     out = [q for q in questions
            if (not objective or q.get("objective") == objective)
+           and (not item_type or q.get("type") == item_type)
+           and (not difficulty or q.get("difficulty") == difficulty)
            and evidence.evidence_key(q) not in excluded]
     if pair:
         out = filter_by_pair(out, pair)
@@ -204,6 +209,35 @@ def exposure_sets(history, cooldown, decay):
             last_seen[key] = max(last_seen.get(key, 0.0),
                                  decay * (1.0 / (1.0 + age)))
     return hard, last_seen, []
+
+
+def expand_spec(settings, spec):
+    """D-02: expand a named profile into the selection spec, overlay every
+    key the caller supplied explicitly, key by key, drop the `profile` key
+    itself, and validate the result against the published selection contract
+    at use time. The one expansion function every surface calls."""
+    spec = dict(spec or {})
+    profile = spec.get("profile")
+    if profile:
+        profiles = ((settings or {}).get("selection") or {}).get("profiles") or {}
+        if profile not in profiles:
+            sys.exit("unknown selection profile %r; known profiles: %s"
+                     % (profile, ", ".join(sorted(profiles))
+                         if profiles else "(none)"))
+        base = dict(profiles[profile])
+        base.update({k: v for k, v in spec.items() if k != "profile"})
+        spec = base
+    spec.pop("profile", None)
+    import json
+    import os
+    import schema_validate
+    schema = json.load(open(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     "schemas", "selection.schema.json"), encoding="utf-8"))
+    errs = schema_validate.validate(spec, schema)
+    if errs:
+        sys.exit("invalid selection spec: " + errs[0])
+    return spec
 
 
 def select(questions, spec, history, cooldown=None, decay=None):

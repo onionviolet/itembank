@@ -7,8 +7,8 @@ than an edit here and there.
 import argparse, collections, json, os, sys
 
 import selection
-from model import (BANK_FILE_HINTS, SPEC, lint, load, parse_bank,
-                   parse_key_blocks, parse_lesson, parse_terms)
+from model import (BANK_FILE_HINTS, SPEC, coverage_map, lint, load,
+                   parse_bank, parse_key_blocks, parse_lesson, parse_terms)
 from surfaces.anki import cmd_export
 from surfaces.daemon import (cmd_cli_twin, cmd_daemon, cmd_disclosure,
                              cmd_sidecar)
@@ -20,6 +20,7 @@ from surfaces.lesson import cmd_gloss, cmd_key_review, cmd_lesson, cmd_render_st
 from surfaces.migrate import cmd_migrate
 from surfaces.protocol_cli import cmd_schema
 from surfaces.quiz import cmd_build, cmd_serve
+from surfaces.selection_cli import cmd_select
 from surfaces.session import cmd_hint, cmd_next, cmd_report, cmd_start, cmd_submit
 from surfaces.settings import cmd_config
 from surfaces.study import cmd_study
@@ -157,6 +158,20 @@ def cmd_stats(a):
     return 0
 
 
+def cmd_coverage(a):
+    """The on-demand objective coverage map (D-12, plan 03.2-02): objective ->
+    item tags, computed from the bank and its ## SOURCES registry at request
+    time and never stored."""
+    m = coverage_map(a.bank)
+    if not m:
+        print("no objectives")
+        return 0
+    print("%d objectives" % len(m))
+    for o, tags in m.items():
+        print("  %s  %s" % (o, ", ".join(tags)))
+    return 0
+
+
 def cmd_guard(a):
     """Fail if any markdown outside fixtures/ parses as a real question bank.
 
@@ -269,10 +284,25 @@ def main():
     s.add_argument("bank")
     s.set_defaults(fn=cmd_stats)
 
+    s = sub.add_parser("coverage", help="objective coverage map, computed on "
+                       "demand from the bank and its ## SOURCES registry, "
+                       "never stored")
+    s.add_argument("bank")
+    s.set_defaults(fn=cmd_coverage)
+
     s = sub.add_parser("start", help="start a resumable JSON assessment session")
     s.add_argument("bank")
-    s.add_argument("--count", type=int, default=10)
-    s.add_argument("--objective", default="", help="limit the session to one objective")
+    s.add_argument("--count", type=int, default=None)
+    s.add_argument("--objective", default=None,
+                   help="limit the session to one objective")
+    s.add_argument("--prerequisite", default=None,
+                   help="select items that name this prerequisite objective")
+    s.add_argument("--prereq-satisfied", action="store_true", default=None,
+                   help="only items whose prerequisites have a recorded pass")
+    s.add_argument("--type", default=None,
+                   help="item type (mc, multi, table, dnd, build, short)")
+    s.add_argument("--difficulty", default=None,
+                   help="difficulty annotation (recall, application, analysis)")
     s.add_argument("--mode", default="diagnostic",
                    choices=("diagnostic", "practice", "exam", "remediation", "drill"))
     s.add_argument("--selection-mode", default="practice",
@@ -280,10 +310,37 @@ def main():
                    help="how the session is composed (diagnostic, practice, "
                         "remediation, exam) -- not the feedback policy that "
                         "--mode sets")
-    s.add_argument("--seed", type=int, default=0, help="deterministic item-selection seed")
+    s.add_argument("--seed", type=int, default=None,
+                   help="deterministic item-selection seed")
+    s.add_argument("--exclude", action="append", default=None, metavar="ID",
+                   help="exclude one opaque [ID:] value; repeatable")
+    s.add_argument("--pair", default=None,
+                   help="serve the whole named confusion set together")
+    s.add_argument("--profile", default=None,
+                   help="named selection profile from settings")
     s.add_argument("--out", help="session JSON path")
     s.add_argument("--force", action="store_true", help="start despite lint errors")
     s.set_defaults(fn=cmd_start)
+
+    s = sub.add_parser("select", help="preview a selection without starting a session")
+    s.add_argument("bank")
+    s.add_argument("--objective", default=None)
+    s.add_argument("--prerequisite", default=None)
+    s.add_argument("--prereq-satisfied", action="store_true", default=None)
+    s.add_argument("--type", default=None)
+    s.add_argument("--difficulty", default=None)
+    s.add_argument("--selection-mode", default=None,
+                   choices=selection.SELECTION_MODES)
+    s.add_argument("--count", type=int, default=None)
+    s.add_argument("--seed", type=int, default=None)
+    s.add_argument("--exclude", action="append", default=None, metavar="ID")
+    s.add_argument("--pair", default=None)
+    s.add_argument("--profile", default=None)
+    s.add_argument("--explain", action="store_true",
+                   help="print the trace as plain English instead of JSON")
+    s.add_argument("--force", action="store_true",
+                   help="select despite lint errors")
+    s.set_defaults(fn=cmd_select)
 
     s = sub.add_parser("next", help="return the next item in a JSON assessment session")
     s.add_argument("session")

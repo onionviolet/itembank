@@ -333,7 +333,7 @@ def check_selection_spec_recorded():
             fail("expected exactly one selection event for the session, got %d"
                  % len(sel))
         spec = sel[0]["selection_spec"]
-        if (spec.get("objective") != "" or spec.get("count") != 3
+        if (spec.get("objective") not in ("", None) or spec.get("count") != 3
                 or spec.get("seed") != 7
                 or spec.get("selection_mode") != "practice"):
             fail("recorded selection_spec does not round-trip the request: %r"
