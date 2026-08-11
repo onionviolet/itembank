@@ -1,0 +1,677 @@
+#!/usr/bin/env python3
+"""Phase 9 (09-01) subject-invariant loop roundtrip.
+
+Direct standard-library roundtrip script in the project's established shape:
+`fail(msg)` and a non-zero exit on failure. It proves the thinnest production
+subject-invariant slice: an EMT learner enters the already-built lesson and
+practice-feedback loop under one selected, persisted data profile (09-CONTEXT
+D-01, D-04, D-12, D-13, D-14).
+
+It drives the real Phase 3 reader (`model.parse_lesson` +
+`surfaces.lesson.render_markdown`), the real Phase 6 action adapter
+(`surfaces.session.do_start`/`do_action`/`do_hint`), and the one evidence
+writer (`evidence.append_event`/`session_events`) against a temporary
+synthetic EMT bank. It also pins the conservative fallback, the mixed-subject
+refusal, the disallowed-type refusal, the legacy-session one-time fill, and
+the v3 session upgrade -- all without any subject-name branch in a surface.
+
+The registry used here is the temporary shipped constant in `subjects.REGISTRY`;
+plan 09-02 moves the known subjects into validated settings data and this
+module's loader/selector tests extend to that registry.
+"""
+import json
+import os
+import shutil
+import sys
+import tempfile
+import uuid
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+
+import evidence
+import model
+import runtime
+import schema_validate
+import subjects
+from surfaces import session as session_surface
+from surfaces import lesson as lesson_surface
+
+SESSION_SCHEMA = os.path.join(ROOT, "schemas", "session.schema.json")
+
+# The temporary synthetic EMT bank: fully invented teaching content, no real
+# course material. Two mc items share the `emt:` objective namespace; the
+# lesson carries prose, an ordered list, a bullet list, a semantic table and
+# a fenced block whose content is TeX/markup shaped (so the math adapter must
+# never touch it).
+EMT_BANK = """# EMT scene loop (synthetic, Phase 9)
+
+Fully invented teaching content for the subject-invariant loop roundtrip. It
+is not derived from any real course, exam, or textbook.
+
+## LESSON
+
+### Managing the Scene
+
+Scene management starts with a single question: is it safe to approach?
+
+The priorities, in order:
+
+1. Ensure scene safety.
+2. Note the number of patients.
+3. Call for additional resources.
+
+Signs to record on arrival:
+
+- Chief complaint
+- Mental status
+- Airway status
+
+| Sign | What to check | First action |
+| --- | --- | --- |
+| Snoring | Airway patency | Head-tilt/chin-lift |
+| No response | Mental status | Stimulus check |
+
+```text
+$not math$ and a **bold** marker and an _underscore_ stay inside a fence.
+```
+
+### Oxygen Delivery
+
+Delivery method follows the patient's breathing effort.
+
+Q1. Which first action addresses a snoring airway?   (difficulty: application)
+[LESSON-REF: Managing the Scene]
+[OBJECTIVE: emt:airway]
+
+A) Suction the oropharynx
+B) Head-tilt/chin-lift
+C) Reposition the stretcher
+D) Apply oxygen
+
+CORRECT: B
+
+WHY BEST: Head-tilt/chin-lift opens a tongue-obstructed airway; suction only
+clears fluid, which is a different problem.
+
+KEY DISCRIMINATOR: The action must open the airway itself, not treat a
+finding elsewhere.
+
+DISTRACTOR ANALYSIS:
+- A) Suction clears fluid, not a tongue obstruction; this would be correct if the airway were blocked by secretions.
+- B) Correct: the jaw and head position open the obstructed passage.
+- C) Repositioning the stretcher does not open the airway; this would be correct if the question asked about spinal precautions.
+- D) Oxygen is delivered after the airway is open; this would be correct if the question asked about ventilation.
+
+TRAP: Choosing any intervention that happens after the airway is open.
+
+CONFIDENCE: high
+
+Q2. Which finding most clearly suggests the airway is at risk?   (difficulty: application)
+[LESSON-REF: Managing the Scene]
+[OBJECTIVE: emt:airway.opa]
+
+A) Snoring respirations with a weak effort
+B) Speaking in full sentences
+C) Capillary refill of two seconds
+D) Pulse oximetry of 98 percent
+
+CORRECT: A
+
+WHY BEST: Snoring with a weak effort is partial obstruction with failing
+compensation -- the clearest sign that air movement is threatened.
+
+KEY DISCRIMINATOR: The finding must describe air movement itself, not
+perfusion or oxygenation readings.
+
+DISTRACTOR ANALYSIS:
+- A) Correct: snoring with a weak effort is obstruction in progress.
+- B) Full sentences mean the airway is patent; this would be correct if the question asked which finding rules out obstruction.
+- C) Capillary refill describes perfusion; this would be correct if the question asked about circulation.
+- D) A normal reading does not describe air movement; this would be correct if the question asked about oxygenation only.
+
+TRAP: Reaching for any abnormal vital sign instead of the finding that
+describes air movement.
+
+CONFIDENCE: high
+"""
+
+# A single-namespace bank whose subject is not in the registry (D-03): it must
+# degrade to the conservative profile, not fail and not guess.
+UNKNOWN_BANK = """# Water operations (synthetic, Phase 9)
+
+## LESSON
+
+### Residual Disinfection
+
+Chlorine residual is measured after contact time.
+
+Q1. When is residual measured?   (difficulty: application)
+[OBJECTIVE: water:distribution.residual]
+
+A) Before contact time
+B) After contact time
+C) At the intake
+D) Never
+
+CORRECT: B
+
+WHY BEST: Residual is measured after contact time so disinfection has had a
+chance to act.
+
+KEY DISCRIMINATOR: The timing is about the contact period, not the sampling
+location.
+
+DISTRACTOR ANALYSIS:
+- A) Before contact time no disinfection has happened; this would be correct if the question asked about raw water.
+- B) Correct: after contact time the residual reflects real disinfection.
+- C) The intake is upstream of treatment; this would be correct if the question asked where raw water enters.
+- D) Residual is always measurable in principle; this would be correct if the question asked about unchlorinated supply.
+
+TRAP: Confusing sampling location with contact timing.
+
+CONFIDENCE: high
+"""
+
+# Two namespaces in one bank: ambiguous without an explicit profile id (D-04).
+MIXED_BANK = """# Mixed synthetic bank (Phase 9)
+
+## LESSON
+
+### Mixed Subjects
+
+One bank, two subject namespaces.
+
+Q1. A mixed question.   (difficulty: application)
+[OBJECTIVE: emt:airway]
+
+A) Alpha
+B) Beta
+C) Gamma
+D) Delta
+
+CORRECT: A
+
+WHY BEST: Alpha is the only option that fits.
+
+KEY DISCRIMINATOR: None needed; synthetic.
+
+DISTRACTOR ANALYSIS:
+- A) Correct.
+- B) Beta is close; this would be correct if the question asked for the second option.
+- C) Gamma is unrelated; this would be correct if the question asked for the third option.
+- D) Delta is unrelated; this would be correct if the question asked for the fourth option.
+
+TRAP: None; synthetic.
+
+CONFIDENCE: high
+
+Q2. Another mixed question.   (difficulty: application)
+[OBJECTIVE: math:derivatives]
+
+A) Alpha
+B) Beta
+C) Gamma
+D) Delta
+
+CORRECT: B
+
+WHY BEST: Beta is the only option that fits.
+
+KEY DISCRIMINATOR: None needed; synthetic.
+
+DISTRACTOR ANALYSIS:
+- A) Alpha is close; this would be correct if the question asked for the first option.
+- B) Correct.
+- C) Gamma is unrelated; this would be correct if the question asked for the third option.
+- D) Delta is unrelated; this would be correct if the question asked for the fourth option.
+
+TRAP: None; synthetic.
+
+CONFIDENCE: high
+"""
+
+# A bank carrying an item type the (temporary, narrowed) registry forbids.
+DISALLOWED_BANK = """# Disallowed-type bank (synthetic, Phase 9)
+
+## LESSON
+
+### Scene Size-Up
+
+Prose before the item.
+
+Q1. Describe the scene.   (difficulty: application)
+[OBJECTIVE: emt:scene]
+
+A) Fine
+B) Not fine
+
+CORRECT: A
+
+WHY BEST: The scene is described before any intervention.
+
+KEY DISCRIMINATOR: None needed; synthetic.
+
+DISTRACTOR ANALYSIS:
+- A) Correct.
+- B) Not fine would be correct if the scene were unsafe.
+
+TRAP: None; synthetic.
+
+CONFIDENCE: high
+
+Q2. Write a short note.   (difficulty: recall)
+[OBJECTIVE: emt:scene.note]
+[TYPE: short]
+
+Prompt: summarize the scene.
+
+MODEL: none
+"""
+
+
+def fail(msg):
+    print("FAIL: %s" % msg)
+    sys.exit(1)
+
+
+def write_bank(tmp, name, text):
+    path = os.path.join(tmp, name)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    return path
+
+
+def minimal_profile(pid="emt", allowed=None, verifier="runtime",
+                    math=False, languages=None):
+    """A valid profile in the exact 09-01 shape."""
+    return {
+        "id": pid,
+        "version": subjects.PROFILE_SCHEMA_VERSION,
+        "lesson": {"markdown": True, "tables": True, "math": math,
+                   "runnable_languages": list(languages or [])},
+        "allowed_item_types": list(allowed or
+                                   ["mc", "multi", "table", "dnd", "build",
+                                    "short"]),
+        "verifier": verifier,
+    }
+
+
+def test_subject_ids_use_the_one_extractor():
+    bank = write_bank(tempfile.gettempdir(), "sid_%s.md" % uuid.uuid4().hex,
+                      EMT_BANK)
+    plain_path = write_bank(tempfile.gettempdir(),
+                            "sid_plain_%s.md" % uuid.uuid4().hex,
+                            EMT_BANK.replace("[OBJECTIVE: emt:airway]",
+                                             "[OBJECTIVE: airway]")
+                            .replace("[OBJECTIVE: emt:airway.opa]",
+                                     "[OBJECTIVE: airway.opa]"))
+    try:
+        qs = model.load(bank)
+        ids = subjects.subject_ids(qs)
+        if ids != ["emt"]:
+            fail("subject_ids must be the distinct namespaced objectives via "
+                 "evidence.subject_of, got %r" % ids)
+        # An unnamespaced bank yields no subject ids, never a guessed one.
+        plain = model.load(plain_path)
+        if subjects.subject_ids(plain) != []:
+            fail("unnamespaced objectives must yield no subject ids, got %r"
+                 % subjects.subject_ids(plain))
+    finally:
+        for p in (bank, plain_path):
+            if os.path.exists(p):
+                os.remove(p)
+
+
+def test_validate_registry_rejects_bad_shapes():
+    good = {"version": 1, "entries": {"emt": minimal_profile()}}
+    if subjects.validate_registry(good) is not good:
+        fail("a valid registry must pass through unchanged")
+    # Duplicate ids (list form makes the duplicate real).
+    dup = {"version": 1, "entries": [minimal_profile(), minimal_profile()]}
+    try:
+        subjects.validate_registry(dup)
+        fail("duplicate profile ids must be rejected")
+    except subjects.SubjectProfileError:
+        pass
+    # Extra keys.
+    extra = {"version": 1, "entries": {"emt": dict(minimal_profile(),
+                                                   bogus=True)}}
+    try:
+        subjects.validate_registry(extra)
+        fail("extra profile keys must be rejected")
+    except subjects.SubjectProfileError:
+        pass
+    # Wrong capability value type.
+    badtype = {"version": 1,
+               "entries": {"emt": dict(minimal_profile(),
+                                       lesson=dict(minimal_profile()["lesson"],
+                                                   math="yes"))}}
+    try:
+        subjects.validate_registry(badtype)
+        fail("non-boolean capability must be rejected")
+    except subjects.SubjectProfileError:
+        pass
+    # Unknown verifier id.
+    badver = {"version": 1, "entries": {"emt": minimal_profile(
+        verifier="bogus_verifier")}}
+    try:
+        subjects.validate_registry(badver)
+        fail("unknown verifier ids must be rejected")
+    except subjects.SubjectProfileError:
+        pass
+    # Duplicate allowed types and duplicate languages.
+    duptype = {"version": 1, "entries": {"emt": minimal_profile(
+        allowed=["mc", "mc"])}}
+    try:
+        subjects.validate_registry(duptype)
+        fail("duplicate allowed item types must be rejected")
+    except subjects.SubjectProfileError:
+        pass
+    duplang = {"version": 1, "entries": {"emt": minimal_profile(
+        languages=["python", "python"])}}
+    try:
+        subjects.validate_registry(duplang)
+        fail("duplicate runnable languages must be rejected")
+    except subjects.SubjectProfileError:
+        pass
+
+
+def test_conservative_fallback_and_capability_report():
+    # Single unknown namespace -> conservative default + named unsupported caps.
+    qs = model.load(write_bank(tempfile.gettempdir(), "unk_%s.md"
+                               % uuid.uuid4().hex, UNKNOWN_BANK))
+    snap = subjects.select_profile(
+        qs, subjects.REGISTRY,
+        requested_capabilities=("math", "runnable_languages:python"))
+    if snap["subject_id"] != "":
+        fail("unknown subject must record no subject id, got %r"
+             % snap["subject_id"])
+    if snap["profile"]["id"] != "default":
+        fail("unknown subject must use the conservative default profile, got %r"
+             % snap["profile"]["id"])
+    if snap["profile"]["lesson"]["markdown"] is not True:
+        fail("the conservative profile must keep readable markdown")
+    if sorted(snap["unsupported_capabilities"]) != ["math",
+                                                    "runnable_languages:python"]:
+        fail("every requested unavailable capability must be named, got %r"
+             % snap["unsupported_capabilities"])
+    # Unnamespaced bank -> same conservative default, nothing requested.
+    qs2 = model.load(write_bank(tempfile.gettempdir(), "plain_%s.md"
+                                % uuid.uuid4().hex,
+                                EMT_BANK.replace(
+                                    "[OBJECTIVE: emt:airway]",
+                                    "[OBJECTIVE: airway]")
+                                .replace("[OBJECTIVE: emt:airway.opa]",
+                                         "[OBJECTIVE: airway.opa]")))
+    snap2 = subjects.select_profile(qs2, subjects.REGISTRY)
+    if snap2["profile"]["id"] != "default" or snap2["unsupported_capabilities"]:
+        fail("unnamespaced bank must get the default profile with no "
+             "unsupported report, got %r" % snap2)
+
+
+def test_mixed_subject_refusal_and_explicit_resolution():
+    qs = model.load(write_bank(tempfile.gettempdir(), "mix_%s.md"
+                               % uuid.uuid4().hex, MIXED_BANK))
+    try:
+        subjects.select_profile(qs, subjects.REGISTRY)
+        fail("mixed namespaces without an explicit id must refuse")
+    except subjects.SubjectProfileError as exc:
+        msg = str(exc)
+        if "emt" not in msg or "math" not in msg:
+            fail("the refusal must name the conflicting subjects, got %r" % msg)
+        if os.path.abspath(tempfile.gettempdir()) in msg:
+            fail("the refusal must not disclose the bank path, got %r" % msg)
+    snap = subjects.select_profile(qs, subjects.REGISTRY, explicit_id="emt")
+    if snap["subject_id"] != "emt" or snap["profile"]["id"] != "emt":
+        fail("an explicit known id must resolve the ambiguous bank, got %r" % snap)
+    try:
+        subjects.select_profile(qs, subjects.REGISTRY, explicit_id="nosuch")
+        fail("an unknown explicit id must refuse")
+    except subjects.SubjectProfileError:
+        pass
+
+
+def test_disallowed_item_type_refuses_before_write():
+    reg = {"version": 1, "entries": {"emt": minimal_profile(allowed=["mc"])}}
+    qs = model.load(write_bank(tempfile.gettempdir(), "dis_%s.md"
+                               % uuid.uuid4().hex, DISALLOWED_BANK))
+    try:
+        subjects.select_profile(qs, reg)
+        fail("an item type outside the profile allowlist must refuse")
+    except subjects.SubjectProfileError as exc:
+        msg = str(exc)
+        if "emt" not in msg or "short" not in msg:
+            fail("the refusal must name the profile id and the type, got %r"
+                 % msg)
+
+
+def test_emt_lesson_semantic_table(tmp):
+    """The shared reader keeps headings, prose, lists and the table in source
+    order, in a labelled focusable horizontal-scroll wrapper (D-12/D-13)."""
+    bank = write_bank(tmp, "table_bank.md",
+                      "# T\n\n## LESSON\n\n### Managing the Scene\n\n"
+                      "Q1. Dummy.   (difficulty: recall)\n"
+                      "[OBJECTIVE: emt:scene]\n\n"
+                      "A) Alpha\nB) Beta\n\nCORRECT: A\n")
+    qs = model.load(bank)
+    ctx = lesson_surface._reader_context(bank, qs)
+    body = ("Scene management starts with one question.\n\n"
+            "- Chief complaint\n- Airway status\n\n"
+            "| Sign | What to check | First action |\n"
+            "| --- | --- | --- |\n"
+            "| Snoring | Airway patency | Head-tilt/chin-lift |\n"
+            "| No response | Mental status | Stimulus check |\n\n"
+            "```text\n$not math$ and **bold** stay inside a fence.\n```\n")
+    h = lesson_surface.render_markdown("### Managing the Scene\n\n%s" % body,
+                                       ctx)
+    if ('<div class="scroll lesson-table-scroll" tabindex="0" '
+            'role="region" aria-label="Managing the Scene"><table>') not in h:
+        fail("table must sit in the labelled focusable overflow wrapper: %r" % h)
+    if "<thead><tr><th scope=\"col\">Sign</th>" not in h:
+        fail("header cells must carry scope=col: %r" % h)
+    if "<tbody><tr><td>Snoring</td>" not in h:
+        fail("body cells must remain native td rows: %r" % h)
+    idx_h2 = h.index("<h2>Managing the Scene</h2>")
+    idx_p = h.index("<p>Scene management")
+    idx_ul = h.index("<ul><li>Chief complaint</li><li>Airway status</li></ul>")
+    idx_table = h.index("<table>")
+    idx_pre = h.index("<pre><code class=\"language-text\">")
+    if not (idx_h2 < idx_p < idx_ul < idx_table < idx_pre):
+        fail("lesson source order must survive rendering: %r" % h)
+    if "$not math$" not in h or "<strong>bold</strong>" in h:
+        fail("fenced content must stay escaped and untouched: %r" % h)
+    # The narrow-width contract is CSS-owned: wrapper is 100%-wide inside its
+    # overflow container, and long cells wrap rather than widen the page.
+    if ".lesson-table-scroll{max-width:100%}" not in lesson_surface.LESSON_CSS:
+        fail("lesson CSS must cap the table wrapper at 100%% width")
+    if "overflow-wrap:anywhere" not in lesson_surface.LESSON_CSS:
+        fail("lesson CSS must allow long table cells to wrap")
+    # A plain profile render keeps the same shared wrapper (no EMT-only path).
+    plain = lesson_surface.render_markdown("### T\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n")
+    if "lesson-table-scroll" not in plain or '<th scope="col">a</th>' not in plain:
+        fail("the shared reader must emit the same semantic table for any bank: "
+             "%r" % plain)
+
+
+def test_emt_learner_loop_with_persisted_profile(tmp):
+    bank = write_bank(tmp, "emt_loop_bank.md", EMT_BANK)
+    qs = model.load(bank)
+    errors, _ = model.lint(qs)
+    if errors:
+        fail("the synthetic EMT bank must lint clean, got %r" % errors)
+    out = os.path.join(tmp, "s.json")
+    res = session_surface.do_start(bank, {"count": 2}, "practice", out,
+                                   force=False)
+    # 1. The session persists a complete EMT snapshot and the view exposes it.
+    data = json.load(open(out, encoding="utf-8"))
+    sp = data.get("subject_profile")
+    if not sp:
+        fail("a new session must persist the resolved subject profile")
+    if sp["subject_id"] != "emt" or sp["profile"]["id"] != "emt":
+        fail("the bank's emt namespace must select the EMT profile, got %r" % sp)
+    if sp["profile"]["verifier"] != "runtime":
+        fail("EMT uses the shared runtime verifier, got %r" % sp)
+    if sp["registry_version"] != subjects.REGISTRY["version"]:
+        fail("the snapshot must record the registry version, got %r" % sp)
+    if res.get("subject_id") != "emt":
+        fail("session_view must expose the subject id, got %r" % res.get("subject_id"))
+    view_sp = res.get("subject_profile") or {}
+    if view_sp.get("id") != "emt" or view_sp.get("verifier") != "runtime":
+        fail("session_view must expose the profile metadata, got %r" % view_sp)
+    if "mc" not in (view_sp.get("allowed_item_types") or []):
+        fail("session_view must expose the allowed item types, got %r" % view_sp)
+
+    # 2. The v3 session validates against the published schema.
+    errs = schema_validate.validate(data, json.load(open(SESSION_SCHEMA,
+                                                         encoding="utf-8")))
+    if errs:
+        fail("the written session must validate against session.schema.json: "
+             "%r" % errs)
+
+    # 3. Wrong genuine response -> authored hint -> correct retry through the
+    #    existing Phase 6 adapter and one evidence writer.
+    r1 = session_surface.do_action(out, {"kind": "submit", "answer": "A"})
+    if r1["action"] != "hold":
+        fail("a wrong practice response must hold the cursor, got %r" % r1)
+    if r1["score"] is not False:
+        fail("the wrong response must score False, got %r" % r1)
+    r2 = session_surface.do_action(out, {"kind": "hint"})
+    if r2["action"] != "reveal_tier":
+        fail("the hint request must reveal a tier, got %r" % r2)
+    if (r2.get("hint") or {}).get("tier", {}).get("index") != 0:
+        fail("the first hint must be authored tier 0, got %r" % r2)
+    r3 = session_surface.do_action(out, {"kind": "submit", "answer": "B"})
+    if r3["action"] != "advance":
+        fail("a correct retry must advance, got %r" % r3)
+    if r3["score"] is not True:
+        fail("the correct retry must score True, got %r" % r3)
+
+    log = evidence.log_path(tmp)
+    responses = evidence.session_events(log, data["session_id"])
+    hints = evidence.hint_events(log, data["session_id"])
+    if len(responses) != 2:
+        fail("the loop must record exactly two response events, got %d" %
+             len(responses))
+    if len(hints) != 1:
+        fail("the loop must record exactly one hint event, got %d" % len(hints))
+    if responses[0]["score"] is not False or responses[1]["score"] is not True:
+        fail("response events must carry the real scores, got %r" % responses)
+    if responses[0]["subject"] != "emt":
+        fail("response events must carry the namespaced subject via the one "
+             "extractor, got %r" % responses[0]["subject"])
+    if hints[0]["tier_index"] != 0 or hints[0]["source"] != "authored":
+        fail("the hint event must record authored tier 0, got %r" % hints[0])
+    if hints[0]["unlock_path"] != "attempt":
+        fail("the hint must unlock via the attempt path, got %r" % hints[0])
+
+    # 4. Resume drift: registry changes after start cannot change the stored
+    #    snapshot (D-04) -- the session keeps interpreting under the profile
+    #    it was created with.
+    saved_math = subjects.REGISTRY["entries"]["emt"]["lesson"]["math"]
+    subjects.REGISTRY["entries"]["emt"]["lesson"]["math"] = True
+    try:
+        session_surface.do_action(out, {"kind": "submit", "answer": "B"})
+    finally:
+        subjects.REGISTRY["entries"]["emt"]["lesson"]["math"] = saved_math
+    again = json.load(open(out, encoding="utf-8"))
+    if again["subject_profile"]["subject_id"] != "emt":
+        fail("resume must keep the stored subject id, got %r" %
+             again["subject_profile"])
+    if again["subject_profile"]["profile"]["lesson"]["math"] is not False:
+        fail("resume must consume the stored snapshot, not the live registry, "
+             "got %r" % again["subject_profile"])
+    # The stored snapshot is unchanged byte-for-byte.
+    if again["subject_profile"] != data["subject_profile"]:
+        fail("resume must not rewrite the persisted snapshot, got %r" %
+             again["subject_profile"])
+
+
+def test_legacy_session_fills_snapshot_once(tmp):
+    bank = write_bank(tmp, "emt_legacy_bank.md", EMT_BANK)
+    qs = model.load(bank)
+    # A v2-shaped session (written before Phase 9) upgrades on read with a
+    # null slot, then the first action resolves and persists once.
+    legacy = {
+        "schema_version": 2,
+        "session_id": uuid.uuid4().hex,
+        "bank": os.path.abspath(bank),
+        "items": [0],
+        "cursor": 0,
+        "responses": [],
+        "status": "active",
+        "mode": "practice",
+        "objective": "",
+        "seed": 0,
+        "teaching_state": {},
+    }
+    legacy_path = os.path.join(tmp, "legacy.json")
+    runtime.write_session(legacy_path, legacy)
+    up = runtime.read_session(legacy_path)
+    if up["schema_version"] != 3:
+        fail("v2 sessions must upgrade to v3, got %r" % up["schema_version"])
+    if up.get("subject_profile") is not None:
+        fail("the v2 upgrade must leave the profile slot null, got %r" %
+             up.get("subject_profile"))
+    session_surface.do_action(legacy_path, {"kind": "submit", "answer": "A"})
+    filled = json.load(open(legacy_path, encoding="utf-8"))
+    if filled["subject_profile"]["subject_id"] != "emt":
+        fail("the first action on a legacy session must fill the snapshot once, "
+             "got %r" % filled.get("subject_profile"))
+    errs = schema_validate.validate(filled, json.load(open(SESSION_SCHEMA,
+                                                           encoding="utf-8")))
+    if errs:
+        fail("the filled legacy session must validate against the schema: %r"
+             % errs)
+    # A null slot also validates (upgrade state is documented and legal).
+    errs = schema_validate.validate(up, json.load(open(SESSION_SCHEMA,
+                                                       encoding="utf-8")))
+    if errs:
+        fail("the null upgrade slot must validate against the schema: %r" % errs)
+
+
+def test_no_subject_dispatch_in_surfaces():
+    """An AST guard: application Python must not branch on the shipped subject
+    ids (D-02). Profile data lives in JSON/settings; surfaces select, they
+    never dispatch."""
+    import ast
+    for root, _dirs, files in os.walk(os.path.join(ROOT, "surfaces")):
+        for fn in files:
+            if not fn.endswith(".py"):
+                continue
+            path = os.path.join(root, fn)
+            tree = ast.parse(open(path, encoding="utf-8").read(), path)
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.If, ast.Match)):
+                    src = ast.get_source_segment(
+                        open(path, encoding="utf-8").read(), node) or ""
+                    for subj in ("emt", "math", "cs"):
+                        if re_search_word(src, subj):
+                            fail("subject-name dispatch in %s: %r" % (path, src))
+
+
+def re_search_word(haystack, word):
+    import re
+    return re.search(r"\b%s\b" % re.escape(word), haystack) is not None
+
+
+def main():
+    tmp = tempfile.mkdtemp(prefix="subject_loop_")
+    try:
+        test_subject_ids_use_the_one_extractor()
+        test_validate_registry_rejects_bad_shapes()
+        test_conservative_fallback_and_capability_report()
+        test_mixed_subject_refusal_and_explicit_resolution()
+        test_disallowed_item_type_refuses_before_write()
+        test_emt_lesson_semantic_table(tmp)
+        test_emt_learner_loop_with_persisted_profile(tmp)
+        test_legacy_session_fills_snapshot_once(tmp)
+        test_no_subject_dispatch_in_surfaces()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    print("ok: subject loop (EMT tracer, persisted profile, resume drift, "
+          "fallback/mixed/disallowed, semantic table, v3 upgrade)")
+
+
+if __name__ == "__main__":
+    main()

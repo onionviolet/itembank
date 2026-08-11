@@ -2,15 +2,15 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://itembank.local/schemas/session.schema.json",
   "title": "itembank session file",
-  "description": "The resumable JSON session file written by 'itembank start' and read/written by 'next' and 'submit'. A session read whose schema_version is older than this document's current version is upgraded forward through runtime.upgrade_session before this shape is checked; a newer schema_version is rejected by name rather than guessed at. Version 2 (Phase 6) adds the versioned per-item teaching_state contract (D-03); the v1-to-v2 upgrade in runtime.SESSION_UPGRADES initializes it to an empty object.",
-  "x-itembank-version": 2,
+  "description": "The resumable JSON session file written by 'itembank start' and read/written by 'next' and 'submit'. A session read whose schema_version is older than this document's current version is upgraded forward through runtime.upgrade_session before this shape is checked; a newer schema_version is rejected by name rather than guessed at. Version 2 (Phase 6) adds the versioned per-item teaching_state contract (D-03); the v1-to-v2 upgrade in runtime.SESSION_UPGRADES initializes it to an empty object. Version 3 (Phase 9) adds the nullable subject_profile snapshot: the resolved subject id, registry/profile versions, the full resolved profile (lesson capabilities, allowed item types, verifier) and any requested unavailable capabilities. New sessions persist the complete snapshot; legacy v2 sessions upgrade with a null slot that the session adapter fills once from the bank on the first action (D-04).",
+  "x-itembank-version": 3,
   "type": "object",
   "required": ["schema_version", "session_id", "bank", "items", "cursor",
                "responses", "status", "mode", "objective", "seed",
                "teaching_state"],
   "properties": {
     "schema_version": {
-      "const": 2
+      "const": 3
     },
     "session_id": {
       "type": "string"
@@ -67,9 +67,93 @@
       "additionalProperties": {
         "$ref": "#/$defs/teaching_record"
       }
+    },
+    "subject_profile": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/subject_profile_snapshot"
+        }
+      ],
+      "description": "The persisted subject/profile snapshot (Phase 9, D-04). A new session carries the complete non-null snapshot; a legacy v2 session upgraded to v3 carries null until the session adapter fills it once from the bank on the first action."
     }
   },
   "$defs": {
+    "subject_profile_snapshot": {
+      "type": "object",
+      "required": ["registry_version", "profile_version", "subject_id",
+                   "profile", "unsupported_capabilities"],
+      "properties": {
+        "registry_version": {
+          "type": "integer",
+          "description": "The version of the subject-profile registry that selected this profile"
+        },
+        "profile_version": {
+          "type": "integer",
+          "description": "The version of the selected profile itself"
+        },
+        "subject_id": {
+          "type": "string",
+          "description": "The selected subject namespace, or '' for the conservative default"
+        },
+        "profile": {
+          "$ref": "#/$defs/subject_profile"
+        },
+        "unsupported_capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Requested capabilities the selected profile does not support, by name"
+        }
+      }
+    },
+    "subject_profile": {
+      "type": "object",
+      "required": ["id", "version", "lesson", "allowed_item_types",
+                   "verifier"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "lesson": {
+          "type": "object",
+          "required": ["markdown", "tables", "math", "runnable_languages"],
+          "properties": {
+            "markdown": {
+              "type": "boolean"
+            },
+            "tables": {
+              "type": "boolean"
+            },
+            "math": {
+              "type": "boolean"
+            },
+            "runnable_languages": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "allowed_item_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "verifier": {
+          "type": "string",
+          "description": "The named verifier that scores this subject's items (e.g. 'runtime')"
+        }
+      }
+    },
     "teaching_record": {
       "type": "object",
       "required": ["attempt_count", "highest_tier_unlocked", "highest_tier_shown",

@@ -8,7 +8,7 @@ injury; a jaw-thrust does the same without moving the cervical spine.</p>
 <ol><li>Open the airway with a head-tilt/chin-lift.</li><li>Suction the oropharynx if it is not clear.</li><li>Insert the airway adjunct that fits the patient.</li><li>Reassess air movement after every move.</li></ol>
 <p>Signs to track while reassessing:</p>
 <ul><li>Air movement at the mouth and nose</li><li>Chest rise with each breath</li><li>Noisy breathing that worsens with position</li></ul>
-<div class="scroll"><table><thead><tr><th>Sign</th><th>What it means</th><th>Action</th></tr></thead><tbody><tr><td>Snoring</td><td>Tongue against the pharynx</td><td>Head-tilt/chin-lift or jaw-thrust</td></tr><tr><td>Gurgling</td><td>Fluid in the airway</td><td>Suction</td></tr><tr><td>No air movement</td><td>Complete obstruction</td><td>Immediate intervention</td></tr></tbody></table></div>
+<div class="scroll lesson-table-scroll" tabindex="0" role="region" aria-label="The Airway, Step By Step"><table><thead><tr><th scope="col">Sign</th><th scope="col">What it means</th><th scope="col">Action</th></tr></thead><tbody><tr><td>Snoring</td><td>Tongue against the pharynx</td><td>Head-tilt/chin-lift or jaw-thrust</td></tr><tr><td>Gurgling</td><td>Fluid in the airway</td><td>Suction</td></tr><tr><td>No air movement</td><td>Complete obstruction</td><td>Immediate intervention</td></tr></tbody></table></div>
 <div class="scroll"><span class="lang">text</span><pre><code class="language-text">A **bold marker** and an _underscore pair_ and a `backtick pair` and a
 [link-shaped thing](nowhere) survive inside a fence, and so do a
 # heading marker and a - list marker.</code></pre></div>

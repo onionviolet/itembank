@@ -103,6 +103,13 @@ p,li{font-size:18px;line-height:var(--leading-lesson);
   outline:2px solid var(--accent);outline-offset:2px}
 .scroll{overflow-x:auto;margin:0 0 var(--space-2);
   max-width:var(--measure-wide)}
+/* The Phase 9 D-13 table wrapper: the labelled focusable region that owns
+   horizontal overflow at narrow widths; the lesson page itself never
+   widens. Cells wrap (`overflow-wrap:anywhere`) instead of stretching the
+   wrapper, and the focus boundary is the visible --accent outline. */
+.lesson-table-scroll{max-width:100%}
+.lesson-table-scroll:focus-visible{outline:2px solid var(--accent);
+  outline-offset:2px}
 pre{margin:0;background:var(--chip);border-radius:8px;
   padding:var(--space-2) var(--space-3)}
 pre code{display:block;font-family:var(--font-ledger);font-size:14px;
@@ -111,7 +118,7 @@ pre code{display:block;font-family:var(--font-ledger);font-size:14px;
   margin-bottom:var(--space-1);font-family:var(--font-ledger)}
 table{border-collapse:collapse;margin:0 0 var(--space-2);min-width:100%}
 th,td{border:1px solid var(--line);padding:var(--space-2);
-  text-align:left;font-size:14px}
+  text-align:left;font-size:14px;overflow-wrap:anywhere}
 th{background:var(--chip);color:var(--mut);font-weight:600}
 .orphan{color:var(--mut);font-size:14px}
 .empty{text-align:center;padding:var(--space-6) var(--space-3)}
@@ -569,13 +576,21 @@ def _is_separator_row(row):
     return all(re.match(r"^:?-+:?$", c) for c in _split_cells(row))
 
 
-def _table_html(rows):
+def _table_html(rows, ctx=None):
     """A pipe run whose second line is a separator row of dashes becomes a
     table with the first line as the header; anything that does not fit
     that shape -- a lone pipe line, a missing separator, a row with a
     different cell count -- returns None so the caller falls back to a
     paragraph rather than raising or emitting a broken table (T-3-04).
     Alignment markers are not implemented; D-08 declines that edge case.
+
+    Phase 9 (D-13) keeps the table fully semantic -- native
+    `<table><thead><th><tbody><td>` in source order -- inside the shared
+    labelled, keyboard-focusable `.lesson-table-scroll` region that owns
+    horizontal overflow; header cells carry `scope="col"`. The accessible
+    name comes from the nearest lesson heading when one is in scope, else
+    the generic lesson-table label. There is no subject-specific renderer
+    path (D-12).
     """
     if len(rows) < 2 or not _is_separator_row(rows[1]):
         return None
@@ -583,12 +598,15 @@ def _table_html(rows):
     body = [_split_cells(r) for r in rows[2:]]
     if any(len(r) != len(header) for r in body):
         return None
-    head = "".join("<th>%s</th>" % _inline(c) for c in header)
+    label = (ctx or {}).get("section_title") or "Lesson table"
+    head = "".join('<th scope="col">%s</th>' % _inline(c) for c in header)
     rows_html = "".join(
         "<tr>%s</tr>" % "".join("<td>%s</td>" % _inline(c) for c in r)
         for r in body)
-    return ('<div class="scroll"><table><thead><tr>%s</tr></thead>'
-            "<tbody>%s</tbody></table></div>" % (head, rows_html))
+    return ('<div class="scroll lesson-table-scroll" tabindex="0" '
+            'role="region" aria-label="%s"><table><thead><tr>%s</tr>'
+            '</thead><tbody>%s</tbody></table></div>'
+            % (html.escape(label), head, rows_html))
 
 
 _INLINE_CODE_RE = re.compile(r"`([^`\n]+)`")
@@ -789,7 +807,7 @@ def _render_blocks(text, ctx=None):
             while j < len(lines) and "|" in lines[j]:
                 rows.append(lines[j])
                 j += 1
-            table = _table_html(rows)
+            table = _table_html(rows, ctx)
             if table is not None:
                 out.append(table)
                 i = j
@@ -846,6 +864,7 @@ def render_markdown(text, ctx=None):
             heading = m.group(1).strip()
             if ctx is not None:
                 ctx["section"] = lesson_slug(heading)
+                ctx["section_title"] = heading
             prose = _render_blocks("\n".join(lines[1:]), ctx)
             out.append('<section id="%s"><h2>%s</h2>%s</section>'
                        % (lesson_slug(heading), html.escape(heading), prose))
@@ -879,6 +898,7 @@ def _reader_context(bank_path, qs):
         "example_layout": reader.get("example_layout", "stacked"),
         "reader_nav": reader.get("reader_nav", "none"),
         "section": "intro",
+        "section_title": "",
         "used": set(),
         "panels": [],
         "panels_len": 0,

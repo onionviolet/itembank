@@ -1759,7 +1759,9 @@ def test_existing_block_branches_byte_identical_without_callouts():
            "```py\nx = 1\n```\n")
     golden = ('<section id="h"><h2>H</h2><p>prose <strong>bold</strong></p>'
               "\n<ul><li>a</li><li>b</li></ul>\n"
-              '<div class="scroll"><table><thead><tr><th>x</th><th>y</th>'
+              '<div class="scroll lesson-table-scroll" tabindex="0" '
+              'role="region" aria-label="Lesson table"><table><thead><tr>'
+              '<th scope="col">x</th><th scope="col">y</th>'
               "</tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody>"
               "</table></div>\n"
               '<div class="scroll"><span class="lang">py</span>'
