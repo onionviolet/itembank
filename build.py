@@ -31,7 +31,7 @@ STAGE_FILES = (
     "itembank.py", "model.py", "runtime.py", "server.py", "evidence.py",
     "schema_validate.py", "selection.py", "resources.py",
 )
-STAGE_DIRS = ("surfaces", "schemas", "styles")
+STAGE_DIRS = ("surfaces", "schemas", "styles", "fonts")
 
 LAUNCHER_DIR = os.path.join(ROOT, "launchers")
 
@@ -104,6 +104,16 @@ def sha256sums(out_dir):
     return target
 
 
+def latest_json_hook(out_dir):
+    """The `latest.json` generation hook for the Tauri updater (D-08): plan
+    13-04 wires this to the release's version/notes/platform signatures and
+    publishes it beside SHA256SUMS.txt. The hook exists now so the release
+    step has a named seam; until 13-04 fills it, it writes nothing and the
+    CLI updater's SHA256SUMS.txt channel remains the only manifest.
+    """
+    return None
+
+
 def copy_launchers(out_dir):
     """Copy every file in launchers/ alongside the .pyz, so SHA256SUMS.txt
     covers the launcher shims too -- a release asset set whose checksum file
@@ -141,6 +151,7 @@ def main():
     copy_launchers(a.out)
     copy_stable_artifact(artifact, a.out)
     sha256sums(a.out)
+    latest_json_hook(a.out)
     n = sum(1 for f in os.listdir(a.out)
             if f != "SHA256SUMS.txt" and os.path.isfile(os.path.join(a.out, f)))
     print("%d artifacts -> %s" % (n, a.out))

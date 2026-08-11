@@ -1,0 +1,26 @@
+# Build-only toolchain pins (Directive 4a / D-14) -- the sidecar freeze and
+# the shell bundle. Every entry carries the exact version, the sha256 of the
+# artifact the build consumes, and the license-review verdict. The runtime
+# itself stays stdlib-only; nothing here ships inside the .pyz or the frozen
+# sidecar's Python.
+#
+# PyInstaller 6.22.0
+#   wheel: pyinstaller-6.22.0-py3-none-win_amd64.whl
+#   sha256: 6e5f3656de100954bf5db25536c43e097e46d482843a96d03a0852bf266e4853
+#   license: GPLv2-or-later with the bootloader exception -- explicitly
+#     permits freezing and distributing non-free programs; the frozen app
+#     remains under its own terms.
+#   source: https://pypi.org/project/pyinstaller/6.22.0/
+pyinstaller==6.22.0
+
+# Rust toolchain (the shell): rustc/cargo 1.97.1 on
+# stable-x86_64-pc-windows-msvc, verified on the build machine 2026-08-10.
+# Every resolved crate is pinned in the committed src-tauri/Cargo.lock with
+# the license review recorded in 13-02-SUMMARY.md.
+#
+# Node 22.22.3 is used for the Tauri CLI (npx @tauri-apps/cli pinned at build
+# time); the version is recorded in 13-RESEARCH.md section 5.
+#
+# NSIS 3.x (makensis) is required for the installer bundle. It is absent on
+# the current build machine: scripts/build_shell.ps1 degrades honestly and
+# prints the gap instead of pretending the installer was produced.
