@@ -5,7 +5,7 @@
 **itembank**
 
 `itembank` is a local-first assessment protocol and runtime for human and AI tutors.
-Today it tests: a markdown format contract with an actionable linter, six item types,
+Today it tests: a markdown format contract with an actionable linter, seven item types,
 deterministic scoring behind one scorer, resumable JSON sessions, an offline HTML quiz,
 a graded loopback sitting, Anki TSV export, and a cross-subject `day` cockpit.
 

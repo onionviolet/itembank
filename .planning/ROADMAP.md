@@ -1131,10 +1131,10 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 1. Evidence Spine & Protocol Foundation | 11/11 | Complete    | 2026-08-07 |
 | 2. Daemon Consolidation & Settings Foundation | 6/6 | Complete    | 2026-08-08 |
 | 2.1 Packaging, Self-Update & Interop Export | 9/9 | Complete | 2026-08-08 |
-| 3. Lesson Format & In-App Reader | 6/6 | In Progress|  |
+| 3. Lesson Format & In-App Reader | 6/6 | Complete | 2026-08-11 |
 | 3.1 Lesson Rich Blocks, Glossary & Style | 7/7 | Complete (human-verify items open; see 03.1-GATES.md) | 2026-08-11 |
 | 3.2 Seeding, Import & Provenance | 0/5 | Planned | - |
-| 4. Surface Redesign & Theming | 6/6 | In Progress|  |
+| 4. Surface Redesign & Theming | 6/6 | Complete | 2026-08-11 |
 | 5. Check Item Type & Code Editor | 0/7 | Planned | - |
 | 6. Hint Ladder, Cursor-Hold & Feedback Modes | 2/2 | Complete    | 2026-08-10 |
 | 6.1 Interactive Visual Assessment Protocol | 3/3 | Complete | 2026-08-11 |
@@ -1142,7 +1142,7 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 7. Selection Engine | 6/6 | Complete (roadmap gaps in 07-VERIFICATION.md) | 2026-08-11 |
 | 8. Model Adapter Interface & Tier-Gate Enforcement | 5/6 | In Progress|  |
 | 9. Subject-Invariant Loop — EMT, Math, CS Integration | 0/5 | Planned | - |
-| 9.1 Audio Drill Export | 0/4 | Planned | - |
+| 9.1 Audio Drill Export | 4/4 | Complete | 2026-08-11 |
 | 10. Retention, Pacing & Trends | 6/6 | Complete | 2026-08-11 |
 | 11. Closed Authoring Loop & Curriculum Auditor | 0/TBD | Not started | - |
 | 12. ~~Packaging, Self-Update & Interop Export~~ | — | Retired (moved to 2.1) | - |
@@ -1356,23 +1356,29 @@ Plans:
 
 ### Phase 999.5: Agent Onboarding & Skill Library (BACKLOG, added 2026-08-10)
 
-**Goal:** Keep the agent on-ramp — `AGENTS.md` and the four repo skills
-(`absorb-book`, `curriculum-design`, `guiding-questions`, `author-bank`) —
-in sync with the shipped command surface, and add skills as later phases
-land. The skills are the living, prose half of the agentic goal: a fresh
+**Goal:** Keep the agent on-ramp — `AGENTS.md` and the five repo skills
+(`absorb-book`, `curriculum-design`, `guiding-questions`, `author-bank`,
+`ocr`) — in sync with the shipped command surface, and add skills as later
+phases land. The skills are the living, prose half of the agentic goal: a fresh
 agent reads `AGENTS.md`, invokes a playbook, and runs the loop without
 scraping HTML or reimplementing scoring.
 **Requirements:** TBD (feeds MODEL-04's agent usage contract, Phase 8)
 **Depends on:** nothing in this roadmap. It is a maintenance obligation, not
 a feature: every later phase that changes the CLI or the session protocol
 changes what the skills must say.
-**Plans:** 1 plan — [999.5-01](phases/999.5-agent-onboarding-skill-library/999.5-01-SUMMARY.md)
+**Plans:** 2 plans — [999.5-01](phases/999.5-agent-onboarding-skill-library/999.5-01-SUMMARY.md)
 shipped 2026-08-11: skills synced to the shipped surface (hint ladder,
 rubric-review, select, coverage, guard, seed), per-tool discovery documented
 in README/AGENTS.md (Claude Code, Codex, Gemini CLI, Cursor, Reasonix),
 `reasonix.toml` de-shipped (gitignored; portable `reasonix.toml.example`),
 and CI now asserts the skill mirrors stay byte-identical and no machine path
-leaks into agent docs.
+leaks into agent docs. [999.5-02](phases/999.5-agent-onboarding-skill-library/999.5-02-SUMMARY.md)
+shipped 2026-08-11: README rewritten against the frozen 44-command surface
+(grouped index, seven item types incl. `visual`, reconciled Design
+boundaries, real repository tree), spec heading corrected to the shipped
+type count, ROADMAP phase-status table corrected to STATE.md, CI gates for
+README command claims and full schema coverage, and the broken-windows
+ledger audited to truth.
 
 **Why this is backlog.** The on-ramp already exists (2026-08-10) and documents
 the *shipped* surface — that is why it is truthful. It becomes load-bearing

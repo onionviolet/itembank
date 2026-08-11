@@ -1,22 +1,28 @@
 # itembank
 
-Author, validate and render exam-style question banks written in plain markdown.
+Author, validate and render exam-style question banks written in plain markdown —
+and sit them as a graded quiz that scores every answer and writes it to disk.
 
-It is also a local-first assessment runtime. Humans and AI tutors use the same
-parser, scoring rules, resumable sessions, and evidence files through browser,
-CLI, or JSON interfaces.
+One command gets you from a markdown file to a graded sitting:
 
-Python standard library only, no network, no services, and no install step:
-`python itembank.py` from a checkout is the whole thing. Render a bank to a
-self-contained offline HTML quiz, or sit it under a local server that scores
-every answer and writes it to disk as you give it.
+- author in markdown → `lint` with actionable errors by item number
+- offline quiz (`build`) or graded sitting (`serve`)
+- JSON sessions for AI tutors (`start` / `next` / `submit` / `report`)
+- `day` cockpit across every subject
 
-Four layers, and the boundaries between them are the design. `model` says what a
-bank is. `runtime` holds the only scorer and decides what a surface may see.
-`server` is one loopback HTTP server. Everything in `surfaces/` is a client: the
-quiz page, `study`, `day`, `export`, the JSON session commands and the CLI. No
-surface parses a bank a second way and none of them decides whether an answer is
-correct.
+Here is the whole format:
+
+```
+Q1. An operator notices a low chlorine residual at the far end of the
+     distribution network. What is the most likely explanation?
+     A) Dead-end stagnation  B) A leaking service line  C) Pump cavitation
+     CORRECT: A
+
+Q2. Name two lab checks before clearing a main for service.  [TYPE: short]
+     MODEL: turbidity, total chlorine
+```
+
+That is the whole format — `itembank spec` prints the rest.
 
 ## Why this exists
 
@@ -91,21 +97,91 @@ sha256sum -c SHA256SUMS.txt
 
 ## Use
 
+Every command below is one CLI entry point into the same runtime. The grouped
+index is the whole shipped surface — `python itembank.py --help` is the
+ground truth it is kept against.
+
+**The core loop** — author, validate, render, audit:
+
 ```
 itembank spec                 # print the format contract; give this to your LLM
 itembank lint  bank.md        # validate; exits non-zero on error
-itembank build bank.md        # offline HTML quiz; holds the key, saves NOTHING
+itembank build bank.md out.html   # offline HTML quiz; holds the key, saves NOTHING
 itembank serve bank.md        # the graded sitting: the process scores and records
 itembank stats bank.md        # item mix, objective coverage, answer-position skew
-itembank start bank.md       # start a resumable JSON assessment session
-itembank next SESSION.json   # return the next item without its answer key
-itembank submit SESSION.json --answer '"B"'  # score and record a response
-itembank report SESSION.json # summarize the recorded evidence
-itembank study bank.md      # flashcards plus a session-only Learn loop
-itembank export bank.md out.tsv --format basic  # Anki Basic TSV
-itembank export bank.md out.tsv --format cloze  # Anki Cloze TSV
-itembank day   plan.md        # today's work across every subject, ticked and logged
+itembank coverage bank.md     # objective coverage map, computed on demand from the
+                              #   bank and its ## SOURCES registry, never stored
 itembank guard .              # fail if a real question bank got committed
+```
+
+**JSON sessions for agents** — the resumable, key-free assessment protocol:
+
+```
+itembank start bank.md --count 10 --mode practice --out s.json
+itembank next s.json        # return the next item without its answer key
+itembank submit s.json --answer '"B"'  # score and record a response
+itembank report s.json      # summarize the recorded evidence
+itembank hint --session s.json   # one error-specific hint from the model backend,
+                            #   falling back to the authored tier offline
+itembank rubric-review --session s.json  # per-point rubric suggestions; a suggestion
+                                #   can never settle a mark (pending only)
+itembank select bank.md     # preview a selection without starting a session
+itembank override bank.md   # one extra sitting past today's cap, on confirmation
+itembank interact --action '{"action_id":"..."}' s.json  # commit one semantic
+                            #   action on the current visual item
+itembank usage              # the machine-readable agent usage contract (MODEL-04)
+itembank schema [name]      # the published JSON contracts, like `spec` prints the format
+```
+
+**Evidence and marking** — everything recorded is an append-only event:
+
+```
+itembank evidence --objective OBJ   # response history across every session and subject
+itembank trends [--weeks N]         # longitudinal retention report: due, week series,
+                                    #   weights, evidence claim (Phase 10)
+itembank mark --session S --file m.ndjson  # record short-answer marks as events
+itembank retract EVENT_ID --reason "..."  # undo an event by appending a reasoned
+                                          #   compensating event; nothing is deleted
+itembank render --session S --bank B attempt  # rebuild attempt markdown / session JSON
+itembank id-assign bank.md    # the only command that writes into a bank: mints ids
+                              #   and content-hash fingerprints (lint stays read-only)
+```
+
+**Learning surfaces** — the same bank as reading, flashcards, and today's work:
+
+```
+itembank study bank.md        # flashcards plus a session-only Learn loop
+itembank lesson bank.md       # render the LESSON section as reading material
+itembank render-style bank.md --style house   # lesson permuted into a named style
+itembank gloss bank.md term   # one term's definition from the ## TERMS block
+itembank key-review bank.md KEY_ID   # record a [!KEY] card as added to review
+itembank lesson-check bank.md CHECK_ID --answer '...'  # score one gate band check
+itembank lesson-skip bank.md CHECK_ID  # record one gate_skip event
+itembank day plan.md          # today's work across every subject, ticked and logged
+```
+
+**Data and tools** — export, import, packaging, and housekeeping:
+
+```
+itembank export bank.md out.tsv --format basic   # Anki Basic TSV
+itembank export bank.md out.tsv --format cloze   # Anki Cloze TSV
+itembank export bank.md out.gift --format gift   # GIFT for LMS import
+itembank export bank.md pack/ --objective OBJ  # audio drill pack (stem, pause, key, why)
+itembank export bank.md out.tsv --format keys  # answer-key TSV
+itembank import anki deck.apkg   # import an Anki deck into itembank candidates
+itembank seed bank.md            # six-stage accept loop, one item at a time
+itembank config                  # the settings schema, the way `spec` prints the format
+itembank theme                   # preview, set, reset, or pick the source accent
+itembank migrate --write         # one-time import of the three legacy stores into the
+                                 #   evidence log (a dry run by default)
+itembank update                  # check GitHub for a newer release, verify, prepare it
+itembank daemon <dir>            # one process on one port for every surface
+itembank sidecar                 # packaged-app launch: daemon in sidecar mode with the
+                                 #   fixed stdout handshake (port/token/version)
+itembank cli-twin <path>         # the CLI command that reaches the same runtime call as
+                                 #   a served view path
+itembank disclosure              # print the one-disclosure render-hook state
+itembank calibrate <corpus-dir>  # measure each style warning's false-positive rate (D-18)
 ```
 
 The intended loop with an LLM:
@@ -238,9 +314,10 @@ nobody opens.
 
 ## Item types
 
-Six. Five are the NREMT set, chosen because it spans familiarity through
-discrimination and because scoring is uniform across it. The sixth, `short`, is
-constructed response, and it is the one the machine refuses to mark.
+Seven types ship. The first five span familiarity through discrimination with
+uniform scoring across them. `short` is constructed response, and it is the one
+the machine refuses to mark. `visual` is the interactive assessment protocol
+from phase 06.1.
 
 | Type | Task |
 |---|---|
@@ -250,11 +327,14 @@ constructed response, and it is the one the machine refuses to mark.
 | `build` | put options into a required order |
 | `dnd` | sort items into buckets |
 | `short` | type an answer in prose; never auto-graded, marked later against a rubric |
+| `visual` | interactive plot or number-line item; the scene and scoring envelope are declarative JSON parsed as data, never executed |
 
 **Scoring is dichotomous on every type.** Two of three correct scores zero. This
-matches the NREMT's own rule that no credit is given for a partially correct
-response, and it is deliberate: a half mark hides the exact gap the item exists
-to find.
+is deliberate: a half mark hides the exact gap the item exists to find.
+
+The authoring contract grows additively — a type or field that ships in a later
+phase is added to `itembank spec`, never documented here before it exists.
+`check` (Phase 5) is not shipped and is not listed.
 
 Run `itembank spec` for the full contract with examples.
 
@@ -354,6 +434,13 @@ the durable item source. The runtime is the shared layer beneath HTML, CLI, and
 agent adapters. A future MCP or function-calling adapter should wrap the JSON
 commands rather than implement a second parser.
 
+**How it is built.** Four layers, and the boundaries between them are the
+design. `model` says what a bank is. `runtime` holds the only scorer and decides
+what a surface may see. `server` is one loopback HTTP server. Everything in
+`surfaces/` is a client: the quiz page, `study`, `day`, `export`, the JSON
+session commands and the CLI. No surface parses a bank a second way and none of
+them decides whether an answer is correct.
+
 **This does not generate questions.** The LLM writes them; this validates and
 renders them. Any feature drifting toward generating content belongs in a prompt.
 
@@ -362,9 +449,20 @@ marker. Keyword matching cannot separate a correct explanation from a confident
 wrong one containing the right nouns, and a grader that cannot tell those apart
 is worse than none, because it certifies the wrong answer.
 
-**This does not do spaced repetition.** Recognition is for diagnosis and exam
-simulation. Retention belongs in a spaced-repetition tool, and misses should
-graduate there as recall cards.
+**Model output is never accepted as a score.** An optional hosted or local
+backend may generate hints and per-point marking suggestions. The runtime gates
+the tier (`tier_gate.py`) — a model cannot unlock a tier for itself — and a
+suggestion is a `pending` token until a human marks it. Nothing a model produces
+is ever recorded as evidence or a score; the runtime, not the model, decides
+what reaches the learner.
+
+**Retention is evidence-derived, not a recall scheduler.** `retention.py`
+derives due state and daily caps by replaying captured evidence through one
+scheduler strategy (FSRS is the registered default), surfaced as `itembank
+trends`, the `day` cockpit's recommendations, and the retention report variant.
+What it still does not do: it is not a per-card recall scheduler, and `study`'s
+Learn loop remains session-only — a learner who wants spaced-repetition recall
+still graduates misses to a dedicated tool.
 
 **This does keep private local learning evidence.** The repository contains no
 learner data, hosted analytics, or accounts. A session JSON file records answers,
@@ -380,34 +478,37 @@ coursework-derived or textbook-derived, and they belong somewhere private.
 ## Layout
 
 ```
-itembank.py               entry point and public surface
-model.py                  what a bank is, and what makes one invalid
-runtime.py                scoring, sessions, and what a surface may see
+itembank.py               entry point; imports every layer, delegates to cli
+model.py                  what a bank is, and what makes one invalid (one parser)
+runtime.py                the only scorer; decides what a surface may see
 server.py                 one loopback HTTP server, for surfaces that need a browser
-surfaces/quiz.py          build and serve, plus the attempt file
-surfaces/quiz_page.py     the quiz page itself: markup, style, behaviour
-surfaces/study.py         flashcards and the Learn loop
-surfaces/anki.py          Basic and Cloze TSV export
-surfaces/session.py       start, next, submit, report
-surfaces/day.py           the day cockpit
-surfaces/cli.py           argparse, and the commands that need no surface
-surfaces/theme.py         the one palette
+evidence.py               the append-only evidence log and its readers (retraction-safe)
+retention.py              evidence-derived pacing: FSRS strategy, caps, trends, day loads
+selection.py              the one selection engine: spec expansion, profiles, seeding
+model_adapter.py          optional hosted/local model backend (hints, marking suggestions)
+tier_gate.py              fail-closed boundary: what a model may say, at which tier
+build.py                  the static HTML quiz build
+schema_validate.py        the published JSON contract validator (stdlib subset)
+surfaces/                 26 client modules: quiz.py, quiz_page.py, session.py, study.py,
+                          day.py, cli.py, theme.py, daemon.py, export, migrate, seeding, ...
+schemas/                  published JSON contracts (12 documents; `itembank schema`)
+styles/                   lesson render styles (6; `itembank render-style`)
+launchers/                itembank.bat / itembank.command / itembank.desktop
+installers/               NSIS installer sources
+scripts/                  build/asset generators and the OCR helper scripts
+src-tauri/                the desktop shell (Tauri over the Python sidecar)
+fixtures/sample_bank.md   synthetic, exercises six of the seven types, lints clean
+fixtures/broken_bank.md   deliberately defective; CI asserts lint catches each defect
 GRADING.md                how to mark an attempt file; hand this to your marker
 AGENTS.md                 agent on-ramp: layers, boundaries, authoring + tutoring loops
 .agents/skills/           agent playbooks (absorb-book, curriculum-design, guiding-questions, author-bank, ocr)
 .claude/skills/           same playbooks, mirrored for Claude Code (CI keeps the two trees byte-identical)
-fixtures/sample_bank.md   synthetic, exercises all six types, lints clean
-fixtures/broken_bank.md   deliberately defective; CI asserts lint catches each defect
-tests/serve_roundtrip.py  asserts a served sitting reaches disk and leaks no key
-tests/scoring_roundtrip.py asserts one scorer, and that the offline key matches it
-tests/agent_roundtrip.py  asserts the JSON session contract survives a full sitting
-tests/surface_roundtrip.py asserts study and Anki export output
-
-ROADMAP.md                 product contract and sequenced improvement plan
+tests/                    every tests/*_roundtrip.py; CI runs each one
+ROADMAP.md                product contract and sequenced improvement plan
+```
 
 The JSON session commands use the same `itembank.py` runtime. Session files are
 private output and should live in a bank's `_attempts/` directory.
-```
 
 ## Licence
 

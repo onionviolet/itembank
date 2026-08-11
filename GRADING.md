@@ -114,15 +114,19 @@ reaching for it, exists to describe the answer in `--notes`, not to award
 half a mark. A partially correct answer does not pass the item, because a
 half mark hides exactly the gap the item was written to find.
 
-## A model's verdict is not accepted evidence in this milestone
+## A model's verdict is a pending proposal until a human settles it
 
-`itembank mark` records `marker: "human"` on every event and rejects
-anything else outright. A model reading a rubric and proposing a verdict is
-useful input to the human who marks — but the mark itself has to come from
-a person until the runtime has a way to hold a model's verdict as pending
-review rather than as a settled fact. That arrives in a later phase
-(TEACH-09); until then, a model-proposed verdict is something you read, not
-something you record.
+A model can read a rubric and propose a verdict — `itembank rubric-review`
+requests per-point suggestions for the current `short` response. The proposal
+is recorded as a `mark_proposal` event: timestamped, first-class, and
+**pending**. It is never accepted as evidence. A mark becomes a settled fact
+only when a human accepts the proposal (`itembank mark --proposal
+EVENT_ID --verdict pass|fail`), and the recorded mark always carries
+`marker: "human"` — the `proposal_ref` on the mark links it to the exact
+proposal it accepted (D-14/D-24). `itembank mark` rejects any other marker
+outright, so a model cannot record a verdict for itself; a model suggestion
+is something you read and accept or replace, never something that records
+itself.
 
 ## What to do with the result
 
