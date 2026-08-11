@@ -4,7 +4,7 @@ Everything here reads markdown and returns plain dicts. It knows nothing about
 scoring, sessions or surfaces, which is what lets `spec` and `lint` be the whole
 of what an authoring agent has to satisfy.
 """
-import collections, hashlib, os, re, sys, uuid
+import collections, hashlib, json, os, re, sys, uuid
 
 import resources
 
@@ -126,7 +126,41 @@ def parse_question(ch):
         common.update({"model": model, "rubric": rubric, "notes": notes(ch)})
         return common
 
+    if qtype == "visual":
+        # Interactive visual assessment (phase 06.1). `[INTERACTION:]` names
+        # the one protocol-1 interaction family, `[VISUAL:]` is the declarative
+        # scene/actions/accessibility configuration, and `[SCORING:]` is the
+        # private scoring envelope (accepted states, tolerance). Both JSON
+        # fields are parsed as data here and never executed; the public
+        # projection of the scene happens in runtime.public_item, which omits
+        # every SCORING member.
+        interaction = grab(r"(?m)^\[INTERACTION:\s*(\w+)\s*\]", ch).lower()
+        visual_raw = grab(r"(?m)^\[VISUAL:\s*(.+?)\s*\]\s*$", ch)
+        scoring_raw = grab(r"(?m)^\[SCORING:\s*(.+?)\s*\]\s*$", ch)
+        if not stem:
+            return None
+        common.update({
+            "interaction": interaction,
+            "visual": _json_or_none(visual_raw),
+            "scoring": _json_or_none(scoring_raw),
+        })
+        return common
+
     return None
+
+
+def _json_or_none(raw):
+    """Parse one bracketed JSON field (`[VISUAL: ...]` / `[SCORING: ...]`)
+    into a dict, or None when absent or malformed. The model layer parses
+    JSON as data; executable content is rejected later by the runtime's
+    closed allowlist before any renderer sees it."""
+    if not raw:
+        return None
+    try:
+        value = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if isinstance(value, dict) else None
 
 
 def section(label, ch):
@@ -1148,6 +1182,17 @@ def content_fingerprint(q):
         parts.append("model=" + collapse(q["model"]))
         for i, r in enumerate(q["rubric"]):
             parts.append("rubric:%d=%s" % (i, collapse(r)))
+    elif t == "visual":
+        # The tested content of a visual item is the declarative scene and
+        # the private scoring envelope together: changing either the prompt's
+        # scene or the accepted/tolerance material must change the
+        # fingerprint. JSON is hashed in its canonical (sorted) form so
+        # reformatting the bank does not drift the digest.
+        parts.append("interaction=" + collapse(q.get("interaction") or ""))
+        parts.append("visual=" + json.dumps(q.get("visual") or {},
+                                            sort_keys=True, separators=(",", ":")))
+        parts.append("scoring=" + json.dumps(q.get("scoring") or {},
+                                             sort_keys=True, separators=(",", ":")))
     payload = FINGERPRINT_SEP.join(parts)
     return "sha256:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 

@@ -198,7 +198,7 @@ const LESSON_LABEL = "__LESSON_LABEL__";
 const LETTERS = "ABCDEFGH";
 const LABEL = {mc:"multiple choice", multi:"multiple response",
                table:"options table", build:"build list", dnd:"drag-and-drop",
-               short:"short answer"};
+               short:"short answer", visual:"visual assessment"};
 const FS = "\u001f", PS = "\u001e";   /* must match FIELD_SEP and PAIR_SEP */
 const REDUCED = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 let i = 0, score = 0, autoTotal = 0;
@@ -301,7 +301,7 @@ function render(){
   host.innerHTML = "";
   host.appendChild(card);
   ({mc:asChoice, multi:asChoice, table:asAssign, dnd:asAssign, build:asBuild,
-    short:asShort}[q.type])(q, body, act, card);
+    short:asShort, visual:asVisual}[q.type])(q, body, act, card);
   card.scrollIntoView({block:"start", behavior: REDUCED ? "auto" : "smooth"});
 }
 
@@ -585,7 +585,7 @@ const LESSON_LABEL = "__LESSON_LABEL__";
 const LETTERS = "ABCDEFGH";
 const LABEL = {mc:"multiple choice", multi:"multiple response",
                table:"options table", build:"build list", dnd:"drag-and-drop",
-               short:"short answer"};
+               short:"short answer", visual:"visual assessment"};
 const FS = "\u001f", PS = "\u001e";   /* must match FIELD_SEP and PAIR_SEP */
 const REDUCED = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 let sessionId = null, i = 0, total = 0, score = 0, autoTotal = 0;
@@ -774,7 +774,7 @@ function renderItem(view){
   host.innerHTML = "";
   host.appendChild(card);
   ({mc:asChoice, multi:asChoice, table:asAssign, dnd:asAssign, build:asBuild,
-    short:asShort}[q.type])(q, body, act, card);
+    short:asShort, visual:asVisual}[q.type])(q, body, act, card);
   /* Restore focus to the first meaningful control of the new item. */
   const first = card.querySelector("input, button, textarea");
   if(first && !REDUCED) first.focus({preventScroll:true});
@@ -963,6 +963,284 @@ function asShort(q, body, act, card){
     ta.disabled = true;
     submit.remove();
     settle(q, ta.value.trim(), card, act, null, revert);
+  };
+}
+
+/* ---- visual assessment (plan 06.1-01) --------------------------------------
+   asVisual is the one renderer-registry adapter for declarative plot and
+   number-line contracts. It reads ONLY q.interaction_contract
+   (renderer_config scene + response_schema), never a key, tolerance or
+   scoring field. All input paths -- SVG pointer, tap, and the adjacent
+   native semantic controls -- reduce through ONE state object and ONE
+   serializer, so equivalent states produce byte-identical canonical SCALAR
+   strings. The serialized semantic response is submitted through the normal
+   served /api/submit path; this page never computes a verdict. */
+function asVisual(q, body, act, card){
+  const c = q.interaction_contract || {};
+  const rc = c.renderer_config || {};
+  const kind = (c.response_schema || {}).kind || "point";
+  const axes = rc.axes || {};
+  const axis = rc.axis || {min:"0", max:"1", step:"1"};
+  const acc = rc.accessibility || {};
+  const desc = acc.description || q.stem;
+  const initial = rc.initial || {};
+  const state = {kind};
+  const host = document.createElement("div");
+  host.className = "visual-host";
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", desc);
+  svg.setAttribute("viewBox", "0 0 400 240");
+  svg.setAttribute("class", "visual-svg");
+  host.appendChild(svg);
+  body.appendChild(host);
+  const status = document.createElement("div");
+  status.className = "visual-status";
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-live", "polite");
+  body.appendChild(status);
+  const submit = mkSubmit(act, "commit your placement");
+
+  /* ---- exact SCALAR arithmetic: parse "2" | "1/2" | "2.5" to [n,d] -------- */
+  function fracGCD(a, b){ a = Math.abs(a); b = Math.abs(b);
+    while(b){ const t = a % b; a = b; b = t; } return a || 1; }
+  function fracParse(s){
+    if(typeof s !== "string") return null;
+    s = s.trim();
+    let m = s.match(/^([+-]?\d+)\/(\d+)$/);
+    if(m){ let n = +m[1], d = +m[2]; if(!d) return null;
+      const g = fracGCD(n, d); n /= g; d /= g;
+      if(d < 0){ n = -n; d = -d; } return [n, d]; }
+    m = s.match(/^([+-]?\d+)(?:\.(\d{1,6}))?$/);
+    if(!m) return null;
+    const sign = m[1][0] === "-" ? -1 : 1;
+    const whole = Math.abs(+m[1]);
+    let d = 1, frac = 0;
+    if(m[2]){ d = Math.pow(10, m[2].length); frac = +m[2]; }
+    let n = sign * (whole * d + frac);
+    const g = fracGCD(n, d); n /= g; d /= g;
+    if(d < 0){ n = -n; d = -d; } return [n, d];
+  }
+  function fracStr(f){ return f[1] === 1 ? String(f[0]) : f[0] + "/" + f[1]; }
+  function fracAdd(a, b){ const n = a[0]*b[1] + b[0]*a[1], d = a[1]*b[1];
+    const g = fracGCD(n, d); return [n/g, d/g]; }
+  function fracMulInt(a, k){ const n = a[0]*k, d = a[1];
+    const g = fracGCD(n, d); return [n/g, d/g]; }
+  function fracSub(a, b){ return fracAdd(a, [-b[0], b[1]]); }
+  function fracCmp(a, b){ return a[0]*b[1] - b[0]*a[1]; }   /* sign of a-b */
+
+  /* ticks(min,max,step) -> [{v: canonical scalar string, f: [n,d]}] */
+  function ticks(ax){
+    const lo = fracParse(ax.min), hi = fracParse(ax.max), st = fracParse(ax.step);
+    if(!lo || !hi || !st || st[0] <= 0) return [];
+    const out = [];
+    for(let k = 0; ; k++){
+      const f = fracAdd(lo, fracMulInt(st, k));
+      if(fracCmp(f, hi) > 0) break;
+      out.push({v: fracStr(f), f});
+    }
+    return out;
+  }
+  /* normalized position of fraction f between mn and mx, as a float in [0,1]
+     -- used for DRAWING ONLY; the submitted value is always a canonical
+     SCALAR string, never this float. */
+  function toFrac(f, mn, mx){
+    const num = (f[0]*mn[1] - mn[0]*f[1]) * mx[1];
+    const den = (mx[0]*mn[1] - mn[0]*mx[1]) * f[1];
+    if(!den) return 0;
+    return num / den;
+  }
+  function clamp01(t){ return Math.max(0, Math.min(1, t)); }
+  function snap(tks, f){
+    let best = 0, bestDist = Infinity;
+    for(let k = 0; k < tks.length; k++){
+      const d = Math.abs(fracCmp(f, tks[k].f));
+      if(d < bestDist){ bestDist = d; best = k; }
+    }
+    return tks[best];
+  }
+
+  const px = ticks(axes.x || axis), py = ticks(axes.y || axis);
+  const valueTicks = ticks(axis);
+  const xTicks = px.length ? px : valueTicks;
+  const yTicks = py.length ? py : valueTicks;
+  const isPlot = !!(axes.x && axes.y);
+  const mnX = fracParse(axes.x ? axes.x.min : axis.min);
+  const mxX = fracParse(axes.x ? axes.x.max : axis.max);
+  const mnY = fracParse(axes.y ? axes.y.min : axis.min);
+  const mxY = fracParse(axes.y ? axes.y.max : axis.max);
+
+  function domainX(clientX){
+    const r = svg.getBoundingClientRect();
+    const t = clamp01((clientX - r.left) / r.width);
+    return fracAdd(mnX, fracMulInt(fracSub(mxX, mnX), t));
+  }
+  function domainY(clientY){
+    const r = svg.getBoundingClientRect();
+    const t = clamp01((clientY - r.top) / r.height);
+    return fracAdd(mnY, fracMulInt(fracSub(mxY, mnY), t));
+  }
+
+  const W = 400, H = 240, L = 34, R = 10, T = 14, B = 26;
+
+  function draw(){
+    let h = "";
+    if(isPlot){
+      h += `<line x1="${L}" y1="${H-B}" x2="${W-R}" y2="${H-B}" stroke="currentColor"/>`;
+      h += `<line x1="${L}" y1="${T}" x2="${L}" y2="${H-B}" stroke="currentColor"/>`;
+      px.forEach(tk=>{
+        const x = L + clamp01(toFrac(tk.f, mnX, mxX)) * (W - L - R);
+        h += `<line x1="${x}" y1="${H-B}" x2="${x}" y2="${H-B+5}" stroke="currentColor"/>`;
+        h += `<text x="${x}" y="${H-B+18}" font-size="10" text-anchor="middle">${esc(tk.v)}</text>`;
+      });
+      py.forEach(tk=>{
+        const y = H - B - clamp01(toFrac(tk.f, mnY, mxY)) * (H - T - B);
+        h += `<line x1="${L-5}" y1="${y}" x2="${L}" y2="${y}" stroke="currentColor"/>`;
+        h += `<text x="${L-8}" y="${y+3}" font-size="10" text-anchor="end">${esc(tk.v)}</text>`;
+      });
+      if(state.kind === "point" && state.x && state.y){
+        const x = L + clamp01(toFrac(fracParse(state.x), mnX, mxX)) * (W - L - R);
+        const y = H - B - clamp01(toFrac(fracParse(state.y), mnY, mxY)) * (H - T - B);
+        h += `<circle cx="${x}" cy="${y}" r="6" fill="var(--accent)"/>`;
+      }
+    } else {
+      const mid = H / 2;
+      h += `<line x1="${L}" y1="${mid}" x2="${W-R}" y2="${mid}" stroke="currentColor"/>`;
+      valueTicks.forEach(tk=>{
+        const x = L + clamp01(toFrac(tk.f, mnX, mxX)) * (W - L - R);
+        h += `<line x1="${x}" y1="${mid-5}" x2="${x}" y2="${mid+5}" stroke="currentColor"/>`;
+        h += `<text x="${x}" y="${mid+20}" font-size="10" text-anchor="middle">${esc(tk.v)}</text>`;
+      });
+      if(state.kind === "numberline_point" && state.value){
+        const x = L + clamp01(toFrac(fracParse(state.value), mnX, mxX)) * (W - L - R);
+        h += `<circle cx="${x}" cy="${mid}" r="6" fill="var(--accent)"/>`;
+      }
+      if(state.kind === "interval" && state.start && state.end){
+        const x1 = L + clamp01(toFrac(fracParse(state.start), mnX, mxX)) * (W - L - R);
+        const x2 = L + clamp01(toFrac(fracParse(state.end), mnX, mxX)) * (W - L - R);
+        h += `<line x1="${x1}" y1="${mid}" x2="${x2}" y2="${mid}" stroke="var(--accent)" stroke-width="5"/>`;
+        h += `<circle cx="${x1}" cy="${mid}" r="5" fill="${state.start_closed ? "var(--accent)" : "var(--card)"}" stroke="var(--accent)"/>`;
+        h += `<circle cx="${x2}" cy="${mid}" r="5" fill="${state.end_closed ? "var(--accent)" : "var(--card)"}" stroke="var(--accent)"/>`;
+      }
+    }
+    svg.innerHTML = h;
+  }
+
+  function setState(patch){
+    Object.assign(state, patch);
+    syncControls();
+    draw();
+    const filled = kind === "point" ? (state.x && state.y)
+      : kind === "numberline_point" ? state.value
+      : (state.start && state.end);
+    submit.disabled = !filled;
+  }
+
+  /* ---- the ONE serializer: canonical SCALAR strings, exact wire shapes ---- */
+  function serialize(){
+    if(kind === "point") return JSON.stringify({kind:"point", x:state.x, y:state.y});
+    if(kind === "numberline_point") return JSON.stringify({kind:"numberline_point", value:state.value});
+    return JSON.stringify({kind:"interval", start:state.start, end:state.end,
+                           start_closed:!!state.start_closed, end_closed:!!state.end_closed});
+  }
+
+  svg.addEventListener("pointerdown", e => { e.preventDefault(); });
+  svg.addEventListener("pointerup", e => {
+    if(kind === "point"){
+      const x = snap(xTicks, domainX(e.clientX));
+      const y = snap(yTicks, domainY(e.clientY));
+      setState({x: x.v, y: y.v});
+    } else if(kind === "numberline_point"){
+      setState({value: snap(valueTicks, domainX(e.clientX)).v});
+    } else {
+      const hit = snap(valueTicks, domainX(e.clientX)).v;
+      if(!state.start || (state.start && state.end)) setState({start: hit, end: undefined});
+      else setState({end: hit});
+    }
+    status.textContent = "Placed " + (kind === "point" ? state.x + ", " + state.y
+      : kind === "numberline_point" ? state.value : state.start + " to " + state.end) + ".";
+  });
+
+  /* ---- adjacent semantic HTML controls: same state, same serializer ------- */
+  function valueSelect(tks, onPick){
+    const sel = document.createElement("select");
+    tks.forEach(tk=>{ const o = document.createElement("option");
+      o.value = tk.v; o.textContent = tk.v; sel.appendChild(o); });
+    sel.onchange = ()=>{ onPick(sel.value); };
+    return sel;
+  }
+  const controls = document.createElement("div");
+  controls.className = "visual-controls";
+  if(kind === "point"){
+    const sx = valueSelect(xTicks, v=>setState({x: v}));
+    const sy = valueSelect(yTicks, v=>setState({y: v}));
+    controls.appendChild(labelCtl("x", sx));
+    controls.appendChild(labelCtl("y", sy));
+  } else if(kind === "numberline_point"){
+    controls.appendChild(labelCtl("point", valueSelect(valueTicks,
+      v=>setState({value: v}))));
+  } else {
+    const s1 = valueSelect(valueTicks, v=>setState({start: v}));
+    const s2 = valueSelect(valueTicks, v=>setState({end: v}));
+    const c1 = document.createElement("input"); c1.type = "checkbox";
+    c1.onchange = ()=>setState({start_closed: c1.checked});
+    const c2 = document.createElement("input"); c2.type = "checkbox";
+    c2.onchange = ()=>setState({end_closed: c2.checked});
+    const r1 = labelCtl("start", s1, c1);
+    const r2 = labelCtl("end", s2, c2);
+    r1.appendChild(document.createTextNode(" closed"));
+    r2.appendChild(document.createTextNode(" closed"));
+    controls.appendChild(r1);
+    controls.appendChild(r2);
+  }
+  host.appendChild(controls);
+  function labelCtl(label, sel, extra){
+    const row = document.createElement("label");
+    row.className = "visual-ctl";
+    row.appendChild(document.createTextNode(label + " "));
+    row.appendChild(sel);
+    if(extra) row.appendChild(extra);
+    return row;
+  }
+  function syncControls(){
+    const sels = controls.querySelectorAll("select");
+    const wants = kind === "point" ? [state.x, state.y]
+      : kind === "numberline_point" ? [state.value] : [state.start, state.end];
+    sels.forEach((sel, i)=>{ if(wants[i]) sel.value = wants[i]; });
+    if(kind === "interval"){
+      const chks = controls.querySelectorAll("input[type=checkbox]");
+      chks[0].checked = !!state.start_closed;
+      chks[1].checked = !!state.end_closed;
+    }
+  }
+
+  if(kind === "point" && initial.points && initial.points.length){
+    setState({x: initial.points[0].x, y: initial.points[0].y});
+  }
+  draw();
+  syncControls();
+
+  function paint(v){
+    /* The served submit returns the runtime-bounded result. Only the
+       observation's allowed fields are shown: error category and the
+       Phase-6 hint tier -- never accepted states or tolerance. */
+    const ir = v.interaction_result;
+    if(ir && ir.observations && ir.observations.length){
+      const ob = ir.observations[0];
+      if(ob.error_category){
+        status.textContent = "That placement " +
+          (ob.error_category === "out_of_domain" ? "is outside the grid."
+           : ob.error_category === "off_grid" ? "is not on a tick."
+           : ob.error_category === "invalid_response" ? "is not a valid placement."
+           : "does not match.");
+      }
+    }
+  }
+  function revert(){ submit.disabled = true; }
+  submit.onclick = ()=>{
+    submit.disabled = true;
+    submit.remove();
+    settle(q, serialize(), card, act, paint, revert);
   };
 }
 
