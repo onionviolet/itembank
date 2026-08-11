@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 08
 current_phase_name: model-adapter-interface-tier-gate-enforcement
 status: executing
-stopped_at: Completed 08-02-PLAN.md
-last_updated: "2026-08-11T05:22:41Z"
+stopped_at: Completed 08-03-PLAN.md
+last_updated: "2026-08-11T05:49:10.021Z"
 last_activity: 2026-08-11
-last_activity_desc: Phase 08 plan 08-02 completed (model adapter interface, named profile registry, secret env refs)
+last_activity_desc: Phase 08 plan 08-03 completed (model interaction + rubric proposal evidence events)
 progress:
   total_phases: 18
   completed_phases: 9
   total_plans: 104
-  completed_plans: 62
+  completed_plans: 63
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 ## Current Position
 
 Phase: 08 (model-adapter-interface-tier-gate-enforcement) — EXECUTING
-Plan: 2 of 6 complete
-Status: Executing Phase 08
+Plan: 3 of 6 complete
+Status: Ready to execute
 Last activity: 2026-08-11 — 08-02 (model adapter interface + profile registry) completed
 
-Progress: [██████░░░░] 58%
+Progress: [██████░░░░] 61%
 
 ## Performance Metrics
 
@@ -112,6 +112,7 @@ Progress: [██████░░░░] 58%
 | Phase 07 P05 | 45min | 3 tasks | 7 files |
 | Phase 07 P06 | 45min | 3 tasks | 11 files |
 | Phase 06 P02 | 150 min | 3 tasks | 11 files |
+| Phase 08-model-adapter-interface-tier-gate-enforcement P08-03 | 22min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -265,6 +266,9 @@ Recent decisions affecting current work:
 - [Phase 8] 08-02: the shared profile resolver (surfaces/settings.resolve_profile, re-exported by model_adapter) validates unique names and the two known transports' required fields at read time — settings.invalid_value for a bad registry, adapter.profile_unknown for a missing active name — and DEFERS unrecognized transport names to TRANSPORT_REGISTRY, so a third backend is a registry entry plus a config entry with zero resolver edits (D-27), and an unregistered transport resolves to typed adapter.transport_unknown
 - [Phase 8] 08-02: credentials are resolved from os.environ[profile.secret_env] by name at invoke time only; the settings file stores the env-var name, never the value, and the value never enters requests, results, logs, or evidence (D-03/D-15) — enforced structurally by the schema's additionalProperties false and asserted by a flatten() scan over request/result bodies
 - [Phase 8] 08-02: the two shipped transports (hosted_cli subprocess, openai_compatible urllib) produce the same normalized request/result shape under a config-only switch, preserving backend class (hosted|local) in private audit metadata (D-17/D-18); every failure family is one typed unavailable result with a named adapter.* code (D-04)
+- [Phase 08]: model_interaction and mark_proposal events are registered in KNOWN_EVENT_TYPES and the schema enum in the same commit as each builder (D-23); dedupe is one-generation-per-interaction with retries linked via parent_interaction_id (D-12)
+- [Phase 08]: mark_event(proposal_ref=None) folds the reference into the dedupe raw string so accepting two different proposals for the same response records two distinct human marks; the marker != 'human' guard stays byte-for-byte unchanged (D-14/D-23)
+- [Phase 08] 08-03: requirements TEACH-07/08/09, MODEL-03, MODEL-05 NOT yet marked complete -- the shared-ID gate (#2388) blocks them because 08-04/05/06 still declare them without SUMMARYs; requirements.mark-complete re-evaluates when the last declaring plan finishes
 
 ## Deferred Verification
 
@@ -281,7 +285,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-11T05:22:41Z
-Stopped at: Completed 08-02-PLAN.md (model adapter interface + named profile registry + secret env refs)
+Last session: 2026-08-11T05:49:09.127Z
+Stopped at: Completed 08-03-PLAN.md
 Resume file: None
 Deferred human verification: Phases 2.1/3/4 (see Deferred Verification table above)
