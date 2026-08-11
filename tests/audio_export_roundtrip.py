@@ -1038,6 +1038,183 @@ def test_assemble_pack_container_digest_and_atomicity():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ---- Plan 09.1-04: verification fixtures -----------------------------------
+
+class _WordEngine(TTSEngine):
+    """A fake engine whose audio bytes embed the exact spoken text, so the
+    transcript-diff fixture can recover 'what the audio speaks' from the file
+    and compare it with the transcript (D-11 is a diffable check, not a
+    claim)."""
+
+    name = "fake-word"
+    container = "mp3"
+
+    def __init__(self):
+        self.spoken = []
+
+    def available(self):
+        return True
+
+    def speak(self, text):
+        self.spoken.append(text)
+        return b"W[" + text.encode("utf-8") + b"]"
+
+    def silence(self, seconds):
+        return b"P%.2f" % seconds
+
+
+def _spoken_from_audio(data):
+    """Recover the ordered spoken texts embedded by _WordEngine."""
+    out = []
+    for m in re.finditer(rb"W\[(.*?)\]", data):
+        out.append(m.group(1).decode("utf-8"))
+    return out
+
+
+def _word_engine_factory():
+    return _WordEngine()
+
+
+def test_transcript_diff_all_modes_and_containers():
+    """For a fixture objective, the pack's spoken text (fake-engine segments)
+    equals the transcript's text in the same order -- in both split modes and
+    both containers (D-11, AUDIO-06)."""
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = write_bank(tmp)
+        items = audio_surface.resolve_objective_items(bank, "Water / chemistry")
+        seq = audio_surface.build_sequence(items, {})
+        transcript = audio_surface.pack_transcript(seq)
+        expected = [s["text"] for s in seq if s["kind"] != "pause"]
+        audio_surface.TTSEngines["fake-word"] = _word_engine_factory
+        try:
+            for split in ("per-pack", "per-item"):
+                for container in ("mp3", "wav"):
+                    out_dir = os.path.join(tmp, "%s_%s" % (split, container))
+                    settings = {"audio": {"engine": "fake-word",
+                                          "pause": {},
+                                          "container": container,
+                                          "split": split}}
+                    r = audio_surface.export_audio(bank, "Water / chemistry",
+                                                   out_dir, settings=settings)
+                    if not r["audio"]:
+                        fail("transcript-diff run produced no audio: %s/%s"
+                             % (split, container))
+                    spoken = []
+                    for path in r["audio"]:
+                        spoken.extend(_spoken_from_audio(
+                            open(path, "rb").read()))
+                    if spoken != expected:
+                        fail("transcript-diff failed in %s/%s: audio speaks "
+                             "%r, transcript holds %r"
+                             % (split, container, spoken, expected))
+                    # The transcript file on disk equals the pack transcript.
+                    tpath = os.path.join(out_dir, r["base"] + ".txt")
+                    if not os.path.exists(tpath):
+                        fail("transcript-diff run wrote no transcript file")
+                    on_disk = open(tpath, encoding="utf-8").read()
+                    if on_disk != transcript:
+                        fail("transcript file does not equal pack transcript")
+        finally:
+            audio_surface.TTSEngines.pop("fake-word", None)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_no_evidence_success_and_failure():
+    """Snapshot the evidence store, run a full export AND a failing-engine
+    run, snapshot again -- the two snapshots are byte-identical; no listened
+    event, no export event, nothing (D-13, AUDIO-07)."""
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = write_bank(tmp)
+        log = evidence.log_path(tmp)
+        os.makedirs(os.path.dirname(log), exist_ok=True)
+        sentinel = b'{"event_type": "response"}\n'
+        open(log, "wb").write(sentinel)
+        before = open(log, "rb").read()
+        out1 = os.path.join(tmp, "pack_ok")
+        rc = audio_surface.cmd_export_audio(namespace(
+            bank="audio", out=bank, objective="Water / chemistry",
+            engine="transcript-only", out_dir=out1))
+        if rc != 0:
+            fail("successful export failed: %d" % rc)
+        # A failing-engine run must also leave the store byte-identical.
+        class Failing(TTSEngine):
+            name = "fake-ev-fail"
+            container = "mp3"
+
+            def available(self):
+                return True
+
+            def speak(self, text):
+                raise audio_surface.EngineError(self.name, "synthetic")
+
+        audio_surface.TTSEngines["fake-ev-fail"] = lambda: Failing()
+        try:
+            out2 = os.path.join(tmp, "pack_fail")
+            audio_surface.cmd_export_audio(namespace(
+                bank="audio", out=bank, objective="Water / chemistry",
+                engine="fake-ev-fail", out_dir=out2))
+        finally:
+            audio_surface.TTSEngines.pop("fake-ev-fail", None)
+        after = open(log, "rb").read()
+        if after != before:
+            fail("export mutated the evidence store (success or failure)")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_surface_inventory_no_player_sync_mobile():
+    """The phase's surface inventory contains only the CLI command and the
+    daemon route -- no player, no sync, no mobile build, no playback position
+    code exists anywhere in surfaces/ (D-14, AUDIO-07)."""
+    for fname in ("audio.py", "audio_edge_tts.py", "audio_piper.py"):
+        src = open(os.path.join(ROOT, "surfaces", fname),
+                   encoding="utf-8").read()
+        for symbol in ("player", "playback", "position_ms", "sync",
+                       "mobile", "podcast_player"):
+            if re.search(r"\b" + symbol + r"\b", src):
+                fail("surfaces/%s mentions a forbidden player/sync/mobile "
+                     "symbol: %r" % (fname, symbol))
+
+
+def test_failure_paths_same_named_refusal_contract():
+    """Every engine failure path in the registry (missing dependency,
+    unreachable endpoint, unknown engine) exercises the same named-refusal
+    contract (D-04, AUDIO-04)."""
+    cases = []
+    # Unknown engine.
+    try:
+        audio_surface.resolve_engine("no-such-engine-xyz")
+    except audio_surface.EngineError as exc:
+        cases.append((exc.name, str(exc)))
+    # Missing dependency (edge-tts not installed) -> speak refuses by name.
+    from surfaces import audio_edge_tts
+    eng = audio_surface.resolve_engine("edge-tts")
+    eng.probe = lambda: True
+    try:
+        eng.speak("anything")
+    except audio_surface.EngineError as exc:
+        cases.append((exc.name, str(exc)))
+    # Unreachable endpoint (library faked, probe fails) -> refusal.
+    _install_fake_edge()
+    try:
+        eng2 = audio_surface.resolve_engine("edge-tts")
+        eng2.probe = lambda: False
+        try:
+            eng2.speak("anything")
+        except audio_surface.EngineError as exc:
+            cases.append((exc.name, str(exc)))
+    finally:
+        _remove_fake_edge()
+    if len(cases) != 3:
+        fail("expected 3 failure cases, got %d" % len(cases))
+    for name, msg in cases:
+        if not name or name not in msg:
+            fail("a failure path did not name its engine: %r / %r" % (name, msg))
+
+
 def main():
     test_registry_resolves_fake_engine_by_name()
     test_transcript_only_is_a_real_registered_engine()
@@ -1061,11 +1238,16 @@ def main():
     test_engine_switch_is_settings_change_only()
     test_assemble_pack_silence_and_split()
     test_assemble_pack_container_digest_and_atomicity()
+    test_transcript_diff_all_modes_and_containers()
+    test_no_evidence_success_and_failure()
+    test_surface_inventory_no_player_sync_mobile()
+    test_failure_paths_same_named_refusal_contract()
     print("ok: audio export roundtrip -- registry, transcript-only, objective "
           "resolution, sequence/transcript contract, settings block, CLI + "
           "legacy byte-compat, atomic write, digest naming, no-evidence, "
-          "edge-tts + piper engines, roster contract, pack assembly "
-          "(silence/split/container/digest/atomicity) all held")
+          "edge-tts + piper engines, roster contract, pack assembly, "
+          "transcript-diff, no-evidence both runs, surface inventory, "
+          "failure-path contract all held")
     return 0
 
 
