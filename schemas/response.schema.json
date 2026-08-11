@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://itembank.local/schemas/response.schema.json",
   "title": "itembank evidence event",
-  "description": "One line of _evidence/evidence.jsonl, built by evidence.response_event() / evidence.hint_event() and written by evidence.append_event() alone. Version 2 (Phase 6) adds the closed hint event shape and an integer-or-null response hint_tier (D-15/D-16) while keeping version-1 reads compatible. The response_event branch is the response shape: additionalProperties is false and every key is required, so a consumer can tell 'not captured' from 'this field did not exist in that era'. mark, retraction, day_tick, term_lookup and key_review events get real bodies from the matching evidence constructors (described in $defs below) and are accepted by a permissive catch-all branch so a log mixing event types validates as a whole.",
+  "description": "One line of _evidence/evidence.jsonl, built by evidence.response_event() / evidence.hint_event() and written by evidence.append_event() alone. Version 2 (Phase 6) adds the closed hint event shape and an integer-or-null response hint_tier (D-15/D-16) while keeping version-1 reads compatible. The response_event branch is the response shape: additionalProperties is false and every key is required, so a consumer can tell 'not captured' from 'this field did not exist in that era'. mark, retraction, day_tick, term_lookup, key_review, model_interaction and mark_proposal events get real bodies from the matching evidence constructors (described in $defs below) and are accepted by a permissive catch-all branch so a log mixing event types validates as a whole.",
   "x-itembank-version": 2,
   "type": "object",
   "oneOf": [
@@ -40,7 +40,7 @@
         "event_type": {
           "type": "string",
           "const": "response",
-          "description": "This branch is the response shape only. 'hint' has its own closed branch (Phase 6); mark/retraction/day_tick/term_lookup/key_review events fall to the catch-all branch."
+          "description": "This branch is the response shape only. 'hint' has its own closed branch (Phase 6); mark/retraction/day_tick/term_lookup/key_review/model_interaction/mark_proposal events fall to the catch-all branch."
         },
         "ts": {
           "type": "string",
@@ -234,7 +234,7 @@
         "event_type": {
           "type": "string",
           "enum": ["mark", "retraction", "day_tick", "term_lookup",
-                   "key_review", "selection"]
+                   "key_review", "selection", "model_interaction"]
         }
       }
     },
@@ -374,6 +374,90 @@
         },
         "ts": {
           "type": "string"
+        },
+        "dedupe_key": {
+          "type": "string"
+        }
+      }
+    },
+    "model_interaction_event": {
+      "type": "object",
+      "description": "The model_interaction event's real shape (plan 08-03, D-12/D-15/D-16): one attempted model generation -- a hint or a rubric review -- logged with backend/profile, operation, timing, request/output fingerprints, outcome, gate result, and permitted tier. A drop/unavailable outcome stores descriptors only and never the dropped candidate's text (pass_payload is null unless outcome is pass). Structurally no score key: an interaction is a fact about the model, never accepted evidence about the learner.",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "event_id", "event_type", "ts", "session_id",
+        "bank", "item_ref", "operation", "interaction_id", "outcome",
+        "gate_reason", "permitted_tier", "backend_class", "profile",
+        "request_fingerprint", "response_fingerprint", "elapsed_ms",
+        "output_bytes", "pass_payload", "parent_interaction_id", "dedupe_key"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "event_id": {
+          "type": "string"
+        },
+        "event_type": {
+          "const": "model_interaction"
+        },
+        "ts": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "bank": {
+          "type": "string"
+        },
+        "item_ref": {
+          "type": "string"
+        },
+        "operation": {
+          "type": "string",
+          "enum": ["hint", "rubric_review"]
+        },
+        "interaction_id": {
+          "type": "string"
+        },
+        "outcome": {
+          "type": "string",
+          "enum": ["pass", "drop", "unavailable"]
+        },
+        "gate_reason": {
+          "type": ["string", "null"],
+          "description": "Plan 08-01's machine-readable reason code for a drop/unavailable (e.g. gate.ambiguous), or null when the interaction passed."
+        },
+        "permitted_tier": {
+          "type": ["integer", "null"]
+        },
+        "backend_class": {
+          "type": "string",
+          "enum": ["hosted", "local"],
+          "description": "Whether the provider was hosted or local (D-17), so later audits can distinguish exposure."
+        },
+        "profile": {
+          "type": ["string", "null"]
+        },
+        "request_fingerprint": {
+          "type": ["string", "null"]
+        },
+        "response_fingerprint": {
+          "type": ["string", "null"]
+        },
+        "elapsed_ms": {
+          "type": ["integer", "null"]
+        },
+        "output_bytes": {
+          "type": ["integer", "null"]
+        },
+        "pass_payload": {
+          "type": ["object", "null"],
+          "description": "The gated, learner-facing content, present only when outcome is pass; null for a drop or unavailable (D-16)."
+        },
+        "parent_interaction_id": {
+          "type": ["string", "null"],
+          "description": "The interaction id this retry re-runs, or null for a first attempt (D-12)."
         },
         "dedupe_key": {
           "type": "string"

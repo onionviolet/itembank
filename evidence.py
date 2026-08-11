@@ -41,12 +41,14 @@ INDEX_FILENAME = "evidence_index.sqlite3"
 
 # "retraction" was added by plan 01-07, "mark" by plan 01-09, "day_tick" by
 # plan 01-10, "term_lookup" by plan 03.1-02, "key_review" by plan 03.1-03,
-# "hint" by plan 06-01, and "selection" by plan 07-04 -- response events are the only ones this build
+# "hint" by plan 06-01, "selection" by plan 07-04, and "model_interaction" by
+# plan 08-03 -- response events are the only ones this build
 # wrote before 01-07. events() skips and warns on anything outside this set
 # (D-09), so a log written by a later build's event type degrades instead of
 # crashing.
 KNOWN_EVENT_TYPES = ("response", "retraction", "mark", "day_tick",
-                     "term_lookup", "key_review", "hint", "selection")
+                     "term_lookup", "key_review", "hint", "selection",
+                     "model_interaction")
 
 # The record of what a sitting asked for (D-03): one event per session, so a
 # deleted session file never destroys the ability to reproduce the sitting.
@@ -1674,6 +1676,92 @@ def key_review_event(session_id, bank, key_id, mode, ts=None, actor="learner"):
         "actor": actor,
         "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
     }
+
+
+# ---- model interactions (08-03) --------------------------------------------
+# D-12/D-15/D-16: every attempted model interaction -- a generated hint or a
+# rubric review -- is one durable, append-only evidence fact carrying the
+# backend/profile, operation, timing, request/output fingerprints, outcome,
+# gate result, and permitted tier. A dropped candidate stores descriptors
+# only: raw dropped text is never written, so no normal retrieval path can
+# re-expose it (T-08-21).
+
+MODEL_INTERACTION_EVENT_TYPE = "model_interaction"
+
+
+def model_interaction_event(session_id, bank, item_ref, operation, interaction_id,
+                            outcome, gate_reason, permitted_tier, backend_class,
+                            profile, request_fingerprint, response_fingerprint,
+                            elapsed_ms, output_bytes, pass_payload=None,
+                            parent_interaction_id=None, ts=None):
+    """Build one model_interaction event: a first-class, timestamped fact
+    that one model generation was attempted (D-12/D-15).
+
+    `operation` is `hint` or `rubric_review`; `outcome` is `pass`, `drop`,
+    or `unavailable` (D-08); `backend_class` is `hosted` or `local` (D-17);
+    `gate_reason` carries plan 08-01's machine-readable reason code (e.g.
+    `gate.ambiguous`) or None. `pass_payload` is stored only when `outcome`
+    is `pass` -- a dropped or unavailable candidate never leaves its text in
+    evidence (D-16). The returned dict carries no `score` key at all,
+    structurally mirroring term_lookup/key_review: an interaction is a fact
+    about the model, never accepted evidence about the learner.
+
+    `dedupe_key` is a hash over (session_id, interaction_id), so at most one
+    generation is recorded per interaction id (D-12): appending the same
+    interaction twice reports `already_recorded`. An explicit retry is a NEW
+    interaction id whose `parent_interaction_id` names the original, keeping
+    cost and repeated failures visible without reusing the dedupe key.
+    """
+    if not interaction_id:
+        raise ValueError("model_interaction_event: interaction_id must be "
+                         "non-empty")
+    if operation not in ("hint", "rubric_review"):
+        raise ValueError("model_interaction_event: operation must be 'hint' "
+                         "or 'rubric_review', got %r" % (operation,))
+    if outcome not in ("pass", "drop", "unavailable"):
+        raise ValueError("model_interaction_event: outcome must be 'pass', "
+                         "'drop' or 'unavailable', got %r" % (outcome,))
+    if backend_class not in ("hosted", "local"):
+        raise ValueError("model_interaction_event: backend_class must be "
+                         "'hosted' or 'local', got %r" % (backend_class,))
+    payload = pass_payload if outcome == "pass" else None
+    raw = "%s|%s" % (session_id, interaction_id)
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": MODEL_INTERACTION_EVENT_TYPE,
+        "ts": ts if ts is not None else utc_now(),
+        "session_id": session_id,
+        "bank": bank,
+        "item_ref": item_ref,
+        "operation": operation,
+        "interaction_id": interaction_id,
+        "outcome": outcome,
+        "gate_reason": gate_reason,
+        "permitted_tier": permitted_tier,
+        "backend_class": backend_class,
+        "profile": profile,
+        "request_fingerprint": request_fingerprint,
+        "response_fingerprint": response_fingerprint,
+        "elapsed_ms": elapsed_ms,
+        "output_bytes": output_bytes,
+        "pass_payload": payload,
+        "parent_interaction_id": parent_interaction_id,
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+def model_interactions(log, session_id):
+    """Every LIVE model_interaction event for `session_id`, in log order.
+
+    Reads through `live_events`, never `events`, so a retracted interaction
+    vanishes from a report exactly as it vanishes from a count (D-10).
+    Reports and the CLI query this one shape instead of each re-filtering
+    `events()` themselves (08-03).
+    """
+    return [ev for ev in live_events(log)
+            if ev.get("event_type") == MODEL_INTERACTION_EVENT_TYPE
+            and ev.get("session_id") == session_id]
 
 
 def day_log_from_events(log):
