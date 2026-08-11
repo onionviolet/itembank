@@ -1178,6 +1178,195 @@ def check_refusal_states():
         fail("offline connectivity sentence changed")
 
 
+def check_honest_limits_gate():
+    """05-07 Task 2 (CODE-05): the honest-limits statement is one constant
+    with two readers -- the SPEC text and the rendered page copy -- and the
+    repository carries no claim-word that asserts a safety property the
+    runtime does not have.
+
+    The claim-word gate covers what this phase SHIPPED: source, README, and
+    the records this phase wrote about itself. The phase's input documents
+    (context, research, UI spec, plans) are deliberately outside the file
+    set: they discuss the terms in order to forbid them, and several carry
+    the gate's own grep pattern verbatim -- a gate that fails on the text
+    defining it is not a gate.
+
+    Term one is `sandbox`: exactly two pre-existing accurate occurrences,
+    both about the BROWSER's own behaviour on a file page (README.md:269 and
+    surfaces/quiz.py:cmd_serve's docstring), and zero anywhere else in the
+    covered set. Exact per-file counts, not an exception list: a new
+    occurrence in either allowlisted file fails just like a new occurrence
+    elsewhere.
+
+    Term two is `isolat`: zero occurrences anywhere in the covered set,
+    because there are none today and none is correct.
+
+    Term three, `contain`, is deliberately DROPPED: it matches ordinary
+    English ("contains", "contained", "self-contained") in at least eight
+    places in existing prose that have nothing to do with safety, so as a
+    grep token it discriminates nothing -- a gate that cannot pass is not a
+    gate. The semantic half of that check (reading the check sections for
+    any other sentence that implies a safety property) lives in
+    05-VALIDATION.md's manual table, done at 05-07 Task 3.
+    """
+    # Identity: SPEC and the served page carry the same sentence.
+    if model.HONEST_LIMITS_NOTE not in model.SPEC:
+        fail("SPEC does not carry the honest-limits constant")
+    qs = load(CHECK_BANK)
+    _, page = quiz.page_for(CHECK_BANK, qs, serve=True)
+    if model.HONEST_LIMITS_NOTE not in page:
+        fail("served page does not carry the honest-limits constant")
+    if model.HONEST_LIMITS_NOTE not in model.SPEC or \
+            model.HONEST_LIMITS_NOTE not in page:
+        fail("honest-limits is not one string in both required places")
+
+    # README points at the canonical text without copying it.
+    readme = open(os.path.join(ROOT, "README.md"), encoding="utf-8").read()
+    if model.HONEST_LIMITS_NOTE in readme:
+        fail("README duplicates the honest-limits statement")
+    if "itembank spec" not in readme or "HONEST_LIMITS_NOTE" not in readme:
+        fail("README must point readers to `itembank spec` and name "
+             "HONEST_LIMITS_NOTE")
+    if "CASE)" not in readme:
+        fail("README does not document the check type's marker syntax")
+
+    # The claim-word gate: exact per-file counts over the shipped set.
+    covered = {
+        "README.md": {"sandbox": 1},
+        "surfaces/quiz.py": {"sandbox": 1},
+    }
+    zero_files = ["model.py", "runner.py", "surfaces/quiz_page.py",
+                  "surfaces/session.py", "surfaces/daemon.py", "GRADING.md"]
+    import glob
+    phase = os.path.join(ROOT, ".planning", "phases",
+                         "05-check-item-type-code-editor")
+    records = sorted(glob.glob(os.path.join(phase, "05-SPIKE-RESULT.md")) +
+                     glob.glob(os.path.join(phase, "05-0*-SUMMARY.md")))
+    for path in sorted(covered):
+        text = open(os.path.join(ROOT, path), encoding="utf-8").read()
+        for term, want in covered[path].items():
+            got = len(re.findall(term, text, re.IGNORECASE))
+            if got != want:
+                fail("claim-word gate: %s has %d case-insensitive %r "
+                     "occurrences, want %d" % (path, got, term, want))
+    for path in zero_files + records:
+        text = open(path, encoding="utf-8").read()
+        for term in ("sandbox", "isolat"):
+            if re.search(term, text, re.IGNORECASE):
+                fail("claim-word gate: %s carries %r" % (path, term))
+
+
+def check_schema_consumer():
+    """05-07 Task 1: a renderer-independent consumer -- one that imports no
+    quiz-page module -- validates the fixture's interaction contract against
+    the published schema, submits the declared raw source/version request
+    through /api/submit, and receives the same normalized result/evidence
+    semantics as the browser path. Negative fixtures prove the schema rejects
+    unknown contract versions, extra/executable renderer fields, and
+    non-string responses, and that a real killed-at-timeout result validates
+    with null verdict/score."""
+    import schema_validate as sv
+    schema = json.load(open(os.path.join(ROOT, "schemas", "item.schema.json"),
+                            encoding="utf-8"))
+    qs = load(CHECK_BANK)
+    q = qs[0]
+    item = runtime.public_item(q)
+    errs = sv.validate(item, schema)
+    if errs:
+        fail("public_item for a check item fails item.schema.json: %s"
+             % "; ".join(errs))
+    contract = item["interaction_contract"]
+
+    def expect_invalid(desc, mutate):
+        bad = mutate(json.loads(json.dumps(contract)))
+        e = sv.validate({"interaction_contract": bad,
+                         "type": "check",
+                         "response_schema": bad["response_schema"]}, schema)
+        if not e:
+            fail("schema accepted an invalid contract: %s" % desc)
+
+    def with_version(c):
+        c["version"] = 99
+        return c
+
+    def with_script(c):
+        c["renderer_config"]["script"] = \
+            "require('child_process').exec('x')"
+        return c
+
+    def with_int_response(c):
+        c["response_schema"]["type"] = "integer"
+        return c
+
+    def with_evil_key(c):
+        c["renderer_config"]["evil"] = 1
+        return c
+
+    expect_invalid("unknown version", with_version)
+    expect_invalid("extra renderer field (executable payload)", with_script)
+    expect_invalid("non-string response schema", with_int_response)
+    # the renderer config rejects a top-level unknown key too
+    expect_invalid("unknown renderer key", with_evil_key)
+
+    # A real killed-at-timeout result validates with null verdict/score.
+    killed = {"version": 1, "type": "check", "response": "while True:\n pass",
+              "verdict": None, "observations": [
+                  {"case_index": 1, "passed": False, "reason": "timeout",
+                   "actual": "", "expected": "x", "expected_kind": "output",
+                   "input": ""}]}
+    # Validate the result defs in a synthetic root so the internal $ref to
+    # case_observation resolves (schema_validate resolves #/$defs/ against
+    # the passed root's $defs).
+    result_def = schema["$defs"]["interaction_result"]
+    obs_def = schema["$defs"]["case_observation"]
+    synth_root = {"$defs": {"interaction_result": result_def,
+                            "case_observation": obs_def}}
+    e = sv.validate(killed, result_def, root=synth_root)
+    if e:
+        fail("killed-at-timeout result fails the published result schema: %s"
+             % "; ".join(e))
+    # and a string verdict is rejected (null-or-boolean is schema-enforced)
+    bad_killed = dict(killed, verdict="nope")
+    e = sv.validate(bad_killed, result_def, root=synth_root)
+    if not e:
+        fail("schema accepted a string verdict")
+
+    # End-to-end through /api/submit: same semantics as the browser path.
+    work = tempfile.mkdtemp()
+    try:
+        bank_path = os.path.join(work, "check_bank.md")
+        shutil.copyfile(CHECK_BANK, bank_path)
+        _write_settings(work)
+        proc, base = _serve_base(bank_path,
+                                 os.path.join(work, "attempt.md"), [])
+        if not base:
+            if proc.poll() is None:
+                proc.terminate()
+            fail("schema-consumer daemon never printed a URL")
+        try:
+            started = post(base + "api/start", {"bank": "check_bank",
+                                                "count": 6, "mode": "practice",
+                                                "focus": "q1"})
+            resp = post(base + "api/submit",
+                        {"session_id": started["session_id"],
+                         "answer": "import sys\nprint(sum(map(int, sys.stdin.read().split())))"})
+            ir = resp.get("interaction_result") or {}
+            if ir.get("version") != 1 or ir.get("type") != "check":
+                fail("consumer submit lost the contract envelope: %r" % ir)
+            if ir.get("response") != "import sys\nprint(sum(map(int, sys.stdin.read().split())))":
+                fail("consumer submit lost the raw response")
+            if ir.get("verdict") is not True:
+                fail("consumer submit verdict is %r" % ir.get("verdict"))
+            e = sv.validate(ir, result_def, root=synth_root)
+            if e:
+                fail("live consumer result fails the published schema: %s"
+                     % "; ".join(e))
+        finally:
+            proc.terminate()
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
 def check_network_refusal():
     """D-09 made real: with the daemon bound to all interfaces and
     check.allow_lan false, both submit routes refuse a check item's execution
@@ -1324,6 +1513,8 @@ def main():
     check_vendor_integrity()
     check_matrix_contract()
     check_refusal_states()
+    check_honest_limits_gate()
+    check_schema_consumer()
     check_network_refusal()
     print("check roundtrip: ok")
     return 0
