@@ -296,6 +296,10 @@ def main():
                    help="filter by session mode (diagnostic, practice, exam, "
                         "remediation, drill)")
     s.add_argument("--session", default="", help="filter by session_id")
+    s.add_argument("--bank", default="",
+                   help="filter by the recorded bank filename (the basename "
+                        "response_event() records, not a path); composes with "
+                        "--objective and --subject rather than replacing them")
     s.add_argument("--since", default="",
                    help="only events at or after this date, YYYY-MM-DD")
     s.add_argument("--rebuild-index", action="store_true", dest="rebuild_index",
