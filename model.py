@@ -1638,7 +1638,7 @@ SHARED FIELDS (all types)
   item [ID:] -- an unresolvable target or a dependency cycle is a `lint`
   error (prov.case_unknown / prov.prereq_unknown / prov.prereq_cycle).
 
-THE FIVE ITEM TYPES
+THE SEVEN ITEM TYPES
 
 1. Multiple choice.  Default. No TYPE line needed.
      A) ...  B) ...  C) ...  D) ...
