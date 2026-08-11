@@ -972,9 +972,31 @@ def check_vendor_integrity():
                      if not l.lstrip().startswith(("//", "/*", "*")))
     # The editor is configured in exactly one place: the boot script. The
     # page must not hand-roll a gutter or a keydown Tab handler of its own.
-    if re.search(r"keydown", code, re.IGNORECASE):
-        fail("the page hand-rolls a keydown handler; the editor "
-             "configuration must live in the boot script only")
+    # The one permitted keydown is the visual renderer's SVG arrow-key
+    # accessibility handler (06.1) -- it is scene navigation on a plot, not
+    # editor configuration -- so matches are checked against the visual
+    # function spans and refused anywhere else.
+    def _visual_spans(src):
+        spans = []
+        for m in re.finditer(r"function asVisual(?:Offline)?\s*\(", src):
+            depth = 0
+            j = src.index("{", m.end())
+            while True:
+                if src[j] == "{":
+                    depth += 1
+                elif src[j] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                j += 1
+            spans.append((m.start(), j))
+        return spans
+
+    spans = _visual_spans(code)
+    for m in re.finditer(r"keydown", code, re.IGNORECASE):
+        if not any(s <= m.start() <= e for s, e in spans):
+            fail("the page hand-rolls a keydown handler; the editor "
+                 "configuration must live in the boot script only")
     if re.search(r"\.cm-gutters|gutterElement", code):
         fail("the page hand-rolls a gutter; CodeMirror owns the line "
              "numbers in the boot script only")
