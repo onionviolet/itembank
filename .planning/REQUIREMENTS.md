@@ -122,12 +122,12 @@
 
 ### Gate
 
-- [ ] **GATE-01**: A lesson can gate its own continuation on an inline check; clearing is an ordinary `runtime.score_response()` verdict, not a lesson-local rule
-- [ ] **GATE-02**: Clearing an inline check writes ordinary response evidence, distinguishable from a quiz attempt on the same objective only by a `context` field
-- [ ] **GATE-03**: An idea cleared inside a lesson re-enters the normal retention queue through the same evidence store, with no lesson-specific schedule
-- [ ] **GATE-04**: `[GATE: required|recommended|off]` all ship; a learner can always read ahead by an explicit, recorded `gate_skip` choice; the skip is never a `response` with a null score
-- [ ] **GATE-05**: A bank whose lessons declare no gates renders byte-identically to Phase 3.1 output
-- [ ] **GATE-06**: The gate outcome split (cleared vs skipped, over gates encountered) is derivable from the evidence log alone, with a stated denominator, no target, no streak
+- [x] **GATE-01**: A lesson can gate its own continuation on an inline check; clearing is an ordinary `runtime.score_response()` verdict, not a lesson-local rule
+- [x] **GATE-02**: Clearing an inline check writes ordinary response evidence, distinguishable from a quiz attempt on the same objective only by a `context` field
+- [x] **GATE-03**: An idea cleared inside a lesson re-enters the normal retention queue through the same evidence store, with no lesson-specific schedule
+- [x] **GATE-04**: `[GATE: required|recommended|off]` all ship; a learner can always read ahead by an explicit, recorded `gate_skip` choice; the skip is never a `response` with a null score
+- [x] **GATE-05**: A bank whose lessons declare no gates renders byte-identically to Phase 3.1 output
+- [x] **GATE-06**: The gate outcome split (cleared vs skipped, over gates encountered) is derivable from the evidence log alone, with a stated denominator, no target, no streak
 
 ### Subject loop
 
@@ -196,13 +196,13 @@
 
 ### Audio drill export (Phase 9.1)
 
-- [ ] **AUDIO-01**: One `TTSEngine` interface with named registered implementations; adding an engine is a new module plus a settings entry, never a dispatcher branch, and the registry is the model-backend shape, not a second idiom
-- [ ] **AUDIO-02**: `edge-tts` (network, MP3-native), Piper (local, WAV), and `transcript-only` (the always-available null engine) all register by name; Kokoro is documented as a registration target and is not built
-- [ ] **AUDIO-03**: A pack sequences stem → timed pause → key → why, with the pause duration read from a per-item-type settings map rather than a constant
-- [ ] **AUDIO-04**: An unreachable or missing engine never silently falls back — the command emits the transcript, names the engine and the reason, exits non-zero, and never half-writes an audio file (temp-then-atomic-rename)
-- [ ] **AUDIO-05**: `itembank export audio --objective <id>` and a daemon route both ship, reaching one runtime implementation — neither surface is the real one
-- [ ] **AUDIO-06**: Output defaults to MP3 with WAV available; `--split per-item` and `--split per-pack` both ship (per-pack default); one transcript per pack is always emitted with the same text in the same order; files are named from the objective id and a content digest so unchanged re-exports are idempotent
-- [ ] **AUDIO-07**: Listening records nothing (the evidence log stays the record of what was answered); no player, sync, or mobile build; every third-party artifact is pinned with a recorded checksum and named license review; the command's own help text states that edge-tts sends item text to Microsoft
+- [x] **AUDIO-01**: One `TTSEngine` interface with named registered implementations; adding an engine is a new module plus a settings entry, never a dispatcher branch, and the registry is the model-backend shape, not a second idiom
+- [x] **AUDIO-02**: `edge-tts` (network, MP3-native), Piper (local, WAV), and `transcript-only` (the always-available null engine) all register by name; Kokoro is documented as a registration target and is not built
+- [x] **AUDIO-03**: A pack sequences stem → timed pause → key → why, with the pause duration read from a per-item-type settings map rather than a constant
+- [x] **AUDIO-04**: An unreachable or missing engine never silently falls back — the command emits the transcript, names the engine and the reason, exits non-zero, and never half-writes an audio file (temp-then-atomic-rename)
+- [x] **AUDIO-05**: `itembank export audio --objective <id>` and a daemon route both ship, reaching one runtime implementation — neither surface is the real one
+- [x] **AUDIO-06**: Output defaults to MP3 with WAV available; `--split per-item` and `--split per-pack` both ship (per-pack default); one transcript per pack is always emitted with the same text in the same order; files are named from the objective id and a content digest so unchanged re-exports are idempotent
+- [x] **AUDIO-07**: Listening records nothing (the evidence log stays the record of what was answered); no player, sync, or mobile build; every third-party artifact is pinned with a recorded checksum and named license review; the command's own help text states that edge-tts sends item text to Microsoft
 
 ### Canvas LMS Integration via LTI (Phase 999.4, BACKLOG — planned 2026-08-11)
 
@@ -381,12 +381,12 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | VIS-07 | Phase 06.1 | Pending |
 | VIS-08 | Phase 06.1 | Pending |
 | VIS-09 | Phase 06.1 | Pending |
-| GATE-01 | Phase 6.2 | Pending |
-| GATE-02 | Phase 6.2 | Pending |
-| GATE-03 | Phase 6.2 | Pending |
-| GATE-04 | Phase 6.2 | Pending |
-| GATE-05 | Phase 6.2 | Pending |
-| GATE-06 | Phase 6.2 | Pending |
+| GATE-01 | Phase 6.2 | Delivered |
+| GATE-02 | Phase 6.2 | Delivered |
+| GATE-03 | Phase 6.2 | Delivered |
+| GATE-04 | Phase 6.2 | Delivered |
+| GATE-05 | Phase 6.2 | Delivered |
+| GATE-06 | Phase 6.2 | Delivered |
 | LOOP-01 | Phase 9 | Pending |
 | LOOP-02 | Phase 9 | Pending |
 | LOOP-03 | Phase 9 | Pending |
@@ -431,13 +431,13 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | DEL-11 | Phase 13 | Complete |
 | DEL-12 | Phase 13 | Complete |
 | DEL-13 | Phase 13 | Complete |
-| AUDIO-01 | Phase 9.1 | Pending |
-| AUDIO-02 | Phase 9.1 | Pending |
-| AUDIO-03 | Phase 9.1 | Pending |
-| AUDIO-04 | Phase 9.1 | Pending |
-| AUDIO-05 | Phase 9.1 | Pending |
-| AUDIO-06 | Phase 9.1 | Pending |
-| AUDIO-07 | Phase 9.1 | Pending |
+| AUDIO-01 | Phase 9.1 | Complete |
+| AUDIO-02 | Phase 9.1 | Complete |
+| AUDIO-03 | Phase 9.1 | Complete |
+| AUDIO-04 | Phase 9.1 | Complete |
+| AUDIO-05 | Phase 9.1 | Complete |
+| AUDIO-06 | Phase 9.1 | Complete |
+| AUDIO-07 | Phase 9.1 | Complete |
 | LTI-01 | Phase 999.4 | Pending |
 | LTI-02 | Phase 999.4 | Pending |
 | LTI-03 | Phase 999.4 | Pending |

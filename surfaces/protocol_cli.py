@@ -25,8 +25,10 @@ CONTRACTS = (
     ("selection", "the one selection request every surface builds, recorded on the "
                   "session and in the evidence log"),
     ("session", "the resumable session file `start`/`next`/`submit`/`report` share"),
-    ("response", "one recorded evidence event, one line of `_evidence/evidence.jsonl`"),
-    ("report", "a session summary or an objective's response history"),
+    ("response", "one recorded evidence event, one line of `_evidence/evidence.jsonl` "
+                 "-- response, hint, and (Phase 10) explicit lesson completion"),
+    ("report", "a session summary, an objective's response history, or the Phase 10 "
+               "retention/trends report with its complete evidence claim"),
     ("lint_error", "one finding from `itembank lint --json`'s `errors`/`warnings` arrays"),
     ("agent_usage", "the permissions, disclosure, retry, and manual-grading contract "
                     "for model-facing agents"),

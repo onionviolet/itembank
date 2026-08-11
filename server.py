@@ -9,7 +9,7 @@ in one of them.
 Nothing here listens on an external interface unless a surface asks for it, and
 nothing leaves the machine.
 """
-import http.server, json, socketserver
+import http.server, json, socketserver, urllib.parse
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -21,6 +21,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def read_json(self):
         n = int(self.headers.get("Content-Length") or 0)
         return json.loads(self.rfile.read(n).decode("utf-8")) if n else {}
+
+    def read_form(self):
+        """A form-encoded POST body as {field: [values]} -- repeated keys
+        (multi-select checkboxes in a gate band) keep every value, exactly
+        like `urllib.parse.parse_qs`. Used by the gate band's
+        `<form method="post">` (06.2-UI-SPEC section 6.1: one form, two
+        named submit buttons, no JavaScript)."""
+        n = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(n).decode("utf-8") if n else ""
+        return urllib.parse.parse_qs(raw, keep_blank_values=True)
+
+    def send_redirect(self, location):
+        """A 303 See Other to `location` -- the post-redirect-get pattern
+        the gate routes use so a reload or a back-button press never
+        re-submits a check or a skip (06.2-UI-SPEC section 7.1)."""
+        self.send_response(303)
+        self.send_header("Location", location)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def send_bytes(self, body, content_type, status=200):
         self.send_response(status)

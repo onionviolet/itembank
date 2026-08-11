@@ -20,16 +20,21 @@ exactly the conditions it always has, with the same message text, because
 that is still correct for the CLI; containing it is the daemon's job
 (`surfaces/daemon.py`'s `/api/*` handlers), not this module's.
 """
-import datetime, json, os, sys
+import datetime, json, os, re, sys
 
 import evidence
+import retention
 import selection
 from model import lint, load
-from runtime import (REPORT_VERSION, SESSION_VERSION, normalize_answer, read_session,
+from runtime import (REPORT_VERSION, SESSION_VERSION, VISUAL_ACTIONS,
+                     VISUAL_PROTOCOL_VERSION, VISUAL_TOLERANCE_POLICY_VERSION,
+                     canonical_visual_response, normalize_answer, read_session,
                      reconcile_teaching_state, score_response, session_path,
                      session_summary, session_view, teaching_key,
                      teaching_transition, write_session, public_item,
-                     invoke_hint, invoke_rubric_review)
+                     invoke_hint, invoke_rubric_review,
+                     visual_observation as runtime_visual_observation,
+                     visual_state_in_domain)
 
 
 # Phase 6 renderer handoff (06-02, D-12): the only thing a served client may
@@ -37,6 +42,15 @@ from runtime import (REPORT_VERSION, SESSION_VERSION, normalize_answer, read_ses
 # identification string. It is validated here and discarded before policy,
 # persistence, evidence, response, or logs.
 RENDERER_META_MAX_BYTES = 256
+
+# Phase 10 (10-04, D-07/D-08): the exact locked UI copy for a cap block
+# (10-UI-SPEC.md "Cap block") and the explicit confirmation phrase the
+# one-sitting override requires. The override is a deliberate, audited,
+# sitting-scoped exception -- there is deliberately NO persistent "ignore
+# the cap" setting anywhere in the codebase.
+CAP_BLOCK_COPY = ("Today\u2019s {subject} cap is reached "
+                  "({count} of {cap} ordinary attempts).")
+OVERRIDE_CONFIRMATION = "start one additional sitting"
 
 
 def ms_since(ts):
@@ -93,7 +107,73 @@ def _load_history_and_settings(bank_path):
     return log, history, evidence_source, cooldown, decay, cfg
 
 
-def do_start(bank_path, spec, mode, out, force):
+def _retention_context(log, cfg):
+    """The Phase 10 selector context (10-03, D-01/D-02/D-12): derived from
+    ONE capture of the live append-only log -- the snapshot claim plus the
+    bounded normalized objective-weight map from `retention.py`. The previous
+    map that caps per-snapshot weight movement comes from the most recent
+    live selection event's own recorded weights, so there is no weight file
+    or mutable cache (D-02). `retention.py` chooses no items and writes no
+    evidence; this function only derives what the sole selector consumes.
+
+    The full snapshot is returned under `_snapshot` so the same capture
+    supplies the cap decision (10-04): start and the day surface never
+    capture twice for the same render. The local-day boundary is the
+    snapshot's own zone, UTC by default.
+    """
+    events = evidence.capture_events(log) if os.path.exists(log) else ()
+    snapshot = retention.capture(events, cfg=cfg)
+    previous = None
+    for ev in reversed(events):
+        if ev.get("event_type") != evidence.SELECTION_EVENT_TYPE:
+            continue
+        recorded = (ev.get("retention") or {}).get("objective_weights") or {}
+        prev = {}
+        for obj, entry in recorded.items():
+            if isinstance(entry, dict) and \
+                    isinstance(entry.get("weight"), (int, float)) and \
+                    not isinstance(entry.get("weight"), bool):
+                prev[obj] = entry["weight"]
+        if prev:
+            previous = prev
+        break
+    summaries = retention.objective_summaries(snapshot)
+    weights = retention.objective_weights(summaries, snapshot,
+                                          previous=previous)
+    return {"snapshot": snapshot["claim"], "_snapshot": snapshot,
+            "objective_weights": weights}
+
+
+def _derive_subject(spec):
+    """The server-side subject derivation for the daily cap (10-04,
+    T-10-14): the authoritative namespace is the selection spec's objective
+    (evidence.subject_of) -- the Phase 7 authored objective namespace. The
+    CLI's local `--subject` flag may name the same namespace but may never
+    override or contradict it; a client-forged subject is rejected. The key
+    is consumed here and never reaches `selection.select`, whose SPEC_FIELDS
+    allowlist refuses unknown authority fields.
+
+    The cap is a per-subject measurement, so an objective with NO namespace
+    yields an empty subject and therefore no cap gate and no binding --
+    the cap is opt-in per namespace (the linter already warns on
+    unnamespaced objectives). A CLI `--subject` on an unnamespaced bank
+    still names the gate, but unnamespaced responses never increment it.
+    """
+    subject = spec.pop("subject", None)
+    if not isinstance(subject, str) or not subject:
+        subject = None
+    objective = spec.get("objective") or ""
+    ns = evidence.subject_of(objective)
+    if ns:
+        if subject is not None and subject != ns:
+            sys.exit("subject %r does not match the objective namespace %r; "
+                     "the cap subject is derived from the objective, never "
+                     "accepted from a caller" % (subject, ns))
+        return ns
+    return subject or ""
+
+
+def do_start(bank_path, spec, mode, out, force, *, override_token=None):
     # The D-09 focus pin is a session-level concern, not a selection filter:
     # it rides inside the spec dict so the signature stays the same for every
     # caller, and it is consumed here before the spec reaches `select()`,
@@ -107,9 +187,85 @@ def do_start(bank_path, spec, mode, out, force):
     import uuid
     log, history, evidence_source, cooldown, decay, cfg = \
         _load_history_and_settings(bank_path)
+    # The cap subject is consumed from the raw spec BEFORE `expand_spec`
+    # validates it: `subject` is a session-level authority field, not a
+    # selection filter, so it is popped here and never reaches the selector
+    # (whose SPEC_FIELDS allowlist refuses it).
+    subject = _derive_subject(sel_spec)
+    # Client-forged authority fields are refused by name (T-10-14): the cap,
+    # the snapshot and any override marker are server-derived, never read
+    # from a spec.
+    for forged in ("cap", "snapshot_id", "override"):
+        if forged in sel_spec:
+            sys.exit("refusing %r in a start spec: the cap, snapshot and "
+                     "override are derived from captured evidence, never "
+                     "accepted from a caller" % forged)
     sel_spec = selection.expand_spec(cfg, sel_spec)
+    ctx = _retention_context(log, cfg)
+    snapshot = ctx["_snapshot"]
+    cap = cfg.get("daily_cap")
+    decision = retention.cap_decision(snapshot, subject=subject, cap=cap)
+
+    # The audited one-sitting override (D-08): BEFORE anything is written,
+    # the exact explicit confirmation phrase is required, the subject must
+    # actually be at cap, and the override event is appended through the ONE
+    # writer, bound to a freshly generated session id. A wrong token, a
+    # forged override, or a cancelled confirmation exits here and writes
+    # nothing -- there is no persistent cap-disable setting anywhere.
+    override = None
+    if override_token is not None:
+        if override_token != OVERRIDE_CONFIRMATION:
+            sys.exit("refusing override: the confirmation phrase must be "
+                     "exactly %r" % OVERRIDE_CONFIRMATION)
+        if not subject:
+            sys.exit("refusing override: a subject is required (pass "
+                     "--subject or a namespaced --objective)")
+        if not decision["blocked"]:
+            sys.exit("refusing override: %s is not at today's cap (%d of %s); "
+                     "no exception is needed" %
+                     (subject, decision["count"], decision["cap"]))
+        override_session_id = uuid.uuid4().hex
+        override_event = evidence.cap_override_event(
+            override_session_id, os.path.basename(bank_path), subject,
+            decision["local_day"], decision["zone"], decision["snapshot_id"],
+            decision["cap"], decision["count"])
+        appended = evidence.append_event(
+            evidence.log_path(
+                os.path.dirname(os.path.abspath(bank_path)) or "."),
+            override_event)
+        if appended["status"] != "recorded":
+            sys.exit("refusing override: the override event could not be "
+                     "recorded (%s)" % appended["status"])
+        override = {"event_id": override_event["event_id"],
+                    "session_id": override_session_id}
+        # The override authorizes exactly this generated session. Because
+        # the event is bound to it and every cap check counts only response
+        # events, the exception can never outlive the sitting nor reduce a
+        # later count (D-08).
+        cap_authorized = True
+    else:
+        cap_authorized = False
+
+    if decision["blocked"] and not cap_authorized:
+        sys.exit(CAP_BLOCK_COPY.format(subject=subject, count=decision["count"],
+                                       cap=decision["cap"]))
+    # Below cap, ordinary selection is limited to the remaining capacity:
+    # a sitting can never be binged past the cap by asking for more items
+    # than remain (D-07).
+    if not cap_authorized and decision["remaining"] is not None:
+        sel_spec["count"] = max(1, min(sel_spec.get("count",
+                                                    selection.DEFAULT_COUNT),
+                                       decision["remaining"]))
+    elif cap_authorized and cap is not None:
+        # A confirmed override is ONE additional sitting: it is still
+        # bounded to at most one cap's worth of items, so the exception can
+        # never become an unbounded binge either (D-07/D-08).
+        sel_spec["count"] = max(1, min(sel_spec.get("count",
+                                                    selection.DEFAULT_COUNT),
+                                       cap))
     items, trace = selection.select(
-        qs, sel_spec, history=history, cooldown=cooldown, decay=decay)
+        qs, sel_spec, history=history, cooldown=cooldown, decay=decay,
+        retention_context={k: v for k, v in ctx.items() if k != "_snapshot"})
     trace["evidence"] = {"log": log, "responses": len(history),
                          "source": evidence_source}
     index = {q["id"]: i for i, q in enumerate(qs)}
@@ -126,26 +282,58 @@ def do_start(bank_path, spec, mode, out, force):
             items = items[:sel_spec.get("count", selection.DEFAULT_COUNT)]
     out = out or os.path.join(os.path.dirname(os.path.abspath(bank_path)) or ".", "_attempts",
                               "session_%s.json" % uuid.uuid4().hex[:12])
-    data = {"schema_version": SESSION_VERSION, "session_id": uuid.uuid4().hex,
+    session_id = override["session_id"] if override else uuid.uuid4().hex
+    data = {"schema_version": SESSION_VERSION, "session_id": session_id,
             "bank": os.path.abspath(bank_path), "items": items, "cursor": 0,
             "responses": [], "status": "active", "mode": mode,
             "objective": sel_spec.get("objective") or "",
             "seed": sel_spec.get("seed", 0),
             "served_ts": evidence.utc_now(),
             "teaching_state": {},
-            "selection_mode": sel_spec.get("selection_mode", "practice")}
+            "selection_mode": sel_spec.get("selection_mode", "practice"),
+            # D-01 (10-03): the sitting's retention binding -- the one
+            # snapshot id every claim in this sitting references plus the
+            # public bounded normalized weight map the selector consumed.
+            # Weights only here; the full component trace lives in the
+            # selection evidence event, never duplicated as session authority.
+            "retention": {
+                "snapshot_id": ctx["snapshot"]["snapshot_id"],
+                "objective_weights": {
+                    obj: {"weight": entry["weight"]}
+                    for obj, entry in ctx["objective_weights"].items()},
+                # 10-04: the per-subject cap binding this sitting was
+                # authorized under -- server-derived numbers only, never a
+                # client value (T-10-14). `override_event_id` is null for an
+                # ordinary sitting and the audited event id for the one
+                # one-sitting exception.
+                "cap": {
+                    "subject": subject,
+                    "count": decision["count"],
+                    "cap": decision["cap"],
+                    "local_day": decision["local_day"],
+                    "zone": decision["zone"],
+                    "snapshot_id": decision["snapshot_id"],
+                    "override_event_id": (override or {}).get("event_id"),
+                }}}
     write_session(out, data)
     # D-03: one `selection` event per sitting, appended only after the
     # session file was written, through the one evidence writer -- a session
     # that failed to write leaves no orphan claim in the log, and the record
-    # of what was asked survives the session file being deleted.
+    # of what was asked survives the session file being deleted. The event
+    # carries the sitting's full retention evidence claim (snapshot id, the
+    # bounded weight map with named components, and the component trace).
     evidence.append_event(
         evidence.log_path(os.path.dirname(os.path.abspath(bank_path)) or "."),
         evidence.selection_event(
             data["session_id"], os.path.basename(bank_path), sel_spec,
-            [evidence.evidence_key(qs[i]) for i in items]))
+            [evidence.evidence_key(qs[i]) for i in items],
+            retention={
+                "snapshot_id": ctx["snapshot"]["snapshot_id"],
+                "objective_weights": ctx["objective_weights"],
+                "trace": trace.get("retention")}))
     result = session_view(data, qs)
     result["session_file"] = session_path(out)
+    result["cap"] = data["retention"]["cap"]
     result["trace"] = trace
     return result
 
@@ -163,8 +351,10 @@ def do_select(bank_path, spec, force):
     log, history, evidence_source, cooldown, decay, cfg = \
         _load_history_and_settings(bank_path)
     spec = selection.expand_spec(cfg, spec)
+    ctx = _retention_context(log, cfg)
     items, trace = selection.select(
-        qs, spec, history=history, cooldown=cooldown, decay=decay)
+        qs, spec, history=history, cooldown=cooldown, decay=decay,
+        retention_context={k: v for k, v in ctx.items() if k != "_snapshot"})
     trace["evidence"] = {"log": log, "responses": len(history),
                          "source": evidence_source}
     return {"schema_version": 1, "bank": os.path.basename(bank_path),
@@ -176,7 +366,8 @@ def do_select(bank_path, spec, force):
 def cmd_start(a):
     spec = {}
     for key in ("objective", "prerequisite", "type", "difficulty",
-                "selection_mode", "seed", "count", "pair", "profile"):
+                "selection_mode", "seed", "count", "pair", "profile",
+                "subject"):
         value = getattr(a, key, None)
         if value is not None:
             spec[key] = value
@@ -184,7 +375,29 @@ def cmd_start(a):
         spec["prereq_satisfied"] = True
     if getattr(a, "exclude", None):
         spec["exclude_item_ids"] = list(a.exclude)
-    result = do_start(a.bank, spec, a.mode, a.out, a.force)
+    override_token = getattr(a, "override_cap", None) or None
+    result = do_start(a.bank, spec, a.mode, a.out, a.force,
+                      override_token=override_token)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_override(a):
+    """The CLI twin of POST /api/override (10-04): the same
+    `do_start(..., override_token=...)` runtime call the route serves, so the
+    command and the route can never disagree about what a confirmed
+    one-sitting override is. The exact confirmation phrase is mandatory; a
+    wrong or missing one is rejected and writes nothing."""
+    spec = {}
+    for key in ("objective", "type", "difficulty", "selection_mode", "seed",
+                "count", "pair", "profile", "subject"):
+        value = getattr(a, key, None)
+        if value is not None:
+            spec[key] = value
+    if getattr(a, "prereq_satisfied", None):
+        spec["prereq_satisfied"] = True
+    result = do_start(a.bank, spec, a.mode, a.out, a.force,
+                      override_token=a.confirm)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
@@ -212,6 +425,138 @@ def do_submit(session_file, answer, confidence):
     submit action over the one session adapter."""
     return do_action(session_file, {"kind": "submit", "answer": answer},
                      confidence=confidence)
+
+
+ACTION_ID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+
+
+def do_interact(session_file, action):
+    """The ONE interaction mutation path for a visual item (plan 06.1-02
+    Task 3, D-04/D-05): commit one semantic state-changing action and append
+    exactly one `visual_action` evidence event.
+
+    `action` is the exact five-field request `{"interaction_version",
+    "action_id", "action_type", "state"}` (the session is resolved
+    server-side from `session_file`). Everything else -- item identity,
+    before-state, observation fields, and Phase-6 hint entitlement -- is
+    derived here or by the runtime, never accepted from the client. Final
+    submit remains the ordinary response event and is never duplicated as a
+    visual action.
+
+    Returns {"status": "recorded"|"already_recorded"|"conflict"|"refused",
+    ...} -- a duplicate action id/action/state replays with
+    `already_recorded`, reusing an action id with different action/state is a
+    `conflict`, and nonvisual sessions, stale versions, unknown actions,
+    malformed/out-of-domain state, and completed sessions are named refusals.
+    """
+    data = read_session(session_file)
+    if data["status"] != "active":
+        sys.exit("session is already complete")
+    qs = load(data["bank"])
+    if data["cursor"] >= len(data["items"]):
+        data["status"] = "complete"
+        write_session(session_file, data)
+        sys.exit("session is already complete")
+    q = qs[data["items"][data["cursor"]]]
+    if q["type"] != "visual":
+        sys.exit("current item is not a visual item; interact applies only "
+                 "to visual assessments")
+
+    if not isinstance(action, dict):
+        sys.exit("interact action must be an object")
+    # The five-field request (D-05); anything else is refused by name.
+    allowed = {"interaction_version", "action_id", "action_type", "state"}
+    unknown = set(action) - allowed
+    if unknown:
+        sys.exit("interact carries unknown field(s): %s"
+                 % ", ".join(sorted(unknown)))
+    interaction_version = action.get("interaction_version")
+    action_id = action.get("action_id")
+    action_type = action.get("action_type")
+    state = action.get("state")
+    if interaction_version != VISUAL_PROTOCOL_VERSION:
+        sys.exit("interaction_version %r is not the current visual protocol "
+                 "version %d" % (interaction_version, VISUAL_PROTOCOL_VERSION))
+    if not isinstance(action_id, str) or not ACTION_ID_RE.match(action_id):
+        sys.exit("action_id must be a lowercase canonical UUID-v4 string")
+    if action_type not in VISUAL_ACTIONS:
+        sys.exit("unknown action_type %r (protocol %d supports %s)"
+                 % (action_type, VISUAL_PROTOCOL_VERSION,
+                    ", ".join(VISUAL_ACTIONS)))
+
+    # The committed semantic state is canonicalized and validated by the
+    # runtime grammar -- never trusted raw (T-06.1-06).
+    after_state = canonical_visual_response(q, state)
+    if after_state is None:
+        sys.exit("state is not a valid canonical semantic response for this "
+                 "item")
+    if not visual_state_in_domain(q, after_state):
+        sys.exit("state is outside the authored domain")
+    before_state = None
+    log = evidence.log_path(os.path.dirname(data["bank"]))
+    item_key = evidence.evidence_key(q)
+    trail = evidence.visual_actions(log, data["session_id"], item_id=item_key)
+    if trail:
+        before_state = trail[-1].get("after_state")
+
+    # Phase-6 hint entitlement: the highest tier already permitted for this
+    # item's teaching state -- never raised by the client (D-06).
+    live = [ev for ev in evidence.live_events(log)
+            if ev.get("session_id") == data["session_id"]
+            and evidence.evidence_key({"item_id": ev.get("item_id", ""),
+                                       "id": ev.get("item_ref", "")}) == item_key]
+    rec = reconcile_teaching_state(data, q, {item_key: live}) \
+        .get("teaching_state", {}).get(item_key)
+    hint_tier = rec["highest_tier_shown"] if rec \
+        and rec["highest_tier_shown"] >= 0 else None
+
+    verdict = None
+    observation = runtime_visual_observation(
+        q, after_state, verdict, hint_tier=hint_tier)
+
+    event = evidence.visual_action_event(
+        data["session_id"], q, VISUAL_PROTOCOL_VERSION, action_id, action_type,
+        before_state, after_state, observation["error_category"],
+        observation["invariants"], observation["feedback_anchor"], hint_tier,
+        os.path.basename(data["bank"]), mode=data.get("mode"))
+    written = evidence.append_event(log, event)
+    if written["status"] == "already_recorded":
+        # Same dedupe identity (session, item, version, action id). Whether
+        # this is a benign replay or an id conflict is decided by comparing
+        # the stored event's action/state with the request.
+        existing = next((ev for ev in evidence.visual_actions(
+            log, data["session_id"], item_id=item_key)
+            if ev.get("action_id") == action_id), None)
+        if existing is not None and (
+                existing.get("action_type") != action_type
+                or existing.get("after_state") != after_state):
+            return {"status": "conflict", "item_id": q["id"],
+                    "action_id": action_id,
+                    "reason": "action id reused with different action/state",
+                    "evidence": written}
+        return {"status": "already_recorded", "item_id": q["id"],
+                "action_id": action_id,
+                "observation": _action_observation(existing or event),
+                "evidence": written}
+    return {"status": "recorded", "item_id": q["id"], "action_id": action_id,
+            "action_type": action_type, "before_state": before_state,
+            "after_state": after_state, "observation": observation,
+            "hint_tier": hint_tier, "evidence": written}
+
+
+def _action_observation(event):
+    """The bounded observation projection for a replayed action event: the
+    same fields a fresh commit returns, read back from evidence -- never
+    recomputed or client-supplied."""
+    return {
+        "submitted": event.get("after_state"),
+        "error_category": event.get("error_category"),
+        "invariants": event.get("invariants") or [],
+        "feedback_anchor": event.get("feedback_anchor"),
+        "hint_tier": event.get("hint_tier"),
+        "tolerance_policy_version": VISUAL_TOLERANCE_POLICY_VERSION,
+    }
 
 
 def do_hint(session_file, retry=False, stumped=None):
@@ -288,6 +633,39 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
         answer = normalize_answer(action.get("answer"))
         score = score_response(q, answer)
         canon = evidence.idempotency_canon(q, answer)
+        # 10-04 cap recheck (D-07/D-08): before a GENUINE new response is
+        # appended, the live local-day count for the sitting's bound subject
+        # is re-captured from the log. A replay of the same canonical answer
+        # is not a new ordinary attempt (it would dedupe to
+        # already_recorded), so it is never blocked and never double-counts;
+        # a genuinely different answer beyond the cap is blocked with the
+        # exact locked copy. This is what makes a long sitting unable to run
+        # past the cap and a crash-retry unable to double-count (T-10-14).
+        cap_binding = (data.get("retention") or {}).get("cap") or {}
+        bound_subject = cap_binding.get("subject") or ""
+        if bound_subject and data["status"] == "active":
+            # A replay of the SAME canonical answer is not a new ordinary
+            # attempt (it would dedupe to already_recorded), so it is never
+            # blocked and never double-counts. Any live canonical for this
+            # item counts -- not just the last event, because a hint event
+            # or an interleaved answer can sit after the response in the
+            # session's live stream.
+            is_replay = any(ev.get("canonical") == canon for ev in live)
+            if not is_replay:
+                live_now = evidence.capture_events(
+                    log) if os.path.exists(log) else ()
+                snap = retention.capture(live_now, cfg={})
+                cap_check = retention.cap_decision(
+                    snap, subject=bound_subject,
+                    cap=cap_binding.get("cap"))
+                override_active = any(
+                    ev.get("event_type") == evidence.CAP_OVERRIDE_EVENT_TYPE
+                    and ev.get("session_id") == data["session_id"]
+                    for ev in live_now)
+                if cap_check["blocked"] and not override_active:
+                    sys.exit(CAP_BLOCK_COPY.format(
+                        subject=bound_subject, count=cap_check["count"],
+                        cap=cap_check["cap"]))
         # The attempt number comes from the live evidence rule
         # (evidence.attempt_number): a replay of the SAME canonical response
         # reproduces the original attempt number -- so append_event dedupes
@@ -386,6 +764,22 @@ def do_rubric_review(session_file):
 
 def cmd_rubric_review(a):
     result = do_rubric_review(a.session)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_interact(a):
+    """The CLI twin of POST /api/interact: parse `--action JSON` and call the
+    same `do_interact` body the route calls, printing the same JSON shape."""
+    try:
+        action = json.loads(a.action)
+    except (TypeError, ValueError) as exc:
+        sys.exit("--action must be a JSON object: %s" % exc)
+    if not isinstance(action, dict):
+        sys.exit("--action must be a JSON object")
+    result = do_interact(a.session, action)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 

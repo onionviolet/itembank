@@ -486,10 +486,11 @@ def check_quiz_script_safety():
         _, served = page_for(bank, qs, serve=True, post_path="/quiz/x/answer",
                              lesson_base="", lesson_slugs=set(),
                              bank_stem="hostile_bank", mode="practice")
-    # The shared template carries both script slots (offline + served); the
-    # inactive slot is emptied, so the benign baseline is exactly two tags.
+    # The shared template carries three script slots (offline + served +
+    # assist); the inactive slots are emptied, so the benign baseline is
+    # exactly three tags.
     for label, page in (("offline", offline), ("served", served)):
-        if page.count("<script") != 2 or page.count("</script>") != 2:
+        if page.count("<script") != 3 or page.count("</script>") != 3:
             fail("%s quiz page gained or lost a script element from hostile "
                  "bank text (<script count %d, </script> count %d)"
                  % (label, page.count("<script"), page.count("</script>")))
