@@ -9,8 +9,8 @@ import collections, html, os, sys, uuid
 
 import evidence
 from model import grab, lint, load, parse_lesson
-import runner
 from runtime import INTERACTION_VERSION, page_item, score_response
+from surfaces.session import run_check_source
 from surfaces import presentation, settings
 from surfaces.quiz_page import OFFLINE_JS, SERVED_JS, TEMPLATE
 from surfaces.theme import THEME_CSS, theme_css
@@ -109,11 +109,8 @@ def record_answer(bank_path, qs, session_id, log, out_path, mode, q, response, e
     check_source = None
     if q["type"] == "check":
         check_source = response
-        run_result = runner.run_cases(
-            q, response, timeout_seconds=runner.DEFAULT_TIMEOUT_SECONDS,
-            max_output_bytes=runner.DEFAULT_MAX_OUTPUT_BYTES)
-        answer = ",".join("1" if c["passed"] else "0" for c in run_result)
-        score = score_response(q, run_result)
+        base = os.path.dirname(os.path.abspath(bank_path)) or "."
+        run_result, answer, score = run_check_source(q, response, base)
     else:
         answer = response
         score = score_response(q, response)

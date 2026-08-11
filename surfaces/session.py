@@ -26,6 +26,7 @@ import evidence
 import selection
 from model import lint, load
 import runner
+from surfaces import settings
 from runtime import (INTERACTION_VERSION, REPORT_VERSION, SESSION_VERSION,
                      explain_payload, interaction_result, normalize_answer,
                      read_session, reconcile_teaching_state, score_response,
@@ -208,6 +209,39 @@ def cmd_next(a):
     return 0
 
 
+UNKNOWN_LANGUAGE_COPY = (
+    "This item requests the '%s' language, which isn't enabled in this "
+    "itembank's settings (check.languages). Add it in settings, or ask "
+    "whoever set up this bank to fix its [LANG:] value.")
+
+
+def run_check_source(q, source, base):
+    """The one shared runner gate for a [TYPE: check] item (plan 05-03 Task 2,
+    D-14): execute the submitted source once per authored case with
+    settings-derived bounds, reduce the per-case pass flags to a results
+    vector, and score that vector through runtime.score_response -- the one
+    scorer. Returns (run_result, vector, score).
+
+    Shared by the browser route (surfaces/quiz.py:record_answer) and this
+    module's do_action, so both submit paths reach the scorer through exactly
+    one implementation rather than two copies of the gate. The bounds come
+    from settings (check.timeout_seconds / max_output_bytes / languages),
+    loaded only because callers reach this only for a check item.
+    """
+    cfg = settings.load_settings(base)
+    check = cfg.get("check") or {}
+    run_result = runner.run_cases(
+        q, source,
+        timeout_seconds=check.get("timeout_seconds",
+                                  runner.DEFAULT_TIMEOUT_SECONDS),
+        max_output_bytes=check.get("max_output_bytes",
+                                   runner.DEFAULT_MAX_OUTPUT_BYTES),
+        languages=check.get("languages"))
+    vector = ",".join("1" if c["passed"] else "0" for c in run_result)
+    score = score_response(q, run_result)
+    return run_result, vector, score
+
+
 def do_submit(session_file, answer, confidence):
     """Compatibility wrapper: the CLI/legacy submit path becomes a Phase 6
     submit action over the one session adapter."""
@@ -274,14 +308,18 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
     # is kept for the evidence event and the normalized result.
     run_result = None
     check_source = None
+    check_vector = None
+    check_score = None
     if q["type"] == "check":
         source = normalize_answer(action.get("answer"))
         if not isinstance(source, str):
             sys.exit("a check item requires source text as its answer")
         check_source = source
-        run_result = runner.run_cases(
-            q, source, timeout_seconds=runner.DEFAULT_TIMEOUT_SECONDS,
-            max_output_bytes=runner.DEFAULT_MAX_OUTPUT_BYTES)
+        try:
+            run_result, check_vector, check_score = run_check_source(
+                q, source, os.path.dirname(os.path.abspath(data["bank"])))
+        except runner.UnknownLanguage:
+            sys.exit(UNKNOWN_LANGUAGE_COPY % (q.get("lang") or "python"))
         action = dict(action, answer=run_result)
 
     result = teaching_transition(data, q, action)
@@ -291,17 +329,14 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
     recorded_event = None
 
     if action.get("kind") == "submit":
-        answer = normalize_answer(action.get("answer"))
-        score = score_response(q, answer)
         if q["type"] == "check":
-            # The evidence record's answer and canonical are the results
-            # vector; the scorer saw the full per-case list so a timed-out
-            # run scores None, and dedupe compares the vector exactly as it
-            # does for every other type (D-13).
-            vector = ",".join("1" if c["passed"] else "0" for c in answer)
+            score = check_score
+            vector = check_vector
             canon = evidence.idempotency_canon(q, vector)
             event_answer = vector
         else:
+            answer = normalize_answer(action.get("answer"))
+            score = score_response(q, answer)
             canon = evidence.idempotency_canon(q, answer)
             event_answer = answer
         killed = bool(run_result) and any(c.get("timed_out") for c in run_result)
