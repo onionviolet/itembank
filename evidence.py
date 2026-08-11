@@ -364,7 +364,9 @@ def dedupe_key(session_id, item_key, attempt_num, canon):
 
 def response_event(session_id, q, answer, score, mode, attempt_num, bank,
                     response_time_ms=None, confidence=None, source_ref=None,
-                    hint_tier=None, selection_mode=None):
+                    hint_tier=None, selection_mode=None, *,
+                    check_source=None, interaction_version=None,
+                    error_category=None):
     """Build one full response event dict. Every key named in this plan's
     must_haves is present on every event — reserved fields carry an explicit
     `None`, never an absent key, so a consumer can tell "not captured" from
@@ -403,7 +405,9 @@ def response_event(session_id, q, answer, score, mode, attempt_num, bank,
         "score": score,
         "response_time_ms": response_time_ms,
         "confidence": confidence,
-        "error_category": None,   # no error taxonomy exists before Phase 8
+        "error_category": error_category,   # "timeout" for a check run the deadline killed; no other taxonomy exists before Phase 8
+        "check_source": check_source,   # the learner's submitted source verbatim for a `check` item, null otherwise (05-01)
+        "interaction_version": interaction_version,   # the public interaction-contract version that served a `check` item, null otherwise (05-01)
         "hint_tier": hint_tier,   # integer-or-null since Phase 6 (D-15)
         "selection_mode": selection_mode,   # the composition that served this item (07-04)
         "review_state": "pending" if q["type"] == "short" else "n/a",

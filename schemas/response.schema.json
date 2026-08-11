@@ -16,17 +16,39 @@
       "$ref": "#/$defs/other_event"
     }
   ],
-  "required": ["schema_version"],
+  "required": [
+    "schema_version"
+  ],
   "$defs": {
     "response_event": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "schema_version", "event_id", "event_type", "ts", "session_id", "item_id",
-        "item_ref", "item_type", "bank", "objective", "subject", "mode",
-        "attempt_number", "answer", "canonical", "score", "response_time_ms",
-        "confidence", "error_category", "hint_tier", "selection_mode",
-        "review_state", "dedupe_key",
+        "schema_version",
+        "event_id",
+        "event_type",
+        "ts",
+        "session_id",
+        "item_id",
+        "item_ref",
+        "item_type",
+        "bank",
+        "objective",
+        "subject",
+        "mode",
+        "attempt_number",
+        "answer",
+        "canonical",
+        "score",
+        "response_time_ms",
+        "confidence",
+        "error_category",
+        "hint_tier",
+        "selection_mode",
+        "check_source",
+        "interaction_version",
+        "review_state",
+        "dedupe_key",
         "source_ref"
       ],
       "properties": {
@@ -59,7 +81,15 @@
         },
         "item_type": {
           "type": "string",
-          "enum": ["mc", "multi", "table", "dnd", "build", "short"]
+          "enum": [
+            "mc",
+            "multi",
+            "table",
+            "dnd",
+            "build",
+            "short",
+            "check"
+          ]
         },
         "bank": {
           "type": "string",
@@ -74,7 +104,14 @@
         },
         "mode": {
           "type": "string",
-          "enum": ["diagnostic", "practice", "exam", "remediation", "drill", "legacy"],
+          "enum": [
+            "diagnostic",
+            "practice",
+            "exam",
+            "remediation",
+            "drill",
+            "legacy"
+          ],
           "description": "Captured live on every surface; this is what makes a drill-mode correct distinguishable from an exam-mode correct. 'legacy' is written only by itembank migrate (plan 01-11), for an imported record whose source (an attempt markdown file, which never recorded a mode) carries no mode of its own."
         },
         "attempt_number": {
@@ -89,33 +126,60 @@
           "description": "evidence.idempotency_canon()'s output: runtime.canonical_response() when it returns one, or 'short:' + sha256 of the whitespace-collapsed, lowercased answer text when canonical_response() returns null (a short item has no canonical form of its own). This is the same value fed into dedupe_key, so the two can never compare against different things (D-17, plan 01-07); never null."
         },
         "score": {
-          "type": ["boolean", "null"],
+          "type": [
+            "boolean",
+            "null"
+          ],
           "description": "true, false, or null for a constructed response not yet marked -- not-yet-marked and marked-wrong are different states"
         },
         "response_time_ms": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "description": "Captured live; milliseconds between the item being served and the response being submitted; null only when the session carries no served_ts."
         },
         "confidence": {
-          "type": ["string", "null"],
-          "enum": ["high", "medium", "low", null],
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            null
+          ],
           "description": "Captured live where the surface offers it (submit --confidence); null when the learner did not say, which is different from low confidence."
         },
         "error_category": {
-          "type": "null",
-          "description": "Reserved, always null in this phase. No error taxonomy exists; it depends on the tutoring work in Phase 8. A guessed category would be recorded as fact and read as fact by later trend work, so it is recorded as unknown instead."
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Reserved and null for every existing path. A check run the deadline killed records \"timeout\" (plan 05-01): a timeout is not a verdict, so the score is null and the response stays pending rather than wrong (criterion 12)."
         },
         "hint_tier": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "description": "The highest tier actually shown at submission time (D-15, Phase 6). Null means no tier was shown -- a different fact from 'tier 0 was shown', which records 0; conflating them is unrecoverable once written. Version-1 events wrote null always."
         },
         "selection_mode": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "The selection composition that served this item (plan 07-04); `mode` names the feedback policy that governed what was shown. Null when the event predates phase 7."
         },
         "review_state": {
           "type": "string",
-          "enum": ["n/a", "pending", "marked"],
+          "enum": [
+            "n/a",
+            "pending",
+            "marked"
+          ],
           "description": "'n/a' for an auto-scored item, 'pending' for a constructed response awaiting a marker, 'marked' once a mark event lands."
         },
         "dedupe_key": {
@@ -123,12 +187,18 @@
           "description": "A sha256 hex digest identifying one attempt at one item in one session"
         },
         "source_ref": {
-          "type": ["object", "null"],
+          "type": [
+            "object",
+            "null"
+          ],
           "description": "Null for a live-path response event. For an event imported by itembank migrate (plan 01-11), an object naming where the record came from and how its item_id was resolved -- never a guess left unstated (D-14).",
           "properties": {
             "kind": {
               "type": "string",
-              "enum": ["attempt_md", "session_json"],
+              "enum": [
+                "attempt_md",
+                "session_json"
+              ],
               "description": "Which legacy store this record came from"
             },
             "path": {
@@ -141,10 +211,27 @@
             },
             "resolution": {
               "type": "string",
-              "enum": ["unresolved", "position"],
+              "enum": [
+                "unresolved",
+                "position"
+              ],
               "description": "'unresolved' by default (item_id is empty string); 'position' only when --resolve-by-position matched this record's positional reference against today's bank by current item number"
             }
           }
+        },
+        "check_source": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The learner's submitted source verbatim for a check item, null for every other type (plan 05-01): the scored vector stays in answer/canonical, and this reserved field is what a later reader (the tutoring model, a human marker) reads to see what was written (D-13)."
+        },
+        "interaction_version": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "The public interaction-contract version that served a check item (runtime.INTERACTION_VERSION), null for every other type (plan 05-01). The public item, the normalized interaction_result and the evidence event all carry the same value."
         }
       }
     },
@@ -152,10 +239,25 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "schema_version", "event_id", "event_type", "ts", "session_id",
-        "item_id", "item_ref", "item_type", "bank", "mode", "attempt_number",
-        "response_event_id", "response_canonical", "tier_index", "tier_name",
-        "available", "source", "unlock_path", "dedupe_key"
+        "schema_version",
+        "event_id",
+        "event_type",
+        "ts",
+        "session_id",
+        "item_id",
+        "item_ref",
+        "item_type",
+        "bank",
+        "mode",
+        "attempt_number",
+        "response_event_id",
+        "response_canonical",
+        "tier_index",
+        "tier_name",
+        "available",
+        "source",
+        "unlock_path",
+        "dedupe_key"
       ],
       "properties": {
         "schema_version": {
@@ -183,16 +285,28 @@
           "type": "string"
         },
         "bank": {
-          "type": ["string", "null"]
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "mode": {
-          "type": ["string", "null"]
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "attempt_number": {
-          "type": ["integer", "null"]
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "response_event_id": {
-          "type": ["string", "null"]
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "response_canonical": {
           "type": "string"
@@ -214,7 +328,10 @@
         },
         "unlock_path": {
           "type": "string",
-          "enum": ["attempt", "stumped"]
+          "enum": [
+            "attempt",
+            "stumped"
+          ]
         },
         "dedupe_key": {
           "type": "string"
@@ -223,7 +340,11 @@
     },
     "other_event": {
       "type": "object",
-      "required": ["schema_version", "event_id", "event_type"],
+      "required": [
+        "schema_version",
+        "event_id",
+        "event_type"
+      ],
       "properties": {
         "schema_version": {
           "type": "integer"
@@ -233,8 +354,14 @@
         },
         "event_type": {
           "type": "string",
-          "enum": ["mark", "retraction", "day_tick", "term_lookup",
-                   "key_review", "selection"]
+          "enum": [
+            "mark",
+            "retraction",
+            "day_tick",
+            "term_lookup",
+            "key_review",
+            "selection"
+          ]
         }
       }
     },
@@ -337,7 +464,10 @@
         },
         "source": {
           "type": "string",
-          "enum": ["reader", "session"]
+          "enum": [
+            "reader",
+            "session"
+          ]
         },
         "actor": {
           "type": "string"
