@@ -641,12 +641,14 @@ def main():
                    help="the learner's self-rated confidence in this response, optional")
     s.set_defaults(fn=cmd_submit)
 
-    s = sub.add_parser("hint", help="reveal the next fixed authored tier in a JSON "
-                                    "assessment session")
-    s.add_argument("session")
-    s.add_argument("--stumped", action="store_true",
-                   help="unlock and show the next tier via the stumped path "
-                        "(no performative wrong submission)")
+    s = sub.add_parser("hint", help="request one error-specific hint from the "
+                                    "model backend; falls back to the authored "
+                                    "tier offline and never accepts a caller-"
+                                    "supplied tier (D-09)")
+    s.add_argument("--session", required=True, help="the session JSON path")
+    s.add_argument("--retry", action="store_true",
+                   help="explicitly regenerate as a parent-linked retry; at "
+                        "most one generation per interaction id otherwise (D-12)")
     s.set_defaults(fn=cmd_hint)
 
     s = sub.add_parser("report", help="summarize a JSON assessment session")

@@ -28,7 +28,8 @@ from model import lint, load
 from runtime import (REPORT_VERSION, SESSION_VERSION, normalize_answer, read_session,
                      reconcile_teaching_state, score_response, session_path,
                      session_summary, session_view, teaching_key,
-                     teaching_transition, write_session, public_item)
+                     teaching_transition, write_session, public_item,
+                     invoke_hint)
 
 
 # Phase 6 renderer handoff (06-02, D-12): the only thing a served client may
@@ -213,10 +214,21 @@ def do_submit(session_file, answer, confidence):
                      confidence=confidence)
 
 
-def do_hint(session_file, stumped=False):
-    """The explicit hint action: reveal exactly one fixed tier, appending a
-    hint event when a tier is actually shown (D-05/D-07/D-16)."""
-    return do_action(session_file, {"kind": "stumped" if stumped else "hint"})
+def do_hint(session_file, retry=False, stumped=None):
+    """Request one error-specific hint through the runtime orchestration
+    (plan 08-04): `runtime.invoke_hint` sequences adapter -> gate -> evidence
+    -> authored fallback, so the surface never touches a tier, profile, key,
+    or marker.
+
+    `stumped` is the daemon's legacy keyword: the daemon's Phase 6
+    `/api/hint` still calls this function with `stumped` (True/False), and
+    until plan 08-05 rewires that route those calls must keep revealing the
+    next fixed authored tier through `do_action` -- the sentinel value None
+    (the CLI path) selects the model orchestration, a real bool selects the
+    Phase 6 reveal. The quiz page's "I'm stumped" control depends on this."""
+    if stumped is not None:
+        return do_action(session_file, {"kind": "stumped" if stumped else "hint"})
+    return invoke_hint(session_file, retry=retry)
 
 
 def _validate_renderer_meta(renderer_meta):
@@ -359,7 +371,7 @@ def cmd_submit(a):
 
 
 def cmd_hint(a):
-    result = do_hint(a.session, stumped=bool(a.stumped))
+    result = do_hint(a.session, retry=bool(a.retry))
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 

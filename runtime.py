@@ -9,7 +9,7 @@ It also draws the line the whole tool rests on: `public_item` is what a learner
 may see before answering and `explain_payload` is what they may see after. A
 surface that wants more than the first one has to ask.
 """
-import collections, json, os, sys
+import collections, hashlib, json, os, sys
 
 
 # ---- agent assessment runtime ----------------------------------------------
@@ -675,3 +675,231 @@ def _advance_cursor(session):
     if cursor >= len(session["items"]):
         status = "complete"
     return cursor, status
+
+
+# ---- phase 8: model-orchestrated hint and rubric review (08-04) ------------
+# D-08..D-14: the runtime, not the surface, sequences adapter -> gate ->
+# evidence -> authored fallback. These helpers never accept a caller-supplied
+# tier, profile, key, or marker, and the learner-facing payloads they return
+# never carry a reason code (D-08) -- the gate reason is evidence-only
+# (T-08-32).
+
+def _interaction_fingerprint(value):
+    """One stable descriptor fingerprint for a request/response structure
+    (D-15): a SHA-256 over the canonical JSON. Raw text never enters an
+    event, only this digest."""
+    raw = json.dumps(value, ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _new_interaction_id():
+    """One fresh interaction id: uuid4 hex (plan 08-04, D-12)."""
+    import uuid
+    return uuid.uuid4().hex
+
+
+def _last_response_was_wrong(live_responses_for_item):
+    """True when the most recent live response event for the current item was
+    deterministically scored False. A pending (short) response, a correct
+    response, or no response at all is never a genuine wrong response
+    (D-10)."""
+    if not live_responses_for_item:
+        return False
+    return live_responses_for_item[-1].get("score") is False
+
+
+def _hint_item_context(q):
+    """The item fields the runtime permits a provider to see for hint
+    generation (never the key or the model answer): enough context to target
+    the learner's error, nothing that outranks the permitted tier."""
+    out = {"id": q.get("id"), "type": q.get("type"), "stem": q.get("stem", ""),
+           "difficulty": q.get("difficulty", "")}
+    if q.get("type") in ("mc", "multi"):
+        out["options"] = dict(q.get("opts") or {})
+    return out
+
+
+def _serializable_manifest(manifest):
+    """The tier-gate fact manifest as a JSON-safe structure (sets become
+    sorted lists), suitable for an adapter request payload and a stable
+    request fingerprint. Facts keep their stable ids and text; nothing is
+    added or dropped."""
+    if manifest is None:
+        return None
+    return {
+        "tier": manifest.get("tier"),
+        "wrong_response": manifest.get("wrong_response"),
+        "span": manifest.get("span"),
+        "picked_option": manifest.get("picked_option"),
+        "facts": manifest.get("facts") or {},
+        "allowed_ids": sorted(manifest.get("allowed_ids") or []),
+        "protected_ids": sorted(manifest.get("protected_ids") or []),
+        "ambiguous_ids": sorted(manifest.get("ambiguous_ids") or []),
+        "protected_fragments": manifest.get("protected_fragments") or [],
+    }
+
+
+def _backend_descriptors(adapter_result):
+    """(backend_class, profile) for the evidence event: prefer the adapter's
+    own provider audit metadata (D-17); when no profile resolved (a disabled
+    backend), record the design-target hosted class with an empty profile --
+    D-18 names the hosted CLI as the default backend class."""
+    provider = adapter_result.get("provider")
+    if provider:
+        return (provider.get("backend_class") or "hosted",
+                provider.get("profile") or "")
+    return "hosted", ""
+
+
+def hint_context(session_data, q):
+    """Resolve the Phase 6 teaching record for the current item into the
+    context a model hint generation needs (D-03/D-10).
+
+    Returns {"item", "tier", "wrong_response", "picked_option", "mode"} or
+    None when no genuine wrong response exists -- nothing to target, so no
+    generation may be attempted. `tier` is the Phase 6 permitted tier (the
+    highest the learner has unlocked; a grant, never a model choice, D-09).
+    A constructed (short) response is pending review, never wrong (T-06-05),
+    so it is not a valid hint context.
+    """
+    state = session_data.get("teaching_state")
+    if not isinstance(state, dict):
+        return None
+    rec = state.get(teaching_key(q))
+    if not isinstance(rec, dict):
+        return None
+    wrong = rec.get("last_genuine_canonical")
+    if not wrong:
+        return None
+    if q.get("type") == "short":
+        return None
+    tier = rec.get("highest_tier_unlocked", -1)
+    picked = None
+    if q.get("type") in ("mc", "multi"):
+        picked = str(wrong).split(",")[0].strip().upper()
+    return {"item": q, "tier": tier, "wrong_response": wrong,
+            "picked_option": picked,
+            "mode": session_data.get("mode", "")}
+
+
+def invoke_hint(session_file, retry=False):
+    """The ONE orchestration path for an error-specific hint (plan 08-04).
+
+    Sequences: resolve session and current item -> hint_context -> mint or
+    reuse the interaction id (at most one generation per id, D-12) ->
+    model_adapter.request_from_operation(operation hint) ->
+    model_adapter.invoke with surfaces.settings.load_settings -> validate
+    the result -> tier_gate.evaluate_candidate on any candidate ->
+    learner_payload on pass, or the authored fallback via
+    authored_hint(q, tier) on drop/unavailable (D-08/D-11) -> append one
+    evidence.model_interaction_event (evidence-only, D-15) -> return the
+    typed {"status", "generated", "authored", "interaction_id", "evidence"}
+    payload that never carries a reason code (D-08).
+    """
+    import evidence
+    import model
+    import model_adapter
+    import tier_gate
+    from surfaces import settings as _settings
+
+    data = read_session(session_file)
+    if data["status"] != "active":
+        sys.exit("session is already complete")
+    qs = model.load(data["bank"])
+    if data["cursor"] >= len(data["items"]):
+        data["status"] = "complete"
+        write_session(session_file, data)
+        sys.exit("session is already complete")
+    q = qs[data["items"][data["cursor"]]]
+
+    log = evidence.log_path(os.path.dirname(data["bank"]))
+    item_key = evidence.evidence_key(q)
+    live_responses = [ev for ev in evidence.live_events(log)
+                      if ev.get("event_type") == evidence.RESPONSE_EVENT_TYPE
+                      and ev.get("session_id") == data["session_id"]
+                      and evidence.evidence_key({
+                          "item_id": ev.get("item_id", ""),
+                          "id": ev.get("item_ref", "")}) == item_key]
+
+    ctx = hint_context(data, q)
+    if ctx is None or not _last_response_was_wrong(live_responses):
+        return {"status": "unavailable", "generated": None, "authored": None,
+                "interaction_id": None,
+                "evidence": {"status": "no_genuine_wrong_response"}}
+    tier = ctx["tier"]
+    if tier < 0:
+        # No tier has been permitted for this item (a diagnostic/exam defer
+        # or an untouched record): nothing may be generated or shown.
+        return {"status": "unavailable", "generated": None, "authored": None,
+                "interaction_id": None,
+                "evidence": {"status": "no_permitted_tier"}}
+
+    # At most one generation per interaction id (D-12): a repeated command
+    # without retry regenerates nothing and reports the existing id.
+    prior = [ev for ev in evidence.model_interactions(log, data["session_id"])
+             if ev.get("operation") == "hint"
+             and ev.get("item_ref") == q.get("id")]
+    if prior and not retry:
+        existing = prior[-1]
+        authored = None
+        ah = authored_hint(q, tier, ctx["wrong_response"])
+        if ah.get("available"):
+            authored = ah
+        return {"status": "unavailable", "generated": None, "authored": authored,
+                "interaction_id": existing["interaction_id"],
+                "evidence": {"accepted": False, "status": "already_recorded",
+                             "event_id": existing["event_id"]}}
+
+    interaction_id = _new_interaction_id()
+    parent = prior[-1]["interaction_id"] if (retry and prior) else None
+
+    settings_data = _settings.load_settings(os.path.dirname(data["bank"]) or ".")
+    manifest = _serializable_manifest(
+        tier_gate.build_fact_manifest(q, tier, ctx["wrong_response"],
+                                      ctx["picked_option"]))
+    request = model_adapter.request_from_operation(
+        "hint", interaction_id, "",
+        item_context=_hint_item_context(q),
+        learner_response=ctx["wrong_response"],
+        permitted_tier=tier,
+        fact_manifest=manifest)
+    result = model_adapter.invoke(request, settings_data)
+    candidate = result.get("candidate")
+
+    outcome = "unavailable"
+    gate_reason = None
+    rendered = None
+    if candidate is not None:
+        gate = tier_gate.evaluate_candidate(q, tier, ctx["wrong_response"],
+                                            candidate)
+        if gate["outcome"] == "pass":
+            rendered = tier_gate.render_hint(gate["plan"], manifest)
+            outcome = "pass"
+        else:
+            outcome = "drop"
+            gate_reason = gate["reason"]
+
+    authored = None
+    ah = authored_hint(q, tier, ctx["wrong_response"])
+    if ah.get("available"):
+        authored = ah
+
+    backend_class, profile = _backend_descriptors(result)
+    ev = evidence.model_interaction_event(
+        data["session_id"], os.path.basename(data["bank"]), q.get("id", ""),
+        "hint", interaction_id, outcome, gate_reason, tier, backend_class,
+        profile, request_fingerprint=_interaction_fingerprint(request),
+        response_fingerprint=_interaction_fingerprint(candidate)
+        if candidate is not None else None,
+        elapsed_ms=result.get("elapsed_ms"),
+        output_bytes=len(json.dumps(candidate, ensure_ascii=False))
+        if candidate is not None else 0,
+        pass_payload=rendered if outcome == "pass" else None,
+        parent_interaction_id=parent)
+    write_result = evidence.append_event(log, ev)
+
+    generated = None
+    if outcome == "pass":
+        generated = tier_gate.learner_payload("pass", rendered).get("generated")
+    return {"status": outcome, "generated": generated, "authored": authored,
+            "interaction_id": interaction_id, "evidence": write_result}

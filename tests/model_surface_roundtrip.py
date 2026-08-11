@@ -41,7 +41,14 @@ from surfaces import settings as settings_surface          # noqa: E402
 
 TOOL = os.path.join(ROOT, "itembank.py")
 
-MC_BANK = """Q1. Which device opens the airway?   (difficulty: recall)
+MC_BANK = """## LESSON
+
+### Airway management
+
+The OPA holds the tongue off the posterior pharynx to open the airway.
+
+Q1. Which device opens the airway?   (difficulty: recall)
+[LESSON-REF: Airway management]
 [OBJECTIVE: emt:airway]
 A) OPA
 B) NPA
@@ -211,8 +218,8 @@ def test_hint_offline_disabled_backend_typed_unavailable():
             fail("interaction outcome must be unavailable, got %r" % ev["outcome"])
         if ev["interaction_id"] != result["interaction_id"]:
             fail("evidence interaction_id must match the payload")
-        if ev["permitted_tier"] != 1:
-            fail("the recorded permitted tier must be 1 (objective), got %r"
+        if ev["permitted_tier"] != 0:
+            fail("the recorded permitted tier must be 0 (lesson pointer), got %r"
                  % ev["permitted_tier"])
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

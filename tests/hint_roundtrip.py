@@ -625,9 +625,13 @@ def _start_cli(bank, mode="practice", count=3, seed=0, out=None):
 
 
 def test_cli_hint_tracer():
-    """06-02 Task 1: one practice sitting through CLI submit, hint, retry
-    and report -- wrong submit holds, hint reveals one fixed tier, correct
-    retry advances, and the report carries a tier-aware outcome."""
+    """06-02 Task 1 flow through the CLI, updated for plan 08-04: the CLI
+    `hint` command is now the model-orchestrated diagnostic hint
+    (--session/--retry), so the tracer drives wrong-submit hold, a typed
+    offline hint plus its parent-linked retry, a correct retry advance, and
+    a tier-aware report. The Phase 6 explicit tier-reveal path is still
+    exercised by the runtime-transition tests above and by the daemon's
+    /api/hint route (which plan 08-05 rewires to the model hint)."""
     tmp = tempfile.mkdtemp()
     try:
         bank = os.path.join(tmp, "lesson_bank.md")
@@ -641,13 +645,16 @@ def test_cli_hint_tracer():
             fail("CLI wrong submit must hold: %r" % w)
         if w["next"]["position"] != 0:
             fail("CLI hold must keep position 0")
-        hint = json.loads(_run(["hint", session_file]).stdout)
-        if hint["action"] != "reveal_tier" or hint["hint"]["tier"]["index"] != 0:
-            fail("CLI hint must reveal tier 0: %r" % hint)
-        stumped = json.loads(_run(["hint", session_file, "--stumped"]).stdout)
-        if stumped["hint"]["tier"]["index"] != 1 or \
-                stumped["hint"]["unlock_path"] != "stumped":
-            fail("CLI stumped must reveal tier 1 via stumped: %r" % stumped)
+        hint = json.loads(_run(["hint", "--session", session_file]).stdout)
+        if hint["status"] != "unavailable":
+            fail("CLI hint with the default backend must be typed unavailable: %r"
+                 % hint)
+        if not hint.get("interaction_id"):
+            fail("CLI hint must mint an interaction id: %r" % hint)
+        retry = json.loads(_run(["hint", "--session", session_file,
+                                 "--retry"]).stdout)
+        if retry["interaction_id"] == hint["interaction_id"]:
+            fail("CLI hint --retry must mint a child interaction id: %r" % retry)
         right = json.loads(_run(["submit", session_file, "--answer", "B"]).stdout)
         if right["action"] != "advance" or right["score"] is not True:
             fail("CLI correct retry must advance: %r" % right)
