@@ -1212,6 +1212,9 @@ def handle_api_start(handler):
     focus = data.get("focus")
     if not isinstance(focus, str) or not focus:
         focus = None
+    spec = {"objective": objective, "count": count, "seed": seed}
+    if focus:
+        spec["focus"] = focus
     out = os.path.join(os.path.abspath(handler.root), "_attempts",
                        "session_%s.json" % uuid.uuid4().hex[:12])
     # Both except clauses below are deliberate and both required, not one
@@ -1225,8 +1228,7 @@ def handle_api_start(handler):
     # items, a session already complete. Do not collapse these two clauses
     # into one in a later refactor.
     try:
-        result = session.do_start(path, count, objective, mode, seed, out, False,
-                                  focus)
+        result = session.do_start(path, spec, mode, out, False)
     except SystemExit as exc:
         handler.send_error(400, str(exc.code))
         return
