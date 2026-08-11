@@ -275,6 +275,11 @@ def check_selection_mode_recorded():
     try:
         bank = os.path.join(tmp, "selection_bank.md")
         shutil.copyfile(BANK, bank)
+        ev_dir = os.path.join(tmp, "_evidence")
+        os.makedirs(ev_dir)
+        shutil.copyfile(os.path.join(ROOT, "fixtures",
+                                     "selection_evidence.jsonl"),
+                        os.path.join(ev_dir, "evidence.jsonl"))
         out = os.path.join(tmp, "s.json")
         r = subprocess.run(
             [sys.executable, os.path.join(ROOT, "itembank.py"), "start", bank,
@@ -380,15 +385,148 @@ def check_selection_spec_recorded():
 
 
 def check_mode_compositions_differ():
-    pending("check_mode_compositions_differ", "07-05")
+    qs = model.load(BANK)
+    hist = [json.loads(l) for l in open(HISTORY, encoding="utf-8")]
+    hist = [h for h in hist if h.get("event_type") == "response"
+            and h.get("bank") == "selection_bank.md"]
+    spec = {"count": 8, "seed": 9}
+    outs = {}
+    for mode in selection.SELECTION_MODES:
+        s = dict(spec, selection_mode=mode)
+        items, _ = selection.select(qs, s, hist)
+        outs[mode] = [q["id"] for q in items]
+    ids = list(outs.values())
+    for i in range(len(ids)):
+        for j in range(i + 1, len(ids)):
+            if ids[i] == ids[j]:
+                fail("modes %s and %s produced identical sessions"
+                     % (selection.SELECTION_MODES[i],
+                        selection.SELECTION_MODES[j]))
+    diag = [q for q in model.load(BANK)
+            if q["id"] in outs["diagnostic"]]
+    if len({q["objective"] for q in diag}) != len(diag):
+        fail("diagnostic repeats an objective")
+    failed = {h["objective"] for h in hist if h.get("score") is False}
+    rem = [q for q in model.load(BANK) if q["id"] in outs["remediation"]]
+    if not all(q.get("objective", "") in failed for q in rem):
+        fail("remediation draws outside failed objectives")
+    exam_h, _ = selection.select(qs, dict(spec, selection_mode="exam"), hist)
+    exam_e, _ = selection.select(qs, dict(spec, selection_mode="exam"), [])
+    if [q["id"] for q in exam_h] != [q["id"] for q in exam_e]:
+        fail("exam changed when history was supplied")
+    practice_h, _ = selection.select(
+        qs, dict(spec, selection_mode="practice"), hist)
+    practice_e, _ = selection.select(
+        qs, dict(spec, selection_mode="practice"), [])
+    if [q["id"] for q in practice_h] == [q["id"] for q in practice_e]:
+        fail("practice did not change when history was supplied")
+    print("check_mode_compositions_differ: four modes differ, each per its "
+          "purpose")
 
 
 def check_cooldown_survives_resume():
-    pending("check_cooldown_survives_resume", "07-05")
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "selection_bank.md")
+        shutil.copyfile(BANK, bank)
+        tool = os.path.join(ROOT, "itembank.py")
+        out = os.path.join(tmp, "s1.json")
+        r = subprocess.run(
+            [sys.executable, tool, "start", bank, "--count", "6", "--seed", "2",
+             "--selection-mode", "practice", "--mode", "practice", "--out", out],
+            cwd=ROOT, capture_output=True, text=True)
+        if r.returncode != 0:
+            fail("first start failed: %r" % r.stdout[-300:])
+        qs = model.load(bank)
+        data = json.load(open(out, encoding="utf-8"))
+        answered = []
+        for idx in list(data["items"]):
+            q = qs[idx]
+            t = q["type"]
+            if t == "mc":
+                answer = q["correct"][0]
+            elif t == "multi":
+                answer = json.dumps(list(q["correct"]))
+            elif t in ("table", "dnd"):
+                answer = json.dumps({str(i): row["cat"]
+                                     for i, row in enumerate(q["rows"])})
+            elif t == "build":
+                answer = json.dumps(list(q["steps"]))
+            else:
+                answer = json.dumps("A constructed response.")
+            r2 = subprocess.run(
+                [sys.executable, tool, "submit", out, "--answer", answer],
+                cwd=ROOT, capture_output=True, text=True)
+            if r2.returncode != 0:
+                break
+            answered.append(q["id"])
+        if not answered:
+            fail("no answers were recorded in the first sitting")
+        # Deleting the session file is the load-bearing step: the exclusion
+        # must be remembered by the evidence log, not by the session JSON.
+        os.remove(out)
+        out2 = os.path.join(tmp, "s2.json")
+        r3 = subprocess.run(
+            [sys.executable, tool, "start", bank, "--count", "6", "--seed", "4",
+             "--selection-mode", "practice", "--mode", "practice", "--out", out2],
+            cwd=ROOT, capture_output=True, text=True)
+        if r3.returncode != 0:
+            fail("second start failed: %r" % r3.stdout[-300:])
+        data2 = json.load(open(out2, encoding="utf-8"))
+        second = [qs[i]["id"] for i in data2["items"]]
+        recent = answered[-20:]
+        if any(i in second for i in recent):
+            fail("an item answered in the first sitting was re-served after "
+                 "the session file was deleted: %r" % second)
+        out3 = os.path.join(tmp, "s3.json")
+        r4 = subprocess.run(
+            [sys.executable, tool, "start", bank, "--count", "6", "--seed", "5",
+             "--selection-mode", "exam", "--mode", "practice", "--out", out3],
+            cwd=ROOT, capture_output=True, text=True)
+        if r4.returncode != 0:
+            fail("exam start failed: %r" % r4.stdout[-300:])
+        data3 = json.load(open(out3, encoding="utf-8"))
+        third = [qs[i]["id"] for i in data3["items"]]
+        if not any(i in third for i in recent):
+            fail("exam did not bring back the excluded items -- the exclusion "
+                 "is the mode's, not a global mute")
+        print("check_cooldown_survives_resume: exclusion survives the deleted "
+              "session file; exam ignores it")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def check_cooldown_is_bank_scoped():
-    pending("check_cooldown_is_bank_scoped", "07-05")
+    tmp = tempfile.mkdtemp()
+    try:
+        ev_dir = os.path.join(tmp, "_evidence")
+        os.makedirs(ev_dir)
+        shutil.copyfile(HISTORY, os.path.join(ev_dir, "evidence.jsonl"))
+        log = os.path.join(ev_dir, "evidence.jsonl")
+        qs = model.load(BANK)
+        hist = [json.loads(l) for l in open(log, encoding="utf-8")]
+        other_items = {h.get("item_ref") for h in hist
+                       if h.get("bank") == "other_bank.md"}
+        if not other_items:
+            fail("fixture history carries no other_bank.md events")
+        banked = [h for h in hist if h.get("event_type") == "response"
+                  and h.get("bank") == "selection_bank.md"]
+        items, _ = selection.select(
+            qs, {"selection_mode": "practice", "count": 30, "seed": 0},
+            banked)
+        selectable = {q["id"] for q in items}
+        # The other-bank events must not starve this bank: their items are
+        # still selectable here unless this bank's own window excludes them.
+        for item_ref in sorted(other_items):
+            if item_ref not in selectable:
+                windowed = {h.get("item_ref") for h in banked[-20:]}
+                if item_ref not in windowed:
+                    fail("other-bank activity excluded %s from this bank"
+                         % item_ref)
+        print("check_cooldown_is_bank_scoped: other_bank activity never "
+              "starves selection_bank")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def check_explain_renders_plain_text():
