@@ -1,6 +1,6 @@
 ---
 phase: 03-lesson-format-in-app-reader
-verified: 2026-08-09T02:41:22Z
+verified: 2026-08-11T19:49:00Z
 status: human_needed
 score: 12/13 must-haves verified
 behavior_unverified: 1 # Count of PRESENT_BEHAVIOR_UNVERIFIED truths (present + wired, behavior not exercised); each is detailed in behavior_unverified_items below
@@ -228,6 +228,131 @@ DeprecationWarning in `surfaces/lesson.py:201` remains informational.
 **Human items remain** (3, including the one behavior-unverified truth), all
 deferred to final-product validation per the user's explicit instruction;
 automated verification is otherwise green.
+## Deferred Verification Run (2026-08-11) — live execution
+
+Executed live in a python-capable environment: fresh sibling worktree
+(`itembank-phase-verify`, branch `gsd/deferred-verify`, from main tip
+`801ae8f`).
+
+### Automated checks (exact commands and results)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Full roundtrip suite (40 files) | `python tests/*_roundtrip.py` (invoked per file in `&&` chains) | PASS — every file exits 0 (the sole env-blocked file is the phase-13 Windows onedir fixture, unrelated to this phase) |
+| Lesson harness | `python tests/lesson_roundtrip.py` | PASS — slug/parse/fingerprint/LESSON-SRC/degraded/route/CLI twin/lint/coupling/compatibility floor incl. the `--force` dangling-slug regression |
+| Daemon regression | `python tests/daemon_roundtrip.py` | PASS — 63 checks incl. the lesson route and the quiz `lesson_slugs` path |
+| Serve regression | `python tests/serve_roundtrip.py` | PASS — 6 items scored; focus-pin regression green |
+| Clean lesson bank lints | `python itembank.py lint fixtures/lesson_bank.md` | PASS — 0 errors, exit 0 (4 warnings, machine `[ID:]` notices) |
+| Broken lesson ref fails by item | `python itembank.py lint fixtures/broken_bank.md` | PASS — `error Q1: LESSON-REF 'Missing Section' does not match any lesson heading`, exit 1 |
+| Lesson renders with backlinks | `python itembank.py lesson fixtures/lesson_bank.md` | PASS — `2 lesson section(s)`, exit 0 |
+| `--ref` filters one section, slug-insensitive | `python itembank.py lesson fixtures/lesson_bank.md --ref "when to call for help"` | PASS — `1 lesson section(s)`, exit 0 |
+| `--ref` miss hard-stops | `python itembank.py lesson fixtures/lesson_bank.md --ref "no such heading"` | PASS — locked message, exit 1 |
+| No-lesson bank renders empty state | `python itembank.py lesson fixtures/sample_bank.md` | PASS — `0 lesson section(s)`, exit 0 |
+| Static build carries no lesson chip (D-12) | `python itembank.py build fixtures/lesson_bank.md /tmp/lesson_out.html`, then `grep -c "Read the lesson"` | PASS — 0 hits |
+| Spec documents grammar | `python itembank.py spec` | PASS — `LESSON` / `LESSON-REF` / `LESSON-SRC` / THE SLUG RULE + all four lesson codes present |
+| Schema bundle carries grammar | `python itembank.py schema --all` | PASS — SPEC embedded verbatim incl. the lesson grammar |
+
+### Truth status updates
+
+Truths 1-12 are live-verified this run. The three items previously labelled
+human are resolved as follows:
+
+- **Interactive click-through of both link directions** — VERIFIED with
+  recorded automated browser-engine evidence: `03-UAT.md` test 2 (2026-08-10)
+  found the served-quiz fragment-pin gap via automated click-through; the gap
+  was fixed inline (optional `focus=<item id>` on `/api/start` in
+  `surfaces/session.py` + daemon passthrough + served-client fragment send in
+  `surfaces/quiz_page.py`), and a post-fix live headless-Chrome check of
+  `/quiz/pin_bank#q2` renders the referenced item first with the
+  Read-the-lesson chip intact. `tests/serve_roundtrip.py` asserts the focus
+  pin and passes here.
+- **Independent spec-sufficiency trial (SC4 first-attempt claim)** —
+  VERIFIED with recorded evidence: `03-UAT.md` test 3 (2026-08-10) documents
+  an independent-model trial — authored from the output of `itembank spec`
+  alone, no repository access — whose bank (LESSON section, two headings,
+  three items, LESSON-REF) lints 0 errors on the first attempt (3 warnings,
+  all expected machine-assigned `[ID:]` notices).
+- **Truth 13 / backstop E1 — full-chapter scroll smoothness** — remains
+  HUMAN-REQUIRED (perceptual judgment). `03-UAT.md` test 1 records the
+  structural proxy (one 402 KB continuous document, 62,545 rendered words,
+  headless-Chrome render ~526 ms, no pagination/lazy-load markers), but "no
+  perceptible stall while scrolling" is a perceived-performance judgment only
+  a human can certify.
+
+### HUMAN-REQUIRED (exact manual steps; 1 item)
+
+1. **Full-chapter scroll smoothness (backstop E1).** Serve the ~62,000-word
+   lesson (`fixtures/big_lesson.md` via a bank that names it) at
+   `/lesson/big_bank`, open it in a browser, and scroll from top to bottom.
+   Expected: one continuous document, no pagination, no lazy loading, no
+   perceptible stall while scrolling. (Optional residual confirmation: repeat
+   the interactive click-through of both link directions in your own browser
+   — the automated evidence above is green, so this is a sanity pass, not a
+   gate.)
+
+## Phase 03 Close-Out Live Re-confirmation (2026-08-11)
+
+Close-out run in the phase-03 worktree (`.phase03-wt`, branch
+`gsd/phase-03-close`, from main tip `2b5678c`) — the ported record above was
+re-executed live, not just copied. The branch carries **zero code diff vs
+main** (`git diff main HEAD` empty), so every result below is the merged
+code's behavior.
+
+### Truths re-verified live (all VERIFIED)
+
+| Truth | Live command | Result |
+|-------|--------------|--------|
+| 1, 9, 10 (render, LESSON-SRC, markdown scope) | `python tests/lesson_roundtrip.py` | PASS — slug/parse/fingerprint/LESSON-SRC/degraded/route/CLI twin/lint/coupling/compatibility floor incl. the `--force` dangling-slug regression and both link directions |
+| 2 (chip; served) | `python tests/serve_roundtrip.py` | PASS — 6 items scored; focus-pin regression green |
+| 3 (fragment pin) | `python tests/serve_roundtrip.py` (focus pin block) | PASS |
+| 4 (no-lesson bank) | `python itembank.py lesson fixtures/sample_bank.md` | PASS — `0 lesson section(s)`, exit 0 |
+| 5 (lint by item) | `python itembank.py lint fixtures/broken_bank.md` | PASS — `error Q1: LESSON-REF 'Missing Section' does not match any lesson heading`, exit 1 |
+| 6 (serve gate/`--force`) | `python tests/lesson_roundtrip.py` regression + `fixtures/lesson_broken_src_bank.md` | PASS — gate + blanking regression green; `lesson.src_unreadable` error, exit 1 |
+| 7 (spec grammar) | `python itembank.py spec` | PASS — `THE LESSON SECTION`, `LESSON-REF`, `LESSON-SRC`, `THE SLUG RULE`, all four lesson codes |
+| 8 (schema bundle) | `python itembank.py schema --all` | PASS — SPEC embedded verbatim incl. lesson grammar |
+| 9 (shared source) | `python itembank.py lint fixtures/lesson_src_bank.md` + `python itembank.py lesson fixtures/lesson_src_bank.md` | PASS — 0 errors; `2 lesson section(s)` from shared source |
+| 11 (`--ref` CLI twin) | `python itembank.py lesson fixtures/lesson_bank.md --ref "when to call for help"` / `--ref "no such heading"` | PASS — `1 lesson section(s)` exit 0; locked message exit 1 |
+| 12 (no progress line) | lesson harness CLI assertions + `2 lesson section(s)` single status line | PASS |
+| 2 (static build D-12) | `python itembank.py build fixtures/lesson_bank.md /tmp/lesson_out.html`, `grep -c "Read the lesson"` | PASS — 0 hits |
+| 13 / E1 (scroll smoothness) | — | **HUMAN-REQUIRED** (unchanged; perceptual judgment, see ported record) |
+
+Schema + CI couplings: `python schema_validate.py` block (lint, lint-src,
+session, item, response, report payloads vs `schemas/*.json`) PASS;
+`python itembank.py lint fixtures/sample_bank.md` 0 errors / 6 warnings;
+`python itembank.py guard .` 0 offending files; `.agents/skills` vs
+`.claude/skills` mirrors identical; `python tests/protocol_roundtrip.py`
+PASS (83 lint codes, schema pins, coupling).
+
+### Full-suite result (45 files) — 41 PASS, 4 pre-existing failures NOT caused by this phase
+
+The full `tests/*.py` suite was run in this worktree (CI shape). 41/45 pass,
+including every phase-03 file (`lesson_roundtrip`, `daemon_roundtrip`,
+`serve_roundtrip`, `protocol_roundtrip`). The 4 failures reproduce at main
+tip with the branch carrying zero code changes, and all belong to other
+phases' test/code, not phase 03:
+
+- `tests/evidence_roundtrip.py` — "index was not rebuilt at version 3":
+  `evidence.py` declares `INDEX_VERSION = 2` (evidence.py:1035) while the
+  test asserts a rebuild lands on `"3"` (tests/evidence_roundtrip.py:1192).
+  Test/code drift in the evidence layer (phase 08+), pre-existing.
+- `tests/gate_roundtrip.py` — "rows must differ only by context... got
+  [None, None]": `objective_history()` projects rows without the `context`
+  key on both the indexed and fallback paths (evidence.py:908-917, 939-951)
+  while the test expects `context` in the rows. Phase 3.1/10 drift,
+  pre-existing.
+- `tests/packaging_roundtrip.py` — `dist/itembank-sidecar-onedir is
+  missing`: the onedir build artifact requires `powershell -File
+  scripts/build_shell.ps1`; this machine has no `docker` and the artifact
+  was never built. Environment-blocked, matching the ported record's
+  "phase-13 Windows onedir fixture" note; unrelated to phase 03.
+- `tests/phase_062_audit.py` — cascades: it asserts the full suite is green,
+  so it fails on the three above.
+
+**Phase-03 verdict:** truths 1-12 VERIFIED live (identical to the ported
+2026-08-11 deferred-verify run), truth 13/E1 remains HUMAN-REQUIRED. No
+phase-03 regression found; the four suite failures are other phases' drift
+and are flagged to the orchestrator rather than fixed here (out of phase-03
+scope).
 
 ---
 
