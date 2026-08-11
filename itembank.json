@@ -92,7 +92,7 @@
         "version": 1,
         "lesson": {"markdown": true, "tables": true, "math": false,
                    "runnable_languages": [], "lesson_layout": "separate"},
-        "allowed_item_types": ["mc", "multi", "table", "dnd", "build", "short"],
+        "allowed_item_types": ["mc", "multi", "table", "dnd", "build", "short", "visual"],
         "verifier": "runtime"
       },
       "math": {
@@ -100,7 +100,7 @@
         "version": 1,
         "lesson": {"markdown": true, "tables": true, "math": true,
                    "runnable_languages": [], "lesson_layout": "separate"},
-        "allowed_item_types": ["mc", "multi", "table", "dnd", "build", "short"],
+        "allowed_item_types": ["mc", "multi", "table", "dnd", "build", "short", "visual"],
         "verifier": "runtime"
       },
       "cs": {
@@ -108,7 +108,7 @@
         "version": 1,
         "lesson": {"markdown": true, "tables": true, "math": false,
                    "runnable_languages": ["python"], "lesson_layout": "inline"},
-        "allowed_item_types": ["check", "mc", "multi", "table", "dnd", "build", "short"],
+        "allowed_item_types": ["check", "mc", "multi", "table", "dnd", "build", "short", "visual"],
         "verifier": "check"
       }
     }

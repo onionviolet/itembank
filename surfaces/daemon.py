@@ -19,6 +19,7 @@ import urllib.parse, urllib.request, uuid
 import evidence
 import resources
 import retention
+import runner
 import selection
 import server
 import subjects
@@ -204,6 +205,7 @@ API_ROUTES = (
     ("POST", "/api/lesson-complete", "handle_api_lesson_complete"),
     ("POST", "/api/rubric-review", "handle_api_rubric_review"),
     ("POST", "/api/export_audio", "handle_api_export_audio"),
+    ("POST", "/api/lesson/run", "handle_api_lesson_run"),
 )
 
 # Order is load-bearing: every fixed literal route comes before every
@@ -264,6 +266,7 @@ ROUTE_CLI = {
     ("POST", "/api/rubric-review"): "rubric-review",
     ("GET", KATEX_ASSET_RE): "daemon",
     ("POST", "/api/export_audio"): "export",
+    ("POST", "/api/lesson/run"): "lesson",
     ("GET", QUIZ_GET_RE): "serve",
     ("POST", QUIZ_ANSWER_RE): "serve",
     ("GET", STUDY_GET_RE): "study",
@@ -297,6 +300,7 @@ SURFACE_PARITY = (
     (("POST", "/api/lesson-complete"), "lesson", "lesson_complete"),
     (("POST", "/api/rubric-review"), "rubric-review", "rubric_review"),
     (("POST", "/api/export_audio"), "export", "export_audio"),
+    (("POST", "/api/lesson/run"), "lesson", "lesson_run"),
 )
 
 
@@ -1025,22 +1029,55 @@ def _reject_cross_origin_write(handler):
     return False
 
 
-def _refuse_check_execution(handler, q):
-    """Refuse executing a check item's code when the daemon is bound to all
-    interfaces and check.allow_lan is false (D-09, plan 05-03 Task 3). A
-    loopback-bound daemon always executes; allow_lan true always executes.
-    check.allow_lan is read live through settings (never cached at bind), so
-    toggling it takes effect on the next submit. Returns True when the caller
-    must refuse and write nothing -- the decision is made before the runner is
-    ever invoked."""
+def _check_refusal_body(handler, q):
+    """The server-side refusal body for a check submission, or None when
+    execution may proceed -- the shared `execution_refusal` decision mapped
+    to the locked refusal body (reason + copy) the served page branches on
+    (plan 05-06). Only check items are gated here; every other submission
+    passes through untouched."""
     if q is None or q.get("type") != "check":
-        return False
+        return None
+    cfg = settings.load_settings(handler.root)
+    refusal = execution_refusal(handler, q.get("lang") or "python",
+                                cfg.get("check") or {})
+    if refusal is None:
+        return None
+    reason = (REFUSAL_REASON_LAN if refusal == LAN_REFUSAL_COPY
+              else REFUSAL_REASON_LANG)
+    return _refusal_body(reason, refusal)
+
+
+def execution_refusal(handler, language, check_settings):
+    """The one pre-execution refusal decision shared by check submission and
+    lesson Run (plan 09-05): returns the locked refusal copy to send, or
+    None when the run may proceed. Order is fixed -- the LAN boundary first
+    (a network view never executes under the default policy), then the
+    language allowlist. Both copies are the exact strings the Phase 5
+    surfaces already shipped, so the check-submit paths keep their
+    byte-for-behavior copy."""
+    if getattr(handler, "lan", False) and \
+            not (check_settings or {}).get("allow_lan"):
+        return LAN_REFUSAL_COPY
+    if language not in ((check_settings or {}).get("languages") or {}):
+        return UNKNOWN_LANGUAGE_COPY % language
+    return None
+
+
+def _session_id_for(handler, stem):
+    """The API session id registered against a served bank stem, or None --
+    the session the lesson Run adapter posts against (plan 09-05)."""
+    sess = handler.sessions.get(stem) or {}
+    return sess.get("api_session_id")
+
+
+def _lan_refused(handler):
+    """True when this daemon serves on the network with check.allow_lan off
+    -- the render-time gate that turns every runnable fence into the LAN
+    refusal state (09-UI-SPEC "LAN refusal")."""
     if not getattr(handler, "lan", False):
         return False
     cfg = settings.load_settings(handler.root)
-    if (cfg.get("check") or {}).get("allow_lan"):
-        return False
-    return True
+    return not (cfg.get("check") or {}).get("allow_lan")
 
 
 THEME_ACTIONS = ("preview", "pick", "save", "reset")
@@ -1187,8 +1224,9 @@ def handle_quiz_answer(handler, stem):
         if q is None:
             handler.send_error(404, "no item %r in this bank" % data.get("id"))
             return
-        if _refuse_check_execution(handler, q):
-            handler.send_json(_refusal_body(REFUSAL_REASON_LAN, LAN_REFUSAL_COPY))
+        refusal = _check_refusal_body(handler, q)
+        if refusal is not None:
+            handler.send_json(refusal)
             return
         elapsed_ms = data.get("elapsed_ms")
         if not isinstance(elapsed_ms, int) or isinstance(elapsed_ms, bool):
@@ -1486,7 +1524,9 @@ def handle_lesson_get(handler, stem):
         announce = lesson.REVEAL_CLAUSE_COPY
     page = lesson.lesson_page(path, qs, les, runtime=True, drill=drill,
                               gate=gate, focus=focus, announce=announce,
-                              profile=profile)
+                              profile=profile,
+                              session_id=_session_id_for(handler, stem),
+                              lan_refused=_lan_refused(handler))
     handler.send_html(page.encode("utf-8"))
 
 
@@ -2448,8 +2488,9 @@ def handle_api_submit(handler):
                 q = qs[idx]
     except Exception:
         q = None
-    if _refuse_check_execution(handler, q):
-        handler.send_json({"refused": LAN_REFUSAL_COPY})
+    refusal = _check_refusal_body(handler, q)
+    if refusal is not None:
+        handler.send_json(refusal)
         return
     try:
         result = session.do_action(
@@ -2486,6 +2527,140 @@ def handle_api_submit(handler):
         result.pop("explain", None)
     if cfg is not None and result.get("accepted") and qs:
         _refresh_attempt_view(cfg, session_id, qs, bank_path)
+    handler.send_json(result)
+
+
+# The one body /api/lesson/run accepts (plan 09-05): a session id, a stable
+# block id, the block's language, and the edited source. Anything else --
+# including every authority-shaped field (answer, action, score, correct,
+# tier, evidence, path, bank, verifier, capabilities, argv) -- is refused by
+# name before any state is touched (T-09-12).
+LESSON_RUN_FIELDS = ("session_id", "block_id", "language", "source")
+LESSON_RUN_FORBIDDEN = ("answer", "action", "score", "correct", "tier",
+                        "evidence", "path", "bank", "verifier",
+                        "capabilities", "argv")
+LESSON_SOURCE_MAX_BYTES = 65536
+
+
+def handle_api_lesson_run(handler):
+    """`POST /api/lesson/run` -- `{"session_id", "block_id", "language",
+    "source"}`: run one lesson code fence as an observation through the same
+    bounded runner check submission uses (`runner.run_source`, plan 09-05
+    D-09). The session, its stored subject profile, the bank, and the block
+    are all resolved server-side; the language must be enabled in BOTH the
+    stored profile's runnable_languages and the live check.languages
+    settings, the default-closed LAN policy applies, and the source is
+    capped at 65536 UTF-8 bytes -- every gate before `run_source()` is
+    invoked (T-09-12/T-09-13).
+
+    The response is observation only: stdout, stderr, exit_code, timed_out
+    and truncated -- no passed/score/correct/verdict field exists, and the
+    run changes no cursor, teaching state, or evidence (D-11, T-09-14).
+    """
+    if _reject_cross_origin(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    extra = sorted(set(data) - set(LESSON_RUN_FIELDS))
+    if extra:
+        handler.send_error(400, "/api/lesson/run accepts only session_id, "
+                           "block_id, language and source; field %r is not "
+                           "read" % extra[0])
+        return
+    for forbidden in LESSON_RUN_FORBIDDEN:
+        if forbidden in data:
+            handler.send_error(400, "field %r is not accepted by "
+                               "/api/lesson/run" % forbidden)
+            return
+    session_id = data.get("session_id")
+    block_id = data.get("block_id")
+    language = data.get("language")
+    source = data.get("source")
+    if not isinstance(session_id, str) or not session_id:
+        handler.send_error(400, "session_id must be a non-empty string")
+        return
+    if not isinstance(block_id, str) or not block_id:
+        handler.send_error(400, "block_id must be a non-empty string")
+        return
+    if not isinstance(language, str) or not language:
+        handler.send_error(400, "language must be a non-empty string")
+        return
+    if not isinstance(source, str):
+        handler.send_error(400, "source must be a string")
+        return
+    if len(source.encode("utf-8")) > LESSON_SOURCE_MAX_BYTES:
+        handler.send_error(400, "source exceeds the %d UTF-8 byte limit"
+                           % LESSON_SOURCE_MAX_BYTES)
+        return
+    path = api_session_path(handler, session_id)
+    if path is None:
+        handler.send_not_found(session_id)
+        return
+    try:
+        data2 = read_session(path)
+    except Exception as exc:
+        handler.send_server_error(exc)
+        return
+    bank_path = data2.get("bank") or ""
+    if not isinstance(bank_path, str) or not bank_path:
+        handler.send_error(400, "session carries no bank")
+        return
+    # The stored profile snapshot (filled once at start; a legacy null slot
+    # resolves in memory here -- never written -- so a lesson Run changes no
+    # session state, D-11).
+    profile_snapshot = data2.get("subject_profile")
+    if profile_snapshot is None:
+        try:
+            profile_snapshot = subjects.select_profile(
+                load(bank_path), subjects.load_registry(
+                    os.path.dirname(os.path.abspath(bank_path)) or "."))
+        except subjects.SubjectProfileError as exc:
+            handler.send_error(400, str(exc))
+            return
+    run_languages = ((profile_snapshot.get("profile") or {})
+                     .get("lesson", {}).get("runnable_languages") or [])
+    if language not in run_languages:
+        handler.send_json({
+            "refused": lesson.RUN_LANG_UNAVAILABLE_COPY.format(
+                language=language)})
+        return
+    cfg = settings.load_settings(handler.root)
+    check_settings = cfg.get("check") or {}
+    refusal = execution_refusal(handler, language, check_settings)
+    if refusal is not None:
+        handler.send_json({"refused": refusal})
+        return
+    # Confirm the block against the parsed lesson's ordered fence list
+    # (the same enumeration the renderer's data-code-block ids follow).
+    les = parse_lesson(bank_path)
+    fences = lesson.lesson_fence_languages(les)
+    try:
+        index = int(block_id) - 1
+    except (TypeError, ValueError):
+        handler.send_error(400, "block_id must be a fence number")
+        return
+    if index < 0 or index >= len(fences) or fences[index] != language:
+        handler.send_error(404, "no %s block %s in this lesson"
+                           % (language, block_id))
+        return
+    check = check_settings
+    try:
+        result = runner.run_source(
+            language, source, "",
+            timeout_seconds=check.get("timeout_seconds",
+                                      runner.DEFAULT_TIMEOUT_SECONDS),
+            max_output_bytes=check.get("max_output_bytes",
+                                       runner.DEFAULT_MAX_OUTPUT_BYTES),
+            languages=check.get("languages"))
+    except runner.UnknownLanguage as exc:
+        handler.send_json({
+            "refused": lesson.RUN_LANG_UNAVAILABLE_COPY.format(
+                language=language)})
+        return
+    except Exception as exc:
+        handler.send_server_error(exc)
+        return
     handler.send_json(result)
 
 

@@ -436,10 +436,16 @@ def check_no_leak():
                              % banned)
 
         # The scripts themselves must be free of authority vocabulary.
+        # `reason` is deliberately NOT banned here: Phase 5's check surface
+        # legitimately names each per-case observation reason (passed /
+        # timeout / output_cap) and the refusal cause (`refused_reason`) --
+        # public observation data, not authority material. Authority
+        # reasons (assist proposal rejections, gate causes) never reach the
+        # scripts; they are covered by the FORBIDDEN_STRINGS scans above.
         for m in re.finditer(r"<script[^>]*>(.*?)</script>", page,
                              re.S | re.M):
             script = m.group(1)
-            for banned in ("tier", "reason", "profile", "backend", "candidate",
+            for banned in ("tier", "profile", "backend", "candidate",
                            "gate", "provider", "fact_manifest", "fact_ids"):
                 if banned in script.lower():
                     fail("served script references %r; the browser never "

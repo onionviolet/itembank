@@ -1089,15 +1089,15 @@ def check_disclosure_route():
 def check_api_route_scope():
     """D-04's four session routes plus Phase 6's `/api/hint`, plan 06.1-02's
     `/api/interact`, plan 08-05's `/api/rubric-review`, Phase 10's
-    `/api/override` and `/api/lesson-complete`, and Phase 09.1's
-    `/api/export_audio`, and the count is asserted rather than trusted.
-    Every entry is mirrored in ROUTE_CLI (route-without-CLI-twin fails
-    here) and in SURFACE_PARITY with its reserved MCP tool name
-    (Extensibility Rule 9(a)).
+    `/api/override` and `/api/lesson-complete`, Phase 09.1's
+    `/api/export_audio`, and Phase 09's `/api/lesson/run`, and the count is
+    asserted rather than trusted. Every entry is mirrored in ROUTE_CLI
+    (route-without-CLI-twin fails here) and in SURFACE_PARITY with its
+    reserved MCP tool name (Extensibility Rule 9(a)).
     """
-    if len(daemon.API_ROUTES) != 10:
-        fail("D-04 + Phase 6 + 06.1-02 + 08-05 + 10-04/10-05 + 09.1 scope "
-             "/api/* to exactly ten routes; API_ROUTES has %d"
+    if len(daemon.API_ROUTES) != 11:
+        fail("D-04 + Phase 6 + 06.1-02 + 08-05 + 10-04/10-05 + 09.1 + 09 "
+             "scope /api/* to exactly eleven routes; API_ROUTES has %d"
              % len(daemon.API_ROUTES))
     if not {"start", "next", "submit", "hint", "interact", "report",
             "override", "rubric-review", "export"} <= \
@@ -1107,6 +1107,9 @@ def check_api_route_scope():
             daemon.ROUTE_CLI[("POST", "/api/lesson-complete")] != "lesson":
         fail("POST /api/lesson-complete must map to the lesson CLI twin "
              "(`itembank lesson --complete`)")
+    if ("POST", "/api/lesson/run") not in daemon.ROUTE_CLI or \
+            daemon.ROUTE_CLI[("POST", "/api/lesson/run")] != "lesson":
+        fail("POST /api/lesson/run must map to the lesson CLI twin")
 
 
 def check_surface_parity():

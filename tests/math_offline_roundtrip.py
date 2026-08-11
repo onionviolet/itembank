@@ -396,10 +396,11 @@ def test_profile_snapshot_drives_the_presentation_seam():
                       "subject_id": "", "profile": subjects.DEFAULT_PROFILE,
                       "unsupported_capabilities": []}
         pg_math = lesson.lesson_page(path, qs, model.parse_lesson(path),
-                                     profile=math_snap)
+                                     runtime=True, profile=math_snap)
         pg_plain = lesson.lesson_page(path, qs, model.parse_lesson(path),
-                                      profile=plain_snap)
-        pg_none = lesson.lesson_page(path, qs, model.parse_lesson(path))
+                                      runtime=True, profile=plain_snap)
+        pg_none = lesson.lesson_page(path, qs, model.parse_lesson(path),
+                                     runtime=True)
         if "/assets/katex/" not in pg_math or "renderMathInElement" not in pg_math:
             fail("math profile snapshot did not enable the adapter")
         if pg_plain != pg_none:
