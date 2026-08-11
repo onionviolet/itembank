@@ -1,6 +1,6 @@
 ---
 phase: 04-surface-redesign-theming
-verified: 2026-08-09T05:57:51Z
+verified: 2026-08-11T15:30:00Z
 status: human_needed
 score: 5/5 must-haves verified
 behavior_unverified: 0 # Count of PRESENT_BEHAVIOR_UNVERIFIED truths; every roadmap truth below has a passing behavioral test
@@ -208,6 +208,81 @@ The automated evidence above is green; the following require a human in a real b
 ### Gaps Summary
 
 No gaps were found: all five roadmap success criteria are verified by code evidence and passing named behavioral tests, all required artifacts exist and are substantive, wired, and flowing real data, all key links are wired, and no blocker anti-patterns were found. The phase status is `human_needed` because the remaining items are real-browser, assistive-technology, native-picker, color-blind, and two-editor recovery checks that automated verification cannot perform - matching the phase's own 04-VALIDATION manual matrix and the 04-06 end-of-phase human-check. No override is required; no item is deferred to a later phase.
+## Deferred Verification Run (2026-08-11) — live execution
+
+Executed live in a python-capable environment: fresh sibling worktree
+(`itembank-phase-verify`, branch `gsd/deferred-verify`, from main tip
+`801ae8f`).
+
+### Automated checks (exact commands and results)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Full roundtrip suite (40 files) | `python tests/*_roundtrip.py` (invoked per file in `&&` chains) | PASS — every file exits 0 |
+| Phase harness: day-edit | `python tests/day_edit_roundtrip.py` | PASS — snapshot/conflict/force/tight-window recheck + live HTTP flow |
+| Phase harness: theme | `python tests/theme_roundtrip.py` | PASS — derivation/contrast/semantic-independence/mode CSS/preview/picker lifecycle/child bridge |
+| Phase harness: presentation | `python tests/presentation_roundtrip.py` | PASS |
+| Phase harness: surface | `python tests/surface_roundtrip.py` | PASS — question hierarchy, study payload/reveal order, no-scorer, theme parity |
+| Phase harness: daemon | `python tests/daemon_roundtrip.py` | PASS — 63 checks incl. served-quiz no-key, `/api/*` flow, settings page, day conflict flow |
+| Phase harness: config | `python tests/config_roundtrip.py` | PASS — theme set/reset contract |
+
+### Truth status updates
+
+Truths 1-5 are live-verified this run — every one of the 20 named behavioral
+checks in the Behavioral Spot-Checks table passes. The five UAT items that
+carried recorded automated evidence in `04-UAT.md` (2026-08-10) stand
+verified with those citations: real-browser DOM walkthrough (test 1), theme
+save/preview HTTP contract (test 2), colour-blind contrast math (test 4),
+two-editor conflict lifecycle over HTTP (test 5), and 320px/200% headless
+renders with 12 screenshots saved (test 6). The two UAT-blocked items
+(tests 3 and 7) and the visual/perceptual items remain human.
+
+### HUMAN-REQUIRED (exact manual steps; 7 items)
+
+1. **One-product visual walkthrough (light/dark, desktop + 320px/200%).**
+   Open the daemon and walk index, quiz, study, report, settings, and day in
+   both colour modes at desktop and 320px/200% zoom, keyboard-only. Expected:
+   every surface reads as one product from the shared palette and primitives;
+   the quiz page shows exactly one sticky context line, a dominant stem h1,
+   and a reserved feedback region; no layout regression or clipping.
+2. **Live native picker and browser fallback.** In `/settings`, open the OS
+   colour picker, cancel once, then use the browser colour input, preview,
+   save, reset, and reload every surface. Expected: selection is
+   preview-only; cancel/unavailable shows the exact fallback copy (`System
+   picker is unavailable here. Choose a color below instead.`) and changes
+   nothing; save persists only `accent.source`; every surface updates on
+   reload in system/light/dark.
+3. **Screen-reader sequence (Narrator/NVDA/VoiceOver) with reduced motion.**
+   Traverse quiz submit/verdict, study reveal, settings save error/fallback,
+   and day conflict recovery. Expected: one heading hierarchy per page, polite
+   status announcements in reading order, immediate errors announced,
+   disclosure state announced, predictable post-transition focus, keyboard-
+   only usable.
+4. **Colour-blind / non-colour verdict check.** In light and dark modes with
+   two very different custom accents, confirm Correct/Incorrect/Warning stay
+   fixed colours with text/icon/border redundancy, contrast-checked at 4.5:1,
+   pairwise distinct, and remain distinguishable under a deuteranopia
+   simulator.
+5. **Two-editor day conflict and recovery (real interleaving).** Edit a day
+   cell in the browser, save the same plan externally (Obsidian), then save
+   in the browser. Expected: a no-write conflict with the exact heading `Plan
+   changed outside itembank - nothing was overwritten.`, labelled Your
+   draft/Current file panes, copy/download for each, Reload current, Reapply
+   draft, dirty warning, Force absent until a conflict; a third external edit
+   produces a new conflict, never an overwrite.
+6. **Backstop items (320px/200% zoom, long content).** With long
+   stems/objectives/options, long report tables/lesson prose/settings help,
+   long study explanations, and long day labels/revisions/conflict documents
+   at 320px and 200% zoom, verify wrapping/stacking, selectability, and no
+   page-level horizontal scroll; revisions and conflict documents stay
+   copyable. (12 headless screenshots were saved by the 2026-08-10 automated
+   UAT run; pixel-level judgment remains human.)
+7. **Visual adequacy of the reworked surfaces.** Inspect settings preview
+   cards, migrated index/report/quiz/study/day, teaching-step primary-action
+   emphasis, and study progressive reveal in both colour modes. Expected:
+   polished, consistent, exactly one visually primary next action per state;
+   secondary actions never acquire the primary marker.
+
 
 ---
 
