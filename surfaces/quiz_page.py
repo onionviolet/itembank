@@ -170,6 +170,39 @@ textarea.ans:disabled{opacity:.75}
 .codewrap:focus-within{outline:2px solid var(--accent);outline-offset:1px;
   border-color:var(--accent)}
 .codewrap[data-readonly="true"]{opacity:.8}
+/* check per-case readout rows (plan 05-06): mirror the option styles
+   exactly -- same border, background, shape -- so a case row reads as the
+   same kind of thing as every other answer widget. Bound stops (timeout,
+   truncation) keep the failure row but their status text takes the warning
+   role, so "stopped by a bound" is visible at a glance (D-08). */
+.case{border:1px solid var(--line);border-radius:9px;padding:11px 12px;
+  background:var(--card);margin-bottom:8px}
+.case:last-child{margin-bottom:0}
+.case .case-head{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;
+  margin-bottom:7px}
+.case .case-n{font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--mut);font-family:ui-monospace,Menlo,Consolas,monospace}
+.case .st{font-size:12.5px;font-weight:600}
+.case.right{border-color:var(--ok);background:var(--ok-bg)}
+.case.right .st{color:var(--ok)}
+.case.wrong{border-color:var(--bad);background:var(--bad-bg)}
+.case.wrong .st{color:var(--bad)}
+.case.wrong .st.warn{color:var(--warn)}
+.case .cf{margin-bottom:7px}
+.case .cf:last-child{margin-bottom:0}
+.case .cf h5{margin:0 0 3px;font-size:11px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--mut);
+  font-family:ui-monospace,Menlo,Consolas,monospace}
+.case pre{white-space:pre-wrap;overflow-wrap:anywhere;font-family:ui-monospace,
+  SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.5;
+  margin:0;background:var(--card);border:1px solid var(--line);
+  border-radius:6px;padding:7px 9px;max-height:180px;overflow:auto}
+/* server-side refusal states (plan 05-06): the network refusal reuses the
+   pending treatment; the language refusal reads as an error because it is a
+   misconfiguration, not a boundary. */
+.refused{font-size:14.5px;margin-bottom:10px}
+.refused.pend{color:var(--warn);font-weight:600}
+.refused.err{color:var(--bad);font-weight:600}
 
 .done{background:var(--card);border:1px solid var(--line);border-radius:12px;
   padding:20px}
@@ -516,6 +549,31 @@ function asCheck(q, body, act, card){
   const cfg = (q.interaction_contract && q.interaction_contract.renderer_config) || {};
   const n = cfg.hidden_case_count || 0;
   const starter = q.starter || "";
+  /* D-06 (plan 05-06): execution is server-side only, so a file:// page has
+     no process to ask. Render the locked file-refusal sentence instead of
+     the editor -- never a dead field the learner can type into and never
+     submit -- and one skip control that advances without verifying, settling
+     or closing: nothing is scored, nothing is recorded, and the item never
+     reaches the auto-marked total (it is excluded exactly as if it were
+     never reached). The honest-limits line below still renders from the
+     item card. */
+  if(!SERVE){
+    const ref = document.createElement("div");
+    ref.className = "pend";
+    ref.textContent = "This item runs code on the machine serving itembank and can't be answered from a file opened directly in a browser. Open this bank with itembank serve (or the daemon) and try again.";
+    body.appendChild(ref);
+    const skip = document.createElement("button");
+    skip.className = "go ghost"; skip.type = "button";
+    skip.textContent = "Skip — not answerable offline";
+    act.appendChild(skip);
+    skip.onclick = ()=>{ i++; render(); };
+    skip.focus();
+    const lim2 = document.createElement("div");
+    lim2.className = "hint";
+    lim2.textContent = "__HONEST_LIMITS__";
+    card.appendChild(lim2);
+    return;
+  }
   const wrap = document.createElement("div");
   wrap.className = "codewrap";
   const mount = document.createElement("div");
@@ -575,6 +633,64 @@ function mkSubmit(act, hint){
   return b;
 }
 
+/* ---- check per-case readout (plan 05-06) ---------------------------------
+   The learner's submitted source is their executable prediction; the ordered
+   rows below are the bounded observations from that exact run, consumed from
+   the shared normalized contract -- never scraped from prose, never a second
+   verdict, never a re-run of the source. The overall verdict header stays
+   the dichotomous runtime return; a null verdict (killed at timeout) renders
+   the pending treatment, because a timeout is not a verdict (criterion 12). */
+const CASE_STATUS = {
+  passed:     ["Passed", ""],
+  wrong_output:["Failed", ""],
+  timeout:    ["Failed — timed out after %ss", "warn"],
+  output_cap: ["Failed — output was cut off at %d KB", "warn"]
+};
+function caseStatus(reason, timeoutSecs, capKB){
+  const [tmpl, role] = CASE_STATUS[reason] || ["Failed", ""];
+  const text = reason === "timeout"
+    ? tmpl.replace("%s", String(timeoutSecs))
+    : reason === "output_cap" ? tmpl.replace("%d", String(capKB)) : tmpl;
+  return {text, role};
+}
+function checkMatrix(rows, timeoutSecs, capKB){
+  let h = `<div class="check-matrix" role="list">`;
+  rows.forEach(r=>{
+    const st = caseStatus(r.reason, timeoutSecs, capKB);
+    const cls = r.passed ? "right" : "wrong";
+    const warn = st.role === "warn" ? " warn" : "";
+    h += `<div class="case ${cls}" role="listitem">
+      <div class="case-head"><span class="case-n">Case ${r.case_index}</span>
+        <span class="st${warn}">${esc(st.text)}</span></div>`;
+    if(r.input) h += `<div class="cf"><h5>Input</h5><pre>${esc(r.input)}</pre></div>`;
+    h += `<div class="cf"><h5>${r.expected_kind === "pattern" ? "Expected (pattern)" : "Expected"}</h5>
+      <pre>${esc(r.expected)}</pre></div>`;
+    h += `<div class="cf"><h5>Your output</h5><pre>${esc(r.actual || "")}</pre></div>`;
+    h += `</div>`;
+  });
+  return h + `</div>`;
+}
+
+/* Offline-only row derivation: the static page holds the authored case
+   halves in its explain payload and derives each observation's reason from
+   the case flags plus the dichotomous score. Never a second verdict -- the
+   header already came from canon()===key, and a null score (unanswered
+   check) renders the pending header above. */
+function checkRows(ex, v){
+  return (ex.cases || []).map(c=>{
+    const timed = !!c.timed_out, trunc = !!c.truncated;
+    const failed = v.score === false;
+    let reason = "passed";
+    if(timed) reason = "timeout";
+    else if(trunc) reason = "output_cap";
+    else if(failed) reason = "wrong_output";
+    return {case_index: c.case_index || 0, passed: !timed && !trunc && !failed,
+            reason: reason, input: c.input || "", expected: c.expected || "",
+            expected_kind: c.expected_kind || "output",
+            actual: c.actual !== undefined ? c.actual : ""};
+  });
+}
+
 function close(q, card, act, v){
   const ex = v.explain || {};
   const right = v.score;
@@ -598,6 +714,14 @@ function close(q, card, act, v){
       h += `<div class="blk" style="color:var(--mut);font-size:13.5px">The model answer is
         held back so it cannot contaminate the items after this one. It is in the bank file.`;
     }
+  } else if(q.type === "check"){
+    /* The per-case readout (plan 05-06). The offline page compares against
+       the canonical key it shipped, so the rows derive from the explain
+       payload's authored halves plus the score; the served page feeds the
+       normalized observations instead. The verdict header above stays the
+       dichotomous runtime return; a null verdict (killed at timeout)
+       renders the pending treatment, never pass or fail (criterion 12). */
+    h += checkMatrix(checkRows(ex, v), 5, 64);
   } else {
     if(!v.skipWhy) h += blk("Why this is best", ex.why);
     h += blk("Key discriminator", ex.disc);
@@ -1050,6 +1174,31 @@ function asCheck(q, body, act, card){
   const cfg = (q.interaction_contract && q.interaction_contract.renderer_config) || {};
   const n = cfg.hidden_case_count || 0;
   const starter = q.starter || "";
+  /* D-06 (plan 05-06): execution is server-side only, so a file:// page has
+     no process to ask. Render the locked file-refusal sentence instead of
+     the editor -- never a dead field the learner can type into and never
+     submit -- and one skip control that advances without verifying, settling
+     or closing: nothing is scored, nothing is recorded, and the item never
+     reaches the auto-marked total (it is excluded exactly as if it were
+     never reached). The honest-limits line below still renders from the
+     item card. */
+  if(!SERVE){
+    const ref = document.createElement("div");
+    ref.className = "pend";
+    ref.textContent = "This item runs code on the machine serving itembank and can't be answered from a file opened directly in a browser. Open this bank with itembank serve (or the daemon) and try again.";
+    body.appendChild(ref);
+    const skip = document.createElement("button");
+    skip.className = "go ghost"; skip.type = "button";
+    skip.textContent = "Skip — not answerable offline";
+    act.appendChild(skip);
+    skip.onclick = ()=>{ i++; render(); };
+    skip.focus();
+    const lim2 = document.createElement("div");
+    lim2.className = "hint";
+    lim2.textContent = "__HONEST_LIMITS__";
+    card.appendChild(lim2);
+    return;
+  }
   const wrap = document.createElement("div");
   wrap.className = "codewrap";
   const mount = document.createElement("div");
@@ -1101,6 +1250,43 @@ function asCheck(q, body, act, card){
   card.appendChild(lim);
 }
 
+/* ---- check per-case readout (plan 05-06) ---------------------------------
+   The served client consumes the shared normalized observations
+   (v.interaction_result.observations) -- the exact ordered rows the runtime
+   built from the one run -- and never re-derives the verdict. The status
+   line comes from the stable machine-readable `reason`; a bounded stop keeps
+   the failure row but reads in the warning role. */
+const CASE_STATUS = {
+  passed:     ["Passed", ""],
+  wrong_output:["Failed", ""],
+  timeout:    ["Failed — timed out after %ss", "warn"],
+  output_cap: ["Failed — output was cut off at %d KB", "warn"]
+};
+function caseStatus(reason, timeoutSecs, capKB){
+  const [tmpl, role] = CASE_STATUS[reason] || ["Failed", ""];
+  const text = reason === "timeout"
+    ? tmpl.replace("%s", String(timeoutSecs))
+    : reason === "output_cap" ? tmpl.replace("%d", String(capKB)) : tmpl;
+  return {text, role};
+}
+function checkMatrix(rows, timeoutSecs, capKB){
+  let h = `<div class="check-matrix" role="list">`;
+  rows.forEach(r=>{
+    const st = caseStatus(r.reason, timeoutSecs, capKB);
+    const cls = r.passed ? "right" : "wrong";
+    const warn = st.role === "warn" ? " warn" : "";
+    h += `<div class="case ${cls}" role="listitem">
+      <div class="case-head"><span class="case-n">Case ${r.case_index}</span>
+        <span class="st${warn}">${esc(st.text)}</span></div>`;
+    if(r.input) h += `<div class="cf"><h5>Input</h5><pre>${esc(r.input)}</pre></div>`;
+    h += `<div class="cf"><h5>${r.expected_kind === "pattern" ? "Expected (pattern)" : "Expected"}</h5>
+      <pre>${esc(r.expected)}</pre></div>`;
+    h += `<div class="cf"><h5>Your output</h5><pre>${esc(r.actual || "")}</pre></div>`;
+    h += `</div>`;
+  });
+  return h + `</div>`;
+}
+
 function mkSubmit(act, hint){
   const b = document.createElement("button");
   b.className="go"; b.type="button"; b.textContent="Submit answer"; b.disabled=true;
@@ -1110,6 +1296,33 @@ function mkSubmit(act, hint){
 }
 
 function close(q, card, act, v, revert){
+  /* Server-side refusal (plan 05-06): the daemon returned a normal
+     `{"refused": ..., "refused_reason": ...}` body instead of a verdict --
+     the served page's settle() surfaced it here, not in the catch block.
+     The page renders its own locked copy of the matching sentence (the
+     Copywriting Contract rows live in this client script; the daemon's
+     `refused_reason` field picks which one), styled by cause: network =
+     boundary/pending, language = misconfiguration/error. Check is not
+     re-enabled -- retrying cannot change the outcome. */
+  if(v && v.refused){
+    act.innerHTML = "";
+    const fb = feedbackFor(card);
+    const langName = ((q.interaction_contract || {}).renderer_config || {}).language || "python";
+    const lang = (v.refused_reason === "language")
+      ? "This item requests the '" + langName + "' language, which isn't "
+        "enabled in this itembank's settings (check.languages). Add it in "
+        "settings, or ask whoever set up this bank to fix its [LANG:] value."
+      : "Code execution is turned off while itembank is serving on your "
+        "network (--lan). Ask whoever runs itembank to turn on "
+        "check.allow_lan in settings if this device should be trusted, or "
+        "answer this item from the machine itembank is running on.";
+    const div = document.createElement("div");
+    div.className = "refused " + (v.refused_reason === "language" ? "err" : "pend");
+    div.textContent = lang;
+    act.appendChild(div);
+    fb.innerHTML = "";
+    return;
+  }
   const ex = v.explain || {};
   const right = v.score;
   const pending = (right === null || right === undefined);
@@ -1153,6 +1366,13 @@ function close(q, card, act, v, revert){
         held back so it cannot contaminate the items after this one. It is in the bank file
         and in the attempt file next to what you wrote.</div>`;
     }
+  } else if(q.type === "check"){
+    /* The matrix consumes the normalized ordered observations from the one
+       run -- stable case_index/reason pairs, never scraped from prose and
+       never a second verdict. The deadline and cap are interpolated from
+       the config the daemon runs with (booleans stay bound flags). */
+    const rows = (v.interaction_result && v.interaction_result.observations) || [];
+    h += checkMatrix(rows, 5, 64);
   } else {
     if(!v.skipWhy) h += blk("Why this is best", ex.why);
     h += blk("Key discriminator", ex.disc);

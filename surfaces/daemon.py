@@ -25,6 +25,7 @@ from runtime import explain_payload, glossable, read_session, upgrade_session
 from surfaces import (day, launcher, lesson, presentation, quiz, seeding,
                       session, settings, study, update)
 from surfaces import theme
+from surfaces.session import UNKNOWN_LANGUAGE_COPY
 
 
 MARKER_PATH = "/__itembank__"
@@ -78,6 +79,33 @@ LAN_REFUSAL_COPY = (
     "(--lan). Ask whoever runs itembank to turn on check.allow_lan in settings "
     "if this device should be trusted, or answer this item from the machine "
     "itembank is running on.")
+
+# The two server-side check refusals the served page branches on. Both are
+# returned as a normal JSON body -- never a thrown error -- carrying the
+# locked sentence under `refused` and the cause under `refused_reason`, so
+# the page can style them differently (plan 05-06): the network refusal is a
+# boundary (pending treatment), the unknown-language refusal is a
+# misconfiguration (error treatment).
+REFUSAL_REASON_LAN = "lan"
+REFUSAL_REASON_LANG = "language"
+
+
+def _refusal_body(reason, copy):
+    return {"refused": copy, "refused_reason": reason}
+
+
+def _refusal_from_exit(exc_code, q):
+    """Map a session.do_action SystemExit onto a server-side refusal body, or
+    None when the exit is not a check refusal. The unknown-language refusal
+    is raised as SystemExit(UNKNOWN_LANGUAGE_COPY % lang) by the shared
+    gate; the served page must receive it as a normal response, not a
+    thrown error, so it can render the locked language sentence (plan
+    05-06 Task 2)."""
+    msg = str(exc_code)
+    if q is not None and q.get("type") == "check" and msg == (
+            UNKNOWN_LANGUAGE_COPY % (q.get("lang") or "python")):
+        return _refusal_body(REFUSAL_REASON_LANG, msg)
+    return None
 
 
 SKIP_DIRS = {".git", ".github", "_attempts", "_evidence"}
@@ -877,7 +905,7 @@ def handle_quiz_answer(handler, stem):
             handler.send_error(404, "no item %r in this bank" % data.get("id"))
             return
         if _refuse_check_execution(handler, q):
-            handler.send_json({"refused": LAN_REFUSAL_COPY})
+            handler.send_json(_refusal_body(REFUSAL_REASON_LAN, LAN_REFUSAL_COPY))
             return
         elapsed_ms = data.get("elapsed_ms")
         if not isinstance(elapsed_ms, int) or isinstance(elapsed_ms, bool):
@@ -934,7 +962,11 @@ def handle_quiz_answer(handler, stem):
         _refresh_attempt_view(sess, api_id, qs, path)
         payload = result
     except SystemExit as exc:
-        handler.send_error(400, str(exc.code))
+        body = _refusal_from_exit(exc.code, q)
+        if body is not None:
+            handler.send_json(body)
+        else:
+            handler.send_error(400, str(exc.code))
         return
     except Exception as exc:                    # never let a bad POST kill the daemon
         handler.send_server_error(exc)
@@ -1641,7 +1673,11 @@ def handle_api_submit(handler):
             path, {"kind": "submit", "answer": answer},
             confidence=confidence, renderer_meta=renderer_meta)
     except SystemExit as exc:
-        handler.send_error(400, str(exc.code))
+        body = _refusal_from_exit(exc.code, q)
+        if body is not None:
+            handler.send_json(body)
+        else:
+            handler.send_error(400, str(exc.code))
         return
     except Exception as exc:
         handler.send_server_error(exc)
