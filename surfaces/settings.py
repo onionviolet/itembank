@@ -180,7 +180,12 @@ def resolve_profile(settings_data, name=None):
     field is settings.invalid_value (a bad registry, never a silent
     fallback); an active name that matches no profile is
     adapter.profile_unknown; an empty active profile or empty profiles array
-    is adapter.profile_disabled (a typed unavailable, never a crash).
+    is adapter.profile_disabled (a typed unavailable, never a crash). An
+    unrecognized transport name is NOT rejected here: it routes if a
+    TRANSPORT_REGISTRY entry exists (D-27 -- a third backend is a module
+    plus a config entry, no resolver edit), and the adapter resolves an
+    unregistered transport to adapter.transport_unknown -- still typed
+    unavailable, never a silent fallback.
     """
     mb = (settings_data or {}).get("model_backend")
     if not isinstance(mb, dict):
@@ -208,6 +213,9 @@ def resolve_profile(settings_data, name=None):
             return None, {"code": "settings.invalid_value",
                           "message": "duplicate model backend profile name %r" % pname}
         transport = profile.get("transport")
+        if not isinstance(transport, str) or not transport:
+            return None, {"code": "settings.invalid_value",
+                          "message": "profile %r has no transport" % pname}
         if transport == "hosted_cli" and not profile.get("command"):
             return None, {"code": "settings.invalid_value",
                           "message": "profile %r (hosted_cli) requires a command array"
@@ -216,10 +224,8 @@ def resolve_profile(settings_data, name=None):
             return None, {"code": "settings.invalid_value",
                           "message": "profile %r (openai_compatible) requires an endpoint"
                           % pname}
-        if transport not in ("hosted_cli", "openai_compatible"):
-            return None, {"code": "settings.invalid_value",
-                          "message": "profile %r has an unknown transport %r"
-                          % (pname, transport)}
+        # Any other transport name is deferred to the adapter's
+        # TRANSPORT_REGISTRY (see the docstring's D-27 note).
         by_name[pname] = profile
     target = name or active
     if target not in by_name:
