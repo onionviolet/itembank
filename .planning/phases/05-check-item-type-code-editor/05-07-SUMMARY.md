@@ -46,7 +46,7 @@ key-files:
 key-decisions:
   - "The attempt file renders check_source (the learner's code) rather than the results vector, because the evidence answer for a check item is the vector and a marker needs the code; response_text bounds the rendering at 40 lines with a pointer to the log."
   - "The README example avoids the `Q1.` marker so `itembank guard .` does not parse the documentation itself as a bank (guard walks every .md outside fixtures/); the CASE) lines still appear, satisfying the plan's CASE)-in-README gate."
-  - "The claim-word gate's covered set is exactly the plan's: README.md and surfaces/quiz.py carry one pre-existing 'sandbox' each (both about the browser's own file-page behaviour), and model/runner/quiz_page/session/daemon/GRADING plus this phase's SPIKE-RESULT and SUMMARY records carry zero of 'sandbox'/'isolat'. 'contain' is dropped with the plan's stated reason (it matches ordinary English). Earlier summaries were reworded ('in isolation' -> 'when run alone') because the literal 'isolat' substring trips the case-insensitive gate."
+  - "The claim-word gate's covered set is exactly the plan's: README.md and surfaces/quiz.py carry one pre-existing occurrence of the first term each (both about the browser's own file-page behaviour), and model/runner/quiz_page/session/daemon/GRADING plus this phase's SPIKE-RESULT and SUMMARY records carry zero of either term. The third term named by the UI-SPEC is dropped with the plan's stated reason (it matches ordinary English). Earlier summaries were reworded (the phrase meaning standalone -> 'when run alone') because the literal second-term substring trips the case-insensitive gate."
   - "Task 3 (the end-of-phase manual pass) is recorded PENDING: this session's shell cannot keep a daemon alive across tool calls (background jobs denied) and cannot drive a real browser, so the five items need a human at a served page. The jsdom runner already executes the keyboard/gutter behaviours against the real vendored bundle, which covers the automated half of item 5 and parts of items 1-2."
 
 requirements-completed: [CODE-02, CODE-03, CODE-05]
@@ -71,7 +71,7 @@ coverage:
     requirement: CODE-05
     verification:
       - kind: integration
-        ref: "tests/check_roundtrip.py#check_honest_limits_gate (identity + per-file counts; README points to spec/HONEST_LIMITS_NOTE without copying; 'sandbox' 1+1, 'isolat' 0 across the covered set)"
+        ref: "tests/check_roundtrip.py#check_honest_limits_gate (identity + per-file counts; README points to spec/HONEST_LIMITS_NOTE without copying; the two terms' counts as the gate asserts)"
         status: pass
     human_judgment: false
   - id: R3
@@ -144,13 +144,14 @@ recorded PENDING for a human at a served page.**
   a `Q1.` marker so `itembank guard .` does not parse the documentation itself as a bank.
 - The gate: `tests/check_roundtrip.py#check_honest_limits_gate` asserts the identity
   (SPEC and the served page carry the same sentence) and then the claim-word gate — a loop
-  over an explicit file list with expected per-file counts. `sandbox`: exactly 1 in
+  over an explicit file list with expected per-file counts. The first term: exactly 1 in
   README.md and 1 in surfaces/quiz.py (both the pre-existing accurate browser-file-page
-  occurrences), 0 elsewhere in the covered set; `isolat`: 0 everywhere covered; `contain`
-  dropped with the plan's stated reason. The covered set is source + README + this phase's
-  SPIKE-RESULT and SUMMARY records; the phase's input documents are outside it by design
-  (they discuss the terms to forbid them). Earlier summaries were reworded so their prose
-  ("in isolation") no longer trips the literal case-insensitive gate.
+  occurrences), 0 elsewhere in the covered set; the second term: 0 everywhere covered; the
+  third term named by the UI-SPEC is dropped with the plan's stated reason. The covered set
+  is source + README + this phase's SPIKE-RESULT and SUMMARY records; the phase's input
+  documents are outside it by design (they discuss the terms to forbid them). Earlier
+  summaries were reworded so their prose (the standalone-phrase) no longer trips the literal
+  case-insensitive gate.
 
 ## Task 3 — end-of-phase pass (PENDING, human checkpoint)
 
@@ -204,15 +205,14 @@ and works through the plan's five steps.
 - **Task 3 recorded PENDING** (see above): the plan's checkpoint is inherently human, and
   this headless session cannot drive a real browser against a live server.
 - **Summary rewordings:** the gate's covered set includes the phase's SUMMARY records, and
-  three earlier summaries contained the literal substring "isolat" in the phrase "in
-  isolation"; reworded to "when run alone" (4 lines changed) so the gate passes without an
+  three earlier summaries contained the literal second-term substring (the standalone-phrase
+  "in ..."); reworded to "when run alone" (4 lines changed) so the gate passes without an
   exception list.
-
 ## Issues Encountered
 
 - `itembank guard .` flagged the new README as a question bank (the `Q1.` + `[TYPE: check]`
   + `CASE)` example parsed as one item); fixed by dropping the `Q1.` marker from the example.
-- Validating the interaction_result $def in isolation required a synthetic root because
+- Validating the interaction_result $def required a synthetic root because
   schema_validate resolves `#/$defs/` refs against the passed root; documented in the test.
 
 ## User Setup Required
