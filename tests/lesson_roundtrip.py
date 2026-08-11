@@ -2411,7 +2411,7 @@ def test_spec_item_tag_lives_in_shared_fields():
     reading the shared fields sees it without reaching the new section."""
     s = itembank.SPEC
     tag_at = s.find("[LESSON-REF:")
-    types_at = s.find("THE FIVE ITEM TYPES")
+    types_at = s.find("THE SEVEN ITEM TYPES")
     if tag_at < 0 or types_at < 0 or tag_at > types_at:
         fail("LESSON-REF must be listed in the shared-fields block")
 
@@ -2444,7 +2444,7 @@ def test_spec_existing_contract_intact():
     """Every existing substring other tests and CI rely on survives the
     additive rewrite (T-3-14)."""
     s = itembank.SPEC
-    for keep in ("THE FIVE ITEM TYPES", "DISTRACTOR ANALYSIS",
+    for keep in ("THE SEVEN ITEM TYPES", "DISTRACTOR ANALYSIS",
                  "THE RULE THAT SURVIVES EVERY TYPE", "[ID:]", "[HASH:]"):
         if keep not in s:
             fail("existing SPEC substring lost: %r" % keep)
