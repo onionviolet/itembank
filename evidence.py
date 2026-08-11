@@ -41,14 +41,14 @@ INDEX_FILENAME = "evidence_index.sqlite3"
 
 # "retraction" was added by plan 01-07, "mark" by plan 01-09, "day_tick" by
 # plan 01-10, "term_lookup" by plan 03.1-02, "key_review" by plan 03.1-03,
-# "hint" by plan 06-01, "selection" by plan 07-04, and "model_interaction" by
-# plan 08-03 -- response events are the only ones this build
+# "hint" by plan 06-01, "selection" by plan 07-04, "model_interaction" by
+# plan 08-03, and "mark_proposal" by plan 08-03 -- response events are the only ones this build
 # wrote before 01-07. events() skips and warns on anything outside this set
 # (D-09), so a log written by a later build's event type degrades instead of
 # crashing.
 KNOWN_EVENT_TYPES = ("response", "retraction", "mark", "day_tick",
                      "term_lookup", "key_review", "hint", "selection",
-                     "model_interaction")
+                     "model_interaction", "mark_proposal")
 
 # The record of what a sitting asked for (D-03): one event per session, so a
 # deleted session file never destroys the ability to reproduce the sitting.
@@ -1762,6 +1762,97 @@ def model_interactions(log, session_id):
     return [ev for ev in live_events(log)
             if ev.get("event_type") == MODEL_INTERACTION_EVENT_TYPE
             and ev.get("session_id") == session_id]
+
+
+# ---- mark proposals (08-03) -------------------------------------------------
+# D-13/D-14/D-23: a rubric-review outcome is a per-point pass|fail|uncertain
+# pending suggestion linked to the genuine short-answer response event and to
+# the interaction that produced it. A proposal is structurally incapable of
+# settling a mark: it carries no score key and no verdict field, and the
+# settled-mark readers (marks_by_event, the review_state derivation) filter
+# on the mark event type only (T-08-20).
+
+MARK_PROPOSAL_EVENT_TYPE = "mark_proposal"
+
+
+def mark_proposal_event(session_id, bank, item_id, item_ref, response_event_id,
+                        interaction_id, points, ts=None):
+    """Build one mark_proposal event: a first-class, timestamped pending
+    suggestion for the response event named by `response_event_id`, produced
+    by the model interaction named by `interaction_id` (D-13).
+
+    `points` is a list of per-point suggestions, each carrying `point_index`
+    (a non-negative integer), `status` (pass, fail, or uncertain), and a
+    `rationale` bounded at 240 characters. An empty `points` array is valid
+    and reads back as pending/unknown, never a default pass (D-22).
+
+    The returned dict carries no `score` key and no `verdict` field --
+    structurally, not merely by convention: a proposal can never be mistaken
+    for the settled mark that only a human's `mark_event(marker="human",
+    proposal_ref=...)` creates (D-14/D-23).
+
+    `dedupe_key` is a hash over (session_id, response_event_id,
+    interaction_id), so one proposal per response-interaction pair is
+    structural: a second identical proposal reports `already_recorded`.
+    """
+    if not response_event_id:
+        raise ValueError("mark_proposal_event: response_event_id must be "
+                         "non-empty")
+    if not interaction_id:
+        raise ValueError("mark_proposal_event: interaction_id must be "
+                         "non-empty")
+    out_points = []
+    for i, p in enumerate(points or []):
+        point_index = p.get("point_index")
+        status = p.get("status")
+        rationale = p.get("rationale", "")
+        if (not isinstance(point_index, int) or isinstance(point_index, bool)
+                or point_index < 0):
+            raise ValueError(
+                "mark_proposal_event: point %d point_index must be a "
+                "non-negative integer, got %r" % (i, point_index))
+        if status not in ("pass", "fail", "uncertain"):
+            raise ValueError(
+                "mark_proposal_event: point %d status must be 'pass', 'fail' "
+                "or 'uncertain', got %r" % (i, status))
+        if not isinstance(rationale, str) or len(rationale) > 240:
+            raise ValueError(
+                "mark_proposal_event: point %d rationale must be a string of "
+                "at most 240 characters" % (i,))
+        out_points.append({"point_index": point_index, "status": status,
+                           "rationale": rationale})
+    raw = "%s|%s|%s" % (session_id, response_event_id, interaction_id)
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": MARK_PROPOSAL_EVENT_TYPE,
+        "ts": ts if ts is not None else utc_now(),
+        "session_id": session_id,
+        "bank": bank,
+        "item_id": item_id,
+        "item_ref": item_ref,
+        "response_event_id": response_event_id,
+        "interaction_id": interaction_id,
+        "points": out_points,
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+def proposals_for(log, session_id, response_event_id=None):
+    """Every LIVE mark_proposal event for `session_id`, optionally filtered
+    to one response event, in log order.
+
+    Reads through `live_events`, never `events` (post-retraction discipline,
+    D-10): a retracted proposal disappears from this reader as it does from
+    a count. A proposal this reader still returns has never been accepted --
+    `proposal_summary` derives its pending state, and only a human's
+    `mark_event(marker="human", proposal_ref=...)` settles it (D-22).
+    """
+    return [ev for ev in live_events(log)
+            if ev.get("event_type") == MARK_PROPOSAL_EVENT_TYPE
+            and ev.get("session_id") == session_id
+            and (response_event_id is None
+                 or ev.get("response_event_id") == response_event_id)]
 
 
 def day_log_from_events(log):

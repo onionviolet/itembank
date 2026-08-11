@@ -234,7 +234,8 @@
         "event_type": {
           "type": "string",
           "enum": ["mark", "retraction", "day_tick", "term_lookup",
-                   "key_review", "selection", "model_interaction"]
+                   "key_review", "selection", "model_interaction",
+                   "mark_proposal"]
         }
       }
     },
@@ -458,6 +459,76 @@
         "parent_interaction_id": {
           "type": ["string", "null"],
           "description": "The interaction id this retry re-runs, or null for a first attempt (D-12)."
+        },
+        "dedupe_key": {
+          "type": "string"
+        }
+      }
+    },
+    "mark_proposal_event": {
+      "type": "object",
+      "description": "The mark_proposal event's real shape (plan 08-03, D-13/D-14/D-23): a pending per-point pass|fail|uncertain suggestion for the short-answer response event named by response_event_id, produced by the interaction named by interaction_id. It structurally carries no score key and no verdict field, so it can never be mistaken for the settled mark that only a human's mark_event(marker='human', proposal_ref=...) creates. An empty points array is valid and reads as pending/unknown.",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "event_id", "event_type", "ts", "session_id",
+        "bank", "item_id", "item_ref", "response_event_id", "interaction_id",
+        "points", "dedupe_key"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "event_id": {
+          "type": "string"
+        },
+        "event_type": {
+          "const": "mark_proposal"
+        },
+        "ts": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "bank": {
+          "type": "string"
+        },
+        "item_id": {
+          "type": "string"
+        },
+        "item_ref": {
+          "type": "string"
+        },
+        "response_event_id": {
+          "type": "string",
+          "description": "The event_id of the genuine short-answer response this proposal reviews."
+        },
+        "interaction_id": {
+          "type": "string",
+          "description": "The model interaction that produced this suggestion (D-13)."
+        },
+        "points": {
+          "type": "array",
+          "description": "One suggestion per rubric point. Empty is valid and reads back as pending/unknown, never a default pass (D-22).",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["point_index", "status", "rationale"],
+            "properties": {
+              "point_index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "status": {
+                "type": "string",
+                "enum": ["pass", "fail", "uncertain"]
+              },
+              "rationale": {
+                "type": "string",
+                "description": "Bounded at 240 characters by the builder (the in-repo validator has no maxLength)."
+              }
+            }
+          }
         },
         "dedupe_key": {
           "type": "string"
