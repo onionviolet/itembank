@@ -283,7 +283,56 @@ def force_kill(pid):
         subprocess.run(["taskkill", "/F", "/PID", str(pid)],
                        capture_output=True, text=True)
     else:
-        os.kill(pid, 9)
+        try:
+            os.kill(pid, 9)
+        except ProcessLookupError:
+            # Already exited -- cleanup paths call force_kill() after the
+            # child may have died on its own; a dead pid is the property we
+            # are proving, not an error. (taskkill /F on Windows tolerates
+            # this case; os.kill does not.)
+            pass
+
+
+def shell_exe():
+    """The built shell binary (debug first), or None when not built."""
+    for sub in ("target/debug", "target/release"):
+        p = os.path.join(ROOT, "src-tauri", sub, "itembank-shell.exe")
+        if os.path.exists(p):
+            return p
+    return None
+
+
+def start_shell(workdir):
+    """Launch the built shell headless, which spawns the sidecar (dev python
+    fallback), and return `(proc, sidecar_pid, sidecar_port, lines)` once the
+    shell reports its sidecar on stdout -- the headless test seam that never
+    carries the token (T-13-08).
+    """
+    exe = shell_exe()
+    if exe is None:
+        fail("itembank-shell.exe is not built -- run cargo build "
+             "--manifest-path src-tauri/Cargo.toml first")
+    env = dict(os.environ)
+    env["ITEMBANK_HEADLESS"] = "1"
+    env["ITEMBANK_BANKS_DIR"] = workdir
+    proc = subprocess.Popen([exe], stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True, env=env)
+    lines = []
+    threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
+                     daemon=True).start()
+    pid = port = None
+    for _ in range(250):                   # up to ~25s for shell+sidecar start
+        time.sleep(0.1)
+        text = "".join(lines)
+        m = re.search(r"shell-sidecar-pid:(\d+)", text)
+        p = re.search(r"shell-sidecar-port:(\d+)", text)
+        if m and p:
+            pid, port = int(m.group(1)), int(p.group(1))
+            break
+    if pid is None:
+        proc.terminate()
+        fail("shell never reported its sidecar. Output was:\n" + "".join(lines))
+    return proc, pid, port, lines
 
 
 # ---------------------------------------------------------------------------
@@ -567,6 +616,84 @@ def check_lifecycle_daemon():
         force_kill(proc.pid)
 
 
+# ---------------------------------------------------------------------------
+# Plan 13-02: the shell lifecycle (job object) and the liveness documents
+# ---------------------------------------------------------------------------
+
+def check_lifecycle_shell():
+    """Test 1 (13-02 task 2): taskkill /F the shell and the sidecar dies with
+    it -- the job-object backstop (D-05): no orphaned sidecar, no held port,
+    within a bounded poll, teardown logged.
+    """
+    if shell_exe() is None:
+        print("skip: itembank-shell.exe not built -- run cargo build first")
+        return
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, sidecar_pid, port, lines = start_shell(workdir)
+    try:
+        wait_serving(port)
+        killed_at = time.time()
+        force_kill(proc.pid)
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            fail("shell did not exit within 10s of taskkill /F")
+        deadline = time.time() + 8.0
+        while time.time() < deadline:
+            if not pid_alive(sidecar_pid) and not port_accepts(port):
+                break
+            time.sleep(0.1)
+        if pid_alive(sidecar_pid):
+            fail("sidecar pid %d survived the shell's death -- the job object "
+                 "backstop is missing" % sidecar_pid)
+        if port_accepts(port):
+            fail("sidecar port %d still accepts after the shell's death" % port)
+        print("  shell teardown (kill-to-sidecar-death): %.3fs"
+              % (time.time() - killed_at))
+    finally:
+        force_kill(proc.pid)
+        force_kill(sidecar_pid)
+
+
+def check_shell_liveness_docs():
+    """Test (13-02 task 3): the shell-local documents carry the 13-UI-SPEC
+    3.3 copy verbatim -- the five states in one document selected by data
+    attribute, plus the runtime-status Ledger readout (2.2).
+    """
+    not_ready = open(
+        os.path.join(ROOT, "src-tauri", "assets", "runtime-not-ready.html"),
+        encoding="utf-8").read()
+    for needle in (
+        "itembank is starting its runtime. This window will load as soon as "
+        "the runtime is listening.",
+        "The runtime has not reported a port after 10 seconds.",
+        "itembank could not start its runtime, so lessons, sittings, scoring, "
+        "and evidence are unavailable in this window. Nothing was scored and "
+        "nothing was recorded.",
+        "Your banks and evidence are untouched. They are files on disk, and "
+        "this failure did not write to them.",
+        "The itembank runtime stopped after it started. Anything you submitted "
+        "was recorded when you submitted it. Anything on screen that you had "
+        "not submitted was not recorded.",
+        "A runtime is already listening on",
+        "This window did not start a second one.",
+        "itembank is already running, but this window could not attach to it. "
+        "Close the other itembank window, or end the process named",
+        "then start itembank again.",
+        "The runtime also runs without this window:",
+        "itembank daemon .",
+    ):
+        if needle not in not_ready:
+            fail("runtime-not-ready.html is missing the 3.3 copy: %r" % needle)
+    status = open(
+        os.path.join(ROOT, "src-tauri", "assets", "runtime-status.html"),
+        encoding="utf-8").read()
+    for needle in ("runtime: listening on", "pid", "started", "version", "log"):
+        if needle not in status:
+            fail("runtime-status.html is missing the Ledger readout: %r" % needle)
+
+
 def main():
     checks = (
         check_sidecar_handshake,
@@ -577,6 +704,8 @@ def main():
         check_port_held_copy_verbatim,
         check_lifecycle_sidecar,
         check_lifecycle_daemon,
+        check_lifecycle_shell,
+        check_shell_liveness_docs,
     )
     for check in checks:
         check()
