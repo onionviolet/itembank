@@ -1068,6 +1068,109 @@ def test_index_is_disposable():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def _fixture_evidence_dir(tmp):
+    """Copy the phase-7 synthetic evidence fixture into a temp `_evidence/`
+    directory and return the log path -- the one shared setup for the
+    bank-scoping checks below, which need the fixture's three
+    `other_bank.md` events and its one retraction."""
+    ev_dir = os.path.join(tmp, "_evidence")
+    os.makedirs(ev_dir)
+    shutil.copyfile(
+        os.path.join(ROOT, "fixtures", "selection_evidence.jsonl"),
+        os.path.join(ev_dir, "evidence.jsonl"))
+    return os.path.join(ev_dir, "evidence.jsonl")
+
+
+def test_bank_scoped_query():
+    """SEL-03 (D-13): a bank-scoped exposure query returns only that bank's
+    responses, the two bank scopes are disjoint and together equal the
+    unscoped set, and every returned row carries the requested bank -- the
+    scope is real, not a parameter that is accepted and dropped."""
+    tmp = tempfile.mkdtemp()
+    try:
+        log = _fixture_evidence_dir(tmp)
+        scoped = itembank.objective_history(log, "", bank="selection_bank.md")
+        other = itembank.objective_history(log, "", bank="other_bank.md")
+        unscoped = itembank.objective_history(log, "")
+        scoped_keys = {json.dumps(r, sort_keys=True) for r in scoped}
+        other_keys = {json.dumps(r, sort_keys=True) for r in other}
+        if scoped_keys & other_keys:
+            fail("bank scopes overlap: %r" % (scoped_keys & other_keys))
+        if len(scoped_keys) + len(other_keys) != len(unscoped):
+            fail("bank scopes do not partition the unscoped query: "
+                 "%d + %d != %d" % (len(scoped_keys), len(other_keys),
+                                    len(unscoped)))
+        for row in scoped:
+            if row.get("bank") != "selection_bank.md":
+                fail("scoped row carries bank %r" % row.get("bank"))
+        for row in other:
+            if row.get("bank") != "other_bank.md":
+                fail("other-bank row carries bank %r" % row.get("bank"))
+        print("bank scoped query: disjoint, exhaustive, every row banked")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_history_row_width():
+    """Every `objective_history()` row names its own `objective` and `bank`
+    so a caller can group without re-reading the log, and the objective is
+    the recorded one -- never re-derived."""
+    tmp = tempfile.mkdtemp()
+    try:
+        log = _fixture_evidence_dir(tmp)
+        rows = itembank.objective_history(log, "")
+        if not rows:
+            fail("fixture history produced no rows")
+        for row in rows:
+            if "objective" not in row or "bank" not in row:
+                fail("row lacks objective/bank keys: %r" % row)
+        recorded = {}
+        for ev in itembank.live_events(log):
+            if ev.get("event_type") == "response":
+                recorded.setdefault(ev["item_ref"], ev.get("objective"))
+        for row in rows:
+            if row.get("objective") != recorded.get(row.get("item_ref")):
+                fail("row objective %r is not the recorded one for %s"
+                     % (row.get("objective"), row.get("item_ref")))
+        print("history row width: objective/bank on every row, recorded values")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_index_bank_disposable_and_version():
+    """The new `bank` column did not turn the cache into a second source of
+    truth: deleting the index re-answers identically, and an index whose
+    `meta.index_version` is stale (1) is rebuilt rather than queried."""
+    tmp = tempfile.mkdtemp()
+    try:
+        log = _fixture_evidence_dir(tmp)
+        index = os.path.join(tmp, "_evidence", "evidence_index.sqlite3")
+        first = itembank.objective_history(log, "", bank="selection_bank.md")
+        if not os.path.exists(index):
+            fail("a bank-scoped query never built the index")
+        os.remove(index)
+        second = itembank.objective_history(log, "", bank="selection_bank.md")
+        if second != first:
+            fail("deleting the index changed the bank-scoped answer")
+        import sqlite3
+        con = sqlite3.connect(index)
+        con.execute("UPDATE meta SET value = '1' WHERE key = 'index_version'")
+        con.commit()
+        con.close()
+        third = itembank.objective_history(log, "", bank="selection_bank.md")
+        if third != first:
+            fail("a stale v1-shaped index answered instead of rebuilding")
+        con = sqlite3.connect(index)
+        ver = con.execute(
+            "SELECT value FROM meta WHERE key = 'index_version'").fetchone()
+        con.close()
+        if not ver or ver[0] != "2":
+            fail("index was not rebuilt at version 2 after the stale check")
+        print("index bank disposability: delete rebuilds, v1 shape rebuilds")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 # ---- renders and marking (01-09): D-11's views over the log, and D-12's ----
 # batch marking command, both proven end to end against the real CLI and
 # against the log directly rather than against themselves.
@@ -2041,6 +2144,9 @@ def main():
     test_retraction()
     test_objective_query()
     test_index_is_disposable()
+    test_bank_scoped_query()
+    test_history_row_width()
+    test_index_bank_disposable_and_version()
     test_renders_match_log()
     test_mark_flow()
     test_serve_writes_events()
@@ -2051,7 +2157,7 @@ def main():
     print("evidence contract: ok (tracer end-to-end, mode recorded, empty log, one writer, "
           "identity survives edit, missing/duplicate ids, fingerprint stability, hash "
           "states, lint order, duplicate-submit dedupe, retraction, objective query, "
-          "index disposability, renders match log, mark flow, serve writes events, "
+          "index disposability, bank scoping, row width, index bank version, renders match log, mark flow, serve writes events, "
           "day ticks are events, migration reconciliation, term_lookup)")
     return 0
 
