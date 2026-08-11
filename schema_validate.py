@@ -5,8 +5,10 @@ There is no JSON Schema implementation in the Python standard library, and this
 is not a Draft 2020-12 reimplementation either. It is a subset validator scoped
 to the exact keywords the documents under `schemas/` use: `type`,
 `properties`, `required`, `additionalProperties`, `enum`, `const`, `items`,
-`minItems`, `minLength`, `pattern`, `minimum`, `maximum`, `$defs`, `$ref`
-(local `#/$defs/<name>` only), and `oneOf`. Nothing more.
+`minItems`, `uniqueItems`, `minLength`, `pattern`, `minimum`, `maximum`,
+`$defs`, `$ref` (local `#/$defs/<name>` only), and `oneOf`. Nothing more.
+`uniqueItems` was added by plan 10-02: the lesson-completion contract
+requires the published schema itself to reject a duplicate objective list.
 
 The one decision that makes this worth trusting: a schema that uses a keyword
 outside that set is refused, not partially checked. `check_schema` walks the
@@ -23,8 +25,8 @@ import sys
 
 SUPPORTED = frozenset([
     "type", "properties", "required", "additionalProperties", "enum", "const",
-    "items", "minItems", "minLength", "pattern", "minimum", "maximum",
-    "$defs", "$ref", "oneOf",
+    "items", "minItems", "uniqueItems", "minLength", "pattern",
+    "minimum", "maximum", "$defs", "$ref", "oneOf",
 ])
 
 # Accepted and ignored: they describe the schema to a human reader but impose
@@ -190,6 +192,15 @@ def validate(instance, schema, root=None, path="$"):
         if len(instance) < schema["minItems"]:
             errors.append("%s: has %d items, fewer than minItems %d" %
                           (path, len(instance), schema["minItems"]))
+
+    if "uniqueItems" in schema and isinstance(instance, list) \
+            and schema["uniqueItems"]:
+        try:
+            unique = len(set(instance)) == len(instance)
+        except TypeError:   # an unhashable element: not unique-checkable
+            unique = False
+        if not unique:
+            errors.append("%s: array must have unique items" % path)
 
     if "minLength" in schema and isinstance(instance, str):
         if len(instance) < schema["minLength"]:

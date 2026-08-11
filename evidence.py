@@ -41,12 +41,14 @@ INDEX_FILENAME = "evidence_index.sqlite3"
 
 # "retraction" was added by plan 01-07, "mark" by plan 01-09, "day_tick" by
 # plan 01-10, "term_lookup" by plan 03.1-02, "key_review" by plan 03.1-03,
-# "hint" by plan 06-01, and "selection" by plan 07-04 -- response events are the only ones this build
+# "hint" by plan 06-01, "selection" by plan 07-04, and "lesson_complete" by
+# plan 10-02 -- response events are the only ones this build
 # wrote before 01-07. events() skips and warns on anything outside this set
 # (D-09), so a log written by a later build's event type degrades instead of
 # crashing.
 KNOWN_EVENT_TYPES = ("response", "retraction", "mark", "day_tick",
-                     "term_lookup", "key_review", "hint", "selection")
+                     "term_lookup", "key_review", "hint", "selection",
+                     "lesson_complete")
 
 # The record of what a sitting asked for (D-03): one event per session, so a
 # deleted session file never destroys the ability to reproduce the sitting.
@@ -1693,6 +1695,78 @@ def key_review_event(session_id, bank, key_id, mode, ts=None, actor="learner"):
         "bank": bank,
         "key_id": key_id,
         "mode": mode,
+        "actor": actor,
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+LESSON_COMPLETE_EVENT_TYPE = "lesson_complete"
+
+
+def lesson_complete_event(session_id, bank, lesson_slug, subject, objectives,
+                          zone="UTC", ts=None, actor="learner"):
+    """Build one lesson_complete event: a learner explicitly completed a
+    named Phase 3 lesson heading, appended through the one writer (SCHED-04,
+    D-24). It is the ONLY way a lesson enters the objective review queue --
+    no page view, scroll, or model activity can manufacture it (D-24,
+    T-10-06), and it is not a response: structurally, it carries no score
+    key at all.
+
+    The event names the server/CLI-resolved facts only: the bank's basename
+    (never a client-derived path, T-10-07), the Phase 3 `lesson_slug()` of
+    the completed heading, the single namespaced subject the referenced
+    objectives share, and the sorted unique referenced objectives. Every
+    field is validated here because the log is append-only: an ambiguous
+    completion cannot be corrected later, only superseded.
+
+    `zone` is the local-day zone the completion's next-review date must be
+    derived in (an IANA name, "UTC", or a fixed offset such as "UTC+09:00");
+    retention projects the event's `ts` into it. `dedupe_key` hashes
+    (bank, lesson_slug, subject, sorted objectives, zone) alone -- NOT a
+    timestamp -- so retrying the identical completion is idempotent
+    (`append_event` reports `already_recorded`), while a compensating
+    retraction (D-10) makes the same completion record again as the next
+    live one.
+    """
+    if not session_id:
+        raise ValueError("lesson_complete_event: session_id must be non-empty")
+    if not bank or "/" in bank or "\\" in bank or os.sep in bank:
+        raise ValueError(
+            "lesson_complete_event: bank must be a basename, never a path "
+            "(got %r)" % (bank,))
+    if not lesson_slug:
+        raise ValueError(
+            "lesson_complete_event: lesson_slug must be a non-empty Phase 3 "
+            "lesson slug")
+    objectives = sorted({o for o in (objectives or []) if o})
+    if not objectives:
+        raise ValueError(
+            "lesson_complete_event: objectives must be a non-empty list of "
+            "namespaced objectives")
+    if any(":" not in o for o in objectives):
+        raise ValueError(
+            "lesson_complete_event: every referenced objective must be "
+            "namespaced (got %r)" % (objectives,))
+    if not subject or ":" in subject:
+        raise ValueError(
+            "lesson_complete_event: subject must be the non-empty namespace "
+            "shared by the referenced objectives (got %r)" % (subject,))
+    if not zone:
+        raise ValueError("lesson_complete_event: zone must be non-empty")
+    raw = "%s|%s|%s|%s|%s" % (bank, lesson_slug, subject,
+                              json.dumps(objectives, ensure_ascii=False,
+                                         sort_keys=True), zone)
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": LESSON_COMPLETE_EVENT_TYPE,
+        "ts": ts if ts is not None else utc_now(),
+        "session_id": session_id,
+        "bank": bank,
+        "lesson_slug": lesson_slug,
+        "subject": subject,
+        "objectives": objectives,
+        "zone": zone,
         "actor": actor,
         "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
     }

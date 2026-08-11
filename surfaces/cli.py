@@ -754,6 +754,14 @@ def main():
     s.add_argument("--out")
     s.add_argument("--ref", default="",
                    help="render only the section whose heading matches this text")
+    s.add_argument("--complete", action="store_true",
+                   help="record an explicit completion of the --ref heading: the "
+                        "referenced objectives enter the derived review queue "
+                        "(valid only with --ref)")
+    s.add_argument("--zone", default="UTC",
+                   help="local-day zone for a --complete event: an IANA name, "
+                        "'UTC', or a fixed offset such as 'UTC+09:00' "
+                        "(default: UTC)")
     s.set_defaults(fn=cmd_lesson)
 
     s = sub.add_parser("render-style", help="render the lesson permuted "

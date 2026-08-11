@@ -780,6 +780,58 @@ def scheduler_states(summaries, snapshot, strategy_name="fsrs"):
             for row in summaries}
 
 
+def lesson_queue(snapshot):
+    """The objective review queue derived from captured live
+    `lesson_complete` events (SCHED-04, D-04, D-24): one stable queue row
+    per referenced objective per completion, exposing the configured
+    `lesson_review_after_days` interval, the exact next-review date (the
+    event's local day in its own recorded zone plus that interval), the
+    event's complete evidence claim (event_id + snapshot_id), and the
+    reason "lesson review".
+
+    Nothing here opens a store or computes outside the snapshot: a
+    compensating retraction removes the row from a fresh capture through the
+    existing live-event filter (D-02), with no retraction-specific code in
+    this function. An unparseable timestamp or unresolvable zone degrades to
+    skipping that event (D-09), never a fabricated date; a response, term
+    lookup, or model event never feeds the queue (D-16, T-10-09). Rows are
+    ordered by (next_review_date, objective, event_id) so a rendered queue
+    is deterministic.
+    """
+    cfg = snapshot["settings"]
+    rows = []
+    for ev in snapshot["events"]:
+        if ev.get("event_type") != evidence.LESSON_COMPLETE_EVENT_TYPE:
+            continue
+        try:
+            tz, _label = resolve_zone(ev.get("zone"))
+        except SystemExit:
+            continue   # unresolvable zone: skip, never a fabricated date (D-09)
+        date = local_date(ev.get("ts"), tz)
+        if date is None:
+            continue
+        next_review = date + datetime.timedelta(days=cfg["lesson_review_after_days"])
+        seen = set()
+        for objective in ev.get("objectives") or []:
+            if not objective or objective in seen:
+                continue
+            seen.add(objective)
+            rows.append({
+                "objective": objective,
+                "lesson_slug": ev.get("lesson_slug", ""),
+                "bank": ev.get("bank", ""),
+                "event_id": ev.get("event_id", ""),
+                "completed_on": date.isoformat(),
+                "next_review_date": next_review.isoformat(),
+                "interval_days": cfg["lesson_review_after_days"],
+                "reason": "lesson review",
+                "snapshot_id": snapshot["claim"]["snapshot_id"],
+            })
+    rows.sort(key=lambda r: (r["next_review_date"], r["objective"],
+                             r["event_id"]))
+    return rows
+
+
 def utility_order(summaries, scheduler, snapshot):
     """jpdb-style utility-weighted due ordering (D-19): among due
     objectives, order by descending utility = bounded weight * (1 + days
