@@ -64,7 +64,38 @@ def do_start(bank_path, spec, mode, out, force):
     if errors and not force:
         sys.exit("refusing to start a bank with errors; run lint or pass --force")
     import uuid
-    items, trace = selection.select(qs, sel_spec, history=[])
+    # D-09: the caller reads the bank-scoped evidence snapshot once and
+    # passes it in -- selection.py still opens no file. A missing log means
+    # no history, never an error (degrade, never block).
+    log = evidence.log_path(
+        os.path.dirname(os.path.abspath(bank_path)) or ".")
+    history = []
+    evidence_source = "none"
+    try:
+        if os.path.exists(log):
+            history = evidence.objective_history(
+                log, "", bank=os.path.basename(bank_path))
+            try:
+                stale, _ = evidence.index_stale(
+                    log, evidence.index_for_log(log))
+                evidence_source = "fallback" if stale else "index"
+            except Exception:
+                evidence_source = "fallback"
+    except Exception:
+        history = []
+    from surfaces import settings as _settings
+    cooldown, decay = 20, 0.2
+    try:
+        cfg = _settings.load_settings(
+            os.path.dirname(os.path.abspath(bank_path)) or ".")
+        cooldown = (cfg.get("selection") or {}).get("cooldown_responses", 20)
+        decay = (cfg.get("selection_weights") or {}).get("recency_decay", 0.2)
+    except Exception:
+        pass
+    items, trace = selection.select(
+        qs, sel_spec, history=history, cooldown=cooldown, decay=decay)
+    trace["evidence"] = {"log": log, "responses": len(history),
+                         "source": evidence_source}
     index = {q["id"]: i for i, q in enumerate(qs)}
     items = [index[q["id"]] for q in items]
     # D-09 pin support: an optional item id (the `#<id>` fragment a lesson
