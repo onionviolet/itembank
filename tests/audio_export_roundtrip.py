@@ -318,14 +318,14 @@ def test_build_sequence_and_transcript_contract():
                      "build": 4.0, "table": 3.0, "dnd": 3.0, "check": 3.0}
         seq = audio_surface.build_sequence(items, pause_map)
         kinds = [s["kind"] for s in seq]
-        if kinds != ["stem", "pause", "key", "why",
-                     "stem", "pause", "key", "why"]:
-            fail("sequence kinds are not stem->pause->key->why per item: %r"
-                 % kinds)
+        if kinds != ["stem", "pause", "key", "pause", "why",
+                     "stem", "pause", "key", "pause", "why"]:
+            fail("sequence kinds are not stem->pause->key->pause->why per "
+                 "item: %r" % kinds)
         if seq[1]["seconds"] != 1.5:
             fail("mc pause is not 1.5s: %r" % seq[1]["seconds"])
-        if seq[5]["seconds"] != 4.0:
-            fail("build pause is not 4.0s: %r" % seq[5]["seconds"])
+        if seq[6]["seconds"] != 4.0:
+            fail("build pause is not 4.0s: %r" % seq[6]["seconds"])
         spoken = [s["text"] for s in seq if s["kind"] != "pause"]
         transcript = audio_surface.pack_transcript(seq)
         if transcript != "\n\n".join(spoken) + "\n":
@@ -333,8 +333,10 @@ def test_build_sequence_and_transcript_contract():
                  % (transcript, spoken))
         if seq[2]["kind"] != "key" or not seq[2]["text"]:
             fail("key segment missing its answer text")
-        if seq[3]["kind"] != "why" or not seq[3]["text"]:
+        if seq[4]["kind"] != "why" or not seq[4]["text"]:
             fail("why segment missing its why/disc text")
+        if seq[7]["kind"] != "key" or not seq[7]["text"]:
+            fail("second item's key segment missing its answer text")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -862,8 +864,8 @@ def test_engine_switch_is_settings_change_only():
                 fail("both settings engines must produce audio")
             if wa["audio"] == wb["audio"]:
                 fail("two engines produced identical audio -- no real switch")
-            ba = os.path.splitext(os.path.basename(wa["audio"]))[0]
-            bb = os.path.splitext(os.path.basename(wb["audio"]))[0]
+            ba = os.path.splitext(os.path.basename(wa["audio"][0]))[0]
+            bb = os.path.splitext(os.path.basename(wb["audio"][0]))[0]
             if ba != bb:
                 fail("same objective through different engines changed the "
                      "pack name: %r vs %r" % (ba, bb))
@@ -880,6 +882,160 @@ def test_engine_switch_is_settings_change_only():
     finally:
         audio_surface.TTSEngines.pop("fake-settings-a", None)
         audio_surface.TTSEngines.pop("fake-settings-b", None)
+
+
+# ---- Plan 09.1-03: pack assembly -- silence, split, container, atomicity ---
+
+class _SilenceRecordingEngine(TTSEngine):
+    """A fake engine that records the inter-segment silence durations it was
+    asked to produce, and returns deterministic bytes per segment (D-06/D-07
+    -- the pause is the pedagogy, and the assembler asks the engine for it)."""
+
+    name = "fake-silence"
+    container = "mp3"
+
+    def __init__(self):
+        self.silences = []
+        self.spoken = []
+
+    def available(self):
+        return True
+
+    def speak(self, text):
+        self.spoken.append(text)
+        return b"SPEAK:" + text.encode("utf-8")
+
+    def silence(self, seconds):
+        self.silences.append(seconds)
+        return b"SILENCE:%s" % str(seconds).encode("utf-8")
+
+
+def test_assemble_pack_silence_and_split():
+    """assemble_pack renders each segment through engine.speak, inserts timed
+    silence between stem and key and between key and why using the
+    per-item-type pause map (the fake engine records the durations), and both
+    --split per-pack and --split per-item ship through the same writer with a
+    mode parameter -- not two code paths (D-06/D-07/D-10, AUDIO-03/AUDIO-06).
+    """
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = write_bank(tmp)
+        items = audio_surface.resolve_objective_items(bank, "Water / chemistry")
+        pause_map = {"mc": 1.5, "multi": 2.0, "short": 2.0, "cloze": 2.5,
+                     "build": 4.0, "table": 3.0, "dnd": 3.0, "check": 3.0}
+        seq = audio_surface.build_sequence(items, pause_map)
+        transcript = audio_surface.pack_transcript(seq)
+        # Per-pack: one audio file; the engine recorded exactly the two
+        # per-item pauses (stem->key and key->why) at the per-type durations.
+        eng1 = _SilenceRecordingEngine()
+        out1 = os.path.join(tmp, "pack1")
+        r1 = audio_surface.assemble_pack(seq, eng1, "Water / chemistry",
+                                         "mp3", "per-pack", out1, transcript)
+        if len(r1["audio"]) != 1:
+            fail("per-pack must produce one audio file: %r" % r1["audio"])
+        if eng1.silences != [1.5, 1.5, 4.0, 4.0]:
+            fail("inter-segment silence durations wrong: %r" % eng1.silences)
+        # Per-item: one file per item, same writer, same silences.
+        eng2 = _SilenceRecordingEngine()
+        out2 = os.path.join(tmp, "pack2")
+        r2 = audio_surface.assemble_pack(seq, eng2, "Water / chemistry",
+                                         "mp3", "per-item", out2, transcript)
+        if len(r2["audio"]) != 2:
+            fail("per-item must produce one file per item: %r" % r2["audio"])
+        if eng2.silences != [1.5, 1.5, 4.0, 4.0]:
+            fail("per-item silence durations wrong: %r" % eng2.silences)
+        # The transcript contract holds in both split modes: the audio files'
+        # spoken content matches the transcript's text in order.
+        audio1 = open(r1["audio"][0], "rb").read()
+        if b"SPEAK:" not in audio1 or b"SILENCE:" not in audio1:
+            fail("per-pack audio has no spoken or silence bytes")
+        for path in r2["audio"]:
+            blob = open(path, "rb").read()
+            if b"SPEAK:" not in blob:
+                fail("per-item audio file lost its spoken bytes")
+        if audio1.count(b"SPEAK:") != 6:
+            fail("per-pack audio does not speak all six segments")
+        if sum(open(p, "rb").read().count(b"SPEAK:") for p in r2["audio"]) != 6:
+            fail("per-item audio does not speak all six segments")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_assemble_pack_container_digest_and_atomicity():
+    """The container setting selects mp3/wav through the engine (never a
+    hard-coded codec); unchanged re-exports are digest-stable; a failing
+    engine leaves no partial files and the transcript still writes
+    (D-05/D-09/D-12, AUDIO-04/AUDIO-06)."""
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = write_bank(tmp)
+        items = audio_surface.resolve_objective_items(bank, "Water / chemistry")
+        seq = audio_surface.build_sequence(items, {})
+        transcript = audio_surface.pack_transcript(seq)
+        # mp3 vs wav container: the same writer, different extension.
+        eng = _SilenceRecordingEngine()
+        out_mp3 = os.path.join(tmp, "mp3")
+        r_mp3 = audio_surface.assemble_pack(seq, eng, "Water / chemistry",
+                                            "mp3", "per-pack", out_mp3,
+                                            transcript)
+        if not r_mp3["audio"][0].endswith(".mp3"):
+            fail("mp3 container did not produce an .mp3 file: %r"
+                 % r_mp3["audio"])
+        eng = _SilenceRecordingEngine()
+        out_wav = os.path.join(tmp, "wav")
+        r_wav = audio_surface.assemble_pack(seq, eng, "Water / chemistry",
+                                            "wav", "per-pack", out_wav,
+                                            transcript)
+        if not r_wav["audio"][0].endswith(".wav"):
+            fail("wav container did not produce a .wav file: %r"
+                 % r_wav["audio"])
+        # Re-exporting an unchanged objective is idempotent (same base).
+        eng = _SilenceRecordingEngine()
+        out2 = os.path.join(tmp, "pack2")
+        r2 = audio_surface.assemble_pack(seq, eng, "Water / chemistry",
+                                         "mp3", "per-pack", out2, transcript)
+        if os.path.basename(r2["audio"][0]) != os.path.basename(r_mp3["audio"][0]):
+            fail("unchanged re-export changed the digest-stable name")
+        # A changed objective's spoken text changes the digest -> new name.
+        changed_seq = seq[:4] + [dict(seq[4], text=seq[4]["text"] + " EDIT")]
+        changed_transcript = audio_surface.pack_transcript(changed_seq)
+        eng = _SilenceRecordingEngine()
+        out3 = os.path.join(tmp, "pack3")
+        r3 = audio_surface.assemble_pack(changed_seq, eng, "Water / chemistry",
+                                         "mp3", "per-pack", out3,
+                                         changed_transcript)
+        if os.path.basename(r3["audio"][0]) == os.path.basename(r_mp3["audio"][0]):
+            fail("changed spoken text did not change the digest-stable name")
+        # A failing engine leaves no partial files at all (fail closed).
+        class Failing(TTSEngine):
+            name = "fake-assemble-fail"
+            container = "mp3"
+
+            def available(self):
+                return True
+
+            def speak(self, text):
+                if "treatment train" in text or "Coagulation" in text:
+                    raise audio_surface.EngineError(
+                        self.name, "synthetic assemble failure")
+                return b"OK"
+
+            def silence(self, seconds):
+                return b"SILENCE"
+
+        out4 = os.path.join(tmp, "pack4")
+        try:
+            audio_surface.assemble_pack(seq, Failing(), "Water / chemistry",
+                                        "mp3", "per-pack", out4, transcript)
+            fail("failing engine did not raise")
+        except audio_surface.EngineError as exc:
+            if "fake-assemble-fail" not in str(exc):
+                fail("assemble failure does not name the engine: %r" % str(exc))
+        leftovers = os.listdir(out4)
+        if leftovers:
+            fail("failing engine left partial files: %r" % leftovers)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def main():
@@ -903,10 +1059,13 @@ def main():
     test_roster_exactly_three_engines_kokoro_documented()
     test_unavailable_configured_engine_no_silent_fallback()
     test_engine_switch_is_settings_change_only()
+    test_assemble_pack_silence_and_split()
+    test_assemble_pack_container_digest_and_atomicity()
     print("ok: audio export roundtrip -- registry, transcript-only, objective "
           "resolution, sequence/transcript contract, settings block, CLI + "
           "legacy byte-compat, atomic write, digest naming, no-evidence, "
-          "edge-tts + piper engines, roster contract all held")
+          "edge-tts + piper engines, roster contract, pack assembly "
+          "(silence/split/container/digest/atomicity) all held")
     return 0
 
 

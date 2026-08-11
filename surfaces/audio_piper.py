@@ -83,6 +83,37 @@ class PiperEngine(TTSEngine):
             return False
         return True
 
+    def silence(self, seconds):
+        """Timed silence in the target container: PCM zeros in a WAV when the
+        container says wav, or zeros encoded through the pinned lameenc when
+        it says mp3 (D-09 -- the encoder is engine-scoped)."""
+        import io
+        import struct
+        import wave
+
+        rate = 22050
+        frames = int(seconds * rate)
+        pcm = b"\x00\x00" * frames  # 16-bit mono
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(rate)
+            wav.writeframes(pcm)
+        wav_bytes = buf.getvalue()
+        if getattr(self, "target_container", "mp3") == "mp3":
+            try:
+                import lameenc
+            except ImportError:
+                raise EngineError(self.name, "pinned encoder %s is not "
+                                  "installed" % LAMEENC_PIN)
+            encoder = lameenc.Encoder()
+            encoder.set_bit_rate(128)
+            encoder.set_in_sample_rate(rate)
+            encoder.set_channels(1)
+            return encoder.encode(pcm) + encoder.flush()
+        return wav_bytes
+
     def speak(self, text):
         if not self.model or not os.path.exists(self.model):
             raise EngineError(self.name, "missing model file: %r" % self.model)

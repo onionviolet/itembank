@@ -66,6 +66,16 @@ class EdgeTTSEngine(TTSEngine):
             return False
         return self.probe()
 
+    def silence(self, seconds):
+        """edge-tts streams MP3 from the endpoint and has no local encoder to
+        synthesize MP3 silence, so a timed pause is a named refusal (D-04)
+        rather than a silently pause-less pack (D-06). The local alternatives
+        are piper (WAV/MP3 via lameenc) and transcript-only."""
+        raise EngineError(
+            self.name,
+            "cannot synthesize timed silence in mp3; use piper or "
+            "transcript-only for packs that need the pause")
+
     def speak(self, text):
         try:
             import edge_tts

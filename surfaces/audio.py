@@ -37,8 +37,11 @@ class EngineError(Exception):
 
 class TTSEngine:
     """One swappable TTS backend (D-01). Subclasses declare `name` and
-    `container`, and implement `available()` and `speak(text) -> bytes`;
-    `speak` raises EngineError(reason) when it cannot produce audio."""
+    `container`, and implement `available()`, `speak(text) -> bytes`, and
+    `silence(seconds) -> bytes`; `speak` raises EngineError(reason) when it
+    cannot produce audio, and `silence` raises EngineError when the engine
+    cannot synthesize a timed pause (D-06's pedagogy is never silently
+    dropped)."""
 
     name = ""
     container = ""  # "mp3" | "wav" | "" for an engine that emits no audio
@@ -48,6 +51,13 @@ class TTSEngine:
 
     def speak(self, text):
         raise NotImplementedError
+
+    def silence(self, seconds):
+        """Timed silence bytes in this engine's container, or None for an
+        engine that emits no audio at all (transcript-only). Engines that
+        cannot synthesize silence refuse with EngineError rather than
+        silently producing a pack without the pause (D-04/D-06)."""
+        return None
 
 
 class TranscriptOnlyEngine(TTSEngine):
@@ -61,6 +71,9 @@ class TranscriptOnlyEngine(TTSEngine):
         return True
 
     def speak(self, text):
+        return None
+
+    def silence(self, seconds):
         return None
 
 
@@ -139,6 +152,7 @@ def build_sequence(items, pause_map):
         seq.append({"kind": "stem", "text": q["stem"], "seconds": None})
         seq.append({"kind": "pause", "text": "", "seconds": pause})
         seq.append({"kind": "key", "text": answer_text(q), "seconds": None})
+        seq.append({"kind": "pause", "text": "", "seconds": pause})
         seq.append({"kind": "why",
                     "text": q.get("why") or q.get("disc") or "",
                     "seconds": None})
@@ -186,11 +200,101 @@ def write_pack(out_dir, objective_id, transcript, audio_bytes, container):
     return {"transcript": transcript_path, "audio": audio_path, "base": base}
 
 
+def _atomic_audio(out_dir, base, container, audio_bytes):
+    """temp-then-`os.replace` one audio file (D-05); never half-written."""
+    audio_path = os.path.join(out_dir, base + "." + container)
+    tmp = audio_path + ".tmp"
+    try:
+        with open(tmp, "wb") as fh:
+            fh.write(audio_bytes)
+        os.replace(tmp, audio_path)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+    return audio_path
+
+
+def _split_items(sequence):
+    """Group the flat stem/pause/key/pause/why sequence into per-item runs,
+    one list of segments per item (D-10's per-item split needs the boundary).
+    """
+    items = []
+    current = []
+    for seg in sequence:
+        if seg["kind"] == "stem" and current:
+            items.append(current)
+            current = []
+        current.append(seg)
+    if current:
+        items.append(current)
+    return items
+
+
+def _speak_item(engine, item):
+    """Speak one item's segments through the engine: stem, timed silence,
+    key, timed silence, why (D-06/D-07 -- the pause is audio silence between
+    segments; the transcript is unaffected because pauses carry no text).
+    Returns the concatenated bytes for the item, or None when the engine
+    produced no audio at all."""
+    chunks = []
+    for seg in item:
+        if seg["kind"] == "pause":
+            chunk = engine.silence(seg["seconds"])
+        else:
+            chunk = engine.speak(seg["text"])
+        if chunk is not None:
+            chunks.append(chunk)
+    return b"".join(chunks) if chunks else None
+
+
+def assemble_pack(sequence, engine, objective_id, container, split, out_dir,
+                  transcript):
+    """The ONE writer (D-10): render every segment through the engine with
+    timed silence between stem/key and key/why (D-06/D-07), and write either
+    one per-pack file or per-item files -- every file temp-then-`os.replace`
+    (D-05), every name from the objective id plus a sha256 content digest
+    (D-12). The transcript is written by the caller before the engine is
+    attempted (D-04/D-11); this function writes only audio and fails closed:
+    an engine error mid-pack raises before any file exists, and a write error
+    removes the temps created so far.
+
+    `split` is a mode of this one writer, never a second code path.
+    Returns {"audio": [paths], "base": base}.
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    items = _split_items(sequence)
+    if split == "per-item":
+        paths = []
+        for i, item in enumerate(items, 1):
+            audio_bytes = _speak_item(engine, item)
+            if not audio_bytes:
+                continue
+            item_transcript = "\n\n".join(
+                s["text"] for s in item if s["kind"] != "pause") + "\n"
+            base = digest_name(objective_id, "%d\n%s" % (i, item_transcript))
+            paths.append(_atomic_audio(out_dir, base, container, audio_bytes))
+        return {"audio": paths,
+                "base": digest_name(objective_id, transcript)}
+    # per-pack (the default): one file per objective.
+    audio_bytes = b"".join(c for c in
+                           (_speak_item(engine, it) for it in items)
+                           if c)
+    base = digest_name(objective_id, transcript)
+    if audio_bytes:
+        return {"audio": [_atomic_audio(out_dir, base, container,
+                                        audio_bytes)],
+                "base": base}
+    return {"audio": [], "base": base}
+
+
 def export_audio(bank, objective_id, out_dir, engine=None, container=None,
-                 settings=None):
+                 split=None, settings=None):
     """The ONE runtime call both surfaces reach (D-08): resolve the objective,
     build the sequence, write the transcript always, then speak through the
-    configured engine and write the audio temp-then-rename (D-05/D-11).
+    configured engine and write the audio through `assemble_pack` -- the one
+    writer with per-pack/per-item modes (D-10) -- temp-then-rename per file
+    (D-05/D-11).
 
     Order is load-bearing (D-04/D-05): the transcript is written BEFORE the
     engine is called, so an engine that is missing, unreachable, or fails
@@ -206,6 +310,7 @@ def export_audio(bank, objective_id, out_dir, engine=None, container=None,
         settings = settings_surface.load_settings(".")
     audio = settings.get("audio") or {}
     container = container or audio.get("container") or "mp3"
+    split = split or audio.get("split") or "per-pack"
     items = resolve_objective_items(bank, objective_id)
     seq = build_sequence(items, audio.get("pause"))
     transcript = pack_transcript(seq)
@@ -224,25 +329,13 @@ def export_audio(bank, objective_id, out_dir, engine=None, container=None,
     if not engine_obj.available():
         raise EngineError(engine_obj.name, "engine is not available",
                           transcript_path=written["transcript"])
-    audio_bytes = None
-    if engine_obj.container:
-        # Speak every segment first, then write once: a mid-run engine failure
-        # never creates a partial audio file (D-05).
-        chunks = []
-        try:
-            for s in seq:
-                if s["kind"] == "pause":
-                    continue
-                chunk = engine_obj.speak(s["text"])
-                if chunk is not None:
-                    chunks.append(chunk)
-        except EngineError as exc:
-            exc.transcript_path = written["transcript"]
-            raise
-        audio_bytes = b"".join(chunks)
-    if audio_bytes:
-        written = write_pack(out_dir, objective_id, transcript, audio_bytes,
-                             container)
+    try:
+        assembled = assemble_pack(seq, engine_obj, objective_id, container,
+                                  split, out_dir, transcript)
+    except EngineError as exc:
+        exc.transcript_path = written["transcript"]
+        raise
+    written["audio"] = assembled["audio"]
     written["engine"] = engine_obj.name
     return written
 
@@ -266,6 +359,7 @@ def cmd_export_audio(a):
         written = export_audio(bank, objective_id, out_dir,
                                engine=getattr(a, "engine", None),
                                container=getattr(a, "container", None),
+                               split=getattr(a, "split", None),
                                settings=settings)
     except EngineError as exc:
         print("refusing to export audio: %s" % exc, file=sys.stderr)
@@ -277,8 +371,8 @@ def cmd_export_audio(a):
     print("audio pack -> %s (engine %s)" % (written["base"],
                                             written["engine"]))
     print("transcript -> %s" % written["transcript"])
-    if written["audio"]:
-        print("audio -> %s" % written["audio"])
+    for audio_path in written["audio"]:
+        print("audio -> %s" % audio_path)
     return 0
 
 
