@@ -203,8 +203,8 @@ def _canonical_build(q, answer):
 def check_normalizer(q, answer):
     """Reduce a check item's per-case results to the outcome vector string.
 
-     `answer` is one of: the list of per-case dicts `runner.run_cases()`
-    returns (the live path), a list of 0/1 ints (test callers), or the
+     `answer` is one of: the list of per-case dicts the runner returns
+    (the live path), a list of 0/1 ints (test callers), or the
     already-canonical vector string (when idempotency re-enters). A case that
     timed out is not a verdict: the run was killed, so this returns None and
     the response lands pending rather than wrong (criterion 12).
