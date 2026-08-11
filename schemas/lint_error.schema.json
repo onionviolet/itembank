@@ -6,7 +6,12 @@
   "x-itembank-version": 1,
   "type": "object",
   "additionalProperties": false,
-  "required": ["code", "field", "item", "message"],
+  "required": [
+    "code",
+    "field",
+    "item",
+    "message"
+  ],
   "properties": {
     "code": {
       "type": "string",
@@ -58,7 +63,28 @@
         "style.duplicate_id",
         "style.file_unreadable",
         "style.override_locked",
-        "style.ignore_locked"
+        "style.ignore_locked",
+        "prov.src_unknown",
+        "prov.obj_unknown",
+        "prov.src_duplicate",
+        "prov.paraphrase_copy",
+        "prov.paraphrase_overlap",
+        "prov.case_unknown",
+        "prov.prereq_unknown",
+        "prov.prereq_cycle",
+        "style.unsourced_specific",
+        "style.banned_hector",
+        "style.filler_phrase",
+        "style.forbidden_marker",
+        "style.forbidden_phrase",
+        "style.heading_cadence",
+        "style.open_with",
+        "style.order_before",
+        "style.parameter_out_of_range",
+        "style.require_marker",
+        "style.section_density",
+        "style.sentence_length",
+        "style.unknown_parameter"
       ]
     },
     "field": {

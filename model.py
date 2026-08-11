@@ -373,7 +373,484 @@ def parse_terms(bank_path):
                            for slug, texts in collisions.items()]}
 
 
+_SRC_DIRECTIVE_RE = re.compile(r"\[SRC:\s*([^\]]+?)\]")
+_OBJ_DIRECTIVE_RE = re.compile(r"\[OBJ:\s*([^\]]+?)\]")
+
+
+def parse_sources(bank_path):
+    """An independent read over the bank file for provenance: the `## SOURCES`
+    registry and every `[SRC: <id> <locators>]` / `[OBJ: framework/objective-id]`
+    directive, tagged by the item that carries them (D-11, plan 03.2-02).
+    Never called from inside `load()` or `parse_bank()`, and it changes
+    neither's return shape.
+
+    The registry lives in the bank preamble, above the first question (the
+    same boundary rule as `## LESSON` and `## TERMS`): one pipe row per source,
+    `id | locator | ...`, first cell the id, the remaining cells its locators.
+    [SRC:] and [OBJ:] directives inside item blocks resolve through that
+    registry -- an id the registry does not carry is unresolvable, which lint
+    reports naming the id and the file (D-11, T-032-05).
+
+    Returns `None` when the bank carries no `## SOURCES` section and no
+    directive; otherwise a dict with exactly:
+      `sources` -- source_id -> locators from the `## SOURCES` registry
+      `srcs`    -- `[SRC:]` directives, in document order, each
+          `{"id", "locators", "item"}`
+      `objs`    -- `[OBJ:]` directives, in document order, each
+          `{"obj", "item"}`
+      `duplicates` -- source ids registered more than once, in first-seen order
+      `path`    -- the bank path as given, so lint findings can name the file
+    """
+    text = open(bank_path, encoding="utf-8").read()
+    preamble = []
+    for ch in re.split(r"(?m)^(?=Q\d+\.)", text):
+        if re.match(r"Q\d+\.", ch.strip()) and parse_question(ch) is not None:
+            break
+        preamble.append(ch)
+    head = "".join(preamble)
+
+    sources = {}
+    duplicates = []
+    m = re.search(r"(?m)^##\s+SOURCES\s*$", head)
+    if m is not None:
+        for line in head[m.end():].splitlines():
+            if not line.strip():
+                continue
+            cells, is_sep = _terms_row_cells(line)
+            if is_sep or not cells or not cells[0]:
+                continue
+            sid = cells[0]
+            locators = " ".join(c.strip() for c in cells[1:] if c.strip())
+            if sid in sources:
+                duplicates.append(sid)
+            else:
+                sources[sid] = locators
+
+    # Directives are scanned over every item chunk, numbered exactly the way
+    # `parse_bank()` numbers questions, so a finding's item tag always matches
+    # the tag lint() uses for the same item.
+    srcs, objs = [], []
+    n = 0
+    for ch in re.split(r"(?m)^(?=Q\d+\.)", text):
+        if not re.match(r"Q\d+\.", ch.strip()):
+            continue
+        if parse_question(ch) is None:
+            continue
+        n += 1
+        tag = "Q%d" % n
+        for mm in _SRC_DIRECTIVE_RE.finditer(ch):
+            rest = mm.group(1).strip()
+            parts = rest.split(None, 1)
+            srcs.append({"id": parts[0] if parts else "",
+                         "locators": parts[1] if len(parts) > 1 else "",
+                         "item": tag})
+        for mm in _OBJ_DIRECTIVE_RE.finditer(ch):
+            objs.append({"obj": mm.group(1).strip(), "item": tag})
+
+    if not sources and not srcs and not objs:
+        return None
+    return {"sources": sources, "srcs": srcs, "objs": objs,
+            "duplicates": duplicates, "path": bank_path}
+
+
+def coverage_map(bank_path):
+    """The objective coverage map, computed on demand and never stored (D-12,
+    plan 03.2-02): objective -> sorted item tags, built from every item's
+    [OBJECTIVE:] value plus its resolved [OBJ:] values (those registered in
+    the bank's ## SOURCES). A bank with no items or no objectives maps to {}.
+    """
+    text = open(bank_path, encoding="utf-8").read()
+    qs = parse_bank(text)
+    ps = parse_sources(bank_path)
+    known = (ps or {}).get("sources") or {}
+    out = {}
+    for idx, q in enumerate(qs, 1):
+        tag = "Q%d" % idx
+        objectives = set()
+        if q.get("objective"):
+            objectives.add(q["objective"])
+        if ps:
+            for d in ps.get("objs") or []:
+                if d["item"] == tag and d["obj"] in known:
+                    objectives.add(d["obj"])
+        for o in sorted(objectives):
+            out.setdefault(o, []).append(tag)
+    return {o: tags for o, tags in sorted(out.items())}
+
+
 _KEY_MARK_RE = re.compile(r"^>\s*\[!KEY(?::\s*([^\]]+))?\]\s*(.*)$")
+
+
+# ---- plan 03.2-04: winnowing paraphrase lint (D-13) -----------------------
+# stdlib-only winnowing over k-gram fingerprints. The window size is the
+# executor's discretion (03.2-CONTEXT "Claude's discretion"): the selection
+# below is the standard min-hash-per-window winnowing (Schleimer et al.), and
+# the shipped default window is 1 -- the deterministic end of the family,
+# where every k-gram is its own window minimum. A larger window would thin
+# the fingerprint set but loses the exactness the copy-run measurement needs,
+# so the default trades memory for determinism: the stage-4 gate (D-08) must
+# be deterministic, and the source text itself is read transiently, reduced
+# to hashes, and never stored or echoed (T-032-12).
+
+PARAPHRASE_DEFAULTS = {"winnow_threshold": 8, "jaccard_threshold": 0.25}
+_PARAPHRASE_K = 4           # word k-gram size
+_PARAPHRASE_WINDOW = 1      # winnowing window: min-hash per window; 1 = no thinning
+
+_SPECIFIC_FACT_RE = re.compile(
+    r"(?:\d+(?:\.\d+)?\s*(?:mg|mcg|µg|mcg/kg|mg/kg|g|kg|mL|ml|L|cm|mm|m|IU|"
+    r"mEq|mmol|units?|U|drops?|gtts?|bpm|mmHg|mm\s?Hg|min|hrs?|sec|%))"
+    r"|\d+\.\d+",
+    re.I)
+
+_CASE_DIRECTIVE_RE = re.compile(r"\[CASE:\s*([^\]]+?)\]")
+_PREREQ_DIRECTIVE_RE = re.compile(r"\[PREREQ:\s*([^\]]+?)\]")
+
+
+def _fingerprint_tokens(text):
+    """The word tokens a paraphrase fingerprint is built from: lowercase
+    alphanumeric runs, so case and punctuation never create false distinct
+    k-grams."""
+    return re.findall(r"[a-z0-9]+", (text or "").lower())
+
+
+def _gram_hash(gram):
+    """A stable, process-independent hash of one k-gram (stdlib sha1), so the
+    fingerprint is identical across runs -- the deterministic stage-4 gate
+    must never vary with PYTHONHASHSEED."""
+    return int.from_bytes(
+        hashlib.sha1(" ".join(gram).encode("utf-8")).digest()[:8], "big")
+
+
+def _kgram_hashes(text, k=_PARAPHRASE_K):
+    """The k-gram hash list of `text`: hash(words[i:i+k]) for each position."""
+    words = _fingerprint_tokens(text)
+    return [_gram_hash(words[i:i + k]) for i in range(len(words) - k + 1)]
+
+
+def _winnow_positions(hashes, window=_PARAPHRASE_WINDOW):
+    """Winnowing (Schleimer et al.): the minimum hash in each sliding window
+    of `window` consecutive k-grams is selected, rightmost on a tie. Returns
+    the selected positions. With the default window 1 every k-gram is its own
+    minimum -- the full fingerprint, kept for run-exactness."""
+    out = set()
+    if not hashes:
+        return out
+    w = max(1, int(window))
+    for i in range(len(hashes) - w + 1):
+        chunk = hashes[i:i + w]
+        j = i + max(idx for idx, h in enumerate(chunk)
+                    if h == min(chunk))
+        out.add(j)
+    return out
+
+
+def _winnow_set(hashes, window=_PARAPHRASE_WINDOW):
+    return {hashes[i] for i in _winnow_positions(hashes, window)}
+
+
+def paraphrase_check(candidate_text, source_text, winnow_threshold=8,
+                     jaccard_threshold=0.25):
+    """The winnowing-based paraphrase comparison (D-13, SEED-05). Both texts
+    are reduced to k-gram hashes -- fingerprints only, the source text is
+    never stored. Returns a dict:
+        copy_words -- the longest run of consecutive candidate words that
+            appear verbatim in the source (matching k-gram run + k - 1)
+        jaccard    -- |candidate fp & source fp| / |candidate fp | source fp|
+        copy       -- copy_words >= winnow_threshold
+        overlap    -- jaccard > jaccard_threshold
+    """
+    c_hashes = _kgram_hashes(candidate_text)
+    s_set = set(_kgram_hashes(source_text))
+    run = best = 0
+    for h in c_hashes:
+        if h in s_set:
+            run += 1
+            best = max(best, run)
+        else:
+            run = 0
+    copy_words = best + _PARAPHRASE_K - 1 if best else 0
+    c_win = _winnow_set(c_hashes)
+    s_win = _winnow_set(_kgram_hashes(source_text))
+    union = c_win | s_win
+    jaccard = len(c_win & s_win) / len(union) if union else 0.0
+    return {"copy_words": copy_words, "jaccard": jaccard,
+            "copy": copy_words >= winnow_threshold,
+            "overlap": jaccard > jaccard_threshold}
+
+
+def _read_source_text(base_dir, locators):
+    """Read one source's text transiently for fingerprinting. A locator's
+    first whitespace token is taken as a path relative to the bank's
+    directory. When it cannot be read -- a prose locator, or a corpus that
+    lives outside the repo (D-17) -- the check degrades gracefully to None,
+    never an error, and never a stored byte."""
+    if not locators or not locators.strip():
+        return None
+    first = locators.strip().split()[0]
+    path = os.path.join(base_dir or ".", first)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return fh.read()
+    except OSError:
+        return None
+
+
+def _item_text(q):
+    """The full author-written text surface of a parsed item (stem, options,
+    rationale fields, table rows, build steps) -- what the paraphrase and
+    unsourced-specific checks scan."""
+    parts = []
+    if q.get("stem"):
+        parts.append(q["stem"])
+    for letter in sorted(q.get("opts") or {}):
+        v = q["opts"].get(letter)
+        if v:
+            parts.append(v)
+    for _, t in _rationale_texts(q):
+        parts.append(t)
+    for row in q.get("rows") or []:
+        parts.append(row.get("text", ""))
+    for step in q.get("steps") or []:
+        parts.append(step)
+    return "\n".join(p for p in parts if p)
+
+
+def paraphrase_findings(candidate_text, sources, thresholds=None,
+                        item_tag=None, subject="the text"):
+    """Paraphrase findings for `candidate_text` against every source its
+    [SRC:] directives resolve to (D-13). With `item_tag`, only directives
+    carried by that item are compared (the bank-lint case); without it, every
+    directive in `sources` is used (the seeding-draft case, where the draft's
+    own [SRC:]s are resolved by the caller). Returns (code, message) pairs;
+    the source text is read transiently and reduced to hashes, and the
+    messages name only the source id and file -- never its content."""
+    th = dict(PARAPHRASE_DEFAULTS)
+    if thresholds:
+        th.update(thresholds or {})
+    out = []
+    if not sources:
+        return out
+    known = sources.get("sources") or {}
+    path = sources.get("path") or ""
+    fname = os.path.basename(path) if path else "the bank"
+    base_dir = os.path.dirname(os.path.abspath(path)) if path else "."
+    seen = set()
+    for d in sources.get("srcs") or []:
+        if item_tag is not None and d.get("item") != item_tag:
+            continue
+        sid = d.get("id") or ""
+        if sid not in known or sid in seen:
+            continue
+        seen.add(sid)
+        locators = (d.get("locators") or "").strip() or (known[sid] or "")
+        text = _read_source_text(base_dir, locators)
+        if text is None:
+            continue
+        r = paraphrase_check(candidate_text, text,
+                             th["winnow_threshold"], th["jaccard_threshold"])
+        if r["copy"]:
+            out.append(("prov.paraphrase_copy",
+                        "%d consecutive words of %s match source '%s' of %s "
+                        "verbatim -- rewrite, or this is transcription"
+                        % (r["copy_words"], subject, sid, fname)))
+        elif r["overlap"]:
+            out.append(("prov.paraphrase_overlap",
+                        "%s shares fingerprint overlap %.2f with source '%s' "
+                        "of %s -- paraphrase more freely"
+                        % (subject, r["jaccard"], sid, fname)))
+    return out
+
+
+def unsourced_specific_findings(q, sources, item_tag):
+    """style.unsourced_specific (D-14): numerals, units and doses in an item's
+    text with no resolved [SRC:] are a structural error -- a seeded specific
+    must name the source it came from. Structural regex, never a model
+    judgement (D-14); a resolved [SRC:] on the item satisfies it."""
+    if not sources:
+        return []
+    known = sources.get("sources") or {}
+    path = sources.get("path") or ""
+    fname = os.path.basename(path) if path else "the bank"
+    has_src = any(d.get("item") == item_tag and d.get("id") in known
+                  for d in sources.get("srcs") or [])
+    if has_src:
+        return []
+    m = _SPECIFIC_FACT_RE.search(_item_text(q))
+    if not m:
+        return []
+    return [LintError("style.unsourced_specific", "src", item_tag,
+                      "item carries the specific fact %r with no resolved "
+                      "[SRC:] -- cite the source it came from in %s"
+                      % (m.group(0).strip(), fname))]
+
+
+def parse_cases(bank_path):
+    """An independent read over the bank file for [CASE:] grouping and
+    [PREREQ:] edges (D-15/D-16, plan 03.2-04): the `## CASES` registry in
+    the preamble (one pipe row per case, first cell the id) plus every
+    [CASE: <id>] and [PREREQ: <id>] directive tagged by its item. Never
+    called from inside `load()` or `parse_bank()`, and it changes neither's
+    return shape.
+
+    Returns None when the bank carries no `## CASES` section and no
+    directive; otherwise a dict with exactly:
+      `cases`            -- case id -> description from ## CASES
+      `case_directives`  -- [CASE:] directives, document order, {id, item}
+      `prereq_edges`     -- [PREREQ:] directives, document order,
+          {target, item} (one entry per comma-separated target)
+      `path`             -- the bank path as given
+    """
+    text = open(bank_path, encoding="utf-8").read()
+    preamble = []
+    for ch in re.split(r"(?m)^(?=Q\d+\.)", text):
+        if re.match(r"Q\d+\.", ch.strip()) and parse_question(ch) is not None:
+            break
+        preamble.append(ch)
+    head = "".join(preamble)
+
+    cases = {}
+    m = re.search(r"(?m)^##\s+CASES\s*$", head)
+    if m is not None:
+        for line in head[m.end():].splitlines():
+            if not line.strip():
+                continue
+            cells, is_sep = _terms_row_cells(line)
+            if is_sep or not cells or not cells[0]:
+                continue
+            cases[cells[0]] = " ".join(c.strip() for c in cells[1:]
+                                       if c.strip())
+
+    case_directives, prereq_edges = [], []
+    n = 0
+    for ch in re.split(r"(?m)^(?=Q\d+\.)", text):
+        if not re.match(r"Q\d+\.", ch.strip()) or parse_question(ch) is None:
+            continue
+        n += 1
+        tag = "Q%d" % n
+        for mm in _CASE_DIRECTIVE_RE.finditer(ch):
+            cid = mm.group(1).strip()
+            if cid:
+                case_directives.append({"id": cid, "item": tag})
+        for mm in _PREREQ_DIRECTIVE_RE.finditer(ch):
+            for target in mm.group(1).split(","):
+                t = target.strip()
+                if t:
+                    prereq_edges.append({"target": t, "item": tag})
+
+    if not cases and not case_directives and not prereq_edges:
+        return None
+    return {"cases": cases, "case_directives": case_directives,
+            "prereq_edges": prereq_edges, "path": bank_path}
+
+
+def _prereq_cycle_findings(questions, cases, all_objectives):
+    """A small graph walk over the bank's [PREREQ:] edges (D-16): nodes are
+    case ids and minted item [ID:]s; an item's node is its [CASE:] id (when
+    it has one) else its [ID:]. A deterministic DFS returns one
+    prov.prereq_cycle finding naming the cycle's node path when one exists."""
+    known_cases = set(cases.get("cases") or {})
+    known_item_ids = {q.get("item_id") for q in questions if q.get("item_id")}
+    valid = known_cases | known_item_ids | set(all_objectives)
+    node_by_item = {}
+    for d in cases.get("case_directives") or []:
+        node_by_item[d["item"]] = d["id"]
+    edges = {}
+    for idx, q in enumerate(questions, 1):
+        tag = "Q%d" % idx
+        node = node_by_item.get(tag) or (q.get("item_id") or "")
+        if not node:
+            continue
+        for d in cases.get("prereq_edges") or []:
+            if d["item"] == tag and d["target"] in valid:
+                edges.setdefault(node, set()).add(d["target"])
+
+    GRAY, BLACK = 1, 2
+    color = {}
+
+    def visit(node, stack):
+        color[node] = GRAY
+        for nxt in sorted(edges.get(node, ())):
+            if color.get(nxt) == GRAY:
+                i = stack.index(nxt)
+                return stack[i:] + [nxt]
+            if color.get(nxt) is None:
+                r = visit(nxt, stack + [nxt])
+                if r:
+                    return r
+        color[node] = BLACK
+        return None
+
+    for node in sorted(edges):
+        if color.get(node) is None:
+            r = visit(node, [node])
+            if r:
+                return [LintError(
+                    "prov.prereq_cycle", "prereq", "BANK",
+                    "prerequisite cycle: %s -- breaks the bank's dependency "
+                    "order" % " -> ".join(r))]
+    return []
+
+
+def _draft_cited_sources(block):
+    """The [SRC:] directives in a seeding draft block, as (id, locators)
+    pairs -- parse_sources() cannot see a draft that is not in the bank file
+    yet, so the stage-4 check resolves the draft's own citations."""
+    out = []
+    for mm in _SRC_DIRECTIVE_RE.finditer(block or ""):
+        rest = mm.group(1).strip()
+        parts = rest.split(None, 1)
+        if parts:
+            out.append((parts[0], parts[1] if len(parts) > 1 else ""))
+    return out
+
+
+def make_seeding_checks(bank_path, settings=None):
+    """The plan 03.2-04 stage-4 `extra_checks` callable for the seeding
+    pipeline (D-08): a draft failing prov.paraphrase_* retries before any
+    model critique. `settings` is an itembank settings dict (the `paraphrase`
+    group's thresholds) or None for the shipped defaults. Source text is read
+    transiently and hashed -- never stored, never echoed (D-13)."""
+    th = dict(PARAPHRASE_DEFAULTS)
+    if settings and isinstance(settings, dict):
+        th.update(settings.get("paraphrase") or {})
+
+    def checks(draft):
+        out = []
+        candidate = draft.get("candidate")
+        if candidate is None:
+            return out
+        ps = parse_sources(bank_path)
+        known = (ps or {}).get("sources") or {}
+        path = (ps or {}).get("path") or bank_path
+        fname = os.path.basename(path) if path else "the bank"
+        base_dir = os.path.dirname(os.path.abspath(path)) if path else "."
+        seen = set()
+        for sid, locators in _draft_cited_sources(draft.get("block") or ""):
+            if sid not in known or sid in seen:
+                continue
+            seen.add(sid)
+            loc = (locators or "").strip() or (known[sid] or "")
+            text = _read_source_text(base_dir, loc)
+            if text is None:
+                continue
+            r = paraphrase_check(_item_text(candidate), text,
+                                 th["winnow_threshold"],
+                                 th["jaccard_threshold"])
+            if r["copy"]:
+                out.append(LintError(
+                    "prov.paraphrase_copy", "src", "DRAFT",
+                    "%d consecutive words of the draft match source '%s' of "
+                    "%s verbatim -- rewrite, or this is transcription"
+                    % (r["copy_words"], sid, fname)))
+            elif r["overlap"]:
+                out.append(LintError(
+                    "prov.paraphrase_overlap", "src", "DRAFT",
+                    "draft shares fingerprint overlap %.2f with source '%s' "
+                    "of %s -- paraphrase more freely"
+                    % (r["jaccard"], sid, fname)))
+        return out
+
+    return checks
 
 
 def parse_key_blocks(bank_path):
@@ -410,7 +887,11 @@ def parse_key_blocks(bank_path):
                 body_lines.append(re.sub(r"^>\s?", "", lines[i]))
                 i += 1
             raw = "\n".join(raw_lines)
-            title = m.group(2).strip()
+            # The spec documents `> [!KEY: <title>]` (title inside the
+            # brackets, group 1); the trailing form `> [!KEY] <title>`
+            # (group 2) is also accepted for legacy banks. The in-bracket
+            # form wins when both are present.
+            title = (m.group(1) or m.group(2) or "").strip()
             body = []
             for line in body_lines:
                 stripped = line.strip()
@@ -892,6 +1373,7 @@ SHARED FIELDS (all types)
   [LESSON-REF: <heading text>]                               optional, links to a lesson heading
   [PAIR: <confusion set name>]                               optional
   [PREREQ: <objective>[, <objective>...]]                    optional
+  [CASE: <case-id>]                                          optional
   WHY BEST:            why the keyed answer is correct
   KEY DISCRIMINATOR:   the one distinction the item turns on
   SECOND-BEST:         the runner-up, and what would make it win
@@ -909,7 +1391,11 @@ SHARED FIELDS (all types)
   makes them a set, and a name on exactly one item is an authoring mistake
   (`lint` warns). [PREREQ:] lists objectives this item assumes the learner
   already holds; each entry should name an objective some item in the bank
-  teaches (`lint` warns when it does not).
+  teaches (`lint` warns when it does not). [CASE:] attaches the item to a
+  named case group; the id must be registered in a `## CASES` preamble block
+  (one pipe row per case), and a [PREREQ:] target may also be a case id or an
+  item [ID:] -- an unresolvable target or a dependency cycle is a `lint`
+  error (prov.case_unknown / prov.prereq_unknown / prov.prereq_cycle).
 
 THE FIVE ITEM TYPES
 
@@ -1085,6 +1571,30 @@ KEYS_UNCHECKED = object()
 STYLE_UNCHECKED = object()
 
 
+# The same sentinel pattern for the provenance pass (plan 03.2-02): "the
+# caller did not supply provenance data" (skip every ## SOURCES / [SRC:] /
+# [OBJ:] check -- the behaviour every pre-03.2-02 caller relies on) stays
+# distinct from "the caller supplied provenance data and this bank carries no
+# provenance constructs", where parse_sources() returns None and no directive
+# exists to check.
+SOURCES_UNCHECKED = object()
+
+
+# The same sentinel pattern for the [CASE:]/[PREREQ:] pass (plan 03.2-04):
+# "the caller did not supply case/prereq data" (skip every case/prereq check)
+# stays distinct from "the caller supplied it and the bank carries no
+# case/prereq constructs", where parse_cases() returns None and nothing exists
+# to check.
+CASES_UNCHECKED = object()
+
+
+# The same sentinel pattern for the winnowing paraphrase pass (plan 03.2-04):
+# the paraphrase checks stay off unless the caller passes a thresholds dict
+# (the settings group `paraphrase`), so every pre-03.2-04 caller gets
+# byte-for-byte the same lint output it got before.
+PARAPHRASE_UNCHECKED = object()
+
+
 # The closed rule-kind catalogue (D-16, Pitfall 3): a style row may
 # parameterize exactly these kinds, and a row claiming anything else is
 # style.rule_unimplemented before the rule is ever applied. `house.mandate`
@@ -1131,11 +1641,623 @@ LINT_CODES = tuple(sorted({
     "terms.unknown_ref", "terms.duplicate_slug", "terms.empty_block",
     "key.in_rationale", "key.duplicate_id",
     "key.no_front", "key.missing_id", "key.missing_hash",
+    "prov.obj_unknown", "prov.src_duplicate", "prov.src_unknown",
+    "prov.paraphrase_copy", "prov.paraphrase_overlap",
+    "prov.case_unknown", "prov.prereq_unknown", "prov.prereq_cycle",
+    "style.unsourced_specific",
     "style.parent_unknown", "style.rule_unimplemented", "style.duplicate_id",
     "style.file_unreadable", "style.override_locked", "style.ignore_locked",
+    "style.unknown_parameter", "style.parameter_out_of_range",
+    "style.order_before", "style.heading_cadence", "style.require_marker",
+    "style.forbidden_marker", "style.open_with", "style.section_density",
+    "style.sentence_length", "style.filler_phrase", "style.banned_hector",
+    "style.forbidden_phrase",
     "item.objective_line_multi_sentence",
     "bank.answer_position_skew",
 }))
+
+
+# ---- style enforcement (plan 03.1-05) --------------------------------------
+# The one shared lexical metrics pass is driven by pre-compiled, deliberately
+# backtracking-free regexes (the WOULD_BE precedent, T-031-18) so the whole
+# style pass stays under the 50ms/5000-word budget without a cache.
+_STYLE_FENCE_RE = re.compile(r"(?ms)^```.*?^```\s*")
+_STYLE_CODE_SPAN_RE = re.compile(r"`[^`\n]*`")
+_STYLE_SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
+_STYLE_WORD_RE = re.compile(r"\S+")
+_STYLE_FILLER_RE = re.compile(
+    r"\b(?:a lot of|in order to|due to the fact that|as a matter of fact|"
+    r"needless to say|basically|actually|obviously|kind of|sort of|"
+    r"pretty much|very|really|quite|just)\b", re.I)
+_STYLE_HECTOR_RE = re.compile(
+    r"\b(?:you must|you have to|you need to|you should|you always|you never|"
+    r"do not forget|don't forget|make sure you remember|remember to|"
+    r"you absolutely must)\b", re.I)
+_STYLE_REFERENCE_RE = re.compile(
+    r"\b(?:see also|see section|see chapter|refer to|further reading|"
+    r"for more (?:information|details)|for reference)\b", re.I)
+_STYLE_IGNORE_RE = re.compile(r"<!--\s*style-ignore:\s*([A-Za-z0-9_.-]+)")
+
+# The severity vocabulary of a `## Rules` severity cell. `manual` is the
+# sanctioned declaration for a discourse rule (D-12 class 3, criterion 3c):
+# Phase 11 judgement, skipped here with a note, never fabricated into a check.
+STYLE_SEVERITIES = frozenset({"off", "warn", "error", "manual"})
+
+# The closed check catalogue (D-13): every style.* content code the pass can
+# emit, with the severity ceiling a style file may not raise. `error` is
+# earned by construction -- structural counts or author-controlled literal
+# lists; anything that pattern-matches natural language caps at `warn`
+# (research section 3.1). Adding a check is a code change in this module plus
+# a LINT_CODES entry; a style file can never add one.
+STYLE_CHECK_CATALOGUE = {
+    "style.order_before": "error",
+    "style.heading_cadence": "error",
+    "style.require_marker": "error",
+    "style.forbidden_marker": "error",
+    "style.open_with": "error",
+    "style.section_density": "warn",
+    "style.sentence_length": "warn",
+    "style.filler_phrase": "warn",
+    "style.banned_hector": "warn",
+    "style.forbidden_phrase": "warn",
+}
+
+
+def _style_lexical_metrics(text):
+    """The one shared lexical metrics pass (D-12 class 2): a single
+    tokenisation over the lesson prose that every lexical check reads, so a
+    lesson is scanned once per lint, not once per check. Fenced and inline
+    code spans are masked first (the research's 'code-span masks')."""
+    body = _STYLE_FENCE_RE.sub(" ", text or "")
+    body = _STYLE_CODE_SPAN_RE.sub(" ", body)
+    return {
+        "word_count": len(_STYLE_WORD_RE.findall(body)),
+        "sentences": [s.strip() for s in _STYLE_SENTENCE_RE.split(body)
+                      if s.strip()],
+        "filler": len(_STYLE_FILLER_RE.findall(body)),
+        "hector": len(_STYLE_HECTOR_RE.findall(body)),
+        "reference": len(_STYLE_REFERENCE_RE.findall(body)),
+    }
+
+
+def _style_sections(lesson):
+    """The parsed heading tree as (text, slug, body) dicts; empty when the
+    lesson carries no sections or carries an unreadable-source error, so no
+    structural check fires on data that was never parsed."""
+    if not isinstance(lesson, dict) or lesson.get("error"):
+        return []
+    return lesson.get("headings") or []
+
+
+def _style_lesson_body(lesson):
+    """The whole LESSON text (the suppression-comment and lexical surface)."""
+    if not isinstance(lesson, dict) or lesson.get("error"):
+        return ""
+    return lesson.get("body") or ""
+
+
+def _style_split_params(params):
+    return [p.strip() for p in (params or "").split(",") if p.strip()]
+
+
+def _style_is_int(s):
+    try:
+        int(s)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def _style_marker_prefix(token):
+    """The search prefix for a marker token: '[!KEY]' and '[!CHECK: id]' both
+    match the prefix '[!KEY' / '[!CHECK', so a rule naming a marker catches
+    both the bare and the anchored form."""
+    t = token.strip()
+    return t.rstrip("]") if t.startswith("[!") else t
+
+
+def _style_first_line(body):
+    for line in (body or "").splitlines():
+        if line.strip():
+            return line.strip()
+    return None
+
+
+def _style_first_pos(body, token):
+    """Position of the first occurrence of `token` in a section body, or
+    None. `paragraph` means the first prose paragraph -- the first non-blank
+    line that is neither a marker, a callout, a list, a table, a fence nor a
+    heading."""
+    token = token.strip()
+    if not token:
+        return None
+    if token.lower() == "paragraph":
+        for m in re.finditer(r"(?m)^\s*(\S.*?)\s*$", body or ""):
+            line = m.group(1)
+            if line.startswith((">", "|", "- ", "* ", "```", "###", "[!")):
+                continue
+            return m.start()
+        return None
+    idx = (body or "").find(_style_marker_prefix(token))
+    return idx if idx >= 0 else None
+
+
+def _style_count(body, token):
+    """Occurrence count of `token` in `body`: a `##` heading line, a `[!...]`
+    marker (bare or anchored), or a whole word."""
+    token = token.strip()
+    if not token:
+        return 0
+    if token.startswith("##"):
+        return len(re.findall(r"(?m)^" + re.escape(token) + r"\s*$", body or ""))
+    if token.startswith("[!"):
+        return len(re.findall(re.escape(_style_marker_prefix(token)), body or ""))
+    return len(re.findall(r"(?i)\b" + re.escape(token) + r"\b", body or ""))
+
+
+def _style_row_severity(row):
+    """Normalise a row's severity cell. Returns (severity, error): severity is
+    one of STYLE_SEVERITIES, or None with an error LintError for a cell the
+    linter does not implement (D-16 -- a claim is not silently accepted)."""
+    sev = (row.get("severity") or "warn").strip().lower()
+    if sev in STYLE_SEVERITIES:
+        return sev, None
+    return None, LintError(
+        "style.unknown_parameter", "rules", "BANK",
+        "rule '%s' declares severity '%s', which the linter does not "
+        "implement; choose one of %s (D-16)"
+        % (row.get("id") or "?", row.get("severity") or "?",
+           ", ".join(sorted(STYLE_SEVERITIES))))
+
+
+def run_style_pass(lesson, style):
+    """The style content pass (D-12, plan 03.1-05 Task 1). Class 1 structural
+    counts over the parsed heading tree and class 2 the one shared lexical
+    metrics pass run on every lint; class 3 discourse judgement defers to
+    Phase 11 -- a row declaring severity `manual` is skipped by note and never
+    fabricated into a check.
+
+    Returns (errors, warnings) as LintError records. The check catalogue is
+    closed (D-13): every finding code is a member of STYLE_CHECK_CATALOGUE, a
+    style row may enable/disable/re-severity downward/parameterize a check but
+    never define one, and error severity is earned by construction -- a row
+    may not raise a check above its catalogue rating
+    (`style.parameter_out_of_range`, the research's ceiling code)."""
+    errors, warnings = [], []
+    if not isinstance(style, dict) or style.get("error"):
+        return errors, warnings
+    if lesson is LESSON_UNCHECKED:
+        # The caller never supplied lesson data (the additive opt-out
+        # sentinel from lint()): there is no lesson surface to check, so
+        # the content pass fires nothing -- a caller that never heard of
+        # lessons gets byte-for-byte what it got before. A real parsed
+        # lesson (a dict) or an absent-lesson bank (None) still get full
+        # enforcement; this guard only matches the "lesson checks off"
+        # sentinel (03.1-05, D-12).
+        return errors, warnings
+    sections = _style_sections(lesson)
+    body = _style_lesson_body(lesson)
+    metrics = _style_lexical_metrics(body)
+
+    def finding(code, message, severity="error"):
+        (errors if severity == "error" else warnings).append(
+            LintError(code, "lesson", "BANK", message))
+
+    def ceiling(row, code, sev):
+        """Enforce the earned-severity ceiling (D-13): a row may re-severity
+        downward but never raise a check above its catalogue rating."""
+        rating = STYLE_CHECK_CATALOGUE[code]
+        if sev == "error" and rating == "warn":
+            errors.append(LintError(
+                "style.parameter_out_of_range", "rules", "BANK",
+                "rule '%s' tries to raise %s above its catalogue rating (%s); "
+                "error severity is earned by construction (D-13)"
+                % (row.get("id") or "?", code, rating)))
+            return "warn"
+        return sev
+
+    # ---- lexical configuration from binding rows (class 2) -----------------
+    # sentence-length ceiling, filler phrases, and banned hector words are
+    # always-on within the style pass; a row binding the check may disable it,
+    # re-severity it downward, or parameterize it. A style.forbid row naming a
+    # reference-material category adds the row-driven forbidden_phrase check.
+    lexical = {
+        "style.sentence_length": {"severity": "warn", "max": 28},
+        "style.filler_phrase": {"severity": "warn"},
+        "style.banned_hector": {"severity": "warn"},
+    }
+
+    def bind_lexical(code, row):
+        lexical.setdefault(code, {"severity": STYLE_CHECK_CATALOGUE[code]})
+        sev, sev_err = _style_row_severity(row)
+        if sev_err is not None:
+            errors.append(sev_err)
+            return
+        if sev in ("manual", "off"):
+            lexical[code]["severity"] = sev
+            return
+        lexical[code]["severity"] = ceiling(row, code, sev)
+        for tok in _style_split_params(row.get("params") or ""):
+            if "=" in tok:
+                k, _, v = tok.partition("=")
+                lexical[code].setdefault("params", {})[k.strip()] = v.strip()
+
+    for row in style.get("rules") or []:
+        rid = (row.get("id") or "").strip()
+        kind = row.get("kind") or ""
+        params = _style_split_params(row.get("params") or "")
+        if rid in STYLE_CHECK_CATALOGUE:
+            bind_lexical(rid, row)
+        elif kind == "density.max" and params and params[0].startswith("style."):
+            if params[0] in STYLE_CHECK_CATALOGUE:
+                bind_lexical(params[0], row)
+        elif kind == "style.forbid":
+            target = params[0] if params else ""
+            if target == "second-person-hectoring":
+                bind_lexical("style.banned_hector", row)
+            elif target == "reference-material":
+                bind_lexical("style.forbidden_phrase", row)
+
+    for code, cfg in lexical.items():
+        if cfg.get("severity") in ("off", "manual"):
+            continue
+        if code == "style.sentence_length":
+            try:
+                ceiling_n = int(cfg.get("params", {}).get("max", 28))
+            except (TypeError, ValueError):
+                ceiling_n = 28
+            if ceiling_n < 1:
+                errors.append(LintError(
+                    "style.parameter_out_of_range", "rules", "BANK",
+                    "style.sentence_length max=%s is out of range (min 1)"
+                    % cfg.get("params", {}).get("max", 28)))
+                continue
+            for s in metrics["sentences"]:
+                n = len(_STYLE_WORD_RE.findall(s))
+                if n > ceiling_n:
+                    finding("style.sentence_length",
+                            "%d-word sentence exceeds the style's %d-word "
+                            "ceiling" % (n, ceiling_n), cfg["severity"])
+        elif code == "style.filler_phrase" and metrics["filler"]:
+            finding("style.filler_phrase",
+                    "%d filler phrase(s) in the lesson prose (the style bans "
+                    "them)" % metrics["filler"], cfg["severity"])
+        elif code == "style.banned_hector" and metrics["hector"]:
+            finding("style.banned_hector",
+                    "%d banned hector word(s) in the lesson prose"
+                    % metrics["hector"], cfg["severity"])
+        elif code == "style.forbidden_phrase" and metrics["reference"]:
+            finding("style.forbidden_phrase",
+                    "%d reference-material phrase(s) in the lesson prose"
+                    % metrics["reference"], cfg["severity"])
+
+    # ---- structural counts over the parsed heading tree (class 1) ---------
+    for row in style.get("rules") or []:
+        rid = (row.get("id") or "").strip()
+        kind = row.get("kind") or ""
+        params = _style_split_params(row.get("params") or "")
+        sev, sev_err = _style_row_severity(row)
+        if sev_err is not None:
+            errors.append(sev_err)
+            continue
+        if sev in ("manual", "off"):
+            continue
+        if rid in STYLE_CHECK_CATALOGUE:
+            continue  # already handled as lexical config above
+        if kind == "house.mandate":
+            continue  # registry-only, policed by lint()'s 03.1-04 block
+
+        if kind == "order.before":
+            if len(params) != 2:
+                errors.append(LintError(
+                    "style.unknown_parameter", "rules", "BANK",
+                    "rule '%s' (order.before) needs exactly two comma-separated "
+                    "tokens, got %r" % (rid, row.get("params") or "")))
+                continue
+            a, b = params[0], params[1]
+            effective = ceiling(row, "style.order_before", sev)
+            for h in sections:
+                pa = _style_first_pos(h["body"], a)
+                pb = _style_first_pos(h["body"], b)
+                if pa is not None and pb is not None and pb < pa:
+                    finding("style.order_before",
+                            "section '%s' has %s before %s; the style requires "
+                            "%s before %s" % (h["text"], b, a, a, b),
+                            effective)
+        elif kind == "cadence.section":
+            if not params:
+                errors.append(LintError(
+                    "style.unknown_parameter", "rules", "BANK",
+                    "rule '%s' (cadence.section) has no params" % rid))
+                continue
+            effective = ceiling(row, "style.heading_cadence", sev)
+            if len(params) == 2 and _style_is_int(params[0]) \
+                    and _style_is_int(params[1]):
+                lo, hi = int(params[0]), int(params[1])
+                if lo < 0 or hi <= lo:
+                    errors.append(LintError(
+                        "style.parameter_out_of_range", "rules", "BANK",
+                        "rule '%s' declares cadence bounds %s, %s; need "
+                        "0 <= min < max" % (rid, lo, hi)))
+                    continue
+                for h in sections:
+                    n = len(_STYLE_WORD_RE.findall(h["body"] or ""))
+                    if n < lo or n > hi:
+                        finding("style.heading_cadence",
+                                "section '%s' is %d words; the style bounds "
+                                "sections to %d..%d words"
+                                % (h["text"], n, lo, hi), effective)
+            else:
+                # MD043-style declared heading skeleton: every declared
+                # heading must appear in the lesson, in the declared order.
+                actual = [h["slug"] for h in sections]
+                pos = 0
+                for name in params:
+                    slug = lesson_slug(name)
+                    if slug not in actual:
+                        finding("style.heading_cadence",
+                                "declared section '%s' is missing from the "
+                                "lesson" % name, effective)
+                        continue
+                    idx = actual.index(slug)
+                    if idx < pos:
+                        finding("style.heading_cadence",
+                                "declared section '%s' appears out of order"
+                                % name, effective)
+                    pos = idx + 1
+        elif kind == "style.require":
+            if len(params) != 2:
+                errors.append(LintError(
+                    "style.unknown_parameter", "rules", "BANK",
+                    "rule '%s' (style.require) needs a marker and a count, "
+                    "got %r" % (rid, row.get("params") or "")))
+                continue
+            marker, n_tok = params[0], params[1]
+            if not _style_is_int(n_tok) or int(n_tok) < 1:
+                errors.append(LintError(
+                    "style.parameter_out_of_range", "rules", "BANK",
+                    "rule '%s' (style.require) needs a positive count, got "
+                    "'%s'" % (rid, n_tok)))
+                continue
+            n = int(n_tok)
+            effective = ceiling(row, "style.require_marker", sev)
+            if marker.startswith("##"):
+                count = _style_count(body, marker)
+                if count < n:
+                    finding("style.require_marker",
+                            "the lesson needs at least %d %s, found %d"
+                            % (n, marker, count), effective)
+            else:
+                for h in sections:
+                    count = _style_count(h["body"], marker)
+                    if count < n:
+                        finding("style.require_marker",
+                                "section '%s' needs at least %d %s, found %d"
+                                % (h["text"], n, marker, count), effective)
+        elif kind == "style.forbid":
+            if len(params) != 1:
+                errors.append(LintError(
+                    "style.unknown_parameter", "rules", "BANK",
+                    "rule '%s' (style.forbid) names exactly one target, got %r"
+                    % (rid, row.get("params") or "")))
+                continue
+            target = params[0]
+            if target in ("second-person-hectoring", "reference-material",
+                          "style.banned_hector", "style.forbidden_phrase"):
+                continue  # handled in the lexical binding pass
+            if target.startswith(("[!", "##")):
+                effective = ceiling(row, "style.forbidden_marker", sev)
+                count = _style_count(body, target)
+                if count:
+                    finding("style.forbidden_marker",
+                            "the style forbids %s, found %d in the lesson"
+                            % (target, count), effective)
+            else:
+                errors.append(LintError(
+                    "style.unknown_parameter", "rules", "BANK",
+                    "rule '%s' (style.forbid) names '%s', which is not a "
+                    "known forbidden category or marker" % (rid, target)))
+        elif kind == "open.with":
+            if len(params) != 1:
+                errors.append(LintError(
+                    "style.unknown_parameter", "rules", "BANK",
+                    "rule '%s' (open.with) names one target, got %r"
+                    % (rid, row.get("params") or "")))
+                continue
+            target = params[0]
+            effective = ceiling(row, "style.open_with", sev)
+            for h in sections:
+                first = _style_first_line(h["body"])
+                if first is None:
+                    continue
+                if target.lower() == "prose":
+                    if first.startswith(("[!", ">", "```")):
+                        finding("style.open_with",
+                                "section '%s' must open with prose, got %r"
+                                % (h["text"], first), effective)
+                elif not first.startswith(_style_marker_prefix(target)):
+                    finding("style.open_with",
+                            "section '%s' must open with %s, got %r"
+                            % (h["text"], target, first), effective)
+        elif kind == "density.max":
+            if len(params) != 2:
+                errors.append(LintError(
+                    "style.unknown_parameter", "rules", "BANK",
+                    "rule '%s' (density.max) needs a target and a cap, got %r"
+                    % (rid, row.get("params") or "")))
+                continue
+            x, n_tok = params[0], params[1]
+            if x.startswith("style."):
+                continue  # lexical config, handled above
+            if not _style_is_int(n_tok) or int(n_tok) < 1:
+                errors.append(LintError(
+                    "style.parameter_out_of_range", "rules", "BANK",
+                    "rule '%s' (density.max) needs a positive cap, got '%s'"
+                    % (rid, n_tok)))
+                continue
+            n = int(n_tok)
+            effective = ceiling(row, "style.section_density", sev)
+            for h in sections:
+                count = _style_count(h["body"], x)
+                if count > n:
+                    finding("style.section_density",
+                            "section '%s' uses %s %d times; the style caps it "
+                            "at %d" % (h["text"], x, count, n), effective)
+    return errors, warnings
+
+
+def style_manual_rules(style):
+    """Rows declared `manual` -- the discourse rules Phase 11 owns (D-12
+    class 3). The style pass skips them by note; they are never fabricated
+    into checks (criterion 3c)."""
+    if not isinstance(style, dict):
+        return []
+    return [row.get("id") or "" for row in style.get("rules") or []
+            if (row.get("severity") or "").strip().lower() == "manual"]
+
+
+def apply_style_ignore(findings, lesson_text):
+    """Filter style findings suppressed by local `<!-- style-ignore: <code> -->`
+    comments (D-14, ruling 13). A suppression naming a LOCKED_RULE_IDS id is
+    itself lint error `style.ignore_locked` and suppresses nothing -- the
+    locked check runs before the ignore table is consulted (T-031-19).
+    Returns (kept, suppressed_counts, ignore_errors)."""
+    suppressed = set(_STYLE_IGNORE_RE.findall(lesson_text or ""))
+    locked = sorted(suppressed & LOCKED_RULE_IDS)
+    ignore_errors = [
+        LintError("style.ignore_locked", "body", "BANK",
+                  "locked rule '%s' may never be suppressed; "
+                  "LOCKED_RULE_IDS decides it" % rid) for rid in locked]
+    # A locked-id suppression never suppresses: the finding stands and the
+    # attempt is itself the lint error above (T-031-19). Only non-locked
+    # codes are filtered and counted.
+    removable = suppressed - set(locked)
+    kept = [f for f in findings if f.code not in removable]
+    counts = collections.Counter(
+        f.code for f in findings if f.code in removable)
+    return kept, dict(counts), ignore_errors
+
+
+def style_suppression_report(lesson_text):
+    """Per-code suppression counts and lesson line locations -- the report
+    that retires bad checks (D-14, ruling 13): a check suppressed more often
+    than it is heeded is a check that is wrong, and this report says so
+    without anyone needing to notice. The named failure mode it prevents is
+    an unsuppressable warning getting its whole category globally disabled."""
+    counts = collections.Counter()
+    locations = {}
+    text = lesson_text or ""
+    for m in _STYLE_IGNORE_RE.finditer(text):
+        code = m.group(1)
+        counts[code] += 1
+        locations.setdefault(code, []).append(text.count("\n", 0, m.start()) + 1)
+    return [{"code": c, "count": counts[c],
+             "locations": sorted(set(locations[c]))} for c in sorted(counts)]
+
+
+# Warning calibration seam (D-14, Task 2): Phase 3.2 owns the corpus and the
+# calibration run; this phase owns the checks. Until a rate exists a warning
+# ships enabled at its catalogue rating. Phase 3.2 populates this table, and
+# a rate above WARNING_FP_THRESHOLD ships the check disabled by default with
+# the rate recorded beside the code.
+STYLE_WARNING_FP_RATES = {}
+WARNING_FP_THRESHOLD = 0.20
+
+
+def warning_ship_state(code, fp_rate=None):
+    """The ship-state of a style warning from its recorded false-positive
+    rate: above WARNING_FP_THRESHOLD the check ships disabled by default and
+    stays in the catalogue, opt-in per style (research section 3.2). The rate
+    is recorded beside the code in the returned record."""
+    rate = STYLE_WARNING_FP_RATES.get(code) if fp_rate is None else fp_rate
+    return {"code": code, "fp_rate": rate,
+            "ship_state": "enabled"
+            if rate is None or rate <= WARNING_FP_THRESHOLD else "disabled"}
+
+
+def write_allowed(style, errors):
+    """D-15: a style error blocks a machine-authored write and never a
+    human's lint -- the authoring loop consults this gate; a human's lint run
+    still returns the full diagnosis and keeps the pen."""
+    if style is None or style.get("error"):
+        return False
+    return not any(e.code.startswith("style.") for e in errors)
+
+
+class StylePrompt:
+    """Compiles a style file's Rules rows into the distilled imperative set
+    the authoring model receives (D-17, criterion 3d): one imperative per
+    enforceable rule, capped and placed last in the returned context, plus
+    exactly one exemplar. The `## Voice` prose zone is never emitted and the
+    style file is never embedded verbatim -- the model gets imperatives, not
+    an essay."""
+
+    DEFAULT_CAP = 7
+
+    @staticmethod
+    def prompt_context(style, cap=None):
+        """The style context for the authoring prompt: distilled imperatives
+        (capped, default StylePrompt.DEFAULT_CAP), then exactly one exemplar,
+        with nothing after them. `## Voice` prose never appears."""
+        if cap is None:
+            cap = StylePrompt.DEFAULT_CAP
+        cap = max(0, int(cap))
+        imperatives = StylePrompt._imperatives(style)[:cap]
+        blocks = ["## Style requirements",
+                  "Follow these style requirements, then imitate the exemplar."]
+        if imperatives:
+            blocks.append("")
+            blocks.extend("- " + i for i in imperatives)
+        blocks.append("")
+        blocks.append("## Exemplar")
+        blocks.append((style.get("exemplar") or "").strip() or "(no exemplar)")
+        return "\n".join(blocks)
+
+    @staticmethod
+    def _imperatives(style):
+        """One distilled imperative per enforceable, prompt-worthy rule, in
+        the Rules table's document order. `prompt: yes` rows are the ones the
+        style's author chose to surface to the model; disabled (`off`) and
+        deferred (`manual`) rows are not enforceable and are skipped."""
+        if not isinstance(style, dict):
+            return []
+        out = []
+        for row in style.get("rules") or []:
+            sev = (row.get("severity") or "").strip().lower()
+            if sev in ("off", "manual"):
+                continue
+            if (row.get("prompt") or "").strip().lower() != "yes":
+                continue
+            imp = StylePrompt._distil(row)
+            if imp:
+                out.append(imp)
+        return out
+
+    @staticmethod
+    def _distil(row):
+        kind = row.get("kind") or ""
+        params = _style_split_params(row.get("params") or "")
+
+        def p(i):
+            return params[i] if i < len(params) else ""
+
+        if kind == "order.before" and len(params) == 2:
+            return "Order each section so %s comes before %s." % (p(0), p(1))
+        if kind == "cadence.section" and len(params) == 2 \
+                and _style_is_int(p(0)) and _style_is_int(p(1)):
+            return "Keep every section between %s and %s words." % (p(0), p(1))
+        if kind == "cadence.section" and params:
+            return "Use exactly these section headings, in order: %s." \
+                % ", ".join(params)
+        if kind == "style.require" and len(params) == 2:
+            return "Every section needs at least %s of %s." % (p(1), p(0))
+        if kind == "style.forbid" and params:
+            return "Never use %s." % params[0]
+        if kind == "open.with" and params:
+            return "Open every section with %s." % params[0]
+        if kind == "density.max" and len(params) == 2:
+            return "Use %s at most %s times per section." % (p(0), p(1))
+        return ""
 
 
 def _rationale_texts(q):
@@ -1172,7 +2294,9 @@ def _is_multi_sentence(text):
 
 
 def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
-         keys=KEYS_UNCHECKED, style=STYLE_UNCHECKED):
+         keys=KEYS_UNCHECKED, style=STYLE_UNCHECKED,
+         sources=SOURCES_UNCHECKED, cases=CASES_UNCHECKED,
+         paraphrase=PARAPHRASE_UNCHECKED):
     """Return (errors, warnings) as lists of LintError records.
 
     str(record) reproduces the historical 'Qn: message' text exactly; the code and
@@ -1204,6 +2328,28 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
     fallback, D-09); a dict carrying `error` is an unreadable file; a parsed
     dict runs the parent guard, the closed-kind check, the duplicate-id
     check, and the locked-row guard.
+
+    `sources` follows the same additive sentinel pattern (plan 03.2-02): the
+    provenance pass is off unless the caller passes provenance data --
+    whatever `parse_sources()` returned. A dict runs the duplicate-registry-id
+    check and the resolution checks over every [SRC:]/[OBJ:] directive;
+    None means the bank carries no provenance constructs, so no directive can
+    be unresolvable (the mirror of the lesson=None rule, where a reference
+    into a sectionless bank is unknown rather than skipped).
+
+    `cases` follows it again for the [CASE:]/[PREREQ:] pass (plan 03.2-04):
+    the case/prereq checks are off unless the caller passes whatever
+    `parse_cases()` returned -- a dict runs the unknown-case, unknown-prereq,
+    and cycle checks (D-15/D-16); None means the bank carries no case/prereq
+    constructs. When case data is present, a [PREREQ:] naming a case or item
+    id is valid and stops the legacy objective-only warning.
+
+    `paraphrase` follows it once more for the winnowing paraphrase pass
+    (plan 03.2-04, D-13): the checks are off unless the caller passes a
+    thresholds dict (the `paraphrase` settings group, defaults 8 and 0.25).
+    When on, every item's text is compared against the sources its [SRC:]s
+    resolve to -- fingerprints only, source text read transiently and never
+    stored.
     """
     errors, warnings = [], []
     seen_stems = {}
@@ -1217,6 +2363,9 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
     terms_on = terms is not TERMS_UNCHECKED
     keys_on = keys is not KEYS_UNCHECKED
     style_on = style is not STYLE_UNCHECKED
+    sources_on = sources is not SOURCES_UNCHECKED
+    cases_on = cases is not CASES_UNCHECKED
+    paraphrase_on = paraphrase is not PARAPHRASE_UNCHECKED
     if lesson_on:
         known_slugs = set()
         if lesson:
@@ -1232,6 +2381,10 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
         lesson_body = lesson.get("body", "") if isinstance(lesson, dict) else ""
     if keys_on:
         seen_key_ids = {}
+    if cases_on:
+        known_case_ids = set((cases or {}).get("cases") or {})
+        known_item_id_set = {q.get("item_id") for q in questions
+                             if q.get("item_id")}
 
     for idx, q in enumerate(questions, 1):
         tag = "Q%d" % idx
@@ -1282,7 +2435,14 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
         if q.get("pair"):
             pair_counts.setdefault(q["pair"], []).append(tag)
         for prereq in q.get("prereq") or []:
-            if prereq not in all_objectives:
+            # A [PREREQ:] target may be an objective (the legacy contract), a
+            # case id, or an item [ID:] (plan 03.2-04, D-16). With case data
+            # present the legacy objective-only warning is suppressed for
+            # case/item targets; a truly unresolvable target is both warned
+            # here and errored as prov.prereq_unknown below.
+            if prereq not in all_objectives and not (
+                    cases_on and (prereq in known_case_ids
+                                  or prereq in known_item_id_set)):
                 warnings.append(LintError(
                     "item.prereq_unknown", "prereq", tag,
                     "prereq %r is not an objective any item in this bank "
@@ -1308,6 +2468,24 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                         "key.in_rationale", rfield, tag,
                         "a [!KEY] marker belongs in the lesson, never inside "
                         "an item rationale (D-05)"))
+
+        # Plan 03.2-04: style.unsourced_specific (D-14) is a structural check
+        # inside the provenance pass -- an item with no resolved [SRC:]
+        # carrying a numeral/unit/dose is an error. The winnowing paraphrase
+        # pass (D-13) compares the item's text against the sources it cites,
+        # fingerprints only; the source text is read transiently and never
+        # stored or echoed.
+        if sources_on and sources:
+            for e in unsourced_specific_findings(q, sources, tag):
+                errors.append(e)
+        if paraphrase_on and sources:
+            for code, msg in paraphrase_findings(
+                    _item_text(q), sources, paraphrase, item_tag=tag,
+                    subject="the item"):
+                if code == "prov.paraphrase_copy":
+                    errors.append(LintError(code, "src", tag, msg))
+                else:
+                    warnings.append(LintError(code, "src", tag, msg))
 
         if t in ("mc", "multi"):
             if len(q["correct"]) != q["select"]:
@@ -1577,6 +2755,83 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                         "style.ignore_locked", "rules", "BANK",
                         "rule '%s' carries a lock cell; only model.py's "
                         "LOCKED_RULE_IDS may manage locks" % rid))
+
+        # plan 03.1-05: the style content pass -- three cost classes, closed
+        # catalogue, local suppression. Threaded behind the STYLE_UNCHECKED
+        # sentinel like every other pass, so a caller that never heard of
+        # style enforcement gets byte-for-byte what it got before this
+        # parameter existed. The registry findings above stay; this runs the
+        # lesson-content checks and the one shared lexical metrics pass, and
+        # applies the local `<!-- style-ignore: -->` suppressions (a locked
+        # suppression is itself style.ignore_locked and never suppresses).
+        if style is not None and not style.get("error"):
+            style_errors, style_warnings = run_style_pass(lesson, style)
+            lesson_text = lesson.get("body", "") \
+                if isinstance(lesson, dict) else ""
+            kept_errors, _, locked_errors = apply_style_ignore(
+                style_errors, lesson_text)
+            kept_warnings, _, _ = apply_style_ignore(
+                style_warnings, lesson_text)
+            errors.extend(locked_errors)
+            errors.extend(kept_errors)
+            warnings.extend(kept_warnings)
+
+    # Provenance findings (plan 03.2-02), in deterministic order: duplicate
+    # registry ids, then unresolvable [SRC:] ids, then unresolvable [OBJ:]
+    # ids, each tagged by the carrying item (D-11, T-032-05). `sources` None
+    # means the bank carries no provenance constructs at all, so no directive
+    # can be unresolvable -- the mirror of the lesson=None rule's opposite.
+    if sources_on and sources:
+        path = sources.get("path") or "?"
+        seen_dup = {}
+        for sid in sources.get("duplicates") or []:
+            if sid in seen_dup:
+                continue
+            seen_dup[sid] = True
+            errors.append(LintError(
+                "prov.src_duplicate", "sources", "BANK",
+                "source id '%s' is registered more than once in ## SOURCES "
+                "of %s -- keep one row per source" % (sid, path)))
+        known = sources.get("sources") or {}
+        for d in sources.get("srcs") or []:
+            if d["id"] not in known:
+                errors.append(LintError(
+                    "prov.src_unknown", "src", d["item"],
+                    "[SRC:] names source '%s', which is not in ## SOURCES "
+                    "of %s" % (d["id"], path)))
+        for d in sources.get("objs") or []:
+            if d["obj"] not in known:
+                errors.append(LintError(
+                    "prov.obj_unknown", "obj", d["item"],
+                    "[OBJ:] names objective '%s', which is not in ## SOURCES "
+                    "of %s" % (d["obj"], path)))
+
+    # Case/edge findings (plan 03.2-04, D-15/D-16), in deterministic order:
+    # unknown [CASE:] ids, unknown [PREREQ:] targets, then the first cycle.
+    # `cases` None means the bank carries no case/prereq constructs, so
+    # nothing can be unknown or cyclic.
+    if cases_on and cases:
+        path = cases.get("path") or "?"
+        fname = os.path.basename(path) if path else "?"
+        known_case_ids = set(cases.get("cases") or {})
+        known_item_id_set = {q.get("item_id") for q in questions
+                             if q.get("item_id")}
+        for d in cases.get("case_directives") or []:
+            if d["id"] not in known_case_ids:
+                errors.append(LintError(
+                    "prov.case_unknown", "case", d["item"],
+                    "[CASE:] names case '%s', which is not in ## CASES of %s"
+                    % (d["id"], fname)))
+        for d in cases.get("prereq_edges") or []:
+            t = d["target"]
+            if t not in known_case_ids and t not in known_item_id_set \
+                    and t not in all_objectives:
+                errors.append(LintError(
+                    "prov.prereq_unknown", "prereq", d["item"],
+                    "[PREREQ:] names target '%s', which is neither a case in "
+                    "## CASES, an item [ID:], nor an objective any item "
+                    "teaches, in %s" % (t, fname)))
+        errors.extend(_prereq_cycle_findings(questions, cases, all_objectives))
     return errors, warnings
 
 

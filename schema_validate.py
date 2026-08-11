@@ -169,11 +169,18 @@ def validate(instance, schema, root=None, path="$"):
             if key in instance:
                 errors.extend(validate(instance[key], subschema, root, path + "." + key))
 
-    if schema.get("additionalProperties") is False and isinstance(instance, dict):
+    ap = schema.get("additionalProperties")
+    if ap is not None and ap is not True and isinstance(instance, dict):
         allowed_keys = set(schema.get("properties", {}).keys())
         for key in instance:
-            if key not in allowed_keys:
-                errors.append("%s: additional property %r is not allowed" % (path, key))
+            if key in allowed_keys:
+                continue
+            if ap is False:
+                errors.append("%s: additional property %r is not allowed"
+                              % (path, key))
+            else:
+                errors.extend(validate(instance[key], ap, root,
+                                       path + "." + key))
 
     if "items" in schema and isinstance(instance, list):
         for i, el in enumerate(instance):

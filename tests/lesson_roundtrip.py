@@ -22,6 +22,100 @@ import protocol_roundtrip                                   # noqa: E402
 from surfaces import daemon, lesson, quiz                   # noqa: E402
 from surfaces.quiz_page import OFFLINE_JS                   # noqa: E402
 
+
+# ---- plan 03.1-06 Task 3: spec documents the new grammar; 09-02 fold ------
+
+
+def test_spec_documents_new_grammar_constructs():
+    """03.1-06 Task 3 Test 1: `itembank spec` output documents the new
+    grammar -- ## TERMS + [[term]] (with the reserved zh= meta), [!KEY]
+    (id/hash, cloze, Anki export), [!EXAMPLE], [!CHECK: <id>] (same-bank
+    only), the Educational Objective line (private payload), and
+    styles/<id>.md (Voice/Rules/Exemplar + locked house rows)."""
+    spec = subprocess.run([sys.executable, os.path.join(ROOT, "itembank.py"),
+                           "spec"], capture_output=True, text=True,
+                          cwd=ROOT).stdout
+    for needle, label in [("## TERMS", "TERMS"), ("[[term]]", "term ref"),
+                          ("zh=", "reserved zh= meta"), ("[!KEY", "KEY"),
+                          ("[!EXAMPLE", "EXAMPLE"), ("[!CHECK", "CHECK"),
+                          ("Objective:", "Objective line"),
+                          ("styles/", "style file")]:
+        if needle not in spec:
+            fail("spec must document %r for the new grammar (%s)"
+                 % (needle, label))
+
+
+def test_lesson_layout_folded_into_09_02():
+    """03.1-06 Task 3 Test 2 (D-04, LESSON-17): 09-02-PLAN.md's Task 1
+    action and artifacts enumerate the lesson_layout enum separate|inline in
+    the subject_profiles entry contract -- EMT/Math separate, CS inline --
+    with no registry version bump in this phase."""
+    text = open(os.path.join(ROOT, ".planning", "phases",
+                             "09-subject-invariant-loop-emt-math-cs-integration",
+                             "09-02-PLAN.md"), encoding="utf-8").read()
+    if "lesson_layout" not in text:
+        fail("09-02-PLAN.md must name lesson_layout in the entry contract")
+    if '"separate"' not in text or '"inline"' not in text:
+        fail("09-02-PLAN.md must enumerate lesson_layout separate|inline")
+    if not ("EMT" in text and "Math" in text and "CS" in text):
+        fail("09-02-PLAN.md must commit EMT/Math separate and CS inline")
+
+
+def test_spec_only_bank_round_trips_new_constructs():
+    """03.1-06 Task 3 Test 3: a bank written from the spec alone parses and
+    lints clean (zero errors) for the new grammar constructs."""
+    bank = """# Spec-only fixture (synthetic)
+
+## LESSON
+
+### The Spec-Only Section
+
+A [[glossary]] term used once in the prose, then a must-memorize card.
+
+> [!KEY: The Spec Card]
+
+{{cloze::The spec card}} front.
+
+> [!EXAMPLE]
+
+An example callout shows the shape.
+
+> [!CHECK: q1]
+
+## TERMS
+
+glossary | a term defined in the lesson's own glossary | gloss
+
+Q1. What does the spec-only bank exercise?
+
+[OBJECTIVE: emt:probe.spec_only]
+Objective: It exercises the grammar the spec documents.
+[TYPE: mc]
+A) the new grammar
+B) the old grammar
+C) the same grammar
+CORRECT: A
+WHY BEST: because every new construct parses
+KEY DISCRIMINATOR: B is right when the constructs predate the spec
+DISTRACTOR ANALYSIS: B would be correct only for a pre-3.1 bank
+TRAP: none
+CONFIDENCE: high
+
+[LESSON-REF: The Spec-Only Section]
+"""
+    tmp = os.path.join(tempfile.mkdtemp(), "spec_only.md")
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(bank)
+    try:
+        out = subprocess.run([sys.executable, os.path.join(ROOT, "itembank.py"),
+                              "lint", tmp], capture_output=True, text=True,
+                             cwd=ROOT)
+        if out.returncode != 0 or "0 errors" not in out.stdout:
+            fail("spec-only bank must lint with zero errors; got %r"
+                 % out.stdout[-400:])
+    finally:
+        shutil.rmtree(os.path.dirname(tmp), ignore_errors=True)
+
 LES_BANK = os.path.join(ROOT, "fixtures", "lesson_bank.md")
 SMP_BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
 SRC_BANK = os.path.join(ROOT, "fixtures", "lesson_src_bank.md")
@@ -999,16 +1093,605 @@ def test_lesson_content_region_byte_identical_phase3():
 def test_lesson_parse_identity_phase3():
     """Test 4: the parsed question dicts and parsed lesson structure are
     byte-equal to the Phase 3 goldens -- the parse is what Directive §4.4
-    actually protects (03.1-UI-SPEC §12.3)."""
+    actually protects (03.1-UI-SPEC §12.3). The lesson dict's `source` field
+    is the bank's absolute path -- machine-dependent metadata, not lesson
+    content -- so it is compared by basename only; every other field is
+    byte-equal (a golden generated on one machine must not fail the floor
+    on another)."""
     golden = json.load(open(GOLDEN_PARSE_P3, encoding="utf-8"))
     qs = itembank.load(LES_BANK)
     les = itembank.parse_lesson(LES_BANK)
     if json.dumps(qs, sort_keys=True) != json.dumps(golden["qs"],
                                                     sort_keys=True):
         fail("parsed question dicts drifted from the Phase 3 golden")
-    if json.dumps(les, sort_keys=True) != json.dumps(golden["lesson"],
-                                                     sort_keys=True):
+    now = dict(les)
+    then = dict(golden["lesson"])
+    # `source` is the absolute bank path (machine- and platform-dependent:
+    # "C:\\Users\\..." on Windows, "/mnt/c/..." under WSL). Normalize
+    # separators before comparing the basename so the floor is portable.
+    def _base(path):
+        return os.path.basename((path or "").replace("\\", "/"))
+    if _base(now.pop("source", "")) != _base(then.pop("source", "")):
+        fail("parsed lesson `source` basename drifted from the Phase 3 golden")
+    if json.dumps(now, sort_keys=True) != json.dumps(then, sort_keys=True):
         fail("parsed lesson structure drifted from the Phase 3 golden")
+
+
+# ---- plan 03.2-02: provenance grammar -- ## SOURCES, [SRC:], [OBJ:] -------
+# D-11/D-20 (SEED-04/SEED-09): an additive ## SOURCES registry resolves
+# [SRC:]/[OBJ:] ids; an unresolvable id is a lint error naming the id and the
+# file; a duplicate registry id is a lint error; a bank using none of the
+# constructs parses and renders byte-identically (the compatibility floor,
+# Directive §4.4).
+
+def provenance_clean_item():
+    """A minimal otherwise-clean mc item carrying a resolvable [SRC:] and
+    [OBJ:]: the item itself contributes no error, so the only provenance
+    findings a test can observe are its own."""
+    return (
+        "Q1. Which finding suggests an at-risk airway?   (difficulty: application)\n"
+        "[SRC: aaos12 p. 214]\n"
+        "[OBJ: emt:airway]\n"
+        "[OBJECTIVE: emt:airway]\n"
+        "A) Snoring respirations with a weak effort\n"
+        "B) Thirst\n"
+        "C) Tachycardia\n"
+        "D) Warm dry skin\n\n"
+        "CORRECT: A\n\n"
+        "WHY BEST: Snoring with a weak effort is obstruction with failing "
+        "compensation.\n\n"
+        "KEY DISCRIMINATOR: Air movement itself is threatened.\n\n"
+        "SECOND-BEST: B. Thirst is a perfusion finding; this would be correct "
+        "if the question asked about perfusion.\n\n"
+        "DISTRACTOR ANALYSIS:\n"
+        "- A) Correct: the keyed answer.\n"
+        "- B) Perfusion.\n"
+        "- C) Compensation.\n"
+        "- D) Normal.\n\n"
+        "TRAP: Any abnormal vital sign.\n\n"
+        "CONFIDENCE: high\n")
+
+
+def provenance_bank(tmp, registry_rows, item_text):
+    """A real bank (title, ## SOURCES registry, one item) for the provenance
+    fixtures; the registry rows are pipe rows `id | locators`."""
+    p = os.path.join(tmp, "prov.md")
+    open(p, "w", encoding="utf-8").write(
+        "# Provenance fixture (synthetic)\n\n## SOURCES\n\n" + registry_rows
+        + "\n\n" + item_text)
+    return p
+
+
+def test_provenance_registry_parses_and_directives_resolve():
+    """A ## SOURCES registry parses into {source_id: locators}; [SRC:] and
+    [OBJ:] directives resolve against it with item tags; a bank whose
+    directives all resolve lints clean of prov errors (D-11, SEED-04)."""
+    import model
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = provenance_bank(
+            tmp,
+            "aaos12 | AAOS Emergency Care 12th ed., pp. 210-215\n"
+            "emt:airway | EMT airway chapter, sect. 5\n",
+            provenance_clean_item())
+        ps = model.parse_sources(bank)
+        if ps["sources"].get("aaos12") != \
+                "AAOS Emergency Care 12th ed., pp. 210-215":
+            fail("## SOURCES must parse aaos12 -> locators, got %r"
+                 % ps["sources"])
+        if ps["sources"].get("emt:airway") != "EMT airway chapter, sect. 5":
+            fail("## SOURCES must parse emt:airway -> locators, got %r"
+                 % ps["sources"])
+        if [d["id"] for d in ps["srcs"]] != ["aaos12"]:
+            fail("[SRC:] directive list wrong: %r" % ps["srcs"])
+        if [d["obj"] for d in ps["objs"]] != ["emt:airway"]:
+            fail("[OBJ:] directive list wrong: %r" % ps["objs"])
+        if ps["srcs"][0]["item"] != "Q1" or ps["objs"][0]["item"] != "Q1":
+            fail("directives must be tagged by their item, got %r / %r"
+                 % (ps["srcs"][0]["item"], ps["objs"][0]["item"]))
+        qs = itembank.load(bank)
+        errors, warnings = itembank.lint(qs, sources=ps)
+        assert_codes_declared(errors + warnings)
+        if any(e.code.startswith("prov.") for e in errors):
+            fail("resolved directives must emit no prov error: %r" % errors)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_provenance_lint_unknown_and_duplicate_ids():
+    """An unresolvable [SRC:] or [OBJ:] id is a lint error naming the id and
+    the file; a duplicate source id in the registry is a bank-level lint
+    error (D-11, T-032-05)."""
+    import model
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = provenance_bank(
+            tmp,
+            "aaos12 | AAOS Emergency Care 12th ed.\n"
+            "aaos12 | AAOS Emergency Care 12th ed. (duplicate row)\n",
+            provenance_clean_item()
+            .replace("[SRC: aaos12 p. 214]", "[SRC: nope p. 1]")
+            .replace("[OBJ: emt:airway]", "[OBJ: emt:nope]"))
+        ps = model.parse_sources(bank)
+        if ps["duplicates"] != ["aaos12"]:
+            fail("duplicate registry ids must be reported, got %r"
+                 % ps["duplicates"])
+        qs = itembank.load(bank)
+        errors, warnings = itembank.lint(qs, sources=ps)
+        assert_codes_declared(errors + warnings)
+        src = [e for e in errors if e.code == "prov.src_unknown"]
+        if len(src) != 1:
+            fail("expected exactly one prov.src_unknown, got %r" % errors)
+        if "nope" not in src[0].message:
+            fail("src_unknown must name the id: %r" % src[0].message)
+        if os.path.basename(bank) not in src[0].message:
+            fail("src_unknown must name the file: %r" % src[0].message)
+        if src[0].item != "Q1":
+            fail("src_unknown must be tagged by the item, got %r" % src[0].item)
+        obj = [e for e in errors if e.code == "prov.obj_unknown"]
+        if len(obj) != 1 or "emt:nope" not in obj[0].message \
+                or os.path.basename(bank) not in obj[0].message:
+            fail("obj_unknown must name the id and the file: %r" % obj)
+        dup = [e for e in errors if e.code == "prov.src_duplicate"]
+        if len(dup) != 1 or "aaos12" not in dup[0].message:
+            fail("src_duplicate must name the duplicated id: %r" % dup)
+        if dup[0].item != "BANK":
+            fail("src_duplicate must be a bank-level finding, got %r"
+                 % dup[0].item)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_provenance_lint_codes_published():
+    """The three provenance codes are members of the one published set, which
+    stays sorted and duplicate-free (D-16)."""
+    need = {"prov.src_unknown", "prov.obj_unknown", "prov.src_duplicate"}
+    missing = need - set(itembank.LINT_CODES)
+    if missing:
+        fail("provenance codes not all published in LINT_CODES: missing %r"
+             % sorted(missing))
+    codes = itembank.LINT_CODES
+    if list(codes) != sorted(codes):
+        fail("LINT_CODES is not sorted")
+    if len(set(codes)) != len(codes):
+        fail("LINT_CODES has duplicates")
+
+
+def test_provenance_compatibility_floor():
+    """A bank using none of ## SOURCES, [SRC:], or [OBJ:] renders
+    byte-identically to the Phase 3.1 fixture (content region, style block
+    excluded per 03.1-UI-SPEC §12) and parses identically -- the provenance
+    grammar is additive (D-20, SEED-09)."""
+    import model
+    golden = open(GOLDEN_CONTENT_P3, encoding="utf-8").read()
+    pg = lesson.lesson_page(LES_BANK, itembank.load(LES_BANK),
+                            itembank.parse_lesson(LES_BANK))
+    if _lesson_content_region(pg) != golden:
+        fail("no-provenance bank content region drifted from the Phase 3 "
+             "golden (style block excluded per 03.1-UI-SPEC §12)")
+    plain_text = open(LES_BANK, encoding="utf-8").read()
+    prov_text = plain_text.replace(
+        "A short preamble paragraph before the lesson section.",
+        "## SOURCES\n\n"
+        "aaos12 | AAOS Emergency Care 12th ed., pp. 210-215\n\n"
+        "A short preamble paragraph before the lesson section.", 1)
+    prov_text = prov_text.replace(
+        "[LESSON-REF: The Airway, Step By Step]\n[OBJECTIVE: emt:airway]\n",
+        "[LESSON-REF: The Airway, Step By Step]\n"
+        "[SRC: aaos12 p. 214]\n[OBJ: emt:airway]\n[OBJECTIVE: emt:airway]\n")
+    tmp = tempfile.mkdtemp()
+    try:
+        prov_bank = os.path.join(tmp, "prov_compat.md")
+        open(prov_bank, "w", encoding="utf-8").write(prov_text)
+        plain_qs = itembank.parse_bank(plain_text)
+        prov_qs = itembank.load(prov_bank)
+        if json.dumps(plain_qs, sort_keys=True) != \
+                json.dumps(prov_qs, sort_keys=True):
+            fail("adding ## SOURCES/[SRC:]/[OBJ:] must not change the parse")
+        golden_parse = json.load(open(GOLDEN_PARSE_P3, encoding="utf-8"))
+        if json.dumps(prov_qs, sort_keys=True) != \
+                json.dumps(golden_parse["qs"], sort_keys=True):
+            fail("parsed question dicts drifted from the Phase 3 golden")
+        ps = model.parse_sources(prov_bank)
+        if "aaos12" not in ps["sources"] or not ps["srcs"] or not ps["objs"]:
+            fail("the provenance-decorated copy must be read by parse_sources")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+# ---- plan 03.2-04: winnowing paraphrase lint (D-13), style.unsourced_specific
+# ---- (D-14), and the [CASE:]/[PREREQ:] grammar (D-15/D-16) -----------------
+
+# The synthetic corpus file written beside each fixture bank (D-17: real
+# corpora live outside the repo; in-repo fixtures stay synthetic). The first
+# eight words are the verbatim phrase the copy fixture transcribes.
+PARA_SOURCE = (
+    "A patent airway is the single highest priority and must be opened before "
+    "oxygen is administered in every case of respiratory distress. Chest "
+    "compressions maintain perfusion during cardiac arrest while ventilations "
+    "deliver oxygen to the lungs. The paramedic assesses responsiveness first "
+    "and then checks breathing circulation and skin color before deciding on "
+    "transport."
+)
+PARA_COPY_PHRASE = "A patent airway is the single highest priority"
+PARA_FILLERS = ("florble", "squonk", "glorby", "zorch", "blinky",
+                "wobble", "snargle", "grunkle", "fizzle")
+
+
+def paraphrase_bank(tmp, corpus_text=PARA_SOURCE):
+    """A bank plus a real source corpus file beside it. The bank's registry
+    carries two ids that both resolve to the corpus file: `aaos12` (the copy
+    fixture's source) and `overlap-src` (the overlap fixture's source)."""
+    corpus_dir = os.path.join(tmp, "corpus")
+    os.makedirs(corpus_dir, exist_ok=True)
+    open(os.path.join(corpus_dir, "ch5.txt"), "w",
+         encoding="utf-8").write(corpus_text)
+    bank = os.path.join(tmp, "para.md")
+    open(bank, "w", encoding="utf-8").write(
+        "# Paraphrase fixture (synthetic)\n\n## SOURCES\n\n"
+        "aaos12 | corpus/ch5.txt\noverlap-src | corpus/ch5.txt\n\n"
+        + _para_item(1, "aaos12", PARA_COPY_PHRASE + ".")
+        + "\n" + _para_item(2, "overlap-src", _overlap_candidate())
+        + "\n" + _para_item(3, None,
+                            "Normal lung sounds indicate adequate gas exchange "
+                            "in the absence of distress."))
+    return bank
+
+
+def _para_item(number, src_id, why):
+    """A minimal parseable mc item carrying an optional resolved [SRC:]."""
+    src = "[SRC: %s corpus/ch5.txt]\n" % src_id if src_id else ""
+    return ("Q%d. Which finding fits?   (difficulty: recall)\n"
+            "%s[OBJECTIVE: emt:airway]\n"
+            "A) Yes\nB) No\n\n"
+            "CORRECT: A\n\n"
+            "WHY BEST: %s\n\n"
+            "CONFIDENCE: high\n" % (number, src, why))
+
+
+def _overlap_candidate():
+    """A high-overlap, low-run candidate: nine 6-word windows of the source,
+    each broken by a filler word, so the candidate shares ~27 k-grams with
+    the source (fingerprint Jaccard well above 0.25) while no verbatim run
+    reaches 8 consecutive words (max run of 3 k-grams -> 6 words)."""
+    words = PARA_SOURCE.split()
+    starts = [0, 6, 12, 18, 24, 30, 36, 42, 47]  # 0-based 6-word windows
+    parts = []
+    for i, s in enumerate(starts):
+        parts.append(" ".join(words[s:s + 6]))
+        if i < len(starts) - 1:
+            parts.append(PARA_FILLERS[i])
+    return " ".join(parts)
+
+
+def test_paraphrase_check_copy_overlap_and_pass():
+    """Test 1: the winnowing-based check errors at >=8 consecutive copied
+    words (prov.paraphrase_copy), warns above Jaccard 0.25
+    (prov.paraphrase_overlap), and passes below both -- and the thresholds
+    are tunable parameters (D-13, SEED-05)."""
+    import model
+    r = model.paraphrase_check(
+        PARA_COPY_PHRASE + " more words here", PARA_SOURCE,
+        winnow_threshold=8, jaccard_threshold=0.25)
+    if not r["copy"] or r["copy_words"] < 8:
+        fail("an 8+ word verbatim run must be a copy, got %r" % r)
+    r2 = model.paraphrase_check(
+        _overlap_candidate(), PARA_SOURCE,
+        winnow_threshold=8, jaccard_threshold=0.25)
+    if r2["copy"]:
+        fail("the overlap candidate must not trip the copy check: %r" % r2)
+    if not r2["overlap"] or r2["jaccard"] <= 0.25:
+        fail("the overlap candidate must warn above Jaccard 0.25, got %r" % r2)
+    if r2["copy_words"] >= 8:
+        fail("the overlap candidate's longest verbatim run must stay under 8 "
+             "words, got %d" % r2["copy_words"])
+    r3 = model.paraphrase_check(
+        "Independent prose that shares no phrase with the corpus at all.",
+        PARA_SOURCE, winnow_threshold=8, jaccard_threshold=0.25)
+    if r3["copy"] or r3["overlap"]:
+        fail("an independent text must pass both checks, got %r" % r3)
+    # The thresholds are parameters: lowering winnow_threshold turns the
+    # overlap candidate's 6-word blocks into a copy; raising jaccard_threshold
+    # silences the overlap warning.
+    r4 = model.paraphrase_check(
+        _overlap_candidate(), PARA_SOURCE,
+        winnow_threshold=4, jaccard_threshold=0.25)
+    if not r4["copy"]:
+        fail("lowering winnow_threshold to 4 must catch 6-word runs, got %r"
+             % r4)
+    r5 = model.paraphrase_check(
+        _overlap_candidate(), PARA_SOURCE,
+        winnow_threshold=8, jaccard_threshold=0.5)
+    if r5["overlap"]:
+        fail("raising jaccard_threshold to 0.5 must silence the warning, got %r"
+             % r5)
+
+
+def test_paraphrase_lint_codes_fire_and_never_echo_source_text():
+    """Test 1 + Test 3 through the one lint surface: prov.paraphrase_copy
+    errors, prov.paraphrase_overlap warns, an independent item passes -- and
+    the lint report never contains a word of the source text, and lint writes
+    no new file to disk (fingerprints only, D-13, T-032-12)."""
+    import model
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = paraphrase_bank(tmp)
+        ps = model.parse_sources(bank)
+        qs = itembank.load(bank)
+        before = set(os.listdir(tmp))
+        errors, warnings = itembank.lint(qs, sources=ps, paraphrase={})
+        after = set(os.listdir(tmp))
+        if before != after:
+            fail("lint must write nothing to disk (fingerprints only): %r"
+                 % (before ^ after))
+        codes = [e.code for e in errors]
+        copy = [e for e in errors if e.code == "prov.paraphrase_copy"]
+        if len(copy) != 1 or copy[0].item != "Q1":
+            fail("expected exactly one prov.paraphrase_copy on Q1, got %r"
+                 % errors)
+        overlap = [w for w in warnings if w.code == "prov.paraphrase_overlap"]
+        if len(overlap) != 1 or overlap[0].item != "Q2":
+            fail("expected exactly one prov.paraphrase_overlap warning on Q2, "
+                 "got %r" % warnings)
+        clean = [e for e in errors + warnings
+                 if e.item == "Q3" and e.code.startswith("prov.paraphrase")]
+        if clean:
+            fail("an independent item must pass the paraphrase checks: %r"
+                 % clean)
+        report = " ".join(str(e) + " " + str(w)
+                          for e in errors for w in warnings)
+        report += " ".join(str(e) for e in errors)
+        report += " ".join(str(w) for w in warnings)
+        for needle in (PARA_SOURCE, PARA_COPY_PHRASE,
+                       " ".join(PARA_SOURCE.split()[:12])):
+            if needle in report:
+                fail("the lint report must never echo the source text")
+        for code in ("prov.paraphrase_copy", "prov.paraphrase_overlap"):
+            if code not in itembank.LINT_CODES:
+                fail("paraphrase code %r must be a published LINT_CODES member"
+                     % code)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_paraphrase_thresholds_are_settings_and_roundtrip():
+    """Test 2: the thresholds are settings with defaults 8 and 0.25,
+    registered in the schema and itembank.json, and round-tripping through
+    the itembank config surface (D-13)."""
+    import model
+    from surfaces import settings as ssettings
+    if ssettings.paraphrase_defaults() != \
+            {"winnow_threshold": 8, "jaccard_threshold": 0.25}:
+        fail("paraphrase_defaults() drifted: %r"
+             % ssettings.paraphrase_defaults())
+    if model.PARAPHRASE_DEFAULTS != \
+            {"winnow_threshold": 8, "jaccard_threshold": 0.25}:
+        fail("model.PARAPHRASE_DEFAULTS drifted: %r"
+             % model.PARAPHRASE_DEFAULTS)
+    schema = ssettings.load_schema()
+    para = schema["properties"].get("paraphrase")
+    if not para or "paraphrase" not in schema.get("required", []):
+        fail("paraphrase is not a required top-level settings group")
+    if para["properties"]["winnow_threshold"]["default"] != 8:
+        fail("schema winnow_threshold default must be 8")
+    if para["properties"]["jaccard_threshold"]["default"] != 0.25:
+        fail("schema jaccard_threshold default must be 0.25")
+    on_disk = json.load(open(os.path.join(ROOT, "itembank.json"),
+                             encoding="utf-8"))
+    if on_disk.get("paraphrase") != \
+            {"winnow_threshold": 8, "jaccard_threshold": 0.25}:
+        fail("itembank.json must carry the paraphrase defaults: %r"
+             % on_disk.get("paraphrase"))
+    tmp = tempfile.mkdtemp()
+    try:
+        shutil.copyfile(os.path.join(ROOT, "itembank.json"),
+                        os.path.join(tmp, "itembank.json"))
+        for key, value in (("paraphrase.winnow_threshold", "12"),
+                           ("paraphrase.jaccard_threshold", "0.4")):
+            r = subprocess.run(
+                [sys.executable, os.path.join(ROOT, "itembank.py"),
+                 "config", "set", key, value, "--base", tmp],
+                capture_output=True, text=True, cwd=ROOT)
+            if r.returncode != 0:
+                fail("config set %s %s failed: %s"
+                     % (key, value, r.stdout + r.stderr))
+        loaded = ssettings.load_settings(tmp)
+        if loaded["paraphrase"]["winnow_threshold"] != 12 or \
+                loaded["paraphrase"]["jaccard_threshold"] != 0.4:
+            fail("the paraphrase thresholds did not round-trip: %r"
+                 % loaded["paraphrase"])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_unsourced_specific_requires_a_source():
+    """Test 1: an item carrying a numeral, unit, or dose with no resolved
+    [SRC:] errors with style.unsourced_specific; with a source it passes --
+    a structural check registering into the closed LINT_CODES catalogue
+    without opening it (D-14, T-032-13)."""
+    import model
+    item_text = (
+        "Q1. What is the correct dose?   (difficulty: recall)\n"
+        "[OBJECTIVE: emt:airway]\n"
+        "A) 0.5 mg\nB) 1 mg\nC) 2 mg\n\n"
+        "CORRECT: A\n\n"
+        "WHY BEST: 0.5 mg is the correct dose.\n\n"
+        "TRAP: Confusing the dose with the route.\n")
+    tmp = tempfile.mkdtemp()
+    try:
+        bare = os.path.join(tmp, "bare.md")
+        open(bare, "w", encoding="utf-8").write(
+            "# Unsourced fixture (synthetic)\n\n"
+            "## SOURCES\n\naaos12 | AAOS Emergency Care 12th ed.\n\n"
+            + item_text)
+        ps = model.parse_sources(bare)
+        errors, _ = itembank.lint(itembank.load(bare), sources=ps)
+        found = [e for e in errors if e.code == "style.unsourced_specific"]
+        if len(found) != 1:
+            fail("a numeral/unit/dose item without [SRC:] must error once, "
+                 "got %r" % errors)
+        if "0.5 mg" not in found[0].message:
+            fail("the finding must name the specific fact: %r" % found[0].message)
+        if "style.unsourced_specific" not in itembank.LINT_CODES:
+            fail("style.unsourced_specific must be a published LINT_CODES "
+                 "member")
+        sourced = os.path.join(tmp, "sourced.md")
+        open(sourced, "w", encoding="utf-8").write(
+            "# Sourced fixture (synthetic)\n\n"
+            "## SOURCES\n\naaos12 | AAOS Emergency Care 12th ed.\n\n"
+            + item_text.replace("[OBJECTIVE: emt:airway]\n",
+                                "[SRC: aaos12 p. 214]\n[OBJECTIVE: emt:airway]\n"))
+        ps2 = model.parse_sources(sourced)
+        errors2, _ = itembank.lint(itembank.load(sourced), sources=ps2)
+        if any(e.code == "style.unsourced_specific" for e in errors2):
+            fail("a resolved [SRC:] must satisfy the structural check: %r"
+                 % errors2)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_case_and_prereq_grammar_parses_and_lints():
+    """Test 2: [CASE:] groups parse and lint (unknown group id ->
+    prov.case_unknown); [PREREQ:] edges lint for unresolvable targets
+    (prov.prereq_unknown) and cycles (prov.prereq_cycle) via a small graph
+    walk (D-15/D-16, SEED-06, T-032-14)."""
+    import model
+    clean_bank = (
+        "# Edges fixture (synthetic)\n\n## CASES\n\n"
+        "case_resp | Respiratory emergencies\n"
+        "case_cardio | Cardiac emergencies\n\n"
+        "Q1. Which is first?   (difficulty: recall)\n"
+        "[CASE: case_resp]\n"
+        "A) Airway\nB) Breathing\nCORRECT: A\n"
+        "WHY BEST: Airway first.\n\n"
+        "Q2. Which is next?   (difficulty: recall)\n"
+        "[CASE: case_cardio]\n[PREREQ: case_resp]\n"
+        "A) Compressions\nB) Defibrillation\nCORRECT: A\n"
+        "WHY BEST: After the airway.\n")
+    tmp = tempfile.mkdtemp()
+    try:
+        good = os.path.join(tmp, "edges_good.md")
+        open(good, "w", encoding="utf-8").write(clean_bank)
+        pc = model.parse_cases(good)
+        if not pc or pc["cases"] != {
+                "case_resp": "Respiratory emergencies",
+                "case_cardio": "Cardiac emergencies"}:
+            fail("## CASES must parse into {id: description}, got %r"
+                 % (pc or {}).get("cases"))
+        if [d["id"] for d in pc["case_directives"]] != \
+                ["case_resp", "case_cardio"]:
+            fail("[CASE:] directives must parse in order: %r"
+                 % pc["case_directives"])
+        if [d["target"] for d in pc["prereq_edges"]] != ["case_resp"]:
+            fail("[PREREQ:] edges must parse: %r" % pc["prereq_edges"])
+        errors, _ = itembank.lint(itembank.load(good), cases=pc)
+        bad = [e for e in errors
+               if e.code in ("prov.case_unknown", "prov.prereq_unknown",
+                             "prov.prereq_cycle")]
+        if bad:
+            fail("a valid case/prereq bank must lint clean, got %r" % bad)
+        bad_bank = (
+            "# Bad edges fixture (synthetic)\n\n## CASES\n\n"
+            "case_a | A\ncase_b | B\n\n"
+            "Q1. Unknown group.   (difficulty: recall)\n"
+            "[CASE: nope]\n"
+            "A) Airway\nB) Breathing\nCORRECT: A\nWHY BEST: Airway first.\n\n"
+            "Q2. Unknown target.   (difficulty: recall)\n"
+            "[CASE: case_a]\n[PREREQ: nope]\n"
+            "A) Airway\nB) Breathing\nCORRECT: A\nWHY BEST: Airway first.\n\n"
+            "Q3. Cycle half.   (difficulty: recall)\n"
+            "[CASE: case_a]\n[PREREQ: case_b]\n"
+            "A) Airway\nB) Breathing\nCORRECT: A\nWHY BEST: Airway first.\n\n"
+            "Q4. Cycle half.   (difficulty: recall)\n"
+            "[CASE: case_b]\n[PREREQ: case_a]\n"
+            "A) Airway\nB) Breathing\nCORRECT: A\nWHY BEST: Airway first.\n")
+        bad = os.path.join(tmp, "edges_bad.md")
+        open(bad, "w", encoding="utf-8").write(bad_bank)
+        pc2 = model.parse_cases(bad)
+        errors2, _ = itembank.lint(itembank.load(bad), cases=pc2)
+        unknown_case = [e for e in errors2 if e.code == "prov.case_unknown"]
+        if len(unknown_case) != 1 or "nope" not in unknown_case[0].message \
+                or "edges_bad.md" not in unknown_case[0].message:
+            fail("prov.case_unknown must name the id and the file: %r"
+                 % errors2)
+        unknown_prereq = [e for e in errors2
+                          if e.code == "prov.prereq_unknown"]
+        if len(unknown_prereq) != 1 or "nope" not in \
+                unknown_prereq[0].message:
+            fail("prov.prereq_unknown must name the id and the file: %r"
+                 % errors2)
+        cycles = [e for e in errors2 if e.code == "prov.prereq_cycle"]
+        if len(cycles) != 1 or "case_b" not in cycles[0].message:
+            fail("a case_a->case_b->case_a cycle must error, naming the path: "
+                 "%r" % errors2)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_case_prereq_compatibility_floor():
+    """Test 3 (D-20): a bank using none of the constructs parses
+    byte-identically -- parse_cases returns None for it, lint adds no
+    prov.case_*/prov.prereq_* finding, and adding ## CASES + [CASE:] does not
+    change parse_bank's output (the grammar is additive)."""
+    import model
+    plain_text = open(LES_BANK, encoding="utf-8").read()
+    if model.parse_cases(LES_BANK) is not None:
+        fail("a bank with no CASE/PREREQ constructs must parse as None")
+    errors, warnings = itembank.lint(itembank.load(LES_BANK), cases=None)
+    if any(e.code.startswith(("prov.case_", "prov.prereq_"))
+           for e in errors + warnings):
+        fail("a cases-less bank must add no case/prereq finding: %r"
+             % (errors + warnings))
+    tmp = tempfile.mkdtemp()
+    try:
+        decorated = plain_text.replace(
+            "A short preamble paragraph before the lesson section.",
+            "## CASES\n\ndemo_case | A demo case\n\n"
+            "A short preamble paragraph before the lesson section.", 1)
+        decorated = decorated.replace(
+            "[LESSON-REF: The Airway, Step By Step]\n",
+            "[CASE: demo_case]\n[LESSON-REF: The Airway, Step By Step]\n", 1)
+        prov_bank = os.path.join(tmp, "case_compat.md")
+        open(prov_bank, "w", encoding="utf-8").write(decorated)
+        plain_qs = itembank.parse_bank(plain_text)
+        with_qs = itembank.load(prov_bank)
+        if json.dumps(plain_qs, sort_keys=True) != \
+                json.dumps(with_qs, sort_keys=True):
+            fail("adding ## CASES/[CASE:] must not change the parse (D-20)")
+        pc = model.parse_cases(prov_bank)
+        if not pc or "demo_case" not in pc["cases"]:
+            fail("the decorated copy must be read by parse_cases")
+        errors2, _ = itembank.lint(with_qs, cases=pc)
+        if any(e.code.startswith("prov.case_") for e in errors2):
+            fail("a resolved [CASE:] must lint clean: %r" % errors2)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_d19_two_file_layout_prose_file_distinct_from_items_file():
+    """D-19 (R5): in the two-file layout, the prose file an item-bearing bank
+    points at ([LESSON-SRC:]) resolves to a path distinct from the bank file
+    -- the separation the item-write/prose-write non-contention depends on
+    (T-032-17)."""
+    with tempfile.TemporaryDirectory() as td:
+        prose = os.path.join(td, "prose.md")
+        bank = os.path.join(td, "bank.md")
+        open(prose, "w", encoding="utf-8").write(
+            "# Shared lesson\n\n## LESSON\n\n### Section One\n\nTeaching text.")
+        open(bank, "w", encoding="utf-8").write(
+            "# Bank\n\n[LESSON-SRC: prose.md]\n\n"
+            + clean_mc("Which is the keyed answer?"))
+        L = itembank.parse_lesson(bank)
+        if L is None:
+            fail("D-19: the two-file bank must resolve an external lesson")
+        if os.path.abspath(L["source"]) == os.path.abspath(bank):
+            fail("D-19: the prose source must be the [LESSON-SRC:] file, not "
+                 "the bank file")
+        if os.path.abspath(L["source"]) != os.path.abspath(prose):
+            fail("D-19: the prose source must resolve to the prose file: %r"
+                 % L["source"])
+        if not os.path.isfile(bank):
+            fail("the bank file must stay intact")
 
 
 # ---- plan 03.1-01 Task 3: the one callout container -----------------------
@@ -2683,4 +3366,18 @@ test_key_review_route_and_cli()
 test_drill_print_blanks_clozes_and_answers_last()
 test_lesson_page_style_footer()
 test_lesson_page_degraded_style_copy()
-print("ok: lesson roundtrip (slug, parse, fingerprint, LESSON-SRC, degraded state, route, CLI twin, both link directions, lesson lint, coupling guards)")
+test_spec_documents_new_grammar_constructs()
+test_lesson_layout_folded_into_09_02()
+test_spec_only_bank_round_trips_new_constructs()
+test_provenance_registry_parses_and_directives_resolve()
+test_provenance_lint_unknown_and_duplicate_ids()
+test_provenance_lint_codes_published()
+test_provenance_compatibility_floor()
+test_paraphrase_check_copy_overlap_and_pass()
+test_paraphrase_lint_codes_fire_and_never_echo_source_text()
+test_paraphrase_thresholds_are_settings_and_roundtrip()
+test_unsourced_specific_requires_a_source()
+test_case_and_prereq_grammar_parses_and_lints()
+test_case_prereq_compatibility_floor()
+test_d19_two_file_layout_prose_file_distinct_from_items_file()
+print("ok: lesson roundtrip (slug, parse, fingerprint, LESSON-SRC, degraded state, route, CLI twin, both link directions, lesson lint, coupling guards, provenance grammar + compatibility floor)")
