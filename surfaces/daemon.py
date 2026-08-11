@@ -52,12 +52,18 @@ SIDECAR_HANDSHAKE = {
 # discipline as SIDECAR_HANDSHAKE: the shell and the tests read this one name.
 SIDECAR_TOKEN_HEADER = "X-Itembank-Token"
 
-# 13-UI-SPEC 3.3(e), the `port-held` state copy, verbatim; the `<port>` is the
-# actual bound port of the listener the second launch could not attach to.
-# The refusal path prints this when a second sidecar launch finds a port held
-# by a listener that does not answer the itembank marker (D-06).
-PORT_HELD_BODY = ("A runtime is already listening on 127.0.0.1:%d. "
-                  "This window did not start a second one.")
+# 13-UI-SPEC 3.3(e), the `port-held` / attach-failed state copy, verbatim
+# (D-06): the sidecar refuses by name when a second launch finds its
+# configured port held by a listener that does not answer the itembank
+# marker -- the "running instance is not reachable" case. The full copy
+# carries a pid the daemon side cannot know (no stdlib port->pid mapping),
+# so the name is filled here and the pid is the shell's to add in its own
+# window document (plan 13-02).
+SIDECAR_PORT_HELD_COPY = (
+    "itembank is already running, but this window could not attach to it. "
+    "Close the other itembank window, or end the process named itembank, "
+    "then start itembank again."
+)
 
 # Same directories `cmd_guard` skips, plus the two this daemon itself writes
 # into -- neither an attempt file nor the evidence log is ever a candidate
@@ -1212,6 +1218,9 @@ def handle_api_start(handler):
     focus = data.get("focus")
     if not isinstance(focus, str) or not focus:
         focus = None
+    # The D-09 focus pin and the selection fields ride inside the spec dict
+    # the working tree's `session.do_start(bank_path, spec, mode, out, force)`
+    # takes -- the same signature `itembank start`'s own CLI path uses.
     spec = {"objective": objective, "count": count, "seed": seed}
     if focus:
         spec["focus"] = focus
@@ -1438,15 +1447,15 @@ class DaemonHandler(server.Handler):
     def _sidecar_token_ok(self, path):
         """The D-04 loopback token gate. With no per-launch token configured
         (the CLI daemon path) every request passes unchanged. With a token
-        configured (sidecar mode), a request to a shell-used API route must
-        carry it in `SIDECAR_TOKEN_HEADER`; page routes and the probe marker
-        stay open so a WebView navigation and the detect-and-attach probe
-        keep working (the shell injects the header on its fetch/XHR calls).
+        configured (sidecar mode), every route except the probe marker
+        requires it in `SIDECAR_TOKEN_HEADER`: the shell injects the header
+        on every request the packaged window makes, and the marker stays
+        token-free so the detect-and-attach probe works.
         """
         token = self.sidecar_token
         if token is None:
             return True
-        if not path.startswith("/api/"):
+        if path == MARKER_PATH:
             return True
         return self.headers.get(SIDECAR_TOKEN_HEADER) == token
 
@@ -1704,8 +1713,6 @@ def _build_sessions(banks):
 
 
 def cmd_daemon(a):
-    if getattr(a, "sidecar", False):
-        return cmd_sidecar(a)
     root = a.dir
     banks, plans, collisions = scan_dir(root)
 
@@ -1805,8 +1812,7 @@ def cmd_sidecar(a):
     # reachable attach case and the squatter/reserved free-port fallback are
     # start_server()'s own three-case path below, reused unchanged (D-02).
     if port != 0 and _port_silent(port, host):
-        print("itembank is already running at http://127.0.0.1:%d/" % port)
-        print(PORT_HELD_BODY % port)
+        print(SIDECAR_PORT_HELD_COPY)
         sys.stdout.flush()
         return 1
 

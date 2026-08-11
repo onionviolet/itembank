@@ -9,7 +9,7 @@ import argparse, collections, json, os, sys
 from model import (BANK_FILE_HINTS, SPEC, lint, load, parse_bank,
                    parse_key_blocks, parse_lesson, parse_terms)
 from surfaces.anki import cmd_export
-from surfaces.daemon import cmd_daemon
+from surfaces.daemon import cmd_daemon, cmd_sidecar
 from surfaces.day import cmd_day
 from surfaces.evidence_cli import (cmd_evidence, cmd_id_assign, cmd_mark, cmd_render,
                                    cmd_retract)
@@ -24,8 +24,80 @@ from surfaces.theme import cmd_theme
 from surfaces.update import cmd_update
 
 
+# The Phase 3.1 grammar contract, appended verbatim by `itembank spec` after
+# model.SPEC (plan 03.1-06 Task 3). The existing directive list in model.SPEC
+# is byte-unchanged; these sections are the additive 03.1 constructs an
+# authoring agent must be able to write with no source access. Every claim
+# below states what the parser/linter actually does (D-18, D-24, D-06, D-22).
+SPEC_03_1 = r"""PHASE 3.1 GRAMMAR (additive)
+==============================
+
+Everything in this section is additive: a bank that uses none of these
+constructs parses exactly as it did before they existed. Each construct is
+independent of the others.
+
+THE GLOSSARY (## TERMS and [[term]])
+  A bank may carry one optional `## TERMS` section in its preamble, above
+  the first question (same boundary rule as ## LESSON). Each glossary entry
+  is one pipe row:
+     Airway | The passage from the mouth to the lungs | Air passage
+  The first cell is the term, the second its definition, and any later
+  cells are aliases. A trailing `key=value` cell is meta data: `zh=` is the
+  one reserved meta key (it is read additively by a later bilingual reader)
+  and is dropped from rendered output entirely; an unknown meta key is
+  ignored, never an error.
+
+  Inside lesson prose, `[[term]]` marks one use of a term. The marked text
+  must have a matching ## TERMS entry: a reference with no entry is a lint
+  error (`terms.unknown_ref`) naming the reference. A ## TERMS block with
+  zero entries is a lint warning and renders nothing. Two terms (or a term
+  and an alias) whose slugified forms collide are a lint error
+  (`terms.duplicate_slug`).
+
+THE MUST-MEMORIZE CARD ([!KEY])
+  `> [!KEY: <title>]` opens an index card inside lesson prose. It must have
+  an Anki front: the marker title, or a `{{cloze}}` marker in its body.
+  `itembank id-assign` mints the block's machine identity -- `[ID:]` and
+  `[HASH:]` lines in the same namespace item ids use, never a separate one
+  -- and `itembank export --format keys` ships every card as Anki TSV with
+  a `#guid` that round-trips on re-export. A [!KEY] marker inside an item
+  rationale is a lint error (`key.in_rationale`); a block with neither a
+  title nor a cloze has no Anki front (`key.no_front`); two blocks sharing
+  an [ID:] are a lint error (`key.duplicate_id`).
+
+CALL OUT KINDS
+  `> [!EXAMPLE]` renders as an Example callout -- a callout kind against
+  the one callout container, not a new block (D-18).
+  `> [!CHECK: <id>]` is an anchor with no key and no scoring path: it
+  renders as the reserved gate slot and is consumed by the Phase 6.2 loop.
+  It may reference an item in its own bank only; a cross-bank reference is
+  a lint error naming the rule (D-06).
+
+THE EDUCATIONAL OBJECTIVE LINE
+  `Objective: <one sentence>` on its own line inside an item adds that
+  item's educational objective. It is private payload: consumed by
+  selection, dedup, Anki export and the auditor, and never rendered to the
+  learner as teaching text. A multi-sentence objective is a lint warning
+  (`item.objective_line_multi_sentence`).
+
+STYLE FILES (styles/<id>.md)
+  A lesson's written voice is one file per style id. A style file carries
+  `## Voice` (the prose zone), `## Rules` (a pipe table
+  `id | kind | params | severity | lock | prompt` that may enable, disable,
+  re-severity downward, or parameterize a closed-catalogue check -- it may
+  never define a check), and `## Exemplar` (the single exemplar an
+  authoring model receives; it never receives the Voice zone). The house
+  `lock` column encodes the five non-negotiables and is owned by code, not
+  by the file: the styles document, the code decides. `[STYLE-PARENT: house]`
+  is the only legal parent (one inheritance level). Selection precedence is
+  lesson -> bank -> subject profile -> house.
+"""
+
+
 def cmd_spec(a):
     print(SPEC)
+    print()
+    print(SPEC_03_1)
     return 0
 
 
@@ -166,12 +238,19 @@ def main():
     s.add_argument("--no-open", action="store_true", dest="no_open",
                    help="do not launch a browser")
     s.add_argument("--force", action="store_true", help="serve despite lint errors")
-    s.add_argument("--sidecar", action="store_true",
-                   help="packaged-app mode (D-03/D-04): bind 127.0.0.1, print "
-                        "the fixed stdout handshake (itembank-port/token/"
-                        "version) after binding, and gate the /api/* routes "
-                        "with a per-launch token")
     s.set_defaults(fn=cmd_daemon)
+
+    s = sub.add_parser("sidecar", help="packaged-app launch (D-03/D-04): the "
+                       "daemon in sidecar mode, printing the fixed stdout "
+                       "handshake (itembank-port/token/version) after binding "
+                       "and gating every route except the marker with a "
+                       "per-launch token")
+    s.add_argument("dir", nargs="?", default=".")
+    s.add_argument("--port", type=int, default=None,
+                   help="default: itembank.json's daemon.port, or 8730 if unset")
+    s.add_argument("--no-open", action="store_true", dest="no_open",
+                   help="do not launch a browser")
+    s.set_defaults(fn=cmd_sidecar)
 
     s = sub.add_parser("stats", help="item mix, coverage, answer-position skew")
     s.add_argument("bank")
