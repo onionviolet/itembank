@@ -1007,9 +1007,11 @@ def _lesson_content_region(pg):
     """The rendered `__BODY__` region of LESSON_TEMPLATE -- the content
     between `<div class="card">` and the card's closing `</div>`. The page
     now carries the plan 03.1-04 style footer between the card and the
-    closing wrapper, which this extraction skips."""
+    closing wrapper, which this extraction skips. The card div carries the
+    09-04 `id="lesson-content"` target; the opening tag is matched loosely
+    so the attribute addition does not break the extraction."""
     m = re.search(
-        r'<div class="card">(.*?)</div>\s*'
+        r'<div class="card"[^>]*>(.*?)</div>\s*'
         r'<p class="style-foot">.*?</p>\s*</div></body></html>',
         pg, re.S)
     if not m:
@@ -1929,7 +1931,7 @@ def test_lesson_ref_filters_one_section():
              % one.count('<section id="'))
     if "No items reference this section yet." in one:
         fail("the other heading's orphan backlinks must be absent")
-    card = '<div class="card">'
+    card = '<div class="card"'
     if one[:one.index(card)] != full[:full.index(card)]:
         fail("the filtered page must keep the full page's chrome and byline")
 

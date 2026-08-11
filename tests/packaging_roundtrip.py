@@ -112,6 +112,43 @@ def test_no_evidence_or_bank_in_the_artifact(artifact):
         fail("artifact carries evidence/bank-shaped members: %r" % bad)
 
 
+def test_vendored_katex_in_the_artifact(artifact):
+    """09-04: the vendored KaTeX distribution ships inside the .pyz with the
+    identical bytes the checkout holds, and nothing else from the tarball
+    leaks in -- the three reviewed browser files, LICENSE, and exactly the
+    fonts katex.min.css references (never npm metadata, a README, a source
+    map, or an unrelated package member).
+    """
+    import resources
+    css = resources.read_text("vendor/katex/katex.min.css")
+    fonts = sorted(set(re.findall(r"url\(fonts/([^)]+)\)", css)))
+    if not fonts:
+        fail("vendored katex.min.css references no fonts at all")
+    required = (["vendor/katex/katex.min.css", "vendor/katex/katex.min.js",
+                 "vendor/katex/contrib/auto-render.min.js",
+                 "vendor/katex/LICENSE"]
+                + ["vendor/katex/fonts/" + f for f in fonts])
+    with zipfile.ZipFile(artifact) as zf:
+        names = set(n for n in zf.namelist() if not n.endswith("/"))
+        for member in required:
+            if member not in names:
+                fail("the .pyz is missing vendored member %r" % member)
+            checkout = resources.read_bytes(member)
+            if zf.read(member) != checkout:
+                fail("vendored member %r differs between checkout and .pyz"
+                     % member)
+        vendor_members = [n for n in names if n.startswith("vendor/katex/")]
+        if set(vendor_members) != set(required):
+            fail("the .pyz carries unapproved vendor members: %r" % sorted(
+                set(vendor_members) - set(required)))
+        for banned in ("package.json", "README.md", ".map", "node_modules"):
+            if any(banned in n for n in names):
+                fail("the .pyz carries unapproved package/asset content %r"
+                     % banned)
+    print("  vendored katex: %d font(s) + 3 browser files + LICENSE, "
+          "checkout/.pyz byte-identical" % len(fonts))
+
+
 def test_checksums_cover_every_artifact(out_dir, artifact):
     build.copy_launchers(out_dir)
     build.copy_stable_artifact(artifact, out_dir)
@@ -622,6 +659,7 @@ def main():
         test_artifact_runs_every_resource_reading_command(artifact)
         test_artifact_is_plain_python_inside(artifact)
         test_no_evidence_or_bank_in_the_artifact(artifact)
+        test_vendored_katex_in_the_artifact(artifact)
         test_checksums_cover_every_artifact(out_dir, artifact)
         test_stable_launcher_artifact_ships(out_dir)
         test_every_launcher_ships(out_dir)

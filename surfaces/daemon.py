@@ -17,8 +17,10 @@ import datetime, errno, hashlib, html, json, os, re, secrets, socket, socketserv
 import urllib.parse, urllib.request, uuid
 
 import evidence
+import resources
 import selection
 import server
+import subjects
 from model import (lesson_slug, load, parse_bank, parse_key_blocks,
                    parse_lesson, parse_terms)
 from runtime import explain_payload, glossable, read_session, upgrade_session
@@ -75,6 +77,48 @@ QUIZ_GET_RE = re.compile(r"^/quiz/(?P<stem>[^/]+)$")
 QUIZ_ANSWER_RE = re.compile(r"^/quiz/(?P<stem>[^/]+)/answer$")
 STUDY_GET_RE = re.compile(r"^/study/(?P<stem>[^/]+)$")
 LESSON_GET_RE = re.compile(r"^/lesson/(?P<stem>[^/]+)$")
+
+# 09-04: the one static-asset channel. `/assets/katex/<name>` resolves only
+# through the closed KATEX_ASSETS map below -- a known URL suffix to a
+# vendored archive-relative path and MIME type. The name regex admits only
+# a narrow safe character set (letters, digits, `_`, `.`, `/`, `-`), and the
+# handler never joins the client's name to a filesystem path; an unknown,
+# encoded, nested, traversal, or query-manipulated name is a 404 (T-09-09).
+KATEX_ASSET_RE = re.compile(r"^/assets/katex/(?P<name>[A-Za-z0-9_./-]+)$")
+
+# The closed route map for the vendored KaTeX distribution (09-04). Keys are
+# exact URL suffixes after `/assets/katex/`; values are
+# (archive-relative path, MIME type) pairs loaded through the one resource
+# reader. The font names come from the reviewed vendor inventory (the 60
+# files katex.min.css references), never from a request path. Serving a font
+# from the map rather than from the request keeps the map closed: every name
+# the CSS can emit is present, and nothing the browser cannot name is.
+KATEX_ASSETS = {}
+for _font in (
+        "KaTeX_AMS-Regular", "KaTeX_Caligraphic-Bold",
+        "KaTeX_Caligraphic-Regular", "KaTeX_Fraktur-Bold",
+        "KaTeX_Fraktur-Regular", "KaTeX_Main-Bold",
+        "KaTeX_Main-BoldItalic", "KaTeX_Main-Italic",
+        "KaTeX_Main-Regular", "KaTeX_Math-BoldItalic",
+        "KaTeX_Math-Italic", "KaTeX_SansSerif-Bold",
+        "KaTeX_SansSerif-Italic", "KaTeX_SansSerif-Regular",
+        "KaTeX_Script-Regular", "KaTeX_Size1-Regular",
+        "KaTeX_Size2-Regular", "KaTeX_Size3-Regular",
+        "KaTeX_Size4-Regular", "KaTeX_Typewriter-Regular"):
+    for _ext, _mime in ((".woff2", "font/woff2"), (".woff", "font/woff"),
+                        (".ttf", "font/ttf")):
+        KATEX_ASSETS["fonts/%s%s" % (_font, _ext)] = (
+            "vendor/katex/fonts/%s%s" % (_font, _ext), _mime)
+KATEX_ASSETS.update({
+    "katex.min.css": ("vendor/katex/katex.min.css",
+                      "text/css; charset=utf-8"),
+    "katex.min.js": ("vendor/katex/katex.min.js",
+                     "application/javascript; charset=utf-8"),
+    "contrib/auto-render.min.js": (
+        "vendor/katex/contrib/auto-render.min.js",
+        "application/javascript; charset=utf-8"),
+})
+del _font, _ext, _mime
 GLOSS_GET_RE = re.compile(r"^/gloss/(?P<stem>[^/]+)/(?P<slug>[^/]+)$")
 KEY_REVIEW_RE = re.compile(r"^/key/(?P<key_id>[^/]+)/review$")
 DAY_GET_RE = re.compile(r"^/day/(?P<stem>[^/]+)$")
@@ -130,6 +174,7 @@ ROUTES = (
     ("POST", "/cli-twin", "handle_cli_twin"),
     ("POST", "/seed/accept", "handle_seed_accept"),
 ) + API_ROUTES + (
+    ("GET", KATEX_ASSET_RE, "handle_katex_asset"),
     ("GET", QUIZ_GET_RE, "handle_quiz_get"),
     ("POST", QUIZ_ANSWER_RE, "handle_quiz_answer"),
     ("GET", STUDY_GET_RE, "handle_study_get"),
@@ -162,6 +207,7 @@ ROUTE_CLI = {
     ("POST", "/api/hint"): "hint",
     ("POST", "/api/report"): "report",
     ("POST", "/api/rubric-review"): "rubric-review",
+    ("GET", KATEX_ASSET_RE): "daemon",
     ("GET", QUIZ_GET_RE): "serve",
     ("POST", QUIZ_ANSWER_RE): "serve",
     ("GET", STUDY_GET_RE): "study",
@@ -935,6 +981,29 @@ def handle_study_get(handler, stem):
     handler.send_html(page.encode("utf-8"))
 
 
+def handle_katex_asset(handler, name):
+    """`GET /assets/katex/<name>` -- the one static-asset route (09-04).
+    The name is resolved through the closed `KATEX_ASSETS` map (a URL suffix
+    to a vendored archive-relative path and MIME type) and the bytes come
+    from `resources.read_bytes()`, the same checkout/archive reader every
+    other bundled resource uses. The name is never joined to a filesystem
+    path: an unknown, encoded, nested, traversal, or query-manipulated name
+    is a plain 404, and only names the reviewed CSS actually references
+    exist in the map (T-09-09).
+    """
+    entry = KATEX_ASSETS.get(name)
+    if entry is None:
+        handler.send_not_found(name)
+        return
+    relpath, mime = entry
+    try:
+        body = resources.read_bytes(relpath)
+    except OSError:
+        handler.send_not_found(name)
+        return
+    handler.send_bytes(body, mime)
+
+
 def handle_lesson_get(handler, stem):
     """`GET /lesson/<stem>` -- the lesson reader for one bank, resolved
     through the startup allowlist and rendered by `lesson.lesson_page()`.
@@ -950,8 +1019,20 @@ def handle_lesson_get(handler, stem):
     qs = load(path)
     params = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query)
     drill = "drill" in (params.get("print") or [])
+    # 09-04: the lesson reader resolves the subject profile exactly as a
+    # session would (subjects.select_profile over the bank; the stored
+    # snapshot is consumed once a session id exists -- 09-05 wires the
+    # explicit id and the snapshot through the clients). Only the profile's
+    # lesson.math flag turns the local KaTeX enhancement on; EMT/plain
+    # profiles stay ordinary reader output (D-08).
+    try:
+        profile = subjects.select_profile(
+            qs, subjects.load_registry(
+                os.path.dirname(os.path.abspath(path)) or "."))
+    except subjects.SubjectProfileError:
+        profile = None
     page = lesson.lesson_page(path, qs, parse_lesson(path), runtime=True,
-                              drill=drill)
+                              drill=drill, profile=profile)
     handler.send_html(page.encode("utf-8"))
 
 

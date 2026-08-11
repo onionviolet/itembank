@@ -157,6 +157,13 @@ th{background:var(--chip);color:var(--mut);font-weight:600}
 .gloss-back{display:block;font-size:12px;color:var(--accent);
   text-decoration:none;margin-top:var(--space-1)}
 .gloss-back:hover,.gloss-back:focus-visible{text-decoration:underline}
+/* 09-04 Math: the named display wrapper owns horizontal overflow so a wide
+   formula scrolls inside the card and the viewport never widens (09-UI-SPEC
+   Responsive). The failure note is a persistent adjacent status, never a
+   toast: text plus token, not color-only (Capability/media unavailable). */
+.lesson-math-display{overflow-x:auto;overflow-y:hidden;max-width:100%}
+.lesson-math-note{font-family:var(--font-ledger);font-size:12px;
+  color:var(--warn);margin:var(--space-2) 0 0}
 .held{font-family:var(--font-ledger);font-size:12px;letter-spacing:.08em;
   text-transform:uppercase;color:var(--mut);margin:var(--space-6) 0 0}
 .style-foot{font-family:var(--font-ledger);font-size:12px;
@@ -201,16 +208,102 @@ __LESSON_CSS__
 __WARN_CSS__
 __GLOSS_ANCHOR_CSS__
 __GLOSS_PRINT_CSS__
-</style></head><body><div class="wrap">
+</style>
+__MATH_ASSETS__
+</head><body><div class="wrap">
 <header>
   <h1>__TITLE__</h1>
   <div class="sub">__SUB__</div>
 </header>
 __READER_NAV__
 __GLOSS_SCRIPT__
-<div class="card">__STYLE_WARN____BODY__</div>
+<div class="card" id="lesson-content">__STYLE_WARN____BODY__</div>
+__MATH_SCRIPT__
 <p class="style-foot">__STYLE_FOOT__</p>
 </div></body></html>"""
+
+
+# 09-04 offline Math (09-UI-SPEC "Math" / Component matrix): the lesson
+# page loads the vendored KaTeX distribution from the daemon's closed
+# /assets/katex/ map -- never a CDN (D-07). `__MATH_ASSETS__` carries the
+# three allowlisted browser files in load order (CSS first, then core, then
+# auto-render); `__MATH_SCRIPT__` runs the lesson-scoped adapter after the
+# content node exists. Both are empty strings on every non-Math profile, so
+# an EMT/plain lesson is byte-identical to the pre-09-04 reader (D-08).
+MATH_ASSETS_HTML = (
+    '<link rel="stylesheet" href="/assets/katex/katex.min.css">\n'
+    '<script src="/assets/katex/katex.min.js"></script>\n'
+    '<script src="/assets/katex/contrib/auto-render.min.js"></script>')
+
+# The adapter's exact failure copy (09-UI-SPEC "Copy and error grammar"),
+# kept here once so the JS, the tests, and the spec can never drift:
+MATH_UNAVAILABLE_COPY = "Math unavailable. Formula source is shown."
+MATH_PARSE_FAILURE_COPY = ("Math could not be rendered. "
+                           "Formula source is shown.")
+
+# 09-04 lesson-scoped math adapter: enhances only `#lesson-content`, leaves
+# every Phase 3 `pre`/`code` node untouched, renders display delimiters
+# before inline ones, and fails readable. `trust:false` blocks KaTeX's raw
+# HTML/class/URL macros; `throwOnError:false` keeps the delimited source
+# visible as KaTeX's own error output (a `.katex-error` node holding the
+# source); `maxExpand`/`maxSize` bound pathological input (T-09-10/11). If
+# the local assets never loaded, one lesson-level unavailable note is
+# appended and the raw source remains the page's content -- no CDN fallback,
+# no deletion of the source (D-06/D-07).
+MATH_ADAPTER_JS = """<script>
+(function () {
+  var content = document.getElementById("lesson-content");
+  if (!content) { return; }
+  var note = function (cls, text) {
+    var n = document.createElement("p");
+    n.className = cls;
+    n.textContent = text;
+    return n;
+  };
+  if (typeof window.katex === "undefined" ||
+      typeof window.renderMathInElement !== "function") {
+    content.appendChild(note("lesson-math-note", %(unavailable)s));
+    return;
+  }
+  var displays = content.querySelectorAll(".katex-display");
+  try {
+    renderMathInElement(content, {
+      delimiters: [
+        {left: "$$", right: "$$", display: true},
+        {left: "$", right: "$", display: false}
+      ],
+      ignoredTags: ["pre", "code", "script", "noscript", "style", "textarea"],
+      throwOnError: false,
+      trust: false,
+      maxExpand: 1000,
+      maxSize: 50
+    });
+  } catch (e) {
+    content.appendChild(note("lesson-math-note", %(parse_failure)s));
+    return;
+  }
+  // Display math owns its horizontal overflow in a named wrapper
+  // (09-UI-SPEC Responsive): auto-render emits `.katex-display`, and the
+  // page wraps each in `.lesson-math-display` so a wide formula scrolls
+  // inside the card instead of widening the viewport.
+  content.querySelectorAll(".katex-display").forEach(function (el) {
+    var wrap = document.createElement("div");
+    wrap.className = "lesson-math-display";
+    el.parentNode.insertBefore(wrap, el);
+    wrap.appendChild(el);
+  });
+  // One parse failure leaves KaTeX's own error node (the source, readable)
+  // plus the exact explanatory note beside it; no error handler deletes it.
+  content.querySelectorAll(".katex-error").forEach(function (el) {
+    if (el.parentNode.classList.contains("lesson-math-note")) { return; }
+    var n = note("lesson-math-note", %(parse_failure)s);
+    el.parentNode.insertBefore(n, el.nextSibling);
+  });
+})();
+</script>""" % {
+    "unavailable": json.dumps(MATH_UNAVAILABLE_COPY),
+    "parse_failure": json.dumps(MATH_PARSE_FAILURE_COPY),
+}
 
 
 def _truncate(text, limit):
@@ -933,7 +1026,7 @@ def _backlinks_html(stem, qs, slug):
 
 
 def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
-                style_override=None):
+                style_override=None, profile=None):
     """The one render both surfaces call: the daemon route and `cmd_lesson`
     write the same document because there is only one `lesson_page`.
 
@@ -969,6 +1062,11 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
     `style_override` is render_style's seam: the page renders under that
     style id whether or not the bank declares it, so the permuted output is
     honest about which style produced it (D-11).
+
+    `profile` is the 09-04 presentation seam: a subject-profile snapshot
+    (the same shape `subjects.select_profile`/`session_profile` return). Its
+    `lesson.math` flag alone switches on the local KaTeX enhancement; every
+    other profile renders the pre-09-04 reader byte-for-byte.
     """
     bank_text = open(bank_path, encoding="utf-8").read()
     title = (grab(r"(?m)^#\s+(.*?)\s*$", bank_text)
@@ -1067,6 +1165,18 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
                     % (resolved["id"], os.path.basename(bank_path)))
             else:
                 style_foot = STYLE_FOOT % lesson_slug(resolved["id"])
+    # 09-04 Math: the presentation seam reads the profile snapshot the
+    # caller resolved (the daemon route resolves the bank's subject profile
+    # exactly as a session would; cmd_lesson passes none, so a static render
+    # stays source-only -- enhancement is a served-page capability). Only a
+    # profile whose lesson.math flag is true loads the local assets and the
+    # adapter; EMT/plain profiles emit empty slots and byte-identical pages
+    # (D-08).
+    math_assets = ""
+    math_script = ""
+    if profile and (profile.get("profile") or {}).get("lesson", {}).get("math"):
+        math_assets = MATH_ASSETS_HTML
+        math_script = MATH_ADAPTER_JS
     return (LESSON_TEMPLATE
             .replace("__THEME__", THEME_CSS)
             .replace("__SHARED_CSS__", SHARED_CSS)
@@ -1076,6 +1186,8 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
             .replace("__GLOSS_PRINT_CSS__", print_css)
             .replace("__READER_NAV__", nav_html)
             .replace("__GLOSS_SCRIPT__", gloss_script)
+            .replace("__MATH_ASSETS__", math_assets)
+            .replace("__MATH_SCRIPT__", math_script)
             .replace("__STYLE_WARN__", style_warn_html)
             .replace("__STYLE_FOOT__", style_foot)
             .replace("__TITLE__", html.escape(title) + " lesson")
