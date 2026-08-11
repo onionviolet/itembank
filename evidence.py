@@ -1466,8 +1466,23 @@ def render_attempt_md(log, session_id, qs, bank_path):
                          "--verdict pass|fail` to record a verdict" %
                          (session_id, ev.get("item_ref")))
         else:
-            answer_val = response_text(q, ev.get("answer")) if q else ""
-            L.append("**Selected:** %s" % (answer_val or "(nothing)"))
+            if ev.get("item_type") == "check":
+                # The evidence answer for a check item is the results vector;
+                # the learner's own source lives in check_source. Render the
+                # source so a marker or later reader sees what was written
+                # (plan 05-07), bounded by response_text's line cap -- the
+                # full text is always in the log's check_source.
+                L.append("**Source, submitted:**")
+                L.append("")
+                L.append("```")
+                L.append(response_text(q, ev.get("check_source")) if q
+                         else str(ev.get("check_source") or ""))
+                L.append("```")
+                L.append("")
+                L.append("**Result vector:** %s" % (ev.get("answer") or "(none)"))
+            else:
+                answer_val = response_text(q, ev.get("answer")) if q else ""
+                L.append("**Selected:** %s" % (answer_val or "(nothing)"))
         L.append("")
     return "\n".join(L)
 

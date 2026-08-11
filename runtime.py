@@ -398,6 +398,14 @@ def answer_text(q):
         return "; ".join("%s -> %s" % (r["text"], r["cat"]) for r in q["rows"])
     if q["type"] == "build":
         return " -> ".join(q["steps"])
+    if q["type"] == "check":
+        # No keyed option and no model answer; describe what the item asks in
+        # the same terse voice the other branches use. Never the case inputs
+        # or expected outputs -- this feeds surfaces that show an answer
+        # before the learner has attempted the item (plan 05-07).
+        n = len(q.get("cases") or [])
+        return "code check: %d hidden test case%s (%s)" % (
+            n, "" if n == 1 else "s", q.get("lang") or "python")
     return q.get("model", "")
 
 
@@ -469,6 +477,17 @@ def response_text(q, answer):
                          for i, r in enumerate(q["rows"]))
     if t == "build":
         return " -> ".join(str(x) for x in answer) if isinstance(answer, list) else ""
+    if t == "check":
+        # The attempt file records the learner's own source, readable by a
+        # marker or a later reader, bounded at a stated line count with a
+        # marker when longer -- the full text is always in the evidence log's
+        # check_source regardless (plan 05-07).
+        lines = str(answer or "").splitlines()
+        KEEP = 40
+        head = lines[:KEEP]
+        if len(lines) > KEEP:
+            head.append("... (%d more lines in the evidence log)" % (len(lines) - KEEP))
+        return "\n".join(head)
     return ""
 
 

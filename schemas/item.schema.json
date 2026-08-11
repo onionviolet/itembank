@@ -19,7 +19,7 @@
     },
     "type": {
       "type": "string",
-      "enum": ["mc", "multi", "table", "dnd", "build", "short"]
+      "enum": ["mc", "multi", "table", "dnd", "build", "short", "check"]
     },
     "stem": {
       "type": "string"
@@ -72,6 +72,9 @@
     },
     {
       "$ref": "#/$defs/short_item"
+    },
+    {
+      "$ref": "#/$defs/check_item"
     }
   ],
   "$defs": {
@@ -174,6 +177,126 @@
         },
         "response_schema": {
           "$ref": "#/$defs/short_response_schema"
+        }
+      }
+    },
+    "check_item": {
+      "type": "object",
+      "required": ["type", "interaction_contract", "response_schema"],
+      "description": "The served shape of a [TYPE: check] item (plan 05-01/05-07). It deliberately carries NO cases, NO expected text and NO key -- those are key material under D-12 and never reach the learner before answering. What a consumer may read cold is the versioned renderer-independent interaction envelope: a declarative renderer configuration (language, starter source, hidden-case count only), the raw-source response schema, and the top-level response_schema alias.",
+      "properties": {
+        "type": {
+          "const": "check"
+        },
+        "interaction_contract": {
+          "$ref": "#/$defs/interaction_contract"
+        },
+        "response_schema": {
+          "$ref": "#/$defs/check_response_schema"
+        }
+      }
+    },
+    "interaction_contract": {
+      "type": "object",
+      "required": ["version", "type", "renderer_config", "response_schema"],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "type": {
+          "const": "check"
+        },
+        "renderer_config": {
+          "$ref": "#/$defs/check_renderer_config"
+        },
+        "response_schema": {
+          "$ref": "#/$defs/check_response_schema"
+        }
+      }
+    },
+    "check_renderer_config": {
+      "type": "object",
+      "required": ["language", "starter_source", "hidden_case_count"],
+      "additionalProperties": false,
+      "description": "Declarative JSON data only -- language, optional starter source text, and the hidden-case count. additionalProperties: false rejects a bank smuggling authored JavaScript or any other executable payload through a permissive object.",
+      "properties": {
+        "language": {
+          "type": "string"
+        },
+        "starter_source": {
+          "type": "string"
+        },
+        "hidden_case_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "check_response_schema": {
+      "type": "object",
+      "required": ["type", "format", "language"],
+      "properties": {
+        "type": {
+          "const": "string"
+        },
+        "format": {
+          "const": "source"
+        },
+        "language": {
+          "type": "string"
+        }
+      }
+    },
+    "interaction_result": {
+      "type": "object",
+      "required": ["version", "type", "response", "verdict", "observations"],
+      "description": "The normalized post-submit result (plan 05-01/05-07). The verdict is the exact boolean returned by the sole grader runtime.score_response() -- or null for a run the deadline killed (criterion 12, matching how response.schema.json allows score: null for a check response). The ordered observations are stable data for feedback, never a second scoring path.",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "type": {
+          "const": "check"
+        },
+        "response": {
+          "type": "string"
+        },
+        "verdict": {
+          "type": ["boolean", "null"]
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/case_observation"
+          }
+        }
+      }
+    },
+    "case_observation": {
+      "type": "object",
+      "required": ["case_index", "passed", "reason", "actual", "expected", "expected_kind", "input"],
+      "properties": {
+        "case_index": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "passed": {
+          "type": "boolean"
+        },
+        "reason": {
+          "enum": ["passed", "wrong_output", "timeout", "output_cap"]
+        },
+        "actual": {
+          "type": "string"
+        },
+        "expected": {
+          "type": "string"
+        },
+        "expected_kind": {
+          "enum": ["output", "pattern"]
+        },
+        "input": {
+          "type": "string"
         }
       }
     },
