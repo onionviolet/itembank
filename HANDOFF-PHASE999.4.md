@@ -64,3 +64,13 @@ Phase docs: `999.4-0N-SUMMARY.md` (×3), `999.4-VERIFICATION.md`,
 - **Known transient:** `tests/daemon_roundtrip.py` occasionally flakes under
   socket churn from the LTI harness servers (fixed-port probing vs
   TIME_WAIT); re-run is green — pre-existing sensitivity, not a regression.
+- **Environment-gated test:** `tests/packaging_roundtrip.py` requires the
+  machine-built Windows shell bundle (`dist/itembank-sidecar-onedir` from
+  `scripts/build_shell.ps1`) plus a Windows runtime to execute the frozen
+  sidecar; it fails on this Linux bash identically on the planning branch —
+  unchanged by phase 999.4. `packaging_shell_roundtrip.py` (10 checks) is
+  green. A stray untracked `fake_hosted_unused.py` (pre-existing in the
+  main tree) sits in the worktree and is not committed.
+- **Review hardening:** `147e379` tightened JWKS key selection (a header
+  kid must match a JWKS key; only a kid-less header falls back to the
+  single key) — found in the final review pass after the wave commits.
