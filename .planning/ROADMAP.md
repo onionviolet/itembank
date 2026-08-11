@@ -453,11 +453,11 @@ Plans:
 **Depends on**: Phase 3.2 (seeded content to score against); coordinate `model.py`/`runtime.py` diffs with Phase 1
 **Requirements**: CODE-01, CODE-02, CODE-03, CODE-04, CODE-05
 **UI hint**: yes
-**Absorbed from research (2026-08-10)**: CodeMirror 6 (MIT, ~300KB) is the editor, chosen because its `Diagnostic{from,to,severity,message}` shape maps 1:1 onto our existing lint records — no adapter layer, no second diagnostic vocabulary. Preview reuses **our own renderer** via `data-line` scroll sync; a second markdown engine is forbidden. This phase does the CM6 vendoring pipeline and learner-facing plumbing only; the full authoring surface is Phase 11. External-editor-plus-watch is a first-class peer path, and a server-rendered textarea with a lint list is the no-JS floor. The `check` type gains stdin/stdout test cases and a function-signature harness mode; Parsons problems are `build` items by convention, needing no new type. See `.planning/research/2026-08-09-lesson-display-editor.md` (Q2) and `2026-08-09-extraction-subjects-bilingual.md` (Q6 CS).
+**Absorbed from research (2026-08-10)**: CodeMirror 6 (MIT, ~300KB) is the editor, chosen because its `Diagnostic{from,to,severity,message}` shape maps 1:1 onto our existing lint records — no adapter layer, no second diagnostic vocabulary. Preview reuses **our own renderer** via `data-line` scroll sync; a second markdown engine is forbidden. This phase does the CM6 vendoring pipeline and learner-facing plumbing only; the full authoring surface is Phase 11. External-editor-plus-watch is a first-class peer path (authoring; Phase 11), and — **superseded 2026-08-11, criterion 9** — a server-rendered textarea with a lint list is the no-JS floor: CM6 is JS-only, so no such floor exists. The `check` type gains stdin/stdout test cases and a function-signature harness mode; Parsons problems are `build` items by convention, needing no new type. See `.planning/research/2026-08-09-lesson-display-editor.md` (Q2) and `2026-08-09-extraction-subjects-bilingual.md` (Q6 CS).
 **Additional success criteria (research-derived)**:
 
   8. A `check` item can specify stdin/stdout cases *or* a function-signature harness, and both reach a verdict through `runtime.score_response()` — the harness mode is a configured strategy, not a second scorer.
-  9. Turning JavaScript off leaves a working textarea-plus-lint-list path to the same submitted response shape, and editing the same bank in an external editor with `--watch` reaches the same runtime call as the in-app editor.
+  9. **(SUPERSEDED 2026-08-11 by ruling 5/11 + ruling 16 — see RESOLVED rulings below)** Turning JavaScript off leaves a working textarea-plus-lint-list path to the same submitted response shape, and editing the same bank in an external editor with `--watch` reaches the same runtime call as the in-app editor. **Dropped in its first half**: CM6 is JS-only, so the server-rendered textarea-plus-lint-list no-JS floor does not exist and no plan in this phase provides one. The external-editor `--watch` authoring path survives but belongs to Phase 11 (closed authoring loop, B12), which reuses the Phase 5 plumbing rather than duplicating it.
   10. **(round two, R1.1) The `artifact-first` / "Bottom Up" CS style needs nothing the `check` type does not already have.** Bottom-Up ordering and PRIMM pacing are orthogonal and compose as a Phase 3.1 style file; Parsons problems remain `build` items by convention. If plan time falsifies the Runestone Parsons-to-`build` mapping (a **named unknown**, Research Brief 2 §4.5), that is a Phase 3.1 style-ranking problem, not a new item type here.
   11. **(round two, R4.1/R4.2) The `check` verdict reaches `score_response()` as a normalizer, not as a strategy that decides.** A registered normalizer has signature `(q, answer) -> str | None` and reduces code execution to a **per-case outcome vector**; the unchanged `score_response()` performs the single `==`. The return type has no channel for a verdict, which is the first and strongest accretion guard — a `check` implementation *cannot* become a second scorer, because it has nowhere to put a decision. Adding this normalizer requires **zero edits to `score_response()`**; a plan whose diff touches that function has failed this criterion, and a source-hash test pins it.
   12. **(round two, R4.2) A timeout is not a verdict.** Return `None` plus an `error_category`, matching the None-not-False discipline already in the constructed-response path. The authority rule this phase is measured against: *re-running on another machine, from the recorded item version and the response alone, must produce the same verdict; no model, and no input not derivable from the item.* A killed-at-timeout run does not meet it and therefore does not produce one.
@@ -478,15 +478,35 @@ Plans:
 
 **Plans**: 7 plans
 
-Plans:
+**Wave 1**
 
-- [ ] 05-01-PLAN.md — Tracer: one `check` item end to end — parse, run, score, record (wave 1)
-- [ ] 05-02-PLAN.md — Execution bounds: output cap, Windows Job Object kill, grandchild test (wave 2)
-- [ ] 05-03-PLAN.md — Settings group, the agent submit path, and the default-closed LAN refusal (wave 2)
-- [ ] 05-04-PLAN.md — Windows process-tree kill: manual verification and spike record (wave 3)
-- [ ] 05-05-PLAN.md — Vendored CM6 editor: mount, theme, line numbers, Tab/Shift-Tab, honest-limits line + JS-runner keyboard assertions (wave 3)
-- [ ] 05-06-PLAN.md — Per-case result matrix and the three refusal states (wave 4)
-- [ ] 05-07-PLAN.md — Honest-limits gate, README, item schema, end-of-phase pass (wave 5)
+- [ ] 05-01-PLAN.md — Tracer: one `check` item end to end — parse, run, score, record
+
+**Wave 2** *(blocked on 05-01)*
+
+- [ ] 05-02-PLAN.md — Execution bounds: output cap, Windows Job Object kill, grandchild test
+- [ ] 05-03-PLAN.md — Settings group, the agent submit path, and the default-closed LAN refusal
+
+**Wave 3** *(blocked on 05-02, 05-03)*
+
+- [ ] 05-04-PLAN.md — Windows process-tree kill: manual verification and spike record
+- [ ] 05-05-PLAN.md — Vendored CM6 editor: mount, theme, line numbers, Tab/Shift-Tab, honest-limits line + JS-runner keyboard assertions
+
+**Wave 4** *(blocked on 05-02, 05-05)*
+
+- [ ] 05-06-PLAN.md — Per-case result matrix and the three refusal states
+
+**Wave 5** *(blocked on 05-04, 05-06)*
+
+- [ ] 05-07-PLAN.md — Honest-limits gate, README, item schema, end-of-phase pass
+
+**Cross-cutting constraints** (must_haves that appear in 2+ plans and must hold at the phase gate):
+
+- **One scorer, byte-identical (criterion 11).** `runtime.score_response()` is the only verdict authority and must be byte-identical after this phase. 05-01 (registry conversion), 05-03 (both submit paths gate on the runner), 05-06 (verdict stays the sole-grader value) and 05-07 (schema + non-page `/api/submit` consumer) all carry must_haves that assume it; the shared gate is the `T-R4-01` source-hash pin in `tests/scoring_roundtrip.py`.
+- **A timeout is not a verdict (criterion 12).** Every plan that touches a killed run — 05-01 (normalizer returns `None`, evidence records `error_category: "timeout"`), 05-02 (`killed_at_timeout` flag; test asserts `score_response()` is `None`, never `False`), 05-06 (null verdict renders the pending treatment), 05-07 (schema `score: null`, end-of-phase pass checks the timeout→pending path) — keeps the run pending and human-markable; only the output-cap kill (D-08) is a real fail.
+- **No case/key material before submission.** 05-01 (served contract leak check), 05-06 (pre-submit absence assertion) and 05-07 (schema states the omission is deliberate) depend on the same boundary.
+- **Honest-limits one-constant identity (D-10).** 05-05 (both readers of `model.HONEST_LIMITS_NOTE`), 05-06 (the line survives every refusal state) and 05-07 (byte-identity assertion + claim-word gate) share one string from `model.HONEST_LIMITS_NOTE`.
+- **Suite + guard green.** Every execute plan's verification ends with `for t in tests/*.py; do python "$t" || exit 1; done`; 05-02 and 05-07 additionally require `python itembank.py guard .` (new fixtures must not be mistaken for banks), and 05-05/05-07 add `node --test tests/js/` (ruling 16).
 
 ### Phase 6: Hint Ladder, Cursor-Hold & Feedback Modes
 

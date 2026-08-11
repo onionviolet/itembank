@@ -94,7 +94,9 @@ Summary of the locked shape (full text in `05-CONTEXT.md`, read this session in 
 - D-09: `check` execution refused when serving `--lan` unless `check.allow_lan` is true.
 - D-10: the no-sandbox sentence appears in exactly two places, worded identically,
   grep-clean of "sandbox"/"isolat"/"contain".
-- D-11: `<textarea>` + synchronized 1-based line-number gutter, Tab inserts `\t`,
+- D-11 (**SUPERSEDED 2026-08-11 by ruling 5/11 — CM6 adopted; see the editor resolution
+  below and ROADMAP Phase 5 RESOLVED rulings**): `<textarea>` + synchronized 1-based
+  line-number gutter, Tab inserts `\t`,
   Shift-Tab dedents, no external editor library.
 - D-12: submitted answer is the source text, sent as-is; `public_item()` gains a
   `check` branch; `explain_payload()` reveals per-case expected output only after
@@ -165,10 +167,10 @@ the explicit instruction in this task not to propose any dependency.
 | Instead of | Could use | Tradeoff |
 |------------|-----------|----------|
 | Hand-rolled `ctypes` Job Object | `pywin32` (`win32job` module) | Third-party dependency; explicitly forbidden by this phase's constraints regardless of maturity |
-| Hand-rolled textarea+gutter | CodeMirror / Monaco / Ace | Explicitly forbidden — vendored-asset exception is spent on KaTeX (Phase 9), external CDN forbidden by the stdlib/no-network posture |
+| Hand-rolled textarea+gutter | CodeMirror / Monaco / Ace | **RESOLVED 2026-08-11 (ruling 5/11): CodeMirror 6 adopted.** The earlier veto ("vendored-asset exception is spent on KaTeX", external CDN forbidden by the stdlib/no-network posture) is SUPERSEDED — no such budget exists and the stdlib rule was relaxed. CM6 is vendored at a pinned version with a recorded SHA-256 and a named license review under the §4a supply-chain rule; its `Diagnostic{from,to,severity,message}` maps 1:1 onto our lint records for the Phase 11 authoring surface. |
 | `subprocess.communicate(timeout=)` for the whole run | Incremental threaded reads with an output cap | `communicate()` buffers the **entire** output in memory before returning, so an unbounded-output infinite loop is bounded only by the *timeout*, not by `max_output_bytes`, until the process is killed — see "Timeout + Output-Cap Interaction" below for why incremental reads are needed instead |
 
-**Installation:** None — no packages to install.
+**Installation:** None for the Python runtime — no packages to install; Python stdlib only. The one JS dependency is the vendored CodeMirror 6 bundle (pinned, hashed, license-reviewed, committed under `assets/vendor/codemirror/`, no registry lookup at build or runtime) plus the §4a-recorded JS test runner for editor behaviour (ruling 16).
 
 **Version verification:** Not applicable (stdlib only). Python target is 3.11+ per
 `.claude/CLAUDE.md`, confirmed against CI's `actions/setup-python@v5` with
@@ -1191,13 +1193,20 @@ confirmation before being treated as locked.
    - What's unclear: whether `check`'s offline-refusal rendering (D-06, no `canon()`
      branch needed since `check` never reaches the client-side scoring path) should be
      covered by a Python-side test that inspects the generated HTML string for the
-     locked refusal copy, given there is no JS test harness in this project at all.
+     locked refusal copy. **Ruling 16 (RESOLVED 2026-08-11) supersedes the "no JS test
+     harness in this project" premise**: a JS test runner is adopted and recorded under
+     §4a (`node --test tests/js/`, matching `05-VALIDATION.md`), but it executes
+     DOM-level editor behaviours against the vendored CM6 bundle — it is not a
+     whole-page render harness, so this refusal-copy question is still a Python-side
+     string assertion over the built page.
    - Recommendation: a string-containment assertion in `tests/check_roundtrip.py`
      against the built page's HTML output (matching how `tests/serve_roundtrip.py`
      likely already asserts against rendered attempt-file text) is sufficient; no new
      JS test infrastructure is needed for this phase.
    - **Resolution: RESOLVED.** Use Python-side assertions over the generated HTML plus the
-     end-of-phase human pass; add no JavaScript test dependency. Controlled by **05-06
+     end-of-phase human pass; no additional JS test is added for the refusal rendering
+     (the JS runner from ruling 16 covers the editor's DOM behaviours against the vendored
+     bundle, not whole-page copy). Controlled by **05-06
      Task 2, "The three refusal states and the offline skip control"**, and manually closed
      by **05-07 Task 3**.
 
@@ -1232,7 +1241,7 @@ stdlib, OS-bundled, or has an explicit fallback D-07 already names.
 |--------|----------|-----------|--------------------|--------------|
 | CODE-01 | `check` item verified by running code, comparing to expected output | unit | `python tests/check_roundtrip.py` (multi-case pass/fail matrix) | ❌ Wave 0 |
 | CODE-02 | Dichotomous score through `score_response()`, no second grading path | unit | `python tests/check_roundtrip.py` (assert `score_response` called with the vector, and matches evidence log's stored score) | ❌ Wave 0 |
-| CODE-03 | Editor: monospace, working line numbers, Tab inserts a tab | manual + string-assertion | `python tests/check_roundtrip.py` (asserts locked CSS/markup strings present in rendered page); Tab-key behavior itself is JS-only and needs a manual UAT pass (no JS test harness exists in this project) | ❌ Wave 0 |
+| CODE-03 | Editor: monospace, working line numbers, Tab inserts a tab | JS runner (ruling 16) + string-assertion | `node --test tests/js/` executes Tab/Shift-Tab/Enter-Space and focus behaviours against the vendored CM6 bundle (05-05), plus `python tests/check_roundtrip.py` (asserts locked CSS/markup strings present in rendered page); the 500-line pixel pass stays manual at 05-07-T3 | ❌ Wave 0 |
 | CODE-04 | Timeout + process-tree kill on both platforms, incl. grandchild | integration | `python tests/check_roundtrip.py` — POSIX assertions run everywhere; Windows-specific assertions platform-guarded and run only when `sys.platform == "win32"`, verified manually on the target Windows 11 machine per Pitfall 3 | ❌ Wave 0 |
 | CODE-05 | Documentation states plainly this stops accidents, not escapes; no sandboxing claim | automated grep | `python tests/check_roundtrip.py` — case-insensitive grep over `model.SPEC` and the rendered `quiz_page.py` output for `sandbox`/`isolat`/`contain`, asserting zero matches, plus a byte-identity assertion between the two occurrences of the honest-limits sentence (matching `05-UI-SPEC.md`'s own closing note) | ❌ Wave 0 |
 
@@ -1284,9 +1293,10 @@ stdlib, OS-bundled, or has an explicit fallback D-07 already names.
 ## Project Constraints (from CLAUDE.md)
 
 - **Python standard library only, no install step, no build step** — enforced
-  throughout this research; `ctypes` is explicitly named as permitted stdlib. No
-  CodeMirror/Monaco/Ace, no vendored asset beyond the KaTeX exception already spent on
-  Phase 9.
+  throughout this research; `ctypes` is explicitly named as permitted stdlib. **The one
+  JS vendored asset is CodeMirror 6 (ruling 5/11, RESOLVED 2026-08-11), pinned, hashed
+  and license-reviewed under §4a — the earlier "no vendored asset beyond the KaTeX
+  exception" line is SUPERSEDED.**
 - **Network degrades, never blocks** — not directly implicated by this phase (`check`
   execution is local-only by design, D-06), but the daemon/CLI must keep functioning
   with the network unplugged regardless of `check`'s presence — no new network calls

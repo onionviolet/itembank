@@ -50,11 +50,13 @@ palette pass touches one set of tokens, not two.
 
 **Explicitly not built by this document's contract:** syntax highlighting, bracket matching,
 auto-indent-on-Enter, multi-line block indent/dedent (select several lines, press Tab to indent
-all). D-11 scopes the editor to "a `<textarea>` plus a synchronized line-number gutter... Tab
-inserting a tab character and Shift-Tab dedenting" — nothing else. Adding any of the above would
-be scope creep past D-11 and past CODE-03's own success criterion (monospace, working line
-numbers, Tab inserts a tab). If a future phase wants them, that is a new decision, not a gap in
-this one.
+all). D-11 was superseded by ruling 5/11 (RESOLVED 2026-08-11): the editor is a vendored
+CodeMirror 6 bundle, not "a `<textarea>` plus a synchronized line-number gutter" — but the
+behaviour contract it names (Tab inserting a tab character, Shift-Tab dedenting, gutter row N
+= line N) is unchanged and remains the locked contract below. Adding syntax highlighting or
+block indent would be scope creep past D-11 and past CODE-03's own success criterion
+(monospace, working line numbers, Tab inserts a tab). If a future phase wants them, that is a
+new decision, not a gap in this one.
 
 ---
 
@@ -62,12 +64,12 @@ this one.
 
 | Property | Value |
 |----------|-------|
-| Tool | none — stdlib-only Python project (`.claude/CLAUDE.md` §Constraints), unchanged since Phase 2/2.1. No `package.json`/`components.json`. The shadcn gate does not apply. |
+| Tool | none — stdlib-only Python project (`.claude/CLAUDE.md` §Constraints), unchanged since Phase 2/2.1. No `package.json`/`components.json`. The shadcn gate does not apply. Per ruling 5/11, the one vendored asset is CodeMirror 6, committed under `assets/vendor/codemirror/` at a pinned version with a recorded SHA-256 and a dated license review (§4a supply-chain rule) — vendored, never fetched from a CDN. |
 | Preset | not applicable |
-| Component library | none — hand-authored HTML via `quiz_page.py:TEMPLATE`'s existing Python string templating. This phase adds one dispatch function and one CSS block to that same file; no new templating mechanism. |
+| Component library | none — hand-authored HTML via `quiz_page.py:TEMPLATE`'s existing Python string templating; the code editor is a CM6 mount element the boot script turns into an editor. This phase adds one dispatch function, one mount element, one theme CSS block, and one boot script to that same file; no new templating mechanism. |
 | Icon library | none — consistent with every existing surface. Pass/fail state is communicated by color + text ("Passed"/"Failed…"), never an icon glyph, matching how `.opt.right`/`.opt.wrong` already work with text + color alone. |
 | Font (prose) | `system-ui,-apple-system,"Segoe UI",Roboto,sans-serif` — inherited verbatim, unchanged. |
-| Font (code) | `ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace` — **reused, not new**: this is `quiz_page.py:TEMPLATE`'s existing `.mono`/`.chip`/`.opt .k` monospace stack (`TEMPLATE` lines 21-22, 30-32, 43-44), applied to the code editor and the gutter. No web font, no CDN, no vendored asset — the project's one vendored-asset exception (KaTeX) belongs to Phase 9, not here. |
+| Font (code) | `ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace` — **reused, not new**: this is `quiz_page.py:TEMPLATE`'s existing `.mono`/`.chip`/`.opt .k` monospace stack (`TEMPLATE` lines 21-22, 30-32, 43-44), declared once on `.codewrap` and inherited by `.cm-editor`, `.cm-content` and `.cm-gutters`. No web font, no CDN; CodeMirror itself is the only vendored asset this phase (per ruling 5/11). |
 
 ---
 
@@ -155,55 +157,59 @@ answer widget on the page.
 ## Editor Interaction Contract
 
 *(Addendum beyond the standard template — this phase's central design risk is interaction
-correctness, not visual novelty, so it is specified explicitly rather than left to the executor's
-judgment on a component with no library behind it.)*
+correctness, not visual novelty, so it is specified as behaviour the executor must make true.
+Per ruling 5/11 the editor is vendored CodeMirror 6: CM6 supplies the mechanics (line numbers,
+scroll lock, undo, transactions); the bullets below are the behaviours CM6 must be configured
+to exhibit, not hand-rolled DOM.)*
 
 **Markup shape**, locked:
 
 ```
-.codewrap                 (flex row, border, radius 9px, background var(--card), overflow hidden)
-  .gutter                 (flex 0 0 auto, right-aligned line numbers, background var(--chip))
-  textarea.code            (flex 1 1 auto, transparent background, white-space: pre)
+.codewrap                 (flex column/row wrapper, border, radius 9px, background var(--card), overflow hidden)
+  .cm-editor              (the CodeMirror 6 editor, mounted by the boot script; transparent background)
 ```
 
-- **Font sync is mandatory**: `.gutter` and `textarea.code` share identical `font-family`,
-  `font-size` (14px), `line-height` (1.5), and top padding, so gutter row *N* sits pixel-aligned
-  with textarea line *N*. This is what makes CODE-03's "line 7" citation trustworthy — a rubric
-  point citing a line number is citing the line the learner visually sees only if the two columns
-  cannot drift.
-- **Scroll sync**: the gutter's `scrollTop` mirrors the textarea's `scrollTop` on every `scroll`
-  event. Never the reverse (the gutter itself never scrolls independently or receives focus).
-- **Line count**: recomputed on every `input` event by splitting the textarea's value on `\n`;
-  the gutter always shows exactly as many numbers as the textarea has lines, 1-based, starting
-  at 1 — not starting at 0, not padded with a phantom trailing blank line beyond what the
-  textarea's own value actually contains.
-- **Gutter width**: auto-grows with the digit count of the current highest line number (e.g., one
-  character wide under 10 lines, two wide under 100), so a number is never clipped.
-- **Tab**: `keydown` on the textarea intercepts `Tab` (no modifier), inserts a literal `\t` at the
-  cursor (replacing the current selection if one exists — no block-indent of multiple lines, see
-  Phase Framing's explicit exclusion), and calls `preventDefault()` so focus never leaves the
-  field. This is CODE-03's literal wording ("a tab key that inserts a tab rather than moving
-  focus") and the one interaction this contract cannot compromise on.
+The gutter is CM6's own line-number gutter inside `.cm-editor` — the wrapper never hand-draws it.
+
+- **Font sync is mandatory**: `.codewrap` declares `font-family`, `font-size` (14px), and
+  `line-height` (1.5) once, and `.cm-editor`, `.cm-content` and `.cm-gutters` inherit them, so
+gutter row *N* sits pixel-aligned with editor line *N*. This is what makes CODE-03's "line 7"
+citation trustworthy — a rubric point citing a line number is citing the line the learner
+visually sees only if the two columns cannot drift.
+- **Scroll sync**: CM6's gutter is scroll-locked to the document by the library itself — no
+  mirroring code. The gutter never scrolls independently and never receives focus.
+- **Line count**: CM6's `lineNumbers()` extension shows exactly as many numbers as the document
+  has lines, 1-based, starting at 1 — not starting at 0, not padded with a phantom trailing blank
+  line beyond what the document actually contains.
+- **Gutter width**: CM6 auto-grows the gutter with the digit count of the current highest line
+  number (e.g., one character wide under 10 lines, two wide under 100), so a number is never
+  clipped.
+- **Tab**: the CM6 keymap binds `Tab` (no modifier) to insert a literal `\t` at the cursor
+  (replacing the current selection if one exists — no block-indent of multiple lines, see Phase
+  Framing's explicit exclusion), preventing the default so focus never leaves the editor. This is
+  CODE-03's literal wording ("a tab key that inserts a tab rather than moving focus") and the one
+  interaction this contract cannot compromise on.
 - **Shift-Tab**: dedents the current line only — removes one leading `\t` if present, else up to
   four leading space characters if present, else does nothing (never dedents past column 0, never
-  touches a previous line).
-- **No wrap**: `white-space: pre` and `overflow-x: auto` on the textarea. A long line scrolls
-  horizontally rather than soft-wrapping, because a soft-wrapped line would visually span two
-  gutter rows while remaining one logical line — breaking the "line 7 is line 7" guarantee CODE-03
-  exists to provide. This is a deliberate correctness choice, not an oversight; a horizontal
-  scrollbar on an 80+ column line is a smaller cost than a rubric citation that lies.
-- **Starter code**: when the item authored one, it pre-fills `textarea.value` verbatim on render
-  (no placeholder shown). When none was authored, the textarea shows the placeholder text `# Write
-  your code here.` (locked copy, Python-specific since D-02 ships exactly one language this
-  phase) and starts empty.
+  touches a previous line). A small custom keymap command is fine; the behaviour is what the JS
+  test runner asserts.
+- **No wrap**: the `lineWrapping` extension is not enabled. A long line scrolls horizontally
+  rather than soft-wrapping, because a soft-wrapped line would visually span two gutter rows while
+  remaining one logical line — breaking the "line 7 is line 7" guarantee CODE-03 exists to
+  provide. This is a deliberate correctness choice, not an oversight; a horizontal scrollbar on an
+  80+ column line is a smaller cost than a rubric citation that lies.
+- **Starter code**: when the item authored one, it is the CodeMirror document verbatim on render
+  (no placeholder shown). When none was authored, the editor starts empty with the placeholder
+  text `# Write your code here.` (locked copy, Python-specific since D-02 ships exactly one
+  language this phase).
 - **Focus ring**: `.codewrap:focus-within` gets `outline: 2px solid var(--accent); outline-offset:
   1px; border-color: var(--accent)` — matching `textarea.ans:focus`'s existing treatment exactly
-  (`TEMPLATE:87`), applied to the wrapping element rather than the bare textarea so the gutter is
-  visually included inside the focused field.
-- **Disabled-after-submit**: on `Check`, the textarea and the Tab/Shift-Tab handlers are disabled
-  (matching every other type's existing "lock the input, then reveal" sequence — `ta.disabled =
-  true` for `short`, `b.disabled = true` for options). The learner's own submitted source stays
-  visible, read-only, so they can compare it against the per-case explanation below it.
+  (`TEMPLATE:87`), applied to the wrapping element so the CM6 gutter is visually included inside
+  the focused field.
+- **Disabled-after-submit**: on `Check`, the editor is set read-only (matching every other type's
+  existing "lock the input, then reveal" sequence — `ta.disabled = true` for `short`,
+  `b.disabled = true` for options). The learner's own submitted source stays visible, read-only,
+  so they can compare it against the per-case explanation below it.
 
 ---
 
@@ -252,7 +258,7 @@ Every string below is meant to be used close to verbatim. Locked strings that mu
 
 | Element | Surface | Kind(s) detected |
 |---|---|---|
-| E1 | The `check` code editor field (textarea + gutter + starter code + Tab/Shift-Tab) | `form` |
+| E1 | The `check` code editor field (CodeMirror 6 editor + line-number gutter + starter code + Tab/Shift-Tab) | `form` |
 | E2 | Post-submit per-case result readout | `list-collection` |
 | E3 | Refusal states — offline, LAN-blocked, language-not-allowed | `static-content`, `interactive-control` |
 | E4 | The `Check` submit button, its `Running…` in-flight state, and the hidden-case-count hint | `interactive-control` |
@@ -269,7 +275,7 @@ Every string below is meant to be used close to verbatim. Locked strings that mu
 | partial | E1 editor | ⊘ dismissed | Single-shot submission like `short`: nothing autosaves before `Check` is pressed, so there is no partial-save state to define |
 | overflow | E1 editor | ✅ explicit | Long lines scroll horizontally under `white-space:pre` rather than wrapping — wrapping would break the 1:1 gutter-to-line correspondence CODE-03 depends on |
 | zero-one-many | E1 editor | ⊘ dismissed | Exactly one editor per `check` item; it is not a collection |
-| long-text | E1 editor | ✅ explicit | The gutter grows with the line count and stays pixel-aligned to the textarea own lines at any length — verified against a 500-line paste |
+| long-text | E1 editor | ✅ explicit | The CM6 gutter grows with the line count and stays pixel-aligned to the document's own lines at any length — verified against a 500-line paste |
 | empty | E2 case list | ⊘ dismissed | Unreachable by construction: a `check` item cannot parse with zero `CASE)` lines, so the list is never empty |
 | loading | E2 case list | ✅ explicit | The `Check` button becomes `Running…` and disabled while the server executes; this is the first item type where a multi-second wait is possible (up to `check.timeout_seconds`) |
 | error | E2 case list | ✅ explicit | Connectivity failure reuses the existing `settle()` copy verbatim; language-not-allowed gets its own locked sentence |
@@ -326,8 +332,8 @@ and UI copy returns nothing.
 | `settle()` / `verify()` | `quiz_page.py:139-185` | Reuse unmodified | Same POST-to-`/api/submit`, same connectivity-failure handling; `check`'s response body differs in shape (per-case vector) but travels the identical function |
 | `close()` | `quiz_page.py:418-460` | Extended (new `q.type === "check"` branch) | Reuses the existing `.verdict.y`/`.verdict.n` header and `.trap` block unchanged; only the middle (per-option `paint()`/`blk()` prose) is replaced with the per-case `.case` list for this type |
 | `THEME_CSS` | `surfaces/theme.py` | Reuse unmodified | Zero new custom properties |
-| `<style>` block | `quiz_page.py:12-93` | Extended | New rules: `.codewrap`, `.gutter`, `textarea.code`, `.case`, `.case.right`, `.case.wrong` — all built from existing custom properties, mirroring `.opt`/`.opt.right`/`.opt.wrong`'s existing shape |
-| Offline (`!SERVE`) branch | New, inside `asCheck` | New | Static refusal card + `Skip — not answerable offline` control, per Copywriting Contract; no textarea rendered at all in this branch |
+| `<style>` block | `quiz_page.py:12-93` | Extended | New rules: `.codewrap`, `.cm-editor`, `.cm-content`, `.cm-gutters`, `.case`, `.case.right`, `.case.wrong` — all built from existing custom properties, mirroring `.opt`/`.opt.right`/`.opt.wrong`'s existing shape |
+| Offline (`!SERVE`) branch | New, inside `asCheck` | New | Static refusal card + `Skip — not answerable offline` control, per Copywriting Contract; no editor rendered at all in this branch |
 | `model.py` `SPEC` text | `model.py:280` | Extended | Carries the CODE-05 honest-limits sentence verbatim, worded identically to the UI copy (D-10) |
 
 ---

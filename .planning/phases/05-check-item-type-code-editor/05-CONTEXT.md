@@ -129,12 +129,14 @@ optionality and reversibility. The planner may revise any of them with a stated 
 
 ### Editor
 
-- **D-11:** A `<textarea>` plus a synchronized line-number gutter, scroll-linked, with
-  Tab inserting a tab character and Shift-Tab dedenting. No CodeMirror, no Monaco, no
-  external asset, no build step — the stdlib-only, no-install constraint applies to the
-  browser surface too, and the vendored-asset exception is spent on KaTeX.
-  The gutter is **1-based over the textarea's own lines**, so a rubric point citing
-  "line 7" cites the same line the learner sees (CODE-03).
+- **D-11 (SUPERSEDED 2026-08-11 by ruling 5/11 — see ROADMAP Phase 5 RESOLVED rulings):** A
+  `<textarea>` plus a synchronized line-number gutter, scroll-linked, with
+  Tab inserting a tab character and Shift-Tab dedenting. **The editor is now a vendored
+  CodeMirror 6 bundle** (pinned version, SHA-256, named license review under §4a); the
+  vendored-asset exception is no longer spent on KaTeX alone. What survives from D-11
+  verbatim is the **behaviour contract**: Tab inserts a literal tab, Shift-Tab dedents the
+  current line only, no soft-wrap, and the gutter is **1-based over the editor's own
+  lines**, so a rubric point citing "line 7" cites the same line the learner sees (CODE-03).
 - **D-12:** The submitted answer for a `check` item is the **source text**, sent as-is.
   `public_item()` gains a `check` branch with
   `response_schema: {"type": "string", "format": "source", "language": <lang>}` and a
@@ -180,6 +182,37 @@ conflicting text above.
 - **CI is `ubuntu-latest` only.** The Windows kill path cannot be verified by CI at any point in
   this phase. It is a manual verification on the target machine, following the `01-01-PLAN.md`
   spike precedent — see `05-VALIDATION.md`'s manual table.
+
+### Amendments after round-two roadmap criteria (locked 2026-08-10/11)
+
+These decisions were **locked by the user** after the round-two ROADMAP criteria 8-13 and
+the CM6 ruling (5/11) + JS-test-runner ruling (16). They override any conflicting text
+above and — unlike D-01 through D-16 — are not delegation calls: the planner and executor
+implement them as stated.
+
+- **D-17 (criterion 12): a timeout is not a verdict.** A run killed at the deadline
+  returns `None` plus `error_category: "timeout"`, stays pending and human-markable, and
+  is **never** a `False` verdict — matching the None-not-False discipline
+  `score_response()` already applies to `short`. The runner surfaces the run-level
+  `killed_at_timeout` flag; the normalizer returns `None` when any case timed out; the
+  schema permits `score: null`; and no surface renders the pending response as pass or
+  fail. Only the output-cap kill (D-08) is a real fail.
+- **D-18 (criterion 9 SUPERSEDED):** The no-JS floor is dropped. CM6 is JS-only, so the
+  server-rendered textarea-plus-lint-list fallback does not exist and no plan provides
+  one; the external-editor `--watch` authoring path criterion 9 also named belongs to
+  Phase 11.
+- **D-19 (criterion 11):** Two registries — `runtime.NORMALIZERS` and `runtime.KEYS` —
+  with normalizer signature `(q, answer) -> str | None`; `score_response()` remains
+  **byte-identical**, pinned by source-hash test `T-R4-01` in
+  `tests/scoring_roundtrip.py`.
+- **D-20 (criterion 8):** `[HARNESS:]` function-signature mode plus `[TOLERANCE:]` for
+  float returns; a harness item's cases call the named function and compare return
+  values, reaching `score_response()` through the same registered normalizer — a
+  configured strategy inside the runner, never a second scorer.
+- **D-21 (criterion 13):** A registry miss (an item type with no registered normalizer)
+  degrades to a human, never to a false verdict — the response lands permanently pending
+  and human-markable. `item.no_normalizer` is a **warning**; `item.tolerance_unstated`
+  is an **error**.
 
 ### Claude's Discretion
 

@@ -18,10 +18,10 @@ created: 2026-08-08
 
 | Property | Value |
 |----------|-------|
-| **Framework** | None — direct script execution, stdlib only |
+| **Framework** | Python stdlib for runtime/API (direct script execution) + a JS test runner for the CM6 editor behaviours (ruling 16, RESOLVED 2026-08-11) |
 | **Config file** | none |
-| **Quick run command** | `python tests/check_roundtrip.py` |
-| **Full suite command** | `for f in tests/*_roundtrip.py; do python "$f" || exit 1; done` |
+| **Quick run command** | `python tests/check_roundtrip.py` + `node --test tests/js/` |
+| **Full suite command** | `for f in tests/*_roundtrip.py; do python "$f" || exit 1; done && node --test tests/js/` |
 | **Estimated runtime** | ~20 seconds quick (the timeout cases spend real wall-clock), ~80 seconds full |
 
 ---
@@ -55,12 +55,12 @@ created: 2026-08-08
 | 05-04-T2 | 05-04 | 3 | CODE-04, CODE-05 | T-5-15, T-5-16 | The measurement is recorded with its environment and sample size, and states no claim beyond the observed rate | doc gate | `grep -iqE '(out of 50\|of 50 runs)' .planning/phases/05-check-item-type-code-editor/05-SPIKE-RESULT.md` | ❌ created by this task | ⬜ pending |
 | 05-05-T1 | 05-05 | 3 | CODE-03 | T-5-18 | Per-case actual output reaches both surfaces from the one run that produced the score; case material never reaches the page before the verdict | integration (daemon HTTP) | `python tests/check_roundtrip.py` | ✅ | ⬜ pending |
 | 05-05-T2 | 05-05 | 3 | CODE-03, CODE-05 | T-5-17, T-5-21 | Authored text renders as text content, not markup; the honest-limits line is one constant with two readers | source assertion on rendered HTML | `python tests/check_roundtrip.py` | ✅ | ⬜ pending |
-| 05-05-T3 | 05-05 | 3 | CODE-02, CODE-03 | T-5-20 | Semantic labels, focus order, and Enter/Space activation provide non-pointer parity; browser and agent paths share response/version, sole-scorer verdict, observations, and evidence semantics | integration + source assertion + manual | `python tests/check_roundtrip.py` (keyboard behaviour verified at 05-07-T3) | ✅ | ⬜ pending |
+| 05-05-T3 | 05-05 | 3 | CODE-02, CODE-03 | T-5-20 | Semantic labels, focus order, and Enter/Space activation provide non-pointer parity; browser and agent paths share response/version, sole-scorer verdict, observations, and evidence semantics | integration + JS test runner + source assertion | `python tests/check_roundtrip.py` + `node --test tests/js/` (keyboard behaviours executed, not source-read; the 500-line pixel pass stays manual at 05-07-T3) | ✅ | ⬜ pending |
 | 05-06-T1 | 05-06 | 4 | CODE-02, CODE-03 | T-5-22, T-5-24, T-5-28 | Submitted source is the learner prediction/action; ordered case-index/reason observations provide bounded targeted feedback without rerunning code or deriving another verdict | integration + source assertion | `python tests/check_roundtrip.py` | ✅ | ⬜ pending |
 | 05-06-T2 | 05-06 | 4 | CODE-05 | T-5-07, T-5-23, T-5-25 | A page that cannot run code renders no field and scores nothing; each of three causes has its own sentence and next step | source assertion on rendered HTML | `python tests/check_roundtrip.py` | ✅ | ⬜ pending |
 | 05-07-T1 | 05-07 | 5 | CODE-02, CODE-03 | T-5-10, T-5-18 | The published versioned interaction envelope/config/response/result schema validates; a non-page consumer submits through /api/submit to the same scorer and evidence semantics | schema + protocol validation | `python tests/check_roundtrip.py` and `python tests/protocol_roundtrip.py` | ✅ | ⬜ pending |
 | 05-07-T2 | 05-07 | 5 | CODE-05 | T-5-26 | The honest-limits statement is provably one string in both required places, and the claim-word gate runs in the suite with exact per-file counts | automated gate | `python tests/check_roundtrip.py` | ✅ | ⬜ pending |
-| 05-07-T3 | 05-07 | 5 | CODE-02, CODE-03, CODE-05 | T-5-27 | A safety promise is caught by reading, and a keyboard-only learner proves focus/activation plus response-verdict-evidence-feedback parity end to end | manual — no JS harness exists for focus/readability | none | n/a | ⬜ pending |
+| 05-07-T3 | 05-07 | 5 | CODE-02, CODE-03, CODE-05 | T-5-27 | A safety promise is caught by reading, and a keyboard-only learner proves focus/activation plus response-verdict-evidence-feedback parity end to end | automated (JS runner, ruling 16) + manual checkpoint — the real-browser keyboard-only pass stays manual; the DOM-level keyboard behaviours are executed by `node --test tests/js/` in CI | `node --test tests/js/` + named manual checkpoint in `05-VALIDATION.md` | n/a | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -116,7 +116,7 @@ No framework install — the project forbids one.
 |----------|-------------|------------|-------------------|
 | The Windows process-tree kill actually kills a grandchild | CODE-04 | **CI is `ubuntu-latest` only.** The Job Object path cannot be exercised by CI at all; it can only be run on the target Windows 11 machine, matching the `01-01-PLAN.md` spike precedent | On Windows: run `python tests/check_roundtrip.py`, then confirm with `tasklist` that no orphaned `python.exe` from the grandchild fixture survives the timeout |
 | The `CREATE_SUSPENDED` race window | CODE-04 | CPython's Windows `_execute_child` closes the child's thread handle before returning (`bpo-1677688`), so a race-free assign-then-resume is not reachable through `subprocess.Popen`. Whether the residual window ever loses a grandchild in practice is empirical | Run the grandchild fixture repeatedly (50 iterations) on Windows and confirm zero escapes; record the observed rate rather than claiming zero |
-| Gutter-to-line pixel alignment at 500 lines | CODE-03 | Sub-pixel font-metric drift is a visual judgment | Paste 500 lines into the editor, scroll to the bottom, confirm line 500 in the gutter sits on line 500 of the textarea |
+| Gutter-to-line pixel alignment at 500 lines | CODE-03 | Sub-pixel font-metric drift is a visual judgment | Paste 500 lines into the editor, scroll to the bottom, confirm line 500 in the gutter sits on line 500 of the editor document |
 | The editor's tab and shift-tab behavior preserves usable undo | CODE-03 | Undo-stack behavior differs per browser and is not scriptable here | Type, Tab, Shift-Tab, then Ctrl-Z repeatedly and confirm the document walks back sensibly |
 | Keyboard-only submission reaches equivalent feedback | CODE-02, CODE-03 | Focus order, semantic announcement, and actual non-pointer readability require a browser and human observation | Without mouse/trackpad, focus the labelled source field, enter source, activate Check with Enter and Space on separate runs, reach verdict/case feedback, and compare version/response/verdict/observations/evidence semantics with `/api/submit` |
 | No documentation anywhere claims sandboxing | CODE-05 | Partly automatable (the grep), but judging whether some *other* sentence overclaims safety is a reading task | Run the grep for `sandbox` / `isolat` / `contain`, then read the `check` sections of `SPEC`, README, and the UI copy for any implied safety claim |
