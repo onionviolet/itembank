@@ -621,7 +621,7 @@ Plans:
 
 **Absorbed from research (2026-08-10)**: ALEKS fringe-based selection, UWorld's Educational-Objective line as a selection input, jpdb-style utility weighting, and Brilliant's one-idea-per-screen sequencing wording for the "why this item" trace. See `.planning/research/2026-08-09-landscape-widening.md`.
 **Open decisions resolved here**: The selection-mode naming collision — resolved at plan time as a **distinct `selection_mode` field** (D-11), because `schemas/session.schema.json`, `schemas/response.schema.json` and `surfaces/daemon.py:SESSION_MODES` already enumerate `"remediation"` as a *feedback* mode; gated by a blocking `checkpoint:decision` in plan 07-04 because the evidence log is append-only. What the log records about a selection — resolved as a **`selection` event once per sitting plus `selection_mode` on every response event** (D-03), also gated in 07-04. Cooldown scope — resolved as **bank-scoped** (D-13), paid for by bumping `INDEX_VERSION` and adding a `bank` column to the disposable sqlite3 index in plan 07-03. `selection_weights.recency_decay` — resolved as **being** D-08's soft penalty rather than a second knob for the same thing (D-15), with `objective_miss_rate` and `difficulty_spread` retagged to Phase 10.
-**Plans**: 3/6 plans executed
+**Plans**: 4/6 plans executed
 
 Plans:
 **Wave 1**
@@ -635,7 +635,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 07-04-PLAN.md — The two one-way doors: a distinct `selection_mode` field, and the recorded selection spec on the session and in the log
+- [x] 07-04-PLAN.md — The two one-way doors: a distinct `selection_mode` field, and the recorded selection spec on the session and in the log
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -890,7 +890,7 @@ This phase's full content — goal, requirements, success criteria, open decisio
 
 - **OPEN — ruling 3**: Weibao confirms Q8 (keep Python, Tauri sidecar, NSIS) and this phase number. The direction is recorded as adopted-pending-ruling; nothing else in the roadmap depends on the answer.
 
-**Plans**: 3/5 plans executed across 3 waves
+**Plans**: 4/5 plans executed across 3 waves
 
 Plans:
 **Wave 1**
@@ -904,7 +904,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 13-04-PLAN.md — Updater: latest.json + minisign alongside SHA256SUMS.txt, tauri-plugin-updater, one-disclosure StatusNotice
+- [x] 13-04-PLAN.md — Updater: latest.json + minisign alongside SHA256SUMS.txt, tauri-plugin-updater, one-disclosure StatusNotice
 - [ ] 13-05-PLAN.md — Phase verification: executed AV/signing checklist, lifecycle/size/headless evidence, full suite
 
 ## How this roadmap gets planned (added 2026-08-10)
@@ -1119,14 +1119,14 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 6. Hint Ladder, Cursor-Hold & Feedback Modes | 0/2 | Planned | - |
 | 6.1 Interactive Visual Assessment Protocol | 0/3 | Planned | - |
 | 6.2 Executable Textbook Loop | 0/4 | Planned | - |
-| 7. Selection Engine | 3/6 | In Progress|  |
+| 7. Selection Engine | 4/6 | In Progress|  |
 | 8. Model Adapter Interface & Tier-Gate Enforcement | 0/6 | Planned    |  |
 | 9. Subject-Invariant Loop — EMT, Math, CS Integration | 0/5 | Planned | - |
 | 9.1 Audio Drill Export | 0/4 | Planned | - |
 | 10. Retention, Pacing & Trends | 0/6 | Planned    |  |
 | 11. Closed Authoring Loop & Curriculum Auditor | 0/TBD | Not started | - |
 | 12. ~~Packaging, Self-Update & Interop Export~~ | — | Retired (moved to 2.1) | - |
-| 13. Desktop Packaging — Tauri Shell over Python Sidecar | 3/5 | In Progress|  |
+| 13. Desktop Packaging — Tauri Shell over Python Sidecar | 4/5 | In Progress|  |
 
 ## Backlog
 

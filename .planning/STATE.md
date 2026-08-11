@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 03.2
 current_phase_name: seeding-import-provenance
 status: verifying
-stopped_at: Completed 13-03-PLAN.md
-last_updated: "2026-08-11T01:17:32.519Z"
+stopped_at: Completed 07-04-PLAN.md
+last_updated: "2026-08-11T01:19:50.153Z"
 last_activity: 2026-08-10
 last_activity_desc: Phase 03.1 execution started
 progress:
   total_phases: 18
   completed_phases: 5
   total_plans: 104
-  completed_plans: 51
+  completed_plans: 52
 ---
 
 # Project State
@@ -32,7 +32,7 @@ Plan: 5 of 5
 Status: Phase complete — ready for verification
 Last activity: 2026-08-10 — Phase 03.2 execution started
 
-Progress: [█████░░░░░] 49%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -104,6 +104,8 @@ Progress: [█████░░░░░] 49%
 | Phase 07 P03 | 30min | 3 tasks | 5 files |
 | Phase 13 P02 | 105min | 3 tasks | 28 files |
 | Phase 13 P03 | 65min | 3 tasks | 7 files |
+| Phase 13 P04 | 55min | 3 tasks | 12 files |
+| Phase 07 P04 | 40min | 4 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -243,6 +245,7 @@ Recent decisions affecting current work:
 - [Phase ?]: 13-03: the frozen exe is the full CLI entry (sidecar is a CLI mode); the bundled shell passes 'sidecar <dir>'; PyInstaller --add-data carries schemas/styles/fonts because resources.py resolves relative to the frozen root.
 - [Phase ?]: 13-03: install-notice values are compile-time defines with !error fail-closed; uninstaller deletes only \ (fixture-proven); NSIS bundling degrades honestly while makensis is absent.
 - [Phase ?]: 13-04: one release channel, two manifest formats from the same tag (SHA256SUMS.txt + latest.json/minisign); the shell reads the daemon-owned notified_at record and injects the StatusNotice once into the first HTML page - no second consent store.
+- [Phase ?]: User confirmed option-a on both 07-04 gates: distinct selection_mode field (D-11) and a selection event once per sitting plus selection_mode on every response event (D-03)
 
 ## Deferred Verification
 
@@ -259,7 +262,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-11T01:10:04.739Z
-Stopped at: Completed 13-03-PLAN.md
+Last session: 2026-08-11T01:19:50.115Z
+Stopped at: Completed 07-04-PLAN.md
 Resume file: None
 Deferred human verification: Phases 2.1/3/4 (see Deferred Verification table above)

@@ -94,3 +94,19 @@ filter), `schemas/report.schema.json` (two documented properties) and
 `surfaces/evidence_cli.py` (--bank threading). All content is present in HEAD;
 the remaining 07-03 pieces were committed separately (`d8a21ce` cli --bank,
 `b8fc6cc` tests). Labels in history are mixed; no content was lost.
+
+## Concurrent Phase-6 teaching code: committed bug + moving targets (2026-08-10)
+
+- `runtime.py` `teaching_transition` called bare `evidence_key(q)` with no
+  import (committed at HEAD), crashing every submit. Phase 7 applied the
+  minimal fix (function-local `import evidence` + qualified call, matching the
+  module's own line-426 comment) as a blocking deviation; it is in `3d0465e`.
+- `FEEDBACK_POLICIES` `defer_feedback` branches never advance the cursor
+  (diagnostic/exam/short/legacy), so a sitting stalls on item 0 and
+  `tests/evidence_roundtrip.py` (rewind), `tests/agent_roundtrip.py` (loop)
+  and diagnostic/exam sittings stall. This is the concurrent 06-01 session's
+  design to resolve (their `agent_roundtrip.py`/`surfaces/session.py` are
+  mid-edit); phase 7 did not change feedback-policy semantics.
+- The concurrent session's commits (13-03/13-04 work, e.g. `b72eee6`,
+  `36b2cab`) repeatedly swept staged phase-7 files into their own commits;
+  content is preserved in HEAD each time, labels are mixed.
