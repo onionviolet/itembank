@@ -365,8 +365,8 @@ def test_visual_items_refused_by_item_number():
     """
     qs = load(VISUAL_GIFT_BANK)
     visual_numbers = [q["number"] for q in qs if q["type"] == "visual"]
-    if not visual_numbers or len(visual_numbers) != 3:
-        fail("visual_gift_bank.md does not carry three visual items: %r"
+    if not visual_numbers or len(visual_numbers) != 4:
+        fail("visual_gift_bank.md does not carry four visual items: %r"
              % visual_numbers)
     expressible = [q["number"] for q in qs if q["type"] == "mc"]
     if expressible != [1]:

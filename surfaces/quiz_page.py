@@ -1171,6 +1171,256 @@ function asShort(q, body, act, card){
    serializer, so equivalent states produce byte-identical canonical SCALAR
    strings. The serialized semantic response is submitted through the normal
    served /api/submit path; this page never computes a verdict. */
+/* ---- exact-fraction drawing helpers (phase 999.1, advanced families) --------
+   DRAWING ONLY: these parse canonical SCALAR strings into [n,d] pairs for SVG
+   layout. The submitted state is always the canonical SCALAR string or a
+   stable id -- never this float, never a pixel. */
+function vfGCD(a, b){ a = Math.abs(a); b = Math.abs(b);
+  while(b){ const t = a % b; a = b; b = t; } return a || 1; }
+function vfParse(s){
+  if(typeof s !== "string") return null;
+  s = s.trim();
+  let m = s.match(/^([+-]?\d+)\/(\d+)$/);
+  if(m){ let n = +m[1], d = +m[2]; if(!d) return null;
+    const g = vfGCD(n, d); n /= g; d /= g;
+    if(d < 0){ n = -n; d = -d; } return [n, d]; }
+  m = s.match(/^([+-]?\d+)(?:\.(\d{1,6}))?$/);
+  if(!m) return null;
+  const sign = m[1][0] === "-" ? -1 : 1;
+  const whole = Math.abs(+m[1]);
+  let d = 1, frac = 0;
+  if(m[2]){ d = Math.pow(10, m[2].length); frac = +m[2]; }
+  let n = sign * (whole * d + frac);
+  const g = vfGCD(n, d); n /= g; d /= g;
+  if(d < 0){ n = -n; d = -d; } return [n, d];
+}
+function vfStr(f){ return f[1] === 1 ? String(f[0]) : f[0] + "/" + f[1]; }
+function vfAdd(a, b){ const n = a[0]*b[1] + b[0]*a[1], d = a[1]*b[1];
+  const g = vfGCD(n, d); return [n/g, d/g]; }
+function vfMul(a, k){ const n = a[0]*k, d = a[1]; const g = vfGCD(n, d);
+  return [n/g, d/g]; }
+function vfCmp(a, b){ return a[0]*b[1] - b[0]*a[1]; }
+function vfPos(f, mn, mx){
+  const num = (f[0]*mn[1] - mn[0]*f[1]) * mx[1];
+  const den = (mx[0]*mn[1] - mn[0]*mx[1]) * f[1];
+  if(!den) return 0;
+  return Math.max(0, Math.min(1, num / den));
+}
+function vfTicks(axis){
+  const lo = vfParse(axis.min), hi = vfParse(axis.max), st = vfParse(axis.step);
+  if(!lo || !hi || !st || st[0] <= 0) return [];
+  const out = [];
+  for(let k = 0; ; k++){
+    const f = vfAdd(lo, vfMul(st, k));
+    if(vfCmp(f, hi) > 0) break;
+    out.push({v: vfStr(f), f});
+  }
+  return out;
+}
+
+/* ---- timeline renderer (phase 999.1-02) ------------------------------------
+   Time-series placement: the learner picks one authored event and places it
+   at a canonical SCALAR time value on an axis. Scene comes from the
+   interaction_contract renderer_config only (axis, events, initial, actions,
+   accessibility) -- never the answer value or any scoring field. Pointer,
+   keyboard and the event/value select controls reduce through ONE state
+   object and ONE serializer; a changed explicit commit posts
+   place_timeline_event / move_timeline_event through /api/interact. */
+function renderTimeline(q, c, body, act, card){
+  const rc = c.renderer_config || {};
+  const axis = rc.axis || {min:"0", max:"10", step:"1"};
+  const events = Array.isArray(rc.events) ? rc.events : [];
+  const initial = rc.initial || {};
+  const acc = rc.accessibility || {};
+  const desc = acc.description || q.stem;
+  const W = 400, H = 130, L = 34, R = 14, T = 24, B = 40;
+  const mid = T + (H - T - B) / 2;
+  const host = document.createElement("div");
+  host.className = "visual-host";
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", desc);
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  svg.setAttribute("class", "visual-svg");
+  host.appendChild(svg);
+  body.appendChild(host);
+  const status = document.createElement("div");
+  status.className = "visual-status";
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-live", "polite");
+  body.appendChild(status);
+  const checkBtn = mkSubmit(act, "make a prediction, then commit your move before checking it");
+  checkBtn.textContent = "Check response";
+
+  const tks = vfTicks(axis);
+  const mn = vfParse(axis.min), mx = vfParse(axis.max);
+  const step = vfParse(axis.step);
+  function X(v){ return L + vfPos(vfParse(v), mn, mx) * (W - L - R); }
+
+  const committed = {kind:"timeline_event", event: null, value: null};
+  const tentative = {kind:"timeline_event", event: null, value: null};
+  const pl = (initial.placements && initial.placements.length)
+    ? initial.placements[0] : null;
+  if(pl){ committed.event = pl.event; committed.value = pl.value; }
+  Object.assign(tentative, committed);
+  let selected = committed.event;    /* which event chip the learner moves */
+
+  function snapshot(s){ return {kind:"timeline_event", event: s.event, value: s.value}; }
+  function sameState(a, b){ return JSON.stringify(snapshot(a)) === JSON.stringify(snapshot(b)); }
+  function filled(s){ return !!(s.event && s.value); }
+  function eventLabel(id){ const ev = events.find(e => e.id === id); return ev ? ev.label : id; }
+  function adopt(s){ committed.event = s.event; committed.value = s.value; }
+  function revertTentative(){
+    tentative.event = committed.event; tentative.value = committed.value;
+    draw(tentative); syncControls();
+    status.textContent = "Move cancelled. Your last committed state is still here.";
+  }
+
+  function draw(s){
+    let h = `<line x1="${L}" y1="${mid}" x2="${W-R}" y2="${mid}" stroke="currentColor"/>`;
+    tks.forEach(tk=>{
+      const x = X(tk.v);
+      h += `<line x1="${x}" y1="${mid-5}" x2="${x}" y2="${mid+5}" stroke="currentColor"/>`;
+      h += `<text x="${x}" y="${mid+20}" font-size="10" text-anchor="middle">${esc(tk.v)}</text>`;
+    });
+    if(s.event && s.value){
+      const x = X(s.value);
+      const isCommitted = sameState(s, committed);
+      h += `<line x1="${x}" y1="${mid-8}" x2="${x}" y2="${mid+8}" stroke="var(--accent)" stroke-width="2"/>`;
+      h += `<text x="${x}" y="${mid-12}" font-size="11" text-anchor="middle" fill="var(--accent)">${esc(eventLabel(s.event))}</text>`;
+      if(!isCommitted){
+        h += `<text x="${x}" y="${mid+38}" font-size="10" text-anchor="middle" fill="var(--accent)">${esc(s.value)}</text>`;
+      }
+    }
+    svg.innerHTML = h;
+  }
+
+  const actionId = () => (crypto.randomUUID ? crypto.randomUUID()
+    : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, ch=>{
+        const r = Math.random()*16|0, v = ch==="x"?r:(r&0x3|0x8);
+        return v.toString(16); }));
+
+  async function commitMove(){
+    if(!filled(tentative)) return;
+    if(sameState(tentative, committed)){
+      status.textContent = "No change to commit.";
+      return;
+    }
+    const aid = actionId();
+    try {
+      const v = await api("/api/interact", {
+        session_id: sessionId, interaction_version: c.version,
+        action_id: aid,
+        action_type: filled(committed) ? "move_timeline_event" : "place_timeline_event",
+        state: snapshot(tentative),
+      });
+      adopt(tentative);
+      if(v.status === "recorded" || v.status === "already_recorded"){
+        status.textContent = "Move committed. You can adjust it or check your response.";
+      } else {
+        status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+        revertTentative();
+      }
+    } catch(err){
+      status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+    }
+  }
+
+  function snapTick(clientX){
+    const r = svg.getBoundingClientRect();
+    const px = (clientX - r.left) / r.width * W;
+    let best = tks[0], bestD = Infinity;
+    tks.forEach(tk=>{
+      const d = Math.abs(X(tk.v) - px);
+      if(d < bestD){ bestD = d; best = tk; }
+    });
+    return best;
+  }
+
+  svg.addEventListener("pointerdown", e => e.preventDefault());
+  svg.addEventListener("pointerup", e => {
+    const hit = snapTick(e.clientX);
+    if(!hit || !selected) return;
+    const before = JSON.stringify(snapshot(tentative));
+    tentative.event = selected;
+    tentative.value = hit.v;
+    draw(tentative); syncControls();
+    if(JSON.stringify(snapshot(tentative)) !== before) commitMove();
+  });
+  svg.addEventListener("pointercancel", revertTentative);
+  svg.setAttribute("tabindex", "0");
+  svg.addEventListener("keydown", e => {
+    if((e.key === "ArrowLeft" || e.key === "ArrowRight") && step){
+      e.preventDefault();
+      if(!selected) selected = events[0] ? events[0].id : null;
+      const at = tks.findIndex(t => t.v === tentative.value);
+      const delta = e.key === "ArrowLeft" ? -1 : 1;
+      const nxt = tks[Math.max(0, Math.min(tks.length-1, (at < 0 ? 0 : at) + delta))];
+      tentative.event = selected;
+      tentative.value = nxt.v;
+      draw(tentative); syncControls();
+      return;
+    }
+    if(e.key === "Enter" || e.key === " "){ e.preventDefault(); commitMove(); return; }
+    if(e.key === "Escape"){ e.preventDefault(); revertTentative(); }
+  });
+
+  const controls = document.createElement("div");
+  controls.className = "visual-controls";
+  const evSel = document.createElement("select");
+  events.forEach(ev=>{
+    const o = document.createElement("option");
+    o.value = ev.id; o.textContent = ev.label; evSel.appendChild(o);
+  });
+  evSel.onchange = ()=>{
+    selected = evSel.value;
+    tentative.event = evSel.value;
+    draw(tentative);
+  };
+  const valSel = document.createElement("select");
+  tks.forEach(tk=>{
+    const o = document.createElement("option");
+    o.value = tk.v; o.textContent = tk.v; valSel.appendChild(o);
+  });
+  valSel.onchange = ()=>{
+    tentative.value = valSel.value;
+    draw(tentative);
+  };
+  controls.appendChild(labelCtl("event", evSel));
+  controls.appendChild(labelCtl("value", valSel));
+  host.appendChild(controls);
+  function labelCtl(label, sel){
+    const row = document.createElement("label");
+    row.className = "visual-ctl";
+    row.appendChild(document.createTextNode(label + " "));
+    row.appendChild(sel);
+    return row;
+  }
+  function syncControls(){
+    if(evSel.value !== tentative.event) evSel.value = tentative.event || "";
+    if(tentative.value && valSel.value !== tentative.value) valSel.value = tentative.value;
+  }
+
+  const commitBtn = document.createElement("button");
+  commitBtn.className = "go ghost"; commitBtn.type = "button";
+  commitBtn.textContent = "Commit move"; commitBtn.disabled = true;
+  commitBtn.onclick = commitMove;
+  act.appendChild(commitBtn);
+
+  draw(tentative);
+  syncControls();
+  commitBtn.disabled = !filled(committed);
+  checkBtn.disabled = !filled(committed);
+  checkBtn.onclick = ()=>{
+    if(!filled(committed)){
+      status.textContent = "Commit your move before checking it.";
+      return;
+    }
+    checkBtn.disabled = true; commitBtn.disabled = true;
+    settle(q, JSON.stringify(snapshot(committed)), card, act, null);
+  };
+}
+
 /* ---- hotspot renderer (phase 999.1-01) -------------------------------------
    Click-on-region mapping: the learner selects one named region of a plane.
    Scene comes from q.interaction_contract.renderer_config only (plane,
@@ -1392,6 +1642,7 @@ function asVisual(q, body, act, card){
   const c = q.interaction_contract || {};
   const interaction = (c.interaction || "").trim();
   if(interaction === "hotspot") return renderHotspot(q, c, body, act, card);
+  if(interaction === "timeline") return renderTimeline(q, c, body, act, card);
   const rc = c.renderer_config || {};
   const kind = (c.response_schema || {}).kind || "point";
   const axes = rc.axes || {};

@@ -95,3 +95,23 @@ DISTRACTOR ANALYSIS:
 TRAP: Picking the leftmost region without reading the label.
 
 CONFIDENCE: high
+
+Q5. Place the fall of Rome at year 5 on the timeline.   (difficulty: recall)
+[OBJECTIVE: history:world.timeline]
+[TYPE: visual]
+[INTERACTION: timeline]
+[VISUAL: {"version":1,"axis":{"min":"0","max":"10","step":"1"},"events":[{"id":"fall","label":"Fall of Rome"},{"id":"printing","label":"Printing press"}],"initial":{"placements":[]},"actions":["place_timeline_event"],"accessibility":{"description":"A timeline from 0 to 10. Place the fall of Rome at year 5."}}]
+[SCORING: {"kind":"timeline_event","accepted":[{"event":"fall","value":"5"}],"tolerance":{"value":"0"},"partial_credit":false}]
+
+WHY BEST: The fall of Rome is conventionally dated 476 CE, the midpoint of this 0-10 timeline.
+
+KEY DISCRIMINATOR: Event id and year must both match.
+
+SECOND-BEST: The printing press is the other event; it would be correct if the prompt asked for the later invention.
+
+DISTRACTOR ANALYSIS:
+- Placing the printing press at 5 mixes the right year with the wrong event.
+
+TRAP: Finding the right year and forgetting which event label goes with it.
+
+CONFIDENCE: high

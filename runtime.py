@@ -1058,8 +1058,8 @@ def _visual_interaction_contract(q):
     elif interaction == "timeline":
         renderer_config["axis"] = scene_data["axis"]
         renderer_config["events"] = [
-            {"id": eid, "label": label}
-            for eid, label in scene_data["events"].items()]
+            {"id": eid, "label": entry["label"]}
+            for eid, entry in scene_data["events"].items()]
         renderer_config["initial"] = scene.get("initial") or {"placements": []}
     elif interaction == "diagram":
         renderer_config["plane"] = scene_data["plane"]

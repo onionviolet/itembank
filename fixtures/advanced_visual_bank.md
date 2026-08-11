@@ -155,3 +155,45 @@ DISTRACTOR ANALYSIS:
 TRAP: Picking the visually central region (bullseye) because "center" feels like the default answer.
 
 CONFIDENCE: high
+
+Q8. Place the fall of Rome at year 5 on the timeline.   (difficulty: recall)
+[OBJECTIVE: history:world.timeline]
+[TYPE: visual]
+[INTERACTION: timeline]
+[VISUAL: {"version":1,"axis":{"min":"0","max":"10","step":"1"},"events":[{"id":"fall","label":"Fall of Rome"},{"id":"printing","label":"Printing press"}],"initial":{"placements":[]},"actions":["place_timeline_event","move_timeline_event"],"accessibility":{"description":"A timeline from year 0 to year 10 marked in whole years. Place the fall of Rome at year 5."}}]
+[SCORING: {"kind":"timeline_event","accepted":[{"event":"fall","value":"5"}],"tolerance":{"value":"0"},"partial_credit":false}]
+
+WHY BEST: 476 CE is conventionally dated to the fall of Rome; on this 0-10 timeline it is the midpoint, year 5.
+
+KEY DISCRIMINATOR: The event id and the year must both match — placing the printing press at 5 is as wrong as placing Rome at 8.
+
+SECOND-BEST: The printing press is the other event; it would be correct if the prompt asked for the later invention.
+
+DISTRACTOR ANALYSIS:
+- Placing the printing press at 5 mixes the right year with the wrong event; this would be correct if the prompt asked for the printing press at year 5.
+- Placing the fall of Rome at 8 is a plausible guess at a "late" date; it would be correct only if the prompt said year 8.
+
+TRAP: Finding the right year and forgetting which event label goes with it.
+
+CONFIDENCE: high
+
+Q9. Place the industrial revolution within one year of year 7 on the timeline.   (difficulty: application)
+[OBJECTIVE: history:world.timeline.tolerance]
+[TYPE: visual]
+[INTERACTION: timeline]
+[VISUAL: {"version":1,"axis":{"min":"0","max":"10","step":"1"},"events":[{"id":"industrial","label":"Industrial revolution"},{"id":"reformation","label":"Reformation"}],"initial":{"placements":[]},"actions":["place_timeline_event","move_timeline_event"],"accessibility":{"description":"A timeline from year 0 to year 10. Place the industrial revolution within one year of year 7."}}]
+[SCORING: {"kind":"timeline_event","accepted":[{"event":"industrial","value":"7"}],"tolerance":{"value":"1"},"partial_credit":false}]
+
+WHY BEST: The tolerated window is [6, 8]: years 6, 7 and 8 all sit within one year of 7 and are accepted.
+
+KEY DISCRIMINATOR: Tolerance is inclusive — 6 and 8 pass exactly on the boundaries while 5 and 9 fail.
+
+SECOND-BEST: Year 5 is two years from 7; it would be correct only under a tolerance larger than one.
+
+DISTRACTOR ANALYSIS:
+- Year 5 is two years before 7; this would be correct if the tolerance were two or more.
+- Year 9 is two years after 7; this would be correct if the tolerance were two or more.
+
+TRAP: Treating the tolerance as exclusive so that 6 and 8 fail when they should pass.
+
+CONFIDENCE: high
