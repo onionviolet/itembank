@@ -9,7 +9,8 @@ import collections, html, os, sys, uuid
 
 import evidence
 from model import grab, lint, load, parse_lesson
-from runtime import page_item, score_response
+import runner
+from runtime import INTERACTION_VERSION, page_item, score_response
 from surfaces import presentation, settings
 from surfaces.quiz_page import OFFLINE_JS, SERVED_JS, TEMPLATE
 from surfaces.theme import THEME_CSS, theme_css
@@ -95,14 +96,37 @@ def record_answer(bank_path, qs, session_id, log, out_path, mode, q, response, e
     never diverge in how a response is scored or recorded -- one scorer
     (`runtime.score_response`) and one writer (`evidence.append_event`),
     reached through exactly one place (D-08 continued).
+
+    A `check` item is the one type whose answer is not what the scorer
+    receives: the runner executes the submitted source once per authored case
+    (plan 05-01, D-01 -- the scorer never runs code), the per-case pass flags
+    reduce to a vector, and that vector is what score_response sees. The raw
+    source is preserved on the evidence event as check_source. A run the
+    deadline killed scores None and records error_category "timeout", never a
+    fabricated dichotomous verdict (criterion 12).
     """
-    score = score_response(q, response)
+    run_result = None
+    check_source = None
+    if q["type"] == "check":
+        check_source = response
+        run_result = runner.run_cases(
+            q, response, timeout_seconds=runner.DEFAULT_TIMEOUT_SECONDS,
+            max_output_bytes=runner.DEFAULT_MAX_OUTPUT_BYTES)
+        answer = ",".join("1" if c["passed"] else "0" for c in run_result)
+        score = score_response(q, run_result)
+    else:
+        answer = response
+        score = score_response(q, response)
+    killed = bool(run_result) and any(c.get("timed_out") for c in run_result)
     item_key = evidence.evidence_key(q)
-    canon = evidence.idempotency_canon(q, response)
+    canon = evidence.idempotency_canon(q, answer)
     attempt_num = evidence.attempt_number(log, session_id, item_key, canon)
     event = evidence.response_event(
-        session_id, q, response, score, mode, attempt_num,
-        os.path.basename(bank_path), response_time_ms=elapsed_ms, confidence=None)
+        session_id, q, answer, score, mode, attempt_num,
+        os.path.basename(bank_path), response_time_ms=elapsed_ms, confidence=None,
+        check_source=check_source,
+        interaction_version=INTERACTION_VERSION if q["type"] == "check" else None,
+        error_category="timeout" if killed else None)
     evidence.append_event(log, event)
 
     # Regenerate the whole attempt file from the log, atomically -- the

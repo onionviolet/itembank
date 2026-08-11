@@ -25,9 +25,11 @@ import datetime, json, os, sys
 import evidence
 import selection
 from model import lint, load
-from runtime import (REPORT_VERSION, SESSION_VERSION, normalize_answer, read_session,
-                     reconcile_teaching_state, score_response, session_path,
-                     session_summary, session_view, teaching_key,
+import runner
+from runtime import (INTERACTION_VERSION, REPORT_VERSION, SESSION_VERSION,
+                     explain_payload, interaction_result, normalize_answer,
+                     read_session, reconcile_teaching_state, score_response,
+                     session_path, session_summary, session_view, teaching_key,
                      teaching_transition, write_session, public_item)
 
 
@@ -266,6 +268,22 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
     data = reconcile_teaching_state(data, q, evidence_state)
     rec = data["teaching_state"].get(item_key)
 
+    # A check item's submitted answer is source text; the runner executes it
+    # once per authored case and the per-case result list is what every
+    # scoring call from here on receives (plan 05-01, D-01). The raw source
+    # is kept for the evidence event and the normalized result.
+    run_result = None
+    check_source = None
+    if q["type"] == "check":
+        source = action.get("answer")
+        if not isinstance(source, str):
+            sys.exit("a check item requires source text as its answer")
+        check_source = source
+        run_result = runner.run_cases(
+            q, source, timeout_seconds=runner.DEFAULT_TIMEOUT_SECONDS,
+            max_output_bytes=runner.DEFAULT_MAX_OUTPUT_BYTES)
+        action = dict(action, answer=run_result)
+
     result = teaching_transition(data, q, action)
     action_name = result["action"]
     next_data = result["session"]
@@ -275,7 +293,18 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
     if action.get("kind") == "submit":
         answer = normalize_answer(action.get("answer"))
         score = score_response(q, answer)
-        canon = evidence.idempotency_canon(q, answer)
+        if q["type"] == "check":
+            # The evidence record's answer and canonical are the results
+            # vector; the scorer saw the full per-case list so a timed-out
+            # run scores None, and dedupe compares the vector exactly as it
+            # does for every other type (D-13).
+            vector = ",".join("1" if c["passed"] else "0" for c in answer)
+            canon = evidence.idempotency_canon(q, vector)
+            event_answer = vector
+        else:
+            canon = evidence.idempotency_canon(q, answer)
+            event_answer = answer
+        killed = bool(run_result) and any(c.get("timed_out") for c in run_result)
         # The attempt number comes from the live evidence rule
         # (evidence.attempt_number): a replay of the SAME canonical response
         # reproduces the original attempt number -- so append_event dedupes
@@ -284,13 +313,23 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
         attempt_num = evidence.attempt_number(log, data["session_id"],
                                               item_key, canon)
         event = evidence.response_event(
-            data["session_id"], q, answer, score, data["mode"], attempt_num,
+            data["session_id"], q, event_answer, score, data["mode"], attempt_num,
             os.path.basename(data["bank"]),
             response_time_ms=elapsed_ms if elapsed_ms is not None
             else ms_since(data.get("served_ts")),
             confidence=confidence, hint_tier=result.get("hint_tier"),
-            selection_mode=data.get("selection_mode"))
+            selection_mode=data.get("selection_mode"),
+            check_source=check_source,
+            interaction_version=INTERACTION_VERSION if q["type"] == "check"
+            else None,
+            error_category="timeout" if killed else None)
         evidence_result = evidence.append_event(log, event)
+        if q["type"] == "check":
+            # The normalized result is data for feedback, not a second
+            # verdict: the score is the exact score_response return.
+            result["interaction_result"] = interaction_result(
+                q, check_source, score, run_result)
+            result["explain"] = explain_payload(q, True, run_result)
         accepted = evidence_result["status"] == "recorded"
         recorded_event = evidence_result
         if not accepted:
@@ -305,7 +344,7 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
             # already_recorded replay never double-counts).
             next_data["responses"] = list(next_data.get("responses") or []) + [{
                 "item_id": q["id"], "objective": q.get("objective", ""),
-                "type": q["type"], "answer": answer, "score": score,
+                "type": q["type"], "answer": event_answer, "score": score,
                 "status": "recorded"}]
     else:
         # hint / stumped
@@ -330,6 +369,7 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
                 "action": action_name, "status": next_data["status"],
                 "evidence": recorded_event,
                 "hint_tier": result.get("hint_tier"),
+                "interaction_result": result.get("interaction_result"),
                 "next": session_view(next_data, qs)}
     return {"accepted": accepted, "item_id": q["id"], "action": action_name,
             "hint": result.get("hint"),
