@@ -629,9 +629,9 @@ def test_cli_hint_tracer():
     `hint` command is now the model-orchestrated diagnostic hint
     (--session/--retry), so the tracer drives wrong-submit hold, a typed
     offline hint plus its parent-linked retry, a correct retry advance, and
-    a tier-aware report. The Phase 6 explicit tier-reveal path is still
-    exercised by the runtime-transition tests above and by the daemon's
-    /api/hint route (which plan 08-05 rewires to the model hint)."""
+    a tier-aware report. The Phase 6 explicit tier-reveal path stays
+    exercised by the runtime-transition tests above; plan 08-05 rewired the
+    daemon's /api/hint route to the same model hint."""
     tmp = tempfile.mkdtemp()
     try:
         bank = os.path.join(tmp, "lesson_bank.md")
@@ -699,10 +699,11 @@ def _post(url, payload):
 
 
 def test_api_hint_and_renderer_meta():
-    """06-02 Task 2: /api/hint mirrors the CLI hint; /api/submit accepts the
-    Phase 6 action envelope plus an optional opaque renderer_meta string that
-    is never persisted, echoed, or passed to policy; authority-shaped fields
-    and oversized metadata are refused."""
+    """06-02 Task 2 (updated for plan 08-05): /api/hint returns the typed
+    model-hint payload -- never the Phase 6 tier reveal -- and /api/submit
+    accepts the Phase 6 action envelope plus an optional opaque renderer_meta
+    string that is never persisted, echoed, or passed to policy;
+    authority-shaped fields and oversized metadata are refused."""
     tmp = tempfile.mkdtemp()
     try:
         shutil.copyfile(BANK, os.path.join(tmp, "lesson_bank.md"))
@@ -720,12 +721,18 @@ def test_api_hint_and_renderer_meta():
             if wrong.get("action") != "hold":
                 fail("API action-envelope submit must hold: %r" % wrong)
             hint = _post(base + "api/hint", {"session_id": sid})
-            if hint.get("action") != "reveal_tier" or \
-                    hint.get("hint", {}).get("tier", {}).get("index") != 0:
-                fail("API hint must reveal tier 0: %r" % hint)
-            stumped = _post(base + "api/hint", {"session_id": sid, "stumped": True})
-            if stumped.get("hint", {}).get("unlock_path") != "stumped":
-                fail("API stumped must use the stumped path: %r" % stumped)
+            if hint.get("action") == "reveal_tier" or \
+                    hint.get("status") != "unavailable":
+                fail("API hint must return the typed model-hint payload "
+                     "(plan 08-05 rewire), not the Phase 6 tier reveal: %r"
+                     % hint)
+            if not hint.get("interaction_id"):
+                fail("API hint must mint an interaction id: %r" % hint)
+            if hint.get("authored", {}).get("available") is not True:
+                fail("API hint must carry the authored fallback for this "
+                     "bank: %r" % hint)
+            if "reason" in hint:
+                fail("API hint must never carry a reason code: %r" % hint)
 
             meta_ok = _post(base + "api/submit",
                             {"session_id": sid,

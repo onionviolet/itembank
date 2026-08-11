@@ -1087,14 +1087,53 @@ def check_disclosure_route():
 
 
 def check_api_route_scope():
-    """D-04's four session routes plus Phase 6's `/api/hint`, and the count
-    is asserted rather than trusted.
+    """D-04's four session routes plus Phase 6's `/api/hint` and plan 08-05's
+    `/api/rubric-review`, and the count is asserted rather than trusted.
     """
-    if len(daemon.API_ROUTES) != 5:
-        fail("D-04 + Phase 6 scope /api/* to exactly five routes; API_ROUTES has "
-             "%d" % len(daemon.API_ROUTES))
-    if not {"start", "next", "submit", "hint", "report"} <= set(daemon.ROUTE_CLI.values()):
-        fail("ROUTE_CLI is missing one of the five session CLI commands")
+    if len(daemon.API_ROUTES) != 6:
+        fail("D-04 + Phase 6 + 08-05 scope /api/* to exactly six routes; "
+             "API_ROUTES has %d" % len(daemon.API_ROUTES))
+    if not {"start", "next", "submit", "hint", "report",
+            "rubric-review"} <= set(daemon.ROUTE_CLI.values()):
+        fail("ROUTE_CLI is missing one of the six session CLI commands")
+
+
+def check_surface_parity():
+    """Extensibility Rule 9(a): every API route carries its CLI twin and its
+    reserved MCP tool name in one SURFACE_PARITY map -- the third surface
+    arrives as a third column here, never as a second parity map. The parity
+    test fails on a route without a CLI or a tool name.
+    """
+    parity = getattr(daemon, "SURFACE_PARITY", None)
+    if not parity:
+        fail("daemon has no SURFACE_PARITY map (Extensibility Rule 9(a))")
+    rows = list(parity)
+    routes = set(r[0] for r in rows)
+    api_routes = set(e[:2] for e in daemon.API_ROUTES)
+    if routes != api_routes:
+        fail("SURFACE_PARITY's route set does not equal API_ROUTES: missing "
+             "%r, extra %r" % (api_routes - routes, routes - api_routes))
+    for route, cli_cmd, tool in rows:
+        if len(route) != 2:
+            fail("SURFACE_PARITY row %r has no (method, path) route" % (route,))
+        if not cli_cmd or not isinstance(cli_cmd, str):
+            fail("route %r has no CLI command in SURFACE_PARITY" % (route,))
+        if not tool or not isinstance(tool, str):
+            fail("route %r has no reserved MCP tool name in SURFACE_PARITY"
+                 % (route,))
+        if daemon.ROUTE_CLI.get(route) != cli_cmd:
+            fail("route %r's SURFACE_PARITY CLI %r disagrees with ROUTE_CLI %r"
+                 % (route, cli_cmd, daemon.ROUTE_CLI.get(route)))
+    tools = [r[2] for r in rows]
+    if len(set(tools)) != len(tools):
+        fail("SURFACE_PARITY tool names are not unique: %r" % tools)
+    # The reserved tool names the plan locks: an API route without its
+    # reserved name present is exactly the silent third-surface regression
+    # Rule 9(a) exists to stop.
+    if not {"start", "next", "submit", "report", "hint",
+            "rubric_review"} <= set(tools):
+        fail("SURFACE_PARITY is missing a reserved MCP tool name; have %r"
+             % sorted(tools))
 
 
 def snapshot_dirs(root):
@@ -1412,6 +1451,96 @@ def check_api_forged_fields():
                          % (field, exc.code))
     finally:
         proc.terminate()
+
+
+def check_api_assist_routes():
+    """Plan 08-05 Task 1: POST /api/hint returns the typed model-hint payload
+    from session.do_hint (the 08-04 orchestration, never the Phase 6 tier
+    reveal); POST /api/rubric-review resolves the session only through
+    session_index and returns the typed pending proposal; a body naming an
+    authority field (tier, profile, facts, candidate, proposal, marker,
+    verdict) is refused 400 before any handler runs (API_FORBIDDEN_FIELDS,
+    D-09); an unknown session_id is a 404 that touches no evidence.
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        # Session A: walk to a non-short item and hold it with a wrong answer.
+        started = post(url + "api/start",
+                       {"bank": "sample_bank", "count": 6, "seed": 7,
+                        "mode": "practice"})
+        session_id = started["session_id"]
+        by_id = api_by_id()
+        state = started
+        held = False
+        for _ in range(len(by_id) + 2):
+            q = by_id[state["item"]["id"]]
+            if q["type"] == "short":
+                state = state.get("next") or state
+                continue
+            result = post(url + "api/submit", {"session_id": session_id,
+                                               "answer": serve_roundtrip.wrong_answer(q)})
+            if result.get("action") == "hold":
+                held = True
+                break
+            state = result.get("next") or state
+        if not held:
+            fail("could not hold a non-short item for the assist-route test")
+
+        hint = post(url + "api/hint", {"session_id": session_id})
+        if hint.get("action") == "reveal_tier":
+            fail("/api/hint still exposes the Phase 6 tier reveal after the "
+                 "08-05 rewire: %r" % hint)
+        for key in ("status", "interaction_id"):
+            if key not in hint:
+                fail("/api/hint typed payload is missing %r: %r" % (key, hint))
+        if hint["status"] not in ("pass", "drop", "unavailable"):
+            fail("/api/hint status %r is not a typed outcome" % hint["status"])
+
+        # Session B: pin the short item via focus and hold a pending response.
+        short = next(q for q in by_id.values() if q["type"] == "short")
+        started2 = post(url + "api/start",
+                        {"bank": "sample_bank", "count": 1, "seed": 0,
+                         "mode": "practice", "focus": short["id"]})
+        sid2 = started2["session_id"]
+        sub2 = post(url + "api/submit", {"session_id": sid2,
+                                         "answer": "the response stays pending"})
+        if sub2.get("action") != "defer_feedback":
+            fail("the pinned short response did not defer feedback: %r" % sub2)
+        rubric = post(url + "api/rubric-review", {"session_id": sid2})
+        if not isinstance(rubric, dict) or "status" not in rubric:
+            fail("/api/rubric-review returned an untyped payload: %r" % rubric)
+
+        # Forged authority fields are refused on both assist routes with 400.
+        for route in ("api/hint", "api/rubric-review"):
+            for field in ("tier", "profile", "facts", "candidate", "proposal",
+                          "marker", "verdict"):
+                try:
+                    post(url + route, {"session_id": session_id, field: "forged"})
+                    fail("/%s accepted a forged %r field" % (route, field))
+                except urllib.error.HTTPError as exc:
+                    if exc.code != 400:
+                        fail("/%s forged %r returned HTTP %d, expected 400"
+                             % (route, field, exc.code))
+
+        # Unknown session: 404, and no evidence is written (allowlist miss).
+        log = evidence.log_path(workdir)
+        before = open(log, encoding="utf-8").read() if os.path.exists(log) else ""
+        for route in ("api/hint", "api/rubric-review"):
+            try:
+                post(url + route, {"session_id": "no-such-session-id"})
+                fail("an unknown session on /%s did not return a 4xx" % route)
+            except urllib.error.HTTPError as exc:
+                if exc.code != 404:
+                    fail("an unknown session on /%s returned HTTP %d, expected "
+                         "404" % (route, exc.code))
+        after = open(log, encoding="utf-8").read() if os.path.exists(log) else ""
+        if before != after:
+            fail("an unknown-session assist request wrote evidence")
+    finally:
+        proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
 
 
 def check_serve_attempt_refresh():
@@ -2530,6 +2659,7 @@ def main():
         check_cli_twin_route,
         check_disclosure_route,
         check_api_route_scope,
+        check_surface_parity,
         check_api_sitting,
         check_api_duplicate_submit_dedupes,
         check_api_survives_routine_error,
@@ -2538,6 +2668,7 @@ def main():
         check_api_reject_path_fields,
         check_served_api_flow,
         check_api_forged_fields,
+        check_api_assist_routes,
         check_serve_attempt_refresh,
         check_wave0_helpers,
         check_api_malformed_json,
