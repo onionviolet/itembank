@@ -33,6 +33,7 @@ into one opaque score").
 import difflib
 import hashlib
 import json
+import os
 import re
 
 import model
@@ -67,6 +68,11 @@ DETECTOR_VERSIONS = {
     "answer_leak": 1,
     "distractor_rationale": 1,
 }
+
+# The permission modes (D-12): report_only never mutates a bank;
+# draft_and_approve requires exact write-id acceptance per unit; full is
+# explicit opt-in with caps. The model can never select or change the mode.
+MODES = ("report_only", "draft_and_approve", "full")
 
 # The documented fixed stopword set for the near-duplicate detector (plan
 # 11-04 Task 1: "remove a documented fixed stopword set"). English function
@@ -418,6 +424,14 @@ def detect_near_duplicates(questions):
                 continue
             score = len(inter) / len(union)
             if score >= JACCARD_BLOCK_AT:
+                # Normalize the pair so the lower item id is always "a":
+                # the finding must not depend on input iteration order.
+                if b_id < a_id:
+                    a_id, b_id = b_id, a_id
+                    a_set, b_set = b_set, a_set
+                    a_num, b_num = b_num, a_num
+                inter = a_set & b_set
+                union = a_set | b_set
                 findings.append(_quality_finding(
                     "near_duplicate_stems", "block", "quality.near_duplicate_stems",
                     "%s/%s" % (a_num, b_num),
@@ -594,18 +608,22 @@ def build_proposal(request, bank_text, candidate_text, source_fingerprints,
                    config, lint_errors, lint_warnings, quality_findings,
                    changes, run_id):
     """The immutable preflighted proposal: everything the writer needs plus
-    every provenance field D-17 requires. Built only after all gates pass."""
+    every provenance field D-17 requires. Built only after all gates pass.
+    Units are the requested new items (the candidate questions beyond the
+    existing bank), regardless of whether their ids were minted or kept."""
     before_fp = bank_fingerprint(bank_text)
     after_fp = bank_fingerprint(candidate_text)
     questions = model.parse_bank(candidate_text)
-    objective_by_item = {q.get("item_id"): q.get("objective", "")
-                         for q in questions if q.get("item_id")}
+    before_count = len(model.parse_bank(bank_text))
+    new_questions = questions[before_count:]
     units = []
-    for c in changes:
-        if c.get("action") == "assigned":
-            units.append({"unit_id": c["item_id"], "item_id": c["item_id"],
-                          "objective": objective_by_item.get(c["item_id"], ""),
-                          "tag": c.get("item", "")})
+    for q in new_questions:
+        item_id = q.get("item_id") or ""
+        if not item_id:
+            continue
+        units.append({"unit_id": item_id, "item_id": item_id,
+                      "objective": q.get("objective", ""),
+                      "tag": q["id"]})
     return {
         "schema_version": REPORT_SCHEMA_VERSION,
         "run_id": run_id,
@@ -640,16 +658,21 @@ def _report(request, **fields):
 
 def run_authoring(request, author_callable, bank_text, writer, config=None):
     """The one orchestration command (D-05): bounded request -> repository-
-    blind author -> scope -> lint -> quality -> preflight -> writer, with
-    structured retry findings and an explicit retained report on exhaustion
-    (D-08). Returns a machine-readable report dict; raises AuthoringError
-    only on programming-contract violations (a bad request shape), never on
-    model or writer outcomes.
+    blind author -> scope -> lint -> quality -> full-candidate preflight ->
+    permission decision -> writer, with structured retry findings and an
+    explicit retained report on exhaustion (D-08). Returns a machine-
+    readable report dict with volume accounting on every exit (D-13/AUDIT-09);
+    raises AuthoringError only on programming-contract violations (a bad
+    request shape), never on model or writer outcomes.
 
     `config` may carry: target_path (the bank path the writer mutates),
     state_dir (the writer's manifest/before-image directory), profile,
-    blocking_warnings (a set of lint warning codes that block, default none;
-    plan 11-04 pins the configured set), and writer_args.
+    blocking_warnings (lint warning codes that block, default none),
+    writer_args, full_opt_in (the explicit opt-in for full autonomy, D-13),
+    caps ({per_run, per_objective} bounded volumes, D-13), and
+    approved_write_ids (the exact write-id acceptance set for
+    draft_and_approve, D-12). The mode itself lives only in the request and
+    can never be changed by model output or a prior run.
     """
     config = config or {}
     request_errors = validate_request(request)
@@ -660,6 +683,7 @@ def run_authoring(request, author_callable, bank_text, writer, config=None):
                                   for c in request["citations"]})
     before_fp = bank_fingerprint(bank_text)
     run_id = run_identity(request, before_fp, source_fingerprints, config)
+    mode = request.get("mode", "report_only")
     retry_cap = request.get("retry_cap", 3)
     blocking_warnings = set(config.get("blocking_warnings") or [])
     target_path = config.get("target_path")
@@ -672,11 +696,40 @@ def run_authoring(request, author_callable, bank_text, writer, config=None):
         existing = _find_completed_run(run_id, target_path, state_dir)
         if existing is not None:
             return _report(request, status="already_completed",
-                           run_id=run_id, manifest=existing)
+                           run_id=run_id, mode=mode, manifest=existing,
+                           **volume_record(request, written=0,
+                                           completed=len(existing.get("units") or [])))
+
+    # draft_and_approve resumes its pending proposal by run id (AUTH-01
+    # interruption/resume contract): an approval invocation with the same
+    # request+bank must act on the previously prepared proposal, never
+    # regenerate with new random unit ids.
+    if mode == "draft_and_approve" and state_dir and \
+            (config.get("approved_write_ids") or []):
+        pending = _load_pending(run_id, state_dir)
+        if pending is not None:
+            if pending.get("bank_before_fingerprint") != before_fp:
+                return _report(
+                    request, status="refused", run_id=run_id, mode=mode,
+                    outcome="stale_pending", write_allowed=False,
+                    message="the pending proposal predates a bank change; "
+                            "re-run the request to prepare a fresh proposal",
+                    **volume_record(request, proposal=pending))
+            return _finalize(request, pending, writer, config, run_id,
+                             mode, 0, [])
+
+    # D-13/D-14: full autonomy is an explicit, model-inaccessible opt-in
+    # with bounded proposed volume, enforced BEFORE any generation.
+    if mode == "full":
+        refusal = _full_autonomy_gate(request, config)
+        if refusal is not None:
+            return refusal
 
     findings_chain = []
+    attempts = 0
     final_response = None
     for attempt in range(1, retry_cap + 1):
+        attempts = attempt
         payload = _callable_payload(request, attempt, findings_chain)
         response = author_callable(payload)
 
@@ -705,13 +758,16 @@ def run_authoring(request, author_callable, bank_text, writer, config=None):
 
     if final_response is None:
         # D-08: exhausted retries (or a final failing attempt) retain the
-        # complete draft and reasons; no writer call ever happens.
+        # complete draft and reasons; no writer call ever happens. A clean
+        # prefix of a dirty batch is never written (all-or-nothing).
+        rejected = _rejected_units(response)
         return _report(
-            request, status="failed", run_id=run_id,
-            attempts=retry_cap, outcome="retry_cap_exhausted",
+            request, status="failed", run_id=run_id, mode=mode,
+            attempts=attempts, outcome="retry_cap_exhausted",
             findings=findings_chain,
             retained_draft=response if response is not None else None,
-            write_allowed=False)
+            write_allowed=False,
+            **volume_record(request, attempts=attempts, rejected=rejected))
 
     candidate_text, changes = compose_candidate(bank_text, final_response)
     questions = model.parse_bank(candidate_text)
@@ -724,36 +780,180 @@ def run_authoring(request, author_callable, bank_text, writer, config=None):
     scope_findings = validate_response_scope(request, final_response)
     if scope_findings or lint_errors or any(
             f["severity"] == "block" for f in quality_findings):
+        rejected = _rejected_units(final_response)
         return _report(
-            request, status="failed", run_id=run_id,
+            request, status="failed", run_id=run_id, mode=mode,
             outcome="preflight_recheck_failed",
             findings=(findings_chain +
                       [_scope_findings_payload(scope_findings)] if scope_findings
                       else findings_chain),
-            retained_draft=final_response, write_allowed=False)
+            retained_draft=final_response, write_allowed=False,
+            **volume_record(request, attempts=attempts, rejected=rejected))
 
     proposal = build_proposal(request, bank_text, candidate_text,
                               source_fingerprints, config, lint_errors,
                               lint_warnings, quality_findings, changes,
                               run_id)
+    return _finalize(request, proposal, writer, config, run_id, mode,
+                     attempts, findings_chain)
 
-    mode = request.get("mode", "report_only")
-    if mode != "full":
-        # D-12: report_only never mutates a bank; draft_and_approve's exact
-        # write-id approval flow arrives with the plan 11-04 permission
-        # contract. Both return the identical proposal and diff.
-        return _report(request, status="proposed", run_id=run_id,
-                       mode=mode, proposal=proposal,
-                       write_allowed=False)
 
+def _full_autonomy_gate(request, config):
+    """The explicit full-autonomy gate (D-13/AUDIT-09), enforced before any
+    generation: explicit opt-in and bounded proposed volume. Returns a
+    refusal report or None to proceed."""
+    caps = config.get("caps") or {}
+    per_run = caps.get("per_run") or MAX_ITEMS_PER_REQUEST
+    per_objective = caps.get("per_objective") or \
+        request.get("per_objective_cap", MAX_ITEMS_PER_OBJECTIVE)
+    if not config.get("full_opt_in"):
+        return _report(
+            request, status="refused", mode="full",
+            outcome="opt_in_required", write_allowed=False,
+            message="full autonomy requires explicit opt-in "
+                    "(config.full_opt_in); the model cannot select it",
+            **volume_record(request, proposed=request["count"]))
+    if request["count"] > per_run:
+        return _report(
+            request, status="refused", mode="full",
+            outcome="cap_exceeded", write_allowed=False,
+            message="requested %d items exceeds the per-run cap %d"
+                    % (request["count"], per_run),
+            **volume_record(request, proposed=request["count"]))
+    if per_objective < 1:
+        return _report(
+            request, status="refused", mode="full",
+            outcome="cap_exceeded", write_allowed=False,
+            message="per-objective cap must be at least 1",
+            **volume_record(request, proposed=request["count"]))
+    return None
+
+
+def _finalize(request, proposal, writer, config, run_id, mode, attempts,
+              findings_chain):
+    """The final domain permission decision over the validated proposal
+    (D-12..D-14): all three modes share byte-equivalent gate/diff evidence
+    and differ only at this decision. Returns the run report."""
+    unit_ids = sorted(u["unit_id"] for u in proposal["units"])
+    target_path = config.get("target_path")
+    state_dir = config.get("state_dir")
+
+    if mode == "report_only":
+        return _report(request, status="proposed", run_id=run_id, mode=mode,
+                       proposal=proposal, write_allowed=False,
+                       **volume_record(request, proposal=proposal))
+
+    if mode == "draft_and_approve":
+        approved = sorted(config.get("approved_write_ids") or [])
+        if not approved:
+            if state_dir:
+                _save_pending(run_id, proposal, state_dir)
+            return _report(request, status="awaiting_approval", run_id=run_id,
+                           mode=mode, proposal=proposal, write_allowed=False,
+                           pending_write_ids=unit_ids,
+                           **volume_record(request, proposal=proposal))
+        if approved != unit_ids:
+            return _report(
+                request, status="refused", run_id=run_id, mode=mode,
+                outcome="approval_mismatch", proposal=proposal,
+                write_allowed=False, pending_write_ids=unit_ids,
+                message="approval must name exactly the proposed write ids "
+                        "%s, got %s" % (unit_ids, approved),
+                **volume_record(request, proposal=proposal))
+        return _write_proposal(request, proposal, writer, config, run_id,
+                               mode, attempts)
+
+    if mode == "full":
+        return _write_proposal(request, proposal, writer, config, run_id,
+                               mode, attempts)
+
+    return _report(request, status="refused", run_id=run_id, mode=mode,
+                   outcome="mode_unknown", write_allowed=False,
+                   **volume_record(request, proposal=proposal))
+
+
+def _write_proposal(request, proposal, writer, config, run_id, mode,
+                    attempts):
+    """Invoke the writer with the immutable proposal and expected bank
+    fingerprint (AUTH-02 stateful review). A writer failure (stale preflight,
+    interruption, duplicate conflict) is an explicit failed report with the
+    retained proposal -- never a false completion without a matching writer
+    result (AUTH-01)."""
+    target_path = config.get("target_path")
+    state_dir = config.get("state_dir")
     if not target_path or not state_dir:
-        raise AuthoringError("full mode requires config.target_path and "
-                             "config.state_dir")
-    manifest = writer(proposal, target_path, state_dir,
-                      expected_fingerprint=before_fp,
-                      **(config.get("writer_args") or {}))
+        raise AuthoringError("mode %s requires config.target_path and "
+                             "config.state_dir" % mode)
+    before_fp = proposal["bank_before_fingerprint"]
+    try:
+        manifest = writer(proposal, target_path, state_dir,
+                          expected_fingerprint=before_fp,
+                          **(config.get("writer_args") or {}))
+    except Exception as exc:  # the typed writer boundary is the one place
+        # that may fail; surface it as an explicit failed report with the
+        # writer's machine-readable code (stale_preflight, duplicate_conflict,
+        # interruption), never as a false completion.
+        code = getattr(exc, "code", "writer_failed")
+        return _report(
+            request, status="failed", run_id=run_id, mode=mode,
+            outcome="writer_" + code, proposal=proposal,
+            retained_draft=None, write_allowed=False,
+            message=str(exc),
+            **volume_record(request, proposal=proposal, attempts=attempts))
+    written = len(manifest.get("units") or proposal.get("units") or [])
     return _report(request, status="written", run_id=run_id, mode=mode,
-                   proposal=proposal, manifest=manifest, write_allowed=True)
+                   proposal=proposal, manifest=manifest, write_allowed=True,
+                   **volume_record(request, proposal=proposal,
+                                   attempts=attempts,
+                                   written=written, completed=written))
+
+
+def volume_record(request, proposal=None, attempts=0, rejected=0,
+                  written=0, completed=None, proposed=None):
+    """The D-13/AUDIT-09 volume accounting emitted on every exit: proposed,
+    completed, rejected, retried, and written units, plus a per-objective
+    breakdown. `completed` defaults to `written`; `proposed` defaults to the
+    proposal item count or the request count."""
+    total = proposed if proposed is not None else (
+        len((proposal or {}).get("units") or [])
+        if proposal else request.get("count", 0))
+    completed = completed if completed is not None else written
+    retried = max(0, attempts - 1)
+    per_objective = {}
+    for obj in request.get("objectives", []):
+        per_objective[obj] = {
+            "proposed": 0, "completed": 0, "rejected": 0,
+            "retried": retried, "written": 0,
+        }
+    if proposal:
+        for unit in proposal.get("units", []):
+            obj = unit.get("objective") or ""
+            bucket = per_objective.setdefault(obj, {
+                "proposed": 0, "completed": 0, "rejected": 0,
+                "retried": retried, "written": 0,
+            })
+            bucket["proposed"] += 1
+            bucket["completed"] += 1 if completed else 0
+            bucket["written"] += 1 if written else 0
+    return {
+        "proposed_volume": total,
+        "completed_volume": completed,
+        "rejected_volume": rejected,
+        "retried_volume": retried,
+        "written_volume": written,
+        "per_objective_volume": per_objective,
+    }
+
+
+def _rejected_units(response):
+    """The number of units a failing response carried (used as the rejected
+    volume on exhaustion/recheck failure)."""
+    if isinstance(response, dict):
+        items = response.get("items")
+        if isinstance(items, list):
+            return len(items)
+    return 0
+
 
 
 def _find_completed_run(run_id, target_path, state_dir):
@@ -765,6 +965,34 @@ def _find_completed_run(run_id, target_path, state_dir):
     except ImportError:
         return None
     return audit_writer.find_applied_manifest(run_id, target_path, state_dir)
+
+
+PENDING_DIRNAME = "pending"
+
+
+def _save_pending(run_id, proposal, state_dir):
+    """Durably record the prepared-but-unapproved proposal so an approval
+    invocation can resume it without regenerating (AUTH-01 interruption
+    contract). Atomic tmp-then-replace, same convention as the writer."""
+    pending_dir = os.path.join(state_dir, PENDING_DIRNAME)
+    os.makedirs(pending_dir, exist_ok=True)
+    path = os.path.join(pending_dir, run_id + ".json")
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(proposal, fh, ensure_ascii=False, indent=2)
+        fh.write("\n")
+    os.replace(tmp, path)
+
+
+def _load_pending(run_id, state_dir):
+    """Read a pending proposal for this run id, or None."""
+    if not state_dir:
+        return None
+    path = os.path.join(state_dir, PENDING_DIRNAME, run_id + ".json")
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh)
 
 
 class AuthoringError(Exception):

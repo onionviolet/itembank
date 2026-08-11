@@ -15,8 +15,8 @@
     },
     "status": {
       "type": "string",
-      "enum": ["proposed", "written", "failed", "already_completed", "coverage"],
-      "description": "The run outcome. coverage marks a citation-first curriculum audit report (plan 11-03)."
+      "enum": ["proposed", "written", "failed", "already_completed", "awaiting_approval", "refused", "coverage"],
+      "description": "The run outcome. awaiting_approval marks a draft_and_approve run waiting for exact write-id acceptance; refused marks an opt-in/cap/approval rejection; coverage marks a citation-first curriculum audit report (plan 11-03)."
     },
     "request_fingerprint": {
       "type": "string",
@@ -43,8 +43,7 @@
     },
     "outcome": {
       "type": "string",
-      "enum": ["retry_cap_exhausted", "preflight_recheck_failed"],
-      "description": "The failure classification on a failed run (D-08)."
+      "description": "The failure/refusal classification on a failed or refused run: retry_cap_exhausted, preflight_recheck_failed, opt_in_required, cap_exceeded, approval_mismatch, or writer_<code> from the writer boundary (D-08/D-13)."
     },
     "findings": {
       "type": "array",
@@ -56,6 +55,18 @@
     "retained_draft": {
       "type": ["object", "null"],
       "description": "The complete final author response retained on exhaustion (D-08); the report never claims a partial prefix."
+    },
+    "message": {
+      "type": "string",
+      "description": "Optional human-readable summary of a refusal or writer failure."
+    },
+    "pending_write_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "The exact write ids a draft_and_approve run is waiting for; approval must name exactly this set (D-12)."
     },
     "proposal": {
       "$ref": "#/$defs/proposal",

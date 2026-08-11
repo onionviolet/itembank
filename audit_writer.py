@@ -103,17 +103,19 @@ def _write_bytes_atomic(path, raw):
 
 
 def deterministic_write_id(proposal):
-    """The write id derives from the proposal's identity fields (D-17,
-    T-11-05): request, bank-before, source fingerprints, profile, tool
-    version, and the declared units. Same proposal => same id, so a
-    duplicate write returns the existing result instead of mutating again."""
+    """The write id derives from the proposal's provenance fields (D-17,
+    T-11-05, plan 11-04): request, bank-before, source fingerprints,
+    profile, quality profile, and tool version -- explicitly NOT the minted
+    unit ids, so two independent runs of the same bounded request produce
+    the same write id and a duplicate write returns the existing result
+    instead of mutating again."""
     identity = {
         "request_fingerprint": proposal["request_fingerprint"],
         "bank_before_fingerprint": proposal["bank_before_fingerprint"],
         "source_fingerprints": proposal["source_fingerprints"],
         "profile": proposal.get("profile", ""),
+        "quality_profile": proposal.get("quality_profile", ""),
         "tool_version": proposal.get("tool_version", TOOL_VERSION),
-        "units": proposal.get("units", []),
     }
     digest = hashlib.sha256(
         canonical_json(identity).encode("utf-8")).hexdigest()
