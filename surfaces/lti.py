@@ -384,9 +384,14 @@ def verify_id_token(token, registration, nonce_store, state):
                        "id_token alg must be RS256, got %r" % header.get("alg"))
     keys = _fetch_jwks(platform.get("jwks_url") or "")
     kid = header.get("kid")
-    key = next((k for k in keys if k.get("kid") == kid), None) if kid else None
-    if key is None:
-        key = keys[0] if keys else None
+    # Key selection is strict: a header that NAMES a kid must match a JWKS
+    # key of that kid; only a header with NO kid may fall back to the single
+    # key (the common Canvas case). A mismatched kid must never silently
+    # verify against a different key (key-confusion hardening).
+    if kid:
+        key = next((k for k in keys if k.get("kid") == kid), None)
+    else:
+        key = keys[0] if len(keys) == 1 else None
     if key is None or key.get("kty") != "RSA":
         raise LTIError("unknown_key", UNVERIFIED_LAUNCH,
                        "no RSA JWKS key matches the id_token kid %r" % kid)
