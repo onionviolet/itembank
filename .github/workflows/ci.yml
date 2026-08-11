@@ -86,5 +86,16 @@ jobs:
             python "$t" || exit 1
           done
 
+      # The check editor's interactive contract (ruling 16): the vendored
+      # CodeMirror bundle + boot script executed against the pinned jsdom in
+      # tests/js (npm ci reproduces the lockfile-committed 39-package closure).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: JS editor test runner
+        run: |
+          npm ci --prefix tests/js
+          node --test tests/js/
+
       - name: No real question bank committed
         run: python itembank.py guard .
