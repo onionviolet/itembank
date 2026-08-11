@@ -915,6 +915,269 @@ def _evidence_files(workdir):
     return out
 
 
+# --- plan 09-05 Task 3: the four-profile common-loop matrix -----------------
+# The shipped subject fixtures live in fixtures/subject_loop_*.md; the fourth
+# profile is configuration-only (09-02), driven here with a temporary entry.
+EMT_FIXTURE = os.path.join(ROOT, "fixtures", "subject_loop_emt.md")
+MATH_FIXTURE = os.path.join(ROOT, "fixtures", "subject_loop_math.md")
+CS_FIXTURE = os.path.join(ROOT, "fixtures", "subject_loop_cs.md")
+
+FOURTH_BANK = """# Subject-loop fourth fixture (synthetic, Phase 9)
+
+Fully invented teaching content for the configuration-only fourth profile.
+
+## LESSON
+
+### Fourth Subject
+
+Context before the action: a configuration-only fourth profile must complete
+the same guided-discovery loop with no production edit.
+
+Q1. Which option completes the shared loop?   (difficulty: application)
+[LESSON-REF: Fourth Subject]
+[OBJECTIVE: fourth:loop]
+
+A) Alpha
+B) Beta
+C) Gamma
+
+CORRECT: A
+
+WHY BEST: Alpha is the only option the loop's own contract names.
+
+KEY DISCRIMINATOR: The learner must pick the loop's own answer.
+
+DISTRACTOR ANALYSIS:
+- A) Correct: the loop's contract.
+- B) Beta would be correct if the loop asked for the second option.
+- C) Gamma would be correct if the loop asked for the third option.
+
+TRAP: None; synthetic.
+
+CONFIDENCE: high
+"""
+
+
+def _fourth_registry(tmp):
+    """Append a temporary fourth entry to temporary settings (09-02) and
+    return the resolved registry."""
+    from surfaces import settings as settings_surface
+    cfg = settings_surface.load_settings(tmp)
+    cfg["subject_profiles"]["entries"]["fourth"] = {
+        "id": "fourth", "version": 1,
+        "lesson": {"markdown": True, "tables": True, "math": False,
+                   "runnable_languages": [], "lesson_layout": "separate"},
+        "allowed_item_types": ["mc", "multi", "table", "dnd", "build",
+                               "short"],
+        "verifier": "runtime"}
+    settings_surface.write_settings(tmp, cfg)
+    return subjects.load_registry(tmp)
+
+
+def run_subject_case(tmp, bank, profile_id, wrong_answer, correct_answer,
+                     verifier, medium_fn):
+    """The ONE table-driven guided-discovery driver (D-12..D-15): start a
+    practice sitting on the fixture under the profile id, submit the WRONG
+    response, request the targeted authored hint, submit a materially
+    changed CORRECT response, and assert the shared runtime transitions,
+    cursor progression, hint tier, evidence shape, and final outcome. The
+    medium assertion hook checks the fixture-specific presentation; every
+    other assertion is subject-independent. Returns the observed shape so
+    the matrix can compare it across all four rows."""
+    # Drive a copy inside tmp so the run's evidence and sessions land in the
+    # temporary directory, never beside the shipped fixture.
+    if os.path.dirname(os.path.abspath(bank)) != os.path.abspath(tmp):
+        local = write_bank(tmp, "case_%s_%s.md"
+                           % (profile_id, uuid.uuid4().hex[:8]),
+                           open(bank, encoding="utf-8").read())
+    else:
+        local = bank
+    out = os.path.join(tmp, "loop_%s.json" % profile_id)
+    res = session_surface.do_start(local, {"count": 1}, "practice", out,
+                                   force=False, profile_id=profile_id)
+    if res.get("subject_id") != profile_id:
+        fail("%s: start must resolve profile id %r, got %r"
+             % (profile_id, profile_id, res.get("subject_id")))
+    data = json.load(open(out, encoding="utf-8"))
+    sp = data["subject_profile"]
+    if sp["profile"]["verifier"] != verifier:
+        fail("%s: stored verifier must be %r, got %r"
+             % (profile_id, verifier, sp["profile"]["verifier"]))
+    sid = data["session_id"]
+    # Context -> wrong action/prediction: hold, score False.
+    r1 = session_surface.do_action(out, {"kind": "submit",
+                                         "answer": wrong_answer})
+    if r1["action"] != "hold" or r1["score"] is not False:
+        fail("%s: a wrong response must hold with score False, got %r"
+             % (profile_id, r1))
+    if (r1.get("next") or {}).get("position") != 0:
+        fail("%s: a held cursor must not advance, got %r"
+             % (profile_id, r1))
+    # Wrong -> one targeted authored hint (tier 0, the lesson pointer).
+    r2 = session_surface.do_action(out, {"kind": "hint"})
+    if r2["action"] != "reveal_tier":
+        fail("%s: the hint request must reveal a tier, got %r"
+             % (profile_id, r2))
+    tier = (r2.get("hint") or {}).get("tier") or {}
+    if tier.get("index") != 0 or not tier.get("available"):
+        fail("%s: the first hint must be the available authored lesson "
+             "tier, got %r" % (profile_id, tier))
+    # Retry with the materially changed correct answer: advance (or complete
+    # on the final item of a one-item sitting), score True.
+    r3 = session_surface.do_action(out, {"kind": "submit",
+                                         "answer": correct_answer})
+    if r3["action"] not in ("advance", "complete") or r3["score"] is not True:
+        fail("%s: a correct retry must advance with score True, got %r"
+             % (profile_id, r3))
+    if (r3.get("next") or {}).get("position") != 1:
+        fail("%s: a correct retry must advance the cursor, got %r"
+             % (profile_id, r3))
+    log = evidence.log_path(tmp)
+    responses = evidence.session_events(log, sid)
+    hints = evidence.hint_events(log, sid)
+    if len(responses) != 2 or len(hints) != 1:
+        fail("%s: the loop must record two responses and one hint, got %d/%d"
+             % (profile_id, len(responses), len(hints)))
+    if responses[0]["score"] is not False or responses[1]["score"] is not True:
+        fail("%s: response events must carry the real scores, got %r"
+             % (profile_id, responses))
+    if hints[0]["tier_index"] != 0 or hints[0]["source"] != "authored":
+        fail("%s: the hint event must record authored tier 0, got %r"
+             % (profile_id, hints[0]))
+    # The shared evidence spine: the fields every subject's events carry.
+    spine = ("event_id", "event_type", "session_id", "item_ref", "ts",
+             "score", "mode", "subject", "attempt_number")
+    response_spine = sorted(k for k in responses[0] if k in spine)
+    hint_spine = sorted(k for k in hints[0] if k in spine)
+    medium_fn(local, profile_id, data, r1, r2, r3)
+    return {
+        "profile_id": profile_id,
+        "transitions": (r1["action"], r2["action"], r3["action"]),
+        "response_spine": response_spine,
+        "hint_spine": hint_spine,
+        "outcome": (r3["score"], len(responses), len(hints)),
+    }
+
+
+def _medium_emt(bank, profile_id, data, r1, r2, r3):
+    """EMT medium: the shared reader keeps #lesson-content source order and
+    the native labelled focusable .lesson-table-scroll wrapper (D-13)."""
+    qs = model.load(bank)
+    page = lesson_surface.lesson_page(
+        bank, qs, model.parse_lesson(bank), runtime=True,
+        profile=data["subject_profile"])
+    if 'id="lesson-content"' not in page:
+        fail("emt: the shared reader must carry #lesson-content")
+    if ('<div class="scroll lesson-table-scroll" tabindex="0" role="region" '
+            'aria-label="Scene Priorities"><table>') not in page:
+        fail("emt: the table must sit in the labelled focusable wrapper")
+    if "<th scope=\"col\">Sign</th>" not in page:
+        fail("emt: header cells must carry scope=col")
+    order = [page.index("Scene Priorities"), page.index("<p>Context before"),
+             page.index("<table>")]
+    if not (order[0] < order[1] < order[2]):
+        fail("emt: lesson source order must survive rendering")
+
+
+def _medium_math(bank, profile_id, data, r1, r2, r3):
+    """Math medium: local inline/display hooks and readable degraded source
+    -- the $...$ / $$...$$ source stays present and, under the math profile
+    on a served page, the local adapter + display wrapper are emitted."""
+    qs = model.load(bank)
+    les = model.parse_lesson(bank)
+    page = lesson_surface.lesson_page(
+        bank, qs, les, runtime=True, profile=data["subject_profile"])
+    if "$v_n = v_0 + n \\cdot d$" not in page and \
+            "$v_0 + n$" not in page and "$n$" not in page:
+        fail("math: the inline math source must remain readable in the page")
+    if "$$" not in page:
+        fail("math: the display delimiter source must remain present")
+    if "renderMathInElement" not in page or "katex.min.css" not in page:
+        fail("math: the math profile served page must ship the local adapter "
+             "and asset hooks")
+    if "lesson-math-display" not in lesson_surface.MATH_ADAPTER_JS + page:
+        fail("math: the display wrapper hook must exist")
+    if "Math could not be rendered" not in lesson_surface.MATH_ADAPTER_JS:
+        fail("math: the parse-failure copy must be embedded")
+
+
+def _medium_cs(bank, profile_id, data, r1, r2, r3):
+    """CS medium: independent runnable-code lifecycle/status/output hooks --
+    the data-code-block identity, Run control, status region, and labelled
+    non-live streams on a served page with a session."""
+    qs = model.load(bank)
+    page = lesson_surface.lesson_page(
+        bank, qs, model.parse_lesson(bank), runtime=True,
+        profile=data["subject_profile"],
+        session_id=data["session_id"])
+    if 'data-code-block="1" data-lang="python"' not in page:
+        fail("cs: the python fence must carry the stable runnable id")
+    if lesson_surface.RUN_READY_COPY not in page:
+        fail("cs: the Run control label must be present")
+    if 'class="run-status" role="status" aria-live="polite"' not in page:
+        fail("cs: the persistent status region must be present")
+    if 'class="run-label">stdout</p><pre class="run-stdout"' not in page \
+            or 'class="run-label">stderr</p><pre class="run-stderr"' not in page:
+        fail("cs: labelled non-live stdout/stderr streams must be present")
+    if lesson_surface.RUN_RUNNING_COPY not in lesson_surface.RUNNABLE_JS:
+        fail("cs: the running-state copy must be embedded")
+
+
+def _medium_plain(bank, profile_id, data, r1, r2, r3):
+    """Configuration-only fourth profile: the shared reader and source order
+    hold with no medium-specific hook at all -- configuration adds nothing
+    to the shell (D-15)."""
+    qs = model.load(bank)
+    page = lesson_surface.lesson_page(
+        bank, qs, model.parse_lesson(bank), runtime=True,
+        profile=data["subject_profile"])
+    if 'id="lesson-content"' not in page:
+        fail("fourth: the shared reader must carry #lesson-content")
+    order = [page.index("Fourth Subject"), page.index("<p>Context before")]
+    if not (order[0] < order[1]):
+        fail("fourth: lesson source order must survive rendering")
+
+
+def test_four_subjects_share_one_guided_loop(tmp):
+    """D-12..D-15 / plan 09-05 Task 3: EMT, Math, CS, and the configuration-
+    only fourth profile call the same driver and produce the same transition
+    names, cursor progression, hint tier, evidence spine, and final outcome;
+    only the fixture path, profile id, medium assertion, allowed item type,
+    verifier id, and response value vary."""
+    fourth = write_bank(tmp, "fourth_bank.md", FOURTH_BANK)
+    _fourth_registry(tmp)
+    cases = [
+        (EMT_FIXTURE, "emt", "A", "B", "runtime", _medium_emt),
+        (MATH_FIXTURE, "math", "B", "A", "runtime", _medium_math),
+        (CS_FIXTURE, "cs",
+         'print(0)\n', 'print(sum(int(x) for x in input().split()))\n',
+         "check", _medium_cs),
+        (fourth, "fourth", "B", "A", "runtime", _medium_plain),
+    ]
+    shapes = []
+    for bank, pid, wrong, right, verifier, medium in cases:
+        shapes.append(run_subject_case(tmp, bank, pid, wrong, right,
+                                       verifier, medium))
+    base = shapes[0]
+    for shape in shapes[1:]:
+        for field in ("transitions", "response_spine", "hint_spine",
+                      "outcome"):
+            if shape[field] != base[field]:
+                fail("%s must share the %s with emt: %r vs %r"
+                     % (shape["profile_id"], field, shape[field],
+                        base[field]))
+    if base["transitions"] != ("hold", "reveal_tier", "complete"):
+        fail("the shared loop must be wrong-hold -> hint-reveal -> "
+             "correct-complete, got %r" % (base["transitions"],))
+    if base["response_spine"] != sorted(
+            ("event_id", "event_type", "session_id", "item_ref", "ts",
+             "score", "mode", "subject", "attempt_number")):
+        fail("the evidence spine differs across subjects: %r"
+             % base["response_spine"])
+    print("four-subject loop: %s all share one driver and evidence shape"
+          % ", ".join(s["profile_id"] for s in shapes))
+
+
 def test_profile_id_wired_through_clients(tmp):
     """D-01..D-04 / plan 09-05 Task 2 Test 1: CLI `start --subject-profile`,
     API start `{profile:}`, CLI `lesson --subject-profile`, and the
@@ -1128,12 +1391,13 @@ def main():
         test_only_id_crosses_client_boundary(tmp)
         test_unknown_and_mixed_fail_before_writes(tmp)
         test_resume_uses_stored_snapshot_with_explicit_id(tmp)
+        test_four_subjects_share_one_guided_loop(tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     print("ok: subject loop (EMT tracer, persisted profile, resume drift, "
           "fallback/mixed/disallowed, semantic table, v3 upgrade, settings "
           "registry parity, configuration-only fourth profile, client "
-          "profile-id wiring)")
+          "profile-id wiring, four-subject shared loop)")
 
 
 if __name__ == "__main__":

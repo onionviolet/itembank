@@ -693,12 +693,15 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
     # A check item's submitted answer is source text; the runner executes it
     # once per authored case and the per-case result list is what every
     # scoring call from here on receives (plan 05-01, D-01). The raw source
-    # is kept for the evidence event and the normalized result.
+    # is kept for the evidence event and the normalized result. Only a
+    # submit carries source: a hint request on a check item (plan 09-05's
+    # guided-discovery loop) is a teaching action, not an execution, and
+    # must not demand source text.
     run_result = None
     check_source = None
     check_vector = None
     check_score = None
-    if q["type"] == "check":
+    if q["type"] == "check" and action.get("kind") == "submit":
         source = normalize_answer(action.get("answer"))
         if not isinstance(source, str):
             sys.exit("a check item requires source text as its answer")
