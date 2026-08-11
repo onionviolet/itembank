@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/agent_usage.schema.json",
+  "title": "itembank agent usage contract",
+  "description": "The published, machine-readable contract for a model-facing agent (plan 08-04, MODEL-04): exactly what an agent may request (permissions), what it may never do (prohibitions), the disclosure limits of hosted transit and local-only evidence, the retry rules (one generation per interaction id, explicit parent-linked retries only), the manual-grading rule (only a human marker settles a mark, by self-mark or human batch accept), and the inferences an agent may never draw from evidence. An agent with no repository context can read exactly what it may and may not do from the CLI alone (itembank usage / itembank schema agent_usage).",
+  "x-itembank-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "permissions", "prohibitions", "disclosure", "retry",
+    "manual_grading", "forbidden_inferences"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "description": "The usage contract version; const 1."
+    },
+    "permissions": {
+      "type": "array",
+      "minItems": 4,
+      "description": "The complete set of operations an agent may request through the CLI. Every one goes through the runtime, which decides the permitted tier and never accepts one from a caller (D-09).",
+      "items": {
+        "type": "string",
+        "enum": [
+          "request_hint",
+          "request_rubric_review",
+          "read_pending_proposals",
+          "accept_proposals"
+        ]
+      }
+    },
+    "prohibitions": {
+      "type": "array",
+      "minItems": 6,
+      "description": "The complete set of operations an agent may never perform, regardless of what a provider returns (D-09/D-14/D-25, MODEL-05).",
+      "items": {
+        "type": "string",
+        "enum": [
+          "write_evidence",
+          "score_responses",
+          "select_items",
+          "advance_tiers",
+          "read_dropped_text",
+          "auto_accept_proposals"
+        ]
+      }
+    },
+    "disclosure": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The disclosure limits an agent operates under (D-17, D-03).",
+      "required": [
+        "hosted_transit_accepted", "evidence_local_only",
+        "secrets_env_references_only"
+      ],
+      "properties": {
+        "hosted_transit_accepted": {
+          "const": true,
+          "description": "Item text may transit a hosted provider; each interaction records whether the backend was hosted or local so audits can distinguish exposure (D-17)."
+        },
+        "evidence_local_only": {
+          "const": true,
+          "description": "Evidence stays on disk beside the bank; there is no telemetry and no hosted gradebook, and no provider call ever writes accepted evidence."
+        },
+        "secrets_env_references_only": {
+          "const": true,
+          "description": "Credentials are resolved from the environment by the variable NAME a profile names (secret_env); the settings file and evidence hold only the name, never a value (D-03/D-15)."
+        }
+      }
+    },
+    "retry": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The retry rules (D-12): at most one generation per interaction id, and regeneration happens only through an explicit, parent-linked retry.",
+      "required": ["max_attempts", "explicit_retry", "parent_link"],
+      "properties": {
+        "max_attempts": {
+          "const": 1,
+          "description": "At most one model generation per interaction id; repeating the same command reports already_recorded and regenerates nothing."
+        },
+        "explicit_retry": {
+          "const": true,
+          "description": "Regeneration requires an explicit retry flag from the caller; there is no hidden re-request loop."
+        },
+        "parent_link": {
+          "const": true,
+          "description": "Every retry is a child interaction whose parent_interaction_id names the original, so cost and repeated failures stay visible in evidence."
+        }
+      }
+    },
+    "manual_grading": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The tier-3 grading rule (D-14/D-20/D-25): only a human marker settles a mark; a model suggestion is pending forever until a human accepts or replaces it.",
+      "required": ["marker", "accept_paths"],
+      "properties": {
+        "marker": {
+          "const": "human",
+          "description": "The only marker that creates accepted evidence; mark_event raises on any other marker (T-1-24)."
+        },
+        "accept_paths": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "string",
+            "enum": ["self_mark", "batch_mark"]
+          },
+          "description": "The only accept paths: the learner's explicit self-mark and a reviewer's explicit human batch accept. Auto-accept is impossible, not merely off by default (D-25)."
+        }
+      }
+    },
+    "forbidden_inferences": {
+      "type": "array",
+      "minItems": 4,
+      "description": "Inferences an agent must never draw or act on from the evidence it reads (D-15): tier state, item selection, accepted verdicts, and learner identity all stay runtime/private facts.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "tier_state",
+          "item_selection",
+          "accepted_verdicts",
+          "learner_identity"
+        ]
+      }
+    }
+  }
+}

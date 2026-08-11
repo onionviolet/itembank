@@ -20,7 +20,7 @@ from surfaces.evidence_cli import (cmd_evidence, cmd_id_assign, cmd_mark, cmd_re
 from surfaces.import_anki import cmd_import_anki
 from surfaces.lesson import cmd_gloss, cmd_key_review, cmd_lesson, cmd_render_style
 from surfaces.migrate import cmd_migrate
-from surfaces.protocol_cli import cmd_schema
+from surfaces.protocol_cli import cmd_schema, cmd_usage
 from surfaces.quiz import cmd_build, cmd_serve
 from surfaces.selection_cli import cmd_select
 from surfaces.session import (cmd_hint, cmd_next, cmd_report, cmd_rubric_review,
@@ -820,6 +820,12 @@ def main():
                    help="emit the format contract, all five documents and the "
                         "command sequence to run a session, in one object")
     s.set_defaults(fn=cmd_schema)
+
+    s = sub.add_parser("usage", help="print the machine-readable agent usage "
+                        "contract -- permissions, prohibitions, disclosure, "
+                        "retry, manual-grading rules, and forbidden "
+                        "inferences -- the bytes on disk verbatim (MODEL-04)")
+    s.set_defaults(fn=cmd_usage)
 
     s = sub.add_parser("config", help="print the settings schema the way `spec` prints "
                        "the format contract")
