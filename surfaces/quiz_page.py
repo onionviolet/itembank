@@ -150,6 +150,27 @@ textarea.ans{width:100%;min-height:150px;padding:11px 12px;border-radius:9px;
 textarea.ans:focus{outline:2px solid var(--accent);outline-offset:1px;
   border-color:var(--accent)}
 textarea.ans:disabled{opacity:.75}
+/* check item code editor (plan 05-05): the wrapper declares the shared
+   monospace stack once -- font family, size and line height -- and
+   CodeMirror's own layers inherit it, so gutter row N is editor line N at
+   any content width (CODE-03). No new colour token; every value below is an
+   existing theme custom property. */
+.codewrap{display:flex;flex-direction:column;border:1px solid var(--line);
+  border-radius:9px;background:var(--card);overflow:hidden;
+  font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  font-size:14px;line-height:1.5}
+.codewrap .cm-editor,.codewrap .cm-content,.codewrap .cm-gutters{
+  font-family:inherit;font-size:inherit;line-height:inherit;
+  background:transparent}
+.codewrap .cm-editor{outline:none}
+.codewrap .cm-content{padding:11px 12px}
+.codewrap .cm-gutters{background:var(--chip);color:var(--mut);
+  border-right:1px solid var(--line)}
+.codewrap .cm-gutters .cm-gutterElement{padding:0 6px}
+.codewrap:focus-within{outline:2px solid var(--accent);outline-offset:1px;
+  border-color:var(--accent)}
+.codewrap[data-readonly="true"]{opacity:.8}
+
 .done{background:var(--card);border:1px solid var(--line);border-radius:12px;
   padding:20px}
 .score{font-size:34px;font-weight:700;letter-spacing:-.02em}
@@ -178,6 +199,7 @@ textarea.ans:disabled{opacity:.75}
 </details>
 <div id="host"></div>
 </div>
+__CM6_TAG__
 <script id="offline">
 __OFFLINE_JS__
 </script>
@@ -198,7 +220,7 @@ const LESSON_LABEL = "__LESSON_LABEL__";
 const LETTERS = "ABCDEFGH";
 const LABEL = {mc:"multiple choice", multi:"multiple response",
                table:"options table", build:"build list", dnd:"drag-and-drop",
-               short:"short answer"};
+               short:"short answer", check:"code check"};
 const FS = "\u001f", PS = "\u001e";   /* must match FIELD_SEP and PAIR_SEP */
 const REDUCED = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 let i = 0, score = 0, autoTotal = 0;
@@ -301,7 +323,7 @@ function render(){
   host.innerHTML = "";
   host.appendChild(card);
   ({mc:asChoice, multi:asChoice, table:asAssign, dnd:asAssign, build:asBuild,
-    short:asShort}[q.type])(q, body, act, card);
+    short:asShort, check:asCheck}[q.type])(q, body, act, card);
   card.scrollIntoView({block:"start", behavior: REDUCED ? "auto" : "smooth"});
 }
 
@@ -488,6 +510,58 @@ function asShort(q, body, act, card){
   };
 }
 
+/* ---- check: vendored CodeMirror 6 code field ---------------------------- */
+function asCheck(q, body, act, card){
+  const cfg = (q.interaction_contract && q.interaction_contract.renderer_config) || {};
+  const n = cfg.hidden_case_count || 0;
+  const starter = q.starter || "";
+  const wrap = document.createElement("div");
+  wrap.className = "codewrap";
+  const mount = document.createElement("div");
+  wrap.appendChild(mount);
+  body.appendChild(wrap);
+  const submit = mkSubmit(act, caseHint(n));
+  /* Locked hint copy (05-UI-SPEC Check button hint row): runs against %d
+     hidden test case%s -- e.g. "runs against 1 hidden test case" /
+     "runs against 3 hidden test cases". Hidden is locked: CASE) pairs are
+     key material under D-12 and never reach public_item. */
+  function caseHint(n){
+    return n === 1 ? "runs against 1 hidden test case"
+                   : "runs against " + n + " hidden test cases";
+  }
+  /* The vendored bundle exposes the CodeMirror global; this is the only
+     place the editor is configured (plan 05-05 Task 2: starter document,
+     locked placeholder, 1-based line-number gutter, no lineWrapping so a
+     long line scrolls horizontally and gutter row N stays line N). The
+     keymap and the read-only submit lock are Task 3. */
+  const exts = [CodeMirror.lineNumbers(), CodeMirror.history()];
+  if(!starter) exts.push(CodeMirror.placeholder("# Write your code here."));
+  const view = new CodeMirror.EditorView({
+    doc: starter, parent: mount, extensions: exts
+  });
+  const sync = ()=>{
+    submit.disabled = view.state.doc.length === 0;
+  };
+  view.dispatch = ((orig)=>{
+    return function(tr){ orig.call(this, tr); sync(); };
+  })(view.dispatch);
+  sync();
+  submit.onclick = ()=>{
+    const src = view.state.doc.toString();
+    submit.disabled = true;
+    submit.textContent = "Running…";
+    settle(q, src, card, act, null);
+  };
+  /* The honest-limits line renders from the item card, not from the editor
+     branch, so plan 05-06's refusal states replace the editor without
+     removing the statement. __HONEST_LIMITS__ is substituted by
+     quiz.page_for from model.HONEST_LIMITS_NOTE (D-10). */
+  const lim = document.createElement("div");
+  lim.className = "hint";
+  lim.textContent = "__HONEST_LIMITS__";
+  card.appendChild(lim);
+}
+
 function mkSubmit(act, hint){
   const b = document.createElement("button");
   b.className="go"; b.type="button"; b.textContent="Submit answer"; b.disabled=true;
@@ -585,7 +659,7 @@ const LESSON_LABEL = "__LESSON_LABEL__";
 const LETTERS = "ABCDEFGH";
 const LABEL = {mc:"multiple choice", multi:"multiple response",
                table:"options table", build:"build list", dnd:"drag-and-drop",
-               short:"short answer"};
+               short:"short answer", check:"code check"};
 const FS = "\u001f", PS = "\u001e";   /* must match FIELD_SEP and PAIR_SEP */
 const REDUCED = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 let sessionId = null, i = 0, total = 0, score = 0, autoTotal = 0;
@@ -774,7 +848,7 @@ function renderItem(view){
   host.innerHTML = "";
   host.appendChild(card);
   ({mc:asChoice, multi:asChoice, table:asAssign, dnd:asAssign, build:asBuild,
-    short:asShort}[q.type])(q, body, act, card);
+    short:asShort, check:asCheck}[q.type])(q, body, act, card);
   /* Restore focus to the first meaningful control of the new item. */
   const first = card.querySelector("input, button, textarea");
   if(first && !REDUCED) first.focus({preventScroll:true});
@@ -964,6 +1038,58 @@ function asShort(q, body, act, card){
     submit.remove();
     settle(q, ta.value.trim(), card, act, null, revert);
   };
+}
+
+/* ---- check: vendored CodeMirror 6 code field ---------------------------- */
+function asCheck(q, body, act, card){
+  const cfg = (q.interaction_contract && q.interaction_contract.renderer_config) || {};
+  const n = cfg.hidden_case_count || 0;
+  const starter = q.starter || "";
+  const wrap = document.createElement("div");
+  wrap.className = "codewrap";
+  const mount = document.createElement("div");
+  wrap.appendChild(mount);
+  body.appendChild(wrap);
+  const submit = mkSubmit(act, caseHint(n));
+  /* Locked hint copy (05-UI-SPEC Check button hint row): runs against %d
+     hidden test case%s -- e.g. "runs against 1 hidden test case" /
+     "runs against 3 hidden test cases". Hidden is locked: CASE) pairs are
+     key material under D-12 and never reach public_item. */
+  function caseHint(n){
+    return n === 1 ? "runs against 1 hidden test case"
+                   : "runs against " + n + " hidden test cases";
+  }
+  /* The vendored bundle exposes the CodeMirror global; this is the only
+     place the editor is configured (plan 05-05 Task 2: starter document,
+     locked placeholder, 1-based line-number gutter, no lineWrapping so a
+     long line scrolls horizontally and gutter row N stays line N). The
+     keymap and the read-only submit lock are Task 3. */
+  const exts = [CodeMirror.lineNumbers(), CodeMirror.history()];
+  if(!starter) exts.push(CodeMirror.placeholder("# Write your code here."));
+  const view = new CodeMirror.EditorView({
+    doc: starter, parent: mount, extensions: exts
+  });
+  const sync = ()=>{
+    submit.disabled = view.state.doc.length === 0;
+  };
+  view.dispatch = ((orig)=>{
+    return function(tr){ orig.call(this, tr); sync(); };
+  })(view.dispatch);
+  sync();
+  submit.onclick = ()=>{
+    const src = view.state.doc.toString();
+    submit.disabled = true;
+    submit.textContent = "Running…";
+    settle(q, src, card, act, null, ()=>{ submit.textContent = "Submit answer"; });
+  };
+  /* The honest-limits line renders from the item card, not from the editor
+     branch, so plan 05-06's refusal states replace the editor without
+     removing the statement. __HONEST_LIMITS__ is substituted by
+     quiz.page_for from model.HONEST_LIMITS_NOTE (D-10). */
+  const lim = document.createElement("div");
+  lim.className = "hint";
+  lim.textContent = "__HONEST_LIMITS__";
+  card.appendChild(lim);
 }
 
 function mkSubmit(act, hint){

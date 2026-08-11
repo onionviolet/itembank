@@ -20,6 +20,8 @@ import itembank                                            # noqa: E402
 import model                                               # noqa: E402
 import runner                                              # noqa: E402
 import runtime                                             # noqa: E402
+from model import load                                            # noqa: E402
+from surfaces import quiz                                   # noqa: E402
 
 CHECK_BANK = os.path.join(ROOT, "fixtures", "check_bank.md")
 SAMPLE_BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
@@ -907,6 +909,60 @@ def check_explain_threading():
         shutil.rmtree(work, ignore_errors=True)
 
 
+def check_vendor_integrity():
+    """05-05 Task 2 / Directive 4a: the vendored CodeMirror bundle exists,
+    its SHA-256 matches the record in VENDOR.md, and the served page embeds
+    it locally with no CDN URL and no unsubstituted placeholder."""
+    import hashlib
+    vendor = os.path.join(ROOT, "assets", "vendor", "codemirror")
+    bundle = os.path.join(vendor, "codemirror.bundle.js")
+    record = os.path.join(vendor, "VENDOR.md")
+    if not os.path.exists(bundle) or not os.path.exists(record):
+        fail("vendored CM6 bundle or VENDOR.md missing under assets/vendor/codemirror/")
+    digest = hashlib.sha256(open(bundle, "rb").read()).hexdigest()
+    text = open(record, encoding="utf-8").read()
+    if digest not in text:
+        fail("bundle SHA-256 %s is not recorded in VENDOR.md" % digest)
+    if "https" not in text.lower() or "MIT" not in text:
+        fail("VENDOR.md lacks a recorded license review")
+
+    # The rendered page (served) embeds the bundle and the honest-limits
+    # sentence from the one constant, with no placeholder left behind.
+    qs = load(CHECK_BANK)
+    _, page = quiz.page_for(CHECK_BANK, qs, serve=True)
+    if model.HONEST_LIMITS_NOTE not in page:
+        fail("served page lacks the honest-limits sentence")
+    for token in ("__HONEST", "__CM6_TAG", "__CM6_BUNDLE"):
+        if token in page:
+            fail("served page carries an unsubstituted placeholder %r" % token)
+    if "id=\"cm6\"" not in page:
+        fail("served page does not embed the vendored CM6 bundle")
+    # The editor is loaded from the local bundle, never from a CDN: the
+    # page's only http(s) token is the SVG namespace inside the bundle.
+    urls = re.findall(r"https?://[^\"' <)]*", page)
+    if [u for u in urls if "w3.org/2000/svg" not in u]:
+        fail("served page references a CDN/network URL: %r" % urls)
+    # Locked copy from 05-UI-SPEC: placeholder, type chip, submit hint in
+    # both singular and plural, and the .codewrap mount.
+    for locked in ("# Write your code here.", "code check",
+                   "runs against 1 hidden test case",
+                   "runs against 3 hidden test cases", "codewrap",
+                   "Running…"):
+        if locked not in page:
+            fail("served page lacks locked copy %r" % locked)
+    # The built (offline) page embeds it too -- a check item renders the
+    # editor in both clients at this plan; 05-06 swaps in the file refusal.
+    build_out = os.path.join(tempfile.mkdtemp(), "check_quiz.html")
+    subprocess.run([sys.executable, os.path.join(ROOT, "itembank.py"),
+                    "build", CHECK_BANK, build_out], check=True,
+                   capture_output=True)
+    html = open(build_out, encoding="utf-8").read()
+    if "codewrap" not in html or model.HONEST_LIMITS_NOTE not in html:
+        fail("built check page lacks the editor mount or honest-limits line")
+    if "__HONEST" in html:
+        fail("built check page carries an unsubstituted placeholder")
+
+
 def check_network_refusal():
     """D-09 made real: with the daemon bound to all interfaces and
     check.allow_lan false, both submit routes refuse a check item's execution
@@ -1050,6 +1106,7 @@ def main():
     check_agent_path()
     check_cross_path()
     check_explain_threading()
+    check_vendor_integrity()
     check_network_refusal()
     print("check roundtrip: ok")
     return 0

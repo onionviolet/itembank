@@ -8,12 +8,30 @@ answer. Both are clients of the runtime.
 import collections, html, os, sys, uuid
 
 import evidence
-from model import grab, lint, load, parse_lesson
+from model import HONEST_LIMITS_NOTE, grab, lint, load, parse_lesson
 from runtime import INTERACTION_VERSION, page_item, score_response
 from surfaces.session import run_check_source
 from surfaces import presentation, settings
 from surfaces.quiz_page import OFFLINE_JS, SERVED_JS, TEMPLATE
 from surfaces.theme import THEME_CSS, theme_css
+
+# The vendored CodeMirror 6 bundle (plan 05-05 Task 2, ruling 5/11 + the
+# Directive 4a supply-chain rule). It is embedded into the page only when the
+# bank actually contains a check item, so every non-check bank's rendered page
+# stays byte-identical to before this phase. The record of version, SHA-256
+# and license review lives beside the file in assets/vendor/codemirror/.
+_CM6_BUNDLE_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "assets", "vendor", "codemirror", "codemirror.bundle.js")
+_CM6_BUNDLE_CACHE = None
+
+
+def _cm6_bundle():
+    global _CM6_BUNDLE_CACHE
+    if _CM6_BUNDLE_CACHE is None:
+        with open(_CM6_BUNDLE_PATH, encoding="utf-8") as fh:
+            _CM6_BUNDLE_CACHE = fh.read()
+    return _CM6_BUNDLE_CACHE
 
 
 def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
@@ -66,15 +84,27 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
     lesson_label = "Read the lesson" if lesson_base else ""
     # The chip base/label live inside the two client scripts (quiz_page.py),
     # not in the shared shell, so the substitutions must target the JS strings
-    # themselves before they are inserted into the template.
+    # themselves before they are inserted into the template. Same for the
+    # honest-limits sentence: asCheck renders a __HONEST_LIMITS__ placeholder
+    # inside the client script, substituted here from the one constant SPEC
+    # reads (D-10) -- the page and the format contract cannot drift.
     offline_js = (OFFLINE_JS
                   .replace("__LESSON_BASE__", lesson_base)
-                  .replace("__LESSON_LABEL__", lesson_label))
+                  .replace("__LESSON_LABEL__", lesson_label)
+                  .replace("__HONEST_LIMITS__", HONEST_LIMITS_NOTE))
     served_js = (SERVED_JS
                  .replace("__LESSON_BASE__", lesson_base)
-                 .replace("__LESSON_LABEL__", lesson_label))
+                 .replace("__LESSON_LABEL__", lesson_label)
+                 .replace("__HONEST_LIMITS__", HONEST_LIMITS_NOTE))
     # __DATA__/__BOOT__ go in last so that bank text which happens to contain
-    # another placeholder is never itself substituted.
+    # another placeholder is never itself substituted. __CM6_TAG__ and
+    # __HONEST_LIMITS__ are substituted before that, alongside the other
+    # fixed copy: the CM6 bundle embeds only when the bank has a check item
+    # (a non-check bank's page stays byte-identical), and the honest-limits
+    # sentence comes from the one constant SPEC reads (D-10).
+    has_check = any(q.get("type") == "check" for q in qs)
+    cm6 = ("<script id=\"cm6\">" + _cm6_bundle() + "</script>"
+           if has_check else "")
     return mix, (TEMPLATE
                  .replace("__THEME__", THEME_CSS if theme_css is None
                           else theme_css)
@@ -83,6 +113,8 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                  .replace("__SUB__", sub)
                  .replace("__CTX_BANK__", ctx_bank)
                  .replace("__CTX_MODE__", ctx_mode)
+                 .replace("__HONEST_LIMITS__", HONEST_LIMITS_NOTE)
+                 .replace("__CM6_TAG__", cm6)
                  .replace("__OFFLINE_JS__", "" if serve else offline_js)
                  .replace("__SERVED_JS__", served_js if serve else "")
                  .replace("__BOOT__", presentation.script_safe_json(boot))
