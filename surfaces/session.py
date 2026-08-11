@@ -176,7 +176,8 @@ def _derive_subject(spec):
     return subject or ""
 
 
-def do_start(bank_path, spec, mode, out, force, *, override_token=None):
+def do_start(bank_path, spec, mode, out, force, *, override_token=None,
+             profile_id=None):
     # The D-09 focus pin is a session-level concern, not a selection filter:
     # it rides inside the spec dict so the signature stays the same for every
     # caller, and it is consumed here before the spec reaches `select()`,
@@ -277,13 +278,16 @@ def do_start(bank_path, spec, mode, out, force, *, override_token=None):
     # from validated settings; unknown/unnamespaced sittings get the
     # conservative default; a sitting whose selected items span several
     # namespaces (no objective filter) and disallowed item types refuse here,
-    # before any session or evidence file exists. An explicit profile id is
-    # wired through the clients in plan 09-05; `select_profile` already
-    # accepts it.
+    # before any session or evidence file exists. An explicit `profile_id`
+    # (plan 09-05, threaded from the CLI `--subject-profile` flag and the
+    # served `/api/start` `profile` field) wins over every inference: only
+    # the id crosses a client boundary, the selector resolves it once
+    # server-side, and the complete snapshot is persisted with the session.
     try:
         subject_snapshot = subjects.select_profile(
             items, subjects.load_registry(
-                os.path.dirname(os.path.abspath(bank_path)) or "."))
+                os.path.dirname(os.path.abspath(bank_path)) or "."),
+            explicit_id=profile_id)
     except subjects.SubjectProfileError as exc:
         sys.exit(str(exc))
     index = {q["id"]: i for i, q in enumerate(qs)}
@@ -396,7 +400,8 @@ def cmd_start(a):
         spec["exclude_item_ids"] = list(a.exclude)
     override_token = getattr(a, "override_cap", None) or None
     result = do_start(a.bank, spec, a.mode, a.out, a.force,
-                      override_token=override_token)
+                      override_token=override_token,
+                      profile_id=getattr(a, "subject_profile", None))
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 

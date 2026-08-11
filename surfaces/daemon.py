@@ -1495,16 +1495,19 @@ def handle_lesson_get(handler, stem):
     les = parse_lesson(path)
     params = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query)
     drill = "drill" in (params.get("print") or [])
-    # 09-04: the lesson reader resolves the subject profile exactly as a
-    # session would (subjects.select_profile over the bank; the stored
-    # snapshot is consumed once a session id exists -- 09-05 wires the
-    # explicit id and the snapshot through the clients). Only the profile's
+    # 09-04/09-05: the lesson reader resolves the subject profile exactly as
+    # a session would (subjects.select_profile over the bank; the stored
+    # snapshot is consumed once a session id exists). Only the profile's
     # lesson.math flag turns the local KaTeX enhancement on; EMT/plain
-    # profiles stay ordinary reader output (D-08).
+    # profiles stay ordinary reader output (D-08). `?profile=<id>` supplies
+    # the one explicit id a client may send (plan 09-05): the selector
+    # resolves it once, and a profile object is never accepted.
+    explicit_id = (params.get("profile") or [None])[0]
     try:
         profile = subjects.select_profile(
             qs, subjects.load_registry(
-                os.path.dirname(os.path.abspath(path)) or "."))
+                os.path.dirname(os.path.abspath(path)) or "."),
+            explicit_id=explicit_id)
     except subjects.SubjectProfileError:
         profile = None
     print_mode = bool(params.get("print"))
@@ -2027,7 +2030,7 @@ def api_reject_path_fields(data):
     return None
 
 
-def api_read_json(handler):
+def api_read_json(handler, allowed_ids=()):
     """`handler.read_json()`, but a malformed or non-object body is reported
     to the caller as `(None, True)` instead of letting the decode error
     propagate into the generic `except Exception` -> 500 clause every
@@ -2035,6 +2038,11 @@ def api_read_json(handler):
     the routine, not-exotic condition D-05 asks for a clean 4xx on, not a
     500. Returns `(data, failed)`; the caller has already sent the error
     response when `failed` is true.
+
+    `allowed_ids` names the API_FORBIDDEN_FIELDS a route may receive as a
+    plain identifier -- `/api/start` accepts `profile` as a subject-profile
+    ID (plan 09-05): only the id crosses the boundary, never profile
+    content, which remains forbidden everywhere.
     """
     try:
         data = handler.read_json()
@@ -2044,12 +2052,12 @@ def api_read_json(handler):
     if not isinstance(data, dict):
         handler.send_error(400, "JSON body must be a JSON object")
         return None, True
-    bad = api_reject_path_fields(data)
-    if bad:
-        handler.send_error(
-            400, "field %r is not accepted here; a session is addressed by its "
-            "session_id and a bank by its scanned stem, never by a path" % bad)
-        return None, True
+    for field in API_FORBIDDEN_FIELDS:
+        if field in data and field not in allowed_ids:
+            handler.send_error(
+                400, "field %r is not accepted here; a session is addressed by its "
+                "session_id and a bank by its scanned stem, never by a path" % field)
+            return None, True
     return data, False
 
 
@@ -2081,13 +2089,22 @@ def handle_api_start(handler):
     """
     if _reject_cross_origin(handler):
         return
-    data, failed = api_read_json(handler)
+    data, failed = api_read_json(handler, allowed_ids=("profile",))
     if failed:
         return
     bank = data.get("bank")
     path = handler.banks.get(bank) if isinstance(bank, str) else None
     if path is None:
         handler.send_not_found(bank if isinstance(bank, str) else "")
+        return
+    # Plan 09-05: an optional subject-profile ID. Only the id crosses the
+    # boundary -- profile content, capabilities and verifiers are still
+    # forbidden everywhere -- and do_start resolves it once server-side,
+    # persisting the complete snapshot with the session (D-02/D-04).
+    profile_id = data.get("profile")
+    if profile_id is not None and (
+            not isinstance(profile_id, str) or not profile_id):
+        handler.send_error(400, "profile must be a non-empty profile id")
         return
     count = data.get("count", 10)
     if not isinstance(count, int) or isinstance(count, bool):
@@ -2169,7 +2186,8 @@ def handle_api_start(handler):
             result = session.do_select(path, spec, False)
             result["preview"] = True
         else:
-            result = session.do_start(path, spec, mode, out, False)
+            result = session.do_start(path, spec, mode, out, False,
+                                      profile_id=profile_id)
     except SystemExit as exc:
         handler.send_error(400, str(exc.code))
         return

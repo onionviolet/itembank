@@ -21,9 +21,14 @@ itembank.json otherwise, always through `subjects.load_registry()`.
 """
 import json
 import os
+import re
 import shutil
+import subprocess
 import sys
 import tempfile
+import threading
+import time
+import urllib.request
 import uuid
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -847,6 +852,263 @@ def test_fourth_profile_is_configuration_only(tmp):
         fail("the fourth sitting must persist its profile snapshot")
 
 
+def _start_daemon(workdir):
+    """Launch `itembank daemon <workdir> --no-open --port 0` and return
+    `(proc, url)` once the banner URL has been scraped."""
+    args = [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "daemon",
+            workdir, "--no-open", "--port", "0"]
+    proc = subprocess.Popen(args, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True)
+    lines = []
+
+    def drain():
+        for line in proc.stdout:
+            lines.append(line)
+
+    threading.Thread(target=drain, daemon=True).start()
+    url = None
+    for _ in range(300):
+        for line in lines:
+            m = re.search(r"http://127\.0\.0\.1:\d+/", line)
+            if m:
+                url = m.group(0).rstrip("/")
+                break
+        if url:
+            break
+        if proc.poll() is not None:
+            break
+        time.sleep(0.05)
+    if not url:
+        proc.kill()
+        fail("daemon did not print a URL; output: " + "".join(lines))
+    return proc, url
+
+
+def _get(url):
+    with urllib.request.urlopen(url, timeout=10) as res:
+        return res.status, res.read().decode("utf-8")
+
+
+def _post(url, payload):
+    req = urllib.request.Request(
+        url, data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=10) as res:
+            return res.status, json.loads(res.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8")
+        try:
+            return exc.code, json.loads(body)
+        except ValueError:
+            return exc.code, body
+
+
+def _evidence_files(workdir):
+    out = []
+    for dp, _, fns in os.walk(workdir):
+        for fn in fns:
+            if fn.startswith("session_") and fn.endswith(".json"):
+                out.append(os.path.join(dp, fn))
+            if fn.endswith(".jsonl"):
+                out.append(os.path.join(dp, fn))
+    return out
+
+
+def test_profile_id_wired_through_clients(tmp):
+    """D-01..D-04 / plan 09-05 Task 2 Test 1: CLI `start --subject-profile`,
+    API start `{profile:}`, CLI `lesson --subject-profile`, and the
+    `/lesson/<bank>?profile=` query all resolve the SAME id to the same
+    public profile metadata through the one server-side selector."""
+    bank = write_bank(tmp, "emt_prof_bank.md", EMT_BANK)
+    # CLI start with an explicit id.
+    out = os.path.join(tmp, "s.json")
+    res = subprocess.run(
+        [sys.executable, os.path.join(ROOT, "itembank.py"), "start",
+         bank, "--out", out, "--subject-profile", "emt"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
+    if res.returncode != 0:
+        fail("CLI start --subject-profile failed: " + res.stdout)
+    started = json.loads(res.stdout)
+    if started.get("subject_id") != "emt":
+        fail("CLI start must expose the explicit subject id, got %r"
+             % started.get("subject_id"))
+    data = json.load(open(out, encoding="utf-8"))
+    sp = data["subject_profile"]
+    if sp["subject_id"] != "emt" or sp["profile"]["id"] != "emt" \
+            or sp["profile"]["verifier"] != "runtime":
+        fail("CLI start must persist the server-resolved emt snapshot, got %r"
+             % sp)
+    # API start with the same id resolves the same metadata.
+    proc, url = _start_daemon(tmp)
+    try:
+        # CLI lesson and the /lesson query resolve the same presentation;
+        # compared BEFORE any session is registered so neither page carries
+        # the runnable session attribute.
+        cli_page = os.path.join(tmp, "lesson.html")
+        r2 = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "itembank.py"), "lesson",
+             bank, "--out", cli_page, "--subject-profile", "emt"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            timeout=30)
+        if r2.returncode != 0:
+            fail("CLI lesson --subject-profile failed: " + r2.stdout)
+        status2, served = _get(url + "/lesson/emt_prof_bank?profile=emt")
+        if status2 != 200:
+            fail("/lesson?profile=emt returned %d" % status2)
+        cli_html = open(cli_page, encoding="utf-8").read()
+        if cli_html != served:
+            fail("CLI lesson --subject-profile and /lesson?profile= must "
+                 "render the same page byte-for-byte")
+        status, body = _post(url + "/api/start",
+                             {"bank": "emt_prof_bank", "count": 1, "seed": 0,
+                              "mode": "practice", "profile": "emt"})
+        if status != 200:
+            fail("API start with profile id failed: %d %r" % (status, body))
+        if body.get("subject_id") != "emt":
+            fail("API start must expose the explicit subject id, got %r"
+                 % body.get("subject_id"))
+        # The math profile on the same bank enables the adapter over the
+        # served route; the explicit id is the only lever that changes it.
+        status3, page3 = _get(url + "/lesson/emt_prof_bank?profile=math")
+        if status3 != 200:
+            fail("/lesson?profile=math returned %d" % status3)
+        if "renderMathInElement" not in page3:
+            fail("?profile=math must enable the math adapter")
+    finally:
+        proc.terminate()
+
+
+def test_only_id_crosses_client_boundary(tmp):
+    """D-02/D-04 / plan 09-05 Task 2 Test 2: only the profile id crosses a
+    client boundary; a profile OBJECT (capabilities/verifier content) is
+    rejected by name, and the session snapshot is always the server-resolved
+    one -- a client can never set verifier or capabilities directly."""
+    bank = write_bank(tmp, "emt_obj_bank.md", EMT_BANK)
+    proc, url = _start_daemon(tmp)
+    try:
+        status, body = _post(url + "/api/start",
+                             {"bank": "emt_obj_bank", "count": 1, "seed": 0,
+                              "mode": "practice",
+                              "profile": {"id": "emt", "verifier": "check",
+                                          "lesson": {"runnable_languages":
+                                                     ["python"]}}})
+        if status != 400:
+            fail("a profile object must be refused, got %d %r" % (status, body))
+        # A non-string profile value is refused too.
+        status2, _ = _post(url + "/api/start",
+                           {"bank": "emt_obj_bank", "count": 1, "seed": 0,
+                            "mode": "practice", "profile": 7})
+        if status2 != 400:
+            fail("a non-string profile value must be refused, got %d" % status2)
+        # The id path stores only the server-resolved snapshot.
+        status3, body3 = _post(url + "/api/start",
+                               {"bank": "emt_obj_bank", "count": 1, "seed": 0,
+                                "mode": "practice", "profile": "emt"})
+        if status3 != 200 or body3.get("subject_id") != "emt":
+            fail("profile id start failed: %d %r" % (status3, body3))
+        sp = body3.get("subject_profile") or {}
+        if sp.get("verifier") != "runtime":
+            fail("the stored snapshot must carry the server-resolved "
+                 "verifier, got %r" % sp)
+    finally:
+        proc.terminate()
+
+
+def test_unknown_and_mixed_fail_before_writes(_tmp):
+    """D-03/D-04 / plan 09-05 Task 2 Test 3: an unknown id and a mixed bank
+    without an explicit id fail BEFORE any session or evidence file exists,
+    and no failure discloses an absolute path. Uses its own fresh directory
+    so the no-write assertion is exact."""
+    tmp = tempfile.mkdtemp(prefix="subject_loop_nowrite_")
+    try:
+        bank = write_bank(tmp, "emt_unk_bank.md", EMT_BANK)
+        out = os.path.join(tmp, "bad.json")
+        res = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "itembank.py"), "start",
+             bank, "--out", out, "--subject-profile", "nosuch"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            timeout=30)
+        if res.returncode == 0:
+            fail("an unknown profile id must fail the CLI start")
+        if "nosuch" not in res.stdout:
+            fail("the refusal must name the unknown id, got %r" % res.stdout)
+        if os.path.abspath(tmp) in res.stdout:
+            fail("the CLI refusal must not disclose the bank path, got %r"
+                 % res.stdout)
+        if os.path.exists(out) or _evidence_files(tmp):
+            fail("an unknown profile id must write no session or evidence")
+        # Mixed bank without an explicit id: refused before writes, path-free.
+        mixed = write_bank(tmp, "mixed_bank.md", MIXED_BANK)
+        out2 = os.path.join(tmp, "bad2.json")
+        res2 = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "itembank.py"), "start",
+             mixed, "--out", out2],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            timeout=30)
+        if res2.returncode == 0:
+            fail("a mixed bank without an explicit id must fail the CLI start")
+        if "explicit profile id" not in res2.stdout:
+            fail("the mixed refusal must ask for an explicit id, got %r"
+                 % res2.stdout)
+        if os.path.abspath(tmp) in res2.stdout:
+            fail("the mixed refusal must not disclose the bank path, got %r"
+                 % res2.stdout)
+        if os.path.exists(out2) or _evidence_files(tmp):
+            fail("a mixed bank refusal must write no session or evidence")
+        # The same two cases through the served API are path-free 4xxs.
+        proc, url = _start_daemon(tmp)
+        try:
+            status, body = _post(url + "/api/start",
+                                 {"bank": "emt_unk_bank", "count": 1,
+                                  "seed": 0, "mode": "practice",
+                                  "profile": "nosuch"})
+            if status != 400 or "nosuch" not in json.dumps(body):
+                fail("API unknown profile id must 400 by name, got %d %r"
+                     % (status, body))
+            status2, body2 = _post(url + "/api/start",
+                                   {"bank": "mixed_bank", "count": 2,
+                                    "seed": 0, "mode": "practice"})
+            if status2 != 400:
+                fail("API mixed bank must 400, got %d %r" % (status2, body2))
+            for blob in (json.dumps(body), json.dumps(body2)):
+                if os.path.abspath(tmp) in blob or "Traceback" in blob:
+                    fail("API refusals must not leak a path or traceback: %r"
+                         % blob)
+        finally:
+            proc.terminate()
+        if _evidence_files(tmp):
+            fail("API refusals must write no session or evidence")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_resume_uses_stored_snapshot_with_explicit_id(tmp):
+    """D-04 / plan 09-05 Task 2 Test 4: a session started with an explicit
+    profile id keeps consuming its STORED snapshot after the registry
+    changes -- the id is resolved once at start, never re-resolved."""
+    bank = write_bank(tmp, "emt_res_bank.md", EMT_BANK)
+    out = os.path.join(tmp, "res.json")
+    res = session_surface.do_start(bank, {"count": 2}, "practice", out,
+                                   force=False, profile_id="emt")
+    if res.get("subject_id") != "emt":
+        fail("explicit-id start must select emt, got %r" % res)
+    data = json.load(open(out, encoding="utf-8"))
+    before = data["subject_profile"]
+    from surfaces import settings as settings_surface
+    cfg = settings_surface.load_settings(tmp)
+    cfg["subject_profiles"]["entries"]["emt"]["lesson"]["math"] = True
+    settings_surface.write_settings(tmp, cfg)
+    try:
+        session_surface.do_action(out, {"kind": "submit", "answer": "B"})
+    finally:
+        os.remove(os.path.join(tmp, "itembank.json"))
+    again = json.load(open(out, encoding="utf-8"))
+    if again["subject_profile"] != before:
+        fail("resume must keep the stored snapshot byte-for-byte, got %r"
+             % again["subject_profile"])
+
+
 def main():
     tmp = tempfile.mkdtemp(prefix="subject_loop_")
     try:
@@ -862,11 +1124,16 @@ def main():
         test_load_registry_rejects_malformed()
         test_fourth_profile_is_configuration_only(tmp)
         test_no_subject_dispatch_in_surfaces()
+        test_profile_id_wired_through_clients(tmp)
+        test_only_id_crosses_client_boundary(tmp)
+        test_unknown_and_mixed_fail_before_writes(tmp)
+        test_resume_uses_stored_snapshot_with_explicit_id(tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     print("ok: subject loop (EMT tracer, persisted profile, resume drift, "
           "fallback/mixed/disallowed, semantic table, v3 upgrade, settings "
-          "registry parity, configuration-only fourth profile)")
+          "registry parity, configuration-only fourth profile, client "
+          "profile-id wiring)")
 
 
 if __name__ == "__main__":

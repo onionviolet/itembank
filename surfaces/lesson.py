@@ -2019,10 +2019,13 @@ def cmd_lesson(a):
     # served page byte-for-byte; enhancement (math, run controls) still
     # stays a served-page capability (D-08). A profile that cannot be
     # resolved renders the conservative static copy, never a refusal.
+    # `--subject-profile` supplies the one explicit id a client may send;
+    # only the id crosses the boundary, the selector resolves it once.
     try:
         profile = subjects.select_profile(
             qs, subjects.load_registry(
-                os.path.dirname(os.path.abspath(a.bank)) or "."))
+                os.path.dirname(os.path.abspath(a.bank)) or "."),
+            explicit_id=getattr(a, "subject_profile", None))
     except subjects.SubjectProfileError:
         profile = None
     page = lesson_page(a.bank, qs, lesson, ref=a.ref, profile=profile)
