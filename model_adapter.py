@@ -49,9 +49,10 @@ _SCHEMA = _load_schema()
 
 # The fixed payload keys request_from_operation may carry. A bounded builder
 # is how the contract stays closed: a caller cannot smuggle an unplanned
-# field into a request (MODEL-05).
+# field into a request (MODEL-05). author_request is the Phase 11 additive
+# bounded-authoring payload (plan 11-05, operation author).
 _PAYLOAD_KEYS = ("item_context", "learner_response", "permitted_tier",
-                 "fact_manifest", "rubric_points")
+                 "fact_manifest", "rubric_points", "author_request")
 
 
 def unavailable_result(code, message, interaction_id):

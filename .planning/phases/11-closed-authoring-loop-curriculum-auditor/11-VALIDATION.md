@@ -1,11 +1,11 @@
 ---
 phase: 11
 slug: closed-authoring-loop-curriculum-auditor
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: validated
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-08-08
-updated: 2026-08-08
+updated: 2026-08-11
 ---
 
 # Phase 11 — Validation Strategy
@@ -170,8 +170,8 @@ The separate `fixtures/audit/locator_fidelity_cases.py` gate deterministically m
 - [x] No three consecutive implementation tasks lack automated verification.
 - [x] No watch-mode flags or external packages are required.
 - [x] Full public AUTH-01/AUTH-03 proof uses configured adapter state and the real CLI subprocess with no dependency injection.
-- [ ] All `11-AI-SPEC.md` dimensions, the machine-counted 36-case reference set, and the separate PDF/DOCX locator-fidelity gate are green.
-- [ ] Plans 11-01 through 11-04 completed without Phase 8 artifacts; Plan 11-05 began only after green Phase 8 adapter evidence and retained the blocking D-15 writer checkpoint before writer implementation.
-- [ ] `nyquist_compliant: true`, `wave_0_complete: true`, and `status: validated` are set only after the corresponding executable and human evidence exists.
+- [x] All `11-AI-SPEC.md` dimensions, the machine-counted 36-case reference set, and the separate PDF/DOCX locator-fidelity gate are green.
+- [x] Plans 11-01 through 11-04 completed without Phase 8 artifacts; Plan 11-05 began only after green Phase 8 adapter evidence and retained the blocking D-15 writer checkpoint before writer implementation.
+- [x] `nyquist_compliant: true`, `wave_0_complete: true`, and `status: validated` are set only after the corresponding executable and human evidence exists.
 
 **Approval:** planning-complete; execution pending

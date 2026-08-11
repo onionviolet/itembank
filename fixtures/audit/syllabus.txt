@@ -1,0 +1,7 @@
+EMT Unit 1: Airway Management
+
+- emt:airway.opa: The learner opens and maintains a patent airway
+- emt:airway.adjunct: The learner selects the correct airway adjunct
+
+The learner should be able to explain why suctioning precedes ventilation in
+an obstructed airway.

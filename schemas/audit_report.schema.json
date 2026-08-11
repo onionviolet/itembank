@@ -1,0 +1,357 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/audit_report.schema.json",
+  "title": "itembank audit report",
+  "description": "The strict machine-readable report contract of the closed authoring loop and curriculum auditor (Phase 11, D-02/D-04/D-13/D-17). One report carries the outcome of a bounded authoring run (status proposed/written/failed/already_completed with proposal, diff, findings, manifest, and volume records) or of a coverage audit (cited coverage rows with explicit covered/partial/conflicting/gap/unknown/stale states and input fingerprints). Every report is reproducible from request, source fingerprints, bank fingerprint, adapter profile, and tool version (D-17).",
+  "x-itembank-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "request_fingerprint"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "This document's own schema version; must equal x-itembank-version."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["proposed", "written", "failed", "already_completed", "awaiting_approval", "refused", "coverage"],
+      "description": "The run outcome. awaiting_approval marks a draft_and_approve run waiting for exact write-id acceptance; refused marks an opt-in/cap/approval rejection; coverage marks a citation-first curriculum audit report (plan 11-03)."
+    },
+    "request_fingerprint": {
+      "type": "string",
+      "description": "The deterministic fingerprint of the bounded request that produced this report (D-17); empty on coverage audits, which have no request."
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The deterministic run identity: request + bank-before + source + profile + tool version (AUTH-01)."
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["report_only", "draft_and_approve", "full"],
+      "description": "The permission mode of an authoring run (D-12); absent on coverage audits."
+    },
+    "write_allowed": {
+      "type": "boolean",
+      "description": "Whether the permission decision allowed a writer call (D-12/D-14)."
+    },
+    "attempts": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The number of author attempts made before the outcome (D-05)."
+    },
+    "outcome": {
+      "type": "string",
+      "description": "The failure/refusal classification on a failed or refused run: retry_cap_exhausted, preflight_recheck_failed, opt_in_required, cap_exceeded, approval_mismatch, or writer_<code> from the writer boundary (D-08/D-13)."
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/findings_group"
+      },
+      "description": "Versioned structured retry findings by kind (scope/lint/quality), in attempt order (D-06)."
+    },
+    "retained_draft": {
+      "type": ["object", "null"],
+      "description": "The complete final author response retained on exhaustion (D-08); the report never claims a partial prefix."
+    },
+    "message": {
+      "type": "string",
+      "description": "Optional human-readable summary of a refusal or writer failure."
+    },
+    "pending_write_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "The exact write ids a draft_and_approve run is waiting for; approval must name exactly this set (D-12)."
+    },
+    "proposal": {
+      "$ref": "#/$defs/proposal",
+      "description": "The immutable preflighted proposal (D-17); present on proposed/written outcomes."
+    },
+    "manifest": {
+      "$ref": "#/$defs/manifest",
+      "description": "The write manifest of a completed writer call (D-15); present on written/already_completed outcomes."
+    },
+    "coverage": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/coverage_row"
+      },
+      "description": "Cited objective rows of a coverage audit (plan 11-03), sorted by source locator and objective key."
+    },
+    "stale": {
+      "type": "boolean",
+      "description": "True when either input fingerprint no longer matches the cited source/bank; a stale report is never treated as current (D-04)."
+    },
+    "bank_fingerprint": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The fingerprint of the exact bank evaluated."
+    },
+    "source_fingerprints": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "The fingerprints of every source involved, sorted and deduplicated."
+    },
+    "tool_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The tool version that produced this report, so a later run can recompute staleness (D-17)."
+    },
+    "proposed_volume": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Units proposed before generation in full autonomy (AUDIT-09)."
+    },
+    "completed_volume": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Units accepted/completed on this run."
+    },
+    "rejected_volume": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Units rejected by scope/lint/quality or permission."
+    },
+    "retried_volume": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Author attempts consumed by retries."
+    },
+    "written_volume": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Units actually written."
+    },
+    "per_objective_volume": {
+      "type": "object",
+      "description": "Objective -> {proposed, completed, rejected, retried, written} volume breakdown (D-13)."
+    }
+  },
+  "$defs": {
+    "citation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "fingerprint", "span_id"],
+      "properties": {
+        "source_id": { "type": "string", "minLength": 1 },
+        "fingerprint": { "type": "string", "minLength": 64 },
+        "span_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "findings_group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "kind", "records"],
+      "properties": {
+        "schema_version": { "type": "integer", "const": 1 },
+        "kind": {
+          "type": "string",
+          "enum": ["scope", "lint", "quality"],
+          "description": "The gate family that produced these records (D-06)."
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/record"
+          },
+          "description": "One record per finding; lint records carry code/field/item/message, quality records the full finding shape."
+        }
+      }
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code"],
+      "properties": {
+        "schema_version": { "type": "integer", "const": 1 },
+        "code": { "type": "string", "minLength": 1 },
+        "field": { "type": "string" },
+        "item": { "type": "string" },
+        "message": { "type": "string" },
+        "detector": { "type": "string" },
+        "detector_version": { "type": "integer" },
+        "severity": { "type": "string", "enum": ["block", "warn"] },
+        "evidence": { "type": "object" },
+        "threshold": { "type": ["string", "null"] },
+        "remediation": { "type": "string" }
+      },
+      "description": "The union record shape of the structured retry findings (scope/lint/quality)."
+    },
+    "unit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unit_id", "item_id"],
+      "properties": {
+        "unit_id": { "type": "string", "minLength": 1 },
+        "item_id": { "type": "string", "minLength": 1 },
+        "objective": { "type": "string" },
+        "tag": { "type": "string" }
+      },
+      "description": "One declared reversible unit (D-16): the smallest accepted item/additive edit."
+    },
+    "proposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "run_id",
+        "request_fingerprint",
+        "bank_before_fingerprint",
+        "bank_after_fingerprint",
+        "source_fingerprints",
+        "tool_version",
+        "units",
+        "diff",
+        "bank_after_text",
+        "gates",
+        "item_count"
+      ],
+      "properties": {
+        "schema_version": { "type": "integer", "const": 1 },
+        "run_id": { "type": "string", "minLength": 1 },
+        "request_fingerprint": { "type": "string", "minLength": 1 },
+        "bank_before_fingerprint": { "type": "string", "minLength": 1 },
+        "bank_after_fingerprint": { "type": "string", "minLength": 1 },
+        "source_fingerprints": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "profile": { "type": "string", "description": "The adapter profile that generated the draft; empty when injected." },
+        "tool_version": { "type": "string", "minLength": 1 },
+        "units": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/unit" },
+          "description": "The declared reversible units of this proposal (D-16)."
+        },
+        "diff": {
+          "type": "string",
+          "description": "The reproducible unified diff of bank-before -> bank-after (D-17)."
+        },
+        "bank_after_text": {
+          "type": "string",
+          "description": "The complete proposed bank text; the only thing a writer may write."
+        },
+        "gates": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["lint_errors", "lint_warnings", "quality_findings"],
+          "properties": {
+            "lint_errors": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/record" },
+              "description": "model.lint error records (empty means the full candidate lints clean)."
+            },
+            "lint_warnings": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/record" }
+            },
+            "quality_findings": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/quality_finding_ref" }
+            }
+          }
+        },
+        "item_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "quality_finding_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "detector", "detector_version", "severity", "code", "item", "evidence", "remediation"],
+      "properties": {
+        "schema_version": { "type": "integer", "const": 1 },
+        "detector": { "type": "string", "enum": ["answer_skew", "near_duplicate_stems", "answer_leak", "distractor_rationale"] },
+        "detector_version": { "type": "integer", "minimum": 1 },
+        "severity": { "type": "string", "enum": ["block", "warn"] },
+        "code": { "type": "string", "enum": ["quality.answer_skew", "quality.near_duplicate_stems", "quality.answer_leak", "quality.distractor_rationale"] },
+        "item": { "type": "string", "minLength": 1 },
+        "evidence": { "type": "object" },
+        "threshold": { "type": ["string", "null"] },
+        "remediation": { "type": "string", "minLength": 1 }
+      }
+    },
+    "manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "write_id",
+        "run_id",
+        "backend",
+        "state",
+        "target_path",
+        "units",
+        "before_fingerprint",
+        "before_image",
+        "after_fingerprint",
+        "request_fingerprint",
+        "source_fingerprints",
+        "tool_version",
+        "diff",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": { "type": "integer", "const": 1 },
+        "write_id": { "type": "string", "minLength": 1 },
+        "run_id": { "type": "string", "minLength": 1 },
+        "backend": { "type": "string", "enum": ["shadow", "git"] },
+        "state": { "type": "string", "enum": ["prepared", "applied", "reverted"] },
+        "target_path": { "type": "string", "minLength": 1 },
+        "units": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/unit" }
+        },
+        "before_fingerprint": { "type": "string", "minLength": 1 },
+        "before_image": { "type": "string", "description": "The content-addressed before-image path; empty-before artifacts record before_exists separately." },
+        "before_exists": { "type": "boolean", "description": "False for a newly created derived report artifact with no before-image (11-05)." },
+        "after_fingerprint": { "type": "string", "minLength": 1 },
+        "request_fingerprint": { "type": "string", "minLength": 1 },
+        "source_fingerprints": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "tool_version": { "type": "string", "minLength": 1 },
+        "diff": { "type": "string" },
+        "created_at": { "type": "string", "description": "ISO-8601 UTC timestamp of the prepared state." },
+        "applied_at": { "type": ["string", "null"] },
+        "git_commit": { "type": ["string", "null"], "description": "The machine-authored commit hash when the Git backend applied the write (D-15)." }
+      }
+    },
+    "coverage_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["objective_key", "state", "source_citations", "bank_item_ids"],
+      "properties": {
+        "objective_key": { "type": "string", "minLength": 1 },
+        "state": {
+          "type": "string",
+          "enum": ["covered", "partial", "conflicting", "gap", "unknown", "stale"],
+          "description": "The citation-first coverage state; uncovered evidence is never covered (D-02)."
+        },
+        "source_citations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/citation" },
+          "description": "Exact current source-span citations; empty citations keep the state at unknown."
+        },
+        "bank_item_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Exact stable bank item ids cited as covering; empty keeps the state at unknown/gap."
+        },
+        "candidate_materials": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Inert material pointers only; they never authorize generation (AUDIT-04/D-18)."
+        }
+      }
+    }
+  }
+}

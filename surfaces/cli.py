@@ -13,6 +13,7 @@ from model import (BANK_FILE_HINTS, SPEC, STYLE_CHECK_CATALOGUE, coverage_map,
                    warning_ship_state)
 from surfaces.anki import cmd_export
 from surfaces.audio import cmd_export_audio
+from surfaces.audit_cli import cmd_audit
 from surfaces.daemon import (cmd_cli_twin, cmd_daemon, cmd_disclosure,
                              cmd_sidecar)
 from surfaces.day import cmd_day
@@ -509,6 +510,34 @@ def _cmd_export(a):
     if a.bank == "audio":
         return cmd_export_audio(a)
     return cmd_export(a)
+
+
+def _configured_author_callable(settings_data):
+    """The Phase 8 configured adapter as the repository-blind author
+    callable (plan 11-05 Task 1): builds the bounded adapter request
+    (operation author) carrying only the public contract, the bounded
+    authoring request, the attempt number, and versioned structured
+    findings, then returns the candidate for the authoring pipeline to
+    validate. An unavailable/refusal result becomes a malformed empty
+    response so the pipeline retries within its cap and retains a report
+    with zero writes -- the model can never change scope, tools, autonomy,
+    caps, or writer permission (T-11-25/T-11-26)."""
+    def _author(payload):
+        import authoring
+        import model_adapter
+        request = payload.get("request") or {}
+        interaction_id = "author-" + authoring.request_fingerprint(
+            request)[:16]
+        adapter_request = model_adapter.request_from_operation(
+            "author", interaction_id, "", author_request=payload)
+        result = model_adapter.invoke(adapter_request, settings_data)
+        if result.get("status") != "ok":
+            return {"schema_version": 1, "items": []}
+        candidate = result.get("candidate")
+        if isinstance(candidate, dict):
+            return candidate
+        return {"schema_version": 1, "items": []}
+    return _author
 
 
 def main():
@@ -1073,5 +1102,91 @@ def main():
                         "style.warn_fp_threshold = 0.20)")
     s.set_defaults(fn=cmd_calibrate)
 
+    # Phase 11: the closed authoring loop and curriculum auditor. The author
+    # subcommand binds the configured Phase 8 adapter in this composition
+    # root (load_settings -> model_backend -> model_adapter.invoke); the
+    # other subcommands are thin argument converters over the domain APIs.
+    s = sub.add_parser("audit", help="closed authoring loop and curriculum "
+                                     "auditor (Phase 11)")
+    aud = s.add_subparsers(dest="audit_command", required=True)
+    sa = aud.add_parser("source", help="normalize a source file into a "
+                                       "locator-faithful record (read-only)")
+    sa.add_argument("source")
+    sa.add_argument("--source-id", default=None,
+                    help="stable source identity (default: the path)")
+    sa.add_argument("--kind", default=None,
+                    help="adapter kind: markdown or text (default: by extension)")
+    sa.set_defaults(fn=lambda a: cmd_audit(a))
+    sc = aud.add_parser("coverage", help="citation-first coverage report of "
+                                         "a source against a bank (read-only)")
+    sc.add_argument("--source", required=True)
+    sc.add_argument("--source-id", default=None)
+    sc.add_argument("--bank", required=True)
+    sc.set_defaults(fn=lambda a: cmd_audit(a))
+    sm = aud.add_parser("material", help="turn obtained material into a new "
+                                         "bounded authoring request (never "
+                                         "authorizes a write)")
+    sm.add_argument("material")
+    sm.add_argument("--source-id", default=None)
+    sm.add_argument("--objective", action="append", required=True,
+                  dest="objectives")
+    sm.add_argument("--count", type=int, default=1)
+    sm.add_argument("--item-type", default="mc")
+    sm.add_argument("--retry-cap", type=int, default=3)
+    sm.add_argument("--mode", choices=["report_only", "draft_and_approve",
+                                       "full"], default="report_only")
+    sm.set_defaults(fn=lambda a: cmd_audit(a))
+    sauth = aud.add_parser("author", help="run the bounded authoring loop "
+                                          "through the configured model "
+                                          "backend")
+    sauth.add_argument("--source", required=True,
+                       help="the cited source (syllabus) file")
+    sauth.add_argument("--source-id", default=None)
+    sauth.add_argument("--bank", required=True,
+                       help="the bank file to extend (mutated only per mode)")
+    sauth.add_argument("--objective", action="append", required=True,
+                      dest="objectives")
+    sauth.add_argument("--count", type=int, default=1)
+    sauth.add_argument("--item-type", default="mc")
+    sauth.add_argument("--retry-cap", type=int, default=3)
+    sauth.add_argument("--mode", choices=["report_only", "draft_and_approve",
+                                          "full"], default="report_only")
+    sauth.add_argument("--state-dir", default=None,
+                       help="manifest/before-image/pending directory "
+                            "(required to write)")
+    sauth.add_argument("--write", action="store_true",
+                       help="wire the writer; the mode still decides whether "
+                            "it may act")
+    sauth.add_argument("--approve", action="append", default=[],
+                       help="exact write id to approve in draft_and_approve "
+                            "(repeatable; must name the pending set exactly)")
+    sauth.add_argument("--cap-run", type=int, default=0,
+                       help="per-run item cap for full autonomy")
+    sauth.add_argument("--cap-objective", type=int, default=0,
+                       help="per-objective cap for full autonomy")
+    sauth.add_argument("--base", default=".",
+                       help="directory whose itembank.json resolves the model "
+                            "backend (default: current directory)")
+    sauth.set_defaults(fn=lambda a: cmd_audit(
+        a, author_callable=_configured_author_callable(
+            _load_settings_for(a.base))))
+    su = aud.add_parser("undo", help="one-step undo by write id (routes by "
+                                     "manifest backend; refuses stale work)")
+    su.add_argument("write_id")
+    su.add_argument("--bank", required=True)
+    su.add_argument("--state-dir", required=True)
+    su.add_argument("--base", default=".",
+                    help="accepted for a uniform invocation shape; undo "
+                         "routes by manifest backend and never reads "
+                         "settings")
+    su.set_defaults(fn=lambda a: cmd_audit(a))
+
     a = ap.parse_args()
     sys.exit(a.fn(a))
+
+
+def _load_settings_for(base):
+    """The settings loader used by the audit author composition root; kept
+    as a function so the closure binds the resolved document once."""
+    from surfaces.settings import load_settings
+    return load_settings(base)
