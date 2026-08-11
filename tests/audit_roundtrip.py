@@ -462,7 +462,246 @@ def _assert_repository_blind(author_spy, bank_text):
 
 
 def case_schemas():
-    print("OK: schemas -- deferred to plan 11-02")
+    """Plan 11-02: the five strict public schemas accept the real Plan 11-01
+    runtime payloads, reject extra and missing data, match runtime versions,
+    and serialize stably under reordering."""
+    import resources
+    import schema_validate as sv
+
+    schemas = {
+        "request": "schemas/authoring_request.schema.json",
+        "normalized": "schemas/normalized_document.schema.json",
+        "quality": "schemas/quality_finding.schema.json",
+        "report": "schemas/audit_report.schema.json",
+        "manifest": "schemas/write_manifest.schema.json",
+    }
+    loaded = {}
+    for name, path in schemas.items():
+        doc = json.loads(resources.read_text(path))
+        sv.check_schema(doc)  # raises SchemaError on unsupported keywords
+        loaded[name] = doc
+
+    workdir = make_workdir("audit-schemas-")
+    try:
+        normalized = normalized_source(workdir)
+        request = request_for(normalized)
+
+        # --- runtime payloads -------------------------------------------
+        payloads = {"request": request, "normalized": normalized}
+
+        # quality findings: a bank that triggers all four detectors
+        findings = _all_detector_findings()
+        codes = {f["code"] for f in findings}
+        if codes != {"quality.answer_skew", "quality.near_duplicate_stems",
+                     "quality.answer_leak", "quality.distractor_rationale"}:
+            fail("schemas: fixture must trigger all four detectors, got %s"
+                 % sorted(codes))
+        for f in findings:
+            errs = sv.validate(f, loaded["quality"])
+            if errs:
+                fail("schemas: quality finding fails its schema: %s" % errs)
+
+        # report + manifest from a real full run
+        bank_path, bank_text = prepared_bank(workdir)
+        state_dir = os.path.join(workdir, "state")
+        cits = auditor.citations_for_objective(normalized, "emt:airway.opa")
+        author_spy = SpyAuthor(lambda n: _draft_response(
+            CLEAN_ITEM_TEXT, "emt:airway.opa", citations=cits))
+        writer_spy = SpyWriter(state_dir)
+        report = authoring.run_authoring(
+            request, author_spy, bank_text, writer_spy,
+            {"target_path": bank_path, "state_dir": state_dir})
+        if report.get("status") != "written":
+            fail("schemas: full run did not write: %r" % report.get("status"))
+        payloads["report"] = report
+        payloads["manifest"] = report["manifest"]
+
+        # a failed report carrying structured scope findings
+        wd2 = os.path.join(workdir, "scope-fail")
+        os.makedirs(wd2)
+        bank2_path, bank2_text = prepared_bank(wd2)
+        state2 = os.path.join(wd2, "state")
+        req2 = request_for(normalized, retry_cap=1)
+        spy2 = SpyAuthor(lambda n: _draft_response(
+            OUT_OF_SCOPE_ITEM_TEXT, "emt:cardiac.arrest", citations=cits))
+        failed = authoring.run_authoring(
+            req2, spy2, bank2_text, SpyWriter(state2),
+            {"target_path": bank2_path, "state_dir": state2})
+        if failed.get("status") != "failed":
+            fail("schemas: scope-fail run did not fail")
+        payloads["failed_report"] = failed
+
+        # --- version parity + acceptance ---------------------------------
+        for name, payload in payloads.items():
+            if name not in loaded:
+                continue  # failed_report is validated against the report schema below
+            errs = sv.validate(payload, loaded[name])
+            if errs:
+                fail("schemas: %s payload fails its schema: %s"
+                     % (name, errs[:3]))
+            if payload.get("schema_version") != loaded[name]["x-itembank-version"]:
+                fail("schemas: %s runtime version %r != x-itembank-version %r"
+                     % (name, payload.get("schema_version"),
+                        loaded[name]["x-itembank-version"]))
+        errs = sv.validate(failed, loaded["report"])
+        if errs:
+            fail("schemas: failed report fails the report schema: %s"
+                 % errs[:3])
+
+        # --- strict rejection: extra property -----------------------------
+        extra = dict(request)
+        extra["sneaky_field"] = True
+        if not sv.validate(extra, loaded["request"]):
+            fail("schemas: extra request property must fail")
+
+        extra_doc = dict(normalized)
+        extra_doc["spans"] = list(normalized["spans"])
+        extra_doc["spans"].append({"span_id": "sp-x", "kind": "body",
+                                   "locator": {"heading_path": [],
+                                               "start_line": 1, "end_line": 1,
+                                               "start_char": 0, "end_char": 0},
+                                   "verbatim": "x", "stray": 1})
+        if not sv.validate(extra_doc, loaded["normalized"]):
+            fail("schemas: extra span property must fail")
+
+        extra_finding = dict(findings[0])
+        extra_finding["opaque_score"] = 0.9
+        if not sv.validate(extra_finding, loaded["quality"]):
+            fail("schemas: extra finding property must fail")
+
+        extra_manifest = dict(report["manifest"])
+        extra_manifest["restore_anyway"] = True
+        if not sv.validate(extra_manifest, loaded["manifest"]):
+            fail("schemas: extra manifest property (unsafe restore selector) "
+                 "must fail")
+
+        extra_report = dict(report)
+        extra_report["caller_backend"] = "shadow"
+        if not sv.validate(extra_report, loaded["report"]):
+            fail("schemas: extra report property must fail")
+
+        # --- strict rejection: missing required --------------------------
+        for key in ("objectives", "count", "citations"):
+            missing = dict(request)
+            del missing[key]
+            if not sv.validate(missing, loaded["request"]):
+                fail("schemas: request missing %r must fail" % key)
+        for key in ("write_id", "backend", "before_fingerprint",
+                    "after_fingerprint"):
+            missing = dict(report["manifest"])
+            del missing[key]
+            if not sv.validate(missing, loaded["manifest"]):
+                fail("schemas: manifest missing %r must fail" % key)
+        for key in ("schema_version", "status", "request_fingerprint"):
+            missing = dict(report)
+            del missing[key]
+            if not sv.validate(missing, loaded["report"]):
+                fail("schemas: report missing %r must fail" % key)
+
+        # --- stable serialization under reordering ------------------------
+        cits_a = auditor.citations_for_objective(normalized, "emt:airway.opa")
+        cits_b = list(reversed(cits_a))
+        canon_a = authoring.canonical_json(sorted(cits_a, key=lambda c: c["span_id"]))
+        canon_b = authoring.canonical_json(sorted(cits_b, key=lambda c: c["span_id"]))
+        if canon_a != canon_b:
+            fail("schemas: reordered citation arrays must serialize "
+                 "equivalently")
+
+        print("OK: schemas -- five strict contracts accept runtime payloads, "
+              "reject extra/missing data, version parity, stable ordering")
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def _all_detector_findings():
+    """A bank that provokes all four quality detectors at once. Items are
+    minimal-but-parseable; quality_gate does not lint, so only the named
+    detectors decide."""
+    items = []
+    # skew: 12 mc items, 6 keyed A (50% > 40%)
+    for i in range(12):
+        correct = "A" if i < 6 else ("B" if i < 9 else "C")
+        items.append(_mc_block(
+            i + 1,
+            "Which finding indicates a patent airway during assessment %d?"
+            % (i + 1),
+            ["Clear breath sounds", "Snoring respirations", "Stridor",
+             "Absent chest rise"],
+            correct,
+            da={"A": "A is correct because the question asks about patency.",
+                "B": "B would be correct if obstruction were present.",
+                "C": "C would be correct if upper-airway narrowing were heard.",
+                "D": "D would be correct if ventilation were absent."}))
+    # near-duplicate pair (Jaccard 11/12 ~= 0.917 >= 0.85, 11+ tokens each)
+    items.append(_mc_block(
+        13,
+        "The first priority in cardiac arrest management includes opening "
+        "the airway, maintaining patency, then ventilating gently",
+        ["Open the airway", "Start compressions", "Call for help",
+         "Check the pulse"],
+        "A",
+        da={"A": "A is correct because the airway comes first.",
+            "B": "B would be correct after the airway is secured.",
+            "C": "C would be correct if the arrest were witnessed.",
+            "D": "D would be correct after breathing is assessed."}))
+    items.append(_mc_block(
+        14,
+        "The first priority in cardiac arrest management includes opening "
+        "the airway, maintaining patency, then ventilating",
+        ["Open the airway", "Start compressions", "Call for help",
+         "Check the pulse"],
+        "A",
+        da={"A": "A is correct because the airway comes first.",
+            "B": "B would be correct after the airway is secured.",
+            "C": "C would be correct if the arrest were witnessed.",
+            "D": "D would be correct after breathing is assessed."}))
+    # answer leak: correct option run appears contiguously in the stem
+    items.append(_mc_block(
+        15,
+        "When a patient is unresponsive, you must open the airway and "
+        "maintain patency as the first action",
+        ["Open the airway and maintain patency", "Check the blood pressure",
+         "Recheck the pupils", "Count the respirations"],
+        "A",
+        da={"A": "A is correct because patency is the priority.",
+            "B": "B would be correct after the airway is managed.",
+            "C": "C would be correct in a neurologic assessment.",
+            "D": "D would be correct for a ventilatory assessment."}))
+    # distractor rationale missing the would-be condition
+    items.append(_mc_block(
+        16,
+        "Which oxygen device delivers a fixed concentration?",
+        ["Venturi mask", "Nasal cannula", "Non-rebreather", "Simple mask"],
+        "A",
+        da={"A": "A is correct because it entrains a fixed ratio.",
+            "B": "B is a common choice for stable patients.",
+            "C": "C would be correct for the highest concentration.",
+            "D": "D would be correct for moderate oxygen needs."}))
+    bank_text = "\n\n".join(items) + "\n"
+    questions = model.parse_bank(bank_text)
+    if len(questions) != 16:
+        fail("schemas: detector fixture must parse into 16 items, got %d"
+             % len(questions))
+    return authoring.quality_gate(questions)
+
+
+def _mc_block(num, stem, options, correct, da):
+    lines = ["Q%d. %s" % (num, stem),
+             "[OBJECTIVE: emt:airway.opa]"]
+    for letter, text in zip("ABCD", options):
+        lines.append("%s) %s" % (letter, text))
+    lines.append("CORRECT: %s" % correct)
+    lines.append("WHY BEST: The keyed option matches the stated priority.")
+    lines.append("KEY DISCRIMINATOR: The item turns on one distinction.")
+    lines.append("SECOND-BEST: The runner-up would need a different scenario.")
+    lines.append("DISTRACTOR ANALYSIS:")
+    for letter, text in zip("ABCD", options):
+        note = da.get(letter)
+        if note:
+            lines.append("- %s) %s" % (letter, note))
+    lines.append("TRAP: Learners confuse the priority order.")
+    lines.append("CONFIDENCE: high")
+    return "\n".join(lines)
 
 
 CASES = {

@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/normalized_document.schema.json",
+  "title": "itembank normalized source document",
+  "description": "The strict locator-faithful normalization contract (Phase 11, D-01/D-03/D-04). A normalized document is a derived, versioned record of a read-only source: exact spans with heading paths, line/character locators, and verbatim text, plus extracted objective candidates that retain their originating span. Reconstructing every span from recorded offsets must yield byte-for-byte-equivalent Unicode text (11-03 fidelity requirement).",
+  "x-itembank-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "source_id",
+    "kind",
+    "fingerprint",
+    "byte_length",
+    "spans",
+    "objective_candidates"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "This document's own schema version; must equal x-itembank-version."
+    },
+    "source_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The caller-supplied stable identity of the source (D-01)."
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["markdown", "text"],
+      "description": "The registered adapter that produced this record. PDF/DOCX remain unsupported until the locator-fidelity gate proves exact round-trips (D-03, 11-AI-SPEC)."
+    },
+    "fingerprint": {
+      "type": "string",
+      "minLength": 64,
+      "description": "The SHA-256 (hex) of the exact original source bytes; a report is stale when the current bytes' fingerprint differs (D-04)."
+    },
+    "byte_length": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The original source byte length (schema-bounded ingestion, T-11-10)."
+    },
+    "spans": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/span"
+      },
+      "description": "Ordered exact spans; offsets are 0-based character offsets into the decoded text."
+    },
+    "objective_candidates": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/objective_candidate"
+      },
+      "description": "Deterministic objective candidates from headings, list entries, and declarative body sentences, each retaining its exact originating span (AUDIT-01)."
+    }
+  },
+  "$defs": {
+    "span": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["span_id", "kind", "locator", "verbatim"],
+      "properties": {
+        "span_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The stable identity of this span within the document; citations address spans by this id."
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["heading", "list", "body"],
+          "description": "The span's role; objective extraction never collapses to heading scraping (AUDIT-01)."
+        },
+        "locator": {
+          "$ref": "#/$defs/locator"
+        },
+        "verbatim": {
+          "type": "string",
+          "description": "The exact text of the span, reconstructible from the recorded offsets."
+        },
+        "objective_candidate": {
+          "type": "string",
+          "description": "For heading/list spans, the candidate text carried by the span itself."
+        }
+      }
+    },
+    "locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["heading_path", "start_line", "end_line", "start_char", "end_char"],
+      "properties": {
+        "heading_path": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The markdown heading stack the span sits under, outermost first; empty for text sources."
+        },
+        "start_line": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based first line of the span."
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based last line of the span."
+        },
+        "start_char": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "0-based character offset of the span's first character."
+        },
+        "end_char": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "0-based character offset one past the span's last character."
+        }
+      }
+    },
+    "objective_candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "span_id", "text"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The canonical candidate key (a subject:path when the source line carries one, else the collapsed lowercased text). Coverage rows match bank objectives by exact key equality."
+        },
+        "span_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The exact span this candidate came from; the citation for this objective addresses this span."
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The candidate text as extracted."
+        }
+      }
+    }
+  }
+}

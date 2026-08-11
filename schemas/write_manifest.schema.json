@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/write_manifest.schema.json",
+  "title": "itembank write manifest",
+  "description": "The strict write provenance, recovery, and undo contract of the Phase 11 transactional writer (D-15/D-16/D-17). One manifest is durably recorded before any mutation, names the locked backend (Git for tracked-clean targets, content-addressed shadow otherwise), declares every reversible unit, records before/after fingerprints, the diff, and full request/source/tool provenance, and is the only input one-step undo may route on. Callers never choose a backend or a restore mechanism (D-15, T-11-24).",
+  "x-itembank-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "write_id",
+    "run_id",
+    "backend",
+    "state",
+    "target_path",
+    "units",
+    "before_fingerprint",
+    "before_image",
+    "after_fingerprint",
+    "request_fingerprint",
+    "source_fingerprints",
+    "tool_version",
+    "diff",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "This document's own schema version; must equal x-itembank-version."
+    },
+    "write_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The deterministic write identity derived from request, bank-before, source, profile, and tool provenance; a duplicate write returns the existing result (AUTH-01/T-11-05)."
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The authoring run identity this write belongs to."
+    },
+    "backend": {
+      "type": "string",
+      "enum": ["shadow", "git"],
+      "description": "The locked backend chosen by the writer for this exact target, never by a caller: shadow for non-Git targets, Git for tracked-clean worktree targets (D-15)."
+    },
+    "state": {
+      "type": "string",
+      "enum": ["prepared", "applied", "reverted"],
+      "description": "The durable writer state; a prepared manifest exists before any mutation, applied only after the after-fingerprint guard passes."
+    },
+    "target_path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The absolute path of the mutated target."
+    },
+    "units": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/unit"
+      },
+      "description": "The declared reversible units of this write, sorted and deduplicated (D-16)."
+    },
+    "before_fingerprint": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The fingerprint of the exact before bytes; undo restores only these."
+    },
+    "before_image": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The content-addressed path of the durably recorded before-image."
+    },
+    "before_exists": {
+      "type": "boolean",
+      "description": "False for a newly created derived report artifact whose before-image is the empty state -- never a missing fingerprint (11-05)."
+    },
+    "after_fingerprint": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The fingerprint the target must carry for undo to be allowed; any mismatch refuses without a force path (T-11-17)."
+    },
+    "request_fingerprint": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The bounded request that produced this write (D-17)."
+    },
+    "source_fingerprints": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Every source fingerprint the write cites, sorted and deduplicated."
+    },
+    "tool_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The tool version that produced the write, so a later run can detect a version mismatch (D-17)."
+    },
+    "diff": {
+      "type": "string",
+      "description": "The reproducible unified diff this write applied (D-17)."
+    },
+    "created_at": {
+      "type": "string",
+      "description": "ISO-8601 UTC timestamp of the prepared state."
+    },
+    "applied_at": {
+      "type": ["string", "null"],
+      "description": "ISO-8601 UTC timestamp of the applied state; null while prepared."
+    },
+    "git_commit": {
+      "type": ["string", "null"],
+      "description": "The machine-authored commit hash when the Git backend applied the write (D-15); null for shadow writes."
+    }
+  },
+  "$defs": {
+    "unit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unit_id", "item_id"],
+      "properties": {
+        "unit_id": { "type": "string", "minLength": 1 },
+        "item_id": { "type": "string", "minLength": 1 },
+        "objective": { "type": "string" },
+        "tag": { "type": "string" }
+      },
+      "description": "One declared reversible unit (D-16)."
+    }
+  }
+}

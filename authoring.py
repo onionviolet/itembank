@@ -454,7 +454,7 @@ def detect_answer_leak(questions):
                 if not competitors:
                     findings.append(_quality_finding(
                         "answer_leak", "block", "quality.answer_leak", q["id"],
-                        {"run": run, "correct_option": letter,
+                        {"run": list(run), "correct_option": letter,
                          "competing_options_with_run": competitors,
                          "min_run": LEAK_MIN_RUN},
                         "the correct option %s leaks a %d-token phrase "

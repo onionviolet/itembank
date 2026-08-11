@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/quality_finding.schema.json",
+  "title": "itembank quality finding",
+  "description": "One machine-readable record from the second quality gate (Phase 11, AUDIT-07/D-09/D-10). Exactly four independently named deterministic detectors run after lint; each emits its own record with versioned measured evidence and a concise remediation -- never an aggregate score. A profile may change severity but can never erase evidence (11-04 assumption probe).",
+  "x-itembank-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "detector",
+    "detector_version",
+    "severity",
+    "code",
+    "item",
+    "evidence",
+    "remediation"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "This document's own schema version; must equal x-itembank-version."
+    },
+    "detector": {
+      "type": "string",
+      "enum": [
+        "answer_skew",
+        "near_duplicate_stems",
+        "answer_leak",
+        "distractor_rationale"
+      ],
+      "description": "The named detector that produced this record (AUDIT-07)."
+    },
+    "detector_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The version of the detector rule that produced this record (D-09)."
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["block", "warn"],
+      "description": "The disposition of the finding; machine-authored items must pass every block finding before a write (D-11)."
+    },
+    "code": {
+      "type": "string",
+      "enum": [
+        "quality.answer_skew",
+        "quality.near_duplicate_stems",
+        "quality.answer_leak",
+        "quality.distractor_rationale"
+      ],
+      "description": "The stable dotted code an authoring agent branches on."
+    },
+    "item": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The item reference this finding is about (for example Q3, or the literal BANK for a bank-wide finding)."
+    },
+    "evidence": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/evidence_skew"
+        },
+        {
+          "$ref": "#/$defs/evidence_near_duplicate"
+        },
+        {
+          "$ref": "#/$defs/evidence_leak"
+        },
+        {
+          "$ref": "#/$defs/evidence_rationale"
+        }
+      ],
+      "description": "The measured values behind the finding -- explainable, versioned, and detector-specific (D-10)."
+    },
+    "threshold": {
+      "type": ["string", "null"],
+      "description": "Optional human-readable threshold summary; the numeric bounds always live inside evidence."
+    },
+    "remediation": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The concise actionable remediation an authoring agent can act on."
+    }
+  },
+  "$defs": {
+    "evidence_skew": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total_mc", "per_letter_counts", "max_position", "max_share", "min_items", "block_above"],
+      "properties": {
+        "total_mc": { "type": "integer", "minimum": 12 },
+        "per_letter_counts": { "type": "object", "description": "Letter -> count for keyed MC positions." },
+        "max_position": { "type": "string", "minLength": 1 },
+        "max_share": { "type": "number", "description": "The top position's share; blocks only above block_above." },
+        "min_items": { "type": "integer", "const": 12 },
+        "block_above": { "type": "number", "const": 0.4 }
+      }
+    },
+    "evidence_near_duplicate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["item_a", "item_b", "tokens_a", "tokens_b", "intersection", "union", "score", "min_tokens", "block_at"],
+      "properties": {
+        "item_a": { "type": "string", "minLength": 1 },
+        "item_b": { "type": "string", "minLength": 1 },
+        "tokens_a": { "type": "array", "items": { "type": "string" } },
+        "tokens_b": { "type": "array", "items": { "type": "string" } },
+        "intersection": { "type": "array", "items": { "type": "string" } },
+        "union": { "type": "array", "items": { "type": "string" } },
+        "score": { "type": "number", "description": "Jaccard of the normalized non-stopword token sets." },
+        "min_tokens": { "type": "integer", "const": 6 },
+        "block_at": { "type": "number", "const": 0.85 }
+      }
+    },
+    "evidence_leak": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run", "correct_option", "competing_options_with_run", "min_run"],
+      "properties": {
+        "run": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 3,
+          "description": "The contiguous normalized content-token run leaked into the stem."
+        },
+        "correct_option": { "type": "string", "minLength": 1 },
+        "competing_options_with_run": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Incorrect options sharing the run; when empty the run is a unique leak."
+        },
+        "min_run": { "type": "integer", "const": 3 }
+      }
+    },
+    "evidence_rationale": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["option", "rationale_present", "would_be_condition"],
+      "properties": {
+        "option": { "type": "string", "minLength": 1 },
+        "rationale_present": { "type": "boolean" },
+        "would_be_condition": { "type": "boolean", "description": "Whether the rationale states the condition under which the option would be correct." }
+      }
+    }
+  }
+}

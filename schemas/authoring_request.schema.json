@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/authoring_request.schema.json",
+  "title": "itembank bounded authoring request",
+  "description": "The strict bounded-request contract of the closed authoring loop (Phase 11, D-07/AUTH-02). The runtime enforces these bounds in code before lint and again immediately before the writer boundary; this schema is the published machine-readable shape. An extra or malformed scope/citation field fails here even when the rest of the payload is lint-clean (11-02 prohibition).",
+  "x-itembank-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "objectives",
+    "count",
+    "item_types",
+    "citations",
+    "retry_cap",
+    "mode"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "This document's own schema version; must equal x-itembank-version."
+    },
+    "objectives": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "description": "The exact objective identities the request may generate for. An item outside this set is out of scope (AUTH-02)."
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "description": "The exact number of items requested; the author response must return exactly this many (T-11-04)."
+    },
+    "item_types": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["mc", "multi", "table", "build", "dnd", "short"]
+      },
+      "minItems": 1,
+      "description": "The allowed item types; every response item type must be a member."
+    },
+    "citations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/citation"
+      },
+      "minItems": 1,
+      "description": "The exact source-span citations that bound the request (D-01/D-07); response item citations must be exact members."
+    },
+    "retry_cap": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "default": 3,
+      "description": "The exact retry cap: success on the last allowed attempt proceeds; one more call never occurs (D-05, T-11-04)."
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["report_only", "draft_and_approve", "full"],
+      "default": "report_only",
+      "description": "The permission mode (D-12): report_only never mutates a bank; draft_and_approve requires exact write-id acceptance; full is explicit opt-in with caps (D-13). The model can never select or change this."
+    },
+    "per_objective_cap": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "default": 20,
+      "description": "The per-objective cap enforced in full autonomy (D-13/AUDIT-09)."
+    }
+  },
+  "$defs": {
+    "citation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "fingerprint", "span_id"],
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The stable identity of the normalized source document (D-01)."
+        },
+        "fingerprint": {
+          "type": "string",
+          "minLength": 64,
+          "description": "The SHA-256 (hex) of the exact source bytes, so staleness is detectable (D-04)."
+        },
+        "span_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The exact span within the source this citation points at; a claim without an exact span cannot cite it (D-02)."
+        }
+      }
+    }
+  }
+}
