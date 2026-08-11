@@ -15,8 +15,12 @@ import html, json, os, re, sys
 
 import evidence
 import retention
-from surfaces import presentation, settings
+from model import lesson_slug, parse_lesson
+from surfaces import presentation, retention_view, settings
+from surfaces.session import OVERRIDE_CONFIRMATION
 from surfaces.theme import theme_css
+
+esc = html.escape
 
 
 # ---- the day surface --------------------------------------------------------
@@ -450,6 +454,156 @@ def day_pacing(state, cfg=None):
     return retention.subject_pacing(snapshot, cap=cfg.get("daily_cap"))
 
 
+def day_recommendation(state, cfg=None):
+    """The Today recommendation payload (10-05 Task 1, D-01/D-05/D-07): the
+    due objectives with state/reason/raw counts, the pending-review total,
+    and each recommended subject's runtime cap decision -- all from the SAME
+    one capture as `day_pacing`, so the card, the disclosure, the cap gate
+    and the focused-start request share one snapshot id. Derivation only:
+    `retention_view` renders this dict and performs no arithmetic."""
+    if cfg is None:
+        cfg = settings.load_settings(
+            os.path.dirname(os.path.abspath(state["plan_path"])) or ".")
+    events = evidence.capture_events(state["evidence_log"]) \
+        if os.path.exists(state["evidence_log"]) else ()
+    snapshot = retention.capture(events, cfg=cfg)
+    summaries = retention.objective_summaries(snapshot)
+    recs = []
+    for row in summaries:
+        st = retention.objective_state(row, snapshot)
+        if not st["due"]:
+            continue
+        recs.append({
+            "objective": row["objective"],
+            "subject": row["subject"] or "",
+            "state": st["state"],
+            "reason": retention.risk_reason(row, st, snapshot),
+            "attempts": row["attempts"],
+            "settled": row["settled"],
+            "correct": row["correct"],
+            "pending": row["pending"],
+            "recent_accuracy": row["recent_accuracy"],
+            "highest_hint": row["highest_hint"],
+            "average_hint": row["average_hint"],
+            "last_evidence": (row["last_evidence"].isoformat()
+                              if row["last_evidence"] else None),
+            "snapshot_id": snapshot["claim"]["snapshot_id"],
+        })
+    cap = cfg.get("daily_cap")
+    decisions = {}
+    # The cap gate covers every subject with activity today -- whether or
+    # not it currently has a due recommendation -- so an at-cap subject is
+    # always called out (D-07).
+    for subj in sorted({row["subject"] for row in summaries
+                        if row["subject"]}):
+        decisions[subj] = retention.cap_decision(
+            snapshot, subject=subj, cap=cap)
+    return {
+        "objectives": recs,
+        "claim": snapshot["claim"],
+        "cap": decisions,
+        "pending": sum(r["pending"] for r in recs),
+    }
+
+
+def _slugify(text):
+    """A DOM-safe id suffix from a subject namespace."""
+    return re.sub(r"[^A-Za-z0-9_-]", "-", text or "") or "subject"
+
+
+def objective_card(o, claim, index=0):
+    """One due-objective card: state chip, raw counts, the `Why this
+    recommendation` evidence disclosure, and a focused-start action that
+    carries ONLY the displayed snapshot id and stable objective -- the
+    server re-validates and derives every private authority (D-01/D-04)."""
+    state = o.get("state") or "unknown"
+    counts = "%d attempt(s), %d settled, %d correct" % (
+        o.get("attempts", 0), o.get("settled", 0), o.get("correct", 0))
+    hint = ""
+    if o.get("highest_hint") is not None:
+        hint = " \u00b7 highest hint tier %d" % o["highest_hint"]
+    return (
+        '<article class="objective" data-objective="%s" data-state="%s" '
+        'data-snapshot="%s">'
+        "<h3>%s</h3>"
+        "<p>%s%s</p>"
+        "%s"
+        '<button type="button" class="go primary start" '
+        'data-objective="%s" data-snapshot="%s">'
+        "Start focused session</button>"
+        "</article>"
+        % (esc(o.get("objective") or ""), esc(state),
+           esc(claim.get("snapshot_id") or ""),
+           esc(o.get("objective") or ""),
+           retention_view.objective_state(state), esc(counts + hint),
+           retention_view.evidence_drawer(o, claim, o.get("subject")),
+           esc(o.get("objective") or ""),
+           esc(claim.get("snapshot_id") or "")))
+
+
+def today_section(today, info):
+    """The 10-05 Today panel, rendered server-side from one snapshot: the
+    snapshot stamp, owner-labelled itembank/Anki signals (never summed),
+    due-objective cards, the pending badge, and each recommended subject's
+    CapGate with recovery links and the one-sitting override dialog. The
+    browser performs no derivation (D-01/D-05/D-07/D-08)."""
+    e = html.escape
+    claim = today.get("claim") or {}
+    objs = today.get("objectives") or []
+    parts = [retention_view.snapshot_stamp(claim)]
+    if objs:
+        parts.append(retention_view.signal_card(
+            "itembank",
+            "%d objective(s) recommended" % len(objs)))
+    else:
+        parts.append('<p class="empty">%s</p>' % e(
+            "Not enough evidence yet. This objective has fewer than the "
+            "settled attempts needed for a recommendation. Practice is "
+            "still available; no mastery or trend is claimed."))
+    for i, o in enumerate(objs):
+        parts.append(objective_card(o, claim, index=i))
+    if today.get("pending"):
+        parts.append(retention_view.pending_review_badge(today["pending"]))
+    first_objective = {}
+    for o in today.get("objectives") or []:
+        first_objective.setdefault(o.get("subject") or "", o.get("objective"))
+    for subj, decision in sorted((today.get("cap") or {}).items()):
+        oid = "override-%s" % _slugify(subj)
+        parts.append(retention_view.cap_gate(
+            decision, recovery_href="/report", override_id=oid))
+        if decision.get("blocked"):
+            parts.append(retention_view.override_dialog(
+                oid, subj, oid + "-confirm",
+                objective=first_objective.get(subj)))
+    # Anki: a separate owner-labelled signal; unavailable uses the locked
+    # copy and never alters the itembank snapshot/recommendation (D-05).
+    if info.get("anki_unavailable"):
+        parts.append('<p class="signal"><span class="owner">Anki</span>%s</p>'
+                     % e(ANKI_UNAVAILABLE_COPY))
+    elif info.get("anki_line"):
+        parts.append(retention_view.signal_card("Anki", info["anki_line"]))
+    lessons = today.get("lessons") or {}
+    for stem in sorted(lessons):
+        parts.append(lesson_complete_form(stem, lessons[stem],
+                                          today.get("claim") or {}))
+    return '<section class="today">%s</section>' % "".join(parts)
+
+
+def lesson_complete_form(stem, headings, claim):
+    """The explicit `Mark lesson complete` affordance (10-05 Task 2,
+    SCHED-04): a native select of server-resolved lesson headings and a
+    button that POSTs to `/api/lesson-complete`. Merely opening/rendering
+    the page writes nothing; completion is a separate explicit action that
+    appends one lesson_complete event through the runtime."""
+    opts = "".join('<option value="%s">%s</option>' % (esc(h), esc(h))
+                   for h in headings)
+    return (
+        '<form class="lesson-complete" data-bank="%s" data-snapshot="%s">'
+        '<label>Mark lesson complete <select name="ref">%s</select></label>'
+        '<button type="submit" class="go">Mark lesson complete</button>'
+        "</form>" % (esc(stem), esc(claim.get("snapshot_id") or ""), opts))
+
+
 # ---- git evidence --------------------------------------------------------------
 # Ticks are an opinion; a commit touching the lane's file is evidence, and the
 # two disagreeing is the thing worth seeing. Uncommitted edits count too, since
@@ -686,6 +840,46 @@ border-radius:10px;background:var(--bg)}
 .pacing .snap{font-size:.72rem;color:var(--mut);margin:6px 0 0}
 .owner{font-weight:600;color:var(--accent);text-transform:uppercase;font-size:.7rem;
 letter-spacing:.04em;margin-right:6px}
+.today{margin:12px 0;display:flex;flex-direction:column;gap:10px}
+.today .stamp{font-size:.75rem;color:var(--mut);margin:0}
+.today .signal{margin:0;font-size:.95rem}
+.today .empty{font-size:.9rem;color:var(--mut);margin:0}
+.objective{border:1px solid var(--line);border-radius:10px;background:var(--card);
+padding:12px 16px;display:flex;flex-direction:column;gap:8px}
+.objective h3{margin:0;font-size:1rem;font-weight:600}
+.objective p{margin:0;font-size:.85rem;color:var(--mut)}
+.state{display:inline-block;border:1px solid var(--line);border-radius:999px;
+padding:1px 10px;font-size:.75rem;color:var(--ink);margin-right:6px}
+.state.unknown,.state.conflicting{color:var(--mut)}
+.state.at-risk{border-color:var(--warn);color:var(--warn)}
+.state.mastered{border-color:var(--ok);color:var(--ok)}
+.pending{margin:0;font-size:.8rem;color:var(--warn)}
+.cap{margin:0;font-size:.9rem}
+.cap.blocked{border:1px solid var(--bad);border-radius:10px;padding:10px 12px;
+background:var(--card)}
+.cap .acts,.override-dialog .acts,.lesson-complete{display:flex;gap:8px;
+flex-wrap:wrap;align-items:center}
+.override-dialog{border:1px solid var(--line);border-radius:12px;
+padding:20px;max-width:420px}
+.override-dialog h2{margin:0 0 8px;font-size:1.1rem}
+.override-dialog p{margin:0 0 12px;font-size:.9rem}
+.lesson-complete{margin:0;font-size:.85rem;border-top:1px solid var(--line);
+padding-top:10px}
+.lesson-complete select{min-height:44px;padding:6px;border:1px solid var(--line);
+border-radius:8px;background:var(--bg);color:var(--ink)}
+.go{min-height:44px;padding:8px 16px;border:1px solid var(--line);border-radius:8px;
+background:var(--bg);color:var(--ink);cursor:pointer;text-decoration:none;
+display:inline-flex;align-items:center;justify-content:center}
+.go.primary{background:var(--accent-soft);border-color:var(--accent);
+color:var(--accent);font-weight:600}
+.go.cancel{border-color:var(--bad);color:var(--bad)}
+.drawer{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:.85rem}
+.drawer dt{font-weight:600;color:var(--mut)}
+.drawer dd{margin:0}
+@media (max-width:520px){
+.cap .acts,.override-dialog .acts,.lesson-complete{flex-direction:column;
+align-items:stretch}
+.cap .acts .go,.override-dialog .acts button{width:100%}}
 """
 
 
@@ -989,6 +1183,76 @@ if(SNAP.status==="ready"){
  initEditor();
 }
 paint();
+
+/* ---- 10-05 Today: focused start, one-sitting override, lesson complete ---- */
+var TODAY=D.today||{};
+var TODAY_STATUS=document.getElementById('today-status');
+function todayAnnounce(text,alert){
+ var el=TODAY_STATUS||document.createElement('p');
+ el.id='today-status';
+ if(!TODAY_STATUS){document.querySelector('.today').appendChild(el);TODAY_STATUS=el;}
+ el.setAttribute('role',alert?'alert':'status');
+ el.textContent=text;
+}
+function todayPost(url,body,okText,errText){
+ var r=new XMLHttpRequest();
+ r.open('POST',url);
+ r.setRequestHeader('Content-Type','application/json');
+ r.onload=function(){
+  var ok=(r.status>=200&&r.status<300);
+  var msg=ok?okText:errText;
+  try{
+   var d=JSON.parse(r.responseText);
+   if(d&&d.error){msg=d.error;}
+   if(d&&d.session_id&&ok){msg+=' -- session '+d.session_id;}
+  }catch(e){}
+  todayAnnounce(msg,false);
+  if(ok&&location.search.indexOf('today=')<0){}
+ };
+ r.onerror=function(){todayAnnounce(errText,true);};
+ r.send(JSON.stringify(body));
+}
+function focusedBank(){
+ var banks=TODAY.banks||[];
+ if(banks.length===1){return banks[0];}
+ return '';
+}
+document.addEventListener('click',function(ev){
+ var b=ev.target.closest&&ev.target.closest('button.start');
+ if(!b)return;
+ var bank=focusedBank();
+ if(!bank){todayAnnounce('Choose a bank to start a focused session.',true);return;}
+ var body={bank:bank,objective:b.getAttribute('data-objective'),count:10,
+           snapshot:TODAY.claim||{}};
+ todayPost('/api/start',body,'Focused session started.',
+           'Start blocked. Refresh Today and try again.');
+});
+document.querySelectorAll('.override-dialog').forEach(function(dlg){
+ var trigger=document.getElementById(dlg.id);
+ if(!trigger){return;}
+ trigger.addEventListener('click',function(){
+  if(typeof dlg.showModal==='function'){dlg.showModal();}
+  else{dlg.setAttribute('open','');}
+ });
+ dlg.addEventListener('close',function(){
+  if(dlg.returnValue==='confirm'){
+   var bank=focusedBank();
+   if(!bank){todayAnnounce('Choose a bank to request an override.',true);return;}
+   todayPost('/api/override',
+     {bank:bank,objective:dlg.getAttribute('data-objective')||'',
+      count:10,token:TODAY.confirm||'start one additional sitting'},
+     'One additional sitting started.','Override refused. Refresh Today.');
+  }
+ });
+});
+document.querySelectorAll('form.lesson-complete').forEach(function(form){
+ form.addEventListener('submit',function(ev){
+  ev.preventDefault();
+  var ref=form.querySelector('select[name=ref]').value;
+  todayPost('/api/lesson-complete',{bank:form.getAttribute('data-bank'),ref:ref},
+    'Lesson marked complete.','Lesson completion refused.');
+ });
+});
 """
 
 
@@ -1058,6 +1322,13 @@ def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None,
         chips.append('<span class="chip %s">%s <b>%dd</b></span>'
                      % (cls, e(name), days))
     chips = '<div class="chips">%s</div>' % "".join(chips) if chips else ""
+    # 10-05: the Today panel -- recommendation cards, cap gates, pending
+    # badge, override dialogs and the owner-labelled Anki signal -- all
+    # rendered server-side from ONE snapshot (day_recommendation). The
+    # itembank pacing block and the notes below remain.
+    today_html = ""
+    if info.get("today"):
+        today_html = today_section(info["today"], info)
     # 10-04: the itembank pacing block (per-subject count/cap + due
     # objectives from ONE snapshot, owner-labelled) and the separate
     # owner-labelled Anki line -- two owners, never summed (D-05). The
@@ -1156,6 +1427,20 @@ def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None,
                "Plan changed outside itembank \u2014 nothing was overwritten."))
     boot = {"date": iso, "lanes": list(DAY_LANES), "floor": list(FLOOR_LANES),
             "base": base, "snapshot": snapshot}
+    today = info.get("today") or {}
+    if today:
+        boot["today"] = {
+            "claim": today.get("claim") or {},
+            "objectives": [{"objective": o.get("objective"),
+                            "state": o.get("state"),
+                            "subject": o.get("subject")}
+                           for o in (today.get("objectives") or [])],
+            "banks": today.get("banks") or [],
+            "cap": dict((s, {"count": d.get("count"), "cap": d.get("cap"),
+                             "blocked": bool(d.get("blocked"))})
+                        for s, d in (today.get("cap") or {}).items()),
+            "confirm": OVERRIDE_CONFIRMATION,
+        }
     empty_row = ""
     if not plan_row:
         empty_row = '<div class="empty">No plan row for this date.</div>'
@@ -1169,6 +1454,7 @@ def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None,
             "%s<div class=verdict id=verdict></div>"
             "%s"
             "%s"
+            "%s"
             "%s%s"
             "%s<div class=note>Plan read from <code>%s</code>. Ticks are written to disk "
             "as you make them.</div>"
@@ -1178,8 +1464,8 @@ def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None,
                "".join('<i class="%s" title="%s: %s"></i>'
                        % ("" if h["status"] == "miss" else h["status"], h["date"], h["status"])
                        for h in hist),
-               "".join(lanes), editor, empty_row, pacing, anki, notes,
-               e(plan_path),
+               "".join(lanes), today_html, editor, empty_row, pacing, anki,
+               notes, e(plan_path),
                presentation.script_safe_json(boot), DAY_JS))
 
 
@@ -1362,6 +1648,18 @@ def day_render(state):
     info = dict(cache["info"])
     info["notes"] = list(info.get("notes", []))
     info["pacing"] = day_pacing(state, cfg)
+    info["today"] = day_recommendation(state, cfg)
+    banks = state.get("banks") or {}
+    lessons = {}
+    for stem, path in banks.items():
+        try:
+            lesson = parse_lesson(path)
+        except Exception:
+            lesson = None
+        if lesson and lesson.get("headings"):
+            lessons[stem] = sorted(h["slug"] for h in lesson["headings"])
+    info["today"]["banks"] = sorted(banks)
+    info["today"]["lessons"] = lessons
     if info.get("anki_line") is not None:
         age = max(0, int(time.time() - cache["at"]))
         info["notes"].append(

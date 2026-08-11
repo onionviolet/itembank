@@ -1087,18 +1087,22 @@ def check_disclosure_route():
 
 
 def check_api_route_scope():
-    """D-04's four session routes plus Phase 6's `/api/hint` and Phase 10's
-    `/api/override`, and the count is asserted rather than trusted. Every
-    entry is mirrored in ROUTE_CLI (route-without-CLI-twin fails here) and
-    in SURFACE_PARITY with its reserved MCP tool name (Extensibility Rule
-    9(a)).
+    """D-04's four session routes plus Phase 6's `/api/hint`, Phase 10's
+    `/api/override` and `/api/lesson-complete`, and the count is asserted
+    rather than trusted. Every entry is mirrored in ROUTE_CLI
+    (route-without-CLI-twin fails here) and in SURFACE_PARITY with its
+    reserved MCP tool name (Extensibility Rule 9(a)).
     """
-    if len(daemon.API_ROUTES) != 6:
-        fail("D-04 + Phase 6 + 10-04 scope /api/* to exactly six routes; "
-             "API_ROUTES has %d" % len(daemon.API_ROUTES))
+    if len(daemon.API_ROUTES) != 7:
+        fail("D-04 + Phase 6 + 10-04/10-05 scope /api/* to exactly seven "
+             "routes; API_ROUTES has %d" % len(daemon.API_ROUTES))
     if not {"start", "next", "submit", "hint", "report", "override"} <= \
             set(daemon.ROUTE_CLI.values()):
-        fail("ROUTE_CLI is missing one of the six session CLI commands")
+        fail("ROUTE_CLI is missing one of the session CLI commands")
+    if ("POST", "/api/lesson-complete") not in daemon.ROUTE_CLI or \
+            daemon.ROUTE_CLI[("POST", "/api/lesson-complete")] != "lesson":
+        fail("POST /api/lesson-complete must map to the lesson CLI twin "
+             "(`itembank lesson --complete`)")
     parity_keys = set(daemon.SURFACE_PARITY)
     route_keys = set((m, p) for m, p, _ in daemon.API_ROUTES)
     if parity_keys != route_keys:
@@ -1176,11 +1180,13 @@ def check_api_override_route():
             # Below cap on a fresh subject: client-forged subject/cap are
             # ignored -- the binding is server-derived -- and the fourth
             # selection profile (exam) runs through the same gate.
+            # (snapshot_id is NOT in this set: 10-05 makes it a validated
+            # field -- a forged/stale id is a 400, covered by its own case.)
             status, body = json_request(
                 url + "api/start",
                 {"bank": "sel_bank", "objective": "water:notification.boil",
                  "count": 2, "selection_mode": "exam",
-                 "subject": "forged", "cap": 999, "snapshot_id": "forged"})
+                 "subject": "forged", "cap": 999})
             if status != 200:
                 fail("below-cap start with forged fields returned HTTP %d: %r"
                      % (status, body))
@@ -1189,6 +1195,24 @@ def check_api_override_route():
                      % body["cap"])
             if body["cap"]["cap"] != 1 or body["cap"]["count"] != 0:
                 fail("forged cap must never reach the binding: %r" % body["cap"])
+
+            # A forged/stale snapshot claim is rejected with refresh
+            # guidance and no session (T-10-19).
+            attempts_dir = os.path.join(workdir, "_attempts")
+            before_attempts = set(os.listdir(attempts_dir)) \
+                if os.path.isdir(attempts_dir) else set()
+            status, body = json_request(
+                url + "api/start",
+                {"bank": "sel_bank",
+                 "objective": "water:notification.boil", "count": 2,
+                 "snapshot": {"snapshot_id": "forged"}})
+            if status != 400 or "stale" not in str(body).lower():
+                fail("a forged snapshot claim must be rejected as stale: "
+                     "HTTP %d %r" % (status, body))
+            after_attempts = set(os.listdir(attempts_dir)) \
+                if os.path.isdir(attempts_dir) else set()
+            if after_attempts != before_attempts:
+                fail("a stale-snapshot start must write no session")
 
             # Now the day's live evidence lands (one water response today
             # vs daily_cap 1), so the subject is at cap.
@@ -1200,13 +1224,12 @@ def check_api_override_route():
 
             # At cap (1 live water response today vs daily_cap 1): ordinary
             # start is blocked with the exact locked copy, even when the
-            # caller forges subject/cap/snapshot/override values.
+            # caller forges subject/cap/override values.
             status, body = json_request(
                 url + "api/start",
                 {"bank": "sel_bank",
                  "objective": "water:distribution.residual", "count": 2,
-                 "subject": "emt", "cap": 999, "snapshot_id": "forged",
-                 "override": True})
+                 "subject": "emt", "cap": 999, "override": True})
             if status != 400:
                 fail("at-cap /api/start returned HTTP %d, expected 400" % status)
             if "Today\u2019s water cap is reached (1 of 1 ordinary attempts)." \
@@ -2097,7 +2120,10 @@ def check_report_not_found():
     shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
     proc, url, lines = start_daemon(workdir)
     try:
-        for query in ("", "session=nope",
+        # 10-05 Task 3: GET /report WITHOUT a session is now the retention
+        # overview (200, honest empty state), so only the session-addressed
+        # 404 cases remain.
+        for query in ("session=nope",
                       "session=" + urllib.parse.quote("../../etc/passwd", safe="")):
             target = url + "report" + ("?" + query if query else "")
             try:
@@ -2116,6 +2142,12 @@ def check_report_not_found():
                 if workdir in body:
                     fail("the /report 404 body leaked the served directory for query "
                          "%r" % query)
+        status, body = get(url + "report")
+        if status != 200:
+            fail("GET /report without a session (retention overview) returned %d, "
+                 "expected 200" % status)
+        if "Not enough evidence yet" not in body:
+            fail("the empty retention overview is missing the honest sparse copy")
         status, _ = get(url)
         if status != 200:
             fail("the daemon did not survive the /report not-found cases: GET / "
