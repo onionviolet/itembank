@@ -38,7 +38,7 @@ SUM_ITEM = """Q1. Write a program that sums two integers read from stdin.   (dif
 [LANG: python]
 [MATCH: trimmed]
 CASE) 5 7 :: 12
-CASE) 10 2 :: 8
+CASE) 3 4 :: 7
 WHY BEST: A correct program reads both numbers and adds them.
 KEY DISCRIMINATOR: reading all of stdin.
 DISTRACTOR ANALYSIS:
@@ -70,6 +70,17 @@ CONFIDENCE: high
 ADD_SOURCE = "def add(a, b):\n    return a + b"
 
 
+THREE_CASE_ITEM = """Q9. Write a program that reads three integers and prints their sum.   (difficulty: recall)
+[TYPE: check]
+[OBJECTIVE: cs:io.three]
+CASE) 1 2 3 :: 6
+CASE) 4 5 6 :: 15
+CASE) 0 0 0 :: 0
+TRAP: Reading only two numbers.
+CONFIDENCE: high
+"""
+
+
 def parse_check(text):
     q = model.parse_question(text)
     if q is None:
@@ -88,9 +99,9 @@ def check_parse_and_defaults():
     if q["match"] != "trimmed":
         fail("[MATCH:] defaulted to %r, not trimmed" % q["match"])
     cases = q["cases"]
-    if [c["stdin"] for c in cases] != ["5 7", "10 2"]:
+    if [c["stdin"] for c in cases] != ["5 7", "3 4"]:
         fail("cases parsed out of order: %r" % cases)
-    if [c["expected"] for c in cases] != ["12", "8"]:
+    if [c["expected"] for c in cases] != ["12", "7"]:
         fail("case expected values are %r" % [c["expected"] for c in cases])
     if q["harness"] != "" or q["tolerance"] is not None:
         fail("non-harness item got harness=%r tolerance=%r" %
@@ -127,8 +138,8 @@ def check_sample_bank_unchanged():
 
 
 def check_markers_shared():
-    new_markers = ("CASE)", "[LANG:", "[MATCH:", "STARTER:", "[HARNESS:]",
-                   "[TOLERANCE:]")
+    new_markers = ("CASE)", "[LANG:", "[MATCH:", "STARTER:", "[HARNESS:",
+                   "[TOLERANCE:")
     for m in new_markers:
         if m not in model.MARKERS:
             fail("marker %r is not in the shared MARKERS constant" % m)
@@ -165,7 +176,7 @@ def check_run_cases():
                           max_output_bytes=65536)
     if len(ok) != 2:
         fail("run_cases returned %d results for a two-case item" % len(ok))
-    if not all(r["passed"] for r in ok) or [r["actual"] for r in ok] != ["12\n", "8\n"]:
+    if not all(r["passed"] for r in ok) or [r["actual"] for r in ok] != ["12\n", "7\n"]:
         fail("correct source did not pass every case: %r" % ok)
     if [r["case_index"] for r in ok] != [0, 1]:
         fail("case_index ordering is %r" % [r["case_index"] for r in ok])
@@ -179,8 +190,8 @@ def check_run_cases():
     # A program that reads stdin to EOF sees the authored input, not a hang.
     echoed = runner.run_cases(q, STDIN_ECHO_SOURCE, timeout_seconds=5,
                               max_output_bytes=65536)
-    if not echoed[0]["passed"] or echoed[0]["actual"] != "5 7":
-        fail("stdin-echo source did not see the authored stdin: %r" % echoed[0])
+    if [r["actual"] for r in echoed] != ["5 7\n", "3 4\n"]:
+        fail("stdin-echo source did not see the authored stdin: %r" % echoed)
     if any(r["timed_out"] for r in echoed):
         fail("a program reading to EOF must finish, not time out")
 
@@ -216,12 +227,12 @@ def check_harness_end_to_end():
 
 
 def check_scoring_identities():
-    q = parse_check(SUM_ITEM)
+    q = parse_check(THREE_CASE_ITEM)
     if runtime.canonical_response(q, [1, 1, 0]) != "1,1,0":
         fail("canonical_response of [1, 1, 0] is %r" %
              runtime.canonical_response(q, [1, 1, 0]))
     if runtime.canonical_key(q) != "1,1,1":
-        fail("canonical_key of a two-case item is %r" % runtime.canonical_key(q))
+        fail("canonical_key of a three-case item is %r" % runtime.canonical_key(q))
     if runtime.score_response(q, [1, 1, 1]) is not True:
         fail("all-pass vector did not score True")
     if runtime.score_response(q, [1, 0, 1]) is not False:
@@ -285,7 +296,7 @@ def check_interaction_result():
         fail("killed case reason is %r" % res["observations"][1]["reason"])
     if res["observations"][0]["expected_kind"] != "output":
         fail("non-regex expected_kind is %r" % res["observations"][0]["expected_kind"])
-    if res["observations"][1]["input"] != "10 2":
+    if res["observations"][1]["input"] != "3 4":
         fail("observation input is %r" % res["observations"][1]["input"])
 
     # A regex item's expected is a pattern, not an output.
