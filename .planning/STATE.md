@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 03.2
 current_phase_name: seeding-import-provenance
 status: executing
-stopped_at: Completed 07-03-PLAN.md
-last_updated: "2026-08-11T00:57:39.216Z"
+stopped_at: Completed 13-02-PLAN.md
+last_updated: "2026-08-11T00:58:14.306Z"
 last_activity: 2026-08-10
 last_activity_desc: Phase 03.1 execution started
 progress:
   total_phases: 18
   completed_phases: 5
   total_plans: 104
-  completed_plans: 47
+  completed_plans: 48
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 ## Current Position
 
 Phase: 03.2 (seeding-import-provenance) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-08-10 — Phase 03.2 execution started
 
-Progress: [█████░░░░░] 45%
+Progress: [█████░░░░░] 46%
 
 ## Performance Metrics
 
@@ -102,6 +102,7 @@ Progress: [█████░░░░░] 45%
 | Phase 07 P02 | 25min | 3 tasks | 6 files |
 | Phase 06 P01 | 95 min | 3 tasks | 9 files |
 | Phase 07 P03 | 30min | 3 tasks | 5 files |
+| Phase 13 P02 | 105min | 3 tasks | 28 files |
 
 ## Accumulated Context
 
@@ -235,6 +236,9 @@ Recent decisions affecting current work:
 - [Phase 6] 06-01: after the authored reveal (tier 5) is shown, the next submit action advances even on a repeat of the last canonical response -- D-06 forbids manufacturing further attempts, and holding the card after full disclosure would do exactly that.
 - [Phase 6] 06-01: teaching_outcomes omits a fully-retracted item entirely (D-10 read-side suppression) and never counts stumped as a wrong response; correct-after-tier is only labeled when at least one hint was shown, so two identical correct responses at tier 1 and tier 4 produce different rows (TEACH-03).
 - [Phase ?]: INDEX_VERSION 1->2: the disposable index gained a bank column (D-13); the bump alone forces one rebuild and the index stays a cache (delete-and-requery and stale-version rebuild are test-asserted)
+- [Phase ?]: 13-02: the shell spawns the externalBin sidecar directly (not Command::sidecar) so the process handle is available for the job object; dev fallback is python itembank.py sidecar.
+- [Phase ?]: 13-02: token injection is a shell-local loopback HTTP proxy (WebView2 cannot set navigation headers) - one HTTP transport, proxy adds X-Itembank-Token and strips Origin.
+- [Phase ?]: 13-02: POST /cli-twin + 'itembank cli-twin' give the menu its daemon-owned route->CLI mapping; API_ROUTES stays locked at four.
 
 ## Deferred Verification
 
@@ -251,7 +255,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-11T00:57:39.121Z
-Stopped at: Completed 07-03-PLAN.md
+Last session: 2026-08-11T00:58:13.099Z
+Stopped at: Completed 13-02-PLAN.md
 Resume file: None
 Deferred human verification: Phases 2.1/3/4 (see Deferred Verification table above)
