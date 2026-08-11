@@ -419,6 +419,224 @@ def test_proposals_for_and_empty_points_pending():
         shutil_rmtree(tmp)
 
 
+# ---- Task 3: N-boolean derivation and the human-accept reference -----------
+# D-24: partial credit is N booleans; a derived "4 of 5" count is computed at
+# read time by proposal_summary, never stored. D-14/D-21/D-25: only a human's
+# mark_event(marker="human", proposal_ref=...) accepts a proposal.
+
+def test_proposal_summary_n_boolean_derivation():
+    """proposal_summary derives points/pass_count/uncertain_count and a
+    pending flag from the N per-point statuses alone -- a pure read-time
+    derivation with no fractional score anywhere (D-24)."""
+    proposal = {"points": [
+        {"status": "pass"}, {"status": "fail"}, {"status": "pass"},
+        {"status": "pass"}, {"status": "uncertain"},
+    ]}
+    s = evidence.proposal_summary(proposal)
+    if s["points"] != 5:
+        fail("summary points must be the N-boolean count, got %r" % s)
+    if s["pass_count"] != 3:
+        fail("pass_count must count pass statuses, got %r" % s)
+    if s["uncertain_count"] != 1:
+        fail("uncertain_count must count uncertain statuses, got %r" % s)
+    if s["pending"] is not True:
+        fail("any uncertain point must report pending True, got %r" % s)
+
+    decided = evidence.proposal_summary({"points": [
+        {"status": "pass"}, {"status": "pass"}, {"status": "fail"}]})
+    if decided["points"] != 3 or decided["pass_count"] != 2:
+        fail("an all-decided proposal's counts are wrong: %r" % decided)
+    if decided["pending"] is not False:
+        fail("an all-decided proposal must not report pending, got %r" % decided)
+
+    # No fractional score is ever stored or derived -- every summary value is
+    # an integer, and the derivation reads statuses, not any stored score.
+    if any(not isinstance(v, int) for v in
+           (s["points"], s["pass_count"], s["uncertain_count"])):
+        fail("summary must be integer-only, got %r" % s)
+    for probe in (proposal, decided):
+        flat = list(flatten(probe))
+        for k, v in flat:
+            if k == "score":
+                fail("no proposal may carry a score key anywhere: %r" % probe)
+
+    # proposal_summary also runs on the real event dicts proposals_for reads.
+    tmp = tempfile.mkdtemp()
+    try:
+        log = evidence.log_path(tmp)
+        ev = evidence.mark_proposal_event(
+            session_id="sess-n1", bank="bank.md", item_id="item-1",
+            item_ref="Q1", response_event_id="resp-1", interaction_id="int-20",
+            points=[{"point_index": 0, "status": "pass",
+                     "rationale": "Correct."},
+                    {"point_index": 1, "status": "uncertain",
+                     "rationale": "Vague."}])
+        evidence.append_event(log, ev)
+        got = evidence.proposals_for(log, "sess-n1")
+        summary = evidence.proposal_summary(got[0])
+        if summary["points"] != 2 or summary["pass_count"] != 1 \
+                or summary["pending"] is not True:
+            fail("proposal_summary over a real proposal event is wrong: %r"
+                 % summary)
+    finally:
+        shutil_rmtree(tmp)
+
+
+def test_mark_event_proposal_ref_human_accept():
+    """D-14/D-24: a human mark may reference the proposal it accepts via
+    proposal_ref; the reference is folded into the dedupe raw string (None
+    encodes as empty), so accepting two different proposals for the same
+    response records two distinct human marks, and re-accepting the same one
+    replays as already_recorded. marks_by_event reads back the latest human
+    mark with marker 'human' and its proposal reference."""
+    tmp = tempfile.mkdtemp()
+    try:
+        log = evidence.log_path(tmp)
+        q = {"id": "Q1", "type": "short", "objective": "emt:airway",
+             "item_id": "item-1"}
+        resp = evidence.response_event(
+            "sess-h1", q, "Open the airway.", None, "practice", 1, "bank.md")
+        evidence.append_event(log, resp)
+
+        prop1 = evidence.mark_proposal_event(
+            session_id="sess-h1", bank="bank.md", item_id="item-1",
+            item_ref="Q1", response_event_id=resp["event_id"],
+            interaction_id="int-21",
+            points=[{"point_index": 0, "status": "pass",
+                     "rationale": "Correct."}])
+        evidence.append_event(log, prop1)
+
+        mark = evidence.mark_event(
+            "sess-h1", "item-1", "Q1", resp["event_id"], True,
+            rubric=[{"point": "opens airway", "pass": True}], notes="human",
+            marker="human", proposal_ref=prop1["event_id"])
+        if mark["marker"] != "human":
+            fail("an accepted mark must carry marker 'human', got %r"
+                 % mark["marker"])
+        if mark["proposal_ref"] != prop1["event_id"]:
+            fail("accepted mark must carry its proposal reference, got %r"
+                 % mark["proposal_ref"])
+
+        res = evidence.append_event(log, mark)
+        if res["status"] != "recorded":
+            fail("first human accept must record, got %r" % res)
+        replay = evidence.append_event(log, mark)
+        if replay["status"] != "already_recorded":
+            fail("re-accepting the same proposal must dedupe, got %r" % replay)
+
+        # A different proposal for the same response -> a distinct human mark.
+        prop2 = evidence.mark_proposal_event(
+            session_id="sess-h1", bank="bank.md", item_id="item-1",
+            item_ref="Q1", response_event_id=resp["event_id"],
+            interaction_id="int-22",
+            points=[{"point_index": 0, "status": "fail",
+                     "rationale": "Incomplete."}])
+        evidence.append_event(log, prop2)
+        mark2 = evidence.mark_event(
+            "sess-h1", "item-1", "Q1", resp["event_id"], False,
+            rubric=[{"point": "opens airway", "pass": False}], notes="human",
+            marker="human", proposal_ref=prop2["event_id"])
+        res2 = evidence.append_event(log, mark2)
+        if res2["status"] != "recorded":
+            fail("accepting a different proposal must record a new mark, got %r"
+                 % res2)
+
+        marks = evidence.marks_by_event(log)
+        latest = marks.get(resp["event_id"])
+        if latest is None:
+            fail("marks_by_event must show the accepted mark: %r" % marks)
+        if latest["marker"] != "human":
+            fail("the read-back mark must still be marker 'human': %r" % latest)
+        if latest["proposal_ref"] != prop2["event_id"]:
+            fail("the read-back mark must carry the latest proposal_ref: %r"
+                 % latest)
+
+        # A mark without proposal_ref stays fully backward compatible: the
+        # key is present and null, and replay still dedupes.
+        plain = evidence.mark_event(
+            "sess-h1", "item-1", "Q1", resp["event_id"], True, marker="human")
+        if plain.get("proposal_ref") is not None:
+            fail("a mark without a proposal must carry proposal_ref None: %r"
+                 % plain)
+        evidence.append_event(log, plain)
+        evidence.append_event(log, plain)
+        if evidence.append_event(log, plain)["status"] != "already_recorded":
+            fail("a plain mark must replay as already_recorded")
+    finally:
+        shutil_rmtree(tmp)
+
+
+def test_human_only_guard_and_terminal_pending():
+    """D-23 + T-1-24 regression: mark_event keeps raising ValueError for any
+    marker other than 'human' -- the guard is byte-for-byte unchanged -- and
+    an unaccepted proposal stays pending forever (terminal state, not a
+    queue, D-22)."""
+    tmp = tempfile.mkdtemp()
+    try:
+        log = evidence.log_path(tmp)
+
+        # Replay of the human-only guard: every non-human marker is refused.
+        for marker in ("model", "claude", "ai-assistant", ""):
+            try:
+                evidence.mark_event("sess-g1", "", "Q1", "resp-x", True,
+                                    marker=marker)
+                fail("mark_event accepted non-human marker %r" % marker)
+            except ValueError:
+                pass
+
+        # Byte-for-byte: the exact guard block still sits in evidence.py,
+        # unweakened, exactly once.
+        src = open(os.path.join(ROOT, "evidence.py"), encoding="utf-8").read()
+        guard = ('    if marker != "human":\n'
+                 '        raise ValueError(\n'
+                 '            "mark_event: marker must be \'human\' in this '
+                 'phase (got %r); a "\n'
+                 '            "model verdict is not accepted evidence until '
+                 'Phase 8 (TEACH-09)"\n'
+                 '            % (marker,))')
+        if guard not in src:
+            fail("the marker != 'human' guard is no longer byte-for-byte "
+                 "present in evidence.py")
+        if src.count('marker != "human"') != 1:
+            fail("the human-only guard must exist exactly once, found %d"
+                 % src.count('marker != "human"'))
+
+        # Terminal state: a proposal never accepted stays pending forever.
+        q = {"id": "Q1", "type": "short", "objective": "emt:airway",
+             "item_id": "item-1"}
+        resp = evidence.response_event(
+            "sess-g1", q, "Chest compressions.", None, "practice", 1,
+            "bank.md")
+        evidence.append_event(log, resp)
+        prop = evidence.mark_proposal_event(
+            session_id="sess-g1", bank="bank.md", item_id="item-1",
+            item_ref="Q1", response_event_id=resp["event_id"],
+            interaction_id="int-23",
+            points=[{"point_index": 0, "status": "uncertain",
+                     "rationale": "Depth not stated."}])
+        evidence.append_event(log, prop)
+
+        # No accept happens. Re-read many times: the proposal is still there,
+        # still pending, and marks_by_event is still empty.
+        for _ in range(3):
+            got = evidence.proposals_for(log, "sess-g1",
+                                         response_event_id=resp["event_id"])
+            if len(got) != 1 or got[0]["event_id"] != prop["event_id"]:
+                fail("an unaccepted proposal must remain retrievable: %r" % got)
+            if evidence.proposal_summary(got[0])["pending"] is not True:
+                fail("an unaccepted uncertain proposal must stay pending")
+            if resp["event_id"] in evidence.marks_by_event(log):
+                fail("an unaccepted proposal must never create a settled mark")
+        rendered = evidence.render_session_json(log, "sess-g1", [q], "bank.md")
+        row = next((r for r in rendered["responses"]
+                    if r["item_id"] == "Q1"), None)
+        if row is None or row["review_state"] != "pending":
+            fail("an unaccepted proposal must leave review_state pending "
+                 "forever, got %r" % row)
+    finally:
+        shutil_rmtree(tmp)
+
+
 def main():
     test_model_interaction_envelope_no_score_key()
     test_model_interaction_append_retrieve_dedupe()
@@ -426,10 +644,15 @@ def main():
     test_mark_proposal_envelope_no_score_no_verdict()
     test_proposal_only_log_leaves_response_pending()
     test_proposals_for_and_empty_points_pending()
+    test_proposal_summary_n_boolean_derivation()
+    test_mark_event_proposal_ref_human_accept()
+    test_human_only_guard_and_terminal_pending()
     print("model evidence contract: ok (interaction envelope/no-score, "
           "idempotency + retry linkage, descriptor-only drop, proposal "
           "envelope/no-score/no-verdict, proposal-only stays pending, "
-          "proposals_for + empty-points pending)")
+          "proposals_for + empty-points pending, N-boolean derivation, "
+          "human-accept proposal_ref, unchanged human-only guard, "
+          "terminal pending state)")
     return 0
 
 
