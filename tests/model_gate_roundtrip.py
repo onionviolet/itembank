@@ -259,6 +259,12 @@ def test_corpus_counts():
         if classes.get(cls, 0) < need:
             fail("class %r needs at least %d cases, got %d"
                  % (cls, need, classes.get(cls, 0)))
+    for c in cases:
+        if c["class"] in ("disclosure", "entailment"):
+            if c["expected_outcome"] != "drop" or not c.get("expected_reason"):
+                fail("case %s: every disclosure/entailment row must expect "
+                     "drop with a named reason, got %r/%r"
+                     % (c["id"], c["expected_outcome"], c.get("expected_reason")))
 
 
 # Every learner-facing payload a passing case produced, as (case_id, payload),
@@ -286,6 +292,7 @@ def test_corpus_runner():
                      % (c["id"], c["expected_reason"], res["reason"]))
             if res["plan"] is not None:
                 fail("case %s: a dropped candidate must not carry a plan" % c["id"])
+            _PAYLOADS.append((c["id"], tier_gate.learner_payload("drop", None)))
             continue
         # A pass case renders, and its render must be clean of protected
         # fragments; a rubric proposal always renders pending-shaped.
@@ -308,6 +315,98 @@ def test_corpus_runner():
         _PAYLOADS.append((c["id"], tier_gate.learner_payload("pass", rendered)))
 
 
+# ---- Task 3: the learner-payload boundary and the authored-fallback seam ----
+
+def test_learner_payload_shape():
+    """Task 3 Test 1: pass -> {"status":"pass","generated":{...}}; drop and
+    unavailable -> {"status": outcome, "generated": None} with no reason,
+    tier, fact, provider, or detector detail (D-08).
+    """
+    rendered = {"kind": "hint", "move": "anchor_error",
+                "text": "You answered \"B\". Consider the trap this points to: x"}
+    good = tier_gate.learner_payload("pass", rendered)
+    if good != {"status": "pass", "generated": rendered}:
+        fail("pass payload must be exactly status+generated, got %r" % (good,))
+    for outcome in ("drop", "unavailable"):
+        p = tier_gate.learner_payload(outcome, rendered)
+        if p != {"status": outcome, "generated": None}:
+            fail("%s payload must be status + null generated, got %r"
+                 % (outcome, p))
+    blob = json.dumps(tier_gate.learner_payload("drop", rendered))
+    for banned in ("gate.", "tier", "fact", "provider", "detector", "reason"):
+        if banned in blob:
+            fail("%s payload must never carry %r, got %r" % (outcome, banned, blob))
+
+
+def test_authored_hint_seam():
+    """Task 3 Test 2: the Phase 6 seam `authored_hint(q, tier, canonical)`
+    returns that tier's authored content when present and never falls back to
+    a lower tier's content when the tier is unavailable.
+    """
+    item = base_mc_item()
+    h0 = runtime.authored_hint(item, 0, None)
+    if not h0["available"] or h0["content"] != "capitals-of-europe":
+        fail("tier 0 must resolve lesson_slug, got %r" % (h0,))
+    h1 = runtime.authored_hint(item, 1, None)
+    if not h1["available"] or h1["content"] != "geo/capital-cities":
+        fail("tier 1 must resolve objective, got %r" % (h1,))
+    h2 = runtime.authored_hint(item, 2, None)
+    if not h2["available"] or h2["content"] != item["trap"]:
+        fail("tier 2 must resolve the trap, got %r" % (h2,))
+    h3 = runtime.authored_hint(item, 3, "B")
+    if not h3["available"] or h3["content"] != item["da"]["B"]:
+        fail("tier 3 must resolve the da for the picked option, got %r" % (h3,))
+    h4 = runtime.authored_hint(item, 4, None)
+    if not h4["available"] or h4["content"] != item["disc"]:
+        fail("tier 4 must resolve the discriminator, got %r" % (h4,))
+    # A missing tier is unavailable -- never a fallback to a lower tier.
+    sparse = {
+        "type": "mc", "id": "qX", "number": 1, "stem": "s",
+        "opts": {"A": "a", "B": "b"}, "correct": ["A"], "select": 1,
+        "objective": "obj", "objective_line": "ol",
+        "lesson_ref": "lr", "lesson_slug": "ls", "trap": "",
+        "da": {"A": "", "B": ""}, "disc": "disc", "second": "sec",
+        "why": "why", "notes": [], "conf": "high",
+    }
+    h2m = runtime.authored_hint(sparse, 2, None)
+    if h2m["available"] or h2m["content"]:
+        fail("missing tier-2 content must be unavailable (never the "
+             "tier-1 objective), got %r" % (h2m,))
+    h3m = runtime.authored_hint(sparse, 3, "A")
+    if h3m["available"] or h3m["content"]:
+        fail("missing tier-3 da must be unavailable, got %r" % (h3m,))
+
+
+def test_payload_boundary_scan():
+    """Task 3 Test 3: the flatten()-style scan over every learner-facing
+    payload the corpus produced asserts fixture key strings, option labels,
+    and the model answer never appear in any payload (D-08/T-08-02).
+    """
+    cases = load_cases()
+    by_id = {}
+    for c in cases:
+        by_id[c["id"]] = c
+    if len(_PAYLOADS) < len(cases):
+        fail("payload-boundary scan must cover every corpus case, "
+             "got %d of %d" % (len(_PAYLOADS), len(cases)))
+    for cid, payload in _PAYLOADS:
+        item = by_id[cid]["item"]
+        private_keys = ("correct", "model", "why", "da", "disc", "second",
+                        "notes", "rubric", "trap", "objective_line",
+                        "lesson_ref", "lesson_slug", "opts", "stem")
+        for key, value in flatten(payload):
+            if key in private_keys:
+                fail("case %s: private fixture key %r appeared as a payload "
+                     "field %r" % (cid, key, payload))
+            if not isinstance(value, str):
+                continue
+            nv = norm(value)
+            for phrase in forbidden_phrases(item):
+                if phrase and phrase in nv:
+                    fail("case %s: forbidden phrase %r leaked into payload "
+                         "field %r: %r" % (cid, phrase, key, payload))
+
+
 def main():
     test_schema_uses_supported_keywords_only()
     test_manifest_exposes_allowed_and_protected_facts()
@@ -316,6 +415,9 @@ def main():
     test_extra_field_drops_schema_invalid()
     test_corpus_counts()
     test_corpus_runner()
+    test_learner_payload_shape()
+    test_authored_hint_seam()
+    test_payload_boundary_scan()
     print("model gate roundtrip: ok")
 
 
