@@ -436,10 +436,15 @@ def check_no_leak():
                              % banned)
 
         # The scripts themselves must be free of authority vocabulary.
+        # `reason` is deliberately absent from the list: the check editor's
+        # per-case status field (case_observation.reason, published in
+        # item.schema.json as the four locked statuses) is learner-facing
+        # feedback vocabulary that ships in the shared client (05-06), not
+        # authority material -- the model-authority guard keeps the rest.
         for m in re.finditer(r"<script[^>]*>(.*?)</script>", page,
                              re.S | re.M):
             script = m.group(1)
-            for banned in ("tier", "reason", "profile", "backend", "candidate",
+            for banned in ("tier", "profile", "backend", "candidate",
                            "gate", "provider", "fact_manifest", "fact_ids"):
                 if banned in script.lower():
                     fail("served script references %r; the browser never "
