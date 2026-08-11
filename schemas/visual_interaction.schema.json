@@ -36,7 +36,10 @@
         "action_type": {
           "type": "string",
           "enum": ["place_point", "move_point",
-                   "select_numberline_point", "set_interval"]
+                   "select_numberline_point", "set_interval",
+                   "select_hotspot", "place_timeline_event",
+                   "move_timeline_event", "connect_diagram",
+                   "place_trace_point", "move_trace_point"]
         },
         "state": {
           "$ref": "#/$defs/semantic_state"
@@ -45,7 +48,7 @@
     },
     "semantic_state": {
       "type": "object",
-      "description": "One canonical semantic state: exactly one of the three protocol-1 wire shapes, with canonical SCALAR strings. Interval endpoints are already ordered ascending with closure flags swapped when needed.",
+      "description": "One canonical semantic state: exactly one of the protocol-1 wire shapes, with canonical SCALAR strings. Interval endpoints are already ordered ascending with closure flags swapped when needed. Phase 999.1 adds the hotspot, timeline_event, diagram_connection, and trace_path shapes; identifiers are stable authored strings.",
       "oneOf": [
         {
           "type": "object",
@@ -95,6 +98,73 @@
             },
             "end_closed": {
               "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "region"],
+          "properties": {
+            "kind": {
+              "const": "hotspot"
+            },
+            "region": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "event", "value"],
+          "properties": {
+            "kind": {
+              "const": "timeline_event"
+            },
+            "event": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "from", "to"],
+          "properties": {
+            "kind": {
+              "const": "diagram_connection"
+            },
+            "from": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "points"],
+          "properties": {
+            "kind": {
+              "const": "trace_path"
+            },
+            "points": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["x", "y"],
+                "properties": {
+                  "x": {"type": "string"},
+                  "y": {"type": "string"}
+                }
+              }
             }
           }
         }
@@ -203,7 +273,10 @@
         "action_type": {
           "type": "string",
           "enum": ["place_point", "move_point",
-                   "select_numberline_point", "set_interval"]
+                   "select_numberline_point", "set_interval",
+                   "select_hotspot", "place_timeline_event",
+                   "move_timeline_event", "connect_diagram",
+                   "place_trace_point", "move_trace_point"]
         },
         "before_state": {
           "oneOf": [

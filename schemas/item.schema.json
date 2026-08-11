@@ -270,7 +270,11 @@
           "type": "string",
           "enum": [
             "plot",
-            "numberline"
+            "numberline",
+            "hotspot",
+            "timeline",
+            "diagram",
+            "trace"
           ]
         },
         "renderer_config": {
@@ -300,6 +304,64 @@
             "axis": {
               "$ref": "#/$defs/visual_axis"
             },
+            "plane": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["width", "height"],
+              "properties": {
+                "width": {"type": "string"},
+                "height": {"type": "string"}
+              }
+            },
+            "regions": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "label", "shape", "coords"],
+                "properties": {
+                  "id": {"type": "string"},
+                  "label": {"type": "string"},
+                  "shape": {"type": "string",
+                             "enum": ["rect", "circle", "polygon"]},
+                  "coords": {"type": "array"}
+                }
+              }
+            },
+            "events": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "label"],
+                "properties": {
+                  "id": {"type": "string"},
+                  "label": {"type": "string"}
+                }
+              }
+            },
+            "nodes": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "label", "x", "y"],
+                "properties": {
+                  "id": {"type": "string"},
+                  "label": {"type": "string"},
+                  "x": {"type": "string"},
+                  "y": {"type": "string"}
+                }
+              }
+            },
+            "point_count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            },
             "initial": {
               "type": "object"
             },
@@ -312,7 +374,13 @@
                   "place_point",
                   "move_point",
                   "select_numberline_point",
-                  "set_interval"
+                  "set_interval",
+                  "select_hotspot",
+                  "place_timeline_event",
+                  "move_timeline_event",
+                  "connect_diagram",
+                  "place_trace_point",
+                  "move_trace_point"
                 ]
               }
             },
@@ -346,7 +414,11 @@
               "enum": [
                 "point",
                 "numberline_point",
-                "interval"
+                "interval",
+                "hotspot",
+                "timeline_event",
+                "diagram_connection",
+                "trace_path"
               ]
             },
             "fields": {

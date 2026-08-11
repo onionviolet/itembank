@@ -1506,8 +1506,920 @@ function checkMatrix(rows, timeoutSecs, capKB){
    serializer, so equivalent states produce byte-identical canonical SCALAR
    strings. The serialized semantic response is submitted through the normal
    served /api/submit path; this page never computes a verdict. */
+/* ---- exact-fraction drawing helpers (phase 999.1, advanced families) --------
+   DRAWING ONLY: these parse canonical SCALAR strings into [n,d] pairs for SVG
+   layout. The submitted state is always the canonical SCALAR string or a
+   stable id -- never this float, never a pixel. */
+function vfGCD(a, b){ a = Math.abs(a); b = Math.abs(b);
+  while(b){ const t = a % b; a = b; b = t; } return a || 1; }
+function vfParse(s){
+  if(typeof s !== "string") return null;
+  s = s.trim();
+  let m = s.match(/^([+-]?\d+)\/(\d+)$/);
+  if(m){ let n = +m[1], d = +m[2]; if(!d) return null;
+    const g = vfGCD(n, d); n /= g; d /= g;
+    if(d < 0){ n = -n; d = -d; } return [n, d]; }
+  m = s.match(/^([+-]?\d+)(?:\.(\d{1,6}))?$/);
+  if(!m) return null;
+  const sign = m[1][0] === "-" ? -1 : 1;
+  const whole = Math.abs(+m[1]);
+  let d = 1, frac = 0;
+  if(m[2]){ d = Math.pow(10, m[2].length); frac = +m[2]; }
+  let n = sign * (whole * d + frac);
+  const g = vfGCD(n, d); n /= g; d /= g;
+  if(d < 0){ n = -n; d = -d; } return [n, d];
+}
+function vfStr(f){ return f[1] === 1 ? String(f[0]) : f[0] + "/" + f[1]; }
+function vfNum(s){ const f = vfParse(s); return f ? f[0] / f[1] : NaN; }
+function vfAdd(a, b){ const n = a[0]*b[1] + b[0]*a[1], d = a[1]*b[1];
+  const g = vfGCD(n, d); return [n/g, d/g]; }
+function vfMul(a, k){ const n = a[0]*k, d = a[1]; const g = vfGCD(n, d);
+  return [n/g, d/g]; }
+function vfCmp(a, b){ return a[0]*b[1] - b[0]*a[1]; }
+function vfPos(f, mn, mx){
+  const num = (f[0]*mn[1] - mn[0]*f[1]) * mx[1];
+  const den = (mx[0]*mn[1] - mn[0]*mx[1]) * f[1];
+  if(!den) return 0;
+  return Math.max(0, Math.min(1, num / den));
+}
+function vfTicks(axis){
+  const lo = vfParse(axis.min), hi = vfParse(axis.max), st = vfParse(axis.step);
+  if(!lo || !hi || !st || st[0] <= 0) return [];
+  const out = [];
+  for(let k = 0; ; k++){
+    const f = vfAdd(lo, vfMul(st, k));
+    if(vfCmp(f, hi) > 0) break;
+    out.push({v: vfStr(f), f});
+  }
+  return out;
+}
+
+/* ---- timeline renderer (phase 999.1-02) ------------------------------------
+   Time-series placement: the learner picks one authored event and places it
+   at a canonical SCALAR time value on an axis. Scene comes from the
+   interaction_contract renderer_config only (axis, events, initial, actions,
+   accessibility) -- never the answer value or any scoring field. Pointer,
+   keyboard and the event/value select controls reduce through ONE state
+   object and ONE serializer; a changed explicit commit posts
+   place_timeline_event / move_timeline_event through /api/interact. */
+function renderTimeline(q, c, body, act, card){
+  const rc = c.renderer_config || {};
+  const axis = rc.axis || {min:"0", max:"10", step:"1"};
+  const events = Array.isArray(rc.events) ? rc.events : [];
+  const initial = rc.initial || {};
+  const acc = rc.accessibility || {};
+  const desc = acc.description || q.stem;
+  const W = 400, H = 130, L = 34, R = 14, T = 24, B = 40;
+  const mid = T + (H - T - B) / 2;
+  const host = document.createElement("div");
+  host.className = "visual-host";
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", desc);
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  svg.setAttribute("class", "visual-svg");
+  host.appendChild(svg);
+  body.appendChild(host);
+  const status = document.createElement("div");
+  status.className = "visual-status";
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-live", "polite");
+  body.appendChild(status);
+  const checkBtn = mkSubmit(act, "make a prediction, then commit your move before checking it");
+  checkBtn.textContent = "Check response";
+
+  const tks = vfTicks(axis);
+  const mn = vfParse(axis.min), mx = vfParse(axis.max);
+  const step = vfParse(axis.step);
+  function X(v){ return L + vfPos(vfParse(v), mn, mx) * (W - L - R); }
+
+  const committed = {kind:"timeline_event", event: null, value: null};
+  const tentative = {kind:"timeline_event", event: null, value: null};
+  const pl = (initial.placements && initial.placements.length)
+    ? initial.placements[0] : null;
+  if(pl){ committed.event = pl.event; committed.value = pl.value; }
+  Object.assign(tentative, committed);
+  let selected = committed.event;    /* which event chip the learner moves */
+
+  function snapshot(s){ return {kind:"timeline_event", event: s.event, value: s.value}; }
+  function sameState(a, b){ return JSON.stringify(snapshot(a)) === JSON.stringify(snapshot(b)); }
+  function filled(s){ return !!(s.event && s.value); }
+  function eventLabel(id){ const ev = events.find(e => e.id === id); return ev ? ev.label : id; }
+  function adopt(s){ committed.event = s.event; committed.value = s.value; }
+  function revertTentative(){
+    tentative.event = committed.event; tentative.value = committed.value;
+    draw(tentative); syncControls();
+    status.textContent = "Move cancelled. Your last committed state is still here.";
+  }
+
+  function draw(s){
+    let h = `<line x1="${L}" y1="${mid}" x2="${W-R}" y2="${mid}" stroke="currentColor"/>`;
+    tks.forEach(tk=>{
+      const x = X(tk.v);
+      h += `<line x1="${x}" y1="${mid-5}" x2="${x}" y2="${mid+5}" stroke="currentColor"/>`;
+      h += `<text x="${x}" y="${mid+20}" font-size="10" text-anchor="middle">${esc(tk.v)}</text>`;
+    });
+    if(s.event && s.value){
+      const x = X(s.value);
+      const isCommitted = sameState(s, committed);
+      h += `<line x1="${x}" y1="${mid-8}" x2="${x}" y2="${mid+8}" stroke="var(--accent)" stroke-width="2"/>`;
+      h += `<text x="${x}" y="${mid-12}" font-size="11" text-anchor="middle" fill="var(--accent)">${esc(eventLabel(s.event))}</text>`;
+      if(!isCommitted){
+        h += `<text x="${x}" y="${mid+38}" font-size="10" text-anchor="middle" fill="var(--accent)">${esc(s.value)}</text>`;
+      }
+    }
+    svg.innerHTML = h;
+  }
+
+  const actionId = () => (crypto.randomUUID ? crypto.randomUUID()
+    : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, ch=>{
+        const r = Math.random()*16|0, v = ch==="x"?r:(r&0x3|0x8);
+        return v.toString(16); }));
+
+  async function commitMove(){
+    if(!filled(tentative)) return;
+    if(sameState(tentative, committed)){
+      status.textContent = "No change to commit.";
+      return;
+    }
+    const aid = actionId();
+    try {
+      const v = await api("/api/interact", {
+        session_id: sessionId, interaction_version: c.version,
+        action_id: aid,
+        action_type: filled(committed) ? "move_timeline_event" : "place_timeline_event",
+        state: snapshot(tentative),
+      });
+      adopt(tentative);
+      if(v.status === "recorded" || v.status === "already_recorded"){
+        status.textContent = "Move committed. You can adjust it or check your response.";
+      } else {
+        status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+        revertTentative();
+      }
+    } catch(err){
+      status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+    }
+  }
+
+  function snapTick(clientX){
+    const r = svg.getBoundingClientRect();
+    const px = (clientX - r.left) / r.width * W;
+    let best = tks[0], bestD = Infinity;
+    tks.forEach(tk=>{
+      const d = Math.abs(X(tk.v) - px);
+      if(d < bestD){ bestD = d; best = tk; }
+    });
+    return best;
+  }
+
+  svg.addEventListener("pointerdown", e => e.preventDefault());
+  svg.addEventListener("pointerup", e => {
+    const hit = snapTick(e.clientX);
+    if(!hit || !selected) return;
+    const before = JSON.stringify(snapshot(tentative));
+    tentative.event = selected;
+    tentative.value = hit.v;
+    draw(tentative); syncControls();
+    if(JSON.stringify(snapshot(tentative)) !== before) commitMove();
+  });
+  svg.addEventListener("pointercancel", revertTentative);
+  svg.setAttribute("tabindex", "0");
+  svg.addEventListener("keydown", e => {
+    if((e.key === "ArrowLeft" || e.key === "ArrowRight") && step){
+      e.preventDefault();
+      if(!selected) selected = events[0] ? events[0].id : null;
+      const at = tks.findIndex(t => t.v === tentative.value);
+      const delta = e.key === "ArrowLeft" ? -1 : 1;
+      const nxt = tks[Math.max(0, Math.min(tks.length-1, (at < 0 ? 0 : at) + delta))];
+      tentative.event = selected;
+      tentative.value = nxt.v;
+      draw(tentative); syncControls();
+      return;
+    }
+    if(e.key === "Enter" || e.key === " "){ e.preventDefault(); commitMove(); return; }
+    if(e.key === "Escape"){ e.preventDefault(); revertTentative(); }
+  });
+
+  const controls = document.createElement("div");
+  controls.className = "visual-controls";
+  const evSel = document.createElement("select");
+  events.forEach(ev=>{
+    const o = document.createElement("option");
+    o.value = ev.id; o.textContent = ev.label; evSel.appendChild(o);
+  });
+  evSel.onchange = ()=>{
+    selected = evSel.value;
+    tentative.event = evSel.value;
+    draw(tentative);
+  };
+  const valSel = document.createElement("select");
+  tks.forEach(tk=>{
+    const o = document.createElement("option");
+    o.value = tk.v; o.textContent = tk.v; valSel.appendChild(o);
+  });
+  valSel.onchange = ()=>{
+    tentative.value = valSel.value;
+    draw(tentative);
+  };
+  controls.appendChild(labelCtl("event", evSel));
+  controls.appendChild(labelCtl("value", valSel));
+  host.appendChild(controls);
+  function labelCtl(label, sel){
+    const row = document.createElement("label");
+    row.className = "visual-ctl";
+    row.appendChild(document.createTextNode(label + " "));
+    row.appendChild(sel);
+    return row;
+  }
+  function syncControls(){
+    if(evSel.value !== tentative.event) evSel.value = tentative.event || "";
+    if(tentative.value && valSel.value !== tentative.value) valSel.value = tentative.value;
+  }
+
+  const commitBtn = document.createElement("button");
+  commitBtn.className = "go ghost"; commitBtn.type = "button";
+  commitBtn.textContent = "Commit move"; commitBtn.disabled = true;
+  commitBtn.onclick = commitMove;
+  act.appendChild(commitBtn);
+
+  draw(tentative);
+  syncControls();
+  commitBtn.disabled = !filled(committed);
+  checkBtn.disabled = !filled(committed);
+  checkBtn.onclick = ()=>{
+    if(!filled(committed)){
+      status.textContent = "Commit your move before checking it.";
+      return;
+    }
+    checkBtn.disabled = true; commitBtn.disabled = true;
+    settle(q, JSON.stringify(snapshot(committed)), card, act, null);
+  };
+}
+
+/* ---- diagram renderer (phase 999.1-03) -------------------------------------
+   Node-connection: the learner connects one authored node to another. Scene
+   comes from the interaction_contract renderer_config only (plane, nodes,
+   initial, actions, accessibility) -- never the answer connection or any
+   scoring field. Pointer (click source then target), keyboard and the
+   from/to select controls reduce through ONE state object and ONE
+   serializer; a changed explicit commit posts connect_diagram. */
+function renderDiagram(q, c, body, act, card){
+  const rc = c.renderer_config || {};
+  const plane = rc.plane || {width:"8", height:"6"};
+  const nodes = Array.isArray(rc.nodes) ? rc.nodes : [];
+  const initial = rc.initial || {};
+  const acc = rc.accessibility || {};
+  const desc = acc.description || q.stem;
+  const W = 400, H = 240, R = 16;
+  const host = document.createElement("div");
+  host.className = "visual-host";
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", desc);
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  svg.setAttribute("class", "visual-svg");
+  host.appendChild(svg);
+  body.appendChild(host);
+  const status = document.createElement("div");
+  status.className = "visual-status";
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-live", "polite");
+  body.appendChild(status);
+  const checkBtn = mkSubmit(act, "make a prediction, then commit your move before checking it");
+  checkBtn.textContent = "Check response";
+
+  const Wf = vfNum(plane.width) || 8, Hf = vfNum(plane.height) || 6;
+  function X(n){ return vfNum(n.x) / Wf * (W - 2) + 1; }
+  function Y(n){ return vfNum(n.y) / Hf * (H - 2) + 1; }
+  function nodeAt(clientX, clientY){
+    const r = svg.getBoundingClientRect();
+    const x = (clientX - r.left) / r.width * W;
+    const y = (clientY - r.top) / r.height * H;
+    let best = null, bestD = Infinity;
+    nodes.forEach(n=>{
+      const dx = x - X(n), dy = y - Y(n);
+      const d = Math.sqrt(dx*dx + dy*dy);
+      if(d < bestD){ bestD = d; best = n; }
+    });
+    return (best && bestD <= R) ? best : null;
+  }
+
+  const committed = {kind:"diagram_connection", from: null, to: null};
+  const tentative = {kind:"diagram_connection", from: null, to: null};
+  const conn = (initial.connections && initial.connections.length)
+    ? initial.connections[0] : null;
+  if(conn){ committed.from = conn.from; committed.to = conn.to; }
+  Object.assign(tentative, committed);
+
+  function snapshot(s){ return {kind:"diagram_connection", from: s.from, to: s.to}; }
+  function sameState(a, b){ return JSON.stringify(snapshot(a)) === JSON.stringify(snapshot(b)); }
+  function filled(s){ return !!(s.from && s.to); }
+  function label(id){ const n = nodes.find(n => n.id === id); return n ? n.label : id; }
+  function adopt(s){ committed.from = s.from; committed.to = s.to; }
+  function revertTentative(){
+    tentative.from = committed.from; tentative.to = committed.to;
+    draw(tentative); syncControls();
+    status.textContent = "Move cancelled. Your last committed state is still here.";
+  }
+
+  function draw(s){
+    let h = `<rect x="1" y="1" width="${W-2}" height="${H-2}" fill="var(--card)" stroke="currentColor"/>`;
+    if(s.from && s.to){
+      const a = nodes.find(n => n.id === s.from), b = nodes.find(n => n.id === s.to);
+      if(a && b){
+        const x1 = X(a), y1 = Y(a), x2 = X(b), y2 = Y(b);
+        const ang = Math.atan2(y2 - y1, x2 - x1);
+        const tipX = x2 - Math.cos(ang) * (R + 4), tipY = y2 - Math.sin(ang) * (R + 4);
+        h += `<line x1="${x1}" y1="${y1}" x2="${tipX}" y2="${tipY}" stroke="var(--accent)" stroke-width="2"/>`;
+        h += `<polygon points="${tipX},${tipY} ${tipX - 9*Math.cos(ang - 0.45)},${tipY - 9*Math.sin(ang - 0.45)} ${tipX - 9*Math.cos(ang + 0.45)},${tipY - 9*Math.sin(ang + 0.45)}" fill="var(--accent)"/>`;
+      }
+    }
+    nodes.forEach(n=>{
+      const x = X(n), y = Y(n);
+      const isFrom = s.from === n.id, isTo = s.to === n.id;
+      h += `<circle cx="${x}" cy="${y}" r="${R}" fill="${isFrom || isTo ? "var(--accent)" : "var(--chip)"}" stroke="currentColor"/>`;
+      h += `<text x="${x}" y="${y}" font-size="11" text-anchor="middle" dominant-baseline="middle" fill="var(--ink)">${esc(label(n.id))}</text>`;
+    });
+    svg.innerHTML = h;
+  }
+
+  const actionId = () => (crypto.randomUUID ? crypto.randomUUID()
+    : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, ch=>{
+        const r = Math.random()*16|0, v = ch==="x"?r:(r&0x3|0x8);
+        return v.toString(16); }));
+
+  async function commitMove(){
+    if(!filled(tentative)) return;
+    if(sameState(tentative, committed)){
+      status.textContent = "No change to commit.";
+      return;
+    }
+    const aid = actionId();
+    try {
+      const v = await api("/api/interact", {
+        session_id: sessionId, interaction_version: c.version,
+        action_id: aid, action_type: "connect_diagram",
+        state: snapshot(tentative),
+      });
+      adopt(tentative);
+      if(v.status === "recorded" || v.status === "already_recorded"){
+        status.textContent = "Move committed. You can adjust it or check your response.";
+      } else {
+        status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+        revertTentative();
+      }
+    } catch(err){
+      status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+    }
+  }
+
+  svg.addEventListener("pointerdown", e => e.preventDefault());
+  svg.addEventListener("pointerup", e => {
+    const hit = nodeAt(e.clientX, e.clientY);
+    if(!hit) return;
+    const before = JSON.stringify(snapshot(tentative));
+    if(!tentative.from){
+      tentative.from = hit.id;
+    } else if(!tentative.to){
+      if(hit.id === tentative.from){
+        tentative.from = null;
+      } else {
+        tentative.to = hit.id;
+      }
+    } else {
+      tentative.from = hit.id; tentative.to = null;
+    }
+    draw(tentative); syncControls();
+    if(JSON.stringify(snapshot(tentative)) !== before) commitMove();
+  });
+  svg.addEventListener("pointercancel", revertTentative);
+  svg.setAttribute("tabindex", "0");
+  svg.addEventListener("keydown", e => {
+    if(e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown"){
+      e.preventDefault();
+      if(!nodes.length) return;
+      const cur = tentative.to || tentative.from || nodes[0].id;
+      const at = nodes.findIndex(n => n.id === cur);
+      const delta = (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 1;
+      const nxt = nodes[Math.max(0, Math.min(nodes.length - 1, (at < 0 ? 0 : at) + delta))];
+      if(tentative.to){ tentative.to = nxt.id; } else { tentative.from = nxt.id; }
+      draw(tentative); syncControls();
+      return;
+    }
+    if(e.key === "Enter" || e.key === " "){ e.preventDefault(); commitMove(); return; }
+    if(e.key === "Escape"){ e.preventDefault(); revertTentative(); }
+  });
+
+  const controls = document.createElement("div");
+  controls.className = "visual-controls";
+  function nodeSelect(onPick){
+    const sel = document.createElement("select");
+    nodes.forEach(n=>{
+      const o = document.createElement("option");
+      o.value = n.id; o.textContent = n.label; sel.appendChild(o);
+    });
+    sel.onchange = ()=>{ onPick(sel.value); };
+    return sel;
+  }
+  const fromSel = nodeSelect(v => { tentative.from = v; draw(tentative); });
+  const toSel = nodeSelect(v => { tentative.to = v; draw(tentative); });
+  controls.appendChild(labelCtl("from", fromSel));
+  controls.appendChild(labelCtl("to", toSel));
+  host.appendChild(controls);
+  function labelCtl(label, sel){
+    const row = document.createElement("label");
+    row.className = "visual-ctl";
+    row.appendChild(document.createTextNode(label + " "));
+    row.appendChild(sel);
+    return row;
+  }
+  function syncControls(){
+    if(tentative.from && fromSel.value !== tentative.from) fromSel.value = tentative.from;
+    if(tentative.to && toSel.value !== tentative.to) toSel.value = tentative.to;
+  }
+
+  const commitBtn = document.createElement("button");
+  commitBtn.className = "go ghost"; commitBtn.type = "button";
+  commitBtn.textContent = "Commit move"; commitBtn.disabled = true;
+  commitBtn.onclick = commitMove;
+  act.appendChild(commitBtn);
+
+  draw(tentative);
+  syncControls();
+  commitBtn.disabled = !filled(committed);
+  checkBtn.disabled = !filled(committed);
+  checkBtn.onclick = ()=>{
+    if(!filled(committed)){
+      status.textContent = "Commit your move before checking it.";
+      return;
+    }
+    checkBtn.disabled = true; commitBtn.disabled = true;
+    settle(q, JSON.stringify(snapshot(committed)), card, act, null);
+  };
+}
+
+/* ---- trace renderer (phase 999.1-03) ---------------------------------------
+   Re-trace a reference polyline: the learner places an ordered list of
+   point_count points. Scene comes from the interaction_contract
+   renderer_config only (axes, point_count, initial reference path, actions,
+   accessibility) -- the answer path stays in the private SCORING envelope
+   and is never rendered. Pointer (click places the next point in order),
+   keyboard, and per-point x/y selects reduce through ONE state object and
+   ONE serializer; a changed explicit commit posts place_trace_point /
+   move_trace_point with the full canonical path. */
+function renderTrace(q, c, body, act, card){
+  const rc = c.renderer_config || {};
+  const axes = rc.axes || {};
+  const ax = {x: axes.x || {min:"0", max:"4", step:"1"},
+              y: axes.y || {min:"0", max:"4", step:"1"}};
+  const pointCount = (typeof rc.point_count === "number" && rc.point_count >= 1)
+    ? rc.point_count : 1;
+  const initial = rc.initial || {};
+  const ref = Array.isArray(initial.points) ? initial.points : [];
+  const acc = rc.accessibility || {};
+  const desc = acc.description || q.stem;
+  const W = 400, H = 240, L = 34, R = 10, T = 14, B = 26;
+  const host = document.createElement("div");
+  host.className = "visual-host";
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", desc);
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  svg.setAttribute("class", "visual-svg");
+  host.appendChild(svg);
+  body.appendChild(host);
+  const status = document.createElement("div");
+  status.className = "visual-status";
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-live", "polite");
+  body.appendChild(status);
+  const checkBtn = mkSubmit(act, "make a prediction, then commit your move before checking it");
+  checkBtn.textContent = "Check response";
+
+  const xTicks = vfTicks(ax.x), yTicks = vfTicks(ax.y);
+  const mnX = vfParse(ax.x.min), mxX = vfParse(ax.x.max);
+  const mnY = vfParse(ax.y.min), mxY = vfParse(ax.y.max);
+  function X(v){ return L + vfPos(vfParse(v), mnX, mxX) * (W - L - R); }
+  function Y(v){ return H - B - vfPos(vfParse(v), mnY, mxY) * (H - T - B); }
+  function snap(tks, f){
+    let best = tks[0], bestD = Infinity;
+    tks.forEach(tk=>{
+      const d = Math.abs(vfCmp(f, tk.f));
+      if(d < bestD){ bestD = d; best = tk; }
+    });
+    return best;
+  }
+  function domain(clientX, clientY, tks, mn, mx, isY){
+    const r = svg.getBoundingClientRect();
+    const t = Math.max(0, Math.min(1, isY
+      ? (1 - (clientY - r.top) / r.height)
+      : (clientX - r.left) / r.width));
+    const f = [mn[0]*mx[1] + Math.round(t * (mx[0]*mn[1] - mn[0]*mx[1])), mn[1]*mx[1]];
+    const g = vfGCD(f[0], f[1]); return snap(tks, [f[0]/g, f[1]/g]);
+  }
+
+  const committed = {kind:"trace_path", points: []};
+  const tentative = {kind:"trace_path", points: []};
+  /* The reference polyline (`ref`, from initial.points) is scene data drawn
+     for orientation only -- the learner's placed points start empty and the
+     submitted path is exactly what they place. The answer path never
+     leaves the server. */
+  tentative.points = committed.points.map(p => ({x: p.x, y: p.y}));
+
+  function snapshot(s){
+    return {kind:"trace_path",
+            points: s.points.map(p => ({x: p.x, y: p.y}))};
+  }
+  function sameState(a, b){ return JSON.stringify(snapshot(a)) === JSON.stringify(snapshot(b)); }
+  function filled(s){ return s.points.length === pointCount; }
+  function adopt(s){ committed.points = s.points.map(p => ({x: p.x, y: p.y})); }
+  function revertTentative(){
+    tentative.points = committed.points.map(p => ({x: p.x, y: p.y}));
+    draw(tentative); syncControls();
+    status.textContent = "Move cancelled. Your last committed state is still here.";
+  }
+
+  function draw(s){
+    let h = `<line x1="${L}" y1="${H-B}" x2="${W-R}" y2="${H-B}" stroke="currentColor"/>`;
+    h += `<line x1="${L}" y1="${T}" x2="${L}" y2="${H-B}" stroke="currentColor"/>`;
+    xTicks.forEach(tk=>{
+      const x = X(tk.v);
+      h += `<line x1="${x}" y1="${H-B}" x2="${x}" y2="${H-B+5}" stroke="currentColor"/>`;
+      h += `<text x="${x}" y="${H-B+18}" font-size="10" text-anchor="middle">${esc(tk.v)}</text>`;
+    });
+    yTicks.forEach(tk=>{
+      const y = Y(tk.v);
+      h += `<line x1="${L-5}" y1="${y}" x2="${L}" y2="${y}" stroke="currentColor"/>`;
+      h += `<text x="${L-8}" y="${y+3}" font-size="10" text-anchor="end">${esc(tk.v)}</text>`;
+    });
+    if(ref.length >= 2){
+      const pts = ref.map(p => X(p.x) + "," + Y(p.y)).join(" ");
+      h += `<polyline points="${pts}" fill="none" stroke="var(--line)" stroke-width="2" stroke-dasharray="4 3"/>`;
+    }
+    if(s.points.length >= 2){
+      const pts = s.points.map(p => X(p.x) + "," + Y(p.y)).join(" ");
+      h += `<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2"/>`;
+    }
+    s.points.forEach((p, i)=>{
+      const x = X(p.x), y = Y(p.y);
+      h += `<circle cx="${x}" cy="${y}" r="6" fill="var(--accent)" stroke="var(--ink)"/>`;
+      h += `<text x="${x+9}" y="${y-6}" font-size="10" fill="var(--accent)">${i+1}</text>`;
+    });
+    svg.innerHTML = h;
+  }
+
+  const actionId = () => (crypto.randomUUID ? crypto.randomUUID()
+    : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, ch=>{
+        const r = Math.random()*16|0, v = ch==="x"?r:(r&0x3|0x8);
+        return v.toString(16); }));
+
+  async function commitMove(){
+    if(!filled(tentative)) return;
+    if(sameState(tentative, committed)){
+      status.textContent = "No change to commit.";
+      return;
+    }
+    const aid = actionId();
+    try {
+      const v = await api("/api/interact", {
+        session_id: sessionId, interaction_version: c.version,
+        action_id: aid,
+        action_type: filled(committed) ? "move_trace_point" : "place_trace_point",
+        state: snapshot(tentative),
+      });
+      adopt(tentative);
+      if(v.status === "recorded" || v.status === "already_recorded"){
+        status.textContent = "Move committed. You can adjust it or check your response.";
+      } else {
+        status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+        revertTentative();
+      }
+    } catch(err){
+      status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+    }
+  }
+
+  svg.addEventListener("pointerdown", e => e.preventDefault());
+  svg.addEventListener("pointerup", e => {
+    if(tentative.points.length >= pointCount) return;
+    const tkX = domain(e.clientX, e.clientY, xTicks, mnX, mxX, false);
+    const tkY = domain(e.clientY, e.clientX, yTicks, mnY, mxY, true);
+    tentative.points.push({x: tkX.v, y: tkY.v});
+    draw(tentative); syncControls();
+  });
+  svg.addEventListener("pointercancel", revertTentative);
+  svg.setAttribute("tabindex", "0");
+  svg.addEventListener("keydown", e => {
+    if(e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown"){
+      e.preventDefault();
+      if(!tentative.points.length) return;
+      const last = tentative.points[tentative.points.length - 1];
+      const moveX = e.key === "ArrowLeft" || e.key === "ArrowRight";
+      const tks = moveX ? xTicks : yTicks;
+      const at = tks.findIndex(t => t.v === (moveX ? last.x : last.y));
+      const delta = (e.key === "ArrowLeft" || e.key === "ArrowDown") ? -1 : 1;
+      const nxt = tks[Math.max(0, Math.min(tks.length-1, (at < 0 ? 0 : at) + delta))];
+      if(moveX) last.x = nxt.v; else last.y = nxt.v;
+      draw(tentative); syncControls();
+      return;
+    }
+    if(e.key === "Enter" || e.key === " "){ e.preventDefault(); commitMove(); return; }
+    if(e.key === "Escape"){ e.preventDefault(); revertTentative(); }
+  });
+
+  const controls = document.createElement("div");
+  controls.className = "visual-controls";
+  function valueSelect(tks, onPick){
+    const sel = document.createElement("select");
+    tks.forEach(tk=>{
+      const o = document.createElement("option");
+      o.value = tk.v; o.textContent = tk.v; sel.appendChild(o);
+    });
+    sel.onchange = ()=>{ onPick(sel.value); };
+    return sel;
+  }
+  const selPairs = [];
+  for(let i = 0; i < pointCount; i++){
+    const sx = valueSelect(xTicks, v => {
+      if(!tentative.points[i]) tentative.points[i] = {x: v, y: null};
+      tentative.points[i].x = v; draw(tentative);
+    });
+    const sy = valueSelect(yTicks, v => {
+      if(!tentative.points[i]) tentative.points[i] = {x: null, y: v};
+      tentative.points[i].y = v; draw(tentative);
+    });
+    selPairs.push([sx, sy]);
+    const row = document.createElement("label");
+    row.className = "visual-ctl";
+    row.appendChild(document.createTextNode("p" + (i+1) + " "));
+    row.appendChild(sx);
+    row.appendChild(sy);
+    controls.appendChild(row);
+  }
+  const clearBtn = document.createElement("button");
+  clearBtn.type = "button"; clearBtn.className = "go ghost";
+  clearBtn.textContent = "Clear last point";
+  clearBtn.onclick = ()=>{
+    if(tentative.points.length) tentative.points.pop();
+    draw(tentative); syncControls();
+  };
+  controls.appendChild(clearBtn);
+  host.appendChild(controls);
+  function syncControls(){
+    for(let i = 0; i < pointCount; i++){
+      const p = tentative.points[i];
+      if(p){
+        if(selPairs[i][0].value !== p.x) selPairs[i][0].value = p.x || "";
+        if(selPairs[i][1].value !== p.y) selPairs[i][1].value = p.y || "";
+      }
+    }
+  }
+
+  const commitBtn = document.createElement("button");
+  commitBtn.className = "go ghost"; commitBtn.type = "button";
+  commitBtn.textContent = "Commit move"; commitBtn.disabled = true;
+  commitBtn.onclick = commitMove;
+  act.appendChild(commitBtn);
+
+  draw(tentative);
+  syncControls();
+  commitBtn.disabled = !filled(committed);
+  checkBtn.disabled = !filled(committed);
+  checkBtn.onclick = ()=>{
+    if(!filled(committed)){
+      status.textContent = "Commit your move before checking it.";
+      return;
+    }
+    checkBtn.disabled = true; commitBtn.disabled = true;
+    settle(q, JSON.stringify(snapshot(committed)), card, act, null);
+  };
+}
+
+/* ---- hotspot renderer (phase 999.1-01) -------------------------------------
+   Click-on-region mapping: the learner selects one named region of a plane.
+   Scene comes from q.interaction_contract.renderer_config only (plane,
+   regions, initial, actions, accessibility) -- never the answer region or
+   any scoring field. Pointer, keyboard and the radio-list semantic control
+   reduce through ONE state object and ONE serializer; a changed explicit
+   commit posts a single select_hotspot action through /api/interact and the
+   final submit stays the ordinary response event. */
+function renderHotspot(q, c, body, act, card){
+  const rc = c.renderer_config || {};
+  const plane = rc.plane || {width:"10", height:"6"};
+  const regions = Array.isArray(rc.regions) ? rc.regions : [];
+  const initial = rc.initial || {};
+  const acc = rc.accessibility || {};
+  const desc = acc.description || q.stem;
+  const W = 400, H = 240;
+  const host = document.createElement("div");
+  host.className = "visual-host";
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", desc);
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  svg.setAttribute("class", "visual-svg");
+  host.appendChild(svg);
+  body.appendChild(host);
+  const status = document.createElement("div");
+  status.className = "visual-status";
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-live", "polite");
+  body.appendChild(status);
+  const checkBtn = mkSubmit(act, "make a prediction, then commit your move before checking it");
+  checkBtn.textContent = "Check response";
+
+  /* plane units -> svg pixels (DRAWING ONLY; the submitted state is a region
+     id, never a coordinate). */
+  function num(s){
+    if(typeof s !== "string") return NaN;
+    const m = s.trim().match(/^([+-]?\d+)\/(\d+)$/);
+    if(m) return (+m[1]) / (+m[2]);
+    return parseFloat(s);
+  }
+  const Wf = num(plane.width) || 10, Hf = num(plane.height) || 6;
+  function SX(x){ return num(x) / Wf * W; }
+  function SY(y){ return num(y) / Hf * H; }
+
+  function contains(reg, x, y){
+    const co = reg.coords || [];
+    if(reg.shape === "rect" && co.length === 4){
+      return x >= SX(co[0]) && x <= SX(co[0]) + SX(co[2])
+          && y >= SY(co[1]) && y <= SY(co[1]) + SY(co[3]);
+    }
+    if(reg.shape === "circle" && co.length === 3){
+      const dx = x - SX(co[0]), dy = y - SY(co[1]);
+      return dx * dx + dy * dy <= SX(co[2]) * SX(co[2]);
+    }
+    if(reg.shape === "polygon" && co.length >= 3){
+      let inside = false;
+      for(let i = 0, j = co.length - 1; i < co.length; j = i++){
+        const xi = SX(co[i][0]), yi = SY(co[i][1]);
+        const xj = SX(co[j][0]), yj = SY(co[j][1]);
+        if(((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi))
+          inside = !inside;
+      }
+      return inside;
+    }
+    return false;
+  }
+
+  function shapePath(reg){
+    const co = reg.coords || [];
+    if(reg.shape === "rect" && co.length === 4)
+      return `<rect x="${SX(co[0])}" y="${SY(co[1])}" width="${SX(co[2])}" height="${SY(co[3])}"/>`;
+    if(reg.shape === "circle" && co.length === 3)
+      return `<circle cx="${SX(co[0])}" cy="${SY(co[1])}" r="${SX(co[2])}"/>`;
+    if(reg.shape === "polygon" && co.length >= 3)
+      return `<polygon points="${co.map(v => SX(v[0]) + "," + SY(v[1])).join(" ")}"/>`;
+    return "";
+  }
+
+  function draw(s){
+    let h = `<rect x="1" y="1" width="${W-2}" height="${H-2}" fill="var(--card)" stroke="currentColor"/>`;
+    regions.forEach(reg=>{
+      const sel = s.region === reg.id;
+      h += shapePath(reg).replace(/>$/, ` fill="${sel ? "var(--accent)" : "var(--card)"}" stroke="currentColor" stroke-width="1.5"/>`);
+      const co = reg.coords || [];
+      let lx = 0, ly = 0;
+      if(reg.shape === "rect" && co.length >= 2){ lx = SX(co[0]) + SX(co[2])/2; ly = SY(co[1]) + SY(co[3])/2; }
+      else if(reg.shape === "circle" && co.length >= 2){ lx = SX(co[0]); ly = SY(co[1]); }
+      else if(reg.shape === "polygon" && co.length >= 1){
+        co.forEach(v => { lx += SX(v[0]); ly += SY(v[1]); });
+        lx /= co.length; ly /= co.length;
+      }
+      h += `<text x="${lx}" y="${ly}" font-size="11" text-anchor="middle" dominant-baseline="middle" fill="var(--ink)">${esc(reg.label)}</text>`;
+    });
+    svg.innerHTML = h;
+  }
+
+  /* ---- state: committed vs tentative (D-04/D-05) --------------------------- */
+  const committed = {kind:"hotspot", region: (initial.region) || null};
+  const tentative = {kind:"hotspot", region: (initial.region) || null};
+  const actionId = () => (crypto.randomUUID ? crypto.randomUUID()
+    : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, ch=>{
+        const r = Math.random()*16|0, v = ch==="x"?r:(r&0x3|0x8);
+        return v.toString(16); }));
+  function snapshot(s){ return {kind:"hotspot", region: s.region}; }
+  function sameState(a, b){ return JSON.stringify(snapshot(a)) === JSON.stringify(snapshot(b)); }
+  function filled(s){ return !!s.region; }
+  function adopt(s){ committed.region = s.region; }
+  function revertTentative(){
+    tentative.region = committed.region;
+    draw(tentative);
+    syncControls();
+    status.textContent = "Move cancelled. Your last committed state is still here.";
+  }
+
+  async function commitMove(){
+    if(!filled(tentative)) return;
+    if(sameState(tentative, committed)){
+      status.textContent = "No change to commit.";
+      return;
+    }
+    const aid = actionId();
+    try {
+      const v = await api("/api/interact", {
+        session_id: sessionId, interaction_version: c.version,
+        action_id: aid, action_type: "select_hotspot",
+        state: snapshot(tentative),
+      });
+      adopt(tentative);
+      if(v.status === "recorded" || v.status === "already_recorded"){
+        status.textContent = "Move committed. You can adjust it or check your response.";
+      } else {
+        status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+        revertTentative();
+      }
+    } catch(err){
+      status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+    }
+  }
+
+  svg.addEventListener("pointerdown", e => e.preventDefault());
+  svg.addEventListener("pointerup", e => {
+    const r = svg.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width * W;
+    const y = (e.clientY - r.top) / r.height * H;
+    const hit = regions.find(reg => contains(reg, x, y));
+    if(!hit) return;
+    const before = JSON.stringify(snapshot(tentative));
+    tentative.region = hit.id;
+    draw(tentative);
+    syncControls();
+    if(JSON.stringify(snapshot(tentative)) !== before) commitMove();
+  });
+  svg.addEventListener("pointercancel", revertTentative);
+  svg.setAttribute("tabindex", "0");
+  svg.addEventListener("keydown", e => {
+    if(e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown"){
+      e.preventDefault();
+      const at = regions.findIndex(r => r.id === tentative.region);
+      const delta = (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 1;
+      if(regions.length){
+        const nxt = regions[Math.max(0, Math.min(regions.length - 1, (at < 0 ? 0 : at) + delta))];
+        tentative.region = nxt.id;
+        draw(tentative); syncControls();
+      }
+      return;
+    }
+    if(e.key === "Enter" || e.key === " "){ e.preventDefault(); commitMove(); return; }
+    if(e.key === "Escape"){ e.preventDefault(); revertTentative(); }
+  });
+
+  /* ---- adjacent semantic HTML control: radio list of region labels ------- */
+  const controls = document.createElement("div");
+  controls.className = "visual-controls";
+  const radios = [];
+  regions.forEach(reg=>{
+    const row = document.createElement("label");
+    row.className = "visual-ctl";
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "hotspot-region";
+    radio.value = reg.id;
+    radio.onchange = ()=>{
+      tentative.region = reg.id;
+      draw(tentative);
+      commitMove();
+    };
+    radios.push(radio);
+    row.appendChild(radio);
+    row.appendChild(document.createTextNode(" " + reg.label));
+    controls.appendChild(row);
+  });
+  host.appendChild(controls);
+  function syncControls(){
+    radios.forEach(r => { r.checked = r.value === tentative.region; });
+  }
+
+  const commitBtn = document.createElement("button");
+  commitBtn.className = "go ghost"; commitBtn.type = "button";
+  commitBtn.textContent = "Commit move"; commitBtn.disabled = true;
+  commitBtn.onclick = commitMove;
+  act.appendChild(commitBtn);
+
+  draw(tentative);
+  syncControls();
+  commitBtn.disabled = !filled(committed);
+  checkBtn.disabled = !filled(committed);
+  checkBtn.onclick = ()=>{
+    if(!filled(committed)){
+      status.textContent = "Commit your move before checking it.";
+      return;
+    }
+    checkBtn.disabled = true; commitBtn.disabled = true;
+    settle(q, JSON.stringify(snapshot(committed)), card, act, null);
+  };
+}
+
 function asVisual(q, body, act, card){
   const c = q.interaction_contract || {};
+  const interaction = (c.interaction || "").trim();
+  if(interaction === "hotspot") return renderHotspot(q, c, body, act, card);
+  if(interaction === "timeline") return renderTimeline(q, c, body, act, card);
+  if(interaction === "diagram") return renderDiagram(q, c, body, act, card);
+  if(interaction === "trace") return renderTrace(q, c, body, act, card);
   const rc = c.renderer_config || {};
   const kind = (c.response_schema || {}).kind || "point";
   const axes = rc.axes || {};

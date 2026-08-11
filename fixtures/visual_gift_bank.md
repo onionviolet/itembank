@@ -75,3 +75,83 @@ DISTRACTOR ANALYSIS:
 TRAP: Counting the half-step tick as a whole unit.
 
 CONFIDENCE: high
+
+Q4. Select the heart on the organ diagram.   (difficulty: recall)
+[OBJECTIVE: anatomy:organs.locate]
+[TYPE: visual]
+[INTERACTION: hotspot]
+[VISUAL: {"version":1,"plane":{"width":"10","height":"6"},"regions":[{"id":"heart","label":"Heart","shape":"circle","coords":["2","3","1.5"]},{"id":"liver","label":"Liver","shape":"rect","coords":["6","2","3","2"]}],"initial":{"region":null},"actions":["select_hotspot"],"accessibility":{"description":"A diagram with a heart and a liver. Select the heart."}}]
+[SCORING: {"kind":"hotspot","accepted":[{"region":"heart"}],"tolerance":{},"partial_credit":false}]
+
+WHY BEST: The heart is the circular region on the left of the diagram.
+
+KEY DISCRIMINATOR: The correct region is identified by label and shape, not position alone.
+
+SECOND-BEST: The liver is the rectangle on the right; it would be correct if the prompt asked for the right-side organ.
+
+DISTRACTOR ANALYSIS:
+- The liver is the rectangle on the right; this would be correct if the item asked for the right-side organ.
+
+TRAP: Picking the leftmost region without reading the label.
+
+CONFIDENCE: high
+
+Q5. Place the fall of Rome at year 5 on the timeline.   (difficulty: recall)
+[OBJECTIVE: history:world.timeline]
+[TYPE: visual]
+[INTERACTION: timeline]
+[VISUAL: {"version":1,"axis":{"min":"0","max":"10","step":"1"},"events":[{"id":"fall","label":"Fall of Rome"},{"id":"printing","label":"Printing press"}],"initial":{"placements":[]},"actions":["place_timeline_event"],"accessibility":{"description":"A timeline from 0 to 10. Place the fall of Rome at year 5."}}]
+[SCORING: {"kind":"timeline_event","accepted":[{"event":"fall","value":"5"}],"tolerance":{"value":"0"},"partial_credit":false}]
+
+WHY BEST: The fall of Rome is conventionally dated 476 CE, the midpoint of this 0-10 timeline.
+
+KEY DISCRIMINATOR: Event id and year must both match.
+
+SECOND-BEST: The printing press is the other event; it would be correct if the prompt asked for the later invention.
+
+DISTRACTOR ANALYSIS:
+- Placing the printing press at 5 mixes the right year with the wrong event.
+
+TRAP: Finding the right year and forgetting which event label goes with it.
+
+CONFIDENCE: high
+
+Q6. Connect premise A to the conclusion.   (difficulty: analysis)
+[OBJECTIVE: logic:argument.structure]
+[TYPE: visual]
+[INTERACTION: diagram]
+[VISUAL: {"version":1,"plane":{"width":"8","height":"6"},"nodes":[{"id":"a","label":"Premise A","x":"2","y":"4"},{"id":"b","label":"Premise B","x":"6","y":"4"},{"id":"c","label":"Conclusion","x":"4","y":"1"}],"initial":{"connections":[]},"actions":["connect_diagram"],"accessibility":{"description":"An argument diagram with two premises and a conclusion. Connect premise A to the conclusion."}}]
+[SCORING: {"kind":"diagram_connection","accepted":[{"from":"a","to":"c"}],"tolerance":{},"partial_credit":false}]
+
+WHY BEST: The argument runs from premise A to the conclusion.
+
+KEY DISCRIMINATOR: The connection is ordered and names the correct premise.
+
+SECOND-BEST: Premise B is the right-hand premise; it would be correct if the prompt named premise B.
+
+DISTRACTOR ANALYSIS:
+- Premise B to the conclusion swaps the premise.
+
+TRAP: Connecting any premise to the conclusion without checking which premise the prompt names.
+
+CONFIDENCE: high
+
+Q7. Trace the V-shaped path with three points.   (difficulty: application)
+[OBJECTIVE: geometry:paths.trace]
+[TYPE: visual]
+[INTERACTION: trace]
+[VISUAL: {"version":1,"axes":{"x":{"min":"0","max":"4","step":"1"},"y":{"min":"0","max":"4","step":"1"}},"point_count":3,"initial":{"points":[{"x":"0","y":"0"},{"x":"2","y":"2"},{"x":"4","y":"0"}]},"actions":["place_trace_point"],"accessibility":{"description":"A grid with a V-shaped reference path. Place three points on it."}}]
+[SCORING: {"kind":"trace_path","accepted":[{"points":[{"x":"0","y":"0"},{"x":"2","y":"2"},{"x":"4","y":"0"}]}],"tolerance":{"x":"0","y":"0"},"partial_credit":false}]
+
+WHY BEST: The three points reproduce the V exactly.
+
+KEY DISCRIMINATOR: Order and exact grid alignment both matter.
+
+SECOND-BEST: (2, 0) is the baseline midpoint; it would be correct if the path were flat.
+
+DISTRACTOR ANALYSIS:
+- (2, 0) misses the V's dip at (2, 2).
+
+TRAP: Placing the middle point on the baseline.
+
+CONFIDENCE: high

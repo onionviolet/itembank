@@ -239,8 +239,8 @@ def _json_or_none(raw):
 # re-implements the grammar; it only reports where the authored JSON violates
 # it. Unknown-member and malformed-JSON checks happen here against the raw
 # text the parser kept, so a field is named even when the JSON never parsed.
-VISUAL_SCENE_MEMBERS = frozenset({"version", "axes", "axis", "initial",
-                                  "actions", "accessibility"})
+# The per-interaction scene-member allowlist lives in runtime.py
+# (phase 999.1, D-999.1-04) so lint and the contract share one authority.
 VISUAL_SCORING_MEMBERS = frozenset({"kind", "accepted", "tolerance",
                                     "partial_credit", "feedback"})
 
@@ -284,10 +284,11 @@ def _visual_lint_findings(q, tag):
         # Nothing further can be validated without the parsed JSON.
         return findings
 
-    # Unknown members first: a top-level member outside the closed allowlist
-    # is an authoring error even when it also looks script-bearing (the
-    # executable check below catches nested ones).
-    unknown = sorted(set(visual) - VISUAL_SCENE_MEMBERS)
+    # Unknown members first: a top-level member outside the closed per-
+    # interaction allowlist is an authoring error even when it also looks
+    # script-bearing (the executable check below catches nested ones).
+    allowed = _runtime._VISUAL_SCENE_MEMBERS.get(interaction) or frozenset()
+    unknown = sorted(set(visual) - allowed)
     if unknown:
         findings.append(LintError(
             "item.visual_unknown_member", "visual", tag,
@@ -364,26 +365,37 @@ def _visual_lint_findings(q, tag):
                 "%s is invalid (positive SCALAR step, max > min, at most %d "
                 "ticks)" % (axis_name, _runtime.VISUAL_MAX_TICKS)))
 
-    if interaction == "plot":
+    if interaction in ("plot", "trace"):
         axes = visual.get("axes")
         if not isinstance(axes, dict) or "x" not in axes or "y" not in axes:
             findings.append(LintError(
                 "item.visual_invalid_axis", "axes", tag,
-                "plot scene needs axes.x and axes.y"))
+                "%s scene needs axes.x and axes.y" % interaction))
         else:
             _axis_field(axes["x"], "axes.x")
             _axis_field(axes["y"], "axes.y")
-    else:
+    elif interaction in ("numberline", "timeline"):
         _axis_field(visual.get("axis"), "axis")
 
     # Accepted states must canonicalize and stay in the authored domain, and
     # tolerance must be a non-negative SCALAR. The runtime raises ValueError
-    # for these, which is mapped to the field-addressed code.
+    # for these, which is mapped to the field-addressed code. Phase 999.1
+    # geometry/duplicate-id errors carry recognizable prefixes so they map to
+    # their own codes with the offending field named.
     try:
         _runtime._visual_interaction_contract(q)
     except ValueError as exc:
         message = str(exc)
-        if "accepted state" in message:
+        if message.startswith("geometry:"):
+            findings.append(LintError(
+                "item.visual_invalid_geometry", "visual", tag, message))
+        elif message.startswith("duplicate_id:"):
+            findings.append(LintError(
+                "item.visual_duplicate_id", "visual", tag, message))
+        elif "does not match INTERACTION" in message:
+            findings.append(LintError(
+                "item.visual_unknown_scoring_kind", "kind", tag, message))
+        elif "accepted state" in message:
             findings.append(LintError(
                 "item.visual_invalid_scalar", "accepted", tag, message))
         elif "tolerance" in message and "non-negative SCALAR" in message:
@@ -1836,6 +1848,58 @@ THE SIX ITEM TYPES
    interaction, renderer_config, response_schema) is what a renderer or agent
    receives; accepted states, tolerance, and reveal content are never in it.
 
+   Phase 999.1 extends the same protocol integer 1 additively with the
+   `hotspot`, `timeline`, `diagram`, and `trace` families (same envelope,
+   same interact/evidence machinery; the closed allowlists grow, nothing is
+   renumbered). Scene members are closed per interaction; identifiers follow
+   `[A-Za-z0-9_-]{1,64}` and are stable authored strings, never pixels.
+
+   Hotspot (click-on-region mapping). The learner selects one named region of
+   a plane.
+     [INTERACTION: hotspot]
+     [VISUAL: {"version":1,"plane":{"width":"10","height":"6"},"regions":[{"id":"heart","label":"Heart","shape":"circle","coords":["2","3","1.5"]},{"id":"liver","label":"Liver","shape":"rect","coords":["6","2","3","2"]},{"id":"lungs","label":"Lungs","shape":"polygon","coords":[["1","5"],["4","5"],["2.5","3.5"]]}],"initial":{"region":null},"actions":["select_hotspot"],"accessibility":{"description":"A diagram of three organs. Select the heart."}}]
+     [SCORING: {"kind":"hotspot","accepted":[{"region":"heart"}],"tolerance":{},"partial_credit":false}]
+   `plane` is `{width, height}` in positive SCALARs; `regions` entries are
+   `{id, label, shape, coords}` with `shape` one of `rect` ([x,y,w,h]),
+   `circle` ([cx,cy,r]) or `polygon` ([[x,y],...] with at least 3 in-plane
+   vertices), all SCALARs inside the plane, unique ids. Wire response:
+     {"kind":"hotspot","region":ID}
+   Scoring is exact region-id equality; a non-zero tolerance is an authoring
+   error (the family is exact-id). `initial.region` is the pre-selected
+   region or null.
+
+   Timeline (place one authored event at a time value). Same `axis` grammar
+   as numberline plus `events` [{id,label}]:
+     [INTERACTION: timeline]
+     [VISUAL: {"version":1,"axis":{"min":"0","max":"10","step":"1"},"events":[{"id":"fall","label":"Fall of Rome"},{"id":"printing","label":"Printing press"}],"initial":{"placements":[]},"actions":["place_timeline_event"],"accessibility":{"description":"A timeline from 0 to 10. Place the fall of Rome at year 5."}}]
+     [SCORING: {"kind":"timeline_event","accepted":[{"event":"fall","value":"5"}],"tolerance":{"value":"0"},"partial_credit":false}]
+   Wire response: {"kind":"timeline_event","event":ID,"value":SCALAR}.
+   Scoring compares the event id exactly and the value within the private
+   per-coordinate tolerance (0 = exact tick compare). Committed actions:
+   `place_timeline_event`, `move_timeline_event`.
+
+   Diagram (connect two authored nodes). `plane` plus `nodes` [{id,label,x,y}]
+   in plane units:
+     [INTERACTION: diagram]
+     [VISUAL: {"version":1,"plane":{"width":"8","height":"6"},"nodes":[{"id":"a","label":"Premise A","x":"2","y":"4"},{"id":"b","label":"Premise B","x":"6","y":"4"},{"id":"c","label":"Conclusion","x":"4","y":"1"}],"initial":{"connections":[]},"actions":["connect_diagram"],"accessibility":{"description":"An argument diagram. Connect the two premises to the conclusion."}}]
+     [SCORING: {"kind":"diagram_connection","accepted":[{"from":"a","to":"c"}],"tolerance":{},"partial_credit":false}]
+   Wire response: {"kind":"diagram_connection","from":ID,"to":ID}. The pair
+   is ordered, `from` must differ from `to`, both ids must be known, and
+   scoring is exact (non-zero tolerance is an authoring error).
+
+   Trace (re-trace a reference path with a fixed number of points). Same
+   `axes` geometry as plot plus `point_count` (integer 1..50); the public
+   `initial.points` reference polyline is scene data the renderer draws, while
+   the accepted path lives only in the private SCORING envelope:
+     [INTERACTION: trace]
+     [VISUAL: {"version":1,"axes":{"x":{"min":"0","max":"4","step":"1"},"y":{"min":"0","max":"4","step":"1"}},"point_count":3,"initial":{"points":[{"x":"0","y":"0"},{"x":"2","y":"2"},{"x":"4","y":"0"}]},"actions":["place_trace_point","move_trace_point"],"accessibility":{"description":"A grid with a V-shaped path. Place three points along it."}}]
+     [SCORING: {"kind":"trace_path","accepted":[{"points":[{"x":"0","y":"0"},{"x":"2","y":"2"},{"x":"4","y":"0"}]}],"tolerance":{"x":"1/2","y":"1/2"},"partial_credit":false}]
+   Wire response: {"kind":"trace_path","points":[{"x":SCALAR,"y":SCALAR},...]}.
+   The submitted point count must equal `point_count` and each point is
+   compared element-wise in order within the private per-coordinate
+   tolerance; a count mismatch, out-of-domain point, or off-grid point fails
+   closed.
+
    SVG/HTML role policy (D-07): HTML owns the prompt, controls, status and
    semantic fallback; SVG owns the retained plot/number-line geometry. A canvas
    renderer is permitted only for a dense simulation while the identical
@@ -1918,17 +1982,22 @@ LESSON LINT CODES
                                       legitimately teaches more than it tests
 VISUAL LINT CODES
   item.visual_json_malformed       error   [VISUAL:] or [SCORING:] is not valid JSON
-  item.visual_unknown_interaction  error   INTERACTION is not plot or numberline
-  item.visual_unknown_action       error   an action is outside the four locked types
-  item.visual_unknown_scoring_kind error   SCORING.kind is not point/numberline_point/interval
+  item.visual_unknown_interaction  error   INTERACTION is not one of the six families
+  item.visual_unknown_action       error   an action is outside the locked action types
+  item.visual_unknown_scoring_kind error   SCORING.kind is unknown or does not match
+                                           the INTERACTION family
   item.visual_unknown_member       error   a top-level VISUAL/SCORING member is outside
-                                           the closed allowlist
+                                           the per-interaction closed allowlist
   item.visual_invalid_axis         error   axis min/max/step geometry is invalid
   item.visual_invalid_scalar       error   a SCALAR violates the protocol-1 grammar
-  item.visual_invalid_tolerance    error   a tolerance is not a non-negative SCALAR
+  item.visual_invalid_tolerance    error   a tolerance is not a non-negative SCALAR,
+                                           or is non-zero on an exact-id family
   item.visual_invalid_scoring_kind error   partial_credit is not false (dichotomous)
   item.visual_empty_accessibility  error   accessibility.description is empty
-  item.visual_duplicate_id         error   scene point ids are duplicated
+  item.visual_duplicate_id         error   scene ids (points, regions, events,
+                                           nodes) are duplicated
+  item.visual_invalid_geometry     error   plane/regions/events/nodes geometry,
+                                           coords, or point_count is malformed
   item.visual_executable_member    error   a script-bearing/executable member is present
   lesson.invalid_gate       error     [GATE:] names a value outside
                                       required|recommended|off
@@ -2100,6 +2169,7 @@ LINT_CODES = tuple(sorted({
     "item.visual_invalid_scalar", "item.visual_invalid_tolerance",
     "item.visual_invalid_scoring_kind",
     "item.visual_empty_accessibility", "item.visual_duplicate_id",
+    "item.visual_invalid_geometry",
     "item.visual_executable_member",
     "bank.answer_position_skew",
     "lesson.invalid_gate", "lesson.check_ref_unknown",

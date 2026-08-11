@@ -55,6 +55,7 @@
         "item.visual_empty_accessibility",
         "item.visual_executable_member",
         "item.visual_invalid_axis",
+        "item.visual_invalid_geometry",
         "item.visual_invalid_scalar",
         "item.visual_invalid_scoring_kind",
         "item.visual_invalid_tolerance",
