@@ -891,7 +891,7 @@ This phase's full content — goal, requirements, success criteria, open decisio
 
 - **OPEN — ruling 3**: Weibao confirms Q8 (keep Python, Tauri sidecar, NSIS) and this phase number. The direction is recorded as adopted-pending-ruling; nothing else in the roadmap depends on the answer.
 
-**Plans**: 2/5 plans executed across 3 waves
+**Plans**: 3/5 plans executed across 3 waves
 
 Plans:
 **Wave 1**
@@ -901,7 +901,7 @@ Plans:
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [x] 13-02-PLAN.md — The Tauri shell: sidecar spawn, Job Object lifecycle, named mutex, window chrome, liveness states
-- [ ] 13-03-PLAN.md — PyInstaller onedir build, NSIS installer with evidence-store guard, install notice, headless CLI proof
+- [x] 13-03-PLAN.md — PyInstaller onedir build, NSIS installer with evidence-store guard, install notice, headless CLI proof
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -1127,7 +1127,7 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 10. Retention, Pacing & Trends | 0/6 | Planned    |  |
 | 11. Closed Authoring Loop & Curriculum Auditor | 0/TBD | Not started | - |
 | 12. ~~Packaging, Self-Update & Interop Export~~ | — | Retired (moved to 2.1) | - |
-| 13. Desktop Packaging — Tauri Shell over Python Sidecar | 2/5 | In Progress|  |
+| 13. Desktop Packaging — Tauri Shell over Python Sidecar | 3/5 | In Progress|  |
 
 ## Backlog
 

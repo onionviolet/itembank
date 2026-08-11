@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 03.2
 current_phase_name: seeding-import-provenance
 status: executing
-stopped_at: Completed 13-02-PLAN.md
-last_updated: "2026-08-11T00:58:14.306Z"
+stopped_at: Completed 13-03-PLAN.md
+last_updated: "2026-08-11T01:10:14.903Z"
 last_activity: 2026-08-10
 last_activity_desc: Phase 03.1 execution started
 progress:
   total_phases: 18
   completed_phases: 5
   total_plans: 104
-  completed_plans: 48
+  completed_plans: 50
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 ## Current Position
 
 Phase: 03.2 (seeding-import-provenance) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-08-10 — Phase 03.2 execution started
 
-Progress: [█████░░░░░] 46%
+Progress: [█████░░░░░] 48%
 
 ## Performance Metrics
 
@@ -103,6 +103,7 @@ Progress: [█████░░░░░] 46%
 | Phase 06 P01 | 95 min | 3 tasks | 9 files |
 | Phase 07 P03 | 30min | 3 tasks | 5 files |
 | Phase 13 P02 | 105min | 3 tasks | 28 files |
+| Phase 13 P03 | 65min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -239,6 +240,8 @@ Recent decisions affecting current work:
 - [Phase ?]: 13-02: the shell spawns the externalBin sidecar directly (not Command::sidecar) so the process handle is available for the job object; dev fallback is python itembank.py sidecar.
 - [Phase ?]: 13-02: token injection is a shell-local loopback HTTP proxy (WebView2 cannot set navigation headers) - one HTTP transport, proxy adds X-Itembank-Token and strips Origin.
 - [Phase ?]: 13-02: POST /cli-twin + 'itembank cli-twin' give the menu its daemon-owned route->CLI mapping; API_ROUTES stays locked at four.
+- [Phase ?]: 13-03: the frozen exe is the full CLI entry (sidecar is a CLI mode); the bundled shell passes 'sidecar <dir>'; PyInstaller --add-data carries schemas/styles/fonts because resources.py resolves relative to the frozen root.
+- [Phase ?]: 13-03: install-notice values are compile-time defines with !error fail-closed; uninstaller deletes only \ (fixture-proven); NSIS bundling degrades honestly while makensis is absent.
 
 ## Deferred Verification
 
@@ -255,7 +258,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-11T00:58:13.099Z
-Stopped at: Completed 13-02-PLAN.md
+Last session: 2026-08-11T01:10:04.739Z
+Stopped at: Completed 13-03-PLAN.md
 Resume file: None
 Deferred human verification: Phases 2.1/3/4 (see Deferred Verification table above)
