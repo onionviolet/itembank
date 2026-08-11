@@ -13,6 +13,9 @@
       "$ref": "#/$defs/hint_event"
     },
     {
+      "$ref": "#/$defs/gate_skip_event"
+    },
+    {
       "$ref": "#/$defs/other_event"
     }
   ],
@@ -26,6 +29,7 @@
         "item_ref", "item_type", "bank", "objective", "subject", "mode",
         "attempt_number", "answer", "canonical", "score", "response_time_ms",
         "confidence", "error_category", "hint_tier", "selection_mode",
+        "context",
         "review_state", "dedupe_key",
         "source_ref"
       ],
@@ -112,6 +116,11 @@
         "selection_mode": {
           "type": ["string", "null"],
           "description": "The selection composition that served this item (plan 07-04); `mode` names the feedback policy that governed what was shown. Null when the event predates phase 7."
+        },
+        "context": {
+          "type": "string",
+          "enum": ["quiz", "lesson_gate"],
+          "description": "Which surface embedded this attempt (plan 06.2, D-08): \"quiz\" (the default, every pre-6.2 call site) or \"lesson_gate\" (the one call site that serves an inline check inside a lesson). Phase 10's scheduler treats both identically -- the context field is how it tells where an idea was cleared without branching on it."
         },
         "review_state": {
           "type": "string",
@@ -215,6 +224,49 @@
         "unlock_path": {
           "type": "string",
           "enum": ["attempt", "stumped"]
+        },
+        "dedupe_key": {
+          "type": "string"
+        }
+      }
+    },
+    "gate_skip_event": {
+      "type": "object",
+      "description": "The gate_skip event's real shape (plan 06.2-01, D-07): a learner read ahead past a gated check without answering. It is structurally not a response -- no score key at all, not even null -- so a skip can never be mistaken for an unmarked attempt in any downstream count.",
+      "properties": {
+        "event_type": {
+          "const": "gate_skip"
+        },
+        "schema_version": {
+          "const": 2
+        },
+        "event_id": {
+          "type": "string"
+        },
+        "ts": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "bank": {
+          "type": "string"
+        },
+        "lesson_slug": {
+          "type": "string"
+        },
+        "check_item_id": {
+          "type": "string"
+        },
+        "check_item_ref": {
+          "type": "string"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "gate_mode": {
+          "type": "string",
+          "enum": ["required", "recommended"]
         },
         "dedupe_key": {
           "type": "string"

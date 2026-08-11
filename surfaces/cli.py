@@ -80,6 +80,19 @@ CALL OUT KINDS
   It may reference an item in its own bank only; a cross-bank reference is
   a lint error naming the rule (D-06).
 
+THE GATE DIRECTIVE ([GATE:])
+  One optional `[GATE: required|recommended|off]` in the lesson preamble
+  sets how the lesson's inline checks gate reading. `required` truncates
+  the lesson at the first uncleared check (the server does not emit the
+  sections below it); `recommended` (the default when the directive is
+  absent) renders the whole lesson with each check in the flow; `off`
+  renders the Phase 3.1 reader unchanged. A learner can always read ahead
+  by the recorded `Read ahead without answering` control; in diagnostic
+  and exam sittings a `required` gate degrades to `recommended`. A value
+  outside the three is a lint error (`lesson.invalid_gate`); a
+  `[!CHECK: <id>]` naming no item in its own bank is a lint error
+  (`lesson.check_ref_unknown`).
+
 THE EDUCATIONAL OBJECTIVE LINE
   `Objective: <one sentence>` on its own line inside an item adds that
   item's educational objective. It is private payload: consumed by
