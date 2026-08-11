@@ -544,10 +544,342 @@ def test_no_evidence_write():
 
 
 def test_no_evidence_import_in_shipped_module():
-    """The shipped audio module never imports or writes evidence.py (D-13)."""
+    """The shipped audio modules never import or write evidence.py (D-13)."""
+    for name in ("audio.py", "audio_edge_tts.py", "audio_piper.py"):
+        path = os.path.join(ROOT, "surfaces", name)
+        if not os.path.exists(path):
+            continue
+        src = open(path, encoding="utf-8").read()
+        if re.search(r"(?m)^\s*(import|from)\s+evidence\b", src):
+            fail("surfaces/%s imports evidence.py" % name)
+
+
+# ---- Plan 09.1-02: the two real engines ------------------------------------
+
+# The fake edge_tts module: exposes the Communicate.stream() shape the pinned
+# library uses (type/data chunks), so the edge-tts engine path is tested
+# offline. Tests insert it into sys.modules under "edge_tts".
+class _FakeCommunicate:
+    def __init__(self, text, voice):
+        self.text = text
+        self.voice = voice
+
+    async def stream(self):
+        yield {"type": "audio", "data": b"ID3" + self.text.encode("utf-8")}
+
+
+_FAKE_EDGE_MODULE = type("edge_tts", (), {"Communicate": _FakeCommunicate})()
+
+
+def _install_fake_edge():
+    import sys as _sys
+    _sys.modules["edge_tts"] = _FAKE_EDGE_MODULE
+
+
+def _remove_fake_edge():
+    import sys as _sys
+    _sys.modules.pop("edge_tts", None)
+
+
+def test_edge_tts_registers_and_speaks_mp3_offline():
+    """edge_tts() registers by name, declares container 'mp3', and speak(text)
+    returns MP3 bytes from the pinned library (endpoint faked offline); the
+    engine never transcribes, only speaks (D-02/D-09, AUDIO-02)."""
+    from surfaces import audio_edge_tts
+    _install_fake_edge()
+    try:
+        eng = audio_surface.resolve_engine("edge-tts")
+        if eng.name != "edge-tts" or eng.container != "mp3":
+            fail("edge-tts engine lost its name/container")
+        eng.probe = lambda: True
+        if not eng.available():
+            fail("edge-tts with a fake lib + reachable probe must be available")
+        out = eng.speak("hello")
+        if not out.startswith(b"ID3"):
+            fail("edge-tts speak() did not return MP3 bytes: %r" % out[:12])
+        if b"hello" not in out:
+            fail("edge-tts speak() did not stream the given text")
+    finally:
+        _remove_fake_edge()
+
+
+def test_edge_tts_refuses_missing_or_unreachable_by_name():
+    """When the pinned library is missing or the endpoint is unreachable,
+    available() is False and speak() raises EngineError naming the engine and
+    the reason -- the command refuses by name, never silently substituting
+    (D-04, AUDIO-04)."""
+    from surfaces import audio_edge_tts
+    # Missing library: no fake installed.
+    eng = audio_surface.resolve_engine("edge-tts")
+    eng.probe = lambda: True
+    if eng.available():
+        fail("edge-tts without the pinned library reported available")
+    try:
+        eng.speak("anything")
+        fail("edge-tts without the library did not refuse")
+    except audio_surface.EngineError as exc:
+        if "edge-tts" not in str(exc):
+            fail("edge-tts refusal does not name the engine: %r" % str(exc))
+    # Unreachable endpoint: library present, probe fails.
+    _install_fake_edge()
+    try:
+        eng2 = audio_surface.resolve_engine("edge-tts")
+        eng2.probe = lambda: False
+        if eng2.available():
+            fail("edge-tts with an unreachable endpoint reported available")
+        try:
+            eng2.speak("anything")
+            fail("edge-tts with an unreachable endpoint did not refuse")
+        except audio_surface.EngineError as exc:
+            if "edge-tts" not in str(exc) or "unreachable" not in str(exc).lower():
+                fail("edge-tts refusal does not name engine+reason: %r" % str(exc))
+    finally:
+        _remove_fake_edge()
+
+
+def test_edge_tts_disclosure_in_cli_help():
+    """The CLI help for --engine edge-tts contains the disclosure that item
+    text is sent to Microsoft's endpoint (D-16); the disclosure is a tested
+    string, not prose that can rot (AUDIO-07)."""
+    r = run(["export", "--help"])
+    if r.returncode != 0:
+        fail("itembank export --help exited %d: %s"
+             % (r.returncode, r.stderr))
+    # argparse wraps help text across lines, so compare whitespace-collapsed.
+    collapsed = re.sub(r"\s+", " ", r.stdout)
+    disclosure = "edge-tts sends item text to Microsoft's endpoint"
+    if disclosure not in collapsed:
+        fail("export --help is missing the edge-tts network disclosure")
+
+
+def test_edge_tts_and_lameenc_pinned_with_license_review():
+    """requirements.txt pins edge-tts and lameenc with a recorded checksum and
+    a named license review; the Piper artifact decision (bundled binary/model
+    per research A3, never the GPL PyPI package) is recorded (Directive 4a,
+    D-15, AUDIO-07)."""
+    req = open(os.path.join(ROOT, "requirements.txt"), encoding="utf-8").read()
+    if "edge-tts==7.2.8" not in req:
+        fail("requirements.txt does not pin edge-tts==7.2.8")
+    if "sha256:" not in req.split("edge-tts==7.2.8")[1][:400]:
+        fail("requirements.txt edge-tts pin has no recorded checksum")
+    if "LGPL" not in req:
+        fail("requirements.txt has no named license review for edge-tts")
+    if "lameenc==1.8.4" not in req:
+        fail("requirements.txt does not pin lameenc==1.8.4")
+    if "sha256:" not in req.split("lameenc==1.8.4")[1][:400]:
+        fail("requirements.txt lameenc pin has no recorded checksum")
+    if "Piper" not in req or "bundled" not in req.lower():
+        fail("requirements.txt does not record the Piper bundled-artifact "
+             "decision")
+
+
+def test_piper_registers_and_speaks_wav_offline():
+    """piper() registers by name, declares container 'wav', and speak(text)
+    returns WAV bytes through a stubbed Piper invocation; a missing model or
+    binary makes available() False and speak() raise EngineError naming the
+    engine and the missing piece (D-02/D-04, AUDIO-02/AUDIO-04)."""
+    from surfaces import audio_piper
+    eng = audio_surface.resolve_engine("piper")
+    if eng.name != "piper" or eng.container != "wav":
+        fail("piper engine lost its name/container")
+
+    def fake_run(argv, text):
+        with open(argv[argv.index("--output_file") + 1], "wb") as fh:
+            fh.write(b"RIFF" + text.encode("utf-8"))
+
+    eng.runner = fake_run
+    eng.model = "/nonexistent/voice.onnx"
+    if eng.available():
+        fail("piper with a missing model reported available")
+    try:
+        eng.speak("anything")
+        fail("piper with a missing model did not refuse")
+    except audio_surface.EngineError as exc:
+        if "piper" not in str(exc) or "model" not in str(exc).lower():
+            fail("piper refusal does not name engine+missing piece: %r" % str(exc))
+
+    # With a model present, speak returns the WAV bytes the binary wrote.
+    tmp = tempfile.mkdtemp()
+    try:
+        model = os.path.join(tmp, "voice.onnx")
+        open(model, "wb").write(b"fake-model")
+        eng.model = model
+        if not eng.available():
+            fail("piper with model present reported unavailable")
+        eng.target_container = "wav"
+        out = eng.speak("hello")
+        if not out.startswith(b"RIFF") or b"hello" not in out:
+            fail("piper speak() did not return the stubbed WAV bytes")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_piper_mp3_path_engine_scoped():
+    """When the container setting is mp3, the piper engine's MP3 path converts
+    the WAV through one pinned encoder (lameenc) and returns MP3 bytes; when
+    the setting is wav, it passes WAV through untouched -- the encoder is
+    engine-scoped (D-09, AUDIO-06)."""
+    from surfaces import audio_piper
+
+    class _FakeEncoder:
+        def __init__(self):
+            self.called = False
+
+        def __call__(self, wav_bytes):
+            self.called = True
+            return b"MP3" + wav_bytes
+
+    fake = _FakeEncoder()
+    audio_piper._to_mp3 = fake
+    tmp = tempfile.mkdtemp()
+    try:
+        model = os.path.join(tmp, "voice.onnx")
+        open(model, "wb").write(b"fake-model")
+        eng = audio_surface.resolve_engine("piper")
+        eng.runner = lambda argv, text: open(
+            argv[argv.index("--output_file") + 1], "wb").write(b"RIFFwav")
+        eng.model = model
+        eng.target_container = "mp3"
+        mp3 = eng.speak("hello")
+        if not mp3.startswith(b"MP3") or not fake.called:
+            fail("piper mp3 path did not run the encoder: %r" % mp3[:8])
+        eng.target_container = "wav"
+        wav = eng.speak("hello")
+        if not wav.startswith(b"RIFF") or fake.called is not True:
+            fail("piper wav path must pass WAV through untouched")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_roster_exactly_three_engines_kokoro_documented():
+    """The registry contains exactly edge-tts, piper, and transcript-only;
+    Kokoro appears only in the documented registration-target note and
+    resolves to a named refusal if selected (D-02, AUDIO-02)."""
+    names = set(audio_surface.TTSEngines)
+    if names != {"edge-tts", "piper", "transcript-only"}:
+        fail("registry is not exactly {edge-tts, piper, transcript-only}: %r"
+             % names)
     src = open(os.path.join(ROOT, "surfaces", "audio.py"), encoding="utf-8").read()
-    if re.search(r"(?m)^\s*(import|from)\s+evidence\b", src):
-        fail("surfaces/audio.py imports evidence.py")
+    if "Kokoro" not in src:
+        fail("audio.py does not document Kokoro as a registration target")
+    try:
+        audio_surface.resolve_engine("kokoro")
+        fail("kokoro resolved -- it must be a documented target, not built")
+    except audio_surface.EngineError as exc:
+        if "kokoro" not in str(exc):
+            fail("kokoro refusal does not name the engine: %r" % str(exc))
+
+
+def test_unavailable_configured_engine_no_silent_fallback():
+    """With the configured engine unavailable, the command emits the
+    transcript, names the engine and reason, and exits non-zero -- and never
+    substitutes another engine's voice (D-04, AUDIO-04)."""
+    class Unavailable(TTSEngine):
+        name = "fake-unavailable"
+        container = "mp3"
+
+        def available(self):
+            return False
+
+        def speak(self, text):
+            return b"SHOULD-NOT-RUN:" + text.encode("utf-8")
+
+    audio_surface.TTSEngines["fake-unavailable"] = lambda: Unavailable()
+    try:
+        tmp = tempfile.mkdtemp()
+        try:
+            bank = write_bank(tmp)
+            out_dir = os.path.join(tmp, "pack")
+            settings = {"audio": {"engine": "fake-unavailable", "pause": {}}}
+            # export_audio must refuse by name (D-04), never silently write
+            # with an unavailable engine -- and the transcript must already be
+            # on disk when it does.
+            try:
+                audio_surface.export_audio(bank, "Water / chemistry", out_dir,
+                                           settings=settings)
+                fail("unavailable engine did not refuse")
+            except audio_surface.EngineError as exc:
+                if "fake-unavailable" not in str(exc):
+                    fail("unavailable-engine refusal does not name the engine: "
+                         "%r" % str(exc))
+            txt = [f for f in os.listdir(out_dir) if f.endswith(".txt")]
+            if len(txt) != 1:
+                fail("unavailable-engine refusal left no transcript")
+            rc = audio_surface.cmd_export_audio(namespace(
+                bank="audio", out=bank, objective="Water / chemistry",
+                out_dir=out_dir))
+            if rc == 0:
+                fail("unavailable configured engine exited 0")
+            txt2 = [f for f in os.listdir(out_dir) if f.endswith(".txt")]
+            if len(txt2) != 1:
+                fail("unavailable-engine run left no transcript")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+    finally:
+        audio_surface.TTSEngines.pop("fake-unavailable", None)
+
+
+def test_engine_switch_is_settings_change_only():
+    """Switching engines is a settings change only: the same command text
+    produces the same pack shape through a different registered engine, and
+    the --engine flag overrides the settings entry without touching the schema
+    (D-01, AUDIO-01)."""
+    class EchoA(TTSEngine):
+        name = "fake-settings-a"
+        container = "mp3"
+
+        def available(self):
+            return True
+
+        def speak(self, text):
+            return b"A:" + text.encode("utf-8")
+
+    class EchoB(TTSEngine):
+        name = "fake-settings-b"
+        container = "mp3"
+
+        def available(self):
+            return True
+
+        def speak(self, text):
+            return b"B:" + text.encode("utf-8")
+
+    audio_surface.TTSEngines["fake-settings-a"] = lambda: EchoA()
+    audio_surface.TTSEngines["fake-settings-b"] = lambda: EchoB()
+    try:
+        tmp = tempfile.mkdtemp()
+        try:
+            bank = write_bank(tmp)
+            out_a = os.path.join(tmp, "pack_a")
+            out_b = os.path.join(tmp, "pack_b")
+            settings_a = {"audio": {"engine": "fake-settings-a", "pause": {}}}
+            settings_b = {"audio": {"engine": "fake-settings-b", "pause": {}}}
+            wa = audio_surface.export_audio(bank, "Water / chemistry", out_a,
+                                            settings=settings_a)
+            wb = audio_surface.export_audio(bank, "Water / chemistry", out_b,
+                                            settings=settings_b)
+            if not wa.get("audio") or not wb.get("audio"):
+                fail("both settings engines must produce audio")
+            if wa["audio"] == wb["audio"]:
+                fail("two engines produced identical audio -- no real switch")
+            ba = os.path.splitext(os.path.basename(wa["audio"]))[0]
+            bb = os.path.splitext(os.path.basename(wb["audio"]))[0]
+            if ba != bb:
+                fail("same objective through different engines changed the "
+                     "pack name: %r vs %r" % (ba, bb))
+            # --engine flag overrides the settings entry without touching the
+            # schema: same settings, explicit flag, different engine.
+            wc = audio_surface.export_audio(bank, "Water / chemistry",
+                                            os.path.join(tmp, "pack_c"),
+                                            engine="fake-settings-b",
+                                            settings=settings_a)
+            if not wc.get("audio") or wc["audio"] == wa["audio"]:
+                fail("--engine flag did not override the settings entry")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+    finally:
+        audio_surface.TTSEngines.pop("fake-settings-a", None)
+        audio_surface.TTSEngines.pop("fake-settings-b", None)
 
 
 def main():
@@ -562,10 +894,19 @@ def main():
     test_digest_naming_and_atomic_audio_write()
     test_no_evidence_write()
     test_no_evidence_import_in_shipped_module()
+    test_edge_tts_registers_and_speaks_mp3_offline()
+    test_edge_tts_refuses_missing_or_unreachable_by_name()
+    test_edge_tts_disclosure_in_cli_help()
+    test_edge_tts_and_lameenc_pinned_with_license_review()
+    test_piper_registers_and_speaks_wav_offline()
+    test_piper_mp3_path_engine_scoped()
+    test_roster_exactly_three_engines_kokoro_documented()
+    test_unavailable_configured_engine_no_silent_fallback()
+    test_engine_switch_is_settings_change_only()
     print("ok: audio export roundtrip -- registry, transcript-only, objective "
           "resolution, sequence/transcript contract, settings block, CLI + "
-          "legacy byte-compat, atomic write, digest naming, no-evidence all "
-          "held")
+          "legacy byte-compat, atomic write, digest naming, no-evidence, "
+          "edge-tts + piper engines, roster contract all held")
     return 0
 
 

@@ -216,6 +216,11 @@ def export_audio(bank, objective_id, out_dir, engine=None, container=None,
     except EngineError as exc:
         exc.transcript_path = written["transcript"]
         raise
+    # The engine reads its own knobs (voice, model, target container) from the
+    # settings entry (D-01/D-09); the --engine flag overrides only the name.
+    configure = getattr(engine_obj, "configure", None)
+    if configure is not None:
+        configure(settings)
     if not engine_obj.available():
         raise EngineError(engine_obj.name, "engine is not available",
                           transcript_path=written["transcript"])
@@ -275,3 +280,12 @@ def cmd_export_audio(a):
     if written["audio"]:
         print("audio -> %s" % written["audio"])
     return 0
+
+
+# The roster contract (D-02): exactly three registered engines, each in its
+# own module -- transcript-only (above), edge-tts and piper (below, imported
+# so their self-registration runs). Kokoro is a documented registration
+# target for the 7900 XTX when the hardware exists; it is NOT built here and
+# selecting it is a named refusal, never a silent fallback (D-04).
+from surfaces import audio_edge_tts  # noqa: E402,F401  registers "edge-tts"
+from surfaces import audio_piper     # noqa: E402,F401  registers "piper"
