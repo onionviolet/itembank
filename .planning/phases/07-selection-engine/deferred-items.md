@@ -41,3 +41,47 @@ not silently lost.
   (`b209a5f`).
 - The user's pending `fonts` entry in `build.py:STAGE_DIRS` was recovered from
   the dangling stash commit `3b948c5` and restored to the working tree.
+
+## `tests/protocol_roundtrip.py` red on SESSION_VERSION (pre-existing, 2026-08-10)
+
+- Working-tree `runtime.py` carries an uncommitted `SESSION_VERSION = 1 -> 2`
+  bump from the concurrent 06-01 session; `schemas/session.schema.json` still
+  declares `x-itembank-version: 1`, so `protocol_roundtrip` fails with
+  "session.schema.json's x-itembank-version is 1, does not match the constant
+  it describes (2)".
+- Not caused by phase 7: phase 7 never touches `SESSION_VERSION` or the session
+  schema. Belongs to the in-progress 06-01 hint-ladder work (its commit history
+  shows RED-test commits mid-TDD).
+
+## Concurrent phase-6 evidence-contract migration (in flight, 2026-08-10)
+
+The concurrent 06-01 session is mid-flight on the evidence contract. Working
+tree (uncommitted or just-landed) changes break three suites that phase 7 does
+not own:
+
+- `tests/evidence_roundtrip.py`: session render misses required `teaching_state`
+  key (session schema now v2).
+- `tests/protocol_roundtrip.py`: `report.schema.json` gained a oneOf branch set
+  (`auto_attempts`/`objectives`/`schema_version: 2` vs `const 1`) the current
+  renderer does not emit.
+- `tests/daemon_roundtrip.py` `check_cli_twin_route`: a route now returns a dict
+  where the test expects a JSON string (sidecar/token route change).
+
+Phase-7 handling: the selection evidence fixture was regenerated to
+`schema_version: 2` (tracking the live `evidence.response_event()`), and
+`check_fixture_history_matches_response_schema` validates strictly when the
+schema version matches and names the drift explicitly during the transition, so
+the phase-7 suite is green on either side of the migration.
+
+## Plan-text corrections logged during 07-02
+
+- 07-02 Task 1 acceptance claimed `lint fixtures/sample_bank.md` reports
+  "0 errors, 0 warnings"; the sample bank has always carried six
+  `item.objective_unnamespaced` warnings (verified identical on HEAD). CI only
+  asserts zero errors. Phase 7 adds none.
+- 07-02 Task 3's mutation instruction ("removing `|\n\[PAIR` makes
+  `check_pair_served_together` fail") does not hold with the plan's own fixture
+  placement of `[PAIR:]` after `[OBJECTIVE:]` (the stem already terminates at
+  `[OBJECTIVE]`, and `q["pair"]` still parses). The alternation is instead
+  pinned by a stem-purity assertion in `check_pair_singleton_lint`, which the
+  same mutation does fail (verified, reverted).
