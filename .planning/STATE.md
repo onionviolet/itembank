@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 06.1
-current_phase_name: Interactive Visual Assessment Protocol
-status: planning
-stopped_at: Completed 06-02-PLAN.md
-last_updated: "2026-08-11T03:25:24.951Z"
-last_activity: 2026-08-10
-last_activity_desc: Phase 03.1 execution started
+current_phase: 08
+current_phase_name: model-adapter-interface-tier-gate-enforcement
+status: executing
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-08-11T00:00:00.000Z"
+last_activity: 2026-08-11
+last_activity_desc: Phase 08 plan 08-01 completed (tier gate + 30-case corpus)
 progress:
   total_phases: 18
   completed_phases: 9
   total_plans: 104
-  completed_plans: 60
+  completed_plans: 61
 ---
 
 # Project State
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-07)
 
 **Core value:** One runtime, one scorer, one evidence store â€” and the runtime, not the model, decides what reaches the learner.
-**Current focus:** Phase 03.2 — seeding-import-provenance
+**Current focus:** Phase 08 — model-adapter-interface-tier-gate-enforcement
 
 ## Current Position
 
-Phase: 06.1 — Interactive Visual Assessment Protocol
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-08-10 — Phase 06 complete, transitioned to Phase 06.1
+Phase: 08 (model-adapter-interface-tier-gate-enforcement) — EXECUTING
+Plan: 1 of 6 complete
+Status: Executing Phase 08
+Last activity: 2026-08-11 — 08-01 (tier gate + corpus) completed
 
 Progress: [██████░░░░] 58%
 
@@ -257,6 +257,10 @@ Recent decisions affecting current work:
 - [Phase ?]: User confirmed option-a on both 07-04 gates: distinct selection_mode field (D-11) and a selection event once per sitting plus selection_mode on every response event (D-03)
 - [Phase ?]: 13-05: AV/signing decision recorded as the honest unsigned branch (D-11) with real SHA-256; Authenticode/VirusTotal/submission rows are explicit pending, never executed.
 - [Phase ?]: D-15 resolved: selection_weights.recency_decay IS the soft penalty (read by phase 7); objective_miss_rate/difficulty_spread retagged to phase 10 and inert
+- [Phase 8] 08-01: the tier gate is the five-step algorithm from RESEARCH Pattern 1 — manifest build, strict schema, span, fact, move — fail-closed at every layer; a leaking candidate is dropped whole, never rewritten into a sanitized version (D-06)
+- [Phase 8] 08-01: learner_payload is the single constructor surfaces may call; pass -> status+generated, drop/unavailable -> status + null generated, never a reason/tier/fact/provider/detector detail (D-08)
+- [Phase 8] 08-01: protected-fragment overlap detection normalizes with casefold + whitespace collapse and a MIN_FRAGMENT_LEN=4 floor so the conservative ambiguity rule stays useful
+- [Phase 8] 08-01: the authored-fallback seam reuses the Phase 6 runtime.authored_hint(q, tier, canonical) — not the plan's stated (q, tier) — and keeps the ladder usable at the unlocked tier on drop/unavailable (MODEL-03)
 
 ## Deferred Verification
 
@@ -274,6 +278,6 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-08-11T03:03:43.371Z
-Stopped at: Completed 06-02-PLAN.md
+Stopped at: Completed 08-01-PLAN.md (tier gate + 30-case corpus + payload boundary)
 Resume file: None
 Deferred human verification: Phases 2.1/3/4 (see Deferred Verification table above)
