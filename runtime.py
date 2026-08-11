@@ -9,7 +9,7 @@ It also draws the line the whole tool rests on: `public_item` is what a learner
 may see before answering and `explain_payload` is what they may see after. A
 surface that wants more than the first one has to ask.
 """
-import collections, hashlib, json, os, sys
+import collections, fractions, hashlib, json, os, re, sys
 
 
 # ---- agent assessment runtime ----------------------------------------------
@@ -51,6 +51,15 @@ def public_item(q, shuffle_seed=0):
         out["response_schema"] = {"type": "array", "items": "step text", "ordered": True}
     elif q["type"] == "short":
         out["response_schema"] = {"type": "string", "min_length": 2}
+    elif q["type"] == "visual":
+        # One renderer-independent interaction contract (plan 06.1-01): the
+        # declarative scene and response grammar, key-free. The private
+        # scoring envelope (accepted states, tolerance, partial_credit) is
+        # never projected here -- it stays on the server item and is read
+        # only by the visual scoring helpers below.
+        contract = _visual_interaction_contract(q)
+        out["interaction_contract"] = contract
+        out["response_schema"] = contract["response_schema"]
     return out
 
 
@@ -103,6 +112,11 @@ def canonical_response(q, answer):
                               for i in range(len(q["rows"])))
     if t == "build":
         return FIELD_SEP.join(str(x) for x in answer) if isinstance(answer, list) else ""
+    if t == "visual":
+        state = canonical_visual_response(q, answer)
+        if state is None:
+            return ""
+        return json.dumps(state, sort_keys=True)
     return ""
 
 
@@ -120,6 +134,17 @@ def canonical_key(q):
                               for i, r in enumerate(q["rows"]))
     if t == "build":
         return FIELD_SEP.join(q["steps"])
+    if t == "visual":
+        # The accepted-state set, canonicalized -- used by the static/offline
+        # page_item() path (which holds a key by design) and by nothing else:
+        # served visual scoring goes through score_response()'s visual branch,
+        # never this string comparison.
+        states = []
+        for raw in (q.get("scoring") or {}).get("accepted") or []:
+            state = _canonical_accepted_state(q, raw)
+            if state is not None:
+                states.append(json.dumps(state, sort_keys=True))
+        return FIELD_SEP.join(states)
     return ""
 
 
@@ -129,11 +154,509 @@ def score_response(q, answer):
     Constructed response returns None rather than False: not-yet-marked and
     marked-wrong are different states, and collapsing them would let a pending
     item read as a failure in the evidence.
+
+    A visual response is validated, canonicalized and compared by the visual
+    scoring helpers below; the verdict stays a plain boolean -- no partial
+    credit, no client authority input, and invalid responses are rejected
+    (False), never approximated.
     """
     key = canonical_key(q)
     if key is None:
         return None
+    if q["type"] == "visual":
+        return _visual_verdict(q, answer)
     return canonical_response(q, answer) == key
+
+
+# ---- visual assessment protocol (plan 06.1-01) ------------------------------
+# Protocol integer 1 covers plot points, number-line points, and intervals
+# (D-01). Coordinates use the exact SCALAR grammar below, canonicalized with
+# `fractions.Fraction`; browser floats and pixels are never evidence or
+# scoring inputs. The public projection in public_item() emits only the scene,
+# initial state, allowed semantic actions, response grammar, and accessibility
+# text; accepted states, tolerance, misconception mapping and reveal content
+# stay on the server item (D-02/D-03).
+VISUAL_PROTOCOL_VERSION = 1
+VISUAL_TOLERANCE_POLICY_VERSION = 1
+
+# Locked protocol-1 bounds (06.1-RESEARCH.md "Locked bounds").
+SCALAR_MAX_NUMERATOR = 1_000_000_000
+SCALAR_MAX_DENOMINATOR = 1_000_000
+VISUAL_MAX_TICKS = 201
+
+VISUAL_INTERACTIONS = ("plot", "numberline")
+VISUAL_KINDS = ("point", "numberline_point", "interval")
+# The only protocol-1 committed-action types (D-05); final submit is the
+# ordinary response event and is never duplicated as a visual action.
+VISUAL_ACTIONS = ("place_point", "move_point",
+                  "select_numberline_point", "set_interval")
+# The closed allowlist of authored scene members (T-06.1-03): anything else is
+# rejected before a renderer sees it.
+_VISUAL_SCENE_MEMBERS = frozenset({"version", "axes", "axis", "initial",
+                                   "actions", "accessibility"})
+_VISUAL_SCORING_MEMBERS = frozenset({"kind", "accepted", "tolerance",
+                                     "partial_credit", "feedback"})
+# Script-bearing tokens scanned recursively over scene/scoring JSON; a match
+# rejects the member before rendering (T-06.1-03). Event-handler keys are
+# matched as bare words (`onload`), and common executable call patterns are
+# matched in values (`alert(`, `eval(`, ...).
+_VISUAL_EXEC_RE = re.compile(
+    r"<\s*script|javascript:|eval\s*\(|new\s+Function|setTimeout|setInterval|"
+    r"document\.|window\.|innerHTML\s*=|alert\s*\(|prompt\s*\(|confirm\s*\(|"
+    r"location\.|localStorage|sessionStorage|fetch\s*\(|XMLHttpRequest|"
+    r"(?:^|[^A-Za-z0-9])on(?:click|load|mouse|pointer|touch|key|input|change|"
+    r"focus|blur|submit|error|dblclick|wheel|unload|resize|scroll|over|out)"
+    r"\b", re.I)
+
+# One SCALAR: a signed base-10 integer/decimal with at most six fractional
+# digits, or a rational `INTEGER/POSITIVE_INTEGER`. Exponents, NaN,
+# infinities, mixed numbers, units and symbolic expressions are invalid.
+_SCALAR_RE = re.compile(r"^[+-]?(\d+(\.\d{1,6})?|\d+/\d+)$")
+
+
+def canonical_scalar(s):
+    """Reduce one SCALAR string to its exact canonical form, or None.
+
+    Canonicalization uses `fractions.Fraction`: rationals reduce, decimal
+    trailing zeroes are stripped (`"2.50"` -> `"5/2"`), negative zero maps to
+    `"0"`, and numerator/denominator magnitude is bounded. The result is what
+    a renderer must serialize and what the runtime compares -- never a
+    browser float.
+    """
+    if not isinstance(s, str):
+        return None
+    s = s.strip()
+    if not _SCALAR_RE.match(s):
+        return None
+    try:
+        f = fractions.Fraction(s)
+    except (ValueError, ZeroDivisionError):
+        return None
+    if abs(f.numerator) > SCALAR_MAX_NUMERATOR:
+        return None
+    if f.denominator > SCALAR_MAX_DENOMINATOR:
+        return None
+    if f.denominator == 1:
+        return str(f.numerator)          # -0 -> "0", "2.0" -> "2"
+    return "%d/%d" % (f.numerator, f.denominator)
+
+
+def canonical_axis(axis):
+    """Validate one axis dict `{min, max, step}`; return the canonical axis
+    with its tick count, or None when the geometry is invalid.
+
+    `min`/`max`/`step` must be SCALARs, `step` strictly positive, `max > min`,
+    and the span must divide into at most 200 whole steps (201 ticks, D-01).
+    """
+    if not isinstance(axis, dict):
+        return None
+    lo = canonical_scalar(axis.get("min", ""))
+    hi = canonical_scalar(axis.get("max", ""))
+    st = canonical_scalar(axis.get("step", ""))
+    if None in (lo, hi, st):
+        return None
+    lo_f, hi_f, st_f = (fractions.Fraction(lo), fractions.Fraction(hi),
+                        fractions.Fraction(st))
+    if st_f <= 0 or hi_f <= lo_f:
+        return None
+    span = (hi_f - lo_f) / st_f
+    if span.denominator != 1 or span.numerator > VISUAL_MAX_TICKS - 1:
+        return None
+    return {"min": lo, "max": hi, "step": st, "ticks": span.numerator + 1}
+
+
+def visual_axes(q):
+    """The validated scene axes for a visual item, keyed by the interaction
+    shape: `{"x": ..., "y": ...}` for plot, `{"axis": ...}` for numberline.
+    Returns None when the scene is absent or geometrically invalid."""
+    scene = q.get("visual")
+    if not isinstance(scene, dict):
+        return None
+    interaction = q.get("interaction")
+    if interaction == "plot":
+        axes = scene.get("axes")
+        if not isinstance(axes, dict):
+            return None
+        x, y = canonical_axis(axes.get("x")), canonical_axis(axes.get("y"))
+        if x is None or y is None:
+            return None
+        return {"x": x, "y": y}
+    if interaction == "numberline":
+        axis = canonical_axis(scene.get("axis"))
+        if axis is None:
+            return None
+        return {"axis": axis}
+    return None
+
+
+def _scalar_in_axis(axis, value):
+    lo, hi = fractions.Fraction(axis["min"]), fractions.Fraction(axis["max"])
+    v = fractions.Fraction(value)
+    return lo <= v <= hi
+
+
+def _scalar_on_grid(axis, value):
+    """Whether `value` lands exactly on a declared tick of `axis`."""
+    lo = fractions.Fraction(axis["min"])
+    st = fractions.Fraction(axis["step"])
+    offset = (fractions.Fraction(value) - lo) / st
+    return offset.denominator == 1 and 0 <= offset.numerator < axis["ticks"]
+
+
+def canonical_visual_response(q, answer):
+    """Reduce a submitted visual response to the canonical semantic state, or
+    None when it is invalid.
+
+    The wire shapes are exactly `{"kind":"point","x":S,"y":S}`,
+    `{"kind":"numberline_point","value":S}` and
+    `{"kind":"interval","start":S,"end":S,"start_closed":B,"end_closed":B}`
+    (D-01). Interval endpoints canonicalize into ascending order with their
+    closure flags swapped when needed. A response carrying undeclared keys,
+    non-bool closures, malformed scalars, or the wrong kind is invalid --
+    including forged verdict/tier/tolerance fields, which are never read.
+    """
+    if isinstance(answer, str):
+        try:
+            answer = json.loads(answer)
+        except (TypeError, ValueError):
+            return None
+    if not isinstance(answer, dict):
+        return None
+    kind = answer.get("kind")
+    declared = (q.get("scoring") or {}).get("kind")
+    if kind != declared or kind not in VISUAL_KINDS:
+        return None
+    if kind == "point":
+        if set(answer) != {"kind", "x", "y"}:
+            return None
+        x, y = canonical_scalar(answer.get("x", "")), canonical_scalar(answer.get("y", ""))
+        if x is None or y is None:
+            return None
+        return {"kind": "point", "x": x, "y": y}
+    if kind == "numberline_point":
+        if set(answer) != {"kind", "value"}:
+            return None
+        value = canonical_scalar(answer.get("value", ""))
+        if value is None:
+            return None
+        return {"kind": "numberline_point", "value": value}
+    # interval
+    if set(answer) != {"kind", "start", "end", "start_closed", "end_closed"}:
+        return None
+    start = canonical_scalar(answer.get("start", ""))
+    end = canonical_scalar(answer.get("end", ""))
+    start_closed = answer.get("start_closed")
+    end_closed = answer.get("end_closed")
+    if None in (start, end) or not isinstance(start_closed, bool) \
+            or not isinstance(end_closed, bool):
+        return None
+    if fractions.Fraction(start) > fractions.Fraction(end):
+        start, end = end, start
+        start_closed, end_closed = end_closed, start_closed
+    return {"kind": "interval", "start": start, "end": end,
+            "start_closed": start_closed, "end_closed": end_closed}
+
+
+def _canonical_accepted_state(q, raw):
+    """Canonicalize one authored SCORING.accepted entry.
+
+    The accepted list omits `kind` -- it is inherited from the envelope's
+    `SCORING.kind` (06.1-RESEARCH.md grammar), while a learner's wire
+    response carries it. Injecting the declared kind before canonicalizing
+    keeps one canonicalizer for both sides; a raw entry that names a
+    different kind is invalid.
+    """
+    if isinstance(raw, dict) and "kind" not in raw:
+        raw = dict(raw, kind=(q.get("scoring") or {}).get("kind"))
+    return canonical_visual_response(q, raw)
+
+
+def _visual_verdict(q, answer):
+    """The one boolean visual verdict (D-02): canonicalize, validate against
+    the authored domain/grid, then compare within the private tolerance.
+    Invalid responses are rejected (False), never scored by approximation.
+
+    Named `_visual_verdict` rather than `*_score` on purpose: the repository's
+    structural one-scorer invariant (`tests/scoring_roundtrip.py`) scans for
+    `def *score*(` and requires exactly `score_response` -- this helper is
+    reachable only through it and must not read as a second scorer."""
+    state = canonical_visual_response(q, answer)
+    if state is None:
+        return False
+    axes = visual_axes(q)
+    if axes is None:
+        return False
+    if not visual_state_in_domain(q, state, axes):
+        return False
+    scoring = q.get("scoring") or {}
+    tolerance = scoring.get("tolerance") or {}
+    tol = {}
+    for key, raw in tolerance.items():
+        t = canonical_scalar(raw)
+        if t is None:
+            return False
+        tol[key] = fractions.Fraction(t)
+    discrete = not any(f > 0 for f in tol.values())
+    if discrete and not visual_state_on_grid(q, state, axes):
+        return False
+    for accepted in (scoring.get("accepted") or []):
+        acc = _canonical_accepted_state(q, accepted)
+        if acc is None:
+            continue
+        if visual_within_tolerance(state, acc, tol):
+            return True
+    return False
+
+
+def visual_state_in_domain(q, state, axes=None):
+    axes = axes or visual_axes(q)
+    if axes is None:
+        return False
+    kind = state["kind"]
+    if kind == "point":
+        return (_scalar_in_axis(axes["x"], state["x"])
+                and _scalar_in_axis(axes["y"], state["y"]))
+    if kind == "numberline_point":
+        return _scalar_in_axis(axes["axis"], state["value"])
+    return (_scalar_in_axis(axes["axis"], state["start"])
+            and _scalar_in_axis(axes["axis"], state["end"]))
+
+
+def visual_state_on_grid(q, state, axes=None):
+    """Whether every coordinate lands exactly on a declared tick. Only
+    meaningful for discrete (zero-tolerance) items."""
+    axes = axes or visual_axes(q)
+    if axes is None:
+        return False
+    kind = state["kind"]
+    if kind == "point":
+        return (_scalar_on_grid(axes["x"], state["x"])
+                and _scalar_on_grid(axes["y"], state["y"]))
+    if kind == "numberline_point":
+        return _scalar_on_grid(axes["axis"], state["value"])
+    return (_scalar_on_grid(axes["axis"], state["start"])
+            and _scalar_on_grid(axes["axis"], state["end"]))
+
+
+def visual_within_tolerance(state, accepted, tol):
+    """Per-coordinate `|submitted - accepted| <= tolerance`, with closure
+    equality for intervals. A tolerance of 0 is exact equality after
+    canonicalization. `tol` maps coordinate names to Fractions."""
+    kind = state["kind"]
+    if state["kind"] != accepted["kind"]:
+        return False
+
+    def within(a, b, key):
+        return abs(fractions.Fraction(a) - fractions.Fraction(b)) \
+            <= tol.get(key, fractions.Fraction(0))
+
+    if kind == "point":
+        return within(state["x"], accepted["x"], "x") \
+            and within(state["y"], accepted["y"], "y")
+    if kind == "numberline_point":
+        return within(state["value"], accepted["value"], "value")
+    return (within(state["start"], accepted["start"], "start")
+            and within(state["end"], accepted["end"], "end")
+            and state["start_closed"] == accepted["start_closed"]
+            and state["end_closed"] == accepted["end_closed"])
+
+
+def _reject_visual_exec(member, where):
+    """Recursively scan one authored JSON member and reject any string or key
+    carrying a script-bearing token, so no bank content can become browser
+    code (T-06.1-03). Raises ValueError with the offending path."""
+    if isinstance(member, str):
+        if _VISUAL_EXEC_RE.search(member):
+            raise ValueError("visual %s carries a script-bearing value" % where)
+    elif isinstance(member, dict):
+        for key, value in member.items():
+            if _VISUAL_EXEC_RE.search(str(key)):
+                raise ValueError("visual %s carries a script-bearing key %r"
+                                 % (where, key))
+            _reject_visual_exec(value, where)
+    elif isinstance(member, list):
+        for item in member:
+            _reject_visual_exec(item, where)
+
+
+def _visual_response_schema(kind):
+    if kind == "point":
+        return {"type": "object", "kind": "point",
+                "fields": {"x": "scalar", "y": "scalar"}}
+    if kind == "numberline_point":
+        return {"type": "object", "kind": "numberline_point",
+                "fields": {"value": "scalar"}}
+    return {"type": "object", "kind": "interval",
+            "fields": {"start": "scalar", "end": "scalar",
+                       "start_closed": "boolean", "end_closed": "boolean"}}
+
+
+def _visual_interaction_contract(q):
+    """Build the key-free public interaction contract for a visual item,
+    validating the declarative scene and scoring envelope first.
+
+    The contract carries exactly `version`, `type`, `interaction`,
+    `renderer_config` (scene, initial state, actions, accessibility) and
+    `response_schema` -- never accepted states, tolerance, partial_credit,
+    reveal content, or any scoring authority (D-02/D-03). Raises ValueError
+    on unknown members, executable/script-bearing content, an invalid scene,
+    or a malformed scoring envelope, so a bad bank fails before a renderer
+    sees it.
+    """
+    interaction = q.get("interaction")
+    if interaction not in VISUAL_INTERACTIONS:
+        raise ValueError(
+            "visual item %s: unknown INTERACTION %r (protocol %d supports %s)"
+            % (q["id"], interaction, VISUAL_PROTOCOL_VERSION,
+               ", ".join(VISUAL_INTERACTIONS)))
+    scene = q.get("visual")
+    scoring = q.get("scoring")
+    if not isinstance(scene, dict) or not isinstance(scoring, dict):
+        raise ValueError("visual item %s: VISUAL and SCORING must be JSON "
+                         "objects" % q["id"])
+    unknown = set(scene) - _VISUAL_SCENE_MEMBERS
+    if unknown:
+        raise ValueError("visual item %s: unknown VISUAL member(s) %s"
+                         % (q["id"], ", ".join(sorted(unknown))))
+    unknown = set(scoring) - _VISUAL_SCORING_MEMBERS
+    if unknown:
+        raise ValueError("visual item %s: unknown SCORING member(s) %s"
+                         % (q["id"], ", ".join(sorted(unknown))))
+    _reject_visual_exec(scene, "VISUAL")
+    _reject_visual_exec(scoring, "SCORING")
+
+    kind = scoring.get("kind")
+    if kind not in VISUAL_KINDS:
+        raise ValueError("visual item %s: unknown SCORING kind %r"
+                         % (q["id"], kind))
+    if scoring.get("partial_credit") is not False:
+        raise ValueError("visual item %s: protocol %d is dichotomous; "
+                         "partial_credit must be false"
+                         % (q["id"], VISUAL_PROTOCOL_VERSION))
+    axes = visual_axes(q)
+    if axes is None:
+        raise ValueError("visual item %s: scene axes are invalid (SCALAR "
+                         "min/max, positive step, at most %d ticks)"
+                         % (q["id"], VISUAL_MAX_TICKS))
+
+    actions = scene.get("actions")
+    if not isinstance(actions, list) or not actions \
+            or any(a not in VISUAL_ACTIONS for a in actions):
+        raise ValueError("visual item %s: actions must be a non-empty subset "
+                         "of %s" % (q["id"], ", ".join(VISUAL_ACTIONS)))
+    accessibility = scene.get("accessibility")
+    if not isinstance(accessibility, dict) \
+            or not str(accessibility.get("description") or "").strip():
+        raise ValueError("visual item %s: accessibility.description is "
+                         "required (D-07)" % q["id"])
+
+    # The accepted states and tolerance are validated here (server-side) so a
+    # malformed scoring envelope fails before any learner sees the item; they
+    # are never emitted into the public contract.
+    accepted = scoring.get("accepted")
+    if not isinstance(accepted, list) or not accepted:
+        raise ValueError("visual item %s: SCORING.accepted must be a "
+                         "non-empty list" % q["id"])
+    for raw in accepted:
+        state = _canonical_accepted_state(q, raw)
+        if state is None or not visual_state_in_domain(q, state, axes):
+            raise ValueError("visual item %s: an accepted state is invalid "
+                             "or out of domain" % q["id"])
+    tolerance = scoring.get("tolerance") or {}
+    if not isinstance(tolerance, dict):
+        raise ValueError("visual item %s: SCORING.tolerance must be an "
+                         "object" % q["id"])
+    for key, raw in tolerance.items():
+        if canonical_scalar(raw) is None or fractions.Fraction(raw) < 0:
+            raise ValueError("visual item %s: tolerance %r is not a "
+                             "non-negative SCALAR" % (q["id"], key))
+
+    renderer_config = {"actions": list(actions),
+                       "accessibility": {"description":
+                                         str(accessibility["description"])}}
+    if interaction == "plot":
+        renderer_config["axes"] = {"x": axes["x"], "y": axes["y"]}
+        renderer_config["initial"] = scene.get("initial") or {"points": []}
+    else:
+        renderer_config["axis"] = axes["axis"]
+        renderer_config["initial"] = scene.get("initial") or {
+            "points": [], "interval": None}
+    return {"version": VISUAL_PROTOCOL_VERSION, "type": "visual",
+            "interaction": interaction, "renderer_config": renderer_config,
+            "response_schema": _visual_response_schema(kind)}
+
+
+def visual_observation(q, state, verdict, hint_tier=None):
+    """The structured, runtime-bounded observation for one visual response
+    (D-06): submitted canonical semantic state, a deterministic
+    error/invariant category, the ordered authored invariants that held,
+    an opaque authored feedback anchor, and only the hint tier the
+    Phase-6 policy already permitted for the session.
+
+    `state` is the canonical state dict from `canonical_visual_response`
+    (None for an invalid response); `hint_tier` is the entitlement supplied
+    by the caller (the Phase-6 policy transition), never read from any client
+    or agent field -- a forged tier cannot raise it (T-06.1-02).
+    """
+    if isinstance(state, str):
+        try:
+            state = json.loads(state)
+        except (TypeError, ValueError):
+            state = None
+    if state is not None and not isinstance(state, dict):
+        state = None
+    error_category = None
+    invariants = []
+    if state is None:
+        error_category = "invalid_response"
+    else:
+        axes = visual_axes(q)
+        if axes is None:
+            error_category = "invalid_response"
+        else:
+            if visual_state_in_domain(q, state, axes):
+                invariants.append("in_bounds")
+            else:
+                error_category = "out_of_domain"
+            tolerance = (q.get("scoring") or {}).get("tolerance") or {}
+            discrete = not any(fractions.Fraction(
+                canonical_scalar(v) or "0") > 0 for v in tolerance.values())
+            if state["kind"] == "interval":
+                invariants.append("ordered")
+            if discrete and error_category is None \
+                    and not visual_state_on_grid(q, state, axes):
+                error_category = "off_grid"
+            elif not discrete and error_category is None:
+                invariants.append("continuous")
+    anchors = (q.get("scoring") or {}).get("feedback") or {}
+    if not isinstance(anchors, dict):
+        anchors = {}
+    feedback_anchor = anchors.get(error_category or "default")
+    return {
+        "submitted": state,
+        "error_category": error_category,
+        "invariants": invariants,
+        "feedback_anchor": feedback_anchor,
+        "hint_tier": hint_tier,
+        "tolerance_policy_version": VISUAL_TOLERANCE_POLICY_VERSION,
+    }
+
+
+def interaction_result(q, response, verdict, observations):
+    """The normalized post-submit result envelope for a visual item, consumed
+    by the served submit path and any agent adapter. It does not grade:
+    `verdict` is exactly what `score_response()` returned, and `observations`
+    is the ordered list of runtime-bounded observations built by
+    `visual_observation`. No accepted state, tolerance, or reveal content is
+    carried here.
+    """
+    return {
+        "version": VISUAL_PROTOCOL_VERSION,
+        "type": "visual",
+        "response": response,
+        "verdict": verdict,
+        "observations": observations,
+    }
 
 
 def session_path(path):
@@ -347,8 +870,19 @@ def page_item(q, reveal=True, offline=False):
     the explanation. That makes the static file the one surface holding a key on
     the client, which is a property of having no server rather than a second
     scoring model, and it is stated in the README rather than left implicit.
+
+    A visual item is the deliberate exception (plan 06.1-03, D-03/A-05): the
+    interactive protocol is only safe in served/API mode, where the runtime
+    owns scoring and answer release. The static build therefore refuses a
+    visual item with an explicit `served_required` flag and never carries a
+    key, tolerance, accepted state, or any private scoring material -- the
+    OFFLINE_JS client renders the honest served-runtime-required state.
     """
     out = public_item(q)
+    if q["type"] == "visual" and offline:
+        out["served_required"] = True
+        out.pop("key", None)
+        return out
     if offline:
         out["key"] = canonical_key(q)
         out["explain"] = explain_payload(q, reveal)

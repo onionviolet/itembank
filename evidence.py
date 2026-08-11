@@ -43,19 +43,26 @@ INDEX_FILENAME = "evidence_index.sqlite3"
 # plan 01-10, "term_lookup" by plan 03.1-02, "key_review" by plan 03.1-03,
 # plan 01-10, "term_lookup" by plan 03.1-02, "key_review" by plan 03.1-03,
 # "hint" by plan 06-01, "selection" by plan 07-04, "lesson_complete" by
-# plan 10-02, "cap_override" by plan 10-04, and "model_interaction" /
-# "mark_proposal" by plan 08-03 -- response events are the only ones this
-# build wrote before 01-07. events() skips and warns on anything outside
-# this set (D-09), so a log written by a later build's event type degrades
-# instead of crashing.
+# plan 10-02, "cap_override" by plan 10-04, "model_interaction" /
+# "mark_proposal" by plan 08-03, and "visual_action" by plan 06.1-02 --
+# response events are the only ones this build wrote before 01-07. events()
+# skips and warns on anything outside this set (D-09), so a log written by a
+# later build's event type degrades instead of crashing.
 KNOWN_EVENT_TYPES = ("response", "retraction", "mark", "day_tick",
                      "term_lookup", "key_review", "hint", "selection",
                      "lesson_complete", "cap_override",
-                     "model_interaction", "mark_proposal")
+                     "model_interaction", "mark_proposal", "visual_action")
 
 # The record of what a sitting asked for (D-03): one event per session, so a
 # deleted session file never destroys the ability to reproduce the sitting.
 SELECTION_EVENT_TYPE = "selection"
+
+# A committed semantic state-changing action on a visual item (plan 06.1-02,
+# D-04/D-05): appended only on a successful commit -- native
+# control/Enter/Space, tap, or pointer-up after a changed drag. Pointer
+# telemetry, focus, hover, tentative state, cancelled gestures, and unchanged
+# commits never append. Final submit stays the ordinary response event.
+VISUAL_ACTION_EVENT_TYPE = "visual_action"
 
 # Bounds the tail scan `append_line_checked` and `recent_dedupe_keys` run to
 # decide whether an event is a duplicate. A dedupe_key contains the
@@ -473,6 +480,77 @@ def selection_event(session_id, bank, spec, item_keys, retention=None):
             cleaned["trace"] = retention["trace"]
         event["retention"] = cleaned
     return event
+
+
+def visual_action_event(session_id, q, interaction_version, action_id,
+                        action_type, before_state, after_state, error_category,
+                        invariants, feedback_anchor, hint_tier, bank,
+                        mode=None, source_ref=None):
+    """Build one `visual_action` event (plan 06.1-02, D-04/D-05): a committed
+    semantic state-changing action on a visual item, appended only after a
+    successful commit, never for pointer-down/move, focus, hover, tentative
+    state, cancelled gestures, or unchanged commits.
+
+    The event carries exactly the common audit fields plus
+    `interaction_version`, `action_id`, `action_type`, canonical
+    `before_state`/`after_state`, `error_category`, ordered `invariants`,
+    opaque `feedback_anchor`, `hint_tier`, and `dedupe_key` (06.1-RESEARCH.md
+    Resolved Questions item 2). It never accepts raw pointer events, CSS/SVG
+    coordinates, screenshots, private accepted states/tolerance, a client
+    verdict or hint tier, or authored reveal text.
+
+    `action_id` is the client-generated lowercase canonical UUID-v4 string,
+    stable across retries. The dedupe identity is
+    `(session_id, item identity, interaction_version, action_id)`; an
+    identical retry dedupes to `already_recorded`, while `do_interact`
+    reports a conflict when the same action id is reused with different
+    action/state.
+    """
+    key = evidence_key(q)
+    raw = "%s|%s|%d|%s" % (session_id, key, interaction_version, action_id)
+    objective = q.get("objective", "")
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": VISUAL_ACTION_EVENT_TYPE,
+        "ts": utc_now(),
+        "session_id": session_id,
+        "item_id": q.get("item_id", ""),
+        "item_ref": q["id"],
+        "item_type": q["type"],
+        "bank": os.path.basename(bank) if bank else None,
+        "objective": objective,
+        "subject": subject_of(objective),
+        "mode": mode,
+        "source_ref": source_ref,
+        "interaction_version": interaction_version,
+        "action_id": action_id,
+        "action_type": action_type,
+        "before_state": before_state,
+        "after_state": after_state,
+        "error_category": error_category,
+        "invariants": list(invariants or []),
+        "feedback_anchor": feedback_anchor,
+        "hint_tier": hint_tier,
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+def visual_actions(log, session_id, item_id=None):
+    """The tutor-facing read view over committed visual actions (D-06):
+    every LIVE `visual_action` event for `session_id` (optionally one item),
+    in commit order, with a bounded agent-facing projection. Built on
+    `live_events`, so a retracted action vanishes exactly as it vanishes from
+    a report. Never returns raw pointer telemetry or private scoring
+    material -- only the semantic states and runtime observations that were
+    appended.
+    """
+    return [ev for ev in live_events(log)
+            if ev.get("event_type") == VISUAL_ACTION_EVENT_TYPE
+            and ev.get("session_id") == session_id
+            and (item_id is None
+                 or evidence_key({"item_id": ev.get("item_id", ""),
+                                  "id": ev.get("item_ref", "")}) == item_id)]
 
 
 def append_event(log, event):

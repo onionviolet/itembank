@@ -23,8 +23,9 @@ from surfaces.migrate import cmd_migrate
 from surfaces.protocol_cli import cmd_schema, cmd_usage
 from surfaces.quiz import cmd_build, cmd_serve
 from surfaces.selection_cli import cmd_select
-from surfaces.session import (cmd_hint, cmd_next, cmd_override, cmd_report,
-                              cmd_rubric_review, cmd_start, cmd_submit)
+from surfaces.session import (cmd_hint, cmd_interact, cmd_next, cmd_override,
+                              cmd_report, cmd_rubric_review, cmd_start,
+                              cmd_submit)
 from surfaces.settings import cmd_config
 from surfaces import seeding
 from surfaces.study import cmd_study
@@ -691,6 +692,17 @@ def main():
                         "suggestion can never settle a mark (D-25)")
     s.add_argument("--session", required=True, help="the session JSON path")
     s.set_defaults(fn=cmd_rubric_review)
+
+    s = sub.add_parser("interact", help="commit one semantic state-changing "
+                        "action on the current visual item (plan 06.1-02); "
+                        "the CLI twin of POST /api/interact")
+    s.add_argument("session", help="the session JSON path")
+    s.add_argument("--action", required=True, metavar="JSON",
+                   help="exactly {\"interaction_version\": 1, \"action_id\": "
+                        "\"<uuid4>\", \"action_type\": \"place_point\", "
+                        "\"state\": {...}}; the session and item are resolved "
+                        "server-side, never from this flag")
+    s.set_defaults(fn=cmd_interact)
 
     s = sub.add_parser("report", help="summarize a JSON assessment session")
     s.add_argument("session")

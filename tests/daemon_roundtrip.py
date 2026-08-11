@@ -1087,18 +1087,19 @@ def check_disclosure_route():
 
 
 def check_api_route_scope():
-    """D-04's four session routes plus Phase 6's `/api/hint`, plan 08-05's
-    `/api/rubric-review`, and Phase 10's `/api/override` and
-    `/api/lesson-complete`, and the count is asserted rather than trusted.
-    Every entry is mirrored in ROUTE_CLI (route-without-CLI-twin fails
-    here) and in SURFACE_PARITY with its reserved MCP tool name
-    (Extensibility Rule 9(a)).
+    """D-04's four session routes plus Phase 6's `/api/hint`, plan 06.1-02's
+    `/api/interact`, plan 08-05's `/api/rubric-review`, and Phase 10's
+    `/api/override` and `/api/lesson-complete`, and the count is asserted
+    rather than trusted. Every entry is mirrored in ROUTE_CLI
+    (route-without-CLI-twin fails here) and in SURFACE_PARITY with its
+    reserved MCP tool name (Extensibility Rule 9(a)).
     """
-    if len(daemon.API_ROUTES) != 8:
-        fail("D-04 + Phase 6 + 08-05 + 10-04/10-05 scope /api/* to exactly "
-             "eight routes; API_ROUTES has %d" % len(daemon.API_ROUTES))
-    if not {"start", "next", "submit", "hint", "report", "override",
-            "rubric-review"} <= set(daemon.ROUTE_CLI.values()):
+    if len(daemon.API_ROUTES) != 9:
+        fail("D-04 + Phase 6 + 06.1-02 + 08-05 + 10-04/10-05 scope /api/* "
+             "to exactly nine routes; API_ROUTES has %d"
+             % len(daemon.API_ROUTES))
+    if not {"start", "next", "submit", "hint", "interact", "report",
+            "override", "rubric-review"} <= set(daemon.ROUTE_CLI.values()):
         fail("ROUTE_CLI is missing one of the session CLI commands")
     if ("POST", "/api/lesson-complete") not in daemon.ROUTE_CLI or \
             daemon.ROUTE_CLI[("POST", "/api/lesson-complete")] != "lesson":

@@ -19,7 +19,7 @@
     },
     "type": {
       "type": "string",
-      "enum": ["mc", "multi", "table", "dnd", "build", "short"]
+      "enum": ["mc", "multi", "table", "dnd", "build", "short", "visual"]
     },
     "stem": {
       "type": "string"
@@ -72,6 +72,9 @@
     },
     {
       "$ref": "#/$defs/short_item"
+    },
+    {
+      "$ref": "#/$defs/visual_item"
     }
   ],
   "$defs": {
@@ -174,6 +177,123 @@
         },
         "response_schema": {
           "$ref": "#/$defs/short_response_schema"
+        }
+      }
+    },
+    "visual_item": {
+      "type": "object",
+      "required": ["type", "interaction_contract", "response_schema"],
+      "properties": {
+        "type": {
+          "const": "visual"
+        },
+        "interaction_contract": {
+          "$ref": "#/$defs/visual_interaction_contract"
+        },
+        "response_schema": {
+          "type": "object",
+          "description": "The visual response grammar; its inner shape is the interaction_contract's response_schema (plan 06.1-01)."
+        }
+      }
+    },
+    "visual_interaction_contract": {
+      "type": "object",
+      "description": "The key-free public visual contract (plan 06.1-01, D-03): version, type, interaction, renderer_config (scene/initial/actions/accessibility) and response_schema. It deliberately cannot carry accepted states, tolerance, partial_credit, or any scoring/reveal material -- those live only in the private SCORING envelope on the server item.",
+      "additionalProperties": false,
+      "required": ["version", "type", "interaction", "renderer_config", "response_schema"],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "type": {
+          "const": "visual"
+        },
+        "interaction": {
+          "type": "string",
+          "enum": ["plot", "numberline"]
+        },
+        "renderer_config": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["actions", "accessibility"],
+          "properties": {
+            "axes": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["x", "y"],
+              "properties": {
+                "x": {
+                  "$ref": "#/$defs/visual_axis"
+                },
+                "y": {
+                  "$ref": "#/$defs/visual_axis"
+                }
+              }
+            },
+            "axis": {
+              "$ref": "#/$defs/visual_axis"
+            },
+            "initial": {
+              "type": "object"
+            },
+            "actions": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "enum": ["place_point", "move_point",
+                         "select_numberline_point", "set_interval"]
+              }
+            },
+            "accessibility": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["description"],
+              "properties": {
+                "description": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        },
+        "response_schema": {
+          "type": "object",
+          "required": ["type", "kind"],
+          "properties": {
+            "type": {
+              "const": "object"
+            },
+            "kind": {
+              "type": "string",
+              "enum": ["point", "numberline_point", "interval"]
+            },
+            "fields": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "visual_axis": {
+      "type": "object",
+      "description": "One declarative axis: SCALAR min/max/step. The exact SCALAR grammar and the 201-tick cap are enforced by model lint and runtime canonicalization; this schema pins the shape and refuses extra members.",
+      "additionalProperties": false,
+      "required": ["min", "max", "step"],
+      "properties": {
+        "min": {
+          "type": "string"
+        },
+        "max": {
+          "type": "string"
+        },
+        "step": {
+          "type": "string"
+        },
+        "ticks": {
+          "type": "integer",
+          "description": "Derived by the runtime: how many tick positions the axis holds (at most 201). Not authored, never scoring material -- informational for the renderer."
         }
       }
     },

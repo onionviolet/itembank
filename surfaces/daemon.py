@@ -110,6 +110,7 @@ API_ROUTES = (
     ("POST", "/api/next", "handle_api_next"),
     ("POST", "/api/submit", "handle_api_submit"),
     ("POST", "/api/hint", "handle_api_hint"),
+    ("POST", "/api/interact", "handle_api_interact"),
     ("POST", "/api/report", "handle_api_report"),
     ("POST", "/api/override", "handle_api_override"),
     ("POST", "/api/lesson-complete", "handle_api_lesson_complete"),
@@ -164,6 +165,7 @@ ROUTE_CLI = {
     ("POST", "/api/next"): "next",
     ("POST", "/api/submit"): "submit",
     ("POST", "/api/hint"): "hint",
+    ("POST", "/api/interact"): "interact",
     ("POST", "/api/report"): "report",
     ("POST", "/api/override"): "override",
     ("POST", "/api/lesson-complete"): "lesson",
@@ -193,6 +195,7 @@ SURFACE_PARITY = (
     (("POST", "/api/next"), "next", "next"),
     (("POST", "/api/submit"), "submit", "submit"),
     (("POST", "/api/hint"), "hint", "hint"),
+    (("POST", "/api/interact"), "interact", "interact"),
     (("POST", "/api/report"), "report", "report"),
     (("POST", "/api/override"), "override", "override"),
     (("POST", "/api/lesson-complete"), "lesson", "lesson_complete"),
@@ -2058,6 +2061,53 @@ def handle_api_rubric_review(handler):
         return
     try:
         result = session.do_rubric_review(path)
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    except Exception as exc:
+        handler.send_server_error(exc)
+        return
+    handler.send_json(result)
+
+
+def handle_api_interact(handler):
+    """`POST /api/interact` -- the browser twin of `itembank interact`
+    (plan 06.1-02 Task 3, D-04/D-05). The body accepts exactly
+    `session_id`, `interaction_version`, `action_id`, `action_type`, and
+    canonical semantic `state`; the session and current item are resolved
+    server-side, and client fields claiming an item, path, score, key,
+    tolerance, tier, observation, or evidence are rejected by name. Returns
+    the same JSON shape as the CLI command: the versioned runtime
+    observation plus the append result (recorded / already_recorded /
+    conflict / refused).
+    """
+    if _reject_cross_origin(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    session_id = data.get("session_id")
+    path = api_session_path(handler, session_id)
+    if path is None:
+        handler.send_not_found(session_id if isinstance(session_id, str) else "")
+        return
+    # The five-field request; every authority-shaped field is refused by
+    # name (T-06.1-06). The session item is never client-chosen.
+    action = {"interaction_version": data.get("interaction_version"),
+              "action_id": data.get("action_id"),
+              "action_type": data.get("action_type"),
+              "state": data.get("state")}
+    bad = [k for k in data
+           if k not in ("session_id", "interaction_version", "action_id",
+                        "action_type", "state")]
+    if bad:
+        handler.send_error(
+            400, "field(s) %s are not accepted by /api/interact; the session "
+            "is addressed by session_id and the item is resolved server-side"
+            % ", ".join(sorted(bad)))
+        return
+    try:
+        result = session.do_interact(path, action)
     except SystemExit as exc:
         handler.send_error(400, str(exc.code))
         return

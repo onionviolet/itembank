@@ -68,7 +68,7 @@
         },
         "item_type": {
           "type": "string",
-          "enum": ["mc", "multi", "table", "dnd", "build", "short"]
+          "enum": ["mc", "multi", "table", "dnd", "build", "short", "visual"]
         },
         "bank": {
           "type": "string",
@@ -243,8 +243,9 @@
         "event_type": {
           "type": "string",
           "enum": ["mark", "retraction", "day_tick", "term_lookup",
-                   "key_review", "model_interaction", "mark_proposal"],
-          "description": "lesson_complete, cap_override and selection are deliberately absent: each has its own closed branch, so a malformed event of those types must FAIL validation rather than be accepted by this permissive branch. model_interaction and mark_proposal (plan 08-03) are accepted here."
+                   "key_review", "model_interaction", "mark_proposal",
+                   "visual_action"],
+          "description": "lesson_complete, cap_override and selection are deliberately absent: each has its own closed branch, so a malformed event of those types must FAIL validation rather than be accepted by this permissive branch. model_interaction and mark_proposal (plan 08-03) and visual_action (plan 06.1-02) are accepted here."
         }
       }
     },
@@ -487,6 +488,7 @@
         "dedupe_key": {
           "type": "string",
           "description": "A sha256 hex digest over (session_id, subject, local_date, snapshot_id, cap), so retrying the identical confirmed override for the same generated session reconciles rather than appending a second exception"
+
         }
       }
     },
