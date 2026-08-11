@@ -8,12 +8,43 @@ answer. Both are clients of the runtime.
 import collections, html, json, os, sys, uuid
 
 import evidence
-from model import grab, lint, load, parse_lesson
-from runtime import page_item, score_response
+from model import HONEST_LIMITS_NOTE, grab, lint, load, parse_lesson
+from runtime import INTERACTION_VERSION, page_item, score_response
+from surfaces.session import run_check_source
 from surfaces import presentation, settings
 from surfaces.quiz_page import (AGENT_ASSIST_HTML, ASSIST_JS, OFFLINE_JS,
                                 SERVED_JS, TEMPLATE)
 from surfaces.theme import THEME_CSS, theme_css
+
+# The vendored CodeMirror 6 bundle (plan 05-05 Task 2, ruling 5/11 + the
+# Directive 4a supply-chain rule). It is embedded into the page only when the
+# bank actually contains a check item, so every non-check bank's rendered page
+# stays byte-identical to before this phase. The record of version, SHA-256
+# and license review lives beside the file in assets/vendor/codemirror/.
+_CM6_BUNDLE_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "assets", "vendor", "codemirror", "codemirror.bundle.js")
+_CM6_BOOT_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "assets", "vendor", "codemirror", "check-editor-boot.js")
+_CM6_BUNDLE_CACHE = None
+_CM6_BOOT_CACHE = None
+
+
+def _cm6_bundle():
+    global _CM6_BUNDLE_CACHE
+    if _CM6_BUNDLE_CACHE is None:
+        with open(_CM6_BUNDLE_PATH, encoding="utf-8") as fh:
+            _CM6_BUNDLE_CACHE = fh.read()
+    return _CM6_BUNDLE_CACHE
+
+
+def _cm6_boot():
+    global _CM6_BOOT_CACHE
+    if _CM6_BOOT_CACHE is None:
+        with open(_CM6_BOOT_PATH, encoding="utf-8") as fh:
+            _CM6_BOOT_CACHE = fh.read()
+    return _CM6_BOOT_CACHE
 
 
 def _resolve_check_item(qs, check_id):
@@ -162,15 +193,29 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
     lesson_label = "Read the lesson" if lesson_base else ""
     # The chip base/label live inside the two client scripts (quiz_page.py),
     # not in the shared shell, so the substitutions must target the JS strings
-    # themselves before they are inserted into the template.
+    # themselves before they are inserted into the template. Same for the
+    # honest-limits sentence: asCheck renders a __HONEST_LIMITS__ placeholder
+    # inside the client script, substituted here from the one constant SPEC
+    # reads (D-10) -- the page and the format contract cannot drift.
     offline_js = (OFFLINE_JS
                   .replace("__LESSON_BASE__", lesson_base)
-                  .replace("__LESSON_LABEL__", lesson_label))
+                  .replace("__LESSON_LABEL__", lesson_label)
+                  .replace("__HONEST_LIMITS__", HONEST_LIMITS_NOTE))
     served_js = (SERVED_JS
                  .replace("__LESSON_BASE__", lesson_base)
-                 .replace("__LESSON_LABEL__", lesson_label))
+                 .replace("__LESSON_LABEL__", lesson_label)
+                 .replace("__HONEST_LIMITS__", HONEST_LIMITS_NOTE))
     # __DATA__/__BOOT__ go in last so that bank text which happens to contain
-    # another placeholder is never itself substituted.
+    # another placeholder is never itself substituted. __CM6_TAG__ and
+    # __HONEST_LIMITS__ are substituted before that, alongside the other
+    # fixed copy: the CM6 bundle embeds only when the bank has a check item
+    # (a non-check bank's page stays byte-identical), and the honest-limits
+    # sentence comes from the one constant SPEC reads (D-10).
+    has_check = any(q.get("type") == "check" for q in qs)
+    cm6 = ("<script id=\"cm6\">" + _cm6_bundle() + "</script>"
+           if has_check else "")
+    cm6_boot_html = ("<script id=\"cm6-boot\">" + _cm6_boot() + "</script>"
+                     if has_check else "")
     assist_html = AGENT_ASSIST_HTML if (serve and assist) else ""
     assist_js = ASSIST_JS if (serve and assist) else ""
     return mix, (TEMPLATE
@@ -181,6 +226,9 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                  .replace("__SUB__", sub)
                  .replace("__CTX_BANK__", ctx_bank)
                  .replace("__CTX_MODE__", ctx_mode)
+                 .replace("__HONEST_LIMITS__", HONEST_LIMITS_NOTE)
+                 .replace("__CM6_TAG__", cm6)
+                 .replace("__CM6_BOOT__", cm6_boot_html)
                  .replace("__ASSIST__", assist_html)
                  .replace("__ASSIST_JS__", assist_js)
                  .replace("__OFFLINE_JS__", "" if serve else offline_js)
@@ -196,14 +244,34 @@ def record_answer(bank_path, qs, session_id, log, out_path, mode, q, response, e
     never diverge in how a response is scored or recorded -- one scorer
     (`runtime.score_response`) and one writer (`evidence.append_event`),
     reached through exactly one place (D-08 continued).
+
+    A `check` item is the one type whose answer is not what the scorer
+    receives: the runner executes the submitted source once per authored case
+    (plan 05-01, D-01 -- the scorer never runs code), the per-case pass flags
+    reduce to a vector, and that vector is what score_response sees. The raw
+    source is preserved on the evidence event as check_source. A run the
+    deadline killed scores None and records error_category "timeout", never a
+    fabricated dichotomous verdict (criterion 12).
     """
-    score = score_response(q, response)
+    run_result = None
+    check_source = None
+    if q["type"] == "check":
+        check_source = response
+        base = os.path.dirname(os.path.abspath(bank_path)) or "."
+        run_result, answer, score = run_check_source(q, response, base)
+    else:
+        answer = response
+        score = score_response(q, response)
+    killed = bool(run_result) and any(c.get("timed_out") for c in run_result)
     item_key = evidence.evidence_key(q)
-    canon = evidence.idempotency_canon(q, response)
+    canon = evidence.idempotency_canon(q, answer)
     attempt_num = evidence.attempt_number(log, session_id, item_key, canon)
     event = evidence.response_event(
-        session_id, q, response, score, mode, attempt_num,
-        os.path.basename(bank_path), response_time_ms=elapsed_ms, confidence=None)
+        session_id, q, answer, score, mode, attempt_num,
+        os.path.basename(bank_path), response_time_ms=elapsed_ms, confidence=None,
+        check_source=check_source,
+        interaction_version=INTERACTION_VERSION if q["type"] == "check" else None,
+        error_category="timeout" if killed else None)
     evidence.append_event(log, event)
 
     # Regenerate the whole attempt file from the log, atomically -- the
@@ -214,7 +282,10 @@ def record_answer(bank_path, qs, session_id, log, out_path, mode, q, response, e
     with open(tmp, "w", encoding="utf-8") as fh:
         fh.write(md)
     os.replace(tmp, out_path)
-    return score
+    # The per-case run result rides along so the caller can build an explain
+    # payload from the one run that produced the score (05-05 Task 1); it is
+    # None for every non-check type, and the score is unchanged.
+    return (score, run_result)
 
 
 def cmd_build(a):

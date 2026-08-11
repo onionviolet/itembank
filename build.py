@@ -33,7 +33,7 @@ import itembank                                                              # n
 STAGE_FILES = (
     "itembank.py", "model.py", "runtime.py", "server.py", "evidence.py",
     "schema_validate.py", "selection.py", "retention.py", "resources.py",
-    "subjects.py",
+    "subjects.py", "runner.py",
 )
 STAGE_DIRS = ("surfaces", "schemas", "styles", "fonts", "vendor")
 

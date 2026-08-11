@@ -12,6 +12,37 @@ import resources
 LETTERS = "ABCDEFGH"
 
 
+# One source of truth for the line markers that end an item's stem and that
+# the [ID:]/[HASH:] splice point must not land after. The stem terminator and
+# TERMINATOR are both built from this constant (plan 05-01), so a marker added
+# for a new item type reaches both regexes together or the shared-source test
+# in tests/check_roundtrip.py fails -- the two-regex drift risk RESEARCH.md
+# names is structural here rather than a discipline.
+MARKERS = (
+    "A)", "B)", "C)", "D)", "E)", "F)", "G)", "H)",
+    "ROW)", "ITEM)", "STEP)", "CASE)",
+    "[TYPE:", "[OBJECTIVE:", "[SELECT:", "[CATEGORIES:", "[ID:", "[HASH:",
+    "[LESSON-REF:", "[PAIR:", "[PREREQ:", "[LANG:", "[MATCH:",
+    "[HARNESS:", "[TOLERANCE:",
+    "MODEL:", "RUBRIC:", "WHY BEST:", "STARTER:",
+)
+
+
+def _marker_alt(prefix, markers):
+    """One alternation fragment for the marker vocabulary, each marker
+    escaped so the literal text (brackets, colons, parens) survives the trip
+    through a regex."""
+    return "|".join(prefix + re.escape(m) for m in markers)
+
+
+_STEM_TERMINATORS = _marker_alt(chr(92) + "n", MARKERS)
+# The same vocabulary without the newline prefix, for regexes that already
+# anchor their own line start: the [ID:]/[HASH:] splice point matches the
+# first structural marker line of a block, so it must not demand a newline
+# before that marker (assign_ids' TERMINATOR).
+_TERMINATORS = _marker_alt("", MARKERS)
+
+
 # A control character rather than punctuation, for the same reason
 # `runtime.FIELD_SEP` is one: option text, table/dnd rows and build steps
 # routinely contain commas, pipes and angle brackets, and any printable
@@ -42,10 +73,12 @@ def parse_question(ch):
     number = grab(r"Q(\d+)\.", ch)
     qtype = (grab(r"(?m)^\[TYPE:\s*(\w+)\s*\]", ch) or "mc").lower()
     # Stem runs from the Qn. marker to the first structural marker that follows.
+    # The stem runs to the first structural marker: a fixed inline
+    # difficulty tag, or any marker in the shared MARKERS vocabulary at the
+    # start of a line. Built from MARKERS (plan 05-01) so a marker added for
+    # a new item type reaches this regex and TERMINATOR together.
     stem = grab(
-        r"Q\d+\.\s*(.*?)\s*(?:\(difficulty:|\n\[OBJECTIVE|\n\[TYPE|\n\[SELECT"
-        r"|\n\[CATEGORIES|\n\[ID|\n\[HASH|\n[A-H]\)|\nROW\)|\nITEM\)|\nSTEP\)"
-        r"|\nMODEL:|\nRUBRIC:|\nWHY BEST:|\n\[LESSON-REF|\n\[PAIR|\n\[PREREQ)",
+        r"Q\d+\.\s*(.*?)\s*(?:\(difficulty:|" + _STEM_TERMINATORS + r")",
         ch, re.S)
     lesson_ref = grab(r"\[LESSON-REF:\s*(.*?)\]", ch)
     common = {
@@ -111,6 +144,35 @@ def parse_question(ch):
         if not (stem and len(steps) > 1):
             return None
         common.update({"steps": steps, "notes": notes(ch)})
+        return common
+
+    if qtype == "check":
+        # The machine-runnable item type (plan 05-01). The stem, the CASE)
+        # set and the starter are content; [LANG:] and [MATCH:] are
+        # configuration (D-05), so content_fingerprint() hashes the first
+        # three and never the latter two. One case per CASE) line, split on
+        # the last "::" exactly as the table/dnd rows already are (D-03).
+        lang = (grab(r"(?m)^\[LANG:\s*(\w+)\s*\]", ch) or "python").lower()
+        match_mode = (grab(r"(?m)^\[MATCH:\s*(\w+)\s*\]", ch) or "trimmed").lower()
+        harness = grab(r"(?m)^\[HARNESS:\s*(\w+)\s*\]", ch)
+        tol = grab(r"(?m)^\[TOLERANCE:\s*([0-9]*\.?[0-9]+)\s*\]", ch)
+        starter = section("STARTER", ch)
+        cases = []
+        for line in re.findall(r"(?m)^CASE\)\s*(.+?)\s*$", ch):
+            if "::" not in line:
+                continue
+            lhs, expected = line.rsplit("::", 1)
+            case = {"stdin": lhs.strip(), "expected": expected.strip()}
+            if harness:
+                case["call"] = lhs.strip()
+            cases.append(case)
+        if not (stem and cases):
+            return None
+        common.update({
+            "lang": lang, "match": match_mode, "cases": cases,
+            "harness": harness or "",
+            "tolerance": float(tol) if tol else None,
+            "starter": starter, "notes": notes(ch)})
         return common
 
     if qtype == "short":
@@ -1357,6 +1419,12 @@ def content_fingerprint(q):
     `pair` and `prereq` are pedagogy metadata (D-12): editing a confusion-set
     name or a prerequisite objective must not orphan an item's evidence history.
 
+    A `check` item hashes the stem, the ordered CASE) set and the starter --
+    the tested content -- and never `lang` or `match`, which are
+    configuration (D-05): switching the interpreter or the grading strictness
+    is a config change, not a change to what the item asks, and must not
+    orphan the item's history.
+
     This digest is an integrity check, not a security boundary: this project
     has one local user and no adversary in its threat model.
     """
@@ -1378,6 +1446,11 @@ def content_fingerprint(q):
         parts.append("model=" + collapse(q["model"]))
         for i, r in enumerate(q["rubric"]):
             parts.append("rubric:%d=%s" % (i, collapse(r)))
+    elif t == "check":
+        for i, c in enumerate(q["cases"]):
+            parts.append("case:%d=%s::%s" % (i, collapse(c["stdin"]),
+                                             collapse(c["expected"])))
+        parts.append("starter=" + collapse(q.get("starter", "")))
     elif t == "visual":
         # The tested content of a visual item is the declarative scene and
         # the private scoring envelope together: changing either the prompt's
@@ -1404,9 +1477,11 @@ def new_item_id():
     return uuid.uuid4().hex[:16]
 
 
-TERMINATOR = re.compile(
-    r"(?m)^(?:\[TYPE:|\[OBJECTIVE:|\[SELECT:|\[CATEGORIES:|[A-H]\)|ROW\)|ITEM\)|"
-    r"STEP\)|MODEL:|RUBRIC:|WHY BEST:)")
+# The identity-splice point: the first structural marker line of a block,
+# where [ID:]/[HASH:] land when  mints them. Built from
+# the same MARKERS constant as the stem terminator (plan 05-01) so a new
+# item type's markers cannot reach one regex and not the other.
+TERMINATOR = re.compile(r"(?m)^(?:" + _TERMINATORS + ")")
 
 
 def _key_content_hash(block_lines):
@@ -1596,8 +1671,49 @@ def assign_ids(text, taken=None):
     new_text = "".join(out_chunks)
     return new_text, changes
 
+# The one honest-limits sentence for a check item, worded once and reused
+# verbatim: SPEC ends its check section with it, and plan 05-05 substitutes
+# the same constant into the browser copy beside the editor (D-10). Two
+# readers, one source.
+HONEST_LIMITS_NOTE = ("Your code runs directly on this machine under a time "
+                      "limit and an output cap; this stops accidents like an "
+                      "infinite loop, not a deliberate attempt to escape it.")
 
-SPEC = r"""itembank format contract
+
+def _check_section():
+    """The SPEC check section, built as one string so HONEST_LIMITS_NOTE
+    is interpolated from the single constant rather than retyped (D-10:
+    the sentence exists in exactly two places, both from this one source).
+    """
+    text = [
+        "",
+        "7. Check.  The learner writes code; the machine runs it once per",
+        "   authored case and scores the pass vector through the same scorer as",
+        "   every other type.",
+        "     [TYPE: check]",
+        "     [LANG: python]            optional; defaults to python",
+        "     [MATCH: trimmed]          optional; exact | trimmed | regex",
+        "     CASE) 5 7 :: 12",
+        "     CASE) 10 2 :: 8",
+        "     STARTER: ...              optional pre-filled source",
+        "     [HARNESS: add]            optional; each CASE) is a call :: return value",
+        "     [TOLERANCE: 0.01]         optional; float comparison inside [HARNESS:]",
+        "   A CASE) line is <stdin> :: <expected stdout>, or <call> :: <return value>",
+        "   in [HARNESS:] mode, split on the LAST :: -- a case whose expected text",
+        "   ends with :: something loses that tail at the last occurrence; author",
+        "   accordingly. The stem, the CASE) set and the starter are the tested",
+        "   content (fingerprinted); [LANG:] and [MATCH:] are configuration (not).",
+        "   [HARNESS:] imports the learner's source as a module and calls the named",
+        "   function with each case's arguments, comparing the return value -- exact",
+        "   for integers and strings, within [TOLERANCE:] for floats. A harness item",
+        "   whose expected values include a float but states no [TOLERANCE:] is a",
+        "   lint error (item.tolerance_unstated). This type runs the learner's own",
+        "   code with no model anywhere in its path, so a course's ban on",
+        "   model-assisted work is not engaged by using it.",
+    ]
+    return "\n".join(text) + "\n   " + HONEST_LIMITS_NOTE + "\n"
+
+SPEC = (r"""itembank format contract
 =========================
 
 A bank is a markdown file. Everything that is not a question block is ignored,
@@ -1638,7 +1754,7 @@ SHARED FIELDS (all types)
   item [ID:] -- an unresolvable target or a dependency cycle is a `lint`
   error (prov.case_unknown / prov.prereq_unknown / prov.prereq_cycle).
 
-THE FIVE ITEM TYPES
+THE SIX ITEM TYPES
 
 1. Multiple choice.  Default. No TYPE line needed.
      A) ...  B) ...  C) ...  D) ...
@@ -1679,6 +1795,9 @@ THE FIVE ITEM TYPES
      - a second one; two is the minimum, because a single point is a vibe
    No WHY BEST is required on a short item; MODEL replaces it. TRAP still helps
    the marker, because it names the wrong answer that will look confident.
+"""
+    + _check_section()
+    + r"""
 
 7. Visual assessment.  Interactive plot or number-line item (protocol integer 1,
    phase 06.1). The scene and the private scoring envelope are declarative JSON
@@ -1815,8 +1934,7 @@ VISUAL LINT CODES
                                       required|recommended|off
   lesson.check_ref_unknown  error     [!CHECK: <id>] names no item in its own
                                       bank (D-01)
-"""
-
+""")
 
 # The Phase 6.2 gate grammar (06.2-CONTEXT D-02): one [GATE:] directive in
 # the lesson preamble with exactly three legal values; a lesson declaring
@@ -1956,7 +2074,9 @@ LINT_CODES = tuple(sorted({
     "item.model_too_long", "item.rubric_point_too_long", "item.missing_why_best",
     "item.missing_trap", "item.low_confidence", "item.duplicate_stem",
     "item.missing_id", "item.duplicate_id", "item.missing_hash",
-    "item.content_drift", "item.objective_unnamespaced", "item.lesson_ref_unknown",
+    "item.content_drift", "item.check_lang_unknown", "item.check_too_few_cases",
+    "item.no_normalizer", "item.tolerance_unstated",
+    "item.objective_unnamespaced", "item.lesson_ref_unknown",
     "item.pair_singleton", "item.prereq_unknown",
     "lesson.duplicate_heading", "lesson.orphan_heading", "lesson.src_unreadable",
     "terms.unknown_ref", "terms.duplicate_slug", "terms.empty_block",
@@ -2621,6 +2741,16 @@ def _is_multi_sentence(text):
     t = re.sub(r"\s+", " ", text.strip()).rstrip(".!?")
     return bool(re.search(r"[.!?][\s\u2014-]", t))
 
+def _looks_float(s):
+    """True when `s` parses as a decimal float (a '.' or an exponent is
+    present), so an integer-expected harness case never demands a
+    [TOLERANCE:] of its own."""
+    try:
+        float(s)
+    except (TypeError, ValueError):
+        return False
+    return "." in s or "e" in s.lower()
+
 
 def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
          keys=KEYS_UNCHECKED, style=STYLE_UNCHECKED,
@@ -2687,6 +2817,12 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
     letter_hits = collections.Counter()
     all_objectives = {q.get("objective", "") for q in questions
                       if q.get("objective")}
+    # The normalizer registry is in play only when this bank actually uses it
+    # (contains a check item). A short item in a registry-using bank has no
+    # registered normalizer and lands pending -- the author is told. In a
+    # legacy bank a short item's pending behaviour is the type's documented
+    # design, not an authoring surprise, so nothing is flagged.
+    uses_check = any(o["type"] == "check" for o in questions)
     pair_counts = {}
     lesson_on = lesson is not LESSON_UNCHECKED
     terms_on = terms is not TERMS_UNCHECKED
@@ -2891,11 +3027,45 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                                     "RUBRIC point %d is %d words. A point should be one "
                                     "checkable claim" % (n, len(r.split()))))
 
+        elif t == "check":
+            # Language is validated against the allowlist, never defaulted:
+            # a tag naming an interpreter that is not configured must be
+            # caught at authoring time (D-02). runner is imported lazily so
+            # model.py keeps its no-imports-from-peers property at module
+            # scope.
+            from runner import LANGUAGES
+            lang = q.get("lang") or "python"
+            if lang not in LANGUAGES:
+                errors.append(LintError("item.check_lang_unknown", "lang", tag,
+                              "check item requests language %r, which is not in "
+                              "the allowlist (%s); never silently defaulted (D-02)"
+                              % (lang, ", ".join(sorted(LANGUAGES)))))
+            if len(q.get("cases") or []) < 2:
+                warnings.append(LintError("item.check_too_few_cases", "cases", tag,
+                                "check item has fewer than two CASE) lines; one "
+                                "case tests almost nothing (D-03)"))
+            harness = q.get("harness") or ""
+            if harness and q.get("tolerance") is None and any(
+                    _looks_float(c.get("expected", "")) for c in q.get("cases") or []):
+                errors.append(LintError(
+                    "item.tolerance_unstated", "tolerance", tag,
+                    "harness item's expected values include a float but no "
+                    "[TOLERANCE:] is stated; float comparison would be "
+                    "machine-dependent (D-20)"))
+
         elif t == "visual":
             for finding in _visual_lint_findings(q, tag):
                 errors.append(finding)
 
-        if t != "short" and not q.get("why"):
+        if uses_check:
+            from runtime import NORMALIZERS
+            if t not in NORMALIZERS:
+                warnings.append(LintError(
+                    "item.no_normalizer", "type", tag,
+                    "%s items have no registered normalizer; their responses "
+                    "land pending, never a False verdict (D-21)" % t))
+
+        if t not in ("short", "check") and not q.get("why"):
             errors.append(LintError("item.missing_why_best", "why", tag,
                           "no WHY BEST field"))   # short items key off MODEL instead
         if not q.get("trap"):

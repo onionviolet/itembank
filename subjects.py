@@ -42,7 +42,7 @@ DEFAULT_PROFILE = {
     "version": PROFILE_SCHEMA_VERSION,
     "lesson": {"markdown": True, "tables": True, "math": False,
                "runnable_languages": [], "lesson_layout": "separate"},
-    "allowed_item_types": ["mc", "multi", "table", "dnd", "build", "short"],
+    "allowed_item_types": ["mc", "multi", "table", "dnd", "build", "short", "visual"],
     "verifier": "runtime",
 }
 

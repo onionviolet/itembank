@@ -24,18 +24,20 @@ import datetime, json, os, re, sys
 
 import evidence
 import retention
+import runner
 import selection
 import subjects
 from model import lint, load
-from runtime import (REPORT_VERSION, SESSION_VERSION, VISUAL_ACTIONS,
-                     VISUAL_PROTOCOL_VERSION, VISUAL_TOLERANCE_POLICY_VERSION,
-                     canonical_visual_response, normalize_answer, read_session,
-                     reconcile_teaching_state, score_response, session_path,
-                     session_summary, session_view, teaching_key,
-                     teaching_transition, write_session, public_item,
-                     invoke_hint, invoke_rubric_review,
-                     visual_observation as runtime_visual_observation,
-                     visual_state_in_domain)
+from surfaces import settings
+from runtime import (INTERACTION_VERSION, REPORT_VERSION, SESSION_VERSION,
+                     VISUAL_ACTIONS, VISUAL_PROTOCOL_VERSION,
+                     VISUAL_TOLERANCE_POLICY_VERSION, canonical_visual_response,
+                     explain_payload, interaction_result, invoke_hint,
+                     invoke_rubric_review, normalize_answer, public_item,
+                     read_session, reconcile_teaching_state, score_response,
+                     session_path, session_summary, session_view, teaching_key,
+                     teaching_transition, visual_observation as runtime_visual_observation,
+                     visual_state_in_domain, write_session)
 
 
 # Phase 6 renderer handoff (06-02, D-12): the only thing a served client may
@@ -437,6 +439,39 @@ def cmd_next(a):
     return 0
 
 
+UNKNOWN_LANGUAGE_COPY = (
+    "This item requests the '%s' language, which isn't enabled in this "
+    "itembank's settings (check.languages). Add it in settings, or ask "
+    "whoever set up this bank to fix its [LANG:] value.")
+
+
+def run_check_source(q, source, base):
+    """The one shared runner gate for a [TYPE: check] item (plan 05-03 Task 2,
+    D-14): execute the submitted source once per authored case with
+    settings-derived bounds, reduce the per-case pass flags to a results
+    vector, and score that vector through runtime.score_response -- the one
+    scorer. Returns (run_result, vector, score).
+
+    Shared by the browser route (surfaces/quiz.py:record_answer) and this
+    module's do_action, so both submit paths reach the scorer through exactly
+    one implementation rather than two copies of the gate. The bounds come
+    from settings (check.timeout_seconds / max_output_bytes / languages),
+    loaded only because callers reach this only for a check item.
+    """
+    cfg = settings.load_settings(base)
+    check = cfg.get("check") or {}
+    run_result = runner.run_cases(
+        q, source,
+        timeout_seconds=check.get("timeout_seconds",
+                                  runner.DEFAULT_TIMEOUT_SECONDS),
+        max_output_bytes=check.get("max_output_bytes",
+                                   runner.DEFAULT_MAX_OUTPUT_BYTES),
+        languages=check.get("languages"))
+    vector = ",".join("1" if c["passed"] else "0" for c in run_result)
+    score = score_response(q, run_result)
+    return run_result, vector, score
+
+
 def do_submit(session_file, answer, confidence):
     """Compatibility wrapper: the CLI/legacy submit path becomes a Phase 6
     submit action over the one session adapter."""
@@ -650,6 +685,26 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
     data = reconcile_teaching_state(data, q, evidence_state)
     rec = data["teaching_state"].get(item_key)
 
+    # A check item's submitted answer is source text; the runner executes it
+    # once per authored case and the per-case result list is what every
+    # scoring call from here on receives (plan 05-01, D-01). The raw source
+    # is kept for the evidence event and the normalized result.
+    run_result = None
+    check_source = None
+    check_vector = None
+    check_score = None
+    if q["type"] == "check":
+        source = normalize_answer(action.get("answer"))
+        if not isinstance(source, str):
+            sys.exit("a check item requires source text as its answer")
+        check_source = source
+        try:
+            run_result, check_vector, check_score = run_check_source(
+                q, source, os.path.dirname(os.path.abspath(data["bank"])))
+        except runner.UnknownLanguage:
+            sys.exit(UNKNOWN_LANGUAGE_COPY % (q.get("lang") or "python"))
+        action = dict(action, answer=run_result)
+
     result = teaching_transition(data, q, action)
     action_name = result["action"]
     next_data = result["session"]
@@ -657,9 +712,17 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
     recorded_event = None
 
     if action.get("kind") == "submit":
-        answer = normalize_answer(action.get("answer"))
-        score = score_response(q, answer)
-        canon = evidence.idempotency_canon(q, answer)
+        if q["type"] == "check":
+            score = check_score
+            vector = check_vector
+            canon = evidence.idempotency_canon(q, vector)
+            event_answer = vector
+        else:
+            answer = normalize_answer(action.get("answer"))
+            score = score_response(q, answer)
+            canon = evidence.idempotency_canon(q, answer)
+            event_answer = answer
+        killed = bool(run_result) and any(c.get("timed_out") for c in run_result)
         # 10-04 cap recheck (D-07/D-08): before a GENUINE new response is
         # appended, the live local-day count for the sitting's bound subject
         # is re-captured from the log. A replay of the same canonical answer
@@ -701,13 +764,23 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
         attempt_num = evidence.attempt_number(log, data["session_id"],
                                               item_key, canon)
         event = evidence.response_event(
-            data["session_id"], q, answer, score, data["mode"], attempt_num,
+            data["session_id"], q, event_answer, score, data["mode"], attempt_num,
             os.path.basename(data["bank"]),
             response_time_ms=elapsed_ms if elapsed_ms is not None
             else ms_since(data.get("served_ts")),
             confidence=confidence, hint_tier=result.get("hint_tier"),
-            selection_mode=data.get("selection_mode"))
+            selection_mode=data.get("selection_mode"),
+            check_source=check_source,
+            interaction_version=INTERACTION_VERSION if q["type"] == "check"
+            else None,
+            error_category="timeout" if killed else None)
         evidence_result = evidence.append_event(log, event)
+        if q["type"] == "check":
+            # The normalized result is data for feedback, not a second
+            # verdict: the score is the exact score_response return.
+            result["interaction_result"] = interaction_result(
+                q, check_source, score, run_result)
+            result["explain"] = explain_payload(q, True, run_result)
         accepted = evidence_result["status"] == "recorded"
         recorded_event = evidence_result
         if not accepted:
@@ -722,7 +795,7 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
             # already_recorded replay never double-counts).
             next_data["responses"] = list(next_data.get("responses") or []) + [{
                 "item_id": q["id"], "objective": q.get("objective", ""),
-                "type": q["type"], "answer": answer, "score": score,
+                "type": q["type"], "answer": event_answer, "score": score,
                 "status": "recorded"}]
     else:
         # hint / stumped
@@ -743,11 +816,19 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
     write_session(session_file, next_data)
 
     if action.get("kind") == "submit":
-        return {"accepted": accepted, "item_id": q["id"], "score": score,
-                "action": action_name, "status": next_data["status"],
-                "evidence": recorded_event,
-                "hint_tier": result.get("hint_tier"),
-                "next": session_view(next_data, qs)}
+        ret = {"accepted": accepted, "item_id": q["id"], "score": score,
+               "action": action_name, "status": next_data["status"],
+               "evidence": recorded_event,
+               "hint_tier": result.get("hint_tier"),
+               "interaction_result": result.get("interaction_result"),
+               "next": session_view(next_data, qs)}
+        if q["type"] == "check":
+            # The one run's per-case result rides along so a surface can
+            # build the explain payload from that exact run (05-05 Task 1).
+            # Only a check item carries it; every other type's body is
+            # byte-identical to before, asserted by check_roundtrip.
+            ret["run_result"] = run_result
+        return ret
     return {"accepted": accepted, "item_id": q["id"], "action": action_name,
             "hint": result.get("hint"),
             "status": next_data["status"], "evidence": evidence_result,

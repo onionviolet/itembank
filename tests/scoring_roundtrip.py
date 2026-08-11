@@ -108,6 +108,20 @@ def main():
     if scorers != [("runtime.py", "score_response")]:
         fail("expected exactly one scorer, found %r" % (scorers,))
 
+    # T-R4-01 (plan 05-01): score_response is byte-identical after the
+    # registry conversion, pinned by source hash. Any later phase editing the
+    # scorer fails this named test and must argue for it in a plan rather than
+    # in a diff. Recorded against the final post-guard source. The hash was
+    # re-pinned at the phase-05 merge: the merged scorer is main's
+    # visual-capable score_response (phase 6.1 added the visual branch), so
+    # the phase-05-era pin no longer matches by design.
+    import hashlib, inspect
+    pinned = "7471f61b39d25c77090bd81b6ca5f2f42e2c7f921068097b203ffdd934be3514"
+    src = inspect.getsource(itembank.score_response)
+    if hashlib.sha256(src.encode("utf-8")).hexdigest() != pinned:
+        fail("T-R4-01: runtime.score_response drifted from its pinned source "
+             "(hash %s)" % hashlib.sha256(src.encode("utf-8")).hexdigest())
+
     print("scoring contract: ok (%d items, one scorer)" % len(qs))
     return 0
 

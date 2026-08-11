@@ -343,6 +343,8 @@ def _build_response_event(kind, path, ref, session_id, item_ref, item_type,
         "response_time_ms": None,
         "confidence": None,
         "error_category": None,
+        "check_source": None,       # reserved; a migrated record predates code items (05-01)
+        "interaction_version": None,   # reserved; a migrated record predates the interaction contract (05-01)
         "hint_tier": None,
         "review_state": "pending" if item_type == "short" else "n/a",
         "dedupe_key": source_key(kind, path, ref),

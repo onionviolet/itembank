@@ -5,7 +5,15 @@
   "description": "What runtime.public_item() returns: the shape a learner may see before answering. This shape never carries an answer key, a rationale, a model answer, or any objective field -- that boundary is what public_item exists to draw, and a consumer reading this contract cold should not look for one. The syllabus [OBJECTIVE:] reference and the one-sentence Educational Objective line moved into explain_payload() in plan 03.1-03 (C7). explain_payload (not published here) is the after-answering counterpart.",
   "x-itembank-version": 1,
   "type": "object",
-  "required": ["schema_version", "id", "number", "type", "stem", "difficulty", "response_schema"],
+  "required": [
+    "schema_version",
+    "id",
+    "number",
+    "type",
+    "stem",
+    "difficulty",
+    "response_schema"
+  ],
   "properties": {
     "schema_version": {
       "const": 1
@@ -19,7 +27,16 @@
     },
     "type": {
       "type": "string",
-      "enum": ["mc", "multi", "table", "dnd", "build", "short", "visual"]
+      "enum": [
+        "mc",
+        "multi",
+        "table",
+        "dnd",
+        "build",
+        "short",
+        "check",
+        "visual"
+      ]
     },
     "stem": {
       "type": "string"
@@ -74,13 +91,19 @@
       "$ref": "#/$defs/short_item"
     },
     {
+      "$ref": "#/$defs/check_item"
+    },
+    {
       "$ref": "#/$defs/visual_item"
     }
   ],
   "$defs": {
     "option": {
       "type": "object",
-      "required": ["key", "text"],
+      "required": [
+        "key",
+        "text"
+      ],
       "properties": {
         "key": {
           "type": "string",
@@ -93,7 +116,10 @@
     },
     "row": {
       "type": "object",
-      "required": ["text", "id"],
+      "required": [
+        "text",
+        "id"
+      ],
       "properties": {
         "text": {
           "type": "string"
@@ -106,10 +132,17 @@
     },
     "mc_multi_item": {
       "type": "object",
-      "required": ["type", "options", "response_schema"],
+      "required": [
+        "type",
+        "options",
+        "response_schema"
+      ],
       "properties": {
         "type": {
-          "enum": ["mc", "multi"]
+          "enum": [
+            "mc",
+            "multi"
+          ]
         },
         "options": {
           "type": "array",
@@ -125,10 +158,18 @@
     },
     "table_dnd_item": {
       "type": "object",
-      "required": ["type", "rows", "categories", "response_schema"],
+      "required": [
+        "type",
+        "rows",
+        "categories",
+        "response_schema"
+      ],
       "properties": {
         "type": {
-          "enum": ["table", "dnd"]
+          "enum": [
+            "table",
+            "dnd"
+          ]
         },
         "rows": {
           "type": "array",
@@ -151,7 +192,11 @@
     },
     "build_item": {
       "type": "object",
-      "required": ["type", "steps", "response_schema"],
+      "required": [
+        "type",
+        "steps",
+        "response_schema"
+      ],
       "properties": {
         "type": {
           "const": "build"
@@ -170,7 +215,10 @@
     },
     "short_item": {
       "type": "object",
-      "required": ["type", "response_schema"],
+      "required": [
+        "type",
+        "response_schema"
+      ],
       "properties": {
         "type": {
           "const": "short"
@@ -182,7 +230,11 @@
     },
     "visual_item": {
       "type": "object",
-      "required": ["type", "interaction_contract", "response_schema"],
+      "required": [
+        "type",
+        "interaction_contract",
+        "response_schema"
+      ],
       "properties": {
         "type": {
           "const": "visual"
@@ -200,7 +252,13 @@
       "type": "object",
       "description": "The key-free public visual contract (plan 06.1-01, D-03): version, type, interaction, renderer_config (scene/initial/actions/accessibility) and response_schema. It deliberately cannot carry accepted states, tolerance, partial_credit, or any scoring/reveal material -- those live only in the private SCORING envelope on the server item.",
       "additionalProperties": false,
-      "required": ["version", "type", "interaction", "renderer_config", "response_schema"],
+      "required": [
+        "version",
+        "type",
+        "interaction",
+        "renderer_config",
+        "response_schema"
+      ],
       "properties": {
         "version": {
           "const": 1
@@ -210,17 +268,26 @@
         },
         "interaction": {
           "type": "string",
-          "enum": ["plot", "numberline"]
+          "enum": [
+            "plot",
+            "numberline"
+          ]
         },
         "renderer_config": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["actions", "accessibility"],
+          "required": [
+            "actions",
+            "accessibility"
+          ],
           "properties": {
             "axes": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["x", "y"],
+              "required": [
+                "x",
+                "y"
+              ],
               "properties": {
                 "x": {
                   "$ref": "#/$defs/visual_axis"
@@ -241,14 +308,20 @@
               "minItems": 1,
               "items": {
                 "type": "string",
-                "enum": ["place_point", "move_point",
-                         "select_numberline_point", "set_interval"]
+                "enum": [
+                  "place_point",
+                  "move_point",
+                  "select_numberline_point",
+                  "set_interval"
+                ]
               }
             },
             "accessibility": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["description"],
+              "required": [
+                "description"
+              ],
               "properties": {
                 "description": {
                   "type": "string",
@@ -260,14 +333,21 @@
         },
         "response_schema": {
           "type": "object",
-          "required": ["type", "kind"],
+          "required": [
+            "type",
+            "kind"
+          ],
           "properties": {
             "type": {
               "const": "object"
             },
             "kind": {
               "type": "string",
-              "enum": ["point", "numberline_point", "interval"]
+              "enum": [
+                "point",
+                "numberline_point",
+                "interval"
+              ]
             },
             "fields": {
               "type": "object"
@@ -280,7 +360,11 @@
       "type": "object",
       "description": "One declarative axis: SCALAR min/max/step. The exact SCALAR grammar and the 201-tick cap are enforced by model lint and runtime canonicalization; this schema pins the shape and refuses extra members.",
       "additionalProperties": false,
-      "required": ["min", "max", "step"],
+      "required": [
+        "min",
+        "max",
+        "step"
+      ],
       "properties": {
         "min": {
           "type": "string"
@@ -299,10 +383,17 @@
     },
     "mc_multi_response_schema": {
       "type": "object",
-      "required": ["type", "select", "allowed"],
+      "required": [
+        "type",
+        "select",
+        "allowed"
+      ],
       "properties": {
         "type": {
-          "enum": ["array", "string"],
+          "enum": [
+            "array",
+            "string"
+          ],
           "description": "'string' for mc (pick one), 'array' for multi (pick select)"
         },
         "select": {
@@ -319,7 +410,11 @@
     },
     "table_dnd_response_schema": {
       "type": "object",
-      "required": ["type", "keys", "values"],
+      "required": [
+        "type",
+        "keys",
+        "values"
+      ],
       "properties": {
         "type": {
           "const": "object"
@@ -339,7 +434,11 @@
     },
     "build_response_schema": {
       "type": "object",
-      "required": ["type", "items", "ordered"],
+      "required": [
+        "type",
+        "items",
+        "ordered"
+      ],
       "properties": {
         "type": {
           "const": "array"
@@ -355,13 +454,178 @@
     },
     "short_response_schema": {
       "type": "object",
-      "required": ["type", "min_length"],
+      "required": [
+        "type",
+        "min_length"
+      ],
       "properties": {
         "type": {
           "const": "string"
         },
         "min_length": {
           "type": "integer"
+        }
+      }
+    },
+    "check_item": {
+      "type": "object",
+      "required": [
+        "type",
+        "interaction_contract",
+        "response_schema"
+      ],
+      "description": "The served shape of a [TYPE: check] item (plan 05-01/05-07). It deliberately carries NO cases, NO expected text and NO key -- those are key material under D-12 and never reach the learner before answering. What a consumer may read cold is the versioned renderer-independent interaction envelope: a declarative renderer configuration (language, starter source, hidden-case count only), the raw-source response schema, and the top-level response_schema alias.",
+      "properties": {
+        "type": {
+          "const": "check"
+        },
+        "interaction_contract": {
+          "$ref": "#/$defs/interaction_contract"
+        },
+        "response_schema": {
+          "$ref": "#/$defs/check_response_schema"
+        }
+      }
+    },
+    "interaction_contract": {
+      "type": "object",
+      "required": [
+        "version",
+        "type",
+        "renderer_config",
+        "response_schema"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "type": {
+          "const": "check"
+        },
+        "renderer_config": {
+          "$ref": "#/$defs/check_renderer_config"
+        },
+        "response_schema": {
+          "$ref": "#/$defs/check_response_schema"
+        }
+      }
+    },
+    "check_renderer_config": {
+      "type": "object",
+      "required": [
+        "language",
+        "starter_source",
+        "hidden_case_count"
+      ],
+      "additionalProperties": false,
+      "description": "Declarative JSON data only -- language, optional starter source text, and the hidden-case count. additionalProperties: false rejects a bank smuggling authored JavaScript or any other executable payload through a permissive object.",
+      "properties": {
+        "language": {
+          "type": "string"
+        },
+        "starter_source": {
+          "type": "string"
+        },
+        "hidden_case_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "check_response_schema": {
+      "type": "object",
+      "required": [
+        "type",
+        "format",
+        "language"
+      ],
+      "properties": {
+        "type": {
+          "const": "string"
+        },
+        "format": {
+          "const": "source"
+        },
+        "language": {
+          "type": "string"
+        }
+      }
+    },
+    "interaction_result": {
+      "type": "object",
+      "required": [
+        "version",
+        "type",
+        "response",
+        "verdict",
+        "observations"
+      ],
+      "description": "The normalized post-submit result (plan 05-01/05-07). The verdict is the exact boolean returned by the sole grader runtime.score_response() -- or null for a run the deadline killed (criterion 12, matching how response.schema.json allows score: null for a check response). The ordered observations are stable data for feedback, never a second scoring path.",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "type": {
+          "const": "check"
+        },
+        "response": {
+          "type": "string"
+        },
+        "verdict": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/case_observation"
+          }
+        }
+      }
+    },
+    "case_observation": {
+      "type": "object",
+      "required": [
+        "case_index",
+        "passed",
+        "reason",
+        "actual",
+        "expected",
+        "expected_kind",
+        "input"
+      ],
+      "properties": {
+        "case_index": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "passed": {
+          "type": "boolean"
+        },
+        "reason": {
+          "enum": [
+            "passed",
+            "wrong_output",
+            "timeout",
+            "output_cap"
+          ]
+        },
+        "actual": {
+          "type": "string"
+        },
+        "expected": {
+          "type": "string"
+        },
+        "expected_kind": {
+          "enum": [
+            "output",
+            "pattern"
+          ]
+        },
+        "input": {
+          "type": "string"
         }
       }
     }

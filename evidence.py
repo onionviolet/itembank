@@ -393,7 +393,9 @@ def dedupe_key(session_id, item_key, attempt_num, canon):
 
 def response_event(session_id, q, answer, score, mode, attempt_num, bank,
                     response_time_ms=None, confidence=None, source_ref=None,
-                    hint_tier=None, selection_mode=None, context="quiz"):
+                    hint_tier=None, selection_mode=None, context="quiz", *,
+                    check_source=None, interaction_version=None,
+                    error_category=None):
     """Build one full response event dict. Every key named in this plan's
     must_haves is present on every event — reserved fields carry an explicit
     `None`, never an absent key, so a consumer can tell "not captured" from
@@ -432,7 +434,9 @@ def response_event(session_id, q, answer, score, mode, attempt_num, bank,
         "score": score,
         "response_time_ms": response_time_ms,
         "confidence": confidence,
-        "error_category": None,   # no error taxonomy exists before Phase 8
+        "error_category": error_category,   # "timeout" for a check run the deadline killed; no other taxonomy exists before Phase 8
+        "check_source": check_source,   # the learner's submitted source verbatim for a `check` item, null otherwise (05-01)
+        "interaction_version": interaction_version,   # the public interaction-contract version that served a `check` item, null otherwise (05-01)
         "hint_tier": hint_tier,   # integer-or-null since Phase 6 (D-15)
         "selection_mode": selection_mode,   # the composition that served this item (07-04)
         "context": context,   # "quiz" (default) or "lesson_gate" (06.2, D-08)
@@ -1777,6 +1781,20 @@ def render_attempt_md(log, session_id, qs, bank_path):
                 L.append("MARK: pending -- run `itembank mark --session %s --item %s "
                          "--verdict pass|fail` to record a verdict" %
                          (session_id, ev.get("item_ref")))
+        elif ev.get("item_type") == "check":
+            # The evidence answer for a check item is the results vector;
+            # the learner's own source lives in check_source. Render the
+            # source so a marker or later reader sees what was written
+            # (plan 05-07), bounded by response_text's line cap -- the
+            # full text is always in the log's check_source.
+            L.append("**Source, submitted:**")
+            L.append("")
+            L.append("```")
+            L.append(response_text(q, ev.get("check_source")) if q
+                     else str(ev.get("check_source") or ""))
+            L.append("```")
+            L.append("")
+            L.append("**Result vector:** %s" % (ev.get("answer") or "(none)"))
         else:
             answer_val = response_text(q, ev.get("answer")) if q else ""
             L.append("**Selected:** %s" % (answer_val or "(nothing)"))
