@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 03.2
 current_phase_name: seeding-import-provenance
 status: verifying
-stopped_at: Completed 07-04-PLAN.md
-last_updated: "2026-08-11T01:19:50.153Z"
+stopped_at: Completed 13-05-PLAN.md
+last_updated: "2026-08-11T01:21:06.045Z"
 last_activity: 2026-08-10
 last_activity_desc: Phase 03.1 execution started
 progress:
   total_phases: 18
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 104
-  completed_plans: 52
+  completed_plans: 53
 ---
 
 # Project State
@@ -32,7 +32,7 @@ Plan: 5 of 5
 Status: Phase complete — ready for verification
 Last activity: 2026-08-10 — Phase 03.2 execution started
 
-Progress: [█████░░░░░] 50%
+Progress: [█████░░░░░] 51%
 
 ## Performance Metrics
 
@@ -106,6 +106,7 @@ Progress: [█████░░░░░] 50%
 | Phase 13 P03 | 65min | 3 tasks | 7 files |
 | Phase 13 P04 | 55min | 3 tasks | 12 files |
 | Phase 07 P04 | 40min | 4 tasks | 11 files |
+| Phase 13 P05 | 40min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -246,6 +247,7 @@ Recent decisions affecting current work:
 - [Phase ?]: 13-03: install-notice values are compile-time defines with !error fail-closed; uninstaller deletes only \ (fixture-proven); NSIS bundling degrades honestly while makensis is absent.
 - [Phase ?]: 13-04: one release channel, two manifest formats from the same tag (SHA256SUMS.txt + latest.json/minisign); the shell reads the daemon-owned notified_at record and injects the StatusNotice once into the first HTML page - no second consent store.
 - [Phase ?]: User confirmed option-a on both 07-04 gates: distinct selection_mode field (D-11) and a selection event once per sitting plus selection_mode on every response event (D-03)
+- [Phase ?]: 13-05: AV/signing decision recorded as the honest unsigned branch (D-11) with real SHA-256; Authenticode/VirusTotal/submission rows are explicit pending, never executed.
 
 ## Deferred Verification
 
@@ -262,7 +264,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-11T01:19:50.115Z
-Stopped at: Completed 07-04-PLAN.md
+Last session: 2026-08-11T01:20:57.347Z
+Stopped at: Completed 13-05-PLAN.md
 Resume file: None
 Deferred human verification: Phases 2.1/3/4 (see Deferred Verification table above)

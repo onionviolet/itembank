@@ -890,7 +890,7 @@ This phase's full content — goal, requirements, success criteria, open decisio
 
 - **OPEN — ruling 3**: Weibao confirms Q8 (keep Python, Tauri sidecar, NSIS) and this phase number. The direction is recorded as adopted-pending-ruling; nothing else in the roadmap depends on the answer.
 
-**Plans**: 4/5 plans executed across 3 waves
+**Plans**: 5/5 plans executed across 3 waves
 
 Plans:
 **Wave 1**
@@ -905,7 +905,7 @@ Plans:
 **Wave 3** *(blocked on Wave 2 completion)*
 
 - [x] 13-04-PLAN.md — Updater: latest.json + minisign alongside SHA256SUMS.txt, tauri-plugin-updater, one-disclosure StatusNotice
-- [ ] 13-05-PLAN.md — Phase verification: executed AV/signing checklist, lifecycle/size/headless evidence, full suite
+- [x] 13-05-PLAN.md — Phase verification: executed AV/signing checklist, lifecycle/size/headless evidence, full suite
 
 ## How this roadmap gets planned (added 2026-08-10)
 
@@ -1126,7 +1126,7 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 10. Retention, Pacing & Trends | 0/6 | Planned    |  |
 | 11. Closed Authoring Loop & Curriculum Auditor | 0/TBD | Not started | - |
 | 12. ~~Packaging, Self-Update & Interop Export~~ | — | Retired (moved to 2.1) | - |
-| 13. Desktop Packaging — Tauri Shell over Python Sidecar | 4/5 | In Progress|  |
+| 13. Desktop Packaging — Tauri Shell over Python Sidecar | 5/5 | In Progress|  |
 
 ## Backlog
 

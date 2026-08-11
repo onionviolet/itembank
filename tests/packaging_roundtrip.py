@@ -549,6 +549,72 @@ def test_disclosure_state_and_forbidden_words():
                      % word)
 
 
+def test_av_checklist_is_honest():
+    """13-05 task 1 (D-10/D-11, T-13-17): the executed AV/code-signing
+    checklist in 13-GATES.md records every row with evidence or an explicit
+    pending gap -- an unexecuted row must never read 'executed', and the
+    unsigned branch must carry the SmartScreen warning and the real
+    Microsoft false-positive reporting path.
+    """
+    gates = os.path.join(ROOT, ".planning", "phases",
+                         "13-desktop-packaging-tauri-sidecar", "13-GATES.md")
+    if not os.path.exists(gates):
+        fail("13-GATES.md is missing -- the AV checklist must exist")
+    text = open(gates, encoding="utf-8").read()
+    if "unsigned" not in text.lower():
+        fail("the checklist must record the certificate decision (the "
+             "unsigned branch per D-11)")
+    if "SmartScreen" not in text:
+        fail("the unsigned branch must carry the SmartScreen warning")
+    if "https://www.microsoft.com/en-us/wdsi/filesubmission" not in text:
+        fail("the Microsoft false-positive reporting path must be recorded")
+    if "SHA-256" not in text and "sha256" not in text.lower():
+        fail("the unsigned branch must record a real published SHA-256")
+    for match in re.finditer(
+            r"^\|\s*([^|]+?)\s*\|\s*(executed|done|complete|passed)\s*\|([^|]*)\|",
+            text, re.IGNORECASE):
+        if not match.group(3).strip():
+            fail("checklist row %r is marked %r with no evidence column"
+                 % (match.group(1).strip(), match.group(2).strip()))
+
+
+def test_requirement_coverage_audit():
+    """13-05 task 2: every DEL-09..13 is declared by a phase plan and has a
+    named verification fixture that exists -- the phase seals on executed
+    evidence, not intentions (T-13-17).
+    """
+    del_ids = ["DEL-%02d" % n for n in range(9, 14)]
+    phase_dir = os.path.join(ROOT, ".planning", "phases",
+                             "13-desktop-packaging-tauri-sidecar")
+    plans = {}
+    for name in sorted(os.listdir(phase_dir)):
+        if re.fullmatch(r"13-0[1-5]-PLAN\.md", name):
+            plans[name] = open(os.path.join(phase_dir, name),
+                               encoding="utf-8").read()
+    if len(plans) != 5:
+        fail("expected 5 phase plans for the audit, found %r" % sorted(plans))
+    for del_id in del_ids:
+        declaring = [name for name, text in plans.items() if del_id in text]
+        if not declaring:
+            fail("%s is not declared by any 13-0X plan" % del_id)
+    fixtures = "\n".join(
+        open(os.path.join(ROOT, "tests", name), encoding="utf-8").read()
+        for name in ("packaging_roundtrip.py",
+                     "packaging_shell_roundtrip.py", "daemon_roundtrip.py"))
+    named = {
+        "DEL-09": "check_sidecar_handshake",
+        "DEL-10": "check_sidecar_token_gate",
+        "DEL-11": "test_onedir_sidecar_runs_and_is_sized",
+        "DEL-12": "test_latest_json_shape",
+        "DEL-13": "test_uninstaller_never_touches_profile_data",
+    }
+    for del_id, fixture in named.items():
+        if fixture not in fixtures:
+            fail("%s's named verification %r does not exist in the fixtures"
+                 % (del_id, fixture))
+    print("  requirement coverage: 5/5 DEL-IDs declared and fixture-verified")
+
+
 def main():
     out_dir = tempfile.mkdtemp()
     try:
@@ -567,6 +633,8 @@ def main():
         test_evidence_location_is_identical_with_and_without_the_shell()
         test_latest_json_shape()
         test_disclosure_state_and_forbidden_words()
+        test_av_checklist_is_honest()
+        test_requirement_coverage_audit()
     finally:
         shutil.rmtree(out_dir, ignore_errors=True)
     test_onedir_sidecar_runs_and_is_sized()
