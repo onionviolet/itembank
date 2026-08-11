@@ -90,7 +90,7 @@ are recorded on the phases they block; none blocks starting.
 - [ ] **Phase 3.2: Seeding, Import & Provenance (INSERTED 2026-08-10)** - Content arrives before the features that consume it: Anki `.apkg` import, a human-approves-everything draft→lint→retry seeding loop, and the `[SRC:]`/`[OBJ:]`/`## SOURCES` provenance standard with paraphrase-not-transcribe lint.
 - [ ] **Phase 4: Surface Redesign & Theming** - One shared palette, OS-driven theming, a decluttered question surface, and safe in-page `day` editing.
 - [ ] **Phase 5: Check Item Type & Code Editor** - A `check` item type runs the learner's own code in a real editor and scores it through the one scorer.
-- [ ] **Phase 6: Hint Ladder, Cursor-Hold & Feedback Modes** - A wrong answer holds the cursor, hints unlock one authored tier at a time, and feedback behavior follows session mode.
+- [x] **Phase 6: Hint Ladder, Cursor-Hold & Feedback Modes** - A wrong answer holds the cursor, hints unlock one authored tier at a time, and feedback behavior follows session mode. (completed 2026-08-10)
 - [ ] **Phase 6.2: Executable Textbook Loop (INSERTED 2026-08-10)** - Prose, an inline check the learner must clear to continue, then spaced re-exposure of the same idea — the Execute Program / Runestone loop over the existing lesson, hint, and evidence machinery.
 - [ ] **Phase 7: Selection Engine** - Sessions are assembled by an inspectable rule engine — objective, difficulty, discrimination pairs, no accidental repeats.
 - [ ] **Phase 8: Model Adapter Interface & Tier-Gate Enforcement** - The tutoring model sees the key and writes hints about the learner's actual error; the runtime gates the tier, not the model.
@@ -535,11 +535,11 @@ Plans:
 
 **Wave 1**
 
-- [ ] 06-01-PLAN.md — Runtime-owned feedback policy, append-only hint evidence, and derived teaching outcomes
+- [x] 06-01-PLAN.md — Runtime-owned feedback policy, append-only hint evidence, and derived teaching outcomes
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 06-02-PLAN.md — CLI, identifier-addressed API, and browser clients over the one policy
+- [x] 06-02-PLAN.md — CLI, identifier-addressed API, and browser clients over the one policy
 
 ### Phase 06.1: Interactive Visual Assessment Protocol (INSERTED)
 
@@ -1136,7 +1136,7 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 3.2 Seeding, Import & Provenance | 0/5 | Planned | - |
 | 4. Surface Redesign & Theming | 6/6 | In Progress|  |
 | 5. Check Item Type & Code Editor | 0/7 | Planned | - |
-| 6. Hint Ladder, Cursor-Hold & Feedback Modes | 0/2 | Planned | - |
+| 6. Hint Ladder, Cursor-Hold & Feedback Modes | 2/2 | Complete    | 2026-08-10 |
 | 6.1 Interactive Visual Assessment Protocol | 0/3 | Planned | - |
 | 6.2 Executable Textbook Loop | 0/4 | Planned | - |
 | 7. Selection Engine | 6/6 | In Progress|  |
