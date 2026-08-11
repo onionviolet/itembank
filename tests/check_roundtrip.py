@@ -336,6 +336,18 @@ def post(url, payload):
         return json.loads(res.read().decode("utf-8"))
 
 
+def post_error(url, payload):
+    """POST and return (status, body_text), reading the body even on a 4xx
+    response -- the daemon's refusals arrive as 400/403 bodies, not JSON."""
+    req = urllib.request.Request(url, data=json.dumps(payload).encode(),
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as res:
+            return res.status, res.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read().decode("utf-8", "replace")
+
+
 def check_http_roundtrip():
     work_root = tempfile.mkdtemp()
     bank_path = os.path.join(work_root, "check_bank.md")
@@ -704,6 +716,190 @@ def check_cross_path():
         shutil.rmtree(work, ignore_errors=True)
 
 
+# ---- plan 05-03 Task 3: network-bound execution refusal + containment -------
+
+SHORT_BANK = """# Short bank
+
+Q1. What is the capital of France?   (difficulty: recall)
+[ID: 9000000000000009]
+[TYPE: short]
+[OBJECTIVE: cs:general.capital]
+
+MODEL: Paris is the capital of France.
+
+RUBRIC:
+- Names Paris as the capital
+- States the answer plainly without hedging
+
+TRAP: Naming a different city.
+
+CONFIDENCE: high
+"""
+
+LAN_REFUSAL = (
+    "Code execution is turned off while itembank is serving on your "
+    "network (--lan). Ask whoever runs itembank to turn on "
+    "check.allow_lan in settings if this device should be trusted, or "
+    "answer this item from the machine itembank is running on.")
+UNKNOWN_COPY = (
+    "This item requests the 'ruby' language, which isn't enabled in this "
+    "itembank's settings (check.languages). Add it in settings, or ask "
+    "whoever set up this bank to fix its [LANG:] value.")
+
+
+def _launch_daemon(root, lan=False):
+    args = [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "daemon",
+            root, "--port", "0", "--no-open"]
+    if lan:
+        args.append("--lan")
+    proc = subprocess.Popen(args, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True)
+    lines = []
+    threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
+                     daemon=True).start()
+    base = None
+    for _ in range(80):
+        time.sleep(0.1)
+        m = re.search("http://127.0.0.1:[0-9]+/", "".join(lines))
+        if m:
+            base = m.group(0)
+            break
+    return proc, base
+
+
+def _start_session(base, stem, focus):
+    started = post(base + "api/start", {"bank": stem, "count": 6,
+                                        "mode": "practice", "focus": focus})
+    return started["session_id"]
+
+
+def check_network_refusal():
+    """D-09 made real: with the daemon bound to all interfaces and
+    check.allow_lan false, both submit routes refuse a check item's execution
+    with the locked sentence and write no evidence; with allow_lan true or a
+    loopback bind, execution proceeds; a non-check item is untouched; and the
+    unknown-language refusal returns its own distinct sentence without
+    crashing the daemon."""
+    root = tempfile.mkdtemp()
+    try:
+        open(os.path.join(root, "agent_check.md"), "w", encoding="utf-8").write(AGENT_BANK)
+        open(os.path.join(root, "short_bank.md"), "w", encoding="utf-8").write(SHORT_BANK)
+        _write_settings(root)                       # allow_lan false by default
+        log = evidence.log_path(root)
+        root_abs = os.path.abspath(root)
+
+        # -- all-interfaces daemon, allow_lan false: refuse both routes -------
+        proc, base = _launch_daemon(root, lan=True)
+        if not base:
+            proc.terminate()
+            fail("lan daemon never printed a URL")
+        try:
+            sid = _start_session(base, "agent_check", "q1")
+            before = os.path.getsize(log) if os.path.exists(log) else 0
+            resp = post(base + "api/submit", {"session_id": sid, "answer": SUM_SOURCE})
+            body = json.dumps(resp)
+            if LAN_REFUSAL not in body:
+                fail("api/submit refused body lacks the locked sentence: %r" % body)
+            if "score" in resp:
+                fail("a refused check submit carried a score: %r" % resp)
+            if root_abs in body:
+                fail("refused api/submit body leaks an absolute path")
+            if os.path.getsize(log) != before:
+                fail("a refused api/submit appended to the evidence log")
+
+            qr = post(base + "quiz/agent_check/answer",
+                      {"id": "q1", "interaction_version": 1, "response": SUM_SOURCE})
+            qbody = json.dumps(qr)
+            if LAN_REFUSAL not in qbody:
+                fail("quiz/answer refused body lacks the locked sentence: %r" % qbody)
+            if "score" in qr:
+                fail("a refused quiz/answer carried a score: %r" % qr)
+            if root_abs in qbody:
+                fail("refused quiz/answer body leaks an absolute path")
+            before_q = os.path.getsize(log)
+            # /quiz/answer reuses the api session already started above, so a
+            # refusal here must not append anything either.
+            if os.path.getsize(log) != before_q:
+                fail("a refused quiz/answer appended to the evidence log")
+
+            # a non-check item on the same daemon still records (no refusal).
+            before_n = os.path.getsize(log)
+            nsid = _start_session(base, "short_bank", "q1")
+            nres = post(base + "api/submit", {"session_id": nsid, "answer": "Paris"})
+            if LAN_REFUSAL in json.dumps(nres):
+                fail("a non-check item was refused on the lan daemon")
+            if os.path.getsize(log) <= before_n:
+                fail("a non-check item did not append an evidence event")
+        finally:
+            proc.terminate()
+
+        # -- allow_lan true: executes normally on the lan daemon --------------
+        _write_settings(root, allow_lan=True)
+        proc2, base2 = _launch_daemon(root, lan=True)
+        if not base2:
+            proc2.terminate()
+            fail("allow_lan daemon never printed a URL")
+        try:
+            sid = _start_session(base2, "agent_check", "q1")
+            resp = post(base2 + "api/submit", {"session_id": sid, "answer": SUM_SOURCE})
+            if resp.get("score") is not True:
+                fail("allow_lan=true lan submit scored %r" % resp.get("score"))
+            if LAN_REFUSAL in json.dumps(resp):
+                fail("allow_lan=true submit was refused")
+        finally:
+            proc2.terminate()
+
+        # -- loopback daemon: always executes ---------------------------------
+        _write_settings(root)
+        proc3, base3 = _launch_daemon(root, lan=False)
+        if not base3:
+            proc3.terminate()
+            fail("loopback daemon never printed a URL")
+        try:
+            sid = _start_session(base3, "agent_check", "q1")
+            resp = post(base3 + "api/submit", {"session_id": sid, "answer": SUM_SOURCE})
+            if resp.get("score") is not True:
+                fail("loopback submit scored %r" % resp.get("score"))
+        finally:
+            proc3.terminate()
+
+        # -- unknown-language on a loopback daemon: distinct sentence, no crash
+        rub = os.path.join(root, "ruby_check.md")
+        open(rub, "w", encoding="utf-8").write(RUBY_BANK)
+        session_u = os.path.join(root, "_attempts", "session_u.json")
+        os.makedirs(os.path.dirname(session_u), exist_ok=True)
+        rs = _cli("start", rub, "--count", "1", "--seed", "8", "--force",
+                  "--mode", "practice", "--out", session_u)
+        if rs.returncode != 0:
+            fail("force start for unknown-language daemon case failed: %s"
+                 % (rs.stdout + rs.stderr))
+        uid = json.loads(rs.stdout)["session_id"]
+        proc4, base4 = _launch_daemon(root, lan=False)
+        if not base4:
+            proc4.terminate()
+            fail("unknown-language daemon never printed a URL")
+        try:
+            code, body = post_error(base4 + "api/submit",
+                                    {"session_id": uid, "answer": SUM_SOURCE})
+            if code == 500:
+                fail("unknown-language refusal produced a 500")
+            if UNKNOWN_COPY not in body:
+                fail("unknown-language body lacks its distinct sentence: %r" % body)
+            if LAN_REFUSAL in body:
+                fail("unknown-language returned the network refusal instead")
+            if root_abs in body:
+                fail("unknown-language body leaks an absolute path")
+            # the daemon survived: it still answers a fresh request.
+            still = post(base4 + "api/start", {"bank": "agent_check", "count": 6,
+                                               "mode": "practice", "focus": "q1"})
+            if not still.get("session_id"):
+                fail("the daemon crashed after the unknown-language submit")
+        finally:
+            proc4.terminate()
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
 def main():
     check_parse_and_defaults()
     check_sample_bank_unchanged()
@@ -719,6 +915,7 @@ def main():
     check_http_roundtrip()
     check_agent_path()
     check_cross_path()
+    check_network_refusal()
     print("check roundtrip: ok")
     return 0
 
