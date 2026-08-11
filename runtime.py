@@ -28,6 +28,10 @@ import collections, json, os, sys
 SESSION_VERSION = 2
 ITEM_VERSION = 1
 REPORT_VERSION = 1
+# The public interaction-contract version for a check item (plan 05-01):
+# the submit route and the normalized result carry it, and the evidence event
+# records it, so the three can never disagree about which contract served.
+INTERACTION_VERSION = 1
 
 
 def public_item(q, shuffle_seed=0):
@@ -51,7 +55,106 @@ def public_item(q, shuffle_seed=0):
         out["response_schema"] = {"type": "array", "items": "step text", "ordered": True}
     elif q["type"] == "short":
         out["response_schema"] = {"type": "string", "min_length": 2}
+    elif q["type"] == "check":
+        # One renderer-independent interaction contract (D-12): a declarative
+        # renderer_config with the language, the starter source and the hidden
+        # case count, and a response_schema declaring the raw source string.
+        # The config is validated at this boundary before any renderer sees
+        # it, and it contains JSON data only -- never bank-authored code, a
+        # callable, a case input, expected output, or a key. The top-level
+        # response_schema aliases the envelope's for the additive
+        # compatibility contract the five earlier types use.
+        lang = q.get("lang", "python")
+        config = {
+            "version": INTERACTION_VERSION,
+            "type": "check",
+            "renderer_config": {
+                "language": lang,
+                "starter_source": q.get("starter", ""),
+                "hidden_case_count": len(q.get("cases") or []),
+            },
+            "response_schema": {"type": "string", "format": "source",
+                                "language": lang},
+        }
+        _validate_interaction_contract(config)
+        out["interaction_contract"] = config
+        out["response_schema"] = config["response_schema"]
+        out["starter"] = q.get("starter", "")
     return out
+
+
+def _validate_interaction_contract(config):
+    """The public_item boundary gate for a check item's interaction contract:
+    the envelope and the renderer_config must carry exactly the declared keys
+    with the declared value kinds, and the whole config must serialize as JSON
+    data -- no callables, no case material, no key. A config built from a
+    parsed question can never fail this; it exists so a future caller cannot
+    slip something through the boundary unnoticed."""
+    if not isinstance(config, dict):
+        raise ValueError("interaction contract must be an object")
+    for key in ("version", "type", "renderer_config", "response_schema"):
+        if key not in config:
+            raise ValueError("interaction contract missing %r" % key)
+    if config["type"] != "check":
+        raise ValueError("interaction contract type must be 'check'")
+    rc = config["renderer_config"]
+    if not isinstance(rc, dict):
+        raise ValueError("renderer_config must be an object")
+    for key in ("language", "starter_source", "hidden_case_count"):
+        if key not in rc:
+            raise ValueError("renderer_config missing %r" % key)
+    if not isinstance(rc["hidden_case_count"], int)             or isinstance(rc["hidden_case_count"], bool):
+        raise ValueError("hidden_case_count must be an integer")
+    if not isinstance(config["response_schema"], dict):
+        raise ValueError("response_schema must be an object")
+    json.dumps(config)      # JSON data only: a callable or a non-JSON value dies here
+
+
+def _check_observation(q, index, case_result):
+    """One ordered, 1-based observation for a check item's normalized result:
+    the stable reason code, the already-bounded actual output, the post-submit
+    authored expected value and input. This is data for feedback, never a
+    second scoring path -- `passed` is copied from the run, not recomputed."""
+    case = (q.get("cases") or [])[index]
+    timed_out = bool(case_result.get("timed_out"))
+    truncated = bool(case_result.get("truncated"))
+    if timed_out:
+        reason = "timeout"
+    elif truncated:
+        reason = "output_cap"
+    elif case_result.get("passed"):
+        reason = "passed"
+    else:
+        reason = "wrong_output"
+    return {
+        "case_index": index + 1,
+        "passed": bool(case_result.get("passed")),
+        "reason": reason,
+        "actual": case_result.get("actual", ""),
+        "expected": case["expected"],
+        "expected_kind": "pattern" if q.get("match") == "regex" else "output",
+        "input": case.get("call") if q.get("harness") else case.get("stdin", ""),
+    }
+
+
+def interaction_result(q, source, verdict, run_result):
+    """The normalized post-submit result for a check item, used by every
+    submitting surface.
+
+    It does not grade: `verdict` must be the exact value already returned by
+     `score_response()` -- True, False, or None for a run the deadline killed
+    (criterion 12). The ordered observations stay present even for a None
+    verdict so the learner sees which case timed out, but no surface may
+    render a pending response as pass or fail.
+    """
+    return {
+        "version": INTERACTION_VERSION,
+        "type": "check",
+        "response": source,
+        "verdict": verdict,
+        "observations": [_check_observation(q, i, r)
+                         for i, r in enumerate(run_result or [])],
+    }
 
 
 def normalize_answer(answer):
@@ -73,6 +176,91 @@ FIELD_SEP = "\x1f"
 PAIR_SEP = "\x1e"
 
 
+def _canonical_mc(q, answer):
+    if isinstance(answer, list):
+        answer = answer[0] if len(answer) == 1 else ""
+    return str(answer).strip().upper() if isinstance(answer, str) else ""
+
+
+def _canonical_multi(q, answer):
+    given = answer if isinstance(answer, list) else [answer]
+    return ",".join(sorted(str(x).strip().upper() for x in given))
+
+
+def _canonical_table_dnd(q, answer):
+    if isinstance(answer, list):
+        answer = {str(i): v for i, v in enumerate(answer)}
+    if not isinstance(answer, dict) or len(answer) != len(q["rows"]):
+        return ""          # a partial or padded assignment is not a response
+    return FIELD_SEP.join("%d%s%s" % (i, PAIR_SEP, answer.get(str(i), ""))
+                          for i in range(len(q["rows"])))
+
+
+def _canonical_build(q, answer):
+    return FIELD_SEP.join(str(x) for x in answer) if isinstance(answer, list) else ""
+
+
+def check_normalizer(q, answer):
+    """Reduce a check item's per-case results to the outcome vector string.
+
+     `answer` is one of: the list of per-case dicts `runner.run_cases()`
+    returns (the live path), a list of 0/1 ints (test callers), or the
+    already-canonical vector string (when idempotency re-enters). A case that
+    timed out is not a verdict: the run was killed, so this returns None and
+    the response lands pending rather than wrong (criterion 12).
+    """
+    if isinstance(answer, str):
+        return answer                 # already-canonical (idempotency re-entry)
+    if isinstance(answer, list):
+        if any(isinstance(c, dict) and c.get("timed_out") for c in answer):
+            return None
+        if answer and all(isinstance(c, dict) for c in answer):
+            return ",".join("1" if c.get("passed") else "0" for c in answer)
+        return ",".join("1" if c else "0" for c in answer)
+    return None
+
+
+# The two registries (criterion 11): a normalizer reduces (q, answer) to one
+# comparable string or None; a key answers "what is the correct canonical
+# form" for an item. The five legacy types' branches moved in unchanged;
+# `short` is deliberately absent -- its responses are pending by design, and
+# a registry miss is exactly that state (D-21).
+NORMALIZERS = {
+    "mc": _canonical_mc, "multi": _canonical_multi,
+    "table": _canonical_table_dnd, "dnd": _canonical_table_dnd,
+    "build": _canonical_build, "check": check_normalizer,
+}
+
+
+def _key_mc(q):
+    return q["correct"][0]
+
+
+def _key_multi(q):
+    return ",".join(sorted(q["correct"]))
+
+
+def _key_table_dnd(q):
+    return FIELD_SEP.join("%d%s%s" % (i, PAIR_SEP, r["cat"])
+                          for i, r in enumerate(q["rows"]))
+
+
+def _key_build(q):
+    return FIELD_SEP.join(q["steps"])
+
+
+def check_key(q):
+    """As many ones as the item has cases."""
+    return ",".join("1" for _ in q.get("cases") or [])
+
+
+KEYS = {
+    "mc": _key_mc, "multi": _key_multi,
+    "table": _key_table_dnd, "dnd": _key_table_dnd,
+    "build": _key_build, "check": check_key,
+}
+
+
 def canonical_response(q, answer):
     """Reduce a selected response to one comparable string.
 
@@ -84,43 +272,18 @@ def canonical_response(q, answer):
     ask. Returns None for constructed response, which has no canonical form.
     """
     answer = normalize_answer(answer)
-    t = q["type"]
-    if t == "short":
-        return None
-    if t == "mc":
-        if isinstance(answer, list):
-            answer = answer[0] if len(answer) == 1 else ""
-        return str(answer).strip().upper() if isinstance(answer, str) else ""
-    if t == "multi":
-        given = answer if isinstance(answer, list) else [answer]
-        return ",".join(sorted(str(x).strip().upper() for x in given))
-    if t in ("table", "dnd"):
-        if isinstance(answer, list):
-            answer = {str(i): v for i, v in enumerate(answer)}
-        if not isinstance(answer, dict) or len(answer) != len(q["rows"]):
-            return ""          # a partial or padded assignment is not a response
-        return FIELD_SEP.join("%d%s%s" % (i, PAIR_SEP, answer.get(str(i), ""))
-                              for i in range(len(q["rows"])))
-    if t == "build":
-        return FIELD_SEP.join(str(x) for x in answer) if isinstance(answer, list) else ""
-    return ""
+    normalizer = NORMALIZERS.get(q["type"])
+    if normalizer is None:
+        return None     # no registered normalizer: no canonical form
+    return normalizer(q, answer)
 
 
 def canonical_key(q):
     """The canonical response that is correct, in the same shape as the above."""
-    t = q["type"]
-    if t == "short":
+    key = KEYS.get(q["type"])
+    if key is None:
         return None
-    if t == "mc":
-        return q["correct"][0]
-    if t == "multi":
-        return ",".join(sorted(q["correct"]))
-    if t in ("table", "dnd"):
-        return FIELD_SEP.join("%d%s%s" % (i, PAIR_SEP, r["cat"])
-                              for i, r in enumerate(q["rows"]))
-    if t == "build":
-        return FIELD_SEP.join(q["steps"])
-    return ""
+    return key(q)
 
 
 def score_response(q, answer):
@@ -133,7 +296,10 @@ def score_response(q, answer):
     key = canonical_key(q)
     if key is None:
         return None
-    return canonical_response(q, answer) == key
+    canon = canonical_response(q, answer)
+    if canon is None:
+        return None          # a None canonical is not a False verdict (check timeout)
+    return canon == key
 
 
 def session_path(path):
@@ -306,7 +472,7 @@ def response_text(q, answer):
     return ""
 
 
-def explain_payload(q, reveal=True):
+def explain_payload(q, reveal=True, run_result=None):
     """Everything the learner may see AFTER responding, and nothing before it.
 
     Under `serve` this is what the process hands back with the verdict, which is
@@ -336,6 +502,26 @@ def explain_payload(q, reveal=True):
         out["rubric"] = (q.get("rubric") or []) if reveal else []
         if not reveal:
             out["trap"] = ""
+    elif t == "check":
+        # With `run_result` the per-case actual output and the timed-out /
+        # truncated flags are zipped against the authored input and expected
+        # halves (the only channel through which actual output can reach the
+        # explanation, D-15); without it the authored halves stand alone.
+        rows = []
+        for i, c in enumerate(q.get("cases") or []):
+            row = {
+                "case_index": i + 1,
+                "input": c.get("call") if q.get("harness") else c.get("stdin", ""),
+                "expected": c["expected"],
+                "expected_kind": "pattern" if q.get("match") == "regex" else "output",
+            }
+            if run_result is not None and i < len(run_result):
+                rc = run_result[i]
+                row["actual"] = rc.get("actual", "")
+                row["timed_out"] = bool(rc.get("timed_out"))
+                row["truncated"] = bool(rc.get("truncated"))
+            rows.append(row)
+        out["cases"] = rows
     return out
 
 
