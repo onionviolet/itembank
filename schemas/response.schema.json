@@ -16,6 +16,9 @@
       "$ref": "#/$defs/lesson_complete_event"
     },
     {
+      "$ref": "#/$defs/selection_event"
+    },
+    {
       "$ref": "#/$defs/other_event"
     }
   ],
@@ -237,8 +240,107 @@
         "event_type": {
           "type": "string",
           "enum": ["mark", "retraction", "day_tick", "term_lookup",
-                   "key_review", "selection"],
-          "description": "lesson_complete is deliberately absent: it has its own closed branch, so a malformed completion event must FAIL validation rather than be accepted by this permissive branch."
+                   "key_review"],
+          "description": "lesson_complete and selection are deliberately absent: each has its own closed branch, so a malformed event of those types must FAIL validation rather than be accepted by this permissive branch."
+        }
+      }
+    },
+    "selection_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The selection event's real shape (plan 07-04; Phase 10 retention fields added by plan 10-03, D-01/D-10/T-10-13): the one record per sitting of what was asked for. `selection_spec` carries only the allowlisted selection fields; `retention`, when present, is the sitting's server-derived binding -- one snapshot id, the bounded normalized objective-weight map with each entry's named components and matching snapshot id, and the optional component trace. A forged map, client path, answer key, hidden tier, or model payload never validates here (additionalProperties is false at every level).",
+      "required": [
+        "schema_version", "event_id", "event_type", "ts", "session_id",
+        "bank", "selection_mode", "selection_spec", "items", "dedupe_key"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "event_id": {
+          "type": "string"
+        },
+        "event_type": {
+          "const": "selection"
+        },
+        "ts": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "bank": {
+          "type": "string",
+          "description": "The bank file's basename only (T-1-06)"
+        },
+        "selection_mode": {
+          "type": "string",
+          "enum": ["diagnostic", "practice", "remediation", "exam"]
+        },
+        "selection_spec": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The resolved selection spec, allowlisted to selection.SPEC_FIELDS by the builder",
+          "properties": {
+            "objective": {"type": "string"},
+            "count": {"type": "integer"},
+            "seed": {"type": "integer"},
+            "exclude_item_ids": {"type": "array", "items": {"type": "string"}},
+            "pair": {"type": "string"},
+            "prerequisite": {"type": "string"},
+            "selection_mode": {"type": "string"},
+            "prereq_satisfied": {"type": "boolean"},
+            "type": {"type": "string"},
+            "difficulty": {"type": "string"}
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dedupe_key": {
+          "type": "string"
+        },
+        "retention": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["snapshot_id", "objective_weights"],
+          "properties": {
+            "snapshot_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "objective_weights": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["weight", "components", "snapshot_id"],
+                "properties": {
+                  "weight": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "components": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "number"
+                    }
+                  },
+                  "snapshot_id": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            },
+            "trace": {
+              "type": ["object", "null"],
+              "description": "The returned selection trace's retention block (present when the composition consumed weights), or null"
+            }
+          }
         }
       }
     },

@@ -659,6 +659,108 @@ def test_lesson_completion_contract():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_selection_retention_provenance():
+    """Plan 10-03 (D-01/D-10/T-10-13): a real started session validates with
+    its retention snapshot id and public bounded weight map; its matching
+    selection event validates with the identical snapshot id and the full
+    component map; forged retention data (paths, answer keys, hidden tiers,
+    malformed snapshot references) is rejected by the published schemas; and
+    a pre-Phase-10 selection event (no retention) still validates.
+    """
+    session_schema = load_schema("session.schema.json")
+    response_schema = load_schema("response.schema.json")
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "selection_bank.md")
+        shutil.copyfile(os.path.join(ROOT, "fixtures", "selection_bank.md"), bank)
+        ev_dir = os.path.join(tmp, "_evidence")
+        os.makedirs(ev_dir)
+        src = open(os.path.join(ROOT, "fixtures", "selection_evidence.jsonl"),
+                   encoding="utf-8").read()
+        open(os.path.join(ev_dir, "evidence.jsonl"), "w", encoding="utf-8").write(src)
+        started = json.loads(run(
+            ["start", bank, "--count", "3", "--seed", "0",
+             "--mode", "practice", "--selection-mode", "practice"], tmp))
+        session_file = started["session_file"]
+        data = json.load(open(session_file, encoding="utf-8"))
+        ret = data.get("retention")
+        if not ret or not ret.get("snapshot_id"):
+            fail("a started session must carry its retention binding: %r"
+                 % (ret,))
+        errs = itembank.validate(data, session_schema)
+        if errs:
+            fail("session with retention failed session.schema.json: %s"
+                 % errs[0])
+        sid = ret["snapshot_id"]
+
+        log = os.path.join(tmp, "_evidence", "evidence.jsonl")
+        sel = None
+        for line in open(log, encoding="utf-8").read().splitlines():
+            ev = json.loads(line)
+            if ev.get("event_type") == "selection":
+                sel = ev
+        if sel is None:
+            fail("no selection event recorded for the started sitting")
+        errs = itembank.validate(sel, response_schema)
+        if errs:
+            fail("selection event failed response.schema.json: %s" % errs[0])
+        eret = sel.get("retention") or {}
+        if eret.get("snapshot_id") != sid:
+            fail("selection event snapshot id differs from the session's")
+        for obj, entry in (eret.get("objective_weights") or {}).items():
+            if entry.get("snapshot_id") != sid:
+                fail("weight entry %r names a different snapshot" % obj)
+            if not isinstance(entry.get("components"), dict):
+                fail("weight entry %r must carry named components" % obj)
+
+        # A pre-Phase-10 selection event (no retention) still validates.
+        old_sel = {k: v for k, v in sel.items() if k != "retention"}
+        errs = itembank.validate(old_sel, response_schema)
+        if errs:
+            fail("a pre-10 selection event must still validate: %s" % errs[0])
+
+        # Forged retention data is rejected by the schemas (T-10-13):
+        # a client path / answer key / hidden tier never validates at any
+        # level, and a malformed snapshot reference is refused.
+        forged = [
+            ("top-level path", dict(sel, **{"bank_path": "/abs/b.md"})),
+            ("weight answer key", dict(sel, **{"retention": dict(
+                eret, **{"objective_weights": {
+                    "water:x": {"weight": 1.0, "components": {},
+                                "snapshot_id": sid, "answer": "B"}}})})),
+            ("weight hidden tier", dict(sel, **{"retention": dict(
+                eret, **{"objective_weights": {
+                    "water:x": {"weight": 1.0, "components": {},
+                                "snapshot_id": sid, "hint_tier": 2}}})})),
+            ("negative weight", dict(sel, **{"retention": dict(
+                eret, **{"objective_weights": {
+                    "water:x": {"weight": -1, "components": {},
+                                "snapshot_id": sid}}})})),
+            ("empty snapshot ref", dict(sel, **{"retention": dict(
+                eret, **{"objective_weights": {
+                    "water:x": {"weight": 1.0, "components": {},
+                                "snapshot_id": ""}}})})),
+            ("missing components", dict(sel, **{"retention": dict(
+                eret, **{"objective_weights": {
+                    "water:x": {"weight": 1.0, "snapshot_id": sid}}})})),
+        ]
+        for name, malformed in forged:
+            errs = itembank.validate(malformed, response_schema)
+            if not errs:
+                fail("forged selection event %r must be rejected by the "
+                     "schema" % name)
+
+        # The same allowlisting holds for the session's retention binding.
+        forged_session = dict(data, **{"retention": dict(
+            ret, **{"objective_weights": {
+                "water:x": {"weight": 1.0, "answer": "B"}}})})
+        errs = itembank.validate(forged_session, session_schema)
+        if not errs:
+            fail("a forged session retention map must be rejected")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     test_lint_error_shape()
     test_lint_codes_declared()
@@ -671,10 +773,12 @@ def main():
     test_schema_command_output()
     test_educational_objective_private_until_verdict()
     test_lesson_completion_contract()
+    test_selection_retention_provenance()
     print("protocol contract: ok (%d lint codes declared, schema versions pinned, "
           "EVID-07 field set asserted, runtime output validated against schemas/, "
           "schema --all self-contained and stable, lesson-completion contract "
-          "validated)" % len(itembank.LINT_CODES))
+          "validated, selection retention provenance validated)"
+          % len(itembank.LINT_CODES))
     return 0
 
 

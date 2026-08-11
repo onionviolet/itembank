@@ -1419,54 +1419,67 @@ def check_serve_attempt_refresh():
     attempt view atomically after API submissions, and its progress line is
     based on the API session id, not a stale page-owned counter.
     """
-    out = os.path.join(tempfile.mkdtemp(), "attempt.md")
-    proc = subprocess.Popen(
-        [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "serve", BANK,
-         "--no-open", "--port", "0", "--out", out],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    lines = []
-    threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
-                     daemon=True).start()
-    base = None
-    for _ in range(60):
-        time.sleep(0.1)
-        m = re.search(r"http://127\.0\.0\.1:\d+/", "".join(lines))
-        if m:
-            base = m.group(0)
-            break
-    if not base:
-        proc.terminate()
-        fail("scoped serve never printed a URL. Output was:\n" + "".join(lines))
+    workdir = tempfile.mkdtemp()
     try:
-        qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
-        _, page = get(base + "quiz/sample_bank")
-        boot = serve_roundtrip.served_boot(page)
-        started = post(base + "api/start",
-                       {"bank": boot["bank"], "count": boot["count"],
-                        "mode": boot["mode"]})
-        session_id = started["session_id"]
-        answer = api_correct_answer(api_by_id(), started["item"])
-        submitted = post(base + "api/submit",
-                         {"session_id": session_id, "answer": answer})
-        if submitted["score"] is not True:
-            fail("scoped serve API submit scored %r, expected True"
-                 % submitted["score"])
+        # Serve a temp COPY of the fixture bank so the evidence log lands in
+        # workdir/_evidence, never fixtures/_evidence: plan 10-03 makes start
+        # retention-aware, and accumulated evidence beside the shared fixture
+        # would reorder the served sitting (the short item is served first
+        # once its objective is weighted ahead, so the auto answer scores
+        # None instead of True). Same hermeticity fix class as
+        # tests/agent_roundtrip.py.
+        bank = os.path.join(workdir, "sample_bank.md")
+        shutil.copy(BANK, bank)
+        out = os.path.join(workdir, "attempt.md")
+        proc = subprocess.Popen(
+            [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "serve", bank,
+             "--no-open", "--port", "0", "--out", out],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        lines = []
+        threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
+                         daemon=True).start()
+        base = None
+        for _ in range(60):
+            time.sleep(0.1)
+            m = re.search(r"http://127\.0\.0\.1:\d+/", "".join(lines))
+            if m:
+                base = m.group(0)
+                break
+        if not base:
+            proc.terminate()
+            fail("scoped serve never printed a URL. Output was:\n" + "".join(lines))
+        try:
+            qs = itembank.parse_bank(open(bank, encoding="utf-8").read())
+            _, page = get(base + "quiz/sample_bank")
+            boot = serve_roundtrip.served_boot(page)
+            started = post(base + "api/start",
+                           {"bank": boot["bank"], "count": boot["count"],
+                            "mode": boot["mode"]})
+            session_id = started["session_id"]
+            answer = api_correct_answer(api_by_id(bank), started["item"])
+            submitted = post(base + "api/submit",
+                             {"session_id": session_id, "answer": answer})
+            if submitted["score"] is not True:
+                fail("scoped serve API submit scored %r, expected True"
+                     % submitted["score"])
 
-        text = open(out, encoding="utf-8").read()
-        if "[auto: correct]" not in text:
-            fail("configured attempt view was not refreshed after the API submit")
-        output = "".join(lines)
-        log = evidence.log_path(os.path.dirname(os.path.abspath(BANK)) or ".")
-        api_count = len(set(ev["item_ref"]
-                            for ev in evidence.session_events(log, session_id)))
-        want_progress = "  %d/%d answered, saved" % (api_count, len(qs))
-        if want_progress not in output:
-            fail("scoped serve progress did not print the API session count: %r"
-                 % output[-400:])
-        if api_count < 1:
-            fail("the API session recorded no events for the progress count")
+            text = open(out, encoding="utf-8").read()
+            if "[auto: correct]" not in text:
+                fail("configured attempt view was not refreshed after the API submit")
+            output = "".join(lines)
+            log = evidence.log_path(os.path.dirname(os.path.abspath(bank)) or ".")
+            api_count = len(set(ev["item_ref"]
+                                for ev in evidence.session_events(log, session_id)))
+            want_progress = "  %d/%d answered, saved" % (api_count, len(qs))
+            if want_progress not in output:
+                fail("scoped serve progress did not print the API session count: %r"
+                     % output[-400:])
+            if api_count < 1:
+                fail("the API session recorded no events for the progress count")
+        finally:
+            proc.terminate()
     finally:
-        proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
 
 
 def check_wave0_helpers():

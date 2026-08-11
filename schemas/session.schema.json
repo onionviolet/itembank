@@ -49,6 +49,33 @@
       "enum": ["diagnostic", "practice", "remediation", "exam"],
       "description": "The selection composition that chose this session's items; `mode` is the feedback policy that governs what the learner is shown. Optional: a session written before plan 07-04 has none."
     },
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Phase 10 (10-03, D-01): the sitting's retention binding -- the one snapshot id every derived claim in this sitting references, plus the public bounded normalized objective-weight map the selector consumed. Weights only here (the authorization a sitting needs); the full component trace lives in the matching selection evidence event, never duplicated as mutable session authority. Server-derived; a client or model never supplies these values (T-10-10). Optional: a session written before plan 10-03 has none.",
+      "required": ["snapshot_id", "objective_weights"],
+      "properties": {
+        "snapshot_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "objective_weights": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["weight"],
+            "properties": {
+              "weight": {
+                "type": "number",
+                "minimum": 0,
+                "description": "The normalized bounded multiplier for this objective (positive finite; retention.py bounds and normalizes it)"
+              }
+            }
+          }
+        }
+      }
+    },
     "objective": {
       "type": "string",
       "description": "Empty string when the session was not limited to one objective"

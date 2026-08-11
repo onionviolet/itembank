@@ -23,6 +23,7 @@ that is still correct for the CLI; containing it is the daemon's job
 import datetime, json, os, sys
 
 import evidence
+import retention
 import selection
 from model import lint, load
 from runtime import (REPORT_VERSION, SESSION_VERSION, normalize_answer, read_session,
@@ -92,6 +93,37 @@ def _load_history_and_settings(bank_path):
     return log, history, evidence_source, cooldown, decay, cfg
 
 
+def _retention_context(log, cfg):
+    """The Phase 10 selector context (10-03, D-01/D-02/D-12): derived from
+    ONE capture of the live append-only log -- the snapshot claim plus the
+    bounded normalized objective-weight map from `retention.py`. The previous
+    map that caps per-snapshot weight movement comes from the most recent
+    live selection event's own recorded weights, so there is no weight file
+    or mutable cache (D-02). `retention.py` chooses no items and writes no
+    evidence; this function only derives what the sole selector consumes.
+    """
+    events = evidence.capture_events(log) if os.path.exists(log) else ()
+    snapshot = retention.capture(events, cfg=cfg)
+    previous = None
+    for ev in reversed(events):
+        if ev.get("event_type") != evidence.SELECTION_EVENT_TYPE:
+            continue
+        recorded = (ev.get("retention") or {}).get("objective_weights") or {}
+        prev = {}
+        for obj, entry in recorded.items():
+            if isinstance(entry, dict) and \
+                    isinstance(entry.get("weight"), (int, float)) and \
+                    not isinstance(entry.get("weight"), bool):
+                prev[obj] = entry["weight"]
+        if prev:
+            previous = prev
+        break
+    summaries = retention.objective_summaries(snapshot)
+    weights = retention.objective_weights(summaries, snapshot,
+                                          previous=previous)
+    return {"snapshot": snapshot["claim"], "objective_weights": weights}
+
+
 def do_start(bank_path, spec, mode, out, force):
     # The D-09 focus pin is a session-level concern, not a selection filter:
     # it rides inside the spec dict so the signature stays the same for every
@@ -107,8 +139,10 @@ def do_start(bank_path, spec, mode, out, force):
     log, history, evidence_source, cooldown, decay, cfg = \
         _load_history_and_settings(bank_path)
     sel_spec = selection.expand_spec(cfg, sel_spec)
+    ctx = _retention_context(log, cfg)
     items, trace = selection.select(
-        qs, sel_spec, history=history, cooldown=cooldown, decay=decay)
+        qs, sel_spec, history=history, cooldown=cooldown, decay=decay,
+        retention_context=ctx)
     trace["evidence"] = {"log": log, "responses": len(history),
                          "source": evidence_source}
     index = {q["id"]: i for i, q in enumerate(qs)}
@@ -132,17 +166,34 @@ def do_start(bank_path, spec, mode, out, force):
             "seed": sel_spec.get("seed", 0),
             "served_ts": evidence.utc_now(),
             "teaching_state": {},
-            "selection_mode": sel_spec.get("selection_mode", "practice")}
+            "selection_mode": sel_spec.get("selection_mode", "practice"),
+            # D-01 (10-03): the sitting's retention binding -- the one
+            # snapshot id every claim in this sitting references plus the
+            # public bounded normalized weight map the selector consumed.
+            # Weights only here; the full component trace lives in the
+            # selection evidence event, never duplicated as session authority.
+            "retention": {
+                "snapshot_id": ctx["snapshot"]["snapshot_id"],
+                "objective_weights": {
+                    obj: {"weight": entry["weight"]}
+                    for obj, entry in ctx["objective_weights"].items()},
+            }}
     write_session(out, data)
     # D-03: one `selection` event per sitting, appended only after the
     # session file was written, through the one evidence writer -- a session
     # that failed to write leaves no orphan claim in the log, and the record
-    # of what was asked survives the session file being deleted.
+    # of what was asked survives the session file being deleted. The event
+    # carries the sitting's full retention evidence claim (snapshot id, the
+    # bounded weight map with named components, and the component trace).
     evidence.append_event(
         evidence.log_path(os.path.dirname(os.path.abspath(bank_path)) or "."),
         evidence.selection_event(
             data["session_id"], os.path.basename(bank_path), sel_spec,
-            [evidence.evidence_key(qs[i]) for i in items]))
+            [evidence.evidence_key(qs[i]) for i in items],
+            retention={
+                "snapshot_id": ctx["snapshot"]["snapshot_id"],
+                "objective_weights": ctx["objective_weights"],
+                "trace": trace.get("retention")}))
     result = session_view(data, qs)
     result["session_file"] = session_path(out)
     result["trace"] = trace
@@ -162,8 +213,10 @@ def do_select(bank_path, spec, force):
     log, history, evidence_source, cooldown, decay, cfg = \
         _load_history_and_settings(bank_path)
     spec = selection.expand_spec(cfg, spec)
+    ctx = _retention_context(log, cfg)
     items, trace = selection.select(
-        qs, spec, history=history, cooldown=cooldown, decay=decay)
+        qs, spec, history=history, cooldown=cooldown, decay=decay,
+        retention_context=ctx)
     trace["evidence"] = {"log": log, "responses": len(history),
                          "source": evidence_source}
     return {"schema_version": 1, "bank": os.path.basename(bank_path),

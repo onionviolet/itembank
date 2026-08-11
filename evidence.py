@@ -414,7 +414,7 @@ def response_event(session_id, q, answer, score, mode, attempt_num, bank,
     }
 
 
-def selection_event(session_id, bank, spec, item_keys):
+def selection_event(session_id, bank, spec, item_keys, retention=None):
     """Build one selection event: the record of what a sitting asked for,
     appended once per session (D-03) and separate from the responses because
     the request is one fact about a sitting, not one fact per answer.
@@ -424,12 +424,19 @@ def selection_event(session_id, bank, spec, item_keys):
     answer key can ever enter the log under this event (T-07-03). `item_keys`
     is the ordered list of `evidence_key(q)` values that were served.
 
+    `retention` (plan 10-03) is the sitting's server-derived Phase 10
+    binding: the one snapshot id, the bounded normalized objective-weight map
+    (each entry with its weight, named components and snapshot id), and the
+    optional component trace. It is allowlisted to exactly those keys before
+    recording -- a client path, answer key, hidden tier, or model payload is
+    never echoed into the log (D-01, D-10, T-10-13).
+
     `dedupe_key` is derived from the session id alone, so a retried start for
     the same session reconciles (`already_recorded`) rather than doubling.
     """
     from selection import SPEC_FIELDS
     spec = {k: v for k, v in (spec or {}).items() if k in SPEC_FIELDS}
-    return {
+    event = {
         "schema_version": EVENT_SCHEMA_VERSION,
         "event_id": new_event_id(),
         "event_type": SELECTION_EVENT_TYPE,
@@ -443,6 +450,26 @@ def selection_event(session_id, bank, spec, item_keys):
             session_id, "selection", 0,
             json.dumps(spec, ensure_ascii=False, sort_keys=True)),
     }
+    if retention is not None:
+        if not isinstance(retention, dict):
+            raise ValueError("selection_event: retention must be an object "
+                             "or None")
+        snapshot_id = retention.get("snapshot_id")
+        objective_weights = retention.get("objective_weights")
+        if not isinstance(snapshot_id, str) or not snapshot_id:
+            raise ValueError("selection_event: retention.snapshot_id must be "
+                             "a non-empty string")
+        if not isinstance(objective_weights, dict):
+            raise ValueError("selection_event: retention.objective_weights "
+                             "must be an object")
+        cleaned = {
+            "snapshot_id": snapshot_id,
+            "objective_weights": objective_weights,
+        }
+        if retention.get("trace") is not None:
+            cleaned["trace"] = retention["trace"]
+        event["retention"] = cleaned
+    return event
 
 
 def append_event(log, event):
