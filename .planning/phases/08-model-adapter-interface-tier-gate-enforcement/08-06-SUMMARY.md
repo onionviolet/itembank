@@ -222,3 +222,13 @@ None — no external service configuration required. The gate exercises hosted a
 - Verification: `python tests/model_phase_roundtrip.py` green; full suite 42/43 green (the sole failure is the environment-bound frozen-sidecar packaging test, unchanged from a fresh checkout); all six authority regressions green; `08-05-UAT-EVIDENCE.md` PASS precondition asserted.
 
 ## PLAN COMPLETE
+
+---
+
+## Post-merge re-verification (2026-08-11, branch `gsd/phase-08-06` finalized for merge)
+
+The branch was behind main and never merged; `git merge main` brought main's later phases (06.2, 09.1 + closeouts) in, resolved `.planning/STATE.md` to main's canonical version (orchestrator reconciles STATE/ROADMAP/config centrally), and exposed one **main-side defect** now fixed on this branch:
+
+- **`fix(08-06)`: restore the v3 evidence index.** Main's 06.2 merge (`d35bd15`) kept 06.2's tests but resolved the `evidence.py` index conflict to the v2 shape (no `context` column, `INDEX_VERSION=2`), leaving `tests/evidence_roundtrip.py` and `tests/gate_roundtrip.py` red on merged main and failing the release gate's `evidence_roundtrip` authority regression. Porting 06.2's v3 index exactly (context column in CREATE/INSERT/SELECT/row-map + fallback, `INDEX_VERSION=3`) keeps both phases' behavior and turns the gate green.
+- **Re-verified post-merge:** release gate green (full scenario, 9-row offline matrix, 6 authority regressions, 22-artifact payload scan, contract audit with ROADMAP 1-14 mapping); full suite 45/46 files exit 0 (sole failure unchanged: the Windows-frozen-sidecar sub-test of `packaging_roundtrip.py`, environment-bound on this WSL2-Linux host — recorded in HANDOFF-PHASE08.md §2/§6); `itembank.py lint fixtures/sample_bank.md` 0 errors; schema instance flow (session/item/response/report/lint_error) conforms; `itembank schema --all` emits cleanly.
+- Human-pending: orchestrator merges this branch into main and reconciles STATE/ROADMAP/config; the Windows sidecar build is an environment precondition, not a phase-08 defect.
