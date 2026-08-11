@@ -21,6 +21,10 @@ session_*.json
 # optional OCR plugin) -- never ships. The portable template is
 # reasonix.toml.example; copy it if you want local config.
 reasonix.toml
+# Machine-local Reasonix runtime notes (headless-launch recipe, WSL2 interop,
+# prompt-cache findings) -- the home of the "Reasonix runtime notes" content;
+# kept out of the external-user-facing AGENTS.md. Never ships.
+.reasonix/
 
 __pycache__/
 *.pyc
