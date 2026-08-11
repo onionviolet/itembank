@@ -306,14 +306,14 @@ Recent decisions affecting current work:
 
 | Phase | State | Resume |
 |-------|-------|--------|
-| 2.1 | verification_deferred_human | $gsd-verify-work 2.1 |
-| 3 | verification_deferred_human | $gsd-verify-work 3 |
-| 4 | verification_deferred_human | $gsd-verify-work 4 |
-| 03.1 | verification_deferred_human | $gsd-verify-work 03.1 — live full-suite + schema_validate run; cross-browser Popover; ClearType 18px render at 375/1280px; 1280/768/375px snapshots (see 03.1-GATES.md + 03.1-UAT.md) |
+| 2.1 | automated_verified_2026-08-11 | human checklist in 02.1-VERIFICATION.md: Windows no-Python .bat, macOS Gatekeeper, Linux .desktop, real-LMS GIFT import |
+| 3 | automated_verified_2026-08-11 | human: full-chapter scroll-smoothness (backstop E1) perceptual check (03-VERIFICATION.md) |
+| 4 | automated_verified_2026-08-11 | human: 7 items — visual walkthrough, native picker, screen-reader, colour-blind, two-editor, backstop 320px/200%, visual adequacy (04-VERIFICATION.md) |
+| 03.1 | automated_verified_2026-08-11 | human: cross-browser Popover; ClearType 18px render at 375/1280px; 1280/768/375px snapshots (03.1-VERIFICATION.md; full suite + schema_validate now live-green) |
 
 ## Session Continuity
 
 Last session: 2026-08-11T14:48:12.553Z
 Stopped at: Completed 08-05-PLAN.md
 Resume file: None
-Deferred human verification: Phases 2.1/3/4 (see Deferred Verification table above)
+Deferred human verification: 2.1 (4 items), 3 (1 item), 4 (7 items), 03.1 (3 items) — see the Deferred Verification table above; every automatable check re-verified live 2026-08-11 in worktree itembank-phase-verify (branch gsd/deferred-verify)
