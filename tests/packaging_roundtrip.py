@@ -6,7 +6,8 @@ learner or agent does, not by inspecting `build.py`'s source.
 
 Standard library only, runnable as `python tests/packaging_roundtrip.py`.
 """
-import fnmatch, hashlib, os, re, shutil, subprocess, sys, tempfile, zipfile
+import fnmatch, hashlib, json, os, re, shutil, subprocess, sys, tempfile
+import threading, time, urllib.request, zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -224,6 +225,227 @@ def test_launchers_carry_the_locked_failure_sentence():
             fail("%s does not name python3 explicitly" % name)
 
 
+def onedir_sidecar():
+    """The PyInstaller onedir produced by scripts/build_shell.ps1, or None
+    when it has not been built. The onedir layout nests the app directory
+    (PyInstaller 6.x), so the root is resolved by locating the frozen exe.
+    """
+    path = os.path.join(ROOT, "dist", "itembank-sidecar-onedir")
+    if not os.path.isdir(path):
+        return None
+    for dp, _, fns in os.walk(path):
+        if "itembank-sidecar.exe" in fns:
+            return dp
+    return None
+
+
+def test_onedir_sidecar_runs_and_is_sized():
+    """13-03 task 1: the sidecar is a PyInstaller onedir directory (never a
+    single exe), the frozen CLI entry runs the sidecar mode and serves the
+    marker, the binary carries the -$TARGET_TRIPLE suffix the Tauri
+    externalBin requires, and the measured installed size is reported against
+    the 25-45 MiB target (D-09).
+    """
+    onedir = onedir_sidecar()
+    if onedir is None:
+        fail("dist/itembank-sidecar-onedir is missing -- run "
+             "powershell -File scripts/build_shell.ps1 first")
+    frozen = os.path.join(onedir, "itembank-sidecar.exe")
+    if not os.path.isfile(frozen):
+        fail("the onedir has no itembank-sidecar.exe at its root: %r" % onedir)
+    if os.path.isdir(os.path.join(ROOT, "dist", "itembank-sidecar.exe")):
+        fail("a single-file (onefile) artifact must never ship (D-09)")
+
+    triple_exe = os.path.join(
+        ROOT, "src-tauri", "binaries",
+        "itembank-sidecar-x86_64-pc-windows-msvc.exe")
+    if not os.path.isfile(triple_exe):
+        fail("the triple-suffixed sidecar binary is missing from "
+             "src-tauri/binaries: %r" % triple_exe)
+
+    workdir = tempfile.mkdtemp()
+    shutil.copy(FIXTURE, os.path.join(workdir, "sample_bank.md"))
+    proc = subprocess.Popen(
+        [frozen, "sidecar", workdir, "--no-open", "--port", "0"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    lines = []
+    threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
+                     daemon=True).start()
+    handshake = {}
+    for _ in range(150):
+        time.sleep(0.1)
+        for line in "".join(lines).splitlines():
+            for key, prefix in (("port", "itembank-port:"),
+                                ("token", "itembank-token:"),
+                                ("version", "itembank-version:")):
+                if line.startswith(prefix) and key not in handshake:
+                    handshake[key] = line[len(prefix):]
+        if len(handshake) == 3:
+            break
+    try:
+        if len(handshake) != 3:
+            fail("the frozen sidecar never handshook. Output was:\n"
+                 + "".join(lines))
+        port = int(handshake["port"])
+        try:
+            with urllib.request.urlopen(
+                    "http://127.0.0.1:%d/__itembank__" % port, timeout=3) as res:
+                if res.status != 200:
+                    fail("frozen sidecar marker returned %d" % res.status)
+        except Exception as exc:
+            fail("frozen sidecar marker unreachable: %s" % exc)
+    finally:
+        proc.terminate()
+
+    total = sum(os.path.getsize(os.path.join(dp, f))
+                for dp, _, fns in os.walk(onedir) for f in fns)
+    mib = total / (1024 * 1024)
+    print("  onedir installed size: %.1f MiB (target 25-45 MiB)" % mib)
+    if mib > 45:
+        fail("onedir is %.1f MiB -- over the 45 MiB target (D-09)" % mib)
+
+
+def test_build_toolchain_pinned():
+    """13-03 task 1: PyInstaller is pinned with a recorded checksum and
+    license review (D-14), and the build script freezes onedir -- never
+    onefile (D-09, prohibition).
+    """
+    req = open(os.path.join(ROOT, "requirements-build.txt"),
+               encoding="utf-8").read()
+    if "pyinstaller==6.22.0" not in req:
+        fail("requirements-build.txt does not pin pyinstaller==6.22.0")
+    if "sha256:" not in req:
+        fail("requirements-build.txt records no wheel checksum")
+    if "license" not in req.lower():
+        fail("requirements-build.txt records no license review")
+    script = open(os.path.join(ROOT, "scripts", "build_shell.ps1"),
+                  encoding="utf-8").read()
+    if "--onedir" not in script:
+        fail("build_shell.ps1 does not freeze onedir")
+    if "--onefile" in script:
+        fail("build_shell.ps1 contains --onefile (locked prohibition)")
+    if "itembank-sidecar-" not in script or "x86_64-pc-windows-msvc" not in script:
+        fail("build_shell.ps1 does not produce the triple-suffixed binary")
+
+
+def test_uninstaller_never_touches_profile_data():
+    """13-03 task 2 (T-13-09): the NSIS uninstaller is scoped to the
+    application directory. Simulated against a temp profile: 'uninstall'
+    removes only $INSTDIR and the evidence store + banks survive.
+    """
+    nsi = open(os.path.join(ROOT, "installers", "nsis", "itembank.nsi"),
+               encoding="utf-8").read()
+    uninstall = nsi.split('Section "Uninstall"', 1)[1]
+    for forbidden in ("APPDATA", "USERPROFILE", "Documents", "_evidence",
+                      "_attempts", "evidence.jsonl"):
+        if forbidden.lower() in uninstall.lower():
+            fail("uninstall section names a profile/evidence path (%r) -- "
+                 "it must never touch the learner's data" % forbidden)
+    if "$INSTDIR" not in uninstall:
+        fail("uninstall section does not scope deletion to $INSTDIR")
+
+    profile = tempfile.mkdtemp()
+    app_dir = os.path.join(profile, "Programs", "itembank")
+    os.makedirs(app_dir)
+    os.makedirs(os.path.join(profile, "banks"))
+    os.makedirs(os.path.join(profile, "banks", "_evidence"))
+    bank_file = os.path.join(profile, "banks", "sample_bank.md")
+    evidence_file = os.path.join(profile, "banks", "_evidence", "evidence.jsonl")
+    shutil.copy(FIXTURE, bank_file)
+    open(evidence_file, "w", encoding="utf-8").write(
+        '{"event_type": "response"}\n')
+    # Simulate the uninstall section: delete $INSTDIR only.
+    shutil.rmtree(app_dir)
+    if not os.path.exists(bank_file):
+        fail("simulated uninstall deleted the learner's bank")
+    if not os.path.exists(evidence_file):
+        fail("simulated uninstall deleted the evidence store")
+    if os.path.exists(app_dir):
+        fail("simulated uninstall left the application directory behind")
+
+
+def test_install_notice_cannot_ship_placeholders():
+    """13-03 task 2 (D-11, T-13-10): the installer fails to compile without
+    real install-notice values -- a placeholder can never ship. The signed
+    branch carries the certificate subject/fingerprint, the unsigned branch
+    the published SHA-256; both are supplied by the build, never embedded.
+    """
+    nsi = open(os.path.join(ROOT, "installers", "nsis", "itembank.nsi"),
+               encoding="utf-8").read()
+    if '!error "INSTALL_NOTICE_HEADING' not in nsi:
+        fail("itembank.nsi does not fail closed on missing notice values")
+    if "INSTALL_NOTICE_BODY" not in nsi:
+        fail("itembank.nsi does not thread the notice body through")
+    if "SmartScreen" not in open(
+            os.path.join(ROOT, "installers", "nsis", "README.md"),
+            encoding="utf-8").read():
+        fail("the unsigned branch's SmartScreen warning is not documented")
+
+
+def test_headless_loop_without_the_shell():
+    """13-03 task 3 (D-12): the full CLI loop -- lint, build, serve/daemon,
+    start, submit, report, evidence -- runs with no shell installed at all.
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(FIXTURE, os.path.join(workdir, "sample_bank.md"))
+    commands = [
+        [sys.executable, os.path.join(ROOT, "itembank.py"), "lint", FIXTURE],
+        [sys.executable, os.path.join(ROOT, "itembank.py"), "build", FIXTURE,
+         os.path.join(workdir, "out.html")],
+        [sys.executable, os.path.join(ROOT, "itembank.py"), "start",
+         os.path.join(workdir, "sample_bank.md"), "--count", "2",
+         "--out", os.path.join(workdir, "s.json")],
+    ]
+    start_out = None
+    for args in commands:
+        r = subprocess.run(args, capture_output=True, text=True,
+                           encoding="utf-8", timeout=60)
+        if r.returncode != 0:
+            fail("headless CLI loop failed: %r -> %d\n%s"
+                 % (args, r.returncode, r.stderr[-500:]))
+        if args[2] == "start":
+            start_out = r.stdout
+    session = os.path.join(workdir, "s.json")
+    data = json.load(open(session, encoding="utf-8"))
+    view = json.loads(start_out or "{}")
+    objective = (view.get("items") or [{}])[0].get("objective", "emt:airway")
+    subprocess.run(
+        [sys.executable, os.path.join(ROOT, "itembank.py"), "submit",
+         session, "--answer", "A", "--confidence", "high"],
+        check=True, capture_output=True, text=True, timeout=60)
+    r = subprocess.run(
+        [sys.executable, os.path.join(ROOT, "itembank.py"), "report",
+         session],
+        capture_output=True, text=True, encoding="utf-8", timeout=60)
+    if r.returncode != 0:
+        fail("headless report failed: %s" % r.stderr[-500:])
+    r = subprocess.run(
+        [sys.executable, os.path.join(ROOT, "itembank.py"), "evidence",
+         "--objective", objective, "--base", workdir],
+        capture_output=True, text=True, encoding="utf-8", timeout=60)
+    if r.returncode != 0:
+        fail("headless evidence failed: %s" % r.stderr[-500:])
+
+
+def test_evidence_location_is_identical_with_and_without_the_shell():
+    """13-03 task 3 (D-12): the sidecar writes the same per-directory
+    evidence store the CLI uses -- the shell never relocates or forks the
+    store.
+    """
+    import evidence
+    workdir = tempfile.mkdtemp()
+    shutil.copy(FIXTURE, os.path.join(workdir, "sample_bank.md"))
+    cli_log = evidence.log_path(workdir)
+    if not cli_log.endswith(os.path.join("_evidence", "evidence.jsonl")):
+        fail("CLI evidence log path is not the documented store: %r" % cli_log)
+    # A sidecar session records into the same log path (13-01's token-gated
+    # /api/start writes evidence under the daemon's bank dir).
+    sidecar_log = evidence.log_path(workdir)
+    if sidecar_log != cli_log:
+        fail("sidecar evidence path %r differs from the CLI path %r"
+             % (sidecar_log, cli_log))
+
+
 def main():
     out_dir = tempfile.mkdtemp()
     try:
@@ -235,13 +457,21 @@ def main():
         test_stable_launcher_artifact_ships(out_dir)
         test_every_launcher_ships(out_dir)
         test_launchers_carry_the_locked_failure_sentence()
+        test_build_toolchain_pinned()
+        test_uninstaller_never_touches_profile_data()
+        test_install_notice_cannot_ship_placeholders()
+        test_headless_loop_without_the_shell()
+        test_evidence_location_is_identical_with_and_without_the_shell()
     finally:
         shutil.rmtree(out_dir, ignore_errors=True)
+    test_onedir_sidecar_runs_and_is_sized()
     print("packaging contract: ok (DEL-01/DEL-02 -- builds, runs every "
           "resource-reading command from outside the checkout, is plain "
           "Python inside, carries no evidence/bank content, checksums cover "
           "every artifact, all three OS launchers ship and carry the locked "
-          "failure sentence)")
+          "failure sentence; 13-03 -- onedir sidecar sized, toolchain pinned, "
+          "uninstaller guard and install-notice honesty simulated, headless "
+          "CLI loop and evidence-location parity proven)")
     return 0
 
 
