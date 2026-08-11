@@ -6,18 +6,21 @@ than an edit here and there.
 """
 import argparse, collections, json, os, sys
 
+import selection
 from model import (BANK_FILE_HINTS, SPEC, lint, load, parse_bank,
                    parse_key_blocks, parse_lesson, parse_terms)
 from surfaces.anki import cmd_export
-from surfaces.daemon import cmd_cli_twin, cmd_daemon, cmd_sidecar
+from surfaces.daemon import (cmd_cli_twin, cmd_daemon, cmd_disclosure,
+                             cmd_sidecar)
 from surfaces.day import cmd_day
 from surfaces.evidence_cli import (cmd_evidence, cmd_id_assign, cmd_mark, cmd_render,
                                    cmd_retract)
+from surfaces.import_anki import cmd_import_anki
 from surfaces.lesson import cmd_gloss, cmd_key_review, cmd_lesson, cmd_render_style
 from surfaces.migrate import cmd_migrate
 from surfaces.protocol_cli import cmd_schema
 from surfaces.quiz import cmd_build, cmd_serve
-from surfaces.session import cmd_next, cmd_report, cmd_start, cmd_submit
+from surfaces.session import cmd_hint, cmd_next, cmd_report, cmd_start, cmd_submit
 from surfaces.settings import cmd_config
 from surfaces.study import cmd_study
 from surfaces.theme import cmd_theme
@@ -257,6 +260,11 @@ def main():
     s.add_argument("path")
     s.set_defaults(fn=cmd_cli_twin)
 
+    s = sub.add_parser("disclosure", help="print the one-disclosure render-"
+                       "hook state (notified_at, locked copy, settings path)")
+    s.add_argument("dir", nargs="?", default=".")
+    s.set_defaults(fn=cmd_disclosure)
+
     s = sub.add_parser("stats", help="item mix, coverage, answer-position skew")
     s.add_argument("bank")
     s.set_defaults(fn=cmd_stats)
@@ -267,6 +275,11 @@ def main():
     s.add_argument("--objective", default="", help="limit the session to one objective")
     s.add_argument("--mode", default="diagnostic",
                    choices=("diagnostic", "practice", "exam", "remediation", "drill"))
+    s.add_argument("--selection-mode", default="practice",
+                   choices=selection.SELECTION_MODES,
+                   help="how the session is composed (diagnostic, practice, "
+                        "remediation, exam) -- not the feedback policy that "
+                        "--mode sets")
     s.add_argument("--seed", type=int, default=0, help="deterministic item-selection seed")
     s.add_argument("--out", help="session JSON path")
     s.add_argument("--force", action="store_true", help="start despite lint errors")
@@ -283,6 +296,14 @@ def main():
     s.add_argument("--confidence", choices=("high", "medium", "low"), default=None,
                    help="the learner's self-rated confidence in this response, optional")
     s.set_defaults(fn=cmd_submit)
+
+    s = sub.add_parser("hint", help="reveal the next fixed authored tier in a JSON "
+                                    "assessment session")
+    s.add_argument("session")
+    s.add_argument("--stumped", action="store_true",
+                   help="unlock and show the next tier via the stumped path "
+                        "(no performative wrong submission)")
+    s.set_defaults(fn=cmd_hint)
 
     s = sub.add_parser("report", help="summarize a JSON assessment session")
     s.add_argument("session")
@@ -522,6 +543,18 @@ def main():
     s.add_argument("--timeout", type=int, default=30,
                    help="network timeout in seconds (default: 30)")
     s.set_defaults(fn=cmd_update)
+
+    s = sub.add_parser("import", help="import external content into itembank candidates")
+    imp = s.add_subparsers(dest="import_format", required=True)
+    apk = imp.add_parser("anki", help="import an Anki .apkg deck")
+    apk.add_argument("file", help="path to the .apkg file")
+    apk.add_argument("--out",
+                     help="directory for the per-note report and staged candidates "
+                          "(default: current directory)")
+    apk.add_argument("--force", action="store_true",
+                     help="exit 0 even when no note converted; the model.lint() gate "
+                          "is never bypassed")
+    apk.set_defaults(fn=cmd_import_anki)
 
     s = sub.add_parser("guard", help="fail if a real bank was committed")
     s.add_argument("dir", nargs="?", default=".")

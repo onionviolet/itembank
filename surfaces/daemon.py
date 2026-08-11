@@ -17,6 +17,7 @@ import datetime, errno, hashlib, html, json, os, re, secrets, socket, socketserv
 import urllib.parse, urllib.request, uuid
 
 import evidence
+import selection
 import server
 from model import (lesson_slug, load, parse_bank, parse_key_blocks,
                    parse_lesson, parse_terms)
@@ -89,18 +90,17 @@ DAY_EDIT_RE = re.compile(r"^/day/(?P<stem>[^/]+)/edit$")
 DAY_EDIT_ALLOWED_FIELDS = ("revision", "edits", "force_token", "confirmation",
                            "force")
 
-# The four `/api/*` session routes D-04 scopes for this phase. Fixed
-# literals, not stem-parameterised: a session or a bank is addressed by an
-# opaque identifier in the JSON body (T-2-01), never by a path segment, so
-# there is no `<stem>`/`<id>` group in any of these patterns at all. The
-# four-entry length is asserted by `check_api_route_scope` in
-# `tests/daemon_roundtrip.py` and by this plan's own acceptance criteria --
-# the browser-holds-no-key rework that would want more of them is Phase 4's
-# SURF-02 job, not this one.
+# The `/api/*` session routes: D-04's four plus Phase 6's `/api/hint`.
+# Fixed literals, not stem-parameterised: a session or a bank is addressed
+# by an opaque identifier in the JSON body (T-2-01), never by a path
+# segment, so there is no `<stem>`/`<id>` group in any of these patterns at
+# all. The five-entry length is asserted by `check_api_route_scope` in
+# `tests/daemon_roundtrip.py` and by this plan's own acceptance criteria.
 API_ROUTES = (
     ("POST", "/api/start", "handle_api_start"),
     ("POST", "/api/next", "handle_api_next"),
     ("POST", "/api/submit", "handle_api_submit"),
+    ("POST", "/api/hint", "handle_api_hint"),
     ("POST", "/api/report", "handle_api_report"),
 )
 
@@ -117,6 +117,7 @@ ROUTES = (
     ("GET", "/day", "handle_day_index"),
     ("GET", "/report", "handle_report_get"),
     ("GET", "/settings", "handle_settings_get"),
+    ("GET", "/disclosure", "handle_disclosure"),
     ("POST", "/api/theme", "handle_theme_post"),
     ("POST", "/cli-twin", "handle_cli_twin"),
 ) + API_ROUTES + (
@@ -142,11 +143,13 @@ ROUTE_CLI = {
     ("GET", MARKER_PATH): "daemon",
     ("GET", "/report"): "report",
     ("GET", "/settings"): "theme",
+    ("GET", "/disclosure"): "disclosure",
     ("POST", "/api/theme"): "theme",
     ("POST", "/cli-twin"): "cli-twin",
     ("POST", "/api/start"): "start",
     ("POST", "/api/next"): "next",
     ("POST", "/api/submit"): "submit",
+    ("POST", "/api/hint"): "hint",
     ("POST", "/api/report"): "report",
     ("GET", QUIZ_GET_RE): "serve",
     ("POST", QUIZ_ANSWER_RE): "serve",
@@ -210,6 +213,18 @@ def handle_cli_twin(handler):
         return
     handler.send_bytes(json.dumps({"command": command}).encode("utf-8"),
                        "application/json")
+
+
+def handle_disclosure(handler):
+    """`GET /disclosure` -- the one-disclosure render hook the shell's
+    StatusNotice reads (13-UI-SPEC 7.2): the daemon owns the single
+    `notified_at` record; showing the notice performs no check (the policy
+    gate already ran at daemon start). Read-only, token-gated like every
+    route except the probe marker.
+    """
+    handler.send_bytes(
+        json.dumps(update.disclosure_state(handler.root)).encode("utf-8"),
+        "application/json")
 
 
 def scan_dir(root):
@@ -740,18 +755,13 @@ def handle_quiz_get(handler, stem):
 
 
 def handle_quiz_answer(handler, stem):
-    """`POST /quiz/<stem>/answer` -- score and record one response against
-    the one bank the client's stem resolves to. This function never calls
-    `score_response` or `evidence.append_event` directly; it goes through
-    `quiz.record_answer`, which keeps "one scorer, one writer" structural
-    rather than remembered.
-
-    `reveal` (whether `explain_payload` returns the short-item model answer)
-    and `progress` (whether to write the "d/N answered, saved" progress line
-    `cmd_serve` used to write from its own closure) both come off the bank's
-    session dict, defaulting to off -- a general multi-bank daemon launch
-    never sets either, so its behaviour is unchanged; `cmd_serve`'s scoped
-    launch sets both through `serve_scoped`'s `extra`.
+    """`POST /quiz/<stem>/answer` -- the legacy served-page answer route,
+    now a compatibility wrapper over the one session adapter (06-02 Task 3):
+    it resolves the API session `/api/start` created for this bank stem and
+    submits through `session.do_action`, so there is exactly one scoring,
+    persistence and policy path for the served browser. `cmd_serve`'s
+    progress line and attempt-file regeneration are preserved through the
+    scoped session config's `_refresh_attempt_view`.
     """
     if _reject_cross_origin(handler):
         return
@@ -774,24 +784,22 @@ def handle_quiz_answer(handler, stem):
             # fabricated number, matching `cmd_serve`'s own type guard.
             elapsed_ms = None
         sess = handler.sessions[stem]
-        size_before = os.path.getsize(sess["log"]) if os.path.exists(sess["log"]) else -1
-        score = quiz.record_answer(path, qs, sess["session_id"], sess["log"], sess["out"],
-                                   sess["mode"], q, data.get("response"), elapsed_ms)
-        if sess.get("progress"):
-            # The only feedback a learner sitting `itembank serve` gets that
-            # an answer was actually written to disk -- preserved from the
-            # closure `cmd_serve` used to hold before it lost its own
-            # handler class.
-            already = size_before >= 0 and os.path.getsize(sess["log"]) == size_before
-            answered = len(set(ev["item_ref"]
-                               for ev in evidence.session_events(sess["log"], sess["session_id"])))
-            note = " (already recorded)" if already else ""
-            sys.stdout.write("\r  %d/%d answered, saved%s" % (answered, len(qs), note))
-            sys.stdout.flush()
-            if answered >= len(qs):
-                print("\n  finished. Attempt file: %s" % sess["out"])
-        payload = {"item_id": q["id"], "score": score,
-                   "explain": explain_payload(q, sess.get("reveal", False))}
+        # Resolve the JSON session the served page started through
+        # /api/start (its session_id was registered against this stem), so
+        # the legacy route and the API route share one session file.
+        api_id = sess.get("api_session_id")
+        session_file = api_session_path(handler, api_id) if api_id else None
+        if session_file is None:
+            handler.send_error(400, "no API session for this bank stem; start the "
+                               "sitting through /api/start first")
+            return
+        result = session.do_action(
+            session_file, {"kind": "submit", "answer": data.get("response")},
+            confidence=None, renderer_meta=None)
+        if result.get("action") in ("advance", "complete") and q is not None:
+            result["explain"] = explain_payload(q, bool(sess.get("reveal")))
+        _refresh_attempt_view(sess, api_id, qs, path)
+        payload = result
     except Exception as exc:                    # never let a bad POST kill the daemon
         handler.send_server_error(exc)
         return
@@ -1150,7 +1158,19 @@ CONFIDENCE_LEVELS = ("high", "medium", "low")
 # can never reintroduce the raw-path surface D-03's bank allowlist already
 # closed once (T-2-01).
 API_FORBIDDEN_FIELDS = ("session", "bank_path", "out",
-                        "item_id", "score", "key", "explanation")
+                        "item_id", "score", "key", "explanation",
+                        # Phase 6 authority-shaped fields (T-06-12): mode,
+                        # tier, correct, advance, reveal and the concrete
+                        # visual/canvas action/observation state that
+                        # belongs exclusively to Phase 06.1 are refused by
+                        # name before any policy work.
+                        "mode", "tier", "correct", "advance", "reveal",
+                        "observation", "canvas_state")
+
+# The only renderer handoff Phase 6 accepts: one opaque UTF-8 string of at
+# most 256 bytes, discarded before policy/persistence/evidence/logs
+# (D-12/T-06-12). Mirrors surfaces/session.RENDERER_META_MAX_BYTES.
+RENDERER_META_MAX_BYTES = 256
 
 
 def session_index(root):
@@ -1235,7 +1255,7 @@ def api_session_path(handler, session_id):
 
 def handle_api_start(handler):
     """`POST /api/start` -- `{"bank": "<stem>", "count", "objective", "mode",
-    "seed", "focus"}`. `bank` is resolved through the same stem allowlist the GET
+    "seed", "focus", "selection_mode"}`. `bank` is resolved through the same stem allowlist the GET
     routes use: a value that is not a key in `handler.banks` is a 404, full
     stop -- it is never joined to a path, never normalised, never checked
     for traversal segments, because it is never treated as a path at all.
@@ -1264,6 +1284,9 @@ def handle_api_start(handler):
     mode = data.get("mode", "diagnostic")
     if mode not in SESSION_MODES:
         mode = "diagnostic"
+    selection_mode = data.get("selection_mode", "practice")
+    if selection_mode not in selection.SELECTION_MODES:
+        selection_mode = "practice"
     objective = data.get("objective", "")
     if not isinstance(objective, str):
         objective = ""
@@ -1273,7 +1296,8 @@ def handle_api_start(handler):
     # The D-09 focus pin and the selection fields ride inside the spec dict
     # the working tree's `session.do_start(bank_path, spec, mode, out, force)`
     # takes -- the same signature `itembank start`'s own CLI path uses.
-    spec = {"objective": objective, "count": count, "seed": seed}
+    spec = {"objective": objective, "count": count, "seed": seed,
+            "selection_mode": selection_mode}
     if focus:
         spec["focus"] = focus
     out = os.path.join(os.path.abspath(handler.root), "_attempts",
@@ -1364,21 +1388,27 @@ def _refresh_attempt_view(cfg, session_id, qs, bank_path):
 
 
 def handle_api_submit(handler):
-    """`POST /api/submit` -- `{"session_id": "<id>", "answer": ..., "confidence"}`.
-    `answer` is passed through untouched (`session.do_submit` normalizes it
+    """`POST /api/submit` -- `{"session_id": "<id>", "answer": ...}` or the
+    normalized Phase 6 action envelope `{"action": {"kind": "submit",
+    "answer": ...}}`, plus the optional opaque `renderer_meta` string (at
+    most 256 UTF-8 bytes, discarded before policy, never persisted). The two
+    answer representations are mutually exclusive (T-06-12).
+
+    `answer` is passed through untouched (`session.do_action` normalizes it
     the same way the CLI's `--answer` string already was); `confidence`
     must be one of the three levels or absent.
 
     The current question is resolved server-side from the allowlisted session
-    BEFORE `session.do_submit` runs -- the cursor advances inside `do_submit`,
-    and the explanation must describe the item just answered. The server-issued
+    BEFORE `session.do_action` runs -- the cursor advances only when the
+    runtime transition returns advance/complete. The server-issued
     `explain_payload` for that exact question is appended to the result under
-    the scoped session's reveal policy. A client field claiming an item id,
-    score, key or explanation was already rejected by `api_read_json`'s
-    forbidden-field gate (T-04-01). Finally, when this session was registered
-    against a bank stem carrying a scoped `serve` launch, the configured
-    attempt view is regenerated atomically and progress is printed from the
-    API session's own evidence.
+    the scoped session's reveal policy and only for actions that legally
+    release it (drill/practice advance/complete; diagnostic and exam never).
+    A client field claiming an item id, score, key or explanation was already
+    rejected by `api_read_json`'s forbidden-field gate (T-04-01/T-06-12).
+    Finally, when this session was registered against a bank stem carrying a
+    scoped `serve` launch, the configured attempt view is regenerated
+    atomically and progress is printed from the API session's own evidence.
     """
     if _reject_cross_origin(handler):
         return
@@ -1395,9 +1425,41 @@ def handle_api_submit(handler):
         handler.send_error(
             400, "confidence must be one of %s" % ", ".join(CONFIDENCE_LEVELS))
         return
-    answer = data.get("answer")
+    renderer_meta = data.get("renderer_meta")
+    if renderer_meta is not None and not isinstance(renderer_meta, str):
+        handler.send_error(400, "renderer_meta must be a string or absent")
+        return
+    if isinstance(renderer_meta, str) and \
+            len(renderer_meta.encode("utf-8")) > RENDERER_META_MAX_BYTES:
+        handler.send_error(400, "renderer_meta must be at most %d UTF-8 bytes"
+                           % RENDERER_META_MAX_BYTES)
+        return
+    action = data.get("action")
+    if action is not None:
+        if not isinstance(action, dict):
+            handler.send_error(400, "action must be an object")
+            return
+        if action.get("kind") != "submit":
+            handler.send_error(400, "action.kind must be 'submit' on /api/submit")
+            return
+        if "answer" in data and "answer" in action:
+            handler.send_error(400, "answer given both top-level and inside action")
+            return
+        if "answer" not in action:
+            handler.send_error(400, "action must carry answer")
+            return
+        # Extra authority-shaped keys inside the action are refused by name.
+        bad = api_reject_path_fields(action)
+        if bad or any(k in action for k in
+                      ("mode", "tier", "correct", "advance", "reveal",
+                       "observation", "canvas_state")):
+            handler.send_error(400, "action carries an authority-shaped field")
+            return
+        answer = action.get("answer")
+    else:
+        answer = data.get("answer")
     # Pre-submit read: resolve the current question before do_submit advances
-    # the cursor. Failures here are deliberately swallowed -- do_submit itself
+    # the cursor. Failures here are deliberately swallowed -- do_action itself
     # validates the session and reports the authoritative error.
     q = None
     qs = []
@@ -1416,7 +1478,9 @@ def handle_api_submit(handler):
     except Exception:
         q = None
     try:
-        result = session.do_submit(path, answer, confidence)
+        result = session.do_action(
+            path, {"kind": "submit", "answer": answer},
+            confidence=confidence, renderer_meta=renderer_meta)
     except SystemExit as exc:
         handler.send_error(400, str(exc.code))
         return
@@ -1424,11 +1488,49 @@ def handle_api_submit(handler):
         handler.send_server_error(exc)
         return
     cfg = _scoped_session_for(handler, session_id)
-    if q is not None:
+    mode = None
+    try:
+        pre2 = read_session(path)
+        mode = pre2.get("mode")
+    except Exception:
+        mode = None
+    release_explain = result.get("action") in ("advance", "complete") and \
+        mode in ("practice", "drill", "remediation")
+    if q is not None and release_explain:
         result["explain"] = explain_payload(
             q, bool(cfg.get("reveal")) if cfg is not None else False)
     if cfg is not None and result.get("accepted") and qs:
         _refresh_attempt_view(cfg, session_id, qs, bank_path)
+    handler.send_json(result)
+
+
+def handle_api_hint(handler):
+    """`POST /api/hint` -- `{"session_id": "<id>", "stumped": bool}`.
+    Identifier-addressed exactly like the other /api/* session routes;
+    returns the same structured payload as the CLI `hint` command, including
+    stumped behavior (TEACH-02)."""
+    if _reject_cross_origin(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    session_id = data.get("session_id")
+    path = api_session_path(handler, session_id)
+    if path is None:
+        handler.send_not_found(session_id if isinstance(session_id, str) else "")
+        return
+    stumped = data.get("stumped", False)
+    if not isinstance(stumped, bool):
+        handler.send_error(400, "stumped must be a boolean")
+        return
+    try:
+        result = session.do_hint(path, stumped=stumped)
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    except Exception as exc:
+        handler.send_server_error(exc)
+        return
     handler.send_json(result)
 
 
@@ -1903,4 +2005,14 @@ def cmd_cli_twin(a):
         print("no CLI twin for %s" % a.path)
         return 1
     print(command)
+    return 0
+
+
+def cmd_disclosure(a):
+    """The CLI twin of the /disclosure route: prints the one-disclosure
+    render-hook state (13-UI-SPEC 7.2) so the route/CLI inventory stays
+    honest -- every route has a real CLI command.
+    """
+    print(json.dumps(update.disclosure_state(a.dir), ensure_ascii=False,
+                     indent=2))
     return 0

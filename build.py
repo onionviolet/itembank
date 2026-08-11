@@ -12,8 +12,11 @@ Dev-time tooling only: imported by nothing at runtime, and therefore not
 staged into the artifact it builds.
 """
 import argparse
+import datetime
 import hashlib
+import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -104,14 +107,57 @@ def sha256sums(out_dir):
     return target
 
 
-def latest_json_hook(out_dir):
-    """The `latest.json` generation hook for the Tauri updater (D-08): plan
-    13-04 wires this to the release's version/notes/platform signatures and
-    publishes it beside SHA256SUMS.txt. The hook exists now so the release
-    step has a named seam; until 13-04 fills it, it writes nothing and the
-    CLI updater's SHA256SUMS.txt channel remains the only manifest.
+def latest_json(out_dir, tag, installer_name, signature):
+    """Write the `latest.json` tauri-plugin-updater manifest beside
+    SHA256SUMS.txt (13-RESEARCH section 2 table): one GitHub Releases
+    channel, two consumers -- the Python updater reads SHA256SUMS.txt, the
+    Tauri updater reads this manifest, both from the same tag (D-08).
+
+    `signature` is the base64 minisign signature over the installer bytes,
+    produced by the release pipeline's signing step (key material is a build
+    secret, never committed).
     """
-    return None
+    payload = {
+        "version": tag.lstrip("v"),
+        "notes": "",
+        "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"),
+        "platforms": {
+            "windows-x86_64": {
+                "signature": signature,
+                "url": "https://github.com/onionviolet/itembank/releases/"
+                       "download/%s/%s" % (tag, installer_name),
+            },
+        },
+    }
+    target = os.path.join(out_dir, "latest.json")
+    with open(target, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, indent=2)
+        fh.write("\n")
+    return target
+
+
+def latest_json_hook(out_dir):
+    """The release-step wiring for `latest_json`: when the NSIS installer and
+    its minisign signature are both present in out_dir, publish latest.json
+    for the same tag beside SHA256SUMS.txt. Before the signing step produces
+    them (or when makensis is absent and no installer exists), it writes
+    nothing and returns None -- the CLI updater's SHA256SUMS.txt channel
+    remains the only manifest, honestly.
+    """
+    installers = sorted(f for f in os.listdir(out_dir)
+                        if f.endswith("-setup.exe"))
+    sigs = sorted(f for f in os.listdir(out_dir) if f.endswith(".sig"))
+    if not installers or not sigs:
+        return None
+    installer = installers[0]
+    m = re.match(r"itembank-([^-]+)-setup\.exe$", installer)
+    if not m:
+        return None
+    tag = "v" + m.group(1)
+    signature = open(os.path.join(out_dir, sigs[0]),
+                     encoding="utf-8").read().strip()
+    return latest_json(out_dir, tag, installer, signature)
 
 
 def copy_launchers(out_dir):

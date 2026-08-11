@@ -53,6 +53,7 @@ impl ShellState {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![restart_runtime, focus_running_instance])
         .setup(|app| {
             let app_handle = app.handle().clone();
@@ -202,6 +203,12 @@ fn spawn_and_connect(
     *app_state.proxy.lock().unwrap() = Some(Arc::clone(&proxy));
     // The proxy Arc keeps the listener alive; leak it for the app lifetime.
     std::mem::forget(proxy);
+
+    // The one-disclosure StatusNotice (13-UI-SPEC 7.2): read the daemon-owned
+    // disclosure state and arm the proxy to inject it into the FIRST page
+    // load. Showing performs no check -- the daemon's policy gate already
+    // ran at its startup, and this launch creates no request of its own.
+    arm_disclosure_notice(app_state);
 
     let daemon_url = Url::parse(&format!("http://127.0.0.1:{proxy_port}/"))
         .map_err(|e| tauri::Error::AssetNotFound(e.to_string().into()))?;
@@ -471,6 +478,65 @@ fn urlencode(s: &str) -> String {
         }
     }
     out
+}
+
+
+fn html_escape(s: &str) -> String {
+    let mut out = String::new();
+    for ch in s.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
+fn arm_disclosure_notice(app_state: &Arc<ShellState>) {
+    let Some(proxy_port) = *app_state.proxy_port.lock().unwrap() else {
+        return;
+    };
+    let (status, text) =
+        proxy::proxy_request(proxy_port, "GET", "/disclosure", b"")
+            .unwrap_or((0, String::new()));
+    if status != 200 {
+        return;
+    }
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return;
+    };
+    if value.get("show").and_then(|s| s.as_bool()) != Some(true) {
+        return;
+    }
+    let copy = value
+        .get("copy")
+        .and_then(|c| c.as_str())
+        .unwrap_or_default();
+    let settings_path = value
+        .get("settings_path")
+        .and_then(|p| p.as_str())
+        .unwrap_or_default();
+    let notice = format!(
+        "<div id=\"itembank-update-disclosure\" role=\"status\" \
+         style=\"border:1px solid var(--line);border-radius:8px;padding:12px 16px;\
+         margin:16px 0;background:var(--card);\">\
+         <p style=\"margin:0 0 8px;\">{copy}</p>\
+         <p style=\"margin:0 0 8px;\">Your settings file is at \
+         <span style=\"font-family:var(--font-ledger,ui-monospace,Consolas,monospace);\
+         font-size:12px;\">{settings_path}</span>.</p>\
+         <button type=\"button\" onclick=\"this.parentElement.remove()\" \
+         style=\"min-height:44px;padding:0 20px;border-radius:8px;\
+         border:1px solid var(--line);background:var(--accent);color:var(--card);\
+         font:inherit;font-weight:600;\">Got it</button></div>",
+        copy = html_escape(copy),
+        settings_path = html_escape(settings_path)
+    );
+    if let Some(proxy) = app_state.proxy.lock().unwrap().as_ref() {
+        proxy.inject_notice(&notice);
+    }
 }
 
 fn now_iso() -> String {

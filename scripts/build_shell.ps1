@@ -72,3 +72,21 @@ if (Get-Command npx -ErrorAction SilentlyContinue) {
 } else {
     Write-Host "Tauri CLI unavailable (npx missing) - bundle skipped"
 }
+
+# 6. The updater assets (D-08, 13-RESEARCH section 2): the minisign
+#    signature over the installer bytes, then latest.json beside
+#    SHA256SUMS.txt from the same tag. The signing key is a build secret
+#    (ITEMBANK_MINISIGN_KEY); without it or the installer, the step degrades
+#    honestly -- the CLI updater's SHA256SUMS.txt channel is unchanged.
+$Installer = Get-ChildItem $Out -Filter "itembank-*-setup.exe" -ErrorAction SilentlyContinue
+$Minisign = Get-Command minisign -ErrorAction SilentlyContinue
+if ($Installer -and $Minisign -and $env:ITEMBANK_MINISIGN_KEY) {
+    minisign -S -s $env:ITEMBANK_MINISIGN_KEY -m $Installer.FullName
+    if ($LASTEXITCODE -ne 0) { throw "minisign signing failed" }
+    python build.py --out $Out
+    Write-Host "latest.json + minisign signature published for " $Installer.Name
+} elseif (-not $Installer) {
+    Write-Host "latest.json + signature skipped: no installer produced (makensis absent)"
+} else {
+    Write-Host "latest.json + signature skipped: minisign or ITEMBANK_MINISIGN_KEY absent (build secret required)"
+}

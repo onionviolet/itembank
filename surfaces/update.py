@@ -279,6 +279,32 @@ def write_check_state(base, **fields):
     os.replace(tmp, target)
 
 
+def disclosure_state(base):
+    """The one-disclosure render hook (13-UI-SPEC 7.2 items 3-5): the daemon
+    owns the single `notified_at` record, and the shell renders the locked
+    02.1 copy plus the one additive settings-path line as a StatusNotice on
+    the first surface. Showing the notice performs no check -- the policy
+    gate already ran at daemon start, so the launch that shows it does not
+    create a request (one record, one behaviour, two renderings).
+
+    Returns the dict the shell (and the /disclosure route) reads; `show` is
+    True exactly when no `notified_at` has ever been written.
+    """
+    state = read_check_state(base)
+    cfg = settings.load_settings(base)
+    interval = cfg["update"]["check_interval_hours"]
+    copy = ("itembank will check GitHub for a new version at most once every "
+            "%s hours. Nothing but the request leaves this machine. Set "
+            "\"update_policy\": \"opt_in\" in itembank.json to turn it off. "
+            "This notice appears once." % interval)
+    return {
+        "show": not state.get("notified_at"),
+        "notified_at": state.get("notified_at"),
+        "copy": copy,
+        "settings_path": os.path.abspath(os.path.join(base, "itembank.json")),
+    }
+
+
 def check_latest(repo, timeout=5, token=None, status=None):
     """Fetch GitHub's releases/latest document for `repo` (an `owner/name`
     string -- the caller's job to source from settings, never hardcoded or

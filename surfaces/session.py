@@ -85,8 +85,18 @@ def do_start(bank_path, spec, mode, out, force):
             "objective": sel_spec.get("objective") or "",
             "seed": sel_spec.get("seed", 0),
             "served_ts": evidence.utc_now(),
-            "teaching_state": {}}
+            "teaching_state": {},
+            "selection_mode": sel_spec.get("selection_mode", "practice")}
     write_session(out, data)
+    # D-03: one `selection` event per sitting, appended only after the
+    # session file was written, through the one evidence writer -- a session
+    # that failed to write leaves no orphan claim in the log, and the record
+    # of what was asked survives the session file being deleted.
+    evidence.append_event(
+        evidence.log_path(os.path.dirname(os.path.abspath(bank_path)) or "."),
+        evidence.selection_event(
+            data["session_id"], os.path.basename(bank_path), sel_spec,
+            [evidence.evidence_key(qs[i]) for i in items]))
     result = session_view(data, qs)
     result["session_file"] = session_path(out)
     result["trace"] = trace
@@ -94,7 +104,8 @@ def do_start(bank_path, spec, mode, out, force):
 
 
 def cmd_start(a):
-    spec = {"objective": a.objective, "count": a.count, "seed": a.seed}
+    spec = {"objective": a.objective, "count": a.count, "seed": a.seed,
+            "selection_mode": a.selection_mode}
     result = do_start(a.bank, spec, a.mode, a.out, a.force)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0

@@ -18,6 +18,7 @@ pub struct Proxy {
     target: SocketAddr,
     token: String,
     last_path: Arc<Mutex<String>>,
+    notice: Arc<Mutex<Option<String>>>,
 }
 
 impl Proxy {
@@ -32,6 +33,7 @@ impl Proxy {
             target,
             token,
             last_path: Arc::new(Mutex::new("/".to_string())),
+            notice: Arc::new(Mutex::new(None)),
         });
         let shared = Arc::clone(&proxy);
         thread::spawn(move || {
@@ -40,8 +42,10 @@ impl Proxy {
                     Ok(stream) => {
                         let proxy = Arc::clone(&shared);
                         let last_path = Arc::clone(&shared.last_path);
+                        let notice = Arc::clone(&shared.notice);
                         thread::spawn(move || {
-                            let _ = handle_connection(stream, proxy.target, &proxy.token, &last_path);
+                            let _ = handle_connection(
+                                stream, proxy.target, &proxy.token, &last_path, &notice);
                         });
                     }
                     Err(_) => break,
@@ -59,6 +63,12 @@ impl Proxy {
     /// the CLI-twin menu item (the daemon still owns the mapping).
     pub fn last_path(&self) -> String {
         self.last_path.lock().unwrap().clone()
+    }
+
+    /// Inject a StatusNotice into the next HTML response the proxy serves,
+    /// exactly once (the one-disclosure render-once rule, 13-UI-SPEC 7.2).
+    pub fn inject_notice(&self, html: &str) {
+        *self.notice.lock().unwrap() = Some(html.to_string());
     }
 }
 
@@ -93,6 +103,7 @@ fn handle_connection(
     target: SocketAddr,
     token: &str,
     last_path: &Arc<Mutex<String>>,
+    notice: &Arc<Mutex<Option<String>>>,
 ) {
     let head = match read_head(&mut client) {
         Ok(head) => head,
@@ -136,6 +147,21 @@ fn handle_connection(
             return;
         }
         if let Ok((status_line, headers, resp_body)) = read_response(&mut upstream) {
+            let is_html = headers.iter().any(|(name, value)| {
+                name.eq_ignore_ascii_case("content-type")
+                    && value.to_ascii_lowercase().contains("html")
+            });
+            let mut body = resp_body;
+            if is_html {
+                if let Some(n) = notice.lock().unwrap().take() {
+                    if let Some(idx) = body.rfind("</body>") {
+                        let mut injected = body[..idx].to_string();
+                        injected.push_str(&n);
+                        injected.push_str(&body[idx..]);
+                        body = injected;
+                    }
+                }
+            }
             let mut reply: Vec<u8> = Vec::with_capacity(1024);
             reply.extend_from_slice(status_line.as_bytes());
             for (name, value) in &headers {
@@ -143,10 +169,15 @@ fn handle_connection(
                 if lower == "connection" || lower == "keep-alive" {
                     continue;
                 }
+                if lower == "content-length" {
+                    reply.extend_from_slice(
+                        format!("{}: {}\r\n", name, body.len()).as_bytes());
+                    continue;
+                }
                 reply.extend_from_slice(format!("{}: {}\r\n", name, value).as_bytes());
             }
             reply.extend_from_slice(b"Connection: close\r\n\r\n");
-            reply.extend_from_slice(resp_body.as_bytes());
+            reply.extend_from_slice(body.as_bytes());
             let _ = client.write_all(&reply);
             let _ = client.flush();
         }
@@ -297,6 +328,37 @@ mod tests {
         (port, rx)
     }
 
+    fn html_capture_server() -> (u16, mpsc::Receiver<String>) {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let (tx, rx) = mpsc::channel();
+        thread::spawn(move || {
+            if let Ok(mut stream) = listener.accept().map(|(s, _)| s) {
+                let mut buf = Vec::new();
+                let mut tmp = [0u8; 1024];
+                loop {
+                    match stream.read(&mut tmp) {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            buf.extend_from_slice(&tmp[..n]);
+                            if buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                                break;
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+                let _ = tx.send(String::from_utf8_lossy(&buf).to_string());
+                let body = b"<html><body>ok</body></html>";
+                let _ = stream.write_all(
+                    format!("HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n", body.len()).as_bytes());
+                let _ = stream.write_all(body);
+                let _ = stream.flush();
+            }
+        });
+        (port, rx)
+    }
+
     #[test]
     fn forwards_with_token_and_strips_origin() {
         let (cap_port, rx) = capture_server();
@@ -336,5 +398,27 @@ mod tests {
         assert_eq!(body, "ok");
         let captured = rx.recv_timeout(Duration::from_secs(5)).expect("capture");
         assert!(captured.contains("Content-Length: 4"));
+    }
+
+    #[test]
+    fn status_notice_injects_once_into_html() {
+        let (cap_port, _rx) = html_capture_server();
+        let proxy = Proxy::start(cap_port, "t".into()).unwrap();
+        proxy.inject_notice("<p id=\"notice\">disclosure</p>");
+
+        let mut stream = TcpStream::connect(("127.0.0.1", proxy.port())).unwrap();
+        stream
+            .write_all(b"GET / HTTP/1.1\r\nHost: x\r\n\r\n")
+            .unwrap();
+        let mut resp = String::new();
+        stream.read_to_string(&mut resp).unwrap();
+        assert!(resp.contains("disclosure"), "first response: {resp}");
+        assert!(resp.contains("</body>"), "injection point kept: {resp}");
+
+        let mut stream2 = TcpStream::connect(("127.0.0.1", proxy.port())).unwrap();
+        stream2.write_all(b"GET / HTTP/1.1\r\nHost: x\r\n\r\n").unwrap();
+        let mut resp2 = String::new();
+        stream2.read_to_string(&mut resp2).unwrap();
+        assert!(!resp2.contains("disclosure"), "second response re-injected: {resp2}");
     }
 }
