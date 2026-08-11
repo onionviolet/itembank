@@ -1189,9 +1189,9 @@ def test_index_bank_disposable_and_version():
         ver = con.execute(
             "SELECT value FROM meta WHERE key = 'index_version'").fetchone()
         con.close()
-        if not ver or ver[0] != "2":
-            fail("index was not rebuilt at version 2 after the stale check")
-        print("index bank disposability: delete rebuilds, v1 shape rebuilds")
+        if not ver or ver[0] != "3":
+            fail("index was not rebuilt at version 3 after the stale check")
+        print("index bank disposability: delete rebuilds, stale shape rebuilds")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

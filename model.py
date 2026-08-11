@@ -453,6 +453,13 @@ def parse_lesson(bank_path):
                     "error": "lesson.src_unreadable", "detail": str(exc)}
         source = resolved
 
+    # The Phase 6.2 gate directive (D-02): one [GATE:] in the effective
+    # lesson preamble (the bank's own, or the external file's when
+    # [LESSON-SRC:] replaced it), following the exact [LESSON-SRC:] grab
+    # pattern -- additive grammar, default "recommended" when absent, and
+    # the value validated at lint time, never here (a parse must not raise).
+    gate = grab(r"(?m)^\[GATE:\s*(.*?)\s*\]", head) or "recommended"
+
     m = re.search(r"(?m)^##\s+LESSON\s*$", head)
     if m is None:
         return None
@@ -477,6 +484,7 @@ def parse_lesson(bank_path):
     for h in headings:
         h["body"] = "\n".join(h["body"]).strip()
     return {"source": source,
+            "gate": gate,
             "body": lesson_text.strip(),
             "intro": "\n".join(intro).strip(),
             "headings": headings,
@@ -1789,7 +1797,6 @@ LESSON LINT CODES
                                       file
   lesson.orphan_heading     warning   a heading no item references; a lesson
                                       legitimately teaches more than it tests
-
 VISUAL LINT CODES
   item.visual_json_malformed       error   [VISUAL:] or [SCORING:] is not valid JSON
   item.visual_unknown_interaction  error   INTERACTION is not plot or numberline
@@ -1804,7 +1811,29 @@ VISUAL LINT CODES
   item.visual_empty_accessibility  error   accessibility.description is empty
   item.visual_duplicate_id         error   scene point ids are duplicated
   item.visual_executable_member    error   a script-bearing/executable member is present
+  lesson.invalid_gate       error     [GATE:] names a value outside
+                                      required|recommended|off
+  lesson.check_ref_unknown  error     [!CHECK: <id>] names no item in its own
+                                      bank (D-01)
 """
+
+
+# The Phase 6.2 gate grammar (06.2-CONTEXT D-02): one [GATE:] directive in
+# the lesson preamble with exactly three legal values; a lesson declaring
+# none defaults to "recommended". The value is validated at lint time -- an
+# invalid value is a named lint error, never a render-time crash and never
+# a silent default (T-062-01).
+GATE_VALUES = ("required", "recommended", "off")
+
+# The one source of truth for the unresolvable [!CHECK:] copy (06.2-UI-SPEC
+# section 15, LOCKED): the linter, the lesson renderer and the tests all
+# read this constant -- never a duplicate string literal -- so the
+# cross-phase divergence guard (06.2-UI-SPEC section 13 gate 12) holds by
+# construction. The literal `<bank>` placeholder is filled with the bank
+# basename by the renderer; the linter is `itembank lint`, so its message
+# carries the sentence verbatim.
+CHECK_UNRESOLVED_COPY = ("This check refers to an item that is not in this "
+                         "bank. Run itembank lint <bank> for details.")
 
 
 BANK_FILE_HINTS = ("_mc_bank", "_exam_bank", "_question_bank", "_quiz_bank")
@@ -1953,6 +1982,7 @@ LINT_CODES = tuple(sorted({
     "item.visual_empty_accessibility", "item.visual_duplicate_id",
     "item.visual_executable_member",
     "bank.answer_position_skew",
+    "lesson.invalid_gate", "lesson.check_ref_unknown",
 }))
 
 
@@ -2945,6 +2975,28 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                         "lesson heading '%s' is not referenced by any item's "
                         "[LESSON-REF:] -- fine if it's background reading, but "
                         "check it wasn't meant to be tested" % h["text"]))
+            # Phase 6.2 gate findings (D-02, D-01): the [GATE:] value is
+            # validated against the closed set, and every [!CHECK: <id>]
+            # must resolve to an item in this same bank -- a cross-bank or
+            # unresolvable reference is a named lint error whose copy is the
+            # shared CHECK_UNRESOLVED_COPY constant, never a duplicate
+            # literal (06.2-UI-SPEC section 13 gate 12).
+            gate = lesson.get("gate") or "recommended"
+            if gate not in GATE_VALUES:
+                errors.append(LintError(
+                    "lesson.invalid_gate", "gate", "BANK",
+                    "[GATE: %s] is not one of %s -- use required, "
+                    "recommended, or off" % (gate, "/".join(GATE_VALUES))))
+            known_check_ids = {q.get("id") for q in questions}
+            known_check_ids.update(
+                q.get("item_id") for q in questions if q.get("item_id"))
+            for cm in re.finditer(r"\[!CHECK:\s*([^\s\]]+)\s*\]",
+                                  lesson.get("body", "")):
+                cid = cm.group(1)
+                if cid and cid not in known_check_ids:
+                    errors.append(LintError(
+                        "lesson.check_ref_unknown", "refs", "BANK",
+                        "[!CHECK: %s] %s" % (cid, CHECK_UNRESOLVED_COPY)))
 
     # Bank-level terms/key findings, in a deterministic order: collisions,
     # then the empty-block warning, then unknown refs, then duplicate [!KEY]

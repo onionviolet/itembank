@@ -53,6 +53,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from model import (BANK_FILE_HINTS, KEYS_UNCHECKED, LESSON_UNCHECKED,        # noqa: E402
                    LETTERS, LINT_CODES, LintError, SPEC, TERMS_UNCHECKED,
+                   CHECK_UNRESOLVED_COPY, GATE_VALUES,
                    assign_ids, collapse, content_fingerprint, grab, lint, load,
                    lesson_slug, new_item_id, notes, parse_bank, parse_lesson,
                    parse_key_blocks, parse_question, parse_terms, section)
@@ -78,10 +79,12 @@ from surfaces.migrate import (read_attempt_md, read_legacy_session, scan_legacy,
                               source_key)
 from evidence import (EVENT_SCHEMA_VERSION, INDEX_VERSION, KNOWN_EVENT_TYPES,  # noqa: E402
                       SELECTION_EVENT_TYPE,
+                      GATE_MODES, GATE_SKIP_EVENT_TYPE, LESSON_GATE_CONTEXT,
                       append_event, append_line, attempt_number,
                       day_log_from_events, day_tick_event, dedupe_key,
                       ensure_index,
                       event_by_id, event_matches, evidence_dir, events,
+                      gate_outcome_split, gate_skip_event, gate_state,
                       idempotency_canon, index_for_log, index_path,
                       index_stale, iter_raw, live_events, locked, log_path,
                       mark_event, marks_by_event, new_event_id,
@@ -101,6 +104,8 @@ __all__ = [
     "DEFAULT_COUNT", "FIELD_SEP", "FLOOR_LANES", "INDEX_VERSION", "ITEM_VERSION",
     "HINT_TIERS",
     "KNOWN_EVENT_TYPES",
+    "GATE_MODES", "GATE_SKIP_EVENT_TYPE", "GATE_VALUES",
+    "LESSON_GATE_CONTEXT",
     "KEYS_UNCHECKED", "LESSON_UNCHECKED", "LETTERS", "LINT_CODES", "LintError",
     "TERMS_UNCHECKED",
     "PAIR_SEP", "REPORT_VERSION", "SELECTION_EVENT_TYPE", "SELECTION_MODES",
@@ -115,7 +120,7 @@ __all__ = [
     "day_page", "day_status", "day_streak", "day_text", "day_tick_event", "dedupe_key",
     "ensure_index", "event_by_id", "event_matches", "evidence_dir", "events",
     "explain_payload",
-    "glossable", "grab", "hint_event", "hint_events", "idempotency_canon",
+    "glossable", "grab", "gate_outcome_split", "gate_skip_event", "gate_state", "hint_event", "hint_events", "idempotency_canon",
     "index_for_log", "index_path",
     "index_stale", "iter_raw",
     "lane_behind",
@@ -138,6 +143,7 @@ __all__ = [
     "key_review_event", "session_summary", "session_view", "source_key",
     "subject_of", "teaching_key", "teaching_outcomes", "teaching_transition",
     "term_lookup_event", "upgrade_session", "utc_now",
+    "CHECK_UNRESOLVED_COPY",
     "authored_hint",
     "validate", "wiring_bases", "write_day_log", "write_session",
 ]

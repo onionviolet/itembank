@@ -122,12 +122,12 @@
 
 ### Gate
 
-- [ ] **GATE-01**: A lesson can gate its own continuation on an inline check; clearing is an ordinary `runtime.score_response()` verdict, not a lesson-local rule
-- [ ] **GATE-02**: Clearing an inline check writes ordinary response evidence, distinguishable from a quiz attempt on the same objective only by a `context` field
-- [ ] **GATE-03**: An idea cleared inside a lesson re-enters the normal retention queue through the same evidence store, with no lesson-specific schedule
-- [ ] **GATE-04**: `[GATE: required|recommended|off]` all ship; a learner can always read ahead by an explicit, recorded `gate_skip` choice; the skip is never a `response` with a null score
-- [ ] **GATE-05**: A bank whose lessons declare no gates renders byte-identically to Phase 3.1 output
-- [ ] **GATE-06**: The gate outcome split (cleared vs skipped, over gates encountered) is derivable from the evidence log alone, with a stated denominator, no target, no streak
+- [x] **GATE-01**: A lesson can gate its own continuation on an inline check; clearing is an ordinary `runtime.score_response()` verdict, not a lesson-local rule
+- [x] **GATE-02**: Clearing an inline check writes ordinary response evidence, distinguishable from a quiz attempt on the same objective only by a `context` field
+- [x] **GATE-03**: An idea cleared inside a lesson re-enters the normal retention queue through the same evidence store, with no lesson-specific schedule
+- [x] **GATE-04**: `[GATE: required|recommended|off]` all ship; a learner can always read ahead by an explicit, recorded `gate_skip` choice; the skip is never a `response` with a null score
+- [x] **GATE-05**: A bank whose lessons declare no gates renders byte-identically to Phase 3.1 output
+- [x] **GATE-06**: The gate outcome split (cleared vs skipped, over gates encountered) is derivable from the evidence log alone, with a stated denominator, no target, no streak
 
 ### Subject loop
 
@@ -367,12 +367,12 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | VIS-07 | Phase 06.1 | Pending |
 | VIS-08 | Phase 06.1 | Pending |
 | VIS-09 | Phase 06.1 | Pending |
-| GATE-01 | Phase 6.2 | Pending |
-| GATE-02 | Phase 6.2 | Pending |
-| GATE-03 | Phase 6.2 | Pending |
-| GATE-04 | Phase 6.2 | Pending |
-| GATE-05 | Phase 6.2 | Pending |
-| GATE-06 | Phase 6.2 | Pending |
+| GATE-01 | Phase 6.2 | Delivered |
+| GATE-02 | Phase 6.2 | Delivered |
+| GATE-03 | Phase 6.2 | Delivered |
+| GATE-04 | Phase 6.2 | Delivered |
+| GATE-05 | Phase 6.2 | Delivered |
+| GATE-06 | Phase 6.2 | Delivered |
 | LOOP-01 | Phase 9 | Pending |
 | LOOP-02 | Phase 9 | Pending |
 | LOOP-03 | Phase 9 | Pending |

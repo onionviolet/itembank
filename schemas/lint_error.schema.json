@@ -62,6 +62,8 @@
         "lesson.duplicate_heading",
         "lesson.orphan_heading",
         "lesson.src_unreadable",
+        "lesson.invalid_gate",
+        "lesson.check_ref_unknown",
         "terms.unknown_ref",
         "terms.duplicate_slug",
         "terms.empty_block",

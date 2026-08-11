@@ -21,7 +21,8 @@ from surfaces.import_anki import cmd_import_anki
 from surfaces.lesson import cmd_gloss, cmd_key_review, cmd_lesson, cmd_render_style
 from surfaces.migrate import cmd_migrate
 from surfaces.protocol_cli import cmd_schema, cmd_usage
-from surfaces.quiz import cmd_build, cmd_serve
+from surfaces.quiz import (cmd_build, cmd_lesson_check, cmd_lesson_skip,
+                          cmd_serve)
 from surfaces.selection_cli import cmd_select
 from surfaces.session import (cmd_hint, cmd_interact, cmd_next, cmd_override,
                               cmd_report, cmd_rubric_review, cmd_start,
@@ -81,6 +82,19 @@ CALL OUT KINDS
   renders as the reserved gate slot and is consumed by the Phase 6.2 loop.
   It may reference an item in its own bank only; a cross-bank reference is
   a lint error naming the rule (D-06).
+
+THE GATE DIRECTIVE ([GATE:])
+  One optional `[GATE: required|recommended|off]` in the lesson preamble
+  sets how the lesson's inline checks gate reading. `required` truncates
+  the lesson at the first uncleared check (the server does not emit the
+  sections below it); `recommended` (the default when the directive is
+  absent) renders the whole lesson with each check in the flow; `off`
+  renders the Phase 3.1 reader unchanged. A learner can always read ahead
+  by the recorded `Read ahead without answering` control; in diagnostic
+  and exam sittings a `required` gate degrades to `recommended`. A value
+  outside the three is a lint error (`lesson.invalid_gate`); a
+  `[!CHECK: <id>]` naming no item in its own bank is a lint error
+  (`lesson.check_ref_unknown`).
 
 THE EDUCATIONAL OBJECTIVE LINE
   `Objective: <one sentence>` on its own line inside an item adds that
@@ -844,6 +858,21 @@ def main():
     s.add_argument("bank")
     s.add_argument("key_id", help="the [!KEY] block's minted [ID:] value")
     s.set_defaults(fn=cmd_key_review)
+
+    s = sub.add_parser("lesson-check", help="score and record one gate band "
+                       "check submission (the CLI twin of POST "
+                       "/lesson/<stem>/check)")
+    s.add_argument("bank")
+    s.add_argument("check", help="the [!CHECK:] id of the item to score")
+    s.add_argument("--answer", required=True,
+                   help="the learner response as submit --answer JSON")
+    s.set_defaults(fn=cmd_lesson_check)
+
+    s = sub.add_parser("lesson-skip", help="record one gate_skip event (the "
+                       "CLI twin of POST /lesson/<stem>/skip)")
+    s.add_argument("bank")
+    s.add_argument("check", help="the [!CHECK:] id being skipped")
+    s.set_defaults(fn=cmd_lesson_skip)
 
     s = sub.add_parser("export", help="export a bank as Anki TSV or GIFT for LMS import")
     s.add_argument("bank")

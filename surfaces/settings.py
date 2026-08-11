@@ -56,6 +56,13 @@ STYLE_SETTINGS_DEFAULTS = {"imperative_cap": 7, "warn_fp_threshold": 0.20}
 # roundtrip tests can read the shipped defaults without a settings load.
 PARAPHRASE_SETTINGS_DEFAULTS = {"winnow_threshold": 8, "jaccard_threshold": 0.25}
 
+# The Phase 6.2 gate settings group defaults (06.2-UI-SPEC section 10):
+# `gate_skip` (always default) and `gate_policy` (as-authored default, may
+# only weaken a declared gate -- the enum has no strengthening value). The
+# schema remains the source of truth; this accessor exists so the daemon
+# and the roundtrip tests can read the shipped defaults without a load.
+GATE_SETTINGS_DEFAULTS = {"gate_skip": "always", "gate_policy": "as-authored"}
+
 
 def style_defaults():
     """The `style` settings group's shipped defaults: `imperative_cap`
@@ -77,6 +84,12 @@ def retention_defaults():
     the style/paraphrase groups, so tests and the pure module read one set
     of numbers without a settings load."""
     return dict(retention.RETENTION_SETTINGS_DEFAULTS)
+
+
+def gate_defaults():
+    """The Phase 6.2 `reader` gate settings' shipped defaults (06.2-UI-SPEC
+    section 10): `gate_skip` (always) and `gate_policy` (as-authored)."""
+    return dict(GATE_SETTINGS_DEFAULTS)
 
 
 def settings_path(base):
