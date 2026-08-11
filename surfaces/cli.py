@@ -166,6 +166,11 @@ def main():
     s.add_argument("--no-open", action="store_true", dest="no_open",
                    help="do not launch a browser")
     s.add_argument("--force", action="store_true", help="serve despite lint errors")
+    s.add_argument("--sidecar", action="store_true",
+                   help="packaged-app mode (D-03/D-04): bind 127.0.0.1, print "
+                        "the fixed stdout handshake (itembank-port/token/"
+                        "version) after binding, and gate the /api/* routes "
+                        "with a per-launch token")
     s.set_defaults(fn=cmd_daemon)
 
     s = sub.add_parser("stats", help="item mix, coverage, answer-position skew")
