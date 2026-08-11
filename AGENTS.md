@@ -148,6 +148,25 @@ The two trees are mirrors of the same playbooks — edit either and copy to
 the other; CI runs `diff -rq .agents/skills .claude/skills` and fails on
 drift.
 
+## Recording operational findings (a rule for agents working here)
+
+When a session learns something operational that cost it turns or probes — a
+tool/permission-gate quirk, a launch recipe, an environment limitation, a
+concurrency hazard — **persist it before the session ends** instead of letting
+the next session rediscover it from scratch:
+
+1. Save a memory (`remember`) with the concrete behavior and a "how to apply"
+   rule.
+2. Write the full details to `.reasonix/REASONIX.md` — machine-local and
+   gitignored; the canonical home for this machine's runtime notes.
+3. Keep machine-specific checkout paths and usernames out of committed docs —
+   the CI path-leak step fails agent-facing files that contain them.
+
+Recorded example (2026-08-11): in interactive sessions the command gate
+declines `; echo $?` status suffixes, background bash jobs, inline interpreter
+code (`python -c`, heredocs, loops), and ad-hoc runner scripts, while bare
+commands and simple `&&`-chains run. Full notes: `.reasonix/REASONIX.md` §7.
+
 ## Where to look next
 
 - `README.md` — full user documentation (item types, serve vs build, the day
