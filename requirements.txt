@@ -1,0 +1,13 @@
+# zstandard 0.25.0 -- Anki collection.anki21b (zstd) decoder.
+#
+# The single non-stdlib dependency of the .apkg importer (plan 03.2-01), taken
+# per 03.2-RESEARCH section 1 / PLANNING-DIRECTIVES 4a: pinned version,
+# recorded checksum, license review. The legacy member path
+# (collection.anki21 / collection.anki2) never imports it -- the dependency is
+# conditional on the member type, not a blanket requirement.
+#
+# License: BSD-3-Clause (verified via PyPI metadata, 2025-09-14).
+# Checksum: sha256 of the sdist (zstandard-0.25.0.tar.gz), from PyPI.
+#   Platform wheel hashes (e.g. the cp313 win_amd64 wheel) must be re-recorded
+#   at first install time; see 03.2-01-SUMMARY.md.
+zstandard==0.25.0 --hash=sha256:7713e1179d162cf5c7906da876ec2ccb9c3a9dcbdffef0cc7f70c3667a205f0b

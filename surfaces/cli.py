@@ -4,11 +4,13 @@
 `cmd_*` and stays unaware of argparse, so a new front end is a new module rather
 than an edit here and there.
 """
-import argparse, collections, json, os, sys
+import argparse, collections, json, os, re, sys
 
 import selection
-from model import (BANK_FILE_HINTS, SPEC, coverage_map, lint, load,
-                   parse_bank, parse_key_blocks, parse_lesson, parse_terms)
+from model import (BANK_FILE_HINTS, SPEC, STYLE_CHECK_CATALOGUE, coverage_map,
+                   lint, load, load_style, parse_bank, parse_key_blocks,
+                   parse_lesson, parse_sources, parse_terms,
+                   warning_ship_state)
 from surfaces.anki import cmd_export
 from surfaces.daemon import (cmd_cli_twin, cmd_daemon, cmd_disclosure,
                              cmd_sidecar)
@@ -23,6 +25,7 @@ from surfaces.quiz import cmd_build, cmd_serve
 from surfaces.selection_cli import cmd_select
 from surfaces.session import cmd_hint, cmd_next, cmd_report, cmd_start, cmd_submit
 from surfaces.settings import cmd_config
+from surfaces import seeding
 from surfaces.study import cmd_study
 from surfaces.theme import cmd_theme
 from surfaces.update import cmd_update
@@ -172,15 +175,113 @@ def cmd_coverage(a):
     return 0
 
 
+def cmd_seed(a):
+    """`itembank seed <bank>` -- the CLI half of the one accept loop (D-07).
+
+    Runs the six-stage pipeline (D-08) and then presents the drafts one at a
+    time, reading `accept` / `skip` / `cancel` from stdin. Accept goes through
+    `seeding.accept_candidate` -- the same endpoint the daemon's
+    `POST /seed/accept` route calls, never a second implementation of the
+    decision. With no model backend reachable it refuses by name (D-10) and
+    starts no draft; import, lint, and coverage are unaffected.
+    """
+    run = seeding.run_seeding_run(a.bank)
+    if run.refused:
+        print(run.refusal)
+        return 1
+    decisions = (line.strip().lower() for line in sys.stdin)
+    for i, draft in enumerate(run.drafts, 1):
+        print(seeding.BATCH_FRAMING_LINE)
+        print(seeding.PROGRESS_LINE.format(n=i, m=len(run.drafts),
+                                           stage=seeding.STAGE_ACCEPT))
+        print(draft["block"])
+        for err in draft.get("lint_errors") or []:
+            print("error  " + err)
+        decision = next(decisions, "cancel")
+        if decision == "accept":
+            result = seeding.accept_candidate(run.bank_path,
+                                              draft["candidate"])
+            if result.get("accepted"):
+                run.accepted.append(i - 1)
+                print("accepted item %d" % i)
+            else:
+                print("accept refused: %s" % result.get("reason", ""))
+        elif decision == "skip":
+            run.skip(i - 1)
+            print("skipped item %d (deferred)" % i)
+        else:
+            run.cancel()
+            print(seeding.CANCELLED_SUMMARY)
+            break
+    print(run.summary())
+    return 0
+
+
+# D-17 corpus-residency markers (plan 03.2-05): the real EMT / Math 1400 /
+# CSCI 1100 corpus lives beside the private bank, outside this repository,
+# and these are its known shapes. `cmd_guard` refuses any of them anywhere
+# under the walked tree (fixtures/, repo-owned playbook trees, and `_tmp*`
+# scratch dirs excepted), so real corpus content that never parses as a
+# question bank -- lesson prose, provenance registries -- still fails CI
+# (D-17, T-032-15). The section markers are content shapes; the dir markers
+# are the private bank's known directory names.
+CORPUS_DIR_MARKERS = ("bank", "banks", "corpus", "corpora",
+                      "private-bank", "private_bank")
+CORPUS_SECTION_MARKERS = (r"(?m)^##\s+SOURCES\s*$",
+                          r"(?m)^##\s+LESSON\s*$")
+
+
+def _under_corpus_dir(path):
+    """True when `path` sits under a private-bank/corpus-named directory
+    (D-17): real corpus content is frequently organized under a bank/corpus
+    root directory, whatever the file's own shape."""
+    parts = path.replace(os.sep, "/").split("/")
+    return any(p.lower() in CORPUS_DIR_MARKERS for p in parts)
+
+
+def _corpus_marker(path):
+    """The first corpus-residency section marker `path` carries, or None
+    (D-17). `## SOURCES` is the provenance registry every real corpus item
+    resolves through (D-11); `## LESSON` is lesson prose. A real corpus file
+    that does not parse as a question bank still carries one of these."""
+    try:
+        text = open(path, encoding="utf-8").read()
+    except Exception:
+        return None
+    for marker in CORPUS_SECTION_MARKERS:
+        if re.search(marker, text):
+            return marker
+    return None
+
+
 def cmd_guard(a):
-    """Fail if any markdown outside fixtures/ parses as a real question bank.
+    """Fail if any markdown outside fixtures/ is a question bank or is
+    real-corpus-shaped content.
 
     The mechanical half of the content rule. Discipline does not survive a
-    late-night commit; a CI check does.
+    late-night commit; a CI check does. Two refusal classes, both part of the
+    D-17 gate (plan 03.2-05): a file that parses as a question bank or carries
+    a bank filename hint (the pre-existing gate), and a file carrying a
+    corpus-residency marker -- a `## SOURCES` provenance registry or a
+    `## LESSON` lesson-prose section, or a file under a private-bank/corpus
+    directory -- so real content that never parses as a bank still fails CI.
     """
     offenders = []
     for root, dirs, files in os.walk(a.dir):
-        dirs[:] = [d for d in dirs if d not in (".git", "fixtures", ".github")]
+        # `.agents`/`.claude`/`.reasonix`/`.cursor`/`.github` skill and
+        # workflow trees are repo-owned playbooks whose illustrative `Qn.`
+        # snippets are teaching content, not real banks; `.planning` is the
+        # repo's own planning/format documentation, which legitimately
+        # quotes the `## SOURCES` / `## LESSON` grammar it documents. These
+        # trees are authored repo content, not committed corpus data --
+        # everything else outside fixtures/ is fair game. `_tmp*` dirs are
+        # uncommitted scratch debris (e.g. `_tmp_lesson_trial/`), the same
+        # transient class `.gitignore` already keeps out of CI.
+        dirs[:] = [d for d in dirs
+                   if d not in (".git", "fixtures", ".github", ".agents",
+                                ".claude", ".cursor", ".reasonix",
+                                ".planning")
+                   and not d.startswith("_tmp")]
         for f in files:
             if not f.lower().endswith(".md"):
                 continue
@@ -190,12 +291,198 @@ def cmd_guard(a):
             except Exception:
                 continue
             if n > 0 or any(h in f.lower() for h in BANK_FILE_HINTS):
-                offenders.append((p, n))
-    for p, n in offenders:
-        print("error  %s parses as a question bank (%d items). Banks belong in your "
-              "private vault, never in this repo." % (p, n))
+                offenders.append((p, "parses as a question bank (%d items)"
+                                 % n))
+            elif _under_corpus_dir(p):
+                offenders.append((p, "sits under a private-bank/corpus "
+                                 "directory"))
+            else:
+                marker = _corpus_marker(p)
+                if marker is not None:
+                    offenders.append((p, "carries the corpus marker %s"
+                                     % marker))
+    for p, why in offenders:
+        print("error  %s %s. Banks and corpus content belong in your "
+              "private vault, never in this repo." % (p, why))
     print("\n%d offending files" % len(offenders))
     return 1 if offenders else 0
+
+
+# ---------------------------------------------------------------------------
+# Warning calibration (D-18, plan 03.2-05): the Phase 3.1 content checks
+# measured against a corpus directory. The real EMT / Math / CS corpus lives
+# outside this repository (D-17); the command takes the corpus directory as
+# its argument and reads it read-only. The real-corpus run is a human action
+# beside the private bank -- never CI.
+# ---------------------------------------------------------------------------
+
+# The calibrated set: every code the closed style content catalogue can emit,
+# plus style.unsourced_specific (plan 03.2-04), the structural provenance
+# check. Every one of these gets a recorded false-positive rate.
+CALIBRATED_WARNING_CODES = tuple(sorted(STYLE_CHECK_CATALOGUE)) + (
+    "style.unsourced_specific",)
+
+# A corpus document declares the warnings it is *expected* to trip with an
+# HTML comment; a document without the marker is a negative example. Firing
+# on a negative document is a false positive; firing on a positive one is a
+# true positive.
+_CORPUS_EXPECT_RE = re.compile(
+    r"<!--\s*CORPUS-EXPECT:\s*([^>]*?)\s*-->")
+
+
+def _calibration_threshold(base):
+    """The ship-state threshold from the `style.warn_fp_threshold` setting
+    (default 0.20, surfaces/settings.py plan 03.1-05 Task 3); falls back to
+    the shipped default when no settings file resolves. The rate-to-ship
+    rule mirrors `model.warning_ship_state` (above 0.20 ships disabled by
+    default)."""
+    default = 0.20
+    try:
+        from surfaces.settings import load_settings, style_defaults
+        return (load_settings(base).get("style") or {}).get(
+            "warn_fp_threshold", style_defaults()["warn_fp_threshold"])
+    except Exception:
+        return default
+
+
+def _corpus_documents(corpus_dir):
+    """Every markdown document under `corpus_dir`, deterministically ordered."""
+    out = []
+    for root, dirs, files in os.walk(corpus_dir):
+        dirs.sort()
+        for f in sorted(files):
+            if f.lower().endswith(".md"):
+                out.append(os.path.join(root, f))
+    return out
+
+
+def _expected_codes(path):
+    """The style codes a corpus document declares it is expected to trip."""
+    try:
+        text = open(path, encoding="utf-8").read()
+    except OSError:
+        return frozenset()
+    m = _CORPUS_EXPECT_RE.search(text)
+    if m is None:
+        return frozenset()
+    return frozenset(tok.strip() for tok in m.group(1).split(",")
+                     if tok.strip())
+
+
+def calibrate_corpus(corpus_dir, threshold=None):
+    """Measure every calibrated style warning over `corpus_dir`.
+
+    Each document is parsed as a bank (items + lesson + provenance) and run
+    through `model.lint` with the shipped house style -- the floor every
+    lesson sits on. For every calibrated code the run counts, over documents:
+      true positives  -- fired on a document declaring the code expected
+      false positives -- fired on a document not declaring it
+      missed          -- declared but never fired
+    The false-positive rate is FP / (TP + FP), 0.00 when the warning never
+    fires, so a code ships enabled only with a recorded rate (D-18).
+
+    Returns (rates, records) where `rates` is {code: fp_rate} and `records`
+    is the per-code list of dicts ready for the markdown report. Populates
+    `model.STYLE_WARNING_FP_RATES` with the measured rates, the calibration
+    seam plan 03.1-05 opened."""
+    if threshold is None:
+        threshold = _calibration_threshold(corpus_dir)
+    house = load_style("house", corpus_dir)
+    tp = collections.Counter()     # fired on a positive document
+    fp = collections.Counter()     # fired on a negative document
+    fired = collections.Counter()  # documents where the code fired
+    missed = collections.Counter()  # declared but never fired
+    for path in _corpus_documents(corpus_dir):
+        try:
+            qs = parse_bank(open(path, encoding="utf-8").read())
+            lesson = parse_lesson(path)
+            sources = parse_sources(path)
+        except OSError:
+            continue
+        errors, warnings = lint(qs, lesson=lesson, style=house,
+                                sources=sources)
+        codes = {e.code for e in errors} | {w.code for w in warnings}
+        codes &= set(CALIBRATED_WARNING_CODES)
+        expected = _expected_codes(path)
+        for code in codes:
+            fired[code] += 1
+            (tp if code in expected else fp)[code] += 1
+        for code in expected:
+            if code not in codes:
+                missed[code] += 1
+    rates = {}
+    records = []
+    for code in CALIBRATED_WARNING_CODES:
+        denom = tp[code] + fp[code]
+        rate = (fp[code] / denom) if denom else 0.0
+        rates[code] = rate
+        records.append({
+            "code": code,
+            "fired": fired[code],
+            "true_positives": tp[code],
+            "false_positives": fp[code],
+            "missed": missed[code],
+            "fp_rate": rate,
+            "ship_state": "disabled" if rate > threshold else "enabled",
+            "threshold": threshold,
+        })
+    from model import STYLE_WARNING_FP_RATES
+    STYLE_WARNING_FP_RATES.update(rates)
+    return rates, records
+
+
+def _render_calibration_md(corpus_dir, threshold, records):
+    """The 03.2-CALIBRATION.md deliverable (D-18): one row per calibrated
+    code with the measured rate and the ship-state decision."""
+    import datetime
+    lines = [
+        "# Phase 3.2 Style Warning Calibration",
+        "",
+        "**Measured:** %s UTC" % datetime.datetime.utcnow().strftime(
+            "%Y-%m-%d %H:%M"),
+        "**Corpus:** %s" % corpus_dir,
+        "**Threshold:** `style.warn_fp_threshold` = %g (rates above it ship "
+        "the warning disabled by default, D-18)." % threshold,
+        "",
+        "| code | fired | TP | FP | missed | FP rate | ship-state |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for r in records:
+        state = "disabled by default" if r["ship_state"] == "disabled" \
+            else "enabled"
+        lines.append("| %s | %d | %d | %d | %d | %.2f | %s |"
+                     % (r["code"], r["fired"], r["true_positives"],
+                        r["false_positives"], r["missed"], r["fp_rate"],
+                        state))
+    lines += [
+        "",
+        "The real EMT / Math 1400 / CSCI 1100 corpus lives beside the "
+        "private bank, outside this repository (D-17). The rates above were "
+        "measured on a synthetic corpus; the real-corpus run is the "
+        "human/private-bank action and records the true rates here.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def cmd_calibrate(a):
+    """Run every Phase 3.1 style warning over a corpus directory and record
+    each warning's false-positive rate with its ship-state decision (D-18).
+
+    Reads the corpus directory read-only (it lives outside the repo, D-17);
+    writes the recorded rates to `--out` (default 03.2-CALIBRATION.md in the
+    current directory) and prints the table to stdout. The real-corpus run is
+    a human/private-bank action, never CI.
+    """
+    _rates, records = calibrate_corpus(a.dir, threshold=a.threshold)
+    md = _render_calibration_md(a.dir, records[0]["threshold"] if records
+                                else _calibration_threshold(a.dir), records)
+    out = a.out or "03.2-CALIBRATION.md"
+    with open(out, "w", encoding="utf-8") as fh:
+        fh.write(md)
+    print(md)
+    print("recorded %d calibrated warnings in %s" % (len(records), out))
+    return 0
 
 
 def main():
@@ -613,9 +900,25 @@ def main():
                           "is never bypassed")
     apk.set_defaults(fn=cmd_import_anki)
 
+    s = sub.add_parser("seed", help="seed one bank through the six-stage "
+                                    "accept loop one item at a time (needs a "
+                                    "model backend; refuses by name without one)")
+    s.add_argument("bank")
+    s.set_defaults(fn=cmd_seed)
+
     s = sub.add_parser("guard", help="fail if a real bank was committed")
     s.add_argument("dir", nargs="?", default=".")
     s.set_defaults(fn=cmd_guard)
+
+    s = sub.add_parser("calibrate", help="measure every Phase 3.1 style "
+                                        "warning's false-positive rate over "
+                                        "a corpus directory (D-18)")
+    s.add_argument("dir", help="the corpus directory (lives outside the repo, D-17)")
+    s.add_argument("--out", help="markdown report path (default: 03.2-CALIBRATION.md)")
+    s.add_argument("--threshold", type=float, default=None,
+                   help="FP-rate threshold for disabled-by-default (default: "
+                        "style.warn_fp_threshold = 0.20)")
+    s.set_defaults(fn=cmd_calibrate)
 
     a = ap.parse_args()
     sys.exit(a.fn(a))
