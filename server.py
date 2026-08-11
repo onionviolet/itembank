@@ -69,3 +69,29 @@ def bind(handler, port, host="127.0.0.1"):
         print("  port %d unavailable (%s), using a free one instead"
               % (port, exc.__class__.__name__))
         return socketserver.TCPServer((host, 0), handler)
+
+
+def bind_tls(handler, port, host, certfile, keyfile):
+    """Bind a server wrapped in stdlib `ssl` with a user-supplied cert/key
+    (D-05, phase 999.4): the LTI surface's built-in TLS posture. Falls back
+    to an OS-assigned port exactly like `bind`. The caller supplies the PEM
+    cert and key paths; this function never generates, downloads, or holds a
+    certificate itself (the tool never owns a domain or a CA account -- that
+    is the reverse proxy's job).
+    """
+    import ssl
+
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(certfile, keyfile)
+
+    class _TLSServer(socketserver.TCPServer):
+        def get_request(self):
+            sock, addr = super().get_request()
+            return context.wrap_socket(sock, server_side=True), addr
+
+    try:
+        return _TLSServer((host, port), handler)
+    except OSError as exc:
+        print("  port %d unavailable (%s), using a free one instead"
+              % (port, exc.__class__.__name__))
+        return _TLSServer((host, 0), handler)

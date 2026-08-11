@@ -152,6 +152,9 @@ textarea.ans:focus{outline:2px solid var(--accent);outline-offset:1px;
 textarea.ans:disabled{opacity:.75}
 .done{background:var(--card);border:1px solid var(--line);border-radius:12px;
   padding:20px}
+.lti-framing{background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:12px 16px;margin-bottom:14px;color:var(--mut);
+  font-size:14px;line-height:1.5}
 .score{font-size:34px;font-weight:700;letter-spacing:-.02em}
 .empty{text-align:center;padding:28px 10px}
 @media (max-width:767px){
@@ -216,6 +219,7 @@ textarea.ans:disabled{opacity:.75}
   <summary>Session details</summary>
   <div id="detail-body" class="detail-body"></div>
 </details>
+__LTI_FRAMING__
 <div id="host"></div>
 <div id="assist-slot">__ASSIST__</div>
 </div>
@@ -851,6 +855,10 @@ const FS = "\u001f", PS = "\u001e";   /* must match FIELD_SEP and PAIR_SEP */
 const REDUCED = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 let sessionId = null, i = 0, total = 0, score = 0, autoTotal = 0;
 let shownAt = performance.now();
+/* Phase 999.4 (LTI): the server includes the assignment-completion line in
+   the final submit response; finish() renders it when present. Never a
+   number or score claim -- the two UI-SPEC section-4 lines only. */
+let LTI_COMPLETION = null;
 const miss = [];
 const host = document.getElementById("host");
 const cxObjective = document.getElementById("cx-objective");
@@ -873,6 +881,7 @@ async function api(url, payload){
    scoring code exists anywhere in this script. */
 async function verify(q, response){
   const v = await api("/api/submit", {session_id: sessionId, answer: response});
+  if(v.lti_completion) LTI_COMPLETION = v.lti_completion;
   return {action: v.action, score: v.score, explain: v.explain || {},
           next: v.next};
 }
@@ -1641,6 +1650,9 @@ function finish(summary){
   } else {
     h += `<p style="margin-top:14px">Clean sweep. Nothing to harvest.</p>`;
   }
+  if(LTI_COMPLETION && LTI_COMPLETION.line){
+    h += `<p class="status" data-field="lti-completion">${esc(LTI_COMPLETION.line)}</p>`;
+  }
   h += `<div class="act"><a class="go ghost" style="text-decoration:none"
         href="${report}">View report</a></div></div>`;
   host.innerHTML = h;
@@ -1667,8 +1679,12 @@ async function start(){
       aria-live="polite"><div class="status">Loading&hellip;</div></div></div>`;
   try {
     /* D-09: a #<item-id> fragment (lesson backlink) asks the server to start
-       with that item first; unknown ids degrade to normal order server-side. */
+       with that item first; unknown ids degrade to normal order server-side.
+       Phase 999.4 (LTI): the server may embed an objective and a one-time
+       launch-context token in BOOT -- the LTI /api/* family reads them. */
     const payload = {bank: BOOT.bank, count: BOOT.count, mode: BOOT.mode};
+    if(BOOT.objective) payload.objective = BOOT.objective;
+    if(BOOT.lti_ctx) payload.lti_ctx = BOOT.lti_ctx;
     const frag = location.hash.replace(/^#/, "");
     if(frag) payload.focus = frag;
     const view = await api("/api/start", payload);

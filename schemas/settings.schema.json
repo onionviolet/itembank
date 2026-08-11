@@ -6,7 +6,7 @@
   "x-itembank-version": 1,
   "type": "object",
   "additionalProperties": false,
-  "required": ["theme", "accent", "daily_cap", "selection_weights", "selection", "auditor_autonomy", "model_backend", "suggestion_reveal", "update_policy", "daemon", "reader", "style", "paraphrase", "retention"],
+  "required": ["theme", "accent", "daily_cap", "selection_weights", "selection", "auditor_autonomy", "model_backend", "suggestion_reveal", "update_policy", "daemon", "reader", "style", "paraphrase", "lti", "retention"],
   "properties": {
     "theme": {
       "type": "string",
@@ -402,6 +402,102 @@
           "maximum": 1,
           "default": 0.25,
           "x-itembank-phase": 3.2
+        }
+      }
+    },
+    "lti": {
+      "type": "object",
+      "description": "The LTI 1.3 surface's own settings (phase 999.4, Canvas LMS integration): the one platforms registration store, the tool's RSA keypair path, the public base URL every URL the platform calls is derived from, the opt-in enabled flag, and the optional TLS cert/key paths. Nothing listens publicly while lti.enabled is false; the loopback default is unchanged (D-05). Read by this phase (999.4).",
+      "additionalProperties": false,
+      "required": ["enabled", "public_base_url", "tls_cert", "tls_key", "tool_private_jwk_path", "platforms"],
+      "x-itembank-phase": 999.4,
+      "default": {
+        "enabled": false,
+        "public_base_url": "",
+        "tls_cert": "",
+        "tls_key": "",
+        "tool_private_jwk_path": "",
+        "platforms": []
+      },
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "The opt-in LTI bind gate (D-05): when false (the shipped default), no LTI handler family listens anywhere and every non-LTI command is byte-identical. When true, public_base_url is required and the LTI bind serves the login/launch/API handler family on the configured host.",
+          "default": false,
+          "x-itembank-phase": 999.4
+        },
+        "public_base_url": {
+          "type": "string",
+          "description": "The one knob driving every URL the platform must call (OIDC initiation URL, launch URL, JWKS URL, deep-link return): required when lti.enabled is true (D-05/D-06). Usually the reverse-proxy or TLS-terminating public origin, e.g. https://drill.example.com.",
+          "default": "",
+          "x-itembank-phase": 999.4
+        },
+        "tls_cert": {
+          "type": "string",
+          "description": "Optional path to a TLS certificate (PEM) for the built-in stdlib-ssl bind (D-05). When unset, the LTI bind serves plain HTTP and the operator is expected to terminate TLS at a reverse proxy (docs/lti-hosting.md).",
+          "default": "",
+          "x-itembank-phase": 999.4
+        },
+        "tls_key": {
+          "type": "string",
+          "description": "Optional path to the TLS private key (PEM) matching tls_cert. Both must be set for the built-in TLS bind; exactly one set is a named refusal (D-05).",
+          "default": "",
+          "x-itembank-phase": 999.4
+        },
+        "tool_private_jwk_path": {
+          "type": "string",
+          "description": "Path to the tool's own RSA private key (PEM or JWK), registered with the platform as a public JWK. Used to sign the AGS client-credentials assertion (plan 03); the public half is what the platform verifies launches against.",
+          "default": "",
+          "x-itembank-phase": 999.4
+        },
+        "platforms": {
+          "type": "array",
+          "default": [],
+          "description": "The one platforms registration store (D-06): at most one entry per issuer. A launch from an issuer or client_id this registry does not carry is refused by name. Each entry holds the platform's issuer, client_id, OIDC authorize endpoint, JWKS URL, OAuth2 token endpoint (AGS), and the deployment-id allowlist granted by that platform.",
+          "x-itembank-phase": 999.4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["issuer", "client_id", "auth_endpoint", "jwks_url", "token_endpoint", "deployments"],
+            "x-itembank-phase": 999.4,
+            "description": "One LTI platform registration. deployments is the allowlist of deployment_ids this installation accepts from the platform; an empty deployments array accepts none.",
+            "properties": {
+              "issuer": {
+                "type": "string",
+                "description": "The platform's issuer claim, e.g. https://canvas.instructure.com. Registry lookup key: at most one entry per issuer.",
+                "x-itembank-phase": 999.4
+              },
+              "client_id": {
+                "type": "string",
+                "description": "The tool's client_id on this platform (the id_token aud).",
+                "x-itembank-phase": 999.4
+              },
+              "auth_endpoint": {
+                "type": "string",
+                "description": "The platform's OIDC authorize endpoint the tool redirects the browser to (e.g. <host>/api/lti/authorize_redirect).",
+                "x-itembank-phase": 999.4
+              },
+              "jwks_url": {
+                "type": "string",
+                "description": "The platform's public JWKS URL the tool verifies id_token signatures against (e.g. <host>/api/lti/security/jwks).",
+                "x-itembank-phase": 999.4
+              },
+              "token_endpoint": {
+                "type": "string",
+                "description": "The platform's OAuth2 token endpoint (e.g. <host>/login/oauth2/token), used only for AGS client-credentials passback (plan 03).",
+                "x-itembank-phase": 999.4
+              },
+              "deployments": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": [],
+                "description": "The deployment_ids granted by this platform for this installation; a launch whose deployment_id is not in this allowlist is refused by name.",
+                "x-itembank-phase": 999.4
+              }
+            }
+          }
         }
       }
     },

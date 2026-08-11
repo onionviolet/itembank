@@ -204,6 +204,20 @@
 - [x] **AUDIO-06**: Output defaults to MP3 with WAV available; `--split per-item` and `--split per-pack` both ship (per-pack default); one transcript per pack is always emitted with the same text in the same order; files are named from the objective id and a content digest so unchanged re-exports are idempotent
 - [x] **AUDIO-07**: Listening records nothing (the evidence log stays the record of what was answered); no player, sync, or mobile build; every third-party artifact is pinned with a recorded checksum and named license review; the command's own help text states that edge-tts sends item text to Microsoft
 
+### Canvas LMS Integration via LTI (Phase 999.4, BACKLOG — planned 2026-08-11)
+
+> Backlog phase promoted to planning by the user on 2026-08-11 (the "real
+> consumer exists" event the ROADMAP verdict asked for; see ROADMAP.md
+> Phase 999.4 and `.planning/phases/999.4-canvas-lms-integration-lti/`).
+
+- [ ] **LTI-01**: A launch is authenticated solely by LTI 1.3's own OIDC flow — login initiation, authorize redirect with one-time nonce/state, and a signed `id_token` verified against the platform's JWKS (signature, `iss`, `aud`, `nonce`, `exp`, `deployment_id`); a launch failing any check is refused by name, and itembank adds no accounts, passwords, or login page
+- [ ] **LTI-02**: The LTI surface is an adapter over the existing JSON commands — it calls the same daemon handlers (`handle_api_*`) in-process, never parses a bank a second way, never decides correctness, and changes none of `API_ROUTES`, `SURFACE_PARITY`, or the route-scope test (Directive §4.2)
+- [ ] **LTI-03**: The learner surface renders only `runtime.public_item()`; no key, why-best, distractor analysis, or higher-tier content is reachable before a recorded response for that item exists, and tier gating is server-side, identical to every surface (Directive §4.1)
+- [ ] **LTI-04**: Deep linking — a verified `LtiDeepLinkingRequest` launch lets an instructor select exactly one objective from the local bank registry, returning one `ltiResourceLink` content item whose custom objective id the signed learner launch resolves through the existing stem allowlist; unresolvable objectives refuse by name
+- [ ] **LTI-05**: AGS grade passback is outbound-only, at session completion, opt-in per launch (the AGS score scope must be present), with `scoreGiven`/`scoreMaximum` read from the runtime report, idempotent re-posts, and `short` items pending review never auto-graded (`gradingProgress: PendingManual` or no numeric publish); the evidence store stays the local record — the published score is a copy, not a second store
+- [ ] **LTI-06**: The LTI bind is opt-in with the loopback default unchanged; TLS is stdlib `ssl` with user-supplied certs or a documented reverse proxy, and `public_base_url` is the one knob driving every URL the platform calls — no new auth surface beyond LTI's own
+- [ ] **LTI-07**: The surface, its help text, and its hosting doc state exactly what leaves the machine (item text to the learner's browser via the LMS, the final score to the LMS gradebook; no telemetry, no hosted storage); the LTI crypto dependencies (`cryptography`, `PyJWT`) are optional, pinned, checksummed, and license-reviewed per Directive 4a, with a named refusal when absent
+
 ## v2 Requirements
 
 ### Retention
@@ -424,11 +438,18 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | AUDIO-05 | Phase 9.1 | Complete |
 | AUDIO-06 | Phase 9.1 | Complete |
 | AUDIO-07 | Phase 9.1 | Complete |
+| LTI-01 | Phase 999.4 | Pending |
+| LTI-02 | Phase 999.4 | Pending |
+| LTI-03 | Phase 999.4 | Pending |
+| LTI-04 | Phase 999.4 | Pending |
+| LTI-05 | Phase 999.4 | Pending |
+| LTI-06 | Phase 999.4 | Pending |
+| LTI-07 | Phase 999.4 | Pending |
 
 **Coverage:**
 
-- v1 requirements: 108 total
-- Mapped to phases: 108
+- v1 requirements: 115 total
+- Mapped to phases: 115
 - Unmapped: 0 ✓
 
 ---

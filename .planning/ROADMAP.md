@@ -1188,9 +1188,9 @@ LTI half is now 999.4.
 ### Phase 999.4: Canvas LMS Integration via LTI (BACKLOG, split from 999.1 on 2026-08-10)
 
 **Goal:** Expose the item player inside Canvas LMS through an explicitly hosted, authenticated LTI surface, as an adapter to the same local runtime and scorer rather than a second authority.
-**Requirements:** TBD
+**Requirements:** LTI-01..LTI-07 (minted 2026-08-11; see `REQUIREMENTS.md` and the phase package)
 **Depends on:** nothing in this roadmap
-**Plans:** 0 plans
+**Plans:** 3 plans (planned 2026-08-11, `docs(999.4-*:)` commits on branch `gsd/phase-999.4-plan`)
 
 Covers the hosting, identity, privacy, deep-linking, and grade-passback decisions LTI
 requires.
@@ -1223,6 +1223,15 @@ inform and do not veto. The honest position is that LTI is not forbidden, it is
 unjustified: **no consumer exists.** The same standard already applied to QTI
 (`V2-INT-01`: *"once a real consumer exists"*). Promote when a real Canvas course
 requires it, and not before.
+
+**2026-08-11: promoted to planning by the user.** The "real consumer" event was
+judged to be the user's explicit planning request; the three objections above are
+answered in the phase package (`999.4-CONTEXT.md`: D-02 answers "no accounts, no
+auth", D-04/D-09 answer "no hosted gradebook / no telemetry", R-01 keeps the
+consumer question open with the fake-platform default). Full plan-phase package
+in `.planning/phases/999.4-canvas-lms-integration-lti/`; the open rulings
+(R-01..R-05) are for the user to ratify at plan review. Nothing is executed and
+nothing is merged to main.
 
 ### Phase 999.2: Bilingual Reader (BACKLOG)
 

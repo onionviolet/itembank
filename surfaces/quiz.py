@@ -110,12 +110,19 @@ def cmd_lesson_skip(a):
 
 def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
              lesson_base="", lesson_slugs=None, bank_stem=None, mode=None,
-             theme_css=None, assist=False):
+             theme_css=None, lti_framing="", boot_extra=None, assist=False):
     """Render one quiz page. `theme_css`, when given, is the per-render
     generated token block (the daemon passes
     `theme.theme_css(load_settings(root))` so quiz shares the one palette
     with index/report/settings -- plan 04-04 Task 2); when omitted the
     module's THEME_CSS constant keeps every existing caller byte-identical.
+
+    `lti_framing` (phase 999.4) is an optional HTML snippet rendered above
+    the first item -- the LTI embedded player's privacy line -- and
+    `boot_extra` (phase 999.4) is an optional dict merged into the served
+    page's BOOT metadata (the LTI player's objective). Both default to empty
+    so every existing caller renders byte-identically.
+
     `assist`, when true and the page is served, threads the plan 08-05
     AgentAssist payload (AGENT_ASSIST_HTML + ASSIST_JS) into the assist slot
     -- the daemon is the only caller that sets it, so build/offline mode
@@ -140,6 +147,8 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
         items = []
         boot = {"bank": bank_stem or "", "count": len(qs), "mode": mode or "",
                 "lesson_slugs": sorted(lesson_slugs) if lesson_slugs else []}
+        if boot_extra:
+            boot.update(boot_extra)
     else:
         # The static `build` compatibility path: the full Python-produced
         # item array with canonical keys and explanations, and the offline
@@ -181,6 +190,7 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                  .replace("__SUB__", sub)
                  .replace("__CTX_BANK__", ctx_bank)
                  .replace("__CTX_MODE__", ctx_mode)
+                 .replace("__LTI_FRAMING__", lti_framing or "")
                  .replace("__ASSIST__", assist_html)
                  .replace("__ASSIST_JS__", assist_js)
                  .replace("__OFFLINE_JS__", "" if serve else offline_js)
