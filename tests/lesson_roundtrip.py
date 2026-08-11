@@ -19,6 +19,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 import itembank                                            # noqa: E402
 import protocol_roundtrip                                   # noqa: E402
+import subjects                                            # noqa: E402
 from surfaces import daemon, lesson, quiz                   # noqa: E402
 from surfaces.cli import SPEC_03_1                          # noqa: E402
 from surfaces.quiz_page import OFFLINE_JS                   # noqa: E402
@@ -1008,9 +1009,11 @@ def _lesson_content_region(pg):
     """The rendered `__BODY__` region of LESSON_TEMPLATE -- the content
     between `<div class="card">` and the card's closing `</div>`. The page
     now carries the plan 03.1-04 style footer between the card and the
-    closing wrapper, which this extraction skips."""
+    closing wrapper, which this extraction skips. The card div carries the
+    09-04 `id="lesson-content"` target; the opening tag is matched loosely
+    so the attribute addition does not break the extraction."""
     m = re.search(
-        r'<div class="card">(.*?)</div>\s*'
+        r'<div class="card"[^>]*>(.*?)</div>\s*'
         r'<p class="style-foot">.*?</p>\s*</div></body></html>',
         pg, re.S)
     if not m:
@@ -1760,11 +1763,16 @@ def test_existing_block_branches_byte_identical_without_callouts():
            "```py\nx = 1\n```\n")
     golden = ('<section id="h"><h2>H</h2><p>prose <strong>bold</strong></p>'
               "\n<ul><li>a</li><li>b</li></ul>\n"
-              '<div class="scroll"><table><thead><tr><th>x</th><th>y</th>'
+              '<div class="scroll lesson-table-scroll" tabindex="0" '
+              'role="region" aria-label="Lesson table"><table><thead><tr>'
+              '<th scope="col">x</th><th scope="col">y</th>'
               "</tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody>"
               "</table></div>\n"
-              '<div class="scroll"><span class="lang">py</span>'
-              '<pre><code class="language-py">x = 1</code></pre></div>'
+              '<div class="scroll" data-code-block="1" data-lang="py">'
+              '<span class="lang">py</span>'
+              '<pre><code class="language-py">x = 1</code></pre>'
+              '<p class="run-unavailable">Run this example in the local app. '
+              "The source remains available here.</p></div>"
               "</section>")
     h = lesson.render_markdown(src)
     if h != golden:
@@ -1928,7 +1936,7 @@ def test_lesson_ref_filters_one_section():
              % one.count('<section id="'))
     if "No items reference this section yet." in one:
         fail("the other heading's orphan backlinks must be absent")
-    card = '<div class="card">'
+    card = '<div class="card"'
     if one[:one.index(card)] != full[:full.index(card)]:
         fail("the filtered page must keep the full page's chrome and byline")
 
@@ -2147,13 +2155,18 @@ def test_lesson_cli_src_bank_reports_heading_count():
 
 def test_lesson_cli_file_byte_identical_to_render():
     """The machine-readable form of D-07: the CLI's written file equals what
-    the render function produces, which is what the daemon route sends."""
+    the render function produces, which is what the daemon route sends.
+    Both surfaces resolve the subject profile through the same selector
+    (plan 09-05), so the test resolves it identically before rendering."""
     out = os.path.join(tempfile.mkdtemp(), "c1.html")
     res = run_lesson([LES_BANK, "--out", out])
     if res.returncode != 0:
         fail("lesson failed: " + res.stdout + res.stderr)
-    page = lesson.lesson_page(LES_BANK, itembank.load(LES_BANK),
-                              itembank.parse_lesson(LES_BANK))
+    qs = itembank.load(LES_BANK)
+    profile = subjects.select_profile(
+        qs, subjects.load_registry(os.path.dirname(LES_BANK)))
+    page = lesson.lesson_page(LES_BANK, qs, itembank.parse_lesson(LES_BANK),
+                              profile=profile)
     if open(out, encoding="utf-8").read() != page:
         fail("CLI file must equal the render function's output byte-for-byte")
 

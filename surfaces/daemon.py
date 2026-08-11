@@ -17,9 +17,12 @@ import datetime, errno, hashlib, html, json, os, re, secrets, socket, socketserv
 import urllib.parse, urllib.request, uuid
 
 import evidence
+import resources
 import retention
+import runner
 import selection
 import server
+import subjects
 from model import (lesson_slug, load, parse_bank, parse_key_blocks,
                    parse_lesson, parse_terms)
 from runtime import explain_payload, glossable, read_session, upgrade_session
@@ -116,6 +119,49 @@ QUIZ_GET_RE = re.compile(r"^/quiz/(?P<stem>[^/]+)$")
 QUIZ_ANSWER_RE = re.compile(r"^/quiz/(?P<stem>[^/]+)/answer$")
 STUDY_GET_RE = re.compile(r"^/study/(?P<stem>[^/]+)$")
 LESSON_GET_RE = re.compile(r"^/lesson/(?P<stem>[^/]+)$")
+
+# 09-04: the one static-asset channel. `/assets/katex/<name>` resolves only
+# through the closed KATEX_ASSETS map below -- a known URL suffix to a
+# vendored archive-relative path and MIME type. The name regex admits only
+# a narrow safe character set (letters, digits, `_`, `.`, `/`, `-`), and the
+# handler never joins the client's name to a filesystem path; an unknown,
+# encoded, nested, traversal, or query-manipulated name is a 404 (T-09-09).
+KATEX_ASSET_RE = re.compile(r"^/assets/katex/(?P<name>[A-Za-z0-9_./-]+)$")
+
+# The closed route map for the vendored KaTeX distribution (09-04). Keys are
+# exact URL suffixes after `/assets/katex/`; values are
+# (archive-relative path, MIME type) pairs loaded through the one resource
+# reader. The font names come from the reviewed vendor inventory (the 60
+# files katex.min.css references), never from a request path. Serving a font
+# from the map rather than from the request keeps the map closed: every name
+# the CSS can emit is present, and nothing the browser cannot name is.
+KATEX_ASSETS = {}
+for _font in (
+        "KaTeX_AMS-Regular", "KaTeX_Caligraphic-Bold",
+        "KaTeX_Caligraphic-Regular", "KaTeX_Fraktur-Bold",
+        "KaTeX_Fraktur-Regular", "KaTeX_Main-Bold",
+        "KaTeX_Main-BoldItalic", "KaTeX_Main-Italic",
+        "KaTeX_Main-Regular", "KaTeX_Math-BoldItalic",
+        "KaTeX_Math-Italic", "KaTeX_SansSerif-Bold",
+        "KaTeX_SansSerif-Italic", "KaTeX_SansSerif-Regular",
+        "KaTeX_Script-Regular", "KaTeX_Size1-Regular",
+        "KaTeX_Size2-Regular", "KaTeX_Size3-Regular",
+        "KaTeX_Size4-Regular", "KaTeX_Typewriter-Regular"):
+    for _ext, _mime in ((".woff2", "font/woff2"), (".woff", "font/woff"),
+                        (".ttf", "font/ttf")):
+        KATEX_ASSETS["fonts/%s%s" % (_font, _ext)] = (
+            "vendor/katex/fonts/%s%s" % (_font, _ext), _mime)
+KATEX_ASSETS.update({
+    "katex.min.css": ("vendor/katex/katex.min.css",
+                      "text/css; charset=utf-8"),
+    "katex.min.js": ("vendor/katex/katex.min.js",
+                     "application/javascript; charset=utf-8"),
+    "contrib/auto-render.min.js": (
+        "vendor/katex/contrib/auto-render.min.js",
+        "application/javascript; charset=utf-8"),
+})
+del _font, _ext, _mime
+
 LESSON_CHECK_RE = re.compile(r"^/lesson/(?P<stem>[^/]+)/check$")
 LESSON_SKIP_RE = re.compile(r"^/lesson/(?P<stem>[^/]+)/skip$")
 GLOSS_GET_RE = re.compile(r"^/gloss/(?P<stem>[^/]+)/(?P<slug>[^/]+)$")
@@ -159,6 +205,7 @@ API_ROUTES = (
     ("POST", "/api/lesson-complete", "handle_api_lesson_complete"),
     ("POST", "/api/rubric-review", "handle_api_rubric_review"),
     ("POST", "/api/export_audio", "handle_api_export_audio"),
+    ("POST", "/api/lesson/run", "handle_api_lesson_run"),
 )
 
 # Order is load-bearing: every fixed literal route comes before every
@@ -179,6 +226,7 @@ ROUTES = (
     ("POST", "/cli-twin", "handle_cli_twin"),
     ("POST", "/seed/accept", "handle_seed_accept"),
 ) + API_ROUTES + (
+    ("GET", KATEX_ASSET_RE, "handle_katex_asset"),
     ("GET", QUIZ_GET_RE, "handle_quiz_get"),
     ("POST", QUIZ_ANSWER_RE, "handle_quiz_answer"),
     ("GET", STUDY_GET_RE, "handle_study_get"),
@@ -216,7 +264,9 @@ ROUTE_CLI = {
     ("POST", "/api/override"): "override",
     ("POST", "/api/lesson-complete"): "lesson",
     ("POST", "/api/rubric-review"): "rubric-review",
+    ("GET", KATEX_ASSET_RE): "daemon",
     ("POST", "/api/export_audio"): "export",
+    ("POST", "/api/lesson/run"): "lesson",
     ("GET", QUIZ_GET_RE): "serve",
     ("POST", QUIZ_ANSWER_RE): "serve",
     ("GET", STUDY_GET_RE): "study",
@@ -250,6 +300,7 @@ SURFACE_PARITY = (
     (("POST", "/api/lesson-complete"), "lesson", "lesson_complete"),
     (("POST", "/api/rubric-review"), "rubric-review", "rubric_review"),
     (("POST", "/api/export_audio"), "export", "export_audio"),
+    (("POST", "/api/lesson/run"), "lesson", "lesson_run"),
 )
 
 
@@ -978,22 +1029,55 @@ def _reject_cross_origin_write(handler):
     return False
 
 
-def _refuse_check_execution(handler, q):
-    """Refuse executing a check item's code when the daemon is bound to all
-    interfaces and check.allow_lan is false (D-09, plan 05-03 Task 3). A
-    loopback-bound daemon always executes; allow_lan true always executes.
-    check.allow_lan is read live through settings (never cached at bind), so
-    toggling it takes effect on the next submit. Returns True when the caller
-    must refuse and write nothing -- the decision is made before the runner is
-    ever invoked."""
+def _check_refusal_body(handler, q):
+    """The server-side refusal body for a check submission, or None when
+    execution may proceed -- the shared `execution_refusal` decision mapped
+    to the locked refusal body (reason + copy) the served page branches on
+    (plan 05-06). Only check items are gated here; every other submission
+    passes through untouched."""
     if q is None or q.get("type") != "check":
-        return False
+        return None
+    cfg = settings.load_settings(handler.root)
+    refusal = execution_refusal(handler, q.get("lang") or "python",
+                                cfg.get("check") or {})
+    if refusal is None:
+        return None
+    reason = (REFUSAL_REASON_LAN if refusal == LAN_REFUSAL_COPY
+              else REFUSAL_REASON_LANG)
+    return _refusal_body(reason, refusal)
+
+
+def execution_refusal(handler, language, check_settings):
+    """The one pre-execution refusal decision shared by check submission and
+    lesson Run (plan 09-05): returns the locked refusal copy to send, or
+    None when the run may proceed. Order is fixed -- the LAN boundary first
+    (a network view never executes under the default policy), then the
+    language allowlist. Both copies are the exact strings the Phase 5
+    surfaces already shipped, so the check-submit paths keep their
+    byte-for-behavior copy."""
+    if getattr(handler, "lan", False) and \
+            not (check_settings or {}).get("allow_lan"):
+        return LAN_REFUSAL_COPY
+    if language not in ((check_settings or {}).get("languages") or {}):
+        return UNKNOWN_LANGUAGE_COPY % language
+    return None
+
+
+def _session_id_for(handler, stem):
+    """The API session id registered against a served bank stem, or None --
+    the session the lesson Run adapter posts against (plan 09-05)."""
+    sess = handler.sessions.get(stem) or {}
+    return sess.get("api_session_id")
+
+
+def _lan_refused(handler):
+    """True when this daemon serves on the network with check.allow_lan off
+    -- the render-time gate that turns every runnable fence into the LAN
+    refusal state (09-UI-SPEC "LAN refusal")."""
     if not getattr(handler, "lan", False):
         return False
     cfg = settings.load_settings(handler.root)
-    if (cfg.get("check") or {}).get("allow_lan"):
-        return False
-    return True
+    return not (cfg.get("check") or {}).get("allow_lan")
 
 
 THEME_ACTIONS = ("preview", "pick", "save", "reset")
@@ -1140,8 +1224,9 @@ def handle_quiz_answer(handler, stem):
         if q is None:
             handler.send_error(404, "no item %r in this bank" % data.get("id"))
             return
-        if _refuse_check_execution(handler, q):
-            handler.send_json(_refusal_body(REFUSAL_REASON_LAN, LAN_REFUSAL_COPY))
+        refusal = _check_refusal_body(handler, q)
+        if refusal is not None:
+            handler.send_json(refusal)
             return
         elapsed_ms = data.get("elapsed_ms")
         if not isinstance(elapsed_ms, int) or isinstance(elapsed_ms, bool):
@@ -1224,6 +1309,29 @@ def handle_study_get(handler, stem):
     handler.send_html(page.encode("utf-8"))
 
 
+def handle_katex_asset(handler, name):
+    """`GET /assets/katex/<name>` -- the one static-asset route (09-04).
+    The name is resolved through the closed `KATEX_ASSETS` map (a URL suffix
+    to a vendored archive-relative path and MIME type) and the bytes come
+    from `resources.read_bytes()`, the same checkout/archive reader every
+    other bundled resource uses. The name is never joined to a filesystem
+    path: an unknown, encoded, nested, traversal, or query-manipulated name
+    is a plain 404, and only names the reviewed CSS actually references
+    exist in the map (T-09-09).
+    """
+    entry = KATEX_ASSETS.get(name)
+    if entry is None:
+        handler.send_not_found(name)
+        return
+    relpath, mime = entry
+    try:
+        body = resources.read_bytes(relpath)
+    except OSError:
+        handler.send_not_found(name)
+        return
+    handler.send_bytes(body, mime)
+
+
 def _resolve_check(qs, check_id):
     """The one check-item resolution: by positional id or opaque [ID:], the
     same set the linter's lesson.check_ref_unknown accepts (D-01)."""
@@ -1282,16 +1390,26 @@ def _log_unreachable(bank_dir):
     surface a live gate depends on is unavailable, so the band states the
     section-12.1 copy and never reveals (C9, "no reveal without its
     event"). The probe is cheap and never writes: the log's parent must be
-    creatable as a directory and the log must not be a directory."""
+    creatable as a directory and the log must not be a directory. It never
+    calls makedirs -- a lesson fetch is presentation-only and must not
+    create `_evidence/` (Phase 9 D-08), so creatability is inferred from
+    the grandparent instead."""
     log = evidence.log_path(bank_dir)
     parent = os.path.dirname(log)
     try:
         if os.path.isdir(log):
             return True
-        os.makedirs(parent, exist_ok=True)
-    except OSError:
-        return True
-    try:
+        if not os.path.isdir(parent):
+            if os.path.exists(parent):
+                # A file (or other non-directory) where the log's parent
+                # directory must be: creation is impossible.
+                return True
+            # The parent can be created iff its own parent exists and is
+            # writable; infer that without creating anything.
+            grand = os.path.dirname(parent)
+            if not os.path.isdir(grand) or not os.access(grand, os.W_OK):
+                return True
+            return False
         if not os.path.exists(log):
             return not os.access(parent, os.W_OK)
         return not os.access(log, os.W_OK)
@@ -1377,6 +1495,21 @@ def handle_lesson_get(handler, stem):
     les = parse_lesson(path)
     params = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query)
     drill = "drill" in (params.get("print") or [])
+    # 09-04/09-05: the lesson reader resolves the subject profile exactly as
+    # a session would (subjects.select_profile over the bank; the stored
+    # snapshot is consumed once a session id exists). Only the profile's
+    # lesson.math flag turns the local KaTeX enhancement on; EMT/plain
+    # profiles stay ordinary reader output (D-08). `?profile=<id>` supplies
+    # the one explicit id a client may send (plan 09-05): the selector
+    # resolves it once, and a profile object is never accepted.
+    explicit_id = (params.get("profile") or [None])[0]
+    try:
+        profile = subjects.select_profile(
+            qs, subjects.load_registry(
+                os.path.dirname(os.path.abspath(path)) or "."),
+            explicit_id=explicit_id)
+    except subjects.SubjectProfileError:
+        profile = None
     print_mode = bool(params.get("print"))
     gate = _lesson_gate_ctx(handler, stem, path, qs, les,
                             print_mode=print_mode)
@@ -1393,7 +1526,10 @@ def handle_lesson_get(handler, stem):
     elif reveal == "check":
         announce = lesson.REVEAL_CLAUSE_COPY
     page = lesson.lesson_page(path, qs, les, runtime=True, drill=drill,
-                              gate=gate, focus=focus, announce=announce)
+                              gate=gate, focus=focus, announce=announce,
+                              profile=profile,
+                              session_id=_session_id_for(handler, stem),
+                              lan_refused=_lan_refused(handler))
     handler.send_html(page.encode("utf-8"))
 
 
@@ -1894,7 +2030,7 @@ def api_reject_path_fields(data):
     return None
 
 
-def api_read_json(handler):
+def api_read_json(handler, allowed_ids=()):
     """`handler.read_json()`, but a malformed or non-object body is reported
     to the caller as `(None, True)` instead of letting the decode error
     propagate into the generic `except Exception` -> 500 clause every
@@ -1902,6 +2038,11 @@ def api_read_json(handler):
     the routine, not-exotic condition D-05 asks for a clean 4xx on, not a
     500. Returns `(data, failed)`; the caller has already sent the error
     response when `failed` is true.
+
+    `allowed_ids` names the API_FORBIDDEN_FIELDS a route may receive as a
+    plain identifier -- `/api/start` accepts `profile` as a subject-profile
+    ID (plan 09-05): only the id crosses the boundary, never profile
+    content, which remains forbidden everywhere.
     """
     try:
         data = handler.read_json()
@@ -1911,12 +2052,12 @@ def api_read_json(handler):
     if not isinstance(data, dict):
         handler.send_error(400, "JSON body must be a JSON object")
         return None, True
-    bad = api_reject_path_fields(data)
-    if bad:
-        handler.send_error(
-            400, "field %r is not accepted here; a session is addressed by its "
-            "session_id and a bank by its scanned stem, never by a path" % bad)
-        return None, True
+    for field in API_FORBIDDEN_FIELDS:
+        if field in data and field not in allowed_ids:
+            handler.send_error(
+                400, "field %r is not accepted here; a session is addressed by its "
+                "session_id and a bank by its scanned stem, never by a path" % field)
+            return None, True
     return data, False
 
 
@@ -1948,13 +2089,22 @@ def handle_api_start(handler):
     """
     if _reject_cross_origin(handler):
         return
-    data, failed = api_read_json(handler)
+    data, failed = api_read_json(handler, allowed_ids=("profile",))
     if failed:
         return
     bank = data.get("bank")
     path = handler.banks.get(bank) if isinstance(bank, str) else None
     if path is None:
         handler.send_not_found(bank if isinstance(bank, str) else "")
+        return
+    # Plan 09-05: an optional subject-profile ID. Only the id crosses the
+    # boundary -- profile content, capabilities and verifiers are still
+    # forbidden everywhere -- and do_start resolves it once server-side,
+    # persisting the complete snapshot with the session (D-02/D-04).
+    profile_id = data.get("profile")
+    if profile_id is not None and (
+            not isinstance(profile_id, str) or not profile_id):
+        handler.send_error(400, "profile must be a non-empty profile id")
         return
     count = data.get("count", 10)
     if not isinstance(count, int) or isinstance(count, bool):
@@ -2036,7 +2186,8 @@ def handle_api_start(handler):
             result = session.do_select(path, spec, False)
             result["preview"] = True
         else:
-            result = session.do_start(path, spec, mode, out, False)
+            result = session.do_start(path, spec, mode, out, False,
+                                      profile_id=profile_id)
     except SystemExit as exc:
         handler.send_error(400, str(exc.code))
         return
@@ -2355,8 +2506,9 @@ def handle_api_submit(handler):
                 q = qs[idx]
     except Exception:
         q = None
-    if _refuse_check_execution(handler, q):
-        handler.send_json({"refused": LAN_REFUSAL_COPY})
+    refusal = _check_refusal_body(handler, q)
+    if refusal is not None:
+        handler.send_json(refusal)
         return
     try:
         result = session.do_action(
@@ -2393,6 +2545,140 @@ def handle_api_submit(handler):
         result.pop("explain", None)
     if cfg is not None and result.get("accepted") and qs:
         _refresh_attempt_view(cfg, session_id, qs, bank_path)
+    handler.send_json(result)
+
+
+# The one body /api/lesson/run accepts (plan 09-05): a session id, a stable
+# block id, the block's language, and the edited source. Anything else --
+# including every authority-shaped field (answer, action, score, correct,
+# tier, evidence, path, bank, verifier, capabilities, argv) -- is refused by
+# name before any state is touched (T-09-12).
+LESSON_RUN_FIELDS = ("session_id", "block_id", "language", "source")
+LESSON_RUN_FORBIDDEN = ("answer", "action", "score", "correct", "tier",
+                        "evidence", "path", "bank", "verifier",
+                        "capabilities", "argv")
+LESSON_SOURCE_MAX_BYTES = 65536
+
+
+def handle_api_lesson_run(handler):
+    """`POST /api/lesson/run` -- `{"session_id", "block_id", "language",
+    "source"}`: run one lesson code fence as an observation through the same
+    bounded runner check submission uses (`runner.run_source`, plan 09-05
+    D-09). The session, its stored subject profile, the bank, and the block
+    are all resolved server-side; the language must be enabled in BOTH the
+    stored profile's runnable_languages and the live check.languages
+    settings, the default-closed LAN policy applies, and the source is
+    capped at 65536 UTF-8 bytes -- every gate before `run_source()` is
+    invoked (T-09-12/T-09-13).
+
+    The response is observation only: stdout, stderr, exit_code, timed_out
+    and truncated -- no passed/score/correct/verdict field exists, and the
+    run changes no cursor, teaching state, or evidence (D-11, T-09-14).
+    """
+    if _reject_cross_origin(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    extra = sorted(set(data) - set(LESSON_RUN_FIELDS))
+    if extra:
+        handler.send_error(400, "/api/lesson/run accepts only session_id, "
+                           "block_id, language and source; field %r is not "
+                           "read" % extra[0])
+        return
+    for forbidden in LESSON_RUN_FORBIDDEN:
+        if forbidden in data:
+            handler.send_error(400, "field %r is not accepted by "
+                               "/api/lesson/run" % forbidden)
+            return
+    session_id = data.get("session_id")
+    block_id = data.get("block_id")
+    language = data.get("language")
+    source = data.get("source")
+    if not isinstance(session_id, str) or not session_id:
+        handler.send_error(400, "session_id must be a non-empty string")
+        return
+    if not isinstance(block_id, str) or not block_id:
+        handler.send_error(400, "block_id must be a non-empty string")
+        return
+    if not isinstance(language, str) or not language:
+        handler.send_error(400, "language must be a non-empty string")
+        return
+    if not isinstance(source, str):
+        handler.send_error(400, "source must be a string")
+        return
+    if len(source.encode("utf-8")) > LESSON_SOURCE_MAX_BYTES:
+        handler.send_error(400, "source exceeds the %d UTF-8 byte limit"
+                           % LESSON_SOURCE_MAX_BYTES)
+        return
+    path = api_session_path(handler, session_id)
+    if path is None:
+        handler.send_not_found(session_id)
+        return
+    try:
+        data2 = read_session(path)
+    except Exception as exc:
+        handler.send_server_error(exc)
+        return
+    bank_path = data2.get("bank") or ""
+    if not isinstance(bank_path, str) or not bank_path:
+        handler.send_error(400, "session carries no bank")
+        return
+    # The stored profile snapshot (filled once at start; a legacy null slot
+    # resolves in memory here -- never written -- so a lesson Run changes no
+    # session state, D-11).
+    profile_snapshot = data2.get("subject_profile")
+    if profile_snapshot is None:
+        try:
+            profile_snapshot = subjects.select_profile(
+                load(bank_path), subjects.load_registry(
+                    os.path.dirname(os.path.abspath(bank_path)) or "."))
+        except subjects.SubjectProfileError as exc:
+            handler.send_error(400, str(exc))
+            return
+    run_languages = ((profile_snapshot.get("profile") or {})
+                     .get("lesson", {}).get("runnable_languages") or [])
+    if language not in run_languages:
+        handler.send_json({
+            "refused": lesson.RUN_LANG_UNAVAILABLE_COPY.format(
+                language=language)})
+        return
+    cfg = settings.load_settings(handler.root)
+    check_settings = cfg.get("check") or {}
+    refusal = execution_refusal(handler, language, check_settings)
+    if refusal is not None:
+        handler.send_json({"refused": refusal})
+        return
+    # Confirm the block against the parsed lesson's ordered fence list
+    # (the same enumeration the renderer's data-code-block ids follow).
+    les = parse_lesson(bank_path)
+    fences = lesson.lesson_fence_languages(les)
+    try:
+        index = int(block_id) - 1
+    except (TypeError, ValueError):
+        handler.send_error(400, "block_id must be a fence number")
+        return
+    if index < 0 or index >= len(fences) or fences[index] != language:
+        handler.send_error(404, "no %s block %s in this lesson"
+                           % (language, block_id))
+        return
+    check = check_settings
+    try:
+        result = runner.run_source(
+            language, source, "",
+            timeout_seconds=check.get("timeout_seconds",
+                                      runner.DEFAULT_TIMEOUT_SECONDS),
+            max_output_bytes=check.get("max_output_bytes",
+                                       runner.DEFAULT_MAX_OUTPUT_BYTES),
+            languages=check.get("languages"))
+    except runner.UnknownLanguage as exc:
+        handler.send_json({
+            "refused": lesson.RUN_LANG_UNAVAILABLE_COPY.format(
+                language=language)})
+        return
+    except Exception as exc:
+        handler.send_server_error(exc)
+        return
     handler.send_json(result)
 
 

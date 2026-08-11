@@ -911,7 +911,7 @@ def _objective_history_indexed(index, objective, prefix, subject, mode,
             params.append(bank)
         parts = [
             "SELECT ts, session_id, item_id, item_ref, mode, score, ",
-            "attempt_number, confidence, response_time_ms, objective, bank, "
+            "attempt_number, confidence, response_time_ms, objective, bank, ",
             "context FROM events WHERE ",
             " AND ".join(clauses),
             " ORDER BY ts, seq",

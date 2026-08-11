@@ -25,7 +25,14 @@ import collections, fractions, hashlib, json, os, re, sys
 # its response event id, and the ordered shown-tier snapshots (D-03). The
 # v1-to-v2 upgrade in SESSION_UPGRADES initializes an empty teaching_state so
 # a session written before the hint ladder resumes under the new contract.
-SESSION_VERSION = 2
+#
+# Version 3 (Phase 9) adds the nullable `subject_profile` snapshot: the
+# resolved subject id, registry/profile versions, the full resolved profile
+# (lesson capabilities, allowed item types, verifier), and any requested
+# unavailable capabilities. New sessions persist the complete snapshot; the
+# v2-to-v3 upgrade leaves the slot null and the session adapter fills it once
+# from the bank on the first action (D-04).
+SESSION_VERSION = 3
 ITEM_VERSION = 1
 REPORT_VERSION = 1
 # The public interaction-contract version for a check item (plan 05-01):
@@ -789,7 +796,6 @@ def visual_observation(q, state, verdict, hint_tier=None):
         "tolerance_policy_version": VISUAL_TOLERANCE_POLICY_VERSION,
     }
 
-
 def interaction_result(q, response, verdict, observations):
     """The normalized post-submit result envelope for both interactive
     types, consumed by the served submit path and any agent adapter. It
@@ -830,6 +836,10 @@ def session_path(path):
 # SESSION_UPGRADES rather than a rewrite of read_session.
 SESSION_UPGRADES = {
     1: lambda data: dict(data, teaching_state={}),
+    # v2-to-v3 (Phase 9): a nullable subject-profile slot only. The upgrade
+    # never inspects a bank or settings; the first action on a legacy session
+    # resolves and persists the snapshot once (D-04).
+    2: lambda data: dict(data, subject_profile=None),
 }
 
 
@@ -884,6 +894,25 @@ def session_view(data, qs):
             "status": data["status"], "mode": data["mode"],
             "objective": data.get("objective", ""), "position": cursor,
             "total": len(selected), "responses": len(data["responses"])}
+    # Phase 9 (D-04): the persisted subject/profile snapshot is part of the
+    # public view. Legacy sessions whose null slot is not filled yet report
+    # an empty subject id and no profile metadata.
+    sp = data.get("subject_profile")
+    if isinstance(sp, dict):
+        prof = sp.get("profile") or {}
+        view["subject_id"] = sp.get("subject_id", "")
+        view["subject_profile"] = {
+            "id": prof.get("id", ""),
+            "version": prof.get("version"),
+            "registry_version": sp.get("registry_version"),
+            "profile_version": sp.get("profile_version"),
+            "lesson": prof.get("lesson"),
+            "allowed_item_types": prof.get("allowed_item_types"),
+            "verifier": prof.get("verifier"),
+            "unsupported_capabilities": sp.get("unsupported_capabilities", []),
+        }
+    else:
+        view["subject_id"] = ""
     if data["status"] == "active" and cursor < len(selected):
         view["item"] = public_item(qs[selected[cursor]], data.get("seed", 0) + cursor)
     else:

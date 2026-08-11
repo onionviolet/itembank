@@ -1,0 +1,9 @@
+# .continue-here — Phase 09 (subject-invariant-loop-emt-math-cs-integration)
+
+**Status: PARTIALLY EXECUTED — held on two external gates. Continue here.**
+
+- Branch `gsd/phase-09-subject-loop`, worktree `.phase09-wt`, 5 commits ahead of main tip `eadf958` (0c2ec94, a6fdba6, 238782f + docs). Not merged, not pushed.
+- DONE: 09-01 (subject-profile seam + v3 session + EMT tracer), 09-02 (subject_profiles settings registry + fourth-profile proof), 09-03 research (KaTeX 0.18.4 candidate — approval PENDING).
+- GATE 1 (blocks 09-04): human approval of `katex=0.18.4` — reply the resume signal; see `.planning/phases/09-.../09-03-SUMMARY.md`.
+- GATE 2 (blocks 09-05): Phase 5 (`gsd/phase-05-check`) — last polled 2026-08-11 03:10 CDT: ALIVE, 3/7 summaries (05-01..03), mid-05-04. Re-check the strong set (05-01..07 SUMMARIES + VERIFICATION + UAT on the branch); then merge/cherry-pick Phase 5 into this branch and execute 09-05 (contracts captured in HANDOFF-PHASE09.md §3).
+- Full detail: `HANDOFF-PHASE09.md`.

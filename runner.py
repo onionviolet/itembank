@@ -145,11 +145,45 @@ else:
 """
 
 
+def run_source(language, source, stdin_text="",
+               timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
+               max_output_bytes=DEFAULT_MAX_OUTPUT_BYTES, languages=None):
+    """Run one source text once, out of process, under the configured
+    language template -- the primitive shared by lesson observations
+    (`/api/lesson/run`) and by `run_cases()` (plan 09-05 D-09: one process
+    implementation, no second runner). Returns only the bounded observation:
+
+        {"stdout": str, "stderr": str, "exit_code": int|None,
+         "timed_out": bool, "truncated": bool}
+
+    No verdict, score, passed or correctness field exists here: a timed-out
+    run carries `timed_out` True and `exit_code` None; whether that is a
+    wrong answer is a scoring decision made by the caller, never here.
+    `languages` defaults to `LANGUAGES`; an unknown language raises
+    `UnknownLanguage` before any process is started.
+    """
+    languages = LANGUAGES if languages is None else languages
+    template = languages.get(language)
+    if template is None:
+        raise UnknownLanguage(
+            "language %r is not configured; known languages: %s"
+            % (language, ", ".join(sorted(languages))))
+    with tempfile.TemporaryDirectory() as td:
+        src_path = os.path.join(td, "submission.py")
+        with open(src_path, "w", encoding="utf-8") as fh:
+            fh.write(source)
+        argv = [a.replace("{interpreter}", sys.executable)
+                  .replace("{source}", src_path) for a in template]
+        stdout, stderr, exit_code, timed_out, truncated = _spawn_and_drain(
+            argv, stdin_text, timeout_seconds, max_output_bytes)
+    return {"stdout": stdout, "stderr": stderr, "exit_code": exit_code,
+            "timed_out": timed_out, "truncated": truncated}
+
+
 def run_cases(q, source, timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
               max_output_bytes=DEFAULT_MAX_OUTPUT_BYTES, languages=None):
-    """Run source once per authored case, in order, inside one temporary
-    directory, returning one result dict per case: case_index, passed,
-    actual, timed_out and truncated.
+    """Run source once per authored case, in order, returning one result
+    dict per case: case_index, passed, actual, timed_out and truncated.
 
     languages defaults to LANGUAGES; plan 05-03 passes settings-derived
     values in. A case that timed out carries timed_out True and passed False;
@@ -157,37 +191,56 @@ def run_cases(q, source, timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
     timed_out case -- that is the shape score_response() receives directly,
     so the timeout signal survives into the scorer without the scorer ever
     executing code.
+
+    Every plain (non-harness) case delegates its process invocation to
+    `run_source()` -- the same primitive lesson observations use (plan
+    09-05 D-09) -- so there is exactly one spawn/drain/timeout/cap/tree-clean
+    implementation. The comparison contract is unchanged.
     """
     languages = LANGUAGES if languages is None else languages
     lang = q.get("lang") or "python"
+    # Validate the template up front even for a zero-case item, matching the
+    # pre-loop check the single-temp-dir implementation performed.
     template = languages.get(lang)
     if template is None:
         raise UnknownLanguage(
             "language %r is not configured; known languages: %s"
             % (lang, ", ".join(sorted(languages))))
     harness = q.get("harness") or ""
-    with tempfile.TemporaryDirectory() as td:
-        src_path = os.path.join(td, "submission.py")
-        with open(src_path, "w", encoding="utf-8") as fh:
-            fh.write(source)
-        argv = [a.replace("{interpreter}", sys.executable)
-                  .replace("{source}", src_path) for a in template]
-        driver_path = None
-        if harness:
+    results = []
+    if harness:
+        # The harness driver needs one stable source path across all cases
+        # (the driver imports the same module each time), so its argv is
+        # built once here and each case spawns through _spawn_and_drain.
+        with tempfile.TemporaryDirectory() as td:
+            src_path = os.path.join(td, "submission.py")
+            with open(src_path, "w", encoding="utf-8") as fh:
+                fh.write(source)
+            argv = [a.replace("{interpreter}", sys.executable)
+                      .replace("{source}", src_path) for a in template]
             driver_path = os.path.join(td, "harness_driver.py")
             with open(driver_path, "w", encoding="utf-8") as fh:
                 fh.write(HARNESS_DRIVER)
-        results = []
-        for i, case in enumerate(q.get("cases") or []):
-            if harness:
+            for i, case in enumerate(q.get("cases") or []):
                 r = run_harness_case(argv, case, harness, q.get("tolerance"),
                                      timeout_seconds, max_output_bytes,
                                      driver_path)
-            else:
-                r = run_one_case(argv, case, q.get("match", "trimmed"),
-                                 timeout_seconds, max_output_bytes)
-            r["case_index"] = i
-            results.append(r)
+                r["case_index"] = i
+                results.append(r)
+    else:
+        for i, case in enumerate(q.get("cases") or []):
+            out = run_source(lang, source, case.get("stdin", ""),
+                             timeout_seconds, max_output_bytes, languages)
+            passed = False
+            if not out["timed_out"] and not out["truncated"]:
+                passed = case_passed(q.get("match", "trimmed"),
+                                     case.get("expected", ""), out["stdout"])
+            results.append({
+                "case_index": i,
+                "passed": passed,
+                "actual": out["stdout"],
+                "timed_out": out["timed_out"],
+                "truncated": out["truncated"]})
     return results
 
 
@@ -195,7 +248,7 @@ def run_one_case(argv, case, match_mode, timeout_seconds, max_output_bytes):
     """Spawn one fresh interpreter for one stdin/stdout case. Each case gets
     its own subprocess so a hang consumes only that case's budget and a crash
     cannot contaminate the one after it."""
-    actual, timed_out, truncated = _spawn_and_drain(
+    actual, _stderr, _code, timed_out, truncated = _spawn_and_drain(
         argv, case.get("stdin", ""), timeout_seconds, max_output_bytes)
     passed = False
     if not timed_out and not truncated:
@@ -214,7 +267,7 @@ def run_harness_case(argv, case, func_name, tolerance, timeout_seconds,
     args = _parse_call(case.get("call") or case.get("stdin", ""))
     call_argv = argv[:2] + [driver_path, argv[2], func_name,
                             json.dumps(args)]
-    actual, timed_out, truncated = _spawn_and_drain(
+    actual, _stderr, _code, timed_out, truncated = _spawn_and_drain(
         call_argv, "", timeout_seconds, max_output_bytes)
     passed = False
     if not timed_out and not truncated:
@@ -430,8 +483,13 @@ def _spawn_and_drain(argv, stdin_text, timeout_seconds, max_output_bytes):
     t_out.join(timeout=_DRAIN_JOIN_TIMEOUT)
     t_err.join(timeout=_DRAIN_JOIN_TIMEOUT)
     actual = b"".join(out_buf).decode("utf-8", "replace")
+    errtext = b"".join(err_buf).decode("utf-8", "replace")
     truncated = out_trunc.is_set() or err_trunc.is_set()
-    return actual, timed_out, truncated
+    # A run the deadline killed has no exit code of its own -- the process
+    # did not exit, it was killed -- so exit_code is None exactly when
+    # timed_out, mirroring the no-verdict contract of the scorer.
+    return (actual, errtext,
+            None if timed_out else proc.returncode, timed_out, truncated)
 
 
 def _parse_call(text):

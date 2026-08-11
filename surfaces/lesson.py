@@ -9,6 +9,7 @@ import html, json, os, re, sys
 
 import evidence
 import retention
+import subjects
 from model import (CHECK_UNRESOLVED_COPY, grab, lesson_slug, load, load_style,
                    parse_key_blocks, parse_lesson, parse_terms, resolve_style)
 from runtime import glossable
@@ -130,6 +131,13 @@ p,li{font-size:18px;line-height:var(--leading-lesson);
   outline:2px solid var(--accent);outline-offset:2px}
 .scroll{overflow-x:auto;margin:0 0 var(--space-2);
   max-width:var(--measure-wide)}
+/* The Phase 9 D-13 table wrapper: the labelled focusable region that owns
+   horizontal overflow at narrow widths; the lesson page itself never
+   widens. Cells wrap (`overflow-wrap:anywhere`) instead of stretching the
+   wrapper, and the focus boundary is the visible --accent outline. */
+.lesson-table-scroll{max-width:100%}
+.lesson-table-scroll:focus-visible{outline:2px solid var(--accent);
+  outline-offset:2px}
 pre{margin:0;background:var(--chip);border-radius:8px;
   padding:var(--space-2) var(--space-3)}
 pre code{display:block;font-family:var(--font-ledger);font-size:14px;
@@ -138,7 +146,7 @@ pre code{display:block;font-family:var(--font-ledger);font-size:14px;
   margin-bottom:var(--space-1);font-family:var(--font-ledger)}
 table{border-collapse:collapse;margin:0 0 var(--space-2);min-width:100%}
 th,td{border:1px solid var(--line);padding:var(--space-2);
-  text-align:left;font-size:14px}
+  text-align:left;font-size:14px;overflow-wrap:anywhere}
 th{background:var(--chip);color:var(--mut);font-weight:600}
 .orphan{color:var(--mut);font-size:14px}
 .empty{text-align:center;padding:var(--space-6) var(--space-3)}
@@ -177,6 +185,13 @@ th{background:var(--chip);color:var(--mut);font-weight:600}
 .gloss-back{display:block;font-size:12px;color:var(--accent);
   text-decoration:none;margin-top:var(--space-1)}
 .gloss-back:hover,.gloss-back:focus-visible{text-decoration:underline}
+/* 09-04 Math: the named display wrapper owns horizontal overflow so a wide
+   formula scrolls inside the card and the viewport never widens (09-UI-SPEC
+   Responsive). The failure note is a persistent adjacent status, never a
+   toast: text plus token, not color-only (Capability/media unavailable). */
+.lesson-math-display{overflow-x:auto;overflow-y:hidden;max-width:100%}
+.lesson-math-note{font-family:var(--font-ledger);font-size:12px;
+  color:var(--warn);margin:var(--space-2) 0 0}
 .held{font-family:var(--font-ledger);font-size:12px;letter-spacing:.08em;
   text-transform:uppercase;color:var(--mut);margin:var(--space-6) 0 0}
 .style-foot{font-family:var(--font-ledger);font-size:12px;
@@ -259,7 +274,10 @@ __LESSON_CSS__
 __WARN_CSS__
 __GLOSS_ANCHOR_CSS__
 __GLOSS_PRINT_CSS__
-</style></head><body><div class="wrap">
+__RUNNABLE_CSS__
+</style>
+__MATH_ASSETS__
+</head><body><div class="wrap">
 <header>
   <h1>__TITLE__</h1>
   <div class="sub">__SUB__</div>
@@ -267,9 +285,260 @@ __GLOSS_PRINT_CSS__
 __STATUS__
 __READER_NAV__
 __GLOSS_SCRIPT__
-<div class="card">__STYLE_WARN____BODY__</div>
+<div class="card" id="lesson-content"__RUN_SESSION_ATTR__>__STYLE_WARN____BODY__</div>
+__MATH_SCRIPT__
+__RUNNABLE_JS__
 <p class="style-foot">__STYLE_FOOT__</p>
 </div></body></html>"""
+
+
+# 09-04 offline Math (09-UI-SPEC "Math" / Component matrix): the lesson
+# page loads the vendored KaTeX distribution from the daemon's closed
+# /assets/katex/ map -- never a CDN (D-07). `__MATH_ASSETS__` carries the
+# three allowlisted browser files in load order (CSS first, then core, then
+# auto-render); `__MATH_SCRIPT__` runs the lesson-scoped adapter after the
+# content node exists. Both are empty strings on every non-Math profile, so
+# an EMT/plain lesson is byte-identical to the pre-09-04 reader (D-08).
+MATH_ASSETS_HTML = (
+    '<link rel="stylesheet" href="/assets/katex/katex.min.css">\n'
+    '<script src="/assets/katex/katex.min.js"></script>\n'
+    '<script src="/assets/katex/contrib/auto-render.min.js"></script>')
+
+# The adapter's exact failure copy (09-UI-SPEC "Copy and error grammar"),
+# kept here once so the JS, the tests, and the spec can never drift:
+MATH_UNAVAILABLE_COPY = "Math unavailable. Formula source is shown."
+MATH_PARSE_FAILURE_COPY = ("Math could not be rendered. "
+                           "Formula source is shown.")
+
+# 09-04 lesson-scoped math adapter: enhances only `#lesson-content`, leaves
+# every Phase 3 `pre`/`code` node untouched, renders display delimiters
+# before inline ones, and fails readable. `trust:false` blocks KaTeX's raw
+# HTML/class/URL macros; `throwOnError:false` keeps the delimited source
+# visible as KaTeX's own error output (a `.katex-error` node holding the
+# source); `maxExpand`/`maxSize` bound pathological input (T-09-10/11). If
+# the local assets never loaded, one lesson-level unavailable note is
+# appended and the raw source remains the page's content -- no CDN fallback,
+# no deletion of the source (D-06/D-07).
+MATH_ADAPTER_JS = """<script>
+(function () {
+  var content = document.getElementById("lesson-content");
+  if (!content) { return; }
+  var note = function (cls, text) {
+    var n = document.createElement("p");
+    n.className = cls;
+    n.textContent = text;
+    return n;
+  };
+  if (typeof window.katex === "undefined" ||
+      typeof window.renderMathInElement !== "function") {
+    content.appendChild(note("lesson-math-note", %(unavailable)s));
+    return;
+  }
+  var displays = content.querySelectorAll(".katex-display");
+  try {
+    renderMathInElement(content, {
+      delimiters: [
+        {left: "$$", right: "$$", display: true},
+        {left: "$", right: "$", display: false}
+      ],
+      ignoredTags: ["pre", "code", "script", "noscript", "style", "textarea"],
+      throwOnError: false,
+      trust: false,
+      maxExpand: 1000,
+      maxSize: 50
+    });
+  } catch (e) {
+    content.appendChild(note("lesson-math-note", %(parse_failure)s));
+    return;
+  }
+  // Display math owns its horizontal overflow in a named wrapper
+  // (09-UI-SPEC Responsive): auto-render emits `.katex-display`, and the
+  // page wraps each in `.lesson-math-display` so a wide formula scrolls
+  // inside the card instead of widening the viewport.
+  content.querySelectorAll(".katex-display").forEach(function (el) {
+    var wrap = document.createElement("div");
+    wrap.className = "lesson-math-display";
+    el.parentNode.insertBefore(wrap, el);
+    wrap.appendChild(el);
+  });
+  // One parse failure leaves KaTeX's own error node (the source, readable)
+  // plus the exact explanatory note beside it; no error handler deletes it.
+  content.querySelectorAll(".katex-error").forEach(function (el) {
+    if (el.parentNode.classList.contains("lesson-math-note")) { return; }
+    var n = note("lesson-math-note", %(parse_failure)s);
+    el.parentNode.insertBefore(n, el.nextSibling);
+  });
+})();
+</script>""" % {
+    "unavailable": json.dumps(MATH_UNAVAILABLE_COPY),
+    "parse_failure": json.dumps(MATH_PARSE_FAILURE_COPY),
+}
+
+
+# --- 09-05 runnable lesson code --------------------------------------------
+# The locked page copy for lesson Run observations (09-UI-SPEC "State
+# machines and exact copy"). These strings are the page-facing contract;
+# the daemon returns bounded observations and machine reasons, and the page
+# renders exactly these statuses. No assessment vocabulary ("correct",
+# "passed", "score", "verdict") appears in any of them (D-11).
+RUN_EXAMPLE_LABEL = "Example code"
+RUN_SOURCE_LABEL = "Source code"
+RUN_READY_COPY = "Run example"
+RUN_RUNNING_COPY = "Running example\u2026"
+RUN_COMPLETED_COPY = "Run finished (exit code {code})."
+RUN_TIMEOUT_COPY = "Run stopped after the configured timeout."
+RUN_TRUNCATED_COPY = "Output was truncated at the configured limit."
+RUN_REQUEST_ERROR_COPY = ("Couldn\u2019t run this example. Your edits are "
+                          "still here. Try again.")
+RUN_LANG_UNAVAILABLE_COPY = ("Run unavailable: {language} is not enabled "
+                             "for this lesson.")
+RUN_STATIC_COPY = ("Run this example in the local app. The source remains "
+                   "available here.")
+RUN_LAN_REFUSAL_COPY = "Run unavailable from this network view."
+RUN_NO_OUTPUT_COPY = "No output."
+RUN_HELP_COPY = ("Tab inserts a tab, Shift-Tab dedents, Escape then Tab "
+                 "leaves the editor.")
+RUN_STDOUT_LABEL = "stdout"
+RUN_STDERR_LABEL = "stderr"
+
+# 09-05 runnable-code adapter (09-UI-SPEC "Runnable code example" / "CS
+# runnable prose"). One delegated handler on `#lesson-content` owns every
+# block: each block keeps its own source/status/output/request state, the
+# Run POST carries exactly {session_id, block_id, language, source}, and the
+# status region announces only the concise summary -- labelled stdout/stderr
+# are never live regions. Tab/Shift-Tab edit inside the textarea; Escape
+# arms the next Tab to leave the editor (the platform focus escape); the Run
+# button follows the source in DOM/tab order and keeps native Enter/Space
+# activation. Request errors are announced once with role="alert"; the
+# source and previous output are never replaced by a failure.
+RUNNABLE_CSS = """
+/* plan 09-05 runnable lesson code */
+.scroll.runnable{border:1px solid var(--line);border-radius:8px;padding:.5rem .75rem;margin:.75rem 0}
+.scroll.runnable .lang{display:inline-block;margin-right:.5rem}
+.scroll.runnable .example-label{font-weight:600}
+.run-source-label{display:block;margin:.35rem 0 .15rem;font-size:.9em}
+.run-source{display:block;width:100%;min-height:3.5rem;font:14px/1.45 ui-monospace,Consolas,monospace;
+  padding:.4rem .5rem;box-sizing:border-box;resize:vertical;tab-size:4;background:var(--panel);color:var(--ink)}
+.run-help{font-size:.85em;opacity:.85;margin:.3rem 0}
+.run-go{min-height:44px;min-width:44px;padding:.5rem 1rem;margin:.25rem 0;font:inherit;cursor:pointer}
+.run-go[disabled]{opacity:.6;cursor:default}
+.run-status{min-height:1.2em;margin:.4rem 0 .2rem}
+.run-status.run-error{color:var(--warn)}
+.run-label{font-size:.8em;font-weight:600;margin:.6rem 0 .15rem;text-transform:none}
+.run-stdout,.run-stderr{margin:0 0 .25rem;padding:.4rem .5rem;max-height:14rem;overflow:auto;
+  background:var(--panel);border:1px solid var(--line);font:13px/1.45 ui-monospace,Consolas,monospace;
+  white-space:pre-wrap;word-break:break-word}
+.run-unavailable{font-size:.9em;opacity:.9;margin:.35rem 0 0}
+@media (prefers-reduced-motion:reduce){.scroll.runnable *{transition:none!important}}
+@media (max-width:320px){.run-source{font-size:13px}}
+"""
+RUNNABLE_JS = """<script>
+(function () {
+  "use strict";
+  var content = document.getElementById("lesson-content");
+  if (!content) { return; }
+  var C = %(copies)s;
+  var sessionId = content.getAttribute("data-run-session") || "";
+  // One delegated handler; each block carries its own state in the DOM and
+  // an in-flight flag, so blocks never share source/status/output/request.
+  content.addEventListener("click", function (ev) {
+    var btn = ev.target;
+    if (!btn || btn.className !== "run-go" || btn.disabled) { return; }
+    run(btn);
+  });
+  function blockOf(btn) {
+    var el = btn.parentNode;
+    while (el && !el.hasAttribute("data-code-block")) { el = el.parentNode; }
+    return el;
+  }
+  function statusOf(block) {
+    var el = block.querySelector(".run-status");
+    return el || block.appendChild(document.createElement("p"));
+  }
+  function setStatus(block, text, isError) {
+    var s = statusOf(block);
+    s.textContent = text;
+    s.className = "run-status" + (isError ? " run-error" : "");
+  }
+  function fillOut(block, cls, text) {
+    var pre = block.querySelector(cls);
+    pre.textContent = text.length ? text : %(no_output)s;
+  }
+  // Tab inserts a tab, Shift-Tab dedents, Escape arms the next Tab to leave
+  // the editor (09-UI-SPEC "CS runnable prose").
+  content.addEventListener("keydown", function (ev) {
+    var t = ev.target;
+    if (!t || t.className !== "run-source") { return; }
+    if (ev.key === "Tab") {
+      if (t.dataset.escapeArmed === "1") {
+        delete t.dataset.escapeArmed;
+        return;                      // native focus move leaves the editor
+      }
+      ev.preventDefault();
+      var val = t.value, at = t.selectionStart, end = t.selectionEnd;
+      if (ev.shiftKey) {
+        var lineStart = val.lastIndexOf("\\n", at - 1) + 1;
+        var ind = val.slice(lineStart, lineStart + 4);
+        var drop = ind.indexOf("\\t") === 0 ? 1
+                 : (ind.indexOf("    ") === 0 ? 4 : 0);
+        t.value = val.slice(0, lineStart) + val.slice(lineStart + drop);
+        t.setSelectionRange(Math.max(lineStart, at - drop),
+                            Math.max(lineStart, end - drop));
+      } else {
+        t.value = val.slice(0, at) + "\\t" + val.slice(end);
+        t.setSelectionRange(at + 1, at + 1);
+      }
+    } else if (ev.key === "Escape") {
+      t.dataset.escapeArmed = "1";
+    } else {
+      delete t.dataset.escapeArmed;
+    }
+  });
+  function run(btn) {
+    var block = blockOf(btn);
+    var ta = block.querySelector(".run-source");
+    var lang = block.getAttribute("data-lang") || "";
+    var id = block.getAttribute("data-code-block");
+    btn.disabled = true;
+    setStatus(block, C.running, false);
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/lesson/run", true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.onload = function () {
+      btn.disabled = false;
+      var body = null;
+      try { body = JSON.parse(xhr.responseText); } catch (e) { body = null; }
+      if (xhr.status !== 200 || !body) {
+        setStatus(block, C.request_error, true);
+        return;
+      }
+      if (body.refused) {
+        setStatus(block, body.refused, true);
+        return;
+      }
+      if (body.timed_out) { setStatus(block, C.timed_out, true); }
+      else if (body.truncated) { setStatus(block, C.truncated, true); }
+      else { setStatus(block, C.completed.replace("{code}", String(body.exit_code)), false); }
+      fillOut(block, ".run-stdout", body.stdout || "");
+      fillOut(block, ".run-stderr", body.stderr || "");
+    };
+    xhr.onerror = function () {
+      btn.disabled = false;
+      setStatus(block, C.request_error, true);
+    };
+    var payload = {session_id: sessionId, block_id: id, language: lang,
+                   source: ta.value};
+    xhr.send(JSON.stringify(payload));
+  }
+})();
+</script>""" % {
+    "copies": json.dumps({
+        "ready": RUN_READY_COPY, "running": RUN_RUNNING_COPY,
+        "completed": RUN_COMPLETED_COPY, "timed_out": RUN_TIMEOUT_COPY,
+        "truncated": RUN_TRUNCATED_COPY, "request_error": RUN_REQUEST_ERROR_COPY,
+    }, ensure_ascii=False),
+    "no_output": json.dumps(RUN_NO_OUTPUT_COPY, ensure_ascii=False),
+}
 
 
 def _truncate(text, limit):
@@ -731,26 +1000,136 @@ def _callout_html(spec, body, ctx=None):
             % (slug + extra, icon, html.escape(label), inner))
 
 
-def _code_block(info, content):
+def lesson_fence_languages(lesson):
+    """The ordered list of fenced-block languages in a parsed lesson, in
+    document order. The reader renders one section per heading (the intro is
+    not rendered), so this walks each heading's body top to bottom with the
+    same `_FENCE_RE` and open-to-closer consumption `_protect_code` uses --
+    the server-side enumeration the daemon's `/api/lesson/run` block-id
+    resolution and the renderer's sequential `data-code-block` ids both
+    follow (09-05 D-05), so a block id always names the same fence. A fence
+    with no info string yields "" (never runnable)."""
+    langs = []
+    if lesson:
+        for h in lesson.get("headings") or []:
+            lines = (h.get("body") or "").split("\n")
+            i = 0
+            while i < len(lines):
+                m = _FENCE_RE.match(lines[i])
+                if m:
+                    langs.append(lesson_slug(m.group(2).strip() or ""))
+                    fence = m.group(1)
+                    closer = re.compile(r"^`{%d,}\s*$" % len(fence))
+                    i += 1
+                    while i < len(lines) and not closer.match(lines[i]):
+                        i += 1
+                i += 1
+    return langs
+
+
+def _block_runnable(lang, ctx):
+    """A fence may render a live Run control only when every server-side
+    prerequisite holds at render time: a daemon-served page, a non-empty
+    language the stored profile enables, no LAN refusal, and a session to
+    post against. Everything else renders the escaped source plus the
+    unavailable reason (09-UI-SPEC "CS runnable prose": static/disabled/LAN
+    blocks never render an enabled or deceptive control)."""
+    if ctx is None or not ctx.get("runtime"):
+        return False
+    if not lang:
+        return False
+    if lang not in (ctx.get("run_languages") or ()):
+        return False
+    if ctx.get("lan_refused"):
+        return False
+    if not ctx.get("run_session_id"):
+        return False
+    return True
+
+
+def _block_unavailable_reason(lang, ctx):
+    """The locked unavailable copy for a fence that cannot run (09-UI-SPEC
+    state table). An unknown profile (None, conservative presentation) or a
+    fence with no language reads as static; a known profile whose runnable
+    languages omit this language reads as disabled-language; an enabled
+    language with no session/LAN refusal reads as static/LAN. A runnable
+    block returns None. CLI and daemon resolve the profile through the same
+    selector, so both surfaces render identical copy for the same bank."""
+    if not lang:
+        return RUN_STATIC_COPY
+    run_languages = ctx.get("run_languages") if ctx is not None else None
+    # A non-empty runnable list is a real run capability: a language outside
+    # it is the disabled-language state. An empty list or an unknown profile
+    # declares no run capability at all, which reads as the generic static
+    # copy -- a profile with no runnable languages must render the reader
+    # byte-for-byte like no profile at all (09-04 D-08).
+    if run_languages and lang not in run_languages:
+        return RUN_LANG_UNAVAILABLE_COPY.format(language=lang)
+    if ctx is not None and ctx.get("lan_refused"):
+        return RUN_LAN_REFUSAL_COPY
+    return RUN_STATIC_COPY
+
+
+def _code_block(info, content, ctx=None):
     """The one markup shape Phase 9 attaches to (D-08): a preformatted
     element wrapping a code element whose class names the info string.
     The class is sanitised with the same restricted character set
     `lesson_slug` uses, so a hostile info string cannot close the class
     attribute or introduce a second one (T-3-10); the content is the
     block's source, HTML-escaped and otherwise untouched -- no re-indent,
-    no syntax highlighting. A visible label in the muted foreground names
-    the language; there is no KaTeX, no run button and no copy button --
-    this plan cuts the seam and leaves it inert.
+    no syntax highlighting.
+
+    Every fence gets a stable sequential `data-code-block` id in document
+    order (09-05 D-05, no reparse of the source). A fence that passes
+    `_block_runnable` renders the runnable control instead of the inert
+    `<pre>`: Example-code label, visible source label + textarea, keyboard
+    help, the native Run example button, a persistent `role="status"`
+    region, and separately labelled non-live stdout/stderr regions --
+    observation only, never a verdict (D-11). Every other fence keeps the
+    escaped source and the locked unavailable reason.
     """
     lang = lesson_slug(info)
     esc = html.escape(content)
+    seq = (ctx or {}).get("code_seq")
+    if seq is None:
+        seq = [0]
+        if ctx is not None:
+            ctx["code_seq"] = seq
+    seq[0] += 1
+    block_id = seq[0]
+    if _block_runnable(lang, ctx):
+        ctx["run_emitted"] = True
+        textarea_id = "lesson-code-%d" % block_id
+        rows = max(3, min(12, content.count("\n") + 2))
+        return (
+            '<div class="scroll runnable" data-code-block="%d" data-lang="%s">'
+            '<span class="lang">%s</span><span class="example-label">%s</span>'
+            '<label class="run-source-label" for="%s">%s</label>'
+            '<textarea id="%s" class="run-source" rows="%d" spellcheck="false">%s</textarea>'
+            '<p class="run-help">%s</p>'
+            '<button type="button" class="run-go">%s</button>'
+            '<p class="run-status" role="status" aria-live="polite"></p>'
+            '<p class="run-label">%s</p><pre class="run-stdout"></pre>'
+            '<p class="run-label">%s</p><pre class="run-stderr"></pre>'
+            '</div>'
+            % (block_id, html.escape(lang), html.escape(lang),
+               html.escape(RUN_EXAMPLE_LABEL), textarea_id,
+               html.escape(RUN_SOURCE_LABEL), textarea_id, rows, esc,
+               html.escape(RUN_HELP_COPY), html.escape(RUN_READY_COPY),
+               html.escape(RUN_STDOUT_LABEL), html.escape(RUN_STDERR_LABEL)))
+    reason = _block_unavailable_reason(lang, ctx)
+    notice = ('<p class="run-unavailable">%s</p>' % html.escape(reason)
+              if reason is not None else "")
     code = ('<code class="language-%s">%s</code>' % (lang, esc)
             if lang else "<code>%s</code>" % esc)
-    label = '<span class="lang">%s</span>' % html.escape(lang) if lang else ""
-    return '<div class="scroll">%s<pre>%s</pre></div>' % (label, code)
+    label = ('<span class="lang">%s</span>' % html.escape(lang)
+             if lang else "")
+    return ('<div class="scroll" data-code-block="%d" data-lang="%s">'
+            '%s<pre>%s</pre>%s</div>'
+            % (block_id, html.escape(lang), label, code, notice))
 
 
-def _protect_code(text):
+def _protect_code(text, ctx=None):
     """Lift every fenced block out of a section's text before any inline
     pass, replacing each with an opaque placeholder line that no inline
     pattern can match. Returns `(protected_text, tokens)` with the rendered
@@ -780,7 +1159,7 @@ def _protect_code(text):
                 j += 1
             if j < len(lines):
                 j += 1  # skip the closing fence line
-            tokens.append(_code_block(info, "\n".join(body)))
+            tokens.append(_code_block(info, "\n".join(body), ctx))
             out.append("\x00K%d\x00" % (len(tokens) - 1))
             i = j
         else:
@@ -802,13 +1181,21 @@ def _is_separator_row(row):
     return all(re.match(r"^:?-+:?$", c) for c in _split_cells(row))
 
 
-def _table_html(rows):
+def _table_html(rows, ctx=None):
     """A pipe run whose second line is a separator row of dashes becomes a
     table with the first line as the header; anything that does not fit
     that shape -- a lone pipe line, a missing separator, a row with a
     different cell count -- returns None so the caller falls back to a
     paragraph rather than raising or emitting a broken table (T-3-04).
     Alignment markers are not implemented; D-08 declines that edge case.
+
+    Phase 9 (D-13) keeps the table fully semantic -- native
+    `<table><thead><th><tbody><td>` in source order -- inside the shared
+    labelled, keyboard-focusable `.lesson-table-scroll` region that owns
+    horizontal overflow; header cells carry `scope="col"`. The accessible
+    name comes from the nearest lesson heading when one is in scope, else
+    the generic lesson-table label. There is no subject-specific renderer
+    path (D-12).
     """
     if len(rows) < 2 or not _is_separator_row(rows[1]):
         return None
@@ -816,12 +1203,15 @@ def _table_html(rows):
     body = [_split_cells(r) for r in rows[2:]]
     if any(len(r) != len(header) for r in body):
         return None
-    head = "".join("<th>%s</th>" % _inline(c) for c in header)
+    label = (ctx or {}).get("section_title") or "Lesson table"
+    head = "".join('<th scope="col">%s</th>' % _inline(c) for c in header)
     rows_html = "".join(
         "<tr>%s</tr>" % "".join("<td>%s</td>" % _inline(c) for c in r)
         for r in body)
-    return ('<div class="scroll"><table><thead><tr>%s</tr></thead>'
-            "<tbody>%s</tbody></table></div>" % (head, rows_html))
+    return ('<div class="scroll lesson-table-scroll" tabindex="0" '
+            'role="region" aria-label="%s"><table><thead><tr>%s</tr>'
+            '</thead><tbody>%s</tbody></table></div>'
+            % (html.escape(label), head, rows_html))
 
 
 _INLINE_CODE_RE = re.compile(r"`([^`\n]+)`")
@@ -931,7 +1321,7 @@ def _render_blocks(text, ctx=None):
     marked use -- invisible on screen (top-layer popover) and exactly the
     "note after the paragraph that used it" print-inline reflow (§10.1).
     """
-    protected, tokens = _protect_code(text)
+    protected, tokens = _protect_code(text, ctx)
     out = []
     lines = protected.split("\n")
     i = 0
@@ -1041,7 +1431,7 @@ def _render_blocks(text, ctx=None):
             while j < len(lines) and "|" in lines[j]:
                 rows.append(lines[j])
                 j += 1
-            table = _table_html(rows)
+            table = _table_html(rows, ctx)
             if table is not None:
                 out.append(table)
                 i = j
@@ -1100,6 +1490,7 @@ def render_markdown(text, ctx=None):
             heading = m.group(1).strip()
             if ctx is not None:
                 ctx["section"] = lesson_slug(heading)
+                ctx["section_title"] = heading
             prose = _render_blocks("\n".join(lines[1:]), ctx)
             focus_attr = ""
             if (ctx is not None and ctx.get("focus_section")
@@ -1142,6 +1533,7 @@ def _reader_context(bank_path, qs):
         "example_layout": reader.get("example_layout", "stacked"),
         "reader_nav": reader.get("reader_nav", "none"),
         "section": "intro",
+        "section_title": "",
         "used": set(),
         "panels": [],
         "panels_len": 0,
@@ -1176,7 +1568,8 @@ def _backlinks_html(stem, qs, slug):
 
 
 def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
-                style_override=None, gate=None, focus=None, announce=None):
+                style_override=None, profile=None, gate=None, focus=None,
+                announce=None, session_id=None, lan_refused=False):
     """The one render both surfaces call: the daemon route and `cmd_lesson`
     write the same document because there is only one `lesson_page`.
 
@@ -1213,6 +1606,11 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
     style id whether or not the bank declares it, so the permuted output is
     honest about which style produced it (D-11).
 
+    `profile` is the 09-04 presentation seam: a subject-profile snapshot
+    (the same shape `subjects.select_profile`/`session_profile` return). Its
+    `lesson.math` flag alone switches on the local KaTeX enhancement; every
+    other profile renders the pre-09-04 reader byte-for-byte.
+
     `gate` is the Phase 6.2 policy context -- a dict with `policy`
     (required|recommended|off), `states` (check id -> open|cleared|skipped,
     derived from the evidence log by the caller), `resolve` (check id ->
@@ -1239,6 +1637,7 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
     print_css = ""
     gloss_script = ""
     status_html = ""
+    ctx = None
     if announce:
         status_html = ('<div class="status" role="status">%s</div>'
                        % html.escape(announce))
@@ -1278,6 +1677,21 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
         ctx["runtime"] = runtime
         ctx["drill"] = drill
         ctx["key_answers"] = []
+        # 09-05 runnable lesson code: the sequential data-code-block counter,
+        # the profile's runnable languages, the session id to post against,
+        # and whether this daemon is LAN-served with check.allow_lan off --
+        # all decided here once per page, consumed by _code_block.
+        ctx["code_seq"] = [0]
+        ctx["run_emitted"] = False
+        # None = no profile resolved (conservative static presentation);
+        # a list = the profile's declared runnable languages. The CLI and
+        # daemon resolve the profile through the same selector, so fence
+        # copy matches byte-for-byte between surfaces.
+        ctx["run_languages"] = (
+            (profile or {}).get("profile", {}).get("lesson", {})
+            .get("runnable_languages")) if profile is not None else None
+        ctx["run_session_id"] = session_id
+        ctx["lan_refused"] = bool(lan_refused)
         if gate is not None:
             ctx["gate"] = gate
             ctx["gate_stop"] = False
@@ -1364,6 +1778,30 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
                     % (resolved["id"], os.path.basename(bank_path)))
             else:
                 style_foot = STYLE_FOOT % lesson_slug(resolved["id"])
+    # 09-04 Math: the presentation seam reads the profile snapshot the
+    # caller resolved (the daemon route resolves the bank's subject profile
+    # exactly as a session would; the CLI resolves the same profile for
+    # fence copy but enhancement stays a served-page capability). Only a
+    # daemon-served page whose profile's lesson.math flag is true loads the
+    # local assets and the adapter; EMT/plain profiles emit empty slots and
+    # byte-identical pages (D-08).
+    math_assets = ""
+    math_script = ""
+    if runtime and profile and \
+            (profile.get("profile") or {}).get("lesson", {}).get("math"):
+        math_assets = MATH_ASSETS_HTML
+        math_script = MATH_ADAPTER_JS
+    # 09-05 runnable lesson code: the adapter ships only when at least one
+    # fence actually rendered a Run control (no runnable blocks -> no empty
+    # runner panel and no script, keeping the gated/no-run reader script-free
+    # and every non-CS profile byte-identical to pre-09-05). The session id
+    # rides on #lesson-content as a data attribute; the JS posts it back so
+    # the daemon resolves the stored profile and bank.
+    run_emitted = bool(ctx is not None and ctx.get("run_emitted"))
+    runnable_css = RUNNABLE_CSS if run_emitted else ""
+    runnable_js = RUNNABLE_JS if run_emitted else ""
+    run_session_attr = (' data-run-session="%s"'
+                        % html.escape(session_id) if session_id else "")
     return (LESSON_TEMPLATE
             .replace("__THEME__", THEME_CSS)
             .replace("__SHARED_CSS__", SHARED_CSS)
@@ -1371,9 +1809,14 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
             .replace("__WARN_CSS__", warn_css)
             .replace("__GLOSS_ANCHOR_CSS__", anchor_css)
             .replace("__GLOSS_PRINT_CSS__", print_css)
+            .replace("__RUNNABLE_CSS__", runnable_css)
             .replace("__READER_NAV__", nav_html)
             .replace("__GLOSS_SCRIPT__", gloss_script)
+            .replace("__MATH_ASSETS__", math_assets)
+            .replace("__MATH_SCRIPT__", math_script)
             .replace("__STATUS__", status_html)
+            .replace("__RUNNABLE_JS__", runnable_js)
+            .replace("__RUN_SESSION_ATTR__", run_session_attr)
             .replace("__STYLE_WARN__", style_warn_html)
             .replace("__STYLE_FOOT__", style_foot)
             .replace("__TITLE__", html.escape(title) + " lesson")
@@ -1418,7 +1861,7 @@ def _split_section_blocks(body):
     consume, so a permutation moves blocks rather than fragments: fenced
     code protected first, then blank-line boundaries, with `>` callout runs
     and pipe-table runs kept whole (D-11)."""
-    protected, tokens = _protect_code(body)
+    protected, tokens = _protect_code(body, None)
     lines = protected.split("\n")
     blocks = []
     i = 0
@@ -1570,7 +2013,22 @@ def cmd_lesson(a):
     lesson = parse_lesson(a.bank)
     out = a.out or os.path.splitext(a.bank)[0] + "_lesson.html"
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
-    page = lesson_page(a.bank, qs, lesson, ref=a.ref)
+    # Plan 09-05: the lesson presentation resolves the subject profile
+    # through the same server-side selector the daemon route uses, so the
+    # static render's fence copy (disabled-language/static) matches the
+    # served page byte-for-byte; enhancement (math, run controls) still
+    # stays a served-page capability (D-08). A profile that cannot be
+    # resolved renders the conservative static copy, never a refusal.
+    # `--subject-profile` supplies the one explicit id a client may send;
+    # only the id crosses the boundary, the selector resolves it once.
+    try:
+        profile = subjects.select_profile(
+            qs, subjects.load_registry(
+                os.path.dirname(os.path.abspath(a.bank)) or "."),
+            explicit_id=getattr(a, "subject_profile", None))
+    except subjects.SubjectProfileError:
+        profile = None
+    page = lesson_page(a.bank, qs, lesson, ref=a.ref, profile=profile)
     if page is None:
         sys.exit("no lesson heading matching %r in %s" % (a.ref, a.bank))
     open(out, "w", encoding="utf-8").write(page)

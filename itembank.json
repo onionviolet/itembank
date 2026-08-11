@@ -92,6 +92,35 @@
     "tool_private_jwk_path": "",
     "platforms": []
   },
+  "subject_profiles": {
+    "version": 1,
+    "entries": {
+      "emt": {
+        "id": "emt",
+        "version": 1,
+        "lesson": {"markdown": true, "tables": true, "math": false,
+                   "runnable_languages": [], "lesson_layout": "separate"},
+        "allowed_item_types": ["mc", "multi", "table", "dnd", "build", "short", "visual"],
+        "verifier": "runtime"
+      },
+      "math": {
+        "id": "math",
+        "version": 1,
+        "lesson": {"markdown": true, "tables": true, "math": true,
+                   "runnable_languages": [], "lesson_layout": "separate"},
+        "allowed_item_types": ["mc", "multi", "table", "dnd", "build", "short", "visual"],
+        "verifier": "runtime"
+      },
+      "cs": {
+        "id": "cs",
+        "version": 1,
+        "lesson": {"markdown": true, "tables": true, "math": false,
+                   "runnable_languages": ["python"], "lesson_layout": "inline"},
+        "allowed_item_types": ["check", "mc", "multi", "table", "dnd", "build", "short", "visual"],
+        "verifier": "check"
+      }
+    }
+  },
   "check": {
     "timeout_seconds": 5,
     "max_output_bytes": 65536,

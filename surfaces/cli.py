@@ -662,6 +662,11 @@ def main():
                    help="serve the whole named confusion set together")
     s.add_argument("--profile", default=None,
                    help="named selection profile from settings")
+    s.add_argument("--subject-profile", default=None,
+                   help="subject-profile id from the validated subject_profiles "
+                        "registry (emt, math, cs, or a configured fourth); only "
+                        "the id crosses the client boundary, the snapshot is "
+                        "resolved server-side")
     s.add_argument("--out", help="session JSON path")
     s.add_argument("--force", action="store_true", help="start despite lint errors")
     s.add_argument("--subject", default=None,
@@ -868,6 +873,10 @@ def main():
     s.add_argument("--out")
     s.add_argument("--ref", default="",
                    help="render only the section whose heading matches this text")
+    s.add_argument("--subject-profile", default=None,
+                   help="subject-profile id whose presentation this lesson "
+                        "renders under (emt, math, cs, or a configured "
+                        "fourth); only the id crosses the client boundary")
     s.add_argument("--complete", action="store_true",
                    help="record an explicit completion of the --ref heading: the "
                         "referenced objectives enter the derived review queue "

@@ -26,6 +26,7 @@ import evidence
 import retention
 import runner
 import selection
+import subjects
 from model import lint, load
 from surfaces import settings
 from runtime import (INTERACTION_VERSION, REPORT_VERSION, SESSION_VERSION,
@@ -175,7 +176,8 @@ def _derive_subject(spec):
     return subject or ""
 
 
-def do_start(bank_path, spec, mode, out, force, *, override_token=None):
+def do_start(bank_path, spec, mode, out, force, *, override_token=None,
+             profile_id=None):
     # The D-09 focus pin is a session-level concern, not a selection filter:
     # it rides inside the spec dict so the signature stays the same for every
     # caller, and it is consumed here before the spec reaches `select()`,
@@ -270,6 +272,24 @@ def do_start(bank_path, spec, mode, out, force, *, override_token=None):
         retention_context={k: v for k, v in ctx.items() if k != "_snapshot"})
     trace["evidence"] = {"log": log, "responses": len(history),
                          "source": evidence_source}
+    # Phase 9 (D-01/D-04): resolve the subject profile from the items actually
+    # selected into this sitting, and persist the complete snapshot with the
+    # session. One unambiguous namespaced subject selects its registry entry
+    # from validated settings; unknown/unnamespaced sittings get the
+    # conservative default; a sitting whose selected items span several
+    # namespaces (no objective filter) and disallowed item types refuse here,
+    # before any session or evidence file exists. An explicit `profile_id`
+    # (plan 09-05, threaded from the CLI `--subject-profile` flag and the
+    # served `/api/start` `profile` field) wins over every inference: only
+    # the id crosses a client boundary, the selector resolves it once
+    # server-side, and the complete snapshot is persisted with the session.
+    try:
+        subject_snapshot = subjects.select_profile(
+            items, subjects.load_registry(
+                os.path.dirname(os.path.abspath(bank_path)) or "."),
+            explicit_id=profile_id)
+    except subjects.SubjectProfileError as exc:
+        sys.exit(str(exc))
     index = {q["id"]: i for i, q in enumerate(qs)}
     items = [index[q["id"]] for q in items]
     # D-09 pin support: an optional item id (the `#<id>` fragment a lesson
@@ -293,6 +313,7 @@ def do_start(bank_path, spec, mode, out, force, *, override_token=None):
             "served_ts": evidence.utc_now(),
             "teaching_state": {},
             "selection_mode": sel_spec.get("selection_mode", "practice"),
+            "subject_profile": subject_snapshot,
             # D-01 (10-03): the sitting's retention binding -- the one
             # snapshot id every claim in this sitting references plus the
             # public bounded normalized weight map the selector consumed.
@@ -379,7 +400,8 @@ def cmd_start(a):
         spec["exclude_item_ids"] = list(a.exclude)
     override_token = getattr(a, "override_cap", None) or None
     result = do_start(a.bank, spec, a.mode, a.out, a.force,
-                      override_token=override_token)
+                      override_token=override_token,
+                      profile_id=getattr(a, "subject_profile", None))
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
@@ -646,6 +668,16 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
         sys.exit("session is already complete")
     q = qs[data["items"][data["cursor"]]]
 
+    # Phase 9 (D-04): a legacy session whose null profile slot was never
+    # filled resolves once from the bank and persists the snapshot with this
+    # action; every later action consumes only the stored snapshot, never a
+    # re-resolution of the bank or current settings. The resolution uses the
+    # session's own item list, matching do_start.
+    if data.get("subject_profile") is None:
+        data["subject_profile"] = subjects.select_profile(
+            [qs[i] for i in data["items"]],
+            subjects.load_registry(os.path.dirname(data["bank"])))
+
     log = evidence.log_path(os.path.dirname(data["bank"]))
     item_key = evidence.evidence_key(q)
     # The pure evidence fold for crash-window repair: rebuild this item's
@@ -661,12 +693,15 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
     # A check item's submitted answer is source text; the runner executes it
     # once per authored case and the per-case result list is what every
     # scoring call from here on receives (plan 05-01, D-01). The raw source
-    # is kept for the evidence event and the normalized result.
+    # is kept for the evidence event and the normalized result. Only a
+    # submit carries source: a hint request on a check item (plan 09-05's
+    # guided-discovery loop) is a teaching action, not an execution, and
+    # must not demand source text.
     run_result = None
     check_source = None
     check_vector = None
     check_score = None
-    if q["type"] == "check":
+    if q["type"] == "check" and action.get("kind") == "submit":
         source = normalize_answer(action.get("answer"))
         if not isinstance(source, str):
             sys.exit("a check item requires source text as its answer")

@@ -114,7 +114,8 @@ def test_schema_names_every_project_key():
     expected = {"theme", "daily_cap", "selection_weights", "selection",
                 "auditor_autonomy", "model_backend", "suggestion_reveal",
                 "update_policy", "daemon", "update", "accent", "reader",
-                "style", "paraphrase", "lti", "check", "retention", "audio"}
+                "style", "paraphrase", "lti", "check", "subject_profiles",
+                "retention", "audio"}
     if keys != expected:
         fail("schema properties %r do not equal the expected key set %r" % (keys, expected))
     for name, sub in schema["properties"].items():
@@ -205,7 +206,7 @@ def test_config_no_args_prints_table():
             fail("config table is missing key %r" % name)
     # At THIS_PHASE 10 only phase-11+ keys are inert: auditor_autonomy
     # (phase 11). daily_cap/model_backend/retention/selection_weights all
-    # became read-by-this-phase.
+    # became read-by-this-phase; subject_profiles (phase 9) is read too.
     if "auditor_autonomy" not in r.stdout or "inert" not in r.stdout:
         fail("config table must still mark phase-11 auditor_autonomy inert")
     for line in r.stdout.splitlines():
@@ -531,6 +532,10 @@ def test_phase_4_theme_keys_read_not_inert():
     for group in inert_groups:
         if not any(token == group and "inert" in line for token, line in rows):
             fail("%r is no longer marked inert" % group)
+    for group in ("model_backend", "suggestion_reveal"):
+        if any(token == group and "inert" in line for token, line in rows):
+            fail("%r must be read (active) by THIS_PHASE 9: %r"
+                 % (group, [line for token, line in rows if token == group]))
     shutil.rmtree(base, ignore_errors=True)
 
 

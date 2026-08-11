@@ -22,7 +22,8 @@
     "paraphrase",
     "check",
     "lti",
-    "retention"
+    "retention",
+    "subject_profiles"
   ],
   "properties": {
     "theme": {
@@ -505,7 +506,14 @@
       "type": "object",
       "description": "The LTI 1.3 surface's own settings (phase 999.4, Canvas LMS integration): the one platforms registration store, the tool's RSA keypair path, the public base URL every URL the platform calls is derived from, the opt-in enabled flag, and the optional TLS cert/key paths. Nothing listens publicly while lti.enabled is false; the loopback default is unchanged (D-05). Read by this phase (999.4).",
       "additionalProperties": false,
-      "required": ["enabled", "public_base_url", "tls_cert", "tls_key", "tool_private_jwk_path", "platforms"],
+      "required": [
+        "enabled",
+        "public_base_url",
+        "tls_cert",
+        "tls_key",
+        "tool_private_jwk_path",
+        "platforms"
+      ],
       "x-itembank-phase": 999.4,
       "default": {
         "enabled": false,
@@ -554,7 +562,14 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["issuer", "client_id", "auth_endpoint", "jwks_url", "token_endpoint", "deployments"],
+            "required": [
+              "issuer",
+              "client_id",
+              "auth_endpoint",
+              "jwks_url",
+              "token_endpoint",
+              "deployments"
+            ],
             "x-itembank-phase": 999.4,
             "description": "One LTI platform registration. deployments is the allowlist of deployment_ids this installation accepts from the platform; an empty deployments array accepts none.",
             "properties": {
@@ -1033,6 +1048,424 @@
           "description": "Whether a check item's code may be executed when the daemon is serving on the local network (--lan). False is the default: with the daemon reachable from the network and allow_lan false, both submit routes refuse code execution with a locked message and record nothing. Turning it on means a device on the same network can run code on this machine.",
           "default": false,
           "x-itembank-phase": 5
+        }
+      }
+    },
+    "subject_profiles": {
+      "type": "object",
+      "description": "The versioned subject-profile registry (Phase 9, D-01/D-02): one entry per known subject, defining exactly the intended variation -- lesson media/rendering capabilities (markdown, tables, math, runnable languages, lesson_layout), allowed item types, and the named verifier. EMT and Math are scored by the shared runtime verifier; CS permits the Phase 5 check item type and runnable python, scored by the check verifier. Additional profile ids are legal configuration (LOOP-05: a fourth subject is an entry, not a code fork); every entry is validated closed-shape by subjects.validate_registry before selection. Read by this phase (9).",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "entries"
+      ],
+      "x-itembank-phase": 9,
+      "default": {
+        "version": 1,
+        "entries": {
+          "emt": {
+            "id": "emt",
+            "version": 1,
+            "lesson": {
+              "markdown": true,
+              "tables": true,
+              "math": false,
+              "runnable_languages": [],
+              "lesson_layout": "separate"
+            },
+            "allowed_item_types": [
+              "mc",
+              "multi",
+              "table",
+              "dnd",
+              "build",
+              "short",
+              "visual"
+            ],
+            "verifier": "runtime"
+          },
+          "math": {
+            "id": "math",
+            "version": 1,
+            "lesson": {
+              "markdown": true,
+              "tables": true,
+              "math": true,
+              "runnable_languages": [],
+              "lesson_layout": "separate"
+            },
+            "allowed_item_types": [
+              "mc",
+              "multi",
+              "table",
+              "dnd",
+              "build",
+              "short",
+              "visual"
+            ],
+            "verifier": "runtime"
+          },
+          "cs": {
+            "id": "cs",
+            "version": 1,
+            "lesson": {
+              "markdown": true,
+              "tables": true,
+              "math": false,
+              "runnable_languages": [
+                "python"
+              ],
+              "lesson_layout": "inline"
+            },
+            "allowed_item_types": [
+              "check",
+              "mc",
+              "multi",
+              "table",
+              "dnd",
+              "build",
+              "short",
+              "visual"
+            ],
+            "verifier": "check"
+          }
+        }
+      },
+      "properties": {
+        "version": {
+          "type": "integer",
+          "description": "The registry version. 1 is the initial Phase 9 contract.",
+          "const": 1,
+          "default": 1,
+          "x-itembank-phase": 9
+        },
+        "entries": {
+          "type": "object",
+          "description": "Profile entries keyed by subject id. The shipped emt/math/cs entries mirror itembank.json exactly; a fourth subject is an additional key, validated by subjects.validate_registry (closed profile shape, known verifier, duplicate-free allowlists).",
+          "x-itembank-phase": 9,
+          "properties": {
+            "emt": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "version",
+                "lesson",
+                "allowed_item_types",
+                "verifier"
+              ],
+              "x-itembank-phase": 9,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "const": "emt",
+                  "default": "emt",
+                  "x-itembank-phase": 9,
+                  "description": "The subject id; must equal the registry entry key."
+                },
+                "version": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 1,
+                  "x-itembank-phase": 9,
+                  "description": "The profile version."
+                },
+                "lesson": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "markdown",
+                    "tables",
+                    "math",
+                    "runnable_languages",
+                    "lesson_layout"
+                  ],
+                  "x-itembank-phase": 9,
+                  "properties": {
+                    "markdown": {
+                      "type": "boolean",
+                      "default": true,
+                      "x-itembank-phase": 9,
+                      "description": "Shared markdown prose rendering."
+                    },
+                    "tables": {
+                      "type": "boolean",
+                      "default": true,
+                      "x-itembank-phase": 9,
+                      "description": "Semantic table rendering in the shared reader."
+                    },
+                    "math": {
+                      "type": "boolean",
+                      "default": false,
+                      "x-itembank-phase": 9,
+                      "description": "Offline KaTeX presentation (plan 09-04)."
+                    },
+                    "runnable_languages": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "default": [],
+                      "x-itembank-phase": 9,
+                      "description": "Languages whose lesson code fences may run through the shared runner (plan 09-05)."
+                    },
+                    "lesson_layout": {
+                      "type": "string",
+                      "enum": [
+                        "separate",
+                        "inline"
+                      ],
+                      "default": "separate",
+                      "x-itembank-phase": 9,
+                      "description": "Phase 3.1 D-04 fold: separate is the classic two-file lesson page; inline embeds lesson prose in the working surface."
+                    }
+                  }
+                },
+                "allowed_item_types": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": [
+                    "mc",
+                    "multi",
+                    "table",
+                    "dnd",
+                    "build",
+                    "short",
+                    "visual"
+                  ],
+                  "x-itembank-phase": 9,
+                  "description": "Item types this subject's sitting may contain; the shared runtime item types, no check."
+                },
+                "verifier": {
+                  "type": "string",
+                  "enum": [
+                    "runtime",
+                    "check"
+                  ],
+                  "default": "runtime",
+                  "x-itembank-phase": 9,
+                  "description": "The named verifier that scores this subject's items."
+                }
+              }
+            },
+            "math": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "version",
+                "lesson",
+                "allowed_item_types",
+                "verifier"
+              ],
+              "x-itembank-phase": 9,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "const": "math",
+                  "default": "math",
+                  "x-itembank-phase": 9,
+                  "description": "The subject id; must equal the registry entry key."
+                },
+                "version": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 1,
+                  "x-itembank-phase": 9,
+                  "description": "The profile version."
+                },
+                "lesson": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "markdown",
+                    "tables",
+                    "math",
+                    "runnable_languages",
+                    "lesson_layout"
+                  ],
+                  "x-itembank-phase": 9,
+                  "properties": {
+                    "markdown": {
+                      "type": "boolean",
+                      "default": true,
+                      "x-itembank-phase": 9,
+                      "description": "Shared markdown prose rendering."
+                    },
+                    "tables": {
+                      "type": "boolean",
+                      "default": true,
+                      "x-itembank-phase": 9,
+                      "description": "Semantic table rendering in the shared reader."
+                    },
+                    "math": {
+                      "type": "boolean",
+                      "default": true,
+                      "x-itembank-phase": 9,
+                      "description": "Offline KaTeX presentation (plan 09-04)."
+                    },
+                    "runnable_languages": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "default": [],
+                      "x-itembank-phase": 9,
+                      "description": "Languages whose lesson code fences may run through the shared runner (plan 09-05)."
+                    },
+                    "lesson_layout": {
+                      "type": "string",
+                      "enum": [
+                        "separate",
+                        "inline"
+                      ],
+                      "default": "separate",
+                      "x-itembank-phase": 9,
+                      "description": "Phase 3.1 D-04 fold: separate is the classic two-file lesson page; inline embeds lesson prose in the working surface."
+                    }
+                  }
+                },
+                "allowed_item_types": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": [
+                    "mc",
+                    "multi",
+                    "table",
+                    "dnd",
+                    "build",
+                    "short",
+                    "visual"
+                  ],
+                  "x-itembank-phase": 9,
+                  "description": "Item types this subject's sitting may contain; the shared runtime item types, no check."
+                },
+                "verifier": {
+                  "type": "string",
+                  "enum": [
+                    "runtime",
+                    "check"
+                  ],
+                  "default": "runtime",
+                  "x-itembank-phase": 9,
+                  "description": "The named verifier that scores this subject's items."
+                }
+              }
+            },
+            "cs": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "version",
+                "lesson",
+                "allowed_item_types",
+                "verifier"
+              ],
+              "x-itembank-phase": 9,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "const": "cs",
+                  "default": "cs",
+                  "x-itembank-phase": 9,
+                  "description": "The subject id; must equal the registry entry key."
+                },
+                "version": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 1,
+                  "x-itembank-phase": 9,
+                  "description": "The profile version."
+                },
+                "lesson": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "markdown",
+                    "tables",
+                    "math",
+                    "runnable_languages",
+                    "lesson_layout"
+                  ],
+                  "x-itembank-phase": 9,
+                  "properties": {
+                    "markdown": {
+                      "type": "boolean",
+                      "default": true,
+                      "x-itembank-phase": 9,
+                      "description": "Shared markdown prose rendering."
+                    },
+                    "tables": {
+                      "type": "boolean",
+                      "default": true,
+                      "x-itembank-phase": 9,
+                      "description": "Semantic table rendering in the shared reader."
+                    },
+                    "math": {
+                      "type": "boolean",
+                      "default": false,
+                      "x-itembank-phase": 9,
+                      "description": "Offline KaTeX presentation (plan 09-04)."
+                    },
+                    "runnable_languages": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "default": [
+                        "python"
+                      ],
+                      "x-itembank-phase": 9,
+                      "description": "Languages whose lesson code fences may run through the shared runner (plan 09-05); CS enables python."
+                    },
+                    "lesson_layout": {
+                      "type": "string",
+                      "enum": [
+                        "separate",
+                        "inline"
+                      ],
+                      "default": "inline",
+                      "x-itembank-phase": 9,
+                      "description": "Phase 3.1 D-04 fold: CS embeds lesson prose in the working surface (inline); EMT and Math keep the separate lesson page."
+                    }
+                  }
+                },
+                "allowed_item_types": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": [
+                    "check",
+                    "mc",
+                    "multi",
+                    "table",
+                    "dnd",
+                    "build",
+                    "short",
+                    "visual"
+                  ],
+                  "x-itembank-phase": 9,
+                  "description": "Item types this subject's sitting may contain; CS alone permits the Phase 5 check type alongside the shared runtime types."
+                },
+                "verifier": {
+                  "type": "string",
+                  "enum": [
+                    "runtime",
+                    "check"
+                  ],
+                  "default": "check",
+                  "x-itembank-phase": 9,
+                  "description": "The named verifier that scores this subject's items; CS uses Phase 5's check verifier."
+                }
+              }
+            }
+          }
         }
       }
     }
