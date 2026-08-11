@@ -41,7 +41,9 @@ import time
 import urllib.parse
 import urllib.request
 
+from model import load, parse_lesson
 from surfaces import daemon
+from surfaces import presentation, quiz, theme
 from surfaces import settings as settings_surface
 
 import server
@@ -673,7 +675,16 @@ class LTIHandler(OIDCLoginHandler):
     The learner/instructor pages served by this family are the SAME pages
     every other surface renders -- this handler never reimplements a renderer
     or a scorer (D-01/D-03).
+
+    `launch_ctx` maps a one-time token (embedded in a rendered player page's
+    BOOT) to the verified launch's claims + platform issuer, and then -- once
+    the page's `/api/start` has run -- maps the created session_id to the
+    same entry, so a later completion can reach plan 03's passback. Tokens
+    are one-use; session ids are server-minted and random, so nothing here is
+    learner-controllable.
     """
+
+    launch_ctx = {}
 
     def do_POST(self):
         path = urllib.parse.urlsplit(self.path).path
@@ -681,7 +692,11 @@ class LTIHandler(OIDCLoginHandler):
         if m:
             self._launch(m.group("stem") or "")
             return
-        if path in LTI_API_WRAP:
+        # The embedded player posts to the same relative /api/* paths the
+        # daemon serves; this family wraps them to the daemon's own handlers
+        # in-process (D-01). LTI_API_WRAP keys are the bare command names.
+        if path.startswith("/api/") \
+                and path.rsplit("/", 1)[-1] in LTI_API_WRAP:
             self._api_wrap(path)
             return
         self.send_error(404)
@@ -710,21 +725,50 @@ class LTIHandler(OIDCLoginHandler):
                 self.settings, issuer=entry["issuer"],
                 client_id=entry["client_id"])
             claims = verify_id_token(token, registration, self.nonce_store, state)
-            result = call_json_api(
-                "start",
-                {"bank": stem, "count": 10, "mode": "practice"},
-                {"banks": self.banks, "root": self.root,
-                 "sessions": self.sessions},
-                headers={k: v for k, v in self.headers.items()})
-            self.send_json(result)
+            ctx = {"banks": self.banks, "root": self.root,
+                   "sessions": self.sessions}
+            message_type = claims.get("message_type")
+            if message_type == "LtiDeepLinkingRequest":
+                page = handle_deep_link_request(claims, registration, ctx)
+                self._send_page(page, registration)
+            elif message_type == "LtiResourceLinkRequest":
+                page, _token = handle_resource_link(
+                    claims, registration, stem, ctx, self.launch_ctx)
+                self._send_page(page, registration)
+            else:
+                # The plan-01 tracer fallback, kept for message types the UI
+                # plans do not branch on: a verified launch reaches the
+                # daemon's /api/start in-process and returns its JSON.
+                result = call_json_api(
+                    "start",
+                    {"bank": stem, "count": 10, "mode": "practice"},
+                    ctx, headers={k: v for k, v in self.headers.items()})
+                self.send_json(result)
         except LTIError as exc:
             print("  lti launch refused: %s (%s)" % (exc.kind, exc))
             self._send_refusal(exc)
 
+    def _send_page(self, body, registration):
+        """A learner/instructor page with the frame-ancestors CSP derived
+        from the registration issuer (UI-SPEC section 1): the LMS origin may
+        frame the tool and no other origin may (T-994-11)."""
+        body = body.encode("utf-8") if isinstance(body, str) else body
+        csp = frame_ancestors_csp(registration)
+        name, _, value = csp.partition(": ")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header(name, value)
+        self.end_headers()
+        self.wfile.write(body)
+
     def _api_wrap(self, path):
         """The embedded learner page's `/api/*` POSTs, answered by calling the
         daemon's own handlers in-process (D-01) -- the page is the same quiz
-        surface, so it posts to the same relative paths."""
+        surface, so it posts to the same relative paths. On `/api/start` the
+        launch-context token from BOOT is bound to the created session; on a
+        completing `/api/submit` the passback signal is attached so the page
+        renders the verbatim completion line (plan 02 stub, plan 03 real)."""
         try:
             payload = self.read_json()
         except (ValueError, TypeError) as exc:
@@ -740,7 +784,304 @@ class LTIHandler(OIDCLoginHandler):
         except LTIError as exc:
             self.send_error(400, exc.detail or exc.kind)
             return
+        if name == "start" and isinstance(result, dict) \
+                and result.get("session_id"):
+            token = payload.get("lti_ctx") if isinstance(payload, dict) else None
+            entry = self.launch_ctx.pop(token, None) if isinstance(token, str) \
+                else None
+            if entry is not None:
+                self.launch_ctx[result["session_id"]] = entry
+        elif name == "submit" and isinstance(result, dict) \
+                and result.get("status") == "complete":
+            sid = payload.get("session_id") if isinstance(payload, dict) else None
+            entry = self.launch_ctx.get(sid) if isinstance(sid, str) else None
+            if entry is not None:
+                session_file = daemon.session_index(self.root).get(sid)
+                if session_file:
+                    try:
+                        pb = maybe_passback(
+                            session_file, entry.get("claims") or {},
+                            entry.get("issuer") or "", self.settings)
+                    except LTIError as exc:
+                        pb = ("refused", exc.detail or exc.kind)
+                    result["lti_completion"] = {
+                        "ok": pb[0] == "ok", "line": completion_line(pb)}
         self.send_json(result)
+
+
+# ---------------------------------------------------------------------------
+# The two real surfaces (plan 02, UI-CONTRACT): the instructor deep-link
+# picker and the embedded learner player. Both render through the existing
+# pages (presentation.surface_shell / quiz.page_for) -- no new renderer, no
+# second projection (D-01/D-03).
+# ---------------------------------------------------------------------------
+
+def frame_ancestors_csp(registration):
+    """`Content-Security-Policy: frame-ancestors <lms-origin>` derived from
+    the registration's issuer (UI-SPEC section 1, T-994-11): the LMS origin
+    may frame the tool and no other origin may. The issuer is a URL
+    (`https://canvas.instructure.com`); the CSP value is its origin."""
+    issuer = (registration.get("platform") or {}).get("issuer") or ""
+    if "://" not in issuer:
+        issuer = "https://" + issuer
+    parts = urllib.parse.urlsplit(issuer)
+    origin = parts.scheme + "://" + parts.netloc
+    return "Content-Security-Policy: frame-ancestors " + origin
+
+
+def objective_rows(banks):
+    """The picker's data: one `(bank_stem, [distinct objective values])`
+    entry per registered bank, in stem order. The objective values are
+    exactly what `handle_api_start`/`selection.select` resolve (D-07: "the
+    same objective ids handle_api_start resolves") -- the bank's
+    `[OBJECTIVE:]` references -- never stems, keys, or counts (T-994-07).
+    """
+    rows = []
+    for stem in sorted(banks or {}):
+        path = banks[stem]
+        try:
+            qs = load(path)
+        except Exception:
+            continue
+        seen = []
+        for q in qs:
+            obj = q.get("objective")
+            if obj and obj not in seen:
+                seen.append(obj)
+        rows.append((stem, seen))
+    return rows
+
+
+PICKER_JS = r"""const RETURN_URL = "__DL_RETURN__";
+const LINK_BASE = "__DL_BASE__";
+const FAILED_COPY = "__DL_FAILED__";
+const RETRY_COPY = "__DL_RETRY__";
+const CANCEL_COPY = "__DL_CANCEL__";
+const CONFIRM_COPY = '__DL_CONFIRM__';
+let selected = null;
+const rows = document.querySelectorAll(".prow");
+const confirmEl = document.getElementById("lti-confirm");
+const linkBtn = document.getElementById("lti-link");
+rows.forEach(r => r.addEventListener("click", () => {
+  rows.forEach(x => x.classList.remove("sel"));
+  r.classList.add("sel");
+  selected = {bank: r.dataset.bank, objective: r.dataset.objective};
+  confirmEl.hidden = false;
+  confirmEl.textContent = CONFIRM_COPY.replace("{title}", selected.objective);
+  linkBtn.hidden = false;
+}));
+function postResponse(contentItems){
+  const form = document.createElement("form");
+  form.method = "POST"; form.action = RETURN_URL; form.hidden = true;
+  const input = document.createElement("input");
+  input.type = "hidden"; input.name = "content_items";
+  input.value = JSON.stringify(contentItems);
+  form.appendChild(input);
+  document.body.appendChild(form);
+  try { form.submit(); }
+  catch(err){
+    const host = document.getElementById("lti-picker") || document.body;
+    const box = document.createElement("p");
+    box.className = "status"; box.textContent = FAILED_COPY;
+    host.appendChild(box);
+    const retry = document.createElement("button");
+    retry.type = "button"; retry.className = "go";
+    retry.textContent = RETRY_COPY;
+    retry.onclick = () => { location.reload(); };
+    host.appendChild(retry);
+    const cancel = document.createElement("button");
+    cancel.type = "button"; cancel.className = "go ghost";
+    cancel.textContent = CANCEL_COPY;
+    cancel.onclick = () => { location.href = "about:blank"; };
+    host.appendChild(cancel);
+  }
+}
+document.getElementById("lti-link").addEventListener("click", () => {
+  if(!selected) return;
+  postResponse([{type: "ltiResourceLink",
+                 url: LINK_BASE + "/lti/launch/" + selected.bank,
+                 title: selected.objective,
+                 custom: {objective: selected.objective, mode: "practice"}}]);
+});
+document.getElementById("lti-cancel").addEventListener("click", () => {
+  postResponse([]);
+});
+"""
+
+
+def picker_page(rows, return_url, public_base_url):
+    """The instructor deep-link picker (UI-SPEC section 3): one 44px row per
+    objective in the local bank registry (id + title only -- no stems, no
+    keys, no counts, T-994-07), the purpose line, `Link this assignment`,
+    and `Cancel`. Empty registry renders the empty-registry line; a bank
+    with no objectives is refused by name. Every string is verbatim
+    UI-SPEC section 4."""
+    body = ['<p class="lti-purpose">%s</p>' % html.escape(PICKER_PURPOSE)]
+    body.append("<style>"
+                ".lti-picker{display:flex;flex-direction:column;gap:8px;"
+                "margin:0 0 14px}"
+                ".prow{min-height:44px;display:flex;align-items:center;"
+                "justify-content:space-between;gap:12px;text-align:left;"
+                "background:var(--card);border:1px solid var(--line);"
+                "border-radius:10px;padding:0 14px;font:inherit;cursor:pointer}"
+                ".prow:hover{border-color:var(--accent)}"
+                ".prow.sel{border-color:var(--accent);"
+                "box-shadow:0 0 0 2px var(--accent-soft)}"
+                ".pbank{color:var(--mut);font-size:13px}"
+                ".lti-purpose{margin-bottom:12px}"
+                "</style>")
+    body.append('<div class="lti-picker" id="lti-picker">')
+    if not rows:
+        body.append('<p class="status">%s</p>' % html.escape(EMPTY_REGISTRY))
+    else:
+        for stem, objectives in rows:
+            if not objectives:
+                body.append('<p class="status">%s &mdash; %s</p>'
+                            % (html.escape(stem), html.escape(BANK_NO_OBJECTIVES)))
+                continue
+            for obj in objectives:
+                body.append(
+                    '<button type="button" class="prow" data-bank="%s" '
+                    'data-objective="%s">%s <span class="pbank">%s</span></button>'
+                    % (html.escape(stem, quote=True),
+                       html.escape(obj, quote=True),
+                       html.escape(obj), html.escape(stem)))
+    body.append('</div>')
+    body.append('<p class="status" id="lti-confirm" data-field="lti-confirm" '
+                'hidden></p>')
+    body.append('<div class="act">')
+    body.append('<button type="button" class="go" id="lti-link" hidden>%s</button>'
+                % html.escape(LINK_CONTROL))
+    body.append('<button type="button" class="go ghost" id="lti-cancel">%s</button>'
+                % html.escape(CANCEL_CONTROL))
+    body.append('</div>')
+    script = (PICKER_JS
+              .replace("__DL_RETURN__", html.escape(return_url, quote=True))
+              .replace("__DL_BASE__", html.escape(public_base_url.rstrip("/"),
+                                                  quote=True))
+              .replace("__DL_FAILED__", html.escape(DEEP_LINK_RETURN_FAILED))
+              .replace("__DL_RETRY__", "Retry")
+              .replace("__DL_CANCEL__", html.escape(CANCEL_CONTROL))
+              .replace("__DL_CONFIRM__",
+                       html.escape(SELECTION_CONFIRMED, quote=True)))
+    body.append("<script>" + script + "</script>")
+    page = presentation.surface_shell(
+        "Link an itembank objective", "\n".join(body),
+        back=None, wide=False)
+    return page
+
+
+def deep_link_response(content_items, return_url):
+    """The LtiDeepLinkingResponse as an auto-submitting HTML form POST to the
+    platform's deep_link_return_url (RESEARCH section 3): exactly the
+    `content_items` the selection produced -- one ltiResourceLink carrying
+    the objective custom param, or an empty list for Cancel. The response is
+    an unsigned form POST by design; the trust anchor is the verified
+    LtiDeepLinkingRequest launch that carried deep_linking_settings
+    (T-994-09)."""
+    items_json = json.dumps(content_items, ensure_ascii=False)
+    return ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            '<title>Returning selection to Canvas</title></head><body>'
+            '<form id="dl-return" method="post" action="%s">'
+            '<input type="hidden" name="content_items" value="%s">'
+            '</form><script>document.getElementById("dl-return").submit();'
+            '</script></body></html>'
+            % (html.escape(return_url, quote=True),
+               html.escape(items_json, quote=True)))
+
+
+def handle_deep_link_request(claims, registration, ctx):
+    """A verified LtiDeepLinkingRequest launch -> the picker page (D-07,
+    LTI-04). The return URL comes from the signed deep_linking_settings
+    claim, never from an unsigned source (T-994-09)."""
+    dls = claims.get(DEEP_LINKING_CLAIM) or {}
+    if not isinstance(dls, dict):
+        dls = {}
+    return_url = dls.get("deep_link_return_url")
+    if not isinstance(return_url, str) or not return_url:
+        raise LTIError("no_deep_link_return", DEEP_LINK_RETURN_FAILED,
+                       "deep_linking_settings carries no deep_link_return_url")
+    rows = objective_rows(ctx.get("banks"))
+    return picker_page(rows, return_url, registration["public_base_url"])
+
+
+def player_page(bank_path, stem, objective, mode, registration, ctx,
+                launch_token=""):
+    """The embedded learner player (UI-SPEC section 2): the existing quiz
+    serve page for one bank/objective, rendered by the same `page_for`
+    projection the daemon serves (D-01 -- no new renderer), with the D-09
+    privacy line as the session framing and the objective + one-time launch
+    token riding in BOOT so the page's own `/api/start` starts the sitting
+    on that objective. The page carries no key, why-best, distractor
+    analysis, or tier content: `serve=True` is what makes `page_for` omit
+    them (D-03, LTI-03)."""
+    qs = load(bank_path)
+    lesson = parse_lesson(bank_path)
+    lesson_slugs = set(h["slug"] for h in lesson["headings"]) if lesson else set()
+    theme_block = theme.theme_css(settings_surface.load_settings(ctx["root"]))
+    framing = ('<div class="lti-framing" data-field="lti-framing">'
+               '<p class="status">%s</p></div>' % html.escape(PRIVACY_LINE))
+    boot_extra = {"objective": objective}
+    if launch_token:
+        boot_extra["lti_ctx"] = launch_token
+    _mix, page = quiz.page_for(
+        bank_path, qs, serve=True, reveal=False,
+        bank_stem=stem, mode=mode,
+        lesson_base="", lesson_slugs=lesson_slugs, theme_css=theme_block,
+        lti_framing=framing, boot_extra=boot_extra)
+    return page
+
+
+def handle_resource_link(claims, registration, stem, ctx, launch_store):
+    """A verified LtiResourceLinkRequest launch -> the embedded player
+    (D-07, LTI-04): resolve the custom objective through the bank's item
+    allowlist (never a path, T-994-10), refuse unresolvable objectives with
+    the exact UI-SPEC line, and render the quiz serve page for that
+    objective. Returns (page, launch_token); the token binds the verified
+    claims to the session once the page starts it."""
+    custom = claims.get("custom") or {}
+    if not isinstance(custom, dict):
+        custom = {}
+    objective = custom.get("objective")
+    if not isinstance(objective, str) or not objective:
+        raise LTIError("missing_objective", MISSING_OBJECTIVE,
+                       "resource-link launch carries no custom objective")
+    path = (ctx.get("banks") or {}).get(stem)
+    if path is None:
+        raise LTIError("unknown_bank", MISSING_OBJECTIVE,
+                       "no registered bank stem %r" % stem)
+    qs = load(path)
+    if not any(q.get("objective") == objective for q in qs):
+        raise LTIError("unresolvable_objective", MISSING_OBJECTIVE,
+                       "objective %r is not in bank %s" % (objective, stem))
+    mode = custom.get("mode") or "practice"
+    if mode not in daemon.SESSION_MODES:
+        mode = "practice"
+    token = secrets.token_urlsafe(24)
+    launch_store[token] = {
+        "claims": claims, "issuer": registration["platform"]["issuer"]}
+    return player_page(path, stem, objective, mode, registration, ctx,
+                       launch_token=token), token
+
+
+def maybe_passback(session_file, claims, issuer, cfg):
+    """The plan-02 stub of the completion-time passback interface, with a
+    clear contract plan 03 fills in without touching the copy: returns a
+    `(status, reason)` pair -- `("not_configured", None)` when the launch
+    carried no AGS scope (the opt-in gate, D-04), `("ok", None)` on a
+    successful gradebook copy, `("refused", reason)` on any refusal (plan
+    03). `completion_line` maps the pair to the verbatim UI-SPEC line."""
+    return ("not_configured", None)
+
+
+def completion_line(passback):
+    """The UI-SPEC section-4 completion line for a passback outcome: the
+    OK line only when the gradebook copy actually succeeded, the refusal
+    line otherwise (not configured, refused, unreachable, pending prose --
+    all mean the score was not sent, so the refusal line is the truthful
+    one in every case, D-09/T-994-18)."""
+    status, _reason = passback
+    return COMPLETION_OK if status == "ok" else COMPLETION_REFUSED
 
 
 # ---------------------------------------------------------------------------

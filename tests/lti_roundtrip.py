@@ -16,6 +16,7 @@ pair the LTI surface guards on), no test framework, runnable as
 import base64
 import contextlib
 import http.server
+import html
 import io
 import json
 import os
@@ -349,6 +350,7 @@ def reset_handler_state():
     lti.OIDCLoginHandler.sessions = {}
     lti.OIDCLoginHandler.settings = {}
     lti.OIDCLoginHandler.nonce_store = lti.NonceStore()
+    lti.LTIHandler.launch_ctx = {}
 
 
 def launch_flow(harness, platform, claims=None, state=None, nonce=None,
@@ -751,7 +753,12 @@ def check_launch_calls_daemon_in_process():
     platform = FakePlatform()
     harness = ToolHarness(platform)
     try:
-        s, _, body, ap, state, nonce = launch_flow(harness, platform)
+        # The plan-01 tracer fallback: a verified launch carrying no
+        # message_type (or one the UI plans do not branch on) reaches the
+        # daemon's handle_api_start in-process. The UI message types are
+        # asserted by their own plan-02 checks.
+        s, _, body, ap, state, nonce = launch_flow(
+            harness, platform, claims={"message_type": None})
         if s != 200:
             fail("verified launch did not return the start JSON (HTTP %d): %s"
                  % (s, body.decode("utf-8", "replace")[:200]))
@@ -893,6 +900,370 @@ def check_lint_and_core_loop_untouched():
         fail("sample bank no longer lints clean: %s" % result.stdout)
 
 
+# ---------------------------------------------------------------------------
+# Plan 02: the deep-link picker and the embedded learner player (UI-CONTRACT).
+# ---------------------------------------------------------------------------
+
+SAMPLE_OBJECTIVES = ["Distribution / residual maintenance", "Public notification",
+                     "Operations", "Treatment processes", "Regulatory framework"]
+
+# Sensitive bank content the picker must never render (UI-SPEC gate 4,
+# T-994-07): stems, key markers, and correct-answer counts.
+PICKER_FORBIDDEN = ["chlorine residual", "boil-water notice", "CORRECT:",
+                    "WHY BEST", "KEY DISCRIMINATOR", "DISTRACTOR ANALYSIS"]
+
+
+def deep_link_launch(harness, platform, return_url="https://fake.canvas.example/return"):
+    """Drive a verified LtiDeepLinkingRequest launch; returns (status,
+    headers, body)."""
+    s, h, _ = harness.get(harness.login_url())
+    if s != 302:
+        fail("deep-link login did not redirect (status %d)" % s)
+    ap = urllib.parse.parse_qs(urllib.parse.urlsplit(h["Location"]).query)
+    state = (ap.get("state") or [""])[0]
+    nonce = (ap.get("nonce") or [""])[0]
+    token = platform.mint_id_token({
+        "nonce": nonce,
+        "message_type": "LtiDeepLinkingRequest",
+        lti.DEEP_LINKING_CLAIM: {
+            "deep_link_return_url": return_url,
+            "accept_types": ["ltiResourceLink"],
+            "accept_multiple": False,
+        },
+    })
+    return harness.post_form("/lti/launch/%s" % harness.stem,
+                             {"id_token": token, "state": state})
+
+
+def resource_link_launch(harness, platform, objective, mode="practice",
+                         claims_extra=None):
+    """Drive a verified LtiResourceLinkRequest launch carrying the custom
+    objective; returns (status, headers, body)."""
+    s, h, _ = harness.get(harness.login_url())
+    if s != 302:
+        fail("resource-link login did not redirect (status %d)" % s)
+    ap = urllib.parse.parse_qs(urllib.parse.urlsplit(h["Location"]).query)
+    state = (ap.get("state") or [""])[0]
+    nonce = (ap.get("nonce") or [""])[0]
+    claims = {"nonce": nonce, "message_type": "LtiResourceLinkRequest",
+              "custom": {"objective": objective, "mode": mode}}
+    if claims_extra:
+        claims.update(claims_extra)
+    token = platform.mint_id_token(claims)
+    return harness.post_form("/lti/launch/%s" % harness.stem,
+                             {"id_token": token, "state": state})
+
+
+def answer_for(q):
+    """The canonical correct response for one item, in the JSON-string shape
+    /api/submit normalizes (the page submits the same shape)."""
+    t = q["type"]
+    if t == "mc":
+        return q["correct"][0]
+    if t == "multi":
+        return json.dumps(sorted(q["correct"]))
+    if t in ("table", "dnd"):
+        return json.dumps({str(i): r["cat"] for i, r in enumerate(q["rows"])})
+    if t == "build":
+        return json.dumps(q["steps"])
+    return "A provisional prose answer for the marker."
+
+
+def complete_sitting(harness, platform, objective):
+    """Launch the player for `objective`, start the session through the LTI
+    /api/start wrap, answer every item correctly, and return the final
+    /api/submit response (status == complete)."""
+    s, _, body = resource_link_launch(harness, platform, objective)
+    if s != 200:
+        fail("player launch failed (HTTP %d)" % s)
+    page = body.decode("utf-8", "replace")
+    m = re.search(r'"lti_ctx":\s*"([^"]+)"', page)
+    if not m:
+        fail("player page carries no launch-context token")
+    lti_ctx = m.group(1)
+    s, _, body = harness.post_json("/api/start", {
+        "bank": harness.stem, "count": 10, "mode": "practice",
+        "objective": objective, "lti_ctx": lti_ctx})
+    if s != 200:
+        fail("/api/start through the LTI wrap failed (HTTP %d)" % s)
+    view = json.loads(body.decode("utf-8"))
+    qs = load(harness.bank_path)
+    by_id = {q["id"]: q for q in qs}
+    session_id = view["session_id"]
+    item = view.get("item")
+    last = view
+    while item is not None:
+        q = by_id.get(item["id"])
+        if q is None:
+            fail("session item id not found in the bank")
+        s, _, body = harness.post_json("/api/submit",
+                                       {"session_id": session_id,
+                                        "answer": answer_for(q)})
+        if s != 200:
+            fail("/api/submit through the LTI wrap failed (HTTP %d)" % s)
+        last = json.loads(body.decode("utf-8"))
+        if last.get("status") == "complete":
+            break
+        item = (last.get("next") or {}).get("item")
+    if last.get("status") != "complete":
+        fail("sitting did not complete: %r" % last)
+    return last
+
+
+def check_deep_link_picker():
+    platform = FakePlatform()
+    harness = ToolHarness(platform)
+    try:
+        s, headers, body = deep_link_launch(harness, platform)
+        if s != 200:
+            fail("deep-link launch did not render the picker (HTTP %d)" % s)
+        csp = headers.get("Content-Security-Policy", "")
+        if csp != "frame-ancestors https://fake.canvas.example":
+            fail("picker CSP %r is not the frame-ancestors origin" % csp)
+        page = body.decode("utf-8", "replace")
+        if lti.PICKER_PURPOSE not in page:
+            fail("picker lacks the purpose line")
+        for obj in SAMPLE_OBJECTIVES:
+            if obj not in page:
+                fail("picker missing objective row %r" % obj)
+        if lti.LINK_CONTROL not in page or lti.CANCEL_CONTROL not in page:
+            fail("picker lacks Link this assignment / Cancel controls")
+        for forbidden in PICKER_FORBIDDEN:
+            if forbidden in page:
+                fail("picker leaks sensitive content %r (T-994-07)" % forbidden)
+        # No correct-answer count: the objective rows carry no numbers.
+        if re.search(r"data-objective=\"[^\"]+\"\s*>[^<]*\d", page):
+            fail("picker row carries a count")
+    finally:
+        harness.close()
+        platform.close()
+
+
+def check_deep_link_empty_registry():
+    platform = FakePlatform()
+    harness = ToolHarness(platform)
+    try:
+        lti.OIDCLoginHandler.banks = {}
+        s, _, body = deep_link_launch(harness, platform)
+        if s != 200:
+            fail("empty-registry deep link did not render (HTTP %d)" % s)
+        page = body.decode("utf-8", "replace")
+        if lti.EMPTY_REGISTRY not in page:
+            fail("empty registry did not render the empty-registry line")
+        if lti.CANCEL_CONTROL not in page:
+            fail("empty registry still offers Cancel")
+    finally:
+        harness.close()
+        platform.close()
+
+
+def check_deep_link_response_shape():
+    """Selection returns exactly one ltiResourceLink carrying the objective
+    custom param; Cancel returns an empty content_items list (D-07,
+    RESEARCH section 3)."""
+    return_url = "https://fake.canvas.example/return"
+    items = [{"type": "ltiResourceLink",
+              "url": "https://drill.example.com/lti/launch/sample_bank",
+              "title": "Treatment processes",
+              "custom": {"objective": "Treatment processes", "mode": "practice"}}]
+    html_doc = lti.deep_link_response(items, return_url)
+    m = re.search(r'name="content_items" value="([^"]*)"', html_doc)
+    if not m:
+        fail("deep-link response has no content_items field")
+    decoded = json.loads(m.group(1).replace("&quot;", "\""))
+    if len(decoded) != 1 or decoded[0]["type"] != "ltiResourceLink":
+        fail("selection did not return exactly one ltiResourceLink")
+    if decoded[0]["custom"].get("objective") != "Treatment processes":
+        fail("content item lost the objective custom param")
+    if "form" not in html_doc or return_url not in html_doc:
+        fail("deep-link response is not an auto-post form to the return URL")
+    empty = lti.deep_link_response([], return_url)
+    m = re.search(r'name="content_items" value="([^"]*)"', empty)
+    if not m or json.loads(m.group(1).replace("&quot;", "\"")) != []:
+        fail("Cancel did not return an empty content_items list")
+
+
+def check_resource_link_player_public_item():
+    """The embedded player is the quiz serve page for the linked objective;
+    the payload is runtime.public_item() byte-for-byte with no reveal field
+    before a recorded response, and the evidence-log explain gate holds
+    (D-03, LTI-03, UI-SPEC gates 1 and 5)."""
+    platform = FakePlatform()
+    harness = ToolHarness(platform)
+    try:
+        objective = "Treatment processes"
+        s, headers, body = resource_link_launch(harness, platform, objective)
+        if s != 200:
+            fail("player launch failed (HTTP %d)" % s)
+        csp = headers.get("Content-Security-Policy", "")
+        if csp != "frame-ancestors https://fake.canvas.example":
+            fail("player CSP %r is not the frame-ancestors origin" % csp)
+        page = body.decode("utf-8", "replace")
+        for forbidden in ("CORRECT:", "WHY BEST", "KEY DISCRIMINATOR",
+                          "DISTRACTOR ANALYSIS", "explain_payload",
+                          "answer_text"):
+            if forbidden in page:
+                fail("player page leaks %r before a recorded response" % forbidden)
+        # The rendered framing text is the verbatim privacy line (HTML entity
+        # encoding of the apostrophe is a rendering detail, not a copy edit).
+        if lti.PRIVACY_LINE not in html.unescape(page):
+            fail("player page lacks the verbatim D-09 privacy line")
+        # The page's /api/start (through the LTI wrap) returns the same
+        # public_item the runtime grants.
+        m = re.search(r'"lti_ctx":\s*"([^"]+)"', page)
+        if not m:
+            fail("player page carries no launch-context token")
+        lti_ctx = m.group(1)
+        s, _, body = harness.post_json("/api/start", {
+            "bank": harness.stem, "count": 10, "mode": "practice",
+            "objective": objective, "lti_ctx": lti_ctx})
+        if s != 200:
+            fail("/api/start through the LTI wrap failed (HTTP %d)" % s)
+        view = json.loads(body.decode("utf-8"))
+        qs = load(harness.bank_path)
+        q = next(q for q in qs if q["id"] == view["item"]["id"])
+        expected = runtime.public_item(q, 0)
+        if view["item"] != expected:
+            fail("LTI /api/start item differs from runtime.public_item()")
+        reveal_fields = ("why", "correct", "da", "disc", "second", "trap",
+                         "model", "answer_text")
+        for field in reveal_fields:
+            if field in view["item"]:
+                fail("public item carries reveal field %r" % field)
+        # A recorded response grants the runtime's tier exactly as on every
+        # surface: practice advance/complete releases explain.
+        s, _, body = harness.post_json("/api/submit",
+                                       {"session_id": view["session_id"],
+                                        "answer": answer_for(q)})
+        if s != 200:
+            fail("/api/submit failed (HTTP %d)" % s)
+        submitted = json.loads(body.decode("utf-8"))
+        if submitted.get("action") not in ("advance", "complete"):
+            fail("expected advance/complete, got %r" % submitted.get("action"))
+        explain = submitted.get("explain") or {}
+        if "why" not in explain:
+            fail("recorded response did not grant the runtime's explain tier")
+        # The type-appropriate reveal field is present after a recorded
+        # response -- exactly what explain_payload grants on every surface.
+        reveal_by_type = {"mc": "correct", "multi": "correct",
+                          "table": "row_cats", "dnd": "row_cats",
+                          "build": "steps", "short": "model"}
+        reveal_field = reveal_by_type.get(q["type"])
+        if reveal_field and reveal_field not in explain:
+            fail("recorded response did not release %r through explain"
+                 % reveal_field)
+    finally:
+        harness.close()
+        platform.close()
+
+
+def check_resource_link_refusals():
+    """Missing or unresolvable objective in a resource-link launch renders
+    the exact UI-SPEC line (D-07, UI-SPEC 2.1)."""
+    platform = FakePlatform()
+    harness = ToolHarness(platform)
+    try:
+        s, _, body = resource_link_launch(harness, platform, "")
+        if s != 403 or lti.MISSING_OBJECTIVE not in body.decode("utf-8", "replace"):
+            fail("missing-objective launch did not refuse with the verbatim line")
+        s, _, body = resource_link_launch(harness, platform, "No such objective")
+        if s != 403 or lti.MISSING_OBJECTIVE not in body.decode("utf-8", "replace"):
+            fail("unresolvable-objective launch did not refuse with the verbatim line")
+        # A launch for an unregistered bank stem refuses too.
+        s, h, _ = harness.get(harness.login_url())
+        ap = urllib.parse.parse_qs(urllib.parse.urlsplit(h["Location"]).query)
+        state = (ap.get("state") or [""])[0]
+        nonce = (ap.get("nonce") or [""])[0]
+        token = platform.mint_id_token({
+            "nonce": nonce, "message_type": "LtiResourceLinkRequest",
+            "custom": {"objective": "Treatment processes", "mode": "practice"}})
+        s, _, body = harness.post_form(
+            "/lti/launch/not-a-bank", {"id_token": token, "state": state})
+        if s != 403 or lti.MISSING_OBJECTIVE not in body.decode("utf-8", "replace"):
+            fail("unknown-bank launch did not refuse with the verbatim line")
+    finally:
+        harness.close()
+        platform.close()
+
+
+def check_completion_framing():
+    """The completion line: the local (refusal) line when passback is not
+    configured, the OK line only when the plan-03 AGS success signal is
+    present (plan 02 stubs the signal) -- both verbatim UI-SPEC section 4."""
+    platform = FakePlatform()
+    harness = ToolHarness(platform)
+    try:
+        last = complete_sitting(harness, platform, "Treatment processes")
+        completion = last.get("lti_completion")
+        if not completion:
+            fail("completing submit carried no lti_completion signal")
+        if completion.get("ok") is not False:
+            fail("not-configured passback must report ok=False")
+        if completion.get("line") != lti.COMPLETION_REFUSED:
+            fail("not-configured completion line is not the verbatim refusal "
+                 "line: %r" % completion.get("line"))
+
+        real = lti.maybe_passback
+        try:
+            lti.maybe_passback = lambda *a, **k: ("ok", None)
+            last = complete_sitting(harness, platform, "Treatment processes")
+            completion = last.get("lti_completion")
+            if not completion or completion.get("ok") is not True \
+                    or completion.get("line") != lti.COMPLETION_OK:
+                fail("stubbed AGS success did not render the verbatim OK line")
+
+            lti.maybe_passback = lambda *a, **k: ("refused", "line item rejected")
+            last = complete_sitting(harness, platform, "Treatment processes")
+            completion = last.get("lti_completion")
+            if not completion or completion.get("ok") is not False \
+                    or completion.get("line") != lti.COMPLETION_REFUSED:
+                fail("passback refusal did not render the verbatim refusal line")
+        finally:
+            lti.maybe_passback = real
+    finally:
+        harness.close()
+        platform.close()
+
+
+def check_privacy_copy_verbatim():
+    """UI-SPEC gate 6: the section-4 strings this plan renders are verbatim,
+    including the privacy line on the learner surface."""
+    if lti.PRIVACY_LINE != ("This is a Canvas assignment. Answers are scored "
+                            "by the local runtime and the final score is sent "
+                            "to this course's gradebook when the assignment is "
+                            "complete."):
+        fail("PRIVACY_LINE drifted from UI-SPEC section 4")
+    if lti.COMPLETION_OK != "Assignment complete. Your score has been sent to the gradebook.":
+        fail("COMPLETION_OK drifted from UI-SPEC section 4")
+    if lti.COMPLETION_REFUSED != ("Assignment complete. Your score could not "
+                                  "be sent to the gradebook this time."):
+        fail("COMPLETION_REFUSED drifted from UI-SPEC section 4")
+    if lti.MISSING_OBJECTIVE != ("No objective was selected for this "
+                                 "assignment. Ask your instructor to re-link it."):
+        fail("MISSING_OBJECTIVE drifted from UI-SPEC section 4")
+    if lti.UNVERIFIED_LAUNCH != ("This launch could not be verified. Close "
+                                 "this window and relaunch the assignment from "
+                                 "Canvas."):
+        fail("UNVERIFIED_LAUNCH drifted from UI-SPEC section 4")
+    if lti.UNREGISTERED_PLATFORM != ("This Canvas site is not registered with "
+                                     "this itembank installation."):
+        fail("UNREGISTERED_PLATFORM drifted from UI-SPEC section 4")
+    # The picker page's confirm copy is the verbatim SELECTION_CONFIRMED.
+    platform = FakePlatform()
+    harness = ToolHarness(platform)
+    try:
+        s, _, body = deep_link_launch(harness, platform)
+        page = body.decode("utf-8", "replace")
+        if "Objective &quot;{title}&quot; selected." not in page \
+                and lti.SELECTION_CONFIRMED.replace("{title}", "X") not in page:
+            fail("picker does not carry the verbatim selection-confirmed copy")
+        if lti.PICKER_PURPOSE not in page:
+            fail("picker lacks the verbatim purpose line")
+    finally:
+        harness.close()
+        platform.close()
+
+
 def main():
     checks = [
         check_registry_one_platform_per_issuer,
@@ -906,6 +1277,13 @@ def main():
         check_doctor_and_help_privacy,
         check_lti_bind_opt_in,
         check_lint_and_core_loop_untouched,
+        check_deep_link_picker,
+        check_deep_link_empty_registry,
+        check_deep_link_response_shape,
+        check_resource_link_player_public_item,
+        check_resource_link_refusals,
+        check_completion_framing,
+        check_privacy_copy_verbatim,
     ]
     for check in checks:
         reset_handler_state()
