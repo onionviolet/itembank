@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 03.1
-current_phase_name: lesson-rich-blocks-glossary-style
+current_phase: 13
+current_phase_name: desktop-packaging-tauri-sidecar
 status: executing
-stopped_at: Phase 10 context gathered
-last_updated: "2026-08-10T22:34:14.902Z"
+stopped_at: Completed 13-01-PLAN.md
+last_updated: "2026-08-11T00:31:34.108Z"
 last_activity: 2026-08-10
 last_activity_desc: Phase 03.1 execution started
 progress:
   total_phases: 18
   completed_phases: 5
   total_plans: 104
-  completed_plans: 41
+  completed_plans: 43
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-07)
 
 **Core value:** One runtime, one scorer, one evidence store â€” and the runtime, not the model, decides what reaches the learner.
-**Current focus:** Phase 03.1 — lesson-rich-blocks-glossary-style
+**Current focus:** Phase 13 — desktop-packaging-tauri-sidecar
 
 ## Current Position
 
-Phase: 03.1 (lesson-rich-blocks-glossary-style) — EXECUTING
-Plan: 1 of 7
+Phase: 13 (desktop-packaging-tauri-sidecar) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-08-10 — Phase 03.1 execution started
+Last activity: 2026-08-10 — Phase 13 execution started
 
-Progress: [████░░░░░░] 39%
+Progress: [████░░░░░░] 41%
 
 ## Performance Metrics
 
@@ -97,6 +97,7 @@ Progress: [████░░░░░░] 39%
 | Phase 03.1 P01 | 35 | 3 tasks | 6 files |
 | Phase 03.1 P02 | 140 | 3 tasks | 15 files |
 | Phase 03.1 P03 | 190 | 3 tasks | 18 files |
+| Phase 13 P01 | 16min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -217,6 +218,9 @@ Recent decisions affecting current work:
 - [Phase 03.1]: 03.1-03: authored cloze grammar is any {{text}} marker -- {{text}} compiles to {{c1::text}} sequentially, {{n::text}} keeps n; on screen the enclosed text renders
 - [Phase 03.1]: 03.1-03: C7 closure -- public_item() drops the syllabus [OBJECTIVE:]; study's pre-answer objective chip removed; both render only in explain_payload() behind the verdict
 - [Phase 03.1]: 03.1-03: the /key/<id>/review route and `itembank key-review` share record_key_review(); key_review events carry no score and are replayed by Phase 10
+- [Phase ?]: 13-01: 'itembank sidecar' is the single shell entry point; the --sidecar flag on daemon was removed (plan wording resolved to the command).
+- [Phase ?]: 13-01: token gate covers every route except /__itembank__ (401); page navigations are gated because the shell injects the header on every request (13-02).
+- [Phase ?]: 13-01: attach failure exits 1 with the 3.3(e) copy, name filled and pid deferred to the shell; attach exits 0 with the already-running line.
 
 ## Deferred Verification
 
@@ -233,7 +237,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-10T21:49:18.723Z
-Stopped at: Phase 10 context gathered
-Resume file: .planning\phases\10-retention-pacing-trends\10-CONTEXT.md
+Last session: 2026-08-11T00:31:33.409Z
+Stopped at: Completed 13-01-PLAN.md
+Resume file: None
 Deferred human verification: Phases 2.1/3/4 (see Deferred Verification table above)

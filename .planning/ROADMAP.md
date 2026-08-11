@@ -891,12 +891,12 @@ This phase's full content — goal, requirements, success criteria, open decisio
 
 - **OPEN — ruling 3**: Weibao confirms Q8 (keep Python, Tauri sidecar, NSIS) and this phase number. The direction is recorded as adopted-pending-ruling; nothing else in the roadmap depends on the answer.
 
-**Plans**: 5 plans across 3 waves
+**Plans**: 1/5 plans executed across 3 waves
 
 Plans:
 **Wave 1**
 
-- [ ] 13-01-PLAN.md — Sidecar handshake (port + token + version), token gate, single-instance attach/refuse, lifecycle fixture
+- [x] 13-01-PLAN.md — Sidecar handshake (port + token + version), token gate, single-instance attach/refuse, lifecycle fixture
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -1127,7 +1127,7 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 10. Retention, Pacing & Trends | 0/6 | Planned    |  |
 | 11. Closed Authoring Loop & Curriculum Auditor | 0/TBD | Not started | - |
 | 12. ~~Packaging, Self-Update & Interop Export~~ | — | Retired (moved to 2.1) | - |
-| 13. Desktop Packaging — Tauri Shell over Python Sidecar | 0/5 | Planned | - |
+| 13. Desktop Packaging — Tauri Shell over Python Sidecar | 1/5 | In Progress|  |
 
 ## Backlog
 
@@ -1358,15 +1358,19 @@ trigger points, so the next review is a lookup and not a re-argument:
   hint tier: `hint`-style command, cursor-hold semantics, `hints_used` in
   `report`. Today it correctly documents `submit` auto-advancing; Phase 6
   changes that sentence.
+
 - **Phase 7 (selection engine)** — `guiding-questions` gains `--objective`/
   `--mode` selection semantics and the inspectable "why this item" reason.
+
 - **Phase 8 (model adapter, agent usage contract)** — the formal
   machine-readable contract (`schemas/agent_usage.schema.json`, `itembank
   usage`) ships; the skills must reference it and stop being the only agent
   contract. Add a model-adapter skill or extend `guiding-questions` with the
   adapter's tier-gated hinting.
+
 - **Phase 11 (curriculum auditor)** — `curriculum-design` gains the
   auditor's citation-per-coverage-claim loop.
+
 - **Phase 999.3 (MCP surface)** — add an MCP skill mapping tools to the
   existing playbooks, or extend `guiding-questions`; the MCP surface must not
   arrive with a second parser/scorer (Extensibility Rule 9).
