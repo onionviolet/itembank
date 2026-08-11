@@ -458,6 +458,252 @@ def check_evidence_signatures():
         fail("non-check-shaped event must record explicit None reserved keys")
 
 
+# ---- plan 05-03 Task 2: the agent submit path and the cross-path identity ---
+
+AGENT_BANK = """# Agent check bank
+
+Q1. Write a program that sums two integers read from stdin.   (difficulty: recall)
+[ID: 9000000000000001]
+[TYPE: check]
+[OBJECTIVE: cs:io.sum]
+[LANG: python]
+[MATCH: trimmed]
+CASE) 5 7 :: 12
+CASE) 3 4 :: 7
+WHY BEST: A correct program reads both numbers and adds them.
+KEY DISCRIMINATOR: reading all of stdin.
+DISTRACTOR ANALYSIS:
+- The usual failure is reading only the first line.
+TRAP: Reading one number instead of two.
+CONFIDENCE: high
+"""
+
+RUBY_BANK = """# Agent check bank (non-python language)
+
+Q1. Write a program that sums two integers read from stdin.   (difficulty: recall)
+[ID: 9000000000000002]
+[TYPE: check]
+[OBJECTIVE: cs:io.sum]
+[LANG: ruby]
+[MATCH: trimmed]
+CASE) 5 7 :: 12
+CASE) 3 4 :: 7
+WHY BEST: A correct program reads both numbers and adds them.
+KEY DISCRIMINATOR: reading all of stdin.
+DISTRACTOR ANALYSIS:
+- The usual failure is reading only the first line.
+TRAP: Reading one number instead of two.
+CONFIDENCE: high
+"""
+
+WRONG_SOURCE = "print('nope')" + chr(10)
+
+
+def _write_settings(work, **overrides):
+    base = json.load(open(os.path.join(ROOT, "itembank.json"), encoding="utf-8"))
+    ck = dict(base.get("check") or {})
+    ck.update(overrides)
+    base["check"] = ck
+    json.dump(base, open(os.path.join(work, "itembank.json"), "w", encoding="utf-8"),
+              indent=2)
+
+
+def _cli(*args):
+    return subprocess.run([sys.executable, os.path.join(ROOT, "itembank.py"),
+                           *map(str, args)], capture_output=True, text=True,
+                          encoding="utf-8")
+
+
+def _agent_start(bank_path, work, seed):
+    session = os.path.join(work, "session_%s.json" % seed)
+    r = _cli("start", bank_path, "--count", "1", "--seed", seed,
+             "--mode", "practice", "--out", session)
+    if r.returncode != 0:
+        fail("agent start failed: %s" % (r.stdout + r.stderr))
+    return session, json.loads(r.stdout)["session_id"]
+
+
+def _agent_events(log, sid):
+    return [ev for ev in evidence.live_events(log)
+            if ev.get("event_type") == "response" and ev.get("session_id") == sid]
+
+
+def _serve_base(bank_path, out, proc_lines):
+    proc = subprocess.Popen(
+        [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "serve",
+         bank_path, "--no-open", "--port", "0", "--out", out],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    threading.Thread(target=lambda: [proc_lines.append(l) for l in proc.stdout],
+                     daemon=True).start()
+    base = None
+    joined = ""
+    for _ in range(60):
+        time.sleep(0.1)
+        joined = "".join(proc_lines)
+        m = re.search("http://127.0.0.1:[0-9]+/", joined)
+        if m:
+            base = m.group(0)
+            break
+    return proc, base
+
+
+def check_agent_path():
+    """Drive the real / CLI against a check
+    item and assert score true/false, dedupe, settings-derived bounds and the
+    unknown-language refusal -- all without touching the checkout."""
+    work = tempfile.mkdtemp()
+    try:
+        bank_path = os.path.join(work, "agent_check.md")
+        open(bank_path, "w", encoding="utf-8").write(AGENT_BANK)
+        _write_settings(work)
+        log = evidence.log_path(work)
+
+        # correct -> score true, one event
+        sess, sid = _agent_start(bank_path, work, 1)
+        r = _cli("submit", sess, "--answer", json.dumps(SUM_SOURCE))
+        if r.returncode != 0:
+            fail("correct agent submit failed: %s" % (r.stdout + r.stderr))
+        res = json.loads(r.stdout)
+        if res.get("score") is not True:
+            fail("correct agent submit scored %r" % res.get("score"))
+        evs = _agent_events(log, sid)
+        if len(evs) != 1 or evs[0]["answer"] != "1,1":
+            fail("correct agent submit evidence is %r" % [e.get("answer") for e in evs])
+        if evs[0]["check_source"] != SUM_SOURCE:
+            fail("agent evidence lost the check source")
+        _validate_event(evs[0])
+
+        # wrong -> score false
+        sess2, sid2 = _agent_start(bank_path, work, 2)
+        r = _cli("submit", sess2, "--answer", json.dumps(WRONG_SOURCE))
+        if r.returncode != 0:
+            fail("wrong agent submit failed: %s" % (r.stdout + r.stderr))
+        if json.loads(r.stdout).get("score") is not False:
+            fail("wrong agent submit scored %r" % json.loads(r.stdout).get("score"))
+
+        # dedupe: a byte-identical second submit on the held-cursor item
+        # (the wrong answer does not advance) records no second event.
+        r = _cli("submit", sess2, "--answer", json.dumps(WRONG_SOURCE))
+        if r.returncode != 0:
+            fail("second identical submit failed: %s" % (r.stdout + r.stderr))
+        if json.loads(r.stdout).get("accepted") is not False:
+            fail("byte-identical second submit was not deduped: %r" % res)
+        if len(_agent_events(log, sid2)) != 1:
+            fail("a byte-identical resubmit appended a second evidence event")
+
+        # settings-derived bound: timeout_seconds=1 makes a hanging item's
+        # submit return well under the runner's 5s default.
+        work_t = tempfile.mkdtemp()
+        try:
+            bt = os.path.join(work_t, "agent_check.md")
+            open(bt, "w", encoding="utf-8").write(AGENT_BANK)
+            _write_settings(work_t, timeout_seconds=1)
+            st, stid = _agent_start(bt, work_t, 9)
+            start = time.monotonic()
+            r = _cli("submit", st, "--answer", json.dumps(HANG_SOURCE))
+            elapsed = time.monotonic() - start
+            if r.returncode != 0:
+                fail("hang submit failed: %s" % (r.stdout + r.stderr))
+            if elapsed >= 5:
+                fail("hang submit took %.1fs; the bound did not come from "
+                     "check.timeout_seconds" % elapsed)
+            if json.loads(r.stdout).get("score") is not None:
+                fail("hang submit must record no verdict")
+        finally:
+            shutil.rmtree(work_t, ignore_errors=True)
+
+        # unknown language: a check item whose [LANG:] is not in the runtime
+        # check.languages allowlist refuses at run time, names the language and
+        # the settings key, and leaves the evidence log and session untouched.
+        # The bank is started with --force because [LANG: ruby] is a lint error
+        # against the shipped allowlist -- the point is that settings drifted
+        # after authoring, so lint-time allowlist membership and the runtime
+        # settings allowlist can disagree.
+        work_u = tempfile.mkdtemp()
+        try:
+            bu = os.path.join(work_u, "agent_check.md")
+            open(bu, "w", encoding="utf-8").write(RUBY_BANK)
+            _write_settings(work_u)
+            su = os.path.join(work_u, "session_u.json")
+            rs = _cli("start", bu, "--count", "1", "--seed", "7", "--force",
+                      "--mode", "practice", "--out", su)
+            if rs.returncode != 0:
+                fail("force start on the ruby bank failed: %s" % (rs.stdout + rs.stderr))
+            log_u = evidence.log_path(work_u)
+            before = open(log_u, "rb").read() if os.path.exists(log_u) else b""
+            sess_bytes = open(su, "rb").read()
+            r = _cli("submit", su, "--answer", json.dumps(SUM_SOURCE))
+            if r.returncode == 0:
+                fail("an unknown-language submit exited 0")
+            out = r.stdout + r.stderr
+            if "ruby" not in out or "check.languages" not in out:
+                fail("unknown-language refusal does not name the language and "
+                     "check.languages: %r" % out)
+            after = open(log_u, "rb").read() if os.path.exists(log_u) else b""
+            if after != before:
+                fail("an unknown-language submit wrote to the evidence log")
+            if open(su, "rb").read() != sess_bytes:
+                fail("an unknown-language submit touched the session file")
+        finally:
+            shutil.rmtree(work_u, ignore_errors=True)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def check_cross_path():
+    """The same check source through the browser route and the agent route
+    produces identical score/answer/canonical/check_source in the two
+    evidence events -- the checkable version of 'one scorer, reached the
+    same way'."""
+    work = tempfile.mkdtemp()
+    try:
+        bank_path = os.path.join(work, "agent_check.md")
+        open(bank_path, "w", encoding="utf-8").write(AGENT_BANK)
+        _write_settings(work)
+        log = evidence.log_path(work)
+
+        proc, base = _serve_base(bank_path,
+                                 os.path.join(tempfile.mkdtemp(), "attempt.md"),
+                                 [])
+        if not base:
+            if proc.poll() is None:
+                proc.terminate()
+            fail("serve daemon never printed a URL")
+        try:
+            started = post(base + "api/start", {"bank": "agent_check", "count": 6,
+                                                "mode": "practice",
+                                                "focus": "q1"})
+            brow = post(base + "quiz/agent_check/answer",
+                        {"id": "q1", "interaction_version": 1,
+                         "response": SUM_SOURCE})
+            if brow.get("score") is not True:
+                fail("browser route scored %r" % brow.get("score"))
+        finally:
+            proc.terminate()
+        brow_evs = _agent_events(log, started["session_id"])
+        if len(brow_evs) != 1:
+            fail("browser route recorded %d events, expected 1" % len(brow_evs))
+        brow_ev = brow_evs[0]
+
+        sess, sid = _agent_start(bank_path, work, 5)
+        r = _cli("submit", sess, "--answer", json.dumps(SUM_SOURCE))
+        if r.returncode != 0:
+            fail("agent cross-path submit failed: %s" % (r.stdout + r.stderr))
+        agent_evs = _agent_events(log, sid)
+        if len(agent_evs) != 1:
+            fail("agent route recorded %d events, expected 1" % len(agent_evs))
+        agent_ev = agent_evs[0]
+
+        for field in ("score", "answer", "canonical", "check_source"):
+            if brow_ev.get(field) != agent_ev.get(field):
+                fail("cross-path %r differs: browser=%r agent=%r" %
+                     (field, brow_ev.get(field), agent_ev.get(field)))
+        _validate_event(brow_ev)
+        _validate_event(agent_ev)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
 def main():
     check_parse_and_defaults()
     check_sample_bank_unchanged()
@@ -471,6 +717,8 @@ def main():
     check_explain_payload()
     check_evidence_signatures()
     check_http_roundtrip()
+    check_agent_path()
+    check_cross_path()
     print("check roundtrip: ok")
     return 0
 
