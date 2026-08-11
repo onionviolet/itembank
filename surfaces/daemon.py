@@ -118,6 +118,7 @@ ROUTES = (
     ("GET", "/report", "handle_report_get"),
     ("GET", "/settings", "handle_settings_get"),
     ("POST", "/api/theme", "handle_theme_post"),
+    ("POST", "/cli-twin", "handle_cli_twin"),
 ) + API_ROUTES + (
     ("GET", QUIZ_GET_RE, "handle_quiz_get"),
     ("POST", QUIZ_ANSWER_RE, "handle_quiz_answer"),
@@ -142,6 +143,7 @@ ROUTE_CLI = {
     ("GET", "/report"): "report",
     ("GET", "/settings"): "theme",
     ("POST", "/api/theme"): "theme",
+    ("POST", "/cli-twin"): "cli-twin",
     ("POST", "/api/start"): "start",
     ("POST", "/api/next"): "next",
     ("POST", "/api/submit"): "submit",
@@ -158,6 +160,56 @@ ROUTE_CLI = {
     ("POST", DAY_OPEN_RE): "day",
     ("POST", DAY_EDIT_RE): "day",
 }
+
+
+def cli_twin_for(path):
+    """The CLI command that reaches the same runtime call as a served view
+    path -- the daemon-owned mapping behind the shell's "Copy the CLI command
+    for this view" menu item (13-UI-SPEC 2.2): the shell holds no per-view
+    knowledge, the daemon owns the routes and therefore the mapping. Returns
+    None when no GET route matches the path.
+    """
+    for method, pattern, _handler in ROUTES:
+        if method != "GET":
+            continue
+        if isinstance(pattern, str):
+            if path != pattern:
+                continue
+            name = ROUTE_CLI[(method, pattern)]
+            return "itembank daemon ." if name == "daemon" else "itembank %s" % name
+        m = pattern.match(path)
+        if m:
+            name = ROUTE_CLI[(method, pattern)]
+            groups = m.groupdict()
+            parts = [name]
+            for key in ("stem", "slug", "key_id"):
+                if groups.get(key):
+                    parts.append(groups[key])
+            return "itembank " + " ".join(parts)
+    return None
+
+
+def handle_cli_twin(handler):
+    """`POST /cli-twin` -- `{"path": "<view path>"}` -> `{"command":
+    "<cli equivalent>"}`. Read-only, never mutates; a path no GET route
+    serves is a 404, and a non-path body is a 400 (T-2-02's resolve-through-
+    allowlist discipline applied to a query, not a file).
+    """
+    if _reject_cross_origin(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    path = data.get("path")
+    if not isinstance(path, str) or not path.startswith("/"):
+        handler.send_error(400, "path must be a route path")
+        return
+    command = cli_twin_for(path)
+    if command is None:
+        handler.send_error(404, "no CLI twin for this path")
+        return
+    handler.send_bytes(json.dumps({"command": command}).encode("utf-8"),
+                       "application/json")
 
 
 def scan_dir(root):
@@ -1836,4 +1888,19 @@ def cmd_sidecar(a):
     serve_scoped(root, banks, plans, port, host=host, open_path="/", no_open=True,
                  extra={"sessions": sessions, "collisions": collisions},
                  on_bound=on_bound, srv=srv, window=window, quiet=True)
+    return 0
+
+
+def cmd_cli_twin(a):
+    """The CLI twin of the shell's own route-to-command query (13-UI-SPEC
+    2.2): `itembank cli-twin /quiz/sample_bank` prints the command that
+    reaches the same runtime call. Exists so the route's ROUTE_CLI entry is a
+    real command, keeping the every-route-has-a-CLI-equivalent inventory
+    honest.
+    """
+    command = cli_twin_for(a.path)
+    if command is None:
+        print("no CLI twin for %s" % a.path)
+        return 1
+    print(command)
     return 0

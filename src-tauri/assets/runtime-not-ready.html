@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Starting the runtime</title>
+<style>
+:root{
+  --bg:#f3f5f4; --card:#ffffff; --ink:#171d1c; --mut:#5f6d6a; --line:#dfe5e3; --accent:#0e6e62; --accent-soft:#cfe2e0; --ok:#1b7a3d; --ok-bg:#e8f4ec; --bad:#b4272b; --bad-bg:#fbebeb; --warn:#8a5900; --chip:#eef2f1;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0e1413; --card:#161e1d; --ink:#e4ebe9; --mut:#8fa19d; --line:#26312f; --accent:#139484; --accent-soft:#161e1d; --ok:#4fbf74; --ok-bg:#11291b; --bad:#f0666a; --bad-bg:#2b1416; --warn:#e0a23a; --chip:#1d2726;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-chrome, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+  font-size: 16px; line-height: 1.5;
+  padding: 48px 24px 64px;
+}
+@media (min-width: 768px) { body { padding: 48px 48px 64px; } }
+main { max-width: 720px; margin: 0 auto; }
+.state-label {
+  font-family: var(--font-ledger, ui-monospace, "Cascadia Mono", Consolas, monospace);
+  font-size: 12px; font-weight: 600; line-height: 1.4;
+  margin: 0 0 8px; color: var(--warn);
+}
+body[data-state="crashed"] .state-label { color: var(--bad); }
+h1 { font-size: 20px; font-weight: 600; line-height: 1.2; margin: 0 0 16px; }
+p { margin: 0 0 16px; }
+.meta { font-family: var(--font-ledger, ui-monospace, "Cascadia Mono", Consolas, monospace); font-size: 12px; line-height: 1.4; color: var(--mut); }
+details { margin: 16px 0; border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; }
+summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-ledger, ui-monospace, "Cascadia Mono", Consolas, monospace); font-size: 12px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+button, a.go {
+  min-height: 44px; padding: 0 20px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--card); color: var(--ink); font: inherit; font-weight: 600;
+  text-decoration: none; display: inline-flex; align-items: center; justify-content: center;
+}
+button.primary, a.go.primary { background: var(--accent); color: var(--card); border-color: var(--accent); }
+button:focus-visible, a.go:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[role="status"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.code { font-family: var(--font-ledger, ui-monospace, "Cascadia Mono", Consolas, monospace); font-size: 12px; }
+
+</style>
+</head>
+<body data-state="starting">
+<main>
+  <p class="state-label" id="state-label">Runtime unavailable</p>
+  <h1 id="title">Starting the runtime</h1>
+
+  <section class="state" data-state="starting">
+    <p>itembank is starting its runtime. This window will load as soon as the runtime is listening.</p>
+    <p class="slow-line" hidden>The runtime has not reported a port after 10 seconds.</p>
+    <details>
+      <summary>Show details</summary>
+      <p class="meta">sidecar: <span class="code" data-sidecar>&lt;sidecar path&gt;</span></p>
+      <p class="meta">log: <span class="code" data-log>&lt;log path&gt;</span></p>
+    </details>
+  </section>
+
+  <section class="state" data-state="unreachable">
+    <p>itembank could not start its runtime, so lessons, sittings, scoring, and evidence are unavailable in this window. Nothing was scored and nothing was recorded.</p>
+    <p>Your banks and evidence are untouched. They are files on disk, and this failure did not write to them.</p>
+    <div class="actions">
+      <button type="button" class="primary" data-action="restart">Start it again</button>
+      <button type="button" data-action="details">Show details</button>
+    </div>
+    <details>
+      <summary>Show details</summary>
+      <p class="meta">sidecar: <span class="code" data-sidecar>&lt;sidecar path&gt;</span></p>
+      <p class="meta">last output:</p>
+      <pre data-stdout></pre>
+      <p class="meta">log: <span class="code" data-log>&lt;log path&gt;</span></p>
+      <p class="meta">The runtime also runs without this window:</p>
+      <pre>itembank daemon .</pre>
+    </details>
+  </section>
+
+  <section class="state" data-state="crashed">
+    <p>The itembank runtime stopped after it started. Anything you submitted was recorded when you submitted it. Anything on screen that you had not submitted was not recorded.</p>
+    <p class="meta">Exit code <span data-exit>&lt;n&gt;</span> &middot; stopped <span data-stopped>&lt;ISO-8601&gt;</span></p>
+    <div class="actions">
+      <button type="button" class="primary" data-action="restart">Start it again</button>
+      <button type="button" data-action="details">Show details</button>
+    </div>
+    <details>
+      <summary>Show details</summary>
+      <p class="meta">sidecar: <span class="code" data-sidecar>&lt;sidecar path&gt;</span></p>
+      <p class="meta">last output:</p>
+      <pre data-stdout></pre>
+      <p class="meta">log: <span class="code" data-log>&lt;log path&gt;</span></p>
+      <p class="meta">The runtime also runs without this window:</p>
+      <pre>itembank daemon .</pre>
+    </details>
+  </section>
+
+  <section class="state" data-state="port-held">
+    <p>A runtime is already listening on <span class="code" data-port>127.0.0.1:&lt;port&gt;</span>. This window did not start a second one.</p>
+    <div class="actions">
+      <button type="button" class="primary" data-action="use-running">Use the running one</button>
+    </div>
+  </section>
+
+  <section class="state" data-state="port-held-refused">
+    <p>itembank is already running, but this window could not attach to it. Close the other itembank window, or end the process named <span class="code" data-name>&lt;name&gt;</span> (pid <span class="code" data-pid>&lt;n&gt;</span>), then start itembank again.</p>
+  </section>
+
+  <p role="status" id="status">Starting the runtime</p>
+</main>
+<script>
+(function () {
+  "use strict";
+  var params = new URLSearchParams(location.search);
+  var state = params.get("state") || "starting";
+  if (state !== "starting" && state !== "unreachable" && state !== "crashed"
+      && state !== "port-held" && state !== "port-held-refused") {
+    state = "starting";
+  }
+  document.body.dataset.state = state;
+  var sections = document.querySelectorAll("section.state");
+  for (var i = 0; i < sections.length; i++) {
+    sections[i].hidden = sections[i].getAttribute("data-state") !== state;
+  }
+  var labels = {
+    starting: "Runtime unavailable",
+    unreachable: "Runtime unavailable",
+    crashed: "Runtime stopped",
+    "port-held": "Already running",
+    "port-held-refused": "Already running"
+  };
+  var titles = {
+    starting: "Starting the runtime",
+    unreachable: "The runtime did not start",
+    crashed: "The runtime stopped",
+    "port-held": "itembank is already running",
+    "port-held-refused": "itembank is already running"
+  };
+  document.getElementById("state-label").textContent = labels[state];
+  document.getElementById("title").textContent = titles[state];
+  document.title = titles[state];
+  function fill(attr, key) {
+    var els = document.querySelectorAll("[" + attr + "]");
+    var value = params.get(key);
+    for (var j = 0; j < els.length; j++) {
+      if (value !== null) { els[j].textContent = value; }
+    }
+  }
+  fill("data-sidecar", "sidecar");
+  fill("data-log", "log");
+  fill("data-port", "port");
+  fill("data-exit", "exit");
+  fill("data-stopped", "stopped");
+  fill("data-name", "name");
+  fill("data-pid", "pid");
+  fill("data-stdout", "stdout");
+  if (params.get("slow") === "1") {
+    var slow = document.querySelector(".slow-line");
+    if (slow) { slow.hidden = false; }
+  }
+  var h1 = document.getElementById("title");
+  if (h1) { h1.setAttribute("tabindex", "-1"); h1.focus(); }
+  var status = document.getElementById("status");
+  if (status) { status.textContent = titles[state]; }
+})();
+</script>
+</body>
+</html>

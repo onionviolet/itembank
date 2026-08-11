@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "itembank",
+  "version": "0.3.0",
+  "identifier": "dev.itembank",
+  "build": {
+    "frontendDist": "assets"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "itembank",
+        "width": 1100,
+        "height": 760,
+        "minWidth": 768,
+        "minHeight": 512,
+        "resizable": true,
+        "decorations": true,
+        "url": "runtime-not-ready.html"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "externalBin": ["binaries/itembank-sidecar"],
+    "icon": ["icons/icon.ico"]
+  }
+}

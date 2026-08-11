@@ -9,7 +9,7 @@ import argparse, collections, json, os, sys
 from model import (BANK_FILE_HINTS, SPEC, lint, load, parse_bank,
                    parse_key_blocks, parse_lesson, parse_terms)
 from surfaces.anki import cmd_export
-from surfaces.daemon import cmd_daemon, cmd_sidecar
+from surfaces.daemon import cmd_cli_twin, cmd_daemon, cmd_sidecar
 from surfaces.day import cmd_day
 from surfaces.evidence_cli import (cmd_evidence, cmd_id_assign, cmd_mark, cmd_render,
                                    cmd_retract)
@@ -251,6 +251,11 @@ def main():
     s.add_argument("--no-open", action="store_true", dest="no_open",
                    help="do not launch a browser")
     s.set_defaults(fn=cmd_sidecar)
+
+    s = sub.add_parser("cli-twin", help="print the CLI command that reaches "
+                       "the same runtime call as a served view path")
+    s.add_argument("path")
+    s.set_defaults(fn=cmd_cli_twin)
 
     s = sub.add_parser("stats", help="item mix, coverage, answer-position skew")
     s.add_argument("bank")

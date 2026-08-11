@@ -988,6 +988,35 @@ def check_route_cli_inventory():
                  "surfaces/cli.py" % name)
 
 
+def check_cli_twin_route():
+    """13-02: `POST /cli-twin` returns the CLI command that reaches the same
+    runtime call as a served view path -- the daemon-owned mapping the
+    shell's "Copy the CLI command for this view" menu item reads (13-UI-SPEC
+    2.2). A path no GET route serves is a 404; a non-path body is a 400.
+    """
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        base = url.rstrip("/")
+        status, body = json_request(base + "/cli-twin", {"path": "/"})
+        if status != 200 or body != {"command": "itembank daemon ."}:
+            fail("cli-twin for / returned %r %r, expected the daemon twin"
+                 % (status, body))
+        status, body = json_request(base + "/cli-twin",
+                                    {"path": "/quiz/sample_bank"})
+        if status != 200 or body != {"command": "itembank serve sample_bank"}:
+            fail("cli-twin for /quiz/sample_bank returned %r %r" % (status, body))
+        status, _ = json_request(base + "/cli-twin", {"path": "/no-such-view"})
+        if status != 404:
+            fail("cli-twin for an unknown path returned %d, expected 404" % status)
+        status, _ = json_request(base + "/cli-twin", {"path": "../etc/passwd"})
+        if status != 400:
+            fail("cli-twin for a non-route path returned %d, expected 400" % status)
+    finally:
+        proc.terminate()
+
+
 def check_api_route_scope():
     """D-04 scopes `/api/*` to exactly four routes this phase, and the count
     is asserted rather than trusted.
@@ -2370,6 +2399,7 @@ def main():
         check_day_edit_route,
         check_day_edit_conflict_and_force,
         check_route_cli_inventory,
+        check_cli_twin_route,
         check_api_route_scope,
         check_api_sitting,
         check_api_duplicate_submit_dedupes,
