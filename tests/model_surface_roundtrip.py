@@ -127,6 +127,19 @@ def run_raw(args, cwd):
                           cwd=cwd, capture_output=True, text=True)
 
 
+def run_json(args, cwd):
+    """Run the CLI and return the first JSON value in stdout -- commands like
+    `mark` print a JSON payload followed by a one-line human summary."""
+    r = run_raw(args, cwd)
+    if r.returncode != 0:
+        fail("command %r failed (%d): %s" % (args, r.returncode, r.stderr))
+    try:
+        value, _ = json.JSONDecoder().raw_decode(r.stdout.lstrip())
+    except ValueError as exc:
+        fail("command %r did not print a JSON payload: %s" % (args, exc))
+    return value
+
+
 def write_bank(tmp, text, name="bank.md"):
     path = os.path.join(tmp, name)
     open(path, "w", encoding="utf-8").write(text)
@@ -422,13 +435,15 @@ def test_rubric_review_refuses_with_named_reason_and_no_write():
         # Already-marked short response: mark it, then ask again.
         short_session = _short_pending_session(tmp)
         sid = session_id_of(short_session)
-        run(["mark", "--session", sid, "--item", "Q1", "--verdict", "pass",
-             "--base", tmp], tmp)
+        log2 = evidence.log_path(tmp)
+        responses = evidence.session_events(log2, sid)
+        item_ref = responses[-1]["item_ref"]
+        run_json(["mark", "--session", sid, "--item", item_ref, "--verdict", "pass",
+                  "--base", tmp], tmp)
         again = session_surface.do_rubric_review(short_session)
         if again["status"] != "refused" or again.get("reason") != "already_marked":
             fail("rubric review on an already-marked response must refuse with "
                  "reason already_marked, got %r" % again)
-        log2 = evidence.log_path(tmp)
         proposals_before = len(evidence.proposals_for(log2, sid))
         interactions_before = len(evidence.model_interactions(log2, sid))
         if proposals_before != 0 or interactions_before != 0:
@@ -452,8 +467,8 @@ def test_cmd_mark_proposal_human_accept():
         if not proposal_event_id:
             fail("rubric review must return its proposal event id: %r" % result)
 
-        marked = run(["mark", "--session", sid, "--proposal", proposal_event_id,
-                      "--verdict", "pass", "--base", tmp], tmp)
+        marked = run_json(["mark", "--session", sid, "--proposal", proposal_event_id,
+                           "--verdict", "pass", "--base", tmp], tmp)
         log = evidence.log_path(tmp)
         responses = evidence.session_events(log, sid)
         resp = responses[-1]
@@ -554,6 +569,123 @@ def test_suggestion_pending_token_only_and_no_auto_accept():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ---- Task 3: the published agent usage contract ----------------------------
+
+AGENT_USAGE_SCHEMA = os.path.join(ROOT, "schemas", "agent_usage.schema.json")
+
+
+def test_agent_usage_schema_validates_and_clauses():
+    """MODEL-04: the agent usage contract is a machine-readable, closed
+    schema (supported keywords only) declaring permissions, prohibitions,
+    disclosure limits, retry rules, manual-grading rules, and forbidden
+    inferences -- every clause in the plan's Task 3 list."""
+    schema = json.load(open(AGENT_USAGE_SCHEMA, encoding="utf-8"))
+    if schema.get("x-itembank-version") != 1:
+        fail("agent_usage schema must be x-itembank-version 1")
+    schema_validate.check_schema(schema)   # supported keywords only
+
+    doc = {
+        "schema_version": 1,
+        "permissions": ["request_hint", "request_rubric_review",
+                        "read_pending_proposals", "accept_proposals"],
+        "prohibitions": ["write_evidence", "score_responses", "select_items",
+                         "advance_tiers", "read_dropped_text",
+                         "auto_accept_proposals"],
+        "disclosure": {"hosted_transit_accepted": True,
+                       "evidence_local_only": True,
+                       "secrets_env_references_only": True},
+        "retry": {"max_attempts": 1, "explicit_retry": True,
+                  "parent_link": True},
+        "manual_grading": {"marker": "human",
+                           "accept_paths": ["self_mark", "batch_mark"]},
+        "forbidden_inferences": ["tier_state", "item_selection",
+                                 "accepted_verdicts", "learner_identity"],
+    }
+    errs = schema_validate.validate(doc, schema)
+    if errs:
+        fail("the full agent usage document must validate: %s" % errs[0])
+
+    # The clause sets are exact enums, structurally asserted.
+    s = schema["properties"]
+    perms = [e for e in s["permissions"]["items"]["enum"]]
+    if sorted(perms) != sorted(doc["permissions"]):
+        fail("permissions enum mismatch: %r" % perms)
+    prohs = [e for e in s["prohibitions"]["items"]["enum"]]
+    if sorted(prohs) != sorted(doc["prohibitions"]):
+        fail("prohibitions enum mismatch: %r" % prohs)
+    forb = [e for e in s["forbidden_inferences"]["items"]["enum"]]
+    if sorted(forb) != sorted(doc["forbidden_inferences"]):
+        fail("forbidden_inferences enum mismatch: %r" % forb)
+    paths = [e for e in s["manual_grading"]["properties"]["accept_paths"]
+             ["items"]["enum"]]
+    if sorted(paths) != ["batch_mark", "self_mark"]:
+        fail("manual_grading.accept_paths enum mismatch: %r" % paths)
+    if s["manual_grading"]["properties"]["marker"].get("const") != "human":
+        fail("manual_grading.marker must be const 'human'")
+    if s["retry"]["properties"]["max_attempts"].get("const") != 1:
+        fail("retry.max_attempts must be const 1")
+    for key in ("explicit_retry", "parent_link"):
+        if s["retry"]["properties"][key].get("const") is not True:
+            fail("retry.%s must be const true" % key)
+    for key in ("hosted_transit_accepted", "evidence_local_only",
+                "secrets_env_references_only"):
+        if s["disclosure"]["properties"][key].get("const") is not True:
+            fail("disclosure.%s must be const true" % key)
+    if s["permissions"]["minItems"] != 4:
+        fail("permissions must declare all four permissions via minItems")
+    if schema.get("additionalProperties") is not False:
+        fail("the usage contract must be a closed object")
+
+
+def test_usage_command_prints_contract_and_schema_all():
+    """MODEL-04: `itembank usage` prints the contract bytes verbatim (plus a
+    one-line human summary), and `itembank schema --all` serves the same
+    document under the agent_usage contract name."""
+    on_disk = open(AGENT_USAGE_SCHEMA, encoding="utf-8").read()
+
+    r = run_raw(["usage"], ROOT)
+    if r.returncode != 0:
+        fail("itembank usage exited %d: %s" % (r.returncode, r.stderr))
+    if not r.stdout.startswith(on_disk):
+        fail("itembank usage must print the contract bytes verbatim from "
+             "the on-disk file")
+
+    all_r = run_raw(["schema", "--all"], ROOT)
+    if all_r.returncode != 0:
+        fail("itembank schema --all exited %d: %s"
+             % (all_r.returncode, all_r.stderr))
+    payload = json.loads(all_r.stdout)
+    contracts = payload.get("contracts", {})
+    if "agent_usage" not in contracts:
+        fail("schema --all must include agent_usage in the contracts object")
+    if contracts["agent_usage"] != json.loads(on_disk):
+        fail("schema --all's agent_usage document must equal the on-disk file")
+
+    one_r = run_raw(["schema", "agent_usage"], ROOT)
+    if one_r.returncode != 0 or one_r.stdout != on_disk:
+        fail("itembank schema agent_usage must print the contract verbatim")
+
+
+def test_usage_contract_no_invented_figures_no_secret_values():
+    """MODEL-04 + D-19: the contract contains no invented performance figure
+    and no secret reference format beyond env-var names -- no tokens/sec,
+    latency, throughput, or credential-value pattern."""
+    text = open(AGENT_USAGE_SCHEMA, encoding="utf-8").read()
+    for pattern in (r"tok/?s\b", r"token/?s\s*per\s*second", r"\blatency\b",
+                    r"\bthroughput\b", r"\bqps\b", r"\d+\s*ms\b",
+                    r"\baccuracy\b"):
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m:
+            fail("the usage contract must carry no invented performance "
+                 "figure, found %r" % m.group(0))
+    for pattern in (r"sk-[A-Za-z0-9]+", r"Bearer\s+\S+", r"api[_-]?key\s*[:=]",
+                    r"password\s*[:=]"):
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m:
+            fail("the usage contract must reference secrets only by "
+                 "environment-variable name, found %r" % m.group(0))
+
+
 def main():
     test_hint_offline_disabled_backend_typed_unavailable()
     test_hint_idempotent_second_call()
@@ -565,10 +697,14 @@ def main():
     test_cmd_mark_proposal_human_accept()
     test_cmd_mark_proposal_batch_all_or_nothing()
     test_suggestion_pending_token_only_and_no_auto_accept()
+    test_agent_usage_schema_validates_and_clauses()
+    test_usage_command_prints_contract_and_schema_all()
+    test_usage_contract_no_invented_figures_no_secret_values()
     print("model surface contract: ok (offline typed hint + authored, "
           "idempotency, retry lineage, CLI parity, no-wrong edge, pending "
           "rubric suggestions, named refusals, human-only proposal accept, "
-          "all-or-nothing batch, pending-token-only + no auto-accept)")
+          "all-or-nothing batch, pending-token-only + no auto-accept, agent "
+          "usage contract)")
     return 0
 
 
