@@ -91,5 +91,13 @@
     "tls_key": "",
     "tool_private_jwk_path": "",
     "platforms": []
+  },
+  "check": {
+    "timeout_seconds": 5,
+    "max_output_bytes": 65536,
+    "languages": {
+      "python": ["{interpreter}", "-I", "{source}"]
+    },
+    "allow_lan": false
   }
 }

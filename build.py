@@ -34,6 +34,7 @@ STAGE_FILES = (
     "itembank.py", "model.py", "runtime.py", "server.py", "evidence.py",
     "schema_validate.py", "selection.py", "retention.py", "resources.py",
     "auditor.py", "authoring.py", "audit_writer.py",
+    "runner.py",
 )
 STAGE_DIRS = ("surfaces", "schemas", "styles", "fonts")
 

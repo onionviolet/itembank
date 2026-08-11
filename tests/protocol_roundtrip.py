@@ -553,6 +553,34 @@ def test_educational_objective_private_until_verdict():
         fail("a multi-sentence Objective: line must warn")
 
 
+def test_check_contract_pins():
+    """05-07 Task 1: the check item's published shape and the two lint codes
+    this phase introduced are pinned here, so a schema change or a code
+    rename fails a named test instead of drifting silently."""
+    codes = itembank.LINT_CODES
+    for code in ("item.no_normalizer", "item.tolerance_unstated"):
+        if code not in codes:
+            fail("%r is not declared in LINT_CODES" % code)
+    schema = load_schema("item.schema.json")
+    if "check" not in schema["properties"]["type"]["enum"]:
+        fail("item.schema.json type enum lacks 'check'")
+    for name in ("check_item", "interaction_contract", "check_renderer_config",
+                 "check_response_schema", "interaction_result",
+                 "case_observation"):
+        if name not in schema.get("$defs", {}):
+            fail("item.schema.json lacks $def %r" % name)
+    reason_enum = schema["$defs"]["case_observation"]["properties"]["reason"]["enum"]
+    if reason_enum != ["passed", "wrong_output", "timeout", "output_cap"]:
+        fail("case_observation reason enum is %r" % reason_enum)
+    verdict = schema["$defs"]["interaction_result"]["properties"]["verdict"]["type"]
+    if verdict != ["boolean", "null"]:
+        fail("interaction_result verdict must be boolean-or-null, got %r"
+             % verdict)
+    # the check renderer config rejects extra fields (no executable payload)
+    if schema["$defs"]["check_renderer_config"].get("additionalProperties") is not False:
+        fail("check_renderer_config must set additionalProperties: false")
+
+
 def test_lesson_completion_contract():
     """Plan 10-02 (SCHED-04/D-24): the response/evidence schema validates
     the real versioned lesson-completion event and the committed fixture,
@@ -772,6 +800,7 @@ def main():
     test_runtime_matches_schemas()
     test_schema_command_output()
     test_educational_objective_private_until_verdict()
+    test_check_contract_pins()
     test_lesson_completion_contract()
     test_selection_retention_provenance()
     print("protocol contract: ok (%d lint codes declared, schema versions pinned, "

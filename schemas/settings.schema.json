@@ -6,12 +6,33 @@
   "x-itembank-version": 1,
   "type": "object",
   "additionalProperties": false,
-  "required": ["theme", "accent", "daily_cap", "selection_weights", "selection", "auditor_autonomy", "model_backend", "suggestion_reveal", "update_policy", "daemon", "reader", "style", "paraphrase", "lti", "retention"],
+  "required": [
+    "theme",
+    "accent",
+    "daily_cap",
+    "selection_weights",
+    "selection",
+    "auditor_autonomy",
+    "model_backend",
+    "suggestion_reveal",
+    "update_policy",
+    "daemon",
+    "reader",
+    "style",
+    "paraphrase",
+    "check",
+    "lti",
+    "retention"
+  ],
   "properties": {
     "theme": {
       "type": "string",
       "description": "The app's color theme. Read by this phase (4).",
-      "enum": ["system", "light", "dark"],
+      "enum": [
+        "system",
+        "light",
+        "dark"
+      ],
       "default": "system",
       "x-itembank-phase": 4
     },
@@ -19,7 +40,9 @@
       "type": "object",
       "description": "The learner's chosen source accent color. Only accent.source is persisted; derived light/dark pairs, contrast ratios, correction notices, and manual per-mode overrides never enter this file (D-05/D-07). Read by this phase (4).",
       "additionalProperties": false,
-      "required": ["source"],
+      "required": [
+        "source"
+      ],
       "x-itembank-phase": 4,
       "default": {
         "source": "#0e6e62"
@@ -47,7 +70,11 @@
       "type": "object",
       "description": "Relative weights the item-selection algorithm uses to prioritize which items to serve. Inert until Phase 7 reads it.",
       "additionalProperties": false,
-      "required": ["objective_miss_rate", "difficulty_spread", "recency_decay"],
+      "required": [
+        "objective_miss_rate",
+        "difficulty_spread",
+        "recency_decay"
+      ],
       "x-itembank-phase": 7,
       "default": {
         "objective_miss_rate": 0.5,
@@ -85,7 +112,10 @@
       "type": "object",
       "description": "The item-selection engine's own knobs (phase 7).",
       "additionalProperties": false,
-      "required": ["cooldown_responses", "profiles"],
+      "required": [
+        "cooldown_responses",
+        "profiles"
+      ],
       "x-itembank-phase": 7,
       "default": {
         "cooldown_responses": 20,
@@ -111,7 +141,11 @@
     "auditor_autonomy": {
       "type": "string",
       "description": "How much the auditor is allowed to act on its own findings without a human approving each step. Anything beyond report_only is flagged Revisit in PROJECT.md until proven. Inert until Phase 11 reads it.",
-      "enum": ["report_only", "draft_and_approve", "audit_draft_lint_fix_commit"],
+      "enum": [
+        "report_only",
+        "draft_and_approve",
+        "audit_draft_lint_fix_commit"
+      ],
       "default": "report_only",
       "x-itembank-phase": 11
     },
@@ -119,7 +153,10 @@
       "type": "object",
       "description": "The named model-backend profile registry (plan 08-02). active names the profile that serves AI-tutoring requests; an empty active or an empty profiles array disables model calls entirely, so a fresh install never phones a provider. Each profile record declares its own transport, timeout, output cap, and context window, and an optional secret_env that names an environment variable whose value is resolved at invoke time -- never stored in this file. Read by this phase (8).",
       "additionalProperties": false,
-      "required": ["active", "profiles"],
+      "required": [
+        "active",
+        "profiles"
+      ],
       "x-itembank-phase": 8,
       "default": {
         "active": "",
@@ -140,7 +177,14 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["name", "transport", "model", "timeout_seconds", "max_output_bytes", "context_window"],
+            "required": [
+              "name",
+              "transport",
+              "model",
+              "timeout_seconds",
+              "max_output_bytes",
+              "context_window"
+            ],
             "x-itembank-phase": 8,
             "description": "One model-backend profile record. command is required for transport hosted_cli and endpoint for transport openai_compatible; this validator has no conditional keyword, so resolve_profile enforces the transport-required fields at read time.",
             "properties": {
@@ -152,7 +196,10 @@
               },
               "transport": {
                 "type": "string",
-                "enum": ["hosted_cli", "openai_compatible"],
+                "enum": [
+                  "hosted_cli",
+                  "openai_compatible"
+                ],
                 "description": "hosted_cli runs a configured CLI over stdin/stdout (subprocess, shell=False); openai_compatible POSTs to an OpenAI-compatible HTTP endpoint (urllib). Both share one normalized request/result shape behind the adapter boundary (D-17/D-18); a third backend is a TRANSPORT_REGISTRY entry, not a code fork (D-27).",
                 "x-itembank-phase": 8
               },
@@ -207,14 +254,21 @@
     "suggestion_reveal": {
       "type": "string",
       "description": "When the model's rubric-review suggestion is disclosed relative to the learner's own mark (plan 08-02, D-22): after-self-mark shows it after the learner has marked their own answer; before-self-mark shows it before self-marking; after-mark shows it after the learner's mark is recorded. Read by this phase (8).",
-      "enum": ["after-self-mark", "before-self-mark", "after-mark"],
+      "enum": [
+        "after-self-mark",
+        "before-self-mark",
+        "after-mark"
+      ],
       "default": "after-self-mark",
       "x-itembank-phase": 8
     },
     "update_policy": {
       "type": "string",
       "description": "Whether the opt-in updater checks GitHub Releases automatically. check_on_launch checks once at daemon launch, silently and non-blockingly; opt_in only checks when the user runs itembank update. The declared default is opt_in, so a fresh installation with no settings file makes no automatic check; this repository's own checked-in itembank.json intentionally sets check_on_launch to dogfood the updater (D-13), so the two values are meant to differ. Read by this phase (2.1).",
-      "enum": ["opt_in", "check_on_launch"],
+      "enum": [
+        "opt_in",
+        "check_on_launch"
+      ],
       "default": "opt_in",
       "x-itembank-phase": 2.1
     },
@@ -222,7 +276,12 @@
       "type": "object",
       "description": "The daemon's own port, LAN, and app-window settings.",
       "additionalProperties": false,
-      "required": ["port", "lan", "open_browser", "window"],
+      "required": [
+        "port",
+        "lan",
+        "open_browser",
+        "window"
+      ],
       "x-itembank-phase": 2,
       "default": {
         "port": 8730,
@@ -254,7 +313,10 @@
         "window": {
           "type": "string",
           "description": "Which container the daemon opens its page in: app attempts a frameless Chromium-family --app= window and falls back to an ordinary tab when no such browser is found; tab always opens an ordinary tab. Read by this phase (2.1).",
-          "enum": ["app", "tab"],
+          "enum": [
+            "app",
+            "tab"
+          ],
           "default": "app",
           "x-itembank-phase": 2.1
         }
@@ -264,8 +326,14 @@
       "type": "object",
       "description": "The lesson reader's settings (03.1-UI-SPEC section 14; 06.2-UI-SPEC section 10 for the gate rows). Read by this phase (3.1/6.2).",
       "additionalProperties": false,
-      "required": ["reader_nav", "example_layout", "print_gloss", "gloss_marks",
-                    "gate_skip", "gate_policy"],
+      "required": [
+        "reader_nav",
+        "example_layout",
+        "print_gloss",
+        "gloss_marks",
+        "gate_skip",
+        "gate_policy"
+      ],
       "x-itembank-phase": 3.1,
       "default": {
         "reader_nav": "none",
@@ -279,42 +347,61 @@
         "reader_nav": {
           "type": "string",
           "description": "Whether the lesson reader shows a sections nav column. none is the locked default; column renders one optional <nav> in the same DOM (03.1-UI-SPEC sections 7.3 and 14).",
-          "enum": ["none", "column"],
+          "enum": [
+            "none",
+            "column"
+          ],
           "default": "none",
           "x-itembank-phase": 3.1
         },
         "example_layout": {
           "type": "string",
           "description": "How [!EXAMPLE] callouts arrange their steps. stacked is the locked default; parallel is a one CSS-grid class on the same container (03.1-UI-SPEC sections 9.3 and 14).",
-          "enum": ["stacked", "parallel"],
+          "enum": [
+            "stacked",
+            "parallel"
+          ],
           "default": "stacked",
           "x-itembank-phase": 3.1
         },
         "print_gloss": {
           "type": "string",
           "description": "How the gloss prints. appendix is the locked default (the full glossary <dl> prints, popovers hidden); inline un-hides each popover as a small bordered note, first use only (03.1-UI-SPEC sections 10.1 and 14).",
-          "enum": ["appendix", "inline"],
+          "enum": [
+            "appendix",
+            "inline"
+          ],
           "default": "appendix",
           "x-itembank-phase": 3.1
         },
         "gloss_marks": {
           "type": "string",
           "description": "How densely [[term]] triggers are marked. all is the locked default; first-use marks only the first occurrence per section; none renders every term as plain prose and leaves the glossary appendix as the only path (03.1-UI-SPEC sections 8.2 and 14).",
-          "enum": ["all", "first-use", "none"],
+          "enum": [
+            "all",
+            "first-use",
+            "none"
+          ],
           "default": "all",
           "x-itembank-phase": 3.1
         },
         "gate_skip": {
           "type": "string",
           "description": "When the recorded-skip control appears in a gate band (06.2-UI-SPEC section 6.2, DEFAULT always). always renders it from the first render; after-attempt renders the Ledger line 'Read ahead becomes available after one attempt.' until one recorded attempt exists -- never a disabled control with no reason (C9).",
-          "enum": ["always", "after-attempt"],
+          "enum": [
+            "always",
+            "after-attempt"
+          ],
           "default": "always",
           "x-itembank-phase": 6.2
         },
         "gate_policy": {
           "type": "string",
           "description": "A learner-level gate override (06.2-UI-SPEC section 10.1, DEFAULT as-authored). off renders every lesson ungated (the whole lesson in the DOM, checks as 3.1's inert slots) and may only weaken a declared gate, never strengthen one -- the enum has no strengthening value by construction.",
-          "enum": ["as-authored", "off"],
+          "enum": [
+            "as-authored",
+            "off"
+          ],
           "default": "as-authored",
           "x-itembank-phase": 6.2
         }
@@ -324,7 +411,10 @@
       "type": "object",
       "description": "Where the opt-in self-updater looks for releases, and how often a background check may run. Read by this phase (2.1).",
       "additionalProperties": false,
-      "required": ["repo", "check_interval_hours"],
+      "required": [
+        "repo",
+        "check_interval_hours"
+      ],
       "x-itembank-phase": 2.1,
       "default": {
         "repo": "onionviolet/itembank",
@@ -351,11 +441,14 @@
       "type": "object",
       "description": "The lesson style system's authoring-prompt and warning-calibration settings (plan 03.1-05, D-14 and D-17). Read by this phase (3.1).",
       "additionalProperties": false,
-      "required": ["imperative_cap", "warn_fp_threshold"],
+      "required": [
+        "imperative_cap",
+        "warn_fp_threshold"
+      ],
       "x-itembank-phase": 3.1,
       "default": {
         "imperative_cap": 7,
-        "warn_fp_threshold": 0.20
+        "warn_fp_threshold": 0.2
       },
       "properties": {
         "imperative_cap": {
@@ -380,7 +473,10 @@
       "type": "object",
       "description": "The winnowing paraphrase lint's thresholds (plan 03.2-04, D-13): an item transcribing >= winnow_threshold consecutive words of a source is an error; a fingerprint Jaccard overlap above jaccard_threshold is a warning. Both are settings because they need tuning against the real corpus without a code change. Read by this phase (3.2).",
       "additionalProperties": false,
-      "required": ["winnow_threshold", "jaccard_threshold"],
+      "required": [
+        "winnow_threshold",
+        "jaccard_threshold"
+      ],
       "x-itembank-phase": 3.2,
       "default": {
         "winnow_threshold": 8,
@@ -505,16 +601,27 @@
       "type": "object",
       "description": "The retention, pacing and trends thresholds (Phase 10). Every value is bounded here with conservative defaults so later tuning is a settings change, never a code change (D-06, D-23); the weak threshold must stay below the mastery threshold and the weight floor below the ceiling (retention.py rejects contradictory pairs with a named error). Read by this phase (10).",
       "additionalProperties": false,
-      "required": ["min_settled_attempts", "weak_accuracy", "mastery_accuracy",
-                   "mastery_success_days", "at_risk_after_days",
-                   "review_interval_days", "lesson_review_after_days",
-                   "weight_min", "weight_max", "max_weight_step",
-                   "weak_boost", "due_boost", "at_risk_boost",
-                   "mastery_reduction", "focused_session_count"],
+      "required": [
+        "min_settled_attempts",
+        "weak_accuracy",
+        "mastery_accuracy",
+        "mastery_success_days",
+        "at_risk_after_days",
+        "review_interval_days",
+        "lesson_review_after_days",
+        "weight_min",
+        "weight_max",
+        "max_weight_step",
+        "weak_boost",
+        "due_boost",
+        "at_risk_boost",
+        "mastery_reduction",
+        "focused_session_count"
+      ],
       "x-itembank-phase": 10,
       "default": {
         "min_settled_attempts": 3,
-        "weak_accuracy": 0.60,
+        "weak_accuracy": 0.6,
         "mastery_accuracy": 0.85,
         "mastery_success_days": 3,
         "at_risk_after_days": 28,
@@ -522,10 +629,10 @@
         "lesson_review_after_days": 14,
         "weight_min": 0.75,
         "weight_max": 1.25,
-        "max_weight_step": 0.10,
-        "weak_boost": 0.20,
-        "due_boost": 0.10,
-        "at_risk_boost": 0.20,
+        "max_weight_step": 0.1,
+        "weak_boost": 0.2,
+        "due_boost": 0.1,
+        "at_risk_boost": 0.2,
         "mastery_reduction": 0.15,
         "focused_session_count": 5
       },
@@ -656,7 +763,14 @@
       "type": "object",
       "description": "The audio drill pack export (phase 9.1): which TTS engine speaks, which container the pack uses, whether a pack is one file or one file per item, the per-item-type pause map, and the per-engine voice/model entries. engine names a registered engine; an unknown or unreachable engine never silently falls back (D-04). Read by this phase (9.1).",
       "additionalProperties": false,
-      "required": ["engine", "container", "split", "pause", "edge_tts", "piper"],
+      "required": [
+        "engine",
+        "container",
+        "split",
+        "pause",
+        "edge_tts",
+        "piper"
+      ],
       "x-itembank-phase": 9.1,
       "default": {
         "engine": "edge-tts",
@@ -683,21 +797,31 @@
       "properties": {
         "engine": {
           "type": "string",
-          "enum": ["edge-tts", "piper", "transcript-only"],
+          "enum": [
+            "edge-tts",
+            "piper",
+            "transcript-only"
+          ],
           "default": "edge-tts",
           "description": "The registered TTS engine behind the one TTSEngine interface (D-01/D-02): edge-tts (network, MP3-native), piper (local, WAV), transcript-only (the always-available null engine). An engine name with no registration, or an engine that is unreachable or missing its dependency, refuses by name and never silently substitutes another voice (D-04).",
           "x-itembank-phase": 9.1
         },
         "container": {
           "type": "string",
-          "enum": ["mp3", "wav"],
+          "enum": [
+            "mp3",
+            "wav"
+          ],
           "default": "mp3",
           "description": "The pack container (D-09): mp3 by default because every podcast app accepts it, wav available for engines that emit it natively. Each engine resolves the container in its own way (edge-tts writes MP3 natively, piper converts through its pinned encoder or passes WAV through).",
           "x-itembank-phase": 9.1
         },
         "split": {
           "type": "string",
-          "enum": ["per-pack", "per-item"],
+          "enum": [
+            "per-pack",
+            "per-item"
+          ],
           "default": "per-pack",
           "description": "How one objective's pack is split (D-10): per-pack writes one audio file per objective, per-item one file per item. A flag selects a mode of one writer, never two code paths.",
           "x-itembank-phase": 9.1
@@ -706,7 +830,16 @@
           "type": "object",
           "description": "Timed pause in seconds between stem and key and between key and why, per item type (D-06/D-07). Starting values recorded here and tuned against real use, not invented precisely.",
           "additionalProperties": false,
-          "required": ["mc", "multi", "short", "cloze", "build", "table", "dnd", "check"],
+          "required": [
+            "mc",
+            "multi",
+            "short",
+            "cloze",
+            "build",
+            "table",
+            "dnd",
+            "check"
+          ],
           "x-itembank-phase": 9.1,
           "default": {
             "mc": 1.5,
@@ -719,21 +852,79 @@
             "check": 3.0
           },
           "properties": {
-            "mc": {"type": "number", "minimum": 0, "maximum": 30, "default": 1.5, "description": "Pause after a single-select recall stem.", "x-itembank-phase": 9.1},
-            "multi": {"type": "number", "minimum": 0, "maximum": 30, "default": 2.0, "description": "Pause after a multi-select stem.", "x-itembank-phase": 9.1},
-            "short": {"type": "number", "minimum": 0, "maximum": 30, "default": 2.0, "description": "Pause after a constructed-response stem.", "x-itembank-phase": 9.1},
-            "cloze": {"type": "number", "minimum": 0, "maximum": 30, "default": 2.5, "description": "Pause after a cloze stem.", "x-itembank-phase": 9.1},
-            "build": {"type": "number", "minimum": 0, "maximum": 30, "default": 4.0, "description": "Pause after an ordering stem -- longer, the ordering is the task.", "x-itembank-phase": 9.1},
-            "table": {"type": "number", "minimum": 0, "maximum": 30, "default": 3.0, "description": "Pause after a classification-table stem.", "x-itembank-phase": 9.1},
-            "dnd": {"type": "number", "minimum": 0, "maximum": 30, "default": 3.0, "description": "Pause after a drag-and-drop classification stem.", "x-itembank-phase": 9.1},
-            "check": {"type": "number", "minimum": 0, "maximum": 30, "default": 3.0, "description": "Pause after a check-item stem.", "x-itembank-phase": 9.1}
+            "mc": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 30,
+              "default": 1.5,
+              "description": "Pause after a single-select recall stem.",
+              "x-itembank-phase": 9.1
+            },
+            "multi": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 30,
+              "default": 2.0,
+              "description": "Pause after a multi-select stem.",
+              "x-itembank-phase": 9.1
+            },
+            "short": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 30,
+              "default": 2.0,
+              "description": "Pause after a constructed-response stem.",
+              "x-itembank-phase": 9.1
+            },
+            "cloze": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 30,
+              "default": 2.5,
+              "description": "Pause after a cloze stem.",
+              "x-itembank-phase": 9.1
+            },
+            "build": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 30,
+              "default": 4.0,
+              "description": "Pause after an ordering stem -- longer, the ordering is the task.",
+              "x-itembank-phase": 9.1
+            },
+            "table": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 30,
+              "default": 3.0,
+              "description": "Pause after a classification-table stem.",
+              "x-itembank-phase": 9.1
+            },
+            "dnd": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 30,
+              "default": 3.0,
+              "description": "Pause after a drag-and-drop classification stem.",
+              "x-itembank-phase": 9.1
+            },
+            "check": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 30,
+              "default": 3.0,
+              "description": "Pause after a check-item stem.",
+              "x-itembank-phase": 9.1
+            }
           }
         },
         "edge_tts": {
           "type": "object",
           "description": "edge-tts voice selection. Sending item text to Microsoft's endpoint is the same accepted risk already recorded for hosted models, and the export command's own help text states it (D-16).",
           "additionalProperties": false,
-          "required": ["voice"],
+          "required": [
+            "voice"
+          ],
           "x-itembank-phase": 9.1,
           "default": {
             "voice": "en-US-GuyNeural"
@@ -752,7 +943,10 @@
           "type": "object",
           "description": "Piper voice and model selection for the local, offline engine (D-02).",
           "additionalProperties": false,
-          "required": ["voice", "model"],
+          "required": [
+            "voice",
+            "model"
+          ],
           "x-itembank-phase": 9.1,
           "default": {
             "voice": "en_US-lessac-medium",
@@ -773,6 +967,72 @@
               "x-itembank-phase": 9.1
             }
           }
+        }
+      }
+    },
+    "check": {
+      "type": "object",
+      "description": "How learner-written code for a [TYPE: check] item is executed: the per-case deadline, the output cap, the language-to-argv map, and whether execution is allowed when the daemon serves the network (plan 05-03, D-01/D-09/D-14). Read by this phase (5).",
+      "additionalProperties": false,
+      "required": [
+        "timeout_seconds",
+        "max_output_bytes",
+        "languages",
+        "allow_lan"
+      ],
+      "x-itembank-phase": 5,
+      "default": {
+        "timeout_seconds": 5,
+        "max_output_bytes": 65536,
+        "languages": {
+          "python": [
+            "{interpreter}",
+            "-I",
+            "{source}"
+          ]
+        },
+        "allow_lan": false
+      },
+      "properties": {
+        "timeout_seconds": {
+          "type": "integer",
+          "description": "Per-case wall-clock deadline, in seconds, for a check item's executed code. A run that exceeds it is killed and records error_category timeout with no verdict (criterion 12). Bounded here so  rejects an absurd value before any submit can reach a subprocess call (T-5-13).",
+          "minimum": 1,
+          "maximum": 600,
+          "default": 5,
+          "x-itembank-phase": 5
+        },
+        "max_output_bytes": {
+          "type": "integer",
+          "description": "Per-case cap on captured stdout/stderr for a check item's executed code. Output beyond it truncates the record and prevents the verdict from being a pass (plan 05-02).",
+          "minimum": 1024,
+          "maximum": 10485760,
+          "default": 65536,
+          "x-itembank-phase": 5
+        },
+        "languages": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "default": {
+            "python": [
+              "{interpreter}",
+              "-I",
+              "{source}"
+            ]
+          },
+          "description": "Language name to argv-template map for check items (D-02's config-not-code shape). The two tokens {interpreter} and {source} stand for the interpreter and the source path. merge_over_defaults recurses one level into nested objects, so a languages map in a user's itembank.json is merged OVER the shipped default rather than replacing it: the shipped python entry always survives, and a user can add or override a language but cannot remove the default one by editing the file.",
+          "x-itembank-phase": 5
+        },
+        "allow_lan": {
+          "type": "boolean",
+          "description": "Whether a check item's code may be executed when the daemon is serving on the local network (--lan). False is the default: with the daemon reachable from the network and allow_lan false, both submit routes refuse code execution with a locked message and record nothing. Turning it on means a device on the same network can run code on this machine.",
+          "default": false,
+          "x-itembank-phase": 5
         }
       }
     }

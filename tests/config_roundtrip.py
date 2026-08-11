@@ -114,7 +114,7 @@ def test_schema_names_every_project_key():
     expected = {"theme", "daily_cap", "selection_weights", "selection",
                 "auditor_autonomy", "model_backend", "suggestion_reveal",
                 "update_policy", "daemon", "update", "accent", "reader",
-                "style", "paraphrase", "lti", "retention", "audio"}
+                "style", "paraphrase", "lti", "check", "retention", "audio"}
     if keys != expected:
         fail("schema properties %r do not equal the expected key set %r" % (keys, expected))
     for name, sub in schema["properties"].items():
@@ -537,6 +537,71 @@ def test_phase_4_theme_keys_read_not_inert():
 # ---- structural: SETTINGS_CODES is sorted, deduped, and every code is ------
 # reachable from at least one input this test itself supplies.
 
+def test_check_group_contract():
+    """The four check keys are typed, bounded, defaulted in the schema and in
+    the shipped itembank.json,  accepts valid values and rejects
+    out-of-range/unknown/wrong-typed ones, and a file with no check key reads
+    back with every check default present (plan 05-03 Task 1)."""
+    schema = json.load(open(SCHEMA_PATH, encoding="utf-8"))
+    c = schema["properties"]["check"]
+    if c.get("x-itembank-phase") != 5:
+        fail("check group x-itembank-phase is %r, expected 5" % c.get("x-itembank-phase"))
+    if c.get("additionalProperties") is not False:
+        fail("check group must reject unknown keys")
+    if sorted(c.get("required", [])) != ["allow_lan", "languages",
+                                         "max_output_bytes", "timeout_seconds"]:
+        fail("check required list is %r" % c.get("required"))
+    if c["properties"]["timeout_seconds"]["default"] != 5:
+        fail("timeout_seconds default is not 5")
+    if c["properties"]["max_output_bytes"]["default"] != 65536:
+        fail("max_output_bytes default is not 65536")
+    if c["properties"]["allow_lan"]["default"] is not False:
+        fail("allow_lan default is not false")
+    langs = c["properties"]["languages"]["default"]
+    if not isinstance(langs, dict) or "python" not in langs:
+        fail("check.languages default is %r, expected a map carrying python" % langs)
+    if "check" not in schema.get("required", []):
+        fail("check is not a top-level required key")
+
+    # The shipped itembank.json agrees with the schema's computed defaults.
+    shipped = json.load(open(SETTINGS_ON_DISK, encoding="utf-8"))
+    if shipped.get("check") != c.get("default"):
+        fail("shipped itembank.json check group %r disagrees with schema "
+             "defaults %r" % (shipped.get("check"), c.get("default")))
+
+    base = fresh_base()
+    try:
+        for args in (["set", "check.timeout_seconds", "30"],
+                     ["set", "check.max_output_bytes", "1024"],
+                     ["set", "check.allow_lan", "true"]):
+            r = run(args, base)
+            if r.returncode != 0:
+                fail("config %r failed: %s" % (args, r.stdout + r.stderr))
+        data = json.load(open(settings_file(base), encoding="utf-8"))
+        ck = data["check"]
+        if ck["timeout_seconds"] != 30 or ck["max_output_bytes"] != 1024                 or ck["allow_lan"] is not True:
+            fail("check values did not read back: %r" % ck)
+        assert_rejected(base, ["set", "check.timeout_seconds", "0"], "settings.out_of_range")
+        assert_rejected(base, ["set", "check.timeout_seconds", "601"], "settings.out_of_range")
+        assert_rejected(base, ["set", "check.max_output_bytes", "0"], "settings.out_of_range")
+        assert_rejected(base, ["set", "check.allow_lan", '"yes"'], "settings.invalid_type")
+        assert_rejected(base, ["set", "check.nope", "1"], "settings.unknown_key")
+
+        # A file with no check key at all reads back with every default present.
+        nodata = json.load(open(settings_file(base), encoding="utf-8"))
+        nodata.pop("check", None)
+        json.dump(nodata, open(settings_file(base), "w", encoding="utf-8"), indent=2)
+        loaded = settings.load_settings(base)
+        if set(loaded["check"]) != {"timeout_seconds", "max_output_bytes",
+                                    "languages", "allow_lan"}:
+            fail("a file with no check key did not read back all four defaults: %r"
+                 % loaded["check"])
+        if "python" not in loaded["check"]["languages"]:
+            fail("check.languages default does not carry python")
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+
 def test_settings_codes_declared():
     codes = settings.SETTINGS_CODES
     if list(codes) != sorted(codes):
@@ -576,6 +641,7 @@ def main():
     test_theme_set_invalid_colors_rejected()
     test_theme_preview_readonly_reports_tokens()
     test_phase_4_theme_keys_read_not_inert()
+    test_check_group_contract()
     test_settings_codes_declared()
     # Reachability is checked last, after every other test has had a chance
     # to record the codes its own inputs triggered via assert_rejected/code_in.

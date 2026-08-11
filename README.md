@@ -250,6 +250,7 @@ constructed response, and it is the one the machine refuses to mark.
 | `build` | put options into a required order |
 | `dnd` | sort items into buckets |
 | `short` | type an answer in prose; never auto-graded, marked later against a rubric |
+| `check` | write and run your own code; scored against hidden cases, dichotomously, with no model anywhere in the path |
 
 **Scoring is dichotomous on every type.** Two of three correct scores zero. This
 matches the NREMT's own rule that no credit is given for a partially correct
@@ -257,6 +258,54 @@ response, and it is deliberate: a half mark hides the exact gap the item exists
 to find.
 
 Run `itembank spec` for the full contract with examples.
+
+## The `check` item type
+
+`check` is the one type where the learner's answer is *code*: the stem asks for a
+program, the learner writes it in a real editor (vendored CodeMirror 6, Tab
+inserts a tab, the gutter numbers the lines you see), and the machine runs it
+once per authored case, then scores the pass vector through the same scorer as
+every other type. A `CASE)` line pairs an input with an expected output:
+
+```
+Write a program that reads two integers and prints their sum.
+[TYPE: check]
+[LANG: python]              optional; defaults to python
+[MATCH: trimmed]            optional; exact | trimmed | regex
+CASE) 5 7 :: 12
+CASE) 3 4 :: 7
+STARTER:                    optional; pre-filled source
+import sys
+print(sum(map(int, sys.stdin.read().split())))
+```
+
+Three match modes are available: `exact` (byte-for-byte), `trimmed` (the default;
+whitespace around the output is ignored), and `regex` (the expected value is a
+pattern). A function-signature mode, `[HARNESS: name]`, calls the named function
+with each case's arguments instead of running the program; `[TOLERANCE: 0.01]`
+then compares float return values within the stated tolerance.
+
+Two bounds apply while the learner's code runs, and their settings keys are
+`check.timeout_seconds` (default 5) and `check.max_output_bytes` (default 65536):
+a case that runs past the deadline is stopped, and a case whose output exceeds
+the cap is cut off. Each renders as a failed case whose status says it was
+*stopped by a bound*, so a learner can tell that apart from producing wrong
+output. A run the deadline kills is not graded at all: it records no verdict and
+stays pending for a marker, matching how `short` is never auto-graded.
+
+Execution is refused by default when itembank serves on your network: the
+`check.allow_lan` setting (default false) must be switched on for a device on
+the LAN to be trusted to run code. A page opened as a file cannot run code at
+all, and says so.
+
+What the bounds stop, and what they do not, is the project's honest-limits
+statement. The exact sentence appears in two places and no more -- the `check`
+section of `itembank spec` and the line beside the editor on every served check
+item -- and both read the single constant `model.HONEST_LIMITS_NOTE`. See the
+`check` section of `itembank spec` for the canonical limits text; the README
+does not duplicate it. And because this type runs the learner's own code and
+scores it deterministically with no model anywhere in the path, a course's ban
+on model-assisted work is not engaged by using it.
 
 ## What the linter checks
 
