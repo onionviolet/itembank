@@ -25,6 +25,7 @@ from model import (lesson_slug, load, parse_bank, parse_key_blocks,
 from runtime import explain_payload, glossable, read_session, upgrade_session
 from surfaces import (day, launcher, lesson, presentation, quiz, retention_view,
                       seeding, session, settings, study, update)
+from surfaces import audio as audio_surface
 from surfaces import theme
 
 
@@ -76,6 +77,8 @@ QUIZ_GET_RE = re.compile(r"^/quiz/(?P<stem>[^/]+)$")
 QUIZ_ANSWER_RE = re.compile(r"^/quiz/(?P<stem>[^/]+)/answer$")
 STUDY_GET_RE = re.compile(r"^/study/(?P<stem>[^/]+)$")
 LESSON_GET_RE = re.compile(r"^/lesson/(?P<stem>[^/]+)$")
+LESSON_CHECK_RE = re.compile(r"^/lesson/(?P<stem>[^/]+)/check$")
+LESSON_SKIP_RE = re.compile(r"^/lesson/(?P<stem>[^/]+)/skip$")
 GLOSS_GET_RE = re.compile(r"^/gloss/(?P<stem>[^/]+)/(?P<slug>[^/]+)$")
 KEY_REVIEW_RE = re.compile(r"^/key/(?P<key_id>[^/]+)/review$")
 DAY_GET_RE = re.compile(r"^/day/(?P<stem>[^/]+)$")
@@ -98,11 +101,12 @@ DAY_EDIT_ALLOWED_FIELDS = ("revision", "edits", "force_token", "confirmation",
 SEED_ACCEPT_ALLOWED_FIELDS = ("bank", "action", "draft")
 
 # The `/api/*` session routes: D-04's four plus Phase 6's `/api/hint`,
-# plan 08-05's `/api/rubric-review`, and Phase 10's `/api/override` and
-# `/api/lesson-complete`. Fixed literals, not stem-parameterised: a session
+# plan 06.1-02's `/api/interact`, plan 08-05's `/api/rubric-review`, Phase
+# 10's `/api/override` and `/api/lesson-complete`, and Phase 09.1's
+# `/api/export_audio`. Fixed literals, not stem-parameterised: a session
 # or a bank is addressed by an opaque identifier in the JSON body (T-2-01),
 # never by a path segment, so there is no `<stem>`/`<id>` group in any of
-# these patterns at all. The eight-entry length is asserted by
+# these patterns at all. The ten-entry length is asserted by
 # `check_api_route_scope` in `tests/daemon_roundtrip.py`, and every entry
 # is mirrored in ROUTE_CLI and SURFACE_PARITY (Extensibility Rule 9(a)).
 API_ROUTES = (
@@ -115,6 +119,7 @@ API_ROUTES = (
     ("POST", "/api/override", "handle_api_override"),
     ("POST", "/api/lesson-complete", "handle_api_lesson_complete"),
     ("POST", "/api/rubric-review", "handle_api_rubric_review"),
+    ("POST", "/api/export_audio", "handle_api_export_audio"),
 )
 
 # Order is load-bearing: every fixed literal route comes before every
@@ -139,6 +144,8 @@ ROUTES = (
     ("POST", QUIZ_ANSWER_RE, "handle_quiz_answer"),
     ("GET", STUDY_GET_RE, "handle_study_get"),
     ("GET", LESSON_GET_RE, "handle_lesson_get"),
+    ("POST", LESSON_CHECK_RE, "handle_lesson_check"),
+    ("POST", LESSON_SKIP_RE, "handle_lesson_skip"),
     ("GET", GLOSS_GET_RE, "handle_gloss_get"),
     ("POST", KEY_REVIEW_RE, "handle_key_review"),
     ("GET", DAY_GET_RE, "handle_day_get"),
@@ -170,10 +177,13 @@ ROUTE_CLI = {
     ("POST", "/api/override"): "override",
     ("POST", "/api/lesson-complete"): "lesson",
     ("POST", "/api/rubric-review"): "rubric-review",
+    ("POST", "/api/export_audio"): "export",
     ("GET", QUIZ_GET_RE): "serve",
     ("POST", QUIZ_ANSWER_RE): "serve",
     ("GET", STUDY_GET_RE): "study",
     ("GET", LESSON_GET_RE): "lesson",
+    ("POST", LESSON_CHECK_RE): "lesson-check",
+    ("POST", LESSON_SKIP_RE): "lesson-skip",
     ("GET", GLOSS_GET_RE): "gloss",
     ("POST", KEY_REVIEW_RE): "key-review",
     ("GET", "/day"): "day",
@@ -200,6 +210,7 @@ SURFACE_PARITY = (
     (("POST", "/api/override"), "override", "override"),
     (("POST", "/api/lesson-complete"), "lesson", "lesson_complete"),
     (("POST", "/api/rubric-review"), "rubric-review", "rubric_review"),
+    (("POST", "/api/export_audio"), "export", "export_audio"),
 )
 
 
@@ -709,10 +720,55 @@ def handle_report_get(handler):
             data = read_session(path)
             position, total = data["cursor"], len(data["items"])
         body = _report_card(summary, status, position, total)
+    # The gate outcome split (06.2-UI-SPEC section 11, GATE-06): the
+    # report-surface readout, derived from the evidence log at request
+    # time -- never stored, and never rendered in the reading column.
+    # The lesson's declared check->mode map is what marks a pair as a
+    # required gate (a recommended gate is excluded by construction).
+    data = read_session(path)
+    bank_path = data.get("bank")
+    gate_html = ""
+    if bank_path and os.path.exists(bank_path):
+        les = parse_lesson(bank_path)
+        gate_modes = {}
+        if les:
+            for cid in lesson._check_ids(les):
+                gate_modes[cid] = les.get("gate") or "recommended"
+        split = evidence.gate_outcome_split(
+            evidence.log_path(os.path.dirname(bank_path)),
+            os.path.basename(bank_path), data.get("session_id", ""),
+            gate_modes=gate_modes)
+        gate_html = _gate_outcome_html(split)
     page = presentation.surface_shell(
-        "itembank report", body, theme_css=theme_block,
+        "itembank report", body + gate_html, theme_css=theme_block,
         back={"href": "/", "label": "itembank"})
     handler.send_html(page.encode("utf-8"))
+
+
+def _gate_outcome_html(split):
+    """The gate outcome split readout (06.2-UI-SPEC section 11): a plain
+    Ledger-voice table under the stated denominator, no target, no streak,
+    no percentage-fill bar against a 100% track. The empty state renders
+    the denominator line and no ratio."""
+    rows = ""
+    if split["denominator"]:
+        for label, count, share in (
+                ("cleared", split["cleared"], split["share_cleared"]),
+                ("skipped", split["skipped"], split["share_skipped"])):
+            share_text = ("%d%%" % round(share * 100)) if share is not None \
+                else "\u2014"
+            rows += ("<tr><td>%s</td><td>%d</td><td>%s</td></tr>"
+                     % (html.escape(label), count, share_text))
+        table = ("<table><thead><tr><th>Outcome</th><th>Count</th>"
+                 "<th>Share</th></tr></thead><tbody>%s</tbody></table>" % rows)
+    else:
+        table = ""
+    return ('<div class="gate-outcome"><p class="status" data-field='
+            '"gate-denominator">%s</p>%s<p class="status" data-field='
+            '"gate-exclusion">%s</p></div>'
+            % (html.escape(lesson.GATE_DENOMINATOR_COPY.format(
+                n=split["denominator"])), table,
+               html.escape(lesson.GATE_EXCLUSION_COPY)))
 
 
 def sessions_by_bank(root, banks):
@@ -1096,24 +1152,278 @@ def handle_study_get(handler, stem):
     handler.send_html(page.encode("utf-8"))
 
 
+def _resolve_check(qs, check_id):
+    """The one check-item resolution: by positional id or opaque [ID:], the
+    same set the linter's lesson.check_ref_unknown accepts (D-01)."""
+    for q in qs:
+        if q["id"] == check_id or q.get("item_id") == check_id:
+            return q
+    return None
+
+
+def _gate_answer_from_form(q, fields):
+    """Serialise a gate band form submission into the answer shape the one
+    scorer (`runtime.score_response`) and the one writer
+    (`evidence.response_event`) expect -- the same shape `submit --answer`
+    takes, so a lesson-gate attempt and a quiz attempt are the same object
+    to every consumer (D-08). `fields` is `parse_qs`-shaped ({name:
+    [values]}) because multi-select checkboxes repeat their name."""
+    def one(name):
+        vals = fields.get(name) or []
+        return vals[-1] if vals else ""
+    t = q["type"]
+    if t in ("mc", "multi"):
+        values = [v for v in (fields.get("option") or []) if v]
+        if t == "mc":
+            return values[0] if values else ""
+        return sorted(set(values))
+    if t in ("table", "dnd"):
+        out = {}
+        for i in range(len(q.get("rows") or [])):
+            v = one("row_%d" % i)
+            if v:
+                out[str(i)] = v
+        return out
+    if t == "build":
+        out = []
+        for i in range(len(q.get("steps") or [])):
+            v = one("step_%d" % i)
+            if v:
+                out.append(v)
+        return out
+    return one("answer")
+
+
+def _section_after_check(lesson, check_id):
+    """The slug of the section that follows the one carrying the check, or
+    None when the check sits in the last section -- the gate-reveal focus
+    target (06.2-UI-SPEC section 7.1)."""
+    for idx, h in enumerate((lesson or {}).get("headings") or []):
+        if "[!CHECK: %s]" % check_id in (h.get("body") or ""):
+            rest = (lesson.get("headings") or [])[idx + 1:]
+            return rest[0]["slug"] if rest else None
+    return None
+
+
+def _log_unreachable(bank_dir):
+    """True when the evidence log cannot be appended to -- the runtime
+    surface a live gate depends on is unavailable, so the band states the
+    section-12.1 copy and never reveals (C9, "no reveal without its
+    event"). The probe is cheap and never writes: the log's parent must be
+    creatable as a directory and the log must not be a directory."""
+    log = evidence.log_path(bank_dir)
+    parent = os.path.dirname(log)
+    try:
+        if os.path.isdir(log):
+            return True
+        os.makedirs(parent, exist_ok=True)
+    except OSError:
+        return True
+    try:
+        if not os.path.exists(log):
+            return not os.access(parent, os.W_OK)
+        return not os.access(log, os.W_OK)
+    except OSError:
+        return True
+
+
+def _lesson_gate_ctx(handler, stem, path, qs, les, print_mode=False):
+    """The Phase 6.2 gate context one lesson render needs, built exactly
+    once per request: the resolved policy (gate_policy setting -> declared
+    [GATE:] -> the diagnostic/exam degrade), the per-check states derived
+    from the evidence log (D-06, never a second store), the item resolver,
+    and the provenance the band needs.
+
+    Returns None when the lesson renders ungated (gate_policy: off, a
+    declared [GATE: off], or no session) -- the 3.1 compatibility floor.
+    The print path returns a ctx with policy "off" and print True so every
+    check prints as 3.1's D1 labelled rule (06.2-UI-SPEC section 8.2).
+    """
+    bank_dir = os.path.dirname(os.path.abspath(path)) or "."
+    cfg = settings.load_settings(bank_dir)
+    reader = cfg.get("reader") or {}
+    gate_policy = reader.get("gate_policy", "as-authored")
+    skip_setting = reader.get("gate_skip", "always")
+    as_authored = (les or {}).get("gate") or "recommended"
+    sess = handler.sessions.get(stem) or {}
+    mode = sess.get("mode", "practice")
+    session_id = sess.get("session_id", "reader")
+    log = evidence.log_path(bank_dir)
+    if print_mode:
+        return {"policy": "off", "as_authored": as_authored, "states": {},
+                "attempted": {}, "resolve": _resolve_check_factory(qs),
+                "skip": "off", "degraded": False, "unreachable": False,
+                "print": True, "stem": stem, "bank": os.path.basename(path),
+                "session_id": session_id, "log": log, "mode": mode}
+    if gate_policy == "off" or as_authored == "off":
+        return None
+    degraded = mode in ("diagnostic", "exam") and as_authored == "required"
+    policy = "recommended" if degraded else as_authored
+    resolve = _resolve_check_factory(qs)
+    states = {}
+    attempted = {}
+    for cid in lesson._check_ids(les):
+        states[cid] = evidence.gate_state(log, session_id, cid)
+        q = resolve(cid)
+        if q is not None:
+            attempted[cid] = any(
+                ev.get("event_type") == evidence.RESPONSE_EVENT_TYPE
+                and ev.get("session_id") == session_id
+                and (ev.get("item_ref") == cid
+                     or ev.get("item_id") == cid)
+                for ev in evidence.live_events(log))
+    return {"policy": policy, "as_authored": as_authored, "states": states,
+            "attempted": attempted, "resolve": resolve,
+            "skip": skip_setting, "degraded": degraded,
+            "unreachable": _log_unreachable(bank_dir),
+            "print": False, "stem": stem, "bank": os.path.basename(path),
+            "session_id": session_id, "log": log, "mode": mode}
+
+
+def _resolve_check_factory(qs):
+    by_id = {q["id"]: q for q in qs}
+    by_id.update({q["item_id"]: q for q in qs if q.get("item_id")})
+    return lambda cid: by_id.get(cid)
+
+
 def handle_lesson_get(handler, stem):
     """`GET /lesson/<stem>` -- the lesson reader for one bank, resolved
     through the startup allowlist and rendered by `lesson.lesson_page()`.
     No second copy of the lesson template lives here; the handler generates
     no HTML of its own. The page is daemon-served (runtime=True, so [!KEY]
     cards carry their Add-to-review form) and honours `?print=drill` as the
-    drill-print pass (03.1-03 Task 3).
+    drill-print pass (03.1-03 Task 3); `?print=1` forces the gate policy
+    off so a gated lesson prints complete and ungated (06.2-UI-SPEC
+    section 8.2). A `?focus=<slug>` query (from a 303 after a gate reveal)
+    renders that section's h2 with tabindex=-1 autofocus (section 7.1).
     """
     path = handler.banks.get(stem)
     if path is None:
         handler.send_not_found(stem)
         return
     qs = load(path)
+    les = parse_lesson(path)
     params = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query)
     drill = "drill" in (params.get("print") or [])
-    page = lesson.lesson_page(path, qs, parse_lesson(path), runtime=True,
-                              drill=drill)
+    print_mode = bool(params.get("print"))
+    gate = _lesson_gate_ctx(handler, stem, path, qs, les,
+                            print_mode=print_mode)
+    focus = (params.get("focus") or [""])[0] or None
+    # The composed announcement (06.2-UI-SPEC section 7.2): the gate band
+    # contributes exactly one clause after a reveal -- the reveal clause
+    # after a cleared check, the skip string after a skip. Composed here so
+    # the redirect target carries the intent and the page renders the text
+    # inside the single role=status region.
+    reveal = (params.get("reveal") or [""])[0] or None
+    announce = None
+    if reveal == "skip":
+        announce = lesson.SKIP_RECORDED_COPY
+    elif reveal == "check":
+        announce = lesson.REVEAL_CLAUSE_COPY
+    page = lesson.lesson_page(path, qs, les, runtime=True, drill=drill,
+                              gate=gate, focus=focus, announce=announce)
     handler.send_html(page.encode("utf-8"))
+
+
+def handle_lesson_check(handler, stem):
+    """`POST /lesson/<stem>/check` -- the gate band's check submission:
+    scores through `runtime.score_response()` via the one shared
+    `quiz.record_gate_check` path, records ordinary response evidence with
+    context="lesson_gate" (D-08), and issues a 303 to the re-rendered
+    lesson so a reload never re-submits the check (section 7.1). Under
+    required with a cleared check the next section renders and focus
+    targets its h2; the composed announcement appends `The next section is
+    below.` (7.2).
+    """
+    if _reject_cross_origin_write(handler):
+        return
+    path = handler.banks.get(stem)
+    if path is None:
+        handler.send_not_found(stem)
+        return
+    try:
+        qs = load(path)
+        les = parse_lesson(path)
+        fields = handler.read_form()
+        check_id = (fields.get("check") or [""])[-1]
+        q = _resolve_check(qs, check_id)
+        if q is None:
+            handler.send_error(404, "no item %r in this bank" % check_id)
+            return
+        answer = _gate_answer_from_form(q, fields)
+        sess = handler.sessions[stem]
+        bank_dir = os.path.dirname(os.path.abspath(path)) or "."
+        log = evidence.log_path(bank_dir)
+        session_id = sess.get("session_id", "reader")
+        score = quiz.record_gate_check(
+            path, check_id, answer, mode=sess.get("mode", "practice"),
+            session_id=session_id)
+        if score is None:
+            handler.send_error(404, "no item %r in this bank" % check_id)
+            return
+        gate = _lesson_gate_ctx(handler, stem, path, qs, les)
+        next_slug = None
+        if gate is not None and gate["policy"] == "required" \
+                and not gate.get("degraded") \
+                and evidence.gate_state(log, session_id, check_id) == "cleared":
+            next_slug = _section_after_check(les, check_id)
+        if next_slug:
+            target = ("/lesson/%s?focus=%s&reveal=check#%s"
+                      % (stem, next_slug, next_slug))
+        else:
+            target = "/lesson/%s" % stem
+        handler.send_redirect(target)
+    except Exception as exc:
+        handler.send_server_error(exc)
+
+
+def handle_lesson_skip(handler, stem):
+    """`POST /lesson/<stem>/skip` -- the recorded-skip action (D-11, C17):
+    appends exactly one `gate_skip` event (never a response, never a hint
+    tier), re-renders with the next section appended, and leaves the band
+    live and answerable. A skip that was not recorded never advances the
+    reading position (section 6.3): the event is written through the one
+    shared `quiz.record_gate_skip` path before the redirect, and an
+    unwritable log renders the section-12.1 copy instead of revealing.
+    """
+    if _reject_cross_origin_write(handler):
+        return
+    path = handler.banks.get(stem)
+    if path is None:
+        handler.send_not_found(stem)
+        return
+    try:
+        qs = load(path)
+        les = parse_lesson(path)
+        fields = handler.read_form()
+        check_id = (fields.get("check") or [""])[-1]
+        gate = _lesson_gate_ctx(handler, stem, path, qs, les)
+        if gate is None or gate.get("degraded") or gate.get("unreachable"):
+            # A degraded sitting records no gate_skip (there is nothing to
+            # skip); an unreachable runtime must not reveal without its
+            # event. Re-render with the honest copy (section 12.1).
+            page = lesson.lesson_page(path, qs, les, runtime=True, gate=gate)
+            handler.send_html(page.encode("utf-8"))
+            return
+        sess = handler.sessions[stem]
+        status = quiz.record_gate_skip(
+            path, check_id, mode=sess.get("mode", "practice"),
+            session_id=sess.get("session_id", "reader"))
+        if status is None:
+            handler.send_error(404, "no item %r in this bank" % check_id)
+            return
+        if status == "off":
+            handler.send_error(400, "an off lesson offers no skip")
+            return
+        next_slug = _section_after_check(les, check_id)
+        if next_slug:
+            target = ("/lesson/%s?focus=%s&reveal=skip#%s"
+                      % (stem, next_slug, next_slug))
+        else:
+            target = "/lesson/%s?reveal=skip" % stem
+        handler.send_redirect(target)
+    except Exception as exc:
+        handler.send_server_error(exc)
 
 
 def handle_key_review(handler, key_id):
@@ -2138,6 +2448,81 @@ def handle_api_report(handler):
         handler.send_server_error(exc)
         return
     handler.send_json(result)
+
+
+def handle_api_export_audio(handler):
+    """`POST /api/export_audio` -- the daemon half of D-08: `{"bank",
+    "objective", "out_dir", "engine"?, "split"?, "container"?}`. The bank is
+    resolved through the same scanned-stem allowlist the other /api/* routes
+    use (never a raw path, T-2-01), and the request calls the SAME runtime
+    call the CLI reaches (`audio_surface.export_audio`) -- one implementation,
+    two surfaces (D-08). The response carries the written pack file names and
+    the transcript path.
+
+    `out_dir` is an output DIRECTORY for the pack, joined under the daemon's
+    served root (never an absolute path from the client, never `..`); the
+    default is `<root>/_attempts/audio`. A refusal (unknown bank, unknown
+    objective, unknown or unavailable engine, invalid body) returns the
+    named-error shape other /api handlers use and writes no files (D-04).
+    """
+    if _reject_cross_origin(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    bank = data.get("bank")
+    bank_path = handler.banks.get(bank) if isinstance(bank, str) else None
+    if bank_path is None:
+        handler.send_not_found(bank if isinstance(bank, str) else "")
+        return
+    objective = data.get("objective")
+    if not isinstance(objective, str) or not objective:
+        handler.send_error(400, "export_audio requires a non-empty objective")
+        return
+    out_dir = data.get("out_dir")
+    if not isinstance(out_dir, str) or not out_dir:
+        out_dir = os.path.join("_attempts", "audio")
+    root = os.path.abspath(handler.root)
+    joined = os.path.normpath(os.path.join(root, out_dir))
+    if not (joined == root or joined.startswith(root + os.sep)):
+        handler.send_error(400, "export_audio out_dir must stay under the "
+                                "served root")
+        return
+    engine = data.get("engine")
+    if engine is not None and not isinstance(engine, str):
+        handler.send_error(400, "export_audio engine must be a string")
+        return
+    split = data.get("split")
+    if split not in (None, "per-pack", "per-item"):
+        handler.send_error(400, "export_audio split must be per-pack or "
+                                "per-item")
+        return
+    container = data.get("container")
+    if container not in (None, "mp3", "wav"):
+        handler.send_error(400, "export_audio container must be mp3 or wav")
+        return
+    try:
+        cfg = settings.load_settings(handler.root)
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    try:
+        result = audio_surface.export_audio(
+            bank_path, objective, joined, engine=engine, split=split,
+            container=container, settings=cfg)
+    except audio_surface.EngineError as exc:
+        handler.send_error(400, "export_audio: %s" % exc)
+        return
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    except Exception as exc:
+        handler.send_server_error(exc)
+        return
+    handler.send_json({"engine": result["engine"],
+                       "base": result["base"],
+                       "transcript": result["transcript"],
+                       "audio": result["audio"]})
 
 
 class DaemonHandler(server.Handler):

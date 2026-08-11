@@ -608,16 +608,16 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 06.2-01-PLAN.md — Gate grammar, gate_skip event, response context field, gate_state derivation
+- [x] 06.2-01-PLAN.md — Gate grammar, gate_skip event, response context field, gate_state derivation
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 06.2-02-PLAN.md — The gate band: activate 3.1's D2 slot, three renderings, truncation, mode-degrade, compatibility floor
-- [ ] 06.2-03-PLAN.md — The recorded-skip control, check/skip routes, settings, and the outcome-split report
+- [x] 06.2-02-PLAN.md — The gate band: activate 3.1's D2 slot, three renderings, truncation, mode-degrade, compatibility floor
+- [x] 06.2-03-PLAN.md — The recorded-skip control, check/skip routes, settings, and the outcome-split report
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 06.2-04-PLAN.md — Phase verification: the twelve UI-SPEC §13 gates, requirement audit, full suite
+- [x] 06.2-04-PLAN.md — Phase verification: the twelve UI-SPEC §13 gates, requirement audit, full suite
 
 ### Phase 7: Selection Engine
 
@@ -780,27 +780,27 @@ Plans:
 **Research basis**: `.planning/research/2026-08-09-blind-spots.md` B3 — named as real, cheap, and differentiating. Research also found (Q9) that consumption is phone- and audio-shaped while the desktop app optimizes authoring; this is the cheapest correction available.
 **Success Criteria** (what must be TRUE):
 
-  1. `itembank export audio --objective <id>` writes an audio file plus a plain-text transcript per pack, sequencing stem → timed pause → key → why.
-  2. The TTS engine is a **settings entry behind one interface** — `edge-tts` today, Piper locally, Kokoro on the 7900 XTX when it arrives — and swapping it is a config change with no code change, exactly like the model backend.
-  3. With no engine installed or reachable, the command still emits the transcript and a named, actionable refusal; it never half-writes an audio file.
-  4. Playback is any podcast app. No player, no sync service, and no mobile build is in scope.
-  5. Listening records nothing — an audio pack is a one-way export, and the evidence log stays the record of what was actually answered.
+  1. ✅ `itembank export audio --objective <id>` writes an audio file plus a plain-text transcript per pack, sequencing stem → timed pause → key → why.
+  2. ✅ The TTS engine is a **settings entry behind one interface** — `edge-tts` today, Piper locally, Kokoro on the 7900 XTX when it arrives — and swapping it is a config change with no code change, exactly like the model backend.
+  3. ✅ With no engine installed or reachable, the command still emits the transcript and a named, actionable refusal; it never half-writes an audio file.
+  4. ✅ Playback is any podcast app. No player, no sync service, and no mobile build is in scope.
+  5. ✅ Listening records nothing — an audio pack is a one-way export, and the evidence log stays the record of what was actually answered.
 
 **Plans**: 4 plans across 3 waves
 
 Plans:
 **Wave 1**
 
-- [ ] 09.1-01-PLAN.md — TRACER: TTSEngine interface + registry + transcript-only engine + `itembank export audio` CLI, sequence/pause settings, transcript, digest naming, atomic write
+- [x] 09.1-01-PLAN.md — TRACER: TTSEngine interface + registry + transcript-only engine + `itembank export audio` CLI, sequence/pause settings, transcript, digest naming, atomic write
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 09.1-02-PLAN.md — The engines: edge-tts (network, MP3-native) and Piper (local, WAV + lameenc MP3), pinned and license-reviewed, D-16 help-text disclosure
-- [ ] 09.1-03-PLAN.md — Pack assembly: timed pauses, MP3/WAV container policy, --split per-item|per-pack, digest-stable atomic writes, daemon route
+- [x] 09.1-02-PLAN.md — The engines: edge-tts (network, MP3-native) and Piper (local, WAV + lameenc MP3), pinned and license-reviewed, D-16 help-text disclosure
+- [x] 09.1-03-PLAN.md — Pack assembly: timed pauses, MP3/WAV container policy, --split per-item|per-pack, digest-stable atomic writes, daemon route
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 09.1-04-PLAN.md — Phase verification: fake engine + transcript-diff + no-evidence fixtures, both-surfaces proof, requirement + supply-chain audits, full suite
+- [x] 09.1-04-PLAN.md — Phase verification: fake engine + transcript-diff + no-evidence fixtures, both-surfaces proof, requirement + supply-chain audits, full suite
 
 ### Phase 10: Retention, Pacing & Trends
 
@@ -1132,18 +1132,18 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 2. Daemon Consolidation & Settings Foundation | 6/6 | Complete    | 2026-08-08 |
 | 2.1 Packaging, Self-Update & Interop Export | 9/9 | Complete | 2026-08-08 |
 | 3. Lesson Format & In-App Reader | 6/6 | In Progress|  |
-| 3.1 Lesson Rich Blocks, Glossary & Style | 3/7 | In Progress|  |
+| 3.1 Lesson Rich Blocks, Glossary & Style | 7/7 | Complete (human-verify items open; see 03.1-GATES.md) | 2026-08-11 |
 | 3.2 Seeding, Import & Provenance | 0/5 | Planned | - |
 | 4. Surface Redesign & Theming | 6/6 | In Progress|  |
 | 5. Check Item Type & Code Editor | 0/7 | Planned | - |
 | 6. Hint Ladder, Cursor-Hold & Feedback Modes | 2/2 | Complete    | 2026-08-10 |
-| 6.1 Interactive Visual Assessment Protocol | 0/3 | Planned | - |
-| 6.2 Executable Textbook Loop | 0/4 | Planned | - |
+| 6.1 Interactive Visual Assessment Protocol | 3/3 | Complete | 2026-08-11 |
+| 6.2 Executable Textbook Loop | 4/4 | Complete | 2026-08-11 |
 | 7. Selection Engine | 6/6 | Complete (roadmap gaps in 07-VERIFICATION.md) | 2026-08-11 |
 | 8. Model Adapter Interface & Tier-Gate Enforcement | 5/6 | In Progress|  |
 | 9. Subject-Invariant Loop — EMT, Math, CS Integration | 0/5 | Planned | - |
 | 9.1 Audio Drill Export | 0/4 | Planned | - |
-| 10. Retention, Pacing & Trends | 0/6 | Planned    |  |
+| 10. Retention, Pacing & Trends | 6/6 | Complete | 2026-08-11 |
 | 11. Closed Authoring Loop & Curriculum Auditor | 0/TBD | Not started | - |
 | 12. ~~Packaging, Self-Update & Interop Export~~ | — | Retired (moved to 2.1) | - |
 | 13. Desktop Packaging — Tauri Shell over Python Sidecar | 5/5 | Complete    | 2026-08-10 |

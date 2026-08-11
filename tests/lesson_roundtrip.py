@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.join(ROOT, "tests"))
 import itembank                                            # noqa: E402
 import protocol_roundtrip                                   # noqa: E402
 from surfaces import daemon, lesson, quiz                   # noqa: E402
+from surfaces.cli import SPEC_03_1                          # noqa: E402
 from surfaces.quiz_page import OFFLINE_JS                   # noqa: E402
 
 
@@ -2416,15 +2417,18 @@ def test_spec_item_tag_lives_in_shared_fields():
 
 
 def test_spec_names_every_lesson_lint_code():
-    """The spec names all four lesson codes and each is a published LINT_CODES
+    """The spec names all six lesson codes and each is a published LINT_CODES
     member -- the code list is derived, never restated, so a rename fails here
     instead of leaving the contract describing a code that no longer exists
-    (T-3-08). The error/warning split and each trigger are stated too."""
-    s = itembank.SPEC
+    (T-3-08). The two Phase 6.2 gate codes (lesson.invalid_gate,
+    lesson.check_ref_unknown) are documented in the additive SPEC_03_1
+    section; the four Phase 3 codes live in the base SPEC. The error/warning
+    split and each trigger are stated too."""
+    s = itembank.SPEC + "\n" + SPEC_03_1
     lesson_codes = [c for c in itembank.LINT_CODES
                     if c.startswith("lesson.") or c == "item.lesson_ref_unknown"]
-    if len(lesson_codes) != 4:
-        fail("expected exactly 4 lesson lint codes, got %d: %r"
+    if len(lesson_codes) != 6:
+        fail("expected exactly 6 lesson lint codes, got %d: %r"
              % (len(lesson_codes), lesson_codes))
     for c in lesson_codes:
         if c not in s:

@@ -1088,18 +1088,20 @@ def check_disclosure_route():
 
 def check_api_route_scope():
     """D-04's four session routes plus Phase 6's `/api/hint`, plan 06.1-02's
-    `/api/interact`, plan 08-05's `/api/rubric-review`, and Phase 10's
-    `/api/override` and `/api/lesson-complete`, and the count is asserted
-    rather than trusted. Every entry is mirrored in ROUTE_CLI
-    (route-without-CLI-twin fails here) and in SURFACE_PARITY with its
-    reserved MCP tool name (Extensibility Rule 9(a)).
+    `/api/interact`, plan 08-05's `/api/rubric-review`, Phase 10's
+    `/api/override` and `/api/lesson-complete`, and Phase 09.1's
+    `/api/export_audio`, and the count is asserted rather than trusted.
+    Every entry is mirrored in ROUTE_CLI (route-without-CLI-twin fails
+    here) and in SURFACE_PARITY with its reserved MCP tool name
+    (Extensibility Rule 9(a)).
     """
-    if len(daemon.API_ROUTES) != 9:
-        fail("D-04 + Phase 6 + 06.1-02 + 08-05 + 10-04/10-05 scope /api/* "
-             "to exactly nine routes; API_ROUTES has %d"
+    if len(daemon.API_ROUTES) != 10:
+        fail("D-04 + Phase 6 + 06.1-02 + 08-05 + 10-04/10-05 + 09.1 scope "
+             "/api/* to exactly ten routes; API_ROUTES has %d"
              % len(daemon.API_ROUTES))
     if not {"start", "next", "submit", "hint", "interact", "report",
-            "override", "rubric-review"} <= set(daemon.ROUTE_CLI.values()):
+            "override", "rubric-review", "export"} <= \
+            set(daemon.ROUTE_CLI.values()):
         fail("ROUTE_CLI is missing one of the session CLI commands")
     if ("POST", "/api/lesson-complete") not in daemon.ROUTE_CLI or \
             daemon.ROUTE_CLI[("POST", "/api/lesson-complete")] != "lesson":
@@ -1336,6 +1338,83 @@ def check_api_override_route():
         shutil.rmtree(workdir, ignore_errors=True)
     print("  /api/override: locked block, forged-input containment, one "
           "sitting-bound event, expiry")
+
+
+def check_api_export_audio():
+    """09.1-03 Task 3: `POST /api/export_audio` and the CLI produce identical
+    pack file names and transcript for the same fixture -- one implementation,
+    two surfaces (D-08); the ROUTE_CLI inventory holds with the new route; an
+    invalid body (missing objective, unknown engine, traversal out_dir)
+    returns a named error response and writes no files (D-04).
+    """
+    from surfaces import audio as audio_surface
+    workdir = tempfile.mkdtemp()
+    try:
+        shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+        proc, url, lines = start_daemon(workdir)
+        try:
+            base = url.rstrip("/")
+            out_dir = "_attempts/audio"
+            payload = {"bank": "sample_bank", "objective": "Public notification",
+                       "out_dir": out_dir, "engine": "transcript-only"}
+            status, body = json_request(base + "/api/export_audio", payload)
+            if status != 200:
+                fail("POST /api/export_audio returned %d: %r"
+                     % (status, body))
+            if not isinstance(body, dict) or not body.get("transcript"):
+                fail("export_audio response has no transcript path: %r" % body)
+            if not isinstance(body.get("audio"), list):
+                fail("export_audio response audio is not a list: %r" % body)
+            route_names = sorted(
+                os.path.basename(p) for p in [body["transcript"]] + body["audio"])
+            if not route_names:
+                fail("export_audio route produced no files")
+            # The CLI must produce the same pack file names for the same inputs.
+            cli_out = os.path.join(workdir, out_dir.replace("/", os.sep))
+            r = subprocess.run(
+                [sys.executable, os.path.join(ROOT, "itembank.py"), "export",
+                 "audio", os.path.join(workdir, "sample_bank.md"),
+                 "--objective", "Public notification",
+                 "--engine", "transcript-only", "--out", cli_out],
+                capture_output=True, text=True, encoding="utf-8", cwd=ROOT)
+            if r.returncode != 0:
+                fail("CLI export audio exited %d: %s"
+                     % (r.returncode, r.stdout + r.stderr))
+            cli_names = sorted(os.listdir(cli_out))
+            if cli_names != route_names:
+                fail("route and CLI produced different pack file names: %r vs %r"
+                     % (route_names, cli_names))
+
+            # Invalid bodies refuse by name and write nothing.
+            before = snapshot_dirs(workdir)
+            status, body = json_request(base + "/api/export_audio",
+                                        {"bank": "sample_bank",
+                                         "out_dir": out_dir})
+            if status != 400:
+                fail("missing objective returned %d, expected 400" % status)
+            status, body = json_request(base + "/api/export_audio",
+                                        {"bank": "sample_bank",
+                                         "objective": "Public notification",
+                                         "engine": "no-such-engine",
+                                         "out_dir": out_dir})
+            if status != 400:
+                fail("unknown engine returned %d, expected 400" % status)
+            if "no-such-engine" not in str(body):
+                fail("unknown engine refusal does not name the engine: %r" % body)
+            status, body = json_request(base + "/api/export_audio",
+                                        {"bank": "sample_bank",
+                                         "objective": "Public notification",
+                                         "out_dir": "../escape"})
+            if status != 400:
+                fail("traversal out_dir returned %d, expected 400" % status)
+            after = snapshot_dirs(workdir)
+            if after != before:
+                fail("invalid export_audio bodies wrote files: %r"
+                     % (after - before))
+        finally:
+            proc.terminate()
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
 
 
 def snapshot_dirs(root):
@@ -2869,6 +2948,261 @@ def check_settings_driven_port():
         proc.terminate()
 
 
+def form_post(url, fields):
+    """POST urlencoded form fields (the gate band's `<form method="post">`
+    shape) and follow the 303 the gate routes issue; returns
+    `(final_url, body)` -- the redirect is followed as a GET, which is
+    exactly the post-redirect-get contract the reload test asserts."""
+    body = urllib.parse.urlencode(fields).encode()
+    req = urllib.request.Request(
+        url, data=body, method="POST",
+        headers={"Content-Type": "application/x-www-form-urlencoded"})
+    with urllib.request.urlopen(req, timeout=5) as res:
+        return res.geturl(), res.read().decode("utf-8")
+
+
+GATE_BANK = """# Gate daemon fixture
+[GATE: required]
+
+## LESSON
+
+### First Section
+
+Prose above the check.
+
+> [!CHECK: q1]
+
+### Second Section
+
+Second-section prose with its own check.
+
+> [!CHECK: q2]
+
+### Third Section
+
+Third-section prose.
+
+Q1. Which adjunct opens an airway?   (difficulty: recall)
+[OBJECTIVE: emt:airway.adjunct]
+A) A tongue depressor
+B) An oropharyngeal airway
+C) Oxygen tubing
+D) A stethoscope
+CORRECT: B
+WHY BEST: The oropharyngeal airway is the standard airway adjunct.
+KEY DISCRIMINATOR: A device that holds the tongue off the pharynx.
+SECOND-BEST: A. A tongue depressor holds the tongue; correct only if the question asked about visualization.
+DISTRACTOR ANALYSIS:
+- A) A visualization aid; would be correct if the question asked how to see the airway.
+- B) Correct: the standard adjunct.
+- C) Delivers oxygen; would be correct if the question asked about oxygenation.
+- D) A diagnostic tool; would be correct if the question asked how to auscultate.
+TRAP: Confusing oxygen delivery with airway opening.
+CONFIDENCE: high
+
+Q2. Second check item.   (difficulty: recall)
+[OBJECTIVE: emt:airway.adjunct]
+A) One
+B) Two
+C) Three
+D) Four
+CORRECT: A
+WHY BEST: It is the first.
+KEY DISCRIMINATOR: Ordinal.
+SECOND-BEST: B. Second; correct if the question asked for two.
+DISTRACTOR ANALYSIS:
+- A) Correct.
+- B) Would be correct if asked for two.
+- C) Would be correct if asked for three.
+- D) Would be correct if asked for four.
+TRAP: Counting.
+CONFIDENCE: high
+"""
+
+
+def _write_gate_dir():
+    """A temp dir holding the gate bank, plus the daemon's expected
+    `_attempts` layout. Returns (workdir, bank_path, log)."""
+    workdir = tempfile.mkdtemp()
+    bank_path = os.path.join(workdir, "gate_daemon.md")
+    open(bank_path, "w", encoding="utf-8").write(GATE_BANK)
+    log = evidence.log_path(workdir)
+    return workdir, bank_path, log
+
+
+def _gate_events(log, session_id=None):
+    """Live gate-relevant events for assertion."""
+    return [ev for ev in evidence.live_events(log)
+            if ev.get("event_type") in ("response", "gate_skip")]
+
+
+def check_gate_route_check_and_reveal():
+    """06.2-03 Task 2 Test 1: POST /lesson/<stem>/check scores via the one
+    runtime path, records response evidence with context="lesson_gate",
+    and 303s; under required with a cleared check the next section appears
+    and the reveal target's h2 carries the focus attributes."""
+    workdir, bank_path, log = _write_gate_dir()
+    proc, url, lines = start_daemon(workdir)
+    try:
+        stem = "gate_daemon"
+        status, page = get(url + "lesson/" + stem)
+        if "2 more sections below this check." not in page:
+            fail("the served gated lesson must truncate below the check")
+        if "Second-section prose" in page:
+            fail("the served gated lesson leaked the below-gate section")
+        final, page2 = form_post(url + "lesson/%s/check" % stem,
+                                 {"check": "q1", "action": "check",
+                                  "option": "B"})
+        if "second-section" not in final:
+            fail("the check 303 must target the next section, got %r" % final)
+        if "Second-section prose" not in page2:
+            fail("clearing the check must reveal the next section")
+        if 'tabindex="-1" autofocus' not in page2:
+            fail("the revealed section's h2 must carry the focus attributes")
+        if "The next section is below." not in page2:
+            fail("the reveal clause must compose into the status region")
+        evs = _gate_events(log)
+        responses = [e for e in evs if e.get("event_type") == "response"]
+        if len(responses) != 1:
+            fail("exactly one response event must be recorded, got %d"
+                 % len(responses))
+        if responses[0].get("context") != "lesson_gate":
+            fail("the recorded response must carry context=lesson_gate")
+        if responses[0].get("score") is not True:
+            fail("the check response must score through the one scorer")
+        print("gate route check: scores, records lesson_gate, 303 reveal")
+    finally:
+        proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def check_gate_route_skip_single_event():
+    """06.2-03 Task 2 Test 2 + 3: POST /lesson/<stem>/skip records exactly
+    one gate_skip (no response, no hint-tier advance), reveals the next
+    section, keeps the band live and answerable, and announces the skip
+    string once through the status region."""
+    workdir, bank_path, log = _write_gate_dir()
+    proc, url, lines = start_daemon(workdir)
+    try:
+        stem = "gate_daemon"
+        final, page = form_post(url + "lesson/%s/skip" % stem,
+                                {"check": "q1", "action": "skip"})
+        if "second-section" not in final:
+            fail("the skip 303 must target the next section, got %r" % final)
+        if "Second-section prose" not in page:
+            fail("skipping must reveal the next section")
+        if "Read ahead recorded. This check stays open." not in page:
+            fail("the skip must announce through the status region")
+        # The band stays live: the check form with both buttons is still
+        # on the page.
+        if 'value="check"' not in page or "Read ahead without answering" not in page:
+            fail("the skipped band must stay answerable")
+        evs = _gate_events(log)
+        skips = [e for e in evs if e.get("event_type") == "gate_skip"]
+        responses = [e for e in evs if e.get("event_type") == "response"]
+        if len(skips) != 1:
+            fail("exactly one gate_skip must be recorded, got %d" % len(skips))
+        if responses:
+            fail("a skip must never record a response event")
+        if skips[0].get("check_item_id") != "q1":
+            fail("the gate_skip must name the skipped check")
+        if skips[0].get("gate_mode") != "required":
+            fail("the gate_skip must record the resolved gate mode")
+        # A second skip POST for the same check dedupes: still one event.
+        form_post(url + "lesson/%s/skip" % stem,
+                  {"check": "q1", "action": "skip"})
+        evs2 = _gate_events(log)
+        skips2 = [e for e in evs2 if e.get("event_type") == "gate_skip"]
+        if len(skips2) != 1:
+            fail("a repeat skip must dedupe to one event, got %d"
+                 % len(skips2))
+        print("gate route skip: one gate_skip, no response, band stays live")
+    finally:
+        proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def check_gate_route_reload_no_resubmit():
+    """06.2-03 Task 2 Test 5: the reload-after-POST path does not
+    re-submit the check -- the 303 redirect is a GET, so the evidence log
+    is unchanged by re-requesting the landing page."""
+    workdir, bank_path, log = _write_gate_dir()
+    proc, url, lines = start_daemon(workdir)
+    try:
+        stem = "gate_daemon"
+        final, page = form_post(url + "lesson/%s/check" % stem,
+                                {"check": "q1", "action": "check",
+                                 "option": "B"})
+        before = len(_gate_events(log))
+        get(final)      # the reload-after-POST GET
+        get(final)
+        after = len(_gate_events(log))
+        if after != before:
+            fail("reloading the landing page re-submitted the check "
+                 "(%d -> %d events)" % (before, after))
+        print("gate route reload: PRG holds, no re-submission")
+    finally:
+        proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def check_gate_route_unreachable_no_reveal():
+    """06.2-03 Task 2 Test 4: with the evidence runtime unreachable, the
+    band renders the section-12.1 copy, no control is a disabled button
+    with no reason, no spinner persists, and no section is revealed."""
+    workdir = tempfile.mkdtemp()
+    try:
+        bank_path = os.path.join(workdir, "gate_daemon.md")
+        open(bank_path, "w", encoding="utf-8").write(GATE_BANK)
+        # Make the evidence log path un-writable: a FILE at the _evidence
+        # path blocks the log's parent directory creation.
+        open(os.path.join(workdir, "_evidence"), "w", encoding="utf-8").write("x")
+        proc, url, lines = start_daemon(workdir)
+        try:
+            status, page = get(url + "lesson/gate_daemon")
+            if ("This check cannot be submitted while the runtime is "
+                    "unreachable. Run itembank daemon and reload.") not in page:
+                fail("the unreachable band must render the section-12.1 copy")
+            if "Second-section prose" in page:
+                fail("an unreachable runtime must never reveal a section")
+            if re.search(r'<button[^>]*disabled', page):
+                fail("the degraded band must not carry disabled buttons "
+                     "without a reason")
+            if "spinner" in page.lower() or "loading" in page.lower():
+                fail("the degraded band must not show a spinner")
+            print("gate route unreachable: 12.1 copy, no reveal, no spinner")
+        finally:
+            proc.terminate()
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def check_gate_print_no_evidence():
+    """06.2-04 Gate 6 (section 8.3): the print request changes no evidence
+    -- the log length is identical before and after `?print=1` (a print is
+    not a skip)."""
+    workdir, bank_path, log = _write_gate_dir()
+    proc, url, lines = start_daemon(workdir)
+    try:
+        stem = "gate_daemon"
+        before = len(list(evidence.events(log)))
+        status, page = get(url + "lesson/%s?print=1" % stem)
+        after = len(list(evidence.events(log)))
+        if after != before:
+            fail("a print request must record nothing (%d -> %d events)"
+                 % (before, after))
+        if "Second-section prose" not in page:
+            fail("print must serve the complete ungated document")
+        if "more section below this check" in page:
+            fail("print must not render a truncation boundary")
+        if "Check \u00b7 emt:airway.adjunct" not in page:
+            fail("print must render each check as the D1 labelled rule")
+        print("gate print route: complete, D1 rules, log length unchanged")
+    finally:
+        proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
 def main():
     checks = (
         check_index_populated,
@@ -2897,6 +3231,7 @@ def main():
         check_disclosure_route,
         check_api_route_scope,
         check_api_override_route,
+        check_api_export_audio,
         check_surface_parity,
         check_api_sitting,
         check_api_duplicate_submit_dedupes,
@@ -2934,6 +3269,11 @@ def main():
         check_startup_lan_binds_all,
         check_lan_path_validation_unchanged,
         check_settings_driven_port,
+        check_gate_route_check_and_reveal,
+        check_gate_route_skip_single_event,
+        check_gate_route_reload_no_resubmit,
+        check_gate_route_unreachable_no_reveal,
+        check_gate_print_no_evidence,
     )
     for check in checks:
         check()

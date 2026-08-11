@@ -41,17 +41,18 @@ INDEX_FILENAME = "evidence_index.sqlite3"
 
 # "retraction" was added by plan 01-07, "mark" by plan 01-09, "day_tick" by
 # plan 01-10, "term_lookup" by plan 03.1-02, "key_review" by plan 03.1-03,
-# plan 01-10, "term_lookup" by plan 03.1-02, "key_review" by plan 03.1-03,
 # "hint" by plan 06-01, "selection" by plan 07-04, "lesson_complete" by
 # plan 10-02, "cap_override" by plan 10-04, "model_interaction" /
-# "mark_proposal" by plan 08-03, and "visual_action" by plan 06.1-02 --
-# response events are the only ones this build wrote before 01-07. events()
-# skips and warns on anything outside this set (D-09), so a log written by a
-# later build's event type degrades instead of crashing.
+# "mark_proposal" by plan 08-03, "visual_action" by plan 06.1-02, and
+# "gate_skip" by plan 06.2-01 -- response events are the only ones this
+# build wrote before 01-07. events() skips and warns on anything outside
+# this set (D-09), so a log written by a later build's event type degrades
+# instead of crashing.
 KNOWN_EVENT_TYPES = ("response", "retraction", "mark", "day_tick",
                      "term_lookup", "key_review", "hint", "selection",
                      "lesson_complete", "cap_override",
-                     "model_interaction", "mark_proposal", "visual_action")
+                     "model_interaction", "mark_proposal", "visual_action",
+                     "gate_skip")
 
 # The record of what a sitting asked for (D-03): one event per session, so a
 # deleted session file never destroys the ability to reproduce the sitting.
@@ -63,6 +64,22 @@ SELECTION_EVENT_TYPE = "selection"
 # telemetry, focus, hover, tentative state, cancelled gestures, and unchanged
 # commits never append. Final submit stays the ordinary response event.
 VISUAL_ACTION_EVENT_TYPE = "visual_action"
+
+# The Phase 6.2 gate_skip event (D-07): a learner read ahead past a gated
+# check without answering. It is deliberately its own event type, never a
+# `response` carrying a null score -- conflating them would make a skip
+# indistinguishable from an unmarked attempt in every downstream count.
+GATE_SKIP_EVENT_TYPE = "gate_skip"
+
+# The two gate modes that may be skipped. "off" never offers a skip: an
+# off lesson is the 3.1 reader, so there is nothing to record.
+GATE_MODES = ("required", "recommended")
+
+# The one context value that marks a response event as served by a lesson
+# gate rather than by a quiz sitting (D-08). The default "quiz" keeps every
+# pre-6.2 call site byte-compatible; "lesson_gate" is written only by the
+# one new call site this phase adds (CONTEXT D-08, 06.2-RESEARCH section 2).
+LESSON_GATE_CONTEXT = "lesson_gate"
 
 # Bounds the tail scan `append_line_checked` and `recent_dedupe_keys` run to
 # decide whether an event is a duplicate. A dedupe_key contains the
@@ -376,7 +393,7 @@ def dedupe_key(session_id, item_key, attempt_num, canon):
 
 def response_event(session_id, q, answer, score, mode, attempt_num, bank,
                     response_time_ms=None, confidence=None, source_ref=None,
-                    hint_tier=None, selection_mode=None):
+                    hint_tier=None, selection_mode=None, context="quiz"):
     """Build one full response event dict. Every key named in this plan's
     must_haves is present on every event — reserved fields carry an explicit
     `None`, never an absent key, so a consumer can tell "not captured" from
@@ -418,9 +435,167 @@ def response_event(session_id, q, answer, score, mode, attempt_num, bank,
         "error_category": None,   # no error taxonomy exists before Phase 8
         "hint_tier": hint_tier,   # integer-or-null since Phase 6 (D-15)
         "selection_mode": selection_mode,   # the composition that served this item (07-04)
+        "context": context,   # "quiz" (default) or "lesson_gate" (06.2, D-08)
         "review_state": "pending" if q["type"] == "short" else "n/a",
         "dedupe_key": dedupe_key(session_id, key, attempt_num, canon),
         "source_ref": source_ref,
+    }
+
+
+def gate_skip_event(session_id, bank, lesson_slug, check_item_id,
+                     check_item_ref, objective, gate_mode):
+    """Build one gate_skip event: a learner read ahead past the gated check
+    named by `check_item_id` without answering (D-07, 06.2-UI-SPEC section
+    6.3). Mirrors `day_tick_event()`/`mark_event()` exactly: its own
+    envelope, a deliberately narrow dedupe key, and `ValueError` on a
+    malformed argument -- and, structurally, **no `score` key at all**, not
+    even `None` (criterion 8's concrete form: a skip is not a response).
+
+    `gate_mode` is the resolved gate mode the learner skipped past, never
+    "off": an off lesson offers no skip, so recording one would be
+    fabricating an event that never happened. `dedupe_key` is a hash over
+    `(session_id, check_item_id)` alone, so a retried skip POST for the
+    same check in the same sitting records once and reports
+    `already_recorded` -- exactly the shape `day_tick_event()` uses for a
+    lane ticked twice.
+    """
+    if gate_mode not in GATE_MODES:
+        raise ValueError(
+            "gate_skip_event: gate_mode must be one of %r, got %r"
+            % (GATE_MODES, gate_mode))
+    if not check_item_id:
+        raise ValueError(
+            "gate_skip_event: check_item_id must be a non-empty string")
+    raw = "%s|%s" % (session_id, check_item_id)
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": GATE_SKIP_EVENT_TYPE,
+        "ts": utc_now(),
+        "session_id": session_id,
+        "bank": bank,
+        "lesson_slug": lesson_slug,
+        "check_item_id": check_item_id,
+        "check_item_ref": check_item_ref,
+        "objective": objective,
+        "gate_mode": gate_mode,
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+def gate_state(log, session_id, check_item_id):
+    """The derived gate state for one (session, check) pair -- "open",
+    "cleared", or "skipped" -- read from the one evidence log, never stored
+    as per-lesson progress (D-06).
+
+    Resolution is pair-level (06.2-RESEARCH section 8): any live response
+    event with context "lesson_gate" for the pair means "cleared"
+    regardless of a prior skip; a live gate_skip with no subsequent
+    response means "skipped"; otherwise "open". Reads through
+    `live_events()` -- the same retraction discipline every other view uses
+    (D-10) -- so a retracted response returns the gate to its prior state.
+    Session-scoped by construction: the `session_id` argument is part of
+    every match, so a check cleared in an earlier sitting gates again in a
+    new one (06.2-UI-SPEC section 14 DEFAULT).
+
+    `check_item_id` is the id the lesson's `[!CHECK: <id>]` names; a
+    response event may record it as either the positional `item_ref` or the
+    opaque `item_id`, and both are matched.
+    """
+    cleared = False
+    skipped = False
+    for ev in live_events(log):
+        if ev.get("session_id") != session_id:
+            continue
+        if ev.get("event_type") == RESPONSE_EVENT_TYPE:
+            if (ev.get("context") == LESSON_GATE_CONTEXT
+                    and (ev.get("item_ref") == check_item_id
+                         or ev.get("item_id") == check_item_id)):
+                cleared = True
+        elif ev.get("event_type") == GATE_SKIP_EVENT_TYPE:
+            if ev.get("check_item_id") == check_item_id:
+                skipped = True
+    if cleared:
+        return "cleared"
+    if skipped:
+        return "skipped"
+    return "open"
+
+
+def gate_outcome_split(log, bank, session_id, gate_modes=None):
+    """The gate outcome split (06.2-UI-SPEC section 11, GATE-06): cleared
+    vs skipped over the distinct required-gate pairs encountered in one
+    session, computed from live events at request time -- derived, never
+    stored (Extensibility Rule 5).
+
+    Pair-level aggregation (06.2-RESEARCH section 8): each distinct
+    (session, check) pair resolves to exactly one outcome -- any live
+    lesson-gate response means "cleared" regardless of a prior skip; a
+    live gate_skip with no subsequent response means "skipped". The
+    denominator is the count of distinct *required*-gate pairs; recommended
+    gates are excluded because reading past one produces no event and
+    counting it would be inventing a number (C8).
+
+    A pair is classified as required when (a) `gate_modes` (the lesson's
+    declared check-id -> gate-mode map, which the report path derives from
+    `parse_lesson()`) names it required, or (b) the pair carries a
+    gate_skip whose `gate_mode` is "required" -- the skip records the mode
+    the gate actually rendered under. A pair with no required evidence is
+    not counted.
+    """
+    pairs = {}
+    for ev in live_events(log):
+        if ev.get("session_id") != session_id:
+            continue
+        if ev.get("bank") != bank:
+            continue
+        if ev.get("event_type") == RESPONSE_EVENT_TYPE:
+            if ev.get("context") != LESSON_GATE_CONTEXT:
+                continue
+            cid = ev.get("item_ref") or ev.get("item_id")
+            if not cid:
+                continue
+            pair = pairs.setdefault(cid, {"cleared": False, "skipped": False,
+                                          "required": None,
+                                          "served_recommended": False})
+            pair["cleared"] = True
+        elif ev.get("event_type") == GATE_SKIP_EVENT_TYPE:
+            cid = ev.get("check_item_id")
+            if not cid:
+                continue
+            pair = pairs.setdefault(cid, {"cleared": False, "skipped": False,
+                                          "required": None,
+                                          "served_recommended": False})
+            pair["skipped"] = True
+            if ev.get("gate_mode") == "required":
+                pair["required"] = True
+            elif ev.get("gate_mode") == "recommended":
+                # The skip records the mode the gate actually rendered
+                # under -- a degraded sitting renders a declared required
+                # gate as recommended and excludes it (section 5.7/11).
+                pair["served_recommended"] = True
+    cleared = 0
+    skipped = 0
+    for cid, pair in pairs.items():
+        if pair.get("served_recommended"):
+            continue
+        if gate_modes is not None:
+            required = gate_modes.get(cid) == "required"
+        else:
+            required = pair["required"] is True
+        if not required:
+            continue
+        if pair["cleared"]:
+            cleared += 1
+        elif pair["skipped"]:
+            skipped += 1
+    total = cleared + skipped
+    return {
+        "denominator": total,
+        "cleared": cleared,
+        "skipped": skipped,
+        "share_cleared": (round(cleared / total, 3) if total else None),
+        "share_skipped": (round(skipped / total, 3) if total else None),
     }
 
 
