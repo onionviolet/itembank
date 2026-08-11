@@ -19,6 +19,8 @@ from surfaces.evidence_cli import (cmd_evidence, cmd_id_assign, cmd_mark, cmd_re
                                    cmd_retract)
 from surfaces.import_anki import cmd_import_anki
 from surfaces.lesson import cmd_gloss, cmd_key_review, cmd_lesson, cmd_render_style
+from surfaces.lti import (PRIVACY_STATEMENT, cmd_lti_doctor, cmd_lti_serve,
+                          cmd_lti_status)
 from surfaces.migrate import cmd_migrate
 from surfaces.protocol_cli import cmd_schema, cmd_usage
 from surfaces.quiz import cmd_build, cmd_serve
@@ -938,6 +940,41 @@ def main():
                    help="FP-rate threshold for disabled-by-default (default: "
                         "style.warn_fp_threshold = 0.20)")
     s.set_defaults(fn=cmd_calibrate)
+
+    s = sub.add_parser("lti", help="Canvas LMS integration via LTI 1.3 "
+                       "(phase 999.4): registration status, doctor, and the "
+                       "opt-in bind. " + PRIVACY_STATEMENT,
+                       description="Canvas LMS integration via LTI 1.3: the "
+                       "verified-launch surface, the platforms registration "
+                       "store, and the opt-in bind.",
+                       epilog=PRIVACY_STATEMENT)
+    lt = s.add_subparsers(dest="lti_action", required=True)
+    lp = lt.add_parser("status", help="print the LTI registration state and "
+                       "the D-09 privacy statement", epilog=PRIVACY_STATEMENT)
+    lp.add_argument("--base", default=".",
+                    help="directory holding itembank.json (default: current directory)")
+    lp.set_defaults(fn=cmd_lti_status)
+    lp = lt.add_parser("doctor", help="validate the LTI registration and print "
+                       "the OIDC initiation / launch / JWKS URLs to paste into "
+                       "Canvas, plus the privacy statement (D-09)",
+                       epilog=PRIVACY_STATEMENT)
+    lp.add_argument("--base", default=".",
+                    help="directory holding itembank.json (default: current directory)")
+    lp.set_defaults(fn=cmd_lti_doctor)
+    lp = lt.add_parser("serve", help="start the opt-in LTI handler family "
+                       "(requires lti.enabled true; TLS via lti.tls_cert/"
+                       "lti.tls_key or documented reverse proxy)",
+                       epilog=PRIVACY_STATEMENT)
+    lp.add_argument("dir", nargs="?", default=".")
+    lp.add_argument("--host", default="127.0.0.1",
+                    help="bind host (default: 127.0.0.1; put a reverse proxy "
+                         "in front for the public posture)")
+    lp.add_argument("--port", type=int, default=None,
+                   help="bind port (default: 8732)")
+    lp.add_argument("--no-open", action="store_true", dest="no_open",
+                    help="do not launch a browser (the LTI bind never opens "
+                         "a browser on its own)")
+    lp.set_defaults(fn=cmd_lti_serve)
 
     a = ap.parse_args()
     sys.exit(a.fn(a))

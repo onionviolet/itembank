@@ -42,5 +42,13 @@
   },
   "selection": {
     "cooldown_responses": 20
+  },
+  "lti": {
+    "enabled": false,
+    "public_base_url": "",
+    "tls_cert": "",
+    "tls_key": "",
+    "tool_private_jwk_path": "",
+    "platforms": []
   }
 }
