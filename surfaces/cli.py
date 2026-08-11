@@ -20,11 +20,11 @@ from surfaces.evidence_cli import (cmd_evidence, cmd_id_assign, cmd_mark, cmd_re
 from surfaces.import_anki import cmd_import_anki
 from surfaces.lesson import cmd_gloss, cmd_key_review, cmd_lesson, cmd_render_style
 from surfaces.migrate import cmd_migrate
-from surfaces.protocol_cli import cmd_schema
+from surfaces.protocol_cli import cmd_schema, cmd_usage
 from surfaces.quiz import cmd_build, cmd_serve
 from surfaces.selection_cli import cmd_select
 from surfaces.session import (cmd_hint, cmd_next, cmd_override, cmd_report,
-                              cmd_start, cmd_submit)
+                              cmd_rubric_review, cmd_start, cmd_submit)
 from surfaces.settings import cmd_config
 from surfaces import seeding
 from surfaces.study import cmd_study
@@ -676,13 +676,21 @@ def main():
                    help="the learner's self-rated confidence in this response, optional")
     s.set_defaults(fn=cmd_submit)
 
-    s = sub.add_parser("hint", help="reveal the next fixed authored tier in a JSON "
-                                    "assessment session")
-    s.add_argument("session")
-    s.add_argument("--stumped", action="store_true",
-                   help="unlock and show the next tier via the stumped path "
-                        "(no performative wrong submission)")
+    s = sub.add_parser("hint", help="request one error-specific hint from the "
+                                    "model backend; falls back to the authored "
+                                    "tier offline and never accepts a caller-"
+                                    "supplied tier (D-09)")
+    s.add_argument("--session", required=True, help="the session JSON path")
+    s.add_argument("--retry", action="store_true",
+                   help="explicitly regenerate as a parent-linked retry; at "
+                        "most one generation per interaction id otherwise (D-12)")
     s.set_defaults(fn=cmd_hint)
+
+    s = sub.add_parser("rubric-review", help="request pending per-point rubric "
+                        "suggestions for the current short response; a model "
+                        "suggestion can never settle a mark (D-25)")
+    s.add_argument("--session", required=True, help="the session JSON path")
+    s.set_defaults(fn=cmd_rubric_review)
 
     s = sub.add_parser("report", help="summarize a JSON assessment session")
     s.add_argument("session")
@@ -766,8 +774,12 @@ def main():
     s.add_argument("--file", help="NDJSON batch file, one mark per line; '-' reads stdin")
     s.add_argument("--marks", help="inline JSON array of marks")
     s.add_argument("--item", help="single-mark convenience form: the item_ref to mark")
+    s.add_argument("--proposal", help="single-proposal accept form: the event id "
+                   "of the mark_proposal to accept; requires --verdict (plan 08-04)")
+    s.add_argument("--rubric", help="JSON array of {point, pass} booleans for the "
+                   "single-form marks (--item/--proposal)")
     s.add_argument("--verdict", choices=("pass", "fail"), default=None,
-                   help="required with --item")
+                   help="required with --item or --proposal")
     s.set_defaults(fn=cmd_mark)
 
     s = sub.add_parser("id-assign", help="assign opaque ids and content-hash fingerprints "
@@ -871,6 +883,12 @@ def main():
                    help="emit the format contract, all five documents and the "
                         "command sequence to run a session, in one object")
     s.set_defaults(fn=cmd_schema)
+
+    s = sub.add_parser("usage", help="print the machine-readable agent usage "
+                        "contract -- permissions, prohibitions, disclosure, "
+                        "retry, manual-grading rules, and forbidden "
+                        "inferences -- the bytes on disk verbatim (MODEL-04)")
+    s.set_defaults(fn=cmd_usage)
 
     s = sub.add_parser("config", help="print the settings schema the way `spec` prints "
                        "the format contract")

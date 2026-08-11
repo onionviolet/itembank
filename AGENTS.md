@@ -145,16 +145,41 @@ Repo playbooks live in two mirrored trees so every agent finds them:
 | `curriculum-design` | Turn a syllabus into objective-by-objective coverage, find gaps |
 | `guiding-questions` | Run a Socratic tutoring session with the JSON protocol |
 | `author-bank` | The write → lint → fix loop for new items |
+| `ocr` | Read text out of images via a local Ollama vision model (optional; needs the model pulled) |
 
-- **Codex and agents.md readers**: skills are at `.agents/skills/<name>/SKILL.md`
-  and are discovered automatically from the repo root.
-- **Claude Code**: skills are mirrored at `.claude/skills/<name>/SKILL.md`
-  (project-level). Invoke with `/name` or let Claude auto-match the description.
-- **Other tools**: install by pointing your tool's skill root at
-  `.agents/skills/` (the two trees are identical; edit either and mirror).
+Where each tool finds the playbooks:
 
-The two trees are mirrors of the same playbooks — keep them in sync when
-editing.
+- **Codex, Gemini CLI, Cursor, GitHub Copilot, and other agents.md readers**:
+  `.agents/skills/<name>/SKILL.md`, auto-discovered from the repo root.
+- **Claude Code**: mirrored at `.claude/skills/<name>/SKILL.md` (project-level).
+  Invoke with `/name` or let Claude auto-match the description.
+- **Reasonix**: auto-discovers `.agents/skills/` as a convention root — no
+  config needed. The optional OCR plugin wiring is personal config, shown
+  in `reasonix.toml.example` (the file itself is gitignored).
+- **Anything else**: point your tool's skill root at `.agents/skills/`.
+
+The two trees are mirrors of the same playbooks — edit either and copy to
+the other; CI runs `diff -rq .agents/skills .claude/skills` and fails on
+drift.
+
+## Recording operational findings (a rule for agents working here)
+
+When a session learns something operational that cost it turns or probes — a
+tool/permission-gate quirk, a launch recipe, an environment limitation, a
+concurrency hazard — **persist it before the session ends** instead of letting
+the next session rediscover it from scratch:
+
+1. Save a memory (`remember`) with the concrete behavior and a "how to apply"
+   rule.
+2. Write the full details to `.reasonix/REASONIX.md` — machine-local and
+   gitignored; the canonical home for this machine's runtime notes.
+3. Keep machine-specific checkout paths and usernames out of committed docs —
+   the CI path-leak step fails agent-facing files that contain them.
+
+Recorded example (2026-08-11): in interactive sessions the command gate
+declines `; echo $?` status suffixes, background bash jobs, inline interpreter
+code (`python -c`, heredocs, loops), and ad-hoc runner scripts, while bare
+commands and simple `&&`-chains run. Full notes: `.reasonix/REASONIX.md` §7.
 
 ## Where to look next
 

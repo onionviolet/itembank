@@ -98,13 +98,13 @@ DAY_EDIT_ALLOWED_FIELDS = ("revision", "edits", "force_token", "confirmation",
 SEED_ACCEPT_ALLOWED_FIELDS = ("bank", "action", "draft")
 
 # The `/api/*` session routes: D-04's four plus Phase 6's `/api/hint`,
-# Phase 10's `/api/override` and `/api/lesson-complete`. Fixed literals,
-# not stem-parameterised: a session or a bank is addressed by an opaque
-# identifier in the JSON body (T-2-01), never by a path segment, so there
-# is no `<stem>`/`<id>` group in any of these patterns at all. The
-# seven-entry length is asserted by `check_api_route_scope` in
-# `tests/daemon_roundtrip.py`, and every entry is mirrored in ROUTE_CLI and
-# SURFACE_PARITY (Extensibility Rule 9(a)).
+# plan 08-05's `/api/rubric-review`, and Phase 10's `/api/override` and
+# `/api/lesson-complete`. Fixed literals, not stem-parameterised: a session
+# or a bank is addressed by an opaque identifier in the JSON body (T-2-01),
+# never by a path segment, so there is no `<stem>`/`<id>` group in any of
+# these patterns at all. The eight-entry length is asserted by
+# `check_api_route_scope` in `tests/daemon_roundtrip.py`, and every entry
+# is mirrored in ROUTE_CLI and SURFACE_PARITY (Extensibility Rule 9(a)).
 API_ROUTES = (
     ("POST", "/api/start", "handle_api_start"),
     ("POST", "/api/next", "handle_api_next"),
@@ -113,6 +113,7 @@ API_ROUTES = (
     ("POST", "/api/report", "handle_api_report"),
     ("POST", "/api/override", "handle_api_override"),
     ("POST", "/api/lesson-complete", "handle_api_lesson_complete"),
+    ("POST", "/api/rubric-review", "handle_api_rubric_review"),
 )
 
 # Order is load-bearing: every fixed literal route comes before every
@@ -166,6 +167,7 @@ ROUTE_CLI = {
     ("POST", "/api/report"): "report",
     ("POST", "/api/override"): "override",
     ("POST", "/api/lesson-complete"): "lesson",
+    ("POST", "/api/rubric-review"): "rubric-review",
     ("GET", QUIZ_GET_RE): "serve",
     ("POST", QUIZ_ANSWER_RE): "serve",
     ("GET", STUDY_GET_RE): "study",
@@ -179,24 +181,23 @@ ROUTE_CLI = {
     ("POST", DAY_EDIT_RE): "day",
 }
 
-# SURFACE_PARITY (Extensibility Rule 9(a)): every `/api/*` route maps to its
-# CLI command AND its reserved future MCP tool name -- the third surface's
-# projection of API_ROUTES (REQUIREMENTS V2-INT-02), defined here so a route
-# added without all three names fails the build instead of shipping
-# silently. The tool need not exist yet; the name being present is what keeps
-# the parity test meaningful the day a dispatcher is written, and stops MCP
-# arriving as a second parity map. The key set is asserted equal to
-# API_ROUTES by tests/daemon_roundtrip.py.
-SURFACE_PARITY = {
-    ("POST", "/api/start"): {"cli": "start", "mcp_tool": "itembank_start"},
-    ("POST", "/api/next"): {"cli": "next", "mcp_tool": "itembank_next"},
-    ("POST", "/api/submit"): {"cli": "submit", "mcp_tool": "itembank_submit"},
-    ("POST", "/api/hint"): {"cli": "hint", "mcp_tool": "itembank_hint"},
-    ("POST", "/api/report"): {"cli": "report", "mcp_tool": "itembank_report"},
-    ("POST", "/api/override"): {"cli": "override", "mcp_tool": "itembank_override"},
-    ("POST", "/api/lesson-complete"):
-        {"cli": "lesson", "mcp_tool": "itembank_lesson_complete"},
-}
+# Extensibility Rule 9(a) (ROADMAP.md): every /api/* route reserves its
+# future MCP tool name in the same commit it ships -- the third surface
+# (MCP) arrives as a third column here, never as a second parity map, and an
+# unmapped entry fails `check_surface_parity` instead of shipping silently.
+# Each row is (route, CLI command, reserved MCP tool name); the tool names
+# are the locked reserved vocabulary (start, next, submit, report, hint,
+# override, lesson_complete, rubric_review).
+SURFACE_PARITY = (
+    (("POST", "/api/start"), "start", "start"),
+    (("POST", "/api/next"), "next", "next"),
+    (("POST", "/api/submit"), "submit", "submit"),
+    (("POST", "/api/hint"), "hint", "hint"),
+    (("POST", "/api/report"), "report", "report"),
+    (("POST", "/api/override"), "override", "override"),
+    (("POST", "/api/lesson-complete"), "lesson", "lesson_complete"),
+    (("POST", "/api/rubric-review"), "rubric-review", "rubric_review"),
+)
 
 
 def cli_twin_for(path):
@@ -995,7 +996,8 @@ def handle_quiz_get(handler, stem):
                             post_path="/quiz/%s/answer" % stem,
                             bank_stem=stem, mode=sess.get("mode", "practice"),
                             lesson_base="/lesson/%s" % stem,
-                            lesson_slugs=lesson_slugs, theme_css=theme_block)
+                            lesson_slugs=lesson_slugs, theme_css=theme_block,
+                            assist=True)
     handler.send_html(page.encode("utf-8"))
 
 
@@ -1433,7 +1435,14 @@ CONFIDENCE_LEVELS = ("high", "medium", "low")
 # can never reintroduce the raw-path surface D-03's bank allowlist already
 # closed once (T-2-01).
 API_FORBIDDEN_FIELDS = ("session", "bank_path", "out",
-                        "item_id", "score", "key", "explanation")
+                        "item_id", "score", "key", "explanation",
+                        # Plan 08-05 authority fields (D-09): a client can
+                        # never smuggle a tier, backend profile, fact
+                        # manifest, candidate body, proposal, marker, or
+                        # verdict onto the wire -- those exist only on the
+                        # runtime side of the boundary.
+                        "tier", "profile", "facts", "candidate", "proposal",
+                        "marker", "verdict")
 
 # Phase 6 authority-shaped fields (T-06-12) rejected on the action routes
 # (`/api/submit`, `/api/hint`) by name before any policy work: mode, tier,
@@ -1995,10 +2004,15 @@ def handle_api_submit(handler):
 
 
 def handle_api_hint(handler):
-    """`POST /api/hint` -- `{"session_id": "<id>", "stumped": bool}`.
-    Identifier-addressed exactly like the other /api/* session routes;
-    returns the same structured payload as the CLI `hint` command, including
-    stumped behavior (TEACH-02)."""
+    """`POST /api/hint` -- `{"session_id": "<id>", "retry": bool}`.
+    Identifier-addressed exactly like the other /api/* session routes; returns
+    the same typed payload as the CLI `hint` command -- the model
+    orchestration in `session.do_hint` (plan 08-04): `{"status", "generated",
+    "authored", "interaction_id", "evidence"}` with `status` one of the typed
+    pass/drop/unavailable outcomes, never a Phase 6 tier reveal. The legacy
+    `stumped` shim was removed here in plan 08-05; the explicit tier-reveal
+    path stays in the runtime teaching transition.
+    """
     if _reject_cross_origin(handler):
         return
     data, failed = api_read_json(handler)
@@ -2009,12 +2023,41 @@ def handle_api_hint(handler):
     if path is None:
         handler.send_not_found(session_id if isinstance(session_id, str) else "")
         return
-    stumped = data.get("stumped", False)
-    if not isinstance(stumped, bool):
-        handler.send_error(400, "stumped must be a boolean")
+    retry = data.get("retry", False)
+    if not isinstance(retry, bool):
+        handler.send_error(400, "retry must be a boolean")
         return
     try:
-        result = session.do_hint(path, stumped=stumped)
+        result = session.do_hint(path, retry=retry)
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    except Exception as exc:
+        handler.send_server_error(exc)
+        return
+    handler.send_json(result)
+
+
+def handle_api_rubric_review(handler):
+    """`POST /api/rubric-review` -- `{"session_id": "<id>"}`.
+    Identifier-addressed like every other /api/* session route; returns the
+    pending per-point rubric suggestions from `session.do_rubric_review`
+    (plan 08-04 Task 2) -- never a score and never an accept path (D-14,
+    D-25). The browser may render these; only the trusted local reviewer CLI
+    (`itembank mark --proposal`) may settle them.
+    """
+    if _reject_cross_origin(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    session_id = data.get("session_id")
+    path = api_session_path(handler, session_id)
+    if path is None:
+        handler.send_not_found(session_id if isinstance(session_id, str) else "")
+        return
+    try:
+        result = session.do_rubric_review(path)
     except SystemExit as exc:
         handler.send_error(400, str(exc.code))
         return

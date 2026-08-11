@@ -104,16 +104,17 @@ def assert_rejected_theme(base, args, expected_code):
 # ---- Task 2: the schema is complete, the validator's bounds are exact ------
 
 def test_schema_names_every_project_key():
-    """PROJECT.md's six named settings plus the daemon's own group plus the
-    update group plus the Phase 4 accent group -- eight groups, no fewer, no
-    more, each with a default, a phase and a description.
+    """PROJECT.md's named settings plus the daemon's own group plus the
+    update group plus the Phase 4 accent group plus plan 08-02's
+    suggestion_reveal -- each top-level key with a default, a phase and a
+    description.
     """
     schema = json.load(open(SCHEMA_PATH, encoding="utf-8"))
     keys = set(schema["properties"])
     expected = {"theme", "daily_cap", "selection_weights", "selection",
-                "auditor_autonomy", "model_backend", "update_policy", "daemon",
-                "update", "accent", "reader", "style", "paraphrase",
-                "retention"}
+                "auditor_autonomy", "model_backend", "suggestion_reveal",
+                "update_policy", "daemon", "update", "accent", "reader",
+                "style", "paraphrase", "retention"}
     if keys != expected:
         fail("schema properties %r do not equal the expected key set %r" % (keys, expected))
     for name, sub in schema["properties"].items():

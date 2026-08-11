@@ -6,7 +6,7 @@
   "x-itembank-version": 1,
   "type": "object",
   "additionalProperties": false,
-  "required": ["theme", "accent", "daily_cap", "selection_weights", "selection", "auditor_autonomy", "model_backend", "update_policy", "daemon", "reader", "style", "paraphrase", "retention"],
+  "required": ["theme", "accent", "daily_cap", "selection_weights", "selection", "auditor_autonomy", "model_backend", "suggestion_reveal", "update_policy", "daemon", "reader", "style", "paraphrase", "retention"],
   "properties": {
     "theme": {
       "type": "string",
@@ -117,36 +117,99 @@
     },
     "model_backend": {
       "type": "object",
-      "description": "Which model backend (if any) the AI-tutoring surfaces call, and where. Inert until Phase 8 reads it.",
+      "description": "The named model-backend profile registry (plan 08-02). active names the profile that serves AI-tutoring requests; an empty active or an empty profiles array disables model calls entirely, so a fresh install never phones a provider. Each profile record declares its own transport, timeout, output cap, and context window, and an optional secret_env that names an environment variable whose value is resolved at invoke time -- never stored in this file. Read by this phase (8).",
       "additionalProperties": false,
-      "required": ["kind", "endpoint", "model"],
+      "required": ["active", "profiles"],
       "x-itembank-phase": 8,
       "default": {
-        "kind": "none",
-        "endpoint": "",
-        "model": ""
+        "active": "",
+        "profiles": []
       },
       "properties": {
-        "kind": {
+        "active": {
           "type": "string",
-          "description": "none disables model calls entirely; hosted talks to a network provider; local talks to an OpenAI-compatible server on this machine. Inert until Phase 8 reads it.",
-          "enum": ["none", "hosted", "local"],
-          "default": "none",
+          "default": "",
+          "description": "The name of the profile that should serve model requests; empty (the shipped default) disables model calls entirely. A name that matches no profile is adapter.profile_unknown at read time, never a silent fallback.",
           "x-itembank-phase": 8
         },
-        "endpoint": {
-          "type": "string",
-          "description": "Base URL of the model server; ignored when kind is none. Inert until Phase 8 reads it.",
-          "default": "",
-          "x-itembank-phase": 8
-        },
-        "model": {
-          "type": "string",
-          "description": "Model name/identifier passed to the backend; ignored when kind is none. Inert until Phase 8 reads it.",
-          "default": "",
-          "x-itembank-phase": 8
+        "profiles": {
+          "type": "array",
+          "default": [],
+          "description": "The named backend profiles. Each record is a fixed schema (additionalProperties false): name (unique within this array), transport (hosted_cli or openai_compatible), command (the argv for hosted_cli), endpoint (the base URL for openai_compatible), model, timeout_seconds (1..300), max_output_bytes (1024..1048576), context_window (at least 1024), and secret_env (the environment-variable NAME the credential is read from -- never the value). Unique names and the transport-required fields are validated at read time by the shared profile resolver (surfaces/settings.resolve_profile), so an invalid registry is settings.invalid_value, never a silent fallback.",
+          "x-itembank-phase": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "transport", "model", "timeout_seconds", "max_output_bytes", "context_window"],
+            "x-itembank-phase": 8,
+            "description": "One model-backend profile record. command is required for transport hosted_cli and endpoint for transport openai_compatible; this validator has no conditional keyword, so resolve_profile enforces the transport-required fields at read time.",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The unique profile name settings.model_backend.active references. Duplicate names are settings.invalid_value at read time.",
+                "x-itembank-phase": 8
+              },
+              "transport": {
+                "type": "string",
+                "enum": ["hosted_cli", "openai_compatible"],
+                "description": "hosted_cli runs a configured CLI over stdin/stdout (subprocess, shell=False); openai_compatible POSTs to an OpenAI-compatible HTTP endpoint (urllib). Both share one normalized request/result shape behind the adapter boundary (D-17/D-18); a third backend is a TRANSPORT_REGISTRY entry, not a code fork (D-27).",
+                "x-itembank-phase": 8
+              },
+              "command": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The hosted_cli argv: the executable plus any fixed arguments. Learner and item text is never interpolated into this vector; the request reaches the CLI on stdin (T-08-10). Required when transport is hosted_cli.",
+                "x-itembank-phase": 8
+              },
+              "endpoint": {
+                "type": "string",
+                "description": "The base URL of the OpenAI-compatible server (e.g. http://127.0.0.1:8000/v1/chat/completions). Required when transport is openai_compatible. Learner and item text is never interpolated into this URL; the request body is the only payload.",
+                "x-itembank-phase": 8
+              },
+              "model": {
+                "type": "string",
+                "description": "The model name/identifier sent to the backend.",
+                "x-itembank-phase": 8
+              },
+              "timeout_seconds": {
+                "type": "number",
+                "minimum": 1,
+                "maximum": 300,
+                "description": "Per-profile timeout: a call that runs to exactly this bound is typed unavailable adapter.timeout (boundary included, D-04).",
+                "x-itembank-phase": 8
+              },
+              "max_output_bytes": {
+                "type": "integer",
+                "minimum": 1024,
+                "maximum": 1048576,
+                "description": "Per-profile output cap: output at exactly the cap passes and one byte over is unavailable adapter.output_cap_exceeded (D-04).",
+                "x-itembank-phase": 8
+              },
+              "context_window": {
+                "type": "integer",
+                "minimum": 1024,
+                "description": "This profile's context window; each profile declares its own, no plan assumes one window everywhere (D-18).",
+                "x-itembank-phase": 8
+              },
+              "secret_env": {
+                "type": "string",
+                "description": "The NAME of an environment variable whose value is the credential, resolved from os.environ at invoke time (D-03/D-15). Only the name lives here -- never the value, and the value never enters requests, results, logs, or evidence.",
+                "x-itembank-phase": 8
+              }
+            }
+          }
         }
       }
+    },
+    "suggestion_reveal": {
+      "type": "string",
+      "description": "When the model's rubric-review suggestion is disclosed relative to the learner's own mark (plan 08-02, D-22): after-self-mark shows it after the learner has marked their own answer; before-self-mark shows it before self-marking; after-mark shows it after the learner's mark is recorded. Read by this phase (8).",
+      "enum": ["after-self-mark", "before-self-mark", "after-mark"],
+      "default": "after-self-mark",
+      "x-itembank-phase": 8
     },
     "update_policy": {
       "type": "string",

@@ -88,3 +88,20 @@ jobs:
 
       - name: No real question bank committed
         run: python itembank.py guard .
+
+      # The two skill trees are mirrors by convention (AGENTS.md); CI makes
+      # the convention mechanical so drift fails the build instead of
+      # silently desyncing Claude Code from every other agent.
+      - name: Skill mirrors stay identical
+        run: diff -rq .agents/skills .claude/skills
+
+      # Machine-specific paths (this machine's checkout, username, AppData)
+      # leak into agent docs/config and break external users' clones.
+      - name: No machine-specific path in agent docs or config
+        run: |
+          if grep -rE "C:/Users|C:\\\\Users|/Users/wayba|wayba" \
+              AGENTS.md README.md .agents .claude reasonix.toml.example; then
+            echo "machine-specific path leaked into agent-facing files"
+            exit 1
+          fi
+          echo "agent docs are path-clean"

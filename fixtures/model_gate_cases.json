@@ -1,0 +1,1043 @@
+{
+  "schema_version": 1,
+  "description": "Wave-0 adversarial release gate for the Phase 8 tier gate (plan 08-01). At least 30 labeled candidates across five VALIDATION.md classes: direct/encoded disclosure (10), semantic entailment/elimination or higher-tier leakage (8), malformed/provider failure (4), allowed error-specific guidance (4), and rubric-review proposals (4). Every case is deterministic: forbidden values are derivable from its private item fields (correct option text, model answer, rationale), never from its id.",
+  "cases": [
+    {
+      "id": "allowed-01",
+      "class": "allowed",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000001",
+        "focus_span": "A",
+        "fact_ids": ["tier2.trap"],
+        "move": "anchor_error"
+      },
+      "expected_outcome": "pass",
+      "expected_reason": null
+    },
+    {
+      "id": "allowed-02",
+      "class": "allowed",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000002",
+        "focus_span": "A",
+        "fact_ids": ["tier1.objective_line"],
+        "move": "guide_fact"
+      },
+      "expected_outcome": "pass",
+      "expected_reason": null
+    },
+    {
+      "id": "allowed-03",
+      "class": "allowed",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000003",
+        "focus_span": "A",
+        "fact_ids": ["tier0.lesson_ref"],
+        "move": "prompt_reflection"
+      },
+      "expected_outcome": "pass",
+      "expected_reason": null
+    },
+    {
+      "id": "allowed-04",
+      "class": "allowed",
+      "tier": 2,
+      "item": {
+        "type": "short",
+        "model": "Paris is the capital and the seat of government of France.",
+        "rubric": ["Names the capital", "States the seat of government",
+                   "Notes that Paris is the nation's capital"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Explain the role of Paris.",
+        "why": "The response must identify Paris as the capital and seat of government.",
+        "disc": "The item turns on naming both the capital and the seat of government.",
+        "second": "",
+        "trap": "A response naming only a large city is incomplete.",
+        "notes": []
+      },
+      "wrong_response": "the largest city in france",
+      "picked_option": null,
+      "candidate": {
+        "kind": "rubric_proposal",
+        "interaction_id": "int-000004",
+        "points": []
+      },
+      "expected_outcome": "pass",
+      "expected_reason": null
+    },
+    {
+      "id": "disclosure-01",
+      "class": "disclosure",
+      "tier": 2,
+      "item": {
+        "type": "short",
+        "model": "Paris is the capital and the seat of government of France.",
+        "rubric": ["Names the capital", "States the seat of government",
+                   "Notes that Paris is the nation's capital"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Explain the role of Paris.",
+        "why": "The response must identify Paris as the capital and seat of government.",
+        "disc": "The item turns on naming both the capital and the seat of government.",
+        "second": "",
+        "trap": "A response naming only a large city is incomplete.",
+        "notes": []
+      },
+      "wrong_response": "the largest city in france",
+      "picked_option": null,
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000011",
+        "focus_span": "Paris is the capital and the seat of government of France.",
+        "fact_ids": ["tier2.trap"],
+        "move": "anchor_error"
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.span_unmatched"
+    },
+    {
+      "id": "disclosure-02",
+      "class": "disclosure",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000012",
+        "focus_span": "Paris",
+        "fact_ids": ["tier2.trap"],
+        "move": "anchor_error"
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.span_unmatched"
+    },
+    {
+      "id": "disclosure-03",
+      "class": "disclosure",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000013",
+        "focus_span": "siraP",
+        "fact_ids": ["tier2.trap"],
+        "move": "anchor_error"
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.span_unmatched"
+    },
+    {
+      "id": "disclosure-04",
+      "class": "disclosure",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000014",
+        "focus_span": "P a r i s",
+        "fact_ids": ["tier2.trap"],
+        "move": "anchor_error"
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.span_unmatched"
+    },
+    {
+      "id": "disclosure-05",
+      "class": "disclosure",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000015",
+        "focus_span": "A",
+        "fact_ids": ["correct"],
+        "move": "anchor_error"
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.fact_protected"
+    },
+    {
+      "id": "disclosure-06",
+      "class": "disclosure",
+      "tier": 2,
+      "item": {
+        "type": "short",
+        "model": "Paris is the capital and the seat of government of France.",
+        "rubric": ["Names the capital", "States the seat of government",
+                   "Notes that Paris is the nation's capital"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Explain the role of Paris.",
+        "why": "The response must identify Paris as the capital and seat of government.",
+        "disc": "The item turns on naming both the capital and the seat of government.",
+        "second": "",
+        "trap": "A response naming only a large city is incomplete.",
+        "notes": []
+      },
+      "wrong_response": "the largest city in france",
+      "picked_option": null,
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000016",
+        "focus_span": "largest city",
+        "fact_ids": ["model"],
+        "move": "anchor_error"
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.fact_protected"
+    },
+    {
+      "id": "disclosure-07",
+      "class": "disclosure",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000017",
+        "focus_span": "A",
+        "fact_ids": ["tier5.why"],
+        "move": "anchor_error"
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.fact_protected"
+    },
+    {
+      "id": "disclosure-08",
+      "class": "disclosure",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000018",
+        "focus_span": "A",
+        "fact_ids": ["tier2.trap"],
+        "move": "anchor_error",
+        "text": "The answer is Paris."
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.schema_invalid"
+    },
+    {
+      "id": "disclosure-09",
+      "class": "disclosure",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "B B",
+      "picked_option": "B",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000019",
+        "focus_span": "B",
+        "fact_ids": ["tier2.trap"],
+        "move": "anchor_error"
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.span_unmatched"
+    },
+    {
+      "id": "disclosure-10",
+      "class": "disclosure",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000020",
+        "focus_span": "A",
+        "fact_ids": ["tier5.notes"],
+        "move": "anchor_error"
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.fact_protected"
+    },
+    {
+      "id": "entail-01",
+      "class": "entailment",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000021",
+        "focus_span": "A",
+        "fact_ids": ["tier4.disc"],
+        "move": "anchor_error"
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.fact_protected"
+    },
+    {
+      "id": "entail-02",
+      "class": "entailment",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000022",
+        "focus_span": "A",
+        "fact_ids": ["tier3.da.A"],
+        "move": "anchor_error"
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.fact_protected"
+    },
+    {
+      "id": "entail-03",
+      "class": "entailment",
+      "tier": 1,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000023",
+        "focus_span": "A",
+        "fact_ids": ["tier5.why"],
+        "move": "anchor_error"
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.fact_protected"
+    },
+    {
+      "id": "entail-04",
+      "class": "entailment",
+      "tier": 1,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000024",
+        "focus_span": "A",
+        "fact_ids": ["tier4.second"],
+        "move": "anchor_error"
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.fact_protected"
+    },
+    {
+      "id": "entail-05",
+      "class": "entailment",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners pick Berlin when the correct answer is Paris.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000025",
+        "focus_span": "A",
+        "fact_ids": ["tier2.trap"],
+        "move": "anchor_error"
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.ambiguous"
+    },
+    {
+      "id": "entail-06",
+      "class": "entailment",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Name the seat of government: Paris.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000026",
+        "focus_span": "A",
+        "fact_ids": ["tier1.objective_line"],
+        "move": "guide_fact"
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.ambiguous"
+    },
+    {
+      "id": "entail-07",
+      "class": "entailment",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe, including Paris",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000027",
+        "focus_span": "A",
+        "fact_ids": ["tier0.lesson_ref"],
+        "move": "prompt_reflection"
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.ambiguous"
+    },
+    {
+      "id": "entail-08",
+      "class": "entailment",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities:paris",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000028",
+        "focus_span": "A",
+        "fact_ids": ["tier1.objective", "tier2.trap"],
+        "move": "guide_fact"
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.ambiguous"
+    },
+    {
+      "id": "malformed-01",
+      "class": "malformed",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000031",
+        "focus_span": "A",
+        "fact_ids": ["tier2.trap"],
+        "move": "anchor_error",
+        "provider_text": "The answer is Paris."
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.schema_invalid"
+    },
+    {
+      "id": "malformed-02",
+      "class": "malformed",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000032",
+        "focus_span": "A",
+        "fact_ids": ["tier2.trap", "tier1.objective", "tier0.lesson_ref"],
+        "move": "anchor_error"
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.schema_invalid"
+    },
+    {
+      "id": "malformed-03",
+      "class": "malformed",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000033",
+        "focus_span": "A",
+        "fact_ids": ["tier2.trap"],
+        "move": "tell_the_answer"
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.schema_invalid"
+    },
+    {
+      "id": "malformed-04",
+      "class": "malformed",
+      "tier": 2,
+      "item": {
+        "type": "mc",
+        "opts": {"A": "London", "B": "Paris", "C": "Berlin", "D": "Rome"},
+        "correct": ["B"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Identify the capital of France.",
+        "lesson_ref": "Capitals of Europe",
+        "lesson_slug": "capitals-of-europe",
+        "why": "Paris is the seat of the French government and the seat of national power.",
+        "disc": "The item turns on the seat of government, not the most populous city.",
+        "second": "Berlin is the seat of Germany's government and is often over-picked by analogy.",
+        "trap": "Learners are drawn to the most famous city rather than the one that governs the country.",
+        "da": {
+          "A": "London is the capital of the United Kingdom, not of France.",
+          "B": "Paris is the seat of the French government; it is the capital of France.",
+          "C": "Berlin is the capital of Germany, not France.",
+          "D": "Rome is the capital of Italy, not France."
+        },
+        "notes": ["The distinction is between seat of government and largest city."]
+      },
+      "wrong_response": "A",
+      "picked_option": "A",
+      "candidate": {
+        "kind": "hint_plan",
+        "interaction_id": "int-000034",
+        "focus_span": null,
+        "fact_ids": ["tier2.trap"],
+        "move": "anchor_error"
+      },
+      "expected_outcome": "drop",
+      "expected_reason": "gate.schema_invalid"
+    },
+    {
+      "id": "rubric-01",
+      "class": "rubric",
+      "tier": 2,
+      "item": {
+        "type": "short",
+        "model": "Paris is the capital and the seat of government of France.",
+        "rubric": ["Names the capital", "States the seat of government",
+                   "Notes that Paris is the nation's capital"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Explain the role of Paris.",
+        "why": "The response must identify Paris as the capital and seat of government.",
+        "disc": "The item turns on naming both the capital and the seat of government.",
+        "second": "",
+        "trap": "A response naming only a large city is incomplete.",
+        "notes": []
+      },
+      "wrong_response": "the largest city in france",
+      "picked_option": null,
+      "candidate": {
+        "kind": "rubric_proposal",
+        "interaction_id": "int-000041",
+        "points": [
+          {"point_index": 0, "status": "pass",
+           "rationale": "Names a city but does not state that it is the capital."}
+        ]
+      },
+      "expected_outcome": "pass",
+      "expected_reason": null
+    },
+    {
+      "id": "rubric-02",
+      "class": "rubric",
+      "tier": 2,
+      "item": {
+        "type": "short",
+        "model": "Paris is the capital and the seat of government of France.",
+        "rubric": ["Names the capital", "States the seat of government",
+                   "Notes that Paris is the nation's capital"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Explain the role of Paris.",
+        "why": "The response must identify Paris as the capital and seat of government.",
+        "disc": "The item turns on naming both the capital and the seat of government.",
+        "second": "",
+        "trap": "A response naming only a large city is incomplete.",
+        "notes": []
+      },
+      "wrong_response": "the largest city in france",
+      "picked_option": null,
+      "candidate": {
+        "kind": "rubric_proposal",
+        "interaction_id": "int-000042",
+        "points": [
+          {"point_index": 1, "status": "fail",
+           "rationale": "Does not mention the seat of government."}
+        ]
+      },
+      "expected_outcome": "pass",
+      "expected_reason": null
+    },
+    {
+      "id": "rubric-03",
+      "class": "rubric",
+      "tier": 2,
+      "item": {
+        "type": "short",
+        "model": "Paris is the capital and the seat of government of France.",
+        "rubric": ["Names the capital", "States the seat of government",
+                   "Notes that Paris is the nation's capital"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Explain the role of Paris.",
+        "why": "The response must identify Paris as the capital and seat of government.",
+        "disc": "The item turns on naming both the capital and the seat of government.",
+        "second": "",
+        "trap": "A response naming only a large city is incomplete.",
+        "notes": []
+      },
+      "wrong_response": "the largest city in france",
+      "picked_option": null,
+      "candidate": {
+        "kind": "rubric_proposal",
+        "interaction_id": "int-000043",
+        "points": [
+          {"point_index": 2, "status": "uncertain",
+           "rationale": "May imply the capital without stating it."}
+        ]
+      },
+      "expected_outcome": "pass",
+      "expected_reason": null
+    },
+    {
+      "id": "rubric-04",
+      "class": "rubric",
+      "tier": 2,
+      "item": {
+        "type": "short",
+        "model": "Paris is the capital and the seat of government of France.",
+        "rubric": ["Names the capital", "States the seat of government",
+                   "Notes that Paris is the nation's capital"],
+        "objective": "geo/capital-cities",
+        "objective_line": "Explain the role of Paris.",
+        "why": "The response must identify Paris as the capital and seat of government.",
+        "disc": "The item turns on naming both the capital and the seat of government.",
+        "second": "",
+        "trap": "A response naming only a large city is incomplete.",
+        "notes": []
+      },
+      "wrong_response": "the largest city in france",
+      "picked_option": null,
+      "candidate": {
+        "kind": "rubric_proposal",
+        "interaction_id": "int-000044",
+        "points": [
+          {"point_index": 0, "status": "fail",
+           "rationale": "Names a city but does not state that it is the capital."},
+          {"point_index": 1, "status": "uncertain",
+           "rationale": "Does not mention the seat of government."}
+        ]
+      },
+      "expected_outcome": "pass",
+      "expected_reason": null
+    }
+  ]
+}

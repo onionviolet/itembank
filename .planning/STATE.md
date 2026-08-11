@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 06.1
-current_phase_name: Interactive Visual Assessment Protocol
-status: planning
-stopped_at: Completed 06-02-PLAN.md
-last_updated: "2026-08-11T03:25:24.951Z"
-last_activity: 2026-08-10
-last_activity_desc: Phase 03.1 execution started
+current_phase: 08
+current_phase_name: model-adapter-interface-tier-gate-enforcement
+status: executing
+stopped_at: Completed 08-04-PLAN.md
+last_updated: "2026-08-11T06:31:30.474Z"
+last_activity: 2026-08-11
+last_activity_desc: Phase 08 plan 08-03 completed (model interaction + rubric proposal evidence events)
 progress:
   total_phases: 18
   completed_phases: 9
   total_plans: 104
-  completed_plans: 60
+  completed_plans: 64
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-07)
 
 **Core value:** One runtime, one scorer, one evidence store â€” and the runtime, not the model, decides what reaches the learner.
-**Current focus:** Phase 03.2 — seeding-import-provenance
+**Current focus:** Phase 08 — model-adapter-interface-tier-gate-enforcement
 
 ## Current Position
 
-Phase: 06.1 — Interactive Visual Assessment Protocol
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-08-10 — Phase 06 complete, transitioned to Phase 06.1
+Phase: 08 (model-adapter-interface-tier-gate-enforcement) — EXECUTING
+Plan: 4 of 6 complete
+Status: Ready to execute
+Last activity: 2026-08-11 — 08-02 (model adapter interface + profile registry) completed
 
-Progress: [██████░░░░] 58%
+Progress: [██████░░░░] 62%
 
 ## Performance Metrics
 
@@ -112,6 +112,8 @@ Progress: [██████░░░░] 58%
 | Phase 07 P05 | 45min | 3 tasks | 7 files |
 | Phase 07 P06 | 45min | 3 tasks | 11 files |
 | Phase 06 P02 | 150 min | 3 tasks | 11 files |
+| Phase 08-model-adapter-interface-tier-gate-enforcement P08-03 | 22min | 3 tasks | 3 files |
+| Phase 08-model-adapter-interface-tier-gate-enforcement P08-04 | 55 | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -257,6 +259,21 @@ Recent decisions affecting current work:
 - [Phase ?]: User confirmed option-a on both 07-04 gates: distinct selection_mode field (D-11) and a selection event once per sitting plus selection_mode on every response event (D-03)
 - [Phase ?]: 13-05: AV/signing decision recorded as the honest unsigned branch (D-11) with real SHA-256; Authenticode/VirusTotal/submission rows are explicit pending, never executed.
 - [Phase ?]: D-15 resolved: selection_weights.recency_decay IS the soft penalty (read by phase 7); objective_miss_rate/difficulty_spread retagged to phase 10 and inert
+- [Phase 8] 08-01: the tier gate is the five-step algorithm from RESEARCH Pattern 1 — manifest build, strict schema, span, fact, move — fail-closed at every layer; a leaking candidate is dropped whole, never rewritten into a sanitized version (D-06)
+- [Phase 8] 08-01: learner_payload is the single constructor surfaces may call; pass -> status+generated, drop/unavailable -> status + null generated, never a reason/tier/fact/provider/detector detail (D-08)
+- [Phase 8] 08-01: protected-fragment overlap detection normalizes with casefold + whitespace collapse and a MIN_FRAGMENT_LEN=4 floor so the conservative ambiguity rule stays useful
+- [Phase 8] 08-01: the authored-fallback seam reuses the Phase 6 runtime.authored_hint(q, tier, canonical) — not the plan's stated (q, tier) — and keeps the ladder usable at the unlocked tier on drop/unavailable (MODEL-03)
+- [Phase 8] 08-02: model_backend became a named profile registry {active, profiles} of fixed records (name, transport hosted_cli|openai_compatible, command|endpoint, model, timeout_seconds, max_output_bytes, context_window, secret_env) plus the top-level suggestion_reveal enum defaulting to after-self-mark (D-22); the shipped default is disabled (active "" + empty profiles), so a fresh install never phones a provider
+- [Phase 8] 08-02: the shared profile resolver (surfaces/settings.resolve_profile, re-exported by model_adapter) validates unique names and the two known transports' required fields at read time — settings.invalid_value for a bad registry, adapter.profile_unknown for a missing active name — and DEFERS unrecognized transport names to TRANSPORT_REGISTRY, so a third backend is a registry entry plus a config entry with zero resolver edits (D-27), and an unregistered transport resolves to typed adapter.transport_unknown
+- [Phase 8] 08-02: credentials are resolved from os.environ[profile.secret_env] by name at invoke time only; the settings file stores the env-var name, never the value, and the value never enters requests, results, logs, or evidence (D-03/D-15) — enforced structurally by the schema's additionalProperties false and asserted by a flatten() scan over request/result bodies
+- [Phase 8] 08-02: the two shipped transports (hosted_cli subprocess, openai_compatible urllib) produce the same normalized request/result shape under a config-only switch, preserving backend class (hosted|local) in private audit metadata (D-17/D-18); every failure family is one typed unavailable result with a named adapter.* code (D-04)
+- [Phase 08]: model_interaction and mark_proposal events are registered in KNOWN_EVENT_TYPES and the schema enum in the same commit as each builder (D-23); dedupe is one-generation-per-interaction with retries linked via parent_interaction_id (D-12)
+- [Phase 08]: mark_event(proposal_ref=None) folds the reference into the dedupe raw string so accepting two different proposals for the same response records two distinct human marks; the marker != 'human' guard stays byte-for-byte unchanged (D-14/D-23)
+- [Phase 08] 08-03: requirements TEACH-07/08/09, MODEL-03, MODEL-05 NOT yet marked complete -- the shared-ID gate (#2388) blocks them because 08-04/05/06 still declare them without SUMMARYs; requirements.mark-complete re-evaluates when the last declaring plan finishes
+- [Phase 7] 07: CLOSED 2026-08-11 for its binding scope — SEL-01..05 verified (6/6 plans; `python tests/selection_roundtrip.py` 18/18 green); UAT 3/4 automated pass + explain-legibility manual (E1 backstop sample in 07-VERIFICATION.md). The five roadmap criteria beyond the binding scope (guided path, fringe mastery-gate, blueprint/[CASE:] weights, corpus reach, pending-mark invariant) are recorded as actionable gaps in 07-VERIFICATION.md with recommended homes (07.1 wave or Phases 10/11); closed per project decision, gaps not silently dropped
+- [Phase 08]: 08-04: the CLI hint command is now the model-orchestrated diagnostic hint (--session/--retry); the Phase 6 explicit tier-reveal stays in the runtime teaching transition and the daemon /api/hint (via a stumped=None sentinel on do_hint) until plan 08-05 rewires the route
+- [Phase 08]: 08-04: one generation per interaction id is structural (evidence dedupe over session_id+interaction_id); retry=True mints a uuid4 child id with parent_interaction_id pointing at the most recent interaction -- cost and repeated failures stay visible in evidence
+- [Phase 08]: 08-04: tier-3 suggestions are pending-only; the only accept paths are the learner's explicit self-mark and the reviewer's explicit human batch accept, both through mark_event with proposal_ref, and no auto-accept flag exists anywhere (D-25)
 
 ## Deferred Verification
 
@@ -273,7 +290,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-11T03:03:43.371Z
-Stopped at: Completed 06-02-PLAN.md
+Last session: 2026-08-11T06:31:01.912Z
+Stopped at: Completed 08-04-PLAN.md
 Resume file: None
 Deferred human verification: Phases 2.1/3/4 (see Deferred Verification table above)

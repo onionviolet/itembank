@@ -195,6 +195,15 @@ def _resolve_marks_event(log, session_id, item_ref):
     return candidate
 
 
+def _resolve_proposal(log, session_id, proposal_id):
+    """The LIVE mark_proposal event with this event_id for `session_id`, or
+    None -- what a proposal-accept mark must reference (plan 08-04, D-14)."""
+    for ev in evidence.proposals_for(log, session_id):
+        if ev.get("event_id") == proposal_id:
+            return ev
+    return None
+
+
 def _normalize_verdict(raw):
     if isinstance(raw, bool):
         return raw
@@ -219,15 +228,18 @@ def _normalize_rubric(raw):
 
 
 def _load_marks_batch(a):
-    """Exactly one of `--file`, `--marks` or `--item` selects the batch
-    (D-12 requires the command to accept a batch; `--item` is the
-    single-mark convenience form for one answer). Returns a list of raw
-    mark dicts, in input order, none of which have been resolved or
-    validated against the log yet.
+    """Exactly one of `--file`, `--marks`, `--item` or `--proposal` selects
+    the batch (D-12 requires the command to accept a batch; `--item` is the
+    single-mark convenience form for one answer and `--proposal` the
+    single-proposal accept form). Returns a list of raw mark dicts, in input
+    order, none of which have been resolved or validated against the log
+    yet. A single-form entry may carry `--rubric` JSON of N {point, pass}
+    booleans supplied by the human marker (D-24).
     """
-    given = [x for x in (a.file, a.marks, a.item) if x]
+    given = [x for x in (a.file, a.marks, a.item, a.proposal) if x]
     if len(given) != 1:
-        sys.exit("mark: give exactly one of --file, --marks or --item")
+        sys.exit("mark: give exactly one of --file, --marks, --item or "
+                 "--proposal")
     if a.file:
         text = sys.stdin.read() if a.file == "-" else open(a.file, encoding="utf-8").read()
         entries = []
@@ -249,19 +261,34 @@ def _load_marks_batch(a):
             sys.exit("mark: --marks must be a JSON array")
         return entries
     if not a.verdict:
-        sys.exit("mark: --item requires --verdict")
-    return [{"item_ref": a.item, "verdict": a.verdict}]
+        sys.exit("mark: --item/--proposal requires --verdict")
+    entry = {"verdict": a.verdict}
+    if a.item:
+        entry["item_ref"] = a.item
+    if a.proposal:
+        entry["proposal"] = a.proposal
+    if a.rubric:
+        try:
+            rubric = json.loads(a.rubric)
+        except ValueError as exc:
+            sys.exit("mark: --rubric is not valid JSON (%s)" % exc)
+        if not isinstance(rubric, list):
+            sys.exit("mark: --rubric must be a JSON array of {point, pass}")
+        entry["rubric"] = rubric
+    return [entry]
 
 
 def cmd_mark(a):
     """Record a batch of marks as timestamped events (D-12) -- twenty short
-    answers marked in one invocation, not twenty separate ones.
+    answers marked in one invocation, not twenty separate ones. Entries may
+    identify their target by `item_ref` (resolved to the most recent live
+    response) or by `proposal` (resolved to the proposal's response event,
+    plan 08-04 D-14); a single proposal may be accepted with `--proposal`.
 
-    Every entry's `item_ref` is resolved to its most recent live response
-    event, and every entry in the batch is resolved before anything is
-    appended: a batch that names one item never answered in this session
-    exits non-zero naming the reference, with nothing appended for any
-    entry in that batch, rather than partially recording the marks that
+    Every entry is resolved before anything is appended: a batch that names
+    one item never answered in this session, or one proposal that does not
+    exist, exits non-zero naming the reference, with nothing appended for
+    any entry in that batch, rather than partially recording the marks that
     happened to resolve first.
     """
     log = evidence.log_path(a.base)
@@ -271,6 +298,26 @@ def cmd_mark(a):
 
     resolved = []
     for entry in entries:
+        proposal_id = entry.get("proposal")
+        if proposal_id:
+            proposal = _resolve_proposal(log, a.session, proposal_id)
+            if proposal is None:
+                sys.exit("mark: no mark_proposal event %r in session %s" %
+                         (proposal_id, a.session))
+            target = evidence.event_by_id(log,
+                                          proposal.get("response_event_id"))
+            if target is None:
+                sys.exit("mark: proposal %r names a missing response event %r" %
+                         (proposal_id, proposal.get("response_event_id")))
+            item_ref = proposal.get("item_ref")
+            if not item_ref:
+                sys.exit("mark: proposal %r has no item_ref" % proposal_id)
+            verdict = _normalize_verdict(entry.get("verdict"))
+            rubric = _normalize_rubric(entry.get("rubric"))
+            notes = entry.get("notes") or ""
+            resolved.append((item_ref, target, verdict, rubric, notes,
+                             proposal_id))
+            continue
         item_ref = entry.get("item_ref")
         if not item_ref:
             sys.exit("mark: an entry is missing item_ref: %r" % (entry,))
@@ -282,17 +329,19 @@ def cmd_mark(a):
         verdict = _normalize_verdict(entry.get("verdict"))
         rubric = _normalize_rubric(entry.get("rubric"))
         notes = entry.get("notes") or ""
-        resolved.append((item_ref, target, verdict, rubric, notes))
+        resolved.append((item_ref, target, verdict, rubric, notes, None))
 
     results = []
     recorded = already_recorded = 0
-    for item_ref, target, verdict, rubric, notes in resolved:
+    for item_ref, target, verdict, rubric, notes, proposal_id in resolved:
         event = evidence.mark_event(
             a.session, target.get("item_id", ""), item_ref, target["event_id"],
-            verdict, rubric=rubric, notes=notes)
+            verdict, rubric=rubric, notes=notes, proposal_ref=proposal_id)
         write_result = evidence.append_event(log, event)
         results.append({"item_ref": item_ref, "marks_event": target["event_id"],
-                        "status": write_result["status"], "event_id": write_result["event_id"]})
+                        "status": write_result["status"],
+                        "event_id": write_result["event_id"],
+                        "proposal_ref": proposal_id})
         if write_result["status"] == "recorded":
             recorded += 1
         else:

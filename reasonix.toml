@@ -1,2 +1,0 @@
-[permissions]
-allow = ["Bash=SNAP=$(mktemp -d)/baseline-status.txt; git status --short > \"$SNAP\"; echo \"BASELINE_SNAPSHOT=$SNAP\"; echo \"--- baseline line count: $(wc -l < \"$SNAP\")\"; date +%s.%N"]

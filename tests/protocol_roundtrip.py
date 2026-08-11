@@ -448,10 +448,10 @@ def test_schema_command_output():
         fail("--all's spec does not equal model.SPEC verbatim")
 
     names = sorted(payload.get("contracts", {}))
-    if names != ["item", "lint_error", "report", "response", "selection",
-                 "session"]:
-        fail("--all's contracts dict does not carry all six names in sorted "
-             "order: %r" % names)
+    if names != ["agent_usage", "item", "lint_error", "report", "response",
+                 "selection", "session"]:
+        fail("--all's contracts dict does not carry all seven names in "
+             "sorted order: %r" % names)
 
     for name, doc in payload["contracts"].items():
         try:

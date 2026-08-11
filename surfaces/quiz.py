@@ -11,18 +11,23 @@ import evidence
 from model import grab, lint, load, parse_lesson
 from runtime import page_item, score_response
 from surfaces import presentation, settings
-from surfaces.quiz_page import OFFLINE_JS, SERVED_JS, TEMPLATE
+from surfaces.quiz_page import (AGENT_ASSIST_HTML, ASSIST_JS, OFFLINE_JS,
+                                SERVED_JS, TEMPLATE)
 from surfaces.theme import THEME_CSS, theme_css
 
 
 def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
              lesson_base="", lesson_slugs=None, bank_stem=None, mode=None,
-             theme_css=None):
+             theme_css=None, assist=False):
     """Render one quiz page. `theme_css`, when given, is the per-render
     generated token block (the daemon passes
     `theme.theme_css(load_settings(root))` so quiz shares the one palette
     with index/report/settings -- plan 04-04 Task 2); when omitted the
     module's THEME_CSS constant keeps every existing caller byte-identical.
+    `assist`, when true and the page is served, threads the plan 08-05
+    AgentAssist payload (AGENT_ASSIST_HTML + ASSIST_JS) into the assist slot
+    -- the daemon is the only caller that sets it, so build/offline mode
+    ships no assist at all.
     """
     text = open(bank_path, encoding="utf-8").read()
     title = grab(r"(?m)^#\s+(.*?)\s*$", text) or os.path.basename(bank_path)
@@ -74,6 +79,8 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                  .replace("__LESSON_LABEL__", lesson_label))
     # __DATA__/__BOOT__ go in last so that bank text which happens to contain
     # another placeholder is never itself substituted.
+    assist_html = AGENT_ASSIST_HTML if (serve and assist) else ""
+    assist_js = ASSIST_JS if (serve and assist) else ""
     return mix, (TEMPLATE
                  .replace("__THEME__", THEME_CSS if theme_css is None
                           else theme_css)
@@ -82,6 +89,8 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                  .replace("__SUB__", sub)
                  .replace("__CTX_BANK__", ctx_bank)
                  .replace("__CTX_MODE__", ctx_mode)
+                 .replace("__ASSIST__", assist_html)
+                 .replace("__ASSIST_JS__", assist_js)
                  .replace("__OFFLINE_JS__", "" if serve else offline_js)
                  .replace("__SERVED_JS__", served_js if serve else "")
                  .replace("__BOOT__", presentation.script_safe_json(boot))

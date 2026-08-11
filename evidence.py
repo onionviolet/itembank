@@ -41,14 +41,17 @@ INDEX_FILENAME = "evidence_index.sqlite3"
 
 # "retraction" was added by plan 01-07, "mark" by plan 01-09, "day_tick" by
 # plan 01-10, "term_lookup" by plan 03.1-02, "key_review" by plan 03.1-03,
+# plan 01-10, "term_lookup" by plan 03.1-02, "key_review" by plan 03.1-03,
 # "hint" by plan 06-01, "selection" by plan 07-04, "lesson_complete" by
-# plan 10-02, and "cap_override" by plan 10-04 -- response events are the
-# only ones this build wrote before 01-07. events() skips and warns on
-# anything outside this set (D-09), so a log written by a later build's event
-# type degrades instead of crashing.
+# plan 10-02, "cap_override" by plan 10-04, and "model_interaction" /
+# "mark_proposal" by plan 08-03 -- response events are the only ones this
+# build wrote before 01-07. events() skips and warns on anything outside
+# this set (D-09), so a log written by a later build's event type degrades
+# instead of crashing.
 KNOWN_EVENT_TYPES = ("response", "retraction", "mark", "day_tick",
                      "term_lookup", "key_review", "hint", "selection",
-                     "lesson_complete", "cap_override")
+                     "lesson_complete", "cap_override",
+                     "model_interaction", "mark_proposal")
 
 # The record of what a sitting asked for (D-03): one event per session, so a
 # deleted session file never destroys the ability to reproduce the sitting.
@@ -1148,7 +1151,7 @@ def event_by_id(log, event_id):
 
 
 def mark_event(session_id, item_id, item_ref, marks_event, verdict, rubric=None,
-                notes="", marker="human"):
+                notes="", marker="human", proposal_ref=None):
     """Build one mark event: a timestamped, first-class fact about the
     response event named by `marks_event`, appended alongside it rather
     than mutating it.
@@ -1163,11 +1166,18 @@ def mark_event(session_id, item_id, item_ref, marks_event, verdict, rubric=None,
     one as pending review instead, so any other value raises `ValueError`
     rather than being recorded as a settled fact (T-1-24).
 
+    `proposal_ref` links this human mark to the exact mark_proposal event it
+    accepts (D-14/D-24): it is recorded on the event and folded into the
+    dedupe raw string (None encodes as empty), so accepting two different
+    proposals for the same response records two distinct human marks rather
+    than deduping into one.
+
     `dedupe_key` is computed over `(session_id, marks_event, verdict, a
-    canonical encoding of rubric)`, so replaying an identical batch is
-    idempotent (`append_event` reports `already_recorded`), while a
-    genuinely corrected verdict or rubric — a different tuple — always
-    records as a new, live mark that `marks_by_event` then prefers.
+    canonical encoding of rubric, proposal_ref)`, so replaying an identical
+    batch is idempotent (`append_event` reports `already_recorded`), while a
+    genuinely corrected verdict, rubric, or proposal reference -- a
+    different tuple -- always records as a new, live mark that
+    `marks_by_event` then prefers.
     """
     if marker != "human":
         raise ValueError(
@@ -1177,7 +1187,8 @@ def mark_event(session_id, item_id, item_ref, marks_event, verdict, rubric=None,
     rubric = [{"point": r["point"], "pass": bool(r["pass"])} for r in (rubric or [])]
     rubric_canon = json.dumps(rubric, ensure_ascii=False, sort_keys=True)
     verdict = bool(verdict)
-    raw = "%s|%s|%s|%s" % (session_id, marks_event, verdict, rubric_canon)
+    raw = "%s|%s|%s|%s|%s" % (session_id, marks_event, verdict, rubric_canon,
+                               proposal_ref or "")
     return {
         "schema_version": EVENT_SCHEMA_VERSION,
         "event_id": new_event_id(),
@@ -1191,6 +1202,7 @@ def mark_event(session_id, item_id, item_ref, marks_event, verdict, rubric=None,
         "rubric": rubric,
         "notes": notes or "",
         "marker": marker,
+        "proposal_ref": proposal_ref,
         "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
     }
 
@@ -1862,6 +1874,206 @@ def cap_override_event(session_id, bank, subject, local_date, zone,
         "count": count,
         "scope": "sitting",
         "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+# ---- model interactions (08-03) --------------------------------------------
+# D-12/D-15/D-16: every attempted model interaction -- a generated hint or a
+# rubric review -- is one durable, append-only evidence fact carrying the
+# backend/profile, operation, timing, request/output fingerprints, outcome,
+# gate result, and permitted tier. A dropped candidate stores descriptors
+# only: raw dropped text is never written, so no normal retrieval path can
+# re-expose it (T-08-21).
+
+MODEL_INTERACTION_EVENT_TYPE = "model_interaction"
+
+
+def model_interaction_event(session_id, bank, item_ref, operation, interaction_id,
+                            outcome, gate_reason, permitted_tier, backend_class,
+                            profile, request_fingerprint, response_fingerprint,
+                            elapsed_ms, output_bytes, pass_payload=None,
+                            parent_interaction_id=None, ts=None):
+    """Build one model_interaction event: a first-class, timestamped fact
+    that one model generation was attempted (D-12/D-15).
+
+    `operation` is `hint` or `rubric_review`; `outcome` is `pass`, `drop`,
+    or `unavailable` (D-08); `backend_class` is `hosted` or `local` (D-17);
+    `gate_reason` carries plan 08-01's machine-readable reason code (e.g.
+    `gate.ambiguous`) or None. `pass_payload` is stored only when `outcome`
+    is `pass` -- a dropped or unavailable candidate never leaves its text in
+    evidence (D-16). The returned dict carries no `score` key at all,
+    structurally mirroring term_lookup/key_review: an interaction is a fact
+    about the model, never accepted evidence about the learner.
+
+    `dedupe_key` is a hash over (session_id, interaction_id), so at most one
+    generation is recorded per interaction id (D-12): appending the same
+    interaction twice reports `already_recorded`. An explicit retry is a NEW
+    interaction id whose `parent_interaction_id` names the original, keeping
+    cost and repeated failures visible without reusing the dedupe key.
+    """
+    if not interaction_id:
+        raise ValueError("model_interaction_event: interaction_id must be "
+                         "non-empty")
+    if operation not in ("hint", "rubric_review"):
+        raise ValueError("model_interaction_event: operation must be 'hint' "
+                         "or 'rubric_review', got %r" % (operation,))
+    if outcome not in ("pass", "drop", "unavailable"):
+        raise ValueError("model_interaction_event: outcome must be 'pass', "
+                         "'drop' or 'unavailable', got %r" % (outcome,))
+    if backend_class not in ("hosted", "local"):
+        raise ValueError("model_interaction_event: backend_class must be "
+                         "'hosted' or 'local', got %r" % (backend_class,))
+    payload = pass_payload if outcome == "pass" else None
+    raw = "%s|%s" % (session_id, interaction_id)
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": MODEL_INTERACTION_EVENT_TYPE,
+        "ts": ts if ts is not None else utc_now(),
+        "session_id": session_id,
+        "bank": bank,
+        "item_ref": item_ref,
+        "operation": operation,
+        "interaction_id": interaction_id,
+        "outcome": outcome,
+        "gate_reason": gate_reason,
+        "permitted_tier": permitted_tier,
+        "backend_class": backend_class,
+        "profile": profile,
+        "request_fingerprint": request_fingerprint,
+        "response_fingerprint": response_fingerprint,
+        "elapsed_ms": elapsed_ms,
+        "output_bytes": output_bytes,
+        "pass_payload": payload,
+        "parent_interaction_id": parent_interaction_id,
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+def model_interactions(log, session_id):
+    """Every LIVE model_interaction event for `session_id`, in log order.
+
+    Reads through `live_events`, never `events`, so a retracted interaction
+    vanishes from a report exactly as it vanishes from a count (D-10).
+    Reports and the CLI query this one shape instead of each re-filtering
+    `events()` themselves (08-03).
+    """
+    return [ev for ev in live_events(log)
+            if ev.get("event_type") == MODEL_INTERACTION_EVENT_TYPE
+            and ev.get("session_id") == session_id]
+
+
+# ---- mark proposals (08-03) -------------------------------------------------
+# D-13/D-14/D-23: a rubric-review outcome is a per-point pass|fail|uncertain
+# pending suggestion linked to the genuine short-answer response event and to
+# the interaction that produced it. A proposal is structurally incapable of
+# settling a mark: it carries no score key and no verdict field, and the
+# settled-mark readers (marks_by_event, the review_state derivation) filter
+# on the mark event type only (T-08-20).
+
+MARK_PROPOSAL_EVENT_TYPE = "mark_proposal"
+
+
+def mark_proposal_event(session_id, bank, item_id, item_ref, response_event_id,
+                        interaction_id, points, ts=None):
+    """Build one mark_proposal event: a first-class, timestamped pending
+    suggestion for the response event named by `response_event_id`, produced
+    by the model interaction named by `interaction_id` (D-13).
+
+    `points` is a list of per-point suggestions, each carrying `point_index`
+    (a non-negative integer), `status` (pass, fail, or uncertain), and a
+    `rationale` bounded at 240 characters. An empty `points` array is valid
+    and reads back as pending/unknown, never a default pass (D-22).
+
+    The returned dict carries no `score` key and no `verdict` field --
+    structurally, not merely by convention: a proposal can never be mistaken
+    for the settled mark that only a human's `mark_event(marker="human",
+    proposal_ref=...)` creates (D-14/D-23).
+
+    `dedupe_key` is a hash over (session_id, response_event_id,
+    interaction_id), so one proposal per response-interaction pair is
+    structural: a second identical proposal reports `already_recorded`.
+    """
+    if not response_event_id:
+        raise ValueError("mark_proposal_event: response_event_id must be "
+                         "non-empty")
+    if not interaction_id:
+        raise ValueError("mark_proposal_event: interaction_id must be "
+                         "non-empty")
+    out_points = []
+    for i, p in enumerate(points or []):
+        point_index = p.get("point_index")
+        status = p.get("status")
+        rationale = p.get("rationale", "")
+        if (not isinstance(point_index, int) or isinstance(point_index, bool)
+                or point_index < 0):
+            raise ValueError(
+                "mark_proposal_event: point %d point_index must be a "
+                "non-negative integer, got %r" % (i, point_index))
+        if status not in ("pass", "fail", "uncertain"):
+            raise ValueError(
+                "mark_proposal_event: point %d status must be 'pass', 'fail' "
+                "or 'uncertain', got %r" % (i, status))
+        if not isinstance(rationale, str) or len(rationale) > 240:
+            raise ValueError(
+                "mark_proposal_event: point %d rationale must be a string of "
+                "at most 240 characters" % (i,))
+        out_points.append({"point_index": point_index, "status": status,
+                           "rationale": rationale})
+    raw = "%s|%s|%s" % (session_id, response_event_id, interaction_id)
+    return {
+        "schema_version": EVENT_SCHEMA_VERSION,
+        "event_id": new_event_id(),
+        "event_type": MARK_PROPOSAL_EVENT_TYPE,
+        "ts": ts if ts is not None else utc_now(),
+        "session_id": session_id,
+        "bank": bank,
+        "item_id": item_id,
+        "item_ref": item_ref,
+        "response_event_id": response_event_id,
+        "interaction_id": interaction_id,
+        "points": out_points,
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+
+
+def proposals_for(log, session_id, response_event_id=None):
+    """Every LIVE mark_proposal event for `session_id`, optionally filtered
+    to one response event, in log order.
+
+    Reads through `live_events`, never `events` (post-retraction discipline,
+    D-10): a retracted proposal disappears from this reader as it does from
+    a count. A proposal this reader still returns has never been accepted --
+    `proposal_summary` derives its pending state, and only a human's
+    `mark_event(marker="human", proposal_ref=...)` settles it (D-22).
+    """
+    return [ev for ev in live_events(log)
+            if ev.get("event_type") == MARK_PROPOSAL_EVENT_TYPE
+            and ev.get("session_id") == session_id
+            and (response_event_id is None
+                 or ev.get("response_event_id") == response_event_id)]
+
+
+def proposal_summary(proposal):
+    """Derive {points, pass_count, uncertain_count, pending} from a
+    mark_proposal event's N per-point statuses -- a pure read-time
+    derivation that never stores a fractional score anywhere (D-24). A
+    "4 of 5" style count is computed here, at read time, from the statuses
+    alone.
+
+    `pending` is True when any point is `uncertain` or the points array is
+    empty -- a suggestion with open points stays pending until a human
+    decides (D-22). An unaccepted proposal stays pending forever; this
+    function never fabricates a default pass (D-25).
+    """
+    pts = proposal.get("points") or []
+    pass_count = sum(1 for p in pts if p.get("status") == "pass")
+    uncertain_count = sum(1 for p in pts if p.get("status") == "uncertain")
+    return {
+        "points": len(pts),
+        "pass_count": pass_count,
+        "uncertain_count": uncertain_count,
+        "pending": len(pts) == 0 or uncertain_count > 0,
     }
 
 
