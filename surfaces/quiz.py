@@ -23,7 +23,11 @@ from surfaces.theme import THEME_CSS, theme_css
 _CM6_BUNDLE_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     "assets", "vendor", "codemirror", "codemirror.bundle.js")
+_CM6_BOOT_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "assets", "vendor", "codemirror", "check-editor-boot.js")
 _CM6_BUNDLE_CACHE = None
+_CM6_BOOT_CACHE = None
 
 
 def _cm6_bundle():
@@ -32,6 +36,14 @@ def _cm6_bundle():
         with open(_CM6_BUNDLE_PATH, encoding="utf-8") as fh:
             _CM6_BUNDLE_CACHE = fh.read()
     return _CM6_BUNDLE_CACHE
+
+
+def _cm6_boot():
+    global _CM6_BOOT_CACHE
+    if _CM6_BOOT_CACHE is None:
+        with open(_CM6_BOOT_PATH, encoding="utf-8") as fh:
+            _CM6_BOOT_CACHE = fh.read()
+    return _CM6_BOOT_CACHE
 
 
 def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
@@ -105,6 +117,8 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
     has_check = any(q.get("type") == "check" for q in qs)
     cm6 = ("<script id=\"cm6\">" + _cm6_bundle() + "</script>"
            if has_check else "")
+    cm6_boot_html = ("<script id=\"cm6-boot\">" + _cm6_boot() + "</script>"
+                     if has_check else "")
     return mix, (TEMPLATE
                  .replace("__THEME__", THEME_CSS if theme_css is None
                           else theme_css)
@@ -115,6 +129,7 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                  .replace("__CTX_MODE__", ctx_mode)
                  .replace("__HONEST_LIMITS__", HONEST_LIMITS_NOTE)
                  .replace("__CM6_TAG__", cm6)
+                 .replace("__CM6_BOOT__", cm6_boot_html)
                  .replace("__OFFLINE_JS__", "" if serve else offline_js)
                  .replace("__SERVED_JS__", served_js if serve else "")
                  .replace("__BOOT__", presentation.script_safe_json(boot))

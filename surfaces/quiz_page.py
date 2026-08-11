@@ -200,6 +200,7 @@ textarea.ans:disabled{opacity:.75}
 <div id="host"></div>
 </div>
 __CM6_TAG__
+__CM6_BOOT__
 <script id="offline">
 __OFFLINE_JS__
 </script>
@@ -529,28 +530,32 @@ function asCheck(q, body, act, card){
     return n === 1 ? "runs against 1 hidden test case"
                    : "runs against " + n + " hidden test cases";
   }
-  /* The vendored bundle exposes the CodeMirror global; this is the only
-     place the editor is configured (plan 05-05 Task 2: starter document,
-     locked placeholder, 1-based line-number gutter, no lineWrapping so a
-     long line scrolls horizontally and gutter row N stays line N). The
-     keymap and the read-only submit lock are Task 3. */
-  const exts = [CodeMirror.lineNumbers(), CodeMirror.history()];
-  if(!starter) exts.push(CodeMirror.placeholder("# Write your code here."));
-  const view = new CodeMirror.EditorView({
-    doc: starter, parent: mount, extensions: exts
-  });
-  const sync = ()=>{
-    submit.disabled = view.state.doc.length === 0;
+  /* The editor's whole configuration -- line numbers, Tab/Shift-Tab keymap,
+     placeholder, read-only lock, no wrap -- lives in the one boot script
+     embedded above as a separate script, so the page and the JS test runner boot
+     identical editors. The mount gets a semantic program label and concise
+     keyboard instructions (05-UI-SPEC); Enter/Space activate the focused
+     Check control natively (it is a real button). */
+  mount.setAttribute("role", "textbox");
+  mount.setAttribute("aria-label", "Source code");
+  mount.setAttribute("aria-multiline", "true");
+  const editor = CheckEditorBoot.create(mount, {starter: starter});
+  const hintLine = document.createElement("div");
+  hintLine.className = "hint";
+  hintLine.textContent = "Tab inserts a tab, Shift-Tab dedents; the focused Check control activates with Enter or Space.";
+  body.appendChild(hintLine);
+  const sync = ()=>{ submit.disabled = editor.isEmpty(); };
+  const origDispatch = editor.getView().dispatch;
+  editor.getView().dispatch = function(tr){
+    origDispatch.call(this, tr); sync();
   };
-  view.dispatch = ((orig)=>{
-    return function(tr){ orig.call(this, tr); sync(); };
-  })(view.dispatch);
   sync();
   submit.onclick = ()=>{
-    const src = view.state.doc.toString();
+    const src = editor.getSource();
     submit.disabled = true;
     submit.textContent = "Running…";
-    settle(q, src, card, act, null);
+    editor.setReadOnly(true);
+    settle(q, src, card, act, null, ()=>{ submit.textContent = "Submit answer"; submit.disabled = false; editor.setReadOnly(false); });
   };
   /* The honest-limits line renders from the item card, not from the editor
      branch, so plan 05-06's refusal states replace the editor without
@@ -1059,28 +1064,32 @@ function asCheck(q, body, act, card){
     return n === 1 ? "runs against 1 hidden test case"
                    : "runs against " + n + " hidden test cases";
   }
-  /* The vendored bundle exposes the CodeMirror global; this is the only
-     place the editor is configured (plan 05-05 Task 2: starter document,
-     locked placeholder, 1-based line-number gutter, no lineWrapping so a
-     long line scrolls horizontally and gutter row N stays line N). The
-     keymap and the read-only submit lock are Task 3. */
-  const exts = [CodeMirror.lineNumbers(), CodeMirror.history()];
-  if(!starter) exts.push(CodeMirror.placeholder("# Write your code here."));
-  const view = new CodeMirror.EditorView({
-    doc: starter, parent: mount, extensions: exts
-  });
-  const sync = ()=>{
-    submit.disabled = view.state.doc.length === 0;
+  /* The editor's whole configuration -- line numbers, Tab/Shift-Tab keymap,
+     placeholder, read-only lock, no wrap -- lives in the one boot script
+     embedded above as a separate script, so the page and the JS test runner boot
+     identical editors. The mount gets a semantic program label and concise
+     keyboard instructions (05-UI-SPEC); Enter/Space activate the focused
+     Check control natively (it is a real button). */
+  mount.setAttribute("role", "textbox");
+  mount.setAttribute("aria-label", "Source code");
+  mount.setAttribute("aria-multiline", "true");
+  const editor = CheckEditorBoot.create(mount, {starter: starter});
+  const hintLine = document.createElement("div");
+  hintLine.className = "hint";
+  hintLine.textContent = "Tab inserts a tab, Shift-Tab dedents; the focused Check control activates with Enter or Space.";
+  body.appendChild(hintLine);
+  const sync = ()=>{ submit.disabled = editor.isEmpty(); };
+  const origDispatch = editor.getView().dispatch;
+  editor.getView().dispatch = function(tr){
+    origDispatch.call(this, tr); sync();
   };
-  view.dispatch = ((orig)=>{
-    return function(tr){ orig.call(this, tr); sync(); };
-  })(view.dispatch);
   sync();
   submit.onclick = ()=>{
-    const src = view.state.doc.toString();
+    const src = editor.getSource();
     submit.disabled = true;
     submit.textContent = "Running…";
-    settle(q, src, card, act, null, ()=>{ submit.textContent = "Submit answer"; });
+    editor.setReadOnly(true);
+    settle(q, src, card, act, null, ()=>{ submit.textContent = "Submit answer"; submit.disabled = false; editor.setReadOnly(false); });
   };
   /* The honest-limits line renders from the item card, not from the editor
      branch, so plan 05-06's refusal states replace the editor without

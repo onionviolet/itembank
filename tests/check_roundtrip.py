@@ -962,6 +962,31 @@ def check_vendor_integrity():
     if "__HONEST" in html:
         fail("built check page carries an unsubstituted placeholder")
 
+    # --- source assertions for Task 3 (the behaviours themselves are
+    # executed by tests/js/check_editor.test.mjs against the same vendored
+    # bundle and boot script; these string checks pin the page to the boot
+    # script and to the contract's scope, they do not prove behaviour). ---
+    from surfaces.quiz_page import OFFLINE_JS, SERVED_JS
+    clients = OFFLINE_JS + SERVED_JS
+    code = "\n".join(l for l in clients.splitlines()
+                     if not l.lstrip().startswith(("//", "/*", "*")))
+    # The editor is configured in exactly one place: the boot script. The
+    # page must not hand-roll a gutter or a keydown Tab handler of its own.
+    if re.search(r"keydown", code, re.IGNORECASE):
+        fail("the page hand-rolls a keydown handler; the editor "
+             "configuration must live in the boot script only")
+    if re.search(r"\.cm-gutters|gutterElement", code):
+        fail("the page hand-rolls a gutter; CodeMirror owns the line "
+             "numbers in the boot script only")
+    # Nothing outside the contract: no syntax highlighting, bracket
+    # matching, auto-indent, or block-indent was added.
+    if re.search(r"(highlight|bracket|autoindent|blockindent)", code,
+                 re.IGNORECASE):
+        fail("an out-of-contract editor feature was added to the page")
+    # The served page embeds the boot script next to the bundle.
+    if "CheckEditorBoot" not in page:
+        fail("served page does not embed the check-editor boot script")
+
 
 def check_network_refusal():
     """D-09 made real: with the daemon bound to all interfaces and
