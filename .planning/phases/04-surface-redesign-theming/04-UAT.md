@@ -3,7 +3,7 @@ status: partial
 phase: 04-surface-redesign-theming
 source: [04-VERIFICATION.md]
 started: 2026-08-09
-updated: 2026-08-10T23:55:00Z
+updated: 2026-08-11T20:05:00Z
 ---
 
 ## Current Test
@@ -75,3 +75,17 @@ Automated UAT run 2026-08-10 (user-directed: automate what can be automated,
 save screenshots, mark OS/assistive-tech items blocked). Tests 3 and 7 remain
 blocked pending real assistive tech / human visual review of the saved
 screenshots.
+
+## Close-out re-run (2026-08-11)
+
+Phase-04 close-out re-ran every phase-04 truth live in the close worktree
+(`gsd/phase-04-close`, main tip `2b5678c`): the six phase harnesses
+(`day_edit` / `theme` / `presentation` / `surface` / `daemon` / `config`
+roundtrips) all pass, confirming this UAT's automated evidence (tests 1, 2,
+4, 5, 6) still holds on merged main. Tests 3 and 7 remain **blocked** —
+they are the two human-required items (assistive tech / visual judgment) and
+stay PENDING HUMAN. Full run details, including three out-of-scope suite
+findings (two pre-existing 06.2-merge regressions in `evidence_roundtrip` /
+`gate_roundtrip`, one environment-blocked `packaging_roundtrip` needing the
+Windows sidecar build), are recorded in 04-VERIFICATION.md § Close-Out Live
+Re-Verification.

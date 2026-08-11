@@ -1,6 +1,6 @@
 ---
 phase: 04-surface-redesign-theming
-verified: 2026-08-09T05:57:51Z
+verified: 2026-08-11T15:30:00Z
 status: human_needed
 score: 5/5 must-haves verified
 behavior_unverified: 0 # Count of PRESENT_BEHAVIOR_UNVERIFIED truths; every roadmap truth below has a passing behavioral test
@@ -208,8 +208,169 @@ The automated evidence above is green; the following require a human in a real b
 ### Gaps Summary
 
 No gaps were found: all five roadmap success criteria are verified by code evidence and passing named behavioral tests, all required artifacts exist and are substantive, wired, and flowing real data, all key links are wired, and no blocker anti-patterns were found. The phase status is `human_needed` because the remaining items are real-browser, assistive-technology, native-picker, color-blind, and two-editor recovery checks that automated verification cannot perform - matching the phase's own 04-VALIDATION manual matrix and the 04-06 end-of-phase human-check. No override is required; no item is deferred to a later phase.
+## Deferred Verification Run (2026-08-11) — live execution
+
+Executed live in a python-capable environment: fresh sibling worktree
+(`itembank-phase-verify`, branch `gsd/deferred-verify`, from main tip
+`801ae8f`).
+
+### Automated checks (exact commands and results)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Full roundtrip suite (40 files) | `python tests/*_roundtrip.py` (invoked per file in `&&` chains) | PASS — every file exits 0 |
+| Phase harness: day-edit | `python tests/day_edit_roundtrip.py` | PASS — snapshot/conflict/force/tight-window recheck + live HTTP flow |
+| Phase harness: theme | `python tests/theme_roundtrip.py` | PASS — derivation/contrast/semantic-independence/mode CSS/preview/picker lifecycle/child bridge |
+| Phase harness: presentation | `python tests/presentation_roundtrip.py` | PASS |
+| Phase harness: surface | `python tests/surface_roundtrip.py` | PASS — question hierarchy, study payload/reveal order, no-scorer, theme parity |
+| Phase harness: daemon | `python tests/daemon_roundtrip.py` | PASS — 63 checks incl. served-quiz no-key, `/api/*` flow, settings page, day conflict flow |
+| Phase harness: config | `python tests/config_roundtrip.py` | PASS — theme set/reset contract |
+
+### Truth status updates
+
+Truths 1-5 are live-verified this run — every one of the 20 named behavioral
+checks in the Behavioral Spot-Checks table passes. The five UAT items that
+carried recorded automated evidence in `04-UAT.md` (2026-08-10) stand
+verified with those citations: real-browser DOM walkthrough (test 1), theme
+save/preview HTTP contract (test 2), colour-blind contrast math (test 4),
+two-editor conflict lifecycle over HTTP (test 5), and 320px/200% headless
+renders with 12 screenshots saved (test 6). The two UAT-blocked items
+(tests 3 and 7) and the visual/perceptual items remain human.
+
+### HUMAN-REQUIRED (exact manual steps; 7 items)
+
+1. **One-product visual walkthrough (light/dark, desktop + 320px/200%).**
+   Open the daemon and walk index, quiz, study, report, settings, and day in
+   both colour modes at desktop and 320px/200% zoom, keyboard-only. Expected:
+   every surface reads as one product from the shared palette and primitives;
+   the quiz page shows exactly one sticky context line, a dominant stem h1,
+   and a reserved feedback region; no layout regression or clipping.
+2. **Live native picker and browser fallback.** In `/settings`, open the OS
+   colour picker, cancel once, then use the browser colour input, preview,
+   save, reset, and reload every surface. Expected: selection is
+   preview-only; cancel/unavailable shows the exact fallback copy (`System
+   picker is unavailable here. Choose a color below instead.`) and changes
+   nothing; save persists only `accent.source`; every surface updates on
+   reload in system/light/dark.
+3. **Screen-reader sequence (Narrator/NVDA/VoiceOver) with reduced motion.**
+   Traverse quiz submit/verdict, study reveal, settings save error/fallback,
+   and day conflict recovery. Expected: one heading hierarchy per page, polite
+   status announcements in reading order, immediate errors announced,
+   disclosure state announced, predictable post-transition focus, keyboard-
+   only usable.
+4. **Colour-blind / non-colour verdict check.** In light and dark modes with
+   two very different custom accents, confirm Correct/Incorrect/Warning stay
+   fixed colours with text/icon/border redundancy, contrast-checked at 4.5:1,
+   pairwise distinct, and remain distinguishable under a deuteranopia
+   simulator.
+5. **Two-editor day conflict and recovery (real interleaving).** Edit a day
+   cell in the browser, save the same plan externally (Obsidian), then save
+   in the browser. Expected: a no-write conflict with the exact heading `Plan
+   changed outside itembank - nothing was overwritten.`, labelled Your
+   draft/Current file panes, copy/download for each, Reload current, Reapply
+   draft, dirty warning, Force absent until a conflict; a third external edit
+   produces a new conflict, never an overwrite.
+6. **Backstop items (320px/200% zoom, long content).** With long
+   stems/objectives/options, long report tables/lesson prose/settings help,
+   long study explanations, and long day labels/revisions/conflict documents
+   at 320px and 200% zoom, verify wrapping/stacking, selectability, and no
+   page-level horizontal scroll; revisions and conflict documents stay
+   copyable. (12 headless screenshots were saved by the 2026-08-10 automated
+   UAT run; pixel-level judgment remains human.)
+7. **Visual adequacy of the reworked surfaces.** Inspect settings preview
+   cards, migrated index/report/quiz/study/day, teaching-step primary-action
+   emphasis, and study progressive reveal in both colour modes. Expected:
+   polished, consistent, exactly one visually primary next action per state;
+   secondary actions never acquire the primary marker.
+
+## Close-Out Live Re-Verification (2026-08-11T19:59Z — phase 04 close)
+
+Executed live during phase-04 close-out in the dedicated close worktree
+(`.phase04-wt`, branch `gsd/phase-04-close`, from main tip `2b5678c`). The
+deferred-verify record above was ported from `gsd/deferred-verify`
+(commit `e7c8634`) and every phase-04 truth was re-run fresh against the
+current main code, not against that branch.
+
+### Automated checks (exact commands and results)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Phase harness: day-edit | `python tests/day_edit_roundtrip.py` | PASS — snapshot/conflict/force/tight-window recheck + palette migration |
+| Phase harness: theme | `python tests/theme_roundtrip.py` | PASS — derivation/contrast/semantic-independence/mode CSS/preview/picker lifecycle/child bridge |
+| Phase harness: presentation | `python tests/presentation_roundtrip.py` | PASS — semantic DOM, shared palette, responsive fixtures, alternate-adapter seam |
+| Phase harness: surface | `python tests/surface_roundtrip.py` | PASS — question hierarchy, study payload/reveal order, no-scorer, theme parity |
+| Phase harness: daemon | `python tests/daemon_roundtrip.py` | PASS — 69 checks incl. served-quiz no-key, `/api/*` flow, settings page, day conflict flow |
+| Phase harness: config | `python tests/config_roundtrip.py` | PASS — theme set/reset contract |
+| Full suite | every `tests/*.py` (45 files, run individually) | 42 PASS; 3 failures — see out-of-scope findings below |
+| Sample bank lint | `python itembank.py lint fixtures/sample_bank.md` | PASS — 0 errors, 6 pre-existing fixture warnings |
+| Published schemas | `python itembank.py schema --all` | PASS — full contract emits and self-validates |
+| Session schema | `python itembank.py start fixtures/sample_bank.md --count 3 --seed 1 --out /tmp/p4s.json` then `python schema_validate.py schemas/session.schema.json /tmp/p4s.json` | PASS — 1 instance, 0 errors |
+
+### Truth status updates (re-run live, this close worktree)
+
+Truths 1-5 are re-verified VERIFIED this run — every named behavioral check
+below passes against the current main code:
+
+| # | Truth | Status | Fresh evidence this run |
+|---|-------|--------|-------------------------|
+| 1 | One sticky context line, stem h1, reserved feedback | ✓ VERIFIED | `surface_roundtrip.check_question_hierarchy` PASS |
+| 2 | Study renders per-option rationale, second-best, notes | ✓ VERIFIED | `surface_roundtrip.check_study_item_choice_payload` / `check_study_item_sentinels_reach_reveal` / `check_study_reveal_order` PASS |
+| 3 | One shared palette; `day` carries no literal-hex CSS; served pages hold no key/scorer | ✓ VERIFIED | `day_edit_roundtrip.check_day_palette_and_no_css_literals`, `presentation_roundtrip.test_shared_accent_tokens_across_routes`, `daemon_roundtrip.check_quiz_no_key` / `check_served_api_flow` / `check_study_no_scorer_or_response` PASS |
+| 4 | Accent from OS picker, light/dark pairs computed, contrast-checked, colour-blind safe | ✓ VERIFIED | `theme_roundtrip.test_derived_accents_meet_contrast_and_report_correction` / `test_semantic_tokens_independent_and_contrast_checked` / `test_pick_unavailable_paths_never_write` / `test_palette_matches_binding_values` / `test_theme_css_modes` + child-bridge checks; `config_roundtrip.test_theme_set_reset_contract` PASS. Live OS-dialog interaction itself remains human (item 2 below). |
+| 5 | Optimistic-concurrency day editing, conflict surfaced never overwritten | ✓ VERIFIED | `day_edit_roundtrip.check_task2_conflict_no_write` / `check_task2_tight_window_recheck` / `check_task2_confirmed_force`; `daemon_roundtrip.check_day_edit_conflict_and_force` (live HTTP) PASS |
+
+### Human items — status: PENDING HUMAN (unchanged)
+
+The seven items listed in the HUMAN-REQUIRED section above (one-product
+visual walkthrough, live native picker + browser fallback, screen-reader
+sequence with reduced motion, colour-blind/non-colour verdict check,
+two-editor day conflict in real interleaving, backstop 320px/200% long
+content, visual adequacy of reworked surfaces) remain **PENDING HUMAN**.
+They are perceptual, assistive-technology, OS-dialog, or real-editor
+interleaving checks that automated verification cannot perform; nothing was
+fabricated and no item was silently marked verified. The 2026-08-10
+automated UAT run's 12 headless screenshots remain saved for the human
+review of the backstop and visual-adequacy items.
+
+### Out-of-scope findings from the full-suite run (not phase 04)
+
+The full 45-file suite is not fully green on current main; three failures
+were observed. None is caused by or fixable within phase 04, and none
+touches a phase-04 truth (all five truths above pass). They are recorded
+here so the orchestrator can route them:
+
+1. **`tests/evidence_roundtrip.py`** — FAIL at "index was not rebuilt at
+   version 3 after the stale check". Pre-existing regression introduced by
+   the 06.2 merge `d35bd15` into main: the merge kept `evidence.py`'s
+   `INDEX_VERSION = 2` and dropped the index `context` column from the
+   06.2-side projection, while the 06.2-side test (expecting version "3")
+   came through unchanged. The index is disposable and self-consistent at
+   v2, so user impact is limited to the failing test; the code/test
+   mismatch needs a phase-06.2 owner.
+2. **`tests/gate_roundtrip.py`** — FAIL at "rows must differ only by context
+   in log order, got [None, None]". Same root cause: `objective_history`
+   index rows carry no `context` key on merged main, so the GATE-03
+   projection test fails. Same owner as above.
+3. **`tests/packaging_roundtrip.py`** — FAIL at "dist/itembank-sidecar-onedir
+   is missing". Environmental, not a code defect: the check requires the
+   PyInstaller Windows onedir artifact built by
+   `powershell -File scripts/build_shell.ps1`, which cannot run from this
+   WSL shell (no Windows PowerShell interop) and which is not committed
+   (only the triple-suffixed exe under `src-tauri/binaries/` is tracked).
+   On a machine where the sidecar has been built, this check runs.
+
+`phase_062_audit.py` fails for the same reason: its embedded full-suite run
+reports exactly these three files; its own audit checks (6/6 GATE-ID
+coverage, named verification commands exist, edge-probe sentences, and
+`schema --all`) all pass.
+
+**Close-out verdict:** the phase's five roadmap truths are all VERIFIED by
+fresh live automated runs on the merged code; the phase's status remains
+`human_needed` solely for the seven perceptual/assistive/OS items, which
+stay PENDING HUMAN. The three full-suite failures above are pre-existing or
+environmental and are outside phase 04's scope.
 
 ---
 
-_Verified: 2026-08-09T05:57:51Z_
+_Verified: 2026-08-11T15:30:00Z (deferred-verify record, ported); close-out re-verification 2026-08-11T19:59Z on gsd/phase-04-close_
 _Verifier: the agent (gsd-verifier)_
