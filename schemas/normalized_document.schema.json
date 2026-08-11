@@ -69,8 +69,8 @@
         },
         "kind": {
           "type": "string",
-          "enum": ["heading", "list", "body"],
-          "description": "The span's role; objective extraction never collapses to heading scraping (AUDIT-01)."
+          "enum": ["heading", "list", "body", "blank"],
+          "description": "The span's role; objective extraction never collapses to heading scraping (AUDIT-01). Blank spans carry empty verbatim so reconstruction is byte-exact."
         },
         "locator": {
           "$ref": "#/$defs/locator"

@@ -148,6 +148,73 @@ def cmd_audit_undo(a):
                                                    result["status"]))
 
 
+def cmd_audit_coverage(a):
+    """The citation-first coverage audit (plan 11-03): normalize the source,
+    parse the exact bank, and produce the strict coverage report. Pure
+    transform -- the source and bank are never modified (D-04), and a gap
+    never authorizes generation (AUDIT-04)."""
+    try:
+        raw = _read_source_bytes(a.source)
+        kind = getattr(a, "kind", None) or \
+            ("markdown" if a.source.lower().endswith((".md", ".markdown"))
+             else "text")
+        normalized = auditor.normalize_source(
+            raw, source_id=a.source_id or a.source, kind=kind)
+    except auditor.SourceError as exc:
+        print(json.dumps({"schema_version": 1,
+                          "error": {"code": exc.code, "message": str(exc)}},
+                         ensure_ascii=False, indent=2))
+        return 1
+    try:
+        bank_text = open(a.bank, encoding="utf-8", newline="").read()
+    except OSError as exc:
+        print(json.dumps({"schema_version": 1,
+                          "error": {"code": "bank.unreadable",
+                                    "message": str(exc)}},
+                         ensure_ascii=False, indent=2))
+        return 1
+    questions = model.parse_bank(bank_text)
+    report = auditor.coverage_report(
+        normalized, questions, bank_fingerprint=authoring.bank_fingerprint(
+            bank_text))
+    return _print_payload(
+        report,
+        "%d objectives, %s"
+        % (len(report["coverage"]),
+           ", ".join("%s=%s" % (r["objective_key"], r["state"])
+                     for r in report["coverage"])))
+
+
+def cmd_audit_material(a):
+    """The explicit obtained-material handoff (plan 11-03 AUDIT-04/D-18):
+    normalize newly supplied bytes and return a NEW bounded authoring request
+    preserving exact citations. This command never calls the author or the
+    writer; a gap or material pointer cannot authorize generation."""
+    try:
+        raw = _read_source_bytes(a.material)
+        kind = ("markdown" if a.material.lower().endswith((".md", ".markdown"))
+                else "text")
+        request = auditor.material_request(
+            raw, source_id=a.source_id or a.material, kind=kind,
+            objectives=a.objectives, count=a.count,
+            item_types=[a.item_type], retry_cap=a.retry_cap, mode=a.mode)
+    except auditor.SourceError as exc:
+        print(json.dumps({"schema_version": 1,
+                          "error": {"code": exc.code, "message": str(exc)}},
+                         ensure_ascii=False, indent=2))
+        return 1
+    except OSError as exc:
+        print(json.dumps({"schema_version": 1,
+                          "error": {"code": "material.unreadable",
+                                    "message": str(exc)}},
+                         ensure_ascii=False, indent=2))
+        return 1
+    return _print_payload(
+        request,
+        "bounded request created from %s (%d citations); no author or "
+        "writer was invoked" % (a.material, len(request["citations"])))
+
+
 def cmd_audit(a, author_callable=None):
     """The `itembank audit <sub>` dispatcher (registered in the composition
     root by plan 11-05). Thin argument forwarding only."""
@@ -156,6 +223,10 @@ def cmd_audit(a, author_callable=None):
         return cmd_audit_source(a)
     if sub == "author":
         return cmd_audit_author(a, author_callable)
+    if sub == "coverage":
+        return cmd_audit_coverage(a)
+    if sub == "material":
+        return cmd_audit_material(a)
     if sub == "undo":
         return cmd_audit_undo(a)
     print(json.dumps({"schema_version": 1,

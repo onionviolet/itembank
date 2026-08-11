@@ -68,8 +68,12 @@ def _span_key(text):
 
 class SourceError(Exception):
     """A typed normalization failure (malformed UTF-8, oversize input, an
-    unregistered adapter). Carries a machine-readable code and message; no
+    unregistered adapter). Carries a machine-readable `code` and message; no
     derived artifact is produced."""
+
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
 
 
 def _decode_utf8(raw_bytes, source_id):
@@ -98,12 +102,31 @@ def _split_spans(text, kind):
     spans = []
     heading_path = []
     lines = text.split("\n")
+    # The final element of split("\n") is the line terminator (empty when the
+    # text ends with a newline), never a real blank line: per-line spans plus
+    # newline joins reconstruct the text byte-for-byte.
+    content_lines = lines[:-1] if lines else []
     offset = 0
-    for lineno, line in enumerate(lines, start=1):
+    for lineno, line in enumerate(content_lines, start=1):
         line_len = len(line)
         stripped = line.strip()
         if not stripped:
-            offset += line_len + 1  # +1 for the newline split consumed
+            # Blank lines are real spans with empty verbatim so that
+            # reconstructing every span in order with newline joins yields
+            # byte-for-byte-equivalent text (11-03 fidelity requirement).
+            spans.append({
+                "span_id": "sp-%d" % len(spans),
+                "kind": "blank",
+                "locator": {
+                    "heading_path": list(heading_path),
+                    "start_line": lineno,
+                    "end_line": lineno,
+                    "start_char": offset,
+                    "end_char": offset + line_len,
+                },
+                "verbatim": "",
+            })
+            offset += line_len + 1
             continue
         hm = _HEADING_RE.match(line)
         if hm:
@@ -123,7 +146,7 @@ def _split_spans(text, kind):
                 "verbatim": line,
                 "objective_candidate": heading,
             })
-        elif _LIST_ITEM_RE.match(line) and kind != "text":
+        elif _LIST_ITEM_RE.match(line):
             text = _LIST_ITEM_RE.match(line).group(1)
             spans.append({
                 "span_id": "sp-%d" % len(spans),
@@ -168,38 +191,58 @@ def _objective_candidates(spans):
     body sentences that state a learning outcome all become candidates,
     each retaining its exact originating span. A list entry that leads with
     an explicit `subject:path` key (the syllabus idiom) yields that key as
-    the candidate key so bank `[OBJECTIVE:]` lines can match it exactly."""
+    the candidate key so bank `[OBJECTIVE:]` lines can match it exactly.
+    Body sentences are detected at paragraph level -- consecutive body
+    lines are joined, so a multi-line learning outcome is still a candidate;
+    its originating span is the paragraph's first body span."""
     candidates = []
     seen = set()
+    paragraph = []
     for span in spans:
         if span["kind"] == "heading":
+            paragraph = _flush_paragraph(paragraph, candidates, seen)
             text = span["objective_candidate"]
             key = _span_key(text)
+            _add_candidate(candidates, seen, key, span["span_id"], text)
         elif span["kind"] == "list":
+            paragraph = _flush_paragraph(paragraph, candidates, seen)
             text = span["objective_candidate"]
             km = _OBJECTIVE_KEY_RE.match(text)
             key = km.group(1).lower() if km else _span_key(text)
+            _add_candidate(candidates, seen, key, span["span_id"], text)
         else:
-            text = ""
-            for m in _SENTENCE_RE.finditer(span["verbatim"]):
-                sentence = m.group(0).strip()
-                if _looks_like_objective(sentence):
-                    text = sentence
-                    break
-            if not text:
-                continue
-            key = _span_key(text)
-        if not key or key in seen:
-            continue
-        seen.add(key)
-        candidates.append({
-            "key": key,
-            "span_id": span["span_id"],
-            "text": text,
-        })
-        if len(candidates) >= MAX_OBJECTIVE_CANDIDATES:
-            break
+            paragraph.append(span)
+    _flush_paragraph(paragraph, candidates, seen)
     return candidates
+
+
+def _flush_paragraph(paragraph, candidates, seen):
+    """Extract one candidate from a run of consecutive body spans (the first
+    objective-stating sentence), then clear the run. Returns the cleared
+    list."""
+    if not paragraph:
+        return paragraph
+    text = " ".join(s["verbatim"].strip() for s in paragraph)
+    for m in _SENTENCE_RE.finditer(text):
+        sentence = m.group(0).strip()
+        if _looks_like_objective(sentence):
+            _add_candidate(candidates, seen, _span_key(sentence),
+                           paragraph[0]["span_id"], sentence)
+            break
+    return []
+
+
+def _add_candidate(candidates, seen, key, span_id, text):
+    if not key or key in seen:
+        return
+    if len(candidates) >= MAX_OBJECTIVE_CANDIDATES:
+        return
+    seen.add(key)
+    candidates.append({
+        "key": key,
+        "span_id": span_id,
+        "text": text,
+    })
 
 
 _OBJECTIVE_HINT_RE = re.compile(
@@ -271,3 +314,250 @@ def citations_for_objective(normalized, objective_key):
                                 normalized["fingerprint"],
                                 cand["span_id"]))
     return out
+
+
+# ---------------------------------------------------------------------------
+# citation-first coverage engine (plan 11-03, AUDIT-02/AUDIT-03)
+# ---------------------------------------------------------------------------
+
+REPORT_SCHEMA_VERSION = 1
+TOOL_VERSION = "itembank-0.3.0"
+AUTHORING_REQUEST_VERSION = 1
+DEFAULT_PER_OBJECTIVE_CAP = 20
+
+
+def _canonical_objective_key(text):
+    """The canonical key equality used to match source candidates to bank
+    objective fields: lowercased, whitespace collapsed (mirrors the source
+    candidate key normalization)."""
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def _span_ids(normalized):
+    return {s["span_id"] for s in normalized["spans"]}
+
+
+def _valid_source_citations(normalized, cites):
+    """A citation side is valid only when every record is non-empty and
+    exactly matches the current normalized document (source id, byte
+    fingerprint, and an existing span id) -- D-02/D-04. Empty or null is
+    invalid; a mismatched fingerprint is invalid; a fabricated span id is
+    invalid. Confidence never upgrades an invalid side."""
+    if not cites:
+        return False
+    span_ids = _span_ids(normalized)
+    for c in cites:
+        if not isinstance(c, dict):
+            return False
+        if (c.get("source_id") != normalized["source_id"] or
+                c.get("fingerprint") != normalized["fingerprint"] or
+                c.get("span_id") not in span_ids):
+            return False
+    return True
+
+
+def _bank_fingerprint_current(rows, current_bank_fingerprint):
+    """A bank-fingerprint assertion is valid only when it equals the current
+    bank fingerprint; an absent assertion is accepted (the caller vouches
+    for the bank by passing the parsed questions)."""
+    for row in rows:
+        asserted = row.get("bank_fingerprint")
+        if asserted is not None and asserted != current_bank_fingerprint:
+            return False
+    return True
+
+
+def coverage_report(normalized, questions, bank_fingerprint=None,
+                    evidence=None, tool_version=TOOL_VERSION):
+    """The deterministic citation-first coverage transform (AUDIT-02/AUDIT-03,
+    D-01/D-02/D-04).
+
+    Pure function: a normalized document, the exact parsed bank questions,
+    and optional evidence assertions in, a strict audit_report dict out --
+    nothing is read or written. Every objective of the normalized source
+    becomes a row; covered requires an exact current source citation AND an
+    exact stable bank item id citation on every side. Empty/null/mismatched
+    citations are unknown, never covered; a source-backed objective with no
+    covering item is a gap; partial and conflicting stay distinct; a
+    mismatched bank fingerprint marks the row stale.
+
+    `evidence` is a list of rows: {"objective_key", "source_citations",
+    "bank_item_ids", optional "bank_fingerprint"}. Rows are validated, never
+    trusted: an id that does not exist in the parsed bank or does not carry
+    the objective is invalid.
+    """
+    questions = questions or []
+    evidence = evidence or []
+    current_bank_fp = bank_fingerprint
+    by_key = {}
+    for q in questions:
+        key = _canonical_objective_key(q.get("objective") or "")
+        if key:
+            by_key.setdefault(key, []).append(q)
+    item_ids = {q.get("item_id") for q in questions if q.get("item_id")}
+
+    evidence_by_key = {}
+    for row in evidence:
+        evidence_by_key.setdefault(row.get("objective_key"), []).append(row)
+
+    keys = sorted(set(
+        [c["key"] for c in normalized["objective_candidates"]] +
+        list(evidence_by_key.keys())))
+    rows = []
+    for key in keys:
+        rows.append(_coverage_row(
+            key, normalized, by_key.get(key, []), item_ids,
+            evidence_by_key.get(key, []), current_bank_fp))
+
+    return {
+        "schema_version": REPORT_SCHEMA_VERSION,
+        "status": "coverage",
+        "request_fingerprint": "",
+        "coverage": rows,
+        "stale": _evidence_stale(normalized, evidence, current_bank_fp),
+        "bank_fingerprint": current_bank_fp or "",
+        "source_fingerprints": [normalized["fingerprint"]],
+        "tool_version": tool_version,
+    }
+
+
+def _coverage_row(key, normalized, bank_items, item_ids, ev_rows,
+                  current_bank_fp):
+    source_cites = citations_for_objective(normalized, key)
+    bank_ids = [q.get("item_id") for q in bank_items if q.get("item_id")]
+    # canonical objective match for the cited ids
+    objective_of = {}
+    for q in bank_items:
+        if q.get("item_id"):
+            objective_of[q["item_id"]] = q.get("objective") or ""
+
+    if not ev_rows:
+        # No explicit claim: the source backs the objective; the bank side is
+        # whatever items actually carry it. Still citation-first: covered
+        # needs both sides non-empty and current.
+        if not source_cites:
+            return _row(key, "unknown", [], [])
+        if current_bank_fp is None:
+            state = "unknown"  # no bank fingerprint to vouch currency
+        elif not bank_ids:
+            state = "gap"
+        else:
+            state = "covered"
+        return _row(key, state, source_cites, sorted(bank_ids))
+
+    # Explicit evidence rows: a valid claim needs a current exact source
+    # citation AND resolvable exact bank item ids. An empty id list with a
+    # valid source side is an explicit gap claim. One invalid side makes the
+    # claim unknown; mixed validity is conflicting; all-valid with an
+    # uncovered bank subset is partial (AUDIT-02/AUDIT-03).
+    valid = []
+    gap_claims = []
+    invalid = []
+    for row in ev_rows:
+        src_ok = _valid_source_citations(normalized, row.get("source_citations"))
+        ids = row.get("bank_item_ids") or []
+        bank_ok = _bank_fingerprint_current([row], current_bank_fp) \
+            if current_bank_fp else True
+        if not src_ok or not bank_ok:
+            invalid.append(row)
+        elif not ids:
+            gap_claims.append(row)
+        elif all(i in item_ids and
+                 _canonical_objective_key(objective_of.get(i)) == key
+                 for i in ids):
+            valid.append(row)
+        else:
+            invalid.append(row)
+
+    if invalid:
+        return _row(key, "unknown" if not (valid or gap_claims)
+                    else "conflicting", [], [])
+    if gap_claims and not valid:
+        return _row(key, "gap", source_cites, [])
+    if not valid:
+        return _row(key, "unknown", [], [])
+    cited = sorted({i for row in valid for i in (row.get("bank_item_ids") or [])})
+    if not cited:
+        return _row(key, "gap", source_cites, [])
+    if set(bank_ids) - set(cited):
+        return _row(key, "partial", source_cites, cited)
+    return _row(key, "covered", source_cites, cited)
+
+
+def _row(key, state, source_citations, bank_item_ids):
+    return {
+        "objective_key": key,
+        "state": state,
+        "source_citations": source_citations,
+        "bank_item_ids": bank_item_ids,
+    }
+
+
+def _evidence_stale(normalized, evidence, current_bank_fp):
+    """A report is stale when any evidence assertion carries a bank
+    fingerprint that no longer matches the current bank, or a source
+    fingerprint that no longer matches the current source (D-04). The rows
+    themselves stay fail-closed (never covered); this flag makes the
+    staleness explicit and recomputable."""
+    for row in evidence:
+        if not isinstance(row, dict):
+            continue
+        asserted = row.get("bank_fingerprint")
+        if asserted is not None and asserted != current_bank_fp:
+            return True
+        for cite in row.get("source_citations") or []:
+            if isinstance(cite, dict) and \
+                    cite.get("fingerprint") != normalized["fingerprint"]:
+                return True
+    return False
+
+
+def material_request(raw_bytes, source_id, kind, objectives, count,
+                     item_types, retry_cap=3, mode="report_only",
+                     per_objective_cap=DEFAULT_PER_OBJECTIVE_CAP):
+    """The explicit AUDIT-04 bridge (D-18): accepting bytes for OBTAINED
+    material is a separate operation that normalizes the new source and
+    returns a NEW bounded authoring request preserving exact citations. It
+    never calls the author or the writer -- a gap or material pointer can
+    never authorize generation (AUDIT-04/T-11-08)."""
+    normalized = normalize_source(raw_bytes, source_id, kind=kind)
+    citations = []
+    for objective in objectives:
+        citations.extend(citations_for_objective(normalized, objective))
+    if not citations:
+        raise SourceError(
+            "material.no_citations",
+            "none of the requested objectives %s appears in the obtained "
+            "material %s; no request was created" % (objectives, source_id))
+    return {
+        "schema_version": AUTHORING_REQUEST_VERSION,
+        "objectives": list(objectives),
+        "count": count,
+        "item_types": list(item_types),
+        "citations": citations,
+        "retry_cap": retry_cap,
+        "mode": mode,
+        "per_objective_cap": per_objective_cap,
+        "source_fingerprints": [normalized["fingerprint"]],
+    }
+
+
+def apply_weak_priority(objective_keys, weak_signals):
+    """Phase 10 weak-objective signals only reorder objective ids already
+    present in the normalized source (D-19): unknown ids are reported and
+    ignored, never added to curriculum. Returns (ordered_keys,
+    unknown_signals)."""
+    keys = list(objective_keys)
+    known = set(keys)
+    ordered = []
+    unknown = []
+    for signal in weak_signals:
+        if signal in known:
+            if signal not in ordered:
+                ordered.append(signal)
+        else:
+            unknown.append(signal)
+    for key in keys:
+        if key not in ordered:
+            ordered.append(key)
+    return ordered, unknown

@@ -20,8 +20,7 @@
     },
     "request_fingerprint": {
       "type": "string",
-      "minLength": 1,
-      "description": "The deterministic fingerprint of the bounded request that produced this report (D-17)."
+      "description": "The deterministic fingerprint of the bounded request that produced this report (D-17); empty on coverage audits, which have no request."
     },
     "run_id": {
       "type": "string",
@@ -89,6 +88,11 @@
         "minLength": 1
       },
       "description": "The fingerprints of every source involved, sorted and deduplicated."
+    },
+    "tool_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The tool version that produced this report, so a later run can recompute staleness (D-17)."
     },
     "proposed_volume": {
       "type": "integer",

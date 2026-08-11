@@ -72,6 +72,14 @@
       "maximum": 20,
       "default": 20,
       "description": "The per-objective cap enforced in full autonomy (D-13/AUDIT-09)."
+    },
+    "source_fingerprints": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Optional provenance: the fingerprints of the sources whose citations bound this request (D-17); the citations themselves already carry the exact source fingerprints."
     }
   },
   "$defs": {
