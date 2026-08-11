@@ -22,8 +22,8 @@ import server
 from model import (lesson_slug, load, parse_bank, parse_key_blocks,
                    parse_lesson, parse_terms)
 from runtime import explain_payload, glossable, read_session, upgrade_session
-from surfaces import (day, launcher, lesson, presentation, quiz, session,
-                      settings, study, update)
+from surfaces import (day, launcher, lesson, presentation, quiz, seeding,
+                      session, settings, study, update)
 from surfaces import theme
 
 
@@ -90,6 +90,12 @@ DAY_EDIT_RE = re.compile(r"^/day/(?P<stem>[^/]+)/edit$")
 DAY_EDIT_ALLOWED_FIELDS = ("revision", "edits", "force_token", "confirmation",
                            "force")
 
+# The only body fields `POST /seed/accept` reads (plan 03.2-03): a bank
+# addressed by scanned stem, one of the three accept-loop actions, and the
+# draft item dict for the accept action. Everything else is refused by name,
+# the same authority-shaped-field discipline every mutating route here takes.
+SEED_ACCEPT_ALLOWED_FIELDS = ("bank", "action", "draft")
+
 # The `/api/*` session routes: D-04's four plus Phase 6's `/api/hint`.
 # Fixed literals, not stem-parameterised: a session or a bank is addressed
 # by an opaque identifier in the JSON body (T-2-01), never by a path
@@ -120,6 +126,7 @@ ROUTES = (
     ("GET", "/disclosure", "handle_disclosure"),
     ("POST", "/api/theme", "handle_theme_post"),
     ("POST", "/cli-twin", "handle_cli_twin"),
+    ("POST", "/seed/accept", "handle_seed_accept"),
 ) + API_ROUTES + (
     ("GET", QUIZ_GET_RE, "handle_quiz_get"),
     ("POST", QUIZ_ANSWER_RE, "handle_quiz_answer"),
@@ -146,6 +153,7 @@ ROUTE_CLI = {
     ("GET", "/disclosure"): "disclosure",
     ("POST", "/api/theme"): "theme",
     ("POST", "/cli-twin"): "cli-twin",
+    ("POST", "/seed/accept"): "seed",
     ("POST", "/api/start"): "start",
     ("POST", "/api/next"): "next",
     ("POST", "/api/submit"): "submit",
@@ -225,6 +233,68 @@ def handle_disclosure(handler):
     handler.send_bytes(
         json.dumps(update.disclosure_state(handler.root)).encode("utf-8"),
         "application/json")
+
+
+def handle_seed_accept(handler):
+    """`POST /seed/accept` -- the daemon half of the one accept endpoint
+    (D-07, plan 03.2-03). The browser surface is a client of the same
+    `seeding.accept_candidate` function the `itembank seed` CLI calls -- one
+    implementation, two surfaces, never two decisions.
+
+    The body carries `{"bank": <scanned stem>, "action": accept|skip|cancel,
+    "draft": {...}}`. The bank stem is resolved through the startup allowlist
+    (`handler.banks`), never joined onto a filesystem path (T-2-01). Accept
+    is the mutating write: it requires a loopback client (the same authority
+    model `handle_theme_post` established -- a `--lan` daemon exposes the
+    route to the network, so the bank write is loopback-only) and calls
+    `seeding.accept_candidate`, which lint-gates the draft and appends a
+    clean item exactly once. Skip defers (the item stays in the draft set and
+    is reported at the end); cancel writes nothing (D-09) and returns the
+    verbatim summary `Nothing was written.`
+    """
+    if not _same_origin(handler):
+        handler.send_error(403, "cross-origin seed request refused")
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    bank = data.get("bank")
+    if not isinstance(bank, str) or bank not in handler.banks:
+        handler.send_not_found(bank)
+        return
+    extra = sorted(k for k in data if k not in SEED_ACCEPT_ALLOWED_FIELDS)
+    if extra:
+        handler.send_error(
+            400, "field %r is not accepted by /seed/accept; only bank, action, "
+            "and draft are read" % extra[0])
+        return
+    action = data.get("action")
+    if action not in ("accept", "skip", "cancel"):
+        handler.send_error(400, "action must be one of accept|skip|cancel")
+        return
+    if action == "accept":
+        if not _client_is_loopback(handler):
+            handler.send_error(403, "seed accept requires a loopback client")
+            return
+        draft = data.get("draft")
+        if not isinstance(draft, dict):
+            handler.send_error(400, "accept requires a draft item object")
+            return
+        try:
+            result = seeding.accept_candidate(handler.banks[bank], draft)
+        except Exception as exc:                # never let a bad POST kill the daemon
+            handler.send_server_error(exc)
+            return
+        handler.send_json(result)
+        return
+    if action == "skip":
+        handler.send_json({
+            "action": "skip", "deferred": True,
+            "copy": "Skipped item deferred; it stays in the draft set and is "
+                    "reported at the end."})
+        return
+    handler.send_json({"action": "cancel", "cancelled": True,
+                       "summary": seeding.CANCELLED_SUMMARY})
 
 
 def scan_dir(root):
@@ -794,8 +864,11 @@ def handle_quiz_answer(handler, stem):
             # before its start call landed) gets a JSON session created for
             # this stem right here -- same session.do_start path, same
             # registration, so the page and the API never diverge.
+            # selection_mode is the Phase 7 composition axis, separate from
+            # the feedback mode (D-01): a drill/remediation sitting composes
+            # with the practice composition unless one was chosen explicitly.
             spec = {"objective": "", "count": len(qs), "seed": 0,
-                    "selection_mode": sess.get("mode", "practice")}
+                    "selection_mode": sess.get("selection_mode", "practice")}
             out = os.path.join(os.path.abspath(handler.root), "_attempts",
                                "session_%s.json" % uuid.uuid4().hex[:12])
             try:
@@ -1533,6 +1606,12 @@ def handle_api_submit(handler):
     if q is not None and release_explain:
         result["explain"] = explain_payload(
             q, bool(cfg.get("reveal")) if cfg is not None else False)
+    if mode in ("diagnostic", "exam") and result.get("action") != "advance":
+        # D-12/D-13: diagnostic and unmarked exam responses carry no verdict,
+        # answer, hint, explanation, or key -- the score is stripped here so
+        # the served client cannot infer correctness before the release gate.
+        result.pop("score", None)
+        result.pop("explain", None)
     if cfg is not None and result.get("accepted") and qs:
         _refresh_attempt_view(cfg, session_id, qs, bank_path)
     handler.send_json(result)
