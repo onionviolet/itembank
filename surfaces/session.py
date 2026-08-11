@@ -115,14 +115,17 @@ def do_start(bank_path, spec, mode, out, force):
                          "source": evidence_source}
     # Phase 9 (D-01/D-04): resolve the subject profile from the items actually
     # selected into this sitting, and persist the complete snapshot with the
-    # session. One unambiguous namespaced subject selects its registry entry;
-    # unknown/unnamespaced sittings get the conservative default; a sitting
-    # whose selected items span several namespaces (no objective filter) and
-    # disallowed item types refuse here, before any session or evidence file
-    # exists. An explicit profile id is wired through the clients in plan
-    # 09-05; `select_profile` already accepts it.
+    # session. One unambiguous namespaced subject selects its registry entry
+    # from validated settings; unknown/unnamespaced sittings get the
+    # conservative default; a sitting whose selected items span several
+    # namespaces (no objective filter) and disallowed item types refuse here,
+    # before any session or evidence file exists. An explicit profile id is
+    # wired through the clients in plan 09-05; `select_profile` already
+    # accepts it.
     try:
-        subject_snapshot = subjects.select_profile(items, subjects.REGISTRY)
+        subject_snapshot = subjects.select_profile(
+            items, subjects.load_registry(
+                os.path.dirname(os.path.abspath(bank_path)) or "."))
     except subjects.SubjectProfileError as exc:
         sys.exit(str(exc))
     index = {q["id"]: i for i, q in enumerate(qs)}
@@ -287,7 +290,8 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
     # session's own item list, matching do_start.
     if data.get("subject_profile") is None:
         data["subject_profile"] = subjects.select_profile(
-            [qs[i] for i in data["items"]], subjects.REGISTRY)
+            [qs[i] for i in data["items"]],
+            subjects.load_registry(os.path.dirname(data["bank"])))
 
     log = evidence.log_path(os.path.dirname(data["bank"]))
     item_key = evidence.evidence_key(q)

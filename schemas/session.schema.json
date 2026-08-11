@@ -123,7 +123,8 @@
         },
         "lesson": {
           "type": "object",
-          "required": ["markdown", "tables", "math", "runnable_languages"],
+          "required": ["markdown", "tables", "math", "runnable_languages",
+                       "lesson_layout"],
           "properties": {
             "markdown": {
               "type": "boolean"
@@ -139,6 +140,11 @@
               "items": {
                 "type": "string"
               }
+            },
+            "lesson_layout": {
+              "type": "string",
+              "enum": ["separate", "inline"],
+              "description": "Phase 3.1 D-04 fold: separate is the classic two-file lesson page; inline embeds lesson prose in the working surface."
             }
           }
         },

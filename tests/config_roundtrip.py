@@ -114,7 +114,7 @@ def test_schema_names_every_project_key():
     expected = {"theme", "daily_cap", "selection_weights", "selection",
                 "auditor_autonomy", "model_backend", "suggestion_reveal",
                 "update_policy", "daemon", "update", "accent", "reader",
-                "style", "paraphrase"}
+                "style", "paraphrase", "subject_profiles"}
     if keys != expected:
         fail("schema properties %r do not equal the expected key set %r" % (keys, expected))
     for name, sub in schema["properties"].items():
@@ -203,8 +203,8 @@ def test_config_no_args_prints_table():
                  "update"):
         if name not in r.stdout:
             fail("config table is missing key %r" % name)
-    if r.stdout.count("inert") < 5:
-        fail("config table names fewer than 5 inert keys: %r" % r.stdout.count("inert"))
+    if r.stdout.count("inert") < 4:
+        fail("config table names fewer than 4 inert keys: %r" % r.stdout.count("inert"))
     for line in r.stdout.splitlines():
         stripped = line.strip()
         if stripped.startswith("daemon") and "inert" in line:
@@ -516,11 +516,16 @@ def test_phase_4_theme_keys_read_not_inert():
             fail("%r is marked inert, but Phase 4's own code reads it: %r"
                  % (token, line))
     # selection_weights left the inert list when phase 7 started reading
-    # its recency_decay key (D-15); the group row is active at THIS_PHASE 7.
-    inert_groups = ("daily_cap", "auditor_autonomy", "model_backend")
+    # its recency_decay key (D-15); model_backend and suggestion_reveal left
+    # when this phase advanced to 9 (Phase 8's groups are read by Phase 9).
+    inert_groups = ("daily_cap", "auditor_autonomy")
     for group in inert_groups:
         if not any(token == group and "inert" in line for token, line in rows):
             fail("%r is no longer marked inert" % group)
+    for group in ("model_backend", "suggestion_reveal"):
+        if any(token == group and "inert" in line for token, line in rows):
+            fail("%r must be read (active) by THIS_PHASE 9: %r"
+                 % (group, [line for token, line in rows if token == group]))
     shutil.rmtree(base, ignore_errors=True)
 
 

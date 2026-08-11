@@ -17,8 +17,8 @@ The invariants it enforces:
 - Subject extraction always goes through `evidence.subject_of()` -- the one
   namespaced-objective extractor -- never a local string split (D-04).
 
-The shipped known subjects live in a temporary constant here until plan 09-02
-moves them into validated settings data (`subject_profiles`); the conservative
+The shipped known subjects live in the validated `subject_profiles` settings
+group (plan 09-02) and enter through `load_registry()`; the conservative
 default remains code-owned forever (D-03).
 """
 import copy
@@ -41,19 +41,22 @@ DEFAULT_PROFILE = {
     "id": "default",
     "version": PROFILE_SCHEMA_VERSION,
     "lesson": {"markdown": True, "tables": True, "math": False,
-               "runnable_languages": []},
+               "runnable_languages": [], "lesson_layout": "separate"},
     "allowed_item_types": ["mc", "multi", "table", "dnd", "build", "short"],
     "verifier": "runtime",
 }
 
-# Known verifier identifiers (D-01). The shared runtime scorer exists today;
-# Phase 5's `check` verifier joins before plan 09-02 ships the CS entry.
-KNOWN_VERIFIERS = ("runtime",)
+# Known verifier identifiers (D-01): the shared runtime scorer and Phase 5's
+# check-item scorer. The `check` id is a Phase 9 registry convention: Phase 5
+# owns the one scoring implementation for `[TYPE: check]` items, and plan
+# 09-05 routes CS submissions to it; the registry here just names it.
+KNOWN_VERIFIERS = ("runtime", "check")
 
 _PROFILE_KEYS = frozenset(
     ["id", "version", "lesson", "allowed_item_types", "verifier"])
 _LESSON_KEYS = frozenset(
-    ["markdown", "tables", "math", "runnable_languages"])
+    ["markdown", "tables", "math", "runnable_languages", "lesson_layout"])
+_LESSON_LAYOUTS = ("separate", "inline")
 
 
 def _fail(msg):
@@ -101,6 +104,9 @@ def _validate_profile(profile):
              % pid)
     _require(len(set(langs)) == len(langs),
              "profile %r lesson.runnable_languages contains duplicates" % pid)
+    _require(lesson["lesson_layout"] in _LESSON_LAYOUTS,
+             "profile %r lesson.lesson_layout must be one of %s"
+             % (pid, ", ".join(_LESSON_LAYOUTS)))
     types = profile["allowed_item_types"]
     _require(isinstance(types, list) and
              all(isinstance(x, str) for x in types),
@@ -241,20 +247,18 @@ def session_profile(data):
     return data.get("subject_profile")
 
 
-# Temporary shipped registry until plan 09-02 moves the known subjects into
-# the validated `subject_profiles` settings group. Only the conservative
-# default above remains code-owned after that plan.
-REGISTRY = {
-    "version": 1,
-    "entries": {
-        "emt": {
-            "id": "emt",
-            "version": PROFILE_SCHEMA_VERSION,
-            "lesson": {"markdown": True, "tables": True, "math": False,
-                       "runnable_languages": []},
-            "allowed_item_types": ["mc", "multi", "table", "dnd", "build",
-                                   "short"],
-            "verifier": "runtime",
-        },
-    },
-}
+def load_registry(base):
+    """The settings-backed registry loader (plan 09-02): the one boundary
+    through which known subjects enter the runtime. Reads the validated
+    merged settings (schema defaults or the checked-in itembank.json) and
+    runs the closed-shape `validate_registry()` over `subject_profiles`, so
+    an invalid registry is a named profile/settings error before any
+    selection. Only the conservative default stays code-owned (D-03)."""
+    from surfaces import settings  # function-local: configuration, not a surface
+    data = settings.load_settings(base)
+    return validate_registry(data.get("subject_profiles"))
+
+
+# No temporary shipped-entry constant: known subjects are settings data
+# (plan 09-02, D-02). The conservative fallback above is the only code-owned
+# profile.

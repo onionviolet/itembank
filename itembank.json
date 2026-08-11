@@ -42,5 +42,34 @@
   },
   "selection": {
     "cooldown_responses": 20
+  },
+  "subject_profiles": {
+    "version": 1,
+    "entries": {
+      "emt": {
+        "id": "emt",
+        "version": 1,
+        "lesson": {"markdown": true, "tables": true, "math": false,
+                   "runnable_languages": [], "lesson_layout": "separate"},
+        "allowed_item_types": ["mc", "multi", "table", "dnd", "build", "short"],
+        "verifier": "runtime"
+      },
+      "math": {
+        "id": "math",
+        "version": 1,
+        "lesson": {"markdown": true, "tables": true, "math": true,
+                   "runnable_languages": [], "lesson_layout": "separate"},
+        "allowed_item_types": ["mc", "multi", "table", "dnd", "build", "short"],
+        "verifier": "runtime"
+      },
+      "cs": {
+        "id": "cs",
+        "version": 1,
+        "lesson": {"markdown": true, "tables": true, "math": false,
+                   "runnable_languages": ["python"], "lesson_layout": "inline"},
+        "allowed_item_types": ["check", "mc", "multi", "table", "dnd", "build", "short"],
+        "verifier": "check"
+      }
+    }
   }
 }

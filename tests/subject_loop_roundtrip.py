@@ -15,9 +15,9 @@ synthetic EMT bank. It also pins the conservative fallback, the mixed-subject
 refusal, the disallowed-type refusal, the legacy-session one-time fill, and
 the v3 session upgrade -- all without any subject-name branch in a surface.
 
-The registry used here is the temporary shipped constant in `subjects.REGISTRY`;
-plan 09-02 moves the known subjects into validated settings data and this
-module's loader/selector tests extend to that registry.
+The registry used here is the validated `subject_profiles` settings group
+(plan 09-02): schema defaults when no itembank.json exists, checked-in
+itembank.json otherwise, always through `subjects.load_registry()`.
 """
 import json
 import os
@@ -283,18 +283,29 @@ def write_bank(tmp, name, text):
 
 
 def minimal_profile(pid="emt", allowed=None, verifier="runtime",
-                    math=False, languages=None):
-    """A valid profile in the exact 09-01 shape."""
+                    math=False, languages=None, layout="separate"):
+    """A valid profile in the published 09-02 shape."""
     return {
         "id": pid,
         "version": subjects.PROFILE_SCHEMA_VERSION,
         "lesson": {"markdown": True, "tables": True, "math": math,
-                   "runnable_languages": list(languages or [])},
+                   "runnable_languages": list(languages or []),
+                   "lesson_layout": layout},
         "allowed_item_types": list(allowed or
                                    ["mc", "multi", "table", "dnd", "build",
                                     "short"]),
         "verifier": verifier,
     }
+
+
+def default_registry():
+    """The validated registry from settings defaults (no itembank.json):
+    schema defaults merged and closed-shape validated."""
+    d = tempfile.mkdtemp(prefix="subj_reg_")
+    try:
+        return subjects.load_registry(d)
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
 
 
 def test_subject_ids_use_the_one_extractor():
@@ -382,7 +393,7 @@ def test_conservative_fallback_and_capability_report():
     qs = model.load(write_bank(tempfile.gettempdir(), "unk_%s.md"
                                % uuid.uuid4().hex, UNKNOWN_BANK))
     snap = subjects.select_profile(
-        qs, subjects.REGISTRY,
+        qs, default_registry(),
         requested_capabilities=("math", "runnable_languages:python"))
     if snap["subject_id"] != "":
         fail("unknown subject must record no subject id, got %r"
@@ -404,7 +415,7 @@ def test_conservative_fallback_and_capability_report():
                                     "[OBJECTIVE: airway]")
                                 .replace("[OBJECTIVE: emt:airway.opa]",
                                          "[OBJECTIVE: airway.opa]")))
-    snap2 = subjects.select_profile(qs2, subjects.REGISTRY)
+    snap2 = subjects.select_profile(qs2, default_registry())
     if snap2["profile"]["id"] != "default" or snap2["unsupported_capabilities"]:
         fail("unnamespaced bank must get the default profile with no "
              "unsupported report, got %r" % snap2)
@@ -414,7 +425,7 @@ def test_mixed_subject_refusal_and_explicit_resolution():
     qs = model.load(write_bank(tempfile.gettempdir(), "mix_%s.md"
                                % uuid.uuid4().hex, MIXED_BANK))
     try:
-        subjects.select_profile(qs, subjects.REGISTRY)
+        subjects.select_profile(qs, default_registry())
         fail("mixed namespaces without an explicit id must refuse")
     except subjects.SubjectProfileError as exc:
         msg = str(exc)
@@ -422,11 +433,11 @@ def test_mixed_subject_refusal_and_explicit_resolution():
             fail("the refusal must name the conflicting subjects, got %r" % msg)
         if os.path.abspath(tempfile.gettempdir()) in msg:
             fail("the refusal must not disclose the bank path, got %r" % msg)
-    snap = subjects.select_profile(qs, subjects.REGISTRY, explicit_id="emt")
+    snap = subjects.select_profile(qs, default_registry(), explicit_id="emt")
     if snap["subject_id"] != "emt" or snap["profile"]["id"] != "emt":
         fail("an explicit known id must resolve the ambiguous bank, got %r" % snap)
     try:
-        subjects.select_profile(qs, subjects.REGISTRY, explicit_id="nosuch")
+        subjects.select_profile(qs, default_registry(), explicit_id="nosuch")
         fail("an unknown explicit id must refuse")
     except subjects.SubjectProfileError:
         pass
@@ -512,7 +523,7 @@ def test_emt_learner_loop_with_persisted_profile(tmp):
         fail("the bank's emt namespace must select the EMT profile, got %r" % sp)
     if sp["profile"]["verifier"] != "runtime":
         fail("EMT uses the shared runtime verifier, got %r" % sp)
-    if sp["registry_version"] != subjects.REGISTRY["version"]:
+    if sp["registry_version"] != subjects.load_registry(tmp)["version"]:
         fail("the snapshot must record the registry version, got %r" % sp)
     if res.get("subject_id") != "emt":
         fail("session_view must expose the subject id, got %r" % res.get("subject_id"))
@@ -567,13 +578,16 @@ def test_emt_learner_loop_with_persisted_profile(tmp):
 
     # 4. Resume drift: registry changes after start cannot change the stored
     #    snapshot (D-04) -- the session keeps interpreting under the profile
-    #    it was created with.
-    saved_math = subjects.REGISTRY["entries"]["emt"]["lesson"]["math"]
-    subjects.REGISTRY["entries"]["emt"]["lesson"]["math"] = True
+    #    it was created with, even when the settings file next to the bank is
+    #    edited to enable a capability the session does not have.
+    from surfaces import settings as settings_surface
+    cfg = settings_surface.load_settings(tmp)
+    cfg["subject_profiles"]["entries"]["emt"]["lesson"]["math"] = True
+    settings_surface.write_settings(tmp, cfg)
     try:
         session_surface.do_action(out, {"kind": "submit", "answer": "B"})
     finally:
-        subjects.REGISTRY["entries"]["emt"]["lesson"]["math"] = saved_math
+        os.remove(os.path.join(tmp, "itembank.json"))
     again = json.load(open(out, encoding="utf-8"))
     if again["subject_profile"]["subject_id"] != "emt":
         fail("resume must keep the stored subject id, got %r" %
@@ -631,28 +645,206 @@ def test_legacy_session_fills_snapshot_once(tmp):
 
 
 def test_no_subject_dispatch_in_surfaces():
-    """An AST guard: application Python must not branch on the shipped subject
-    ids (D-02). Profile data lives in JSON/settings; surfaces select, they
-    never dispatch."""
+    """An AST guard (D-02): no learner-facing surface may branch on the
+    shipped subject ids, and no root application module may branch on emt/cs
+    (`math` is also a capability token inside subjects.py's capability check,
+    so root modules are checked for emt/cs only, while surfaces are checked
+    for all three). The guard is precise: it flags only if/match nodes that
+    COMPARE against a subject-id string literal -- an error message or
+    docstring that merely mentions an id is not dispatch. Profile data lives
+    in JSON/settings; surfaces select, they never dispatch."""
     import ast
-    for root, _dirs, files in os.walk(os.path.join(ROOT, "surfaces")):
-        for fn in files:
-            if not fn.endswith(".py"):
-                continue
-            path = os.path.join(root, fn)
-            tree = ast.parse(open(path, encoding="utf-8").read(), path)
+
+    def compares_id(node, ids):
+        for sub in ast.walk(node):
+            if isinstance(sub, ast.Compare):
+                operands = ([sub.left] if not isinstance(sub.left, ast.Constant)
+                            else []) + list(sub.comparators)
+                for op in operands:
+                    if isinstance(op, ast.Constant) and \
+                            isinstance(op.value, str) and op.value in ids:
+                        return True
+            elif isinstance(sub, ast.Match):
+                for case in sub.cases:
+                    pat = case.pattern
+                    if isinstance(pat, ast.MatchValue) and \
+                            isinstance(pat.value, ast.Constant) and \
+                            isinstance(pat.value.value, str) and \
+                            pat.value.value in ids:
+                        return True
+        return False
+
+    roots = [os.path.join(ROOT, "surfaces")]
+    roots += [os.path.join(ROOT, f) for f in
+              ("itembank.py", "model.py", "runtime.py", "evidence.py",
+               "selection.py", "server.py", "schema_validate.py",
+               "resources.py", "subjects.py", "build.py", "model_adapter.py",
+               "tier_gate.py")]
+    for root in roots:
+        if os.path.isdir(root):
+            files = [os.path.join(root, f) for f in os.listdir(root)
+                     if f.endswith(".py")]
+        elif os.path.isfile(root):
+            files = [root]
+        else:
+            continue
+        for path in files:
+            src = open(path, encoding="utf-8").read()
+            tree = ast.parse(src, path)
+            ids = ("emt", "cs") if root != os.path.join(ROOT, "surfaces") \
+                else ("emt", "math", "cs")
             for node in ast.walk(tree):
-                if isinstance(node, (ast.If, ast.Match)):
-                    src = ast.get_source_segment(
-                        open(path, encoding="utf-8").read(), node) or ""
-                    for subj in ("emt", "math", "cs"):
-                        if re_search_word(src, subj):
-                            fail("subject-name dispatch in %s: %r" % (path, src))
+                if not isinstance(node, (ast.If, ast.Match)):
+                    continue
+                if compares_id(node, ids):
+                    fail("subject-name dispatch in %s: %r"
+                         % (path, ast.get_source_segment(src, node) or ""))
 
 
-def re_search_word(haystack, word):
-    import re
-    return re.search(r"\b%s\b" % re.escape(word), haystack) is not None
+def test_settings_registry_parity():
+    """Schema defaults, a missing settings file, and the checked-in
+    itembank.json expose structurally identical EMT/Math/CS registries, and
+    every entry carries the lesson_layout enum (separate|inline) folded from
+    Phase 3.1 D-04 (EMT/Math separate, CS inline)."""
+    import json as _json
+    from surfaces import settings as settings_surface
+    missing = tempfile.mkdtemp(prefix="subj_parity_")
+    try:
+        reg_missing = subjects.load_registry(missing)
+        reg_root = subjects.load_registry(os.path.join(ROOT, "fixtures"))
+        schema = _json.load(open(os.path.join(ROOT, "schemas",
+                                              "settings.schema.json"),
+                                 encoding="utf-8"))
+        shipped = _json.load(open(os.path.join(ROOT, "itembank.json"),
+                                  encoding="utf-8"))
+        if reg_missing != reg_root:
+            fail("missing-file registry and checked-in registry differ: %r vs %r"
+                 % (reg_missing, reg_root))
+        if shipped["subject_profiles"] != schema["properties"]["subject_profiles"]["default"]:
+            fail("itembank.json subject_profiles must mirror the schema default")
+        for pid, expect_layout in (("emt", "separate"), ("math", "separate"),
+                                   ("cs", "inline")):
+            lesson = reg_missing["entries"][pid]["lesson"]
+            if lesson["lesson_layout"] != expect_layout:
+                fail("%s must default lesson_layout %r, got %r"
+                     % (pid, expect_layout, lesson["lesson_layout"]))
+        if reg_missing["entries"]["cs"]["verifier"] != "check":
+            fail("CS must use Phase 5's check verifier id, got %r"
+                 % reg_missing["entries"]["cs"]["verifier"])
+        if "check" not in reg_missing["entries"]["cs"]["allowed_item_types"]:
+            fail("only CS permits the check item type")
+        if "check" in reg_missing["entries"]["emt"]["allowed_item_types"]:
+            fail("EMT must not permit the check item type")
+        if reg_missing["entries"]["cs"]["lesson"]["runnable_languages"] != ["python"]:
+            fail("CS must enable runnable python, got %r"
+                 % reg_missing["entries"]["cs"]["lesson"]["runnable_languages"])
+    finally:
+        shutil.rmtree(missing, ignore_errors=True)
+
+
+def test_load_registry_rejects_malformed():
+    """A malformed registry fails before selection through the public loader:
+    schema-caught shape errors surface as named settings exits, and
+    closed-shape registry errors (e.g. a fourth entry with an unsupported
+    verifier, which the open entries object cannot see) surface as
+    SubjectProfileError."""
+    from surfaces import settings as settings_surface
+    d = tempfile.mkdtemp(prefix="subj_bad_")
+    try:
+        # Unknown verifier on a KNOWN entry -> settings schema enum -> exit.
+        cfg = settings_surface.load_settings(d)
+        cfg["subject_profiles"]["entries"]["emt"]["verifier"] = "bogus_verifier"
+        settings_surface.write_settings(d, cfg)
+        try:
+            subjects.load_registry(d)
+            fail("an unsupported verifier on a known entry must fail")
+        except SystemExit:
+            pass
+        os.remove(os.path.join(d, "itembank.json"))
+        # Extra key on a known entry -> closed profile -> settings exit.
+        cfg = settings_surface.load_settings(d)
+        cfg["subject_profiles"]["entries"]["emt"]["bogus"] = True
+        settings_surface.write_settings(d, cfg)
+        try:
+            subjects.load_registry(d)
+            fail("an extra profile key on a known entry must fail")
+        except SystemExit:
+            pass
+        os.remove(os.path.join(d, "itembank.json"))
+        # An unknown FOURTH entry bypasses the open entries schema but must
+        # still fail closed-shape validation in validate_registry.
+        cfg = settings_surface.load_settings(d)
+        cfg["subject_profiles"]["entries"]["fourth"] = {
+            "id": "fourth", "version": 1,
+            "lesson": {"markdown": True, "tables": True, "math": False,
+                       "runnable_languages": [], "lesson_layout": "separate"},
+            "allowed_item_types": ["mc"], "verifier": "bogus_verifier"}
+        settings_surface.write_settings(d, cfg)
+        try:
+            subjects.load_registry(d)
+            fail("an unknown verifier on a fourth entry must fail validation")
+        except subjects.SubjectProfileError:
+            pass
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def test_fourth_profile_is_configuration_only(tmp):
+    """LOOP-05 / D-15: appending a valid fourth entry to temporary settings
+    resolves through the same public loader and selector with no production
+    edit, and its snapshot shape matches the shipped profiles exactly."""
+    from surfaces import settings as settings_surface
+    cfg = settings_surface.load_settings(tmp)
+    cfg["subject_profiles"]["entries"]["fourth"] = {
+        "id": "fourth", "version": 1,
+        "lesson": {"markdown": True, "tables": True, "math": False,
+                   "runnable_languages": [], "lesson_layout": "separate"},
+        "allowed_item_types": ["mc", "multi", "table", "dnd", "build", "short"],
+        "verifier": "runtime"}
+    settings_surface.write_settings(tmp, cfg)
+    reg = subjects.load_registry(tmp)
+    if "fourth" not in reg["entries"]:
+        fail("the fourth entry must load through public configuration")
+    bank = write_bank(tmp, "fourth_bank.md",
+                      "# Fourth synthetic bank (Phase 9)\n\n"
+                      "## LESSON\n\n### Fourth Subject\n\n"
+                      "Q1. A fourth-subject item.   (difficulty: recall)\n"
+                      "[OBJECTIVE: fourth:magic]\n"
+                      "[LESSON-REF: Fourth Subject]\n\n"
+                      "A) Alpha\nB) Beta\nC) Gamma\n\nCORRECT: A\n\n"
+                      "WHY BEST: Alpha is the only option that fits.\n\n"
+                      "KEY DISCRIMINATOR: None; synthetic.\n\n"
+                      "SECOND-BEST: Beta, if the question asked for the "
+                      "runner-up.\n\n"
+                      "DISTRACTOR ANALYSIS:\n"
+                      "- A) Correct.\n"
+                      "- B) Beta would be correct if the question asked for it.\n"
+                      "- C) Gamma would be correct if the question asked for the "
+                      "third option.\n\n"
+                      "TRAP: None; synthetic.\n\n"
+                      "CONFIDENCE: high\n")
+    qs = model.load(bank)
+    snap = subjects.select_profile(qs, reg)
+    if snap["subject_id"] != "fourth" or snap["profile"]["id"] != "fourth":
+        fail("the fourth profile must resolve from its namespace, got %r" % snap)
+    emt = reg["entries"]["emt"]
+    if set(snap["profile"]) != set(emt):
+        fail("the fourth snapshot must carry the same keys as shipped profiles")
+    snap2 = subjects.select_profile(qs, reg, requested_capabilities=("math",))
+    if snap2["unsupported_capabilities"] != ["math"]:
+        fail("requested unavailable capabilities must stay explicit for the "
+             "fourth profile, got %r" % snap2["unsupported_capabilities"])
+    # The shared driver selects it too: do_start loads the registry from the
+    # bank's own directory, where the temporary settings file lives.
+    out = os.path.join(tmp, "fourth_s.json")
+    res = session_surface.do_start(bank, {"count": 1}, "practice", out,
+                                   force=False)
+    if res.get("subject_id") != "fourth":
+        fail("do_start must resolve the fourth profile from bank-adjacent "
+             "settings, got %r" % res.get("subject_id"))
+    data = json.load(open(out, encoding="utf-8"))
+    if data["subject_profile"]["subject_id"] != "fourth":
+        fail("the fourth sitting must persist its profile snapshot")
 
 
 def main():
@@ -666,11 +858,15 @@ def main():
         test_emt_lesson_semantic_table(tmp)
         test_emt_learner_loop_with_persisted_profile(tmp)
         test_legacy_session_fills_snapshot_once(tmp)
+        test_settings_registry_parity()
+        test_load_registry_rejects_malformed()
+        test_fourth_profile_is_configuration_only(tmp)
         test_no_subject_dispatch_in_surfaces()
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     print("ok: subject loop (EMT tracer, persisted profile, resume drift, "
-          "fallback/mixed/disallowed, semantic table, v3 upgrade)")
+          "fallback/mixed/disallowed, semantic table, v3 upgrade, settings "
+          "registry parity, configuration-only fourth profile)")
 
 
 if __name__ == "__main__":
