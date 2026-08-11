@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 03.2
 current_phase_name: seeding-import-provenance
-status: executing
+status: verifying
 stopped_at: Completed 13-03-PLAN.md
-last_updated: "2026-08-11T01:10:14.903Z"
+last_updated: "2026-08-11T01:17:32.519Z"
 last_activity: 2026-08-10
 last_activity_desc: Phase 03.1 execution started
 progress:
   total_phases: 18
   completed_phases: 5
   total_plans: 104
-  completed_plans: 50
+  completed_plans: 51
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 
 Phase: 03.2 (seeding-import-provenance) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-08-10 — Phase 03.2 execution started
 
-Progress: [█████░░░░░] 48%
+Progress: [█████░░░░░] 49%
 
 ## Performance Metrics
 
@@ -242,6 +242,7 @@ Recent decisions affecting current work:
 - [Phase ?]: 13-02: POST /cli-twin + 'itembank cli-twin' give the menu its daemon-owned route->CLI mapping; API_ROUTES stays locked at four.
 - [Phase ?]: 13-03: the frozen exe is the full CLI entry (sidecar is a CLI mode); the bundled shell passes 'sidecar <dir>'; PyInstaller --add-data carries schemas/styles/fonts because resources.py resolves relative to the frozen root.
 - [Phase ?]: 13-03: install-notice values are compile-time defines with !error fail-closed; uninstaller deletes only \ (fixture-proven); NSIS bundling degrades honestly while makensis is absent.
+- [Phase ?]: 13-04: one release channel, two manifest formats from the same tag (SHA256SUMS.txt + latest.json/minisign); the shell reads the daemon-owned notified_at record and injects the StatusNotice once into the first HTML page - no second consent store.
 
 ## Deferred Verification
 
