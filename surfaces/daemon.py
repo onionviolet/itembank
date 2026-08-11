@@ -839,7 +839,8 @@ def handle_quiz_get(handler, stem):
                             post_path="/quiz/%s/answer" % stem,
                             bank_stem=stem, mode=sess.get("mode", "practice"),
                             lesson_base="/lesson/%s" % stem,
-                            lesson_slugs=lesson_slugs, theme_css=theme_block)
+                            lesson_slugs=lesson_slugs, theme_css=theme_block,
+                            assist=True)
     handler.send_html(page.encode("utf-8"))
 
 

@@ -160,6 +160,46 @@ textarea.ans:disabled{opacity:.75}
   h1.stem{font-size:20px}
   .feedback{min-height:120px}
 }
+/* AgentAssist (plan 08-05): optional, subordinate, collapsed, opt-in
+   generated support. Phase 4 tokens only; no fixed or minimum widths, so
+   320px/200% zoom never scrolls horizontally. */
+.agent-assist{margin:14px 0 0;font-size:13.5px;max-width:72ch}
+.assist summary{cursor:pointer;padding:4px 0;font-size:11px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--mut);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.assist summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.assist-body{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.assist-status{color:var(--mut);font-size:12.5px;margin:0}
+.assist-actions{display:flex;flex-wrap:wrap;gap:8px}
+.assist-copy{color:var(--mut);margin:0}
+.generated{background:var(--card);border:1px solid var(--line);
+  border-left:3px solid var(--accent);border-radius:0 9px 9px 0;
+  padding:12px 14px}
+.generated h4,.authored-hint h4,.rubric h4{margin:0 0 5px;font-size:11px;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--mut);
+  font-family:ui-monospace,Menlo,Consolas,monospace}
+.generated-disclosure{color:var(--mut);font-size:12.5px;margin:0 0 8px}
+.generated-text{margin:0;overflow-wrap:anywhere}
+.authored-hint{margin-top:10px;background:var(--card);border:1px solid var(--line);
+  border-radius:9px;padding:12px 14px}
+.authored-hint p{margin:0;overflow-wrap:anywhere}
+.assist-lock{display:flex;gap:10px;align-items:flex-start;background:var(--chip);
+  border:1px solid var(--line);border-radius:9px;padding:12px 14px}
+.lock-glyph{font-size:18px;line-height:1.2}
+.lock-label{font-weight:600;margin:0 0 4px}
+.lock-copy{color:var(--mut);margin:0 0 8px;overflow-wrap:anywhere}
+.rubric-rows{list-style:none;margin:0;padding:0;display:flex;
+  flex-direction:column;gap:8px}
+.rubric-row{display:flex;gap:10px;align-items:flex-start;background:var(--card);
+  border:1px solid var(--line);border-radius:9px;padding:10px 12px}
+.rubric-token{flex:0 0 auto;font-size:10.5px;letter-spacing:.08em;
+  text-transform:uppercase;font-family:ui-monospace,Menlo,Consolas,monospace;
+  color:var(--warn);background:var(--chip);border:1px solid var(--line);
+  border-radius:5px;padding:2px 7px}
+.rubric-rationale{margin:0;overflow-wrap:anywhere}
+.provenance{margin-top:10px;font-size:12.5px;color:var(--mut)}
+.provenance summary{cursor:pointer}
+.assist-id{overflow-wrap:anywhere;word-break:break-all}
 @media (prefers-reduced-motion:reduce){
   *{transition:none!important}
   html{scroll-behavior:auto!important}
@@ -177,6 +217,7 @@ textarea.ans:disabled{opacity:.75}
   <div id="detail-body" class="detail-body"></div>
 </details>
 <div id="host"></div>
+<div id="assist-slot">__ASSIST__</div>
 </div>
 <script id="offline">
 __OFFLINE_JS__
@@ -184,7 +225,212 @@ __OFFLINE_JS__
 <script id="served">
 __SERVED_JS__
 </script>
+<script id="assist">
+__ASSIST_JS__
+</script>
 </body></html>"""
+
+
+# The locked 08-UI-SPEC Copywriting Contract strings for the assist region
+# (phase 8 UI-SPEC copy tables are binding; tests assert each verbatim).
+ASSIST_COPY = {
+    "summary": "Help and evidence",
+    "request": "Get optional guidance",
+    "preparing": "Preparing optional guidance\u2026",
+    "generated_heading": "Generated support",
+    "generated_disclosure": ("This guidance is generated from the current "
+                             "attempt and the help available at this step."),
+    "unavailable": ("Generated help is unavailable. You can keep learning "
+                    "with the lesson and authored hints."),
+    "policy_drop": ("Generated help is unavailable for this step. Continue "
+                    "with the available hint or try another attempt."),
+    "cancelled": ("Optional guidance was cancelled. Your current work is "
+                  "unchanged."),
+    "already_requested": ("Optional guidance was already requested for this "
+                          "attempt. Continue with the available hint or make "
+                          "another attempt."),
+    "retry": "Try generated guidance again",
+    "pending_heading": ("Pending rubric suggestion \u2014 human review "
+                        "required"),
+    "rubric_empty": ("No complete rubric suggestion is available. This "
+                     "response is still waiting for a human mark."),
+    "lock_label": "Optional guidance is locked",
+    "authored_heading": "Authored hint",
+    "provenance_summary": "Generated support details",
+}
+
+
+# The assist chrome, substituted into TEMPLATE's __ASSIST__ slot only for the
+# daemon-served page (build/offline mode ships no assist). Native
+# details/summary, one opt-in button, one bounded status line, a generated
+# support container, a provenance disclosure, and the structural lock /
+# pending rubric containers the client fills -- no accept or mark control.
+AGENT_ASSIST_HTML = (r"""<section class="agent-assist" data-agent-assist
+  aria-label="Optional generated guidance">
+  <details class="assist" id="assist">
+    <summary>__ASSIST_SUMMARY__</summary>
+    <div class="assist-body">
+      <div class="assist-actions">
+        <button type="button" class="go ghost" id="assist-request">__ASSIST_REQUEST__</button>
+      </div>
+      <p class="assist-status" id="assist-status" role="status"
+        aria-live="polite"></p>
+      <div class="assist-outcome" id="assist-outcome" hidden></div>
+    </div>
+  </details>
+</section>"""
+    .replace("__ASSIST_SUMMARY__", ASSIST_COPY["summary"])
+    .replace("__ASSIST_REQUEST__", ASSIST_COPY["request"]))
+
+
+# The AgentAssist client (plan 08-05). Wires the served client to POST
+# /api/hint and POST /api/rubric-review, renders only the typed payload
+# fields, announces each lifecycle state once through the single polite
+# status region, and never reads or renders a reason code, a tier, a
+# profile, a backend class, a fact manifest, a candidate body, or provider
+# detail. It never creates an accept or mark control: the browser may render
+# a pending suggestion, never settle one (D-14/D-25).
+ASSIST_JS = (r"""/* AgentAssist client: renders only typed /api payloads in
+   fixed chrome. No authority vocabulary is read or rendered here. */
+const Assist = (function(){
+  const statusEl = document.getElementById("assist-status");
+  const outcomeEl = document.getElementById("assist-outcome");
+  const requestBtn = document.getElementById("assist-request");
+  let sessionId = null;
+  let itemType = null;
+  let requested = false;      /* at most one automatic generation per item */
+
+  const esc = s => (s==null?"":String(s)).replace(/[&<>]/g,
+    c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+  function setStatus(text){
+    if(statusEl) statusEl.textContent = text || "";
+  }
+  function setBusy(busy){
+    if(requestBtn) requestBtn.disabled = !!busy;
+  }
+  function render(html){
+    if(!outcomeEl) return;
+    outcomeEl.hidden = !html;
+    outcomeEl.innerHTML = html || "";
+  }
+  function setSession(id){ sessionId = id; }
+  function onItem(q){
+    itemType = (q && q.type) || null;
+    requested = false;
+    setStatus("");
+    setBusy(false);
+    render("");
+  }
+  async function api(path, payload){
+    const res = await fetch(path, {method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(payload)});
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    return res.json();
+  }
+  function authoredHtml(authored){
+    if(!authored || !authored.available ||
+       typeof authored.content !== "string" || !authored.content) return "";
+    return `<div class="authored-hint"><h4>__ASSIST_AUTHORED_HEADING__</h4>
+      <p>${esc(authored.content)}</p></div>`;
+  }
+  function lockHtml(copy){
+    return `<div class="assist-lock">
+      <span class="lock-glyph" aria-hidden="true">&#128274;</span>
+      <div>
+        <p class="lock-label">__ASSIST_LOCK_LABEL__</p>
+        <p class="lock-copy">${esc(copy)}</p>
+        <button type="button" class="go ghost" id="assist-retry">__ASSIST_RETRY__</button>
+      </div></div>`;
+  }
+  function provenanceHtml(id){
+    if(!id) return "";
+    return `<details class="provenance"><summary>__ASSIST_PROVENANCE_SUMMARY__</summary>
+      <p><span class="provenance-label">__ASSIST_GENERATED_HEADING__</span>
+      &middot; interaction <span class="mono assist-id">${esc(id)}</span></p>
+      </details>`;
+  }
+  function renderHint(v){
+    if(v && v.status === "pass" && v.generated && v.generated.text){
+      render(`<div class="generated">
+          <h4>__ASSIST_GENERATED_HEADING__</h4>
+          <p class="generated-disclosure">__ASSIST_GENERATED_DISCLOSURE__</p>
+          <p class="generated-text">${esc(v.generated.text)}</p>
+        </div>` + provenanceHtml(v.interaction_id));
+      return;
+    }
+    if(v && (v.status === "unavailable" || v.status === "drop")){
+      const copy = v.status === "drop"
+        ? "__ASSIST_POLICY_DROP__" : "__ASSIST_UNAVAILABLE__";
+      render(lockHtml(copy) + authoredHtml(v.authored));
+      const retry = document.getElementById("assist-retry");
+      if(retry) retry.onclick = () => { request(true); };
+      return;
+    }
+    if(v && v.status === "cancelled"){
+      render(`<p class="assist-copy">__ASSIST_CANCELLED__</p>`);
+      return;
+    }
+    render(lockHtml("__ASSIST_UNAVAILABLE__"));
+  }
+  function renderRubric(v){
+    const points = (v && v.points) || [];
+    if(v && v.status === "pending" && points.length){
+      const rows = points.map(p => {
+        const rationale = (p && p.rationale)
+          ? `<div class="rubric-rationale">${esc(p.rationale)}</div>` : "";
+        return `<li class="rubric-row">
+          <span class="rubric-token">pending</span>
+          <div>${rationale}</div></li>`;
+      }).join("");
+      render(`<div class="rubric">
+        <h4>__ASSIST_PENDING_HEADING__</h4>
+        <ul class="rubric-rows">${rows}</ul></div>`);
+      return;
+    }
+    render(`<p class="assist-copy">__ASSIST_RUBRIC_EMPTY__</p>`);
+  }
+  function request(retry){
+    if(!sessionId) return;
+    if(requested && !retry){
+      render(`<p class="assist-copy">__ASSIST_ALREADY_REQUESTED__</p>`);
+      return;
+    }
+    requested = true;
+    setBusy(true);
+    setStatus("__ASSIST_PREPARING__");
+    const path = itemType === "short" ? "/api/rubric-review" : "/api/hint";
+    const payload = {session_id: sessionId};
+    if(retry) payload.retry = true;
+    api(path, payload).then(v => {
+      setStatus("");
+      if(itemType === "short") renderRubric(v); else renderHint(v);
+    }).catch(() => {
+      setStatus("");
+      render(lockHtml("__ASSIST_UNAVAILABLE__"));
+      const retryBtn = document.getElementById("assist-retry");
+      if(retryBtn) retryBtn.onclick = () => { request(true); };
+    }).then(() => { setBusy(false); });
+  }
+  if(requestBtn) requestBtn.onclick = () => { request(false); };
+  return {setSession, onItem};
+})();
+window.Assist = Assist;
+"""
+    .replace("__ASSIST_PREPARING__", ASSIST_COPY["preparing"])
+    .replace("__ASSIST_GENERATED_HEADING__", ASSIST_COPY["generated_heading"])
+    .replace("__ASSIST_GENERATED_DISCLOSURE__", ASSIST_COPY["generated_disclosure"])
+    .replace("__ASSIST_UNAVAILABLE__", ASSIST_COPY["unavailable"])
+    .replace("__ASSIST_POLICY_DROP__", ASSIST_COPY["policy_drop"])
+    .replace("__ASSIST_CANCELLED__", ASSIST_COPY["cancelled"])
+    .replace("__ASSIST_ALREADY_REQUESTED__", ASSIST_COPY["already_requested"])
+    .replace("__ASSIST_RETRY__", ASSIST_COPY["retry"])
+    .replace("__ASSIST_PENDING_HEADING__", ASSIST_COPY["pending_heading"])
+    .replace("__ASSIST_RUBRIC_EMPTY__", ASSIST_COPY["rubric_empty"])
+    .replace("__ASSIST_LOCK_LABEL__", ASSIST_COPY["lock_label"])
+    .replace("__ASSIST_AUTHORED_HEADING__", ASSIST_COPY["authored_heading"])
+    .replace("__ASSIST_PROVENANCE_SUMMARY__", ASSIST_COPY["provenance_summary"]))
 
 
 # The static `build` compatibility client. This is the only place the
@@ -613,75 +859,7 @@ async function api(url, payload){
 async function verify(q, response){
   const v = await api("/api/submit", {session_id: sessionId, answer: response});
   return {action: v.action, score: v.score, explain: v.explain || {},
-          hint_tier: v.hint_tier, next: v.next};
-}
-
-async function hintFor(q, card, act, stumped){
-  const fb = feedbackFor(card);
-  fb.innerHTML = `<div class="status">Revealing the next hint&hellip;</div>`;
-  try {
-    const v = await api("/api/hint", {session_id: sessionId, stumped: !!stumped});
-    if(v.action !== "reveal_tier" || !v.hint) throw new Error("unexpected hint payload");
-    renderLadder(card, v.hint);
-    act.innerHTML = "";
-    addHintControls(q, card, act);
-    fb.innerHTML = `<div class="status">Hint shown. The card is still yours --
-      answer again whenever you're ready.</div>`;
-  } catch(err){
-    fb.innerHTML = `<div class="status">Couldn't reveal a hint right now
-      (${esc(err.message)}).</div>`;
-    addHintControls(q, card, act);
-  }
-}
-
-function addHintControls(q, card, act){
-  const next = document.createElement("button");
-  next.className = "go"; next.type = "button";
-  next.textContent = "Show next hint";
-  next.onclick = ()=>{ act.innerHTML = ""; hintFor(q, card, act, false); };
-  act.appendChild(next);
-  const stumped = document.createElement("button");
-  stumped.className = "go ghost"; stumped.type = "button";
-  stumped.textContent = "I'm stumped — show the next hint";
-  stumped.onclick = ()=>{ act.innerHTML = ""; hintFor(q, card, act, true); };
-  act.appendChild(stumped);
-  next.focus();
-}
-
-function renderLadder(card, hint){
-  const hostEl = card.querySelector(".ladder") ||
-    (()=>{ const d = document.createElement("div");
-           d.className = "ladder"; card.appendChild(d); return d; })();
-  const tier = hint.tier;
-  let h = `<h3 class="ladder-title">Hints</h3>`;
-  const shown = hint.shown || [];
-  for(let idx = 0; idx < 6; idx++){
-    const isNew = tier && tier.index === idx;
-    if(shown.indexOf(idx) >= 0 || isNew){
-      const t = isNew ? tier : {name: ["lesson","objective","trap","rationale",
-        "discriminator","reveal"][idx], available: true, content: ""};
-      h += `<div class="tier tier-shown"><span class="tier-k">TIER ${idx}</span>
-        <span class="tier-name">${esc(t.name)}</span>`;
-      if(isNew){
-        if(t.available){
-          const content = typeof t.content === "string" ? esc(t.content)
-            : (t.content && t.content.why ? esc(t.content.why) : "");
-          h += `<div class="tier-body">${content}</div>`;
-        } else {
-          h += `<div class="tier-body mut">This tier has no authored content.</div>`;
-        }
-      } else {
-        h += `<div class="tier-body mut">Already shown.</div>`;
-      }
-      h += `</div>`;
-    } else {
-      h += `<div class="tier tier-locked"><span class="tier-k">TIER ${idx}</span>
-        <span class="tier-name">${esc(["lesson","objective","trap","rationale",
-          "discriminator","reveal"][idx])}</span>
-        <span class="tier-lock">Locked</span></div>`;
-    }
-  }
-  hostEl.innerHTML = h;
+          next: v.next};
 }
 
 function lessonChip(q){
@@ -775,6 +953,9 @@ function renderItem(view){
   host.appendChild(card);
   ({mc:asChoice, multi:asChoice, table:asAssign, dnd:asAssign, build:asBuild,
     short:asShort}[q.type])(q, body, act, card);
+  /* AgentAssist (plan 08-05): the assist client resets per item so the
+     Get optional guidance control targets the current item's operation. */
+  if(window.Assist) window.Assist.onItem(q);
   /* Restore focus to the first meaningful control of the new item. */
   const first = card.querySelector("input, button, textarea");
   if(first && !REDUCED) first.focus({preventScroll:true});
@@ -983,20 +1164,12 @@ function close(q, card, act, v, revert){
   if(v.action === "hold"){
     if(revert) revert();
     fb.innerHTML = `<div class="verdict n">Not correct yet — the card stays
-      open. A hint is available.</div>`;
-    addHintControls(q, card, act);
+      open. Optional guidance is available under Help and evidence below.</div>`;
     return;
   }
   if(v.action === "defer_feedback"){
     fb.innerHTML = `<div class="pend">Recorded. ${q.type === "short"
       ? "Not marked here — a human marker reviews it." : ""}</div>`;
-    if(q.type === "short") addHintControls(q, card, act);
-    return;
-  }
-  if(v.action === "reveal_tier"){
-    if(revert) revert();
-    renderLadder(card, v.hint || {tier: null, shown: []});
-    addHintControls(q, card, act);
     return;
   }
   /* advance / complete: the runtime released the verdict and explanation. */
@@ -1101,6 +1274,7 @@ async function start(){
     if(frag) payload.focus = frag;
     const view = await api("/api/start", payload);
     sessionId = view.session_id;
+    if(window.Assist) window.Assist.setSession(sessionId);
     renderItem(view);
   } catch(err){
     host.innerHTML = `<div class="done empty">
