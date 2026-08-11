@@ -867,7 +867,7 @@ def _row_from_index_tuple(r):
         "ts": r[0], "session_id": r[1], "item_id": r[2], "item_ref": r[3],
         "mode": r[4], "score": json.loads(r[5]) if r[5] is not None else None,
         "attempt_number": r[6], "confidence": r[7], "response_time_ms": r[8],
-        "objective": r[9], "bank": r[10],
+        "objective": r[9], "bank": r[10], "context": r[11],
     }
 
 
@@ -911,8 +911,8 @@ def _objective_history_indexed(index, objective, prefix, subject, mode,
             params.append(bank)
         parts = [
             "SELECT ts, session_id, item_id, item_ref, mode, score, ",
-            "attempt_number, confidence, response_time_ms, objective, bank "
-            "FROM events WHERE ",
+            "attempt_number, confidence, response_time_ms, objective, bank, "
+            "context FROM events WHERE ",
             " AND ".join(clauses),
             " ORDER BY ts, seq",
         ]
@@ -952,6 +952,7 @@ def _objective_history_fallback(log, objective, prefix, subject, mode,
             "response_time_ms": ev.get("response_time_ms"),
             "objective": ev.get("objective"),
             "bank": ev.get("bank"),
+            "context": ev.get("context", "quiz"),
         }))
     rows.sort(key=lambda r: (r[0], r[1]))
     return [r[2] for r in rows]
@@ -1036,7 +1037,7 @@ def objective_rollup(rows):
 # it still imports this module and still records and reads evidence
 # through the live_events() linear-scan fallback in objective_history().
 
-INDEX_VERSION = 2   # The projection's OWN version, bumped whenever the table
+INDEX_VERSION = 3   # The projection's OWN version, bumped whenever the table
                      # shape below changes, which forces a full rebuild
                      # rather than a subtly wrong query against an old
                      # shape. This is not a published contract the way
@@ -1045,7 +1046,10 @@ INDEX_VERSION = 2   # The projection's OWN version, bumped whenever the table
                      # else, which is exactly why it lives here and not in
                      # schemas/. Version 2 (phase 7): the projection gained
                      # a `bank` column so a bank-scoped exposure query
-                     # (D-13) has a fast path.
+                     # (D-13) has a fast path. Version 3 (phase 6.2): the
+                     # projection gained a `context` column so
+                     # objective_history() rows can name whether a
+                     # response came from a quiz or a lesson gate (D-08).
 
 
 def _index_connect(path):
@@ -1071,6 +1075,7 @@ def _create_index_schema(con):
         response_time_ms INTEGER,
         review_state TEXT,
         bank TEXT,
+        context TEXT,
         retracted INTEGER DEFAULT 0)""")
     con.execute("CREATE INDEX idx_objective ON events(objective, ts)")
     con.execute("CREATE INDEX idx_subject ON events(subject, ts)")
@@ -1089,14 +1094,15 @@ def _insert_response_row(con, ev):
     con.execute(
         "INSERT OR IGNORE INTO events (event_id, ts, session_id, item_id, "
         "item_ref, objective, subject, mode, item_type, score, "
-        "attempt_number, confidence, response_time_ms, review_state, bank) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "attempt_number, confidence, response_time_ms, review_state, bank, "
+        "context) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (ev.get("event_id"), ev.get("ts"), ev.get("session_id"),
          ev.get("item_id"), ev.get("item_ref"), ev.get("objective", ""),
          ev.get("subject", ""), ev.get("mode"), ev.get("item_type"),
          json.dumps(ev.get("score")), ev.get("attempt_number"),
          ev.get("confidence"), ev.get("response_time_ms"),
-         ev.get("review_state"), ev.get("bank", "")))
+         ev.get("review_state"), ev.get("bank", ""), ev.get("context", "quiz")))
 
 
 def _mark_index_retracted(con, ids):
