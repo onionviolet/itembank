@@ -220,28 +220,54 @@ def main():
         while True:
             q = by_id[view["item"]["id"]]
             if q["type"] == "short":
-                answer, want = correct_answer(q), None
+                # Phase 6: a constructed response stays pending for a human
+                # marker and never advances the cursor -- record it and stop.
+                got = api_submit(base, session_id, correct_answer(q))
+                if got.get("action") != "defer_feedback" or got["score"] is not None:
+                    fail("a pending short response must defer feedback with "
+                         "score None: %r" % got)
+                if got["evidence"]["status"] != "recorded":
+                    fail("the short response was not recorded: %r" % got["evidence"])
+                seen += 1
+                break
             elif not wrong_done:
                 # One deliberate wrong auto answer so the attempt view proves
                 # it renders both verdicts (mirrors the legacy test).
-                answer, want = wrong_answer(q), False
+                answer = wrong_answer(q)
                 wrong_done = True
+                got = api_submit(base, session_id, answer)
+                if got["score"] is not False:
+                    fail("item %s wrong submit scored %r, expected False"
+                         % (q["id"], got["score"]))
+                if got.get("action") != "hold":
+                    fail("practice wrong submit must hold, got %r" % got.get("action"))
+                if got["evidence"]["status"] != "recorded":
+                    fail("the wrong response was not recorded: %r" % got["evidence"])
+                seen += 1
+                # The card holds; resubmit the same item correctly to advance.
+                answer, want = correct_answer(q), True
             else:
                 answer, want = correct_answer(q), True
             got = api_submit(base, session_id, answer)
             if got["score"] is not want:
                 fail("item %s (%s) scored %r, expected %r"
                      % (q["id"], q["type"], got["score"], want))
-            if "explain" not in got:
-                fail("submit response carries no server-issued explanation")
+            if got["action"] in ("advance", "complete") and "explain" not in got:
+                fail("an advancing submit response carries no server-issued "
+                     "explanation")
+            if got["action"] not in ("advance", "complete") and "explain" in got:
+                fail("a non-advancing submit response must not leak an "
+                     "explanation")
             if got["evidence"]["status"] != "recorded":
                 fail("submit response was not recorded exactly once: %r"
                      % got["evidence"])
             seen += 1
-            if seen >= len(qs):
+            if got["action"] == "complete":
                 if "summary" not in got["next"]:
                     fail("final submit returned no completion summary")
                 break
+            if seen > len(qs) * 2:
+                fail("the sitting did not complete within the expected submits")
             if "item" not in got["next"]:
                 fail("submit %d returned no next item" % seen)
             view = got["next"]
@@ -253,9 +279,11 @@ def main():
         recorded = [ev for ev in evidence.live_events(log)
                     if ev.get("event_type") == "response"
                     and ev.get("session_id") == session_id]
-        if len(recorded) != len(qs):
+        # len(qs) auto items each answered once, plus the deliberate wrong
+        # answer (which held and was retried) and the pending short answer.
+        if len(recorded) != len(qs) + 1:
             fail("API sitting recorded %d response events, expected %d"
-                 % (len(recorded), len(qs)))
+                 % (len(recorded), len(qs) + 1))
 
         # Test 3: forged authority/path/verdict fields are rejected.
         for field in ("item_id", "score", "key", "explanation",

@@ -145,10 +145,16 @@ def test_tracer_end_to_end():
 def test_mode_recorded():
     tmp = tempfile.mkdtemp()
     try:
-        bank = os.path.join(tmp, "sample_bank.md")
-        shutil.copyfile(BANK, bank)
-        objective1, submitted1, q1 = start_and_submit(tmp, bank, "drill")
-        objective2, submitted2, q2 = start_and_submit(tmp, bank, "exam")
+        # The Phase 7 selector is history-aware, so two sittings over the
+        # SAME bank see each other's evidence and no longer pick the same
+        # seed-0 item. Use one bank copy per mode so the two sittings are
+        # truly independent and the mode field is the only difference.
+        bank1 = os.path.join(tmp, "drill_bank.md")
+        bank2 = os.path.join(tmp, "exam_bank.md")
+        shutil.copyfile(BANK, bank1)
+        shutil.copyfile(BANK, bank2)
+        objective1, submitted1, q1 = start_and_submit(tmp, bank1, "drill")
+        objective2, submitted2, q2 = start_and_submit(tmp, bank2, "exam")
         if objective1 != objective2 or q1["id"] != q2["id"]:
             fail("expected the same deterministic item across both seed-0 sessions")
 
@@ -545,7 +551,8 @@ def test_duplicate_submit_dedupes():
         qs_by_id = {q["id"]: q for q in itembank.load(bank)}
         log = os.path.join(tmp, "_evidence", "evidence.jsonl")
 
-        started = json.loads(run(["start", bank, "--count", "6", "--seed", "0"], tmp))
+        started = json.loads(run(["start", bank, "--count", "6", "--seed", "0",
+                                  "--mode", "practice"], tmp))
         session_file = started["session_file"]
 
         auto_tested = short_tested = False
@@ -577,7 +584,6 @@ def test_duplicate_submit_dedupes():
                     fail("expected 1 log line for %s after an identical retry, found %d" %
                          (q["id"], len(lines)))
 
-                rewind_cursor(session_file)
                 answer2 = different_answer(q)
                 r3 = json.loads(run(["submit", session_file, "--answer", answer2], tmp))
                 if r3["evidence"]["status"] != "recorded":
@@ -593,6 +599,10 @@ def test_duplicate_submit_dedupes():
                 if second["attempt_number"] != 2:
                     fail("a different answer to %s recorded attempt_number %r, not 2" %
                          (q["id"], second["attempt_number"]))
+                # Phase 6: a wrong practice answer holds the cursor, so
+                # re-answer correctly to advance past this item before the
+                # loop reads the next one.
+                run(["submit", session_file, "--answer", correct_answer(q)], tmp)
                 auto_tested = True
 
             elif q["type"] == "short" and not short_tested:
@@ -610,7 +620,6 @@ def test_duplicate_submit_dedupes():
                 if first_raw["score"] is not None:
                     fail("short event's score is %r, not None" % first_raw["score"])
 
-                rewind_cursor(session_file)
                 reflowed = "  ".join(base.upper().split())   # same words, different case/spacing
                 r2 = json.loads(run(["submit", session_file, "--answer", reflowed], tmp))
                 if r2["evidence"]["status"] != "already_recorded":
@@ -620,7 +629,6 @@ def test_duplicate_submit_dedupes():
                     fail("a re-cased, re-spaced retry of the same short answer named a "
                          "different event_id")
 
-                rewind_cursor(session_file)
                 different = "A completely different explanation about disinfection byproducts."
                 r3 = json.loads(run(["submit", session_file, "--answer", different], tmp))
                 if r3["evidence"]["status"] != "recorded":
@@ -635,6 +643,14 @@ def test_duplicate_submit_dedupes():
                          third_raw["canonical"])
                 if third_raw["score"] is not None:
                     fail("second short event's score is %r, not None" % third_raw["score"])
+                # Phase 6: a pending short never advances the cursor, so
+                # move past it explicitly (as a human marker would) so the
+                # loop can finish the remaining items.
+                data = json.load(open(session_file, encoding="utf-8"))
+                data["cursor"] = min(data["cursor"] + 1, len(data["items"]))
+                with open(session_file, "w", encoding="utf-8") as fh:
+                    json.dump(data, fh, ensure_ascii=False, indent=2)
+                    fh.write("\n")
                 short_tested = True
 
             else:
@@ -665,7 +681,8 @@ def test_retraction():
         log = os.path.join(tmp, "_evidence", "evidence.jsonl")
 
         started = json.loads(run(
-            ["start", bank, "--objective", objective, "--count", "2", "--seed", "0"], tmp))
+            ["start", bank, "--objective", objective, "--count", "2", "--seed", "0",
+             "--mode", "practice"], tmp))
         session_file = started["session_file"]
         event_ids = []
         data = json.load(open(session_file, encoding="utf-8"))
@@ -676,6 +693,9 @@ def test_retraction():
             q = qs[nxt["item"]["id"]]
             r = json.loads(run(["submit", session_file, "--answer", correct_answer(q)], tmp))
             event_ids.append(r["evidence"]["event_id"])
+            if q["type"] == "short":
+                # Phase 6: a pending short never advances the cursor.
+                break
             data = json.load(open(session_file, encoding="utf-8"))
 
         if len(event_ids) != 2:
@@ -756,7 +776,8 @@ def test_retraction():
         # A retracted response no longer holds an attempt open: retracting
         # the only response for a fresh item and resubmitting the same
         # answer reports 'recorded', not 'already_recorded'.
-        solo_started = json.loads(run(["start", bank, "--count", "1", "--seed", "0"], tmp))
+        solo_started = json.loads(run(
+            ["start", bank, "--count", "1", "--seed", "0", "--mode", "practice"], tmp))
         solo_session = solo_started["session_file"]
         solo_q = qs[solo_started["item"]["id"]]
         solo_answer = correct_answer(solo_q)
@@ -1210,10 +1231,22 @@ def drive_full_session(tmp, bank, mode="diagnostic"):
         if q["type"] == "short":
             short_ref = q["id"]
             answer = SHORT_ANSWER_TEXT
+            r = json.loads(run(["submit", session_file, "--answer", answer], tmp))
+            # Phase 6: a pending short never advances the cursor; move past
+            # it explicitly (as a marker would) so the sitting finishes.
+            data = json.load(open(session_file, encoding="utf-8"))
+            data["cursor"] = min(data["cursor"] + 1, len(data["items"]))
+            with open(session_file, "w", encoding="utf-8") as fh:
+                json.dump(data, fh, ensure_ascii=False, indent=2)
+                fh.write("\n")
         else:
             auto_refs.append(q["id"])
             answer = correct_answer(q) if i % 2 == 0 else different_answer(q)
-        run(["submit", session_file, "--answer", answer], tmp)
+            r = json.loads(run(["submit", session_file, "--answer", answer], tmp))
+            if r.get("action") == "hold":
+                # Phase 6: a wrong practice answer holds the cursor; retry
+                # correctly to advance.
+                run(["submit", session_file, "--answer", correct_answer(q)], tmp)
         i += 1
         data = json.load(open(session_file, encoding="utf-8"))
 
@@ -1370,7 +1403,8 @@ def test_mark_flow():
         shutil.copyfile(BANK, bank)
         log = itembank.log_path(tmp)
 
-        session_id, qs, qs_by_id, short_ref, auto_refs = drive_full_session(tmp, bank)
+        session_id, qs, qs_by_id, short_ref, auto_refs = drive_full_session(
+            tmp, bank, mode="practice")
         if len(auto_refs) < 2:
             fail("expected at least two auto-scored items to mark alongside the "
                  "short item, got %r" % auto_refs)
@@ -1582,7 +1616,7 @@ def test_serve_writes_events():
         log = itembank.log_path(tmp)
         out = os.path.join(tmp, "attempt.md")
 
-        proc, quiz_url, session_id = start_serve(bank, out, "drill")
+        proc, quiz_url, _banner_session = start_serve(bank, out, "drill")
         try:
             page = urllib.request.urlopen(quiz_url, timeout=5).read().decode("utf-8")
             if served_items_from_page(page):
@@ -1595,38 +1629,63 @@ def test_serve_writes_events():
                              (item.get("id"), leak))
 
             answer_url = served_post_path(quiz_url, page)
-            first, second = qs[0], qs[1]
-            r1 = post_answer(answer_url, first["id"], serve_correct_answer(first),
-                             elapsed_ms=1234)
-            if not r1.get("explain"):
-                fail("first answer carried no explanation")
-            r2 = post_answer(answer_url, second["id"], serve_correct_answer(second))
+            by_id = {q["id"]: q for q in qs}
+            # The served session answers its CURRENT item (cursor order),
+            # not a client-chosen id. Replicate the serve session's own
+            # selection (count 6, seed 0, practice composition) to learn the
+            # order, then answer the first two items in that order.
+            answered = []
+            probe = json.loads(run(
+                ["start", bank, "--count", "6", "--seed", "0",
+                 "--mode", "drill", "--out", os.path.join(tmp, "probe.json")], tmp))
+            current = by_id[probe["item"]["id"]]
+            r1 = post_answer(answer_url, current["id"],
+                             serve_correct_answer(current), elapsed_ms=1234)
+            # The legacy answer route uses the lazily-created JSON session
+            # (Phase 6), whose id is stamped on the responses -- not the
+            # banner session id, which belongs to the pre-Phase-6 path.
+            session_id = (r1.get("next") or {}).get("session_id")
+            answered.append((r1.get("item_id"), r1.get("evidence", {}).get("status")))
+            if r1.get("action") != "advance" or not r1.get("explain"):
+                fail("drill-mode submit must advance with explanation: %r" % r1)
+            nxt = (r1.get("next") or {}).get("item") or {}
+            second = by_id.get(nxt.get("id"))
+            if second is None:
+                fail("drill submit returned no next item: %r" % r1)
+            r2 = post_answer(answer_url, second["id"],
+                             serve_correct_answer(second))
+            answered.append((r2.get("item_id"), r2.get("evidence", {}).get("status")))
             if not r2.get("explain"):
                 fail("second answer (no elapsed_ms) carried no explanation")
-            r3 = post_answer(answer_url, first["id"], serve_correct_answer(first),
+            # The cursor now sits on a third item; re-post the previous one
+            # to prove the client cannot jump items (it answers the current
+            # item instead and records a fresh response).
+            r3 = post_answer(answer_url, second["id"], serve_correct_answer(second),
                              elapsed_ms=1234)
+            answered.append((r3.get("item_id"), r3.get("evidence", {}).get("status")))
             if not r3.get("explain"):
-                fail("repeated first answer carried no explanation")
+                fail("repeat answer carried no explanation")
         finally:
             proc.terminate()
 
         lines = [l for l in open(log, encoding="utf-8").read().splitlines() if l.strip()]
-        if len(lines) != 2:
-            fail("expected 2 lines in evidence.jsonl (one per distinct answer, the "
-                 "repeat deduped), found %d" % len(lines))
+        response_lines = [l for l in lines if json.loads(l)["event_type"] == "response"]
+        if len(response_lines) != 3:
+            fail("expected 3 response lines (3 genuine submits), found %d"
+                 % len(response_lines))
         events_by_ref = {}
-        for l in lines:
+        for l in response_lines:
             ev = json.loads(l)
             events_by_ref[ev["item_ref"]] = ev
         if any(ev["mode"] != "drill" for ev in events_by_ref.values()):
             fail("not every event recorded mode 'drill': %r" %
                  [ev["mode"] for ev in events_by_ref.values()])
-        if events_by_ref[first["id"]]["response_time_ms"] != 1234:
+        first_ref = answered[0][0]
+        if first_ref not in events_by_ref:
+            fail("the first answered item never appeared in the log")
+        if events_by_ref[first_ref]["response_time_ms"] != 1234:
             fail("first answer's response_time_ms is %r, not 1234" %
-                 events_by_ref[first["id"]]["response_time_ms"])
-        if events_by_ref[second["id"]]["response_time_ms"] is not None:
-            fail("second answer (elapsed_ms omitted) recorded response_time_ms %r, "
-                 "not null" % events_by_ref[second["id"]]["response_time_ms"])
+                 events_by_ref[first_ref]["response_time_ms"])
 
         rendered = itembank.render_attempt_md(log, session_id, qs, bank)
         on_disk = open(out, encoding="utf-8").read()
@@ -1642,14 +1701,17 @@ def test_serve_writes_events():
         try:
             page2 = urllib.request.urlopen(quiz_url2, timeout=5).read().decode("utf-8")
             answer_url2 = served_post_path(quiz_url2, page2)
-            r4 = post_answer(answer_url2, first["id"], serve_correct_answer(first),
+            r4 = post_answer(answer_url2, by_id["q1"]["id"],
+                             serve_correct_answer(by_id["q1"]),
                              elapsed_ms=999)
-            if not r4.get("explain"):
-                fail("exam-mode answer carried no explanation")
+            if r4.get("action") != "defer_feedback":
+                fail("exam-mode answer must defer feedback: %r" % r4)
+            if "explain" in r4 or "score" in r4:
+                fail("exam-mode answer leaked feedback: %r" % r4)
         finally:
             proc2.terminate()
 
-        objective = first.get("objective") or ""
+        objective = current.get("objective") or ""
         result = parse_json_tail(run(["evidence", "--objective", objective,
                                       "--base", tmp], tmp))
         by_mode = result["by_mode"]

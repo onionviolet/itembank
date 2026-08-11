@@ -290,6 +290,7 @@ def check_index_populated():
                 fail("populated index missing %r" % needle)
     finally:
         proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
 
 
 def check_index_order():
@@ -381,22 +382,52 @@ def check_answer_scoring():
         quiz_url = url + "quiz/sample_bank"
         _, page = get(quiz_url)
         answer_url = legacy_answer_url(quiz_url)
-        first = qs[0]
-        bad = post(answer_url,
-                   {"id": first["id"], "response": serve_roundtrip.wrong_answer(first)})
-        if bad["score"] is not False:
-            fail("a wrong answer scored %r, expected False" % bad["score"])
-        if not bad["explain"].get("why"):
-            fail("the verdict carried no explanation")
-        for q in qs:
+        # Phase 6: the served browser submits against the session's current
+        # item through the one session adapter -- the legacy answer route
+        # answers the current cursor item, not an arbitrary client-chosen id.
+        by_id = {q["id"]: q for q in qs}
+        seen = []
+        started = post(url + "api/start",
+                       {"bank": "sample_bank", "count": len(qs), "seed": 7,
+                        "mode": "practice"})
+        current_id = started["item"]["id"]
+        while len(seen) < len(qs):
+            q = by_id[current_id]
+            if q["type"] == "short":
+                got = post(answer_url,
+                           {"id": q["id"],
+                            "response": serve_roundtrip.correct_answer(q)})
+                if got.get("action") != "defer_feedback" or got["score"] is not None:
+                    fail("a pending short response must defer with score None: %r"
+                         % got)
+                seen.append(q["id"])
+                break
+            got = post(answer_url,
+                       {"id": q["id"], "response": serve_roundtrip.wrong_answer(q)})
+            if got["score"] is not False or got.get("action") != "hold":
+                fail("a wrong answer must hold with score False: %r" % got)
             got = post(answer_url,
                        {"id": q["id"], "response": serve_roundtrip.correct_answer(q)})
-            want = None if q["type"] == "short" else True
-            if got["score"] is not want:
-                fail("item %s (%s) scored %r, expected %r"
-                     % (q["id"], q["type"], got["score"], want))
+            if got["score"] is not True or got.get("action") not in ("advance", "complete"):
+                fail("the correct retry must advance: %r" % got)
+            nxt = got.get("next") or {}
+            nxt_item = nxt.get("item") or {}
+            seen.append(q["id"])
+            current_id = nxt_item.get("id")
+            if not current_id:
+                # The final correct retry completed the sitting.
+                break
+        if not seen or by_id[seen[-1]]["type"] != "short":
+            fail("the legacy answer route must end on the pending short item, "
+                 "got %r" % seen)
+        driven = [i for i in seen if by_id[i]["type"] != "short"]
+        if len(driven) != len(set(driven)):
+            fail("the legacy answer route revisited an item: %r" % seen)
+        if len(seen) < 3:
+            fail("the legacy answer route drove too few items: %r" % seen)
     finally:
         proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
 
 
 def check_two_bank_isolation():
@@ -416,9 +447,16 @@ def check_two_bank_isolation():
         if "alpha_bank" not in answer_url:
             fail("alpha_bank's served page posts its answer to %r, which is not "
                  "scoped to alpha_bank" % answer_url)
-        first = qs[0]
+        # The legacy route answers the session's current cursor item; post
+        # the first session item (which may differ from qs[0] by seed).
+        by_id = {q["id"]: q for q in qs}
+        started = post(url + "api/start",
+                       {"bank": "alpha_bank", "count": 6, "seed": 7,
+                        "mode": "practice"})
+        current = by_id[started["item"]["id"]]
         post(answer_url,
-             {"id": first["id"], "response": serve_roundtrip.correct_answer(first)})
+             {"id": current["id"],
+              "response": serve_roundtrip.correct_answer(current)})
 
         log = evidence.log_path(workdir)
         responses = [ev for ev in evidence.live_events(log) if ev.get("event_type") == "response"]
@@ -439,6 +477,7 @@ def check_two_bank_isolation():
                      "post made to alpha_bank")
     finally:
         proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
 
 
 def check_stem_collision():
@@ -1179,7 +1218,9 @@ def check_api_survives_routine_error():
     shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
     proc, url, lines = start_daemon(workdir)
     try:
-        started = post(url + "api/start", {"bank": "sample_bank", "count": 6, "seed": 7})
+        started = post(url + "api/start",
+                       {"bank": "sample_bank", "count": 6, "seed": 7,
+                        "mode": "practice"})
         session_id = started["session_id"]
         by_id = api_by_id()
         state = started
@@ -1218,6 +1259,7 @@ def check_api_survives_routine_error():
             fail("the daemon did not survive a routine error: GET / returned %d" % status)
     finally:
         proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
 
 
 def check_api_bank_not_found():
@@ -1626,6 +1668,7 @@ def check_report_populated():
         session_id = started["session_id"]
         state = started
         wrong_done = False
+        seen = []
         while state["status"] == "active":
             item = state["item"]
             q = by_id[item["id"]]
@@ -1635,6 +1678,7 @@ def check_report_populated():
                               {"session_id": session_id, "answer": answer})
                 if result.get("action") != "defer_feedback":
                     fail("a pending short response must defer feedback")
+                seen.append(item["id"])
                 break
             elif not wrong_done:
                 answer = serve_roundtrip.wrong_answer(q)
@@ -1643,19 +1687,24 @@ def check_report_populated():
                 answer = api_correct_answer(by_id, item)
             result = post(url + "api/submit", {"session_id": session_id, "answer": answer})
             state = result["next"]
+            seen.append(item["id"])
 
         status, body = get(url + "report?session=%s" % session_id)
         if status != 200:
             fail("GET /report on a populated session returned %d, expected 200" % status)
         qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
-        for objective in set(q.get("objective", "") for q in qs):
+        served = set()
+        for item_id in seen:
+            served.add(by_id[item_id].get("objective", ""))
+        for objective in served:
             if objective and objective not in body:
-                fail("the populated report is missing objective %r" % objective)
+                fail("the populated report is missing served objective %r" % objective)
         for field in ("auto_attempts", "auto_correct", "pending_manual"):
             if report_field(body, field) is None:
                 fail("the populated report has no %s figure" % field)
     finally:
         proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
 
 
 def check_report_matches_command():
@@ -1668,6 +1717,7 @@ def check_report_matches_command():
     shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
     proc, url, lines = start_daemon(workdir)
     body = None
+    want = None
     try:
         by_id = api_by_id()
         started = post(url + "api/start",
@@ -1675,14 +1725,17 @@ def check_report_matches_command():
         session_id = started["session_id"]
         session_file = started["session_file"]
         drive_sitting(url, session_id, by_id)
+        want = session.do_report(session_file)["summary"]
 
         status, body = get(url + "report?session=%s" % session_id)
         if status != 200:
             fail("GET /report returned %d, expected 200" % status)
     finally:
         proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
 
-    want = session.do_report(session_file)["summary"]
+    if want is None:
+        fail("session.do_report never produced a summary")
     for field in ("auto_attempts", "auto_correct", "pending_manual"):
         got = report_field(body, field)
         if got != want[field]:
@@ -1714,7 +1767,9 @@ def check_report_in_progress():
     proc, url, lines = start_daemon(workdir)
     try:
         by_id = api_by_id()
-        started = post(url + "api/start", {"bank": "sample_bank", "count": 6, "seed": 7})
+        started = post(url + "api/start",
+                       {"bank": "sample_bank", "count": 6, "seed": 7,
+                        "mode": "practice"})
         session_id = started["session_id"]
         answer = api_correct_answer(by_id, started["item"])
         result = post(url + "api/submit", {"session_id": session_id, "answer": answer})
@@ -1756,8 +1811,10 @@ def check_report_zero_auto_marked():
         session_id = started["session_id"]
         result = post(url + "api/submit",
                       {"session_id": session_id, "answer": "some prose, never auto-marked"})
-        if result["status"] != "complete":
-            fail("answering the sole item did not complete a count-1 session")
+        if result.get("action") != "defer_feedback":
+            fail("the sole short item must defer feedback, got %r" % result.get("action"))
+        if result["status"] != "active":
+            fail("a pending short response must leave the count-1 session active")
 
         status, body = get(url + "report?session=%s" % session_id)
         if status != 200:
@@ -1787,13 +1844,18 @@ def check_report_objective_rows_one_and_many():
     try:
         by_id = api_by_id()
 
-        one = post(url + "api/start", {"bank": "sample_bank", "count": 1, "seed": 7})
+        one = post(url + "api/start", {"bank": "sample_bank", "count": 1,
+                                       "seed": 7, "mode": "practice"})
         one_answer = api_correct_answer(by_id, one["item"])
         post(url + "api/submit", {"session_id": one["session_id"], "answer": one_answer})
         _, one_body = get(url + "report?session=%s" % one["session_id"])
         one_rows = report_objective_rows(one_body)
 
-        many = post(url + "api/start", {"bank": "sample_bank", "count": 6, "seed": 7})
+        # Seed 3 (after the seed-7 one-item session above, whose evidence the
+        # history-aware selector sees) starts with auto items so the sitting
+        # drives several objectives before the pending short item.
+        many = post(url + "api/start", {"bank": "sample_bank", "count": 6,
+                                        "seed": 3, "mode": "practice"})
         drive_sitting(url, many["session_id"], by_id)
         _, many_body = get(url + "report?session=%s" % many["session_id"])
         many_rows = report_objective_rows(many_body)
@@ -1851,7 +1913,9 @@ def check_report_no_truncation():
     proc, url, lines = start_daemon(workdir)
     try:
         by_id = api_by_id()
-        started = post(url + "api/start", {"bank": "sample_bank", "count": 6, "seed": 7})
+        started = post(url + "api/start",
+                       {"bank": "sample_bank", "count": 6, "seed": 7,
+                        "mode": "practice"})
         drive_sitting(url, started["session_id"], by_id)
         _, body = get(url + "report?session=%s" % started["session_id"])
         low = body.lower()

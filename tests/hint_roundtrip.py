@@ -13,9 +13,14 @@ a short (pending) item. No real question bank content lives in this test.
 """
 import json
 import os
+import re
 import shutil
+import subprocess
 import sys
 import tempfile
+import time
+import urllib.error
+import urllib.request
 import uuid
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -600,6 +605,215 @@ def test_session_schema_v2_contract():
         fail("session.schema.json must describe teaching_state")
 
 
+# ---- plan 06-02: CLI, API and served-browser surfaces ----------------------
+
+def _run(args, cwd=None):
+    r = subprocess.run([sys.executable, os.path.join(ROOT, "itembank.py"), *args],
+                       capture_output=True, text=True, cwd=cwd or ROOT)
+    return r
+
+
+def _start_cli(bank, mode="practice", count=3, seed=0, out=None):
+    args = ["start", bank, "--mode", mode, "--count", str(count),
+            "--seed", str(seed)]
+    if out:
+        args += ["--out", out]
+    r = _run(args)
+    if r.returncode != 0:
+        fail("itembank start failed: %s" % r.stderr[-400:])
+    return json.loads(r.stdout)
+
+
+def test_cli_hint_tracer():
+    """06-02 Task 1: one practice sitting through CLI submit, hint, retry
+    and report -- wrong submit holds, hint reveals one fixed tier, correct
+    retry advances, and the report carries a tier-aware outcome."""
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "lesson_bank.md")
+        shutil.copyfile(BANK, bank)
+        started = _start_cli(bank, mode="practice", count=2, seed=0,
+                             out=os.path.join(tmp, "s.json"))
+        session_file = started["session_file"]
+        wrong = _run(["submit", session_file, "--answer", "C"])
+        w = json.loads(wrong.stdout)
+        if w["action"] != "hold" or w["score"] is not False:
+            fail("CLI wrong submit must hold: %r" % w)
+        if w["next"]["position"] != 0:
+            fail("CLI hold must keep position 0")
+        hint = json.loads(_run(["hint", session_file]).stdout)
+        if hint["action"] != "reveal_tier" or hint["hint"]["tier"]["index"] != 0:
+            fail("CLI hint must reveal tier 0: %r" % hint)
+        stumped = json.loads(_run(["hint", session_file, "--stumped"]).stdout)
+        if stumped["hint"]["tier"]["index"] != 1 or \
+                stumped["hint"]["unlock_path"] != "stumped":
+            fail("CLI stumped must reveal tier 1 via stumped: %r" % stumped)
+        right = json.loads(_run(["submit", session_file, "--answer", "B"]).stdout)
+        if right["action"] != "advance" or right["score"] is not True:
+            fail("CLI correct retry must advance: %r" % right)
+        report = json.loads(_run(["report", session_file]).stdout)
+        outcomes = report["summary"]["teaching_outcomes"]
+        if any(row["outcome"] not in ("correct_after_tier", "correct_after_attempts")
+               for row in outcomes.values()):
+            fail("CLI report must carry tier-aware outcomes: %r" % outcomes)
+        if report["summary"]["auto_attempts"] < 2:
+            fail("CLI report auto_attempts must count the two submits")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _daemon(workdir):
+    proc = subprocess.Popen(
+        [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "daemon",
+         workdir, "--no-open", "--port", "0"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    lines = []
+    import threading
+    threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
+                     daemon=True).start()
+    base = None
+    for _ in range(60):
+        time.sleep(0.1)
+        m = re.search(r"http://127\.0\.0\.1:\d+/", "".join(lines))
+        if m:
+            base = m.group(0)
+            break
+    return proc, base, lines
+
+
+def _post(url, payload):
+    req = urllib.request.Request(url, data=json.dumps(payload).encode(),
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as res:
+            return json.loads(res.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        return exc
+
+
+def test_api_hint_and_renderer_meta():
+    """06-02 Task 2: /api/hint mirrors the CLI hint; /api/submit accepts the
+    Phase 6 action envelope plus an optional opaque renderer_meta string that
+    is never persisted, echoed, or passed to policy; authority-shaped fields
+    and oversized metadata are refused."""
+    tmp = tempfile.mkdtemp()
+    try:
+        shutil.copyfile(BANK, os.path.join(tmp, "lesson_bank.md"))
+        proc, base, lines = _daemon(tmp)
+        if base is None:
+            fail("daemon never printed a URL: %s" % "".join(lines))
+        try:
+            started = _post(base + "api/start",
+                            {"bank": "lesson_bank", "count": 2, "seed": 0,
+                             "mode": "practice"})
+            sid = started["session_id"]
+            wrong = _post(base + "api/submit",
+                          {"session_id": sid, "action": {"kind": "submit",
+                                                         "answer": "C"}})
+            if wrong.get("action") != "hold":
+                fail("API action-envelope submit must hold: %r" % wrong)
+            hint = _post(base + "api/hint", {"session_id": sid})
+            if hint.get("action") != "reveal_tier" or \
+                    hint.get("hint", {}).get("tier", {}).get("index") != 0:
+                fail("API hint must reveal tier 0: %r" % hint)
+            stumped = _post(base + "api/hint", {"session_id": sid, "stumped": True})
+            if stumped.get("hint", {}).get("unlock_path") != "stumped":
+                fail("API stumped must use the stumped path: %r" % stumped)
+
+            meta_ok = _post(base + "api/submit",
+                            {"session_id": sid,
+                             "action": {"kind": "submit", "answer": "B"},
+                             "renderer_meta": "browser-fragment-42"})
+            if meta_ok.get("action") != "advance":
+                fail("a valid renderer_meta must not change policy: %r" % meta_ok)
+
+            session_file = started["session_file"]
+            session_text = open(session_file, encoding="utf-8").read()
+            log = os.path.join(tmp, "_evidence", "evidence.jsonl")
+            log_text = open(log, encoding="utf-8").read() if os.path.exists(log) else ""
+            captured = "".join(lines)
+            for needle in ("browser-fragment-42",):
+                if needle in session_text or needle in log_text or needle in captured:
+                    fail("renderer_meta must never be persisted, logged, or echoed")
+
+            oversized = _post(base + "api/submit",
+                              {"session_id": sid,
+                               "action": {"kind": "submit", "answer": "C"},
+                               "renderer_meta": "x" * 257})
+            if not isinstance(oversized, urllib.error.HTTPError) or oversized.code != 400:
+                fail("oversized renderer_meta must be refused with 400")
+            nonstr = _post(base + "api/submit",
+                           {"session_id": sid,
+                            "action": {"kind": "submit", "answer": "C"},
+                            "renderer_meta": {"structured": True}})
+            if not isinstance(nonstr, urllib.error.HTTPError) or nonstr.code != 400:
+                fail("structured renderer_meta must be refused with 400")
+            authority = _post(base + "api/submit",
+                              {"session_id": sid,
+                               "action": {"kind": "submit", "answer": "C",
+                                          "canvas_state": {"x": 1}}})
+            if not isinstance(authority, urllib.error.HTTPError) or authority.code != 400:
+                fail("canvas_state inside the action must be refused with 400")
+            top_authority = _post(base + "api/submit",
+                                  {"session_id": sid, "answer": "C",
+                                   "mode": "drill"})
+            if not isinstance(top_authority, urllib.error.HTTPError) or \
+                    top_authority.code != 400:
+                fail("a top-level mode field must be refused with 400")
+            conflicting = _post(base + "api/submit",
+                                {"session_id": sid, "answer": "C",
+                                 "action": {"kind": "submit", "answer": "C"}})
+            if not isinstance(conflicting, urllib.error.HTTPError) or \
+                    conflicting.code != 400:
+                fail("answer given both top-level and inside action must be refused")
+        finally:
+            proc.terminate()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_served_browser_contract():
+    """06-02 Task 3: the served page is a pure client of runtime actions --
+    no local scoring, tier increment, mode policy, or cursor authority lives
+    in its JavaScript, and diagnostic/exam responses leak no private content."""
+    tmp = tempfile.mkdtemp()
+    try:
+        shutil.copyfile(BANK, os.path.join(tmp, "lesson_bank.md"))
+        proc, base, lines = _daemon(tmp)
+        if base is None:
+            fail("daemon never printed a URL: %s" % "".join(lines))
+        try:
+            page = urllib.request.urlopen(base + "quiz/lesson_bank",
+                                          timeout=5).read().decode("utf-8")
+            for needle in ("/api/start", "/api/submit", "/api/hint",
+                           "const BOOT ="):
+                if needle not in page:
+                    fail("served page missing %r" % needle)
+            # Client authority markers: local scoring/canonicalization, the
+            # bank's own key material, a local tier counter, or a mode
+            # policy table would each violate the renderer-is-a-client rule.
+            for banned in ("function canon(", "const KEY", "key = q.correct",
+                           "tier++", "modePolicy", "FEEDBACK_POLICIES"):
+                if banned in page:
+                    fail("served page contains client authority %r" % banned)
+            # Diagnostic and exam pre-release responses leak nothing.
+            for mode in ("diagnostic", "exam"):
+                started = _post(base + "api/start",
+                                {"bank": "lesson_bank", "count": 2, "seed": 0,
+                                 "mode": mode})
+                sid = started["session_id"]
+                r = _post(base + "api/submit",
+                          {"session_id": sid, "answer": "C"})
+                if r.get("action") != "defer_feedback":
+                    fail("%s must defer feedback: %r" % (mode, r))
+                if "explain" in r or r.get("score") is False:
+                    fail("%s submit leaked feedback: %r" % (mode, r))
+        finally:
+            proc.terminate()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     test_transition_rejects_unknown_action()
     test_practice_wrong_holds_and_unlocks_one_tier()
@@ -625,7 +839,11 @@ def main():
     test_teaching_outcomes_from_live_events()
     test_retraction_suppresses_hints_through_live_events()
     test_session_schema_v2_contract()
-    print("ok: hint roundtrip (transition, tiers, modes, evidence, outcomes)")
+    test_cli_hint_tracer()
+    test_api_hint_and_renderer_meta()
+    test_served_browser_contract()
+    print("ok: hint roundtrip (transition, tiers, modes, evidence, outcomes, "
+          "CLI/API/browser surfaces)")
 
 
 if __name__ == "__main__":
