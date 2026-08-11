@@ -6,14 +6,14 @@ current_phase: 08
 current_phase_name: model-adapter-interface-tier-gate-enforcement
 status: executing
 stopped_at: Completed 08-03-PLAN.md
-last_updated: "2026-08-11T05:49:10.021Z"
+last_updated: "2026-08-11T06:00:00.000Z"
 last_activity: 2026-08-11
-last_activity_desc: Phase 08 plan 08-03 completed (model interaction + rubric proposal evidence events)
+last_activity_desc: Phase 06.2 executed to completion (executable textbook loop: [GATE:] grammar, gate band, check/skip routes, outcome split) on branch gsd/phase-06.2-textbook-loop
 progress:
   total_phases: 18
-  completed_phases: 9
+  completed_phases: 10
   total_plans: 104
-  completed_plans: 63
+  completed_plans: 67
 ---
 
 # Project State
@@ -22,8 +22,22 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-08-07)
 
-**Core value:** One runtime, one scorer, one evidence store â€” and the runtime, not the model, decides what reaches the learner.
+**Core value:** One runtime, one scorer, one evidence store — and the runtime, not the model, decides what reaches the learner.
 **Current focus:** Phase 08 — model-adapter-interface-tier-gate-enforcement
+
+## Completed Phases Note
+
+**Phase 6.2 — Executable Textbook Loop (completed 2026-08-11 on branch
+`gsd/phase-06.2-textbook-loop`):** the lesson gate is a presentation policy
+over existing item types. `[GATE: required|recommended|off]` parses
+additively; the gate band activates 3.1's reserved slot with one form and
+zero JavaScript; `required` truncates at the server (no DOM leak), a
+recorded `gate_skip` event is its own evidence type (never a null-score
+response), the check/skip routes score and record through the one
+runtime/evidence path with `context="lesson_gate"`, and the gate outcome
+split is a derived, stated-denominator report. Twelve UI-SPEC §13 gates are
+executable fixtures; one human-verify item (screen-reader announcement) is
+recorded in 06.2-GATES.md. Six GATE-01..06 requirements delivered.
 
 ## Current Position
 

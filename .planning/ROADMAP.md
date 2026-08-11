@@ -608,16 +608,16 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 06.2-01-PLAN.md — Gate grammar, gate_skip event, response context field, gate_state derivation
+- [x] 06.2-01-PLAN.md — Gate grammar, gate_skip event, response context field, gate_state derivation
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 06.2-02-PLAN.md — The gate band: activate 3.1's D2 slot, three renderings, truncation, mode-degrade, compatibility floor
-- [ ] 06.2-03-PLAN.md — The recorded-skip control, check/skip routes, settings, and the outcome-split report
+- [x] 06.2-02-PLAN.md — The gate band: activate 3.1's D2 slot, three renderings, truncation, mode-degrade, compatibility floor
+- [x] 06.2-03-PLAN.md — The recorded-skip control, check/skip routes, settings, and the outcome-split report
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 06.2-04-PLAN.md — Phase verification: the twelve UI-SPEC §13 gates, requirement audit, full suite
+- [x] 06.2-04-PLAN.md — Phase verification: the twelve UI-SPEC §13 gates, requirement audit, full suite
 
 ### Phase 7: Selection Engine
 
@@ -1138,7 +1138,7 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 5. Check Item Type & Code Editor | 0/7 | Planned | - |
 | 6. Hint Ladder, Cursor-Hold & Feedback Modes | 2/2 | Complete    | 2026-08-10 |
 | 6.1 Interactive Visual Assessment Protocol | 0/3 | Planned | - |
-| 6.2 Executable Textbook Loop | 0/4 | Planned | - |
+| 6.2 Executable Textbook Loop | 4/4 | Complete | - |
 | 7. Selection Engine | 6/6 | Gaps - see 07-VERIFICATION.md|  |
 | 8. Model Adapter Interface & Tier-Gate Enforcement | 3/6 | In Progress|  |
 | 9. Subject-Invariant Loop — EMT, Math, CS Integration | 0/5 | Planned | - |
