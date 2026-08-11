@@ -80,8 +80,8 @@
 ### Selection
 
 - [ ] **SEL-01**: A session can be selected by objective, prerequisite, item type, and difficulty
-- [ ] **SEL-02**: Selection modes exist for diagnostic, practice, remediation, and exam
-- [ ] **SEL-03**: Recent exposure is tracked, so a session does not accidentally repeat what was just answered
+- [x] **SEL-02**: Selection modes exist for diagnostic, practice, remediation, and exam
+- [x] **SEL-03**: Recent exposure is tracked, so a session does not accidentally repeat what was just answered
 - [ ] **SEL-04**: Discrimination pairs can be requested, serving two commonly confused items together
 - [ ] **SEL-05**: The first selector is rule-based and inspectable — it can explain why it chose each item
 
@@ -340,8 +340,8 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | MODE-05 | Phase 6 | Pending |
 | MODE-06 | Phase 6 | Pending |
 | SEL-01 | Phase 7 | Pending |
-| SEL-02 | Phase 7 | Pending |
-| SEL-03 | Phase 7 | Pending |
+| SEL-02 | Phase 7 | Complete |
+| SEL-03 | Phase 7 | Complete |
 | SEL-04 | Phase 7 | Pending |
 | SEL-05 | Phase 7 | Pending |
 | SCHED-01 | Phase 10 | Pending |

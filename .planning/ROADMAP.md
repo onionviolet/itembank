@@ -484,7 +484,7 @@ Plans:
 - [ ] 05-02-PLAN.md — Execution bounds: output cap, Windows Job Object kill, grandchild test (wave 2)
 - [ ] 05-03-PLAN.md — Settings group, the agent submit path, and the default-closed LAN refusal (wave 2)
 - [ ] 05-04-PLAN.md — Windows process-tree kill: manual verification and spike record (wave 3)
-- [ ] 05-05-PLAN.md — The code editor: field, gutter, Tab/Shift-Tab, honest-limits line (wave 3)
+- [ ] 05-05-PLAN.md — Vendored CM6 editor: mount, theme, line numbers, Tab/Shift-Tab, honest-limits line + JS-runner keyboard assertions (wave 3)
 - [ ] 05-06-PLAN.md — Per-case result matrix and the three refusal states (wave 4)
 - [ ] 05-07-PLAN.md — Honest-limits gate, README, item schema, end-of-phase pass (wave 5)
 
@@ -621,7 +621,7 @@ Plans:
 
 **Absorbed from research (2026-08-10)**: ALEKS fringe-based selection, UWorld's Educational-Objective line as a selection input, jpdb-style utility weighting, and Brilliant's one-idea-per-screen sequencing wording for the "why this item" trace. See `.planning/research/2026-08-09-landscape-widening.md`.
 **Open decisions resolved here**: The selection-mode naming collision — resolved at plan time as a **distinct `selection_mode` field** (D-11), because `schemas/session.schema.json`, `schemas/response.schema.json` and `surfaces/daemon.py:SESSION_MODES` already enumerate `"remediation"` as a *feedback* mode; gated by a blocking `checkpoint:decision` in plan 07-04 because the evidence log is append-only. What the log records about a selection — resolved as a **`selection` event once per sitting plus `selection_mode` on every response event** (D-03), also gated in 07-04. Cooldown scope — resolved as **bank-scoped** (D-13), paid for by bumping `INDEX_VERSION` and adding a `bank` column to the disposable sqlite3 index in plan 07-03. `selection_weights.recency_decay` — resolved as **being** D-08's soft penalty rather than a second knob for the same thing (D-15), with `objective_miss_rate` and `difficulty_spread` retagged to Phase 10.
-**Plans**: 4/6 plans executed
+**Plans**: 5/6 plans executed
 
 Plans:
 **Wave 1**
@@ -639,7 +639,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 07-05-PLAN.md — The four mode compositions in one table, the hard/soft exposure split, and the `selection` settings group
+- [x] 07-05-PLAN.md — The four mode compositions in one table, the hard/soft exposure split, and the `selection` settings group
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -1119,7 +1119,7 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 6. Hint Ladder, Cursor-Hold & Feedback Modes | 0/2 | Planned | - |
 | 6.1 Interactive Visual Assessment Protocol | 0/3 | Planned | - |
 | 6.2 Executable Textbook Loop | 0/4 | Planned | - |
-| 7. Selection Engine | 4/6 | In Progress|  |
+| 7. Selection Engine | 5/6 | In Progress|  |
 | 8. Model Adapter Interface & Tier-Gate Enforcement | 0/6 | Planned    |  |
 | 9. Subject-Invariant Loop — EMT, Math, CS Integration | 0/5 | Planned | - |
 | 9.1 Audio Drill Export | 0/4 | Planned | - |
