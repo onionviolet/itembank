@@ -693,7 +693,7 @@ Plans:
 **Named unknowns carried into planning**: **no verified 7900 XTX throughput figure exists** for any candidate model (Research Brief 2 §4.5) — this is the reason criterion 9 forbids a carried number rather than asking for a better estimate. **No trustworthy open-weight prose-quality benchmark exists**, so backend choice for authoring is settled by running our own 18-rule check, not by a leaderboard.
 **Absorbed from research (2026-08-10)**: `.planning/research/2026-08-09-landscape-widening.md` (2025 study-mode wave: Socratic tutoring is commoditized at the prompt layer, so the visible runtime lock is the differentiator) and `2026-08-09-blind-spots.md` B14 (degraded-model UX already designed in UI-SPEC). Adapter interface and tier-gate mechanics stay **LOCKED**; only learner-facing copy, provenance presentation, and generated-hint surfaces change.
 **Open decisions resolved here**: Tier-gate enforcement mechanism — no prior art found for how the runtime detects and drops model output that reaches past the unlocked tier; this phase must design and test the actual detection/stripping mechanism as a first-class deliverable, not adapter plumbing added after the fact.
-**Plans**: 3/6 plans executed (replanned 2026-08-10 against round-two CONTEXT D-01..D-27)
+**Plans**: 5/6 plans executed (replanned 2026-08-10 against round-two CONTEXT D-01..D-27)
 
 Plans:
 **Wave 0**
@@ -710,11 +710,11 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 08-04-PLAN.md — Runtime orchestration and CLI: hint/rubric-review commands, retry lineage, human-only proposal accept, agent usage contract
+- [x] 08-04-PLAN.md — Runtime orchestration and CLI: hint/rubric-review commands, retry lineage, human-only proposal accept, agent usage contract
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 08-05-PLAN.md — Daemon routes, SURFACE_PARITY, AgentAssist/rubric UI, no-leak DOM tests, blocking human UAT
+- [x] 08-05-PLAN.md — Daemon routes, SURFACE_PARITY, AgentAssist/rubric UI, no-leak DOM tests, blocking human UAT
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -1140,7 +1140,7 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 6.1 Interactive Visual Assessment Protocol | 0/3 | Planned | - |
 | 6.2 Executable Textbook Loop | 0/4 | Planned | - |
 | 7. Selection Engine | 6/6 | Complete (roadmap gaps in 07-VERIFICATION.md) | 2026-08-11 |
-| 8. Model Adapter Interface & Tier-Gate Enforcement | 3/6 | In Progress|  |
+| 8. Model Adapter Interface & Tier-Gate Enforcement | 5/6 | In Progress|  |
 | 9. Subject-Invariant Loop — EMT, Math, CS Integration | 0/5 | Planned | - |
 | 9.1 Audio Drill Export | 0/4 | Planned | - |
 | 10. Retention, Pacing & Trends | 0/6 | Planned    |  |
@@ -1366,7 +1366,13 @@ scraping HTML or reimplementing scoring.
 **Depends on:** nothing in this roadmap. It is a maintenance obligation, not
 a feature: every later phase that changes the CLI or the session protocol
 changes what the skills must say.
-**Plans:** 0 plans
+**Plans:** 1 plan — [999.5-01](phases/999.5-agent-onboarding-skill-library/999.5-01-SUMMARY.md)
+shipped 2026-08-11: skills synced to the shipped surface (hint ladder,
+rubric-review, select, coverage, guard, seed), per-tool discovery documented
+in README/AGENTS.md (Claude Code, Codex, Gemini CLI, Cursor, Reasonix),
+`reasonix.toml` de-shipped (gitignored; portable `reasonix.toml.example`),
+and CI now asserts the skill mirrors stay byte-identical and no machine path
+leaks into agent docs.
 
 **Why this is backlog.** The on-ramp already exists (2026-08-10) and documents
 the *shipped* surface — that is why it is truthful. It becomes load-bearing

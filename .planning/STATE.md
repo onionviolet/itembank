@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 08
 current_phase_name: model-adapter-interface-tier-gate-enforcement
 status: executing
-stopped_at: Completed 08-04-PLAN.md
-last_updated: "2026-08-11T06:31:30.474Z"
+stopped_at: Completed 08-05-PLAN.md
+last_updated: "2026-08-11T14:48:12.553Z"
 last_activity: 2026-08-11
-last_activity_desc: Phase 08 plan 08-03 completed (model interaction + rubric proposal evidence events)
+last_activity_desc: Phase 08 plan 08-05 completed (identifier-safe assist routes + AgentAssist learner surface + blocking UAT PASS)
 progress:
   total_phases: 18
   completed_phases: 9
   total_plans: 104
-  completed_plans: 64
+  completed_plans: 65
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-07)
 ## Current Position
 
 Phase: 08 (model-adapter-interface-tier-gate-enforcement) — EXECUTING
-Plan: 4 of 6 complete
+Plan: 5 of 6 complete
 Status: Ready to execute
-Last activity: 2026-08-11 — 08-02 (model adapter interface + profile registry) completed
+Last activity: 2026-08-11 — 08-05 (identifier-safe assist routes + AgentAssist learner surface) completed
 
-Progress: [██████░░░░] 62%
+Progress: [██████░░░░] 63%
 
 ## Performance Metrics
 
@@ -114,6 +114,7 @@ Progress: [██████░░░░] 62%
 | Phase 06 P02 | 150 min | 3 tasks | 11 files |
 | Phase 08-model-adapter-interface-tier-gate-enforcement P08-03 | 22min | 3 tasks | 3 files |
 | Phase 08-model-adapter-interface-tier-gate-enforcement P08-04 | 55 | 3 tasks | 9 files |
+| Phase 08-model-adapter-interface-tier-gate-enforcement P08-05 | ~35min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -274,6 +275,9 @@ Recent decisions affecting current work:
 - [Phase 08]: 08-04: the CLI hint command is now the model-orchestrated diagnostic hint (--session/--retry); the Phase 6 explicit tier-reveal stays in the runtime teaching transition and the daemon /api/hint (via a stumped=None sentinel on do_hint) until plan 08-05 rewires the route
 - [Phase 08]: 08-04: one generation per interaction id is structural (evidence dedupe over session_id+interaction_id); retry=True mints a uuid4 child id with parent_interaction_id pointing at the most recent interaction -- cost and repeated failures stay visible in evidence
 - [Phase 08]: 08-04: tier-3 suggestions are pending-only; the only accept paths are the learner's explicit self-mark and the reviewer's explicit human batch accept, both through mark_event with proposal_ref, and no auto-accept flag exists anywhere (D-25)
+- [Phase 08]: 08-05: the daemon relays only typed runtime payloads — both new /api/hint and /api/rubric-review routes resolve the session through session_index and wrap session.do_hint/do_rubric_review in the house SystemExit->400/Exception->500 containment, and API_FORBIDDEN_FIELDS refuses tier/profile/facts/candidate/proposal/marker/verdict with 400 before any handler (D-09)
+- [Phase 08]: 08-05: SURFACE_PARITY is one three-column map (route, CLI command, reserved MCP tool name) covering every API_ROUTES entry per Extensibility Rule 9(a); the parity test fails on a route without a CLI or tool name
+- [Phase 08]: 08-05: the learner assist is plain chrome with exact 08-UI-SPEC copy — one bounded status line, Generated support disclosure, labeled structural lock with no model voice, and pending-only rubric rows with no accept control in the browser; Record human mark stays CLI-only
 
 ## Deferred Verification
 
@@ -290,7 +294,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-11T06:31:01.912Z
-Stopped at: Completed 08-04-PLAN.md
+Last session: 2026-08-11T14:48:12.553Z
+Stopped at: Completed 08-05-PLAN.md
 Resume file: None
 Deferred human verification: Phases 2.1/3/4 (see Deferred Verification table above)
