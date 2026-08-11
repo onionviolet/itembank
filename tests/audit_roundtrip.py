@@ -242,7 +242,8 @@ def case_tracer():
             citations=clean_citations) if n == 1 else _draft_response(
             CLEAN_ITEM_TEXT, "emt:airway.opa", citations=clean_citations))
         writer_spy = SpyWriter(state_dir)
-        config = {"target_path": bank_path, "state_dir": state_dir}
+        config = {"target_path": bank_path, "state_dir": state_dir,
+          "full_opt_in": True}
 
         report = authoring.run_authoring(request, author_spy, bank_text,
                                          writer_spy, config)
@@ -351,7 +352,8 @@ def case_tracer():
             writer2 = SpyWriter(state2)
             report3 = authoring.run_authoring(
                 req2, spy2, bank2_text, writer2,
-                {"target_path": bank2_path, "state_dir": state2})
+                {"target_path": bank2_path, "state_dir": state2,
+ "full_opt_in": True})
             if report3.get("status") != "failed" or \
                     report3.get("outcome") != "retry_cap_exhausted":
                 fail("tracer: out-of-scope exhaustion must fail with the "
@@ -379,7 +381,8 @@ def case_tracer():
             writer3 = SpyWriter(state3)
             report4 = authoring.run_authoring(
                 req3, spy3, bank3_text, writer3,
-                {"target_path": bank3_path, "state_dir": state3})
+                {"target_path": bank3_path, "state_dir": state3,
+ "full_opt_in": True})
             if report4.get("status") != "written":
                 fail("tracer: quality-retry run must write after the clean "
                      "second attempt, got %r" % report4.get("status"))
@@ -411,7 +414,8 @@ def case_tracer():
             writer4 = SpyWriter(state4)
             report5 = authoring.run_authoring(
                 req4, spy4, bank4_text, writer4,
-                {"target_path": bank4_path, "state_dir": state4})
+                {"target_path": bank4_path, "state_dir": state4,
+ "full_opt_in": True})
             if report5.get("status") != "proposed" or \
                     report5.get("write_allowed"):
                 fail("tracer: report_only must propose and never write")
@@ -510,7 +514,8 @@ def case_schemas():
         writer_spy = SpyWriter(state_dir)
         report = authoring.run_authoring(
             request, author_spy, bank_text, writer_spy,
-            {"target_path": bank_path, "state_dir": state_dir})
+            {"target_path": bank_path, "state_dir": state_dir,
+              "full_opt_in": True})
         if report.get("status") != "written":
             fail("schemas: full run did not write: %r" % report.get("status"))
         payloads["report"] = report
@@ -526,7 +531,8 @@ def case_schemas():
             OUT_OF_SCOPE_ITEM_TEXT, "emt:cardiac.arrest", citations=cits))
         failed = authoring.run_authoring(
             req2, spy2, bank2_text, SpyWriter(state2),
-            {"target_path": bank2_path, "state_dir": state2})
+            {"target_path": bank2_path, "state_dir": state2,
+ "full_opt_in": True})
         if failed.get("status") != "failed":
             fail("schemas: scope-fail run did not fail")
         payloads["failed_report"] = failed
