@@ -6,7 +6,7 @@
   "x-itembank-version": 1,
   "type": "object",
   "additionalProperties": false,
-  "required": ["theme", "accent", "daily_cap", "selection_weights", "selection", "auditor_autonomy", "model_backend", "update_policy", "daemon", "reader"],
+  "required": ["theme", "accent", "daily_cap", "selection_weights", "selection", "auditor_autonomy", "model_backend", "update_policy", "daemon", "reader", "style"],
   "properties": {
     "theme": {
       "type": "string",
@@ -257,6 +257,35 @@
           "maximum": 720,
           "default": 24,
           "x-itembank-phase": 2.1
+        }
+      }
+    },
+    "style": {
+      "type": "object",
+      "description": "The lesson style system's authoring-prompt and warning-calibration settings (plan 03.1-05, D-14 and D-17). Read by this phase (3.1).",
+      "additionalProperties": false,
+      "required": ["imperative_cap", "warn_fp_threshold"],
+      "x-itembank-phase": 3.1,
+      "default": {
+        "imperative_cap": 7,
+        "warn_fp_threshold": 0.20
+      },
+      "properties": {
+        "imperative_cap": {
+          "type": "integer",
+          "description": "The maximum number of distilled style imperatives the authoring model receives, placed last in the prompt (D-17). Default 7 because the seven-imperative figure is extrapolated from format-compliance research, not measured on pedagogical structure -- a setting so it can be calibrated against the Phase 3.2 corpus without a code change.",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 7,
+          "x-itembank-phase": 3.1
+        },
+        "warn_fp_threshold": {
+          "type": "number",
+          "description": "The false-positive rate above which a style warning ships disabled by default, with the rate recorded beside the code (D-14). The Phase 3.2 corpus drives the per-code rates; this is the threshold they are measured against.",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.2,
+          "x-itembank-phase": 3.1
         }
       }
     }

@@ -513,8 +513,9 @@ def test_phase_4_theme_keys_read_not_inert():
         if token in active and "inert" in line:
             fail("%r is marked inert, but Phase 4's own code reads it: %r"
                  % (token, line))
-    inert_groups = ("daily_cap", "selection_weights", "auditor_autonomy",
-                    "model_backend")
+    # selection_weights left the inert list when phase 7 started reading
+    # its recency_decay key (D-15); the group row is active at THIS_PHASE 7.
+    inert_groups = ("daily_cap", "auditor_autonomy", "model_backend")
     for group in inert_groups:
         if not any(token == group and "inert" in line for token, line in rows):
             fail("%r is no longer marked inert" % group)

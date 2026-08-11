@@ -32,6 +32,10 @@
     "repo": "onionviolet/itembank",
     "check_interval_hours": 24
   },
+  "style": {
+    "imperative_cap": 7,
+    "warn_fp_threshold": 0.2
+  },
   "selection": {
     "cooldown_responses": 20
   }

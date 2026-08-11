@@ -40,6 +40,20 @@ SETTINGS_CODES = tuple(sorted({
 }))
 
 
+# The phase 3.1 style settings group defaults (plan 03.1-05 Task 3). The
+# schema remains the source of truth -- defaults_from_schema() mirrors it
+# into itembank.json and into a missing key's effective value -- and this
+# accessor exists so the authoring loops and the roundtrip tests can read the
+# shipped defaults without a settings load.
+STYLE_SETTINGS_DEFAULTS = {"imperative_cap": 7, "warn_fp_threshold": 0.20}
+
+
+def style_defaults():
+    """The `style` settings group's shipped defaults: `imperative_cap`
+    (default 7, D-17) and `warn_fp_threshold` (default 0.20, D-14)."""
+    return dict(STYLE_SETTINGS_DEFAULTS)
+
+
 def settings_path(base):
     return os.path.join(base or ".", SETTINGS_FILE)
 
