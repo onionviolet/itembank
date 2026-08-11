@@ -790,9 +790,23 @@ def handle_quiz_answer(handler, stem):
         api_id = sess.get("api_session_id")
         session_file = api_session_path(handler, api_id) if api_id else None
         if session_file is None:
-            handler.send_error(400, "no API session for this bank stem; start the "
-                               "sitting through /api/start first")
-            return
+            # A legacy client that never called /api/start (or a fresh page
+            # before its start call landed) gets a JSON session created for
+            # this stem right here -- same session.do_start path, same
+            # registration, so the page and the API never diverge.
+            spec = {"objective": "", "count": len(qs), "seed": 0,
+                    "selection_mode": sess.get("mode", "practice")}
+            out = os.path.join(os.path.abspath(handler.root), "_attempts",
+                               "session_%s.json" % uuid.uuid4().hex[:12])
+            try:
+                created = session.do_start(path, spec, sess.get("mode", "practice"),
+                                           out, False)
+            except SystemExit as exc:
+                handler.send_error(400, str(exc.code))
+                return
+            api_id = created["session_id"]
+            sess["api_session_id"] = api_id
+            session_file = out
         result = session.do_action(
             session_file, {"kind": "submit", "answer": data.get("response")},
             confidence=None, renderer_meta=None)
@@ -1158,14 +1172,15 @@ CONFIDENCE_LEVELS = ("high", "medium", "low")
 # can never reintroduce the raw-path surface D-03's bank allowlist already
 # closed once (T-2-01).
 API_FORBIDDEN_FIELDS = ("session", "bank_path", "out",
-                        "item_id", "score", "key", "explanation",
-                        # Phase 6 authority-shaped fields (T-06-12): mode,
-                        # tier, correct, advance, reveal and the concrete
-                        # visual/canvas action/observation state that
-                        # belongs exclusively to Phase 06.1 are refused by
-                        # name before any policy work.
-                        "mode", "tier", "correct", "advance", "reveal",
-                        "observation", "canvas_state")
+                        "item_id", "score", "key", "explanation")
+
+# Phase 6 authority-shaped fields (T-06-12) rejected on the action routes
+# (`/api/submit`, `/api/hint`) by name before any policy work: mode, tier,
+# correct, advance, reveal, and the concrete visual/canvas action/observation
+# state that belongs exclusively to Phase 06.1. Kept separate from
+# API_FORBIDDEN_FIELDS because `/api/start` legitimately accepts `mode`.
+API_ACTION_FORBIDDEN_FIELDS = ("mode", "tier", "correct", "advance",
+                               "reveal", "observation", "canvas_state")
 
 # The only renderer handoff Phase 6 accepts: one opaque UTF-8 string of at
 # most 256 bytes, discarded before policy/persistence/evidence/logs
@@ -1450,14 +1465,16 @@ def handle_api_submit(handler):
             return
         # Extra authority-shaped keys inside the action are refused by name.
         bad = api_reject_path_fields(action)
-        if bad or any(k in action for k in
-                      ("mode", "tier", "correct", "advance", "reveal",
-                       "observation", "canvas_state")):
+        if bad or any(k in action for k in API_ACTION_FORBIDDEN_FIELDS):
             handler.send_error(400, "action carries an authority-shaped field")
             return
         answer = action.get("answer")
     else:
         answer = data.get("answer")
+        # The legacy answer form must not smuggle authority fields either.
+        if any(k in data for k in API_ACTION_FORBIDDEN_FIELDS):
+            handler.send_error(400, "body carries an authority-shaped field")
+            return
     # Pre-submit read: resolve the current question before do_submit advances
     # the cursor. Failures here are deliberately swallowed -- do_action itself
     # validates the session and reports the authoritative error.
@@ -1611,7 +1628,11 @@ class DaemonHandler(server.Handler):
             return True
         if path == MARKER_PATH:
             return True
-        return self.headers.get(SIDECAR_TOKEN_HEADER) == token
+        # Constant-time comparison (T-13-01): the token is the only secret on
+        # this loopback surface; an equality short-circuit would leak its
+        # prefix length to a local timing probe.
+        return secrets.compare_digest(
+            self.headers.get(SIDECAR_TOKEN_HEADER, ""), token)
 
     def _dispatch(self):
         path = urllib.parse.urlsplit(self.path).path

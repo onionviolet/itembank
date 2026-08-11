@@ -110,9 +110,9 @@ def test_schema_names_every_project_key():
     """
     schema = json.load(open(SCHEMA_PATH, encoding="utf-8"))
     keys = set(schema["properties"])
-    expected = {"theme", "daily_cap", "selection_weights", "auditor_autonomy",
-                "model_backend", "update_policy", "daemon", "update", "accent",
-                "reader"}
+    expected = {"theme", "daily_cap", "selection_weights", "selection",
+                "auditor_autonomy", "model_backend", "update_policy", "daemon",
+                "update", "accent", "reader", "style"}
     if keys != expected:
         fail("schema properties %r do not equal the expected key set %r" % (keys, expected))
     for name, sub in schema["properties"].items():
@@ -196,8 +196,9 @@ def test_config_no_args_prints_table():
     r = run([], base)
     if r.returncode != 0:
         fail("itembank config exited %d: %s" % (r.returncode, r.stderr))
-    for name in ("theme", "daily_cap", "selection_weights", "auditor_autonomy",
-                 "model_backend", "update_policy", "daemon", "update"):
+    for name in ("theme", "daily_cap", "selection_weights", "selection",
+                 "auditor_autonomy", "model_backend", "update_policy", "daemon",
+                 "update"):
         if name not in r.stdout:
             fail("config table is missing key %r" % name)
     if r.stdout.count("inert") < 5:
@@ -206,6 +207,30 @@ def test_config_no_args_prints_table():
         stripped = line.strip()
         if stripped.startswith("daemon") and "inert" in line:
             fail("daemon is marked inert, but this phase's own code reads it: %r" % line)
+    shutil.rmtree(base, ignore_errors=True)
+
+
+def test_phase_7_keys_read_not_inert():
+    """Phase 7 reads selection.cooldown_responses and
+    selection_weights.recency_decay, so their table rows may not say
+    'inert'; the two Phase 10 weights must still say inert."""
+    base = fresh_base()
+    r = run([], base)
+    if r.returncode != 0:
+        fail("itembank config exited %d: %s" % (r.returncode, r.stderr))
+    read_by_this_phase = ("selection", "selection.cooldown_responses",
+                          "selection_weights.recency_decay")
+    inert_by_later_phase = ("selection_weights.objective_miss_rate",
+                            "selection_weights.difficulty_spread")
+    for line in r.stdout.splitlines():
+        stripped = line.strip()
+        first_token = stripped.split()[0] if stripped.split() else ""
+        if first_token in read_by_this_phase and "inert" in line:
+            fail("%r is marked inert, but this phase reads it: %r" %
+                 (first_token, line))
+        if first_token in inert_by_later_phase and "inert" not in line:
+            fail("%r must be inert until Phase 10: %r" %
+                 (first_token, line))
     shutil.rmtree(base, ignore_errors=True)
 
 

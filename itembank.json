@@ -31,5 +31,8 @@
   "update": {
     "repo": "onionviolet/itembank",
     "check_interval_hours": 24
+  },
+  "selection": {
+    "cooldown_responses": 20
   }
 }

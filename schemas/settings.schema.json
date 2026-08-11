@@ -6,7 +6,7 @@
   "x-itembank-version": 1,
   "type": "object",
   "additionalProperties": false,
-  "required": ["theme", "accent", "daily_cap", "selection_weights", "auditor_autonomy", "model_backend", "update_policy", "daemon", "reader"],
+  "required": ["theme", "accent", "daily_cap", "selection_weights", "selection", "auditor_autonomy", "model_backend", "update_policy", "daemon", "reader"],
   "properties": {
     "theme": {
       "type": "string",
@@ -57,26 +57,46 @@
       "properties": {
         "objective_miss_rate": {
           "type": "number",
-          "description": "Weight given to an objective's historical miss rate. Inert until Phase 7 reads it.",
+          "description": "Weight given to an objective's historical miss rate. Inert until Phase 10's weighting model reads it (TREND-01) -- not this phase's.",
           "minimum": 0,
           "maximum": 1,
           "default": 0.5,
-          "x-itembank-phase": 7
+          "x-itembank-phase": 10
         },
         "difficulty_spread": {
           "type": "number",
-          "description": "Weight given to spreading served items across difficulty levels. Inert until Phase 7 reads it.",
+          "description": "Weight given to spreading served items across difficulty levels. Inert until Phase 10's weighting model reads it (TREND-01) -- not this phase's.",
           "minimum": 0,
           "maximum": 1,
           "default": 0.3,
-          "x-itembank-phase": 7
+          "x-itembank-phase": 10
         },
         "recency_decay": {
           "type": "number",
-          "description": "Weight given to how recently an item was last served. Inert until Phase 7 reads it.",
+          "description": "The coefficient applied to the recency penalty beyond the hard cooldown window (D-08/D-15): an item's ordering rank is lowered by recency_decay * (1 / (1 + age)) where age is responses since its most recent serving. A value of 0 disables the penalty entirely. Read by phase 7.",
           "minimum": 0,
           "maximum": 1,
           "default": 0.2,
+          "x-itembank-phase": 7
+        }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "description": "The item-selection engine's own knobs (phase 7).",
+      "additionalProperties": false,
+      "required": ["cooldown_responses"],
+      "x-itembank-phase": 7,
+      "default": {
+        "cooldown_responses": 20
+      },
+      "properties": {
+        "cooldown_responses": {
+          "type": "integer",
+          "description": "The number of most-recent responses in this bank inside which an item is not re-served (D-08). 0 disables hard exclusion. When every candidate falls inside the window the oldest-seen items are readmitted rather than the session coming back empty. Default 20 (D-08); the starvation case is answered by the readmission rule, not by a smaller number that would weaken the guarantee on a real bank.",
+          "minimum": 0,
+          "maximum": 500,
+          "default": 20,
           "x-itembank-phase": 7
         }
       }
