@@ -21,7 +21,7 @@ import selection
 import server
 from model import (lesson_slug, load, parse_bank, parse_key_blocks,
                    parse_lesson, parse_terms)
-from runtime import explain_payload, glossable, read_session
+from runtime import explain_payload, glossable, read_session, upgrade_session
 from surfaces import (day, launcher, lesson, presentation, quiz, session,
                       settings, study, update)
 from surfaces import theme
@@ -1219,6 +1219,14 @@ def session_index(root):
             continue
         session_id = data.get("session_id")
         if isinstance(session_id, str) and session_id:
+            try:
+                # A session written by a NEWER build (or otherwise invalid)
+                # must not make every other session unaddressable, nor kill
+                # the request thread via read_session's sys.exit -- the index
+                # skips it and the handler's own read reports the 4xx.
+                upgrade_session(data)
+            except SystemExit:
+                continue
             index[session_id] = path
     return index
 
@@ -1270,12 +1278,15 @@ def api_session_path(handler, session_id):
 
 def handle_api_start(handler):
     """`POST /api/start` -- `{"bank": "<stem>", "count", "objective", "mode",
-    "seed", "focus", "selection_mode"}`. `bank` is resolved through the same stem allowlist the GET
+    "seed", "focus", "selection_mode", "preview"}`. `bank` is resolved through the same stem allowlist the GET
     routes use: a value that is not a key in `handler.banks` is a 404, full
     stop -- it is never joined to a path, never normalised, never checked
     for traversal segments, because it is never treated as a path at all.
     `focus`, when present, is an item id (the `#<id>` fragment a lesson
     backlink carries); the sitting starts with that item first (D-09).
+    `preview: true` (strictly the boolean) returns the selection's items and
+    trace without starting a session -- no output path, no `_attempts/`
+    write, no evidence append (D-14 keeps /api/* at four routes).
     The output path is computed server-side under `<root>/_attempts/`,
     exactly what `session.do_start` defaults to when no `out` is given;
     `out` is never read from the body (T-2-02).
@@ -1328,7 +1339,11 @@ def handle_api_start(handler):
     # items, a session already complete. Do not collapse these two clauses
     # into one in a later refactor.
     try:
-        result = session.do_start(path, spec, mode, out, False)
+        if data.get("preview") is True:
+            result = session.do_select(path, spec, False)
+            result["preview"] = True
+        else:
+            result = session.do_start(path, spec, mode, out, False)
     except SystemExit as exc:
         handler.send_error(400, str(exc.code))
         return
@@ -1337,10 +1352,12 @@ def handle_api_start(handler):
         return
     # Register the API session against the allowlisted bank stem so a scoped
     # `itembank serve` launch can regenerate its configured attempt markdown
-    # and print progress after every submit (plan 04-01 Test 4).
-    sess_cfg = handler.sessions.get(bank)
-    if sess_cfg is not None:
-        sess_cfg["api_session_id"] = result["session_id"]
+    # and print progress after every submit (plan 04-01 Test 4). A preview
+    # has no session to register.
+    if data.get("preview") is not True:
+        sess_cfg = handler.sessions.get(bank)
+        if sess_cfg is not None:
+            sess_cfg["api_session_id"] = result["session_id"]
     handler.send_json(result)
 
 

@@ -85,10 +85,11 @@
       "type": "object",
       "description": "The item-selection engine's own knobs (phase 7).",
       "additionalProperties": false,
-      "required": ["cooldown_responses"],
+      "required": ["cooldown_responses", "profiles"],
       "x-itembank-phase": 7,
       "default": {
-        "cooldown_responses": 20
+        "cooldown_responses": 20,
+        "profiles": {}
       },
       "properties": {
         "cooldown_responses": {
@@ -97,6 +98,12 @@
           "minimum": 0,
           "maximum": 500,
           "default": 20,
+          "x-itembank-phase": 7
+        },
+        "profiles": {
+          "type": "object",
+          "default": {},
+          "description": "User-chosen selection profile names; each value is a selection spec validated against schemas/selection.schema.json when it is used (expand_spec, phase 7). Set a whole map with `itembank config set selection.profiles '{...}'` because a dotted path cannot address a user-chosen key.",
           "x-itembank-phase": 7
         }
       }

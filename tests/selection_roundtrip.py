@@ -530,15 +530,95 @@ def check_cooldown_is_bank_scoped():
 
 
 def check_explain_renders_plain_text():
-    pending("check_explain_renders_plain_text", "07-06")
+    qs = model.load(BANK)
+    r = subprocess.run(
+        [sys.executable, os.path.join(ROOT, "itembank.py"), "select", BANK,
+         "--selection-mode", "practice", "--count", "4", "--seed", "3",
+         "--explain"],
+        cwd=ROOT, capture_output=True, text=True)
+    if r.returncode != 0:
+        fail("select --explain failed: %r" % (r.stdout + r.stderr)[-400:])
+    out = r.stdout
+    if "{" in out or "}" in out or "[ID:" in out:
+        fail("explain output is not plain text: %r" % out[:200])
+    _, trace = selection.select(
+        qs, {"selection_mode": "practice", "count": 4, "seed": 3}, [])
+    for block in trace["chosen"]:
+        ref = block["item_ref"]
+        if "Q" + ref.lstrip("q") not in out:
+            fail("explain output does not name every chosen item (%s)" % ref)
+        if not block["runner_up"] or "runner-up" not in out:
+            fail("explain output lacks a runner-up line")
+    for q in qs:
+        for text in [q.get("why", ""), q.get("disc", ""), q.get("trap", "")]:
+            if text and text in out:
+                fail("%s: explain output leaks rationale text" % q["id"])
+        for opt in (q.get("opts") or {}).values():
+            if opt and opt in out:
+                fail("%s: explain output leaks option text" % q["id"])
+    print("check_explain_renders_plain_text: prose, no key, no option text")
 
 
 def check_preview_writes_no_session():
-    pending("check_preview_writes_no_session", "07-06")
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "selection_bank.md")
+        shutil.copyfile(BANK, bank)
+        log = os.path.join(tmp, "_evidence", "evidence.jsonl")
+        before = os.listdir(tmp)
+        r = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "itembank.py"), "select", bank,
+             "--count", "3", "--seed", "1"],
+            cwd=ROOT, capture_output=True, text=True)
+        if r.returncode != 0:
+            fail("select failed: %r" % r.stdout[-300:])
+        d = json.loads(r.stdout)
+        if "items" not in d or "trace" not in d:
+            fail("preview result lacks items/trace")
+        if any("correct" in i for i in d["items"]):
+            fail("preview items carry a keyed answer")
+        if os.path.isdir(os.path.join(tmp, "_attempts")):
+            fail("preview created _attempts/")
+        if os.path.exists(log):
+            fail("preview appended to the evidence log")
+        print("check_preview_writes_no_session: preview writes nothing")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def check_profile_flags_override():
-    pending("check_profile_flags_override", "07-06")
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "selection_bank.md")
+        shutil.copyfile(BANK, bank)
+        json.dump({"selection": {"profiles": {
+            "drill": {"objective": "water:notification.boil", "count": 5}}}},
+            open(os.path.join(tmp, "itembank.json"), "w", encoding="utf-8"))
+        r = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "itembank.py"), "select", bank,
+             "--profile", "drill"],
+            cwd=ROOT, capture_output=True, text=True)
+        if r.returncode != 0:
+            fail("profile select failed: %r" % r.stdout[-300:])
+        d = json.loads(r.stdout)
+        if len(d["items"]) != 5:
+            fail("profile count did not take effect: %d" % len(d["items"]))
+        if d["spec"].get("objective") != "water:notification.boil":
+            fail("profile objective did not take effect")
+        r2 = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "itembank.py"), "select", bank,
+             "--profile", "drill", "--count", "2"],
+            cwd=ROOT, capture_output=True, text=True)
+        d2 = json.loads(r2.stdout)
+        if len(d2["items"]) != 2:
+            fail("explicit --count did not override the profile")
+        if d2["spec"].get("objective") != "water:notification.boil":
+            fail("explicit --count replaced the whole profile instead of "
+                 "overriding one key")
+        print("check_profile_flags_override: profile expands, flags override "
+              "key by key")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def main():

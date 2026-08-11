@@ -65,7 +65,8 @@ from runtime import (FEEDBACK_POLICIES, FIELD_SEP, HINT_TIERS, ITEM_VERSION,  # 
                      response_text, score_response, session_path,
                      session_summary, session_view, teaching_key,
                      teaching_transition, upgrade_session, write_session)
-from selection import DEFAULT_COUNT, SPEC_FIELDS, select                       # noqa: E402
+from selection import (DEFAULT_COUNT, SPEC_FIELDS, SELECTION_MODES,           # noqa: E402
+                       expand_spec, select)
 from surfaces.cli import main                                                  # noqa: E402
 from surfaces.day import (ANKI_ADDON_ID, DAY_LANES, FLOOR_LANES, anki_read,   # noqa: E402
                           day_history, day_info, day_page, day_status,
@@ -102,7 +103,8 @@ __all__ = [
     "KNOWN_EVENT_TYPES",
     "KEYS_UNCHECKED", "LESSON_UNCHECKED", "LETTERS", "LINT_CODES", "LintError",
     "TERMS_UNCHECKED",
-    "PAIR_SEP", "REPORT_VERSION", "SELECTION_EVENT_TYPE",
+    "PAIR_SEP", "REPORT_VERSION", "SELECTION_EVENT_TYPE", "SELECTION_MODES",
+    "expand_spec",
     "SESSION_UPGRADES", "SESSION_VERSION", "SPEC", "SPEC_FIELDS",
     "SUPPORTED", "SchemaError",
     "__version__",
@@ -130,7 +132,7 @@ __all__ = [
     "render_attempt_md", "render_daily_log", "render_session_json", "resolve_notes",
     "response_event", "response_text", "retracted_ids", "retraction_event",
     "scan_legacy",
-    "reconcile_teaching_state", "score_response", "section", "select",
+    "expand_spec", "reconcile_teaching_state", "score_response", "section", "select",
     "selection_event",
     "session_events", "session_path",
     "key_review_event", "session_summary", "session_view", "source_key",
