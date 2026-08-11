@@ -6,7 +6,7 @@
   "x-itembank-version": 1,
   "type": "object",
   "additionalProperties": false,
-  "required": ["theme", "accent", "daily_cap", "selection_weights", "selection", "auditor_autonomy", "model_backend", "update_policy", "daemon", "reader", "style", "paraphrase"],
+  "required": ["theme", "accent", "daily_cap", "selection_weights", "selection", "auditor_autonomy", "model_backend", "update_policy", "daemon", "reader", "style", "paraphrase", "check"],
   "properties": {
     "theme": {
       "type": "string",
@@ -322,6 +322,58 @@
           "maximum": 1,
           "default": 0.25,
           "x-itembank-phase": 3.2
+        }
+      }
+    },
+
+    "check": {
+      "type": "object",
+      "description": "How learner-written code for a [TYPE: check] item is executed: the per-case deadline, the output cap, the language-to-argv map, and whether execution is allowed when the daemon serves the network (plan 05-03, D-01/D-09/D-14). Read by this phase (5).",
+      "additionalProperties": false,
+      "required": ["timeout_seconds", "max_output_bytes", "languages", "allow_lan"],
+      "x-itembank-phase": 5,
+      "default": {
+        "timeout_seconds": 5,
+        "max_output_bytes": 65536,
+        "languages": {
+          "python": ["{interpreter}", "-I", "{source}"]
+        },
+        "allow_lan": false
+      },
+      "properties": {
+        "timeout_seconds": {
+          "type": "integer",
+          "description": "Per-case wall-clock deadline, in seconds, for a check item's executed code. A run that exceeds it is killed and records error_category timeout with no verdict (criterion 12). Bounded here so  rejects an absurd value before any submit can reach a subprocess call (T-5-13).",
+          "minimum": 1,
+          "maximum": 600,
+          "default": 5,
+          "x-itembank-phase": 5
+        },
+        "max_output_bytes": {
+          "type": "integer",
+          "description": "Per-case cap on captured stdout/stderr for a check item's executed code. Output beyond it truncates the record and prevents the verdict from being a pass (plan 05-02).",
+          "minimum": 1024,
+          "maximum": 10485760,
+          "default": 65536,
+          "x-itembank-phase": 5
+        },
+        "languages": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "default": {
+            "python": ["{interpreter}", "-I", "{source}"]
+          },
+          "description": "Language name to argv-template map for check items (D-02's config-not-code shape). The two tokens {interpreter} and {source} stand for the interpreter and the source path. merge_over_defaults recurses one level into nested objects, so a languages map in a user's itembank.json is merged OVER the shipped default rather than replacing it: the shipped python entry always survives, and a user can add or override a language but cannot remove the default one by editing the file.",
+          "x-itembank-phase": 5
+        },
+        "allow_lan": {
+          "type": "boolean",
+          "description": "Whether a check item's code may be executed when the daemon is serving on the local network (--lan). False is the default: with the daemon reachable from the network and allow_lan false, both submit routes refuse code execution with a locked message and record nothing. Turning it on means a device on the same network can run code on this machine.",
+          "default": false,
+          "x-itembank-phase": 5
         }
       }
     }
