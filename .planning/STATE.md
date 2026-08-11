@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 08
-current_phase_name: model-adapter-interface-tier-gate-enforcement
+current_phase: 999.4
+current_phase_name: canvas-lms-integration-lti
 status: executing
-stopped_at: Completed 08-04-PLAN.md
-last_updated: "2026-08-11T06:31:30.474Z"
+stopped_at: All three 999.4 plans executed (01 spine / 02 UI / 03 passback) on gsd/phase-999.4-exec
+last_updated: "2026-08-11T07:30:00.000Z"
 last_activity: 2026-08-11
-last_activity_desc: Phase 08 plan 08-03 completed (model interaction + rubric proposal evidence events)
+last_activity_desc: Phase 999.4 executed -- LTI 1.3 spine, deep-link picker + embedded player, AGS passback, hosting + dependency pins (3 plans, 3 commits)
 progress:
   total_phases: 18
   completed_phases: 9
   total_plans: 104
-  completed_plans: 64
+  completed_plans: 67
 ---
 
 # Project State
@@ -23,16 +23,38 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-07)
 
 **Core value:** One runtime, one scorer, one evidence store â€” and the runtime, not the model, decides what reaches the learner.
-**Current focus:** Phase 08 — model-adapter-interface-tier-gate-enforcement
+**Current focus:** Phase 999.4 — Canvas LMS integration via LTI 1.3 (executed on branch `gsd/phase-999.4-exec`, worktree `.phase9994x-wt`)
 
 ## Current Position
 
-Phase: 08 (model-adapter-interface-tier-gate-enforcement) — EXECUTING
-Plan: 4 of 6 complete
-Status: Ready to execute
-Last activity: 2026-08-11 — 08-02 (model adapter interface + profile registry) completed
+Phase: 999.4 (canvas-lms-integration-lti) — EXECUTED, awaiting review/UAT
+Plans: 3 of 3 complete (999.4-01 spine, 999.4-02 UI, 999.4-03 passback/hardening)
+Branch: gsd/phase-999.4-exec (created from gsd/phase-999.4-plan) — not merged, not pushed
+Last activity: 2026-08-11 — all three 999.4 plans committed with per-plan SUMMARYs; phase VERIFICATION/UAT and HANDOFF-PHASE999.4.md written
 
 Progress: [██████░░░░] 62%
+
+## Phase 999.4 status (Canvas LMS integration via LTI)
+
+- **999.4-01 (wave 1, spine + tracer):** `feat(999.4-01)` — platforms
+  registration store, optional crypto guard, JWKS-verified OIDC launch,
+  in-process JSON-command wrap, `itembank lti status/doctor/serve`.
+- **999.4-02 (wave 2, UI):** `feat(999.4-02)` — deep-link picker (one
+  objective per assignment), embedded learner player (public_item-only,
+  frame-ancestors CSP), verbatim privacy copy + completion framing.
+- **999.4-03 (wave 3, passback + hardening):** `feat(999.4-03)` — AGS
+  grade passback (opt-in, completion-only, idempotent, PendingManual for
+  pending prose), stdlib-TLS / reverse-proxy hosting, dependency pins with
+  CVE disposition, manual Canvas checklist.
+- **Tests:** `tests/lti_roundtrip.py` — 24 checks, fake-platform harness,
+  zero Canvas access (R-01 default).
+- **Manual-only:** the live-Canvas install -> launch -> deep-link ->
+  passback checklist (999.4-VALIDATION.md, R-01 fallback) — requires a real
+  Canvas instance, deferred to UAT.
+- **Phase finding:** a completed session with pending prose is unreachable
+  through the learner flow in this build (short items defer without
+  advancing); the PendingManual branch is implemented and tested against the
+  marker-closed state — see 999.4-VERIFICATION.md.
 
 ## Performance Metrics
 
