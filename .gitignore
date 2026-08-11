@@ -21,6 +21,10 @@ __pycache__/
 *.pyc
 .DS_Store
 
+# JS test runner installs (ruling 16): the closure is pinned in
+# tests/js/package-lock.json; node_modules is reproduced by `npm ci`.
+node_modules/
+
 # Rust shell build artifacts (plan 13-02); Cargo.lock stays committed (D-14).
 src-tauri/target/
 
