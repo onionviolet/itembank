@@ -13,7 +13,7 @@ render and runtime functions that already exist -- `quiz.page_for()`,
 `apply_day_post`) -- never a second copy of any of them living in a route
 handler.
 """
-import datetime, errno, hashlib, html, json, os, re, secrets, socketserver, sys, threading
+import datetime, errno, hashlib, html, json, os, re, secrets, socket, socketserver, sys, threading
 import urllib.parse, urllib.request, uuid
 
 import evidence
@@ -34,6 +34,30 @@ MARKER_PATH = "/__itembank__"
 # "how many places decide the bind host" stays a one-line answer instead of
 # a claim to trust (checked by this plan's own acceptance criteria).
 ALL_INTERFACES = "0.0.0.0"
+
+# The fixed stdout handshake the sidecar prints after binding (D-03/D-04):
+# one `itembank-key:value` line per field, in this dict's order. The shell's
+# parser and this plan's tests read these same constant strings, so a framing
+# change is one edit, not a second protocol (T-13-02). The per-launch token
+# travels on this stdout channel -- inherited by the shell, never a CLI
+# argument visible to other processes (T-13-04).
+SIDECAR_HANDSHAKE = {
+    "port": "itembank-port",
+    "token": "itembank-token",
+    "version": "itembank-version",
+}
+
+# The request header a sidecar-mode daemon requires on the shell-used API
+# routes when a per-launch token is configured (D-04). Same shared-constant
+# discipline as SIDECAR_HANDSHAKE: the shell and the tests read this one name.
+SIDECAR_TOKEN_HEADER = "X-Itembank-Token"
+
+# 13-UI-SPEC 3.3(e), the `port-held` state copy, verbatim; the `<port>` is the
+# actual bound port of the listener the second launch could not attach to.
+# The refusal path prints this when a second sidecar launch finds a port held
+# by a listener that does not answer the itembank marker (D-06).
+PORT_HELD_BODY = ("A runtime is already listening on 127.0.0.1:%d. "
+                  "This window did not start a second one.")
 
 # Same directories `cmd_guard` skips, plus the two this daemon itself writes
 # into -- neither an attempt file nor the evidence log is ever a candidate
@@ -1383,6 +1407,11 @@ class DaemonHandler(server.Handler):
     day_states = {}
     day_extra = {}
     day_force_tokens = {}
+    # Set to a fresh `secrets.token_hex(16)` by cmd_sidecar; left None, the
+    # CLI daemon path stays completely ungated (D-04). The token lives only in
+    # this process and the shell that read it off the handshake -- never
+    # persisted, never a CLI argument (T-13-01, T-13-04).
+    sidecar_token = None
 
     def send_not_found(self, name):
         """The documented not-found copy: the stem the client asked for and
@@ -1404,6 +1433,21 @@ class DaemonHandler(server.Handler):
         print("  500 %s" % exc)
         self.send_error(500, "internal error")
 
+    def _sidecar_token_ok(self, path):
+        """The D-04 loopback token gate. With no per-launch token configured
+        (the CLI daemon path) every request passes unchanged. With a token
+        configured (sidecar mode), a request to a shell-used API route must
+        carry it in `SIDECAR_TOKEN_HEADER`; page routes and the probe marker
+        stay open so a WebView navigation and the detect-and-attach probe
+        keep working (the shell injects the header on its fetch/XHR calls).
+        """
+        token = self.sidecar_token
+        if token is None:
+            return True
+        if not path.startswith("/api/"):
+            return True
+        return self.headers.get(SIDECAR_TOKEN_HEADER) == token
+
     def _dispatch(self):
         path = urllib.parse.urlsplit(self.path).path
         for method, pattern, handler_name in ROUTES:
@@ -1418,6 +1462,9 @@ class DaemonHandler(server.Handler):
                 if not m:
                     continue
                 kwargs = m.groupdict()
+            if not self._sidecar_token_ok(path):
+                self.send_error(401)
+                return
             globals()[handler_name](self, **kwargs)
             return
         self.send_error(404)
@@ -1538,7 +1585,8 @@ def start_server(handler_cls, port, host="127.0.0.1", no_open=False, window="app
 
 
 def serve_scoped(root, banks, plans, port, host="127.0.0.1", open_path="/",
-                 no_open=False, extra=None, on_bound=None, srv=None, window="app"):
+                 no_open=False, extra=None, on_bound=None, srv=None, window="app",
+                 quiet=False):
     """Bind the one `Daemon`/`DaemonHandler` pair, scoped to whatever
     `banks` and `plans` a caller passes in, print the URL line, optionally
     open a browser after the same 0.4-second timer every launch has always
@@ -1592,7 +1640,8 @@ def serve_scoped(root, banks, plans, port, host="127.0.0.1", open_path="/",
         bound_port = bound.server_address[1]
         display_host = "127.0.0.1" if host in (ALL_INTERFACES, "127.0.0.1") else host
         url = "http://%s:%d%s" % (display_host, bound_port, open_path)
-        print("  url     %s" % url)
+        if not quiet:
+            print("  url     %s" % url)
         if on_bound:
             on_bound(bound_port)
         sys.stdout.flush()
@@ -1605,7 +1654,56 @@ def serve_scoped(root, banks, plans, port, host="127.0.0.1", open_path="/",
     return bound_port
 
 
+def _port_silent(port, host="127.0.0.1", timeout=0.4):
+    """True when something accepts TCP connections on `(host, port)` but
+    never sends a single byte in response to a marker GET -- a listener that
+    is bound but not serving, or a foreign process holding the port without
+    answering. This is the D-06 "running instance is not reachable" case:
+    the sidecar refuses by name rather than falling back to a free port,
+    because the occupant may be a second itembank still starting up and a
+    competing sidecar must never exist (T-13-03). A responder -- even one
+    that is not an itembank -- returns False, leaving the three-case
+    startup's free-port fallback to handle the squatter exactly as the CLI
+    daemon does.
+    """
+    try:
+        with socket.create_connection((host, port), timeout=timeout) as conn:
+            conn.sendall(b"GET %s HTTP/1.0\r\nHost: %s\r\n\r\n"
+                         % (MARKER_PATH.encode("ascii"), host.encode("ascii")))
+            conn.settimeout(timeout)
+            try:
+                conn.recv(1)
+            except socket.timeout:
+                return True
+            return False
+    except OSError:
+        return False
+
+
+def _build_sessions(banks):
+    """One session per bank, opened for the life of this process -- the same
+    session-id-printed-so-a-marker-can-find-it precedent `cmd_serve` sets,
+    extended to every bank the daemon found rather than the one bank a single
+    `serve` process used to hold. Shared by `cmd_daemon` and `cmd_sidecar`.
+    """
+    sessions = {}
+    for stem, path in banks.items():
+        bank_dir = os.path.dirname(os.path.abspath(path)) or "."
+        out = os.path.join(bank_dir, "_attempts", "%s_attempt_%s.md" %
+                           (stem, datetime.datetime.now().strftime("%Y-%m-%d_%H%M")))
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        sessions[stem] = {
+            "session_id": uuid.uuid4().hex,
+            "log": evidence.log_path(bank_dir),
+            "out": out,
+            "mode": "practice",
+        }
+    return sessions
+
+
 def cmd_daemon(a):
+    if getattr(a, "sidecar", False):
+        return cmd_sidecar(a)
     root = a.dir
     banks, plans, collisions = scan_dir(root)
 
@@ -1647,22 +1745,9 @@ def cmd_daemon(a):
     for stem, winner, loser in collisions:
         print("  collision  stem %r: %s wins, %s loses" % (stem, winner, loser))
 
-    # One session per bank, opened for the life of this process -- the same
-    # session-id-printed-so-a-marker-can-find-it precedent `cmd_serve` sets,
-    # extended to every bank this daemon found rather than the one bank a
-    # single `serve` process used to hold.
-    sessions = {}
-    for stem, path in banks.items():
-        bank_dir = os.path.dirname(os.path.abspath(path)) or "."
-        out = os.path.join(bank_dir, "_attempts", "%s_attempt_%s.md" %
-                           (stem, datetime.datetime.now().strftime("%Y-%m-%d_%H%M")))
-        os.makedirs(os.path.dirname(out), exist_ok=True)
-        sessions[stem] = {
-            "session_id": uuid.uuid4().hex,
-            "log": evidence.log_path(bank_dir),
-            "out": out,
-            "mode": "practice",
-        }
+    # One session per bank, opened for the life of this process (see
+    # `_build_sessions` for the shape).
+    sessions = _build_sessions(banks)
 
     # The detect-and-attach probe (D-02): a second `itembank daemon` on a
     # port a first daemon holds attaches instead of binding; a reserved or
@@ -1683,4 +1768,64 @@ def cmd_daemon(a):
     serve_scoped(root, banks, plans, port, host=host, open_path="/", no_open=no_open,
                 extra={"sessions": sessions, "collisions": collisions},
                 on_bound=on_bound, srv=srv, window=window)
+    return 0
+
+
+def cmd_sidecar(a):
+    """The packaged-app launch path (D-02/D-03/D-04/D-06): the same daemon
+    entry the CLI uses, with the sidecar contract bolted on. It binds
+    127.0.0.1 only, prints the fixed stdout handshake -- bound port,
+    per-launch token, version -- after binding, and gates the shell-used API
+    routes with that token. Single-instance (D-06): a second launch against a
+    reachable running instance attaches through start_server()'s existing
+    occupied-by-itembank branch (already-running line, exit 0); a requested
+    port held by a listener that does not answer the itembank marker is
+    refused by name with the 13-UI-SPEC 3.3(e) port-held copy. A responding
+    non-itembank squatter and an OS-reserved port still fall back to a free
+    port exactly as the CLI daemon does.
+    """
+    import itembank                                    # lazy, like surfaces.cli.main()
+    root = a.dir
+    banks, plans, collisions = scan_dir(root)
+    cfg = settings.load_settings(root)
+    port = a.port if a.port is not None else cfg["daemon"]["port"]
+    host = "127.0.0.1"                                 # D-04: loopback only
+    window = cfg["daemon"]["window"]
+
+    # The per-launch token (D-04): generated here, held only by this process
+    # and handed to the shell on the stdout handshake. None means ungated, so
+    # a later CLI daemon in the same process stays byte-compatible.
+    token = secrets.token_hex(16)
+    DaemonHandler.sidecar_token = token
+
+    # D-06: refuse by name when the requested port is held by a listener that
+    # never answers the itembank marker -- a starting or hung runtime. The
+    # reachable attach case and the squatter/reserved free-port fallback are
+    # start_server()'s own three-case path below, reused unchanged (D-02).
+    if port != 0 and _port_silent(port, host):
+        print("itembank is already running at http://127.0.0.1:%d/" % port)
+        print(PORT_HELD_BODY % port)
+        sys.stdout.flush()
+        return 1
+
+    sessions = _build_sessions(banks)
+
+    # The existing detect-and-attach probe (D-02): a second sidecar launch on
+    # a port a first instance holds attaches and exits 0 instead of binding;
+    # no_open=True keeps the shell in charge of windows.
+    srv, bound_port, fell_back = start_server(DaemonHandler, port, host,
+                                              no_open=True, window=window)
+
+    def on_bound(actual_port):
+        # The fixed stdout handshake (D-03/D-04), the one new protocol
+        # surface -- a handshake, not an IPC channel. The shell parses these
+        # lines with the same SIDECAR_HANDSHAKE constants this module defines.
+        print("%s:%d" % (SIDECAR_HANDSHAKE["port"], actual_port))
+        print("%s:%s" % (SIDECAR_HANDSHAKE["token"], DaemonHandler.sidecar_token))
+        print("%s:%s" % (SIDECAR_HANDSHAKE["version"], itembank.__version__))
+        sys.stdout.flush()
+
+    serve_scoped(root, banks, plans, port, host=host, open_path="/", no_open=True,
+                 extra={"sessions": sessions, "collisions": collisions},
+                 on_bound=on_bound, srv=srv, window=window, quiet=True)
     return 0
