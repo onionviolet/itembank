@@ -3,7 +3,7 @@ status: complete
 phase: 03-lesson-format-in-app-reader
 source: [03-VERIFICATION.md]
 started: 2026-08-08
-updated: 2026-08-10T23:35:00Z
+updated: 2026-08-11T19:49:00Z
 ---
 
 ## Current Test
@@ -20,9 +20,10 @@ evidence: "Served /lesson/big_bank (62k-word lesson): one 402 KB HTML document, 
 
 ### 2. Interactive click-through of both link directions (D-09 user flow)
 expected: Lesson backlink lands on the quiz with that item pinned first; the Read the lesson chip opens a new tab at the right heading; a direct /lesson/<bank>#<slug> fragment lands on that section.
-result: issue
-reported: "Automated click-through in a real browser engine: the 'Read the lesson' chip renders with target=\"_blank\" at the correct /lesson/<bank>#<slug> anchor (works). Direct /lesson/<bank>#<slug> anchors exist (works). BUT the lesson backlink direction is broken on the daemon-served quiz: /quiz/pin_bank#q2 (an item id the lesson page itself emits) renders Q1 first -- the served client ignores the fragment, so the item is never pinned first."
-severity: major
+result: pass
+resolved: "2026-08-10 inline gap fix (focus param on /api/start + served-client fragment send; see Fix Log); post-fix automated click-through: loading /quiz/pin_bank#q2 in headless Chrome renders the referenced item first with the Read-the-lesson chip intact. tests/serve_roundtrip.py asserts the focus pin."
+reported: "Automated click-through in a real browser engine (2026-08-10): the 'Read the lesson' chip renders with target=\"_blank\" at the correct /lesson/<bank>#<slug> anchor (works). Direct /lesson/<bank>#<slug> anchors exist (works). BUT the lesson backlink direction was broken on the daemon-served quiz: /quiz/pin_bank#q2 (an item id the lesson page itself emits) rendered Q1 first -- the served client ignored the fragment, so the item was never pinned first."
+severity: major (resolved)
 
 ### 3. Independent spec-sufficiency trial (ROADMAP SC4 / LESSON-05)
 expected: A fresh model with only `itembank spec` authors a bank with a LESSON section, two headings, three items and a LESSON-REF tag that lints with 0 errors on the first attempt.
@@ -33,8 +34,8 @@ evidence: "Independent-model trial: spec generated via `itembank spec`, then a b
 ## Summary
 
 total: 3
-passed: 2
-issues: 1
+passed: 3
+issues: 0
 pending: 0
 skipped: 0
 blocked: 0
