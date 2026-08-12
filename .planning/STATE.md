@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 09.1
-current_phase_name: audio-drill-export
-status: executing
-stopped_at: Completed 08-05-PLAN.md
-last_updated: "2026-08-11T14:48:12.553Z"
+current_phase: complete
+current_phase_name: milestone-complete
+status: complete
+stopped_at: All 18 roadmap phases merged into main (2026-08-11)
+last_updated: "2026-08-12T02:03:03.000Z"
 last_activity: 2026-08-11
-last_activity_desc: "Phase 08 plan 08-05 completed (identifier-safe assist routes + AgentAssist learner surface + blocking UAT PASS); phases 03.1, 06.1, 06.2, 09.1 merged into main (closed)"
+last_activity_desc: "Milestone complete: all 18 roadmap phases merged into main — the 12 phase branches (02.1, 03, 03.2, 04, 05, 08, 09, 10, 11, 999.1, 999.4, 999.5) finished 2026-08-11 on top of 03.1, 06.1, 06.2, 09.1 merged earlier; human-pending verification backlog recorded in the Deferred Verification table"
 progress:
   total_phases: 18
-  completed_phases: 10
+  completed_phases: 18
   total_plans: 104
-  completed_plans: 67
+  completed_plans: 104
 ---
 
 # Project State
@@ -23,9 +23,19 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-07)
 
 **Core value:** One runtime, one scorer, one evidence store — and the runtime, not the model, decides what reaches the learner.
-**Current focus:** Phase 08 — model-adapter-interface-tier-gate-enforcement
+**Current focus:** Milestone complete — all 18 roadmap phases merged into main (2026-08-11); human-pending verification backlog below.
 
 ## Completed Phases Note
+
+**Milestone complete 2026-08-11.** All 18 roadmap phases are merged into main:
+the twelve phase branches of this batch (02.1, 03, 03.2, 04, 05, 08, 09, 10, 11,
+999.1, 999.4, 999.5) landed on top of 03.1, 06.1, 06.2, and 09.1, which merged
+earlier the same day. The pre-existing 06.2 evidence-index regression flagged in
+`HANDOFF-PHASE10.md` / `10-VERIFICATION.md` is **resolved**: the 08 merge restored
+the v3 evidence index `context` column (`5b7f397 fix(08-06): restore v3 evidence
+index (context column) lost in main's 06.2 merge`, in main via `merge(08)`
+`30cf342`; the 05 branch carried the same restore in `14f9a89`). Nothing in the
+12-phase merge re-introduced it.
 
 **Phase 6.2 — Executable Textbook Loop (completed 2026-08-11 on branch
 `gsd/phase-06.2-textbook-loop`):** the lesson gate is a presentation policy
@@ -41,10 +51,9 @@ recorded in 06.2-GATES.md. Six GATE-01..06 requirements delivered.
 
 ## Current Position
 
-Phase: 08 (model-adapter-interface-tier-gate-enforcement) — EXECUTING
-Plan: 5 of 6 complete
-Status: Ready to execute
-Last activity: 2026-08-11 — 08-05 (identifier-safe assist routes + AgentAssist learner surface) completed
+Phase: none — **milestone complete** (18/18 roadmap phases merged into main)
+Status: Complete; the human-pending verification backlog is listed in the Deferred Verification table below
+Last activity: 2026-08-11 — final phase branches (02.1, 03, 03.2, 04, 05, 08, 09, 10, 11, 999.1, 999.4, 999.5) merged into main; 999.5 merge resolved (eight-item spec heading, README/lesson test reconciliation)
 
 > **Branch note (gsd/phase-03.1-finish):** Phase 03.1
 > (lesson-rich-blocks-glossary-style) is CLOSED — plans 01-07 complete with
@@ -54,7 +63,7 @@ Last activity: 2026-08-11 — 08-05 (identifier-safe assist routes + AgentAssist
 > `03.1-GATES.md` and the Deferred Verification table. The milestone's
 > active phase stays 08 (main).
 
-Progress: [███████░░░] 64%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -305,21 +314,22 @@ Recent decisions affecting current work:
 
 ## Deferred Verification
 
-|----------|------|--------|-------------|
-| *(none â€” this is the project's first milestone)* | | | |
-
-## Deferred Verification
-
 | Phase | State | Resume |
 |-------|-------|--------|
-| 2.1 | verification_deferred_human | $gsd-verify-work 2.1 |
-| 3 | verification_deferred_human | $gsd-verify-work 3 |
-| 4 | verification_deferred_human | $gsd-verify-work 4 |
+| 2.1 | verification_deferred_human | $gsd-verify-work 2.1 — 4 human items: real-OS double-click per OS; Gatekeeper quarantine on a real macOS machine; Linux desktop-file-manager launch; real LMS import acceptance (SC5 manual half) |
+| 3 | verification_deferred_human | $gsd-verify-work 3 — 1 human item: interactive browser click-through of lesson ↔ question round trip (fresh-model, no-source process claim verified by artifact; scroll feel is a human judgment) |
 | 03.1 | verification_deferred_human | $gsd-verify-work 03.1 — live full-suite + schema_validate run; cross-browser Popover; ClearType 18px render at 375/1280px; 1280/768/375px snapshots (see 03.1-GATES.md + 03.1-UAT.md) |
+| 4 | verification_deferred_human | $gsd-verify-work 4 — 7 human items: perceptual hierarchy / real-browser 320px/200% rendering, live native color-picker behavior, assistive-tech announcement timing, and the remaining 04-VALIDATION manual-matrix checks |
+| 5 | verification_deferred_human | $gsd-verify-work 5 — 2 human items: Windows process-tree kill on a real Windows host and the manual end-of-phase pass (see 05-VERIFICATION.md human_verification) |
+| 09 | verification_deferred_human | $gsd-verify-work 09 — KaTeX release approval before vendoring (09-03: approve one immutable KaTeX release) |
+| 10 | verification_deferred_human | $gsd-verify-work 10 — 1 UI gate (10-06 Task 3, DEFERRED, blocking, human-pending; see 10-VERIFICATION.md) |
+| 11 | verification_deferred_human | $gsd-verify-work 11 — 4 human items (see 11-VERIFICATION.md human_verification / UAT) |
+| 999.4 | verification_deferred_human | Manual Canvas checklist (R-01 fake-platform default; the real-Course consumer question stays open) |
+| 999.5 | verification_deferred_human | WINDOWS.md windows 2–3: LAN cross-device phone reachability (02) and real Moodle GIFT import (02.1) — human verify/waive before /gsd-ship |
 
 ## Session Continuity
 
 Last session: 2026-08-11T14:48:12.553Z
-Stopped at: Completed 08-05-PLAN.md
+Stopped at: All 18 roadmap phases merged into main (2026-08-11)
 Resume file: None
-Deferred human verification: Phases 2.1/3/4 (see Deferred Verification table above); 09.1 manual audio-quality checks (see 09.1-UAT.md)
+Deferred human verification: 02.1 (4), 03 (1), 03.1, 04 (7), 05 (2), 09 (KaTeX approval), 10 (1 UI gate), 11 (4), 999.4 (manual Canvas checklist), 999.5 (WINDOWS.md windows 2-3) — see the Deferred Verification table above; 09.1 manual audio-quality checks (see 09.1-UAT.md)

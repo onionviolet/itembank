@@ -84,20 +84,20 @@ are recorded on the phases they block; none blocks starting.
 
 - [x] **Phase 1: Evidence Spine & Protocol Foundation** - Stable item identity, one evidence store, and migration so nothing built after this reads a stale or split history. (completed 2026-08-07)
 - [x] **Phase 2: Daemon Consolidation & Settings Foundation** - One daemon on one port serving every surface, with a printable, agent-discoverable settings schema. (completed 2026-08-08)
-- [ ] **Phase 2.1: Packaging, Self-Update & Interop Export (INSERTED, moved from Phase 12)** - One double-clickable artifact per OS, a safe self-updater, and a GIFT export that fails loudly rather than wrong — pulled forward so a runnable exe of the Phase 1+2 feature set exists early, and the self-updater ships phases 3-11 as real releases instead of being written and tested last.
-- [ ] **Phase 3: Lesson Format & In-App Reader** - An optional `LESSON` section renders as reading material inside the app, linked to the items it teaches.
-- [ ] **Phase 3.1: Lesson Rich Blocks, Glossary & Style (INSERTED 2026-08-10)** - `## TERMS` + `[[term]]` hover glossary, `[!KEY]` memorizable blocks that round-trip to Anki, one `LESSON-STYLE.md` contract the linter reads, and the callout/figure/print render pass on Phase 4 tokens.
-- [ ] **Phase 3.2: Seeding, Import & Provenance (INSERTED 2026-08-10)** - Content arrives before the features that consume it: Anki `.apkg` import, a human-approves-everything draft→lint→retry seeding loop, and the `[SRC:]`/`[OBJ:]`/`## SOURCES` provenance standard with paraphrase-not-transcribe lint.
-- [ ] **Phase 4: Surface Redesign & Theming** - One shared palette, OS-driven theming, a decluttered question surface, and safe in-page `day` editing.
-- [ ] **Phase 5: Check Item Type & Code Editor** - A `check` item type runs the learner's own code in a real editor and scores it through the one scorer.
+- [x] **Phase 2.1: Packaging, Self-Update & Interop Export (INSERTED, moved from Phase 12)** - One double-clickable artifact per OS, a safe self-updater, and a GIFT export that fails loudly rather than wrong — pulled forward so a runnable exe of the Phase 1+2 feature set exists early, and the self-updater ships phases 3-11 as real releases instead of being written and tested last. (completed 2026-08-11)
+- [x] **Phase 3: Lesson Format & In-App Reader** - An optional `LESSON` section renders as reading material inside the app, linked to the items it teaches. (completed 2026-08-11)
+- [x] **Phase 3.1: Lesson Rich Blocks, Glossary & Style (INSERTED 2026-08-10)** - `## TERMS` + `[[term]]` hover glossary, `[!KEY]` memorizable blocks that round-trip to Anki, one `LESSON-STYLE.md` contract the linter reads, and the callout/figure/print render pass on Phase 4 tokens. (completed 2026-08-11)
+- [x] **Phase 3.2: Seeding, Import & Provenance (INSERTED 2026-08-10)** - Content arrives before the features that consume it: Anki `.apkg` import, a human-approves-everything draft→lint→retry seeding loop, and the `[SRC:]`/`[OBJ:]`/`## SOURCES` provenance standard with paraphrase-not-transcribe lint. (completed 2026-08-11)
+- [x] **Phase 4: Surface Redesign & Theming** - One shared palette, OS-driven theming, a decluttered question surface, and safe in-page `day` editing. (completed 2026-08-11)
+- [x] **Phase 5: Check Item Type & Code Editor** - A `check` item type runs the learner's own code in a real editor and scores it through the one scorer. (completed 2026-08-11)
 - [x] **Phase 6: Hint Ladder, Cursor-Hold & Feedback Modes** - A wrong answer holds the cursor, hints unlock one authored tier at a time, and feedback behavior follows session mode. (completed 2026-08-10)
-- [ ] **Phase 6.2: Executable Textbook Loop (INSERTED 2026-08-10)** - Prose, an inline check the learner must clear to continue, then spaced re-exposure of the same idea — the Execute Program / Runestone loop over the existing lesson, hint, and evidence machinery.
+- [x] **Phase 6.2: Executable Textbook Loop (INSERTED 2026-08-10)** - Prose, an inline check the learner must clear to continue, then spaced re-exposure of the same idea — the Execute Program / Runestone loop over the existing lesson, hint, and evidence machinery. (completed 2026-08-11)
 - [x] **Phase 7: Selection Engine** - Sessions are assembled by an inspectable rule engine — objective, difficulty, discrimination pairs, no accidental repeats. (completed 2026-08-11)
 - [x] **Phase 8: Model Adapter Interface & Tier-Gate Enforcement** - The tutoring model sees the key and writes hints about the learner's actual error; the runtime gates the tier, not the model. (completed 2026-08-11)
-- [ ] **Phase 9: Subject-Invariant Loop — EMT, Math, CS Integration** - One loop — lesson, hint, verify — carries a learner through EMT prose, Math LaTeX, and runnable CS code.
-- [ ] **Phase 9.1: Audio Drill Export (INSERTED 2026-08-10)** - `itembank export audio` turns an objective into a stem→pause→key→why drill pack, so the commute is study time and the TTS engine is a config entry, not a dependency.
-- [ ] **Phase 10: Retention, Pacing & Trends** - What's due today, a daily cap, and evidence-driven selection weight and decay flagging, with itembank's and Anki's "due" shown apart.
-- [ ] **Phase 11: Closed Authoring Loop & Curriculum Auditor** - A closed spec-draft-lint-retry authoring loop, reused by a syllabus auditor that cites its coverage claims and never over-autonomizes silently.
+- [x] **Phase 9: Subject-Invariant Loop — EMT, Math, CS Integration** - One loop — lesson, hint, verify — carries a learner through EMT prose, Math LaTeX, and runnable CS code. (completed 2026-08-11)
+- [x] **Phase 9.1: Audio Drill Export (INSERTED 2026-08-10)** - `itembank export audio` turns an objective into a stem→pause→key→why drill pack, so the commute is study time and the TTS engine is a config entry, not a dependency. (completed 2026-08-11)
+- [x] **Phase 10: Retention, Pacing & Trends** - What's due today, a daily cap, and evidence-driven selection weight and decay flagging, with itembank's and Anki's "due" shown apart. (completed 2026-08-11)
+- [x] **Phase 11: Closed Authoring Loop & Curriculum Auditor** - A closed spec-draft-lint-retry authoring loop, reused by a syllabus auditor that cites its coverage claims and never over-autonomizes silently. (completed 2026-08-11)
 - [ ] ~~**Phase 12: Packaging, Self-Update & Interop Export**~~ - MOVED to Phase 2.1 (2026-08-07) — see Phase 2.1 above. Slot retired, not reused.
 - [x] **Phase 13: Desktop Packaging — Tauri Shell over the Python Sidecar** - A signed, installable desktop app whose inside is still the same Python runtime, because porting it would temporarily create a second scorer. (completed 2026-08-10)
 
@@ -339,7 +339,7 @@ Plans:
 - **No trustworthy open-weight prose-quality benchmark exists**, so any model choice for lesson authoring must be settled by running our own 18-rule check over generated lessons.
 - **There is no real bank yet**, so the criterion-7 layout argument is structural against Phase 11's criteria, not observed churn.
 
-**Plans**: 3/7 plans executed across 3 waves
+**Plans**: 7/7 plans executed
 
 Plans:
 **Wave 1**
@@ -350,13 +350,13 @@ Plans:
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [x] 03.1-03-PLAN.md — [!KEY] cards, Anki keys export with round-tripping #guid, key_review, Educational Objective privacy
-- [ ] 03.1-04-PLAN.md — Style registry: five styles + house, LOCKED_RULE_IDS, render_style and the named refusals
-- [ ] 03.1-05-PLAN.md — Style enforcement cost classes, suppression + 50ms budget, StylePrompt capped imperatives
+- [x] 03.1-04-PLAN.md — Style registry: five styles + house, LOCKED_RULE_IDS, render_style and the named refusals
+- [x] 03.1-05-PLAN.md — Style enforcement cost classes, suppression + 50ms budget, StylePrompt capped imperatives
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 03.1-06-PLAN.md — Font vendoring (Source Serif 4 + iA Writer Quattro), spec grammar documentation, lesson_layout fold into 09-02
-- [ ] 03.1-07-PLAN.md — Phase verification: the eight UI-SPEC §17 gates, requirement-coverage audit, full suite
+- [x] 03.1-06-PLAN.md — Font vendoring (Source Serif 4 + iA Writer Quattro), spec grammar documentation, lesson_layout fold into 09-02
+- [x] 03.1-07-PLAN.md — Phase verification: the eight UI-SPEC §17 gates, requirement-coverage audit, full suite
 
 ### Phase 3.2: Seeding, Import & Provenance (INSERTED 2026-08-10)
 
@@ -386,22 +386,22 @@ Plans:
 - **OPEN — ruling 12** (constraint audit F3, revisit): SC1's *"through stdlib ZIP+SQLite reads alone"* is a relaxed preference baked into an acceptance criterion, and it may be **unmeetable** — Anki 2.1.50+ exports ship `collection.anki21b` zstd-compressed, and the standard library has no zstd decoder. **Verify against a real modern `.apkg` at plan time, before writing the plan.** The load-bearing requirement is criterion 1's second clause: lossless import with a per-note account of what converted, what was skipped, and why, no note silently dropped. **Default if unruled: prefer stdlib `zipfile`/`sqlite3`; if the archive's compression requires a dependency, take one and record it under the §4a supply-chain rule.**
 - **OPEN — ruling 4**: Weibao approves widening and moving 03.2 (the B1/Q10 seeding pull-forward). Recorded as adopted-pending-ruling; if declined, 03.2 shrinks back to provenance only and Phase 11 keeps the seeding loop.
 
-**Plans**: 5 plans across 3 waves
+**Plans**: 5/5 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 03.2-01-PLAN.md — The .apkg importer: ZIP + zstd + sqlite3, note-type mapping with loud refusals, lint gate, per-note report
-- [ ] 03.2-02-PLAN.md — Provenance: ## SOURCES registry, [SRC:]/[OBJ:] resolution, on-demand coverage map
+- [x] 03.2-01-PLAN.md — The .apkg importer: ZIP + zstd + sqlite3, note-type mapping with loud refusals, lint gate, per-note report
+- [x] 03.2-02-PLAN.md — Provenance: ## SOURCES registry, [SRC:]/[OBJ:] resolution, on-demand coverage map
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 03.2-03-PLAN.md — The seeding loop: six-stage pipeline, one accept endpoint behind CLI + daemon, batch UI
-- [ ] 03.2-04-PLAN.md — Paraphrase lint (winnowing, tunable thresholds), style.unsourced_specific, [CASE:]/[PREREQ:] edges
+- [x] 03.2-03-PLAN.md — The seeding loop: six-stage pipeline, one accept endpoint behind CLI + daemon, batch UI
+- [x] 03.2-04-PLAN.md — Paraphrase lint (winnowing, tunable thresholds), style.unsourced_specific, [CASE:]/[PREREQ:] edges
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 03.2-05-PLAN.md — Phase verification: corpus-residency guard, calibration rates, requirement audit, full suite
+- [x] 03.2-05-PLAN.md — Phase verification: corpus-residency guard, calibration rates, requirement audit, full suite
 
 ### Phase 4: Surface Redesign & Theming
 
@@ -476,29 +476,29 @@ Plans:
   4. `spec` and any UI copy state plainly that this stops accidents, not deliberate escapes, with no claim of sandboxing anywhere in the documentation.
   5. The editor is the first proof of a renderer-independent interactive-item contract: validated configuration enters the renderer, a meaningful structured response leaves it, `runtime.score_response()` alone returns the verdict, and an accessible non-pointer interaction reaches the same response shape.
 
-**Plans**: 7 plans
+**Plans**: 7/7 plans executed
 
 **Wave 1**
 
-- [ ] 05-01-PLAN.md — Tracer: one `check` item end to end — parse, run, score, record
+- [x] 05-01-PLAN.md — Tracer: one `check` item end to end — parse, run, score, record
 
 **Wave 2** *(blocked on 05-01)*
 
-- [ ] 05-02-PLAN.md — Execution bounds: output cap, Windows Job Object kill, grandchild test
-- [ ] 05-03-PLAN.md — Settings group, the agent submit path, and the default-closed LAN refusal
+- [x] 05-02-PLAN.md — Execution bounds: output cap, Windows Job Object kill, grandchild test
+- [x] 05-03-PLAN.md — Settings group, the agent submit path, and the default-closed LAN refusal
 
 **Wave 3** *(blocked on 05-02, 05-03)*
 
-- [ ] 05-04-PLAN.md — Windows process-tree kill: manual verification and spike record
-- [ ] 05-05-PLAN.md — Vendored CM6 editor: mount, theme, line numbers, Tab/Shift-Tab, honest-limits line + JS-runner keyboard assertions
+- [x] 05-04-PLAN.md — Windows process-tree kill: manual verification and spike record
+- [x] 05-05-PLAN.md — Vendored CM6 editor: mount, theme, line numbers, Tab/Shift-Tab, honest-limits line + JS-runner keyboard assertions
 
 **Wave 4** *(blocked on 05-02, 05-05)*
 
-- [ ] 05-06-PLAN.md — Per-case result matrix and the three refusal states
+- [x] 05-06-PLAN.md — Per-case result matrix and the three refusal states
 
 **Wave 5** *(blocked on 05-04, 05-06)*
 
-- [ ] 05-07-PLAN.md — Honest-limits gate, README, item schema, end-of-phase pass
+- [x] 05-07-PLAN.md — Honest-limits gate, README, item schema, end-of-phase pass
 
 **Cross-cutting constraints** (must_haves that appear in 2+ plans and must hold at the phase gate):
 
@@ -562,21 +562,21 @@ Plans:
 
 **Absorbed from research (2026-08-10)**: the SVG protocol stands, and Desmos/GeoGebra are **rejected on licensing** rather than on capability — extend our own protocol with two or three math scene types instead of embedding a third-party engine. Canvas/LTI stays backlog. See `.planning/research/2026-08-09-extraction-subjects-bilingual.md` (Q6 Math).
 **Benchmark posture:** Brilliant is an explicit learn-by-doing quality target. Public patterns from Brilliant, Desmos/Amplify, GeoGebra, Khanmigo, H5P/QTI, and ALEKS inform prediction-before-explanation, meaningful manipulation, immediate targeted feedback, transparent state, accessibility, and authorability. This phase does not copy proprietary content, interaction details, branding, or pursue competitor feature parity.
-**Plans:** 3 plans
+**Plans:** 3/3 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 06.1-01-PLAN.md — TRACER: one declarative plot path, then the shared plot/number-line protocol and deterministic runtime scorer
+- [x] 06.1-01-PLAN.md — TRACER: one declarative plot path, then the shared plot/number-line protocol and deterministic runtime scorer
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 06.1-02-PLAN.md — Model-authoring contract, named lint/schema/golden fixtures, and semantic action/observation evidence API
+- [x] 06.1-02-PLAN.md — Model-authoring contract, named lint/schema/golden fixtures, and semantic action/observation evidence API
 
 **Wave 3** *(blocked on Waves 1 and 2 completion)*
 
-- [ ] 06.1-03-PLAN.md — Accessible mouse/touch/keyboard equivalence, canvas fallback boundary, GIFT loud refusal, and phase gate
+- [x] 06.1-03-PLAN.md — Accessible mouse/touch/keyboard equivalence, canvas fallback boundary, GIFT loud refusal, and phase gate
 
 ### Phase 6.2: Executable Textbook Loop (INSERTED 2026-08-10)
 
@@ -751,25 +751,25 @@ Plans:
 - **OPEN — ruling 7** (shared with Phase 3.1): fold `lesson_layout` into `09-02-PLAN.md`'s closed `subject_profiles` object, or accept a registry version bump? **Default if unruled: fold into 09-02.**
 - **OPEN — ruling 15** (constraint audit F7, revisit): `03-CONTEXT.md:158` and `03-04-PLAN.md:79` grant leave to **drop table rendering** "if a stdlib table renderer proves out of proportion" — an effort budget that only exists because `03-RESEARCH.md:228` refused `markdown`/`mistune`/`commonmark` unread ("Not evaluated further"). SC4 here requires that an EMT lesson renders prose **and tables** correctly, and `UI-SPEC.md` §8 Narrow requires tables to preserve headers via a horizontal-scroll wrapper with an accessible name or stacked definition rows. A learner-facing feature carrying a §8 obligation is not droppable on effort. The single-renderer decision itself stands, on the better ground that §4.2 forbids a second parser and Phase 5's preview reuses ours via `data-line` sync. **Default if unruled: table rendering is in scope and the §8 Narrow obligation is met.**
 
-**Plans**: 5 plans across 4 waves
+**Plans**: 5/5 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 09-01-PLAN.md - Persist one selected subject profile and prove the EMT tracer through the shared loop.
+- [x] 09-01-PLAN.md - Persist one selected subject profile and prove the EMT tracer through the shared loop.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 09-02-PLAN.md - Publish EMT/Math/CS profile configuration and prove a fourth subject requires configuration only.
-- [ ] 09-03-PLAN.md - Approve one immutable KaTeX release before vendoring.
+- [x] 09-02-PLAN.md - Publish EMT/Math/CS profile configuration and prove a fourth subject requires configuration only.
+- [x] 09-03-PLAN.md - Approve one immutable KaTeX release before vendoring.
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 09-04-PLAN.md - Bundle and render offline Math through the shared reader under the Phase 9 UI contract.
+- [x] 09-04-PLAN.md - Bundle and render offline Math through the shared reader under the Phase 9 UI contract.
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 09-05-PLAN.md - Add observation-only runnable lesson code and prove the four-profile integration matrix.
+- [x] 09-05-PLAN.md - Add observation-only runnable lesson code and prove the four-profile integration matrix.
 
 ### Phase 9.1: Audio Drill Export (INSERTED 2026-08-10)
 
@@ -827,30 +827,30 @@ Plans:
   12. **(round two, R4.5) A pending model suggestion never advances an interval and grants no mastery**, though it does count as an attempt. Scheduler state replayed from the log must read accepted marks only — a rule that has to hold here because this phase is where "what is due" is decided.
 
 **Absorbed from research (2026-08-10)**: FSRS, WaniKani stages, jpdb weighting (`.planning/research/2026-08-09-landscape-widening.md`); D2 memorizables entering the queue (`2026-08-09-differentiators-d1-d2-d3.md`); anti-punitive pacing copy already LOCKED in `.planning/UI-SPEC.md`.
-**Plans**: 0/6 plans executed
+**Plans**: 6/6 plans executed
 **Wave 1**
 
-- [ ] 10-01-PLAN.md
+- [x] 10-01-PLAN.md
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 10-02-PLAN.md
+- [x] 10-02-PLAN.md
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 10-03-PLAN.md
+- [x] 10-03-PLAN.md
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 10-04-PLAN.md
+- [x] 10-04-PLAN.md
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 10-05-PLAN.md
+- [x] 10-05-PLAN.md
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 10-06-PLAN.md
+- [x] 10-06-PLAN.md
 
 ### Phase 11: Closed Authoring Loop & Curriculum Auditor
 
@@ -884,7 +884,7 @@ Plans:
 **Named unknowns carried into planning**: **no benchmark for single-objective adherence in long generation** exists (Research Brief 2 §4.5), and **no trustworthy open-weight prose-quality benchmark** exists — so criterion 9's pipeline is justified structurally, and model choice for authoring is settled by running our own 18-rule check over generated lessons rather than by any published score.
 **Scope note (2026-08-10)**: this phase **shrinks**. Anki import and the human-gated seeding loop moved to Phase 3.2; the `[SRC:]`/`[OBJ:]` provenance standard and the coverage-map computation moved with them. What stays is the risky part the research agreed should stay late: the autonomy ladder, the citation contract, the second quality gate, and reversibility.
 **Open decisions resolved here**: Second quality gate algorithm (distractor-overlap heuristic, near-duplicate detection thresholds); syllabus input formats (markdown/text only, vs. PDF/DOCX that stdlib parses poorly); auditor reversibility mechanism (shadow copy vs. a git commit per write, depending on whether the private bank directory is git-tracked). These three converge with the top pitfalls flagged for this subsystem — the citation contract, the second quality gate, and reversibility are novel mechanisms with no working precedent in any examined product, and need fresh design at plan time, not just implementation.
-**Plans**: 5 plans across 4 waves
+**Plans**: 5/5 plans executed
 
 ### Phase 12: ~~Packaging, Self-Update & Interop Export~~ (MOVED)
 
@@ -1160,12 +1160,12 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 |---|---|
 | OLED / true-black theme mode | Deferred to backlog. Small, well-scoped add: one `theme` enum value (`oled`) plus a true-black token set (`bg` `#000000`, dimmer card/chip, semantic contrast re-verified) and the `/settings` theme option. Natural home: a small follow-up to Phase 4 theming, or folded into Phase 13's desktop pass when native window chrome is revisited. Raised from Phase 4 UAT (2026-08-10). |
 
-### Phase 999.1: Advanced Visual Item Families (BACKLOG)
+### Phase 999.1: Advanced Visual Item Families (completed 2026-08-11)
 
 **Goal:** Extend the Phase 06.1 visual protocol beyond plot and number line into advanced visual families.
 **Requirements:** TBD
-**Depends on:** Phase 06.1 (0/3 plans, not executed)
-**Plans:** 0 plans
+**Depends on:** Phase 06.1 (complete — merged and verified 2026-08-11)
+**Plans:** 4 plans executed (999.1-01..04); merged into main 2026-08-11
 
 Covers `hotspot`, `diagram`, `timeline`, `trace`, geometry/construction, and dense
 simulation-style responses. Phase 06.1 owns the initial plot/number-line protocol, the
@@ -1173,11 +1173,12 @@ SVG/HTML slice, semantic evidence, and the canvas-fallback rule. Renderers conti
 receive validated configuration rather than bank-authored JavaScript
 (`REQUIREMENTS.md` VIS-01, `UI-SPEC.md:609`).
 
-**2026-08-10 review verdict: KEEP.** Not promotable, for a mechanical reason rather
-than a judgement call: its only dependency, Phase 06.1, has 0 of 3 plans executed.
-Promoting a phase ahead of the phase whose protocol it extends would mean designing
-`hotspot` against a plot/number-line contract that does not exist yet. Re-review when
-06.1 is verified.
+**2026-08-10 review verdict: KEEP — superseded 2026-08-11.** Not promotable at the
+time, for a mechanical reason rather than a judgement call: its only dependency,
+Phase 06.1, then had 0 of 3 plans executed, and promoting a phase ahead of the phase
+whose protocol it extends would mean designing `hotspot` against a plot/number-line
+contract that did not exist yet. 06.1 was verified and merged on 2026-08-11; this
+phase was then promoted, executed (4 plans), and merged into main the same day.
 
 **Split from Canvas/LTI on 2026-08-10.** The two halves were bundled and have opposite
 dependency profiles and opposite constraint status: visual families depend on 06.1 and
@@ -1185,12 +1186,12 @@ violate nothing, while Canvas/LTI depends on nothing here and collides head-on w
 product constraint. Bundling them meant neither could be reviewed on its own terms. The
 LTI half is now 999.4.
 
-### Phase 999.4: Canvas LMS Integration via LTI (BACKLOG, split from 999.1 on 2026-08-10)
+### Phase 999.4: Canvas LMS Integration via LTI (completed 2026-08-11; split from 999.1 on 2026-08-10)
 
 **Goal:** Expose the item player inside Canvas LMS through an explicitly hosted, authenticated LTI surface, as an adapter to the same local runtime and scorer rather than a second authority.
 **Requirements:** LTI-01..LTI-07 (minted 2026-08-11; see `REQUIREMENTS.md` and the phase package)
 **Depends on:** nothing in this roadmap
-**Plans:** 3 plans (planned 2026-08-11, `docs(999.4-*:)` commits on branch `gsd/phase-999.4-plan`)
+**Plans:** 3 plans executed (999.4-01..03); merged into main 2026-08-11
 
 Covers the hosting, identity, privacy, deep-linking, and grade-passback decisions LTI
 requires.
@@ -1230,8 +1231,9 @@ answered in the phase package (`999.4-CONTEXT.md`: D-02 answers "no accounts, no
 auth", D-04/D-09 answer "no hosted gradebook / no telemetry", R-01 keeps the
 consumer question open with the fake-platform default). Full plan-phase package
 in `.planning/phases/999.4-canvas-lms-integration-lti/`; the open rulings
-(R-01..R-05) are for the user to ratify at plan review. Nothing is executed and
-nothing is merged to main.
+(R-01..R-05) are for the user to ratify at plan review. All three plans executed and
+merged into main 2026-08-11; the manual Canvas checklist (R-01 fake-platform default)
+sits in deferred human verification.
 
 ### Phase 999.2: Bilingual Reader (BACKLOG)
 
@@ -1363,7 +1365,7 @@ Plans:
 
 - [ ] TBD (promote per the trigger above)
 
-### Phase 999.5: Agent Onboarding & Skill Library (BACKLOG, added 2026-08-10)
+### Phase 999.5: Agent Onboarding & Skill Library (completed 2026-08-11; added 2026-08-10)
 
 **Goal:** Keep the agent on-ramp — `AGENTS.md` and the five repo skills
 (`absorb-book`, `curriculum-design`, `guiding-questions`, `author-bank`,
@@ -1383,13 +1385,13 @@ in README/AGENTS.md (Claude Code, Codex, Gemini CLI, Cursor, Reasonix),
 and CI now asserts the skill mirrors stay byte-identical and no machine path
 leaks into agent docs. [999.5-02](phases/999.5-agent-onboarding-skill-library/999.5-02-SUMMARY.md)
 shipped 2026-08-11: README rewritten against the frozen 44-command surface
-(grouped index, seven item types incl. `visual`, reconciled Design
+(grouped index, eight item types incl. `visual` and `check`, reconciled Design
 boundaries, real repository tree), spec heading corrected to the shipped
 type count, ROADMAP phase-status table corrected to STATE.md, CI gates for
 README command claims and full schema coverage, and the broken-windows
 ledger audited to truth.
 
-**Why this is backlog.** The on-ramp already exists (2026-08-10) and documents
+**Why this was backlog (superseded 2026-08-11 — both plans shipped).** The on-ramp already exists (2026-08-10) and documents
 the *shipped* surface — that is why it is truthful. It becomes load-bearing
 the moment a phase ships a command that changes what a skill says. The named
 trigger points, so the next review is a lookup and not a re-argument:
