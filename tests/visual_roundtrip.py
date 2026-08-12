@@ -229,7 +229,7 @@ def check_interaction_result(plot, nlp, nli):
     state = runtime.canonical_response(plot, point)
     verdict = runtime.score_response(plot, point)
     obs = runtime.visual_observation(plot, state, verdict, hint_tier=0)
-    result = runtime.visual_interaction_result(plot, state, verdict, [obs])
+    result = runtime.interaction_result(plot, state, verdict, [obs])
     if result["version"] != runtime.VISUAL_PROTOCOL_VERSION:
         fail("interaction_result version is %r" % result["version"])
     if result["type"] != "visual":

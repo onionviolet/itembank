@@ -181,7 +181,7 @@ def check_contract_only_consumer():
         fail("contract-only consumer's response scored %r" % verdict)
     state = runtime.canonical_response(plot, resp)
     observation = runtime.visual_observation(plot, state, verdict, hint_tier=None)
-    result = runtime.visual_interaction_result(plot, state, verdict, [observation])
+    result = runtime.interaction_result(plot, state, verdict, [observation])
     if result["verdict"] is not True:
         fail("contract-only consumer misread the interaction result")
 
