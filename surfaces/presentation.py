@@ -27,6 +27,29 @@ import html, json
 # from the generated theme block a caller substitutes; this file introduces
 # no color literals and no second palette (D-04). No `nowrap` and no
 # `text-overflow` anywhere: meaningful text wraps rather than truncating.
+#
+# THE @font-face URL FORM, and its cost, recorded once here rather than in
+# the emitted stylesheet (every CSS comment below ships in every served
+# page's <style> block, so rationale belongs in Python, not in CSS):
+#
+# The four vendored-face urls are ROOT-ABSOLUTE, under the daemon's
+# `/assets/fonts/` route -- the same closed-map shape the vendored KaTeX
+# asset route already uses. They were relative until the fix for this
+# defect, and a relative url resolves against the *route*, not against the
+# site root: on a nested page route the browser asked for
+# `/lesson/fonts/...` and got four 404s per page load, so the reader never
+# once rendered in its intended typefaces under the daemon. Served pages go
+# from zero of four faces loading to four of four, at every route depth.
+#
+# The stated cost: a standalone page written with `itembank build --out`
+# resolves nothing here and degrades to the Georgia / ui-monospace fallback
+# stack by design. That is not a regression -- the --out file is written
+# beside the bank, and no bank directory carries a fonts/ directory, so the
+# relative form already resolved nothing there either. Embedding the four
+# faces as data urls would fix the file-scheme case at roughly a third of a
+# megabyte of base64 added to every emitted page plus a second emit path to
+# maintain; rejected on cost, and recorded here as the honest future option
+# behind an explicit embed flag rather than as a silent default.
 SHARED_CSS = r"""
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -45,26 +68,11 @@ body{margin:0;background:var(--bg);color:var(--ink);
 /* Vendored faces (03.1-06 Task 1): the last path segments match
    fonts/MANIFEST.json file rows; weights are the reading surface's 400/600
    pair for the paper voice and 400/700 for the ledger voice (UI-SPEC §7
-   "two weights per face").
-
-   The urls are ROOT-ABSOLUTE, under the daemon's `/assets/fonts/` route --
-   the same closed-map shape `/assets/katex/` already uses. They were
-   relative until the fix for this defect, and a relative url resolves
-   against the *route*, not against the site root: on `/lesson/<stem>` the
-   browser asked for `/lesson/fonts/...` and got four 404s per page load,
-   so the reader never once rendered in its intended typefaces under the
-   daemon.
-
-   The stated cost: a standalone page written with `itembank build --out`
-   resolves nothing here and degrades to the Georgia / ui-monospace
-   fallback stack by design. That is not a regression -- the --out file is
-   written beside the bank, and no bank directory carries a fonts/
-   directory, so the relative form already resolved nothing there either.
-   Embedding the four faces as data urls would fix the file-scheme case at
-   roughly a third of a megabyte of base64 added to every emitted page and
-   a second emit path to maintain; rejected on cost, and recorded here as
-   the honest future option behind an explicit embed flag rather than as a
-   silent default. */
+   "two weights per face"). The urls are root-absolute because a relative
+   one resolves against the page route and 404s; a file-scheme page
+   therefore resolves nothing here and degrades to the fallback stack by
+   design. Full rationale and rejected alternative: the module comment
+   above this constant. */
 @font-face{font-family:"Source Serif 4";font-style:normal;font-weight:400;
   src:url("/assets/fonts/source-serif/SourceSerif4-Regular.ttf.woff2") format("woff2");
   font-display:swap}
