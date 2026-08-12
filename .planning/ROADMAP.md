@@ -927,6 +927,29 @@ Plans:
 - [x] 13-04-PLAN.md — Updater: latest.json + minisign alongside SHA256SUMS.txt, tauri-plugin-updater, one-disclosure StatusNotice
 - [x] 13-05-PLAN.md — Phase verification: executed AV/signing checklist, lifecycle/size/headless evidence, full suite
 
+### Phase 14: Reading & Teaching Surface Quality Pass
+
+*Added 2026-08-12.*
+
+**Goal**: the reader and the quiz meet the quality bar of a commercial learning product — Brilliant is the named reference — so that the surfaces a learner sits in front of every day feel designed rather than assembled.
+**Mode:** ui
+**Depends on**: quick task 260812-e2m (the four reader defects it fixed are preconditions — no spacing or type judgement made before them was made against what actually renders)
+**Requirements**: TBD at plan time
+**Grounding**: found by driving the running daemon in a browser on 2026-08-12, not by the test suite, which was green throughout. See `.planning/STATE.md` § Quick Tasks Completed.
+
+**Success Criteria** (what must be TRUE):
+
+  1. The quiz stem is fully legible on first paint at every supported viewport — today it renders clipped under the sticky header.
+  2. Spacing and type scale are set deliberately against Source Serif 4 and iA Writer Quattro as they actually render. Those faces 404'd on every daemon page until 2026-08-12, so every prior spacing decision was made against a fallback.
+  3. The glossary term popover has a real interaction design: hover intent, focus and keyboard behaviour, touch, placement near viewport edges, and a stated relationship to the `[!KEY]` must-memorize card. This is a named flagship differentiator in Weibao's own words ("keyterms with hover over", "separate blocks of stuff to remember") and has never been designed against, because a CSS defect made it invisible from the day it shipped.
+  4. The reader section nav and the "back to text" links are designed and reachable. Both were `display:none` on screen until 2026-08-12.
+  5. The wrong-answer state is the strongest screen in the product rather than the weakest. Today it is a red sentence plus a collapsed `details` element, which is the single most important teaching moment in the product.
+  6. No design implies a reveal the runtime would refuse. The tier gate stays the runtime's call (D-09), and the accessibility gates in `.planning/UI-SPEC.md` hold unchanged.
+
+**Open decisions**: none yet — the UI researcher asks.
+
+**Plans**: 0/TBD
+
 ## How this roadmap gets planned (added 2026-08-10)
 
 `.planning/PLANNING-DIRECTIVES.md` is binding on every planning session and holds
@@ -1147,6 +1170,7 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 11. Closed Authoring Loop & Curriculum Auditor | 0/TBD | Not started | - |
 | 12. ~~Packaging, Self-Update & Interop Export~~ | — | Retired (moved to 2.1) | - |
 | 13. Desktop Packaging — Tauri Shell over Python Sidecar | 5/5 | Complete    | 2026-08-10 |
+| 14. Reading & Teaching Surface Quality Pass | 0/TBD | Not started | - |
 
 ## Backlog
 
