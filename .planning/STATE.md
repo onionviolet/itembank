@@ -370,6 +370,19 @@ Recent decisions affecting current work:
 | 999.4 | verification_deferred_human | Manual Canvas checklist (R-01 fake-platform default; the real-Course consumer question stays open) |
 | 999.5 | verification_deferred_human | WINDOWS.md windows 2–3: LAN cross-device phone reachability (02) and real Moodle GIFT import (02.1) — human verify/waive before /gsd-ship |
 
+## Quick Tasks Completed
+
+| ID | Task | Date | Status |
+|----|------|------|--------|
+| 260812-e2m | Four reader defects: leaked print CSS killing the glossary popover, `## TERMS` overrunning into lesson tables, relative `@font-face` urls 404ing on nested routes, authored-hint fallback printing a slug | 2026-08-12 | complete ✓ |
+
+Found by driving the running daemon in a browser, not by the test suite — the
+suite was green throughout. Fixes verified the same way after execution:
+popover renders at 435x80 (`display:block`, previously 0x0 / `display:none`),
+4/4 fonts return 200 from `/assets/fonts/` (previously 0/4), `## TERMS` above
+`## LESSON` mints only authored terms, and the authored hint shows the section
+title rather than its slug. New guard: `tests/stylesheet_roundtrip.py`.
+
 ## Session Continuity
 
 Last session: 2026-08-11T14:48:12.553Z
