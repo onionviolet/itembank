@@ -42,21 +42,40 @@ body{margin:0;background:var(--bg);color:var(--ink);
    fallback with no surface knowing a family name. --measure-prose/
    --measure-wide are character measures, not pixel spacing;
    --leading-lesson is the sustained-prose line height. */
-/* Vendored faces (03.1-06 Task 1): paths are relative to the served
-   document and match fonts/MANIFEST.json file rows; weights are the
-   reading surface's 400/600 pair for the paper voice and 400/700 for the
-   ledger voice (UI-SPEC §7 "two weights per face"). */
+/* Vendored faces (03.1-06 Task 1): the last path segments match
+   fonts/MANIFEST.json file rows; weights are the reading surface's 400/600
+   pair for the paper voice and 400/700 for the ledger voice (UI-SPEC §7
+   "two weights per face").
+
+   The urls are ROOT-ABSOLUTE, under the daemon's `/assets/fonts/` route --
+   the same closed-map shape `/assets/katex/` already uses. They were
+   relative until the fix for this defect, and a relative url resolves
+   against the *route*, not against the site root: on `/lesson/<stem>` the
+   browser asked for `/lesson/fonts/...` and got four 404s per page load,
+   so the reader never once rendered in its intended typefaces under the
+   daemon.
+
+   The stated cost: a standalone page written with `itembank build --out`
+   resolves nothing here and degrades to the Georgia / ui-monospace
+   fallback stack by design. That is not a regression -- the --out file is
+   written beside the bank, and no bank directory carries a fonts/
+   directory, so the relative form already resolved nothing there either.
+   Embedding the four faces as data urls would fix the file-scheme case at
+   roughly a third of a megabyte of base64 added to every emitted page and
+   a second emit path to maintain; rejected on cost, and recorded here as
+   the honest future option behind an explicit embed flag rather than as a
+   silent default. */
 @font-face{font-family:"Source Serif 4";font-style:normal;font-weight:400;
-  src:url("fonts/source-serif/SourceSerif4-Regular.ttf.woff2") format("woff2");
+  src:url("/assets/fonts/source-serif/SourceSerif4-Regular.ttf.woff2") format("woff2");
   font-display:swap}
 @font-face{font-family:"Source Serif 4";font-style:normal;font-weight:600;
-  src:url("fonts/source-serif/SourceSerif4-Semibold.ttf.woff2") format("woff2");
+  src:url("/assets/fonts/source-serif/SourceSerif4-Semibold.ttf.woff2") format("woff2");
   font-display:swap}
 @font-face{font-family:"iA Writer Quattro";font-style:normal;font-weight:400;
-  src:url("fonts/ia-writer-quattro/iAWriterQuattroS-Regular.woff2") format("woff2");
+  src:url("/assets/fonts/ia-writer-quattro/iAWriterQuattroS-Regular.woff2") format("woff2");
   font-display:swap}
 @font-face{font-family:"iA Writer Quattro";font-style:normal;font-weight:700;
-  src:url("fonts/ia-writer-quattro/iAWriterQuattroS-Bold.woff2") format("woff2");
+  src:url("/assets/fonts/ia-writer-quattro/iAWriterQuattroS-Bold.woff2") format("woff2");
   font-display:swap}
 :root{
   --font-paper:"Source Serif 4",Georgia,serif;

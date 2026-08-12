@@ -245,7 +245,6 @@ th{background:var(--chip);color:var(--mut);font-weight:600}
 @media print{
   .gate{box-shadow:none;border:0;border-top:1px solid var(--line);
     border-radius:0;background:none;padding:var(--space-2) 0 0}
-}
   @page{margin:18mm}
   h2{break-after:avoid}
   [popover]{display:none}

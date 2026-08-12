@@ -828,6 +828,13 @@ def font_faces(css):
     return re.findall(r"@font-face\{([^{}]*)\}", css)
 
 
+# The daemon's font asset route prefix. `@font-face` srcs are root-absolute
+# under it so a nested page route (`/lesson/<stem>`) cannot resolve them
+# against the route and 404; the same constant is asserted against
+# `surfaces.daemon.FONT_ASSET_PREFIX` by tests/stylesheet_roundtrip.py.
+FONT_URL_PREFIX = "/assets/fonts/"
+
+
 def test_at_font_face_rules_in_token_layer():
     """Test 1: SHARED_CSS carries @font-face rules whose family names are
     exactly the faces --font-paper/--font-ledger resolve to, each src points
@@ -861,15 +868,20 @@ def test_at_font_face_rules_in_token_layer():
         fail("--font-paper must prefer the vendored face first: %r" % paper)
     if not ledger.startswith('"iA Writer Quattro",'):
         fail("--font-ledger must prefer the vendored face first: %r" % ledger)
+    # The srcs are root-absolute under the daemon's font asset prefix (the
+    # fix for the nested-route 404: a relative url resolved against
+    # /lesson/<stem> rather than against the site root). The expected set is
+    # built in that form from the same MANIFEST rows the daemon's closed
+    # FONT_ASSETS map is built from.
     man = load_manifest()
     recorded = set()
     for key in FONT_DIRS:
         for fr in man["families"][key]["files"]:
-            recorded.add("fonts/%s/%s" % (key, fr["name"]))
+            recorded.add(FONT_URL_PREFIX + "%s/%s" % (key, fr["name"]))
     for s in srcs:
         if s not in recorded:
-            fail("@font-face src %r does not match a MANIFEST-recorded file"
-                 % s)
+            fail("@font-face src %r does not match a MANIFEST-recorded file "
+                 "under %r" % (s, FONT_URL_PREFIX))
 
 
 def test_font_faces_degrade_when_fonts_absent():
@@ -887,18 +899,23 @@ def test_font_faces_degrade_when_fonts_absent():
         fail("no @font-face rules to test for absence degradation")
     srcs = [re.search(r"url\(\s*\"([^\"]+)\"", f).group(1) for f in faces]
     for s in srcs:
-        if not s.startswith("fonts/"):
-            fail("font-face src escapes the fonts/ directory: %r" % s)
+        if not s.startswith(FONT_URL_PREFIX):
+            fail("font-face src escapes the font asset route %r: %r"
+                 % (FONT_URL_PREFIX, s))
+    # The url is root-absolute, so the checked-in file it names is the same
+    # last path segments under fonts/ -- the shape the daemon's closed map
+    # also resolves.
+    paths = [os.path.join(ROOT, "fonts", *s[len(FONT_URL_PREFIX):].split("/"))
+             for s in srcs]
     moved = []
     try:
-        for s in srcs:
-            p = os.path.join(ROOT, s)
+        for p in paths:
             if os.path.exists(p):
                 os.rename(p, p + ".absent-plan-03-1-06")
                 moved.append(p)
-        for s in srcs:
-            if os.path.exists(os.path.join(ROOT, s)):
-                fail("font file present during the absence test: %r" % s)
+        for p in paths:
+            if os.path.exists(p):
+                fail("font file present during the absence test: %r" % p)
         paper = token_value(SHARED_CSS, "font-paper")
         ledger = token_value(SHARED_CSS, "font-ledger")
         if not paper.startswith('"Source Serif 4",') or "Georgia" not in paper:

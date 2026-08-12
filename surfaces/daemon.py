@@ -162,6 +162,28 @@ KATEX_ASSETS.update({
 })
 del _font, _ext, _mime
 
+# The vendored reading faces (03.1-06), served the same way KaTeX is -- the
+# reviewed precedent for exactly this problem. `/assets/fonts/<name>`
+# resolves only through the closed FONT_ASSETS map below; the name regex
+# admits the same narrow safe character set, the handler never joins the
+# client's name to a filesystem path, and anything not in the map is a plain
+# 404 (T-e2m-01). The map is populated from fonts/MANIFEST.json's own file
+# rows, so the manifest, the map, and presentation.SHARED_CSS's @font-face
+# urls cannot drift apart (tests/stylesheet_roundtrip.py cross-asserts all
+# three).
+FONT_ASSET_PREFIX = "/assets/fonts/"
+FONT_ASSET_RE = re.compile(r"^/assets/fonts/(?P<name>[A-Za-z0-9_./-]+)$")
+
+FONT_ASSETS = {}
+for _dir, _name in (
+        ("source-serif", "SourceSerif4-Regular.ttf.woff2"),
+        ("source-serif", "SourceSerif4-Semibold.ttf.woff2"),
+        ("ia-writer-quattro", "iAWriterQuattroS-Regular.woff2"),
+        ("ia-writer-quattro", "iAWriterQuattroS-Bold.woff2")):
+    FONT_ASSETS["%s/%s" % (_dir, _name)] = (
+        "fonts/%s/%s" % (_dir, _name), "font/woff2")
+del _dir, _name
+
 LESSON_CHECK_RE = re.compile(r"^/lesson/(?P<stem>[^/]+)/check$")
 LESSON_SKIP_RE = re.compile(r"^/lesson/(?P<stem>[^/]+)/skip$")
 GLOSS_GET_RE = re.compile(r"^/gloss/(?P<stem>[^/]+)/(?P<slug>[^/]+)$")
@@ -227,6 +249,7 @@ ROUTES = (
     ("POST", "/seed/accept", "handle_seed_accept"),
 ) + API_ROUTES + (
     ("GET", KATEX_ASSET_RE, "handle_katex_asset"),
+    ("GET", FONT_ASSET_RE, "handle_font_asset"),
     ("GET", QUIZ_GET_RE, "handle_quiz_get"),
     ("POST", QUIZ_ANSWER_RE, "handle_quiz_answer"),
     ("GET", STUDY_GET_RE, "handle_study_get"),
@@ -265,6 +288,7 @@ ROUTE_CLI = {
     ("POST", "/api/lesson-complete"): "lesson",
     ("POST", "/api/rubric-review"): "rubric-review",
     ("GET", KATEX_ASSET_RE): "daemon",
+    ("GET", FONT_ASSET_RE): "daemon",
     ("POST", "/api/export_audio"): "export",
     ("POST", "/api/lesson/run"): "lesson",
     ("GET", QUIZ_GET_RE): "serve",
@@ -1320,6 +1344,28 @@ def handle_katex_asset(handler, name):
     exist in the map (T-09-09).
     """
     entry = KATEX_ASSETS.get(name)
+    if entry is None:
+        handler.send_not_found(name)
+        return
+    relpath, mime = entry
+    try:
+        body = resources.read_bytes(relpath)
+    except OSError:
+        handler.send_not_found(name)
+        return
+    handler.send_bytes(body, mime)
+
+
+def handle_font_asset(handler, name):
+    """`GET /assets/fonts/<name>` -- the vendored reading faces, built
+    exactly like `handle_katex_asset`: the name is resolved through the
+    closed `FONT_ASSETS` map (a URL suffix to an archive-relative path and
+    a MIME type) and the bytes come from `resources.read_bytes()`, so the
+    checkout, the .pyz and the frozen build all serve the same files. The
+    name is never joined to a filesystem path: an unknown, encoded, nested,
+    traversal, or query-manipulated name is a plain 404 (T-e2m-01).
+    """
+    entry = FONT_ASSETS.get(name)
     if entry is None:
         handler.send_not_found(name)
         return
