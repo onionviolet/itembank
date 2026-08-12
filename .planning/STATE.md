@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase_name: milestone-complete
-status: Milestone v1.0 shipped — pushed to origin/main (490 commits)
-stopped_at: All 18 roadmap phases merged into main (2026-08-11)
-last_updated: "2026-08-12T03:37:22.514Z"
-last_activity: 2026-08-11
+status: Milestone v1.0 shipped — CI was red at ship; fixed on fix/ci-green-post-v1.0 (PR #19), awaiting merge
+stopped_at: All 18 roadmap phases merged into main (2026-08-11); trunk CI repaired 2026-08-12
+last_updated: "2026-08-12T05:30:00.000Z"
+last_activity: 2026-08-12
 progress:
   total_phases: 18
   completed_phases: 18
@@ -53,7 +53,50 @@ recorded in 06.2-GATES.md. Six GATE-01..06 requirements delivered.
 
 Phase: none — **milestone complete** (18/18 roadmap phases merged into main)
 Status: Milestone v1.0 shipped — pushed to origin/main (490 commits)
-Last activity: 2026-08-11
+Last activity: 2026-08-12
+
+### Correction (2026-08-12): the v1.0 ship was recorded green against a red trunk
+
+The "shipped" status above was written from the phase-level VERIFICATION
+files. Nothing re-ran the suite against merged `main`, so twelve
+independently-green branches merged into a trunk whose CI had been failing
+since 2026-08-07. The job died 15 seconds in at step 8 of 14 — the schema
+step read `['item']['objective']`, a field plan 03.1-03 had deliberately
+removed from the public payload — which meant **the test suite, the content
+guard and the JS runner did not execute on any commit for five days**.
+
+Three genuine defects were sitting behind that dead step, none of them
+caught by any phase's own verification:
+
+- `runner.py` compared captured stdout byte-for-byte, so a Windows child's
+  CRLF failed every `check` item — the scorer's verdict depended on the
+  learner's OS.
+- `itembank guard` refused the repository's own README, because the
+  phase-05 grammar widening made README's fenced format sample parse as a
+  real item.
+- `authoring.py` wrote pending proposals to `sha256:<hex>.json`, a filename
+  Windows cannot create, so every stateful authoring run died there.
+
+Four more tests were passing without testing what they claimed (a wall-clock
+cutoff that expired, a git identity that fell back to the global config, 20
+LTI checks that only re-proved a refusal, and four pacing tests that counted
+the wrong local day off-UTC).
+
+Fixed on `fix/ci-green-post-v1.0` (PR #19): CI green across all 14 steps
+(run 31565997898), 63/63 on Linux and Windows, node 7/7. **The milestone is
+not honestly complete until that merges.**
+
+Three gaps stay open and are deliberately not closed by that branch:
+
+1. The pacing counter's local day defaults to UTC, so the daily cap rolls at
+   19:00 Central rather than local midnight. The tests were matched to the
+   documented default rather than flipping it, because changing the zone
+   moves every snapshot id.
+2. Three tests depend on Windows build artifacts CI cannot produce, so the
+   packaging contract now passes by skipping rather than by verifying.
+   Closing it honestly needs a Windows runner in the matrix.
+3. Nothing gates a merge on CI. A required status check on `main` is what
+   stops this recurring; a ship step that reads VERIFICATION files cannot.
 
 > **Branch note (gsd/phase-03.1-finish):** Phase 03.1
 > (lesson-rich-blocks-glossary-style) is CLOSED — plans 01-07 complete with
