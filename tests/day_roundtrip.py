@@ -28,6 +28,22 @@ def fail(msg):
     sys.exit(1)
 
 
+def cap_ts(hour, minute=0):
+    """A UTC timestamp inside the pacing counter's current local day.
+
+    The counter's local day comes from the snapshot zone, which defaults to
+    UTC; building the stamp from `datetime.date.today()` instead used the
+    *machine's* local date, so west of Greenwich after 18:00 the seeded
+    evidence landed on the previous counted day and every ordinary-attempt
+    count came back 0. Same fix pacing_roundtrip already carries.
+    """
+    import datetime as _dt
+    d = _dt.datetime.now(_dt.timezone.utc).date()
+    return _dt.datetime(d.year, d.month, d.day, hour, minute,
+                        tzinfo=_dt.timezone.utc
+                        ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
 def check_parser():
     plan = itembank.parse_plan(PLAN, 2026)
     if "2026-01-05" not in plan:
@@ -188,10 +204,7 @@ def check_pacing_check_output():
                      "| EMT | EMT | | | | |\n")
         with open(os.path.join(tmp, "itembank.json"), "w", encoding="utf-8") as fh:
             json.dump({"daily_cap": 4}, fh)
-        def ts(hour, minute=0):
-            return datetime.datetime(today.year, today.month, today.day, hour,
-                                     minute, tzinfo=timezone.utc
-                                     ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        ts = cap_ts
         # water:distribution.residual: 3 settled (1 correct -> weak, due),
         # water:notify: 1 pending (counts toward pacing, never correctness).
         write_evidence(tmp, [
@@ -255,10 +268,7 @@ def check_anki_owner_and_states():
                      "| Lane | Anki deck | Notes file | Notes glob | Fuse | Fuse date |\n"
                      "|---|---|---|---|---|---|\n"
                      "| EMT | EMT | | | | |\n")
-        def ts(hour):
-            return datetime.datetime(today.year, today.month, today.day, hour,
-                                     0, tzinfo=timezone.utc
-                                     ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        ts = cap_ts
         write_evidence(tmp, [
             namespaced_response("s1", "water:distribution.residual", ts(8),
                                 score=True, item_ref="R1"),
@@ -353,10 +363,7 @@ def check_local_day_recut():
                      "| Date | EMT | Math | CS | Linux | Mandarin | Anki |\n"
                      "|---|---|---|---|---|---|---|\n"
                      "| %s | water practice | sets | | | | |\n" % iso)
-        def ts(hour):
-            return datetime.datetime(today.year, today.month, today.day, hour,
-                                     0, tzinfo=timezone.utc
-                                     ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        ts = cap_ts
         write_evidence(tmp, [
             namespaced_response("s1", "water:distribution.residual", ts(8),
                                 score=True, item_ref="R1"),

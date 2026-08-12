@@ -1,0 +1,1 @@
+{"content":"GitHub Releases API GET /repos/{owner}/{repo}/releases/latest returns each asset with a digest field shaped sha256:<64-hex-chars>, live-verified against cli/cli's latest release; field is null for assets uploaded before the June 2025 GA.","source":"web","provider":"websearch","confidence":"MEDIUM","fetched_at":"2026-08-07T21:50:32.593Z","ttl":86400000,"kind":"web"}

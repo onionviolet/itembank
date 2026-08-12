@@ -274,6 +274,28 @@ def _corpus_marker(path):
     return None
 
 
+def _without_fenced_blocks(text):
+    """`text` with every fenced code block's contents removed.
+
+    Docs demonstrate the item grammar inside a fence -- README's "Here is
+    the whole format" block is the canonical case -- and the phase-05 grammar
+    widening made that illustration parse as a real item, so `guard` started
+    refusing the repo's own README. A fence is how markdown says "this is a
+    sample, not the document"; the same reason `.agents`, `.claude` and
+    `.planning` are already skipped whole. This does not soften the gate: a
+    real bank's items are not wrapped in fences, and stripping a LESSON code
+    fence out of one still leaves every item behind to be counted.
+    """
+    out, in_fence = [], False
+    for line in text.split("\n"):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if not in_fence:
+            out.append(line)
+    return "\n".join(out)
+
+
 def cmd_guard(a):
     """Fail if any markdown outside fixtures/ is a question bank or is
     real-corpus-shaped content.
@@ -307,7 +329,8 @@ def cmd_guard(a):
                 continue
             p = os.path.join(root, f)
             try:
-                n = len(parse_bank(open(p, encoding="utf-8").read()))
+                n = len(parse_bank(
+                    _without_fenced_blocks(open(p, encoding="utf-8").read())))
             except Exception:
                 continue
             if n > 0 or any(h in f.lower() for h in BANK_FILE_HINTS):

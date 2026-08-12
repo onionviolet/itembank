@@ -263,9 +263,13 @@ def case_writer():
         gitdir4 = os.path.join(wd, "git4")
         git_bank4 = git_repo_init(gitdir4)
         git4_text = read_text(git_bank4)
-        # break the commit by removing the identity config
-        run_git(["git", "config", "--unset", "user.name"], gitdir4)
-        run_git(["git", "config", "--unset", "user.email"], gitdir4)
+        # Break the commit by blanking the identity. Unsetting the repo-local
+        # keys is not enough: git then falls back to the machine's global
+        # identity, so this case only failed the commit on a runner that had
+        # none, and passed vacuously on any developer's machine. An empty
+        # local value overrides the global one and git refuses it outright.
+        run_git(["git", "config", "user.name", ""], gitdir4)
+        run_git(["git", "config", "user.email", ""], gitdir4)
         state_git4 = os.path.join(wd, "git4-state")
         try:
             audit_writer.write_units(make_proposal(git4_text), git_bank4,

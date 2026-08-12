@@ -80,8 +80,17 @@ def namespaced_response_event(session_id, objective, ts, score=True,
     }
 
 
-def today_ts(dt, hour, minute=0):
-    return datetime.datetime(dt.year, dt.month, dt.day, hour, minute,
+def today_ts(hour, minute=0):
+    """A UTC timestamp inside the pacing counter's current local day.
+
+    The counter resolves its local day through the snapshot zone, which
+    defaults to UTC. This used to take the date as an argument and every
+    caller passed `datetime.date.today()` -- the *machine's* local date --
+    so west of Greenwich after 18:00 the seeded evidence fell on the
+    previous counted day and the ordinary-attempt counts came back 0.
+    """
+    d = datetime.datetime.now(datetime.timezone.utc).date()
+    return datetime.datetime(d.year, d.month, d.day, hour, minute,
                              tzinfo=datetime.timezone.utc
                              ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
@@ -191,15 +200,14 @@ def check_today_due_and_focused_start():
     """One due objective renders owner/state/counts/disclosure and a
     focused start that carries the displayed snapshot claim (10-05 Task 1,
     D-01/D-04/D-10)."""
-    today = datetime.date.today()
     evs = [namespaced_response_event("s1", "water:distribution.residual",
-                                     today_ts(today, 8), score=True,
+                                     today_ts(8), score=True,
                                      item_ref="R1"),
            namespaced_response_event("s1", "water:distribution.residual",
-                                     today_ts(today, 9), score=False,
+                                     today_ts(9), score=False,
                                      item_ref="R2"),
            namespaced_response_event("s1", "water:distribution.residual",
-                                     today_ts(today, 10), score=False,
+                                     today_ts(10), score=False,
                                      item_ref="R3")]
     tmp, today, iso = prepare(evidence=evs)
     proc, url, lines = start_daemon(tmp)
@@ -309,15 +317,14 @@ def check_today_unknown_and_stale():
 def check_today_anki_separation():
     """Anki closed renders the exact locked copy on Today and never alters
     the itembank snapshot/recommendation (10-05 Task 1, D-05)."""
-    today = datetime.date.today()
     evs = [namespaced_response_event("s1", "water:distribution.residual",
-                                     today_ts(today, 8), score=True,
+                                     today_ts(8), score=True,
                                      item_ref="R1"),
            namespaced_response_event("s1", "water:distribution.residual",
-                                     today_ts(today, 9), score=False,
+                                     today_ts(9), score=False,
                                      item_ref="R2"),
            namespaced_response_event("s1", "water:distribution.residual",
-                                     today_ts(today, 10), score=False,
+                                     today_ts(10), score=False,
                                      item_ref="R3")]
     tmp, today, iso = prepare(lanes_deck="EMT", evidence=evs)
     proc, url, lines = start_daemon(tmp)
@@ -344,9 +351,8 @@ def check_cap_recovery_and_override_dialog():
     """At cap the exact block copy plus recovery and the one-sitting
     override dialog render; the page itself writes nothing (10-05 Task 2,
     D-07/D-08)."""
-    today = datetime.date.today()
     evs = [namespaced_response_event("s1", "water:distribution.residual",
-                                     today_ts(today, 8 + i), score=True,
+                                     today_ts(8 + i), score=True,
                                      item_ref="R%d" % (100 + i))
            for i in range(2)]
     tmp, today, iso = prepare(daily_cap=2, evidence=evs)
@@ -452,15 +458,14 @@ def check_report_drilldown_parity():
     """GET /report (no session) renders the retention overview/drilldown
     from the same payload as `itembank trends`, with allowlisted weeks and
     no answer/key/path leakage (10-05 Task 3, D-15)."""
-    today = datetime.date.today()
     evs = [namespaced_response_event("s1", "water:distribution.residual",
-                                     today_ts(today, 8), score=True,
+                                     today_ts(8), score=True,
                                      item_ref="R1"),
            namespaced_response_event("s1", "water:distribution.residual",
-                                     today_ts(today, 9), score=False,
+                                     today_ts(9), score=False,
                                      item_ref="R2"),
            namespaced_response_event("s1", "water:distribution.residual",
-                                     today_ts(today, 10), score=False,
+                                     today_ts(10), score=False,
                                      item_ref="R3")]
     tmp, today, iso = prepare(evidence=evs)
     proc, url, lines = start_daemon(tmp)

@@ -11,6 +11,16 @@ jobs:
         with:
           python-version: "3.11"
 
+      # The LTI surface's signing path needs the two optional, pinned deps
+      # (surfaces/lti.py CRYPTO_PINS). Without them installed, the surface
+      # correctly refuses with `crypto_missing` and lti_roundtrip skips its
+      # signing checks -- which meant CI proved the refusal and nothing
+      # else. Installed here so the real launch/JWKS/AGS path is exercised;
+      # the core loop still imports neither, which the suite enforces.
+      - name: Install the pinned optional LTI dependencies
+        run: python -m pip install --disable-pip-version-check
+             cryptography==43.0.0 PyJWT==2.10.1
+
       - name: Sample fixture lints clean
         run: |
           python itembank.py lint fixtures/sample_bank.md
@@ -65,8 +75,16 @@ jobs:
           json.dump(json.load(open(sys.argv[1], encoding='utf-8'))['summary'],
                     open(sys.argv[2], 'w', encoding='utf-8'))" /tmp/report.json /tmp/report_summary.json
           python schema_validate.py schemas/report.schema.json /tmp/report_summary.json
-          OBJ=$(python -c "import json, sys
-          print(json.load(open(sys.argv[1], encoding='utf-8'))['item']['objective'])" /tmp/start.json)
+          # The public item deliberately carries no objective -- plan 03.1-03
+          # (C7) moved the syllabus reference into explain_payload, and
+          # item.schema.json says so in its own description. Resolve the
+          # objective from the bank by item id instead of reading a field the
+          # public payload is contractually forbidden to have; reading it off
+          # the item is what broke this step after the 03.1 merge.
+          OBJ=$(python -c "import json, sys, model
+          item_id = json.load(open(sys.argv[1], encoding='utf-8'))['item']['id']
+          by_id = {q.get('id'): q.get('objective', '') for q in model.load(sys.argv[2])}
+          print(by_id[item_id])" /tmp/start.json /tmp/bank.md)
           python itembank.py evidence --objective "$OBJ" --base /tmp > /tmp/history.json
           python schema_validate.py schemas/report.schema.json /tmp/history.json
           python itembank.py lint fixtures/broken_bank.md --json > /tmp/lint.json || true
@@ -95,7 +113,12 @@ jobs:
       - name: JS editor test runner
         run: |
           npm ci --prefix tests/js
-          node --test tests/js/
+          # The shell expands the file list rather than handing node a
+          # directory to scan. Directory scanning resolves the path as a
+          # module on Windows ("Cannot find module ...\tests\js"), so the
+          # JS tests could not be run locally at all; an explicit list
+          # behaves the same on every node version and both platforms.
+          node --test tests/js/*.test.mjs
 
       - name: No real question bank committed
         run: python itembank.py guard .

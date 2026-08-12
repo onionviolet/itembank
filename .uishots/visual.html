@@ -1,0 +1,817 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Visual assessment bank (synthetic)</title>
+<style>
+:root{
+  --bg:#f3f5f4; --card:#ffffff; --ink:#171d1c; --mut:#5f6d6a; --line:#dfe5e3; --accent:#0e6e62; --accent-soft:#cfe2e0; --ok:#1b7a3d; --ok-bg:#e8f4ec; --bad:#b4272b; --bad-bg:#fbebeb; --warn:#8a5900; --chip:#eef2f1;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0e1413; --card:#161e1d; --ink:#e4ebe9; --mut:#8fa19d; --line:#26312f; --accent:#139484; --accent-soft:#161e1d; --ok:#4fbf74; --ok-bg:#11291b; --bad:#f0666a; --bad-bg:#2b1416; --warn:#e0a23a; --chip:#1d2726;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:800px;margin:0 auto;padding:22px 18px 96px}
+.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  font-variant-numeric:tabular-nums}
+/* The one sticky orientation line (D-01): bank/lesson context, objective,
+   item N of M, session mode -- and nothing else persistent. */
+.context-line{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;
+  gap:4px 18px;align-items:center;background:var(--bg);padding:8px 0 10px;
+  border-bottom:1px solid var(--line);margin-bottom:14px;font-size:12.5px;
+  color:var(--mut)}
+.context-line .objective{flex:1 1 220px;min-width:0;overflow-wrap:anywhere}
+.context-line .lesson{margin-left:auto}
+.context-line a.lesson{color:var(--accent);text-decoration:none;font-weight:600}
+.context-line a.lesson:hover,.context-line a.lesson:focus-visible{
+  text-decoration:underline;outline:2px solid var(--accent);outline-offset:2px}
+/* One native disclosure owns all secondary metadata (D-01). */
+.session-details{margin:0 0 14px;font-size:13px;color:var(--mut)}
+.session-details summary{cursor:pointer;padding:4px 0;font-size:11px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--mut);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.session-details summary:focus-visible{outline:2px solid var(--accent);
+  outline-offset:2px}
+.detail-body{margin-top:8px;display:flex;flex-wrap:wrap;gap:7px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:18px 18px 16px;margin-bottom:14px}
+.chip{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+  background:var(--chip);color:var(--mut);padding:3px 8px;border-radius:5px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.chip.type{background:var(--accent-soft);color:var(--accent)}
+.chip.aon{background:var(--bad-bg);color:var(--bad)}
+.chip.lesson{background:var(--accent-soft);color:var(--accent);
+  text-decoration:none;display:inline-block}
+/* The active stem is the page's single dominant h1 (D-02). */
+h1.stem{font-size:28px;font-weight:600;line-height:1.2;margin:0 0 14px;
+  text-wrap:pretty}
+/* Response controls: native inputs with a 44px target (D-03). */
+.choices{display:flex;flex-direction:column;gap:7px;border:0;padding:0;
+  margin:0 0 6px}
+.choices legend{font-size:12.5px;color:var(--mut);margin-bottom:6px}
+.choice{display:flex;gap:10px;align-items:center;min-height:44px;width:100%;
+  text-align:left;background:var(--card);border:1px solid var(--line);
+  border-radius:9px;padding:10px 12px;font:inherit;color:inherit;cursor:pointer;
+  transition:.12s}
+.choice:hover:not(:disabled){border-color:var(--accent)}
+.choice:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.choice input{width:20px;height:20px;flex:0 0 auto;accent-color:var(--accent)}
+.choice input:disabled{cursor:default}
+.choice .k{flex:0 0 auto;font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:13px;color:var(--mut);min-width:1.2em}
+.choice .ot{flex:1 1 auto;min-width:0}
+.choice .rat{display:block;margin-top:6px;font-size:12.5px;line-height:1.5;
+  color:var(--mut)}
+.choice.right{background:var(--ok-bg);border-color:var(--ok)}
+.choice.right .rat{color:var(--ok)}
+.choice.wrong{background:var(--bad-bg);border-color:var(--bad)}
+.choice.wrong .rat{color:var(--bad)}
+.choice:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.choice:has(input:checked).right{border-color:var(--ok);background:var(--ok-bg)}
+.choice:has(input:checked).wrong{border-color:var(--bad);background:var(--bad-bg)}
+.opts{display:flex;flex-direction:column;gap:7px}
+.opt{display:flex;gap:10px;align-items:center;min-height:44px;width:100%;
+  text-align:left;background:var(--card);border:1px solid var(--line);
+  border-radius:9px;padding:10px 12px;font:inherit;color:inherit;cursor:pointer;
+  transition:.12s}
+.opt:hover:not(:disabled){border-color:var(--accent)}
+.opt:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.opt[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.opt .k{flex:0 0 auto;font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:13px;color:var(--mut);min-width:1.2em}
+.opt .ot{flex:1 1 auto;min-width:0}
+.opt .rat{display:block;margin-top:6px;font-size:12.5px;line-height:1.5;color:var(--mut)}
+.opt.right .rat{color:var(--ok)}
+.opt.wrong .rat{color:var(--bad)}
+.opt.right{border-color:var(--ok);background:var(--ok-bg)}
+.opt.wrong{border-color:var(--bad);background:var(--bad-bg)}
+.opt:disabled{cursor:default}
+.rowline{display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  padding:9px 0;border-bottom:1px solid var(--line)}
+.rowline:last-of-type{border-bottom:0}
+.rowtext{flex:1 1 240px;min-width:0}
+.seg{display:flex;gap:5px;flex-wrap:wrap}
+.seg button{font:inherit;font-size:13.5px;padding:8px 12px;min-height:44px;
+  border-radius:7px;border:1px solid var(--line);background:var(--card);
+  color:inherit;cursor:pointer}
+.seg button[aria-pressed="true"]{border-color:var(--accent);
+  background:var(--accent-soft);color:var(--accent)}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.seg button.right{border-color:var(--ok);background:var(--ok-bg);color:var(--ok)}
+.seg button.wrong{border-color:var(--bad);background:var(--bad-bg);color:var(--bad)}
+.ord{flex:0 0 auto;width:26px;height:26px;border-radius:50%;display:grid;
+  place-items:center;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;
+  border:1px solid var(--line);color:var(--mut)}
+.ord.set{background:var(--accent);border-color:var(--accent);color:#fff}
+/* Reserved feedback region: directly below the response control, before the
+   next action, with stable minimum height so the stem never shifts (D-02). */
+.feedback{min-height:96px;margin-top:14px;padding-top:12px;
+  border-top:1px solid var(--line);font-size:14.5px}
+.feedback .status{color:var(--mut);margin-bottom:8px}
+.act{margin-top:13px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+button.go{font:inherit;font-weight:600;font-size:14.5px;padding:11px 17px;
+  min-height:44px;min-width:44px;border:0;border-radius:9px;
+  background:var(--accent);color:#fff;cursor:pointer}
+button.go:disabled{opacity:.4;cursor:default}
+button.go:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+button.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.hint{font-size:12.5px;color:var(--mut)}
+.exp h4{margin:0 0 5px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--mut);font-family:ui-monospace,Menlo,Consolas,monospace}
+.exp .blk{margin-bottom:11px}
+.exp ul{margin:5px 0 0;padding-left:18px}
+.exp li{margin-bottom:4px}
+.verdict{font-weight:600;margin-bottom:10px}
+.verdict.y{color:var(--ok)} .verdict.n{color:var(--bad)}
+.pend{color:var(--warn);font-weight:600;margin-bottom:10px}
+.trap{background:var(--accent-soft);border-left:3px solid var(--accent);
+  padding:9px 12px;border-radius:0 7px 7px 0}
+textarea.ans{width:100%;min-height:150px;padding:11px 12px;border-radius:9px;
+  border:1px solid var(--line);background:var(--card);color:inherit;
+  font:inherit;font-size:15.5px;line-height:1.5;resize:vertical}
+textarea.ans:focus{outline:2px solid var(--accent);outline-offset:1px;
+  border-color:var(--accent)}
+textarea.ans:disabled{opacity:.75}
+/* check item code editor (plan 05-05): the wrapper declares the shared
+   monospace stack once -- font family, size and line height -- and
+   CodeMirror's own layers inherit it, so gutter row N is editor line N at
+   any content width (CODE-03). No new colour token; every value below is an
+   existing theme custom property. */
+.codewrap{display:flex;flex-direction:column;border:1px solid var(--line);
+  border-radius:9px;background:var(--card);overflow:hidden;
+  font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  font-size:14px;line-height:1.5}
+.codewrap .cm-editor,.codewrap .cm-content,.codewrap .cm-gutters{
+  font-family:inherit;font-size:inherit;line-height:inherit;
+  background:transparent}
+.codewrap .cm-editor{outline:none}
+.codewrap .cm-content{padding:11px 12px}
+.codewrap .cm-gutters{background:var(--chip);color:var(--mut);
+  border-right:1px solid var(--line)}
+.codewrap .cm-gutters .cm-gutterElement{padding:0 6px}
+.codewrap:focus-within{outline:2px solid var(--accent);outline-offset:1px;
+  border-color:var(--accent)}
+.codewrap[data-readonly="true"]{opacity:.8}
+/* check per-case readout rows (plan 05-06): mirror the option styles
+   exactly -- same border, background, shape -- so a case row reads as the
+   same kind of thing as every other answer widget. Bound stops (timeout,
+   truncation) keep the failure row but their status text takes the warning
+   role, so "stopped by a bound" is visible at a glance (D-08). */
+.case{border:1px solid var(--line);border-radius:9px;padding:11px 12px;
+  background:var(--card);margin-bottom:8px}
+.case:last-child{margin-bottom:0}
+.case .case-head{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;
+  margin-bottom:7px}
+.case .case-n{font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--mut);font-family:ui-monospace,Menlo,Consolas,monospace}
+.case .st{font-size:12.5px;font-weight:600}
+.case.right{border-color:var(--ok);background:var(--ok-bg)}
+.case.right .st{color:var(--ok)}
+.case.wrong{border-color:var(--bad);background:var(--bad-bg)}
+.case.wrong .st{color:var(--bad)}
+.case.wrong .st.warn{color:var(--warn)}
+.case .cf{margin-bottom:7px}
+.case .cf:last-child{margin-bottom:0}
+.case .cf h5{margin:0 0 3px;font-size:11px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--mut);
+  font-family:ui-monospace,Menlo,Consolas,monospace}
+.case pre{white-space:pre-wrap;overflow-wrap:anywhere;font-family:ui-monospace,
+  SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.5;
+  margin:0;background:var(--card);border:1px solid var(--line);
+  border-radius:6px;padding:7px 9px;max-height:180px;overflow:auto}
+/* server-side refusal states (plan 05-06): the network refusal reuses the
+   pending treatment; the language refusal reads as an error because it is a
+   misconfiguration, not a boundary. */
+.refused{font-size:14.5px;margin-bottom:10px}
+.refused.pend{color:var(--warn);font-weight:600}
+.refused.err{color:var(--bad);font-weight:600}
+
+.done{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:20px}
+.lti-framing{background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:12px 16px;margin-bottom:14px;color:var(--mut);
+  font-size:14px;line-height:1.5}
+.score{font-size:34px;font-weight:700;letter-spacing:-.02em}
+.empty{text-align:center;padding:28px 10px}
+@media (max-width:767px){
+  .wrap{max-width:100%;padding:18px 16px 80px}
+  .context-line{gap:2px 12px}
+  h1.stem{font-size:20px}
+  .feedback{min-height:120px}
+}
+/* AgentAssist (plan 08-05): optional, subordinate, collapsed, opt-in
+   generated support. Phase 4 tokens only; no fixed or minimum widths, so
+   320px/200% zoom never scrolls horizontally. */
+.agent-assist{margin:14px 0 0;font-size:13.5px;max-width:72ch}
+.assist summary{cursor:pointer;padding:4px 0;font-size:11px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--mut);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.assist summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.assist-body{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.assist-status{color:var(--mut);font-size:12.5px;margin:0}
+.assist-actions{display:flex;flex-wrap:wrap;gap:8px}
+.assist-copy{color:var(--mut);margin:0}
+.generated{background:var(--card);border:1px solid var(--line);
+  border-left:3px solid var(--accent);border-radius:0 9px 9px 0;
+  padding:12px 14px}
+.generated h4,.authored-hint h4,.rubric h4{margin:0 0 5px;font-size:11px;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--mut);
+  font-family:ui-monospace,Menlo,Consolas,monospace}
+.generated-disclosure{color:var(--mut);font-size:12.5px;margin:0 0 8px}
+.generated-text{margin:0;overflow-wrap:anywhere}
+.authored-hint{margin-top:10px;background:var(--card);border:1px solid var(--line);
+  border-radius:9px;padding:12px 14px}
+.authored-hint p{margin:0;overflow-wrap:anywhere}
+.assist-lock{display:flex;gap:10px;align-items:flex-start;background:var(--chip);
+  border:1px solid var(--line);border-radius:9px;padding:12px 14px}
+.lock-glyph{font-size:18px;line-height:1.2}
+.lock-label{font-weight:600;margin:0 0 4px}
+.lock-copy{color:var(--mut);margin:0 0 8px;overflow-wrap:anywhere}
+.rubric-rows{list-style:none;margin:0;padding:0;display:flex;
+  flex-direction:column;gap:8px}
+.rubric-row{display:flex;gap:10px;align-items:flex-start;background:var(--card);
+  border:1px solid var(--line);border-radius:9px;padding:10px 12px}
+.rubric-token{flex:0 0 auto;font-size:10.5px;letter-spacing:.08em;
+  text-transform:uppercase;font-family:ui-monospace,Menlo,Consolas,monospace;
+  color:var(--warn);background:var(--chip);border:1px solid var(--line);
+  border-radius:5px;padding:2px 7px}
+.rubric-rationale{margin:0;overflow-wrap:anywhere}
+.provenance{margin-top:10px;font-size:12.5px;color:var(--mut)}
+.provenance summary{cursor:pointer}
+.assist-id{overflow-wrap:anywhere;word-break:break-all}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important}
+  html{scroll-behavior:auto!important}
+}
+</style></head><body><div class="wrap">
+<nav class="context-line" data-surface-context aria-label="Session context">
+  <span class="cx" id="cx-bank">Visual assessment bank (synthetic)</span>
+  <span class="cx objective" id="cx-objective"></span>
+  <span class="cx mono">Item <b id="pos">1</b> of <b id="tot">0</b></span>
+  <span class="cx mode" id="cx-mode"></span>
+  <span class="cx lesson" id="cx-lesson"></span>
+</nav>
+<details class="session-details">
+  <summary>Session details</summary>
+  <div id="detail-body" class="detail-body"></div>
+</details>
+
+<div id="host"></div>
+<div id="assist-slot"></div>
+</div>
+
+
+<script id="offline">
+const Q = [{"schema_version": 1, "id": "q1", "number": 1, "type": "visual", "stem": "Place a point at (2, 3) on the coordinate grid.", "difficulty": "application", "lesson_slug": "", "interaction_contract": {"version": 1, "type": "visual", "interaction": "plot", "renderer_config": {"actions": ["place_point", "move_point"], "accessibility": {"description": "A coordinate grid from -5 to 5 on both axes, with one movable point. Place the point at (2, 3)."}, "axes": {"x": {"min": "-5", "max": "5", "step": "1", "ticks": 11}, "y": {"min": "-5", "max": "5", "step": "1", "ticks": 11}}, "initial": {"points": []}}, "response_schema": {"type": "object", "kind": "point", "fields": {"x": "scalar", "y": "scalar"}}}, "response_schema": {"type": "object", "kind": "point", "fields": {"x": "scalar", "y": "scalar"}}, "served_required": true}, {"schema_version": 1, "id": "q2", "number": 2, "type": "visual", "stem": "Select the point at 1/2 on the number line.", "difficulty": "recall", "lesson_slug": "", "interaction_contract": {"version": 1, "type": "visual", "interaction": "numberline", "renderer_config": {"actions": ["select_numberline_point"], "accessibility": {"description": "A number line from -2 to 2 marked in half steps, with one selectable point. Select the point at 1/2."}, "axis": {"min": "-2", "max": "2", "step": "1/2", "ticks": 9}, "initial": {"points": [], "interval": null}}, "response_schema": {"type": "object", "kind": "numberline_point", "fields": {"value": "scalar"}}}, "response_schema": {"type": "object", "kind": "numberline_point", "fields": {"value": "scalar"}}, "served_required": true}, {"schema_version": 1, "id": "q3", "number": 3, "type": "visual", "stem": "Select the interval from -1 to 3/2, including -1 but excluding 3/2.", "difficulty": "analysis", "lesson_slug": "", "interaction_contract": {"version": 1, "type": "visual", "interaction": "numberline", "renderer_config": {"actions": ["set_interval"], "accessibility": {"description": "A number line from -2 to 2 marked in half steps, with one adjustable interval. Set the interval from -1 to 3/2, closed at -1 and open at 3/2."}, "axis": {"min": "-2", "max": "2", "step": "1/2", "ticks": 9}, "initial": {"points": [], "interval": null}}, "response_schema": {"type": "object", "kind": "interval", "fields": {"start": "scalar", "end": "scalar", "start_closed": "boolean", "end_closed": "boolean"}}}, "response_schema": {"type": "object", "kind": "interval", "fields": {"start": "scalar", "end": "scalar", "start_closed": "boolean", "end_closed": "boolean"}}, "served_required": true}, {"schema_version": 1, "id": "q4", "number": 4, "type": "visual", "stem": "Select a point within half a unit of 1 on the number line.", "difficulty": "application", "lesson_slug": "", "interaction_contract": {"version": 1, "type": "visual", "interaction": "numberline", "renderer_config": {"actions": ["select_numberline_point"], "accessibility": {"description": "A number line from -2 to 2 marked in half steps, with one selectable point. Select a point at least half a unit away from 1."}, "axis": {"min": "-2", "max": "2", "step": "1/2", "ticks": 9}, "initial": {"points": [], "interval": null}}, "response_schema": {"type": "object", "kind": "numberline_point", "fields": {"value": "scalar"}}}, "response_schema": {"type": "object", "kind": "numberline_point", "fields": {"value": "scalar"}}, "served_required": true}];
+const SERVE = false;
+const LESSON_BASE = "";   /* empty when no reader sits behind this page */
+const LESSON_LABEL = "";
+const LETTERS = "ABCDEFGH";
+const LABEL = {mc:"multiple choice", multi:"multiple response",
+               table:"options table", build:"build list", dnd:"drag-and-drop",
+               short:"short answer", check:"code check",
+               visual:"visual assessment"};
+const FS = "\u001f", PS = "\u001e";   /* must match FIELD_SEP and PAIR_SEP */
+const REDUCED = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+let i = 0, score = 0, autoTotal = 0;
+let shownAt = performance.now();
+const miss = [];
+const host = document.getElementById("host");
+const cxObjective = document.getElementById("cx-objective");
+const cxLesson = document.getElementById("cx-lesson");
+const detailBody = document.getElementById("detail-body");
+const esc = s => (s==null?"":String(s)).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+function canon(q, r){
+  if(q.type==="mc")    return String(r).toUpperCase();
+  if(q.type==="multi") return r.map(x=>String(x).toUpperCase()).sort().join(",");
+  if(q.type==="table" || q.type==="dnd")
+    return q.rows.map(row => row.id + PS + (r[String(row.id)]||"")).join(FS);
+  if(q.type==="build") return r.join(FS);
+  return "";
+}
+
+async function verify(q, response){
+  return {score: (q.key===null || q.key===undefined) ? null : canon(q, response)===q.key,
+          explain: q.explain || {}};
+}
+
+function lessonChip(q){
+  /* D-12: no chip when no reader sits behind the page, or when the slug does
+     not resolve (--force). */
+  if(!(q.lesson_slug && LESSON_BASE)) return "";
+  return `<a class="chip lesson" href="${LESSON_BASE}#${q.lesson_slug}"
+          target="_blank" rel="noopener">${LESSON_LABEL}</a>`;
+}
+
+function metaChips(q){
+  let h = `<span class="chip type">${LABEL[q.type]||q.type}</span>`;
+  if(q.type==="short") h += `<span class="chip aon">graded by a marker, not by this page</span>`;
+  else if(q.type!=="mc") h += `<span class="chip aon">no partial credit</span>`;
+  if(q.difficulty) h += `<span class="chip">${esc(q.difficulty)}</span>`;
+  h += `<span class="chip aon">dichotomous scoring</span>`;
+  return h;
+}
+
+function setContext(q){
+  if(cxObjective) cxObjective.textContent = q.objective || "";
+  if(cxLesson) cxLesson.innerHTML = lessonChip(q);
+  if(detailBody) detailBody.innerHTML = metaChips(q);
+}
+
+function feedbackFor(card){
+  let fb = card.querySelector(".feedback");
+  if(!fb){
+    fb = document.createElement("div");
+    fb.className = "feedback";
+    fb.setAttribute("role", "status");
+    fb.setAttribute("aria-live", "polite");
+    card.appendChild(fb);
+  }
+  return fb;
+}
+
+async function settle(q, response, card, act, paint){
+  const fb = feedbackFor(card);
+  fb.innerHTML = `<div class="status">Checking answer&hellip;</div>`;
+  let v;
+  try {
+    v = await verify(q, response);
+  } catch(err){
+    fb.innerHTML = `<div class="status">Could not reach the process that scores and records
+      this sitting (${esc(err.message)}). This answer was not saved and was not marked.
+      Restart itembank and sit it again.</div>`;
+    return;
+  }
+  if(paint) paint(v);
+  close(q, card, act, v);
+}
+
+function shuffled(a){const b=a.slice();for(let j=b.length-1;j>0;j--){
+  const k=Math.floor(Math.random()*(j+1));[b[j],b[k]]=[b[k],b[j]];}return b;}
+
+function render(){
+  document.getElementById("pos").textContent = Math.min(i+1, Q.length);
+  document.getElementById("tot").textContent = Q.length;
+  if(i>=Q.length) return finish();
+  shownAt = performance.now();
+  const q = Q[i];
+  setContext(q);
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `<h1 class="stem">${esc(q.stem)}</h1>`;
+  const body = document.createElement("div");
+  card.appendChild(body);
+  const fb = document.createElement("div");
+  fb.className = "feedback";
+  fb.setAttribute("role", "status");
+  fb.setAttribute("aria-live", "polite");
+  card.appendChild(fb);
+  const act = document.createElement("div");
+  act.className = "act";
+  card.appendChild(act);
+  host.innerHTML = "";
+  host.appendChild(card);
+  ({mc:asChoice, multi:asChoice, table:asAssign, dnd:asAssign, build:asBuild,
+    short:asShort, check:asCheck, visual:asVisualOffline}[q.type])(q, body, act, card);
+  card.scrollIntoView({block:"start", behavior: REDUCED ? "auto" : "smooth"});
+}
+
+/* ---- visual assessment, offline (plan 06.1-03, D-03/A-05) ------------------
+   The static build has no process behind it, so it cannot score a visual item
+   or protect its answer. It renders the honest served-runtime-required state:
+   no scorer, no key, no private scene fields, and no dead control. The copy
+   is the 06.1-UI-SPEC Copywriting Contract's exact offline refusal text. */
+function asVisualOffline(q, body, act, card){
+  const note = document.createElement("div");
+  note.className = "status";
+  note.setAttribute("role", "note");
+  note.textContent = "This visual item needs a served itembank session because "
+    + "scoring and answer protection happen there. Open it with itembank serve "
+    + "or the daemon.";
+  body.appendChild(note);
+}
+
+/* ---- multiple choice (native radio) + multiple response (native checkboxes) */
+const PINNED = /^\s*(all|none)\s+of\s+the\s+above|^\s*both\s+[A-H]\s+and\s+[A-H]/i;
+
+function asChoice(q, body, act, card){
+  const multi = q.type === "multi";
+  const want = q.response_schema.select;
+  const free = q.options.filter(o=>!PINNED.test(o.text));
+  const pins = q.options.filter(o=> PINNED.test(o.text));
+  const shown = shuffled(free).concat(pins);
+  shown.forEach((o,n)=> o.label = LETTERS[n]);
+
+  const fieldset = document.createElement("fieldset");
+  fieldset.className = "choices";
+  const legend = document.createElement("legend");
+  legend.textContent = multi ? `Select ${want}` : "Choose one";
+  fieldset.appendChild(legend);
+  const picked = [];       // holds ORIGINAL keys
+  const boxes = {};
+  let submit = null;
+  shown.forEach(o=>{
+    const label = document.createElement("label");
+    label.className = "choice";
+    const input = document.createElement("input");
+    input.type = multi ? "checkbox" : "radio";
+    input.name = "answer";
+    input.value = o.key;
+    const k = document.createElement("span");
+    k.className = "k"; k.textContent = o.label;
+    const ot = document.createElement("span");
+    ot.className = "ot"; ot.innerHTML = esc(o.text);
+    label.append(input, k, ot);
+    input.onchange = ()=>{
+      if(!multi){
+        picked.length = 0; picked.push(o.key);
+        if(submit) submit.disabled = false;
+        return;
+      }
+      if(input.checked){
+        if(picked.length >= want){ input.checked = false; return; }
+        picked.push(o.key);
+      } else {
+        const at = picked.indexOf(o.key);
+        if(at >= 0) picked.splice(at, 1);
+      }
+      if(submit) submit.disabled = picked.length !== want;
+    };
+    boxes[o.key] = {label, input};
+    fieldset.appendChild(label);
+  });
+  body.appendChild(fieldset);
+  submit = mkSubmit(act, multi ? `select ${want}` : "choose one");
+  submit.disabled = multi;
+  submit.onclick = go;
+  function revert(){
+    shown.forEach(o=>{ boxes[o.key].input.disabled = false; });
+    if(!multi) submit.disabled = false;
+  }
+  function go(){
+    shown.forEach(o=>{ boxes[o.key].input.disabled = true; });
+    if(submit) submit.remove();
+    settle(q, multi ? picked.slice() : picked[0], card, act, paint);
+  }
+  function paint(v){
+    const ex = v.explain || {};
+    const correct = ex.correct || [];
+    const sole = correct.length === 1 ? correct[0] : null;
+    shown.forEach(o=>{
+      const {label, input} = boxes[o.key];
+      if(correct.includes(o.key)) label.classList.add("right");
+      else if(picked.includes(o.key)) label.classList.add("wrong");
+      const line = (o.key === sole && ex.why) ? ex.why : ((ex.da||{})[o.key] || "");
+      if(line){
+        const r = document.createElement("span");
+        r.className = "rat";
+        r.textContent = line;      // textContent, so a bank cannot inject markup
+        label.querySelector(".ot").appendChild(r);
+      }
+    });
+    v.skipWhy = !!(sole && ex.why);
+  }
+}
+
+/* ---- options table + drag-and-drop ---------------------------------------- */
+function asAssign(q, body, act, card){
+  const rows = shuffled(q.rows);
+  const chosen = {};                 // row id -> category
+  const segs = {};
+  rows.forEach(r=>{
+    const id = String(r.id);
+    const line = document.createElement("div");
+    line.className = "rowline";
+    const t = document.createElement("div");
+    t.className = "rowtext"; t.textContent = r.text;
+    const seg = document.createElement("div");
+    seg.className = "seg";
+    const bs = q.categories.map(c=>{
+      const b = document.createElement("button");
+      b.type="button"; b.textContent=c; b.setAttribute("aria-pressed","false");
+      b.onclick = ()=>{
+        chosen[id]=c;
+        bs.forEach(x=>x.setAttribute("aria-pressed", x.textContent===c?"true":"false"));
+        submit.disabled = Object.keys(chosen).length !== q.rows.length;
+      };
+      seg.appendChild(b); return b;
+    });
+    segs[id] = bs;
+    line.appendChild(t); line.appendChild(seg); body.appendChild(line);
+  });
+  const submit = mkSubmit(act, "assign every row");
+  submit.onclick = ()=>{
+    rows.forEach(r=>segs[String(r.id)].forEach(b=>{ b.disabled = true; }));
+    submit.remove();
+    settle(q, Object.assign({}, chosen), card, act, v=>{
+      const cats = (v.explain||{}).row_cats || {};
+      rows.forEach(r=>{
+        const id = String(r.id);
+        segs[id].forEach(b=>{
+          if(b.textContent===cats[id]) b.classList.add("right");
+          else if(b.textContent===chosen[id]) b.classList.add("wrong");
+        });
+      });
+    });
+  };
+}
+
+/* ---- build list (click into order) ---------------------------------------- */
+function asBuild(q, body, act, card){
+  const shown = shuffled(q.steps);
+  const order = [];
+  const wrap = document.createElement("div");
+  wrap.className = "opts";
+  const btns = shown.map(s=>{
+    const b = document.createElement("button");
+    b.className="opt"; b.type="button"; b.setAttribute("aria-pressed","false");
+    b.innerHTML = `<span class="ord">-</span><span>${esc(s)}</span>`;
+    b.onclick = ()=>{
+      const at = order.indexOf(s);
+      if(at>=0) order.splice(at,1); else order.push(s);
+      redraw(); submit.disabled = order.length !== q.steps.length;
+    };
+    wrap.appendChild(b); return b;
+  });
+  function redraw(){
+    shown.forEach((s,n)=>{
+      const at = order.indexOf(s);
+      const o = btns[n].querySelector(".ord");
+      o.textContent = at>=0 ? (at+1) : "-";
+      o.classList.toggle("set", at>=0);
+      btns[n].setAttribute("aria-pressed", at>=0?"true":"false");
+    });
+  }
+  body.appendChild(wrap);
+  const submit = mkSubmit(act, "tap the steps in order");
+  submit.onclick = ()=>{
+    shown.forEach((s,n)=>{ btns[n].disabled = true; });
+    submit.remove();
+    settle(q, order.slice(), card, act, v=>{
+      const right = (v.explain||{}).steps || [];
+      shown.forEach((s,n)=>{
+        const at = right.indexOf(s);
+        btns[n].classList.add(order.indexOf(s)===at ? "right" : "wrong");
+        btns[n].querySelector(".ord").textContent = at>=0 ? at+1 : "-";
+      });
+    });
+  };
+}
+
+/* ---- short answer --------------------------------------------------------- */
+function asShort(q, body, act, card){
+  const ta = document.createElement("textarea");
+  ta.className = "ans";
+  ta.placeholder = "Type your answer. Complete sentences; this is marked on what you actually wrote.";
+  body.appendChild(ta);
+  const submit = mkSubmit(act, "your own words, no notes");
+  ta.oninput = ()=>{ submit.disabled = ta.value.trim().length < 2; };
+  ta.focus();
+  submit.onclick = ()=>{
+    ta.disabled = true;
+    submit.remove();
+    settle(q, ta.value.trim(), card, act, null);
+  };
+}
+
+/* ---- check: vendored CodeMirror 6 code field ---------------------------- */
+function asCheck(q, body, act, card){
+  const cfg = (q.interaction_contract && q.interaction_contract.renderer_config) || {};
+  const n = cfg.hidden_case_count || 0;
+  const starter = q.starter || "";
+  /* D-06 (plan 05-06): execution is server-side only, so a file:// page has
+     no process to ask. Render the locked file-refusal sentence instead of
+     the editor -- never a dead field the learner can type into and never
+     submit -- and one skip control that advances without verifying, settling
+     or closing: nothing is scored, nothing is recorded, and the item never
+     reaches the auto-marked total (it is excluded exactly as if it were
+     never reached). The honest-limits line below still renders from the
+     item card. */
+  if(!SERVE){
+    const ref = document.createElement("div");
+    ref.className = "pend";
+    ref.textContent = "This item runs code on the machine serving itembank and can't be answered from a file opened directly in a browser. Open this bank with itembank serve (or the daemon) and try again.";
+    body.appendChild(ref);
+    const skip = document.createElement("button");
+    skip.className = "go ghost"; skip.type = "button";
+    skip.textContent = "Skip — not answerable offline";
+    act.appendChild(skip);
+    skip.onclick = ()=>{ i++; render(); };
+    skip.focus();
+    const lim2 = document.createElement("div");
+    lim2.className = "hint";
+    lim2.textContent = "Your code runs directly on this machine under a time limit and an output cap; this stops accidents like an infinite loop, not a deliberate attempt to escape it.";
+    card.appendChild(lim2);
+    return;
+  }
+  const wrap = document.createElement("div");
+  wrap.className = "codewrap";
+  const mount = document.createElement("div");
+  wrap.appendChild(mount);
+  body.appendChild(wrap);
+  const submit = mkSubmit(act, caseHint(n));
+  /* Locked hint copy (05-UI-SPEC Check button hint row): runs against %d
+     hidden test case%s -- e.g. "runs against 1 hidden test case" /
+     "runs against 3 hidden test cases". Hidden is locked: CASE) pairs are
+     key material under D-12 and never reach public_item. */
+  function caseHint(n){
+    return n === 1 ? "runs against 1 hidden test case"
+                   : "runs against " + n + " hidden test cases";
+  }
+  /* The editor's whole configuration -- line numbers, Tab/Shift-Tab keymap,
+     placeholder, read-only lock, no wrap -- lives in the one boot script
+     embedded above as a separate script, so the page and the JS test runner boot
+     identical editors. The mount gets a semantic program label and concise
+     keyboard instructions (05-UI-SPEC); Enter/Space activate the focused
+     Check control natively (it is a real button). */
+  mount.setAttribute("role", "textbox");
+  mount.setAttribute("aria-label", "Source code");
+  mount.setAttribute("aria-multiline", "true");
+  const editor = CheckEditorBoot.create(mount, {starter: starter});
+  const hintLine = document.createElement("div");
+  hintLine.className = "hint";
+  hintLine.textContent = "Tab inserts a tab, Shift-Tab dedents; the focused Check control activates with Enter or Space.";
+  body.appendChild(hintLine);
+  const sync = ()=>{ submit.disabled = editor.isEmpty(); };
+  const origDispatch = editor.getView().dispatch;
+  editor.getView().dispatch = function(tr){
+    origDispatch.call(this, tr); sync();
+  };
+  sync();
+  submit.onclick = ()=>{
+    const src = editor.getSource();
+    submit.disabled = true;
+    submit.textContent = "Running…";
+    editor.setReadOnly(true);
+    settle(q, src, card, act, null, ()=>{ submit.textContent = "Submit answer"; submit.disabled = false; editor.setReadOnly(false); });
+  };
+  /* The honest-limits line renders from the item card, not from the editor
+     branch, so plan 05-06's refusal states replace the editor without
+     removing the statement. Your code runs directly on this machine under a time limit and an output cap; this stops accidents like an infinite loop, not a deliberate attempt to escape it. is substituted by
+     quiz.page_for from model.HONEST_LIMITS_NOTE (D-10). */
+  const lim = document.createElement("div");
+  lim.className = "hint";
+  lim.textContent = "Your code runs directly on this machine under a time limit and an output cap; this stops accidents like an infinite loop, not a deliberate attempt to escape it.";
+  card.appendChild(lim);
+}
+
+function mkSubmit(act, hint){
+  const b = document.createElement("button");
+  b.className="go"; b.type="button"; b.textContent="Submit answer"; b.disabled=true;
+  const h = document.createElement("span"); h.className="hint"; h.textContent=hint;
+  act.appendChild(b); act.appendChild(h);
+  return b;
+}
+
+/* ---- check per-case readout (plan 05-06) ---------------------------------
+   The learner's submitted source is their executable prediction; the ordered
+   rows below are the bounded observations from that exact run, consumed from
+   the shared normalized contract -- never scraped from prose, never a second
+   verdict, never a re-run of the source. The overall verdict header stays
+   the dichotomous runtime return; a null verdict (killed at timeout) renders
+   the pending treatment, because a timeout is not a verdict (criterion 12). */
+const CASE_STATUS = {
+  passed:     ["Passed", ""],
+  wrong_output:["Failed", ""],
+  timeout:    ["Failed — timed out after %ss", "warn"],
+  output_cap: ["Failed — output was cut off at %d KB", "warn"]
+};
+function caseStatus(reason, timeoutSecs, capKB){
+  const [tmpl, role] = CASE_STATUS[reason] || ["Failed", ""];
+  const text = reason === "timeout"
+    ? tmpl.replace("%s", String(timeoutSecs))
+    : reason === "output_cap" ? tmpl.replace("%d", String(capKB)) : tmpl;
+  return {text, role};
+}
+function checkMatrix(rows, timeoutSecs, capKB){
+  let h = `<div class="check-matrix" role="list">`;
+  rows.forEach(r=>{
+    const st = caseStatus(r.reason, timeoutSecs, capKB);
+    const cls = r.passed ? "right" : "wrong";
+    const warn = st.role === "warn" ? " warn" : "";
+    h += `<div class="case ${cls}" role="listitem">
+      <div class="case-head"><span class="case-n">Case ${r.case_index}</span>
+        <span class="st${warn}">${esc(st.text)}</span></div>`;
+    if(r.input) h += `<div class="cf"><h5>Input</h5><pre>${esc(r.input)}</pre></div>`;
+    h += `<div class="cf"><h5>${r.expected_kind === "pattern" ? "Expected (pattern)" : "Expected"}</h5>
+      <pre>${esc(r.expected)}</pre></div>`;
+    h += `<div class="cf"><h5>Your output</h5><pre>${esc(r.actual || "")}</pre></div>`;
+    h += `</div>`;
+  });
+  return h + `</div>`;
+}
+
+/* Offline-only row derivation: the static page holds the authored case
+   halves in its explain payload and derives each observation's reason from
+   the case flags plus the dichotomous score. Never a second verdict -- the
+   header already came from canon()===key, and a null score (unanswered
+   check) renders the pending header above. */
+function checkRows(ex, v){
+  return (ex.cases || []).map(c=>{
+    const timed = !!c.timed_out, trunc = !!c.truncated;
+    const failed = v.score === false;
+    let reason = "passed";
+    if(timed) reason = "timeout";
+    else if(trunc) reason = "output_cap";
+    else if(failed) reason = "wrong_output";
+    return {case_index: c.case_index || 0, passed: !timed && !trunc && !failed,
+            reason: reason, input: c.input || "", expected: c.expected || "",
+            expected_kind: c.expected_kind || "output",
+            actual: c.actual !== undefined ? c.actual : ""};
+  });
+}
+
+function close(q, card, act, v){
+  const ex = v.explain || {};
+  const right = v.score;
+  const pending = (right === null || right === undefined);
+  if(!pending){ autoTotal++; if(right) score++; else miss.push({q, ex}); }
+  act.innerHTML = "";
+  const fb = feedbackFor(card);
+  const exp = document.createElement("div");
+  exp.className = "exp";
+  const blk = (t,val)=> val ? `<div class="blk"><h4>${t}</h4><div>${esc(val)}</div></div>` : "";
+  let h = pending
+    ? `<div class="pend">Recorded. Not marked here.</div>`
+    : `<div class="verdict ${right?"y":"n"}">${right?"Correct":"Not correct"}</div>`;
+  if(q.type === "short"){
+    if(ex.model){
+      h += blk("Model answer", ex.model);
+      if(ex.rubric && ex.rubric.length)
+        h += `<div class="blk"><h4>What a marker checks</h4><ul><li>`
+           + ex.rubric.map(esc).join("</li><li>") + `</li></ul></div>`;
+    } else {
+      h += `<div class="blk" style="color:var(--mut);font-size:13.5px">The model answer is
+        held back so it cannot contaminate the items after this one. It is in the bank file.`;
+    }
+  } else if(q.type === "check"){
+    /* The per-case readout (plan 05-06). The offline page compares against
+       the canonical key it shipped, so the rows derive from the explain
+       payload's authored halves plus the score; the served page feeds the
+       normalized observations instead. The verdict header above stays the
+       dichotomous runtime return; a null verdict (killed at timeout)
+       renders the pending treatment, never pass or fail (criterion 12). */
+    h += checkMatrix(checkRows(ex, v), 5, 64);
+  } else {
+    if(!v.skipWhy) h += blk("Why this is best", ex.why);
+    h += blk("Key discriminator", ex.disc);
+    h += blk("Second best", ex.second);
+    if(ex.notes && ex.notes.length) h += `<div class="blk"><h4>Notes</h4><ul><li>`
+      + ex.notes.map(esc).join("</li><li>") + `</li></ul></div>`;
+  }
+  if(ex.trap) h += `<div class="blk trap"><h4>Trap</h4><div>${esc(ex.trap)}</div></div>`;
+  exp.innerHTML = h;
+  fb.innerHTML = "";
+  fb.appendChild(exp);
+  const next = document.createElement("button");
+  next.className="go"; next.type="button";
+  next.textContent = (i===Q.length-1) ? "See results" : "Next";
+  next.onclick = ()=>{ i++; render(); };
+  act.appendChild(next);
+  next.focus();
+}
+
+function finish(){
+  document.getElementById("rail") && (document.getElementById("rail").style.width = "100%");
+  const pct = autoTotal ? Math.round(score/autoTotal*100) : 0;
+  const pend = Q.filter(q=>q.type==="short").length;
+  let h = `<div class="done"><div class="score mono">${score}/${autoTotal}
+    <span style="font-size:17px;color:var(--mut)"> &middot; ${pct}% auto-marked</span></div>`;
+  if(pend) h += `<p style="margin:12px 0 0;color:var(--warn)"><b>${pend} short
+    answer${pend>1?"s":""} not marked here.</b> Nothing recorded them, because this page
+    was opened as a file. Use <code>itembank serve</code> for a sitting that is meant
+    to be graded.</p>`;
+  if(miss.length){
+    h += `<p style="margin:14px 0 6px"><b>${miss.length} to harvest.</b>
+      Per Anki_Testing_Strategy &sect;2, the discriminator becomes the card, not the question.</p><ul>`;
+    miss.forEach(m=>{
+      h += `<li style="margin-bottom:9px"><b>${esc(m.q.stem.slice(0,110))}</b>`
+        + (m.q.objective ? ` <span class="chip">${esc(m.q.objective)}</span>` : "")
+        + (m.ex.trap ? `<br><span style="color:var(--mut)">Trap: ${esc(m.ex.trap)}</span>` : "")
+        + `</li>`;
+    });
+    h += `</ul>`;
+  } else {
+    h += `<p style="margin-top:14px">Clean sweep. Nothing to harvest.</p>`;
+  }
+  h += `</div>`;
+  host.innerHTML = h;
+  window.scrollTo({top:0, behavior: REDUCED ? "auto" : "smooth"});
+}
+
+const frag = location.hash.replace(/^#/, "");
+if(frag){ const at = Q.findIndex(x => String(x.id) === frag); if(at >= 0) Q.unshift(Q.splice(at, 1)[0]); }
+Q.sort(()=>Math.random()-0.5);
+render();
+
+</script>
+<script id="served">
+
+</script>
+<script id="assist">
+
+</script>
+</body></html>
