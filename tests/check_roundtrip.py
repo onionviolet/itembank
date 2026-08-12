@@ -978,7 +978,13 @@ def check_vendor_integrity():
     # function spans and refused anywhere else.
     def _visual_spans(src):
         spans = []
-        for m in re.finditer(r"function asVisual(?:Offline)?\s*\(", src):
+        # 06.1's asVisual/asVisualOffline plus 999.1's renderTimeline/
+        # renderDiagram/renderTrace/renderHotspot -- every family mounts the
+        # same SVG arrow-key accessibility handler, so each is a permitted
+        # keydown owner.
+        for m in re.finditer(
+                r"function (?:asVisual(?:Offline)?|render(?:Timeline|Diagram|Trace|Hotspot))\s*\(",
+                src):
             depth = 0
             j = src.index("{", m.end())
             while True:
