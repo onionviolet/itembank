@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: complete
 current_phase_name: milestone-complete
-status: complete
+status: Milestone v1.0 shipped — pushed to origin/main (490 commits)
 stopped_at: All 18 roadmap phases merged into main (2026-08-11)
-last_updated: "2026-08-12T02:03:03.000Z"
+last_updated: "2026-08-12T03:37:22.514Z"
 last_activity: 2026-08-11
-last_activity_desc: "Milestone complete: all 18 roadmap phases merged into main — the 12 phase branches (02.1, 03, 03.2, 04, 05, 08, 09, 10, 11, 999.1, 999.4, 999.5) finished 2026-08-11 on top of 03.1, 06.1, 06.2, 09.1 merged earlier; human-pending verification backlog recorded in the Deferred Verification table"
 progress:
   total_phases: 18
   completed_phases: 18
   total_plans: 104
   completed_plans: 104
+current_phase: complete
+last_activity_desc: "Milestone complete: all 18 roadmap phases merged into main — the 12 phase branches (02.1, 03, 03.2, 04, 05, 08, 09, 10, 11, 999.1, 999.4, 999.5) finished 2026-08-11 on top of 03.1, 06.1, 06.2, 09.1 merged earlier; human-pending verification backlog recorded in the Deferred Verification table"
 ---
 
 # Project State
@@ -52,8 +52,8 @@ recorded in 06.2-GATES.md. Six GATE-01..06 requirements delivered.
 ## Current Position
 
 Phase: none — **milestone complete** (18/18 roadmap phases merged into main)
-Status: Complete; the human-pending verification backlog is listed in the Deferred Verification table below
-Last activity: 2026-08-11 — final phase branches (02.1, 03, 03.2, 04, 05, 08, 09, 10, 11, 999.1, 999.4, 999.5) merged into main; 999.5 merge resolved (eight-item spec heading, README/lesson test reconciliation)
+Status: Milestone v1.0 shipped — pushed to origin/main (490 commits)
+Last activity: 2026-08-11
 
 > **Branch note (gsd/phase-03.1-finish):** Phase 03.1
 > (lesson-rich-blocks-glossary-style) is CLOSED — plans 01-07 complete with
