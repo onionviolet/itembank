@@ -253,6 +253,7 @@ def fresh_session(work):
     isolated = os.path.join(work, "advanced_visual_bank.md")
     shutil.copyfile(BANK, isolated)
     started = run(["start", isolated, "--count", "12", "--mode", "practice",
+                   "--subject-profile", "math",
                    "--out", os.path.join(work, "session.json")], work)
     session_file = started["session_file"]
     qs = load_bank(isolated)
@@ -471,7 +472,8 @@ def check_served():
         if "<canvas" in html:
             fail("served page uses canvas for the trace slice")
 
-        start = api(base, "start", {"bank": stem, "mode": "practice", "count": 12})
+        start = api(base, "start", {"bank": stem, "mode": "practice",
+                                "count": 12, "profile": "math"})
         if start["status"] != "active":
             fail("POST /api/start did not return an active session")
         sid = start["session_id"]
