@@ -568,6 +568,38 @@ def parse_lesson(bank_path):
 
 _TERM_REF_RE = re.compile(r"\[\[([^\]]+)\]\]")
 _META_CELL_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*)=(.*)$", re.S)
+_PREAMBLE_HEADING_RE = re.compile(r"(?m)^##\s")
+
+
+def _preamble_section(head, name):
+    """The body of one `## <NAME>` preamble section, or None when the bank
+    carries no such section.
+
+    THE boundary rule, defined once for every preamble registry: a preamble
+    section runs until the next level-two heading or the first question,
+    whichever comes first. `head` arrives already truncated at the first
+    question by the caller's chunk walk; this function applies the other
+    half. `parse_terms`, `parse_sources` and `parse_cases` -- plus the
+    lesson-body `[[term]]` refs scan -- all read through this one
+    definition, so the file carries one boundary rule rather than four that
+    can drift. Section order in the preamble is therefore free: `## TERMS`
+    above `## LESSON` parses exactly as it does below it.
+
+    Fenced regions are dropped before anything is located, so a pipe row --
+    or a `[[term]]` reference -- inside a fence is sample markup an author
+    is showing, never a row of the section and never a reference the reader
+    could render. The fence pattern is the one `_STYLE_FENCE_RE` the style
+    checks already use, not a second copy. An unterminated fence matches
+    nothing and drops nothing, so the failure mode is the pre-existing one
+    (lint reports the malformed block), never a silently truncated bank.
+    """
+    text = _STYLE_FENCE_RE.sub("", head or "")
+    m = re.search(r"(?m)^##\s+%s\s*$" % re.escape(name), text)
+    if m is None:
+        return None
+    body = text[m.end():]
+    nxt = _PREAMBLE_HEADING_RE.search(body)
+    return body[:nxt.start()] if nxt else body
 
 
 def _term_refs(text):
@@ -622,19 +654,20 @@ def parse_terms(bank_path):
         preamble.append(ch)
     head = "".join(preamble)
 
-    m = re.search(r"(?m)^##\s+TERMS\s*$", head)
-    if m is None:
+    block = _preamble_section(head, "TERMS")
+    if block is None:
         return None
 
     # Refs are collected from the lesson body -- the text the reader actually
     # renders -- so a [[term]] that can never render is never flagged as
-    # unknown by the linter.
-    lm = re.search(r"(?m)^##\s+LESSON\s*$", head)
-    refs = _term_refs(head[lm.end():]) if lm else []
+    # unknown by the linter. Routed through the same bounded helper the rows
+    # are, so there is no surviving second boundary rule here.
+    lesson_body = _preamble_section(head, "LESSON")
+    refs = _term_refs(lesson_body) if lesson_body is not None else []
 
     rows = []
     ignored = []
-    for line in head[m.end():].splitlines():
+    for line in block.splitlines():
         if not line.strip():
             continue
         cells, is_sep = _terms_row_cells(line)
@@ -715,9 +748,9 @@ def parse_sources(bank_path):
 
     sources = {}
     duplicates = []
-    m = re.search(r"(?m)^##\s+SOURCES\s*$", head)
-    if m is not None:
-        for line in head[m.end():].splitlines():
+    block = _preamble_section(head, "SOURCES")
+    if block is not None:
+        for line in block.splitlines():
             if not line.strip():
                 continue
             cells, is_sep = _terms_row_cells(line)
@@ -1013,9 +1046,9 @@ def parse_cases(bank_path):
     head = "".join(preamble)
 
     cases = {}
-    m = re.search(r"(?m)^##\s+CASES\s*$", head)
-    if m is not None:
-        for line in head[m.end():].splitlines():
+    block = _preamble_section(head, "CASES")
+    if block is not None:
+        for line in block.splitlines():
             if not line.strip():
                 continue
             cells, is_sep = _terms_row_cells(line)
@@ -1930,6 +1963,12 @@ THE LESSON SECTION
 
   A bank without a lesson section parses exactly as it did before this
   grammar existed, so adding a lesson to a real bank cannot break it.
+
+  Each level-two preamble section -- LESSON, TERMS, SOURCES, CASES -- runs
+  until the next level-two heading or the first question, whichever comes
+  first, and a pipe row inside a fenced block belongs to no section. Their
+  order in the preamble is free: TERMS above LESSON parses exactly as TERMS
+  below it.
 
   [LESSON-SRC: <path>]                                      optional, external source
   The same preamble region may name an external markdown file whose own

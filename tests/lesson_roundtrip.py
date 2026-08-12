@@ -3275,6 +3275,137 @@ def test_lesson_page_degraded_style_copy():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ---- quick 260812-e2m D2: every preamble section ends at the next heading ---
+# `## TERMS`, `## SOURCES` and `## CASES` all scanned rows to the END of the
+# preamble with no stop at the next level-two heading, so a registry placed
+# above `## LESSON` swallowed the lesson body: table rows became glossary
+# entries, and (because the sources/cases scans accept a one-cell row) every
+# prose line became a source id and a case id. One bounded-section helper
+# with three callers is the fix; these are its assertions.
+
+ORDER_BANK = os.path.join(ROOT, "fixtures", "terms_above_lesson_bank.md")
+
+
+def _reordered_bank(tmp):
+    """The same fixture with `## LESSON` moved above `## TERMS` -- section
+    order in the preamble must not change the parse."""
+    text = open(ORDER_BANK, encoding="utf-8").read()
+    head, rest = text.split("## TERMS", 1)
+    terms_block, lesson_block = rest.split("## LESSON", 1)
+    body, item = lesson_block.split("Q1.", 1)
+    path = os.path.join(tmp, "lesson_above_terms_bank.md")
+    open(path, "w", encoding="utf-8").write(
+        head + "## LESSON" + body + "## TERMS" + terms_block + "Q1." + item)
+    return path
+
+
+def test_preamble_section_stops_at_next_heading():
+    """Test 1: with `## TERMS` above `## LESSON`, terms come only from the
+    TERMS rows -- no lesson table row is minted as a glossary entry."""
+    t = itembank.parse_terms(ORDER_BANK)
+    if t is None:
+        fail("the ordering fixture carries a ## TERMS section; parse_terms "
+             "must not return None")
+    if sorted(t["terms"]) != ["sprocket", "widget"]:
+        fail("terms must come only from the TERMS section rows, got %r "
+             "(a lesson table row was read as a term)" % sorted(t["terms"]))
+    # The refs scan still reads the lesson body, wherever the body sits.
+    if [r["slug"] for r in t["refs"]] != ["widget", "sprocket"]:
+        fail("[[term]] refs must still be collected from the lesson body: %r"
+             % t["refs"])
+
+
+def test_preamble_section_order_is_free():
+    """Test 3: the same bank with the two sections in the other order yields
+    the identical terms dict."""
+    tmp = tempfile.mkdtemp()
+    try:
+        other = _reordered_bank(tmp)
+        a = itembank.parse_terms(ORDER_BANK)
+        b = itembank.parse_terms(other)
+        if json.dumps(a["terms"], sort_keys=True) != \
+                json.dumps(b["terms"], sort_keys=True):
+            fail("section order in the preamble changed the parse: %r vs %r"
+                 % (sorted(a["terms"]), sorted(b["terms"])))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_preamble_section_boundary_lints_clean():
+    """Test 2: linting the ordering fixture emits no duplicate-slug finding,
+    because the colliding slugs were never real terms."""
+    import model
+    qs = itembank.load(ORDER_BANK)
+    errors, warnings = model.lint(
+        qs, lesson=itembank.parse_lesson(ORDER_BANK),
+        terms=itembank.parse_terms(ORDER_BANK))
+    for finding in list(errors) + list(warnings):
+        if getattr(finding, "code", "") == "terms.duplicate_slug":
+            fail("a lesson table row produced a terms.duplicate_slug "
+                 "finding: %s" % finding)
+    if errors:
+        fail("the ordering fixture must lint with no errors: %r"
+             % [str(e) for e in errors])
+
+
+def test_no_terms_bank_matches_phase3_golden():
+    """Test 4: a bank with no `## TERMS` section parses byte-identically to
+    the recorded Phase 3 golden -- the additive floor proven against an
+    artifact, never against a freshly computed value (Directive \u00a74.4)."""
+    if itembank.parse_terms(LES_BANK) is not None:
+        fail("fixtures/lesson_bank.md carries no ## TERMS section; "
+             "parse_terms must return None")
+    golden = json.load(open(GOLDEN_PARSE_P3, encoding="utf-8"))
+    if json.dumps(itembank.load(LES_BANK), sort_keys=True) != \
+            json.dumps(golden["qs"], sort_keys=True):
+        fail("a bank with no TERMS section drifted from the Phase 3 golden "
+             "parse")
+    content = _lesson_content_region(
+        lesson.lesson_page(LES_BANK, itembank.load(LES_BANK),
+                           itembank.parse_lesson(LES_BANK)))
+    if content != open(GOLDEN_CONTENT_P3, encoding="utf-8").read():
+        fail("a bank with no TERMS section drifted from the Phase 3 golden "
+             "content region")
+
+
+def test_sources_and_cases_share_the_boundary():
+    """Test 5: the same boundary holds for the `## SOURCES` and `## CASES`
+    registries -- a lesson table row (or a line of lesson prose) below either
+    section is not a source and not a case."""
+    import model
+    ps = model.parse_sources(ORDER_BANK)
+    if sorted(ps["sources"]) != ["fixture-note"]:
+        fail("## SOURCES swallowed the lesson body: %r" % sorted(ps["sources"]))
+    pc = model.parse_cases(ORDER_BANK)
+    if sorted(pc["cases"]) != ["fixture-case"]:
+        fail("## CASES swallowed the lesson body: %r" % sorted(pc["cases"]))
+
+
+def test_fenced_pipe_row_is_not_a_row():
+    """Test 6: a pipe row inside a fenced code block within a preamble
+    section is not a row of that section."""
+    import model
+    t = itembank.parse_terms(ORDER_BANK)
+    if "fencepost" in t["terms"]:
+        fail("a pipe row inside a fenced block was read as a term row: %r"
+             % sorted(t["terms"]))
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "fenced_sources_bank.md")
+        open(bank, "w", encoding="utf-8").write(
+            "# Fenced registry rows (synthetic)\n\n## SOURCES\n\n"
+            "real-note | Invented note, page 1\n\n"
+            "```text\nfenced-note | Not a source row\n```\n\n"
+            "## LESSON\n\n### H\n\nProse.\n\n"
+            + clean_mc("Which is one?"))
+        ps = model.parse_sources(bank)
+        if sorted(ps["sources"]) != ["real-note"]:
+            fail("a fenced pipe row was read as a source row: %r"
+                 % sorted(ps["sources"]))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 test_slug()
 test_parse_lesson()
 test_prose_line_shaped_like_question_marker()
@@ -3397,4 +3528,10 @@ test_unsourced_specific_requires_a_source()
 test_case_and_prereq_grammar_parses_and_lints()
 test_case_prereq_compatibility_floor()
 test_d19_two_file_layout_prose_file_distinct_from_items_file()
-print("ok: lesson roundtrip (slug, parse, fingerprint, LESSON-SRC, degraded state, route, CLI twin, both link directions, lesson lint, coupling guards, provenance grammar + compatibility floor)")
+test_preamble_section_stops_at_next_heading()
+test_preamble_section_order_is_free()
+test_preamble_section_boundary_lints_clean()
+test_no_terms_bank_matches_phase3_golden()
+test_sources_and_cases_share_the_boundary()
+test_fenced_pipe_row_is_not_a_row()
+print("ok: lesson roundtrip (slug, parse, fingerprint, LESSON-SRC, degraded state, route, CLI twin, both link directions, lesson lint, coupling guards, provenance grammar + compatibility floor, preamble section boundary)")
