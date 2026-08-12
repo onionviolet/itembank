@@ -268,6 +268,106 @@ def test_six_fixed_tiers_and_unavailable_slots():
             fail("q1 tier %d must be available at its fixed slot, got %r" % (i, t))
 
 
+# ---- quick 260812-e2m D4: the authored tier carries learner-facing text ----
+# `authored_hint` tier 0 returned the DERIVED lesson slug as its content, and
+# the served assist panel printed that content verbatim, so an offline hint
+# read "Authored hint / the-airway-step-by-step". Tier 5's content is the
+# explain_payload dict, which the surface's string check rejected, so the
+# authorized reveal rendered as nothing at all. Both are fixed in the runtime
+# -- a surface that re-derived display text from an id would be a second
+# place deciding what the learner reads.
+
+def test_tier_zero_display_is_authored_prose_not_the_slug():
+    """Test 1: the tier-0 payload's learner-facing text is the author-written
+    lesson reference, and the derived slug appears nowhere in it."""
+    q = q1()
+    ref, slug = q.get("lesson_ref") or "", q.get("lesson_slug") or ""
+    if not ref or not slug or ref == slug:
+        fail("the fixture item must carry a lesson reference whose prose "
+             "differs from its slug (ref=%r slug=%r)" % (ref, slug))
+    t = runtime.authored_hint(q, 0, None)
+    if t.get("display") != ref:
+        fail("tier 0 must show the author-written lesson reference, got %r "
+             "(the slug is a derived identifier for anchors and lookups, "
+             "never learner-facing text)" % t.get("display"))
+    if slug in (t.get("display") or ""):
+        fail("the derived slug %r leaked into the learner-facing text %r"
+             % (slug, t.get("display")))
+    if t.get("slug") != slug:
+        fail("the payload must still carry the slug on its own key so a "
+             "linking surface has the anchor without re-deriving it: %r" % t)
+    # Availability keys on the authored reference, not on the derived slug.
+    bare = dict(q)
+    bare["lesson_ref"] = ""
+    if runtime.authored_hint(bare, 0, None)["available"]:
+        fail("tier 0 must report unavailable when no lesson reference is "
+             "authored")
+
+
+def test_every_available_tier_carries_learner_text():
+    """Test 2: every tier that reports itself available carries a non-empty
+    learner-facing string -- including the reveal tier, whose content is a
+    structured payload and which rendered as nothing at all."""
+    for i in range(6):
+        t = runtime.authored_hint(q1(), i, "B")
+        if not t["available"]:
+            fail("q1 tier %d must be available: %r" % (i, t))
+        if not isinstance(t.get("display"), str) or not t["display"].strip():
+            fail("tier %d reports available but carries no learner-facing "
+                 "text: %r" % (i, t))
+    reveal = runtime.authored_hint(q1(), 5, "B")
+    if runtime.answer_text(q1()) not in reveal["display"]:
+        fail("the authorized reveal must render the compact answer text "
+             "through the runtime's own shaper: %r" % reveal["display"])
+
+
+def test_unavailable_tier_carries_empty_learner_text():
+    """Test 3: a tier that reports itself unavailable carries an empty
+    learner-facing string, so the surface's locked empty state is what
+    renders rather than a silent nothing."""
+    t = runtime.authored_hint(q3(), 3, None)
+    if t["available"]:
+        fail("q3 tier 3 must be unavailable: %r" % t)
+    if t.get("display") != "":
+        fail("an unavailable tier must carry an empty learner-facing string, "
+             "got %r" % t.get("display"))
+
+
+def test_tier_selection_and_existing_payload_unchanged():
+    """Test 4: tier selection is byte-for-byte unchanged, and every existing
+    key on the payload still carries exactly what it carried before -- this
+    task changes only how the already-chosen tier is worded."""
+    q = q1()
+    expected_content = {
+        0: q.get("lesson_slug") or "",
+        1: q.get("objective") or "",
+        2: q.get("trap") or "",
+        3: (q.get("da") or {}).get("B", ""),
+        4: q.get("disc") or "",
+    }
+    for i, want in expected_content.items():
+        t = runtime.authored_hint(q, i, "B")
+        if t["content"] != want:
+            fail("tier %d content changed: %r != %r" % (i, t["content"], want))
+        if t["index"] != i or t["name"] != runtime.HINT_TIERS[i]["name"] \
+                or t["label"] != runtime.HINT_TIERS[i]["label"]:
+            fail("tier %d index/name/label changed: %r" % (i, t))
+    if runtime.authored_hint(q, 5, "B")["content"] != \
+            runtime.explain_payload(q, reveal=True):
+        fail("the reveal tier's content key must stay the explain payload")
+    # Selection: the ladder still unlocks and shows exactly the tiers it did.
+    s = session(mode="practice", items=(0,), cursor=0)
+    s = runtime.teaching_transition(
+        s, q1(), {"kind": "submit", "answer": q1_wrong()})["session"]
+    shown = []
+    for _ in range(3):
+        r = runtime.teaching_transition(s, q1(), {"kind": "hint"})
+        shown.append(r["hint"]["tier"]["index"])
+        s = r["session"]
+    if shown != [0, 1, 2]:
+        fail("tier selection changed: %r" % shown)
+
+
 def test_practice_reveal_then_advance():
     s = session(mode="practice", items=(0, 1), cursor=0)
     s = runtime.teaching_transition(s, q1(),
@@ -839,6 +939,10 @@ def main():
     test_practice_changed_answer_opens_new_attempt()
     test_practice_tier_three_is_response_specific()
     test_six_fixed_tiers_and_unavailable_slots()
+    test_tier_zero_display_is_authored_prose_not_the_slug()
+    test_every_available_tier_carries_learner_text()
+    test_unavailable_tier_carries_empty_learner_text()
+    test_tier_selection_and_existing_payload_unchanged()
     test_practice_reveal_then_advance()
     test_practice_last_item_completes()
     test_drill_reveals_and_advances()

@@ -1741,41 +1741,71 @@ def teaching_key(q):
     return q.get("item_id") or ("ref:" + q["id"])
 
 
+def _reveal_display(q):
+    """The reveal tier's learner-facing text: the runtime's own compact
+    answer shaper plus the item's WHY text when one is authored. Tier 5's
+    `content` is the structured `explain_payload` dict, which a surface
+    rendering strings could only print as nothing -- so the runtime shapes
+    the words here, where disclosure has already been authorized, rather
+    than leaving a surface to invent them.
+    """
+    parts = [answer_text(q) or ""]
+    why = (q.get("why") or "").strip()
+    if why:
+        parts.append(why)
+    return " — ".join(p for p in parts if p)
+
+
 def authored_hint(q, tier, canonical):
     """The sole private-tier resolver for the six fixed authored tiers
     (D-07/D-08/D-09). Missing content returns `available: false` at the same
     index. Tier 3 is response-specific: it resolves the distractor analysis
     for the learner's latest genuine picked option.
+
+    Every payload carries `display`: the learner-facing text for that tier,
+    empty when the tier is unavailable. `content` is unchanged on every tier,
+    so no existing consumer changes behaviour. The split exists because the
+    runtime already owns what a tier discloses; a surface that re-derived
+    display text from an id would be a second place deciding what the learner
+    reads. `display` carries text only -- never a tier index, name or label.
     """
     t = HINT_TIERS[tier]
     name = t["name"]
     if tier == 0:
+        # The slug is a DERIVED identifier for anchors and lookups. It was
+        # never learner-facing text, and printing it is the whole of this
+        # defect: an offline hint read "Authored hint / the-airway-step-by-
+        # step". Availability keys on the author-written reference because
+        # that names the real source; the two are equivalent in practice.
+        ref = q.get("lesson_ref") or ""
         slug = q.get("lesson_slug") or ""
-        return {"index": 0, "name": name, "available": bool(slug),
-                "content": slug, "label": t["label"]}
+        return {"index": 0, "name": name, "available": bool(ref),
+                "content": slug, "display": ref if ref else "",
+                "slug": slug, "label": t["label"]}
     if tier == 1:
         obj = q.get("objective") or ""
         return {"index": 1, "name": name, "available": bool(obj),
-                "content": obj, "label": t["label"]}
+                "content": obj, "display": obj, "label": t["label"]}
     if tier == 2:
         trap = q.get("trap") or ""
         return {"index": 2, "name": name, "available": bool(trap),
-                "content": trap, "label": t["label"]}
+                "content": trap, "display": trap, "label": t["label"]}
     if tier == 3:
         content = ""
         if canonical and q["type"] in ("mc", "multi"):
             option = str(canonical).split(",")[0].strip()
             content = (q.get("da") or {}).get(option, "")
         return {"index": 3, "name": name, "available": bool(content),
-                "content": content, "label": t["label"],
+                "content": content, "display": content, "label": t["label"],
                 "for_response": canonical}
     if tier == 4:
         disc = q.get("disc") or ""
         return {"index": 4, "name": name, "available": bool(disc),
-                "content": disc, "label": t["label"]}
+                "content": disc, "display": disc, "label": t["label"]}
     # tier == 5: the authored reveal -- the full post-response explanation.
     return {"index": 5, "name": name, "available": True,
-            "content": explain_payload(q, reveal=True), "label": t["label"]}
+            "content": explain_payload(q, reveal=True),
+            "display": _reveal_display(q), "label": t["label"]}
 
 
 def _record_from_evidence(q, events):

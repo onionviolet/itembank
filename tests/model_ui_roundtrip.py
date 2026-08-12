@@ -570,6 +570,82 @@ def check_assist_wire():
         shutil.rmtree(workdir, ignore_errors=True)
 
 
+# ---- quick 260812-e2m D4: the authored fallback renders prose or nothing ----
+
+def check_authored_fallback_copy_and_field():
+    """With no model backend reachable, the authored fallback must render
+    author-written prose or the locked empty state -- never a lesson slug,
+    never a tier number, never a tier label. The renderer reads the
+    runtime's learner-facing field; it never re-derives display text."""
+    from surfaces.quiz_page import ASSIST_COPY, ASSIST_JS
+
+    locked = ("No authored hint is available at this step. Keep reading the "
+              "lesson or make another attempt.")
+    if ASSIST_COPY.get("authored_empty") != locked:
+        fail("the assist copy table must carry the locked authored empty "
+             "line verbatim, got %r" % ASSIST_COPY.get("authored_empty"))
+    if locked not in ASSIST_JS:
+        fail("the served assist client cannot render the authored empty "
+             "state")
+    if "authored.display" not in ASSIST_JS:
+        fail("the authored renderer must read the runtime's learner-facing "
+             "field; it must never print the raw tier content or re-derive "
+             "text from an id")
+    if "authored.content" in ASSIST_JS:
+        fail("the authored renderer still prints the raw tier content, which "
+             "is the lesson slug at tier 0 and a structured payload at the "
+             "reveal")
+    for banned in ("authored.index", "authored.name", "authored.label",
+                   "authored.slug"):
+        if banned in ASSIST_JS:
+            fail("the browser must not render %r -- tier vocabulary and "
+                 "derived ids never cross the boundary" % banned)
+
+    # End to end: a genuine wrong answer with the shipped disabled backend
+    # returns the typed unavailable plus the authored fallback, whose
+    # learner-facing text is prose rather than the derived slug.
+    workdir = tempfile.mkdtemp()
+    shutil.copy(LESSON, os.path.join(workdir, "lesson_bank.md"))
+    proc, base, _ = start_daemon(workdir)
+    try:
+        _status, page = get(base + "quiz/lesson_bank")
+        if locked not in page:
+            fail("the served page cannot render the authored empty state")
+        by_id = api_by_id(LESSON)
+        started = post(base + "api/start",
+                       {"bank": "lesson_bank", "count": 2, "seed": 0,
+                        "mode": "practice"})
+        sid = started["session_id"]
+        q = by_id[started["item"]["id"]]
+        wrong = post(base + "api/submit",
+                     {"session_id": sid,
+                      "answer": serve_roundtrip.wrong_answer(q)})
+        if wrong.get("action") != "hold":
+            fail("the lesson-bank wrong submit must hold: %r" % wrong)
+        hint = post(base + "api/hint", {"session_id": sid})
+        if hint.get("status") != "unavailable":
+            fail("with no backend reachable /api/hint must be typed "
+                 "unavailable: %r" % hint)
+        authored = hint.get("authored")
+        if not authored:
+            fail("the typed unavailable must carry the authored fallback: %r"
+                 % hint)
+        display = authored.get("display")
+        if not isinstance(display, str) or not display.strip():
+            fail("the authored fallback carries no learner-facing text: %r"
+                 % authored)
+        slug = q.get("lesson_slug") or ""
+        if slug and slug in display:
+            fail("the derived lesson slug %r is what the learner would read: "
+                 "%r" % (slug, display))
+        if display != (q.get("lesson_ref") or ""):
+            fail("the authored fallback must read the author-written lesson "
+                 "reference %r, got %r" % (q.get("lesson_ref"), display))
+    finally:
+        proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
 def main():
     check_dom_order_and_copy()
     check_lifecycle_and_lock()
@@ -577,6 +653,7 @@ def main():
     check_no_leak()
     check_responsive_and_motion()
     check_assist_wire()
+    check_authored_fallback_copy_and_field()
     print("ok: model UI roundtrip -- assist DOM/copy, lifecycle + structural "
           "lock, pending rubric rows, no-leak boundary, responsive/reduced-"
           "motion/announce-once all held")

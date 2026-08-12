@@ -316,6 +316,8 @@ ASSIST_COPY = {
                      "response is still waiting for a human mark."),
     "lock_label": "Optional guidance is locked",
     "authored_heading": "Authored hint",
+    "authored_empty": ("No authored hint is available at this step. Keep "
+                       "reading the lesson or make another attempt."),
     "provenance_summary": "Generated support details",
 }
 
@@ -389,11 +391,19 @@ const Assist = (function(){
     if(!res.ok) throw new Error("HTTP " + res.status);
     return res.json();
   }
+  /* The runtime shapes the words; this only renders them. `display` is the
+     learner-facing text the runtime already resolved -- never an id, and
+     never re-derived here. An absent payload renders nothing, as before; a
+     payload that is present but has no text renders the locked empty
+     state, because a silent nothing is indistinguishable from a broken
+     panel. */
   function authoredHtml(authored){
-    if(!authored || !authored.available ||
-       typeof authored.content !== "string" || !authored.content) return "";
+    if(!authored) return "";
+    const text = (authored.available && typeof authored.display === "string")
+      ? authored.display : "";
+    const body = text ? esc(text) : "__ASSIST_AUTHORED_EMPTY__";
     return `<div class="authored-hint"><h4>__ASSIST_AUTHORED_HEADING__</h4>
-      <p>${esc(authored.content)}</p></div>`;
+      <p>${body}</p></div>`;
   }
   function lockHtml(copy){
     return `<div class="assist-lock">
@@ -490,6 +500,7 @@ window.Assist = Assist;
     .replace("__ASSIST_RUBRIC_EMPTY__", ASSIST_COPY["rubric_empty"])
     .replace("__ASSIST_LOCK_LABEL__", ASSIST_COPY["lock_label"])
     .replace("__ASSIST_AUTHORED_HEADING__", ASSIST_COPY["authored_heading"])
+    .replace("__ASSIST_AUTHORED_EMPTY__", ASSIST_COPY["authored_empty"])
     .replace("__ASSIST_PROVENANCE_SUMMARY__", ASSIST_COPY["provenance_summary"]))
 
 
