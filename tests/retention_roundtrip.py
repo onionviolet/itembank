@@ -261,7 +261,11 @@ def check_states():
             resp("s4", "emt:airway", "q1", "B", False, "2026-08-04T10:00:00.000Z"),
             resp("s5", "emt:airway", "q1", "B", True, "2026-08-05T10:00:00.000Z"),
         ])
-        p = report(base6)
+        # An explicit cutoff, like every other case above. Defaulting to the
+        # wall clock made this case pass only while the real date was near the
+        # fixture's, and silently flip to 'due' once the review interval had
+        # elapsed against today -- a test that expires is not a test.
+        p = report(base6, cutoff="2026-08-06T12:00:00.000Z")
         row = p["objectives"]["emt:airway"]
         if row["state"] != "stable":
             fail("sufficient recent evidence without escalation must be "

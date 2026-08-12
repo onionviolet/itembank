@@ -405,6 +405,21 @@ def assign_to_job(handle, pid):
     return hproc
 
 
+def _decode_stream(raw):
+    """Decode one captured stream and normalize its line endings to \\n.
+
+    The pipe is read as raw bytes, so a child running on Windows hands back
+    the CRLF its own text-mode stdout wrote. Without this, the identical
+    correct program passes on Linux and fails on Windows -- `exact` on the
+    stray \\r, and `trimmed` too, because it strips only \\n and leaves the
+    \\r behind. The scorer is meant to be one scorer everywhere; a verdict
+    that depends on the learner's operating system is the same defect as a
+    second scorer. Normalizing here also keeps the \\r out of the `actual`
+    text echoed back to the learner.
+    """
+    return raw.decode("utf-8", "replace").replace("\r\n", "\n")
+
+
 def _spawn_and_drain(argv, stdin_text, timeout_seconds, max_output_bytes):
     """One subprocess: stdin written then closed immediately -- so a program
     reading to EOF finishes its own read instead of sitting out the deadline
@@ -482,8 +497,8 @@ def _spawn_and_drain(argv, stdin_text, timeout_seconds, max_output_bytes):
             continue
     t_out.join(timeout=_DRAIN_JOIN_TIMEOUT)
     t_err.join(timeout=_DRAIN_JOIN_TIMEOUT)
-    actual = b"".join(out_buf).decode("utf-8", "replace")
-    errtext = b"".join(err_buf).decode("utf-8", "replace")
+    actual = _decode_stream(b"".join(out_buf))
+    errtext = _decode_stream(b"".join(err_buf))
     truncated = out_trunc.is_set() or err_trunc.is_set()
     # A run the deadline killed has no exit code of its own -- the process
     # did not exit, it was killed -- so exit_code is None exactly when

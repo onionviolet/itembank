@@ -121,10 +121,24 @@ _RELS = (
     'document.xml"/></Relationships>')
 
 
-def _zi(xml_bytes):
-    info = zipfile.ZipInfo("[Content_Types].xml")
+# zipfile.ZipInfo picks create_system from the running platform (0 on
+# Windows, 3 everywhere else) and writes it into every local/central header,
+# so the same fixture hashed to two different sha256 values depending on the
+# checkout machine and the gold table could only ever match one of them. Pin
+# it to 3 (Unix), the value the golds were recorded under.
+_ZIP_CREATE_SYSTEM = 3
+
+
+def _entry(name):
+    """A ZipInfo whose bytes do not depend on the OS building it."""
+    info = zipfile.ZipInfo(name)
     info.date_time = _ZIP_TIME
-    return info, xml_bytes
+    info.create_system = _ZIP_CREATE_SYSTEM
+    return info
+
+
+def _zi(xml_bytes):
+    return _entry("[Content_Types].xml"), xml_bytes
 
 
 def docx_bytes(document_xml, extra_parts=None):
@@ -134,16 +148,10 @@ def docx_bytes(document_xml, extra_parts=None):
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr(*_zi(_CONTENT_TYPES))
-        rels = zipfile.ZipInfo("_rels/.rels")
-        rels.date_time = _ZIP_TIME
-        zf.writestr(rels, _RELS)
-        doc = zipfile.ZipInfo("word/document.xml")
-        doc.date_time = _ZIP_TIME
-        zf.writestr(doc, document_xml)
+        zf.writestr(_entry("_rels/.rels"), _RELS)
+        zf.writestr(_entry("word/document.xml"), document_xml)
         for name, payload in (extra_parts or {}).items():
-            info = zipfile.ZipInfo(name)
-            info.date_time = _ZIP_TIME
-            zf.writestr(info, payload)
+            zf.writestr(_entry(name), payload)
     return buf.getvalue()
 
 

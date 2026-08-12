@@ -1202,7 +1202,12 @@ def check_api_override_route():
         shutil.copy(os.path.join(ROOT, "fixtures", "selection_bank.md"),
                     os.path.join(workdir, "sel_bank.md"))
         write_settings_file(workdir, {"daily_cap": 1})
-        today = datetime.date.today()
+        # The counted local day comes from the snapshot zone (UTC by
+        # default), not from this machine's clock. Stamping from
+        # datetime.date.today() put the seeded response on the previous
+        # counted day for any tester west of Greenwich after 18:00, so the
+        # subject never reached cap and the at-cap case passed a 200.
+        today = datetime.datetime.now(timezone.utc).date()
         ts = datetime.datetime(today.year, today.month, today.day, 9, 0,
                                tzinfo=timezone.utc
                                ).strftime("%Y-%m-%dT%H:%M:%S.000Z")

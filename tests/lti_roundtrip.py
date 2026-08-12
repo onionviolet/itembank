@@ -1639,11 +1639,30 @@ def main():
         check_tls_bind_loopback_handshake,
         check_dep_pin_record_and_hosting_doc,
     ]
+    # `cryptography`/`PyJWT` are optional and pinned: the surface refuses
+    # with `crypto_missing` when they are absent, and the three checks above
+    # that prove the refusal need nothing installed. Everything after them
+    # mints RSA keys and signs JWTs, so without the deps those checks were
+    # not testing the LTI surface -- they were re-testing the refusal, and
+    # reporting it as a failure. Run what can run, and name what did not.
+    crypto_free = {"check_registry_one_platform_per_issuer",
+                   "check_crypto_guard_doctor_refusal",
+                   "check_settings_schema_lti_block",
+                   "check_dep_pin_record_and_hosting_doc"}
+    have_crypto = lti.crypto_available()
+    if not have_crypto:
+        checks = [c for c in checks if c.__name__ in crypto_free]
     for check in checks:
         reset_handler_state()
         check()
         print("ok  %s" % check.__name__)
-    print("lti roundtrip: ok (%d checks)" % len(checks))
+    if not have_crypto:
+        print("lti roundtrip: %d checks ok; the signing checks were SKIPPED "
+              "-- install the pins to run them: "
+              "pip install cryptography==43.0.0 PyJWT==2.10.1"
+              % len(checks))
+    else:
+        print("lti roundtrip: ok (%d checks)" % len(checks))
 
 
 if __name__ == "__main__":

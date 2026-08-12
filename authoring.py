@@ -969,6 +969,28 @@ def _find_completed_run(run_id, target_path, state_dir):
 
 PENDING_DIRNAME = "pending"
 
+_FILENAME_SAFE = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
+
+
+def pending_filename(run_id):
+    """The on-disk file name for a run id.
+
+    Run ids are minted as `sha256:<hex>` (run_identity), and `:` cannot
+    appear in a Windows path -- os.replace raised WinError 87 and every
+    stateful authoring run died there. The id itself is part of the reported
+    payload and is left alone; only the file name is escaped, injectively
+    (`~` plus two hex digits per unsafe byte), so distinct run ids keep
+    distinct files and the mapping stays readable in a directory listing.
+    """
+    out = []
+    for ch in run_id:
+        if ch in _FILENAME_SAFE:
+            out.append(ch)
+        else:
+            out.extend("~%02x" % b for b in ch.encode("utf-8"))
+    return "".join(out) + ".json"
+
 
 def _save_pending(run_id, proposal, state_dir):
     """Durably record the prepared-but-unapproved proposal so an approval
@@ -976,7 +998,7 @@ def _save_pending(run_id, proposal, state_dir):
     contract). Atomic tmp-then-replace, same convention as the writer."""
     pending_dir = os.path.join(state_dir, PENDING_DIRNAME)
     os.makedirs(pending_dir, exist_ok=True)
-    path = os.path.join(pending_dir, run_id + ".json")
+    path = os.path.join(pending_dir, pending_filename(run_id))
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(proposal, fh, ensure_ascii=False, indent=2)
@@ -988,7 +1010,7 @@ def _load_pending(run_id, state_dir):
     """Read a pending proposal for this run id, or None."""
     if not state_dir:
         return None
-    path = os.path.join(state_dir, PENDING_DIRNAME, run_id + ".json")
+    path = os.path.join(state_dir, PENDING_DIRNAME, pending_filename(run_id))
     if not os.path.exists(path):
         return None
     with open(path, encoding="utf-8") as fh:
