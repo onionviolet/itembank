@@ -207,7 +207,12 @@ def test_one_writer():
     """
     writers = []
     for base, dirs, files in os.walk(ROOT):
-        dirs[:] = [d for d in dirs if d not in (".git", "__pycache__", "tests")]
+        # Sibling phase-run worktrees (.phaseNNN-wt) are nested checkouts of
+        # this repo, not product code: their copy of evidence.py must not
+        # count as a second writer.
+        dirs[:] = [d for d in dirs
+                   if d not in (".git", "__pycache__", "tests")
+                   and not (d.startswith(".phase") and d.endswith("-wt"))]
         for f in sorted(files):
             if not f.endswith(".py"):
                 continue
