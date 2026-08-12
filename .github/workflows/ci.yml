@@ -106,6 +106,29 @@ jobs:
       - name: Skill mirrors stay identical
         run: diff -rq .agents/skills .claude/skills
 
+      # The README documents the shipped surface only: every bare command
+      # token in a README code block must be a subcommand `itembank.py
+      # --help` registers (plan 999.5-02; precedent: 05-07's claim-word
+      # gate). Flags are not checked -- only bare command names.
+      - name: README command index names only shipped subcommands
+        run: python scripts/check_readme_commands.py
+
+      # Every schemas/*.json is exercised in CI (plan 999.5-02): `--all`
+      # structurally self-checks all twelve documents (parse + the whole
+      # check_schema walk), closing the seven-document gap where a schema
+      # could rot without a test producing an instance of it. Instance
+      # validation for the five session-contract schemas runs in the
+      # "Runtime output matches published schema" step above; the remaining
+      # seven (visual_interaction, agent_usage, model_adapter, tier_gate,
+      # selection, settings, update_manifest) get their real-payload
+      # validation in the roundtrip tests (visual_evidence_roundtrip,
+      # model_surface_roundtrip, model_adapter_roundtrip, model_gate_roundtrip,
+      # selection_roundtrip, config_roundtrip, update_roundtrip) that the
+      # Test suite step runs -- the self-check here guarantees none of them
+      # is silently absent.
+      - name: Every published schema self-checks
+        run: python schema_validate.py --all schemas
+
       # Machine-specific paths (this machine's checkout, username, AppData)
       # leak into agent docs/config and break external users' clones.
       - name: No machine-specific path in agent docs or config

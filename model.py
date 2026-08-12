@@ -1699,7 +1699,7 @@ def _check_section():
     """
     text = [
         "",
-        "7. Check.  The learner writes code; the machine runs it once per",
+        "8. Check.  The learner writes code; the machine runs it once per",
         "   authored case and scores the pass vector through the same scorer as",
         "   every other type.",
         "     [TYPE: check]",
@@ -1766,7 +1766,7 @@ SHARED FIELDS (all types)
   item [ID:] -- an unresolvable target or a dependency cycle is a `lint`
   error (prov.case_unknown / prov.prereq_unknown / prov.prereq_cycle).
 
-THE SIX ITEM TYPES
+THE EIGHT ITEM TYPES
 
 1. Multiple choice.  Default. No TYPE line needed.
      A) ...  B) ...  C) ...  D) ...

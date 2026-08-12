@@ -2,12 +2,39 @@
 
 - **Created:** 2026-08-11
 - **Phase:** 999.5 — agent-onboarding-skill-library
-- **Status:** CLOSED (plan 999.5-01 EXECUTED, `Status: complete`)
+- **Status:** CLOSED (plan 999.5-01 and plan 999.5-02 both EXECUTED,
+  `Status: complete`)
 - **Handing off to:** later phases that change the CLI or session protocol — the
   skills must be re-synced to the shipped surface (ROADMAP 999.5 maintenance
   obligation), and the mirror/CI convention keeps that mechanical.
 
 ---
+
+## 0. Plan 999.5-02 (docs-sync) — added at phase close
+
+Executed 2026-08-11 on top of 999.5-01; see
+[999.5-02-SUMMARY.md](phases/999.5-agent-onboarding-skill-library/999.5-02-SUMMARY.md)
+for the full per-task record. In one line: the README was rewritten against
+the frozen 44-command surface, the spec heading corrected to the shipped
+type count, ROADMAP's phase-status table corrected to STATE.md, two CI gates
+added (README claim-word gate + full `schemas/` coverage via
+`schema_validate.py --all`), the broken-windows ledger audited (window 1
+closed by a portable test, windows 2-3 recorded manual), and GRADING/CLAUDE
+drift fixed. Two behavior-preserving carve-outs only: the spec heading
+string in `model.py` + its pinning assertions, and the new
+`check_startup_reserved_port_falls_back` daemon test. The two skill trees
+were not touched (mirror diff clean).
+
+**Verification at 999.5-02 close:** full `tests/*.py` suite green,
+`itembank lint fixtures/sample_bank.md` 0 errors, `itembank guard .` 0
+offending files, `schema_validate.py --all schemas` 12/12 clean,
+`check_readme_commands.py` ok (44 registered), `diff -rq .agents/skills
+.claude/skills` clean, no "THE FIVE ITEM TYPES" remains.
+
+**Human-pending before `/gsd-ship`:** broken windows 2 and 3 (LAN phone
+reachability; GIFT import into sandbox.moodledemo.net) remain open — a human
+waive/verify is owed; `/gsd-ship` was not run and no window was waived by
+this phase.
 
 ## 1. What phase 999.5 delivered
 

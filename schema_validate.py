@@ -19,6 +19,7 @@ the contract -- which is worse than no check at all, because it looks like one.
 A green result from this validator means the whole document was checked.
 """
 import json
+import os
 import re
 import sys
 
@@ -243,12 +244,56 @@ def _report(total, error_count):
     print("%d instances, %d errors" % (total, error_count))
 
 
+def _all_schemas(argv):
+    """`--all` mode (plan 999.5-02): structural self-check of every schema
+    document under a directory (default `schemas/` beside this file). Each
+    document must parse as JSON and pass its own `check_schema` structural
+    walk -- the whole document, not a sample -- so a schema that rots (an
+    unsupported keyword, a dangling `$ref`, malformed JSON) fails CI even
+    when no test happens to produce an instance of it. Instance validation
+    for each document lives where a real payload exists (the roundtrip
+    tests); this closes the 'document is silently absent' gap for the
+    seven schemas the session round trip does not produce."""
+    import glob
+
+    if len(argv) > 1:
+        print("usage: schema_validate.py --all [schemas_dir]")
+        return 2
+    schemas_dir = argv[0] if argv else os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "schemas")
+    docs = sorted(glob.glob(os.path.join(schemas_dir, "*.json")))
+    if not docs:
+        print("no schema documents found under %s" % schemas_dir)
+        return 2
+    failures = 0
+    for path in docs:
+        name = os.path.basename(path)
+        try:
+            with open(path, encoding="utf-8") as fh:
+                schema = json.load(fh)
+            check_schema(schema)
+        except Exception as exc:
+            print("schema error: %s: %s" % (name, exc))
+            failures += 1
+            continue
+        print("ok: %s" % name)
+    if failures:
+        print("%d schema document(s) failed structural self-check" % failures)
+        return 1
+    print("%d schema documents self-check clean" % len(docs))
+    return 0
+
+
 def main(argv):
     if not argv:
         print("usage: schema_validate.py <schema.json> <instance.json | ->", file=sys.stderr)
         print("       schema_validate.py <schema.json> --jsonl <path>", file=sys.stderr)
         print("       schema_validate.py <schema.json> --array <path> <key>", file=sys.stderr)
+        print("       schema_validate.py --all [schemas_dir]", file=sys.stderr)
         return 2
+
+    if argv[0] == "--all":
+        return _all_schemas(argv[1:])
 
     schema_path = argv[0]
     rest = argv[1:]

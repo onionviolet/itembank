@@ -13,6 +13,7 @@ those things.
 Standard library only, no test framework, runnable as
 `python tests/daemon_roundtrip.py`.
 """
+import errno
 import hashlib, http.server, json, os, re, shutil, socketserver, subprocess, sys, tempfile, threading, time, uuid
 import urllib.error, urllib.parse, urllib.request
 
@@ -2835,6 +2836,53 @@ def check_startup_second_attaches():
         proc.terminate()
 
 
+def check_startup_reserved_port_falls_back():
+    """Window 1 (broken-windows ledger): start_server()'s reserved-port/
+    EACCES branch. The OS-refusal path (winerror 10013 / errno.EACCES) must
+    skip the probe entirely and fall straight back to a free port -- it
+    must not crash and must not burn the probe timeout on a bind the OS has
+    already refused. The OS refusal itself is not portable to reproduce
+    (Windows Hyper-V/WSL reserved ranges differ per machine; POSIX needs
+    root), so the Daemon constructor is patched to raise exactly the
+    OSError the branch keys on, and `probe` is patched to fail the test if
+    the branch touches it -- proving the EACCES path skips straight to the
+    fallback. The fallback must bind and answer.
+    """
+    port = free_port()
+    real_daemon = daemon.Daemon
+    real_probe = daemon.probe
+
+    class RefusingDaemon(socketserver.ThreadingMixIn, socketserver.TCPServer):
+        def __init__(self, addr, handler):
+            raise OSError(errno.EACCES, "permission denied")
+
+    def probe_must_not_run(*a, **k):
+        fail("reserved-port EACCES branch called probe() -- it must skip "
+             "straight to the free-port fallback")
+
+    daemon.Daemon = RefusingDaemon
+    daemon.probe = probe_must_not_run
+    try:
+        srv, bound_port, fell_back = daemon.start_server(
+            daemon.DaemonHandler, port)
+        thread = threading.Thread(target=srv.serve_forever, daemon=True)
+        thread.start()
+        try:
+            if not fell_back:
+                fail("reserved-port EACCES did not fall back to a free port")
+            status, _ = get("http://127.0.0.1:%d/" % bound_port)
+            if status != 200:
+                fail("the daemon did not serve after the reserved-port "
+                     "fallback: GET / returned %d" % status)
+        finally:
+            srv.shutdown()
+            thread.join(timeout=5)
+            srv.server_close()
+    finally:
+        daemon.Daemon = real_daemon
+        daemon.probe = real_probe
+
+
 def check_startup_squatter_falls_back():
     """A configured port held by a non-itembank listener falls back to a
     free port and serves successfully there, rather than hard-failing --
@@ -3267,6 +3315,7 @@ def main():
         check_probe_non_itembank_listener,
         check_probe_real_daemon,
         check_startup_second_attaches,
+        check_startup_reserved_port_falls_back,
         check_startup_squatter_falls_back,
         check_startup_loopback_by_default,
         check_startup_lan_binds_all,
