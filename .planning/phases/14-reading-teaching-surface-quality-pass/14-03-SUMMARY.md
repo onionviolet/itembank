@@ -1,0 +1,255 @@
+---
+phase: 14
+plan: 03
+subsystem: teaching-surface
+status: complete
+tags: [hint-ladder, api, cli, settings, d-09, defect-d-d]
+requires:
+  - runtime.HINT_TIERS, runtime.authored_hint, runtime.teaching_transition (Phase 6)
+  - surfaces/session.do_action (the one session adapter)
+  - surfaces/daemon API_ROUTES / ROUTE_CLI / SURFACE_PARITY (Phase 2, Rule 9(a))
+  - schemas/settings.schema.json + surfaces/settings generic get/set (Phase 2.1)
+provides:
+  - runtime.teaching_payload()
+  - surfaces/session.do_teach() and cmd_teach()
+  - POST /api/teach (handle_api_teach) and the reserved MCP tool name `teach`
+  - itembank teach [--next|--stumped]
+  - settings teaching.hint_display / teaching.hint_locked_preview
+affects:
+  - plan 14-07 (renders this payload on the sat quiz)
+  - plan 14-08 (removes do_hint's legacy stumped keyword once no caller remains)
+tech-stack:
+  added: []
+  patterns:
+    - "pure payload builder + thin surface adapter: the runtime resolves every
+       string and every gate, the route is plumbing"
+    - "three parallel surface tables updated in one commit (API_ROUTES,
+       ROUTE_CLI, SURFACE_PARITY) so a route without a twin fails the build"
+key-files:
+  created: []
+  modified:
+    - schemas/settings.schema.json
+    - surfaces/settings.py
+    - runtime.py
+    - itembank.py
+    - surfaces/session.py
+    - surfaces/daemon.py
+    - surfaces/cli.py
+    - README.md
+    - tests/config_roundtrip.py
+    - tests/hint_roundtrip.py
+    - tests/daemon_roundtrip.py
+decisions:
+  - "unlock_path is null, not \"stumped\", when the ladder does not run: a
+     refused ladder has no path rather than a misleading one."
+  - "A non-hold mode with no authored sentence falls back to one neutral
+     line rather than borrowing another mode's words. Today only `legacy`
+     reaches it, and no live session can carry that mode."
+  - "do_teach refuses `hint` when the runtime has not entitled it, so a
+     client cannot decide its own unlock path and stamp an unearned tier
+     with `unlock_path: attempt` in the evidence trail."
+  - "The read path repairs highest_tier_unlocked with the session's own
+     persisted counter, because no event carries it and evidence
+     reconciliation would otherwise pin `entitled` to false forever."
+metrics:
+  duration: ~2h
+  completed: 2026-08-13
+  commits: 3
+  tasks: 3
+actuals:
+  tokens: 26000
+  tasks: 3
+  commits: 3
+---
+
+# Phase 14 Plan 03: the authored hint ladder's first route Summary
+
+The six-tier authored hint ladder — LOCKED and fully specified since Phase 6,
+and the product's entire teaching differentiator — is now reachable by a
+learner, through `POST /api/teach` and `itembank teach`, with the runtime
+deciding every tier, every string and every gate.
+
+## What shipped
+
+**One settings pair.** `teaching.hint_display` (`rail|slot`, default `slot`)
+and `teaching.hint_locked_preview` (`full|next`, default `full`) exist in
+`schemas/settings.schema.json` as a sibling of `reader`, modelled on it
+exactly. Reachability needed no second validation path: `itembank config`
+walks the schema generically, so both dotted keys are settable and an
+out-of-enum value is refused by the existing `settings.invalid_value` code.
+
+**One pure payload builder.** `runtime.teaching_payload(q, rec, mode,
+locked_preview)` is 14-UI-SPEC §9.1's LOCKED shape. It reads no file, writes
+nothing, touches no session and reads no settings — the caller resolves the
+preview server-side and passes it in.
+
+**One session adapter, one route, one command.** `session.do_teach` reads or
+advances the ladder by exactly one tier through the existing `do_action`.
+`POST /api/teach` is the browser twin; `itembank teach` is the CLI twin, with
+the reserved MCP tool name `teach` registered in `SURFACE_PARITY` in the same
+commit. The route is deliberately separate from `/api/hint`, which is Phase
+8's model orchestration and from which plan 08-05 removed the legacy tier
+shim on purpose.
+
+## The guarantee, and how each half of it is held
+
+| Guarantee | Where it lives |
+|---|---|
+| `kind` is an enum of exactly two literals | `session.TEACH_ACTION_KINDS`, checked at the route and again in `do_teach` |
+| No request shape names a tier | `TEACH_BODY_FIELDS` = `(session_id, action)`, `TEACH_ACTION_FIELDS` = `(kind,)`; everything else refused 400 **by name** through `API_ACTION_FORBIDDEN_FIELDS` (which names `tier`) applied to the body AND the action |
+| A client cannot widen its own preview | `hint_locked_preview` is resolved in `_teach_read` from the settings file beside the bank; it is a request field nowhere, and a body carrying it is refused |
+| Availability is not a restated mode list | derived from `FEEDBACK_POLICIES[mode]["wrong"] == "hold"`, and `do_teach` refuses to transition when the payload says unavailable |
+| `further_locked` is not a tier oracle | `{name, header, unlock_copy}` only — no body, no availability flag, no index |
+
+## Verification, run and reported
+
+All green: `tests/hint_roundtrip.py`, `tests/daemon_roundtrip.py` (71 checks),
+`tests/config_roundtrip.py`, `tests/agent_roundtrip.py`,
+`tests/scoring_roundtrip.py`, `tests/evidence_roundtrip.py`,
+`tests/protocol_roundtrip.py`, `python schema_validate.py --all schemas`
+(17 documents), `scripts/check_readme_commands.py` (47 registered), plus 20
+further suites touching the changed surfaces.
+
+Driven live against a real daemon on `fixtures/lesson_bank.md`
+(`http://127.0.0.1:7421/`), practice mode, focused on q1 (mc, correct `B`),
+wrong answer `C`:
+
+- read before any attempt: `available: true`, `shown: []`, `next_locked` tier 0
+- after the wrong submit: `entitled: true`, `unlock_path: "attempt"`, still
+  `shown: []` — a wrong answer alone discloses nothing
+- `action: {kind: "hint"}`: `shown` grows to exactly one, header
+  `TIER 0 · LESSON`, display `The Airway, Step By Step`, one hint event
+  recorded with `unlock_path: attempt`
+- two consecutive reads returned byte-identical payloads and appended nothing
+- all five undisclosed tiers' authored text absent from the served payload
+- the ladder walked to `TIER 5 · REVEAL` / `exhausted: true` from
+  `itembank teach --stumped`, and the CLI and the route returned the same
+  ladder
+- six hint events total, one per shown tier, each carrying its unlock path
+- `diagnostic`, `exam` and `drill` each returned `available: false` with the
+  mode's own inherited sentence, `shown: []`, `unlock_path: null`, and zero
+  hint events
+
+Every attempt to address a tier was refused 400 with the field named:
+
+| Request | Result |
+|---|---|
+| `{session_id, tier: 5}` | 400 `field 'tier' is not accepted here…` |
+| `{session_id, action: {kind: hint, tier: 5}}` | 400 `field 'tier' is not accepted by /api/teach inside action…` |
+| `{session_id, action: {kind: stumped, reveal: true}}` | 400 `field 'reveal' is not accepted by /api/teach inside action…` |
+| `{session_id, action: {kind: "reveal"}}` | 400 `action.kind must be one of hint, stumped…` |
+| `{session_id, hint_locked_preview: "next"}` | 400 `field(s) hint_locked_preview are not accepted by /api/teach…` |
+| unearned `{action: {kind: hint}}` | 400 `no tier is unlocked by an attempt yet…` |
+
+None of the six moved the ladder or appended an event.
+
+## Deviations from Plan
+
+### Auto-fixed issues
+
+**1. [Rule 2 — missing critical functionality] `entitled` could never be true**
+
+- **Found during:** Task 3, on the first run of the route fixture.
+- **Issue:** `runtime._record_from_evidence` derives `highest_tier_unlocked`
+  only from tiers already *shown*, because no evidence event carries the
+  counter. `reconcile_teaching_state` then replaces the session's own record
+  with the evidence-derived one, so a tier unlocked by a wrong attempt and not
+  yet opened was invisible: `entitled` was pinned to `false` and `unlock_path`
+  always said `stumped`. The `Open the next hint` control — the one new string
+  in 14-UI-SPEC §14 — would have been unreachable, and plan 14-07 would have
+  rendered a payload that lied about what the runtime would do.
+- **Fix:** `_teach_read` captures the session's persisted counter before
+  reconciliation and takes the higher of the two. Evidence is a floor for a
+  session that fell behind, never a rewind of one that is ahead — the same
+  monotone-max discipline `_record_from_evidence` already uses internally. The
+  unlock *rule* is untouched and stays in `runtime.teaching_transition` where
+  D-05 put it. Confined to the new adapter, so no existing path changes.
+- **Files:** `surfaces/session.py`. **Commit:** `e969af9`.
+
+**2. [Rule 2 — missing critical functionality] a client could decide its own
+entitlement**
+
+- **Found during:** Task 3, reasoning about deviation 1.
+- **Issue:** `teaching_transition`'s hint branch reveals the next tier without
+  consulting `highest_tier_unlocked`; the only difference between `hint` and
+  `stumped` is the `unlock_path` recorded in evidence. A client sending `hint`
+  when not entitled would therefore stamp an unearned tier with
+  `unlock_path: attempt`, corrupting the trail T-14-13 exists to protect.
+- **Fix:** `do_teach` refuses `hint` when the payload's own `unlock_path` is
+  not `attempt`, with no transition and no evidence — the same shape as the
+  mode gate directly above it. It enforces the runtime's already-computed
+  entitlement rather than deciding a new one.
+- **Files:** `surfaces/session.py`. **Commit:** `e969af9`.
+
+### Documented refinements to the plan's shape
+
+**3. `unlock_path` is `null` when the ladder does not run.** The plan's
+literal wording ("`attempt` when `entitled`, else `stumped`") would have made
+an exam sitting report `stumped`, advertising a path the runtime refuses. A
+refused ladder has no unlock path. Asserted by fixture in both
+`hint_roundtrip` and `daemon_roundtrip`.
+
+**4. One new copy string, for a mode with no authored sentence.**
+14-UI-SPEC §9.3 supplies sentences for drill, diagnostic and exam.
+`FEEDBACK_POLICIES` also carries `legacy`, which is `defer_feedback` and
+therefore reaches the unavailable branch. `LADDER_UNAVAILABLE_DEFAULT`
+("This sitting's feedback mode does not run the hint ladder.") covers it
+rather than borrowing another mode's words. No live session can carry
+`legacy`, so this string is unreachable in normal use; a fixture asserts every
+mode in `FEEDBACK_POLICIES` refuses with *some* stated reason, so a future
+mode cannot ship with a silent refusal.
+
+**5. One file edited outside `files_modified`.** Task 2's action requires
+`teaching_payload` in `itembank.py`'s `__all__`; `itembank.py` was not in the
+plan's `files_modified` list. It is disjoint from plan 14-02's file set
+(`surfaces/presentation.py`, `surfaces/lesson.py`,
+`tests/stylesheet_roundtrip.py`), so the concurrent execution was unaffected.
+Two lines: the `from runtime import (…)` list and the `__all__` entry.
+
+**6. `--json` was not added.** The plan offered it "if that is the file's
+convention for the sibling session commands". It is not — `next`, `submit`,
+`report` and `interact` print JSON unconditionally. `teach` matches them.
+
+### Not done, deliberately
+
+`do_hint`'s legacy `stumped` keyword is left working, per the plan; its
+docstring now points at `do_teach` as the Phase 14 path and records that plan
+14-08 removes it.
+
+## Known Stubs
+
+None. No placeholder, empty-literal or TODO was introduced. `hint_display`
+ships with a real resolver contract (`slot` at every width on the
+single-column sat quiz) but no renderer consumes it until plan 14-07 — that is
+the plan's declared sequencing, not a stub: the setting is read, validated and
+served today, and 14-UI-SPEC §17 OPEN item 1 records that the two-column
+workspace `rail` needs is out of Phase 14 scope.
+
+## Deferred Issues
+
+`surfaces/settings.THIS_PHASE` is stale at 10, so `itembank config` prints both
+new rows as `inert -- read from phase 14` while phase 14's own `do_teach`
+reads one of them. Pre-existing (`auditor_autonomy` at phase 11 prints the
+same way, and `test_config_no_args_prints_table` asserts it), and fixing it
+means re-deriving that assertion across phases 11–14. Logged in
+`deferred-items.md` in this directory.
+
+## Threat Flags
+
+None. No new network endpoint beyond the loopback route this plan is about,
+no new auth path, no file access pattern, and no schema change at a trust
+boundary — the settings addition is additive and read server-side only.
+
+## Self-Check: PASSED
+
+Files claimed and found: `runtime.py`, `itembank.py`, `surfaces/session.py`,
+`surfaces/daemon.py`, `surfaces/cli.py`, `surfaces/settings.py`,
+`schemas/settings.schema.json`, `README.md`, `tests/hint_roundtrip.py`,
+`tests/daemon_roundtrip.py`, `tests/config_roundtrip.py`.
+
+Commits claimed and found: `3ee9825`, `1e78557`, `e969af9`.
+
+Symbols claimed and found: `runtime.teaching_payload`,
+`session.do_teach`, `session.cmd_teach`, `daemon.handle_api_teach`,
+`("POST", "/api/teach")` in `API_ROUTES` / `ROUTE_CLI` / `SURFACE_PARITY`,
+`teach` in `itembank.py --help`, `teaching` in the settings schema.

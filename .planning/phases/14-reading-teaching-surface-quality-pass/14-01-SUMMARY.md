@@ -1,0 +1,288 @@
+---
+phase: 14-reading-teaching-surface-quality-pass
+plan: 01
+subsystem: presentation
+status: complete
+tags: [design-tokens, css, accessibility, contrast, fonts, tracer]
+requires:
+  - "surfaces/presentation.py SHARED_CSS (the shared token layer, 03.1-06)"
+  - "surfaces/theme.py theme_css/_TOKEN_ORDER (the one palette, 04-03)"
+  - "surfaces/daemon.py FONT_ASSETS + FONT_ASSET_PREFIX (the closed font route)"
+  - "fonts/MANIFEST.json (the one record of which faces ship)"
+provides:
+  - "--space-1..--space-7 and --r-1: the spacing and radius scale 64 LESSON_CSS declarations already assumed"
+  - "--font-chrome and --font-code: the two voice tokens that make 'no surface may name a family literally' enforceable"
+  - "theme.SEMANTIC_TOKENS warn_bg/unknown/unknown_bg/pending/pending_bg/edge in both modes, emitted via _TOKEN_ORDER"
+  - "quiz_page.TEMPLATE __SHARED__ marker + quiz.page_for fill: the quiz joined to the token layer"
+  - "tests/stylesheet_roundtrip.py check_token_completeness / check_semantic_token_contrast / check_every_served_page_declares_fonts / document_key"
+affects:
+  - "every daemon-served reader, quiz and study page"
+  - "plans 14-02 .. 14-08, each of which consumes tokens defined here"
+tech-stack:
+  added: []
+  patterns:
+    - "per-rendered-document token completeness, not per-stylesheet: a served page's <style> blocks are one cascade"
+    - "reported-not-failed buckets for scopes no plan owns yet, so a gap stays visible instead of being pooled away"
+key-files:
+  created: []
+  modified:
+    - surfaces/theme.py
+    - surfaces/presentation.py
+    - surfaces/quiz_page.py
+    - surfaces/quiz.py
+    - surfaces/lesson.py
+    - tests/stylesheet_roundtrip.py
+decisions:
+  - "The six new palette values are MEASURED, not chosen: check_semantic_token_contrast re-measures every one with theme.contrast_ratio on each run, so a hand-edited hex fails the build rather than the learner's eyes."
+  - "--font-chrome/--font-code take the stacks already spelled out inline in SHARED_CSS's own body/.mono/code,pre rules, copied verbatim; the emitted stacks are byte-identical, so this is centralisation and not a new type choice."
+  - "quiz_page's style order is locked as theme -> shared -> the quiz's own layer, so the quiz's rules still win on equal specificity and plan 14-04's migration stays a separate, reviewable diff."
+  - "surfaces/day.py is NOT joined to the token layer by this plan. It assembles its own document from theme_css(cfg) + DAY_CSS rather than through presentation.surface_shell, so it declares no face -- the same defect as D-B on a surface this plan does not own. Recorded as a reported-every-run gap rather than fixed in passing or waived."
+metrics:
+  duration: ~55min
+  completed: 2026-08-12
+  tasks: 3
+  commits: 3
+  files: 6
+actuals:
+  tokens: 83726
+  tasks: 3
+  commits: 3
+---
+
+# Phase 14 Plan 01: The Token Layer, Palette to Served Page — Summary
+
+The seven `--space-*` tokens the reader referenced 64 times and nothing
+defined now resolve to real pixels on the served page, the two missing voice
+tokens make the no-literal-family rule enforceable for the first time, six
+measured semantic colours land in the one palette, and the sat quiz is joined
+to the shared token layer it had never included — proven end-to-end against a
+running daemon, and locked behind three new stylesheet invariants.
+
+## What Was Built
+
+**Task 1 — the invariants, written red first.** `tests/stylesheet_roundtrip.py`
+gained `check_token_completeness` (14-UI-SPEC §15 gate 8) and
+`check_semantic_token_contrast` (§3.3/§3.4). The first compares `var(--NAME)`
+references against `--NAME:` definitions **per rendered document**, not per
+stylesheet — a served page carries several `<style>` elements and a token
+defined in one is available to all of them, so `document_key()` groups by
+served-route prefix and pools every `collect_static()` entry into one
+"module constants" document that is reported and never failed on. A declared
+fallback is not read as a second reference, and a name inside an `@supports`
+prelude is ignored. The second calls `theme.contrast_ratio` directly — never a
+re-implementation, never a copied number — and never measures a `*_bg` token as
+a foreground.
+
+**Task 2 — the tracer, one path through every layer.**
+
+- `theme.py`: `SEMANTIC_TOKENS` gains exactly six values per mode; `_TOKEN_ORDER`
+  gains their six names, because a value absent from `_TOKEN_ORDER` is never
+  emitted and the dict edit alone defines nothing.
+- `presentation.py`: `SHARED_CSS`'s `:root` gains `--space-1`…`--space-7`,
+  `--r-1`, `--font-chrome` and `--font-code`; `body`, `.mono` and `code,pre`
+  now consume the two voice tokens. The docstring's stale four-size
+  14/16/20/28 paragraph is replaced by the project scale of five sizes
+  12/16/18/20/32 at weights 400/600, and names this `:root` as the owner of
+  spacing/radius/voice/measure while `theme.py` stays the sole palette owner.
+- `lesson.py`: `RUNNABLE_CSS`'s two `var(--panel)` become `var(--chip)`. Nothing
+  else in the reader — the rest is plan 14-02's.
+- `quiz_page.py` + `quiz.py`: a `__SHARED__` marker after `__THEME__` and before
+  the page's own first rule, filled with `presentation.SHARED_CSS` at the one
+  site that fills `__THEME__`.
+
+**Task 3 — font reachability per route.**
+`check_every_served_page_declares_fonts` groups by document and asserts each
+served route declares exactly the family/weight set `fonts/MANIFEST.json`
+records, read from the manifest rather than restated.
+`REQUIRED_FONT_ROUTES` is written out rather than derived from
+`collect_served`'s own tuple, so a collector that stopped fetching the quiz
+fails by route name instead of shrinking the assertion.
+
+## Verification — actual output
+
+### The fixture, red before the fix (Task 1)
+
+```
+FAIL: undefined custom properties reach a rendered page -- every one of these
+resolves to the property's initial value in a real browser, silently:
+  served /lesson/lesson_bank: --space-4 is referenced (near 'padding:') ...
+  ... --space-3, --space-7, --space-6, --space-5, --space-2, --space-1
+note (reported, not failed): --panel referenced in surfaces.lesson.RUNNABLE_CSS
+EXIT=1
+
+FAIL: semantic tokens do not meet their measured contrast floors:
+  light/dark: SEMANTIC_TOKENS defines no warn_bg
+  light/dark: SEMANTIC_TOKENS defines no unknown and no unknown_bg
+  light/dark: SEMANTIC_TOKENS defines no pending and no pending_bg
+  light/dark: SEMANTIC_TOKENS defines no edge, so every interactive control is
+    still identified by --line at 1.3:1
+EXIT=1
+```
+
+`--font-chrome`, `--font-code` and `--r-1` are named by the design contract and
+were defined nowhere, but no shipped rule referenced them, so the red run could
+not name them; Task 2 defined them as it created their first references.
+
+### Suites (all exit 0)
+
+| Command | Result |
+|---|---|
+| `python tests/stylesheet_roundtrip.py` | ok — 18 stylesheets balanced, every `var(--NAME)` a served page references defined in that same page, semantic tokens at 4.5:1 and `--edge` at 3:1 in both modes measured by `theme.contrast_ratio`, 4 `@font-face` urls root-absolute, served 200 `font/woff2`, 404 under a page route, all 4 manifest faces on each of the 3 required routes, in step with `fonts/MANIFEST.json` |
+| `python tests/presentation_roundtrip.py` | ok — shared palette/adapter contract green |
+| `python tests/lesson_roundtrip.py` | ok |
+| `python tests/scoring_roundtrip.py` | `scoring contract: ok (6 items, one scorer)` |
+| `python tests/theme_roundtrip.py` | ok — derivation, contrast, semantic-independence, mode-CSS |
+| `python tests/serve_roundtrip.py` | ok — 6 items scored, 6 evidence events, static offline build green |
+| `python tests/surface_roundtrip.py` | ok |
+| `python tests/visual_accessibility_roundtrip.py` | `PASS` |
+| `python itembank.py lint fixtures/lesson_bank.md` | `3 items, 0 errors, 4 warnings` |
+| `python itembank.py lint fixtures/sample_bank.md` | `6 items, 0 errors, 6 warnings` |
+
+`presentation_roundtrip.py` prints `FAIL: expected exactly one h1, found 2` and
+exits 0: that is its own self-check deliberately tripping `assert_single_h1`
+inside a `try/except SystemExit`, and is pre-existing output, not a regression.
+
+**The whole suite, run the way CI runs it** (`for t in tests/*.py; do python
+"$t" || exit 1; done`) — because adding `SHARED_CSS` to the quiz page changes
+what every quiz-touching fixture sees, so a sample would not have been an
+honest report:
+
+```
+passed: 64 of 64
+FAILURES: NONE
+```
+
+### The tracer gate — served bytes, not an inference
+
+`python itembank.py daemon fixtures --no-open` → `url http://127.0.0.1:8730/`
+(default port, no fallback needed). Fetched over HTTP:
+
+```
+GET /lesson/lesson_bank -> HTTP 200, 20701 bytes served
+  --space-1..7 = 4px 8px 16px 24px 32px 48px 64px   (all non-empty: True)
+  @font-face rules in document: 4
+  literal 'var(--panel)' present: False
+  .wrap rule: .wrap{max-width:var(--measure-prose);margin:0 auto;
+                    padding:var(--space-4) var(--space-3) ...
+
+GET /quiz/lesson_bank -> HTTP 200, 112924 bytes served
+  --space-1..7 = 4px 8px 16px 24px 32px 48px 64px   (all non-empty: True)
+  @font-face rules in document: 4
+  literal 'var(--panel)' present: False
+```
+
+The four faces declared by **both** documents, with their served urls:
+
+```
+Source Serif 4     400  /assets/fonts/source-serif/SourceSerif4-Regular.ttf.woff2
+Source Serif 4     600  /assets/fonts/source-serif/SourceSerif4-Semibold.ttf.woff2
+iA Writer Quattro  400  /assets/fonts/ia-writer-quattro/iAWriterQuattroS-Regular.woff2
+iA Writer Quattro  700  /assets/fonts/ia-writer-quattro/iAWriterQuattroS-Bold.woff2
+```
+
+Each url fetched from the same daemon:
+
+```
+GET .../SourceSerif4-Regular.ttf.woff2   -> 200 font/woff2  76260 bytes, magic=b'wOF2'
+GET .../SourceSerif4-Semibold.ttf.woff2  -> 200 font/woff2  80732 bytes, magic=b'wOF2'
+GET .../iAWriterQuattroS-Regular.woff2   -> 200 font/woff2  44416 bytes, magic=b'wOF2'
+GET .../iAWriterQuattroS-Bold.woff2      -> 200 font/woff2  45252 bytes, magic=b'wOF2'
+```
+
+The before-state, from the base commit rather than from memory:
+
+```
+git show a811350:surfaces/quiz_page.py | grep -c "@font-face"  -> 0
+git show a811350:surfaces/quiz_page.py | grep -c "SHARED_CSS"  -> 0
+```
+
+Daemon stopped; port 8730 confirmed clear.
+
+### The new invariants were negative-tested
+
+Synthetic input, to prove they bite rather than merely pass:
+
+```
+quiz template loses the shared-CSS include ->
+  FAIL: served /quiz/lesson_bank declares 0 of the 4 faces
+        fonts/MANIFEST.json records; missing Source Serif 4 400, ...
+collector stops fetching the quiz ->
+  FAIL: no stylesheet was collected for served /quiz/lesson_bank, so gate 9
+        would silently stop asserting that route
+```
+
+## Deviations from Plan
+
+**1. [Rule 3 — Blocking] The new `quiz_page.py` docstring tripped the
+no-literal-family scan**
+- **Found during:** Task 2, by the plan's own verify chain
+- **Issue:** the docstring explained D-B by naming both vendored families in
+  prose. `presentation_roundtrip.py` Test 2 scans **source text** — comments and
+  docstrings included — and permits only `presentation.py` to spell a family.
+- **Fix:** reworded to "either vendored face", with the reason recorded in the
+  docstring so it is not reintroduced. The test was not weakened.
+- **Files modified:** `surfaces/quiz_page.py` · **Commit:** `e28c7ea`
+
+**2. [Rule 1 — Bug] The fixture's green line used a non-ASCII ellipsis**
+- **Found during:** Task 2, in the first green run
+- **Issue:** a Windows console rendered it lossily (`var(--�)`).
+- **Fix:** replaced with `var(--NAME)`. **Commit:** `e28c7ea`
+
+**3. [Scope — reported, not fixed] `served /day/sample_plan` declares zero
+faces**
+- **Found during:** Task 3's first run
+- **Issue:** the plan's own done-criterion expected day to pass once Task 2
+  landed. It does not. `surfaces/day.py` assembles its document from
+  `theme_css(cfg) + DAY_CSS` rather than through `presentation.surface_shell`,
+  so it has never carried the shared token layer — the same defect as D-B, on a
+  surface this plan does not own.
+- **Disposition:** **not fixed here.** 14-UI-SPEC §4.2 records that this phase
+  does not widen its diff to reach `day.py`, and joining a fourth surface inside
+  the phase's tracer slice is precisely what would make the tracer unverifiable.
+  Rather than waive it or pool it away, the route is **reported on every run**
+  via `REPORTED_FONT_ROUTES`, so the gap is visible in every green build until a
+  plan claims it. See Deferred Issues.
+- **Commit:** `0fbfe07`
+
+## Deferred Issues
+
+| Item | Where | Why deferred |
+|---|---|---|
+| `surfaces/day.py` is not joined to `presentation.SHARED_CSS`; the day cockpit declares no `@font-face` and renders in the fallback stack | `surfaces/day.py:1449` (`theme_css + DAY_CSS`, bypassing `presentation.surface_shell`) | Out of this plan's file scope and outside the tracer's one path; 14-UI-SPEC §4.2 defers `day.py` explicitly. Reported by `tests/stylesheet_roundtrip.py` on every run so it cannot be forgotten. Needs an owning plan. |
+
+## Known Stubs
+
+None. No hardcoded empty value, placeholder string, TODO or unwired component
+was introduced; every token added is consumed by a rule that reaches a served
+page, and every value is asserted by a fixture.
+
+## Threat Flags
+
+None. No new network endpoint, auth path, file-access pattern or schema change
+at a trust boundary. `T-14-01` (a hand-edited hex dropping below AA) is
+mitigated as planned by `check_semantic_token_contrast` re-measuring with
+`theme.contrast_ratio` on every run; `T-14-02` holds because the included
+string is a module constant and the substitution takes no caller-supplied
+value; `T-14-SC` holds because no package manager was invoked and no byte was
+fetched.
+
+## Success Criteria
+
+| Criterion | Status |
+|---|---|
+| No served page references an undefined custom property | met — `check_token_completeness` green over all four served routes |
+| The quiz page declares four `@font-face` rules; each url returns 200 | met — 4 rules in the served document, 4 × `200 font/woff2` |
+| `--edge` ≥ 3.0 on `--card`, `--bg`, `--chip` in both modes | met — measured by `theme.contrast_ratio` |
+| `--warn`/`--unknown`/`--pending` ≥ 4.5 on own bg, `--bg`, `--card`, both modes | met — 18 pairs measured |
+| Runnable code blocks render on `--chip`, not on nothing | met — no `var(--panel)` remains anywhere in the tree |
+| No surface file gained a colour literal; `theme.py` still the only palette | met — the six hexes are in `theme.py` alone; `test_no_hex_literal_added_to_shared_css` green |
+
+## Self-Check: PASSED
+
+- `.planning/phases/14-reading-teaching-surface-quality-pass/14-01-SUMMARY.md` — FOUND
+- commit `8e397b6` — FOUND
+- commit `e28c7ea` — FOUND
+- commit `0fbfe07` — FOUND
+- all six modified files present and importable (every suite above imports them)
+- `git diff --diff-filter=D a811350..HEAD` — no deletions
+- working tree clean, no untracked files
