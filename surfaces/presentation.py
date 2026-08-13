@@ -27,8 +27,13 @@ weights 400 and 600 only** (`.planning/UI-SPEC.md` §7, `03.1-UI-SPEC.md` §4,
 any string inside an interactive control, and any string a learner must read
 in order to recover from a failure, is 16px minimum. This paragraph
 previously claimed four sizes of 14/16/20/28, which predated `text-lesson`
-and the display row and is what let eleven 14px sites accumulate below; the
-migration of those sites is plan 14-03's, not this constant's.
+and the display row and is what let eleven 14px sites accumulate below. Plan
+14-02 dispositioned those eleven individually -- the four disclosure/link
+controls and the two recovery regions to 16px, the five label roles to 12px
+-- and moved the display row from 28px to 32px, so no size in this file is
+off the scale. `day.py`, `study.py` and `theme.py`'s settings CSS still
+carry 14px sites; that is recorded debt (14-UI-SPEC §17 item 6), not a
+second scale.
 
 The rest of the shell is unchanged: the 8-point spacing scale
 (4/8/16/24/32/48/64), 720px content / 800px shell measures, 44px interactive
@@ -67,6 +72,21 @@ import html, json
 # megabyte of base64 added to every emitted page plus a second emit path to
 # maintain; rejected on cost, and recorded here as the honest future option
 # behind an explicit embed flag rather than as a silent default.
+#
+# WHY --measure-prose IS 59ch AND NOT 66ch (14-UI-SPEC §4.3, plan 14-02),
+# recorded in Python for the same reason as above:
+#
+# `1ch` is the advance of `0`, which is 0.500 em in Source Serif 4, while the
+# frequency-weighted average character in running English prose (spaces
+# included) is 0.447 em. The ratio is 1.118; in iA Writer Quattro it is
+# 1.119, so one correction serves both voices. The old `66ch` therefore
+# rendered 74 real characters at 18px -- past .planning/UI-SPEC.md §8's
+# 72-character ceiling -- and `90ch` rendered about 101. The token names and
+# their stated intent are unchanged; only the numbers that express that
+# intent moved: 59ch is 531px at 18px, which is 66 real characters, and 80ch
+# is the 720px container cap. The reader must also add its side gutter
+# OUTSIDE this token (`*{box-sizing:border-box}` is global), or the padding
+# eats the column and the correction does nothing.
 SHARED_CSS = r"""
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -125,8 +145,8 @@ body{margin:0;background:var(--bg);color:var(--ink);
   --space-5:32px;
   --space-6:48px;
   --space-7:64px;
-  --measure-prose:66ch;
-  --measure-wide:90ch;
+  --measure-prose:59ch;
+  --measure-wide:80ch;
   --leading-lesson:1.65;
   --r-1:6px;
   --r-2:8px;
@@ -134,7 +154,7 @@ body{margin:0;background:var(--bg);color:var(--ink);
 }
 .surface{max-width:720px;margin:0 auto;padding:24px 16px 64px;min-width:0}
 .surface.wide{max-width:800px}
-h1{font-size:28px;font-weight:600;line-height:1.2;margin:0 0 8px}
+h1{font-size:32px;font-weight:600;line-height:1.2;margin:0 0 8px}
 h2{font-size:20px;font-weight:600;line-height:1.2;margin:32px 0 16px}
 h3{font-size:16px;font-weight:600;line-height:1.4;margin:24px 0 8px}
 p{font-size:16px;line-height:1.5;margin:0 0 16px;overflow-wrap:anywhere}
@@ -144,10 +164,10 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{
   outline:2px solid var(--accent);outline-offset:2px}
 .mono{font-family:var(--font-code);
   font-variant-numeric:tabular-nums}
-.back{margin:0 0 24px;color:var(--mut);font-size:14px}
+.back{margin:0 0 24px;color:var(--mut);font-size:16px}
 .context-line{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;
   gap:4px 18px;align-items:center;background:var(--bg);padding:8px 0 10px;
-  border-bottom:1px solid var(--line);margin-bottom:14px;font-size:14px;
+  border-bottom:1px solid var(--line);margin-bottom:14px;font-size:12px;
   color:var(--mut)}
 .context-line .cx{overflow-wrap:anywhere}
 .card,.step,.state,.empty{background:var(--card);border:1px solid var(--line);
@@ -155,14 +175,14 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{
 .step .step-label{font-size:20px;font-weight:600;margin:0 0 8px}
 .step .step-prompt{font-size:16px;font-weight:600;margin:0 0 12px}
 .step-body{font-size:16px;line-height:1.5;overflow-wrap:anywhere}
-.step-status{min-height:24px;font-size:14px;color:var(--mut);
+.step-status{min-height:24px;font-size:12px;color:var(--mut);
   margin:12px 0 0}
 .step details{margin:12px 0 0;border-top:1px solid var(--line);
   padding-top:8px}
-.step details summary{cursor:pointer;font-size:14px;font-weight:600}
+.step details summary{cursor:pointer;font-size:16px;font-weight:600}
 details.details-section{border:1px solid var(--line);border-radius:8px;
   padding:8px 12px;margin:12px 0 16px;background:var(--card)}
-details.details-section summary{cursor:pointer;font-size:14px;
+details.details-section summary{cursor:pointer;font-size:16px;
   font-weight:600;padding:4px 0}
 .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}
 button.go,a.go{display:inline-flex;align-items:center;justify-content:center;
@@ -173,7 +193,7 @@ button.go,a.go{display:inline-flex;align-items:center;justify-content:center;
 button.go.primary,a.go.primary{background:var(--accent-soft);
   border-color:var(--accent);color:var(--accent)}
 button.go:disabled{opacity:.55;cursor:default}
-.state{padding:12px 16px;font-size:14px;color:var(--mut)}
+.state{padding:12px 16px;font-size:16px;color:var(--mut)}
 .state .state-text{margin:0}
 .state.state-ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok)}
 .state.state-bad{color:var(--bad);background:var(--bad-bg);border-color:var(--bad)}
@@ -181,20 +201,25 @@ button.go:disabled{opacity:.55;cursor:default}
 .row{background:var(--card);border:1px solid var(--line);border-radius:12px;
   padding:16px;margin:0 0 16px}
 .row .name{font-size:16px;font-weight:600;overflow-wrap:anywhere}
-.row .links{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:14px}
+.row .links{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:16px}
 .row a{color:var(--accent)}
 .empty h2{font-size:20px;font-weight:600;margin:0 0 16px}
 .empty p{color:var(--mut);font-size:16px}
-.headline{font-size:28px;font-weight:600;color:var(--accent);line-height:1.1}
-.headline-label{font-size:14px;color:var(--mut);margin:4px 0 0}
+.headline{font-size:32px;font-weight:600;color:var(--accent);line-height:1.1}
+.headline-label{font-size:12px;color:var(--mut);margin:4px 0 0}
 .figures{display:flex;gap:32px;flex-wrap:wrap;margin-top:24px}
 .figure-value{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
-.figure-label{font-size:14px;color:var(--mut);margin-top:4px}
-.status{font-size:14px;color:var(--mut);margin:16px 0 0}
+.figure-label{font-size:12px;color:var(--mut);margin-top:4px}
+/* Recovery copy, not a chip: LESSON_CSS defines no `.status` rule, so this
+   one declaration styles the reader's degraded-lesson and style-warning
+   notice. A learner who cannot read the failure sentence cannot recover from
+   it, so it takes the 16px floor alongside `.state` (14-UI-SPEC §4.2). A
+   genuinely compact status chip uses `.step-status`, which is 12px. */
+.status{font-size:16px;color:var(--mut);margin:16px 0 0}
 table{width:100%;border-collapse:collapse;margin:8px 0 16px}
 th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);
   font-size:16px;overflow-wrap:anywhere;vertical-align:top}
-th{font-size:14px;color:var(--mut);font-weight:600}
+th{font-size:12px;color:var(--mut);font-weight:600}
 .table-wrap{overflow-x:auto;min-width:0}
 code,pre{font-family:var(--font-code);
   overflow-wrap:anywhere}

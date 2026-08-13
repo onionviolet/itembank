@@ -697,11 +697,22 @@ def test_teaching_step_primary_action_contract():
 
 def test_voice_measure_leading_tokens_ship_in_shared_css():
     """Test 1: the reading surface's five new design tokens land in
-    SHARED_CSS with the exact values 03.1-UI-SPEC §2 / §7.1 lock."""
+    SHARED_CSS with the exact values 03.1-UI-SPEC §2 / §7.1 lock, as
+    RETUNED by 14-UI-SPEC §4.3 against the faces that now actually render.
+
+    The two measures moved from 66ch/90ch to 59ch/80ch and this fixture
+    moved with them, deliberately and not by weakening: `1ch` is the advance
+    of `0` (0.500 em in Source Serif 4) while the frequency-weighted average
+    character in running prose is 0.447 em, so the old `66ch` set 74 real
+    characters per line -- past the 72-character ceiling `.planning/UI-SPEC.md`
+    §8 states. The token names and their stated intent are unchanged; only
+    the numbers that express that intent moved. `--leading-lesson:1.65` is
+    re-confirmed by measurement (§4.5) and does NOT move.
+    """
     sys.path.insert(0, ROOT)
     from surfaces.presentation import SHARED_CSS
-    for want in ("--font-paper", "--font-ledger", "--measure-prose:66ch",
-                 "--measure-wide:90ch", "--leading-lesson:1.65"):
+    for want in ("--font-paper", "--font-ledger", "--measure-prose:59ch",
+                 "--measure-wide:80ch", "--leading-lesson:1.65"):
         if want not in SHARED_CSS:
             fail("SHARED_CSS must carry %r (03.1-UI-SPEC §2, §7.1)" % want)
 
