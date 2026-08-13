@@ -546,7 +546,7 @@ def main():
         proc.terminate()
         shutil.rmtree(workdir, ignore_errors=True)
     print("ok: stylesheet roundtrip -- %d stylesheets balanced, popover never "
-          "suppressed on screen, every var(--…) a served page references "
+          "suppressed on screen, every var(--NAME) a served page references "
           "defined in that same page, semantic tokens at 4.5:1 and --edge at "
           "3:1 in both modes measured by theme.contrast_ratio, %d @font-face "
           "urls root-absolute, served 200 font/woff2, 404 under a page route, "

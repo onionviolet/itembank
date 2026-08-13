@@ -39,11 +39,33 @@ BASE_TOKENS = {
              "chip": "#1d2726", "line": "#26312f", "mut": "#8fa19d"},
 }
 
+# `unknown`/`pending` and the three `*_bg` backgrounds close 14-UI-SPEC §3.3:
+# `.planning/UI-SPEC.md` §7.1 named them as drafts "gated on a contrast_ratio
+# fixture ... A failing draft is re-picked, not waived", and 06-UI-SPEC §5.5's
+# unavailable-tier card already specifies a token that did not exist. `edge`
+# closes §3.4: `--line` on `--card` measures 1.28:1 (light) / 1.26:1 (dark),
+# so a learner identified the primary response control by a boundary that
+# fails WCAG 1.4.11's 3:1 for non-text content.
+#
+# EVERY VALUE BELOW IS MEASURED, NOT CHOSEN. Each was run through this file's
+# own `contrast_ratio` and is re-measured on every run by
+# `tests/stylesheet_roundtrip.py:check_semantic_token_contrast`. Do not round,
+# re-pick or "improve" a hex here; if one fails the fixture, report the
+# measured ratio rather than nudging the digit.
+#
+# A `*_bg` token is a BACKGROUND and is never itself a text colour -- measuring
+# `warn_bg` against `bg` gets 1.03 and asserts the wrong thing.
 SEMANTIC_TOKENS = {
     "light": {"ok": "#1b7a3d", "ok_bg": "#e8f4ec", "bad": "#b4272b",
-              "bad_bg": "#fbebeb", "warn": "#8a5900"},
+              "bad_bg": "#fbebeb", "warn": "#8a5900", "warn_bg": "#f8f1e2",
+              "unknown": "#566067", "unknown_bg": "#edf0f2",
+              "pending": "#5b4a9f", "pending_bg": "#efecf7",
+              "edge": "#7f8b88"},
     "dark": {"ok": "#4fbf74", "ok_bg": "#11291b", "bad": "#f0666a",
-             "bad_bg": "#2b1416", "warn": "#e0a23a"},
+             "bad_bg": "#2b1416", "warn": "#e0a23a", "warn_bg": "#2b2312",
+             "unknown": "#9aa7ad", "unknown_bg": "#1b2325",
+             "pending": "#b3a3e6", "pending_bg": "#221c33",
+             "edge": "#697774"},
 }
 
 # WCAG thresholds: 4.5:1 for text/control pairings, 3:1 for focus/border
@@ -231,8 +253,13 @@ def theme_preview(source):
     }
 
 
+# What actually reaches a served document. A value added to BASE_TOKENS or
+# SEMANTIC_TOKENS and not named here defines nothing: `_tokens_css` emits this
+# tuple and only this tuple.
 _TOKEN_ORDER = ("bg", "card", "ink", "mut", "line", "accent", "accent_soft",
-                "ok", "ok_bg", "bad", "bad_bg", "warn", "chip")
+                "ok", "ok_bg", "bad", "bad_bg", "warn", "warn_bg",
+                "unknown", "unknown_bg", "pending", "pending_bg",
+                "edge", "chip")
 
 
 def _tokens_css(tokens):

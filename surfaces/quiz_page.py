@@ -18,6 +18,22 @@ sticky context line (bank/lesson context, objective, item N of M, session
 mode), one native details disclosure for secondary metadata, a single
 dominant stem h1, native response controls, a reserved feedback region, and
 one primary next action per state.
+
+THE STYLE BLOCK'S ORDER IS LOAD-BEARING AND IS LOCKED (14-UI-SPEC §3, D-B):
+`__THEME__` (the generated palette) then `__SHARED__`
+(`presentation.SHARED_CSS`, the token layer that carries the four vendored
+`@font-face` rules and the spacing/radius/voice/measure `:root` block) then
+this page's own rules, which therefore still win on equal specificity.
+
+Until this file gained `__SHARED__` it substituted `__THEME__` and nothing
+else, which is the whole of DEFECT D-B: the four `@font-face` rules live in
+the shared token layer, so the sat quiz had never once rendered in either
+vendored face and could not. The 2026-08-12 font-404 fix repaired the reader
+and never reached here, because the quiz was not joined to the layer it
+fixed. The families themselves are deliberately not named anywhere in this
+docstring: `presentation.py` is the only file in `surfaces/` permitted to
+spell a vendored family, and that rule is asserted over source text, prose
+included (`tests/presentation_roundtrip.py` Test 2).
 """
 
 
@@ -26,6 +42,7 @@ TEMPLATE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <title>__TITLE__</title>
 <style>
 __THEME__
+__SHARED__
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
   font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}

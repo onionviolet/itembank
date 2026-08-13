@@ -11,14 +11,31 @@ labels, content, state, and actions only, never scorers, keys, session
 file paths, evidence writers, or mutation callbacks (D-04's "surfaces are
 thin clients" rule extended to the markup itself).
 
-The design tokens below implement 04-UI-SPEC's shared shell: the 8-point
-spacing scale (4/8/16/24/32/48/64), exactly four font sizes (14/16/20/28)
-at two weights (400/600), 720px content / 800px shell measures, 44px
-interactive targets, a 2px focus ring with 2px offset, a 768px breakpoint,
-320px overflow protection, a 150ms motion cap, and the reduced-motion kill
-rule. A future graphical/canvas presentation may only attach behind
-`render_surface`'s adapter seam while equivalent semantic HTML remains
-present and operable; Phase 4 implements no canvas or media design.
+The design tokens below implement the shared shell. `SHARED_CSS`'s `:root`
+block is the OWNER of the spacing, radius, voice and measure tokens --
+`--space-1` … `--space-7`, `--r-1` … `--r-3`, `--font-paper`/`--font-ledger`/
+`--font-chrome`/`--font-code`, `--measure-prose`/`--measure-wide` and
+`--leading-lesson` -- while `surfaces/theme.py` stays the sole owner of the
+palette. No surface file may define a spacing or voice token of its own, and
+no surface file may name a font family literally (`.planning/UI-SPEC.md` §7);
+that rule was unenforceable until `--font-chrome` and `--font-code` existed
+here, because there was no token to name instead.
+
+The project type scale is **five sizes -- 12 / 16 / 18 / 20 / 32 px -- at
+weights 400 and 600 only** (`.planning/UI-SPEC.md` §7, `03.1-UI-SPEC.md` §4,
+14-UI-SPEC §4.2). 12px is the *label* size, not a general "small text" size:
+any string inside an interactive control, and any string a learner must read
+in order to recover from a failure, is 16px minimum. This paragraph
+previously claimed four sizes of 14/16/20/28, which predated `text-lesson`
+and the display row and is what let eleven 14px sites accumulate below; the
+migration of those sites is plan 14-03's, not this constant's.
+
+The rest of the shell is unchanged: the 8-point spacing scale
+(4/8/16/24/32/48/64), 720px content / 800px shell measures, 44px interactive
+targets, a 2px focus ring with 2px offset, a 768px breakpoint, 320px overflow
+protection, a 150ms motion cap, and the reduced-motion kill rule. A future
+graphical/canvas presentation may only attach behind `render_surface`'s
+adapter seam while equivalent semantic HTML remains present and operable.
 """
 import html, json
 
@@ -54,7 +71,7 @@ SHARED_CSS = r"""
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--ink);
-  font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  font:16px/1.5 var(--font-chrome)}
 /* Voice & measure tokens (03.1-UI-SPEC §2, §7.1): fonts resolve by token
    only. --font-paper/--font-ledger prefer the vendored faces (Source Serif
    4 / iA Writer Quattro -- landed in plan 03.1-01) and fall back to the
@@ -85,12 +102,33 @@ body{margin:0;background:var(--bg);color:var(--ink);
 @font-face{font-family:"iA Writer Quattro";font-style:normal;font-weight:700;
   src:url("/assets/fonts/ia-writer-quattro/iAWriterQuattroS-Bold.woff2") format("woff2");
   font-display:swap}
+/* The spacing scale (14-UI-SPEC §3.1, fixing DEFECT D-A): exactly
+   .planning/UI-SPEC.md §7's 8-point scale with 03.1-UI-SPEC.md §3's
+   assignments. These seven names were referenced 64 times by LESSON_CSS and
+   defined nowhere, so every margin/padding/gap in the reader resolved to its
+   initial value -- no paragraph rhythm, no callout padding, no side gutter,
+   no section spacing, and no browser error to say so. There is no eighth step
+   and no second scale.
+   --font-chrome and --font-code complete the voice set that --font-paper and
+   --font-ledger began: the stacks are copied verbatim from the `body` and
+   `.mono`/`code,pre` declarations that spelled them out inline, so the
+   emitted stacks are unchanged. This is centralisation, not a new choice. */
 :root{
   --font-paper:"Source Serif 4",Georgia,serif;
   --font-ledger:"iA Writer Quattro",ui-monospace,monospace;
+  --font-chrome:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-code:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --space-1:4px;
+  --space-2:8px;
+  --space-3:16px;
+  --space-4:24px;
+  --space-5:32px;
+  --space-6:48px;
+  --space-7:64px;
   --measure-prose:66ch;
   --measure-wide:90ch;
   --leading-lesson:1.65;
+  --r-1:6px;
   --r-2:8px;
   --r-3:12px
 }
@@ -104,7 +142,7 @@ a{color:var(--accent);text-decoration:none;font-weight:600}
 a:hover,a:focus-visible,button:focus-visible,summary:focus-visible,
 input:focus-visible,textarea:focus-visible,select:focus-visible{
   outline:2px solid var(--accent);outline-offset:2px}
-.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+.mono{font-family:var(--font-code);
   font-variant-numeric:tabular-nums}
 .back{margin:0 0 24px;color:var(--mut);font-size:14px}
 .context-line{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;
@@ -158,7 +196,7 @@ th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);
   font-size:16px;overflow-wrap:anywhere;vertical-align:top}
 th{font-size:14px;color:var(--mut);font-weight:600}
 .table-wrap{overflow-x:auto;min-width:0}
-code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+code,pre{font-family:var(--font-code);
   overflow-wrap:anywhere}
 pre{background:var(--chip);border:1px solid var(--line);border-radius:8px;
   padding:12px;overflow-x:auto;max-width:100%}

@@ -417,7 +417,7 @@ RUNNABLE_CSS = """
 .scroll.runnable .example-label{font-weight:600}
 .run-source-label{display:block;margin:.35rem 0 .15rem;font-size:.9em}
 .run-source{display:block;width:100%;min-height:3.5rem;font:14px/1.45 ui-monospace,Consolas,monospace;
-  padding:.4rem .5rem;box-sizing:border-box;resize:vertical;tab-size:4;background:var(--panel);color:var(--ink)}
+  padding:.4rem .5rem;box-sizing:border-box;resize:vertical;tab-size:4;background:var(--chip);color:var(--ink)}
 .run-help{font-size:.85em;opacity:.85;margin:.3rem 0}
 .run-go{min-height:44px;min-width:44px;padding:.5rem 1rem;margin:.25rem 0;font:inherit;cursor:pointer}
 .run-go[disabled]{opacity:.6;cursor:default}
@@ -425,7 +425,7 @@ RUNNABLE_CSS = """
 .run-status.run-error{color:var(--warn)}
 .run-label{font-size:.8em;font-weight:600;margin:.6rem 0 .15rem;text-transform:none}
 .run-stdout,.run-stderr{margin:0 0 .25rem;padding:.4rem .5rem;max-height:14rem;overflow:auto;
-  background:var(--panel);border:1px solid var(--line);font:13px/1.45 ui-monospace,Consolas,monospace;
+  background:var(--chip);border:1px solid var(--line);font:13px/1.45 ui-monospace,Consolas,monospace;
   white-space:pre-wrap;word-break:break-word}
 .run-unavailable{font-size:.9em;opacity:.9;margin:.35rem 0 0}
 @media (prefers-reduced-motion:reduce){.scroll.runnable *{transition:none!important}}

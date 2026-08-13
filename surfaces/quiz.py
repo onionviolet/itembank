@@ -227,9 +227,16 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                      if has_check else "")
     assist_html = AGENT_ASSIST_HTML if (serve and assist) else ""
     assist_js = ASSIST_JS if (serve and assist) else ""
+    # __THEME__ then __SHARED__ then the page's own layer, in that order and
+    # not another: the generated palette, then presentation.SHARED_CSS (the
+    # token layer holding the four vendored @font-face rules and the
+    # spacing/radius/voice/measure :root block), then quiz_page's own rules,
+    # which still win on equal specificity. Substituting __THEME__ alone --
+    # everything this call did before 14-01 -- is DEFECT D-B.
     return mix, (TEMPLATE
                  .replace("__THEME__", THEME_CSS if theme_css is None
                           else theme_css)
+                 .replace("__SHARED__", presentation.SHARED_CSS)
                  .replace("__SERVE__", "true" if serve else "false")
                  .replace("__TITLE__", html.escape(title))
                  .replace("__SUB__", sub)
