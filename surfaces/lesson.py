@@ -93,7 +93,7 @@ RENDER_REFUSAL_COPY = ("render_style cannot turn %s into %s; that is a "
 # at all. `overflow-wrap`/`word-break` make a long [LESSON-SRC:] path wrap
 # inside the card; there is deliberately no nowrap and no ellipsis
 # truncation on the code element.
-WARN_CSS = """.warn{color:var(--warn);font-size:14px;margin:14px auto 0;max-width:520px;
+WARN_CSS = """.warn{color:var(--warn);font-size:16px;margin:14px auto 0;max-width:520px;
   text-align:center}
 .warn code{overflow-wrap:anywhere;word-break:break-all}
 """
@@ -106,9 +106,35 @@ WARN_CSS = """.warn{color:var(--warn);font-size:14px;margin:14px auto 0;max-widt
 # project scale (12/16/18/20/32) and the weight pair is 400/600; this layer
 # introduces no sixth size and no third weight. Every colour is var(--token):
 # no hex literal, no second palette (03.1-UI-SPEC §5).
+#
+# THREE THINGS PLAN 14-02 SETTLED, recorded here rather than in the emitted
+# CSS (every CSS comment below ships in every served page):
+#
+# 1. `.wrap` adds the side gutter OUTSIDE the measure. `*{box-sizing:
+#    border-box}` is global in SHARED_CSS, so `max-width:var(--measure-prose)`
+#    with padding inside it meant the token was never the content measure --
+#    the column was two gutters narrower than the number claimed. With the
+#    retuned 59ch this is a 563px box holding a 531px, 66-character column.
+#    Tables, code, [!EXAMPLE] grids and math displays keep their existing
+#    escape to --measure-wide.
+# 2. The prose rhythm is scoped to `#lesson-content`, the container that
+#    already exists and is already the enhancement hook for math and for
+#    runnable code. The 24px paragraph gap is 0.81 of the reader's real
+#    29.7px line box (Source Serif 4's glyph box is 1.371 em at 18px); the
+#    16px it replaced was 0.54 of a line, the standard "reads as one grey
+#    slab" figure. The bare `p,li` rule keeps its shipped 16px because it
+#    also styles callouts, the gate band, the nav and the glossary.
+# 3. `font-size-adjust` changes the USED glyph size without changing the
+#    computed font-size, so it introduces no sixth size and cannot break the
+#    type-scale fixture; where unsupported it is ignored and the page renders
+#    exactly as it did before. Quattro's x-height ratio is 0.516 against
+#    Source Serif's 0.475, so an inline Ledger or Code run at the inherited
+#    18px renders 8.6% larger than the prose around it. `pre code` is reset
+#    to `none` because its 16px is already the matched size (0.516 x 16 =
+#    8.26px against Paper's 8.55px at 18px) and adjusting it would undo that.
 LESSON_CSS = r"""
-.wrap{max-width:var(--measure-prose);margin:0 auto;
-  padding:var(--space-4) var(--space-3) var(--space-7);
+.wrap{max-width:calc(var(--measure-prose) + 2 * var(--space-3));
+  margin:0 auto;padding:var(--space-4) var(--space-3) var(--space-7);
   font-family:var(--font-paper)}
 header{margin-bottom:var(--space-4)}
 h1{font-size:32px;font-weight:600;line-height:1.1;margin:0 0 var(--space-3)}
@@ -120,6 +146,17 @@ h2{font-size:20px;font-weight:600;line-height:1.2;margin:var(--space-6) 0 var(--
 h3{font-size:16px;font-weight:600;line-height:1.4;margin:var(--space-5) 0 var(--space-2)}
 p,li{font-size:18px;line-height:var(--leading-lesson);
   margin:0 0 var(--space-3)}
+/* Prose rhythm, scoped to the reader's own content region (14-UI-SPEC §5.1).
+   The bare `p,li` rule above also styles callouts, the gate band, the nav and
+   the glossary, and those keep their shipped values. */
+#lesson-content p{margin:0 0 var(--space-4)}
+#lesson-content li{margin:0 0 var(--space-2)}
+#lesson-content :is(ul,ol){margin:0 0 var(--space-4)}
+/* x-height matching for inline Ledger/Code runs inside Paper prose only
+   (14-UI-SPEC §4.4); block code already carries its own matched size. */
+#lesson-content :is(code,samp,kbd,.ledger-inline){font-size-adjust:0.475}
+#lesson-content pre code{font-size-adjust:none}
+@media (max-width:479px){#lesson-content :is(p,li){font-size:16px}}
 .bl{margin-top:var(--space-2);padding-top:var(--space-2);
   border-top:1px solid var(--line)}
 .blabel{display:block;font-size:12px;letter-spacing:.08em;
@@ -140,15 +177,15 @@ p,li{font-size:18px;line-height:var(--leading-lesson);
   outline-offset:2px}
 pre{margin:0;background:var(--chip);border-radius:8px;
   padding:var(--space-2) var(--space-3)}
-pre code{display:block;font-family:var(--font-ledger);font-size:14px;
+pre code{display:block;font-family:var(--font-ledger);font-size:16px;
   line-height:1.5;color:var(--ink)}
 .lang{display:block;font-size:12px;letter-spacing:.05em;color:var(--mut);
   margin-bottom:var(--space-1);font-family:var(--font-ledger)}
 table{border-collapse:collapse;margin:0 0 var(--space-2);min-width:100%}
 th,td{border:1px solid var(--line);padding:var(--space-2);
-  text-align:left;font-size:14px;overflow-wrap:anywhere}
-th{background:var(--chip);color:var(--mut);font-weight:600}
-.orphan{color:var(--mut);font-size:14px}
+  text-align:left;font-size:16px;overflow-wrap:anywhere}
+th{background:var(--chip);color:var(--mut);font-weight:600;font-size:12px}
+.orphan{color:var(--mut);font-size:12px}
 .empty{text-align:center;padding:var(--space-6) var(--space-3)}
 .empty p{color:var(--mut);max-width:var(--measure-prose);margin:0 auto}
 .callout{background:var(--card);border:1px solid var(--line);
@@ -209,7 +246,8 @@ th{background:var(--chip);color:var(--mut);font-weight:600}
   grid-template-columns:1fr 1fr;gap:var(--space-3)}
 /* Phase 6.2's exactly-one rule block (06.2-UI-SPEC section 5.1): the gate
    band fills 3.1's reserved slot with the same box -- --card, 1px --line,
-   --r-3, space-3 padding, space-4 block margin, 66ch measure -- plus its
+   --r-3, space-3 padding, space-4 block margin, the wrap's prose measure --
+   plus its
    Ledger header, the check item at text-body 16/1.5 Paper voice, the
    actions row, and the mode-degrade/status notes. No new family, size,
    weight, or colour literal: every value is a var(--token) and the sizes
@@ -410,26 +448,44 @@ RUN_STDERR_LABEL = "stderr"
 # button follows the source in DOM/tab order and keeps native Enter/Space
 # activation. Request errors are announced once with role="alert"; the
 # source and previous output are never replaced by a failure.
+#
+# TYPE AND VOICE (plan 14-02, 14-UI-SPEC §4.2). Every size here was relative
+# (`.9em`, `.85em`, `.8em`) or off-scale (13px, 14px), and both `font:`
+# shorthands named a family literally, which .planning/UI-SPEC.md §7 forbids.
+# Now: `.run-source` is 16px because it is an editable control, and 16px is
+# also what stops iOS zooming on focus -- which is why the old
+# `@media (max-width:320px){.run-source{font-size:13px}}` is DELETED rather
+# than retuned: the floor has to hold exactly where a phone needs it.
+# `.run-status` and `.run-unavailable` are 16px in Ledger voice because they
+# are runtime assertions and the sentence a learner acts on after a failed
+# run; without a size they inherited the surrounding 18px Paper prose and
+# spoke in the author's voice. `.run-stdout`/`.run-stderr` stay small at 12px
+# -- the ONE named exception in the contract: verbatim machine output, dense
+# and arbitrarily long, in a bounded scrolling pane, whose recovery sentence
+# lives in `.run-status` instead.
 RUNNABLE_CSS = """
 /* plan 09-05 runnable lesson code */
 .scroll.runnable{border:1px solid var(--line);border-radius:8px;padding:.5rem .75rem;margin:.75rem 0}
 .scroll.runnable .lang{display:inline-block;margin-right:.5rem}
 .scroll.runnable .example-label{font-weight:600}
-.run-source-label{display:block;margin:.35rem 0 .15rem;font-size:.9em}
-.run-source{display:block;width:100%;min-height:3.5rem;font:14px/1.45 ui-monospace,Consolas,monospace;
+.run-source-label{display:block;margin:.35rem 0 .15rem;font-size:12px;
+  font-family:var(--font-chrome)}
+.run-source{display:block;width:100%;min-height:3.5rem;font:16px/1.45 var(--font-code);
   padding:.4rem .5rem;box-sizing:border-box;resize:vertical;tab-size:4;background:var(--chip);color:var(--ink)}
-.run-help{font-size:.85em;opacity:.85;margin:.3rem 0}
+.run-help{font-size:16px;font-family:var(--font-chrome);opacity:.85;margin:.3rem 0}
 .run-go{min-height:44px;min-width:44px;padding:.5rem 1rem;margin:.25rem 0;font:inherit;cursor:pointer}
 .run-go[disabled]{opacity:.6;cursor:default}
-.run-status{min-height:1.2em;margin:.4rem 0 .2rem}
+.run-status{min-height:1.2em;margin:.4rem 0 .2rem;font-size:16px;
+  line-height:1.5;font-family:var(--font-ledger)}
 .run-status.run-error{color:var(--warn)}
-.run-label{font-size:.8em;font-weight:600;margin:.6rem 0 .15rem;text-transform:none}
+.run-label{font-size:12px;font-family:var(--font-ledger);font-weight:600;
+  margin:.6rem 0 .15rem;text-transform:none}
 .run-stdout,.run-stderr{margin:0 0 .25rem;padding:.4rem .5rem;max-height:14rem;overflow:auto;
-  background:var(--chip);border:1px solid var(--line);font:13px/1.45 ui-monospace,Consolas,monospace;
+  background:var(--chip);border:1px solid var(--line);font:12px/1.45 var(--font-code);
   white-space:pre-wrap;word-break:break-word}
-.run-unavailable{font-size:.9em;opacity:.9;margin:.35rem 0 0}
+.run-unavailable{font-size:16px;font-family:var(--font-ledger);line-height:1.5;
+  opacity:.9;margin:.35rem 0 0}
 @media (prefers-reduced-motion:reduce){.scroll.runnable *{transition:none!important}}
-@media (max-width:320px){.run-source{font-size:13px}}
 """
 RUNNABLE_JS = """<script>
 (function () {
