@@ -120,15 +120,17 @@ WARN_CSS = """.warn{color:var(--warn);font-size:16px;margin:14px auto 0;max-widt
 # 2. The prose rhythm is scoped to `#lesson-content`, the container that
 #    already exists and is already the enhancement hook for math and for
 #    runnable code. The 24px paragraph gap is 0.81 of the reader's real
-#    29.7px line box (Source Serif 4's glyph box is 1.371 em at 18px); the
+#    29.7px line box (the Paper face's glyph box is 1.371 em at 18px); the
 #    16px it replaced was 0.54 of a line, the standard "reads as one grey
 #    slab" figure. The bare `p,li` rule keeps its shipped 16px because it
 #    also styles callouts, the gate band, the nav and the glossary.
 # 3. `font-size-adjust` changes the USED glyph size without changing the
 #    computed font-size, so it introduces no sixth size and cannot break the
 #    type-scale fixture; where unsupported it is ignored and the page renders
-#    exactly as it did before. Quattro's x-height ratio is 0.516 against
-#    Source Serif's 0.475, so an inline Ledger or Code run at the inherited
+#    exactly as it did before. The Ledger face's x-height ratio is 0.516
+#    against the Paper face's 0.475 -- the two families are named only by
+#    surfaces/presentation.py, which is why they are described by voice here
+#    and not by name -- so an inline Ledger or Code run at the inherited
 #    18px renders 8.6% larger than the prose around it. `pre code` is reset
 #    to `none` because its 16px is already the matched size (0.516 x 16 =
 #    8.26px against Paper's 8.55px at 18px) and adjusting it would undo that.
