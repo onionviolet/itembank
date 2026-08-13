@@ -100,6 +100,16 @@ are recorded on the phases they block; none blocks starting.
 - [x] **Phase 11: Closed Authoring Loop & Curriculum Auditor** - A closed spec-draft-lint-retry authoring loop, reused by a syllabus auditor that cites its coverage claims and never over-autonomizes silently. (completed 2026-08-11)
 - [ ] ~~**Phase 12: Packaging, Self-Update & Interop Export**~~ - MOVED to Phase 2.1 (2026-08-07) — see Phase 2.1 above. Slot retired, not reused.
 - [x] **Phase 13: Desktop Packaging — Tauri Shell over the Python Sidecar** - A signed, installable desktop app whose inside is still the same Python runtime, because porting it would temporarily create a second scorer. (completed 2026-08-10)
+- [ ] **Phase 14: Course Workspace & Source Binding** - Make the course the primary object; safely discover and bind sources, objectives, prerequisites, treatments, existing lessons/banks, and gaps through a course shelf/map/source workspace.
+- [ ] **Phase 15: AI Course Director & Quality Pipeline** - Let hosted or local agents recommend readings/treatments, generate and review missing artifacts, follow standardized-test or knowledge-exam blueprints, and interpret evidence with explicit uncertainty.
+- [ ] **Phase 16: Learning Flow & Lesson Capability Contract** - Research and specify the course journey, lesson capabilities, question purposes, portable authoring contract, interactions, accessibility, media policy, and agent guidance.
+- [ ] **Phase 17: Visual System & Comprehensive Guided Learning UI** - Establish the visual language and implement the approved course journey as a polished, responsive, accessible, progressively enhanced learning experience.
+
+**Revision 2026-08-13 — source-to-course reframe.** Completed phases remain
+the foundation, but the bank is no longer the primary navigation unit. The
+binding scope, AI role, quality contract, learner workspace, and four-phase
+tracer sequence live in `.planning/SOURCE-TO-COURSE.md`. Phase 14 planning
+begins there rather than extrapolating the old bank/auditor framing.
 
 ## Phase Details
 
@@ -1365,11 +1375,62 @@ Plans:
 
 - [ ] TBD (promote per the trigger above)
 
+### Phase 14: Course Workspace & Source Binding
+
+**Goal:** A learner or approved agent creates a course from a syllabus and
+source folder, sees a cited objective and prerequisite map, binds existing
+artifacts, assigns a treatment to each objective, and sees missing, thin, and
+unknown coverage without first generating content.
+
+**Planning source:** `.planning/SOURCE-TO-COURSE.md` Phase 14. Detailed
+discussion, UI specification, requirements, schemas, and executable plans are
+owed by the normal planning sequence; do not invent them during implementation.
+
+### Phase 15: AI Course Director & Quality Pipeline
+
+**Goal:** A hosted coding-agent-class client or registered local backend can
+drive bounded source analysis, treatment recommendation, course generation,
+quality review, standardized-test or knowledge-exam alignment, and
+evidence-backed remediation through inspectable proposals and recoverable writes.
+
+**Planning source:** `.planning/SOURCE-TO-COURSE.md` Phase 15. Reuse the
+shipped `audit`, `coverage`, `seed`, lint, evidence, trends, and model-adapter
+contracts.
+
+### Phase 16: Learning Flow & Lesson Capability Contract
+
+**Goal:** Research and specify the logical course journey, lesson-capability
+model, question-purpose matrix, portable authored representation, interaction
+and accessibility behavior, image and citation policy, and agent authoring
+contract before the visual system or implementation hardens those decisions.
+
+**Research scope:** study current source-grounded and learning products,
+including NotebookLM, for flow, source navigation, questions, study aids, and
+grounded assistance. Use the findings as evidence. The product target remains
+a lesson- and objective-centered course platform rather than a chat notebook.
+
+**Planning source:** `.planning/SOURCE-TO-COURSE.md` Phase 16. Completion
+requires a realistic course-unit storyboard or prototype across desktop,
+narrow, touch, keyboard, screen-reader, offline, and plain-file contexts, plus
+an explicit disposition for every researched capability.
+
+### Phase 17: Visual System & Comprehensive Guided Learning UI
+
+**Goal:** Establish a coherent visual language and implement the course journey
+against Phase 16's contracts. Deliver direct reading, rich reference and guided
+lesson modes, cited visuals, accessible teaching interactions, varied practice,
+tests, targeted feedback, and the next course action as one polished experience.
+
+**Planning source:** `.planning/SOURCE-TO-COURSE.md` Phase 17. Framework
+completion does not close this phase. A realistic synthetic course tracer and
+visual, responsive, degraded-state, portable-source, and accessibility
+verification do.
+
 ### Phase 999.5: Agent Onboarding & Skill Library (completed 2026-08-11; added 2026-08-10)
 
-**Goal:** Keep the agent on-ramp — `AGENTS.md` and the five repo skills
-(`absorb-book`, `curriculum-design`, `guiding-questions`, `author-bank`,
-`ocr`) — in sync with the shipped command surface, and add skills as later
+**Goal:** Keep the agent on-ramp — `AGENTS.md` and the repo skills
+(`build-course`, `absorb-book`, `curriculum-design`, `guiding-questions`,
+`author-bank`, `ocr`) — in sync with the shipped command surface, and add skills as later
 phases land. The skills are the living, prose half of the agentic goal: a fresh
 agent reads `AGENTS.md`, invokes a playbook, and runs the loop without
 scraping HTML or reimplementing scoring.
@@ -1412,6 +1473,23 @@ trigger points, so the next review is a lookup and not a re-argument:
 
 - **Phase 11 (curriculum auditor)** — `curriculum-design` gains the
   auditor's citation-per-coverage-claim loop.
+
+- **Phase 14 (course workspace and binding)** - add or extend a discovery and
+  binding skill for multi-root inventory, stable identity, provenance,
+  relocation, conflict review, and manual or agentic linking.
+
+- **Phase 15 (course director)** - extend `build-course` and add the shipped
+  quality-review playbooks needed for treatment selection, bounded generation,
+  course-level audit, exam alignment, and evidence-backed revision.
+
+- **Phase 16 (learning capability contract)** - add lesson-authoring,
+  question-purpose, media-selection, and legacy-upgrade descriptions based on
+  the approved semantic capability catalog. Do not document planned syntax as
+  if it already ships.
+
+- **Phase 17 (guided learning UI)** - update the authoring and upgrade skills
+  with the actual renderer, preview, accessibility, degradation, and visual QA
+  commands delivered by the phase.
 
 - **Phase 999.3 (MCP surface)** — add an MCP skill mapping tools to the
   existing playbooks, or extend `guiding-questions`; the MCP surface must not

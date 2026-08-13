@@ -218,6 +218,67 @@
 - [ ] **LTI-06**: The LTI bind is opt-in with the loopback default unchanged; TLS is stdlib `ssl` with user-supplied certs or a documented reverse proxy, and `public_base_url` is the one knob driving every URL the platform calls — no new auth surface beyond LTI's own
 - [ ] **LTI-07**: The surface, its help text, and its hosting doc state exactly what leaves the machine (item text to the learner's browser via the LMS, the final score to the LMS gradebook; no telemetry, no hosted storage); the LTI crypto dependencies (`cryptography`, `PyJWT`) are optional, pinned, checksummed, and license-reviewed per Directive 4a, with a named refusal when absent
 
+## Next-milestone source-to-course requirements
+
+These requirements implement `.planning/SOURCE-TO-COURSE.md`. They compose the
+shipped bank, lesson, audit, model, and evidence contracts rather than replacing
+them.
+
+### Course workspace
+
+- [ ] **COURSE-01**: A course is a first-class, readable artifact that names its
+  target, learner, approved source and write roots, objective hierarchy,
+  prerequisites, treatments, accepted artifacts, drafts, and evidence location;
+  any machine index is derived and disposable.
+- [ ] **COURSE-02**: Discovery is read-only and root-bounded; scaffolding and
+  binding are explicit, idempotent operations, and finding a file never grants
+  permission to transmit or modify it.
+- [ ] **COURSE-03**: Every objective-to-source and coverage claim carries a stable
+  locator, confidence, and state (`covered`, `thin`, `missing`, `conflicting`, or
+  `unknown`); heading similarity alone cannot produce `covered`.
+- [ ] **COURSE-04**: Every objective has an explicit, reviewable treatment plan
+  drawn from direct reading, excerpt, guided lesson, notes/terms, worked example,
+  visual/demonstration, practice, test, assessment-first, or human review; direct
+  reading is a complete result and generation is never the automatic default.
+
+### AI course director and quality
+
+- [ ] **DIRECTOR-01**: Hosted coding-agent clients and registered local backends
+  reach the same course operations and schemas; backend choice changes capability,
+  latency, and privacy disclosure, not the course artifact contract.
+- [ ] **DIRECTOR-02**: AI autonomy is scoped per operation as recommend-only,
+  draft-and-review, or approved bounded writes; proposals cite sources, label
+  synthesis, show quality findings, and are inspectable and recoverable.
+- [ ] **DIRECTOR-03**: Standardized-test courses require a cited, versioned
+  blueprint mapping domains, weights, cognitive demand, item conventions,
+  difficulty, timing, permitted tools, and feedback mode; knowledge courses use
+  their actual syllabus and expected demand. The UI never claims exam fidelity
+  without this mapping.
+- [ ] **DIRECTOR-04**: Evidence-based proposals name their observation window,
+  denominator, included and missing signals, uncertainty, and competing
+  explanations. Sparse evidence cannot produce a mastery percentage or a confident
+  causal claim. Accepted next actions remain recommendations until the learner or
+  deterministic selection policy acts.
+
+### Comprehensive learner UI
+
+- [ ] **LEARNUI-01**: The home surface is a course shelf and each course provides
+  coherent Learn, Practice, Test, Sources, Course map, and Build/review areas; banks
+  are assessment artifacts inside courses rather than the primary navigation unit.
+- [ ] **LEARNUI-02**: One parsed lesson supports continuous reader and guided modes;
+  neither mode creates a second parser or scorer, and a learner can move between
+  direct source reading, lesson, practice, feedback, and the next course action
+  without reconstructing context.
+- [ ] **LEARNUI-03**: Lessons render semantic teaching roles—hover/focus
+  definitions, things-to-know blocks, expert or niche tips, warnings, worked
+  examples, citations, diagrams, math, runnable code, inline checks, hints, and
+  accessible visual interactions—with graceful unavailable states and no
+  decorative block required by style alone.
+- [ ] **LEARNUI-04**: The reference course tracer demonstrates orient → predict or
+  act → observe → explain → changed-context transfer → evidence → next action at
+  desktop and phone widths, including keyboard/screen-reader equivalence, model-
+  unavailable operation, and no early keyed-content leak.
+
 ## v2 Requirements
 
 ### Retention
@@ -445,11 +506,23 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | LTI-05 | Phase 999.4 | Pending |
 | LTI-06 | Phase 999.4 | Pending |
 | LTI-07 | Phase 999.4 | Pending |
+| COURSE-01 | Phase 14 | Pending |
+| COURSE-02 | Phase 14 | Pending |
+| COURSE-03 | Phase 14 | Pending |
+| COURSE-04 | Phase 14 | Pending |
+| DIRECTOR-01 | Phase 15 | Pending |
+| DIRECTOR-02 | Phase 15 | Pending |
+| DIRECTOR-03 | Phase 15 | Pending |
+| DIRECTOR-04 | Phase 15 | Pending |
+| LEARNUI-01 | Phase 16 | Pending |
+| LEARNUI-02 | Phase 16 | Pending |
+| LEARNUI-03 | Phase 16 | Pending |
+| LEARNUI-04 | Phase 16 | Pending |
 
 **Coverage:**
 
-- v1 requirements: 115 total
-- Mapped to phases: 115
+- v1 + next-milestone requirements: 127 total
+- Mapped to phases: 127
 - Unmapped: 0 ✓
 
 ---
