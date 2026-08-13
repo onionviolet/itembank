@@ -948,17 +948,17 @@ Plans:
 
 **Open decisions**: none. `14-UI-SPEC.md` §17's seven OPEN items each carried a default; item 7 (whether `.visual-status` may keep an announcing region) was resolved at plan time by reading `06.1-UI-SPEC.md`, which requires one persistent polite region — 06.1 wins and the row is a recorded exception, not a silent divergence.
 
-**Plans**: 0/8 plans across 7 waves
+**Plans**: 3/8 plans executed across 7 waves (waves 1-2 done); RTS-01..RTS-12 assigned
 
 Plans:
 **Wave 1**
 
-- [ ] 14-01-PLAN.md — TRACER: the token layer end to end (D-A, the D-B include, `--panel`, gate 8, per-route font declaration)
+- [x] 14-01-PLAN.md — TRACER: the token layer end to end (D-A, the D-B include, `--panel`, gate 8, per-route font declaration)
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 14-02-PLAN.md — Reader type, vertical rhythm and measure; the type-scale fixture
-- [ ] 14-03-PLAN.md — The teaching route: `POST /api/teach`, `itembank teach`, the payload boundary (D-D backend)
+- [x] 14-02-PLAN.md — Reader type, vertical rhythm and measure; the type-scale fixture
+- [x] 14-03-PLAN.md — The teaching route: `POST /api/teach`, `itembank teach`, the payload boundary (D-D backend)
 
 **Wave 3** *(blocked on Wave 2)*
 
@@ -1200,7 +1200,7 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 11. Closed Authoring Loop & Curriculum Auditor | 0/TBD | Not started | - |
 | 12. ~~Packaging, Self-Update & Interop Export~~ | — | Retired (moved to 2.1) | - |
 | 13. Desktop Packaging — Tauri Shell over Python Sidecar | 5/5 | Complete    | 2026-08-10 |
-| 14. Reading & Teaching Surface Quality Pass | 0/TBD | Not started | - |
+| 14. Reading & Teaching Surface Quality Pass | 3/8 | In Progress (waves 1-2 done) | - |
 
 ## Backlog
 

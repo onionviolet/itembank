@@ -383,9 +383,58 @@ popover renders at 435x80 (`display:block`, previously 0x0 / `display:none`),
 `## LESSON` mints only authored terms, and the authored hint shows the section
 title rather than its slug. New guard: `tests/stylesheet_roundtrip.py`.
 
+## Phase 14 progress (paused 2026-08-13, waves 1-2 of 7 complete)
+
+3 of 8 plans executed. Stopped at the wave boundary on request; waves 3-7
+are planned, checker-passed and unstarted.
+
+| Wave | Plan | State |
+|------|------|-------|
+| 1 | 14-01 tracer — the token layer end to end | done |
+| 2 | 14-02 reader type, rhythm, measure | done |
+| 2 | 14-03 `POST /api/teach`, `itembank teach`, the payload boundary | done |
+| 3 | 14-04 quiz voice repair, twelve sizes to five, `--edge` | not started |
+| 4 | 14-05 the gloss: placement, bottom sheet, hover intent | not started |
+| 5 | 14-06 scroll contract and reader section nav | not started |
+| 6 | 14-07 the wrong-answer surface, ladder rendered | not started |
+| 7 | 14-08 live regions, byte-identity floor, 14-GATES.md roll-up | not started |
+
+**D-A and the D-B include are closed and proven on served bytes**, not
+inferred: all seven `--space-*` tokens resolve on both the lesson and quiz
+documents, which carry four `@font-face` rules each. At base commit the quiz
+carried zero of either. **D-D's backend exists**: the six-tier ladder now has
+a route and a CLI, walked end to end through all six tiers, and every attempt
+to address a tier from a client is refused 400 with the field named.
+**D-C is untouched** — the gloss still opens viewport-centred; 14-05 owns it.
+
+Two runtime defects were found and fixed while building the teach route,
+both of which would have made 14-07 render a payload that misstated what the
+runtime would do:
+
+1. `entitled` could never be true. `_record_from_evidence` derived
+   `highest_tier_unlocked` only from tiers already shown, so a tier unlocked
+   by a wrong attempt but not yet opened was invisible and `unlock_path`
+   always said `stumped`. The `Open the next hint` control was unreachable.
+2. `teaching_transition` let a client decide its own entitlement — `hint` and
+   `stumped` differed only in the recorded `unlock_path`.
+
+### Owed before Phase 14 closes
+
+- **`/day/sample_plan` declares zero of four fonts.** `surfaces/day.py:1449`
+  builds its document from `theme_css(cfg) + DAY_CSS` instead of
+  `presentation.surface_shell`, so it never joined the token layer — D-B on a
+  third surface. Found by the tracer, deliberately not fixed inside it, not
+  waived: it prints above every green build via `REPORTED_FONT_ROUTES`. **It
+  needs an owning plan.**
+- `surfaces/settings.THIS_PHASE` is stale at 10, so both new teaching settings
+  print as `inert -- read from phase 14`. Pre-existing pattern; see
+  `.planning/phases/14-reading-teaching-surface-quality-pass/deferred-items.md`.
+- Gates 4, 5, 10, 11 need a driven browser or a human — jsdom does no layout.
+  `14-GATES.md` is created by 14-05 and completed by 14-08.
+
 ## Session Continuity
 
-Last session: 2026-08-11T14:48:12.553Z
-Stopped at: All 18 roadmap phases merged into main (2026-08-11)
-Resume file: None
+Last session: 2026-08-13
+Stopped at: Phase 14 wave 2 boundary — 3 of 8 plans executed, waves 3-7 planned and unstarted
+Resume file: `.planning/phases/14-reading-teaching-surface-quality-pass/14-04-PLAN.md` (wave 3, next)
 Deferred human verification: 02.1 (4), 03 (1), 03.1, 04 (7), 05 (2), 09 (KaTeX approval), 10 (1 UI gate), 11 (4), 999.4 (manual Canvas checklist), 999.5 (WINDOWS.md windows 2-3) — see the Deferred Verification table above; 09.1 manual audio-quality checks (see 09.1-UAT.md)
