@@ -218,6 +218,27 @@
 - [ ] **LTI-06**: The LTI bind is opt-in with the loopback default unchanged; TLS is stdlib `ssl` with user-supplied certs or a documented reverse proxy, and `public_base_url` is the one knob driving every URL the platform calls — no new auth surface beyond LTI's own
 - [ ] **LTI-07**: The surface, its help text, and its hosting doc state exactly what leaves the machine (item text to the learner's browser via the LMS, the final score to the LMS gradebook; no telemetry, no hosted storage); the LTI crypto dependencies (`cryptography`, `PyJWT`) are optional, pinned, checksummed, and license-reviewed per Directive 4a, with a named refusal when absent
 
+### Reading & teaching surface quality (Phase 14)
+
+> IDs assigned at plan time on 2026-08-12; the roadmap recorded them as TBD.
+> Every one of Phase 14's six success criteria maps to at least one row:
+> criterion 1 → RTS-02; criterion 2 → RTS-01, RTS-03, RTS-04; criterion 3 →
+> RTS-05; criterion 4 → RTS-06; criterion 5 → RTS-07, RTS-08; criterion 6 →
+> RTS-09, RTS-10, RTS-11, RTS-12.
+
+- [ ] **RTS-01**: Every `var(--…)` a served reader, quiz, study or day page references resolves to a custom property defined in that same document, proven by a fixture that fails naming the token, the document and a referencing selector
+- [ ] **RTS-02**: The first line of an item stem is fully visible on first paint at 1280/768/375/320px and at 200% zoom, scripting on and off, and every in-page anchor jump lands clear of the sticky band; the band never exceeds two rows and a card already fully in view is not scrolled
+- [ ] **RTS-03**: The reader and the sat quiz render in the same vendored voices on one type scale — five sizes, two weights, no literal family, no colour literal — and every daemon-served page declares all four `@font-face` rules with root-absolute urls that return 200
+- [ ] **RTS-04**: The reader's vertical rhythm and reading measure are set against the shipped faces as they actually render: 24px paragraph rhythm against a 29.7px line box, 66 real characters per line, x-height-matched inline runs, and a step down to an existing token below 480px
+- [ ] **RTS-05**: The glossary gloss lands at its term, flips at the viewport edges, becomes a bottom sheet on a narrow coarse pointer, opens on hover intent that never moves focus and never steals a pinned panel, links onward to the `[!KEY]` card and the full entry, and returns the learner to the text — with the click and keyboard path complete without script
+- [ ] **RTS-06**: `reader_nav` ships `none | column | rail | auto` with `auto` default: a lesson of four or more sections offers a nav, a shorter one does not, the rail occupies otherwise-empty margin at 1280px and wider without changing the reading measure, and the print rule stays inside the print block
+- [ ] **RTS-07**: The six-tier authored hint ladder is reachable from the browser and from the CLI through one runtime-owned route; the payload carries shown tiers' resolved text plus locked headers and unlock sentences and nothing else, no request can name a tier, and drill/diagnostic/exam return the ladder unavailable with the mode's own stated reason
+- [ ] **RTS-08**: The wrong-answer state renders the ladder in an in-flow support region above a collapsed generated-help disclosure; each opened tier adds a card and replaces none; the whole ladder is operable with no script and no network; and absence of a model is communicated only by the absence of an offer
+- [ ] **RTS-09**: Nothing on screen pre-announces a reveal — no progress indicator over the ladder, no reveal control, no dimmed or `aria-disabled` affordance, a locked card carrying only its header and unlock sentence, and no first person or encouragement anywhere in the ladder
+- [ ] **RTS-10**: A rendered page holds exactly one polite announcing region in the steady state — two on a visual item, as the recorded `06.1-UI-SPEC` exception — with two named transient exceptions, and both blocking-failure paths provably announce with the live attributes written before the text
+- [ ] **RTS-11**: Every element that is itself an interactive control or an input surface carries a boundary at 3:1 or better against the surface behind it in both modes, and the six semantic tokens the ladder needs ship measured by the project's own contrast function rather than assumed
+- [ ] **RTS-12**: A bank with no `## TERMS` and no `## LESSON` renders byte-identically through the item path, proven by fixture
+
 ## v2 Requirements
 
 ### Retention
@@ -445,11 +466,23 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | LTI-05 | Phase 999.4 | Pending |
 | LTI-06 | Phase 999.4 | Pending |
 | LTI-07 | Phase 999.4 | Pending |
+| RTS-01 | Phase 14 | Pending |
+| RTS-02 | Phase 14 | Pending |
+| RTS-03 | Phase 14 | Pending |
+| RTS-04 | Phase 14 | Pending |
+| RTS-05 | Phase 14 | Pending |
+| RTS-06 | Phase 14 | Pending |
+| RTS-07 | Phase 14 | Pending |
+| RTS-08 | Phase 14 | Pending |
+| RTS-09 | Phase 14 | Pending |
+| RTS-10 | Phase 14 | Pending |
+| RTS-11 | Phase 14 | Pending |
+| RTS-12 | Phase 14 | Pending |
 
 **Coverage:**
 
-- v1 requirements: 115 total
-- Mapped to phases: 115
+- v1 requirements: 127 total
+- Mapped to phases: 127
 - Unmapped: 0 ✓
 
 ---

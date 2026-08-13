@@ -934,7 +934,7 @@ Plans:
 **Goal**: the reader and the quiz meet the quality bar of a commercial learning product — Brilliant is the named reference — so that the surfaces a learner sits in front of every day feel designed rather than assembled.
 **Mode:** ui
 **Depends on**: quick task 260812-e2m (the four reader defects it fixed are preconditions — no spacing or type judgement made before them was made against what actually renders)
-**Requirements**: TBD at plan time
+**Requirements**: RTS-01, RTS-02, RTS-03, RTS-04, RTS-05, RTS-06, RTS-07, RTS-08, RTS-09, RTS-10, RTS-11, RTS-12 *(assigned at plan time 2026-08-12; see `.planning/REQUIREMENTS.md` § Reading & teaching surface quality)*
 **Grounding**: found by driving the running daemon in a browser on 2026-08-12, not by the test suite, which was green throughout. See `.planning/STATE.md` § Quick Tasks Completed.
 
 **Success Criteria** (what must be TRUE):
@@ -946,9 +946,39 @@ Plans:
   5. The wrong-answer state is the strongest screen in the product rather than the weakest. Today it is a red sentence plus a collapsed `details` element, which is the single most important teaching moment in the product.
   6. No design implies a reveal the runtime would refuse. The tier gate stays the runtime's call (D-09), and the accessibility gates in `.planning/UI-SPEC.md` hold unchanged.
 
-**Open decisions**: none yet — the UI researcher asks.
+**Open decisions**: none. `14-UI-SPEC.md` §17's seven OPEN items each carried a default; item 7 (whether `.visual-status` may keep an announcing region) was resolved at plan time by reading `06.1-UI-SPEC.md`, which requires one persistent polite region — 06.1 wins and the row is a recorded exception, not a silent divergence.
 
-**Plans**: 0/TBD
+**Plans**: 0/8 plans across 7 waves
+
+Plans:
+**Wave 1**
+
+- [ ] 14-01-PLAN.md — TRACER: the token layer end to end (D-A, the D-B include, `--panel`, gate 8, per-route font declaration)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 14-02-PLAN.md — Reader type, vertical rhythm and measure; the type-scale fixture
+- [ ] 14-03-PLAN.md — The teaching route: `POST /api/teach`, `itembank teach`, the payload boundary (D-D backend)
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 14-04-PLAN.md — Quiz voice repair, twelve sizes to five, `--edge` on the controls (D-B)
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 14-05-PLAN.md — The gloss: placement, bottom sheet, hover intent, key/appendix division of labour (D-C)
+
+**Wave 5** *(blocked on Wave 4)*
+
+- [ ] 14-06-PLAN.md — The scroll contract and the reader section nav (criteria 1 and 4)
+
+**Wave 6** *(blocked on Wave 5)*
+
+- [ ] 14-07-PLAN.md — The wrong-answer surface: ladder UI, state machine, degraded path, three retirements (D-D)
+
+**Wave 7** *(blocked on Wave 6)*
+
+- [ ] 14-08-PLAN.md — Live regions, the additive-format floor, and the gates roll-up
 
 ## How this roadmap gets planned (added 2026-08-10)
 
