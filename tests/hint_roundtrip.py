@@ -368,6 +368,224 @@ def test_tier_selection_and_existing_payload_unchanged():
         fail("tier selection changed: %r" % shown)
 
 
+# ---- plan 14-03 Task 2: the ladder payload, D-09's boundary made concrete --
+# `runtime.teaching_payload` is the only thing a browser or a CLI is allowed
+# to know about the ladder. These fixtures assert what it carries and, much
+# more importantly, what it does not: no undisclosed tier's text, no
+# entitlement number, and no handle a request could name a tier with.
+
+# Keys that must never appear anywhere in a served payload, at any depth: an
+# undisclosed tier's body, and the two numbers a client could reason about
+# into an entitlement.
+FORBIDDEN_PAYLOAD_KEYS = ("content", "attempt_count", "highest_tier_unlocked",
+                          "highest_tier_shown", "shown_tiers",
+                          "last_genuine_canonical", "last_response_event_id")
+
+
+def payload_keys(node, found=None):
+    """Every dict key appearing anywhere in a payload, at any depth."""
+    found = set() if found is None else found
+    if isinstance(node, dict):
+        for key, value in node.items():
+            found.add(key)
+            payload_keys(value, found)
+    elif isinstance(node, list):
+        for value in node:
+            payload_keys(value, found)
+    return found
+
+
+def ladder_record(s, q):
+    """The teaching record for `q` out of a session the transition returned."""
+    return s.get("teaching_state", {}).get(runtime.teaching_key(q))
+
+
+def held_then_shown(q, count):
+    """A practice record for `q` after one genuine wrong attempt and `count`
+    stumped reveals -- built by driving the real transition, never by hand, so
+    the payload is asserted against the state the runtime actually produces.
+    """
+    s = session(mode="practice", items=(0,), cursor=0)
+    s = runtime.teaching_transition(s, q, {"kind": "submit",
+                                           "answer": q1_wrong()})["session"]
+    for _ in range(count):
+        s = runtime.teaching_transition(s, q, {"kind": "stumped"})["session"]
+    return ladder_record(s, q)
+
+
+def test_teaching_payload_never_leaks_an_unshown_tier():
+    """T-14-09: serialize the payload at every ladder state from the first
+    hold to the reveal, under both preview settings, and assert that every
+    tier the learner has not been shown contributes no byte of its authored
+    text -- and that no entitlement number or tier body key is present at all.
+    """
+    q = q1()
+    texts = {i: runtime.authored_hint(q, i, q1_wrong())["display"]
+             for i in range(6)}
+    if not all(texts[i] for i in range(6)):
+        fail("the fixture item must author all six tiers for this proof: %r"
+             % texts)
+    for count in range(0, 7):
+        rec = held_then_shown(q, count)
+        for preview in ("full", "next"):
+            payload = runtime.teaching_payload(q, rec, "practice", preview)
+            blob = json.dumps(payload, ensure_ascii=False)
+            disclosed = set(e["index"] for e in payload["shown"])
+            if disclosed != set(range(min(count, 6))):
+                fail("after %d reveals the payload disclosed %r" %
+                     (count, sorted(disclosed)))
+            for i in range(6):
+                if i in disclosed:
+                    continue
+                if texts[i] in blob:
+                    fail("tier %d's authored text leaked into the payload at "
+                         "%d reveals (%s preview): %r"
+                         % (i, count, preview, texts[i][:60]))
+            leaked = payload_keys(payload) & set(FORBIDDEN_PAYLOAD_KEYS)
+            if leaked:
+                fail("the payload carries forbidden key(s) %r at %d reveals"
+                     % (sorted(leaked), count))
+            for entry in payload["further_locked"]:
+                if set(entry) != {"name", "header", "unlock_copy"}:
+                    fail("a further-locked tier carries more than its header "
+                         "and unlock sentence: %r" % entry)
+
+
+def test_teaching_payload_locked_preview_full_and_next():
+    """`hint_locked_preview: full` renders every remaining locked tier with
+    its own unlock sentence; `next` renders only the next one plus the
+    inherited count line and emits no further-locked entries at all. Both
+    unlock-copy rows are the inherited LOCKED strings, carried as separate
+    lines rather than one joined string.
+    """
+    q = q1()
+    rec = held_then_shown(q, 0)
+    full = runtime.teaching_payload(q, rec, "practice", "full")
+    if full["available"] is not True or full["unavailable_reason"] is not None:
+        fail("practice must run the ladder: %r" % full)
+    if full["shown"] != []:
+        fail("a wrong submission alone must show no tier: %r" % full["shown"])
+    if full["entitled"] is not True or full["unlock_path"] != "attempt":
+        fail("one genuine wrong attempt entitles the next tier: %r" % full)
+    if full["next_locked"]["index"] != 0 or full["next_locked"]["name"] != "lesson":
+        fail("the next locked tier is not tier 0: %r" % full["next_locked"])
+    if full["next_locked"]["unlock_copy"] != [
+            "Tier 0 unlocks after another attempt.",
+            "Or unlock it now with \"I'm stumped\"."]:
+        fail("the next-locked unlock copy drifted from the LOCKED rows: %r"
+             % full["next_locked"]["unlock_copy"])
+    if len(full["further_locked"]) != 5:
+        fail("full preview must carry the other five locked tiers: %r"
+             % full["further_locked"])
+    if full["further_locked"][0] != {
+            "name": "objective", "header": "TIER 1 · OBJECTIVE",
+            "unlock_copy": ["Tier 1 unlocks after tier 0."]}:
+        fail("a further-locked tier's shape drifted: %r"
+             % full["further_locked"][0])
+
+    nxt = runtime.teaching_payload(q, rec, "practice", "next")
+    if nxt["further_locked"] != []:
+        fail("next preview must emit no further-locked tiers: %r"
+             % nxt["further_locked"])
+    if nxt["next_locked"]["unlock_copy"][-1] != "5 more tiers after this one.":
+        fail("next preview must append the inherited count line: %r"
+             % nxt["next_locked"]["unlock_copy"])
+
+    # At the reveal there is nothing left to lock, and no count line is
+    # invented for zero remaining tiers.
+    done = runtime.teaching_payload(q, held_then_shown(q, 6), "practice", "next")
+    if done["next_locked"] is not None or done["further_locked"] != []:
+        fail("an exhausted ladder must carry no locked cards: %r" % done)
+    if done["exhausted"] is not True or len(done["shown"]) != 6:
+        fail("the exhausted payload is wrong: %r"
+             % {k: v for k, v in done.items() if k != "shown"})
+
+
+def test_teaching_payload_tier_three_header_names_the_picked_option():
+    """The tier-3 header names the option the learner actually picked, so the
+    header is response-specific in exactly the way the tier's content already
+    is -- and it is resolved here, never rebuilt by a client from an id.
+    """
+    q = q1()
+    rec = held_then_shown(q, 4)
+    payload = runtime.teaching_payload(q, rec, "practice")
+    headers = [e["header"] for e in payload["shown"]]
+    if headers != ["TIER 0 · LESSON", "TIER 1 · OBJECTIVE",
+                   "TIER 2 · TRAP", "TIER 3 · RATIONALE FOR C"]:
+        fail("the shown tier headers drifted: %r" % headers)
+    if payload["next_locked"]["header"] != "TIER 4 · DISCRIMINATOR":
+        fail("the next locked header is %r" % payload["next_locked"]["header"])
+    # A short item has no picked option, so no letter is manufactured.
+    bare = dict(runtime.new_teaching_record(), highest_tier_shown=3,
+                highest_tier_unlocked=3)
+    short = runtime.teaching_payload(q3(), bare, "practice")
+    if short["shown"][3]["header"] != "TIER 3 · RATIONALE":
+        fail("a tier-3 header with no picked option is %r"
+             % short["shown"][3]["header"])
+
+
+def test_teaching_payload_unavailable_shown_tier_says_so():
+    """A tier the item never authored is disclosed as an unavailable slot at
+    the moment it is shown (06-UI-SPEC 5.2), carrying the inherited sentence
+    and its own availability flag -- which is what lets the renderer draw the
+    unknown state rather than an empty card.
+    """
+    bare = dict(runtime.new_teaching_record(), highest_tier_shown=3,
+                highest_tier_unlocked=3)
+    payload = runtime.teaching_payload(q3(), bare, "practice")
+    tier3 = payload["shown"][3]
+    if tier3["available"] is not False:
+        fail("q3 tier 3 must be shown as unavailable: %r" % tier3)
+    if tier3["display"] != "This item has no authored picked-option rationale.":
+        fail("an unavailable shown tier's sentence drifted: %r"
+             % tier3["display"])
+    if tier3["label"] != runtime.HINT_TIERS[3]["label"]:
+        fail("a shown tier must carry its own label: %r" % tier3)
+
+
+def test_teaching_payload_non_ladder_modes_are_absent_with_a_reason():
+    """Drill, diagnostic and exam get the ladder as absent with the mode's own
+    stated sentence and an empty `shown` -- and availability is derived from
+    FEEDBACK_POLICIES, not from a mode list restated in the payload builder.
+    """
+    q = q1()
+    rec = held_then_shown(q, 3)          # three tiers really are disclosed
+    expected = {
+        "drill": "Drill mode shows the answer straight away. The hint ladder "
+                 "does not run here.",
+        "diagnostic": "Diagnostic mode records your answers and shows nothing "
+                      "until the sitting ends.",
+        "exam": "Exam mode holds all feedback until this attempt has been "
+                "marked.",
+    }
+    for mode, reason in expected.items():
+        payload = runtime.teaching_payload(q, rec, mode)
+        if payload["available"] is not False:
+            fail("%s mode must not run the ladder: %r" % (mode, payload))
+        if payload["unavailable_reason"] != reason:
+            fail("%s mode's stated reason drifted: %r"
+                 % (mode, payload["unavailable_reason"]))
+        if payload["shown"] != [] or payload["next_locked"] is not None \
+                or payload["further_locked"] != []:
+            fail("%s mode leaked ladder content: %r" % (mode, payload))
+        if payload["unlock_path"] is not None:
+            fail("a ladder that does not run has no unlock path: %r"
+                 % payload["unlock_path"])
+        blob = json.dumps(payload, ensure_ascii=False)
+        for i in range(6):
+            text = runtime.authored_hint(q, i, q1_wrong())["display"]
+            if text and text in blob:
+                fail("%s mode leaked tier %d's authored text" % (mode, i))
+    # Availability is read from the policy table, not from that mode list.
+    for mode, policy in runtime.FEEDBACK_POLICIES.items():
+        payload = runtime.teaching_payload(q, rec, mode)
+        if payload["available"] != (policy["wrong"] == "hold"):
+            fail("mode %r availability %r disagrees with its FEEDBACK_POLICIES "
+                 "wrong entry %r" % (mode, payload["available"], policy["wrong"]))
+        if not payload["available"] and not payload["unavailable_reason"]:
+            fail("mode %r refuses the ladder with no stated reason" % mode)
+
+
 def test_practice_reveal_then_advance():
     s = session(mode="practice", items=(0, 1), cursor=0)
     s = runtime.teaching_transition(s, q1(),
@@ -943,6 +1161,11 @@ def main():
     test_every_available_tier_carries_learner_text()
     test_unavailable_tier_carries_empty_learner_text()
     test_tier_selection_and_existing_payload_unchanged()
+    test_teaching_payload_never_leaks_an_unshown_tier()
+    test_teaching_payload_locked_preview_full_and_next()
+    test_teaching_payload_tier_three_header_names_the_picked_option()
+    test_teaching_payload_unavailable_shown_tier_says_so()
+    test_teaching_payload_non_ladder_modes_are_absent_with_a_reason()
     test_practice_reveal_then_advance()
     test_practice_last_item_completes()
     test_drill_reveals_and_advances()

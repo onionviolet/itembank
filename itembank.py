@@ -65,7 +65,8 @@ from runtime import (FEEDBACK_POLICIES, FIELD_SEP, HINT_TIERS, ITEM_VERSION,  # 
                      page_item, public_item, read_session, reconcile_teaching_state,
                      response_text, score_response, session_path,
                      session_summary, session_view, teaching_key,
-                     teaching_transition, upgrade_session, write_session)
+                     teaching_payload, teaching_transition, upgrade_session,
+                     write_session)
 from selection import (DEFAULT_COUNT, SPEC_FIELDS, SELECTION_MODES,           # noqa: E402
                        expand_spec, select)
 from surfaces.cli import main                                                  # noqa: E402
@@ -141,7 +142,8 @@ __all__ = [
     "selection_event",
     "session_events", "session_path",
     "key_review_event", "session_summary", "session_view", "source_key",
-    "subject_of", "teaching_key", "teaching_outcomes", "teaching_transition",
+    "subject_of", "teaching_key", "teaching_outcomes", "teaching_payload",
+    "teaching_transition",
     "term_lookup_event", "upgrade_session", "utc_now",
     "CHECK_UNRESOLVED_COPY",
     "authored_hint",

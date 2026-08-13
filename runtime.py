@@ -2020,6 +2020,173 @@ def _advance_cursor(session):
     return cursor, status
 
 
+# ---- phase 14: the ladder payload -- D-09's boundary as a pure function ----
+# 14-UI-SPEC section 9.1 LOCKED: "the browser renders `shown` and
+# `next_locked` and nothing else." Everything a surface would otherwise have
+# had to decide -- which tiers exist, which are disclosed, what each locked
+# card says, whether the ladder runs in this mode at all -- is resolved here,
+# once, so a route is plumbing rather than a second place deciding what a
+# learner reads.
+
+# The learner-facing header word for each fixed tier, in HINT_TIERS order
+# (14-UI-SPEC section 14, INHERITED from 06-UI-SPEC section 5.2). Tier 3 is
+# response-specific, so it is the one entry completed at resolve time rather
+# than read off this tuple whole.
+TIER_HEADER_WORDS = ("LESSON", "OBJECTIVE", "TRAP", "RATIONALE",
+                     "DISCRIMINATOR", "REVEAL")
+
+# The mode's OWN stated sentence for a ladder that does not run (14-UI-SPEC
+# section 9.3, INHERITED verbatim). Availability is never read from this map:
+# it is derived from FEEDBACK_POLICIES below, so a feedback mode added later
+# gets a ladder only if somebody decided to give it one, rather than
+# inheriting one from a mode list restated here and forgotten.
+LADDER_UNAVAILABLE_REASONS = {
+    "drill": "Drill mode shows the answer straight away. The hint ladder does "
+             "not run here.",
+    "diagnostic": "Diagnostic mode records your answers and shows nothing "
+                  "until the sitting ends.",
+    "exam": "Exam mode holds all feedback until this attempt has been marked.",
+}
+
+# The sentence for a non-hold mode with no authored one -- today only
+# 'legacy', which appears on migrated events and which no live session can
+# carry. It states the true thing rather than borrowing another mode's words.
+LADDER_UNAVAILABLE_DEFAULT = ("This sitting's feedback mode does not run the "
+                              "hint ladder.")
+
+# The three locked-card sentences (14-UI-SPEC section 14 / 06-UI-SPEC section
+# 5.2, LOCKED). Carried as separate lines rather than one joined string
+# because the inherited copy table has them as separate rows, and a fixture
+# asserting either row should not have to know how the two were joined.
+NEXT_TIER_UNLOCK_COPY = ("Tier %d unlocks after another attempt.",
+                         "Or unlock it now with \"I'm stumped\".")
+FURTHER_TIER_UNLOCK_COPY = "Tier %d unlocks after tier %d."
+MORE_TIERS_COPY = "%d more tiers after this one."
+NO_AUTHORED_TIER_COPY = "This item has no authored %s."
+
+
+def _tier_header(q, index, canonical):
+    """One tier's Ledger header: `TIER {n} - {WORD}`, with tier 3 naming the
+    option the learner actually picked. Resolved here and never by a client:
+    a surface that rebuilt this string from a tier id would be a second place
+    deciding how a tier introduces itself.
+    """
+    word = TIER_HEADER_WORDS[index]
+    if index == 3 and canonical and q["type"] in ("mc", "multi"):
+        option = str(canonical).split(",")[0].strip()
+        if option:
+            word = "%s FOR %s" % (word, option)
+    return "TIER %d · %s" % (index, word)
+
+
+def teaching_payload(q, rec, mode, locked_preview="full"):
+    """The whole of what a surface may know about the authored hint ladder
+    for one item (14-UI-SPEC section 9.1, LOCKED). Pure: it reads no file,
+    writes nothing, touches no session, and reads no settings -- the caller
+    resolves `locked_preview` server-side and passes it in, so a client can
+    never widen its own preview (T-14-11).
+
+    `rec` is a `new_teaching_record()`-shaped dict, `mode` the sitting's
+    feedback mode, `locked_preview` the resolved `teaching.hint_locked_preview`
+    value (`full` or `next`).
+
+    Returned keys:
+
+      available          -- false in any mode whose FEEDBACK_POLICIES `wrong`
+                            entry is not `hold`. Derived from that table, not
+                            from a mode list restated here.
+      unavailable_reason -- null when available, else the mode's own sentence.
+      shown              -- one entry per already-disclosed tier, in index
+                            order: {index, name, label, header, display,
+                            available}. `display` is the text the runtime
+                            already resolved (`authored_hint`'s own `display`),
+                            or the inherited no-authored-content sentence.
+                            `available` is disclosed information ON A SHOWN
+                            TIER only (06-UI-SPEC section 5.2 discloses
+                            availability at the moment a tier is shown).
+      next_locked        -- {index, name, header, unlock_copy} for the single
+                            next undisclosed tier, or null when none remains.
+      further_locked     -- the locked tiers after that one, each {name,
+                            header, unlock_copy} and deliberately NO index:
+                            their number already appears inside their own
+                            locked copy, and nothing else needs it. Empty
+                            under `locked_preview: next`, which instead
+                            appends the inherited count line to next_locked.
+      entitled           -- a tier is unlocked and not yet shown.
+      exhausted          -- the last tier has been shown.
+      unlock_path        -- "attempt" when entitled, else "stumped"; null when
+                            the ladder does not run, because a refused ladder
+                            has no path rather than a stumped one.
+
+    What it never contains, and what the fixtures assert: an undisclosed
+    tier's body or `content`, an undisclosed tier's availability,
+    `highest_tier_unlocked` or `attempt_count`, or anything else a client
+    could turn into a request naming a tier. There is no request shape that
+    names a tier because there is nothing in this payload to name one with.
+    """
+    if rec is None:
+        rec = new_teaching_record()
+    policy = FEEDBACK_POLICIES.get(mode, FEEDBACK_POLICIES["practice"])
+    if policy["wrong"] != "hold":
+        # 06-UI-SPEC section 6.5: absent with a stated reason, never a rail of
+        # greyed cards. Nothing about the item's tiers crosses this branch.
+        return {"available": False,
+                "unavailable_reason": LADDER_UNAVAILABLE_REASONS.get(
+                    mode, LADDER_UNAVAILABLE_DEFAULT),
+                "shown": [], "next_locked": None, "further_locked": [],
+                "entitled": False, "exhausted": False, "unlock_path": None}
+
+    canonical = rec.get("last_genuine_canonical")
+    highest_shown = rec.get("highest_tier_shown", -1)
+    highest_unlocked = rec.get("highest_tier_unlocked", -1)
+
+    # The ladder is monotone: `highest_tier_shown` IS the disclosed set, and
+    # it is the same number `_next_reveal` reveals against, so the payload and
+    # the transition can never disagree about where the boundary sits.
+    shown = []
+    for index in range(highest_shown + 1):
+        tier = authored_hint(q, index, canonical)
+        shown.append({
+            "index": index,
+            "name": tier["name"],
+            "label": tier["label"],
+            "header": _tier_header(q, index, canonical),
+            "display": tier["display"] if tier["available"]
+                       else NO_AUTHORED_TIER_COPY % tier["label"],
+            "available": tier["available"],
+        })
+
+    next_index = highest_shown + 1
+    exhausted = next_index >= len(HINT_TIERS)
+    entitled = highest_unlocked > highest_shown
+
+    next_locked = None
+    further_locked = []
+    if not exhausted:
+        unlock_copy = [NEXT_TIER_UNLOCK_COPY[0] % next_index,
+                       NEXT_TIER_UNLOCK_COPY[1]]
+        remaining = list(range(next_index + 1, len(HINT_TIERS)))
+        if locked_preview == "next":
+            if remaining:
+                unlock_copy.append(MORE_TIERS_COPY % len(remaining))
+        else:
+            further_locked = [
+                {"name": HINT_TIERS[i]["name"],
+                 "header": _tier_header(q, i, canonical),
+                 "unlock_copy": [FURTHER_TIER_UNLOCK_COPY % (i, i - 1)]}
+                for i in remaining]
+        next_locked = {"index": next_index,
+                       "name": HINT_TIERS[next_index]["name"],
+                       "header": _tier_header(q, next_index, canonical),
+                       "unlock_copy": unlock_copy}
+
+    return {"available": True, "unavailable_reason": None,
+            "shown": shown, "next_locked": next_locked,
+            "further_locked": further_locked,
+            "entitled": entitled, "exhausted": exhausted,
+            "unlock_path": "attempt" if entitled else "stumped"}
+
+
 # ---- phase 8: model-orchestrated hint and rubric review (08-04) ------------
 # D-08..D-14: the runtime, not the surface, sequences adapter -> gate ->
 # evidence -> authored fallback. These helpers never accept a caller-supplied
