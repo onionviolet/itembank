@@ -17,7 +17,7 @@ both defects shipped:
         and the daemon carried no font route at all. Four 404s per page
         load.
 
-Eight invariants, run over the union of two collectors so a stylesheet built
+Nine invariants, run over the union of two collectors so a stylesheet built
 by a function is covered as well as one held in a constant:
 
   1. balanced braces in every collected stylesheet;
@@ -33,7 +33,12 @@ by a function is covered as well as one held in a constant:
   7. EVERY served page -- reader and quiz alike -- declares all four
      manifest-recorded faces (14-UI-SPEC §15 gate 9);
   8. the daemon's font asset map names exactly the files fonts/MANIFEST.json
-     records.
+     records;
+  9. inside the files this phase owns, no `font-size` outside
+     {12,16,18,20,32}px, no `font-weight` outside {400,600}, and no literal
+     font family (14-UI-SPEC §15 gate 12). Its scope is an explicit tuple and
+     the files still owed are printed on every green run, so the debt is
+     visible rather than pooled away.
 
 Invariant 3 is the one that would have caught DEFECT D-A (`--space-1` …
 `--space-7` referenced 64 times in `surfaces/lesson.py` and defined nowhere),
@@ -103,6 +108,33 @@ REQUIRED_FONT_ROUTES = ("served /lesson/lesson_bank", "served /quiz/lesson_bank"
 # REPORTED on every run, never silently pooled, so the gap stays visible until
 # a plan claims it.
 REPORTED_FONT_ROUTES = ("served /day/sample_plan",)
+
+# 14-UI-SPEC §15 gate 12. The project type scale is five sizes at two weights,
+# and a family is named only by token (.planning/UI-SPEC.md §7).
+TYPE_SCALE_SIZES = (12, 16, 18, 20, 32)
+TYPE_SCALE_WEIGHTS = (400, 600)
+
+# The scope is an EXPLICIT tuple rather than "every collected stylesheet",
+# because the design contract records the rest of the migration as owed rather
+# than as done, and a fixture that failed on the owed part would be red for a
+# reason no plan in this phase is allowed to fix. A stylesheet is in scope when
+# its collected name starts with one of these.
+TYPE_SCALE_SCOPE = ("surfaces.presentation", "surfaces.lesson",
+                    "served /lesson/")
+
+# 14-UI-SPEC §17 item 6 -- the Phase 4 cleanup this phase deliberately does not
+# widen its diff to reach. These files still carry off-scale sizes; the debt is
+# printed on every green run so it stays visible instead of being forgotten.
+# Plan 14-04 appends `surfaces.quiz_page` and `served /quiz/` to
+# TYPE_SCALE_SCOPE once the quiz has been migrated; adding either early turns
+# this fixture red for the wrong reason.
+TYPE_SCALE_DEBT = ("surfaces.theme SETTINGS_CSS", "surfaces.day",
+                   "surfaces.study")
+
+# A length anywhere in a `font` shorthand. `font:inherit` carries none and is
+# skipped; a shorthand that carries one must express it in px on the scale.
+LENGTH_RE = re.compile(r"^\d*\.?\d+(px|em|rem|%|pt|ex|ch|vh|vw)\b")
+VAR_ONLY_RE = re.compile(r"^var\(\s*--[A-Za-z0-9_-]+\s*\)$")
 
 # 14-UI-SPEC §3.3/§3.4. Foregrounds are measured against three backgrounds
 # each; a `*_bg` token is a BACKGROUND and is never itself a foreground -- a
@@ -440,6 +472,185 @@ def check_semantic_token_contrast():
              + "\n  ".join(problems))
 
 
+# ---- invariant 9: the type scale is the only type scale ---------------------
+
+def raw_blocks(raw):
+    """Every brace block as {prelude, body, ancestors}, where `body` is the
+    RAW text rather than the normalised text.
+
+    `blocks()` returns normalised bodies, and `normalise()` blanks the contents
+    of quoted strings -- which is exactly where a literal font family hides
+    (`font-family:"Helvetica"`). Structure is still taken from the normalised
+    text so a brace inside a comment or a url can never change the depth;
+    `normalise()` preserves length, so an offset means the same character in
+    both.
+    """
+    norm = normalise(raw)
+    found, stack, last = [], [], 0
+    for i, ch in enumerate(norm):
+        if ch == "{":
+            stack.append((norm[last:i].strip(), i + 1))
+            last = i + 1
+        elif ch == "}":
+            if not stack:
+                last = i + 1
+                continue
+            prelude, start = stack.pop()
+            found.append({"prelude": prelude, "body": raw[start:i],
+                          "norm": norm[start:i],
+                          "ancestors": tuple(p for p, _ in stack)})
+            last = i + 1
+    return found
+
+
+def declarations(rule):
+    """`(property, value)` for every declaration directly in one rule body.
+
+    Split at the semicolons of the NORMALISED body, so a `;` inside a comment
+    or a quoted string never splits a declaration, then sliced out of the raw
+    body so quoted values survive. A chunk carrying a brace belongs to a nested
+    rule, which the walker visits on its own, and is skipped here.
+
+    A declaration is a property followed by `:`. That is deliberate and load
+    bearing: an SVG presentation attribute is written `font-size="14"` in
+    markup and is NOT CSS -- the visual-item renderers legitimately set
+    unitless `font-size` on `<text>` elements, and this invariant does not and
+    must not govern them.
+    """
+    raw, norm = rule["body"], rule["norm"]
+    cuts, start = [], 0
+    for i, ch in enumerate(norm):
+        if ch == ";":
+            cuts.append(raw[start:i])
+            start = i + 1
+    cuts.append(raw[start:])
+    out = []
+    for chunk in cuts:
+        if "{" in chunk or "}" in chunk:
+            continue
+        m = re.match(r"\s*([-A-Za-z][-A-Za-z0-9]*)\s*:\s*(.*)\s*$", chunk,
+                     re.S)
+        if m:
+            out.append((m.group(1).lower(), m.group(2).strip()))
+    return out
+
+
+def bad_family_names(value):
+    """The comma-separated family names in `value` that are not `var(--NAME)`."""
+    return [part.strip() for part in value.split(",")
+            if part.strip() and not VAR_ONLY_RE.match(part.strip())]
+
+
+def check_type_scale(sheets):
+    """14-UI-SPEC §15 gate 12: inside the files this phase owns, no font size
+    outside {12,16,18,20,32}px, no font weight outside {400,600}, and no
+    literal font family.
+
+    Three exclusions, each real:
+
+      - `@font-face` DESCRIPTOR blocks. A `font-weight` there declares what a
+        FILE IS, not what a rule USES -- the vendored Quattro Bold is a
+        700-weight file and must stay declared as one -- and its `font-family`
+        is the family being defined, which cannot be a token.
+      - SVG presentation attributes, excluded by `declarations()` requiring a
+        `:` (see its docstring).
+      - custom-property definitions: `--font-chrome:` is a definition, not a
+        use, and `--measure-prose:59ch` is not a font declaration at all.
+
+    Every scope prefix must match at least one collected stylesheet. A scoped
+    assertion that matches nothing is green for the same reason an unscoped
+    one is -- it checked nothing -- and that is the exact shape of the pooling
+    that let D-B survive a green suite.
+    """
+    problems, covered = [], {prefix: 0 for prefix in TYPE_SCALE_SCOPE}
+    for name, raw in sheets:
+        if not name.startswith(TYPE_SCALE_SCOPE):
+            continue
+        for prefix in TYPE_SCALE_SCOPE:
+            if name.startswith(prefix):
+                covered[prefix] += 1
+        for rule in raw_blocks(raw):
+            context = (rule["prelude"],) + rule["ancestors"]
+            if any(c.startswith("@font-face") for c in context):
+                continue
+            where = "%s: %r" % (name, rule["prelude"] or "(no selector)")
+            for prop, value in declarations(rule):
+                if prop.startswith("--"):
+                    continue
+                if prop == "font-size":
+                    problems += size_problems(where, prop, value)
+                elif prop == "font-weight":
+                    if value.strip() not in [str(w) for w in TYPE_SCALE_WEIGHTS]:
+                        problems.append(
+                            "%s declares font-weight:%s; the project pair is "
+                            "%s" % (where, value,
+                                    "/".join(str(w) for w in TYPE_SCALE_WEIGHTS)))
+                elif prop == "font-family":
+                    bad = bad_family_names(value)
+                    if bad:
+                        problems.append(
+                            "%s names the font %s literally; every family "
+                            "resolves through a var(--NAME) token"
+                            % (where, ", ".join(repr(b) for b in bad)))
+                elif prop == "font":
+                    problems += shorthand_problems(where, value)
+    empty = [prefix for prefix in TYPE_SCALE_SCOPE if not covered[prefix]]
+    if empty:
+        fail("no stylesheet was collected for %s, so gate 12 asserted nothing "
+             "about it and would stay green however far the type drifted"
+             % ", ".join(repr(p) for p in empty))
+    if problems:
+        fail("the type scale is not the only type scale in the files this "
+             "phase owns -- each of these reads as a different product from "
+             "the rules around it:\n  " + "\n  ".join(problems))
+
+
+def size_problems(where, prop, value):
+    """A single length, asserted for unit first and magnitude second."""
+    val = value.strip()
+    m = LENGTH_RE.match(val)
+    if not m:
+        return ["%s declares %s:%s, which is not a length this scale can "
+                "check; sizes are absolute px on the scale" % (where, prop, val)]
+    if m.group(1) != "px":
+        return ["%s declares %s:%s -- a relative unit resolves off-scale "
+                "against whichever parent it inherits" % (where, prop, val)]
+    number = float(val[:-2])
+    if number not in [float(s) for s in TYPE_SCALE_SIZES]:
+        return ["%s declares %s:%s; the project scale is %s"
+                % (where, prop, val,
+                   "/".join("%d" % s for s in TYPE_SCALE_SIZES))]
+    return []
+
+
+def shorthand_problems(where, value):
+    """The `font` shorthand, split into its optional weight, its length and
+    its family list. `font:inherit` carries no length and no family and is
+    skipped -- it is the correct way for a control to take the surrounding
+    type rather than restate it."""
+    tokens = value.strip().split()
+    size_at = next((i for i, t in enumerate(tokens) if LENGTH_RE.match(t)), -1)
+    if size_at < 0:
+        return []
+    out = []
+    for lead in tokens[:size_at]:
+        if lead.isdigit():
+            out += ["%s declares font-weight %s inside a font shorthand; the "
+                    "project pair is %s"
+                    % (where, lead,
+                       "/".join(str(w) for w in TYPE_SCALE_WEIGHTS))] \
+                if lead not in [str(w) for w in TYPE_SCALE_WEIGHTS] else []
+    out += size_problems(where, "font (size)", tokens[size_at].split("/")[0])
+    family = " ".join(tokens[size_at + 1:]).strip()
+    if family:
+        bad = bad_family_names(family)
+        if bad:
+            out.append("%s names the font %s literally in a font shorthand; "
+                       "every family resolves through a var(--NAME) token"
+                       % (where, ", ".join(repr(b) for b in bad)))
+    return out
+
+
 # ---- invariant 5: every @font-face url resolves -----------------------------
 
 def font_urls(sheets):
@@ -654,6 +865,7 @@ def main():
         check_balanced_braces(sheets)
         check_popover_scope(sheets)
         check_token_completeness(sheets)
+        check_type_scale(sheets)
         check_semantic_token_contrast()
         check_font_urls_resolve(sheets)
         check_fonts_served(base, sheets)
@@ -662,6 +874,11 @@ def main():
     finally:
         proc.terminate()
         shutil.rmtree(workdir, ignore_errors=True)
+    print("note: the type scale is asserted over %s only. Still off-scale, and "
+          "owed rather than done (14-UI-SPEC section 17 item 6): %s. The quiz "
+          "joins "
+          "the scope in plan 14-04."
+          % (", ".join(TYPE_SCALE_SCOPE), ", ".join(TYPE_SCALE_DEBT)))
     print("ok: stylesheet roundtrip -- %d stylesheets balanced, popover never "
           "suppressed on screen, every var(--NAME) a served page references "
           "defined in that same page, semantic tokens at 4.5:1 and --edge at "
