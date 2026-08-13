@@ -18,6 +18,7 @@
     "update_policy",
     "daemon",
     "reader",
+    "teaching",
     "style",
     "paraphrase",
     "check",
@@ -405,6 +406,42 @@
           ],
           "default": "as-authored",
           "x-itembank-phase": 6.2
+        }
+      }
+    },
+    "teaching": {
+      "type": "object",
+      "description": "How the authored six-tier hint ladder is laid out and how much of its locked remainder is previewed (14-UI-SPEC section 16; the interface is inherited from 06-UI-SPEC sections 5-6). Neither key changes WHAT a tier contains or WHEN it unlocks -- that is the runtime's call and only the runtime's (D-09). Read by this phase (14).",
+      "additionalProperties": false,
+      "required": [
+        "hint_display",
+        "hint_locked_preview"
+      ],
+      "x-itembank-phase": 14,
+      "default": {
+        "hint_display": "slot",
+        "hint_locked_preview": "full"
+      },
+      "properties": {
+        "hint_display": {
+          "type": "string",
+          "description": "Where the ladder sits relative to the activity. slot is the default and the only value the sat quiz resolves to at every width, because that surface is a single-column shell and its support region is in-flow after the response controls (14-UI-SPEC section 9.2). rail becomes reachable when a two-column learning workspace exists; until then it renders as slot rather than inventing a second layout.",
+          "enum": [
+            "rail",
+            "slot"
+          ],
+          "default": "slot",
+          "x-itembank-phase": 14
+        },
+        "hint_locked_preview": {
+          "type": "string",
+          "description": "How much of the locked remainder of the ladder is previewed. full renders every remaining locked tier with its own unlock sentence; next renders only the next locked tier plus the inherited '{k} more tiers after this one.' count line. The value is resolved SERVER-side by the teach adapter and passed into the pure payload builder, so a client can never widen its own preview by asking for one (T-14-11).",
+          "enum": [
+            "full",
+            "next"
+          ],
+          "default": "full",
+          "x-itembank-phase": 14
         }
       }
     },

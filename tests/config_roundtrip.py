@@ -114,8 +114,8 @@ def test_schema_names_every_project_key():
     expected = {"theme", "daily_cap", "selection_weights", "selection",
                 "auditor_autonomy", "model_backend", "suggestion_reveal",
                 "update_policy", "daemon", "update", "accent", "reader",
-                "style", "paraphrase", "lti", "check", "subject_profiles",
-                "retention", "audio"}
+                "teaching", "style", "paraphrase", "lti", "check",
+                "subject_profiles", "retention", "audio"}
     if keys != expected:
         fail("schema properties %r do not equal the expected key set %r" % (keys, expected))
     for name, sub in schema["properties"].items():
@@ -607,6 +607,91 @@ def test_check_group_contract():
         shutil.rmtree(base, ignore_errors=True)
 
 
+def test_teaching_group_contract():
+    """The two Phase 14 teaching keys are enumerated, defaulted and required
+    in the schema; `itembank config` prints both rows; an out-of-enum value is
+    refused by the existing settings.invalid_value code; and a settings file
+    with no `teaching` object at all loads both defaults rather than raising
+    (plan 14-03 Task 1).
+
+    The names are the inherited 06-UI-SPEC interface restated in 14-UI-SPEC
+    section 16, not invented here -- which is what makes a published settings
+    key safe to ship without a migration.
+    """
+    schema = json.load(open(SCHEMA_PATH, encoding="utf-8"))
+    t = schema["properties"]["teaching"]
+    if t.get("x-itembank-phase") != 14:
+        fail("teaching group x-itembank-phase is %r, expected 14"
+             % t.get("x-itembank-phase"))
+    if t.get("additionalProperties") is not False:
+        fail("teaching group must reject unknown keys")
+    if sorted(t.get("required", [])) != ["hint_display", "hint_locked_preview"]:
+        fail("teaching required list is %r" % t.get("required"))
+    if "teaching" not in schema.get("required", []):
+        fail("teaching is not a top-level required key")
+    if t["properties"]["hint_display"]["enum"] != ["rail", "slot"]:
+        fail("hint_display enum is %r, expected rail|slot"
+             % t["properties"]["hint_display"]["enum"])
+    if t["properties"]["hint_display"]["default"] != "slot":
+        fail("hint_display default is not slot (14-UI-SPEC section 9.2)")
+    if t["properties"]["hint_locked_preview"]["enum"] != ["full", "next"]:
+        fail("hint_locked_preview enum is %r, expected full|next"
+             % t["properties"]["hint_locked_preview"]["enum"])
+    if t["properties"]["hint_locked_preview"]["default"] != "full":
+        fail("hint_locked_preview default is not full")
+    if t.get("default") != {"hint_display": "slot",
+                            "hint_locked_preview": "full"}:
+        fail("the teaching group's whole-object default is %r" % t.get("default"))
+    # The module accessor and the schema agree: one set of numbers, not two.
+    if settings.teaching_defaults() != t.get("default"):
+        fail("settings.teaching_defaults() %r disagrees with the schema's "
+             "group default %r" % (settings.teaching_defaults(), t.get("default")))
+
+    base = fresh_base()
+    try:
+        r = run([], base)
+        if r.returncode != 0:
+            fail("itembank config exited %d after the teaching group landed: %s"
+                 % (r.returncode, r.stdout + r.stderr))
+        for row in ("teaching.hint_display", "teaching.hint_locked_preview"):
+            if row not in r.stdout:
+                fail("itembank config does not print the %s row" % row)
+
+        for args in (["set", "teaching.hint_display", "rail"],
+                     ["set", "teaching.hint_locked_preview", "next"]):
+            r = run(args, base)
+            if r.returncode != 0:
+                fail("config %r failed: %s" % (args, r.stdout + r.stderr))
+        data = json.load(open(settings_file(base), encoding="utf-8"))
+        if data["teaching"] != {"hint_display": "rail",
+                                "hint_locked_preview": "next"}:
+            fail("teaching values did not read back: %r" % data.get("teaching"))
+
+        # Out of enum, wrong type and unknown nested key all go through the
+        # one existing validator and its one existing code namespace.
+        assert_rejected(base, ["set", "teaching.hint_display", "column"],
+                        "settings.invalid_value")
+        assert_rejected(base, ["set", "teaching.hint_locked_preview", "all"],
+                        "settings.invalid_value")
+        assert_rejected(base, ["set", "teaching.hint_display", "3"],
+                        "settings.invalid_type")
+        assert_rejected(base, ["set", "teaching.nope", '"x"'],
+                        "settings.unknown_key")
+
+        # A file with no teaching object at all reads back both defaults.
+        nodata = json.load(open(settings_file(base), encoding="utf-8"))
+        nodata.pop("teaching", None)
+        json.dump(nodata, open(settings_file(base), "w", encoding="utf-8"),
+                  indent=2)
+        loaded = settings.load_settings(base)
+        if loaded["teaching"] != {"hint_display": "slot",
+                                  "hint_locked_preview": "full"}:
+            fail("a file with no teaching object did not read back both "
+                 "schema defaults: %r" % loaded.get("teaching"))
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+
 def test_settings_codes_declared():
     codes = settings.SETTINGS_CODES
     if list(codes) != sorted(codes):
@@ -647,6 +732,7 @@ def main():
     test_theme_preview_readonly_reports_tokens()
     test_phase_4_theme_keys_read_not_inert()
     test_check_group_contract()
+    test_teaching_group_contract()
     test_settings_codes_declared()
     # Reachability is checked last, after every other test has had a chance
     # to record the codes its own inputs triggered via assert_rejected/code_in.

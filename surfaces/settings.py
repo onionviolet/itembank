@@ -63,6 +63,16 @@ PARAPHRASE_SETTINGS_DEFAULTS = {"winnow_threshold": 8, "jaccard_threshold": 0.25
 # and the roundtrip tests can read the shipped defaults without a load.
 GATE_SETTINGS_DEFAULTS = {"gate_skip": "always", "gate_policy": "as-authored"}
 
+# The Phase 14 `teaching` group defaults (14-UI-SPEC section 16): where the
+# authored hint ladder sits (`hint_display`, slot) and how much of its locked
+# remainder is previewed (`hint_locked_preview`, full). The schema remains the
+# source of truth; this accessor exists so the teach adapter and the roundtrip
+# tests can read the shipped defaults without a settings load -- and so a
+# settings file that somehow carries no `teaching` object still resolves the
+# preview server-side rather than leaving it to a client.
+TEACHING_SETTINGS_DEFAULTS = {"hint_display": "slot",
+                              "hint_locked_preview": "full"}
+
 
 def style_defaults():
     """The `style` settings group's shipped defaults: `imperative_cap`
@@ -90,6 +100,12 @@ def gate_defaults():
     """The Phase 6.2 `reader` gate settings' shipped defaults (06.2-UI-SPEC
     section 10): `gate_skip` (always) and `gate_policy` (as-authored)."""
     return dict(GATE_SETTINGS_DEFAULTS)
+
+
+def teaching_defaults():
+    """The Phase 14 `teaching` settings' shipped defaults (14-UI-SPEC section
+    16): `hint_display` (slot) and `hint_locked_preview` (full)."""
+    return dict(TEACHING_SETTINGS_DEFAULTS)
 
 
 def settings_path(base):
