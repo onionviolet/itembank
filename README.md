@@ -121,8 +121,12 @@ itembank start bank.md --count 10 --mode practice --out s.json
 itembank next s.json        # return the next item without its answer key
 itembank submit s.json --answer '"B"'  # score and record a response
 itembank report s.json      # summarize the recorded evidence
-itembank hint --session s.json   # one error-specific hint from the model backend,
-                            #   falling back to the authored tier offline
+itembank teach s.json       # READ the fixed six-tier AUTHORED hint ladder; moves
+                            #   nothing, so it is safe to run twice
+itembank teach s.json --next     # open the next tier the learner has earned
+itembank teach s.json --stumped  # open the next tier without that entitlement
+itembank hint --session s.json   # one error-specific GENERATED hint from the model
+                            #   backend, falling back to the authored tier offline
 itembank rubric-review --session s.json  # per-point rubric suggestions; a suggestion
                                 #   can never settle a mark (pending only)
 itembank select bank.md     # preview a selection without starting a session

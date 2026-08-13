@@ -1091,19 +1091,25 @@ def check_api_route_scope():
     """D-04's four session routes plus Phase 6's `/api/hint`, plan 06.1-02's
     `/api/interact`, plan 08-05's `/api/rubric-review`, Phase 10's
     `/api/override` and `/api/lesson-complete`, Phase 09.1's
-    `/api/export_audio`, and Phase 09's `/api/lesson/run`, and the count is
-    asserted rather than trusted. Every entry is mirrored in ROUTE_CLI
-    (route-without-CLI-twin fails here) and in SURFACE_PARITY with its
-    reserved MCP tool name (Extensibility Rule 9(a)).
+    `/api/export_audio`, Phase 09's `/api/lesson/run`, and Phase 14's
+    `/api/teach` -- the authored six-tier ladder's first route to a browser
+    (plan 14-03, DEFECT D-D), kept separate from `/api/hint` because that
+    route is Phase 8's model orchestration and 08-05 removed the legacy tier
+    shim from it deliberately. The count is asserted rather than trusted.
+    Every entry is mirrored in ROUTE_CLI (route-without-CLI-twin fails here)
+    and in SURFACE_PARITY with its reserved MCP tool name (Extensibility
+    Rule 9(a)).
     """
-    if len(daemon.API_ROUTES) != 11:
-        fail("D-04 + Phase 6 + 06.1-02 + 08-05 + 10-04/10-05 + 09.1 + 09 "
-             "scope /api/* to exactly eleven routes; API_ROUTES has %d"
+    if len(daemon.API_ROUTES) != 12:
+        fail("D-04 + Phase 6 + 06.1-02 + 08-05 + 10-04/10-05 + 09.1 + 09 + 14 "
+             "scope /api/* to exactly twelve routes; API_ROUTES has %d"
              % len(daemon.API_ROUTES))
-    if not {"start", "next", "submit", "hint", "interact", "report",
+    if not {"start", "next", "submit", "hint", "teach", "interact", "report",
             "override", "rubric-review", "export"} <= \
             set(daemon.ROUTE_CLI.values()):
         fail("ROUTE_CLI is missing one of the session CLI commands")
+    if daemon.ROUTE_CLI.get(("POST", "/api/teach")) != "teach":
+        fail("POST /api/teach must map to the teach CLI twin")
     if ("POST", "/api/lesson-complete") not in daemon.ROUTE_CLI or \
             daemon.ROUTE_CLI[("POST", "/api/lesson-complete")] != "lesson":
         fail("POST /api/lesson-complete must map to the lesson CLI twin "
@@ -1145,7 +1151,7 @@ def check_surface_parity():
     # The reserved tool names the plans lock: an API route without its
     # reserved name present is exactly the silent third-surface regression
     # Rule 9(a) exists to stop.
-    if not {"start", "next", "submit", "report", "hint", "override",
+    if not {"start", "next", "submit", "report", "hint", "teach", "override",
             "lesson_complete", "rubric_review"} <= set(tools):
         fail("SURFACE_PARITY is missing a reserved MCP tool name; have %r"
              % sorted(tools))
@@ -1499,6 +1505,195 @@ def check_api_sitting():
             fail("POST /api/report returned a different session_id than it was asked for")
         if report["summary"]["auto_attempts"] < 1:
             fail("POST /api/report's summary shows no auto_attempts after one submit")
+    finally:
+        proc.terminate()
+
+
+LESSON_BANK = os.path.join(ROOT, "fixtures", "lesson_bank.md")
+
+
+def teach_hint_events(workdir, session_id):
+    """Every live hint event this sitting has recorded -- the evidence half of
+    "a shown tier writes exactly one hint event, a read writes none"."""
+    log = evidence.log_path(workdir)
+    if not os.path.exists(log):
+        return []
+    return [ev for ev in evidence.live_events(log)
+            if ev.get("event_type") == "hint"
+            and ev.get("session_id") == session_id]
+
+
+def check_api_teach_route():
+    """Plan 14-03: the fixed six-tier AUTHORED ladder, walked over the route
+    that finally reaches it (DEFECT D-D).
+
+    A practice sitting: submit a wrong answer, read the ladder, open one
+    tier, read again. The assertions are the boundary itself -- a wrong
+    submission alone shows nothing, a read moves nothing and writes nothing,
+    opening a tier grows `shown` by exactly one and writes exactly one hint
+    event carrying its unlock path, a body naming a tier is refused 400 by
+    name, and a diagnostic sitting gets the ladder as absent with its own
+    stated reason and no evidence at all.
+    """
+    workdir = tempfile.mkdtemp(prefix="teach-")
+    shutil.copy(LESSON_BANK, os.path.join(workdir, "lesson_bank.md"))
+    by_id = api_by_id(LESSON_BANK)
+    mc = by_id["q1"]
+    key = itembank.canonical_key(mc)
+    wrong = next(L for L in "ABCD" if L != key)
+    # Every tier's authored text, so the leak assertion is against the real
+    # strings rather than against a guess at them.
+    tier_text = {i: itembank.authored_hint(mc, i, wrong)["display"]
+                 for i in range(6)}
+
+    proc, url, lines = start_daemon(workdir)
+    try:
+        started = post(url + "api/start",
+                       {"bank": "lesson_bank", "count": 3, "seed": 0,
+                        "mode": "practice", "focus": "q1"})
+        session_id = started["session_id"]
+        if started["item"]["id"] != "q1":
+            fail("the focused sitting did not start on q1: %r"
+                 % started["item"]["id"])
+
+        # A read before any attempt: the ladder runs, nothing is disclosed.
+        read = post(url + "api/teach", {"session_id": session_id})
+        ladder = read["teaching"]
+        if read["action"] != "read":
+            fail("a bodiless /api/teach is not a read: %r" % read["action"])
+        if ladder["available"] is not True or ladder["shown"] != []:
+            fail("a fresh practice item's ladder is %r" % ladder)
+        if ladder["next_locked"]["index"] != 0:
+            fail("the first locked tier is %r" % ladder["next_locked"])
+
+        # A wrong submission alone unlocks a tier and shows none of it.
+        submitted = post(url + "api/submit",
+                         {"session_id": session_id, "answer": wrong})
+        if submitted["score"] is not False:
+            fail("the wrong answer scored %r" % submitted["score"])
+        held = post(url + "api/teach", {"session_id": session_id})["teaching"]
+        if held["shown"] != []:
+            fail("a wrong submission alone disclosed a tier: %r" % held["shown"])
+        if held["entitled"] is not True or held["unlock_path"] != "attempt":
+            fail("a genuine wrong attempt did not entitle the next tier: %r"
+                 % held)
+        if teach_hint_events(workdir, session_id):
+            fail("reading the ladder wrote a hint event")
+
+        # Opening one tier grows `shown` by exactly one and writes exactly
+        # one hint event carrying its unlock path.
+        opened = post(url + "api/teach",
+                      {"session_id": session_id, "action": {"kind": "hint"}})
+        shown = opened["teaching"]["shown"]
+        if len(shown) != 1 or shown[0]["index"] != 0:
+            fail("opening one tier disclosed %r" % shown)
+        if shown[0]["display"] != tier_text[0]:
+            fail("the disclosed tier's text is not the runtime's own: %r"
+                 % shown[0]["display"])
+        if shown[0]["header"] != "TIER 0 · LESSON":
+            fail("the disclosed tier's header is %r" % shown[0]["header"])
+        events = teach_hint_events(workdir, session_id)
+        if len(events) != 1:
+            fail("one shown tier wrote %d hint events" % len(events))
+        if events[0].get("tier_index") != 0 or \
+                events[0].get("unlock_path") != "attempt":
+            fail("the hint event does not carry its tier and unlock path: %r"
+                 % events[0])
+
+        # A read is idempotent: call it twice, nothing moves and nothing is
+        # appended. This is what makes the route safe for a rendering client
+        # to poll.
+        first = post(url + "api/teach", {"session_id": session_id})["teaching"]
+        second = post(url + "api/teach", {"session_id": session_id})["teaching"]
+        if first != second:
+            fail("two consecutive reads disagree")
+        if len(second["shown"]) != 1:
+            fail("a read moved the ladder: %r" % second["shown"])
+        if len(teach_hint_events(workdir, session_id)) != 1:
+            fail("a read appended a second hint event")
+
+        # The entitlement is the runtime's call too: with tier 0 open and no
+        # further attempt made, the earned path is closed and only the
+        # stumped path remains, so a client asking for the other one is
+        # refused with no transition and no evidence (T-14-13).
+        if second["unlock_path"] != "stumped" or second["entitled"] is not False:
+            fail("an opened tier with no further attempt still reports an "
+                 "earned path: %r" % second)
+        status, err = json_request(url + "api/teach",
+                                   {"session_id": session_id,
+                                    "action": {"kind": "hint"}})
+        if status != 400 or "stumped" not in str(err):
+            fail("an unearned hint returned %r %r, expected a 400 naming the "
+                 "path that is actually open" % (status, err))
+        if len(teach_hint_events(workdir, session_id)) != 1:
+            fail("a refused unearned hint appended a hint event")
+
+        # The CLI twin reaches the same runtime call (SURF-04): the same
+        # ladder, byte for byte, from `itembank teach`.
+        session_file = started["session_file"]
+        cli_read = agent_roundtrip.run("teach", session_file)
+        if cli_read["teaching"] != second:
+            fail("itembank teach and POST /api/teach disagree about the "
+                 "ladder: %r vs %r" % (cli_read["teaching"], second))
+        if len(teach_hint_events(workdir, session_id)) != 1:
+            fail("itembank teach with no flag moved the ladder")
+
+        # T-14-09: not one byte of an undisclosed tier crosses the wire.
+        blob = json.dumps(second, ensure_ascii=False)
+        for i in range(1, 6):
+            if tier_text[i] and tier_text[i] in blob:
+                fail("tier %d's authored text leaked into the served ladder" % i)
+
+        # T-14-10: a client cannot address a tier, at the top level or
+        # inside the action, and the refusal names the field.
+        for body in ({"session_id": session_id, "tier": 3},
+                     {"session_id": session_id,
+                      "action": {"kind": "hint", "tier": 3}},
+                     {"session_id": session_id,
+                      "action": {"kind": "hint", "reveal": True}}):
+            status, err = json_request(url + "api/teach", body)
+            if status != 400:
+                fail("a body naming a tier returned %r, expected 400: %r"
+                     % (status, body))
+            if "tier" not in str(err) and "reveal" not in str(err):
+                fail("the refusal does not name the field: %r" % err)
+        status, err = json_request(url + "api/teach",
+                                   {"session_id": session_id,
+                                    "action": {"kind": "reveal"}})
+        if status != 400 or "stumped" not in str(err):
+            fail("an illegal kind returned %r %r, expected a 400 naming the "
+                 "two legal values" % (status, err))
+        status, err = json_request(url + "api/teach",
+                                   {"session_id": session_id,
+                                    "hint_locked_preview": "next"})
+        if status != 400 or "hint_locked_preview" not in str(err):
+            fail("a client widening its own preview returned %r %r"
+                 % (status, err))
+        # None of the refusals moved the ladder or wrote evidence.
+        after = post(url + "api/teach", {"session_id": session_id})["teaching"]
+        if after != second:
+            fail("a refused request moved the ladder")
+        if len(teach_hint_events(workdir, session_id)) != 1:
+            fail("a refused request appended a hint event")
+
+        # T-14-12: a diagnostic sitting cannot be talked into a reveal.
+        diag = post(url + "api/start",
+                    {"bank": "lesson_bank", "count": 3, "seed": 0,
+                     "mode": "diagnostic", "focus": "q1"})
+        diag_id = diag["session_id"]
+        post(url + "api/submit", {"session_id": diag_id, "answer": wrong})
+        refused = post(url + "api/teach",
+                       {"session_id": diag_id, "action": {"kind": "stumped"}})
+        dl = refused["teaching"]
+        if dl["available"] is not False or dl["shown"] != []:
+            fail("diagnostic mode ran the ladder: %r" % dl)
+        if dl["unavailable_reason"] != ("Diagnostic mode records your answers "
+                                        "and shows nothing until the sitting "
+                                        "ends."):
+            fail("diagnostic mode's stated reason is %r"
+                 % dl["unavailable_reason"])
+        if teach_hint_events(workdir, diag_id):
+            fail("a refused diagnostic ladder wrote a hint event")
     finally:
         proc.terminate()
 
@@ -3290,6 +3485,7 @@ def main():
         check_api_export_audio,
         check_surface_parity,
         check_api_sitting,
+        check_api_teach_route,
         check_api_duplicate_submit_dedupes,
         check_api_survives_routine_error,
         check_api_bank_not_found,

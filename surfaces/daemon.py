@@ -209,11 +209,15 @@ SEED_ACCEPT_ALLOWED_FIELDS = ("bank", "action", "draft")
 
 # The `/api/*` session routes: D-04's four plus Phase 6's `/api/hint`,
 # plan 06.1-02's `/api/interact`, plan 08-05's `/api/rubric-review`, Phase
-# 10's `/api/override` and `/api/lesson-complete`, and Phase 09.1's
-# `/api/export_audio`. Fixed literals, not stem-parameterised: a session
-# or a bank is addressed by an opaque identifier in the JSON body (T-2-01),
-# never by a path segment, so there is no `<stem>`/`<id>` group in any of
-# these patterns at all. The ten-entry length is asserted by
+# 10's `/api/override` and `/api/lesson-complete`, Phase 09.1's
+# `/api/export_audio`, and Phase 14's `/api/teach` -- the authored six-tier
+# ladder's first route to any browser (plan 14-03, DEFECT D-D). `/api/teach`
+# is deliberately separate from `/api/hint`: `hint` is Phase 8's model
+# orchestration and plan 08-05 removed the legacy tier shim from it on
+# purpose. Fixed literals, not stem-parameterised: a session or a bank is
+# addressed by an opaque identifier in the JSON body (T-2-01), never by a
+# path segment, so there is no `<stem>`/`<id>` group in any of these
+# patterns at all. The twelve-entry length is asserted by
 # `check_api_route_scope` in `tests/daemon_roundtrip.py`, and every entry
 # is mirrored in ROUTE_CLI and SURFACE_PARITY (Extensibility Rule 9(a)).
 API_ROUTES = (
@@ -221,6 +225,7 @@ API_ROUTES = (
     ("POST", "/api/next", "handle_api_next"),
     ("POST", "/api/submit", "handle_api_submit"),
     ("POST", "/api/hint", "handle_api_hint"),
+    ("POST", "/api/teach", "handle_api_teach"),
     ("POST", "/api/interact", "handle_api_interact"),
     ("POST", "/api/report", "handle_api_report"),
     ("POST", "/api/override", "handle_api_override"),
@@ -282,6 +287,7 @@ ROUTE_CLI = {
     ("POST", "/api/next"): "next",
     ("POST", "/api/submit"): "submit",
     ("POST", "/api/hint"): "hint",
+    ("POST", "/api/teach"): "teach",
     ("POST", "/api/interact"): "interact",
     ("POST", "/api/report"): "report",
     ("POST", "/api/override"): "override",
@@ -312,12 +318,13 @@ ROUTE_CLI = {
 # unmapped entry fails `check_surface_parity` instead of shipping silently.
 # Each row is (route, CLI command, reserved MCP tool name); the tool names
 # are the locked reserved vocabulary (start, next, submit, report, hint,
-# override, lesson_complete, rubric_review).
+# teach, override, lesson_complete, rubric_review).
 SURFACE_PARITY = (
     (("POST", "/api/start"), "start", "start"),
     (("POST", "/api/next"), "next", "next"),
     (("POST", "/api/submit"), "submit", "submit"),
     (("POST", "/api/hint"), "hint", "hint"),
+    (("POST", "/api/teach"), "teach", "teach"),
     (("POST", "/api/interact"), "interact", "interact"),
     (("POST", "/api/report"), "report", "report"),
     (("POST", "/api/override"), "override", "override"),
@@ -2755,6 +2762,117 @@ def handle_api_hint(handler):
     try:
         result = session.do_hint(path, retry=retry)
     except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    except Exception as exc:
+        handler.send_server_error(exc)
+        return
+    handler.send_json(result)
+
+
+# The whole of `/api/teach`'s accepted vocabulary (plan 14-03). Two body
+# fields, one action field, two action kinds -- and nothing anywhere in it
+# that could name a tier. That absence IS the D-09 boundary: a client asks
+# for the next tier or for nothing, and which tier that is, and what it
+# contains, stays the runtime's call (T-14-10).
+TEACH_BODY_FIELDS = ("session_id", "action")
+TEACH_ACTION_FIELDS = ("kind",)
+
+
+def _teach_reject_authority(handler, obj, where):
+    """Refuse an authority-shaped field on `/api/teach` BY NAME, before any
+    policy work. `API_ACTION_FORBIDDEN_FIELDS` names `tier` explicitly, which
+    is the single field this route exists to keep out of a client's hands.
+    Returns True when a response has already been sent.
+    """
+    for field in API_ACTION_FORBIDDEN_FIELDS:
+        if field in obj:
+            handler.send_error(
+                400, "field %r is not accepted by /api/teach %s; the tier a "
+                "learner reaches next is the runtime's decision and is never "
+                "named by a client (D-09)" % (field, where))
+            return True
+    return False
+
+
+def handle_api_teach(handler):
+    """`POST /api/teach` -- `{"session_id": "<id>"}`, optionally with
+    `{"action": {"kind": "hint" | "stumped"}}`. The browser twin of
+    `itembank teach` and the first route the fixed six-tier authored ladder
+    has ever had (plan 14-03, DEFECT D-D).
+
+    Deliberately NOT a widened `/api/hint`: that route is Phase 8's model
+    orchestration, and plan 08-05 removed the legacy tier shim from it on
+    purpose. This one reaches `runtime.teaching_payload` through
+    `session.do_teach`; the two never share a body.
+
+    With no action this is a read -- no transition, no evidence write, no
+    session write. With an action it opens exactly one tier through the same
+    `session.do_action` every other sitting action goes through.
+
+    Field discipline, in order and before any policy work: cross-origin is
+    refused; `api_read_json` refuses `API_FORBIDDEN_FIELDS` (which names
+    `tier`); `API_ACTION_FORBIDDEN_FIELDS` is applied to the body AND to the
+    action object; any other field in either is refused 400 by name; and a
+    `kind` outside the two legal values is refused naming both. There is no
+    request shape that addresses a tier, and none that names the locked
+    preview -- that is resolved server-side from the settings file.
+    """
+    if _reject_cross_origin(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    if _teach_reject_authority(handler, data, "at the top level"):
+        return
+    unknown = sorted(k for k in data if k not in TEACH_BODY_FIELDS)
+    if unknown:
+        handler.send_error(
+            400, "field(s) %s are not accepted by /api/teach; the session is "
+            "addressed by session_id, the item is resolved server-side, and "
+            "the ladder's own settings are read from disk, never from a "
+            "request" % ", ".join(unknown))
+        return
+
+    kind = None
+    action = data.get("action")
+    if action is not None:
+        if not isinstance(action, dict):
+            handler.send_error(400, "action must be an object")
+            return
+        if _teach_reject_authority(handler, action, "inside action"):
+            return
+        bad = api_reject_path_fields(action)
+        if bad:
+            handler.send_error(
+                400, "field %r is not accepted inside /api/teach's action" % bad)
+            return
+        unknown = sorted(k for k in action if k not in TEACH_ACTION_FIELDS)
+        if unknown:
+            handler.send_error(
+                400, "field(s) %s are not accepted inside /api/teach's action; "
+                "it carries a kind and nothing else"
+                % ", ".join(unknown))
+            return
+        kind = action.get("kind")
+        if kind not in session.TEACH_ACTION_KINDS:
+            handler.send_error(
+                400, "action.kind must be one of %s; a client asks for the "
+                "next tier, never for a particular one (D-09)"
+                % ", ".join(session.TEACH_ACTION_KINDS))
+            return
+
+    session_id = data.get("session_id")
+    path = api_session_path(handler, session_id)
+    if path is None:
+        handler.send_not_found(session_id if isinstance(session_id, str) else "")
+        return
+    try:
+        result = session.do_teach(path, kind=kind)
+    except SystemExit as exc:
+        # SystemExit derives from BaseException, so this clause must come
+        # first: an except-Exception handler alone would let a routine
+        # refusal kill the daemon thread instead of reporting a 400.
         handler.send_error(400, str(exc.code))
         return
     except Exception as exc:

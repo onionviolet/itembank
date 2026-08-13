@@ -33,10 +33,12 @@ from runtime import (INTERACTION_VERSION, REPORT_VERSION, SESSION_VERSION,
                      VISUAL_ACTIONS, VISUAL_PROTOCOL_VERSION,
                      VISUAL_TOLERANCE_POLICY_VERSION, canonical_visual_response,
                      explain_payload, interaction_result, invoke_hint,
-                     invoke_rubric_review, normalize_answer, public_item,
+                     invoke_rubric_review, new_teaching_record,
+                     normalize_answer, public_item,
                      read_session, reconcile_teaching_state, score_response,
                      session_path, session_summary, session_view, teaching_key,
-                     teaching_transition, visual_observation as runtime_visual_observation,
+                     teaching_payload, teaching_transition,
+                     visual_observation as runtime_visual_observation,
                      visual_state_in_domain, write_session)
 
 
@@ -622,15 +624,127 @@ def do_hint(session_file, retry=False, stumped=None):
     -> authored fallback, so the surface never touches a tier, profile, key,
     or marker.
 
-    `stumped` is the daemon's legacy keyword: the daemon's Phase 6
-    `/api/hint` still calls this function with `stumped` (True/False), and
-    until plan 08-05 rewires that route those calls must keep revealing the
-    next fixed authored tier through `do_action` -- the sentinel value None
-    (the CLI path) selects the model orchestration, a real bool selects the
-    Phase 6 reveal. The quiz page's "I'm stumped" control depends on this."""
+    `stumped` is a legacy keyword with no caller left on any surface. Plan
+    08-05 removed it from `/api/hint`, and plan 14-03 gave the fixed authored
+    ladder its own route and command -- `do_teach` below, `POST /api/teach`
+    and `itembank teach` -- which is the Phase 14 path for a tier reveal. The
+    branch is left working so nothing calling it mid-phase breaks; plan 14-08
+    removes it once no caller remains. The sentinel value None (the CLI path)
+    selects the model orchestration; a real bool selects the Phase 6 reveal."""
     if stumped is not None:
         return do_action(session_file, {"kind": "stumped" if stumped else "hint"})
     return invoke_hint(session_file, retry=retry)
+
+
+# ---- plan 14-03: the authored ladder's own surface adapter ----------------
+# The six-tier authored ladder has shipped in the runtime since Phase 6 and
+# has been reachable from no browser surface and no CLI command (DEFECT D-D).
+# This is the adapter that gives it one of each, and it deliberately owns no
+# policy: `runtime.teaching_payload` decides what a tier discloses,
+# `do_action` performs and records every transition, and this function only
+# resolves the one server-side setting and joins the two.
+
+# The only action kinds the ladder accepts. There is deliberately no shape
+# here that names a tier -- a client asks for the NEXT one or for nothing,
+# which is the whole of the D-09 boundary (T-14-10).
+TEACH_ACTION_KINDS = ("hint", "stumped")
+
+
+def _teach_read(session_file):
+    """The read half of `do_teach`: resolve the session's current item,
+    reconcile its teaching state from live evidence exactly as `do_action`
+    does, and build the ladder payload. Performs NO transition, appends NO
+    evidence and writes NO session, so `itembank teach` is safe to run twice
+    (T-14-13).
+
+    Returns `(payload, q, data)`. `hint_locked_preview` is resolved HERE,
+    from the settings file beside the bank, and passed into the pure payload
+    builder -- it is not a request field anywhere, so a client cannot widen
+    its own preview (T-14-11).
+    """
+    data = read_session(session_file)
+    if data["status"] != "active" or data["cursor"] >= len(data["items"]):
+        sys.exit("session is already complete")
+    qs = load(data["bank"])
+    q = qs[data["items"][data["cursor"]]]
+
+    log = evidence.log_path(os.path.dirname(data["bank"]))
+    item_key = evidence.evidence_key(q)
+    # The session's OWN persisted unlock counter, captured before
+    # reconciliation, which rebuilds the record in place from evidence.
+    prior_unlocked = ((data.get("teaching_state") or {}).get(item_key)
+                      or {}).get("highest_tier_unlocked", -1)
+    live = [ev for ev in evidence.live_events(log)
+            if ev.get("session_id") == data["session_id"]
+            and evidence.evidence_key({"item_id": ev.get("item_id", ""),
+                                       "id": ev.get("item_ref", "")}) == item_key]
+    reconciled = reconcile_teaching_state(data, q, {item_key: live})
+    rec = reconciled.get("teaching_state", {}).get(item_key) \
+        or new_teaching_record()
+    # `_record_from_evidence` can only derive `highest_tier_unlocked` from
+    # tiers already SHOWN, because no event carries the counter -- so a tier
+    # unlocked by a wrong attempt and not yet opened is invisible to it, and
+    # a reconciled record would report `entitled: false` forever. Evidence is
+    # a floor for a session that fell behind, never a rewind of one that is
+    # ahead, so the counter takes the higher of the two. This repairs a read;
+    # it decides nothing: the unlock rule itself stays in
+    # `runtime.teaching_transition` where D-05 put it.
+    if not isinstance(prior_unlocked, int):
+        prior_unlocked = -1
+    if prior_unlocked > rec.get("highest_tier_unlocked", -1):
+        rec = dict(rec, highest_tier_unlocked=prior_unlocked)
+
+    cfg = settings.load_settings(
+        os.path.dirname(os.path.abspath(data["bank"])) or ".")
+    group = cfg.get("teaching") or settings.teaching_defaults()
+    preview = group.get("hint_locked_preview") or "full"
+    return teaching_payload(q, rec, data["mode"], preview), q, data
+
+
+def do_teach(session_file, kind=None):
+    """The authored hint ladder, read or advanced by exactly one tier.
+
+    With `kind` None this is a READ: the payload for the current item, with
+    no transition, no evidence write and no session write. With `kind` of
+    `hint` or `stumped` it opens the next tier -- `hint` when the learner is
+    entitled by an attempt, `stumped` when they are not -- through the
+    existing `do_action`, which is the one adapter that appends the hint
+    event with its unlock path and writes the session. No second write path
+    is introduced (T-14-13).
+
+    The mode gate is checked against the payload BEFORE any transition: if
+    the ladder does not run in this sitting's feedback mode the payload is
+    returned unchanged and nothing happens, so a diagnostic or exam sitting
+    cannot be talked into a reveal through this route (T-14-12).
+
+    A client can never name a tier: `kind` is an enum of exactly two values
+    and there is no other field.
+    """
+    if kind is not None and kind not in TEACH_ACTION_KINDS:
+        sys.exit("teach kind %r is not one of %s; a tier is never named by a "
+                 "caller (D-09)" % (kind, ", ".join(TEACH_ACTION_KINDS)))
+    payload, q, data = _teach_read(session_file)
+    if kind is None:
+        return {"accepted": True, "item_id": q["id"], "action": "read",
+                "teaching": payload, "status": data["status"]}
+    if not payload["available"]:
+        return {"accepted": False, "item_id": q["id"], "action": "unavailable",
+                "teaching": payload, "status": data["status"], "evidence": None}
+    if kind == "hint" and payload["unlock_path"] != "attempt":
+        # The runtime has already computed which of the two paths is open;
+        # a client that asks for the other one would be deciding its own
+        # entitlement and would stamp an unearned tier with `unlock_path:
+        # attempt` in the evidence trail. Refused with no transition, the
+        # same way the mode gate above refuses -- the entitlement is the
+        # runtime's call, exactly as the tier itself is (D-09/T-14-13).
+        sys.exit("no tier is unlocked by an attempt yet; make another attempt "
+                 "or use the stumped path, which opens exactly one tier")
+    result = do_action(session_file, {"kind": kind})
+    fresh, _q, _data = _teach_read(session_file)
+    return {"accepted": result.get("accepted"), "item_id": result.get("item_id"),
+            "action": result.get("action"), "teaching": fresh,
+            "status": result.get("status"), "evidence": result.get("evidence"),
+            "next": result.get("next")}
 
 
 def _validate_renderer_meta(renderer_meta):
@@ -866,6 +980,22 @@ def cmd_submit(a):
 
 def cmd_hint(a):
     result = do_hint(a.session, retry=bool(a.retry))
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_teach(a):
+    """The CLI twin of POST /api/teach. Three distinct intents, none of them
+    a default: no flag READS the ladder and moves nothing, `--next` opens the
+    next tier the learner has earned, and `--stumped` opens the next tier
+    without that entitlement. A read that unlocked a tier would make
+    `itembank teach` unsafe to run twice, which is why no flag is not a
+    silent `hint`."""
+    if a.next and a.stumped:
+        sys.exit("give at most one of --next and --stumped: with neither, "
+                 "teach reads the ladder without moving it")
+    kind = "stumped" if a.stumped else ("hint" if a.next else None)
+    result = do_teach(a.session, kind=kind)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 

@@ -30,7 +30,7 @@ from surfaces.quiz import (cmd_build, cmd_lesson_check, cmd_lesson_skip,
 from surfaces.selection_cli import cmd_select
 from surfaces.session import (cmd_hint, cmd_interact, cmd_next, cmd_override,
                               cmd_report, cmd_rubric_review, cmd_start,
-                              cmd_submit)
+                              cmd_submit, cmd_teach)
 from surfaces.settings import cmd_config
 from surfaces import seeding
 from surfaces.study import cmd_study
@@ -769,6 +769,20 @@ def main():
                    help="explicitly regenerate as a parent-linked retry; at "
                         "most one generation per interaction id otherwise (D-12)")
     s.set_defaults(fn=cmd_hint)
+
+    s = sub.add_parser("teach", help="read or open the next tier of the fixed "
+                                     "six-tier AUTHORED hint ladder for the "
+                                     "current item; the CLI twin of POST "
+                                     "/api/teach, and never a caller-supplied "
+                                     "tier (D-09)")
+    s.add_argument("session", help="the session JSON path")
+    s.add_argument("--next", action="store_true",
+                   help="open the next tier the learner has already earned "
+                        "with a genuine wrong attempt")
+    s.add_argument("--stumped", action="store_true",
+                   help="open the next tier without that entitlement -- the "
+                        "\"I'm stumped\" path, one tier and no more")
+    s.set_defaults(fn=cmd_teach)
 
     s = sub.add_parser("rubric-review", help="request pending per-point rubric "
                         "suggestions for the current short response; a model "
