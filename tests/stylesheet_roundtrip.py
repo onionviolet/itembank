@@ -17,7 +17,7 @@ both defects shipped:
         and the daemon carried no font route at all. Four 404s per page
         load.
 
-Seven invariants, run over the union of two collectors so a stylesheet built
+Eight invariants, run over the union of two collectors so a stylesheet built
 by a function is covered as well as one held in a constant:
 
   1. balanced braces in every collected stylesheet;
@@ -30,7 +30,9 @@ by a function is covered as well as one held in a constant:
      font asset map, and the bytes behind it are readable;
   6. against a live daemon, each font url serves 200 `font/woff2`, and the
      same file name under a page-route prefix is a 404;
-  7. the daemon's font asset map names exactly the files fonts/MANIFEST.json
+  7. EVERY served page -- reader and quiz alike -- declares all four
+     manifest-recorded faces (14-UI-SPEC §15 gate 9);
+  8. the daemon's font asset map names exactly the files fonts/MANIFEST.json
      records.
 
 Invariant 3 is the one that would have caught DEFECT D-A (`--space-1` …
@@ -39,6 +41,12 @@ DEFECT D-B (`surfaces/quiz_page.py` carrying neither the shared token layer
 nor an `@font-face` rule) and the `--panel` stray in `RUNNABLE_CSS`, none of
 which any browser reports: an undefined custom property is not a parse error,
 it silently resolves to the property's initial value.
+
+Invariant 7 exists because invariants 5 and 6 POOL every collected stylesheet,
+so a page that declares no `@font-face` at all passes them silently on the
+strength of the pages that do. That pooling is exactly how D-B survived the
+2026-08-12 font fix: the reader's four faces satisfied the pooled check while
+the quiz, which had never joined the token layer, declared none.
 
 Standard library only, no test framework, runnable as
 `python tests/stylesheet_roundtrip.py`.
@@ -75,6 +83,26 @@ SUPPORTS_PRELUDE_RE = re.compile(r"@supports[^{]*")
 # failed on. Only a served document, which is a whole rendered page, must be
 # self-contained.
 STATIC_DOC = "module constants (reported, never failed on)"
+
+# The served documents gate 9 asserts, written out rather than derived from
+# `collect_served`'s own route tuple: derived, a collector that stopped
+# fetching the quiz would shrink the assertion instead of failing it, which is
+# the shape of the pooling that let D-B through. `served /quiz/lesson_bank` is
+# the route the shared-CSS include exists for.
+REQUIRED_FONT_ROUTES = ("served /lesson/lesson_bank", "served /quiz/lesson_bank",
+                        "served /study/lesson_bank")
+
+# `served /day/sample_plan` is deliberately NOT in the required set, and this
+# is a recorded gap rather than a waiver. `surfaces/day.py` assembles its own
+# document from `theme_css(cfg) + DAY_CSS` instead of going through
+# `presentation.surface_shell`, so it has never carried the shared token layer
+# and declares no face -- the same defect as D-B, on a surface plan 14-01 does
+# not own (14-UI-SPEC §4.2: "this phase does not widen its diff to reach
+# them"). Joining a fourth surface inside the phase's tracer slice is exactly
+# what would make the tracer unverifiable. A route outside the required set is
+# REPORTED on every run, never silently pooled, so the gap stays visible until
+# a plan claims it.
+REPORTED_FONT_ROUTES = ("served /day/sample_plan",)
 
 # 14-UI-SPEC §3.3/§3.4. Foregrounds are measured against three backgrounds
 # each; a `*_bg` token is a BACKGROUND and is never itself a foreground -- a
@@ -511,7 +539,95 @@ def head_asset(base, path):
         return exc.code, exc.headers.get("Content-Type", "")
 
 
-# ---- invariant 7: the map, the manifest and the CSS cannot drift ------------
+# ---- invariant 7: EVERY served page declares the faces, not just some ------
+
+def manifest_faces():
+    """`{(family, weight)}` exactly as fonts/MANIFEST.json records it.
+
+    Read, never restated: the manifest is the one source for which faces ship,
+    so a fifth face added there is asserted on every route without touching
+    this file.
+    """
+    man = json.load(open(MANIFEST, encoding="utf-8"))
+    faces = set()
+    for family in man["families"].values():
+        for row in family["files"]:
+            faces.add((family["family"], int(row["weight"])))
+    return faces
+
+
+def declared_faces(raw):
+    """`{(family, weight)}` declared by the `@font-face` rules in one raw
+    stylesheet. Read from the RAW text, never the normalised text, because
+    `normalise()` blanks quoted strings and a family name is quoted."""
+    faces = set()
+    for body in FONT_FACE_RE.findall(raw):
+        fam = re.search(r"font-family:\s*(?:\"([^\"]+)\"|'([^']+)'|([^;}\n]+))",
+                        body)
+        weight = re.search(r"font-weight:\s*(\d+)", body)
+        if not fam or not weight:
+            continue
+        name = next(g for g in fam.groups() if g is not None).strip()
+        faces.add((name, int(weight.group(1))))
+    return faces
+
+
+def check_every_served_page_declares_fonts(sheets):
+    """14-UI-SPEC §15 gate 9: EVERY daemon-served page -- reader AND quiz --
+    declares all four vendored faces.
+
+    `check_font_urls_resolve` and `check_fonts_served` pool every collected
+    stylesheet, so a page declaring no `@font-face` at all passes them in
+    silence. This groups by rendered document instead, and reports the ROUTE
+    that is missing a face rather than a bare count.
+    """
+    expected = manifest_faces()
+    documents = {}
+    for name, raw in sheets:
+        key = document_key(name)
+        if key == STATIC_DOC:
+            continue
+        documents.setdefault(key, set()).update(declared_faces(raw))
+
+    # Named explicitly, so a collector that quietly stops fetching the quiz
+    # fails here by route name instead of shrinking the assertion to whatever
+    # it happened to fetch. `served /quiz/lesson_bank` is the one D-B removed.
+    for route in REQUIRED_FONT_ROUTES:
+        if route not in documents:
+            fail("no stylesheet was collected for %s, so gate 9 would silently "
+                 "stop asserting that route; the served-page collector must "
+                 "cover every one of %r" % (route, list(REQUIRED_FONT_ROUTES)))
+
+    problems, reported = [], []
+    for route in sorted(documents):
+        got = documents[route]
+        missing = sorted(expected - got)
+        extra = sorted(got - expected)
+        bucket = problems if route in REQUIRED_FONT_ROUTES else reported
+        if missing:
+            bucket.append(
+                "%s declares %d of the %d faces fonts/MANIFEST.json records; "
+                "missing %s -- that page renders in the fallback stack and "
+                "reads as a different product from the ones that do"
+                % (route, len(got & expected), len(expected),
+                   ", ".join("%s %d" % f for f in missing)))
+        if extra:
+            bucket.append(
+                "%s declares %s, which fonts/MANIFEST.json does not record; "
+                "the manifest is the one source for which faces ship"
+                % (route, ", ".join("%s %d" % f for f in extra)))
+    if reported:
+        print("note: gate 9 is not yet asserted on every served route; these "
+              "are reported on every run so the gap stays visible, and are "
+              "not failed on because no plan owns their surface yet:")
+        for line in reported:
+            print("  " + line)
+    if problems:
+        fail("not every served page declares the vendored faces:\n  "
+             + "\n  ".join(problems))
+
+
+# ---- invariant 8: the map, the manifest and the CSS cannot drift ------------
 
 def check_manifest_agreement():
     man = json.load(open(MANIFEST, encoding="utf-8"))
@@ -541,6 +657,7 @@ def main():
         check_semantic_token_contrast()
         check_font_urls_resolve(sheets)
         check_fonts_served(base, sheets)
+        check_every_served_page_declares_fonts(sheets)
         check_manifest_agreement()
     finally:
         proc.terminate()
@@ -550,8 +667,10 @@ def main():
           "defined in that same page, semantic tokens at 4.5:1 and --edge at "
           "3:1 in both modes measured by theme.contrast_ratio, %d @font-face "
           "urls root-absolute, served 200 font/woff2, 404 under a page route, "
-          "and in step with fonts/MANIFEST.json"
-          % (len(sheets), len(font_urls(sheets))))
+          "all %d manifest-recorded faces declared by each of the %d served "
+          "routes (the quiz included), and in step with fonts/MANIFEST.json"
+          % (len(sheets), len(font_urls(sheets)), len(manifest_faces()),
+             len(REQUIRED_FONT_ROUTES)))
     return 0
 
 
