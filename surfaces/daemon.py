@@ -13,7 +13,7 @@ render and runtime functions that already exist -- `quiz.page_for()`,
 `apply_day_post`) -- never a second copy of any of them living in a route
 handler.
 """
-import datetime, errno, hashlib, html, json, os, re, secrets, socket, socketserver, sys, threading
+import datetime, email.message, errno, hashlib, html, json, os, re, secrets, socket, socketserver, sys, threading, time
 import urllib.parse, urllib.request, uuid
 
 import evidence
@@ -26,7 +26,7 @@ import subjects
 from model import (lesson_slug, load, parse_bank, parse_key_blocks,
                    parse_lesson, parse_terms)
 from runtime import explain_payload, glossable, read_session, upgrade_session
-from surfaces import (day, launcher, lesson, presentation, quiz, retention_view,
+from surfaces import (day, launcher, lesson, presentation, quiz, quiz_page, retention_view,
                       seeding, session, settings, study, update)
 from surfaces import audio as audio_surface
 from surfaces import theme
@@ -1222,6 +1222,24 @@ def handle_quiz_get(handler, stem):
     lesson = parse_lesson(path)
     lesson_slugs = set(h["slug"] for h in lesson["headings"]) if lesson else set()
     sess = handler.sessions.get(stem) or {}
+    view = teaching = None
+    try:
+        session_file = _ensure_quiz_session(handler, stem, path, qs)
+        view = session.do_next(session_file)
+        teaching = session.do_teach(session_file)
+    except SystemExit:
+        # Some legacy synthetic banks deliberately mix subject namespaces
+        # and require an explicit profile at /api/start. Preserve their
+        # established client-started page instead of guessing authority or
+        # turning a readable quiz route into a 400.
+        pass
+    except Exception as exc:
+        handler.send_error(400, str(getattr(exc, "code", exc)))
+        return
+    receipt = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query).get("receipt", [""])[-1]
+    flash = _consume_quiz_flash(handler, receipt, view) if receipt and view else None
+    tokens = (dict((kind, _mint_quiz_token(handler, view, kind))
+                   for kind in ("submit", "hint", "stumped")) if view else None)
     theme_block = theme.theme_css(settings.load_settings(handler.root))
     _, page = quiz.page_for(path, qs, serve=True, reveal=False,
                             post_path="/quiz/%s/answer" % stem,
@@ -1229,7 +1247,108 @@ def handle_quiz_get(handler, stem):
                             lesson_base="/lesson/%s" % stem,
                             lesson_slugs=lesson_slugs, theme_css=theme_block,
                             assist=True)
+    if view is not None:
+        baseline = quiz_page.baseline_for(view, teaching,
+                                          "/quiz/%s/answer" % stem, tokens, flash)
+        page = page.replace('<div id="host"></div>', '<div id="host">%s</div>' % baseline, 1)
     handler.send_html(page.encode("utf-8"))
+
+
+QUIZ_AUTHORITY_FIELDS = frozenset(("tier", "tier_id", "tier_index", "requested_tier",
+                                   "key", "correct", "score", "entitled"))
+QUIZ_TOKEN_TTL = 300
+QUIZ_TOKEN_CAP = 2048
+
+
+def _ensure_quiz_session(handler, stem, path, qs):
+    cfg = handler.sessions[stem]
+    api_id = cfg.get("api_session_id")
+    found = api_session_path(handler, api_id) if api_id else None
+    if found:
+        return found
+    spec = {"objective": "", "count": len(qs), "seed": 0,
+            "selection_mode": cfg.get("selection_mode", "practice")}
+    out = os.path.join(os.path.abspath(handler.root), "_attempts",
+                       "session_%s.json" % uuid.uuid4().hex[:12])
+    # A scoped `itembank serve` has already run its full bank plus lesson
+    # lint gate before constructing the handler configuration (`progress` is
+    # its existing marker). Do not make that validated surface fail a second,
+    # narrower lint pass when the daemon creates its public baseline.
+    created = session.do_start(path, spec, cfg.get("mode", "practice"), out,
+                               bool(cfg.get("progress")))
+    cfg["api_session_id"] = created["session_id"]
+    return out
+
+
+def _prune_quiz_store(store):
+    now = time.monotonic()
+    for key in [k for k, v in store.items() if v["expires"] <= now]:
+        store.pop(key, None)
+    while len(store) >= QUIZ_TOKEN_CAP:
+        store.pop(next(iter(store)))
+
+
+def _mint_quiz_token(handler, view, action):
+    token = secrets.token_urlsafe(24)
+    with handler.quiz_state_lock:
+        _prune_quiz_store(handler.quiz_form_tokens)
+        handler.quiz_form_tokens[token] = {
+            "session_id": view.get("session_id"), "item_id": (view.get("item") or {}).get("id"),
+            "cursor": view.get("position"), "action": action,
+            "expires": time.monotonic() + QUIZ_TOKEN_TTL}
+    return token
+
+
+def _mint_quiz_flash(handler, before, after, result):
+    receipt = secrets.token_urlsafe(24)
+    target = ((result.get("next") or {}).get("item") or {}).get("id")
+    if target is None:
+        target = (after.get("item") or {}).get("id")
+    with handler.quiz_state_lock:
+        _prune_quiz_store(handler.quiz_flash_receipts)
+        handler.quiz_flash_receipts[receipt] = {
+            "session_id": before.get("session_id"), "source_item_id": (before.get("item") or {}).get("id"),
+            "cursor": after.get("position"), "status": after.get("status"), "target": target,
+            "result": result, "expires": time.monotonic() + QUIZ_TOKEN_TTL}
+    return receipt
+
+
+def _consume_quiz_flash(handler, receipt, view):
+    with handler.quiz_state_lock:
+        _prune_quiz_store(handler.quiz_flash_receipts)
+        rec = handler.quiz_flash_receipts.pop(receipt, None)
+    if not rec or rec["session_id"] != view.get("session_id") or \
+            rec["cursor"] != view.get("position") or rec["status"] != view.get("status"):
+        return None
+    current = (view.get("item") or {}).get("id")
+    if rec["status"] == "complete":
+        return rec["result"] if rec["target"] is None and current is None else None
+    if current not in (rec["source_item_id"], rec["target"]):
+        return None
+    return rec["result"]
+
+
+def _content_type(handler):
+    raw = handler.headers.get("Content-Type")
+    if not raw:
+        return None
+    try:
+        msg = email.message.Message(); msg["content-type"] = raw
+        value = msg.get_content_type().lower()
+    except Exception:
+        return None
+    return value if "/" in value and not any(c in raw for c in "\r\n") else None
+
+
+def _form_answer(item, fields):
+    one = lambda name: (fields.get(name) or [""])[-1]
+    t = item.get("type")
+    if t == "mc": return one("option")
+    if t == "multi": return sorted(set(fields.get("option") or []))
+    if t in ("table", "dnd"):
+        return dict((str(i), one("row_%d" % i)) for i, _ in enumerate(item.get("rows") or []) if one("row_%d" % i))
+    if t == "build": return [one("step_%d" % i) for i, _ in enumerate(item.get("steps") or []) if one("step_%d" % i)]
+    return one("answer")
 
 
 def handle_quiz_answer(handler, stem):
@@ -1243,6 +1362,10 @@ def handle_quiz_answer(handler, stem):
     """
     if _reject_cross_origin(handler):
         return
+    media = _content_type(handler)
+    if media not in ("application/json", "application/x-www-form-urlencoded"):
+        handler.send_error(415, "quiz answers require application/json or application/x-www-form-urlencoded")
+        return
     path = handler.banks.get(stem)
     if path is None:
         handler.send_not_found(stem)
@@ -1250,7 +1373,47 @@ def handle_quiz_answer(handler, stem):
     try:
         qs = load(path)
         by_id = dict((q["id"], q) for q in qs)
-        data = handler.read_json()
+        if media == "application/json":
+            data, failed = api_read_json(handler)
+            if failed: return
+        else:
+            try:
+                fields = handler.read_form()
+            except (UnicodeDecodeError, ValueError, TypeError):
+                handler.send_error(400, "malformed form body"); return
+            if any(name in fields for name in QUIZ_AUTHORITY_FIELDS):
+                handler.send_error(400, "authority-shaped form field refused"); return
+            action = (fields.get("action") or [""])[-1]
+            token = (fields.get("form_token") or [""])[-1]
+            if action not in ("submit", "hint", "stumped"):
+                handler.send_error(400, "unknown quiz form action"); return
+            session_file = _ensure_quiz_session(handler, stem, path, qs)
+            before = session.do_next(session_file)
+            with handler.quiz_state_lock:
+                _prune_quiz_store(handler.quiz_form_tokens)
+                grant = handler.quiz_form_tokens.pop(token, None)
+            expected = {"session_id": before.get("session_id"), "item_id": (before.get("item") or {}).get("id"),
+                        "cursor": before.get("position"), "action": action}
+            if not grant or any(grant.get(k) != v for k, v in expected.items()):
+                handler.send_error(403, "invalid or expired quiz form token"); return
+            q = by_id.get(expected["item_id"])
+            refusal = _check_refusal_body(handler, q) if action == "submit" else None
+            try:
+                if refusal is not None:
+                    result = refusal
+                elif action == "submit":
+                    result = session.do_action(session_file, {"kind": "submit", "answer": _form_answer(before["item"], fields)},
+                                               confidence=None, renderer_meta=None, elapsed_ms=None)
+                else:
+                    result = session.do_teach(session_file, action)
+            except SystemExit as exc:
+                result = _refusal_from_exit(exc.code, q)
+                if result is None:
+                    handler.send_error(400, str(exc.code)); return
+            after = session.do_next(session_file)
+            receipt = _mint_quiz_flash(handler, before, after, result)
+            handler.send_redirect("/quiz/%s?receipt=%s" % (stem, urllib.parse.quote(receipt)))
+            return
         q = by_id.get(data.get("id"))
         if q is None:
             handler.send_error(404, "no item %r in this bank" % data.get("id"))
@@ -3070,6 +3233,9 @@ class DaemonHandler(server.Handler):
     day_states = {}
     day_extra = {}
     day_force_tokens = {}
+    quiz_state_lock = threading.Lock()
+    quiz_form_tokens = {}
+    quiz_flash_receipts = {}
     # Set to a fresh `secrets.token_hex(16)` by cmd_sidecar; left None, the
     # CLI daemon path stays completely ungated (D-04). The token lives only in
     # this process and the shell that read it off the handshake -- never

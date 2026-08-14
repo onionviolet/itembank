@@ -3212,6 +3212,42 @@ def form_post(url, fields):
         return res.geturl(), res.read().decode("utf-8")
 
 
+def check_quiz_progressive_form_path():
+    """Plan 13.5-07: served bytes work before script and one token moves once."""
+    workdir = tempfile.mkdtemp(prefix="quiz-form-")
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, _lines = start_daemon(workdir)
+    try:
+        quiz_url = url + "quiz/sample_bank"
+        _status, page = get(quiz_url)
+        if "data-server-baseline" not in page or "data-answer-form" not in page:
+            fail("quiz GET did not contain the script-free public card and response form")
+        match = re.search(r'name="form_token" value="([^"]+)"[^>]*>\s*<input type="hidden" name="action" value="stumped"', page)
+        if not match:
+            fail("quiz baseline did not mint a stumped-only form token")
+        token = match.group(1)
+        final_url, opened = form_post(quiz_url + "/answer",
+                                      {"form_token": token, "action": "stumped"})
+        if "receipt=" not in final_url or 'class="hint-card shown"' not in opened:
+            fail("script-free stumped transition did not PRG to one shown tier")
+        try:
+            form_post(quiz_url + "/answer", {"form_token": token, "action": "stumped"})
+            fail("a replayed quiz form token was accepted")
+        except urllib.error.HTTPError as exc:
+            if exc.code != 403:
+                fail("replayed quiz token returned %d, expected 403" % exc.code)
+        req = urllib.request.Request(quiz_url + "/answer", data=b"x", method="POST",
+                                     headers={"Content-Type": "text/plain"})
+        try:
+            urllib.request.urlopen(req, timeout=5)
+            fail("text/plain quiz mutation was accepted")
+        except urllib.error.HTTPError as exc:
+            if exc.code != 415:
+                fail("text/plain quiz mutation returned %d, expected 415" % exc.code)
+    finally:
+        proc.terminate()
+
+
 GATE_BANK = """# Gate daemon fixture
 [GATE: required]
 
@@ -3522,6 +3558,7 @@ def main():
         check_startup_lan_binds_all,
         check_lan_path_validation_unchanged,
         check_settings_driven_port,
+        check_quiz_progressive_form_path,
         check_gate_route_check_and_reveal,
         check_gate_route_skip_single_event,
         check_gate_route_reload_no_resubmit,

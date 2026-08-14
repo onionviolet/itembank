@@ -36,6 +36,8 @@ spell a vendored family, and that rule is asserted over source text, prose
 included (`tests/presentation_roundtrip.py` Test 2).
 """
 
+import html
+
 
 TEMPLATE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -494,7 +496,100 @@ const Assist = (function(){
   return {setSession, onItem};
 })();
 window.Assist = Assist;
-"""
+""")
+
+
+def _form_controls(item):
+    """Render only the response vocabulary declared by a public item."""
+    t = item.get("type")
+    schema = item.get("response_schema") or {}
+    if t in ("mc", "multi"):
+        kind = "checkbox" if t == "multi" else "radio"
+        rows = []
+        for option in item.get("options") or []:
+            rows.append('<label class="choice"><input type="%s" name="option" '
+                        'value="%s"><span class="k">%s</span><span class="ot">%s</span></label>'
+                        % (kind, html.escape(str(option.get("key", "")), quote=True),
+                           html.escape(str(option.get("label", option.get("key", "")))),
+                           html.escape(str(option.get("text", "")))))
+        legend = "Select %s" % schema.get("select", "all that apply") if t == "multi" else "Choose one"
+        return '<fieldset class="choices"><legend>%s</legend>%s</fieldset>' % (legend, "".join(rows))
+    if t in ("table", "dnd"):
+        cats = item.get("categories") or []
+        rows = []
+        for n, row in enumerate(item.get("rows") or []):
+            opts = ''.join('<option value="%s">%s</option>' %
+                           (html.escape(str(c), quote=True), html.escape(str(c))) for c in cats)
+            rows.append('<label class="rowline"><span class="rowtext">%s</span><select name="row_%d">'
+                        '<option value=""></option>%s</select></label>' %
+                        (html.escape(str(row.get("text", ""))), n, opts))
+        return "".join(rows)
+    if t == "build":
+        return "".join('<label class="rowline"><span class="rowtext">Step %d</span>'
+                       '<select name="step_%d"><option value=""></option>%s</select></label>' %
+                       (n + 1, n, ''.join('<option value="%s">%s</option>' %
+                                         (html.escape(str(s), quote=True), html.escape(str(s)))
+                                         for s in item.get("steps") or []))
+                       for n in range(len(item.get("steps") or [])))
+    label = "Code response" if t == "check" else "Your response"
+    return '<label>%s<textarea class="ans" name="answer"></textarea></label>' % label
+
+
+def _hint_card(row, locked=False):
+    body = " ".join(row.get("unlock_copy") or []) if locked else row.get("display", "")
+    return '<li class="hint-card %s"><h4>%s</h4><p>%s</p></li>' % (
+        "locked" if locked else "shown", html.escape(str(row.get("header", ""))),
+        html.escape(str(body)))
+
+
+def baseline_for(view, teaching_result, post_path, tokens, flash=None):
+    """Pure, key-free HTML adapter over public runtime projections."""
+    item = (view or {}).get("item")
+    if not item:
+        return '<div class="done empty" data-server-baseline>Session complete.</div>'
+    teaching = (teaching_result or {}).get("teaching") or {}
+    feedback = ""
+    if isinstance(flash, dict):
+        if flash.get("refused"):
+            feedback = '<div class="refused pend">%s</div>' % html.escape(str(flash["refused"]))
+        elif flash.get("action") == "hold":
+            feedback = '<div class="verdict n">Not correct. Try a different answer, or open the next hint.</div>'
+        elif flash.get("action") in ("advance", "complete"):
+            score = flash.get("score")
+            feedback = '<div class="%s">%s</div>' % (
+                "pend" if score is None else "verdict " + ("y" if score else "n"),
+                "Recorded. Not marked here." if score is None else ("Correct" if score else "Not correct"))
+    ladder = ""
+    if teaching.get("available"):
+        cards = ''.join(_hint_card(x) for x in teaching.get("shown") or [])
+        if teaching.get("next_locked"):
+            cards += _hint_card(teaching["next_locked"], True)
+        cards += ''.join(_hint_card(x, True) for x in teaching.get("further_locked") or [])
+        action = ""
+        if not teaching.get("exhausted"):
+            kind = "hint" if teaching.get("entitled") else "stumped"
+            label = "Open the next hint" if kind == "hint" else "I'm stumped, show the next hint"
+            action = ('<form method="post" action="%s" class="hint-actions">'
+                      '<input type="hidden" name="form_token" value="%s">'
+                      '<input type="hidden" name="action" value="%s">'
+                      '<button class="go ghost" data-teach="%s" type="submit">%s</button></form>' %
+                      (html.escape(post_path, quote=True), html.escape(tokens[kind], quote=True),
+                       kind, kind, html.escape(label)))
+        ladder = '<section class="support-region"><h3 class="hint-heading">Hints</h3>' \
+                 '<ol class="hint-ladder">%s</ol>%s</section>' % (cards, action)
+    elif teaching.get("unavailable_reason"):
+        ladder = '<section class="support-region"><p class="assist-copy">%s</p></section>' % \
+                 html.escape(str(teaching["unavailable_reason"]))
+    return ('<div class="card" data-server-baseline data-session-id="%s" data-item-id="%s">'
+            '<h1 class="stem">%s</h1><form method="post" action="%s" data-answer-form>%s'
+            '<input type="hidden" name="form_token" value="%s"><input type="hidden" name="action" value="submit">'
+            '<div class="feedback" role="status" aria-live="polite">%s</div>'
+            '<div class="act"><button class="go" type="submit">Submit answer</button></div></form>%s</div>' %
+            (html.escape(str(view.get("session_id", "")), quote=True),
+             html.escape(str(item.get("id", "")), quote=True), html.escape(str(item.get("stem", ""))),
+             html.escape(post_path, quote=True), _form_controls(item),
+             html.escape(tokens["submit"], quote=True), feedback, ladder))
+ASSIST_JS = (ASSIST_JS
     .replace("__ASSIST_PREPARING__", ASSIST_COPY["preparing"])
     .replace("__ASSIST_GENERATED_HEADING__", ASSIST_COPY["generated_heading"])
     .replace("__ASSIST_GENERATED_DISCLOSURE__", ASSIST_COPY["generated_disclosure"])
@@ -3032,6 +3127,12 @@ function emptyState(){
 
 /* ---- start: one /api/start call bootstraps the whole sitting -------------- */
 async function start(){
+  const baseline = host.querySelector("[data-server-baseline]");
+  if(baseline){
+    sessionId = baseline.dataset.sessionId || null;
+    if(window.Assist) window.Assist.setSession(sessionId);
+    return;
+  }
   host.innerHTML = `<div class="card"><div class="feedback" role="status"
       aria-live="polite"><div class="status">Loading&hellip;</div></div></div>`;
   try {

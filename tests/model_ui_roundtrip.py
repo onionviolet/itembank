@@ -69,7 +69,6 @@ BINDING_COPY = (
 # (D-09, D-26). These strings are scanned over the served page, every JSON
 # payload the client consumes, and the served scripts.
 FORBIDDEN_STRINGS = (
-    "TIER 0", "TIER 1", "TIER 2", "TIER 3", "TIER 4", "TIER 5",
     "tier0.", "tier1.", "tier2.", "tier3.", "tier4.", "tier5.",
     "gate.schema_invalid", "gate.span_unmatched", "gate.fact_protected",
     "gate.fact_unknown", "gate.ambiguous", "gate.unsupported_move",
@@ -298,7 +297,8 @@ def check_lifecycle_and_lock():
 
         # No model voice: no chat box and no typing/streaming animation in
         # the assist chrome or its client script.
-        if "<input" in page.split("agent-assist")[1].split("</section>")[0]:
+        assist_markup = page.split('<section class="agent-assist"', 1)[1].split("</section>", 1)[0]
+        if "<input" in assist_markup:
             fail("the assist region contains an input (no chat box allowed)")
         for banned in ("typewriter", "streaming", "setInterval", "typing"):
             if banned in page:

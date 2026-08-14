@@ -24,3 +24,12 @@ test("tier actions cannot name a tier", () => {
   assert.match(source, /action:\{kind:button\.dataset\.teach\}/);
   assert.doesNotMatch(source, /tier_index|tier_id|requested_tier/);
 });
+
+test("served boot adopts the server card in place", () => {
+  assert.match(source, /host\.querySelector\("\[data-server-baseline\]"\)/);
+  assert.match(source, /sessionId = baseline\.dataset\.sessionId/);
+  const adoption = source.indexOf('host.querySelector("[data-server-baseline]")');
+  const loadingReplacement = source.indexOf('host.innerHTML = `<div class="card"', adoption);
+  assert.ok(adoption >= 0 && loadingReplacement > adoption,
+    "the baseline branch must run before any loading-card replacement");
+});
