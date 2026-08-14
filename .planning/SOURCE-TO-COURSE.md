@@ -222,6 +222,23 @@ change assessment meaning or keyed content silently.
 
 ## Next-milestone sequence
 
+**Superseded 2026-08-13 - see the nine-subphase sequence.** The four-phase
+sequence below (Phases 14 to 17) has been resequenced into nine subphases
+(14A, 14B, 15A, 15B, 16A, 16B, 16C, 17A, 17B) with explicit dependencies and
+freeze gates. The authoritative subphase table lives in
+`.planning/research/phase-16/14-synthesis.md` section 15, and the roadmap
+governance clauses (prototype before durable commitment; the
+implementation-readiness and maintenance/restore audits; the capability runway;
+and the permanent rejection ledger) live in `.planning/ROADMAP.md` under
+"Next-milestone subphase sequence." The high-level order is unchanged: durable
+course and file semantics precede AI course direction, and logical learning
+contracts precede visual productization. The four broad phases are preserved
+below verbatim as historical rationale, not deleted; they were too coarse and
+placed some Phase 16 discoveries after Phase 14 format commitments, which is why
+they were subdivided.
+
+### Historical rationale - original four-phase sequence (superseded 2026-08-13)
+
 ### Phase 14: Course workspace and source binding
 
 Define the course manifest/folder contract; safe discovery roots; scaffold and

@@ -53,7 +53,7 @@ recorded in 06.2-GATES.md. Six GATE-01..06 requirements delivered.
 
 Phase: **13.5 — Reading & Teaching Surface Quality Pass**, waves 1-2 executed (3 of 8 plans)
 Status: v1.0's 18 phases are shipped. A next milestone opened on 2026-08-13 with the source-to-course reframe (Phases 14 through 17), merged into `main` and not yet pushed.
-Last activity: 2026-08-13
+Last activity: 2026-08-13 - Completed quick task 260813-x3g: ROADMAP.md reframed to the nine subphases (14A-17B) with governance clauses; SOURCE-TO-COURSE.md pointed at them. Reframe slices 2-5 (REQUIREMENTS/PROJECT/UI-SPEC/PLANNING-DIRECTIVES, root docs + skills, section 16.3 readiness audit) still owed before any Phase 14A plan.
 
 ### Correction (2026-08-13): this file claimed "complete" through a live phase
 
@@ -404,6 +404,7 @@ Recent decisions affecting current work:
 |----|------|------|--------|
 | 260812-e2m | Four reader defects: leaked print CSS killing the glossary popover, `## TERMS` overrunning into lesson tables, relative `@font-face` urls 404ing on nested routes, authored-hint fallback printing a slug | 2026-08-12 | complete ✓ |
 | 260813-r5c | Merge the source-to-course reframe from `origin/main` and renumber the reading/teaching phase from 14 to 13.5, resolving the two-phases-one-number collision | 2026-08-13 | complete ✓ |
+| 260813-x3g | Reframe slice 1: replace the flat Phase 14-17 sequence in ROADMAP.md with the nine subphases (14A-17B) plus four governance clauses per synthesis section 15/16.3, and point SOURCE-TO-COURSE.md at them; originals preserved as historical rationale | 2026-08-13 | complete ✓ |
 
 Found by driving the running daemon in a browser, not by the test suite — the
 suite was green throughout. Fixes verified the same way after execution:

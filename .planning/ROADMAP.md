@@ -1470,7 +1470,92 @@ Plans:
 
 - [ ] TBD (promote per the trigger above)
 
-### Phase 14: Course Workspace & Source Binding
+### Next-milestone subphase sequence (14A through 17B)
+
+*Reframed 2026-08-13 from the four broad Phases 14 to 17, per
+`.planning/research/phase-16/14-synthesis.md` sections 14 and 15. The four
+original detailed blocks are preserved verbatim below under "Superseded flat
+sequence (historical rationale)."*
+
+The high-level order is unchanged: durable course and file semantics precede AI
+course direction, and logical learning contracts precede visual productization.
+The four broad phases were too coarse and placed some Phase 16 discoveries after
+Phase 14 format commitments, so execution is now bounded by nine subphases.
+These subphases bound execution, not product possibility. Each freezes shared
+interfaces and may register multiple capabilities that compose cheaply; optional
+or expensive capabilities stay on the capability runway rather than being cut.
+
+**Roadmap governance clauses (new 2026-08-13).**
+
+- **Prototype before durable commitment.** A reversible prototype is required
+  before any schema freeze, production UI, or broad interchange commitment.
+  Named prerequisites: graph-to-outline and denominator/version migration
+  before course-schema freeze; a Markdown rich-lesson stress corpus before
+  lesson-profile grammar freeze; guided-note, worked-reasoning, and
+  incorrect-note pathways before a strategy registry or question-from-notes
+  support; a restricted notebook preview before any execute/trust UI;
+  visual-math equivalence before a broad interaction registry; cross-client
+  interruption before the agent job protocol freezes; clean-machine restore
+  before any course-package or export promise; and the same logical flows in
+  three visual directions before Phase 17 tokens freeze.
+- **Implementation-readiness audit (gate before any Phase 14A plan).** After the
+  contract files and requirements are updated and before the first Phase 14A
+  implementation plan, run the readiness audit defined in synthesis section
+  16.3. It diffs every accepted synthesis clause against the updated contract
+  and exposes missing, duplicate, conflicting, or weaker translations; maps each
+  requirement to one owner, subphase, prerequisite, fixture, success gate,
+  degraded state, migration, documentation, and maintenance obligation; confirms
+  prototypes occur before their dependent schema or UI freezes; builds a
+  dependency graph and rejects circular ownership among course, lesson,
+  evidence, notes, jobs, and UI state; confirms the shipped parser, scorer, and
+  evidence tests stay byte-compatible where required and that no second authority
+  was introduced; and confirms every research proposal has a permanent
+  disposition. The audit fails on any silently omitted, deleted, or
+  simplicity-only rejection.
+- **Post-Phase-17 maintenance and restore audit.** After Phase 17B, a
+  maintenance and restore audit confirms that a clean machine restores all
+  supported canonical objects and evidence offline (gate G10), that every
+  unsupported capability appears in a loss report, and that each accepted item
+  still names its maintenance owner. New audit triggers are named after 14B,
+  16C, and 17B.
+- **Durable capability runway.** Capability breadth is preserved as a runway of
+  registered extensions, prototypes, and backburner items, not by cutting
+  research. Promotion changes execution timing, not the existence of a proposal
+  or its research trail. Each registered or backburner capability names its
+  shared primitive, dependency, cost, and promotion trigger. Backburner
+  proposals are tracked in synthesis section 12.5.
+- **Permanent rejection ledger (governance input).** The append-only rejection
+  and supersession ledger in synthesis section 12.4 is a roadmap governance
+  input. A rejected or superseded idea cannot be silently reintroduced or
+  deleted; each ledger row carries proposal, origin, evidence considered,
+  disposition and exact reason, conflicting rule or quality attribute,
+  alternatives retained, date, and reconsideration condition. Any roadmap change
+  that would revive a rejected idea must cite and satisfy its recorded
+  reconsideration condition.
+
+| Subphase | Deliverable | Depends on | Freeze gate |
+|---|---|---|---|
+| 14A: identity, lifecycle, and operation prototype | Stable IDs, revisions, fingerprints, operation journal, link/import/move/edit/supersede semantics, atomic recovery | Shipped parser/runtime | File fault and external-edit tracer |
+| 14B: graph and course package prototype | Typed graph kernel, outline projection, source/treatment bindings, versions, rights, minimal package | 14A | Three-domain graph tracer, clean restore, authorability review |
+| 15A: director and treatment policy | Treatment recommender, source scope, rights/egress, autonomy levels, checkpoints | 14B | Four-subject recommendation review |
+| 15B: quality, blueprint, and acceptance | Blueprint fidelity, course audit, accepted revision, staleness/dependency impact | 15A | Lesson plus practice acceptance tracer |
+| 16A: semantic capability and activity contract | Lesson roles, activity-purpose matrix, capability profiles, media/citation policy | 14B, assessment runtime | Portable rich lesson stress corpus |
+| 16B: IA, modes, and recovery contract | Core loops, routes, resume, jobs, approvals, offline/help/error states | 14A, 16A | Full storyboard and interruption scenarios |
+| 16C: strategies, notes, and prototype convergence | Notes, learner artifacts, finite strategies, progress comprehension, legacy upgrade | 14B, 16A, 16B | Cross-subject missing-feature suite |
+| 17A: visual system and component foundation | Tokens, hierarchy, responsive shell, accessible primitives | 16B, 16C | Same-flow visual comparison and accessibility QA |
+| 17B: production vertical tracer | Polished unit from discovery through restore | All prior | End-to-end gates G1 through G11 |
+
+**Planning source:** `.planning/research/phase-16/14-synthesis.md` sections 15
+and 16.3, and `.planning/SOURCE-TO-COURSE.md`. Detailed discussion, UI
+specification, requirements, schemas, and executable plans for each subphase are
+owed by the normal planning sequence; do not invent them during implementation.
+
+### Superseded flat sequence (historical rationale)
+
+*Superseded 2026-08-13 by the nine-subphase sequence above. Preserved verbatim,
+not deleted, so the original goals and planning sources remain traceable.*
+
+#### Phase 14: Course Workspace & Source Binding (superseded)
 
 **Goal:** A learner or approved agent creates a course from a syllabus and
 source folder, sees a cited objective and prerequisite map, binds existing
@@ -1481,7 +1566,7 @@ unknown coverage without first generating content.
 discussion, UI specification, requirements, schemas, and executable plans are
 owed by the normal planning sequence; do not invent them during implementation.
 
-### Phase 15: AI Course Director & Quality Pipeline
+#### Phase 15: AI Course Director & Quality Pipeline (superseded)
 
 **Goal:** A hosted coding-agent-class client or registered local backend can
 drive bounded source analysis, treatment recommendation, course generation,
@@ -1492,7 +1577,7 @@ evidence-backed remediation through inspectable proposals and recoverable writes
 shipped `audit`, `coverage`, `seed`, lint, evidence, trends, and model-adapter
 contracts.
 
-### Phase 16: Learning Flow & Lesson Capability Contract
+#### Phase 16: Learning Flow & Lesson Capability Contract (superseded)
 
 **Goal:** Research and specify the logical course journey, lesson-capability
 model, question-purpose matrix, portable authored representation, interaction
@@ -1509,7 +1594,7 @@ requires a realistic course-unit storyboard or prototype across desktop,
 narrow, touch, keyboard, screen-reader, offline, and plain-file contexts, plus
 an explicit disposition for every researched capability.
 
-### Phase 17: Visual System & Comprehensive Guided Learning UI
+#### Phase 17: Visual System & Comprehensive Guided Learning UI (superseded)
 
 **Goal:** Establish a coherent visual language and implement the course journey
 against Phase 16's contracts. Deliver direct reading, rich reference and guided
