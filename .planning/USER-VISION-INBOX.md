@@ -53,6 +53,27 @@ question also changed `PLANNING-DIRECTIVES.md`.
   in-app editor and the external-editor-in-place path are both "fitting," and mine
   reader/editor products for patterns without breaking the portable-file contract.
 
+### 2026-08-14: walking skeleton, external-user v1, and agent-guided onboarding
+
+> write the walking skeleton adjustment into the readiness audit, consider a proper v1 that would be good enough for a external user like my friend to make use of this, and the readme it would require for a user that doesnt know anything about it to use it? enough for him to paste the github to claude code or something and the nclaude code can read github and then can go through the setup for them and more>
+
+**Disposition:** Split (2026-08-14).
+
+- **Product intent (promote-worthy):** an external user, a friend, is now a
+  named target for a "proper v1". This revises the recorded "Users: One"
+  constraint: still one learner per installation, still no accounts, auth, or
+  multi-tenancy, but a second person installing and using their own copy is now
+  a supported goal rather than explicitly out of scope. It also fires the
+  recorded trigger on `V2-DEL-01` ("signed binaries revisited when a second
+  person runs the tool"). Onboarding must work for someone who knows nothing
+  about the project, including the path where they paste the GitHub URL into
+  Claude Code (or another agent) and the agent reads the repo and walks them
+  through setup.
+- **Routed:** the walking-skeleton adjustment landed as section A9 of
+  `.planning/READINESS-AUDIT-14A.md`; the external-user v1 bar as section A10
+  of the same file; the agent-guided onboarding section landed in `README.md`
+  ("Quick start for someone brand new").
+
 ## Disposition vocabulary
 
 - **Promote:** add the verbatim statement and interpretation to `USER-VISION`.

@@ -44,7 +44,14 @@ recorded reason. Any **Fail** condition blocks the Phase 14A plan.
   - cross-client interruption before agent job protocol freeze
   - clean-machine restore before course package or export promise
   - three visual directions before Phase 17 token freeze
-- **Fail** on any freeze whose prototype lands in the same or a later subphase.
+- **Fail** on any freeze whose prototype has not completed before the freeze
+  commits. A prototype satisfies this when it lands in an earlier subphase, or
+  earlier within the freezing subphase whose exit gate is the freeze; in the
+  latter case the subphase's plan set must order the tracer/prototype plans
+  first and the freeze commit last, explicitly. *(Wording amended 2026-08-14 by
+  the audit: the original "same or a later subphase = Fail" would fail the
+  synthesis section 15 table itself, where six of eight freeze gates are the
+  prototype passing at that subphase's exit.)*
 
 ## A4. Dependency graph, no cycles (16.3.4)
 
@@ -82,6 +89,85 @@ recorded reason. Any **Fail** condition blocks the Phase 14A plan.
       evidence, exact reason, conflicting rule, retained alternative, date,
       reconsideration condition.
 - **Fail** on any simplicity-only rejection or any silently deleted proposal.
+
+## A9. Walking-skeleton gate (added 2026-08-14)
+
+**Vision source:** `USER-VISION-INBOX.md` entry 2026-08-14 (walking skeleton),
+following the 2026-08-14 direction review. **Rationale:** the nine-subphase
+sequence proves durability first and learner value last; the only end-to-end
+tracer (17B) is the final gate, while Weibao's live courses (EMT, Math 1400,
+CSCI 1100) begin within weeks of this audit. The biggest unresolved risk is not
+any subsystem but whether the loop as a whole produces something a learner
+wants to use, and the sequence currently answers that question last. The
+skeleton inverts that: a thin, ugly, real slice early, with the deep phases
+frozen only after the slice has been walked.
+
+- [ ] The Phase 14A plan set (or a sibling plan scheduled no later than 14B)
+      names a **walking-skeleton tracer**: one real source from one live fall
+      course, discovered and bound read-only, mapped to at least three cited
+      objectives, with a recorded treatment decision per objective (at least
+      one direct reading and at least one generated lesson plus practice), and
+      **sat by Weibao end to end** through the shipped serve/teach/evidence
+      loop. Ugly is acceptable; simulated is not.
+- [ ] The skeleton runs on shipped surfaces (`serve`, `lesson`, `study`,
+      `teach`, evidence). It may stub course-level storage with the smallest
+      14A identity/journal slice, and it introduces no second parser, scorer,
+      or evidence store (A6 applies to it in full).
+- [ ] Evidence recorded by the skeleton sitting lands in the one evidence
+      store, and at least one later plan (14B, 15A, or the 3.2-style warning
+      calibration obligations) names that evidence as its calibration corpus in
+      place of a synthetic fixture.
+- [ ] Phase 13.5 waves 3 and later are scheduled before or beside the
+      skeleton, or explicitly waived with a reason, because the skeleton
+      renders through exactly the surfaces 13.5 hardens.
+- [ ] Freeze gates in A3 that the skeleton can exercise cheaply (graph-to-
+      outline, rich-lesson stress corpus) cite skeleton artifacts where they
+      exist rather than inventing parallel fixtures.
+- **Fail** if the first learner-visible course experience in the sequence
+  remains 17B.
+
+## A10. External-user v1 bar (added 2026-08-14)
+
+**Vision source:** `USER-VISION-INBOX.md` entry 2026-08-14 (external-user v1
+and agent-guided onboarding). A "proper v1" now means: a friend with no
+knowledge of this project can install it, be walked through setup by an AI
+agent reading the public repo, and get real value from the shipped loop. This
+audit does not build any of it; it checks that the roadmap owns it.
+
+The bar, stated once so plans can cite it:
+
+1. **Install without folklore.** One downloaded artifact plus Python 3.11+, or
+   the Phase 13 shell. The macOS Gatekeeper workaround is documented where the
+   user hits it. `V2-DEL-01`'s recorded trigger ("when a second person runs
+   the tool") has now fired: signing gets a dated cost decision, not silence.
+2. **Agent-guided onboarding.** The README carries a section a coding agent
+   can follow cold: verify Python, fetch, launch, author a first bank from the
+   user's own material, run a first graded sitting. The user's only skill is
+   pasting the repo URL into Claude Code or a peer.
+3. **First-run self-explanation.** A fresh launch shows something that
+   explains itself (sample bank or walkthrough), not an empty directory.
+4. **Scope honesty.** User-facing docs sell only the shipped bank/lesson/
+   session loop. The course workspace is described as being built, never
+   implied present.
+5. **Privacy defaults hold for a stranger.** Fresh install never phones home
+   without disclosure (the D-13 divergence stays repo-only), evidence stays on
+   disk, and the update check discloses before its first request.
+6. **Recovery.** Common failure states (wrong Python, port taken, quarantine
+   flag, offline) name the next safe action in the error itself.
+
+Checks:
+
+- [ ] ROADMAP names an external-user v1 milestone (or a dated deferral
+      decision) that carries the six criteria above as its acceptance bar.
+- [ ] The onboarding README section exists and a cold agent transcript (any
+      agent, one run) is recorded as its fixture.
+- [ ] The "Users: One" constraint text in `.claude/CLAUDE.md` and `AGENTS.md`
+      is amended to "one learner per installation; external installations
+      supported; still no accounts, auth, or multi-tenancy" in the delta
+      patch.
+- **Fail** only on the constraint-text check; the milestone may be deferred
+  with a recorded reason, but the recorded scope must stop saying a second
+  user gets no design work.
 
 ## Bake-in gate (research findings that are cheap now, expensive later)
 

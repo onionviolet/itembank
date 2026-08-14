@@ -55,6 +55,74 @@ Q2. Name two lab checks before clearing a main for service.  [TYPE: short]
 
 That is the whole format. `itembank spec` prints the rest.
 
+## Quick start for someone brand new
+
+You have never seen this project before and want to study something with it.
+There are two paths. Both need **Python 3.11 or newer** on your machine and
+nothing else; there is no install step, no account, and nothing leaves your
+computer except an optional update check that announces itself first.
+
+**Path 1: let an AI assistant set you up.** Paste this repository's URL into
+Claude Code, Codex, Cursor, or any coding agent that can read GitHub, and say:
+
+> Read the README of https://github.com/onionviolet/itembank and set me up.
+> I want to study <your subject> from <your book / notes / syllabus>.
+
+The agent will follow the checklist below on your behalf, ask you for your
+material, and leave you with a running quiz in your browser.
+
+**Path 2: do it yourself.**
+
+```bash
+git clone https://github.com/onionviolet/itembank.git
+cd itembank
+python itembank.py --help
+```
+
+Then write a bank (the format sample above is a complete valid file), check it
+with `python itembank.py lint mybank.md`, and sit it with
+`python itembank.py serve mybank.md`.
+
+### If you are an AI assistant onboarding a new user
+
+Follow these steps in order. Do not skip the verification steps, and do not
+promise features listed as "being built" elsewhere in this README.
+
+1. **Verify Python.** Run `python3 --version` (or `python --version` on
+   Windows). Require 3.11 or newer; if it is missing, direct the user to
+   python.org and stop until that is done.
+2. **Fetch the code.** `git clone https://github.com/onionviolet/itembank.git`
+   into a directory the user chooses, or download the latest release `.pyz`
+   from GitHub Releases and verify it against `SHA256SUMS.txt`. On macOS,
+   expect the Gatekeeper quarantine block on launcher files and apply the fix
+   documented in the Install section.
+3. **Verify the runtime.** `python itembank.py --help` must print the command
+   index. `python itembank.py spec` prints the full authoring format; read it
+   before writing any items.
+4. **Author the first bank from the user's own material.** Ask what they are
+   studying and what source they own (book chapter, lecture notes, a syllabus).
+   Write 5 to 10 items into a new markdown file following `spec`, then loop
+   `python itembank.py lint <file>` until it exits clean. The repo skill
+   `author-bank` (see "Using itembank with an AI coding agent" below) is the
+   full playbook, including the distractor and answer-position rules the
+   linter enforces.
+5. **First graded sitting.** Run `python itembank.py serve <file>` and hand
+   the user the printed local URL. Explain what is true about it: scoring
+   happens in this local process, the answer key never reaches the browser
+   before they answer, and the attempt record lands beside the bank on disk.
+6. **Show the rest of the loop.** `study` for flashcards, `lesson` if the bank
+   carries a `## LESSON` section, `day` for the cross-subject cockpit,
+   `export` for Anki. All of it works offline.
+7. **Set expectations honestly.** The shipped product is the bank, lesson, and
+   session loop documented under [Use](#use). The course workspace described
+   in "The source-to-course journey" is the next milestone, not something you
+   can drive today.
+8. **Privacy notes to relay.** Evidence and banks stay on the user's disk. If
+   the user later opts into a hosted model backend, item text transits to that
+   provider per request; nothing is stored remotely by this tool. Do not
+   commit their real study banks to any public repository; `itembank guard`
+   exists to catch exactly that.
+
 ## The source-to-course journey
 
 A course is a resumable workspace over files you already own. The full model,

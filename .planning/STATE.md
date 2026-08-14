@@ -59,6 +59,39 @@ STILL OWED before any Phase 14A plan: reframe slice 4b (rewrite build-course/cur
 
 Progress 2026-08-14: slice-5 audit is now SPEC'd as a bounded checklist in `.planning/READINESS-AUDIT-14A.md` (A1-A8 + research bake-in gate); it still needs to be RUN (output = audit report + contract-delta patch). The three gating pre-14A schema decisions from synthesis 12.6 are RESOLVED in `.planning/DECISIONS-PRE-14A-2026-08-14.md`: (1) hybrid graph storage - local edges inline, cross-object edges in a readable sidecar, edge vocab frozen at prerequisite-of/covers-objective/source-supports/treatment-of; (2) object-level opaque IDs + component IDs only for cited/gated/evidence-bearing blocks, whitespace+line-ending normalization first, reflow deferred to the 14A tracer; (3) the `mastered` field becomes a Khan-style per-objective, self-adjustable fill state (not one aggregate score; level vocabulary routed to 16B). Next action: run the slice-5 readiness audit, then slice 4b skills, then plan Phase 14A.
 
+**Concurrent-edit notice for the audit chat (2026-08-14).** A direction-review
+session amended the planning surface WHILE the slice-5 audit run was in flight.
+If your audit snapshot predates these, re-read before sign-off and fold the
+consequences into the contract-delta patch rather than re-running mechanical
+passes:
+
+- `READINESS-AUDIT-14A.md` gained **A9 (walking-skeleton gate)** and **A10
+  (external-user v1 bar)**. Both must be checked or waived-with-reason before
+  sign-off; A9's Fail condition ("first learner-visible course experience is
+  17B") is now cured on paper by Phase 13.9 but must be honored by the 14A/14B
+  plan set your step 7 writes.
+- `ROADMAP.md` gained **Phase 13.9 (walking skeleton, with a details block
+  before the subphase-sequence section)** and **Phase 18 (external-user v1)**,
+  plus a 2026-08-14 revision note. Your A7 emitted sequence should read: 13.5
+  waves 3+ beside/before 13.9, then 14A, 14B (13.9 walked before any
+  14B-or-later freeze commits), then the 15/16 fork, 17A, 17B, 18.
+- `.claude/CLAUDE.md` **Users constraint amended** to "one learner per
+  installation; external installations supported; no accounts/auth/
+  multi-tenancy". A10's constraint-text check is therefore already satisfied
+  for CLAUDE.md; AGENTS.md carries no Users line (verified by grep), so record
+  that as the reason A10's AGENTS.md half is a no-op.
+- `PLANNING-DIRECTIVES.md` section 5 gained the **lesser-model executor bar**
+  (six explicit legibility requirements). Every per-subphase plan from step 7
+  is written to that bar; treat it as an acceptance check on each plan.
+- `USER-VISION-INBOX.md` gained the 2026-08-14 walking-skeleton/external-user
+  entry (verbatim, with disposition); `README.md` gained the "Quick start for
+  someone brand new" agent-onboarding section, which is A10 check 2's
+  artifact (its cold-agent transcript fixture is still owed).
+
+No re-audit of A1 through A8 is required by these edits alone: they add
+scope, they do not alter synthesis clauses. The one interaction to check: A3/
+A9 overlap on freeze ordering, where A9 is the stricter reading for 14B+.
+
 ### Correction (2026-08-13): this file claimed "complete" through a live phase
 
 Between 2026-08-12 and 2026-08-13 this file read `current_phase: complete` and

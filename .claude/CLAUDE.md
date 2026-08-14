@@ -213,7 +213,7 @@ requires a second scorer, parser, or evidence store, the feature is wrong.
 - **Data**: No real question banks in this repository, enforced by `itembank guard` in CI. Fixtures are synthetic. Learner evidence lives beside the private bank.
 - **Compatibility**: Format changes must be additive. A bank without a `LESSON` section must parse exactly as it does today.
 - **Hardware**: The local-model path targets a 7900 XTX build that does not exist yet. The adapter is designed now as a vendor-neutral interface; the local backend waits for the machine.
-- **Users**: One. No accounts, no auth, no multi-tenancy, and no design work spent on them.
+- **Users**: One learner per installation. No accounts, no auth, no multi-tenancy. *(Amended 2026-08-14, vision inbox entry of the same date: external installations are now a supported goal, a friend installing and using their own copy. This fires V2-DEL-01's recorded signing trigger and is scoped as Phase 18 in ROADMAP.md and the A10 bar in READINESS-AUDIT-14A.md. The original wording "and no design work spent on them" is superseded; the no-accounts/no-multi-tenancy half still binds.)*
 
 <!-- GSD:project-end -->
 

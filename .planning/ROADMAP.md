@@ -101,6 +101,7 @@ are recorded on the phases they block; none blocks starting.
 - [ ] ~~**Phase 12: Packaging, Self-Update & Interop Export**~~ - MOVED to Phase 2.1 (2026-08-07) — see Phase 2.1 above. Slot retired, not reused.
 - [x] **Phase 13: Desktop Packaging — Tauri Shell over the Python Sidecar** - A signed, installable desktop app whose inside is still the same Python runtime, because porting it would temporarily create a second scorer. (completed 2026-08-10)
 - [ ] **Phase 13.5: Reading & Teaching Surface Quality Pass** - The reader and quiz surfaces shipped through Phase 13 meet a commercial quality bar. Planned 2026-08-12 as "Phase 14"; renumbered 2026-08-13 when the source-to-course reframe claimed that number. 3 of 8 plans executed.
+- [ ] **Phase 13.9: Walking Skeleton — one real course, end to end (INSERTED 2026-08-14)** - One real source from one live fall course, discovered read-only, bound to at least three cited objectives, one treatment decision per objective, and sat by Weibao through the shipped serve/teach/evidence loop. Ugly is acceptable; simulated is not. Runs beside or after 13.5 waves 3+; may stub course storage with the smallest 14A identity/journal slice; introduces no second parser, scorer, or evidence store. Gate: no 14B-or-later freeze closes before this has been walked. See READINESS-AUDIT-14A.md A9.
 - [ ] **Phase 14A: Identity, Lifecycle & Operation Prototype** - Stable IDs, revisions, fingerprints, operation journal, and link/import/move/edit/supersede semantics with atomic recovery. Depends on the shipped parser/runtime. Freeze gate: file-fault and external-edit tracer.
 - [ ] **Phase 14B: Graph & Course Package Prototype** - Typed graph kernel, outline projection, source/treatment bindings, versions, rights, and a minimal package. Depends on 14A. Freeze gate: three-domain graph tracer, clean restore, authorability review.
 - [ ] **Phase 15A: Director & Treatment Policy** - Treatment recommender, source scope, rights/egress, autonomy levels, and checkpoints. Depends on 14B. Freeze gate: four-subject recommendation review.
@@ -110,6 +111,7 @@ are recorded on the phases they block; none blocks starting.
 - [ ] **Phase 16C: Strategies, Notes & Prototype Convergence** - Notes, learner artifacts, finite strategies, progress comprehension, and legacy upgrade. Depends on 14B, 16A, and 16B. Freeze gate: cross-subject missing-feature suite.
 - [ ] **Phase 17A: Visual System & Component Foundation** - Tokens, hierarchy, responsive shell, and accessible primitives. Depends on 16B and 16C. Freeze gate: same-flow visual comparison and accessibility QA.
 - [ ] **Phase 17B: Production Vertical Tracer** - A polished unit from discovery through restore. Depends on all prior subphases. Freeze gate: end-to-end gates G1 through G11.
+- [ ] **Phase 18: External-User v1 — a friend can install and use this (ADDED 2026-08-14)** - The six-criterion bar in READINESS-AUDIT-14A.md A10: install without folklore, agent-guided onboarding from the public repo, first-run self-explanation, scope honesty, stranger-safe privacy defaults, and errors that name the next safe action. Criteria 1, 2, and 5 are largely shipped (Phase 2.1/13 packaging, the README onboarding section, the disclosure-gated updater) and get verified as they land; the phase closes after 17B with a real cold install by a second person. Fires V2-DEL-01's signing decision.
 
 **Superseded 2026-08-13 - flat Phase 14 to 17 sequence (historical rationale).** The nine subphases above replace the four broad phases below, per `.planning/research/phase-16/14-synthesis.md` sections 14 and 15. The originals are preserved here as rationale, not deleted. The high-level order (durable course and file semantics, then AI course direction, then logical learning contracts, then visual productization) remains correct; the four phases were too coarse and placed some Phase 16 discoveries after Phase 14 format commitments. Full historical detail is preserved in the Phase Details section below under "Superseded flat sequence (historical rationale)."
 > - **Phase 14: Course Workspace & Source Binding** - Make the course the primary object; safely discover and bind sources, objectives, prerequisites, treatments, existing lessons/banks, and gaps through a course shelf/map/source workspace.
@@ -131,6 +133,20 @@ table, its dependencies and freeze gates, and the new roadmap governance clauses
 maintenance/restore audits; the capability runway; and the permanent rejection
 ledger) are recorded in the Phase Details section under "Next-milestone subphase
 sequence."
+
+**Revision 2026-08-14 - walking skeleton, external-user v1, executor bar.**
+Three adjustments from the 2026-08-14 direction review (vision source:
+`USER-VISION-INBOX.md` entry 2026-08-14; gates: `READINESS-AUDIT-14A.md` A9 and
+A10). First, the sequence proved durability first and learner value last, with
+the only end-to-end tracer (17B) as the final gate while the live fall courses
+begin within weeks; **Phase 13.9 inserts a walking skeleton** so a thin real
+slice is walked before any 14B-or-later freeze closes, and its recorded
+evidence becomes the calibration corpus later plans keep asking for. Second,
+**Phase 18 names the external-user v1 bar**, revising the "Users: One"
+constraint to one learner per installation with external installations
+supported. Third, every next-milestone plan is written to the **lesser-model
+executor bar** in `PLANNING-DIRECTIVES.md` section 5: a Sonnet-class executor
+must be able to complete it without inventing a decision.
 
 ## Phase Details
 
@@ -1469,6 +1485,37 @@ without promoting the phase.
 Plans:
 
 - [ ] TBD (promote per the trigger above)
+
+### Phase 13.9: Walking Skeleton — one real course, end to end (INSERTED 2026-08-14)
+
+**Goal**: Before the deep subphases freeze anything, Weibao studies one real
+unit of one live fall course through a thin, real, end-to-end slice of the
+source-to-course loop, and the recorded evidence becomes the calibration corpus
+the later plans cite.
+**Mode:** tracer
+**Depends on**: shipped runtime; Phase 13.5 waves 3+ scheduled before or beside
+it (or explicitly waived with a reason); may consume the smallest 14A
+identity/journal slice but never waits for 14A to complete.
+**Binding spec:** `READINESS-AUDIT-14A.md` section A9. Summary of the success
+criteria (A9 wording governs on any divergence):
+
+  1. One real source from one live fall course (EMT, Math 1400, or CSCI 1100),
+     discovered and bound read-only, mapped to at least three cited objectives.
+  2. A recorded treatment decision per objective: at least one direct reading
+     and at least one generated lesson plus practice.
+  3. Weibao sits the result end to end through the shipped
+     serve/lesson/study/teach/evidence loop. Ugly is acceptable; simulated is
+     not.
+  4. No second parser, scorer, or evidence store; course-level storage may be
+     a stub over the smallest 14A identity/journal slice.
+  5. The sitting's evidence lands in the one store, and at least one later
+     plan (14B, 15A, or warning calibration) names it as calibration corpus in
+     place of a synthetic fixture.
+
+**Gate it imposes on the sequence:** no 14B-or-later freeze commits before this
+skeleton has been walked. Freeze gates the skeleton can exercise cheaply
+(graph-to-outline, the rich-lesson stress corpus) cite skeleton artifacts
+rather than inventing parallel fixtures.
 
 ### Next-milestone subphase sequence (14A through 17B)
 

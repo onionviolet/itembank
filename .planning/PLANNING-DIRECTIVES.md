@@ -259,6 +259,27 @@ consequential decisions get made by the more capable model **before** any code i
 written, so execution is transcription rather than judgment. A plan that leaves a
 design decision to the executor has failed at its job.
 
+**The lesser-model executor bar (added 2026-08-14).** The executor for the
+next milestone is a Sonnet-class model, and the split above holds only if
+every plan meets a concrete legibility bar. A plan is ready when a competent
+model with no chat history and no repo intuition can complete it, which means
+each plan states, explicitly and in the plan itself:
+
+1. The exact files to create or modify, by path.
+2. Every command to run, verbatim, with its expected output or exit code.
+3. Every user-visible string, error message, and copy decision, written out,
+   never "an appropriate message".
+4. The fixture or test that proves each task done, named before the task, and
+   the degraded-state behavior it must also prove.
+5. The design decisions already made, cited to their decision record, so the
+   executor never re-derives or re-litigates one.
+6. What is explicitly out of scope, so adjacent temptations are refused by
+   the plan rather than by executor judgment.
+
+The test to apply before handing a plan off: find any sentence a reasonable
+executor could implement two different ways; either decide it in the plan or
+name it a checkpoint. Discussion documents can hold nuance; plans cannot.
+
 ## 6. What a phase owes before it is planned
 
 In order, per phase:
