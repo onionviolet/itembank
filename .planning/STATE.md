@@ -5,13 +5,13 @@ milestone_name: milestone
 current_phase_name: 13.5-reading-teaching-surface-quality-pass
 status: Phase 13.5 in flight, waves 1-2 executed (3 of 8 plans); source-to-course reframe merged from origin/main 2026-08-13, unpushed
 stopped_at: "13.5-07 halted: no server-rendered held quiz exists for Task 2 progressive-enhancement contract"
-last_updated: "2026-08-14T05:13:47.182Z"
-last_activity: 2026-08-13
-last_activity_desc: "Quick task 260813-r5c: merged the source-to-course reframe (15 commits, Phases 14-17 and the phase-16 research set) and renumbered the reading/teaching phase from 14 to 13.5, because both branches had independently taken the number 14"
+last_updated: "2026-08-14T20:44:57.504Z"
+last_activity: 2026-08-14
+last_activity_desc: "Quick task 260813-x3g source-to-course contract reframe, slices 1-4a committed and pushed. Applied synthesis section 14 across nine contract/doc files: ROADMAP (nine subphases 14A-17B + governance), SOURCE-TO-COURSE (supersede pointer), REQUIREMENTS (eighteen families GRAPH..MAINT, 47 new requirements, old IDs mapped/superseded), PROJECT (course-first), UI-SPEC (Structured Studio; section 8 gates untouched), PLANNING-DIRECTIVES (finite-strategy + rejection-ledger; section 8 nine-subphase table), AGENTS + .claude/CLAUDE.md (object/authority + operation protocol; non-negotiables intact), README (course-first). Commits: 8b5cab4, e838407, e349c06 (REQUIREMENTS content landed split across the slice-3/4a commits because gsd `query commit` sweeps all modified files while the parallel 13.5 track shared the tree; content verified complete on disk, nothing lost)."
 progress:
-  total_phases: 19
+  total_phases: 21
   completed_phases: 17
-  total_plans: 112
+  total_plans: 120
   completed_plans: 110
 current_phase: 13.5
 ---
@@ -102,7 +102,7 @@ map prototyped from one parsed content before the long tail registers);
 `research/phase-16/16-editor-reader-landscape.md` (bounded editor/reader
 landscape thread; the Ellipsus branching-drafts pattern mapped as a thin UI
 over the 14A revision model via requirements R1-R10);
-`.planning/phases/14A-identity-lifecycle-operation/14A-PHASE-PLAN.md` (four
+`.planning/phases/14A-identity-lifecycle-operation/14A-BRIEF.md` (four
 plans, file-fault and external-edit tracer as the freeze gate, walking-skeleton
 coupling stated, expansion to the PLANNING-DIRECTIVES section-5 executor bar
 required before execution).
@@ -122,19 +122,23 @@ passes:
   sign-off; A9's Fail condition ("first learner-visible course experience is
   17B") is now cured on paper by Phase 13.9 but must be honored by the 14A/14B
   plan set your step 7 writes.
+
 - `ROADMAP.md` gained **Phase 13.9 (walking skeleton, with a details block
   before the subphase-sequence section)** and **Phase 18 (external-user v1)**,
   plus a 2026-08-14 revision note. Your A7 emitted sequence should read: 13.5
   waves 3+ beside/before 13.9, then 14A, 14B (13.9 walked before any
   14B-or-later freeze commits), then the 15/16 fork, 17A, 17B, 18.
+
 - `.claude/CLAUDE.md` **Users constraint amended** to "one learner per
   installation; external installations supported; no accounts/auth/
   multi-tenancy". A10's constraint-text check is therefore already satisfied
   for CLAUDE.md; AGENTS.md carries no Users line (verified by grep), so record
   that as the reason A10's AGENTS.md half is a no-op.
+
 - `PLANNING-DIRECTIVES.md` section 5 gained the **lesser-model executor bar**
   (six explicit legibility requirements). Every per-subphase plan from step 7
   is written to that bar; treat it as an acceptance check on each plan.
+
 - `USER-VISION-INBOX.md` gained the 2026-08-14 walking-skeleton/external-user
   entry (verbatim, with disposition); `README.md` gained the "Quick start for
   someone brand new" agent-onboarding section, which is A10 check 2's
