@@ -100,13 +100,78 @@ For course-building work:
     work from vision to evidence, contract, requirement, phase, and verification.
 14. **Preserve viable breadth.** Record proposals as core, registered,
     prototype, backburner, deferred, superseded, or rejected. Never silently
-    drop an idea. Every rejection records evidence, reason, alternative, and
-    reconsideration condition.
+    drop an idea. Untimely is not rejected: an optional, expensive, or
+    specialized capability stays in the permanent disposition ledger as
+    registered, prototype, or backburner with its dependency, cost, and revisit
+    trigger. The rejection and supersession ledger is append-only; a superseded
+    or hard-rejected idea is never deleted, and every rejection records
+    evidence, exact reason, conflicting rule, retained alternative, date, and
+    reconsideration condition (synthesis sections 1 and 12).
 15. **Name authority and recovery.** Every operation names its durable object,
     owner, source of truth, rights, remote egress, accepted revision, stale and
     conflict behavior, validation, and recovery. Presentation is not
     authorization, learner notes are not assessment authority, and derived
     views are not canonical truth.
+
+## Object and authority model (summary)
+
+This condenses the Phase 16 synthesis
+(`.planning/research/phase-16/14-synthesis.md` sections 2, 3, 6, and 10). The
+binding contract is `.planning/SOURCE-TO-COURSE.md`; this summary orients an
+agent, it does not replace that file.
+
+- **Actors and authority (synthesis 2.1, 2.3).** The learner owns goals, private
+  notes, scratch work, strategy choice, and evidence export. A course builder
+  defines scope, treatments, and paths within source and rights limits. A
+  reviewer accepts or rejects revisions. A source owner supplies rights and
+  authoritative claims. A hosted or local agent discovers, aligns, drafts,
+  validates, and explains within an operation manifest, and never owns accepted
+  truth or assessment authority. The deterministic runtime is the sole authority
+  for assessment session state, keyed disclosure, scoring, and attempt evidence.
+- **Durable objects (synthesis 2.2).** Course, scope or framework version,
+  concept, objective, source, source binding, artifact, lesson, bank or
+  assessment form, activity, learner note, learner artifact, evidence event,
+  strategy, agent operation, rights grant, and accepted revision. Each names a
+  source of truth. Accepted files are canonical; search indexes, HTML, caches,
+  thumbnails, rankings, and progress views are derived and disposable.
+- **Separate state axes (synthesis 2.3, 4.1).** Accepted content, workflow state
+  (`pending`), epistemic confidence (low), validation state (invalid), rights
+  state, and availability are independent axes. Do not collapse them.
+  `unavailable`, `unsupported`, `unknown`, `empty`, and `error` each need a
+  different recovery action.
+- **Core loops (synthesis 3).** The product's end-to-end acceptance surface is
+  seven loops: discover/reconcile/bind, design a course, learn and construct
+  notes, practice and test, evidence and remediation, author/review/accept, and
+  maintain/recover/leave. Each is an acceptance surface, not a single screen.
+- **One operation protocol for every client (synthesis 10).** Declare intent;
+  declare approved roots, rights, egress, write, and execute authority;
+  inventory before creating; plan treatment; checkpoint; draft the smallest
+  missing artifact; cite and label synthesis; run deterministic validation; show
+  an accessible plain and rich preview; present a bounded diff; pass configured
+  review; accept atomically; update dependency and staleness state; report undo
+  and uncertainty. Backend choice changes cost, latency, and privacy disclosure,
+  never the artifact or authority contract.
+- **Mutation is compare-and-swap (synthesis 6).** Every durable write states an
+  expected base fingerprint, writes to a temporary file, validates, commits
+  atomically, and appends to an operation journal, so any fault leaves the old
+  or the new valid state and never a mixed one. Discovery is read-only. Link,
+  import, copy, move, edit-in-place, supersede, migrate, and synchronize are
+  distinct operations with distinct identity, approval, and recovery effects;
+  they are not synonyms. A same-ID, divergent-bytes case is a conflict, never a
+  silent overwrite.
+- **Rights and egress are declared per operation (synthesis 6, 11).** Read,
+  quote, transform, remote-process, package, export, and share are separate
+  grants. Unknown rights stay unknown and restrictive. Hosted operations
+  minimize and disclose exact egress; evidence and banks stay on disk.
+- **Authored-output accessibility (synthesis 11.4).** Representative authored
+  outputs pass keyboard, touch, screen-reader, zoom and reflow, high-contrast,
+  and reduced-motion review with equivalent tasks. An agent never self-certifies
+  accessibility.
+- **Clean recovery (synthesis 3 loop G, 6).** Export is not complete until a
+  clean-machine, offline restore validates a manifest and reports every loss.
+  Crash, cancel, disk-full, offline, permission-denied, future-schema, and
+  agent-unavailable states preserve the last accepted state and expose the next
+  safe action.
 
 ## Course artifact workflow
 
@@ -122,17 +187,34 @@ Codex, Claude Code/Cowork, a local agent, or another compatible client:
 4. Reconcile likely duplicates, moved files, stale links, and conflicts. Ask
    for review when identity is uncertain; never infer identity from a filename
    alone.
-5. Build or update the objective map, then decide the best treatment for each
-   objective. Reuse or link adequate artifacts before proposing new ones.
+5. Build or update the versioned objective graph and its outline projection,
+   record the graph version, and keep structural order separate from
+   prerequisite order. Then decide the best treatment for each objective, and
+   reuse or link adequate artifacts before proposing new ones. A rename, split,
+   merge, or changed-demand objective creates a reviewed migration proposal;
+   historical evidence is never transferred automatically.
 6. Create only missing artifacts through the relevant skill and deterministic
-   contract. Keep generated synthesis and citations visible.
-7. Render and verify lessons both as durable source documents and in the rich
+   contract. Keep generated synthesis and citations visible. Publish each
+   accepted change as a recorded revision with its accepted fingerprint,
+   reviewer, and validation result, then mark dependent derivatives stale.
+7. Keep learner notes and learner artifacts as separate learner-owned records.
+   A note, or a learner-built proof, program, diagram, or explanation, may
+   ground reflection or a draft and produces descriptive or pending evidence
+   until reviewed; it never silently becomes source truth, lesson truth, a key,
+   a score, or mastery.
+8. Render and verify lessons both as durable source documents and in the rich
    learning UI. Lint and statistically review question banks and exams.
-8. For legacy enhancement, audit first, choose learning-value improvements,
+9. For legacy enhancement, audit first, choose learning-value improvements,
    preserve fallbacks and assessment semantics, then present the bounded diff
    for approval.
-9. Reindex disposable discovery data, validate links and artifacts, and report
-   what changed, what remains uncertain, and how to undo accepted mutations.
+10. Reindex disposable discovery data, validate links and artifacts, and report
+    what changed, what remains uncertain, and how to undo accepted mutations.
+    Every durable mutation goes through compare-and-swap with an expected
+    fingerprint, atomic write, and operation journal.
+11. Before promising an export or package, prove a clean-machine, offline
+    restore that validates a manifest and reports every loss. Preserve the last
+    accepted state on crash, cancel, disk-full, offline, permission-denied,
+    future-schema, and agent-unavailable conditions.
 
 ## Prose style
 

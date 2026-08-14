@@ -18,7 +18,15 @@ Claude Code/Cowork, local agents, and other clients preserve that direction,
 run research and synthesis, mutate artifacts safely, record deferred or
 rejected ideas, and hand off work without relying on chat history.
 
-One command gets you from a markdown file to a graded sitting:
+The **course** is the unit you will resume: it connects your approved sources to
+a cited objective map, decides per objective whether direct reading or a
+generated treatment is best, runs the learning and the graded testing, keeps the
+evidence on disk, and recommends the next justified action. The bank commands
+below are the shipped foundation the course is built on, not the whole product.
+See ["The source-to-course journey"](#the-source-to-course-journey) for the
+end-to-end story and where each capability stands today.
+
+Today, one command gets you from a markdown file to a graded sitting:
 
 - author in markdown → `lint` with actionable errors by item number
 - offline quiz (`build`) or graded sitting (`serve`)
@@ -26,11 +34,12 @@ One command gets you from a markdown file to a graded sitting:
 - `day` cockpit across every subject
 
 The intended complete experience combines source-grounded course construction,
-Brilliant-like interactive teaching, Albert-like objective practice and exam
-preparation, and local inspectable artifacts. AI may drive discovery,
-curriculum mapping, drafting, quality review, metric interpretation, and
-remediation through a hosted coding-agent client or a registered local backend.
-The parser, scorer, and evidence authority stay deterministic.
+interactive teaching, objective practice and exam preparation, and local
+inspectable artifacts. AI may drive discovery, curriculum mapping, drafting,
+quality review, metric interpretation, and remediation through a hosted
+coding-agent client or a registered local backend. The parser, scorer, and
+evidence authority stay deterministic, and the core loop degrades rather than
+blocks when no agent or network is available.
 
 Here is the whole format:
 
@@ -45,6 +54,107 @@ Q2. Name two lab checks before clearing a main for service.  [TYPE: short]
 ```
 
 That is the whole format. `itembank spec` prints the rest.
+
+## The source-to-course journey
+
+A course is a resumable workspace over files you already own. The full model,
+its objects, and its authority rules are the binding contract in
+[`.planning/SOURCE-TO-COURSE.md`](.planning/SOURCE-TO-COURSE.md) and the Phase 16
+synthesis (`.planning/research/phase-16/14-synthesis.md`). The plain-language
+version:
+
+- **Direct reading versus generation.** A source read directly is a complete
+  treatment, not a failure to generate. itembank decides per objective whether
+  the best treatment is direct reading, an excerpt, a guided lesson, terms or
+  notes, a worked example, a visual, practice, or a formal test. Generation
+  fills a demonstrated gap; it does not build a gallery.
+- **Link and edit in place.** Your books, syllabi, notes, banks, and vault stay
+  where they live, across several approved roots. Discovery is read-only by
+  default. Linking, importing, copying, moving, editing in place, and
+  superseding are distinct operations, and none of them merges two files just
+  because their names look alike.
+- **Review and acceptance.** A change becomes real only when it is accepted:
+  acceptance records a revision and a fingerprint, edits owned files through
+  compare-and-swap and atomic writes, and marks dependent derivatives stale. An
+  external edit creates a visible stale or conflict state, never a silent
+  overwrite.
+- **Learner notes stay yours.** Notes and scratch work are separate,
+  learner-owned records. A note can ground reflection or seed a draft, but it
+  never silently becomes source truth, lesson truth, an answer key, a score, or
+  mastery without source-backed review.
+- **Assessment authority is the runtime's.** Keys, legal feedback tiers, session
+  state, scoring, and attempt evidence are the runtime's call. An agent teaches,
+  diagnoses, and drafts, but it cannot invent a score, reveal keyed content
+  early, or decide a hint tier.
+- **Privacy and egress.** Evidence and banks stay on disk. There is no
+  telemetry, hosted gradebook, or account. Item text may transit to a model in a
+  request when you opt into a backend; it is never stored remotely by this tool,
+  and each hosted operation discloses its exact egress.
+- **Portability levels.** Content is honest about how portable it is: readable,
+  structurally editable, behaviorally executable, evidence-preserving, and
+  round-trip safe are five different guarantees. Canonical lessons stay coherent
+  in plain Markdown; richer behavior derives from validated data.
+- **Backup and restore.** An export is not complete until a clean-machine,
+  offline restore validates its manifest and reports every loss. Derived indexes
+  and caches rebuild from the canonical files.
+- **Degrade, never block.** Sitting a quiz, scoring, reading a lesson, the
+  authored hint ladder, evidence, and reports all work with the network
+  unplugged. When an agent or backend is unreachable, the model layer goes quiet
+  the way `day` omits Anki counts when Anki is closed.
+
+### Task-oriented paths
+
+Each path names what is shipped today and what is still being built in phases.
+The shipped bank and session commands are documented under [Use](#use).
+
+- **Create a bank or lesson.** Shipped: `itembank spec`, author, `itembank lint`,
+  `itembank stats`. Course-level treatment selection is being built (see
+  `build-course`, `absorb-book`, `curriculum-design` skills and the roadmap).
+- **Bind existing work.** Point itembank at the roots that hold your prior
+  lessons, banks, exams, and notes; inventory and reconcile them read-only
+  before anything is linked. The discovery-and-binding flow is a planned
+  subphase; today `itembank coverage` and `stats` inspect a single bank.
+- **Learn.** Shipped: `itembank lesson`, `itembank study`, `itembank gloss`,
+  `itembank teach` (the fixed authored hint ladder). Guided lessons and notes
+  strategies are planned.
+- **Practice and test.** Shipped: `itembank serve` for a graded sitting,
+  `itembank start`/`next`/`submit`/`report` for the key-free JSON session
+  protocol. Practice and formal test stay distinct modes.
+- **Inspect evidence.** Shipped: `itembank evidence`, `itembank trends`,
+  `itembank report`. Progress is reported as separate honest dimensions, never
+  one aggregate mastery score.
+- **Upgrade legacy material.** Audit first, keep identity and assessment meaning,
+  present a bounded diff, validate after. The legacy-upgrade skill is planned;
+  the audit-before-editing rule already binds every agent (`AGENTS.md`).
+- **Recover.** `itembank retract` undoes an event by appending a reasoned
+  compensating event; `itembank render` rebuilds attempt markdown and session
+  JSON from evidence. Clean-machine restore is a release gate for packaging.
+- **Export.** Shipped: `itembank export` to Anki TSV, GIFT, audio drill packs,
+  and answer-key TSV. Broader interchange (EPUB, QTI, and others) waits for a
+  named consumer and a loss report.
+
+## Optional modes and where capabilities stand
+
+itembank is one coherent product, but not every capability is shipped at once.
+Optional and future capabilities are tracked, not dropped: each stays as a core,
+registered, prototype, or backburner entry with its dependency, cost, and revisit
+trigger. The sequenced subphases (14A through 17B) and the capability runway live
+in [`ROADMAP.md`](ROADMAP.md) and the Phase 16 synthesis (section 15). A few
+examples, with honest status:
+
+- **Registered modes** compose through the shared contracts: reader versus guided
+  view, note strategies, a contextual source-grounded agent, and a synchronized
+  audio companion. Planned, gated on accessibility and evidence tests.
+- **Prototypes** must be tested reversibly before commitment: the typed objective
+  graph with an outline projection, the portable rich-lesson profile, accessible
+  visual-math interactions, and restricted-preview executable notebooks.
+- **Backburner** capabilities are useful but not timely: multi-device sync,
+  accounts and hosted gradebooks, full standards interchange (QTI, CASE, SCORM,
+  and others), and broad generative audio or video. Each names its trigger.
+
+Nothing here is presented as already shipped. Treat this section as the map, and
+`itembank --help` plus the shipped-command reference below as the ground truth
+for what runs today.
 
 ## Why this exists
 

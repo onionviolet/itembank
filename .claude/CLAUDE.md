@@ -105,6 +105,62 @@ Future linting should detect this without rewriting quoted source material.
   planning Phase 14A. Plans trace backward to vision and evidence and forward
   to verification, migration, documentation, and maintenance.
 
+### Object, authority, and operation summary (2026-08-13)
+
+This mirrors `AGENTS.md` so the two stay consistent, and condenses the Phase 16
+synthesis (`.planning/research/phase-16/14-synthesis.md` sections 2, 3, 6, and
+10). The binding contract is `.planning/SOURCE-TO-COURSE.md`. These are
+non-negotiable operation, authority, rights, acceptance, and recovery rules:
+
+- **Authority (synthesis 2.1, 2.3).** The learner owns goals, private notes,
+  scratch work, strategy choice, and evidence export. A course builder defines
+  scope, treatments, and paths within source and rights limits. A reviewer
+  accepts or rejects revisions. A hosted or local agent discovers, aligns,
+  drafts, validates, and explains within an operation manifest and never owns
+  accepted truth or assessment authority. The deterministic runtime is the sole
+  authority for assessment session state, keyed disclosure, scoring, and attempt
+  evidence.
+- **Durable objects and derived state (synthesis 2.2, 2.3).** Course, scope or
+  framework version, concept, objective, source, source binding, artifact,
+  lesson, bank or assessment form, activity, learner note, learner artifact,
+  evidence event, strategy, agent operation, rights grant, and accepted revision
+  each name a source of truth. Accepted files are canonical; indexes, HTML,
+  caches, rankings, and progress views are derived and disposable.
+- **Separate state axes (synthesis 2.3, 4.1).** Accepted content, workflow state
+  (`pending`), epistemic confidence (low), validation state (invalid), rights
+  state, and availability are independent. Do not collapse them.
+- **One operation protocol (synthesis 10).** Declare intent; declare approved
+  roots, rights, egress, write, and execute authority; inventory before
+  creating; plan treatment; checkpoint; draft the smallest missing artifact;
+  cite and label synthesis; validate deterministically; show an accessible plain
+  and rich preview; present a bounded diff; pass configured review; accept
+  atomically; update dependency and staleness state; report undo and
+  uncertainty. Backend choice changes cost, latency, and disclosure, not the
+  artifact or authority contract.
+- **Compare-and-swap mutation (synthesis 6).** Every durable write states an
+  expected base fingerprint, writes to a temporary file, validates, commits
+  atomically, and appends to an operation journal, so any fault leaves the old
+  or new valid state. Link, import, copy, move, edit-in-place, supersede,
+  migrate, and synchronize are distinct operations, not synonyms. A same-ID,
+  divergent-bytes case is a conflict, never a silent overwrite.
+- **Rights and egress per operation (synthesis 6, 11).** Read, quote, transform,
+  remote-process, package, export, and share are separate grants. Unknown rights
+  stay restrictive. Hosted operations minimize and disclose exact egress.
+- **Authored-output accessibility (synthesis 11.4).** Representative authored
+  outputs pass keyboard, touch, screen-reader, zoom and reflow, high-contrast,
+  and reduced-motion review. An agent never self-certifies accessibility.
+- **Clean recovery (synthesis 3 loop G, 6).** Export is not complete until a
+  clean-machine, offline restore validates a manifest and reports every loss.
+  Interrupted, offline, denied, future-schema, and agent-unavailable states
+  preserve the last accepted state and expose the next safe action.
+- **Preserve breadth; append-only ledger (synthesis 1, 12).** Every viable idea
+  stays as core, registered, prototype, or backburner with dependency, cost, and
+  revisit trigger. Untimely is not rejected, and simplicity alone is not a
+  rejection reason. The rejection and supersession ledger is append-only: a
+  superseded or hard-rejected idea is never deleted, and each rejection records
+  evidence, exact reason, conflicting rule, retained alternative, date, and
+  reconsideration condition.
+
 **Runtime invariant:** **One runtime, one scorer, one evidence store - and the
 runtime, not the model, settles scoring, assessment disclosure, and evidence.**
 
@@ -137,6 +193,15 @@ requires a second scorer, parser, or evidence store, the feature is wrong.
 > telemetry; (4) format changes are additive; (5) the accessibility gates in
 > `.planning/UI-SPEC.md`. Bullets below marked *(relaxed 2026-08-09)* are kept
 > for history but no longer bind.
+
+> **Pointer 2026-08-13.** The bullets below are preserved as the shipped-runtime
+> constraint history. The current binding operation, authority, rights,
+> acceptance, and recovery contract is the "Object, authority, and operation
+> summary" above, `AGENTS.md`, `.planning/SOURCE-TO-COURSE.md`, and the Phase 16
+> synthesis (`.planning/research/phase-16/14-synthesis.md`). Where a bullet reads
+> as bank-first or stdlib-only, treat it as history and defer to those files; do
+> not delete it. The five non-negotiables and the Runtime invariant remain in
+> force.
 
 - **Tech stack** *(relaxed 2026-08-09 - now a preference, see amendment above)*: Python standard library only, no install step - the founding design constraint. Two named exceptions: a vendored KaTeX asset for Math rendering (goal 5 forbids services and network, not files), and stdlib `urllib` for the opt-in updater.
 - **Network**: hosted models are permitted, so the tool is no longer offline-only. But the core loop must **degrade, never block**: sitting a quiz, scoring, lessons, the authored hint ladder, evidence, and reports all work with the network unplugged. The model layer goes quiet when unreachable, the same way `day` omits Anki counts when Anki is closed. Being out of credits must never stop you studying.

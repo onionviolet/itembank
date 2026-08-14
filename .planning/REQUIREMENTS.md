@@ -1039,23 +1039,70 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | RTS-10 | Phase 13.5 | Pending |
 | RTS-11 | Phase 13.5 | Complete |
 | RTS-12 | Phase 13.5 | Pending |
-| COURSE-01 | Phase 14 | Pending |
-| COURSE-02 | Phase 14 | Pending |
-| COURSE-03 | Phase 14 | Pending |
-| COURSE-04 | Phase 14 | Pending |
-| DIRECTOR-01 | Phase 15 | Pending |
-| DIRECTOR-02 | Phase 15 | Pending |
-| DIRECTOR-03 | Phase 15 | Pending |
-| DIRECTOR-04 | Phase 15 | Pending |
-| LEARNUI-01 | Phase 16 | Pending |
-| LEARNUI-02 | Phase 16 | Pending |
-| LEARNUI-03 | Phase 16 | Pending |
-| LEARNUI-04 | Phase 16 | Pending |
+| COURSE-01 | Phase 14 | Superseded 2026-08-13 -> GRAPH-01, GRAPH-03, FILE-01, ID-01, APP-01 |
+| COURSE-02 | Phase 14 | Superseded 2026-08-13 -> FILE-02, RIGHTS-01 |
+| COURSE-03 | Phase 14 | Superseded 2026-08-13 -> TREAT-02, ID-02 |
+| COURSE-04 | Phase 14 | Superseded 2026-08-13 -> TREAT-01 |
+| DIRECTOR-01 | Phase 15 | Superseded 2026-08-13 -> AGENT-02 |
+| DIRECTOR-02 | Phase 15 | Superseded 2026-08-13 -> AGENT-01 |
+| DIRECTOR-03 | Phase 15 | Superseded 2026-08-13 -> ACTIVITY-02 |
+| DIRECTOR-04 | Phase 15 | Superseded 2026-08-13 -> AGENT-03, GRAPH-03 |
+| LEARNUI-01 | Phase 16 | Superseded 2026-08-13 -> APP-01 |
+| LEARNUI-02 | Phase 16 | Superseded 2026-08-13 -> CAP-01, FLOW-02 |
+| LEARNUI-03 | Phase 16 | Superseded 2026-08-13 -> CAP-01, CAP-02 |
+| LEARNUI-04 | Phase 16 | Superseded 2026-08-13 -> FLOW-01, A11Y-01, VISUAL-01 |
+| GRAPH-01 | Phase 14B | Pending |
+| GRAPH-02 | Phase 14B | Pending |
+| GRAPH-03 | Phase 16C | Pending |
+| GRAPH-04 | Phase 14B | Pending |
+| FILE-01 | Phase 14A | Pending |
+| FILE-02 | Phase 14A | Pending |
+| FILE-03 | Phase 14A | Pending |
+| ID-01 | Phase 14A | Pending |
+| ID-02 | Phase 14A | Pending |
+| TREAT-01 | Phase 15A | Pending |
+| TREAT-02 | Phase 15A | Pending |
+| FLOW-01 | Phase 16B | Pending |
+| FLOW-02 | Phase 16B | Pending |
+| CAP-01 | Phase 16A | Pending |
+| CAP-02 | Phase 16A | Pending |
+| CAP-03 | Phase 16A | Pending |
+| ACTIVITY-01 | Phase 16A | Pending |
+| ACTIVITY-02 | Phase 15B | Pending |
+| ACTIVITY-03 | Phase 16A | Pending |
+| NOTE-01 | Phase 16C | Pending |
+| NOTE-02 | Phase 16C | Pending |
+| NOTE-03 | Phase 16C | Pending |
+| STRATEGY-01 | Phase 16C | Pending |
+| STRATEGY-02 | Phase 16C | Pending |
+| RIGHTS-01 | Phase 14A | Pending |
+| RIGHTS-02 | Phase 15A | Pending |
+| A11Y-01 | Phase 17A | Pending |
+| A11Y-02 | Phase 16A | Pending |
+| PORT-01 | Phase 16A | Pending |
+| PORT-02 | Phase 17B | Pending |
+| PORT-03 | Phase 14B | Pending |
+| RELIABILITY-01 | Phase 14A | Pending |
+| RELIABILITY-02 | Phase 15A | Pending |
+| RELIABILITY-03 | Phase 15B | Pending |
+| APP-01 | Phase 16B | Pending |
+| APP-02 | Phase 16B | Pending |
+| APP-03 | Phase 16B | Pending |
+| VISUAL-01 | Phase 17A | Pending |
+| VISUAL-02 | Phase 17A | Pending |
+| AGENT-01 | Phase 15A | Pending |
+| AGENT-02 | Phase 15A | Pending |
+| AGENT-03 | Phase 15B | Pending |
+| UPGRADE-01 | Phase 16C | Pending |
+| UPGRADE-02 | Phase 16C | Pending |
+| MAINT-01 | Phase 17B | Pending |
+| MAINT-02 | Phase 17B | Pending |
+| MAINT-03 | Phase 17B | Pending |
 
 **Coverage:**
 
-- v1 + next-milestone requirements: 170 total
-- Mapped to phases: 170
+- v1 + next-milestone requirements: 217 total
+- Mapped to phases: 217
 - Unmapped: 0 ✓
 
 > **Count corrected 2026-08-13.** Both sides of the source-to-course merge
@@ -1063,6 +1110,15 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 > either branch existed. Counted at merge time: 170 checklist ids (105 open, 65
 > closed) and 170 rows in the table above, so the mapping is still complete. The
 > number was recounted rather than carried forward.
+
+> **Recount after the family expansion 2026-08-13.** The eighteen expanded
+> source-to-course families add 47 new requirement ids (GRAPH, FILE, ID, TREAT,
+> FLOW, CAP, ACTIVITY, NOTE, STRATEGY, RIGHTS, A11Y, PORT, RELIABILITY, APP,
+> VISUAL, AGENT, UPGRADE, MAINT). The twelve superseded ids (COURSE-01..04,
+> DIRECTOR-01..04, LEARNUI-01..04) are retained, not deleted, so the id total
+> rises from 170 to 217 with a matching 217 table rows. Superseded ids keep their
+> phase mapping and point forward to their replacements; every new id is mapped to
+> a section 15 subphase, so the mapping stays complete.
 
 ---
 *Requirements defined: 2026-08-05*
