@@ -1,137 +1,140 @@
 ---
 name: curriculum-design
-description: Design a source-grounded course from a syllabus, standards, exam blueprint, or outline: extract objectives and prerequisites, align sources and existing artifacts, choose learning treatments, create an assessment blueprint, identify cited gaps, and propose what to build next.
+description: "Design a source-grounded course from a syllabus, standards, exam blueprint, or outline: extract objectives and prerequisites, align sources and existing artifacts, choose learning treatments, create an assessment blueprint, identify cited gaps, and propose what to build next."
 ---
 
 # Design a source-grounded curriculum
 
-Read `.planning/AGENT-WORKFLOW.md` before acting. Curriculum structure is a
-versioned typed graph with familiar outline projections, not a universal tree.
-Keep coverage, completion, evidence, retention, staleness, and uncertainty as
-separate state axes. Preserve every viable alternative path or treatment with a
-durable disposition.
+**Provenance:** rewritten 2026-08-14 (reframe slice 4b) to the operation
+protocol in `.planning/research/phase-16/14-synthesis.md` section 10.
 
-Turn the target into a course plan: objectives, prerequisites, source support,
-learning treatment, assessment demand, existing artifacts, and visible gaps.
-The tool measures current bank coverage objectively; source alignment and
-prerequisite claims require citations and stated confidence.
+Read `../OPERATION-CONTRACT.md` first, then `.planning/AGENT-WORKFLOW.md`.
+This skill owns the graph, authority, blueprint, prerequisites, pathways,
+completion policy, source coverage, and migration proposals for a course.
 
-## 1. Get the ground truth
+Curriculum structure is a versioned typed graph with familiar outline
+projections, not a universal tree. Structural order never implies
+prerequisite status, and alignment never implies evidence transfer. Keep
+coverage, completion, evidence, retention, staleness, and uncertainty as
+separate progress dimensions, and keep accepted content, workflow state,
+epistemic confidence, validation state, rights state, and availability as
+separate state axes. Preserve every viable alternative path or treatment
+with a durable disposition rather than silently dropping it.
+
+The shipped product has no graph, course, or binding command. The objective
+map today is a reviewable planning artifact (tables in a plan file) plus the
+`[OBJECTIVE:]` lines in real banks, measured by shipped commands. The graph
+kernel surface is pending (subphase 14B).
+
+## 1. Declare the operation
+
+State intent (a new map, a revision, a migration proposal), the approved
+read roots, whether any source text may leave the machine, and whether this
+pass is recommend-only or produces reviewed edits. This skill is normally
+read-only: it proposes; `author-bank` and `absorb-book` write.
+
+## 2. Get the ground truth
 
 ```bash
-python itembank.py spec     # the format contract (objective naming, lesson refs)
+python itembank.py spec        # the format contract (objective naming, lesson refs)
+python itembank.py stats bank.md      # item mix, objectives with counts, difficulty, position skew
+python itembank.py coverage bank.md   # objective -> item tags, citation-backed via ## SOURCES
+python itembank.py audit coverage --source source-file --bank bank.md   # source-versus-bank, read-only
 ```
 
-Also inspect what already exists:
+`stats` is the item-mix and position report; `coverage` is the objective-to-
+items map tied to the bank's `## SOURCES` registry. Run them before and
+after you propose work. Coverage claims are grounded in this output or in a
+cited source locator, never in prose intuition.
 
-```bash
-python itembank.py stats bank.md       # objective coverage of one bank (stats takes one bank)
-```
+## 3. Extract the objectives
 
-`stats` prints the item mix, distinct objectives with item counts, difficulty
-spread, and answer-position skew. Use it before and after you propose work.
-
-For the objective-level map with citations, use the on-demand coverage map
-(D-12), computed from the bank and its `## SOURCES` registry at request
-time, never stored:
-
-```bash
-python itembank.py coverage bank.md       # objective -> item tags, citation-backed
-```
-
-`stats` is the item-mix/position report; `coverage` is the objective→items
-map tied to the bank's `## SOURCES` registry (the sources each objective's
-items cite).
-
-## 2. Extract the objectives
-
-From the syllabus, list every objective as a stable, hierarchical name the
-bank's `[OBJECTIVE:]` lines can share, e.g.:
+From the syllabus or blueprint, list every objective as a stable
+hierarchical name the bank's `[OBJECTIVE:]` lines can share:
 
 ```text
 Airway / positioning
-Airway / adjuncts
 Math 1400 / derivatives / chain rule
 CSCI 1100 / loops / while
 ```
 
 - Names must be exact-matchable: an item `[OBJECTIVE: Airway / positioning]`
   counts toward that objective and no other.
-- Prefer a prefix hierarchy (`subject / topic / subtopic`) so the `evidence`
-  command's `--objective` filter and `--prefix` matching work naturally.
-- Preserve the target verb and cognitive demand. “Identify,” “explain,”
-  “apply,” “analyze,” and “perform” are not interchangeable.
+- Prefer a prefix hierarchy (`subject / topic / subtopic`) so the
+  `evidence` command's `--objective` and `--prefix` filters work naturally.
+- Preserve the target verb and cognitive demand. "Identify," "explain,"
+  "apply," "analyze," and "perform" are not interchangeable.
 - For standardized tests, record blueprint version, domain weights, item
   formats, timing, permitted tools, and tested depth. For knowledge courses,
-  use the actual syllabus and instructor emphasis rather than a generic exam.
+  use the actual syllabus and instructor emphasis, not a generic exam.
 
-## 3. Establish prerequisites and treatment
+Cite where each objective comes from. An objective without a source or
+authority is labeled as your synthesis.
 
-For each objective, identify genuine prerequisites and choose a proposed
-treatment: direct source reading, excerpt, guided lesson, notes/terms, worked
-example, visual or simulation, demonstration, practice, test,
-assessment-first, or human review. Each treatment must have a purpose.
+## 4. Establish prerequisites, pathways, and completion
 
-## 4. Map existing material
+For each objective, identify genuine prerequisites with a stated reason and
+confidence; a heading sequence is not a prerequisite claim. Where
+alternatives exist (two adequate paths to the same objective), record both
+with a disposition instead of picking one silently. State the completion
+policy: what evidence would count, and what stays pending or unknown.
 
-For each objective, find:
+## 5. Choose treatment per objective
 
-- Which lesson section (`### Heading`) teaches it.
-- Which items test it (grep the bank for the `[OBJECTIVE:]` line, or trust
-  `stats` counts).
-- Which item types are used (`recall`-heavy is fine for definitions; make sure
-  application objectives get `application`-difficulty items).
+Direct source reading, excerpt, guided lesson, notes or terms, worked
+example, visual or demonstration, practice, test, assessment-first
+diagnostic, learner artifact, or human review. Each treatment states its
+purpose. Direct reading is a successful outcome, not a fallback.
 
-Record the map as a table:
+## 6. Map existing material and find the gaps
+
+For each objective, record which lesson section (`### Heading`) teaches it,
+which items test it (from `coverage` or `stats`, not filename guesses),
+which item types and difficulties are used, and its status:
 
 ```text
-Objective                    | Lesson section     | Items | Types        | Status
-Airway / positioning         | The Airway, Step.. | 3     | mc, table    | covered
-Math 1400 / derivatives / .. | Chain Rule          | 1     | mc           | thin
-CSCI 1100 / loops / while    | (missing)           | 0     | none         | gap
+Objective                    | Lesson section | Items | Types     | Status
+Airway / positioning         | The Airway...  | 3     | mc, table | covered
+Math 1400 / derivatives / .. | Chain Rule     | 1     | mc        | thin
+CSCI 1100 / loops / while    | (missing)      | 0     | none      | gap
 ```
 
-## 5. Find the gaps
+A gap is zero or thin coverage, a missing lesson section, or wrong demand
+(all `recall` items for an `application` objective). Report gaps; never
+paper over them. Unknown stays unknown.
 
-A gap is any objective with zero (or thin) coverage, or an objective whose
-lesson section does not exist. Do not paper over gaps: report them.
-
-- **Missing lesson**: the objective has no `###` section any item points at.
-- **Thin coverage**: one item for a high-stakes objective. Recommend 2–3 items
-  spanning recall → application.
-- **Wrong difficulty**: all items `recall` for an objective that requires
-  `application`/`analysis`.
-
-## 6. Build the assessment blueprint
+## 7. Build the assessment blueprint
 
 Map objective weights and cognitive demand to item counts, difficulty, item
-families, feedback mode, timing, and required transfer. Do not use recall
-questions as evidence for an application objective. Include diagnostic,
-formative, and summative assessment only where the course needs them.
+families, feedback mode, timing, and required changed-context transfer. Do
+not use recall questions as evidence for an application objective. Include
+diagnostic, formative, and summative assessment only where the course needs
+them.
 
-## 7. Propose the work
+## 8. Propose the work and validate the proposal
 
-For each gap, propose exactly what to write:
+For each gap, propose exactly what to write: the lesson section, and the
+items with `[OBJECTIVE:]`, `[LESSON-REF:]`, and matching difficulty. Present
+the proposal as a bounded, reviewable plan; hand item authoring to
+`author-bank` and source treatments to `absorb-book` on approval. If the map
+itself changes (renamed or split objectives), present that as a migration
+proposal with its effect on existing `[OBJECTIVE:]` lines and evidence
+filters, and mark dependent material stale in the handoff (staleness has no
+command surface yet).
 
-- A lesson section (`### Heading`) covering the objective's concepts.
-- The items to add, with `[OBJECTIVE:]`, `[LESSON-REF: Heading]`, and the
-  difficulty that matches the objective's demand.
-
-Then validate the proposal against the real tool before claiming it works:
+After approved writes land, re-measure instead of asserting:
 
 ```bash
-python itembank.py lint bank.md       # every new item lints clean
-python itembank.py coverage bank.md   # the objective map re-computed, gaps visible
-python itembank.py stats bank.md      # objective coverage now shows the gap closed
+python itembank.py lint bank.md
+python itembank.py coverage bank.md
+python itembank.py stats bank.md
 ```
 
 ## Boundaries
 
-- Coverage claims must be grounded in `coverage`/`stats` output and item
-  counts, not in prose. If you cannot cite the item (via `coverage` or the
-  `## SOURCES` registry), do not claim coverage.
-- Do not generate questions beyond what the user asked for. Propose, then
-  write on approval (or use the `author-bank` skill when asked to write).
+- This skill does not write banks or lessons; it proposes.
+- Never claim standardized-test fidelity without a cited, versioned
+  blueprint.
 - Never commit real banks or learner data to this repository.
-- Never claim standardized-test fidelity without a cited, versioned blueprint.
-- Hand item authoring to `author-bank` and source treatments to `absorb-book`.
+- Report undo (which proposals were accepted and how to reverse them) and
+  uncertainty (confidence per prerequisite and alignment claim) at close.
