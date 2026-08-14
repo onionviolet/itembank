@@ -29,6 +29,30 @@ details remain routed through the Phase 16 research program.
 **Status:** promoted to `USER-VISION.md` on 2026-08-13. The user-vision process
 question also changed `PLANNING-DIRECTIVES.md`.
 
+### 2026-08-14: comprehensive UI, powerful multi-style learning, and a fitting editor/reader
+
+> also how to make sure UI is like good and comprehensive, learning part is powerful too, from notebook style to other potentially powerful style, or particularly stylized, and also for editor to be fitting too, can use the various editors, or readers, from stuff like Ellipsus and their competitors and other produccts and more
+
+**Disposition:** Route (with one new research thread).
+
+- "Good and comprehensive UI" and "powerful learning" are already owned by the
+  Phase 16 flow/capability contract (16A/16B) and the Phase 17 visual system, with
+  freeze-gate tracers. No new phase needed; make sure those gates actually run.
+- "Notebook style to other potentially powerful or particularly stylized" styles
+  route to the existing lesson-style work: `research/2026-08-10-lesson-style-catalogue.md`,
+  `research/phase-16/06-feature-style-atlas.md`, and the registered output modes in
+  synthesis 12.2 (notebook page, Cornell, concept map, glossary, formula sheet,
+  timeline, comparison table, study guide). Open question already recorded: which
+  styles are semantic transformations versus cosmetic themes.
+- "Editor to be fitting, various editors/readers, Ellipsus and competitors" is a
+  NEW research thread that widens the existing editor mechanics research
+  (`research/2026-08-09-lesson-display-editor.md` Q2 = CodeMirror 6 + external-
+  editor-watch + textarea floor) from a single-editor decision to a product
+  landscape: versioned-prose editors (Ellipsus), block editors (Notion), markdown/
+  local-first editors (Obsidian, iA Writer), and reader surfaces. Goal: confirm the
+  in-app editor and the external-editor-in-place path are both "fitting," and mine
+  reader/editor products for patterns without breaking the portable-file contract.
+
 ## Disposition vocabulary
 
 - **Promote:** add the verbatim statement and interpretation to `USER-VISION`.
