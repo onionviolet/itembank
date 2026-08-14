@@ -53,7 +53,9 @@ recorded in 06.2-GATES.md. Six GATE-01..06 requirements delivered.
 
 Phase: **13.5 — Reading & Teaching Surface Quality Pass**, waves 1-2 executed (3 of 8 plans)
 Status: v1.0's 18 phases are shipped. A next milestone opened on 2026-08-13 with the source-to-course reframe (Phases 14 through 17), merged into `main` and not yet pushed.
-Last activity: 2026-08-13 - Completed quick task 260813-x3g: ROADMAP.md reframed to the nine subphases (14A-17B) with governance clauses; SOURCE-TO-COURSE.md pointed at them. Reframe slices 2-5 (REQUIREMENTS/PROJECT/UI-SPEC/PLANNING-DIRECTIVES, root docs + skills, section 16.3 readiness audit) still owed before any Phase 14A plan.
+Last activity: 2026-08-14 - Quick task 260813-x3g source-to-course contract reframe, slices 1-4a committed and pushed. Applied synthesis section 14 across nine contract/doc files: ROADMAP (nine subphases 14A-17B + governance), SOURCE-TO-COURSE (supersede pointer), REQUIREMENTS (eighteen families GRAPH..MAINT, 47 new requirements, old IDs mapped/superseded), PROJECT (course-first), UI-SPEC (Structured Studio; section 8 gates untouched), PLANNING-DIRECTIVES (finite-strategy + rejection-ledger; section 8 nine-subphase table), AGENTS + .claude/CLAUDE.md (object/authority + operation protocol; non-negotiables intact), README (course-first). Commits: 8b5cab4, e838407, e349c06 (REQUIREMENTS content landed split across the slice-3/4a commits because gsd `query commit` sweeps all modified files while the parallel 13.5 track shared the tree; content verified complete on disk, nothing lost).
+
+STILL OWED before any Phase 14A plan: reframe slice 4b (rewrite build-course/curriculum-design/absorb-book/author-bank skills per synthesis section 10 and mirror .agents/skills <-> .claude/skills; add lesson-authoring/discovery-and-binding/media-intake/legacy-upgrade skills + shared reference) and slice 5 (the synthesis section 16.3 implementation-readiness audit, which gates Phase 14A). Next action: run slice 5 readiness audit.
 
 ### Correction (2026-08-13): this file claimed "complete" through a live phase
 

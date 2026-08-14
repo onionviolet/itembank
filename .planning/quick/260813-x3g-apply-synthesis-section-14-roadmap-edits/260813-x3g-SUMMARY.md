@@ -1,60 +1,84 @@
 ---
 quick_id: 260813-x3g
 status: complete
-date: 2026-08-13
+date: 2026-08-14
 files_modified:
   - .planning/ROADMAP.md
   - .planning/SOURCE-TO-COURSE.md
+  - .planning/REQUIREMENTS.md
+  - .planning/PROJECT.md
+  - .planning/UI-SPEC.md
+  - .planning/PLANNING-DIRECTIVES.md
+  - AGENTS.md
+  - .claude/CLAUDE.md
+  - README.md
 ---
 
 # Quick Task 260813-x3g Summary
 
-## What changed
+Source-to-course contract reframe: applied `.planning/research/phase-16/14-synthesis.md`
+section 14 across the planning contracts and top-level docs. Every edit is additive
+or a bounded REPLACE; superseded content is dated 2026-08-13 with forward pointers,
+never deleted. Zero em dash characters introduced in any slice.
 
-Applied the `.planning/research/phase-16/14-synthesis.md` section 14 change
-proposals for the two roadmap-governance files only. Slice 1 of the source-to-course
-contract reframe.
+## Slices done and committed
 
-**`.planning/ROADMAP.md`** (3 edits):
-- Summary list: the four flat Phase 14 to 17 bullets became nine subphase bullets
-  (14A, 14B, 15A, 15B, 16A, 16B, 16C, 17A, 17B), each carrying deliverable,
-  depends-on, and freeze gate from synthesis section 15. The four originals are
-  preserved verbatim in a labeled superseded blockquote.
-- Revision note: an additive 2026-08-13 subphase-reframe note so the roadmap does
-  not contradict its own earlier four-phase wording.
-- Phase Details: the four detailed Phase 14 to 17 blocks became a
-  "Next-milestone subphase sequence" section carrying the four new governance
-  clauses (prototype-before-freeze; implementation-readiness audit gate before any
-  Phase 14A plan plus a post-Phase-17 maintenance/restore audit; durable capability
-  runway; permanent rejection ledger) and the section-15 subphase table, followed
-  by the four original detailed blocks preserved verbatim under "Superseded flat
-  sequence (historical rationale)" with `####` headings ending in "(superseded)".
+- **Slice 1** (commit 8b5cab4): ROADMAP.md flat Phase 14-17 -> nine subphases
+  (14A, 14B, 15A, 15B, 16A, 16B, 16C, 17A, 17B) with deliverable/depends-on/freeze
+  gate each, plus four governance clauses (prototype-before-freeze;
+  implementation-readiness audit gate before any 14A plan; post-Phase-17
+  maintenance/restore audit; capability runway; permanent rejection ledger).
+  SOURCE-TO-COURSE.md "Next-milestone sequence" points at the subphases. Originals
+  preserved as historical rationale.
+- **Slice 2** (content in commits e838407 + e349c06): REQUIREMENTS.md expanded into
+  eighteen families (GRAPH, FILE, ID, TREAT, FLOW, CAP, ACTIVITY, NOTE, STRATEGY,
+  RIGHTS, A11Y, PORT, RELIABILITY, APP, VISUAL, AGENT, UPGRADE, MAINT). 47 new
+  requirements, each with Owner / Durable object / Authority / Degraded / Gate
+  (gates tied to synthesis G1-G12). Twelve old IDs (COURSE/DIRECTOR/LEARNUI) mapped
+  and relabeled superseded with an old-to-new table; universal-hierarchy,
+  aggregate-progress, and widget-lesson-grammar patterns explicitly superseded.
+- **Slice 3** (commit e838407): PROJECT.md course-first product framing +
+  boundaries (derived views not truth; presentation not authorization; note content
+  not assessment authority). UI-SPEC.md section 15 additions: course-first IA,
+  route/resume, durable jobs, approval hierarchy, error/recovery matrix, structured
+  map/pane/diff/activity/progress equivalents, Structured Studio visual direction,
+  six new acceptance scenarios. The nine LOCKED accessibility gates in UI-SPEC
+  section 8 are untouched. PLANNING-DIRECTIVES.md: finite-strategy qualification on
+  "build both", append-only rejection record, accepted-recommendation discipline,
+  mandatory reversible prototypes, and section 8 replaced with the nine-subphase
+  dependency table (original preserved).
+- **Slice 4a** (commit e349c06): AGENTS.md object/authority model + operation
+  protocol (compare-and-swap, rights/egress, state axes, accessibility, clean
+  recovery) and expanded course workflow steps; .claude/CLAUDE.md mirrors the same
+  summary plus the rejection-ledger rule (Runtime invariant and five
+  non-negotiables intact, purely additive); README.md leads with the
+  source-to-course journey, task-oriented paths, and honest shipped-vs-planned
+  status (no item-parseable fenced block added).
 
-**`.planning/SOURCE-TO-COURSE.md`** (1 edit):
-- The "Next-milestone sequence" section now opens with a supersede pointer to the
-  nine subphases and to synthesis section 15 plus the ROADMAP governance clauses.
-  The four original phase blocks are preserved under a "Historical rationale"
-  heading.
+## Commit-hygiene note
 
-## Verification
+REQUIREMENTS.md was written by a background agent while slices 3 and 4a were being
+committed, and `gsd-tools query commit` sweeps all modified tracked files, so the
+REQUIREMENTS content landed split across e838407 and e349c06 rather than in its own
+commit, and 2 lines of a 13.5-track planning doc (13.5-GATES.md) rode into e838407.
+Content verified complete and coherent on disk (all 18 families, 47 requirements
+with all five fields, old IDs preserved, working tree clean); nothing lost. No
+13.5-track source code was captured in the reframe commits. History was not
+rewritten because the parallel 13.5 execution track was committing to the same
+`main` concurrently.
 
-All plan checks pass: exactly two files changed; zero em dash characters (U+2014)
-introduced on any added line; all nine subphases and all four governance clauses
-present in ROADMAP.md; both superseded originals still present.
+## Still owed before any Phase 14A plan
 
-## Deliberately out of scope (later slices)
+- **Slice 4b (skills):** rewrite build-course, curriculum-design, absorb-book,
+  author-bank per synthesis section 10; mirror `.agents/skills` <-> `.claude/skills`;
+  add lesson-authoring, discovery-and-binding, media-intake, legacy-upgrade skills
+  and a shared object/permission/rights/provenance/acceptance/recovery reference.
+- **Slice 5 (readiness audit):** the synthesis section 16.3 implementation-readiness
+  audit. It gates Phase 14A: diff every accepted synthesis clause against the
+  updated contracts, map each requirement to owner/subphase/prerequisite/fixture/
+  gate/degraded-state/migration/docs/maintenance, confirm prototypes precede their
+  freezes, reject circular ownership, confirm the shipped parser/scorer/evidence
+  stay byte-compatible, and confirm every proposal has a permanent disposition.
 
-Section 14 also prescribes edits to PROJECT.md, REQUIREMENTS.md, UI-SPEC.md,
-PLANNING-DIRECTIVES.md, AGENTS.md, .claude/CLAUDE.md, README.md, and the mirrored
-skill library. Those are slices 2 through 4. The section 16.3 implementation-
-readiness audit (slice 5) runs after the contract files and requirements are
-updated and gates any Phase 14A plan.
-
-## Execution note
-
-Edits applied directly by the orchestrating model (opus), not dispatched to a
-worktree executor: this is planning-artifact authoring (in-lane per
-PLANNING-DIRECTIVES section 5, not code execution), the plan carried
-anchor-verified verbatim payloads with zero design judgment left to execution,
-and a worktree executor against unpushed `main` risked the #1941 base-halt for no
-benefit. GSD guarantees kept: atomic docs commit and STATE.md tracking.
+**Resume point:** run slice 5 (readiness audit), which will also flag slice 4b as a
+known open gap rather than assert full coverage.
