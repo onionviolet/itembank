@@ -101,16 +101,36 @@ are recorded on the phases they block; none blocks starting.
 - [ ] ~~**Phase 12: Packaging, Self-Update & Interop Export**~~ - MOVED to Phase 2.1 (2026-08-07) — see Phase 2.1 above. Slot retired, not reused.
 - [x] **Phase 13: Desktop Packaging — Tauri Shell over the Python Sidecar** - A signed, installable desktop app whose inside is still the same Python runtime, because porting it would temporarily create a second scorer. (completed 2026-08-10)
 - [ ] **Phase 13.5: Reading & Teaching Surface Quality Pass** - The reader and quiz surfaces shipped through Phase 13 meet a commercial quality bar. Planned 2026-08-12 as "Phase 14"; renumbered 2026-08-13 when the source-to-course reframe claimed that number. 3 of 8 plans executed.
-- [ ] **Phase 14: Course Workspace & Source Binding** - Make the course the primary object; safely discover and bind sources, objectives, prerequisites, treatments, existing lessons/banks, and gaps through a course shelf/map/source workspace.
-- [ ] **Phase 15: AI Course Director & Quality Pipeline** - Let hosted or local agents recommend readings/treatments, generate and review missing artifacts, follow standardized-test or knowledge-exam blueprints, and interpret evidence with explicit uncertainty.
-- [ ] **Phase 16: Learning Flow & Lesson Capability Contract** - Research and specify the course journey, lesson capabilities, question purposes, portable authoring contract, interactions, accessibility, media policy, and agent guidance.
-- [ ] **Phase 17: Visual System & Comprehensive Guided Learning UI** - Establish the visual language and implement the approved course journey as a polished, responsive, accessible, progressively enhanced learning experience.
+- [ ] **Phase 14A: Identity, Lifecycle & Operation Prototype** - Stable IDs, revisions, fingerprints, operation journal, and link/import/move/edit/supersede semantics with atomic recovery. Depends on the shipped parser/runtime. Freeze gate: file-fault and external-edit tracer.
+- [ ] **Phase 14B: Graph & Course Package Prototype** - Typed graph kernel, outline projection, source/treatment bindings, versions, rights, and a minimal package. Depends on 14A. Freeze gate: three-domain graph tracer, clean restore, authorability review.
+- [ ] **Phase 15A: Director & Treatment Policy** - Treatment recommender, source scope, rights/egress, autonomy levels, and checkpoints. Depends on 14B. Freeze gate: four-subject recommendation review.
+- [ ] **Phase 15B: Quality, Blueprint & Acceptance** - Blueprint fidelity, course audit, accepted revision, and staleness/dependency impact. Depends on 15A. Freeze gate: lesson-plus-practice acceptance tracer.
+- [ ] **Phase 16A: Semantic Capability & Activity Contract** - Lesson roles, activity-purpose matrix, capability profiles, and media/citation policy. Depends on 14B and the assessment runtime. Freeze gate: portable rich-lesson stress corpus.
+- [ ] **Phase 16B: IA, Modes & Recovery Contract** - Core loops, routes, resume, jobs, approvals, and offline/help/error states. Depends on 14A and 16A. Freeze gate: full storyboard and interruption scenarios.
+- [ ] **Phase 16C: Strategies, Notes & Prototype Convergence** - Notes, learner artifacts, finite strategies, progress comprehension, and legacy upgrade. Depends on 14B, 16A, and 16B. Freeze gate: cross-subject missing-feature suite.
+- [ ] **Phase 17A: Visual System & Component Foundation** - Tokens, hierarchy, responsive shell, and accessible primitives. Depends on 16B and 16C. Freeze gate: same-flow visual comparison and accessibility QA.
+- [ ] **Phase 17B: Production Vertical Tracer** - A polished unit from discovery through restore. Depends on all prior subphases. Freeze gate: end-to-end gates G1 through G11.
+
+**Superseded 2026-08-13 - flat Phase 14 to 17 sequence (historical rationale).** The nine subphases above replace the four broad phases below, per `.planning/research/phase-16/14-synthesis.md` sections 14 and 15. The originals are preserved here as rationale, not deleted. The high-level order (durable course and file semantics, then AI course direction, then logical learning contracts, then visual productization) remains correct; the four phases were too coarse and placed some Phase 16 discoveries after Phase 14 format commitments. Full historical detail is preserved in the Phase Details section below under "Superseded flat sequence (historical rationale)."
+> - **Phase 14: Course Workspace & Source Binding** - Make the course the primary object; safely discover and bind sources, objectives, prerequisites, treatments, existing lessons/banks, and gaps through a course shelf/map/source workspace.
+> - **Phase 15: AI Course Director & Quality Pipeline** - Let hosted or local agents recommend readings/treatments, generate and review missing artifacts, follow standardized-test or knowledge-exam blueprints, and interpret evidence with explicit uncertainty.
+> - **Phase 16: Learning Flow & Lesson Capability Contract** - Research and specify the course journey, lesson capabilities, question purposes, portable authoring contract, interactions, accessibility, media policy, and agent guidance.
+> - **Phase 17: Visual System & Comprehensive Guided Learning UI** - Establish the visual language and implement the approved course journey as a polished, responsive, accessible, progressively enhanced learning experience.
 
 **Revision 2026-08-13 — source-to-course reframe.** Completed phases remain
 the foundation, but the bank is no longer the primary navigation unit. The
 binding scope, AI role, quality contract, learner workspace, and four-phase
 tracer sequence live in `.planning/SOURCE-TO-COURSE.md`. Phase 14 planning
 begins there rather than extrapolating the old bank/auditor framing.
+
+**Update 2026-08-13 - subphase reframe.** The four broad phases have been
+resequenced into nine subphases (14A, 14B, 15A, 15B, 16A, 16B, 16C, 17A, 17B),
+per `.planning/research/phase-16/14-synthesis.md` section 15. The subphase
+table, its dependencies and freeze gates, and the new roadmap governance clauses
+(prototype before durable commitment; the implementation-readiness and
+maintenance/restore audits; the capability runway; and the permanent rejection
+ledger) are recorded in the Phase Details section under "Next-milestone subphase
+sequence."
 
 ## Phase Details
 
@@ -979,7 +999,7 @@ Plans:
 
 **Open decisions**: none. `13.5-UI-SPEC.md` §17's seven OPEN items each carried a default; item 7 (whether `.visual-status` may keep an announcing region) was resolved at plan time by reading `06.1-UI-SPEC.md`, which requires one persistent polite region — 06.1 wins and the row is a recorded exception, not a silent divergence.
 
-**Plans**: 3/8 plans executed across 7 waves (waves 1-2 done); RTS-01..RTS-12 assigned
+**Plans**: 4/8 plans executed across 7 waves (waves 1-2 done); RTS-01..RTS-12 assigned
 
 Plans:
 **Wave 1**
@@ -993,7 +1013,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2)*
 
-- [ ] 13.5-04-PLAN.md — Quiz voice repair, twelve sizes to five, `--edge` on the controls (D-B)
+- [x] 13.5-04-PLAN.md — Quiz voice repair, twelve sizes to five, `--edge` on the controls (D-B)
 
 **Wave 4** *(blocked on Wave 3)*
 

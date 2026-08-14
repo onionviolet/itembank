@@ -232,7 +232,7 @@
 
 - [ ] **RTS-01**: Every `var(--…)` a served reader, quiz, study or day page references resolves to a custom property defined in that same document, proven by a fixture that fails naming the token, the document and a referencing selector
 - [ ] **RTS-02**: The first line of an item stem is fully visible on first paint at 1280/768/375/320px and at 200% zoom, scripting on and off, and every in-page anchor jump lands clear of the sticky band; the band never exceeds two rows and a card already fully in view is not scrolled
-- [ ] **RTS-03**: The reader and the sat quiz render in the same vendored voices on one type scale — five sizes, two weights, no literal family, no colour literal — and every daemon-served page declares all four `@font-face` rules with root-absolute urls that return 200
+- [x] **RTS-03**: The reader and the sat quiz render in the same vendored voices on one type scale — five sizes, two weights, no literal family, no colour literal — and every daemon-served page declares all four `@font-face` rules with root-absolute urls that return 200
 - [ ] **RTS-04**: The reader's vertical rhythm and reading measure are set against the shipped faces as they actually render: 24px paragraph rhythm against a 29.7px line box, 66 real characters per line, x-height-matched inline runs, and a step down to an existing token below 480px
 - [ ] **RTS-05**: The glossary gloss lands at its term, flips at the viewport edges, becomes a bottom sheet on a narrow coarse pointer, opens on hover intent that never moves focus and never steals a pinned panel, links onward to the `[!KEY]` card and the full entry, and returns the learner to the text — with the click and keyboard path complete without script
 - [ ] **RTS-06**: `reader_nav` ships `none | column | rail | auto` with `auto` default: a lesson of four or more sections offers a nav, a shorter one does not, the rail occupies otherwise-empty margin at 1280px and wider without changing the reading measure, and the print rule stays inside the print block
@@ -240,7 +240,7 @@
 - [ ] **RTS-08**: The wrong-answer state renders the ladder in an in-flow support region above a collapsed generated-help disclosure; each opened tier adds a card and replaces none; the whole ladder is operable with no script and no network; and absence of a model is communicated only by the absence of an offer
 - [ ] **RTS-09**: Nothing on screen pre-announces a reveal — no progress indicator over the ladder, no reveal control, no dimmed or `aria-disabled` affordance, a locked card carrying only its header and unlock sentence, and no first person or encouragement anywhere in the ladder
 - [ ] **RTS-10**: A rendered page holds exactly one polite announcing region in the steady state — two on a visual item, as the recorded `06.1-UI-SPEC` exception — with two named transient exceptions, and both blocking-failure paths provably announce with the live attributes written before the text
-- [ ] **RTS-11**: Every element that is itself an interactive control or an input surface carries a boundary at 3:1 or better against the surface behind it in both modes, and the six semantic tokens the ladder needs ship measured by the project's own contrast function rather than assumed
+- [x] **RTS-11**: Every element that is itself an interactive control or an input surface carries a boundary at 3:1 or better against the surface behind it in both modes, and the six semantic tokens the ladder needs ship measured by the project's own contrast function rather than assumed
 - [ ] **RTS-12**: A bank with no `## TERMS` and no `## LESSON` renders byte-identically through the item path, proven by fixture
 
 > **Destination after the reframe (recorded 2026-08-13).** These twelve rows are
@@ -266,12 +266,15 @@ them.
   target, learner, approved source and write roots, objective hierarchy,
   prerequisites, treatments, accepted artifacts, drafts, and evidence location;
   any machine index is derived and disposable.
+
 - [ ] **COURSE-02**: Discovery is read-only and root-bounded; scaffolding and
   binding are explicit, idempotent operations, and finding a file never grants
   permission to transmit or modify it.
+
 - [ ] **COURSE-03**: Every objective-to-source and coverage claim carries a stable
   locator, confidence, and state (`covered`, `thin`, `missing`, `conflicting`, or
   `unknown`); heading similarity alone cannot produce `covered`.
+
 - [ ] **COURSE-04**: Every objective has an explicit, reviewable treatment plan
   drawn from direct reading, excerpt, guided lesson, notes/terms, worked example,
   visual/demonstration, practice, test, assessment-first, or human review; direct
@@ -282,14 +285,17 @@ them.
 - [ ] **DIRECTOR-01**: Hosted coding-agent clients and registered local backends
   reach the same course operations and schemas; backend choice changes capability,
   latency, and privacy disclosure, not the course artifact contract.
+
 - [ ] **DIRECTOR-02**: AI autonomy is scoped per operation as recommend-only,
   draft-and-review, or approved bounded writes; proposals cite sources, label
   synthesis, show quality findings, and are inspectable and recoverable.
+
 - [ ] **DIRECTOR-03**: Standardized-test courses require a cited, versioned
   blueprint mapping domains, weights, cognitive demand, item conventions,
   difficulty, timing, permitted tools, and feedback mode; knowledge courses use
   their actual syllabus and expected demand. The UI never claims exam fidelity
   without this mapping.
+
 - [ ] **DIRECTOR-04**: Evidence-based proposals name their observation window,
   denominator, included and missing signals, uncertainty, and competing
   explanations. Sparse evidence cannot produce a mastery percentage or a confident
@@ -301,15 +307,18 @@ them.
 - [ ] **LEARNUI-01**: The home surface is a course shelf and each course provides
   coherent Learn, Practice, Test, Sources, Course map, and Build/review areas; banks
   are assessment artifacts inside courses rather than the primary navigation unit.
+
 - [ ] **LEARNUI-02**: One parsed lesson supports continuous reader and guided modes;
   neither mode creates a second parser or scorer, and a learner can move between
   direct source reading, lesson, practice, feedback, and the next course action
   without reconstructing context.
+
 - [ ] **LEARNUI-03**: Lessons render semantic teaching roles—hover/focus
   definitions, things-to-know blocks, expert or niche tips, warnings, worked
   examples, citations, diagrams, math, runnable code, inline checks, hints, and
   accessible visual interactions—with graceful unavailable states and no
   decorative block required by style alone.
+
 - [ ] **LEARNUI-04**: The reference course tracer demonstrates orient → predict or
   act → observe → explain → changed-context transfer → evidence → next action at
   desktop and phone widths, including keyboard/screen-reader equivalence, model-
@@ -544,7 +553,7 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | LTI-07 | Phase 999.4 | Pending |
 | RTS-01 | Phase 13.5 | Pending |
 | RTS-02 | Phase 13.5 | Pending |
-| RTS-03 | Phase 13.5 | Pending |
+| RTS-03 | Phase 13.5 | Complete |
 | RTS-04 | Phase 13.5 | Pending |
 | RTS-05 | Phase 13.5 | Pending |
 | RTS-06 | Phase 13.5 | Pending |
@@ -552,7 +561,7 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | RTS-08 | Phase 13.5 | Pending |
 | RTS-09 | Phase 13.5 | Pending |
 | RTS-10 | Phase 13.5 | Pending |
-| RTS-11 | Phase 13.5 | Pending |
+| RTS-11 | Phase 13.5 | Complete |
 | RTS-12 | Phase 13.5 | Pending |
 | COURSE-01 | Phase 14 | Pending |
 | COURSE-02 | Phase 14 | Pending |

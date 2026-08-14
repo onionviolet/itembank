@@ -120,7 +120,15 @@ TYPE_SCALE_WEIGHTS = (400, 600)
 # reason no plan in this phase is allowed to fix. A stylesheet is in scope when
 # its collected name starts with one of these.
 TYPE_SCALE_SCOPE = ("surfaces.presentation", "surfaces.lesson",
-                    "served /lesson/")
+                    "served /lesson/", "surfaces.quiz_page",
+                    "served /quiz/")
+
+# 14-UI-SPEC section 3.4. These are the quiz response controls whose visible
+# boundary identifies the component, so each must use the measured --edge
+# token rather than the decorative --line token.
+QUIZ_EDGE_CONTROLS = (".choice", ".opt", ".seg button", "button.ghost",
+                      "textarea.ans", ".codewrap")
+COLOUR_LITERAL_RE = re.compile(r"#[0-9a-fA-F]{3,8}\b|\b(?:rgb|hsl)a?\s*\(")
 
 # 14-UI-SPEC §17 item 6 -- the Phase 4 cleanup this phase deliberately does not
 # widen its diff to reach. These files still carry off-scale sizes; the debt is
@@ -838,6 +846,72 @@ def check_every_served_page_declares_fonts(sheets):
              + "\n  ".join(problems))
 
 
+def check_no_colour_literal(sheets):
+    """The in-scope surface rules consume theme tokens, never a second palette.
+
+    surfaces.theme is deliberately excluded by TYPE_SCALE_SCOPE because it is
+    the one palette source. Font-face descriptors are also excluded: embedded
+    asset metadata is not a surface colour declaration.
+    """
+    problems = []
+    for name, raw in sheets:
+        if not name.startswith(TYPE_SCALE_SCOPE):
+            continue
+        for rule in raw_blocks(raw):
+            context = (rule["prelude"],) + rule["ancestors"]
+            if any(c.startswith("@font-face") for c in context):
+                continue
+            for prop, value in declarations(rule):
+                # Served documents embed surfaces.theme's palette as custom
+                # property definitions before the surface rules consume it.
+                if prop.startswith("--"):
+                    continue
+                if COLOUR_LITERAL_RE.search(value):
+                    problems.append("%s: %r declares %s:%s"
+                                    % (name, rule["prelude"], prop, value))
+    if problems:
+        fail("surface stylesheets contain colour literals outside the sole "
+             "palette in surfaces.theme:\n  " + "\n  ".join(problems))
+
+
+def check_control_boundary_token(sheets):
+    """Every quiz response control resolves its identifying border via --edge."""
+    quiz_sheets = [(name, raw) for name, raw in sheets
+                   if name.startswith(("surfaces.quiz_page", "served /quiz/"))]
+    if not quiz_sheets:
+        fail("no quiz stylesheet was collected for the control-boundary gate")
+    problems = []
+    for name, raw in quiz_sheets:
+        rules = raw_blocks(raw)
+        for selector in QUIZ_EDGE_CONTROLS:
+            matches = [rule for rule in rules
+                       if selector in [part.strip()
+                                       for part in rule["prelude"].split(",")]]
+            borders = [value for rule in matches
+                       for prop, value in declarations(rule)
+                       if prop == "border"]
+            if not borders:
+                problems.append("%s: %s has no border declaration"
+                                % (name, selector))
+            elif any("var(--edge)" not in value for value in borders):
+                problems.append("%s: %s uses %s instead of var(--edge)"
+                                % (name, selector, ", ".join(borders)))
+    if problems:
+        fail("quiz controls do not all use the 3:1 boundary token:\n  "
+             + "\n  ".join(problems))
+
+
+def check_svg_attributes_stay_out_of_type_scale():
+    """Prove the quiz still has SVG text attributes the CSS parser ignores."""
+    from surfaces import quiz_page
+    source_strings = [value for value in vars(quiz_page).values()
+                      if isinstance(value, str)]
+    if not any("<text " in value and "font-size=\"" in value
+               for value in source_strings):
+        fail("quiz visual renderers no longer expose the SVG font-size control "
+             "that proves the CSS type-scale matcher is declaration-only")
+
+
 # ---- invariant 8: the map, the manifest and the CSS cannot drift ------------
 
 def check_manifest_agreement():
@@ -866,6 +940,9 @@ def main():
         check_popover_scope(sheets)
         check_token_completeness(sheets)
         check_type_scale(sheets)
+        check_no_colour_literal(sheets)
+        check_control_boundary_token(sheets)
+        check_svg_attributes_stay_out_of_type_scale()
         check_semantic_token_contrast()
         check_font_urls_resolve(sheets)
         check_fonts_served(base, sheets)
@@ -876,12 +953,12 @@ def main():
         shutil.rmtree(workdir, ignore_errors=True)
     print("note: the type scale is asserted over %s only. Still off-scale, and "
           "owed rather than done (14-UI-SPEC section 17 item 6): %s. The quiz "
-          "joins "
-          "the scope in plan 14-04."
+          "is now included in that scope."
           % (", ".join(TYPE_SCALE_SCOPE), ", ".join(TYPE_SCALE_DEBT)))
     print("ok: stylesheet roundtrip -- %d stylesheets balanced, popover never "
           "suppressed on screen, every var(--NAME) a served page references "
-          "defined in that same page, semantic tokens at 4.5:1 and --edge at "
+          "defined in that same page, no in-scope colour literals, quiz "
+          "controls on --edge, semantic tokens at 4.5:1 and --edge at "
           "3:1 in both modes measured by theme.contrast_ratio, %d @font-face "
           "urls root-absolute, served 200 font/woff2, 404 under a page route, "
           "all %d manifest-recorded faces declared by each of the %d served "

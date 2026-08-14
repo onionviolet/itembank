@@ -4,15 +4,15 @@ milestone: v1.0
 milestone_name: milestone
 current_phase_name: 13.5-reading-teaching-surface-quality-pass
 status: Phase 13.5 in flight, waves 1-2 executed (3 of 8 plans); source-to-course reframe merged from origin/main 2026-08-13, unpushed
-stopped_at: Wave 3 not started — plan 13.5-04 (quiz voice repair) is the next executable
-last_updated: "2026-08-13T00:00:00.000Z"
+stopped_at: Completed 13.5-04-PLAN.md; plan 13.5-05 is next
+last_updated: "2026-08-14T04:59:34.374Z"
 last_activity: 2026-08-13
 progress:
-  total_phases: 23
-  completed_phases: 18
+  total_phases: 19
+  completed_phases: 17
   total_plans: 112
   completed_plans: 107
-current_phase: "13.5"
+current_phase: 13.5
 last_activity_desc: "Quick task 260813-r5c: merged the source-to-course reframe (15 commits, Phases 14-17 and the phase-16 research set) and renumbered the reading/teaching phase from 14 to 13.5, because both branches had independently taken the number 14"
 ---
 
@@ -60,7 +60,9 @@ Last activity: 2026-08-13
 Between 2026-08-12 and 2026-08-13 this file read `current_phase: complete` and
 `18/18` while Phase 13.5 was accruing commits on `main` and a second branch was
 accruing the source-to-course research. Both branches numbered their new phase
+
 14. The collision was not caught by any tool: `git merge-tree` reports one
+
 content conflict, in `REQUIREMENTS.md`, and `ROADMAP.md` merges clean while
 producing two Phase 14 headings.
 
@@ -93,9 +95,11 @@ caught by any phase's own verification:
 - `runner.py` compared captured stdout byte-for-byte, so a Windows child's
   CRLF failed every `check` item — the scorer's verdict depended on the
   learner's OS.
+
 - `itembank guard` refused the repository's own README, because the
   phase-05 grammar widening made README's fenced format sample parse as a
   real item.
+
 - `authoring.py` wrote pending proposals to `sha256:<hex>.json`, a filename
   Windows cannot create, so every stateful authoring run died there.
 
@@ -114,9 +118,11 @@ Three gaps stay open and are deliberately not closed by that branch:
    19:00 Central rather than local midnight. The tests were matched to the
    documented default rather than flipping it, because changing the zone
    moves every snapshot id.
+
 2. Three tests depend on Windows build artifacts CI cannot produce, so the
    packaging contract now passes by skipping rather than by verifying.
    Closing it honestly needs a Windows runner in the matrix.
+
 3. Nothing gates a merge on CI. A required status check on `main` is what
    stops this recurring; a ship step that reads VERIFICATION files cannot.
 
@@ -438,6 +444,7 @@ runtime would do:
    `highest_tier_unlocked` only from tiers already shown, so a tier unlocked
    by a wrong attempt but not yet opened was invisible and `unlock_path`
    always said `stumped`. The `Open the next hint` control was unreachable.
+
 2. `teaching_transition` let a client decide its own entitlement — `hint` and
    `stumped` differed only in the recorded `unlock_path`.
 
@@ -449,15 +456,17 @@ runtime would do:
   third surface. Found by the tracer, deliberately not fixed inside it, not
   waived: it prints above every green build via `REPORTED_FONT_ROUTES`. **It
   needs an owning plan.**
+
 - `surfaces/settings.THIS_PHASE` is stale at 10, so both new teaching settings
   print as `inert -- read from phase 14`. Pre-existing pattern; see
   `.planning/phases/13.5-reading-teaching-surface-quality-pass/deferred-items.md`.
+
 - Gates 4, 5, 10, 11 need a driven browser or a human — jsdom does no layout.
   `13.5-GATES.md` is created by 14-05 and completed by 14-08.
 
 ## Session Continuity
 
-Last session: 2026-08-13
-Stopped at: Phase 14 wave 2 boundary — 3 of 8 plans executed, waves 3-7 planned and unstarted
-Resume file: `.planning/phases/13.5-reading-teaching-surface-quality-pass/13.5-04-PLAN.md` (wave 3, next)
+Last session: 2026-08-14T04:59:34.302Z
+Stopped at: Completed 13.5-04-PLAN.md; plan 13.5-05 is next
+Resume file: .planning/phases/13.5-reading-teaching-surface-quality-pass/13.5-05-PLAN.md
 Deferred human verification: 02.1 (4), 03 (1), 03.1, 04 (7), 05 (2), 09 (KaTeX approval), 10 (1 UI gate), 11 (4), 999.4 (manual Canvas checklist), 999.5 (WINDOWS.md windows 2-3) — see the Deferred Verification table above; 09.1 manual audio-quality checks (see 09.1-UAT.md)

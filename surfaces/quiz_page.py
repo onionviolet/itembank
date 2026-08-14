@@ -43,17 +43,14 @@ TEMPLATE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <style>
 __THEME__
 __SHARED__
-*{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
-  font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  font:16px/1.5 var(--font-chrome)}
 .wrap{max-width:800px;margin:0 auto;padding:22px 18px 96px}
-.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
-  font-variant-numeric:tabular-nums}
 /* The one sticky orientation line (D-01): bank/lesson context, objective,
    item N of M, session mode -- and nothing else persistent. */
 .context-line{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;
   gap:4px 18px;align-items:center;background:var(--bg);padding:8px 0 10px;
-  border-bottom:1px solid var(--line);margin-bottom:14px;font-size:12.5px;
+  border-bottom:1px solid var(--line);margin-bottom:14px;font-size:12px;
   color:var(--mut)}
 .context-line .objective{flex:1 1 220px;min-width:0;overflow-wrap:anywhere}
 .context-line .lesson{margin-left:auto}
@@ -61,41 +58,42 @@ body{margin:0;background:var(--bg);color:var(--ink);
 .context-line a.lesson:hover,.context-line a.lesson:focus-visible{
   text-decoration:underline;outline:2px solid var(--accent);outline-offset:2px}
 /* One native disclosure owns all secondary metadata (D-01). */
-.session-details{margin:0 0 14px;font-size:13px;color:var(--mut)}
-.session-details summary{cursor:pointer;padding:4px 0;font-size:11px;
-  letter-spacing:.08em;text-transform:uppercase;color:var(--mut);
-  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-.session-details summary:focus-visible{outline:2px solid var(--accent);
-  outline-offset:2px}
+.session-details{margin:0 0 14px;font-size:12px;color:var(--mut)}
+.session-details summary{cursor:pointer;padding:4px 0;font-size:16px;
+  color:var(--mut);font-family:var(--font-chrome)}
+.session-details a{font-size:16px;font-family:var(--font-chrome)}
 .detail-body{margin-top:8px;display:flex;flex-wrap:wrap;gap:7px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
   padding:18px 18px 16px;margin-bottom:14px}
-.chip{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+.chip{font-size:12px;letter-spacing:.08em;text-transform:uppercase;
   background:var(--chip);color:var(--mut);padding:3px 8px;border-radius:5px;
-  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  font-family:var(--font-ledger)}
 .chip.type{background:var(--accent-soft);color:var(--accent)}
 .chip.aon{background:var(--bad-bg);color:var(--bad)}
 .chip.lesson{background:var(--accent-soft);color:var(--accent);
   text-decoration:none;display:inline-block}
 /* The active stem is the page's single dominant h1 (D-02). */
-h1.stem{font-size:28px;font-weight:600;line-height:1.2;margin:0 0 14px;
+h1.stem{font-size:32px;font-weight:600;line-height:1.2;margin:0 0 14px;
+  font-family:var(--font-paper);
   text-wrap:pretty}
 /* Response controls: native inputs with a 44px target (D-03). */
 .choices{display:flex;flex-direction:column;gap:7px;border:0;padding:0;
   margin:0 0 6px}
-.choices legend{font-size:12.5px;color:var(--mut);margin-bottom:6px}
+.choices legend{font-size:12px;color:var(--mut);margin-bottom:6px;
+  font-family:var(--font-chrome)}
 .choice{display:flex;gap:10px;align-items:center;min-height:44px;width:100%;
-  text-align:left;background:var(--card);border:1px solid var(--line);
+  text-align:left;background:var(--card);border:1px solid var(--edge);
   border-radius:9px;padding:10px 12px;font:inherit;color:inherit;cursor:pointer;
   transition:.12s}
 .choice:hover:not(:disabled){border-color:var(--accent)}
 .choice:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
 .choice input{width:20px;height:20px;flex:0 0 auto;accent-color:var(--accent)}
 .choice input:disabled{cursor:default}
-.choice .k{flex:0 0 auto;font-family:ui-monospace,Menlo,Consolas,monospace;
-  font-size:13px;color:var(--mut);min-width:1.2em}
-.choice .ot{flex:1 1 auto;min-width:0}
-.choice .rat{display:block;margin-top:6px;font-size:12.5px;line-height:1.5;
+.choice .k{flex:0 0 auto;font-family:var(--font-ledger);
+  font-size:16px;color:var(--mut);min-width:1.2em}
+.choice .ot{flex:1 1 auto;min-width:0;font-family:var(--font-paper)}
+.choice .rat{display:block;margin-top:6px;font-size:16px;line-height:1.5;
+  font-family:var(--font-paper);
   color:var(--mut)}
 .choice.right{background:var(--ok-bg);border-color:var(--ok)}
 .choice.right .rat{color:var(--ok)}
@@ -106,16 +104,16 @@ h1.stem{font-size:28px;font-weight:600;line-height:1.2;margin:0 0 14px;
 .choice:has(input:checked).wrong{border-color:var(--bad);background:var(--bad-bg)}
 .opts{display:flex;flex-direction:column;gap:7px}
 .opt{display:flex;gap:10px;align-items:center;min-height:44px;width:100%;
-  text-align:left;background:var(--card);border:1px solid var(--line);
+  text-align:left;background:var(--card);border:1px solid var(--edge);
   border-radius:9px;padding:10px 12px;font:inherit;color:inherit;cursor:pointer;
   transition:.12s}
 .opt:hover:not(:disabled){border-color:var(--accent)}
-.opt:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .opt[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
-.opt .k{flex:0 0 auto;font-family:ui-monospace,Menlo,Consolas,monospace;
-  font-size:13px;color:var(--mut);min-width:1.2em}
-.opt .ot{flex:1 1 auto;min-width:0}
-.opt .rat{display:block;margin-top:6px;font-size:12.5px;line-height:1.5;color:var(--mut)}
+.opt .k{flex:0 0 auto;font-family:var(--font-ledger);
+  font-size:16px;color:var(--mut);min-width:1.2em}
+.opt .ot{flex:1 1 auto;min-width:0;font-family:var(--font-paper)}
+.opt .rat{display:block;margin-top:6px;font-size:16px;line-height:1.5;
+  color:var(--mut);font-family:var(--font-paper)}
 .opt.right .rat{color:var(--ok)}
 .opt.wrong .rat{color:var(--bad)}
 .opt.right{border-color:var(--ok);background:var(--ok-bg)}
@@ -124,46 +122,46 @@ h1.stem{font-size:28px;font-weight:600;line-height:1.2;margin:0 0 14px;
 .rowline{display:flex;gap:10px;align-items:center;flex-wrap:wrap;
   padding:9px 0;border-bottom:1px solid var(--line)}
 .rowline:last-of-type{border-bottom:0}
-.rowtext{flex:1 1 240px;min-width:0}
+.rowtext{flex:1 1 240px;min-width:0;font-family:var(--font-paper)}
 .seg{display:flex;gap:5px;flex-wrap:wrap}
-.seg button{font:inherit;font-size:13.5px;padding:8px 12px;min-height:44px;
-  border-radius:7px;border:1px solid var(--line);background:var(--card);
+.seg button{font:inherit;font-size:16px;padding:8px 12px;min-height:44px;
+  font-family:var(--font-chrome);border-radius:7px;border:1px solid var(--edge);background:var(--card);
   color:inherit;cursor:pointer}
 .seg button[aria-pressed="true"]{border-color:var(--accent);
   background:var(--accent-soft);color:var(--accent)}
-.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .seg button.right{border-color:var(--ok);background:var(--ok-bg);color:var(--ok)}
 .seg button.wrong{border-color:var(--bad);background:var(--bad-bg);color:var(--bad)}
 .ord{flex:0 0 auto;width:26px;height:26px;border-radius:50%;display:grid;
-  place-items:center;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;
+  place-items:center;font-family:var(--font-ledger);font-size:12px;
   border:1px solid var(--line);color:var(--mut)}
-.ord.set{background:var(--accent);border-color:var(--accent);color:#fff}
+.ord.set{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 /* Reserved feedback region: directly below the response control, before the
    next action, with stable minimum height so the stem never shifts (D-02). */
 .feedback{min-height:96px;margin-top:14px;padding-top:12px;
-  border-top:1px solid var(--line);font-size:14.5px}
+  border-top:1px solid var(--line);font-size:16px}
 .feedback .status{color:var(--mut);margin-bottom:8px}
 .act{margin-top:13px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
-button.go{font:inherit;font-weight:600;font-size:14.5px;padding:11px 17px;
-  min-height:44px;min-width:44px;border:0;border-radius:9px;
-  background:var(--accent);color:#fff;cursor:pointer}
+button.go{font:inherit;font-family:var(--font-chrome);font-weight:600;font-size:16px;padding:11px 17px;
+  min-height:44px;min-width:44px;border:1px solid var(--accent);border-radius:9px;
+  background:var(--accent-soft);color:var(--accent);cursor:pointer}
 button.go:disabled{opacity:.4;cursor:default}
-button.go:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-button.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line)}
-.hint{font-size:12.5px;color:var(--mut)}
-.exp h4{margin:0 0 5px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;
-  color:var(--mut);font-family:ui-monospace,Menlo,Consolas,monospace}
-.exp .blk{margin-bottom:11px}
+button.go:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.ghost{background:var(--card);color:var(--ink);border:1px solid var(--edge)}
+.hint{font-size:16px;color:var(--mut);font-family:var(--font-chrome)}
+.exp h4{margin:0 0 5px;font-size:12px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--mut);font-family:var(--font-ledger)}
+.exp .blk{margin-bottom:11px;font-family:var(--font-paper)}
+.blk.note{color:var(--mut);font-size:16px}
 .exp ul{margin:5px 0 0;padding-left:18px}
 .exp li{margin-bottom:4px}
-.verdict{font-weight:600;margin-bottom:10px}
+.verdict{font-family:var(--font-ledger);font-weight:600;margin-bottom:10px}
 .verdict.y{color:var(--ok)} .verdict.n{color:var(--bad)}
-.pend{color:var(--warn);font-weight:600;margin-bottom:10px}
+.pend{font-family:var(--font-ledger);color:var(--warn);font-weight:600;margin-bottom:10px}
 .trap{background:var(--accent-soft);border-left:3px solid var(--accent);
   padding:9px 12px;border-radius:0 7px 7px 0}
 textarea.ans{width:100%;min-height:150px;padding:11px 12px;border-radius:9px;
-  border:1px solid var(--line);background:var(--card);color:inherit;
-  font:inherit;font-size:15.5px;line-height:1.5;resize:vertical}
+  border:1px solid var(--edge);background:var(--card);color:inherit;
+  font:inherit;font-family:var(--font-paper);font-size:16px;line-height:1.5;resize:vertical}
 textarea.ans:focus{outline:2px solid var(--accent);outline-offset:1px;
   border-color:var(--accent)}
 textarea.ans:disabled{opacity:.75}
@@ -172,12 +170,11 @@ textarea.ans:disabled{opacity:.75}
    CodeMirror's own layers inherit it, so gutter row N is editor line N at
    any content width (CODE-03). No new colour token; every value below is an
    existing theme custom property. */
-.codewrap{display:flex;flex-direction:column;border:1px solid var(--line);
+.codewrap{display:flex;flex-direction:column;border:1px solid var(--edge);
   border-radius:9px;background:var(--card);overflow:hidden;
-  font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
-  font-size:14px;line-height:1.5}
+  font-family:var(--font-code);font-size:16px;line-height:1.5}
 .codewrap .cm-editor,.codewrap .cm-content,.codewrap .cm-gutters{
-  font-family:inherit;font-size:inherit;line-height:inherit;
+  font-family:var(--font-code);font-size:16px;line-height:inherit;
   background:transparent}
 .codewrap .cm-editor{outline:none}
 .codewrap .cm-content{padding:11px 12px}
@@ -197,9 +194,9 @@ textarea.ans:disabled{opacity:.75}
 .case:last-child{margin-bottom:0}
 .case .case-head{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;
   margin-bottom:7px}
-.case .case-n{font-size:11px;letter-spacing:.09em;text-transform:uppercase;
-  color:var(--mut);font-family:ui-monospace,Menlo,Consolas,monospace}
-.case .st{font-size:12.5px;font-weight:600}
+.case .case-n{font-size:12px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--mut);font-family:var(--font-ledger)}
+.case .st{font-size:12px;font-family:var(--font-ledger);font-weight:600}
 .case.right{border-color:var(--ok);background:var(--ok-bg)}
 .case.right .st{color:var(--ok)}
 .case.wrong{border-color:var(--bad);background:var(--bad-bg)}
@@ -207,17 +204,17 @@ textarea.ans:disabled{opacity:.75}
 .case.wrong .st.warn{color:var(--warn)}
 .case .cf{margin-bottom:7px}
 .case .cf:last-child{margin-bottom:0}
-.case .cf h5{margin:0 0 3px;font-size:11px;letter-spacing:.08em;
+.case .cf h5{margin:0 0 3px;font-size:12px;letter-spacing:.08em;
   text-transform:uppercase;color:var(--mut);
-  font-family:ui-monospace,Menlo,Consolas,monospace}
-.case pre{white-space:pre-wrap;overflow-wrap:anywhere;font-family:ui-monospace,
-  SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.5;
+  font-family:var(--font-ledger)}
+.case pre{white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--font-code);
+  font-size:16px;line-height:1.5;
   margin:0;background:var(--card);border:1px solid var(--line);
   border-radius:6px;padding:7px 9px;max-height:180px;overflow:auto}
 /* server-side refusal states (plan 05-06): the network refusal reuses the
    pending treatment; the language refusal reads as an error because it is a
    misconfiguration, not a boundary. */
-.refused{font-size:14.5px;margin-bottom:10px}
+.refused{font-family:var(--font-ledger);font-size:16px;margin-bottom:10px}
 .refused.pend{color:var(--warn);font-weight:600}
 .refused.err{color:var(--bad);font-weight:600}
 
@@ -225,8 +222,9 @@ textarea.ans:disabled{opacity:.75}
   padding:20px}
 .lti-framing{background:var(--card);border:1px solid var(--line);
   border-radius:12px;padding:12px 16px;margin-bottom:14px;color:var(--mut);
-  font-size:14px;line-height:1.5}
-.score{font-size:34px;font-weight:700;letter-spacing:-.02em}
+  font-size:16px;line-height:1.5}
+.score{font-size:32px;font-weight:600;letter-spacing:-.02em}
+.score-sub{font-size:20px;color:var(--mut)}
 .empty{text-align:center;padding:28px 10px}
 @media (max-width:767px){
   .wrap{max-width:100%;padding:18px 16px 80px}
@@ -237,22 +235,22 @@ textarea.ans:disabled{opacity:.75}
 /* AgentAssist (plan 08-05): optional, subordinate, collapsed, opt-in
    generated support. Phase 4 tokens only; no fixed or minimum widths, so
    320px/200% zoom never scrolls horizontally. */
-.agent-assist{margin:14px 0 0;font-size:13.5px;max-width:72ch}
-.assist summary{cursor:pointer;padding:4px 0;font-size:11px;
-  letter-spacing:.08em;text-transform:uppercase;color:var(--mut);
-  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-.assist summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.agent-assist{margin:14px 0 0;font-size:16px;max-width:72ch;
+  font-family:var(--font-chrome)}
+.assist summary{cursor:pointer;padding:4px 0;font-size:16px;
+  color:var(--mut);font-family:var(--font-chrome)}
 .assist-body{display:flex;flex-direction:column;gap:8px;margin-top:8px}
-.assist-status{color:var(--mut);font-size:12.5px;margin:0}
+.assist-status{color:var(--mut);font-size:16px;margin:0;font-family:var(--font-ledger)}
 .assist-actions{display:flex;flex-wrap:wrap;gap:8px}
 .assist-copy{color:var(--mut);margin:0}
 .generated{background:var(--card);border:1px solid var(--line);
   border-left:3px solid var(--accent);border-radius:0 9px 9px 0;
   padding:12px 14px}
-.generated h4,.authored-hint h4,.rubric h4{margin:0 0 5px;font-size:11px;
+.generated h4,.authored-hint h4,.rubric h4{margin:0 0 5px;font-size:12px;
   letter-spacing:.09em;text-transform:uppercase;color:var(--mut);
-  font-family:ui-monospace,Menlo,Consolas,monospace}
-.generated-disclosure{color:var(--mut);font-size:12.5px;margin:0 0 8px}
+  font-family:var(--font-ledger)}
+.generated-disclosure{color:var(--mut);font-size:12px;margin:0 0 8px;
+  font-family:var(--font-ledger)}
 .generated-text{margin:0;overflow-wrap:anywhere}
 .authored-hint{margin-top:10px;background:var(--card);border:1px solid var(--line);
   border-radius:9px;padding:12px 14px}
@@ -266,18 +264,15 @@ textarea.ans:disabled{opacity:.75}
   flex-direction:column;gap:8px}
 .rubric-row{display:flex;gap:10px;align-items:flex-start;background:var(--card);
   border:1px solid var(--line);border-radius:9px;padding:10px 12px}
-.rubric-token{flex:0 0 auto;font-size:10.5px;letter-spacing:.08em;
-  text-transform:uppercase;font-family:ui-monospace,Menlo,Consolas,monospace;
+.rubric-token{flex:0 0 auto;font-size:12px;letter-spacing:.08em;
+  text-transform:uppercase;font-family:var(--font-ledger);
   color:var(--warn);background:var(--chip);border:1px solid var(--line);
   border-radius:5px;padding:2px 7px}
 .rubric-rationale{margin:0;overflow-wrap:anywhere}
-.provenance{margin-top:10px;font-size:12.5px;color:var(--mut)}
+.provenance{margin-top:10px;font-size:12px;color:var(--mut);
+  font-family:var(--font-ledger)}
 .provenance summary{cursor:pointer}
 .assist-id{overflow-wrap:anywhere;word-break:break-all}
-@media (prefers-reduced-motion:reduce){
-  *{transition:none!important}
-  html{scroll-behavior:auto!important}
-}
 </style></head><body><div class="wrap">
 <nav class="context-line" data-surface-context aria-label="Session context">
   <span class="cx" id="cx-bank">__CTX_BANK__</span>
@@ -1005,7 +1000,7 @@ function close(q, card, act, v){
         h += `<div class="blk"><h4>What a marker checks</h4><ul><li>`
            + ex.rubric.map(esc).join("</li><li>") + `</li></ul></div>`;
     } else {
-      h += `<div class="blk" style="color:var(--mut);font-size:13.5px">The model answer is
+      h += `<div class="blk note">The model answer is
         held back so it cannot contaminate the items after this one. It is in the bank file.`;
     }
   } else if(q.type === "check"){
@@ -1040,7 +1035,7 @@ function finish(){
   const pct = autoTotal ? Math.round(score/autoTotal*100) : 0;
   const pend = Q.filter(q=>q.type==="short").length;
   let h = `<div class="done"><div class="score mono">${score}/${autoTotal}
-    <span style="font-size:17px;color:var(--mut)"> &middot; ${pct}% auto-marked</span></div>`;
+    <span class="score-sub"> &middot; ${pct}% auto-marked</span></div>`;
   if(pend) h += `<p style="margin:12px 0 0;color:var(--warn)"><b>${pend} short
     answer${pend>1?"s":""} not marked here.</b> Nothing recorded them, because this page
     was opened as a file. Use <code>itembank serve</code> for a sitting that is meant
@@ -2889,7 +2884,7 @@ function close(q, card, act, v, revert){
         h += `<div class="blk"><h4>What a marker checks</h4><ul><li>`
            + ex.rubric.map(esc).join("</li><li>") + `</li></ul></div>`;
     } else {
-      h += `<div class="blk" style="color:var(--mut);font-size:13.5px">The model answer is
+      h += `<div class="blk note">The model answer is
         held back so it cannot contaminate the items after this one. It is in the bank file
         and in the attempt file next to what you wrote.</div>`;
     }
@@ -2934,7 +2929,7 @@ function finish(summary){
   const pend = s.pending_manual || 0;
   const pct = auto ? Math.round(correct/auto*100) : 0;
   let h = `<div class="done"><div class="score mono">${correct}/${auto}
-    <span style="font-size:17px;color:var(--mut)"> &middot; ${pct}% auto-marked</span></div>`;
+    <span class="score-sub"> &middot; ${pct}% auto-marked</span></div>`;
   if(pend) h += `<p style="margin:12px 0 0;color:var(--warn)"><b>${pend} short
     answer${pend>1?"s":""} not marked here.</b> They are in the attempt file,
     waiting for a marker.</p>`;
