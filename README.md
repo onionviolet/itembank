@@ -113,11 +113,20 @@ promise features listed as "being built" elsewhere in this README.
 6. **Show the rest of the loop.** `study` for flashcards, `lesson` if the bank
    carries a `## LESSON` section, `day` for the cross-subject cockpit,
    `export` for Anki. All of it works offline.
-7. **Set expectations honestly.** The shipped product is the bank, lesson, and
+7. **Keep it current.** Run `python itembank.py --version`, then
+   `python itembank.py update` to check GitHub Releases, verify the checksum,
+   and land a newer version side by side without touching the running copy.
+   The daemon also checks at most once per configured interval and disclosed
+   that before its first request. Re-read this README and `itembank spec`
+   after an update; the format only ever changes additively, but new
+   capabilities arrive with new versions. (A machine-readable "what changed
+   for agents" surface is a planned future capability; until it ships, the
+   release notes on GitHub are the changelog.)
+8. **Set expectations honestly.** The shipped product is the bank, lesson, and
    session loop documented under [Use](#use). The course workspace described
    in "The source-to-course journey" is the next milestone, not something you
    can drive today.
-8. **Privacy notes to relay.** Evidence and banks stay on the user's disk. If
+9. **Privacy notes to relay.** Evidence and banks stay on the user's disk. If
    the user later opts into a hosted model backend, item text transits to that
    provider per request; nothing is stored remotely by this tool. Do not
    commit their real study banks to any public repository; `itembank guard`

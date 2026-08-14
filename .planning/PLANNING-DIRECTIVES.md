@@ -280,6 +280,10 @@ The test to apply before handing a plan off: find any sentence a reasonable
 executor could implement two different ways; either decide it in the plan or
 name it a checkpoint. Discussion documents can hold nuance; plans cannot.
 
+This bar is codified as a standing template in `.planning/PLAN-TEMPLATE.md`
+(added 2026-08-14); the Phase 13.9 plans are its reference exemplars. New
+plans start from the template, not from memory of an older plan's shape.
+
 ## 6. What a phase owes before it is planned
 
 In order, per phase:

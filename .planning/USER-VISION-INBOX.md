@@ -74,6 +74,32 @@ question also changed `PLANNING-DIRECTIVES.md`.
   of the same file; the agent-guided onboarding section landed in `README.md`
   ("Quick start for someone brand new").
 
+### 2026-08-14: durable plan standard, and agent-facing update awareness
+
+> plan out the 13.9 walking skeleton so sonnet can execute it, need to set up this so that it is long standing for other plans as well, also need to include in readme, or in skills, updating the program and more, both skill wise and app wise? where the app can tell the agent that the app is outdated andd what new features and more, but that could be a future phase, write into vision accordingly
+
+**Disposition:** Split (2026-08-14).
+
+- **Product intent (durable):** two lasting capabilities are named. First, the
+  planning standard itself: plans are written so a lesser model executes them
+  without inventing decisions, as a standing practice, not a one-off. Landed as
+  `.planning/PLAN-TEMPLATE.md` plus the executor bar in
+  `PLANNING-DIRECTIVES.md` section 5. Second, **agent-facing update and
+  capability disclosure**: the app should be able to tell an agent that the
+  installed version is outdated and what new features and contracts arrived,
+  so both skills and app knowledge stay current; skills likewise need an
+  update path. This builds on shipped ground (`itembank update`, the
+  disclosure-gated launch check, `itembank usage`, `itembank schema`) but the
+  machine-readable "what changed for agents" surface does not exist yet.
+- **Routed:** the walking-skeleton plans landed in
+  `.planning/phases/13.9-walking-skeleton/`. Agent-facing update disclosure is
+  registered as a future-phase capability on the Phase 18 roadmap entry (a
+  candidate, not a commitment; it may also land earlier as a cheap additive
+  surface, e.g. a versioned capability manifest the updater already knows how
+  to fetch). The shipped `itembank update` step was added to the README
+  agent-onboarding checklist. Skill-update mechanics route to the skill
+  library's operation contract owner (slice 4b) when that surface exists.
+
 ## Disposition vocabulary
 
 - **Promote:** add the verbatim statement and interpretation to `USER-VISION`.
