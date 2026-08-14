@@ -1114,13 +1114,24 @@ def _medium_cs(bank, profile_id, data, r1, r2, r3):
         fail("cs: the python fence must carry the stable runnable id")
     if lesson_surface.RUN_READY_COPY not in page:
         fail("cs: the Run control label must be present")
-    if 'class="run-status" role="status" aria-live="polite"' not in page:
-        fail("cs: the persistent status region must be present")
+    if 'class="run-status" id="run-status-1" aria-live="off"' not in page:
+        fail("cs: the stable idle runnable readout must be present")
+    if 'aria-describedby="run-status-1"' not in page:
+        fail("cs: the Run control must describe its stable idle readout")
+    if 'class="run-status" role="status"' in page or \
+            'class="run-status" aria-live="polite"' in page:
+        fail("cs: the idle runnable readout must not be persistently polite")
     if 'class="run-label">stdout</p><pre class="run-stdout"' not in page \
             or 'class="run-label">stderr</p><pre class="run-stderr"' not in page:
         fail("cs: labelled non-live stdout/stderr streams must be present")
     if lesson_surface.RUN_RUNNING_COPY not in lesson_surface.RUNNABLE_JS:
         fail("cs: the running-state copy must be embedded")
+    adapter = lesson_surface.RUNNABLE_JS
+    if ('s.setAttribute("role", "alert")' not in adapter or
+            's.setAttribute("aria-live", "assertive")' not in adapter or
+            adapter.find('s.setAttribute("aria-live", "assertive")') >
+            adapter.find("s.textContent = text")):
+        fail("cs: blocking runnable errors must be assertive before text")
 
 
 def _medium_plain(bank, profile_id, data, r1, r2, r3):

@@ -21,7 +21,8 @@ Covers (09-05-PLAN Task 1 / 09-UI-SPEC "Runnable code example"):
 5. Automated DOM/source assertions pin the `09-UI-SPEC.md` runnable-code
    contract: stable `data-code-block` ids, visible labels, the exact
    ready/loading/completed/timeout/truncated/request-error/refusal copy,
-   persistent concise `role="status"`, non-live labelled streams, edit
+   a static idle readout with transient assertive blocking errors, non-live
+   labelled streams, edit
    retention, independent block state, focus hooks, editor escape
    instructions, and the responsive/reduced-motion hooks. Keyboard-only,
    narrow/zoom, and assistive behaviour are the manual phase-verification
@@ -196,7 +197,7 @@ def start_cs_session(base):
 def test_runnable_page_contract():
     """Test 1 + UI contract: the served CS lesson carries the stable
     data-code-block id, the exact labels, the Run control, keyboard help,
-    persistent role=status, labelled non-live streams, and the disabled
+    static idle readout, labelled non-live streams, and the disabled
     fence keeps escaped source with the exact unavailable copy."""
     workdir = cs_workdir()
     try:
@@ -225,11 +226,27 @@ def test_runnable_page_contract():
                     lesson.RUN_SOURCE_LABEL,       # "Source code"
                     lesson.RUN_READY_COPY,         # "Run example" button
                     lesson.RUN_HELP_COPY,          # Tab/Shift-Tab/Escape help
-                    'class="run-status" role="status" aria-live="polite"',
+                    'class="run-status" id="run-status-1" aria-live="off"',
                     'class="run-label">%s' % lesson.RUN_STDOUT_LABEL,
                     'class="run-label">%s' % lesson.RUN_STDERR_LABEL):
                 if needle not in block:
                     fail("runnable block missing %r" % needle)
+            if 'aria-describedby="run-status-1"' not in block:
+                fail("Run control must describe the stable idle readout")
+            if 'class="run-status" role="status"' in block or \
+                    'class="run-status" aria-live="polite"' in block:
+                fail("idle runnable readout must not be persistently polite")
+            adapter = lesson.RUNNABLE_JS
+            failure_role = adapter.find('s.setAttribute("role", "alert")')
+            failure_live = adapter.find(
+                's.setAttribute("aria-live", "assertive")')
+            restore_role = adapter.find('s.removeAttribute("role")')
+            restore_live = adapter.find('s.setAttribute("aria-live", "off")')
+            text_write = adapter.find("s.textContent = text")
+            if not (0 <= failure_role < failure_live < text_write and
+                    0 <= restore_role < restore_live < text_write):
+                fail("runnable adapter must promote blocking errors and "
+                     "restore ordinary readouts before writing status text")
             if "print(sum(int(x)" not in block:
                 fail("runnable block must prefill the escaped source")
             # The ruby fence is disabled under the CS profile: escaped source

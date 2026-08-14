@@ -132,7 +132,7 @@ def synthetic_q(kind):
     return base
 
 
-def served_quiz_html(bank_text=SENTINEL_BANK):
+def served_quiz_html(bank_text=SENTINEL_BANK, assist=False):
     """Render a served quiz page for `bank_text` through the existing
     `quiz.page_for(..., serve=True)` -- the same render the daemon serves, so
     semantic-DOM checks run against real current output without a server.
@@ -145,7 +145,7 @@ def served_quiz_html(bank_text=SENTINEL_BANK):
         import itembank
         qs = itembank.load(path)
         _, page = page_for(path, qs, serve=True, post_path="/quiz/sentinel_bank/answer",
-                           lesson_base="", lesson_slugs=set())
+                           lesson_base="", lesson_slugs=set(), assist=assist)
         return page
 
 
@@ -287,15 +287,31 @@ def check_question_hierarchy():
         if rule not in css:
             fail("controls lack a 44px target rule (%r)" % rule)
 
-    # Stem typography: 28px wide, 20px narrow; feedback 96px/120px.
-    if "h1.stem{font-size:28px" not in css:
-        fail("stem h1 must be 28px at desktop")
+    # Stem typography: 32px wide, 20px narrow; feedback 96px/120px.
+    if "h1.stem{font-size:32px" not in css:
+        fail("stem h1 must be 32px at desktop")
     if "h1.stem{font-size:20px" not in css:
         fail("stem h1 must reduce to 20px at narrow width")
     if ".feedback{min-height:96px" not in css:
         fail("feedback region must reserve 96px at desktop")
     if ".feedback{min-height:120px" not in css:
         fail("feedback region must reserve 120px at narrow width")
+
+    # Requested-result copy is static while idle. Visual ActionStatus is the
+    # one additional persistent polite region allowed for a visual item.
+    assist_page = served_quiz_html(assist=True)
+    assist = re.search(r'<p class="assist-status" id="assist-status"([^>]*)>',
+                       assist_page)
+    if not assist:
+        fail("served quiz must render the requested-result readout")
+    if re.search(r'\brole\s*=|\baria-live\s*=', assist.group(1)):
+        fail("idle requested-result readout must not be a persistent live region")
+    for marker in ('status.className = "visual-status"',
+                   'status.setAttribute("role", "status")',
+                   'status.setAttribute("aria-live", "polite")'):
+        if marker not in served_js:
+            fail("visual ActionStatus must remain the persistent polite "
+                 "exception (%r)" % marker)
 
     # Reduced motion disables transitions and smooth scrolling.
     rm = presentation_roundtrip.reduced_motion_block(css)
