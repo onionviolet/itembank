@@ -253,10 +253,22 @@ th{background:var(--chip);color:var(--mut);font-weight:600;font-size:12px}
 .reader-nav summary{cursor:pointer;color:var(--mut);font-size:12px;
   font-family:var(--font-ledger);letter-spacing:.08em;
   text-transform:uppercase}
-.reader-nav ul{list-style:none;margin:var(--space-2) 0 0;padding:0}
-.reader-nav li{margin:0 0 var(--space-1)}
-.reader-nav a{color:var(--accent);text-decoration:none}
+.reader-nav ul{list-style:none;margin:var(--space-2) 0 0;padding:0;
+  max-height:40vh;overflow:auto}
+.reader-nav li{margin:0 0 var(--space-2)}
+.reader-nav a{display:flex;align-items:center;gap:var(--space-2);min-height:44px;
+  color:var(--accent);text-decoration:none;font-family:var(--font-chrome)}
+.reader-nav .nav-n{font:12px/1 var(--font-ledger);color:var(--mut)}
 .reader-nav a:hover,.reader-nav a:focus-visible{text-decoration:underline}
+.reader-nav a:target{border-inline-start:2px solid var(--accent)}
+@media (min-width:1280px){
+  .reader-nav.nav-rail{position:sticky;top:calc(var(--sticky-h,56px) + var(--space-4));
+    max-height:calc(100vh - var(--sticky-h,56px) - var(--space-6));overflow:auto;
+    width:18ch;margin-inline-start:calc(-18ch - var(--space-4))}
+  .reader-nav.nav-rail summary{list-style:none}
+}
+h2[id],h3[id],section[id],#glossary dt,.term[id],[id^="use-"],.gate:is(*){
+  scroll-margin-top:calc(var(--sticky-h,0px) + var(--space-2))}
 .callout-example.example-parallel{display:grid;
   grid-template-columns:1fr 1fr;gap:var(--space-3)}
 /* Phase 6.2's exactly-one rule block (06.2-UI-SPEC section 5.1): the gate
@@ -815,15 +827,18 @@ def _gloss_print_css(print_gloss):
     return ""
 
 
-def _reader_nav_html(headings):
+def _reader_nav_html(headings, variant="column"):
     """The reader_nav column (03.1-UI-SPEC §7.3): a collapsed disclosure
     listing every heading by slug, Chrome-voice summary."""
     items = "".join(
-        '<li><a href="#%s">%s</a></li>'
-        % (h["slug"], html.escape(h["text"])) for h in headings)
-    return ('<nav class="reader-nav" aria-label="%s"><details>'
+        '<li><a href="#%s"><span class="nav-n">%d</span><span>%s</span></a></li>'
+        % (h["slug"], n, html.escape(h["text"]))
+        for n, h in enumerate(headings, 1))
+    rail = " nav-rail" if variant in ("rail", "auto") else ""
+    opened = " open" if variant == "rail" else ""
+    return ('<nav class="reader-nav%s" aria-label="%s"><details%s>'
             '<summary>%s</summary><ul>%s</ul></details></nav>'
-            % (html.escape(SECTIONS_NAV_COPY),
+            % (rail, html.escape(SECTIONS_NAV_COPY), opened,
                html.escape(SECTIONS_NAV_COPY), items))
 
 
@@ -1665,7 +1680,7 @@ def _reader_context(bank_path, qs):
         "print_inline": reader.get("print_gloss", "appendix") == "inline",
         "gloss_hover": reader.get("gloss_hover", "on") == "on",
         "example_layout": reader.get("example_layout", "stacked"),
-        "reader_nav": reader.get("reader_nav", "none"),
+        "reader_nav": reader.get("reader_nav", "auto"),
         "section": "intro",
         "section_title": "",
         "used": set(),
@@ -1879,13 +1894,16 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
             gloss_script = GLOSS_ENHANCEMENT_JS
             if ctx["gloss_hover"]:
                 gloss_script += GLOSS_HOVER_JS
-            if ctx["reader_nav"] == "column":
+            nav_mode = ctx["reader_nav"]
+            if nav_mode == "auto" and len(lesson["headings"]) < 4:
+                nav_mode = "none"
+            if nav_mode != "none":
                 if stop_at is not None:
-                    nav_html = (_reader_nav_html(lesson["headings"][:stop_at + 1])
+                    nav_html = (_reader_nav_html(lesson["headings"][:stop_at + 1], nav_mode)
                                 + '<p class="gate-note">%s</p>'
                                 % html.escape(TOC_FILTERED_COPY))
                 else:
-                    nav_html = _reader_nav_html(lesson["headings"])
+                    nav_html = _reader_nav_html(lesson["headings"], nav_mode)
         if drill and ctx.get("key_answers"):
             answers = "".join(
                 "<li>%s</li>" % _inline(text)

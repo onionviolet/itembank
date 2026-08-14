@@ -339,7 +339,7 @@
       ],
       "x-itembank-phase": 3.1,
       "default": {
-        "reader_nav": "none",
+        "reader_nav": "auto",
         "example_layout": "stacked",
         "print_gloss": "appendix",
         "gloss_marks": "all",
@@ -350,13 +350,15 @@
       "properties": {
         "reader_nav": {
           "type": "string",
-          "description": "Whether the lesson reader shows a sections nav column. none is the locked default; column renders one optional <nav> in the same DOM (03.1-UI-SPEC sections 7.3 and 14).",
+          "description": "Section navigation: none hides it, column shows an in-flow disclosure, rail uses the wide margin at 1280px, and auto shows it for four or more sections with the wide rail variant.",
           "enum": [
             "none",
-            "column"
+            "column",
+            "rail",
+            "auto"
           ],
-          "default": "none",
-          "x-itembank-phase": 3.1
+          "default": "auto",
+          "x-itembank-phase": 13.5
         },
         "example_layout": {
           "type": "string",

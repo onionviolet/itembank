@@ -4,15 +4,15 @@ milestone: v1.0
 milestone_name: milestone
 current_phase_name: 13.5-reading-teaching-surface-quality-pass
 status: Phase 13.5 in flight, waves 1-2 executed (3 of 8 plans); source-to-course reframe merged from origin/main 2026-08-13, unpushed
-stopped_at: Completed 13.5-05-PLAN.md; plan 13.5-06 is next
-last_updated: "2026-08-14T05:04:21.745Z"
+stopped_at: Completed 13.5-06-PLAN.md; plan 13.5-07 is next
+last_updated: "2026-08-14T05:08:37.665Z"
 last_activity: 2026-08-13
 last_activity_desc: "Quick task 260813-r5c: merged the source-to-course reframe (15 commits, Phases 14-17 and the phase-16 research set) and renumbered the reading/teaching phase from 14 to 13.5, because both branches had independently taken the number 14"
 progress:
   total_phases: 19
   completed_phases: 17
   total_plans: 112
-  completed_plans: 108
+  completed_plans: 109
 current_phase: 13.5
 ---
 
@@ -467,7 +467,7 @@ runtime would do:
 
 ## Session Continuity
 
-Last session: 2026-08-14T05:04:21.687Z
-Stopped at: Completed 13.5-05-PLAN.md; plan 13.5-06 is next
-Resume file: .planning/phases/13.5-reading-teaching-surface-quality-pass/13.5-06-PLAN.md
+Last session: 2026-08-14T05:08:37.619Z
+Stopped at: Completed 13.5-06-PLAN.md; plan 13.5-07 is next
+Resume file: .planning/phases/13.5-reading-teaching-surface-quality-pass/13.5-07-PLAN.md
 Deferred human verification: 02.1 (4), 03 (1), 03.1, 04 (7), 05 (2), 09 (KaTeX approval), 10 (1 UI gate), 11 (4), 999.4 (manual Canvas checklist), 999.5 (WINDOWS.md windows 2-3) — see the Deferred Verification table above; 09.1 manual audio-quality checks (see 09.1-UAT.md)

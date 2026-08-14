@@ -89,7 +89,11 @@ import html, json
 # eats the column and the correction does nothing.
 SHARED_CSS = r"""
 *{box-sizing:border-box}
-html{scroll-behavior:smooth}
+/* The document is the scroll container. If a shell introduces a nested
+   overflow canvas, this padding moves to that container in the same change. */
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--sticky-h,0px) + var(--space-2))}
+html:has([data-surface-context]){--sticky-h:56px}
+@media (max-width:767px){html:has([data-surface-context]){--sticky-h:88px}}
 body{margin:0;background:var(--bg);color:var(--ink);
   font:16px/1.5 var(--font-chrome)}
 /* Voice & measure tokens (03.1-UI-SPEC §2, §7.1): fonts resolve by token

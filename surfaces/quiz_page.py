@@ -64,7 +64,8 @@ body{margin:0;background:var(--bg);color:var(--ink);
 .session-details a{font-size:16px;font-family:var(--font-chrome)}
 .detail-body{margin-top:8px;display:flex;flex-wrap:wrap;gap:7px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
-  padding:18px 18px 16px;margin-bottom:14px}
+  padding:18px 18px 16px;margin-bottom:14px;
+  scroll-margin-top:calc(var(--sticky-h,0px) + var(--space-2))}
 .chip{font-size:12px;letter-spacing:.08em;text-transform:uppercase;
   background:var(--chip);color:var(--mut);padding:3px 8px;border-radius:5px;
   font-family:var(--font-ledger)}
@@ -231,6 +232,7 @@ textarea.ans:disabled{opacity:.75}
   .context-line{gap:2px 12px}
   h1.stem{font-size:20px}
   .feedback{min-height:120px}
+  .context-line .objective,.context-line .mode,.context-line .lesson{display:none}
 }
 /* AgentAssist (plan 08-05): optional, subordinate, collapsed, opt-in
    generated support. Phase 4 tokens only; no fixed or minimum widths, so
@@ -540,6 +542,23 @@ const cxLesson = document.getElementById("cx-lesson");
 const detailBody = document.getElementById("detail-body");
 const esc = s => (s==null?"":String(s)).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 
+function installStickyMeasure(){
+  const band = document.querySelector("[data-surface-context]");
+  if(!band || !("ResizeObserver" in window)) return;
+  let last = -1;
+  new ResizeObserver(entries=>{
+    const h = Math.round(entries[0].contentRect.height);
+    if(h!==last){ last=h; document.documentElement.style.setProperty("--sticky-h",h+"px"); }
+  }).observe(band);
+}
+function scrollCardIfNeeded(card){
+  const r=card.getBoundingClientRect();
+  const sticky=parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sticky-h"))||0;
+  if(r.top<sticky || r.bottom>innerHeight)
+    card.scrollIntoView({block:"start",behavior:REDUCED?"auto":"smooth"});
+}
+installStickyMeasure();
+
 function canon(q, r){
   if(q.type==="mc")    return String(r).toUpperCase();
   if(q.type==="multi") return r.map(x=>String(x).toUpperCase()).sort().join(",");
@@ -574,7 +593,9 @@ function metaChips(q){
 function setContext(q){
   if(cxObjective) cxObjective.textContent = q.objective || "";
   if(cxLesson) cxLesson.innerHTML = lessonChip(q);
-  if(detailBody) detailBody.innerHTML = metaChips(q);
+  if(detailBody) detailBody.innerHTML = `<span class="chip">${esc(q.objective||"")}</span>`
+    + `<span class="chip">${esc(document.getElementById("cx-mode").textContent)}</span>`
+    + lessonChip(q) + metaChips(q);
 }
 
 function feedbackFor(card){
@@ -632,7 +653,7 @@ function render(){
   host.appendChild(card);
   ({mc:asChoice, multi:asChoice, table:asAssign, dnd:asAssign, build:asBuild,
     short:asShort, check:asCheck, visual:asVisualOffline}[q.type])(q, body, act, card);
-  card.scrollIntoView({block:"start", behavior: REDUCED ? "auto" : "smooth"});
+  scrollCardIfNeeded(card);
 }
 
 /* ---- visual assessment, offline (plan 06.1-03, D-03/A-05) ------------------
@@ -1094,6 +1115,23 @@ const cxLesson = document.getElementById("cx-lesson");
 const detailBody = document.getElementById("detail-body");
 const esc = s => (s==null?"":String(s)).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 
+function installStickyMeasure(){
+  const band = document.querySelector("[data-surface-context]");
+  if(!band || !("ResizeObserver" in window)) return;
+  let last = -1;
+  new ResizeObserver(entries=>{
+    const h = Math.round(entries[0].contentRect.height);
+    if(h!==last){ last=h; document.documentElement.style.setProperty("--sticky-h",h+"px"); }
+  }).observe(band);
+}
+function scrollCardIfNeeded(card){
+  const r=card.getBoundingClientRect();
+  const sticky=parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sticky-h"))||0;
+  if(r.top<sticky || r.bottom>innerHeight)
+    card.scrollIntoView({block:"start",behavior:REDUCED?"auto":"smooth"});
+}
+installStickyMeasure();
+
 async function api(url, payload){
   const res = await fetch(url, {method:"POST",
     headers:{"Content-Type":"application/json"},
@@ -1136,7 +1174,9 @@ function metaChips(q){
 function setContext(q){
   if(cxObjective) cxObjective.textContent = q.objective || "";
   if(cxLesson) cxLesson.innerHTML = lessonChip(q);
-  if(detailBody) detailBody.innerHTML = metaChips(q);
+  if(detailBody) detailBody.innerHTML = `<span class="chip">${esc(q.objective||"")}</span>`
+    + `<span class="chip">${esc(document.getElementById("cx-mode").textContent)}</span>`
+    + lessonChip(q) + metaChips(q);
 }
 
 function feedbackFor(card){
@@ -1211,7 +1251,7 @@ function renderItem(view){
   /* Restore focus to the first meaningful control of the new item. */
   const first = card.querySelector("input, button, textarea");
   if(first && !REDUCED) first.focus({preventScroll:true});
-  card.scrollIntoView({block:"start", behavior: REDUCED ? "auto" : "smooth"});
+  scrollCardIfNeeded(card);
 }
 
 /* ---- multiple choice (native radio) + multiple response (native checkboxes) */

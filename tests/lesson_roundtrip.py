@@ -2875,6 +2875,29 @@ def test_gloss_placement_hover_and_key_link_contract():
         lesson.lesson_slug = original
 
 
+def test_scroll_contract_and_reader_nav_modes():
+    """Phase 13.5-06: scroll clearance is shared and auto nav starts at four sections."""
+    tmp = tempfile.mkdtemp()
+    three = "\n\n".join("### S%d\n\nBody." % n for n in range(1, 4))
+    four = "\n\n".join("### S%d\n\nBody." % n for n in range(1, 5))
+    bank3 = gloss_bank(tmp, "Airway | Definition.\n", three)
+    page3 = lesson.lesson_page(bank3, itembank.load(bank3), itembank.parse_lesson(bank3))
+    if 'class="reader-nav' in page3:
+        fail("reader_nav auto must not render for three sections")
+    bank4 = gloss_bank(tmp, "Airway | Definition.\n", four)
+    page4 = lesson.lesson_page(bank4, itembank.load(bank4), itembank.parse_lesson(bank4))
+    if page4.count('class="reader-nav nav-rail"') != 1:
+        fail("reader_nav auto must render one wide-rail-capable nav at four sections")
+    if page4.count('class="nav-n"') != 4 or "min-height:44px" not in page4:
+        fail("reader nav must number all sections and expose 44px link rows")
+    if "scroll-margin-top:calc(var(--sticky-h,0px) + var(--space-2))" not in page4:
+        fail("reader targets must carry the shared sticky clearance")
+
+    quiz_source = inspect.getsource(lesson).replace(" ", "")
+    if "section[id],#glossarydt" not in quiz_source:
+        fail("reader scroll targets must include sections and glossary entries")
+
+
 def test_gloss_example_layout_and_reader_nav():
     """example_layout parallel adds the layout class to [!EXAMPLE]
     callouts; reader_nav column renders the sections nav (UI-SPEC §7.3,
@@ -2981,17 +3004,19 @@ def test_reader_settings_registered_in_schema():
     if not reader or reader.get("type") != "object":
         fail("settings schema missing the reader group")
     expected = {
-        "reader_nav": "none", "example_layout": "stacked",
+        "reader_nav": "auto", "example_layout": "stacked",
         "print_gloss": "appendix", "gloss_marks": "all",
+        "gloss_hover": "on",
     }
+    owners = {"reader_nav": 13.5, "gloss_hover": 13.5}
     props = reader.get("properties", {})
     for key, default in expected.items():
         sub = props.get(key)
         if not sub or sub.get("default") != default:
             fail("reader setting %r missing or default %r != %r"
                  % (key, sub.get("default") if sub else None, default))
-        if sub.get("x-itembank-phase") != 3.1:
-            fail("reader setting %r must carry x-itembank-phase 3.1" % key)
+        if sub.get("x-itembank-phase") != owners.get(key, 3.1):
+            fail("reader setting %r carries the wrong phase owner" % key)
     if "reader" not in schema.get("required", []):
         fail("reader must be a top-level required settings key")
 
@@ -3547,6 +3572,7 @@ test_glossary_appendix_renders_after_lesson()
 test_gloss_triggers_panels_and_no_leak()
 test_gloss_marks_and_print_modes()
 test_gloss_placement_hover_and_key_link_contract()
+test_scroll_contract_and_reader_nav_modes()
 test_gloss_example_layout_and_reader_nav()
 test_gloss_route_and_cli_twin()
 test_reader_settings_registered_in_schema()
