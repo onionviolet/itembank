@@ -1517,6 +1517,48 @@ skeleton has been walked. Freeze gates the skeleton can exercise cheaply
 (graph-to-outline, the rich-lesson stress corpus) cite skeleton artifacts
 rather than inventing parallel fixtures.
 
+### Phase 14A: Identity, Lifecycle & Operation Prototype
+
+**Goal**: Every durable object carries a stable opaque ID, a revision record,
+and a normalized fingerprint; every durable write goes through an operation
+journal with compare-and-swap semantics and atomic recovery; and link, import,
+copy, move, edit-in-place, and supersede are six distinct journal operations
+with distinct provenance effects. An external edit becomes visible stale or
+conflict state, never a silent overwrite.
+**Depends on**: shipped parser/runtime. The implementation-readiness audit gate
+is satisfied by `AUDIT-REPORT-14A-2026-08-14.md`.
+**Freeze gate:** the file-fault and external-edit tracer (plan 14A-04) passes
+end to end on the synthetic corpus; identity, journal, and operation semantics
+freeze only when it is green.
+**Requirements**: FILE-01, FILE-02, FILE-03, ID-01, ID-02, RIGHTS-01, RELIABILITY-01
+**Phase plan:** `.planning/phases/14A-identity-lifecycle-operation/14A-BRIEF.md`
+(plans 14A-01 identity kernel, 14A-02 operation journal and compare-and-swap
+writes, 14A-03 operation vocabulary and external-edit states, 14A-04 the
+file-fault and external-edit tracer).
+**Plans:** 4 plans, expanded to the `PLANNING-DIRECTIVES.md` section 5 executor
+bar on 2026-08-14. Waves are strictly sequential (1, 2, 3, 4) because each plan
+extends the modules the previous one created.
+
+Plans:
+- [ ] 14A-01-PLAN.md (wave 1) identity kernel: `identity.py` opaque ids,
+  normalized fingerprints, revision records, the restrictive rights slot,
+  bounded component ids, plus `discovery.py` read-only multi-root walking and
+  the synthetic corpus generator. The slice Phase 13.9 consumes.
+- [ ] 14A-02-PLAN.md (wave 2) operation journal: `journal.py` compare-and-swap
+  writes, atomic commit, the append-only journal with undo pointers, replay,
+  and crash, disk-full, and permission-denied fault injection.
+- [ ] 14A-03-PLAN.md (wave 3) operation vocabulary: six distinct operations
+  over one write path, external-edit conflict states, explicit reconciliation
+  with no merge path, and the per-operation rights gate.
+- [ ] 14A-04-PLAN.md (wave 4, not autonomous) the file-fault and external-edit
+  tracer: eight G3 scenarios end to end, measured D-12.6-10 quantities, the
+  reflow-normalization corpus check and its blocking decision checkpoint, and
+  the freeze record.
+**Walking-skeleton coupling:** Phase 13.9 may stub course-level storage over
+the smallest 14A identity/journal slice (14A-01 plus the journal append of
+14A-02); plans are ordered so that slice lands first (ROADMAP Phase 13.9,
+audit A9).
+
 ### Next-milestone subphase sequence (14A through 17B)
 
 *Reframed 2026-08-13 from the four broad Phases 14 to 17, per
