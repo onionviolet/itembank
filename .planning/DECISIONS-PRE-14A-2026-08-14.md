@@ -52,7 +52,11 @@ home), and it avoids the "derived index is the only readable copy" hard-reject.
 `source-supports`, `treatment-of`. Everything else (alternate-path, cross-lists,
 supersedes) is registered later, not frozen in 14.
 
-**Resolved:** _pending_
+**Resolved (2026-08-14):** Option C, hybrid. An edge lives inline when it is
+wholly owned by one file's content; it lives in the readable course sidecar when
+it relates two independently-identified objects. Sidecar stays diffable and never
+becomes the only readable copy. Minimal 14 edge vocabulary as listed above; other
+relations register later, not frozen in 14.
 
 ---
 
@@ -90,7 +94,13 @@ whitespace and line endings only for the first cut; defer reflow normalization t
 the 14A file-fault tracer, where a real diff corpus shows whether it is needed.
 Keep the opaque-ID-plus-fingerprint-plus-revision shape from the ledger exactly.
 
-**Resolved:** _pending_
+**Resolved (2026-08-14):** Option B, bounded. Object-level opaque IDs for
+course/objective/source/lesson/bank/item, plus component IDs only for lesson
+blocks that are cited, gated, or evidence-bearing (not one ID per paragraph).
+Fingerprint normalizes trailing whitespace and line endings for the first cut;
+reflow normalization is deferred to the 14A file-fault tracer where a real diff
+corpus decides. Keyed assessment content is never normalized in a way that could
+mask a scoring-relevant change.
 
 ---
 
@@ -120,7 +130,30 @@ also rejected.
 stay byte-compatible where required (audit item A6). Reject C: the ledger's own
 logic is that a misleading name eventually leaks.
 
-**Resolved:** _pending_
+**Resolved (2026-08-14, user redirect):** The decision is not a single neutral
+rename; adopt a Khan-Academy-style model. Progress is a **per-objective,
+self-adjustable fill state** shown as filled-in blocks (completed / filled in /
+done), able to move up and down as evidence and retention change. It is not a
+permanent knowledge claim.
+
+The exact field token is low-stakes ("call it whatever"); the semantics are the
+decision. Default working name `evidence_support` for the stored field, with a
+display-layer concept of a filled/completed unit. Rename remains cheap because it
+is not surfaced as its own claim.
+
+**Boundary that keeps this compatible with the honest-progress hard-reject:** the
+hard-reject (synthesis 12.4) bans **one aggregate mastery/completion score** and
+bans participation-as-mastery. A Khan-style filled block is allowed because it is
+(1) **per objective**, not one rolled-up number; (2) driven by **valid response
+evidence**, not clicks/time/streaks; and (3) **adjustable, can un-fill**, so it
+never asserts false permanence. A "100%" or fully-filled unit therefore means
+"this objective's evidence bar is currently full," never "the learner has
+mastered the field." Retrievability still must not surface as a raw percentage
+(D display uses the fill metaphor, not a probability number).
+
+**Open sub-question routed to 16B:** the fill thresholds and how many evidence
+levels a block shows (Khan uses Attempted / Familiar / Proficient / Mastered).
+Decide the level vocabulary during the honest-progress display work, not now.
 
 ---
 
