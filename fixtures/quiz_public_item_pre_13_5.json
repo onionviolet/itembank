@@ -1,0 +1,1 @@
+{"schema_version":1,"id":"q1","number":1,"type":"mc","stem":"Which synthetic option is keyed?","difficulty":"recall","lesson_slug":"","options":[{"key":"A","text":"One"},{"key":"B","text":"Two"},{"key":"C","text":"Three"},{"key":"D","text":"Four"}],"response_schema":{"type":"string","select":1,"allowed":["A","B","C","D"]}}

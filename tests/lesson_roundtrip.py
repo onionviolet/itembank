@@ -24,6 +24,9 @@ from surfaces import daemon, lesson, quiz                   # noqa: E402
 from surfaces.cli import SPEC_03_1                          # noqa: E402
 from surfaces.quiz_page import OFFLINE_JS                   # noqa: E402
 
+PUBLIC_ITEM_GOLDEN_PRE_13_5 = os.path.join(
+    ROOT, "fixtures", "quiz_public_item_pre_13_5.json")
+
 
 # ---- plan 03.1-06 Task 3: spec documents the new grammar; 09-02 fold ------
 
@@ -3436,6 +3439,52 @@ def test_no_terms_bank_matches_phase3_golden():
              "content region")
 
 
+def test_runnable_live_region_count():
+    """Four runnable readouts stay static; the page status is the sole
+    steady-state polite region and every Run control names its own readout."""
+    ctx = {"runtime": True, "run_languages": ["python"],
+           "run_session_id": "synthetic-session", "code_seq": [0]}
+    blocks = "\n".join("```python\nprint(%d)\n```" % n for n in range(4))
+    body = lesson.render_markdown(blocks, ctx)
+    if body.count('class="run-status"') != 4:
+        fail("four runnable fences must render four status readouts")
+    if body.count('aria-live="off"') != 4:
+        fail("every idle runnable readout must be aria-live=off")
+    if 'aria-live="polite"' in body or 'role="status"' in body:
+        fail("runnable blocks must not add steady-state polite regions")
+    for n in range(1, 5):
+        if 'aria-describedby="run-status-%d"' % n not in body or \
+                'id="run-status-%d"' % n not in body:
+            fail("Run control %d must describe its own status readout" % n)
+
+
+def test_plain_bank_public_item_matches_pre_13_5_golden():
+    """The complete key-free public item projection remains byte-identical
+    to the independently captured parent-of-Phase-13.5 fixture."""
+    text = ("# Synthetic compatibility bank\n\n" +
+            clean_mc("Which synthetic option is keyed?"))
+    work = tempfile.mkdtemp()
+    try:
+        path = os.path.join(work, "plain.md")
+        open(path, "w", encoding="utf-8").write(text)
+        if itembank.parse_terms(path) is not None or \
+                itembank.parse_lesson(path) is not None:
+            fail("compatibility bank must contain neither TERMS nor LESSON")
+        item = itembank.public_item(itembank.load(path)[0])
+        actual = json.dumps(item, ensure_ascii=False,
+                            separators=(",", ":")).encode("utf-8")
+        expected = open(PUBLIC_ITEM_GOLDEN_PRE_13_5, "rb").read().rstrip(b"\n")
+        if actual != expected:
+            fail("plain-bank public item drifted from the pre-13.5 golden")
+        golden = json.loads(expected.decode("utf-8"))
+        for banned in ("key", "correct", "why", "rationale", "terms",
+                       "lesson", "explain"):
+            if banned in golden:
+                fail("pre-13.5 public item golden leaks top-level %s" % banned)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
 def test_sources_and_cases_share_the_boundary():
     """Test 5: the same boundary holds for the `## SOURCES` and `## CASES`
     registries -- a lesson table row (or a line of lesson prose) below either
@@ -3602,6 +3651,8 @@ test_preamble_section_stops_at_next_heading()
 test_preamble_section_order_is_free()
 test_preamble_section_boundary_lints_clean()
 test_no_terms_bank_matches_phase3_golden()
+test_runnable_live_region_count()
+test_plain_bank_public_item_matches_pre_13_5_golden()
 test_sources_and_cases_share_the_boundary()
 test_fenced_pipe_row_is_not_a_row()
 print("ok: lesson roundtrip (slug, parse, fingerprint, LESSON-SRC, degraded state, route, CLI twin, both link directions, lesson lint, coupling guards, provenance grammar + compatibility floor, preamble section boundary)")

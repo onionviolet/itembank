@@ -126,6 +126,35 @@ def check_no_canvas_and_svg_accessibility():
     ok("no canvas; SVG named and keyboard-operable; polite status region")
 
 
+def check_action_status_lifecycle():
+    """06.1's visual ActionStatus is the sole second polite region, and
+    blocking failures promote attributes before changing failure text."""
+    js = served_js()
+    if js.count('status.className = "visual-status"') != 5:
+        fail("each of the five visual renderers must create one ActionStatus")
+    if js.count('status.setAttribute("aria-live", "polite")') != 6:
+        fail("five visual renderers must initialize ActionStatus polite, with "
+             "one additional restore in the lifecycle helper")
+    helper = re.search(
+        r"function setVisualStatus\(status, text, isError\)\{(.*?)\n\}",
+        js, re.S)
+    if not helper:
+        fail("served visual client has no ActionStatus lifecycle helper")
+    body = helper.group(1)
+    role = body.find('setAttribute("role", "alert")')
+    live = body.find('setAttribute("aria-live", "assertive")')
+    text = body.find("status.textContent = text")
+    if min(role, live, text) < 0 or not (role < text and live < text):
+        fail("blocking visual attributes must be set before failure text")
+    if 'setAttribute("role", "status")' not in body or \
+            'setAttribute("aria-live", "polite")' not in body:
+        fail("ordinary visual updates must restore persistent polite status")
+    if 'setAttribute("role", "alert")' in body and \
+            'setAttribute("aria-live", "off")' in body:
+        fail("visual ActionStatus must never combine alert with live-off")
+    ok("visual ActionStatus: one named exception with ordered alert lifecycle")
+
+
 def check_served_payload_key_free():
     qs = load_questions()
     for q in qs:
@@ -237,6 +266,7 @@ def main():
     check_single_serializer()
     check_commit_boundary()
     check_no_canvas_and_svg_accessibility()
+    check_action_status_lifecycle()
     check_served_payload_key_free()
     check_offline_refusal()
     check_offline_build_page()

@@ -477,8 +477,8 @@ def check_no_leak():
 
 def check_responsive_and_motion():
     """The assist region must not create horizontal scroll at 320px/200%
-    zoom; reduced motion disables nonessential animation; status changes
-    announce once through a single polite aria-live region."""
+    zoom; reduced motion disables nonessential animation; generated-help
+    status is live only during the learner-requested wait."""
     workdir = tempfile.mkdtemp()
     shutil.copy(SAMPLE, os.path.join(workdir, "sample_bank.md"))
     proc, base, _ = start_daemon(workdir)
@@ -513,14 +513,17 @@ def check_responsive_and_motion():
         if "requestAnimationFrame" in page or "setInterval" in page:
             fail("the served client animates, which reduced motion must "
                  "disable")
-        # Announce-once: exactly one polite live region in the assist chrome,
-        # updated by textContent, never duplicated per state.
+        # The assist readout is static at rest. The shipped client promotes it
+        # before waiting copy, then removes the live attribute after terminal
+        # success, cancellation, unavailable/drop, or request failure.
         assist_region = page.split("data-agent-assist")[1].split("</section>")[0]
-        if assist_region.count("aria-live") != 1 or \
-                'role="status"' not in assist_region or \
-                'aria-live="polite"' not in assist_region:
-            fail("the assist must announce through exactly one polite status "
-                 "region")
+        if "aria-live" in assist_region or 'role="status"' in assist_region:
+            fail("the idle assist readout must not be a live region")
+        steady_dom = re.sub(r"<script[^>]*>.*?</script>", "", page,
+                            flags=re.S | re.M)
+        if steady_dom.count('aria-live="polite"') != 1:
+            fail("an ordinary served quiz must have exactly one steady-state "
+                 "polite region, the card feedback")
         for m in re.finditer(r"<script[^>]*>(.*?)</script>", page,
                              re.S | re.M):
             script = m.group(1)
@@ -528,9 +531,9 @@ def check_responsive_and_motion():
                 if ".textContent" not in script:
                     fail("the assist status must be updated via textContent "
                          "so a state change announces exactly once")
-                if "document.createElement" in script and \
-                        "aria-live" in script:
-                    fail("the assist must never mint additional live regions")
+                if 'setAttribute("aria-live", "polite")' not in script or \
+                        'removeAttribute("aria-live")' not in script:
+                    fail("assist live-region lifecycle is not transient")
     finally:
         proc.terminate()
         shutil.rmtree(workdir, ignore_errors=True)

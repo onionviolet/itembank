@@ -539,8 +539,15 @@ RUNNABLE_JS = """<script>
   }
   function setStatus(block, text, isError) {
     var s = statusOf(block);
-    s.textContent = text;
     s.className = "run-status" + (isError ? " run-error" : "");
+    if (isError) {
+      s.setAttribute("role", "alert");
+      s.setAttribute("aria-live", "assertive");
+    } else {
+      s.removeAttribute("role");
+      s.setAttribute("aria-live", "off");
+    }
+    s.textContent = text;
   }
   function fillOut(block, cls, text) {
     var pre = block.querySelector(cls);
@@ -1230,8 +1237,8 @@ def _code_block(info, content, ctx=None):
     order (09-05 D-05, no reparse of the source). A fence that passes
     `_block_runnable` renders the runnable control instead of the inert
     `<pre>`: Example-code label, visible source label + textarea, keyboard
-    help, the native Run example button, a persistent `role="status"`
-    region, and separately labelled non-live stdout/stderr regions --
+    help, the native Run example button, an idle `aria-live="off"` readout
+    described by that control, and separately labelled non-live stdout/stderr regions --
     observation only, never a verdict (D-11). Every other fence keeps the
     escaped source and the locked unavailable reason.
     """
@@ -1254,15 +1261,15 @@ def _code_block(info, content, ctx=None):
             '<label class="run-source-label" for="%s">%s</label>'
             '<textarea id="%s" class="run-source" rows="%d" spellcheck="false">%s</textarea>'
             '<p class="run-help">%s</p>'
-            '<button type="button" class="run-go">%s</button>'
-            '<p class="run-status" role="status" aria-live="polite"></p>'
+            '<button type="button" class="run-go" aria-describedby="run-status-%d">%s</button>'
+            '<p class="run-status" id="run-status-%d" aria-live="off"></p>'
             '<p class="run-label">%s</p><pre class="run-stdout"></pre>'
             '<p class="run-label">%s</p><pre class="run-stderr"></pre>'
             '</div>'
             % (block_id, html.escape(lang), html.escape(lang),
                html.escape(RUN_EXAMPLE_LABEL), textarea_id,
                html.escape(RUN_SOURCE_LABEL), textarea_id, rows, esc,
-               html.escape(RUN_HELP_COPY), html.escape(RUN_READY_COPY),
+               html.escape(RUN_HELP_COPY), block_id, html.escape(RUN_READY_COPY), block_id,
                html.escape(RUN_STDOUT_LABEL), html.escape(RUN_STDERR_LABEL)))
     reason = _block_unavailable_reason(lang, ctx)
     notice = ('<p class="run-unavailable">%s</p>' % html.escape(reason)

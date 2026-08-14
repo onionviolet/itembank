@@ -357,8 +357,7 @@ AGENT_ASSIST_HTML = (r"""<section class="agent-assist" data-agent-assist
       <div class="assist-actions">
         <button type="button" class="go ghost" id="assist-request">__ASSIST_REQUEST__</button>
       </div>
-      <p class="assist-status" id="assist-status" role="status"
-        aria-live="polite"></p>
+      <p class="assist-status" id="assist-status"></p>
       <div class="assist-outcome" id="assist-outcome" hidden></div>
     </div>
   </details>
@@ -387,8 +386,11 @@ const Assist = (function(){
   const esc = s => (s==null?"":String(s)).replace(/[&<>]/g,
     c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 
-  function setStatus(text){
-    if(statusEl) statusEl.textContent = text || "";
+  function setStatus(text, live){
+    if(!statusEl) return;
+    if(live) statusEl.setAttribute("aria-live", "polite");
+    else statusEl.removeAttribute("aria-live");
+    statusEl.textContent = text || "";
   }
   function setBusy(busy){
     if(requestBtn) requestBtn.disabled = !!busy;
@@ -478,18 +480,18 @@ const Assist = (function(){
     }
     requested = true;
     setBusy(true);
-    setStatus("__ASSIST_PREPARING__");
+    setStatus("__ASSIST_PREPARING__", true);
     const path = itemType === "short" ? "/api/rubric-review" : "/api/hint";
     const payload = {session_id: sessionId};
     if(retry) payload.retry = true;
     api(path, payload).then(v => {
-      setStatus("");
       if(itemType === "short") renderRubric(v); else renderHint(v);
+      setStatus("", false);
     }).catch(() => {
-      setStatus("");
       render(unavailableHtml("__ASSIST_UNAVAILABLE__"));
       const retryBtn = document.getElementById("assist-retry");
       if(retryBtn) retryBtn.onclick = () => { request(true); };
+      setStatus("", false);
     }).then(() => { setBusy(false); });
   }
   if(requestBtn) requestBtn.onclick = () => { request(false); };
@@ -1702,6 +1704,21 @@ function vfTicks(axis){
   return out;
 }
 
+/* ActionStatus remains persistently polite for ordinary visual updates, as
+   required by 06.1. Blocking failures promote it to an assertive alert before
+   changing the text, so assistive technology cannot observe alert + live-off
+   or miss the failure because content changed first. */
+function setVisualStatus(status, text, isError){
+  if(isError){
+    status.setAttribute("role", "alert");
+    status.setAttribute("aria-live", "assertive");
+  } else {
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+  }
+  status.textContent = text;
+}
+
 /* ---- timeline renderer (phase 999.1-02) ------------------------------------
    Time-series placement: the learner picks one authored event and places it
    at a canonical SCALAR time value on an axis. Scene comes from the
@@ -1757,7 +1774,7 @@ function renderTimeline(q, c, body, act, card){
   function revertTentative(){
     tentative.event = committed.event; tentative.value = committed.value;
     draw(tentative); syncControls();
-    status.textContent = "Move cancelled. Your last committed state is still here.";
+    setVisualStatus(status, "Move cancelled. Your last committed state is still here.", false);
   }
 
   function draw(s){
@@ -1787,7 +1804,7 @@ function renderTimeline(q, c, body, act, card){
   async function commitMove(){
     if(!filled(tentative)) return;
     if(sameState(tentative, committed)){
-      status.textContent = "No change to commit.";
+      setVisualStatus(status, "No change to commit.", false);
       return;
     }
     const aid = actionId();
@@ -1800,13 +1817,13 @@ function renderTimeline(q, c, body, act, card){
       });
       adopt(tentative);
       if(v.status === "recorded" || v.status === "already_recorded"){
-        status.textContent = "Move committed. You can adjust it or check your response.";
+        setVisualStatus(status, "Move committed. You can adjust it or check your response.", false);
       } else {
-        status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+        setVisualStatus(status, "That move could not be recorded. Your last committed state is still here. Adjust it and try again.", true);
         revertTentative();
       }
     } catch(err){
-      status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+      setVisualStatus(status, "That move could not be recorded. Your last committed state is still here. Adjust it and try again.", true);
     }
   }
 
@@ -1897,7 +1914,7 @@ function renderTimeline(q, c, body, act, card){
   checkBtn.disabled = !filled(committed);
   checkBtn.onclick = ()=>{
     if(!filled(committed)){
-      status.textContent = "Commit your move before checking it.";
+      setVisualStatus(status, "Commit your move before checking it.", true);
       return;
     }
     checkBtn.disabled = true; commitBtn.disabled = true;
@@ -1968,7 +1985,7 @@ function renderDiagram(q, c, body, act, card){
   function revertTentative(){
     tentative.from = committed.from; tentative.to = committed.to;
     draw(tentative); syncControls();
-    status.textContent = "Move cancelled. Your last committed state is still here.";
+    setVisualStatus(status, "Move cancelled. Your last committed state is still here.", false);
   }
 
   function draw(s){
@@ -2000,7 +2017,7 @@ function renderDiagram(q, c, body, act, card){
   async function commitMove(){
     if(!filled(tentative)) return;
     if(sameState(tentative, committed)){
-      status.textContent = "No change to commit.";
+      setVisualStatus(status, "No change to commit.", false);
       return;
     }
     const aid = actionId();
@@ -2012,13 +2029,13 @@ function renderDiagram(q, c, body, act, card){
       });
       adopt(tentative);
       if(v.status === "recorded" || v.status === "already_recorded"){
-        status.textContent = "Move committed. You can adjust it or check your response.";
+        setVisualStatus(status, "Move committed. You can adjust it or check your response.", false);
       } else {
-        status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+        setVisualStatus(status, "That move could not be recorded. Your last committed state is still here. Adjust it and try again.", true);
         revertTentative();
       }
     } catch(err){
-      status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+      setVisualStatus(status, "That move could not be recorded. Your last committed state is still here. Adjust it and try again.", true);
     }
   }
 
@@ -2099,7 +2116,7 @@ function renderDiagram(q, c, body, act, card){
   checkBtn.disabled = !filled(committed);
   checkBtn.onclick = ()=>{
     if(!filled(committed)){
-      status.textContent = "Commit your move before checking it.";
+      setVisualStatus(status, "Commit your move before checking it.", true);
       return;
     }
     checkBtn.disabled = true; commitBtn.disabled = true;
@@ -2185,7 +2202,7 @@ function renderTrace(q, c, body, act, card){
   function revertTentative(){
     tentative.points = committed.points.map(p => ({x: p.x, y: p.y}));
     draw(tentative); syncControls();
-    status.textContent = "Move cancelled. Your last committed state is still here.";
+    setVisualStatus(status, "Move cancelled. Your last committed state is still here.", false);
   }
 
   function draw(s){
@@ -2225,7 +2242,7 @@ function renderTrace(q, c, body, act, card){
   async function commitMove(){
     if(!filled(tentative)) return;
     if(sameState(tentative, committed)){
-      status.textContent = "No change to commit.";
+      setVisualStatus(status, "No change to commit.", false);
       return;
     }
     const aid = actionId();
@@ -2238,13 +2255,13 @@ function renderTrace(q, c, body, act, card){
       });
       adopt(tentative);
       if(v.status === "recorded" || v.status === "already_recorded"){
-        status.textContent = "Move committed. You can adjust it or check your response.";
+        setVisualStatus(status, "Move committed. You can adjust it or check your response.", false);
       } else {
-        status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+        setVisualStatus(status, "That move could not be recorded. Your last committed state is still here. Adjust it and try again.", true);
         revertTentative();
       }
     } catch(err){
-      status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+      setVisualStatus(status, "That move could not be recorded. Your last committed state is still here. Adjust it and try again.", true);
     }
   }
 
@@ -2336,7 +2353,7 @@ function renderTrace(q, c, body, act, card){
   checkBtn.disabled = !filled(committed);
   checkBtn.onclick = ()=>{
     if(!filled(committed)){
-      status.textContent = "Commit your move before checking it.";
+      setVisualStatus(status, "Commit your move before checking it.", true);
       return;
     }
     checkBtn.disabled = true; commitBtn.disabled = true;
@@ -2456,13 +2473,13 @@ function renderHotspot(q, c, body, act, card){
     tentative.region = committed.region;
     draw(tentative);
     syncControls();
-    status.textContent = "Move cancelled. Your last committed state is still here.";
+    setVisualStatus(status, "Move cancelled. Your last committed state is still here.", false);
   }
 
   async function commitMove(){
     if(!filled(tentative)) return;
     if(sameState(tentative, committed)){
-      status.textContent = "No change to commit.";
+      setVisualStatus(status, "No change to commit.", false);
       return;
     }
     const aid = actionId();
@@ -2474,13 +2491,13 @@ function renderHotspot(q, c, body, act, card){
       });
       adopt(tentative);
       if(v.status === "recorded" || v.status === "already_recorded"){
-        status.textContent = "Move committed. You can adjust it or check your response.";
+        setVisualStatus(status, "Move committed. You can adjust it or check your response.", false);
       } else {
-        status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+        setVisualStatus(status, "That move could not be recorded. Your last committed state is still here. Adjust it and try again.", true);
         revertTentative();
       }
     } catch(err){
-      status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+      setVisualStatus(status, "That move could not be recorded. Your last committed state is still here. Adjust it and try again.", true);
     }
   }
 
@@ -2553,7 +2570,7 @@ function renderHotspot(q, c, body, act, card){
   checkBtn.disabled = !filled(committed);
   checkBtn.onclick = ()=>{
     if(!filled(committed)){
-      status.textContent = "Commit your move before checking it.";
+      setVisualStatus(status, "Commit your move before checking it.", true);
       return;
     }
     checkBtn.disabled = true; commitBtn.disabled = true;
@@ -2757,7 +2774,7 @@ function asVisual(q, body, act, card){
     Object.assign(tentative, committed);
     draw(tentative);
     syncControls();
-    status.textContent = "Move cancelled. Your last committed state is still here.";
+    setVisualStatus(status, "Move cancelled. Your last committed state is still here.", false);
   }
 
   function syncControls(){
@@ -2782,7 +2799,7 @@ function asVisual(q, body, act, card){
        native Enter/Space. An unchanged value commits nothing (D-04). */
     if(!filled(tentative)) return;
     if(sameState(tentative, committed)){
-      status.textContent = "No change to commit.";
+      setVisualStatus(status, "No change to commit.", false);
       return;
     }
     const aid = actionId();
@@ -2798,13 +2815,13 @@ function asVisual(q, body, act, card){
       });
       adopt(tentative);
       if(v.status === "recorded" || v.status === "already_recorded"){
-        status.textContent = "Move committed. You can adjust it or check your response.";
+        setVisualStatus(status, "Move committed. You can adjust it or check your response.", false);
       } else {
-        status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+        setVisualStatus(status, "That move could not be recorded. Your last committed state is still here. Adjust it and try again.", true);
         revertTentative();
       }
     } catch(err){
-      status.textContent = "That move could not be recorded. Your last committed state is still here. Adjust it and try again.";
+      setVisualStatus(status, "That move could not be recorded. Your last committed state is still here. Adjust it and try again.", true);
     }
   }
 
@@ -2932,7 +2949,7 @@ function asVisual(q, body, act, card){
 
   checkBtn.onclick = ()=>{
     if(!filled(committed)){
-      status.textContent = "Commit your move before checking it.";
+      setVisualStatus(status, "Commit your move before checking it.", true);
       return;
     }
     checkBtn.disabled = true;
