@@ -705,19 +705,36 @@ initial synthesis disposition is **2026-08-13**.
 
 ### 12.6 Open decisions
 
+Status annotations added 2026-08-14; the original open-decision record is
+preserved unchanged below each annotation. CLOSED items are resolved in
+`.planning/DECISIONS-PRE-14A-2026-08-14.md`; FRAMED items carry options and a
+recommendation in `.planning/DECISIONS-12.6-REMAINING-2026-08-14.md` and are
+decided at their owning subphase (or by Weibao where marked).
+
 - Minimal Phase 14 edge vocabulary and whether graph records live entirely in
   Markdown or in a readable course sidecar.
+  *(CLOSED 2026-08-14: hybrid, D-14A-1.)*
 - Fingerprint normalization and the minimum component-ID granularity.
+  *(CLOSED 2026-08-14: bounded component IDs, D-14A-2.)*
 - Metadata threshold between local lesson fields and course registries.
+  *(FRAMED: D-12.6-8, confirm at 14B.)*
 - Naming for current evidence support currently called `mastered`.
+  *(CLOSED 2026-08-14: Khan-style per-objective fill state, D-14A-3; level
+  vocabulary routed to 16B.)*
 - Authority for personal-course completion policies and solo self-acceptance by
-  risk tier.
+  risk tier. *(FRAMED: D-12.6-4, held for Weibao.)*
 - Notes default placement and Evidence default prominence.
+  *(FRAMED: D-12.6-5, held for Weibao.)*
 - Formal-test pause policy, which must be decided by runtime contract.
+  *(FRAMED: D-12.6-6, held for Weibao.)*
 - Trust persistence for executable sources: one run, file, fingerprint, or root.
+  *(FRAMED: D-12.6-7, held for Weibao.)*
 - Rights representation when the user does not know.
+  *(FRAMED: D-12.6-9, confirm at 14B.)*
 - Representative large-collection corpus and performance budgets.
+  *(FRAMED: D-12.6-10, measure at 14A.)*
 - Minimum packaged offline help/diagnostics bundle.
+  *(FRAMED: D-12.6-11, confirm at 16B.)*
 
 ## 13. Traceability from user vision
 

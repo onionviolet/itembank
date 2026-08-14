@@ -55,9 +55,61 @@ Phase: **13.5 — Reading & Teaching Surface Quality Pass**, waves 1-2 executed 
 Status: v1.0's 18 phases are shipped. A next milestone opened on 2026-08-13 with the source-to-course reframe (Phases 14 through 17), merged into `main` and not yet pushed.
 Last activity: 2026-08-14 - Quick task 260813-x3g source-to-course contract reframe, slices 1-4a committed and pushed. Applied synthesis section 14 across nine contract/doc files: ROADMAP (nine subphases 14A-17B + governance), SOURCE-TO-COURSE (supersede pointer), REQUIREMENTS (eighteen families GRAPH..MAINT, 47 new requirements, old IDs mapped/superseded), PROJECT (course-first), UI-SPEC (Structured Studio; section 8 gates untouched), PLANNING-DIRECTIVES (finite-strategy + rejection-ledger; section 8 nine-subphase table), AGENTS + .claude/CLAUDE.md (object/authority + operation protocol; non-negotiables intact), README (course-first). Commits: 8b5cab4, e838407, e349c06 (REQUIREMENTS content landed split across the slice-3/4a commits because gsd `query commit` sweeps all modified files while the parallel 13.5 track shared the tree; content verified complete on disk, nothing lost).
 
-STILL OWED before any Phase 14A plan: reframe slice 4b (rewrite build-course/curriculum-design/absorb-book/author-bank skills per synthesis section 10 and mirror .agents/skills <-> .claude/skills; add lesson-authoring/discovery-and-binding/media-intake/legacy-upgrade skills + shared reference. NOTE: rewrite the four EXISTING skills to the section-10 contract now, but only STUB the new skills (intent + placeholders) - do not document surfaces 14A/14B/16 have not shipped yet. The 999.5 rule holds: a skill documents only a shipped command surface. Flesh out discovery-and-binding after 14A/14B, lesson-authoring after 16A, legacy-upgrade after 16C/17) and slice 5 (the synthesis section 16.3 implementation-readiness audit, which gates Phase 14A).
+DONE 2026-08-14 (audit chat): slice 4b and slice 5 are complete; see the
+"Slice 4b and slice 5 completion" block below. The paragraph following is the
+pre-completion record, kept for history.
+
+PREVIOUSLY OWED before any Phase 14A plan: reframe slice 4b (rewrite build-course/curriculum-design/absorb-book/author-bank skills per synthesis section 10 and mirror .agents/skills <-> .claude/skills; add lesson-authoring/discovery-and-binding/media-intake/legacy-upgrade skills + shared reference. NOTE: rewrite the four EXISTING skills to the section-10 contract now, but only STUB the new skills (intent + placeholders) - do not document surfaces 14A/14B/16 have not shipped yet. The 999.5 rule holds: a skill documents only a shipped command surface. Flesh out discovery-and-binding after 14A/14B, lesson-authoring after 16A, legacy-upgrade after 16C/17) and slice 5 (the synthesis section 16.3 implementation-readiness audit, which gates Phase 14A).
 
 Progress 2026-08-14: slice-5 audit is now SPEC'd as a bounded checklist in `.planning/READINESS-AUDIT-14A.md` (A1-A8 + research bake-in gate); it still needs to be RUN (output = audit report + contract-delta patch). The three gating pre-14A schema decisions from synthesis 12.6 are RESOLVED in `.planning/DECISIONS-PRE-14A-2026-08-14.md`: (1) hybrid graph storage - local edges inline, cross-object edges in a readable sidecar, edge vocab frozen at prerequisite-of/covers-objective/source-supports/treatment-of; (2) object-level opaque IDs + component IDs only for cited/gated/evidence-bearing blocks, whitespace+line-ending normalization first, reflow deferred to the 14A tracer; (3) the `mastered` field becomes a Khan-style per-objective, self-adjustable fill state (not one aggregate score; level vocabulary routed to 16B). Next action: run the slice-5 readiness audit, then slice 4b skills, then plan Phase 14A.
+
+### Slice 4b and slice 5 completion (2026-08-14, audit chat)
+
+**Slice 4b complete.** build-course, curriculum-design, absorb-book, and
+author-bank are rewritten to the synthesis section-10 operation contract, all
+pointing at a new shared `.agents/skills/OPERATION-CONTRACT.md`; the four new
+skills (lesson-authoring, discovery-and-binding, media-intake, legacy-upgrade)
+are stubs only per the 999.5 rule; `.agents/skills` and `.claude/skills` are
+verified byte-identical (diff -r clean after every edit).
+
+**Slice 5 complete: the readiness audit RAN and PASSED.** Report:
+`.planning/AUDIT-REPORT-14A-2026-08-14.md`. Highlights: A1 diffed 221 accepted
+clauses, landed all 9 no-landing clauses additively, fixed 6 weaker landings
+(including the seven progress dimensions now named in GRAPH-03 and the
+uncertain-source-claim guard restored to AGENT-02), and added MAINT-04 plus a
+family-alias note; A2's Fail (43/47 requirements without fixtures) is fixed
+with a labeled Fixture sentence on all 47; A3's checklist wording was amended
+(prototype-before-freeze-commits, tracer plans first within a freezing
+subphase); A8 verified the rejection ledger fully intact (11/11 hard rejects
+carry all eight fields, zero simplicity-only). The mid-audit A9/A10 additions
+were adopted: both pass, with the cold-agent onboarding transcript recorded as
+Phase 18's owed fixture. The bake-in gate landed in CAP-01, NOTE-01, GRAPH-03,
+and FLOW-02 (worked-example-first default, no compelled highlighting,
+retrievability never a percentage, reading scrolls, Socratic refusal as a
+locked card).
+
+**Decisions:** the three gating pre-14A decisions were already resolved; the
+eight remaining 12.6 decisions are framed in
+`.planning/DECISIONS-12.6-REMAINING-2026-08-14.md`. Four are held for Weibao
+(solo self-acceptance by risk tier, notes placement and Evidence prominence,
+formal-test pause policy, executable-source trust persistence); four are
+technical calibrations confirmed at their owning subphase. Synthesis 12.6 is
+annotated CLOSED/FRAMED in place, record preserved.
+
+**New planning artifacts:** `STYLE-DISCIPLINE-16A-2026-08-14.md` (semantic vs
+cosmetic rule for every lesson/note style; notebook page, Cornell, and concept
+map prototyped from one parsed content before the long tail registers);
+`research/phase-16/16-editor-reader-landscape.md` (bounded editor/reader
+landscape thread; the Ellipsus branching-drafts pattern mapped as a thin UI
+over the 14A revision model via requirements R1-R10);
+`.planning/phases/14A-identity-lifecycle-operation/14A-PHASE-PLAN.md` (four
+plans, file-fault and external-edit tracer as the freeze gate, walking-skeleton
+coupling stated, expansion to the PLANNING-DIRECTIVES section-5 executor bar
+required before execution).
+
+**Next action:** Weibao decides the four held decisions; execute 13.5 waves 3+
+beside Phase 13.9 (walking skeleton); expand and execute the 14A plans. Phase
+14A is unblocked.
 
 **Concurrent-edit notice for the audit chat (2026-08-14).** A direction-review
 session amended the planning surface WHILE the slice-5 audit run was in flight.
@@ -91,6 +143,17 @@ passes:
 No re-audit of A1 through A8 is required by these edits alone: they add
 scope, they do not alter synthesis clauses. The one interaction to check: A3/
 A9 overlap on freeze ordering, where A9 is the stricter reading for 14B+.
+
+**Phase 13.9 planned (2026-08-14, direction-review session).** Three
+Sonnet-executable plans exist in `.planning/phases/13.9-walking-skeleton/`
+(01 bind and map with two checkpoints, 02 author lesson plus bank, 03 the
+sitting, calibration corpus, and A9 closure). They are the reference
+exemplars for the standing `.planning/PLAN-TEMPLATE.md` (executor bar,
+PLANNING-DIRECTIVES section 5); new plans start from that template. 13.9 can
+execute immediately; it does not wait on 14A, and no 14B-or-later freeze
+commits before 13.9-03 closes A9. A future-phase capability, agent-facing
+update and capability disclosure, is registered on the Phase 18 roadmap
+entry per the 2026-08-14 vision-inbox entry.
 
 ### Correction (2026-08-13): this file claimed "complete" through a live phase
 
