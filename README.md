@@ -1,7 +1,22 @@
 # itembank
 
-Author, validate and render exam-style question banks written in plain markdown —
-and sit them as a graded quiz that scores every answer and writes it to disk.
+Turn learner-owned books, syllabi, notes, exam blueprints, and question banks
+into an inspectable course and learn through readings, rich lessons, targeted
+practice, and graded tests whose evidence stays on disk.
+
+itembank's shipped core authors, validates, and renders exam-style question
+banks in plain markdown. Its next milestone makes the **course** the primary
+unit: an AI-operable workspace that connects sources to objectives, decides
+whether an objective deserves direct reading, a guided lesson, terms/notes, a
+worked or visual explanation, practice, or a test, and uses recorded evidence
+to recommend what comes next. See
+[the source-to-course contract](.planning/SOURCE-TO-COURSE.md).
+The [living user vision](.planning/USER-VISION.md) preserves the goal in
+Weibao's own words and can be extended without rewriting the product contract.
+The [cross-agent workflow](.planning/AGENT-WORKFLOW.md) explains how Codex,
+Claude Code/Cowork, local agents, and other clients preserve that direction,
+run research and synthesis, mutate artifacts safely, record deferred or
+rejected ideas, and hand off work without relying on chat history.
 
 One command gets you from a markdown file to a graded sitting:
 
@@ -9,6 +24,13 @@ One command gets you from a markdown file to a graded sitting:
 - offline quiz (`build`) or graded sitting (`serve`)
 - JSON sessions for AI tutors (`start` / `next` / `submit` / `report`)
 - `day` cockpit across every subject
+
+The intended complete experience combines source-grounded course construction,
+Brilliant-like interactive teaching, Albert-like objective practice and exam
+preparation, and local inspectable artifacts. AI may drive discovery,
+curriculum mapping, drafting, quality review, metric interpretation, and
+remediation through a hosted coding-agent client or a registered local backend.
+The parser, scorer, and evidence authority stay deterministic.
 
 Here is the whole format:
 
@@ -22,7 +44,7 @@ Q2. Name two lab checks before clearing a main for service.  [TYPE: short]
      MODEL: turbidity, total chlorine
 ```
 
-That is the whole format — `itembank spec` prints the rest.
+That is the whole format. `itembank spec` prints the rest.
 
 ## Why this exists
 
@@ -98,10 +120,10 @@ sha256sum -c SHA256SUMS.txt
 ## Use
 
 Every command below is one CLI entry point into the same runtime. The grouped
-index is the whole shipped surface — `python itembank.py --help` is the
+index is the whole shipped surface. `python itembank.py --help` is the
 ground truth it is kept against.
 
-**The core loop** — author, validate, render, audit:
+**The core loop:** author, validate, render, audit:
 
 ```
 itembank spec                 # print the format contract; give this to your LLM
@@ -114,7 +136,7 @@ itembank coverage bank.md     # objective coverage map, computed on demand from 
 itembank guard .              # fail if a real question bank got committed
 ```
 
-**JSON sessions for agents** — the resumable, key-free assessment protocol:
+**JSON sessions for agents:** the resumable, key-free assessment protocol:
 
 ```
 itembank start bank.md --count 10 --mode practice --out s.json
@@ -137,7 +159,7 @@ itembank usage              # the machine-readable agent usage contract (MODEL-0
 itembank schema [name]      # the published JSON contracts, like `spec` prints the format
 ```
 
-**Evidence and marking** — everything recorded is an append-only event:
+**Evidence and marking:** everything recorded is an append-only event:
 
 ```
 itembank evidence --objective OBJ   # response history across every session and subject
@@ -151,7 +173,7 @@ itembank id-assign bank.md    # the only command that writes into a bank: mints 
                               #   and content-hash fingerprints (lint stays read-only)
 ```
 
-**Learning surfaces** — the same bank as reading, flashcards, and today's work:
+**Learning surfaces:** the same bank as reading, flashcards, and today's work:
 
 ```
 itembank study bank.md        # flashcards plus a session-only Learn loop
@@ -164,7 +186,7 @@ itembank lesson-skip bank.md CHECK_ID  # record one gate_skip event
 itembank day plan.md          # today's work across every subject, ticked and logged
 ```
 
-**Data and tools** — export, import, packaging, and housekeeping:
+**Data and tools:** export, import, packaging, and housekeeping:
 
 ```
 itembank export bank.md out.tsv --format basic   # Anki Basic TSV
@@ -224,7 +246,7 @@ invoke by name. The two trees are byte-identical mirrors:
 | `curriculum-design` | Map a syllabus to objective coverage and find the gaps |
 | `guiding-questions` | Tutor a learner through the JSON session protocol, one diagnostic question at a time |
 | `author-bank` | Write or extend items and make them lint clean |
-| `ocr` | Read text out of images via a local Ollama vision model — the vision bridge for text-only models (optional; needs `ollama pull qwen2.5vl:7b`) |
+| `ocr` | Read text out of images via a local Ollama vision model, the vision bridge for text-only models (optional; needs `ollama pull qwen2.5vl:7b`) |
 
 **Where each tool finds the skills** (the SKILL.md files carry the standard
 `name` + `description` frontmatter every tool reads):
@@ -234,22 +256,22 @@ invoke by name. The two trees are byte-identical mirrors:
 | Claude Code | `.claude/skills/` | auto-discovered |
 | Codex | `.agents/skills/` | auto-discovered |
 | Gemini CLI, Cursor, GitHub Copilot, and other agents.md readers | `.agents/skills/` | auto-discovered |
-| Reasonix | `.agents/skills/` | auto-discovered as a convention root — no config needed; the optional OCR plugin wiring lives in `reasonix.toml.example` |
+| Reasonix | `.agents/skills/` | auto-discovered as a convention root; no config needed; the optional OCR plugin wiring lives in `reasonix.toml.example` |
 | Anything else | point its skill root at `.agents/skills/` | see your tool's docs |
 
-The two trees are byte-identical mirrors — edit either and copy to the
+The two trees are byte-identical mirrors. Edit either and copy to the
 other; CI runs `diff -rq` on them and fails on drift.
 
 **The rules of the road for any agent** (full contract in `AGENTS.md` and
 `.planning/UI-SPEC.md` §9):
 
-- The runtime, not the model, decides what reaches the learner: keys, tiers,
-  and scoring are the runtime's call. An agent may ask one diagnostic question
-  per wrong answer and choose among the permitted explanation forms, but never
-  reveal the key or decide a tier.
+- The runtime owns assessment authority: keys, legal feedback tiers, session
+  state, evidence, and scoring are the runtime's call. An agent may build and
+  teach the course, diagnose errors, and choose permitted explanation forms,
+  but it may not invent a score, reveal keyed content early, or decide a tier.
 - `short` answers are recorded, never auto-graded; they stay `pending` until a
   marker grades them against the rubric.
-- Never commit a real question bank to this repository — real banks live in
+- Never commit a real question bank to this repository. Real banks live in
   private storage; `fixtures/` is synthetic.
 
 `study` and `export` are generic bank surfaces. Subject-specific pipelines such
@@ -338,7 +360,7 @@ in the path.
 **Scoring is dichotomous on every type.** Two of three correct scores zero. This
 is deliberate: a half mark hides the exact gap the item exists to find.
 
-The authoring contract grows additively — a type or field that ships in a later
+The authoring contract grows additively. A type or field that ships in a later
 phase is added to `itembank spec`, never documented here before it exists.
 
 Run `itembank spec` for the full contract with examples.
@@ -504,17 +526,17 @@ is worse than none, because it certifies the wrong answer.
 
 **Model output is never accepted as a score.** An optional hosted or local
 backend may generate hints and per-point marking suggestions. The runtime gates
-the tier (`tier_gate.py`) — a model cannot unlock a tier for itself — and a
-suggestion is a `pending` token until a human marks it. Nothing a model produces
-is ever recorded as evidence or a score; the runtime, not the model, decides
-what reaches the learner.
+the tier (`tier_gate.py`), so a model cannot unlock a tier for itself, and a
+suggestion is a `pending` token until a human marks it. Model activity may be
+logged as provenance, but model output is never accepted as response evidence
+or a score without the runtime's deterministic or human-approved action.
 
 **Retention is evidence-derived, not a recall scheduler.** `retention.py`
 derives due state and daily caps by replaying captured evidence through one
 scheduler strategy (FSRS is the registered default), surfaced as `itembank
 trends`, the `day` cockpit's recommendations, and the retention report variant.
 What it still does not do: it is not a per-card recall scheduler, and `study`'s
-Learn loop remains session-only — a learner who wants spaced-repetition recall
+Learn loop remains session-only. A learner who wants spaced-repetition recall
 still graduates misses to a dedicated tool.
 
 **This does keep private local learning evidence.** The repository contains no

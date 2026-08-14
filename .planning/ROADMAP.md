@@ -100,6 +100,17 @@ are recorded on the phases they block; none blocks starting.
 - [x] **Phase 11: Closed Authoring Loop & Curriculum Auditor** - A closed spec-draft-lint-retry authoring loop, reused by a syllabus auditor that cites its coverage claims and never over-autonomizes silently. (completed 2026-08-11)
 - [ ] ~~**Phase 12: Packaging, Self-Update & Interop Export**~~ - MOVED to Phase 2.1 (2026-08-07) — see Phase 2.1 above. Slot retired, not reused.
 - [x] **Phase 13: Desktop Packaging — Tauri Shell over the Python Sidecar** - A signed, installable desktop app whose inside is still the same Python runtime, because porting it would temporarily create a second scorer. (completed 2026-08-10)
+- [ ] **Phase 13.5: Reading & Teaching Surface Quality Pass** - The reader and quiz surfaces shipped through Phase 13 meet a commercial quality bar. Planned 2026-08-12 as "Phase 14"; renumbered 2026-08-13 when the source-to-course reframe claimed that number. 3 of 8 plans executed.
+- [ ] **Phase 14: Course Workspace & Source Binding** - Make the course the primary object; safely discover and bind sources, objectives, prerequisites, treatments, existing lessons/banks, and gaps through a course shelf/map/source workspace.
+- [ ] **Phase 15: AI Course Director & Quality Pipeline** - Let hosted or local agents recommend readings/treatments, generate and review missing artifacts, follow standardized-test or knowledge-exam blueprints, and interpret evidence with explicit uncertainty.
+- [ ] **Phase 16: Learning Flow & Lesson Capability Contract** - Research and specify the course journey, lesson capabilities, question purposes, portable authoring contract, interactions, accessibility, media policy, and agent guidance.
+- [ ] **Phase 17: Visual System & Comprehensive Guided Learning UI** - Establish the visual language and implement the approved course journey as a polished, responsive, accessible, progressively enhanced learning experience.
+
+**Revision 2026-08-13 — source-to-course reframe.** Completed phases remain
+the foundation, but the bank is no longer the primary navigation unit. The
+binding scope, AI role, quality contract, learner workspace, and four-phase
+tracer sequence live in `.planning/SOURCE-TO-COURSE.md`. Phase 14 planning
+begins there rather than extrapolating the old bank/auditor framing.
 
 ## Phase Details
 
@@ -927,9 +938,29 @@ Plans:
 - [x] 13-04-PLAN.md — Updater: latest.json + minisign alongside SHA256SUMS.txt, tauri-plugin-updater, one-disclosure StatusNotice
 - [x] 13-05-PLAN.md — Phase verification: executed AV/signing checklist, lifecycle/size/headless evidence, full suite
 
-### Phase 14: Reading & Teaching Surface Quality Pass
+### Phase 13.5: Reading & Teaching Surface Quality Pass
 
-*Added 2026-08-12.*
+*Added 2026-08-12 as "Phase 14". Renumbered to 13.5 on 2026-08-13.*
+
+> **Why the number moved.** This phase and the source-to-course reframe were
+> authored the same day on two branches that had not yet met, and both took the
+> number 14. `git merge-tree` reported one content conflict, in
+> `REQUIREMENTS.md`; the roadmap merged clean and produced two Phase 14
+> headings, which nothing would have flagged. The number 14 goes to Course
+> Workspace & Source Binding, per `.planning/SOURCE-TO-COURSE.md`. This phase
+> takes 13.5, which is where it belongs on dependencies as well as on the
+> calendar: it hardens the reader and quiz shipped through Phase 13, and the
+> source-to-course spine builds on those surfaces. The repository's convention
+> for an insert between shipped phases is a decimal (02.1, 03.1, 03.2, 06.2,
+> 09.1); the Phase 12 slot is the standing precedent for retiring a colliding
+> number rather than reusing it.
+>
+> The twelve RTS requirements are not orphaned. `research/phase-16/14-synthesis.md`
+> section 15 replaces the flat 14-to-17 sequence with subphases, and each RTS row
+> has a destination there; the mapping is recorded in `.planning/REQUIREMENTS.md`
+> under § Reading & teaching surface quality. Executing plans 13.5-04 through
+> 13.5-08 makes them the prototypes section 15 wants before 16A, 16B and 17A
+> freeze their contracts.
 
 **Goal**: the reader and the quiz meet the quality bar of a commercial learning product — Brilliant is the named reference — so that the surfaces a learner sits in front of every day feel designed rather than assembled.
 **Mode:** ui
@@ -946,39 +977,39 @@ Plans:
   5. The wrong-answer state is the strongest screen in the product rather than the weakest. Today it is a red sentence plus a collapsed `details` element, which is the single most important teaching moment in the product.
   6. No design implies a reveal the runtime would refuse. The tier gate stays the runtime's call (D-09), and the accessibility gates in `.planning/UI-SPEC.md` hold unchanged.
 
-**Open decisions**: none. `14-UI-SPEC.md` §17's seven OPEN items each carried a default; item 7 (whether `.visual-status` may keep an announcing region) was resolved at plan time by reading `06.1-UI-SPEC.md`, which requires one persistent polite region — 06.1 wins and the row is a recorded exception, not a silent divergence.
+**Open decisions**: none. `13.5-UI-SPEC.md` §17's seven OPEN items each carried a default; item 7 (whether `.visual-status` may keep an announcing region) was resolved at plan time by reading `06.1-UI-SPEC.md`, which requires one persistent polite region — 06.1 wins and the row is a recorded exception, not a silent divergence.
 
 **Plans**: 3/8 plans executed across 7 waves (waves 1-2 done); RTS-01..RTS-12 assigned
 
 Plans:
 **Wave 1**
 
-- [x] 14-01-PLAN.md — TRACER: the token layer end to end (D-A, the D-B include, `--panel`, gate 8, per-route font declaration)
+- [x] 13.5-01-PLAN.md — TRACER: the token layer end to end (D-A, the D-B include, `--panel`, gate 8, per-route font declaration)
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [x] 14-02-PLAN.md — Reader type, vertical rhythm and measure; the type-scale fixture
-- [x] 14-03-PLAN.md — The teaching route: `POST /api/teach`, `itembank teach`, the payload boundary (D-D backend)
+- [x] 13.5-02-PLAN.md — Reader type, vertical rhythm and measure; the type-scale fixture
+- [x] 13.5-03-PLAN.md — The teaching route: `POST /api/teach`, `itembank teach`, the payload boundary (D-D backend)
 
 **Wave 3** *(blocked on Wave 2)*
 
-- [ ] 14-04-PLAN.md — Quiz voice repair, twelve sizes to five, `--edge` on the controls (D-B)
+- [ ] 13.5-04-PLAN.md — Quiz voice repair, twelve sizes to five, `--edge` on the controls (D-B)
 
 **Wave 4** *(blocked on Wave 3)*
 
-- [ ] 14-05-PLAN.md — The gloss: placement, bottom sheet, hover intent, key/appendix division of labour (D-C)
+- [ ] 13.5-05-PLAN.md — The gloss: placement, bottom sheet, hover intent, key/appendix division of labour (D-C)
 
 **Wave 5** *(blocked on Wave 4)*
 
-- [ ] 14-06-PLAN.md — The scroll contract and the reader section nav (criteria 1 and 4)
+- [ ] 13.5-06-PLAN.md — The scroll contract and the reader section nav (criteria 1 and 4)
 
 **Wave 6** *(blocked on Wave 5)*
 
-- [ ] 14-07-PLAN.md — The wrong-answer surface: ladder UI, state machine, degraded path, three retirements (D-D)
+- [ ] 13.5-07-PLAN.md — The wrong-answer surface: ladder UI, state machine, degraded path, three retirements (D-D)
 
 **Wave 7** *(blocked on Wave 6)*
 
-- [ ] 14-08-PLAN.md — Live regions, the additive-format floor, and the gates roll-up
+- [ ] 13.5-08-PLAN.md — Live regions, the additive-format floor, and the gates roll-up
 
 ## How this roadmap gets planned (added 2026-08-10)
 
@@ -1419,11 +1450,62 @@ Plans:
 
 - [ ] TBD (promote per the trigger above)
 
+### Phase 14: Course Workspace & Source Binding
+
+**Goal:** A learner or approved agent creates a course from a syllabus and
+source folder, sees a cited objective and prerequisite map, binds existing
+artifacts, assigns a treatment to each objective, and sees missing, thin, and
+unknown coverage without first generating content.
+
+**Planning source:** `.planning/SOURCE-TO-COURSE.md` Phase 14. Detailed
+discussion, UI specification, requirements, schemas, and executable plans are
+owed by the normal planning sequence; do not invent them during implementation.
+
+### Phase 15: AI Course Director & Quality Pipeline
+
+**Goal:** A hosted coding-agent-class client or registered local backend can
+drive bounded source analysis, treatment recommendation, course generation,
+quality review, standardized-test or knowledge-exam alignment, and
+evidence-backed remediation through inspectable proposals and recoverable writes.
+
+**Planning source:** `.planning/SOURCE-TO-COURSE.md` Phase 15. Reuse the
+shipped `audit`, `coverage`, `seed`, lint, evidence, trends, and model-adapter
+contracts.
+
+### Phase 16: Learning Flow & Lesson Capability Contract
+
+**Goal:** Research and specify the logical course journey, lesson-capability
+model, question-purpose matrix, portable authored representation, interaction
+and accessibility behavior, image and citation policy, and agent authoring
+contract before the visual system or implementation hardens those decisions.
+
+**Research scope:** study current source-grounded and learning products,
+including NotebookLM, for flow, source navigation, questions, study aids, and
+grounded assistance. Use the findings as evidence. The product target remains
+a lesson- and objective-centered course platform rather than a chat notebook.
+
+**Planning source:** `.planning/SOURCE-TO-COURSE.md` Phase 16. Completion
+requires a realistic course-unit storyboard or prototype across desktop,
+narrow, touch, keyboard, screen-reader, offline, and plain-file contexts, plus
+an explicit disposition for every researched capability.
+
+### Phase 17: Visual System & Comprehensive Guided Learning UI
+
+**Goal:** Establish a coherent visual language and implement the course journey
+against Phase 16's contracts. Deliver direct reading, rich reference and guided
+lesson modes, cited visuals, accessible teaching interactions, varied practice,
+tests, targeted feedback, and the next course action as one polished experience.
+
+**Planning source:** `.planning/SOURCE-TO-COURSE.md` Phase 17. Framework
+completion does not close this phase. A realistic synthetic course tracer and
+visual, responsive, degraded-state, portable-source, and accessibility
+verification do.
+
 ### Phase 999.5: Agent Onboarding & Skill Library (completed 2026-08-11; added 2026-08-10)
 
-**Goal:** Keep the agent on-ramp — `AGENTS.md` and the five repo skills
-(`absorb-book`, `curriculum-design`, `guiding-questions`, `author-bank`,
-`ocr`) — in sync with the shipped command surface, and add skills as later
+**Goal:** Keep the agent on-ramp — `AGENTS.md` and the repo skills
+(`build-course`, `absorb-book`, `curriculum-design`, `guiding-questions`,
+`author-bank`, `ocr`) — in sync with the shipped command surface, and add skills as later
 phases land. The skills are the living, prose half of the agentic goal: a fresh
 agent reads `AGENTS.md`, invokes a playbook, and runs the loop without
 scraping HTML or reimplementing scoring.
@@ -1466,6 +1548,23 @@ trigger points, so the next review is a lookup and not a re-argument:
 
 - **Phase 11 (curriculum auditor)** — `curriculum-design` gains the
   auditor's citation-per-coverage-claim loop.
+
+- **Phase 14 (course workspace and binding)** - add or extend a discovery and
+  binding skill for multi-root inventory, stable identity, provenance,
+  relocation, conflict review, and manual or agentic linking.
+
+- **Phase 15 (course director)** - extend `build-course` and add the shipped
+  quality-review playbooks needed for treatment selection, bounded generation,
+  course-level audit, exam alignment, and evidence-backed revision.
+
+- **Phase 16 (learning capability contract)** - add lesson-authoring,
+  question-purpose, media-selection, and legacy-upgrade descriptions based on
+  the approved semantic capability catalog. Do not document planned syntax as
+  if it already ships.
+
+- **Phase 17 (guided learning UI)** - update the authoring and upgrade skills
+  with the actual renderer, preview, accessibility, degradation, and visual QA
+  commands delivered by the phase.
 
 - **Phase 999.3 (MCP surface)** — add an MCP skill mapping tools to the
   existing playbooks, or extend `guiding-questions`; the MCP surface must not

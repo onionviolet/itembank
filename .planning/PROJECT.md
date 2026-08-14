@@ -1,29 +1,40 @@
-# itembank
+# itembank — source-to-course learning workspace
 
 ## What This Is
 
-`itembank` is a local-first assessment protocol and runtime for human and AI tutors.
+> **Next-milestone reframe (2026-08-13):**
+> `.planning/SOURCE-TO-COURSE.md` is binding. The primary user-facing object is
+> a course, objectives are its spine, and books, syllabi, notes, blueprints,
+> lessons, and banks are connected inputs and artifacts.
+
+`itembank` is a source-to-course workspace built on a local-first assessment
+protocol and runtime for human and AI collaborators.
 Today it tests: a markdown format contract with an actionable linter, six item types,
 deterministic scoring behind one scorer, resumable JSON sessions, an offline HTML quiz,
 a graded loopback sitting, Anki TSV export, and a cross-subject `day` cockpit.
 
-This milestone turns it into a **comprehensive, AI-taught learning platform** — the
-thing that teaches, not only the thing that marks. A capable model is the primary
-teaching surface; the runtime is what keeps that model honest. In Weibao's words: "a local version of
-[StudyBro], to walk through things and more," where "execute program seems perfect,
-and then we can have something fitting for each genre, from readings and questions for
-EMT, LaTeX and ??? for math, The bottom up or other styles for CS." It reads, it walks
-you through a wrong answer without handing over the answer, it audits what you should
-be learning against what your bank actually covers, it notices trends and acts on them,
-and it does all of that on your machine with nothing leaving it.
+The next milestone makes it a **comprehensive AI-assisted course builder and
+learning environment**. It discovers learner-approved sources, builds a cited
+objective and prerequisite map, chooses an appropriate treatment per objective,
+creates missing course artifacts under reviewable autonomy, provides rich
+learning and assessment UI, and closes the loop using evidence. A capable model
+is a course builder, analyst, and optional teacher; it is not the deterministic
+scorer.
 
 It is for one learner — Weibao — across EMT, Math 1400, and CSCI 1100, with AI tutors
 as first-class clients of the same runtime a human uses.
 
-## Core Value
+## Product North Star
 
-**One runtime, one scorer, one evidence store — and the runtime, not the model,
-decides what reaches the learner.**
+**Learner-owned sources become an inspectable, high-quality, AI-operable course
+whose readings, lessons, practice, tests, and next actions are aligned to cited
+objectives and improved by honest evidence.**
+
+## Runtime invariant
+
+**One runtime, one scorer, one evidence store. The runtime owns correctness,
+session state, evidence, and keyed assessment disclosure; AI may build and
+teach the course around that boundary.**
 
 The tutoring model is smart and well-informed: it reads the item, the key, the
 rationale, and the learner's specific wrong answer, so it can teach about *this*
@@ -32,11 +43,12 @@ how much to say. The runtime gates that by session mode and by hint tier, so a m
 argued into wanting to reveal still cannot, because the reveal is the runtime's call
 and not the model's.
 
-Every other product in this space inverts that — a system prompt asks the model to
-withhold, and a system prompt can be talked out of. Everything here (lessons,
-scheduling, the auditor, the UI) is a surface over that one guarantee. If a feature
-requires a second scorer, a second parser, or lets a model decide what the learner
-sees, the feature is wrong.
+This is a narrow safety and consistency boundary rather than the product thesis.
+AI may search approved roots, design curricula, select readings, draft and revise
+artifacts, interpret metrics, propose remediation, and perform approved bounded
+writes. It cites sources, labels synthesis, reports uncertainty and denominators,
+and leaves acceptance and reversal visible. If a feature requires a second
+scorer, parser, or evidence store, the feature is wrong.
 
 ## Requirements
 

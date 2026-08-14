@@ -218,10 +218,14 @@
 - [ ] **LTI-06**: The LTI bind is opt-in with the loopback default unchanged; TLS is stdlib `ssl` with user-supplied certs or a documented reverse proxy, and `public_base_url` is the one knob driving every URL the platform calls — no new auth surface beyond LTI's own
 - [ ] **LTI-07**: The surface, its help text, and its hosting doc state exactly what leaves the machine (item text to the learner's browser via the LMS, the final score to the LMS gradebook; no telemetry, no hosted storage); the LTI crypto dependencies (`cryptography`, `PyJWT`) are optional, pinned, checksummed, and license-reviewed per Directive 4a, with a named refusal when absent
 
-### Reading & teaching surface quality (Phase 14)
+### Reading & teaching surface quality (Phase 13.5)
 
+> Renumbered from Phase 14 on 2026-08-13. The source-to-course reframe claimed
+> the number 14 for Course Workspace & Source Binding; this work kept its content
+> and changed its number. See `.planning/quick/260813-r5c-merge-source-to-course-renumber-13-5/PLAN.md`.
+>
 > IDs assigned at plan time on 2026-08-12; the roadmap recorded them as TBD.
-> Every one of Phase 14's six success criteria maps to at least one row:
+> Every one of Phase 13.5's six success criteria maps to at least one row:
 > criterion 1 → RTS-02; criterion 2 → RTS-01, RTS-03, RTS-04; criterion 3 →
 > RTS-05; criterion 4 → RTS-06; criterion 5 → RTS-07, RTS-08; criterion 6 →
 > RTS-09, RTS-10, RTS-11, RTS-12.
@@ -238,6 +242,78 @@
 - [ ] **RTS-10**: A rendered page holds exactly one polite announcing region in the steady state — two on a visual item, as the recorded `06.1-UI-SPEC` exception — with two named transient exceptions, and both blocking-failure paths provably announce with the live attributes written before the text
 - [ ] **RTS-11**: Every element that is itself an interactive control or an input surface carries a boundary at 3:1 or better against the surface behind it in both modes, and the six semantic tokens the ladder needs ship measured by the project's own contrast function rather than assumed
 - [ ] **RTS-12**: A bank with no `## TERMS` and no `## LESSON` renders byte-identically through the item path, proven by fixture
+
+> **Destination after the reframe (recorded 2026-08-13).** These twelve rows are
+> not retired by the source-to-course milestone; `research/phase-16/14-synthesis.md`
+> section 15 gives each of them a home. RTS-01, RTS-03, RTS-04 and RTS-11 are
+> inputs to subphase 17A (visual system and component foundation); RTS-02 and
+> RTS-06 to 16B (IA, modes and recovery); RTS-05 to 16A (semantic capability
+> contract, where hover/focus/touch definitions are the first catalogued
+> capability); RTS-07, RTS-08 and RTS-09 to exit gate G6 (assessment authority),
+> which the reframe leaves untouched; RTS-10 and RTS-12 to gate G4 (portable
+> capability). Executing them now makes them the prototypes section 15 requires
+> before those contracts freeze.
+
+## Next-milestone source-to-course requirements
+
+These requirements implement `.planning/SOURCE-TO-COURSE.md`. They compose the
+shipped bank, lesson, audit, model, and evidence contracts rather than replacing
+them.
+
+### Course workspace
+
+- [ ] **COURSE-01**: A course is a first-class, readable artifact that names its
+  target, learner, approved source and write roots, objective hierarchy,
+  prerequisites, treatments, accepted artifacts, drafts, and evidence location;
+  any machine index is derived and disposable.
+- [ ] **COURSE-02**: Discovery is read-only and root-bounded; scaffolding and
+  binding are explicit, idempotent operations, and finding a file never grants
+  permission to transmit or modify it.
+- [ ] **COURSE-03**: Every objective-to-source and coverage claim carries a stable
+  locator, confidence, and state (`covered`, `thin`, `missing`, `conflicting`, or
+  `unknown`); heading similarity alone cannot produce `covered`.
+- [ ] **COURSE-04**: Every objective has an explicit, reviewable treatment plan
+  drawn from direct reading, excerpt, guided lesson, notes/terms, worked example,
+  visual/demonstration, practice, test, assessment-first, or human review; direct
+  reading is a complete result and generation is never the automatic default.
+
+### AI course director and quality
+
+- [ ] **DIRECTOR-01**: Hosted coding-agent clients and registered local backends
+  reach the same course operations and schemas; backend choice changes capability,
+  latency, and privacy disclosure, not the course artifact contract.
+- [ ] **DIRECTOR-02**: AI autonomy is scoped per operation as recommend-only,
+  draft-and-review, or approved bounded writes; proposals cite sources, label
+  synthesis, show quality findings, and are inspectable and recoverable.
+- [ ] **DIRECTOR-03**: Standardized-test courses require a cited, versioned
+  blueprint mapping domains, weights, cognitive demand, item conventions,
+  difficulty, timing, permitted tools, and feedback mode; knowledge courses use
+  their actual syllabus and expected demand. The UI never claims exam fidelity
+  without this mapping.
+- [ ] **DIRECTOR-04**: Evidence-based proposals name their observation window,
+  denominator, included and missing signals, uncertainty, and competing
+  explanations. Sparse evidence cannot produce a mastery percentage or a confident
+  causal claim. Accepted next actions remain recommendations until the learner or
+  deterministic selection policy acts.
+
+### Comprehensive learner UI
+
+- [ ] **LEARNUI-01**: The home surface is a course shelf and each course provides
+  coherent Learn, Practice, Test, Sources, Course map, and Build/review areas; banks
+  are assessment artifacts inside courses rather than the primary navigation unit.
+- [ ] **LEARNUI-02**: One parsed lesson supports continuous reader and guided modes;
+  neither mode creates a second parser or scorer, and a learner can move between
+  direct source reading, lesson, practice, feedback, and the next course action
+  without reconstructing context.
+- [ ] **LEARNUI-03**: Lessons render semantic teaching roles—hover/focus
+  definitions, things-to-know blocks, expert or niche tips, warnings, worked
+  examples, citations, diagrams, math, runnable code, inline checks, hints, and
+  accessible visual interactions—with graceful unavailable states and no
+  decorative block required by style alone.
+- [ ] **LEARNUI-04**: The reference course tracer demonstrates orient → predict or
+  act → observe → explain → changed-context transfer → evidence → next action at
+  desktop and phone widths, including keyboard/screen-reader equivalence, model-
+  unavailable operation, and no early keyed-content leak.
 
 ## v2 Requirements
 
@@ -466,24 +542,42 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | LTI-05 | Phase 999.4 | Pending |
 | LTI-06 | Phase 999.4 | Pending |
 | LTI-07 | Phase 999.4 | Pending |
-| RTS-01 | Phase 14 | Pending |
-| RTS-02 | Phase 14 | Pending |
-| RTS-03 | Phase 14 | Pending |
-| RTS-04 | Phase 14 | Pending |
-| RTS-05 | Phase 14 | Pending |
-| RTS-06 | Phase 14 | Pending |
-| RTS-07 | Phase 14 | Pending |
-| RTS-08 | Phase 14 | Pending |
-| RTS-09 | Phase 14 | Pending |
-| RTS-10 | Phase 14 | Pending |
-| RTS-11 | Phase 14 | Pending |
-| RTS-12 | Phase 14 | Pending |
+| RTS-01 | Phase 13.5 | Pending |
+| RTS-02 | Phase 13.5 | Pending |
+| RTS-03 | Phase 13.5 | Pending |
+| RTS-04 | Phase 13.5 | Pending |
+| RTS-05 | Phase 13.5 | Pending |
+| RTS-06 | Phase 13.5 | Pending |
+| RTS-07 | Phase 13.5 | Pending |
+| RTS-08 | Phase 13.5 | Pending |
+| RTS-09 | Phase 13.5 | Pending |
+| RTS-10 | Phase 13.5 | Pending |
+| RTS-11 | Phase 13.5 | Pending |
+| RTS-12 | Phase 13.5 | Pending |
+| COURSE-01 | Phase 14 | Pending |
+| COURSE-02 | Phase 14 | Pending |
+| COURSE-03 | Phase 14 | Pending |
+| COURSE-04 | Phase 14 | Pending |
+| DIRECTOR-01 | Phase 15 | Pending |
+| DIRECTOR-02 | Phase 15 | Pending |
+| DIRECTOR-03 | Phase 15 | Pending |
+| DIRECTOR-04 | Phase 15 | Pending |
+| LEARNUI-01 | Phase 16 | Pending |
+| LEARNUI-02 | Phase 16 | Pending |
+| LEARNUI-03 | Phase 16 | Pending |
+| LEARNUI-04 | Phase 16 | Pending |
 
 **Coverage:**
 
-- v1 requirements: 127 total
-- Mapped to phases: 127
+- v1 + next-milestone requirements: 170 total
+- Mapped to phases: 170
 - Unmapped: 0 ✓
+
+> **Count corrected 2026-08-13.** Both sides of the source-to-course merge
+> carried "127 total", a figure that stopped being true several phases before
+> either branch existed. Counted at merge time: 170 checklist ids (105 open, 65
+> closed) and 170 rows in the table above, so the mapping is still complete. The
+> number was recounted rather than carried forward.
 
 ---
 *Requirements defined: 2026-08-05*

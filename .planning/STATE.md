@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase_name: milestone-complete
-status: Milestone v1.0 shipped — CI was red at ship; fixed on fix/ci-green-post-v1.0 (PR #19), awaiting merge
-stopped_at: All 18 roadmap phases merged into main (2026-08-11); trunk CI repaired 2026-08-12
-last_updated: "2026-08-12T05:30:00.000Z"
-last_activity: 2026-08-12
+current_phase_name: 13.5-reading-teaching-surface-quality-pass
+status: Phase 13.5 in flight, waves 1-2 executed (3 of 8 plans); source-to-course reframe merged from origin/main 2026-08-13, unpushed
+stopped_at: Wave 3 not started — plan 13.5-04 (quiz voice repair) is the next executable
+last_updated: "2026-08-13T00:00:00.000Z"
+last_activity: 2026-08-13
 progress:
-  total_phases: 18
+  total_phases: 23
   completed_phases: 18
-  total_plans: 104
-  completed_plans: 104
-current_phase: complete
-last_activity_desc: "Milestone complete: all 18 roadmap phases merged into main — the 12 phase branches (02.1, 03, 03.2, 04, 05, 08, 09, 10, 11, 999.1, 999.4, 999.5) finished 2026-08-11 on top of 03.1, 06.1, 06.2, 09.1 merged earlier; human-pending verification backlog recorded in the Deferred Verification table"
+  total_plans: 112
+  completed_plans: 107
+current_phase: "13.5"
+last_activity_desc: "Quick task 260813-r5c: merged the source-to-course reframe (15 commits, Phases 14-17 and the phase-16 research set) and renumbered the reading/teaching phase from 14 to 13.5, because both branches had independently taken the number 14"
 ---
 
 # Project State
@@ -23,7 +23,7 @@ last_activity_desc: "Milestone complete: all 18 roadmap phases merged into main 
 See: .planning/PROJECT.md (updated 2026-08-07)
 
 **Core value:** One runtime, one scorer, one evidence store — and the runtime, not the model, decides what reaches the learner.
-**Current focus:** Milestone complete — all 18 roadmap phases merged into main (2026-08-11); human-pending verification backlog below.
+**Current focus:** Phase 13.5 (reading and teaching surface quality), wave 3 next. The source-to-course reframe in `.planning/SOURCE-TO-COURSE.md` opens the next milestone as Phases 14 through 17; v1.0's human-pending verification backlog is below and still open.
 
 ## Completed Phases Note
 
@@ -51,9 +51,31 @@ recorded in 06.2-GATES.md. Six GATE-01..06 requirements delivered.
 
 ## Current Position
 
-Phase: none — **milestone complete** (18/18 roadmap phases merged into main)
-Status: Milestone v1.0 shipped — pushed to origin/main (490 commits)
-Last activity: 2026-08-12
+Phase: **13.5 — Reading & Teaching Surface Quality Pass**, waves 1-2 executed (3 of 8 plans)
+Status: v1.0's 18 phases are shipped. A next milestone opened on 2026-08-13 with the source-to-course reframe (Phases 14 through 17), merged into `main` and not yet pushed.
+Last activity: 2026-08-13
+
+### Correction (2026-08-13): this file claimed "complete" through a live phase
+
+Between 2026-08-12 and 2026-08-13 this file read `current_phase: complete` and
+`18/18` while Phase 13.5 was accruing commits on `main` and a second branch was
+accruing the source-to-course research. Both branches numbered their new phase
+14. The collision was not caught by any tool: `git merge-tree` reports one
+content conflict, in `REQUIREMENTS.md`, and `ROADMAP.md` merges clean while
+producing two Phase 14 headings.
+
+Resolved by quick task 260813-r5c. The reading and teaching work became Phase
+13.5, which is also where it belongs on dependencies: it hardens the reader and
+quiz surfaces the source-to-course spine builds on. The number 14 went to Course
+Workspace & Source Binding. The twelve RTS requirements keep their content and
+are routed to subphases 16A, 16B, 17A and gates G4 and G6 per
+`research/phase-16/14-synthesis.md` section 15.
+
+Still owed, and deliberately not done by that quick task: synthesis section 14
+and section 15 propose replacing the flat 14-to-17 sequence with nine subphases
+(14A, 14B, 15A, 15B, 16A, 16B, 16C, 17A, 17B) and rewriting five contract files.
+The roadmap as merged still carries the flat sequence its own research
+supersedes.
 
 ### Correction (2026-08-12): the v1.0 ship was recorded green against a red trunk
 
@@ -375,6 +397,7 @@ Recent decisions affecting current work:
 | ID | Task | Date | Status |
 |----|------|------|--------|
 | 260812-e2m | Four reader defects: leaked print CSS killing the glossary popover, `## TERMS` overrunning into lesson tables, relative `@font-face` urls 404ing on nested routes, authored-hint fallback printing a slug | 2026-08-12 | complete ✓ |
+| 260813-r5c | Merge the source-to-course reframe from `origin/main` and renumber the reading/teaching phase from 14 to 13.5, resolving the two-phases-one-number collision | 2026-08-13 | complete ✓ |
 
 Found by driving the running daemon in a browser, not by the test suite — the
 suite was green throughout. Fixes verified the same way after execution:
@@ -397,7 +420,7 @@ are planned, checker-passed and unstarted.
 | 4 | 14-05 the gloss: placement, bottom sheet, hover intent | not started |
 | 5 | 14-06 scroll contract and reader section nav | not started |
 | 6 | 14-07 the wrong-answer surface, ladder rendered | not started |
-| 7 | 14-08 live regions, byte-identity floor, 14-GATES.md roll-up | not started |
+| 7 | 14-08 live regions, byte-identity floor, 13.5-GATES.md roll-up | not started |
 
 **D-A and the D-B include are closed and proven on served bytes**, not
 inferred: all seven `--space-*` tokens resolve on both the lesson and quiz
@@ -428,13 +451,13 @@ runtime would do:
   needs an owning plan.**
 - `surfaces/settings.THIS_PHASE` is stale at 10, so both new teaching settings
   print as `inert -- read from phase 14`. Pre-existing pattern; see
-  `.planning/phases/14-reading-teaching-surface-quality-pass/deferred-items.md`.
+  `.planning/phases/13.5-reading-teaching-surface-quality-pass/deferred-items.md`.
 - Gates 4, 5, 10, 11 need a driven browser or a human — jsdom does no layout.
-  `14-GATES.md` is created by 14-05 and completed by 14-08.
+  `13.5-GATES.md` is created by 14-05 and completed by 14-08.
 
 ## Session Continuity
 
 Last session: 2026-08-13
 Stopped at: Phase 14 wave 2 boundary — 3 of 8 plans executed, waves 3-7 planned and unstarted
-Resume file: `.planning/phases/14-reading-teaching-surface-quality-pass/14-04-PLAN.md` (wave 3, next)
+Resume file: `.planning/phases/13.5-reading-teaching-surface-quality-pass/13.5-04-PLAN.md` (wave 3, next)
 Deferred human verification: 02.1 (4), 03 (1), 03.1, 04 (7), 05 (2), 09 (KaTeX approval), 10 (1 UI gate), 11 (4), 999.4 (manual Canvas checklist), 999.5 (WINDOWS.md windows 2-3) — see the Deferred Verification table above; 09.1 manual audio-quality checks (see 09.1-UAT.md)

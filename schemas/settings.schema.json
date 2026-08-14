@@ -417,7 +417,7 @@
         "hint_display",
         "hint_locked_preview"
       ],
-      "x-itembank-phase": 14,
+      "x-itembank-phase": 13.5,
       "default": {
         "hint_display": "slot",
         "hint_locked_preview": "full"
@@ -431,7 +431,7 @@
             "slot"
           ],
           "default": "slot",
-          "x-itembank-phase": 14
+          "x-itembank-phase": 13.5
         },
         "hint_locked_preview": {
           "type": "string",
@@ -441,7 +441,7 @@
             "next"
           ],
           "default": "full",
-          "x-itembank-phase": 14
+          "x-itembank-phase": 13.5
         }
       }
     },

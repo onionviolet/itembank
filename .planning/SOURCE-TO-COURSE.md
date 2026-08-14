@@ -1,0 +1,289 @@
+# Source-to-course product contract
+
+**Status:** binding direction for the next milestone. This refines the product
+goal without invalidating the shipped parser, scorer, evidence, lesson,
+authoring, or packaging work.
+
+**User intent:** `.planning/USER-VISION.md` preserves the goal in Weibao's
+words verbatim and remains additive. This contract is an interpretation of
+that record, not a replacement for it. When wording or scope appears to drift,
+reconcile it against the verbatim record explicitly.
+
+**Research and agent operation:** `research/phase-16/14-synthesis.md` is the
+reconciled evidence and product-definition input for the next contract
+revision. `AGENT-WORKFLOW.md` is the binding cross-agent procedure for vision
+capture, ideaboarding, research waves, synthesis, dispositions, authority,
+artifact operations, readiness, and handoff. Open or prototype-gated synthesis
+recommendations do not become durable format commitments until their stated
+gate passes.
+
+## North star
+
+itembank turns learner-owned material into a tangible, high-quality course. A
+course may begin with a book, syllabus, exam blueprint, folder of notes,
+existing bank, or a mixture. The system and an approved AI collaborator
+discover the material, derive and verify objectives, decide how each objective
+is best learned, produce missing artifacts, administer practice and tests, and
+revise the path from recorded evidence.
+
+The course is the primary user-facing object. Objectives are its organizing
+spine. Sources, readings, lessons, terms, notes, examples, visuals, practice
+banks, tests, and evidence are connected artifacts rather than separate
+products.
+
+## The course-building loop
+
+1. **Discover and register sources and prior work.** Find approved files
+   without assuming their location, including previously created lessons,
+   questions, exams, notes, and banks distributed across explicit roots such
+   as a course folder and an Obsidian vault. Fingerprint them; retain stable
+   page/section locators, provenance, and ownership; and link rather than copy
+   an existing artifact when it already supplies the needed treatment.
+2. **Establish the target.** Extract or import the syllabus, standards, exam
+   blueprint, competencies, intended depth, constraints, and learner context.
+3. **Build the objective map.** Produce stable hierarchical objectives,
+   prerequisites, source support, assessment demand, and confidence. A heading
+   match alone never proves coverage.
+4. **Choose treatment per objective.** Prefer direct source reading when the
+   source is clear and authoritative. Otherwise choose an excerpt, guided
+   lesson, notes, key terms, worked example, visualization, demonstration,
+   practice, or assessment-first treatment. Do not rewrite a source merely
+   because a model can.
+5. **Generate bounded artifacts.** Draft only the missing treatment, cite its
+   sources, label generated synthesis, lint deterministic contracts, run
+   semantic quality review, and keep approval and reversal visible.
+6. **Deliver one learning loop.** Orient -> predict or act -> observe ->
+   explain -> apply in a changed situation -> record evidence. Reader mode
+   remains available for continuous source/reference reading.
+7. **Practice and test appropriately.** Standardized-test courses follow the
+   published blueprint, construct distribution, timing, difficulty, and item
+   conventions. Knowledge exams follow the actual instructional objectives and
+   expected cognitive demand, not generic trivia.
+8. **Close the loop with evidence.** Use response history, hint use,
+   confidence, response time, error patterns, retention state, coverage, and
+   pending review to propose the next useful action. Report uncertainty and
+   sample size; never turn sparse evidence into a mastery percentage.
+
+## AI's reasonable role
+
+AI is a first-class course builder, analyst, and optional teaching
+collaborator. It may search approved roots, outline sources, extract candidate
+objectives and terms, align sources to a blueprint, recommend treatment, draft
+artifacts, run the lint/fix loop, inspect aggregate evidence, propose
+remediation, and explain its citations and uncertainty. It may operate through
+Codex, Claude Code/Cowork, another hosted coding-agent-class client, or a
+registered local backend.
+
+Autonomy is scoped per operation: recommend-only, draft-and-review, or approved
+bounded writes. Discovery is read-only by default. Generated work is
+distinguishable from source-authored work, and every accepted mutation is
+inspectable and recoverable.
+
+The model is not the deterministic authority. The existing runtime remains the
+authority for scoring, session mode, evidence recording, and disclosure of
+keyed assessment content. Prose responses remain pending until a human or
+human-approved marking action settles them. This boundary must not be inflated
+into the product thesis or used to prevent useful AI course-building work.
+
+## Course-quality contract
+
+A useful generated course must demonstrate:
+
+- **Traceability:** every objective and source-derived claim has a stable
+  locator; generated synthesis is labeled.
+- **Coverage:** every required objective is covered, thin, missing,
+  conflicting, or unknown by cited evidence rather than intuition.
+- **Alignment:** treatment and assessment match the verb and cognitive demand
+  of the objective and, where applicable, the real exam blueprint.
+- **Instructional coherence:** prerequisites precede dependents; lessons do not
+  become summaries followed by detached questions.
+- **Assessment quality:** plausible distractors model real misconceptions and
+  state when they would be correct; positions, difficulty, item families, and
+  blueprint weights are reviewed; prose is not auto-graded.
+- **Transfer:** important objectives include changed-context application, not
+  only recall or near-copy questions.
+- **Accessibility and degradation:** equivalent semantic controls exist for
+  visual tasks; source reading, authored lessons, assessment, evidence, and
+  reports remain useful without a model connection.
+- **Measured improvement:** AI may interpret metrics and propose changes, but
+  shows the evidence window, denominator, missing signals, and uncertainty.
+
+## Learner experience
+
+The home surface is a course shelf. A course workspace has six coherent areas:
+
+- **Learn:** recommended readings, guided lessons, notes, terms, examples,
+  visuals, and reviews.
+- **Practice:** objective-, unit-, difficulty-, misconception-, and cumulative
+  sets.
+- **Test:** diagnostic, unit, cumulative, and blueprint-faithful exam sittings.
+- **Sources:** books/files, outlines, locators, extraction status, conflicts,
+  and direct-reading assignments.
+- **Course map:** objectives, prerequisites, treatment, coverage, evidence,
+  and gaps.
+- **Build / review:** AI proposals, diffs, citations, quality findings,
+  approval, rejection, and undo.
+
+Lessons support a continuous reader and a guided presentation over the same
+parsed content. The comprehensive UI supports hover/focus definitions,
+things-to-know blocks, niche or expert tips, warnings, worked examples, source
+citations, diagrams, math, runnable code, inline checks, hints, retries, and
+accessible visual interactions. These are semantic teaching roles, not
+decorative card types.
+
+The authored lesson file is the durable content layer. It must remain coherent,
+readable, navigable, and reasonably attractive in a plain Markdown or document
+reader, including tools such as Obsidian. The itembank UI progressively
+enhances that same content with richer presentation and behavior, including hover and
+focus affordances, interactive diagrams, JavaScript-backed demonstrations,
+adaptive disclosure, and other learning controls, without making the source
+file depend on those enhancements for its meaning. A richer capability must
+have a useful non-interactive representation and an accessible interaction.
+
+### Learning experience and capability research
+
+Do not design the course journey by accumulating attractive widgets. Research
+the full learner flow first: entering a course, understanding the next action,
+reading or interacting, checking understanding, receiving feedback, navigating
+references, practicing, testing, reviewing evidence, and resuming later. Study
+current learning and source-grounded tools, including NotebookLM, for useful
+patterns in source navigation, generated questions, study aids, and grounded
+conversation. Treat them as evidence, not templates. itembank's target is a
+stronger lesson- and objective-centered course experience, not a notebook chat
+with quizzes attached.
+
+The research must produce a lesson-capability catalog. Candidate capabilities
+include definitions available by hover, focus, and touch; relevant cited
+images; captions and image alternatives; things-to-know, expert-tip, warning,
+misconception, and memory blocks; worked examples; comparisons; timelines;
+diagrams; math; code; simulations; prediction prompts; inline checks; staged
+reveals; reflection; source excerpts; citations; and transfer activities. Each
+capability must state its teaching purpose, suitable contexts, misuse risks,
+portable source representation, rich rendering, keyboard and screen-reader
+behavior, narrow-screen behavior, evidence implications, and authoring rules.
+
+Question research must cover more than widget shapes. Build a matrix across
+learning moment, objective verb, cognitive demand, subject, response form,
+feedback mode, authenticity, accessibility, and scoring authority. Distinguish
+questions used to predict, notice, retrieve, explain, compare, diagnose,
+practice, transfer, and formally assess. Do not add a question type merely
+because a competitor has one or because it is visually novel.
+
+The authored representation may behave like an itembank document type, but it
+should remain an open, inspectable semantic contract built on portable files
+unless research proves that this cannot represent the required learning
+behavior. Rich UI state, generated indexes, and compiled assets may be derived;
+they must not become the only readable copy of a lesson.
+
+## Agent-operable course workspace
+
+The planned workspace convention must provide discovery, scaffolding, binding,
+and a derived machine-readable index without creating a second source of
+truth. Agents must be able to answer: what courses exist, where their sources
+and accepted artifacts live, which objectives are unsupported, what evidence
+exists, what is a draft, what may be changed, and how to validate or undo it.
+
+Discovery and binding must work both manually and agentically. A user may add
+an explicit file or folder and link an artifact to a course/objective; an agent
+may search only approved roots, propose likely artifact identities and links,
+and explain the evidence for each match. The system must distinguish linking,
+importing, copying, and superseding, detect moved or changed files by stable
+identity plus fingerprint, and surface duplicates or conflicts for review.
+It must not silently merge similarly named lessons or questions.
+
+Course files remain readable and searchable. Derived indexes are disposable.
+Search roots and write roots are explicit; an agent does not roam the machine
+or mutate a new location merely because it found a related file.
+
+Agent playbooks are part of the product interface, not incidental prompts.
+They must teach Codex, Claude Code/Cowork, local agents, and other compatible
+clients how to discover and bind existing work; design a course; author and
+review lessons, questions, practice, and exams; validate artifacts against the
+runtime contracts; and improve an older artifact for newer learning-UI
+capabilities. Upgrade playbooks must begin with an audit, preserve provenance
+and stable identity, produce a reviewable proposal or diff, avoid cosmetic
+rewrites that add no learning value, validate graceful degradation, and never
+change assessment meaning or keyed content silently.
+
+## Scope boundaries
+
+- Do not equate course generation with one-shot “generate and publish.” Course
+  construction is staged, cited, validated, and reviewable.
+- Do not assume every objective needs a generated lesson. Direct reading is a
+  first-class and often preferable treatment.
+- Do not make chat the primary interface. Agent actions produce inspectable
+  course artifacts and proposals.
+- Do not add a second parser, scorer, or evidence store. A course manifest or
+  index composes the existing contracts.
+- Do not optimize the UI around banks as the primary navigation unit. Banks
+  remain assessment artifacts inside courses.
+- Do not claim standardized-test fidelity without a versioned blueprint/source
+  and explicit content, difficulty, and item-format mappings.
+
+## Next-milestone sequence
+
+### Phase 14: Course workspace and source binding
+
+Define the course manifest/folder contract; safe discovery roots; scaffold and
+bind operations; derived index; course shelf/map/source UI; objective and
+prerequisite model; treatment vocabulary; and composition of existing banks
+and lessons.
+
+**Tracer:** create a course from one syllabus plus one source folder, approve
+the objective map, bind cited source sections, and see gaps without generating
+content.
+
+Discovery includes an explicit multi-root tracer: bind an existing lesson from
+one user-approved folder and an existing question bank from another (for
+example, an Obsidian vault), then relocate one file and reconcile it without
+duplicating or losing the course link.
+
+### Phase 15: AI course director and quality pipeline
+
+Add treatment recommendation, direct-reading selection, bounded artifact
+plans, course-level generation/review, standardized-test and knowledge-exam
+blueprints, course-quality audit, metric interpretation, and configurable
+autonomy. Reuse the shipped `audit`, `coverage`, `seed`, lint, evidence, and
+trends contracts.
+
+**Tracer:** generate one missing lesson treatment and one blueprint-aligned
+practice set, approve them, sit the set, and receive an evidence-backed
+next-action proposal.
+
+### Phase 16: Learning flow and lesson capability contract
+
+Research and specify how the course journey works before committing to visual
+chrome. Compare source-grounded and learning products, including NotebookLM,
+without copying protected content or mistaking chat features for pedagogy.
+Map course entry, next action, lesson flow, source use, questions, feedback,
+practice, tests, review, and resume states. Produce the lesson-capability
+catalog, question-purpose matrix, portable authoring grammar, interaction
+contracts, accessibility behaviors, image and citation policy, legacy-upgrade
+rules, and agent authoring descriptions.
+
+**Tracer:** storyboard and prototype one representative course unit across
+desktop, narrow screen, keyboard, touch, screen reader, offline, and plain-file
+contexts. Demonstrate why each selected capability improves the learning loop
+and reject or defer features without a clear teaching role.
+
+### Phase 17: Visual system and comprehensive guided learning UI
+
+Design the visual language and implement the course journey against Phase 16's
+flow and capability contracts. Compose reader, guided lesson, practice, test,
+source, and review states into one experience. Add the approved accessible
+visual teaching primitives, responsive layouts, motion rules, density and
+theme choices, and teaching-focused feedback. Preserve continuous reader mode.
+
+**Tracer:** one polished multi-step course unit with direct reading, hover and
+focus terms, things-to-know and expert-tip blocks, a cited visual explanation,
+prediction, targeted feedback, varied practice, transfer, and course-path
+continuation at desktop and phone widths.
+
+The tracer must also open the authored lesson outside the itembank UI and show
+that its structure, definitions, callouts, diagram fallback, citations, and
+core explanation remain useful. It must exercise an upgrade audit on one
+legacy lesson and one legacy question artifact before any enhancement is
+accepted.
+
+No phase is complete from framework tests alone. Each exits through a realistic
+synthetic end-to-end course fixture and visual/accessibility verification.

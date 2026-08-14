@@ -1,4 +1,4 @@
-# Planning Directives — standing rules for every GSD session on this project
+# Planning Directives: standing rules for every GSD session on this project
 
 - **Created:** 2026-08-10
 - **Status:** binding on every `/gsd-discuss-phase`, `/gsd-ui-phase`, `/gsd-ai-integration-phase`, and `/gsd-plan-phase` run
@@ -7,6 +7,12 @@
 
 This file exists because the same instructions were being re-stated in every session
 and losing fidelity each time. Any planning agent reads this before it reads the phase.
+
+The cross-agent execution and handoff contract is `AGENT-WORKFLOW.md`. Planning
+sessions follow both files. This document governs exploration, choices, and
+phase preparation; `AGENT-WORKFLOW.md` governs authority, research waves,
+dispositions, file operations, accepted revisions, readiness, and durable
+handoff across agent clients.
 
 ---
 
@@ -40,6 +46,17 @@ Recorded 2026-08-10, after the round-two research pass:
 > "can establish that the main stuff should work with something like claude code for
 > now to not worry so much"
 
+Recorded 2026-08-13, product reframe (normalized only for spelling; meaning
+preserved):
+
+> The goal is to create a course from a book, syllabus, notes, exam blueprint,
+> or other collected material; extract useful lessons, terms, notes, or direct
+> source readings; provide high-quality practice and tests appropriate to the
+> specific course or standardized exam; let AI drive curriculum construction,
+> quality work, and evidence interpretation where reasonable; and present it
+> through a rich, comprehensive learning UI. Hosted coding agents and a local
+> agent are both target clients.
+
 **What this settles.** The default authoring and hint backend is a **hosted
 coding-agent-class model (Claude Code or equivalent)**. The local 24GB card is a
 *second registered backend*, not the design target. Consequences, binding on planning:
@@ -57,6 +74,15 @@ coding-agent-class model (Claude Code or equivalent)**. The local 24GB card is a
   The runtime, the parser, the scorer and the evidence store stay local and stay
   model-free; only authoring and hint generation reach for a backend.
 
+**What the 2026-08-13 reframe settles.** Read
+`.planning/SOURCE-TO-COURSE.md` before planning the next milestone. The course,
+not the bank, is the primary user-facing unit. AI is not confined to hint generation: it
+may perform approved source discovery, curriculum alignment, treatment
+selection, artifact drafting and revision, quality review, metric
+interpretation, and remediation. The runtime invariant remains narrow:
+deterministic scoring, assessment disclosure, and evidence authority do not
+move into the model.
+
 ---
 
 ## 2. The autonomy rule
@@ -67,7 +93,7 @@ assumption and continue.
 
 Stop only for these, and for nothing else:
 
-1. An action that is **hard to reverse** — an append-only evidence field, a
+1. An action that is **hard to reverse**, such as an append-only evidence field, a
    published schema, a format decision other phases will build against.
 2. A choice that would **lower quality** whichever way you guess, where the
    research contains no verdict.
@@ -76,13 +102,13 @@ Stop only for these, and for nothing else:
 Everything else: decide, write down the reasoning, move on. A blocking question
 costs a session round-trip; a recorded assumption costs one line.
 
-## 3. The conflict rule — build both, let the learner pick
+## 3. The conflict rule: build both, let the learner pick
 
 When two designs both look defensible and neither is clearly wrong, **do not
 arbitrate**. Implement both behind one interface and make the choice a setting.
 
 This is affordable here specifically because of the Extensibility Rules in
-`ROADMAP.md` — a second implementation of an existing interface is a registration,
+`ROADMAP.md`. A second implementation of an existing interface is a registration,
 not a fork. It stops being affordable, and the rule stops applying, when the two
 options need **two parsers, two scorers, or two evidence stores**. That is when you
 pick one and say why.
@@ -94,17 +120,20 @@ copy, reading layout, selection strategy, TTS engine, model backend.
 
 Everything in `.claude/CLAUDE.md` bends per the 2026-08-09 amendment **except**:
 
-1. The **runtime**, not a model, decides what reaches the learner.
+1. The **runtime owns assessment authority**: correctness, session state,
+   evidence, and disclosure of keyed assessment content. This does not limit a
+   model from producing ordinary course material, teaching content, treatment
+   recommendations, or course revisions through the approved authoring path.
 2. Exactly **one parser, one scorer, one evidence store**.
 3. Evidence and banks stay on disk. No telemetry.
-4. Format changes are **additive** — a bank not using a new block parses unchanged,
+4. Format changes are **additive**. A bank not using a new block parses unchanged,
    proven by a byte-identical fixture, not promised.
 5. The accessibility gates in `.planning/UI-SPEC.md`.
 
 A research finding or a design idea that violates one of these is rejected on that
 basis alone, however good it is otherwise.
 
-## 4a. Constraint basis — what binds, what does not, and how to cite it
+## 4a. Constraint basis: what binds, what does not, and how to cite it
 
 Added 2026-08-10 from `.planning/research/2026-08-10-constraint-audit.md`. Additive
 only: it disambiguates §4, and changes nothing in it.
@@ -136,23 +165,24 @@ not made an argument. Report the real cost and decide on merit.
 **The three rules most often stretched past their scope:**
 
 - §4.2 forbids a **second** parser, scorer, or evidence store. It does not freeze
-  the one parser's grammar — additive growth is §4.4's subject and is permitted,
+  the one parser's grammar. Additive growth is §4.4's subject and is permitted,
   proven by a byte-identical fixture. "This needs a new parse branch" is not a
   §4.2 violation. "This needs a second document model" is.
 - §4.3 forbids evidence and banks leaving the disk. It is not a general
-  ban on networked components; the network rule is `CLAUDE.md:57` — the core loop
+  ban on networked components; the network rule is `CLAUDE.md:57`: the core loop
   **degrades, never blocks**, which is a resilience requirement, not an offline
   mandate.
-- §4.1 forbids a model deciding what reaches the learner. It is not a ban on a
-  model *producing* anything; the gate is who accepts.
+- §4.1 forbids a model inventing correctness, session state, evidence, or early
+  keyed disclosure. It is not a ban on a model producing or directly presenting
+  ordinary approved teaching material; the gate applies to assessment authority.
 
 **Bank-authored JavaScript is refused** (`REQUIREMENTS.md` VIS-01,
 `UI-SPEC.md:609`). This is real, it is the correct ground for rejecting per-lesson
 executable content, and it is not the same thing as a no-JS rule.
 
 **Supply chain.** Dependencies are permitted, so the absence of dependencies is no
-longer a mitigation. Every third-party artifact — library, font, JS bundle,
-toolchain — is vendored at a pinned version with a recorded checksum and a named
+longer a mitigation. Every third-party artifact, including each library, font,
+JS bundle, and toolchain, is vendored at a pinned version with a recorded checksum and a named
 license review, following the KaTeX precedent (`09-03-PLAN.md`). A threat table
 that accepts supply-chain risk on the grounds that "no dependency is installed" is
 stale and must be rewritten.
@@ -160,7 +190,7 @@ stale and must be rewritten.
 **Citation discipline, binding on every artifact.** Any rejection that names a
 Directive section quotes the sentence it relies on. A citation that cannot be
 quoted is not a citation, and the finding it supports is void. If the honest reason
-is cost, taste, or churn, say cost, taste, or churn — those are legitimate reasons
+is cost, taste, or churn, say cost, taste, or churn. Those are legitimate reasons
 and they survive being stated plainly.
 
 ## 5. Execution split
@@ -169,7 +199,7 @@ and they survive being stated plainly.
 
 - This session and every planning session: `/gsd-discuss-phase`, `/gsd-ui-phase`,
   `/gsd-plan-phase`, `/gsd-phase`, research. Never `/gsd-execute-phase`.
-- Handoff to DeepSeek V4 for execution, run **sequentially** — a fork-base guard
+- Handoff to DeepSeek V4 for execution, run **sequentially**. A fork-base guard
   degrades worktree parallelism to one plan at a time here regardless of config.
 - GSD state is shared on disk, so the handoff is "stop and tell them," not an export.
 
@@ -182,9 +212,95 @@ design decision to the executor has failed at its job.
 
 In order, per phase:
 
-1. `/gsd-discuss-phase <n>` — surface the gray areas, apply §2 and §3 to each.
-2. `/gsd-ui-phase <n>` — only if the phase has a learner-facing surface.
-3. `/gsd-plan-phase <n>` — the executable plans.
+1. `/gsd-discuss-phase <n>`: surface the gray areas, apply §2 and §3 to each.
+2. `/gsd-ui-phase <n>`: only if the phase has a learner-facing surface.
+3. `/gsd-plan-phase <n>`: the executable plans.
 
 A plan may not invent a design decision the discuss step did not record, and may
 not defer one to execution.
+
+## 7. Ideaboarding and user-vision interpretation
+
+Rough user ideaboarding is product evidence, not disposable chat. Record it
+verbatim and additively in `.planning/USER-VISION.md` before normalizing it into
+requirements or phase language. A dated interpretation note may sit directly
+below the quotation so the user can inspect the translation, but it must remain
+visibly separate from the user's words.
+
+Each interpretation records its status, current meaning, open questions,
+planning effect, and relationship to earlier entries. If later ideaboarding
+changes an earlier interpretation, preserve both quotations and add a new dated
+note. Mark the old interpretation partly superseded or superseded, name what
+changed, and link the decision artifact. Never rewrite history into artificial
+consistency.
+
+For consequential product ideas, ideaboarding precedes phase discussion. The
+planning agent first expands the possibility space, identifies assumptions and
+research questions, separates teaching value from visual novelty, and records
+alternatives. Only then may it narrow the ideas into a phase contract.
+
+## 8. Learning UI planning split
+
+Logical experience design and visual system design are separate obligations.
+For the next milestone, Phase 16 defines the learner flow, lesson capability
+catalog, question-purpose matrix, semantic authored representation,
+interactions, accessibility, media policy, and agent authoring contract. Phase
+17 defines the visual language and implements the comprehensive UI against
+those approved contracts.
+
+Competitor research, including NotebookLM, Brilliant, Albert, and other current
+learning or source-grounded tools, records patterns, benefits, weaknesses, and
+applicability. It does not copy protected content, assume popularity proves
+learning value, or turn itembank into a clone. Every candidate capability must
+answer what it teaches, when it helps, how it degrades in the authored file,
+how it works by keyboard, touch, and screen reader, and how an agent authors and
+validates it.
+
+Question design research must classify purpose and cognitive demand before
+choosing a response widget. Questions for prediction, noticing, retrieval,
+explanation, comparison, diagnosis, practice, transfer, and formal assessment
+may need different feedback and evidence behavior even when they share the
+same visible control.
+
+## 9. Reusable user-vision method
+
+The vision-capture workflow should be extractable into a project-neutral skill,
+but it is planned separately from itembank product code. The reusable method
+must support verbatim additive capture, dated interpretations, open questions,
+conflict and supersession handling, links to binding decisions, and an audit
+that detects silent drift between vision and plans. Before publishing such a
+skill, test it in at least one other project and remove itembank-specific paths,
+phase numbers, runtime rules, and vocabulary.
+
+## 10. What enters the user vision
+
+The reusable workflow carries this rule verbatim:
+
+> Do not put everything into USER-VISION.md. Put every meaningful statement
+> into a capture funnel, but promote only statements about desired outcomes,
+> experience, scope, values, boundaries, users, success, or unresolved product
+> direction into the durable vision. Implementation guesses and research leads
+> should stay linked in research or planning notes unless they become a user
+> preference or product commitment.
+
+Capture broadly, promote selectively. A statement belongs in
+`.planning/USER-VISION.md` when it expresses one or more of these:
+
+- The outcome the product should create or the problem it should solve.
+- The intended user, context, experience, workflow, or quality bar.
+- A product value, boundary, non-negotiable, preference, or success condition.
+- A meaningful expansion, narrowing, conflict, reversal, or unresolved product
+  question.
+- Ideaboarding whose loss would make a later plan misunderstand the user's
+  intent.
+
+Do not promote raw links, competitor feature inventories, implementation
+guesses, library choices, phase numbers, task assignments, temporary debugging
+facts, or research conclusions merely because they appeared in chat. Put those
+in research briefs, decision records, requirements, plans, or operational notes
+and link them from an interpretation when relevant.
+
+When uncertain, preserve the raw statement in a dated vision inbox or session
+capture first. Review it for promotion after the ideaboarding pass. Never force
+the user to classify thoughts while thinking aloud, and never discard a
+statement only because it is rough, repetitive, or contradictory.

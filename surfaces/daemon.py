@@ -210,7 +210,7 @@ SEED_ACCEPT_ALLOWED_FIELDS = ("bank", "action", "draft")
 # The `/api/*` session routes: D-04's four plus Phase 6's `/api/hint`,
 # plan 06.1-02's `/api/interact`, plan 08-05's `/api/rubric-review`, Phase
 # 10's `/api/override` and `/api/lesson-complete`, Phase 09.1's
-# `/api/export_audio`, and Phase 14's `/api/teach` -- the authored six-tier
+# `/api/export_audio`, and Phase 13.5's `/api/teach` -- the authored six-tier
 # ladder's first route to any browser (plan 14-03, DEFECT D-D). `/api/teach`
 # is deliberately separate from `/api/hint`: `hint` is Phase 8's model
 # orchestration and plan 08-05 removed the legacy tier shim from it on

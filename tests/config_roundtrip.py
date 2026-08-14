@@ -608,7 +608,7 @@ def test_check_group_contract():
 
 
 def test_teaching_group_contract():
-    """The two Phase 14 teaching keys are enumerated, defaulted and required
+    """The two Phase 13.5 teaching keys are enumerated, defaulted and required
     in the schema; `itembank config` prints both rows; an out-of-enum value is
     refused by the existing settings.invalid_value code; and a settings file
     with no `teaching` object at all loads both defaults rather than raising
@@ -620,8 +620,12 @@ def test_teaching_group_contract():
     """
     schema = json.load(open(SCHEMA_PATH, encoding="utf-8"))
     t = schema["properties"]["teaching"]
-    if t.get("x-itembank-phase") != 14:
-        fail("teaching group x-itembank-phase is %r, expected 14"
+    # 13.5, not 14: this phase was planned as 14 on 2026-08-12 and renumbered on
+    # 2026-08-13 when the source-to-course reframe took that number for Course
+    # Workspace & Source Binding. A decimal is the existing convention here --
+    # `update_policy` already carries 2.1.
+    if t.get("x-itembank-phase") != 13.5:
+        fail("teaching group x-itembank-phase is %r, expected 13.5"
              % t.get("x-itembank-phase"))
     if t.get("additionalProperties") is not False:
         fail("teaching group must reject unknown keys")

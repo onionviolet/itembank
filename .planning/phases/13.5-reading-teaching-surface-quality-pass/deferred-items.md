@@ -1,4 +1,4 @@
-# Deferred items — Phase 14
+# Deferred items — Phase 13.5
 
 Out-of-scope discoveries logged during execution. Not fixed here.
 
@@ -6,7 +6,7 @@ Out-of-scope discoveries logged during execution. Not fixed here.
 
 `THIS_PHASE = 10` decides the STATUS column of `itembank config`: a key whose
 `x-itembank-phase` is above it prints `inert -- read from phase N`. The new
-`teaching` group carries `x-itembank-phase: 14` (correct — phase 14's own
+`teaching` group carries `x-itembank-phase: 13.5` (correct — phase 14's own
 `do_teach` reads `teaching.hint_locked_preview`), so both rows print as inert
 while they are in fact read.
 

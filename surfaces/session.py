@@ -627,7 +627,7 @@ def do_hint(session_file, retry=False, stumped=None):
     `stumped` is a legacy keyword with no caller left on any surface. Plan
     08-05 removed it from `/api/hint`, and plan 14-03 gave the fixed authored
     ladder its own route and command -- `do_teach` below, `POST /api/teach`
-    and `itembank teach` -- which is the Phase 14 path for a tier reveal. The
+    and `itembank teach` -- which is the Phase 13.5 path for a tier reveal. The
     branch is left working so nothing calling it mid-phase breaks; plan 14-08
     removes it once no caller remains. The sentinel value None (the CLI path)
     selects the model orchestration; a real bool selects the Phase 6 reveal."""

@@ -1091,7 +1091,7 @@ def check_api_route_scope():
     """D-04's four session routes plus Phase 6's `/api/hint`, plan 06.1-02's
     `/api/interact`, plan 08-05's `/api/rubric-review`, Phase 10's
     `/api/override` and `/api/lesson-complete`, Phase 09.1's
-    `/api/export_audio`, Phase 09's `/api/lesson/run`, and Phase 14's
+    `/api/export_audio`, Phase 09's `/api/lesson/run`, and Phase 13.5's
     `/api/teach` -- the authored six-tier ladder's first route to a browser
     (plan 14-03, DEFECT D-D), kept separate from `/api/hint` because that
     route is Phase 8's model orchestration and 08-05 removed the legacy tier

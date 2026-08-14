@@ -456,8 +456,8 @@ runtime (Ledger), the tool (Chrome), or the machine under study (Code) — and t
 gets no face at all.
 
 This is the one thing that makes the product look like itself rather than a template. It is not
-decoration: it renders the project's core guarantee — *the runtime, not the model, decides what
-reaches the learner* — visible on every screen without a word of explanation. A report whose
+decoration: it renders the assessment guarantee — *the runtime owns correctness, session state,
+evidence, and keyed disclosure* — visible without demoting approved AI-authored teaching. A report whose
 numbers are in Ledger voice reads as a sworn record; a lesson in Paper voice on the existing
 paper-tinted field reads as authored teaching; the seam between them is the product's thesis. No
 product in the studied set distinguishes system-guaranteed text from generated text typographically.

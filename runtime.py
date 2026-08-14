@@ -2020,7 +2020,7 @@ def _advance_cursor(session):
     return cursor, status
 
 
-# ---- phase 14: the ladder payload -- D-09's boundary as a pure function ----
+# ---- phase 13.5: the ladder payload -- D-09's boundary as a pure function ----
 # 14-UI-SPEC section 9.1 LOCKED: "the browser renders `shown` and
 # `next_locked` and nothing else." Everything a surface would otherwise have
 # had to decide -- which tiers exist, which are disclosed, what each locked

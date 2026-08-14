@@ -63,7 +63,7 @@ PARAPHRASE_SETTINGS_DEFAULTS = {"winnow_threshold": 8, "jaccard_threshold": 0.25
 # and the roundtrip tests can read the shipped defaults without a load.
 GATE_SETTINGS_DEFAULTS = {"gate_skip": "always", "gate_policy": "as-authored"}
 
-# The Phase 14 `teaching` group defaults (14-UI-SPEC section 16): where the
+# The Phase 13.5 `teaching` group defaults (13.5-UI-SPEC section 16): where the
 # authored hint ladder sits (`hint_display`, slot) and how much of its locked
 # remainder is previewed (`hint_locked_preview`, full). The schema remains the
 # source of truth; this accessor exists so the teach adapter and the roundtrip
@@ -103,7 +103,7 @@ def gate_defaults():
 
 
 def teaching_defaults():
-    """The Phase 14 `teaching` settings' shipped defaults (14-UI-SPEC section
+    """The Phase 13.5 `teaching` settings' shipped defaults (13.5-UI-SPEC section
     16): `hint_display` (slot) and `hint_locked_preview` (full)."""
     return dict(TEACHING_SETTINGS_DEFAULTS)
 
