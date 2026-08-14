@@ -141,6 +141,21 @@ h1.stem{font-size:32px;font-weight:600;line-height:1.2;margin:0 0 14px;
 .feedback{min-height:96px;margin-top:14px;padding-top:12px;
   border-top:1px solid var(--line);font-size:16px}
 .feedback .status{color:var(--mut);margin-bottom:8px}
+.support-region{border-top:1px solid var(--line);margin-top:var(--space-4);
+  padding-top:var(--space-4)}
+.hint-heading{font:12px/1.5 var(--font-ledger);letter-spacing:.08em;
+  text-transform:uppercase;color:var(--mut);margin:0 0 var(--space-2)}
+.hint-ladder{list-style:none;margin:0;padding:0;display:flex;
+  flex-direction:column;gap:var(--space-2)}
+.hint-card{padding:var(--space-3);border:1px solid var(--line);
+  border-radius:var(--r-2);background:var(--card)}
+.hint-card h4{font:12px/1.5 var(--font-ledger);letter-spacing:.08em;
+  text-transform:uppercase;color:var(--mut);margin:0 0 var(--space-1)}
+.hint-card p{font:16px/1.5 var(--font-paper);margin:0}
+.hint-card.locked{background:var(--chip);border-style:dashed}
+.hint-card.locked p{font:12px/1.5 var(--font-ledger)}
+.hint-card.unavailable{color:var(--unknown);background:var(--unknown-bg)}
+.hint-actions{display:flex;gap:var(--space-2);flex-wrap:wrap;margin-top:var(--space-2)}
 .act{margin-top:13px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
 button.go{font:inherit;font-family:var(--font-chrome);font-weight:600;font-size:16px;padding:11px 17px;
   min-height:44px;min-width:44px;border:1px solid var(--accent);border-radius:9px;
@@ -257,11 +272,6 @@ textarea.ans:disabled{opacity:.75}
 .authored-hint{margin-top:10px;background:var(--card);border:1px solid var(--line);
   border-radius:9px;padding:12px 14px}
 .authored-hint p{margin:0;overflow-wrap:anywhere}
-.assist-lock{display:flex;gap:10px;align-items:flex-start;background:var(--chip);
-  border:1px solid var(--line);border-radius:9px;padding:12px 14px}
-.lock-glyph{font-size:18px;line-height:1.2}
-.lock-label{font-weight:600;margin:0 0 4px}
-.lock-copy{color:var(--mut);margin:0 0 8px;overflow-wrap:anywhere}
 .rubric-rows{list-style:none;margin:0;padding:0;display:flex;
   flex-direction:column;gap:8px}
 .rubric-row{display:flex;gap:10px;align-items:flex-start;background:var(--card);
@@ -328,10 +338,6 @@ ASSIST_COPY = {
                         "required"),
     "rubric_empty": ("No complete rubric suggestion is available. This "
                      "response is still waiting for a human mark."),
-    "lock_label": "Optional guidance is locked",
-    "authored_heading": "Authored hint",
-    "authored_empty": ("No authored hint is available at this step. Keep "
-                       "reading the lesson or make another attempt."),
     "provenance_summary": "Generated support details",
 }
 
@@ -411,22 +417,9 @@ const Assist = (function(){
      payload that is present but has no text renders the locked empty
      state, because a silent nothing is indistinguishable from a broken
      panel. */
-  function authoredHtml(authored){
-    if(!authored) return "";
-    const text = (authored.available && typeof authored.display === "string")
-      ? authored.display : "";
-    const body = text ? esc(text) : "__ASSIST_AUTHORED_EMPTY__";
-    return `<div class="authored-hint"><h4>__ASSIST_AUTHORED_HEADING__</h4>
-      <p>${body}</p></div>`;
-  }
-  function lockHtml(copy){
-    return `<div class="assist-lock">
-      <span class="lock-glyph" aria-hidden="true">&#128274;</span>
-      <div>
-        <p class="lock-label">__ASSIST_LOCK_LABEL__</p>
-        <p class="lock-copy">${esc(copy)}</p>
-        <button type="button" class="go ghost" id="assist-retry">__ASSIST_RETRY__</button>
-      </div></div>`;
+  function unavailableHtml(copy){
+    return `<p class="assist-copy">${esc(copy)}</p>
+      <button type="button" class="go ghost" id="assist-retry">__ASSIST_RETRY__</button>`;
   }
   function provenanceHtml(id){
     if(!id) return "";
@@ -447,7 +440,7 @@ const Assist = (function(){
     if(v && (v.status === "unavailable" || v.status === "drop")){
       const copy = v.status === "drop"
         ? "__ASSIST_POLICY_DROP__" : "__ASSIST_UNAVAILABLE__";
-      render(lockHtml(copy) + authoredHtml(v.authored));
+      render(unavailableHtml(copy));
       const retry = document.getElementById("assist-retry");
       if(retry) retry.onclick = () => { request(true); };
       return;
@@ -456,7 +449,7 @@ const Assist = (function(){
       render(`<p class="assist-copy">__ASSIST_CANCELLED__</p>`);
       return;
     }
-    render(lockHtml("__ASSIST_UNAVAILABLE__"));
+    render(unavailableHtml("__ASSIST_UNAVAILABLE__"));
   }
   function renderRubric(v){
     const points = (v && v.points) || [];
@@ -492,7 +485,7 @@ const Assist = (function(){
       if(itemType === "short") renderRubric(v); else renderHint(v);
     }).catch(() => {
       setStatus("");
-      render(lockHtml("__ASSIST_UNAVAILABLE__"));
+      render(unavailableHtml("__ASSIST_UNAVAILABLE__"));
       const retryBtn = document.getElementById("assist-retry");
       if(retryBtn) retryBtn.onclick = () => { request(true); };
     }).then(() => { setBusy(false); });
@@ -512,9 +505,6 @@ window.Assist = Assist;
     .replace("__ASSIST_RETRY__", ASSIST_COPY["retry"])
     .replace("__ASSIST_PENDING_HEADING__", ASSIST_COPY["pending_heading"])
     .replace("__ASSIST_RUBRIC_EMPTY__", ASSIST_COPY["rubric_empty"])
-    .replace("__ASSIST_LOCK_LABEL__", ASSIST_COPY["lock_label"])
-    .replace("__ASSIST_AUTHORED_HEADING__", ASSIST_COPY["authored_heading"])
-    .replace("__ASSIST_AUTHORED_EMPTY__", ASSIST_COPY["authored_empty"])
     .replace("__ASSIST_PROVENANCE_SUMMARY__", ASSIST_COPY["provenance_summary"]))
 
 
@@ -2865,6 +2855,37 @@ function mkSubmit(act, hint){
   return b;
 }
 
+function hintCard(row, locked){
+  const lines = locked ? (row.unlock_copy||[]).map(esc).join(" ") : esc(row.display||"");
+  const unavailable = !locked && row.available === false ? " unavailable" : "";
+  return `<li class="hint-card ${locked?"locked":"shown"}${unavailable}">
+    <h4>${esc(row.header)}</h4><p>${lines}</p></li>`;
+}
+function renderTeaching(card, result){
+  const teaching = (result && result.teaching) || {};
+  let region = card.querySelector(".support-region");
+  if(!region){ region=document.createElement("section"); region.className="support-region";
+    card.querySelector(".act").before(region); }
+  if(!teaching.available){
+    region.innerHTML = teaching.unavailable_reason
+      ? `<p class="assist-copy">${esc(teaching.unavailable_reason)}</p>` : "";
+    return;
+  }
+  const shown=(teaching.shown||[]).map(x=>hintCard(x,false)).join("");
+  const next=teaching.next_locked ? hintCard(teaching.next_locked,true) : "";
+  const further=(teaching.further_locked||[]).map(x=>hintCard(x,true)).join("");
+  const label=teaching.entitled ? "Open the next hint" : "I'm stumped &mdash; show the next hint";
+  const action=teaching.exhausted ? "" : `<div class="hint-actions"><button type="button"
+    class="go ghost" data-teach="${teaching.entitled?"hint":"stumped"}">${label}</button></div>`;
+  region.innerHTML=`<h3 class="hint-heading">Hints</h3><ol class="hint-ladder">${shown}${next}${further}</ol>${action}`;
+  const button=region.querySelector("[data-teach]");
+  if(button) button.onclick=()=>api("/api/teach",{session_id:sessionId,
+    action:{kind:button.dataset.teach}}).then(fresh=>renderTeaching(card,fresh));
+}
+function loadTeaching(card){
+  return api("/api/teach",{session_id:sessionId}).then(result=>renderTeaching(card,result));
+}
+
 function close(q, card, act, v, revert){
   /* Server-side refusal (plan 05-06): the daemon returned a normal
      `{"refused": ..., "refused_reason": ...}` body instead of a verdict --
@@ -2900,8 +2921,8 @@ function close(q, card, act, v, revert){
   const fb = feedbackFor(card);
   if(v.action === "hold"){
     if(revert) revert();
-    fb.innerHTML = `<div class="verdict n">Not correct yet — the card stays
-      open. Optional guidance is available under Help and evidence below.</div>`;
+    fb.innerHTML = `<div class="verdict n">Not correct. Try a different answer, or open the next hint.</div>`;
+    loadTeaching(card);
     return;
   }
   if(v.action === "defer_feedback"){

@@ -999,7 +999,7 @@ Plans:
 
 **Open decisions**: none. `13.5-UI-SPEC.md` §17's seven OPEN items each carried a default; item 7 (whether `.visual-status` may keep an announcing region) was resolved at plan time by reading `06.1-UI-SPEC.md`, which requires one persistent polite region — 06.1 wins and the row is a recorded exception, not a silent divergence.
 
-**Plans**: 6/8 plans executed across 7 waves (waves 1-2 done); RTS-01..RTS-12 assigned
+**Plans**: 7/8 plans executed across 7 waves (waves 1-2 done); RTS-01..RTS-12 assigned
 
 Plans:
 **Wave 1**
@@ -1025,7 +1025,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5)*
 
-- [ ] 13.5-07-PLAN.md — The wrong-answer surface: ladder UI, state machine, degraded path, three retirements (D-D)
+- [x] 13.5-07-PLAN.md — The wrong-answer surface: ladder UI, state machine, degraded path, three retirements (D-D)
 
 **Wave 7** *(blocked on Wave 6)*
 
