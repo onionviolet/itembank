@@ -6,6 +6,12 @@
 > `.planning/SOURCE-TO-COURSE.md` is binding. The primary user-facing object is
 > a course, objectives are its spine, and books, syllabi, notes, blueprints,
 > lessons, and banks are connected inputs and artifacts.
+> The "Product principles and boundaries" section below and synthesis sections 2
+> through 11 of `.planning/research/phase-16/14-synthesis.md` give the
+> course-workspace model. Bank-first phrasing and phase descriptions retained
+> further down are preserved shipped-runtime history, not a competing product
+> definition; they are superseded by the course-first model where they conflict,
+> and kept because the shipped runtime still stands under it.
 
 `itembank` is a source-to-course workspace built on a local-first assessment
 protocol and runtime for human and AI collaborators.
@@ -13,13 +19,18 @@ Today it tests: a markdown format contract with an actionable linter, six item t
 deterministic scoring behind one scorer, resumable JSON sessions, an offline HTML quiz,
 a graded loopback sitting, Anki TSV export, and a cross-subject `day` cockpit.
 
-The next milestone makes it a **comprehensive AI-assisted course builder and
-learning environment**. It discovers learner-approved sources, builds a cited
-objective and prerequisite map, chooses an appropriate treatment per objective,
-creates missing course artifacts under reviewable autonomy, provides rich
-learning and assessment UI, and closes the loop using evidence. A capable model
-is a course builder, analyst, and optional teacher; it is not the deterministic
-scorer.
+The next milestone makes it a **resumable course workspace** whose normal entry
+is a course, not a bank, a generated-artifact gallery, a universal dashboard, or
+a chat pane. A course connects approved source files, a versioned objective
+graph, reviewed treatment decisions per objective, accepted learning artifacts,
+runtime-governed practice and tests, learner-owned notes, honest evidence, and
+the next justified action, with recovery on a clean machine. It discovers
+learner-approved sources across multiple roots, builds a cited objective and
+prerequisite map, chooses an appropriate treatment per objective (direct source
+reading included), creates only genuinely missing artifacts under reviewable
+autonomy, and revises the path from recorded evidence. A capable model is a
+course builder, analyst, and optional teacher; it is not the deterministic
+scorer. (Synthesis sections 2 and 3.)
 
 It is for one learner — Weibao — across EMT, Math 1400, and CSCI 1100, with AI tutors
 as first-class clients of the same runtime a human uses.
@@ -49,6 +60,48 @@ artifacts, interpret metrics, propose remediation, and perform approved bounded
 writes. It cites sources, labels synthesis, reports uncertainty and denominators,
 and leaves acceptance and reversal visible. If a feature requires a second
 scorer, parser, or evidence store, the feature is wrong.
+
+## Product principles and boundaries
+
+Added 2026-08-13 from `.planning/research/phase-16/14-synthesis.md` (sections
+2.3, 5, 6, and 11). These are product-definition principles; the binding
+next-milestone scope remains `.planning/SOURCE-TO-COURSE.md`.
+
+**Accepted state.** Accepted course, lesson, bank, note, and evidence files are
+canonical. Acceptance records a revision and a fingerprint, and a superseded
+revision stays recoverable. Accepted content, workflow state, epistemic
+confidence, validation state, rights state, and availability are separate axes,
+never one flag.
+
+**Learner ownership.** The learner owns goals, paths within allowed constraints,
+private notes, scratch work, strategy preferences, and evidence export and
+deletion. Learner notes and artifacts stay separate records with their own
+ownership, privacy, and revision.
+
+**Rights.** Rights are operation-specific: read, quote, transform, remote
+process, package, export, and share are distinct grants. Unknown rights stay
+unknown and restrictive; an unsafe operation is refused rather than guessed.
+
+**Localization.** Canonical records carry language and direction. Right-to-left
+text, mixed code and math direction, CJK, combining marks, long strings, and
+localized numbers and units are acceptance fixtures, not afterthoughts.
+
+**Restoration.** Export is not complete until a clean-machine, offline restore
+validates a manifest and reports every loss. The core loop (reading, scoring,
+authored hints, evidence, and reports) survives with the network unplugged.
+
+**Boundaries that never bend.**
+
+- Derived views are not truth. Search indexes, HTML, caches, rankings, progress
+  views, media conversions, and job summaries are disposable projections of the
+  canonical files, never the only understandable copy.
+- Presentation is not authorization. Hiding a key, root, source, or reviewer
+  panel neither revokes file access nor protects a key; runtime and filesystem
+  boundaries do that.
+- Note content is not assessment authority. Learner notes may ground reflection,
+  retrieval proposals, and draft questions, but never silently become source
+  truth, lesson truth, an answer key, a score, or mastery without source-backed
+  review.
 
 ## Requirements
 

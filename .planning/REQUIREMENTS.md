@@ -260,43 +260,83 @@ These requirements implement `.planning/SOURCE-TO-COURSE.md`. They compose the
 shipped bank, lesson, audit, model, and evidence contracts rather than replacing
 them.
 
-### Course workspace
+> **Family expansion recorded 2026-08-13** (per `research/phase-16/14-synthesis.md`
+> section 14, `.planning/REQUIREMENTS.md` block). The three original next-milestone
+> families `COURSE-01..04`, `DIRECTOR-01..04`, and `LEARNUI-01..04` are superseded
+> and expanded into eighteen families that carry owner, durable object, authority,
+> degraded state, and verification gate on every clause. The original rows are kept
+> below with a supersession pointer, never deleted, so traceability holds. No scope
+> is dropped; each original clause maps forward through the table that follows.
+>
+> Two contract reversals are recorded here so they are not rediscovered later.
+> First, any reading of `COURSE-01`'s "objective hierarchy" as a universal
+> hierarchy or fixed prerequisite tree is superseded by the constrained typed graph
+> plus authored outline projection in `GRAPH-01` and `GRAPH-02` (per synthesis
+> sections 5 and 12.4). Second, any aggregate completion, mastery, or readiness
+> score is superseded by the independent honest-progress tuple in `GRAPH-03` (per
+> synthesis section 5 and the section 12.4 hard rejection of a single aggregate
+> score). Widget-specific lesson grammar is likewise superseded: teaching meaning
+> is expressed as semantic roles composed from shared primitives in `CAP-01`, not
+> as per-widget content types (per synthesis section 4).
 
-- [ ] **COURSE-01**: A course is a first-class, readable artifact that names its
+**Old-to-new family map (supersedes, does not delete):**
+
+| Superseded ID (2026-08-13) | Replacing requirements |
+|---|---|
+| COURSE-01 | GRAPH-01, GRAPH-03, FILE-01, ID-01, APP-01 |
+| COURSE-02 | FILE-02, RIGHTS-01 |
+| COURSE-03 | TREAT-02, ID-02 |
+| COURSE-04 | TREAT-01 |
+| DIRECTOR-01 | AGENT-02 |
+| DIRECTOR-02 | AGENT-01 |
+| DIRECTOR-03 | ACTIVITY-02 |
+| DIRECTOR-04 | AGENT-03, GRAPH-03 |
+| LEARNUI-01 | APP-01 |
+| LEARNUI-02 | CAP-01, FLOW-02 |
+| LEARNUI-03 | CAP-01, CAP-02 |
+| LEARNUI-04 | FLOW-01, A11Y-01, VISUAL-01 |
+
+### Course workspace (superseded 2026-08-13, retained for traceability)
+
+> The `COURSE-*`, `DIRECTOR-*`, and `LEARNUI-*` rows below are superseded by the
+> expanded families. Their text is preserved verbatim; see the map above for their
+> replacements.
+
+- [ ] **COURSE-01** (superseded 2026-08-13): A course is a first-class, readable artifact that names its
   target, learner, approved source and write roots, objective hierarchy,
   prerequisites, treatments, accepted artifacts, drafts, and evidence location;
   any machine index is derived and disposable.
 
-- [ ] **COURSE-02**: Discovery is read-only and root-bounded; scaffolding and
+- [ ] **COURSE-02** (superseded 2026-08-13): Discovery is read-only and root-bounded; scaffolding and
   binding are explicit, idempotent operations, and finding a file never grants
   permission to transmit or modify it.
 
-- [ ] **COURSE-03**: Every objective-to-source and coverage claim carries a stable
+- [ ] **COURSE-03** (superseded 2026-08-13): Every objective-to-source and coverage claim carries a stable
   locator, confidence, and state (`covered`, `thin`, `missing`, `conflicting`, or
   `unknown`); heading similarity alone cannot produce `covered`.
 
-- [ ] **COURSE-04**: Every objective has an explicit, reviewable treatment plan
+- [ ] **COURSE-04** (superseded 2026-08-13): Every objective has an explicit, reviewable treatment plan
   drawn from direct reading, excerpt, guided lesson, notes/terms, worked example,
   visual/demonstration, practice, test, assessment-first, or human review; direct
   reading is a complete result and generation is never the automatic default.
 
 ### AI course director and quality
 
-- [ ] **DIRECTOR-01**: Hosted coding-agent clients and registered local backends
+- [ ] **DIRECTOR-01** (superseded 2026-08-13): Hosted coding-agent clients and registered local backends
   reach the same course operations and schemas; backend choice changes capability,
   latency, and privacy disclosure, not the course artifact contract.
 
-- [ ] **DIRECTOR-02**: AI autonomy is scoped per operation as recommend-only,
+- [ ] **DIRECTOR-02** (superseded 2026-08-13): AI autonomy is scoped per operation as recommend-only,
   draft-and-review, or approved bounded writes; proposals cite sources, label
   synthesis, show quality findings, and are inspectable and recoverable.
 
-- [ ] **DIRECTOR-03**: Standardized-test courses require a cited, versioned
+- [ ] **DIRECTOR-03** (superseded 2026-08-13): Standardized-test courses require a cited, versioned
   blueprint mapping domains, weights, cognitive demand, item conventions,
   difficulty, timing, permitted tools, and feedback mode; knowledge courses use
   their actual syllabus and expected demand. The UI never claims exam fidelity
   without this mapping.
 
-- [ ] **DIRECTOR-04**: Evidence-based proposals name their observation window,
+- [ ] **DIRECTOR-04** (superseded 2026-08-13): Evidence-based proposals name their observation window,
   denominator, included and missing signals, uncertainty, and competing
   explanations. Sparse evidence cannot produce a mastery percentage or a confident
   causal claim. Accepted next actions remain recommendations until the learner or
@@ -304,25 +344,461 @@ them.
 
 ### Comprehensive learner UI
 
-- [ ] **LEARNUI-01**: The home surface is a course shelf and each course provides
+- [ ] **LEARNUI-01** (superseded 2026-08-13): The home surface is a course shelf and each course provides
   coherent Learn, Practice, Test, Sources, Course map, and Build/review areas; banks
   are assessment artifacts inside courses rather than the primary navigation unit.
 
-- [ ] **LEARNUI-02**: One parsed lesson supports continuous reader and guided modes;
+- [ ] **LEARNUI-02** (superseded 2026-08-13): One parsed lesson supports continuous reader and guided modes;
   neither mode creates a second parser or scorer, and a learner can move between
   direct source reading, lesson, practice, feedback, and the next course action
   without reconstructing context.
 
-- [ ] **LEARNUI-03**: Lessons render semantic teaching roles—hover/focus
+- [ ] **LEARNUI-03** (superseded 2026-08-13): Lessons render semantic teaching roles: hover/focus
   definitions, things-to-know blocks, expert or niche tips, warnings, worked
   examples, citations, diagrams, math, runnable code, inline checks, hints, and
   accessible visual interactions—with graceful unavailable states and no
   decorative block required by style alone.
 
-- [ ] **LEARNUI-04**: The reference course tracer demonstrates orient → predict or
+- [ ] **LEARNUI-04** (superseded 2026-08-13): The reference course tracer demonstrates orient → predict or
   act → observe → explain → changed-context transfer → evidence → next action at
   desktop and phone widths, including keyboard/screen-reader equivalence, model-
   unavailable operation, and no early keyed-content leak.
+
+### Expanded source-to-course families (added 2026-08-13)
+
+These eighteen families replace the three superseded families above, per
+`research/phase-16/14-synthesis.md` section 14. Each requirement names its owner,
+durable object, authority, degraded state, and verification gate; gate labels
+`G1` through `G12` are the synthesis section 16 exit gates. Registered, prototype,
+and backburner capabilities stay in traceability so architecture breadth survives
+staged implementation (per synthesis sections 1 and 12).
+
+#### GRAPH: objective graph, pathways, and honest progress
+
+- [ ] **GRAPH-01**: The durable instructional spine is a constrained, layered typed
+  graph of concepts and objectives; structural containment nodes accept local
+  labels (program, semester, module, week, unit, chapter) without schema change,
+  and structural order never implies prerequisite status. Owner: course builder via
+  curriculum-design. Durable object: course objective graph. Authority: versioned
+  course graph records. Degraded: with no graph, the authored outline projection
+  still reads in plain Markdown. Gate: G2, G5. (per synthesis sections 2.2, 5;
+  supersedes any universal-hierarchy reading of COURSE-01.)
+
+- [ ] **GRAPH-02**: Dependency edges carry type, authority, rationale, confidence,
+  and override policy; hard gates are exceptional, and alignment never implies
+  evidence transfer. Owner: course builder. Durable object: typed relation records.
+  Authority: course graph. Degraded: an unknown edge type renders as an advisory
+  recommended-before, never a hard block. Gate: G5. (per synthesis sections 2.2, 5.)
+
+- [ ] **GRAPH-03**: Progress is reported through the independent tuple (claim kind,
+  scope/version, numerator, denominator or indeterminate, rule, snapshot/window,
+  settled/pending/unknown, authority, uncertainty); the seven dimensions stay
+  separate and no single aggregate completion, mastery, or readiness score is
+  produced. Owner: runtime for settled evidence, course records for design
+  coverage. Durable object: progress claim. Authority: evidence store and course
+  records by dimension. Degraded: a missing denominator reports indeterminate,
+  never an invented percent. Gate: G5. (per synthesis section 5; supersedes the
+  aggregate-score idea rejected in section 12.4.)
+
+- [ ] **GRAPH-04**: Objective splits, merges, renames, and changed demand generate
+  reviewed migration proposals; historical evidence is never transferred
+  automatically. Owner: reviewer via curriculum-design. Durable object: migration
+  relation. Authority: reviewer acceptance. Degraded: unmigrated evidence stays on
+  the original objective identity and reads as unknown for the new one. Gate: G5.
+  (per synthesis sections 5, 6; section 12.4 rejection of automatic transfer.)
+
+#### FILE: multi-root files, discovery, and operations
+
+- [ ] **FILE-01**: A course links user files where they live and edits owned files
+  in place across multiple approved roots (vault, source, bank, note directories).
+  Owner: learner and course builder. Durable object: linked or owned file plus
+  metadata. Authority: filesystem bytes plus course binding records. Degraded: an
+  unreachable root reports unavailable and the course opens over the last valid
+  index. Gate: G3. (per synthesis section 6.)
+
+- [ ] **FILE-02**: Discovery is read-only, root-bounded, cancellable, resumable,
+  symlink-safe, and useful before completion; it never grants transmit, transform,
+  execute, or write authority. Owner: discovery-and-binding skill. Durable object:
+  disposable discovery index. Authority: read-root approval. Degraded: an
+  interrupted scan yields partial, clearly-marked results with omissions visible.
+  Gate: G3, G11. (per synthesis sections 3, 6, 11.5; retains COURSE-02.)
+
+- [ ] **FILE-03**: Link, import, copy, move, supersede, and migrate are distinct
+  operations with distinct identity effects and approval and recovery semantics; no
+  automatic merge is permitted and name similarity is only a search hint. Owner:
+  course builder. Durable object: operation record plus affected files. Authority:
+  explicit per-operation approval. Degraded: an ambiguous match is surfaced for
+  manual reconciliation, never merged. Gate: G3. (per synthesis section 6 table;
+  supersedes name-based identity rejected in section 12.4.)
+
+#### ID: stable identity, fingerprints, and versions
+
+- [ ] **ID-01**: Every durable object carries a stable opaque ID plus fingerprint,
+  revision, and the applicable profile, source, and generator versions, each with a
+  distinct purpose. Owner: runtime and course records. Durable object: identity
+  fields on every object. Authority: minting is a runtime or course operation.
+  Degraded: a missing fingerprint blocks a compare-and-swap write rather than
+  allowing a blind overwrite. Gate: G2, G3. (per synthesis section 6.)
+
+- [ ] **ID-02**: Hashes detect change but never prove identity, truth, authorship,
+  or rights; same ID with divergent bytes is a conflict, same fingerprint with
+  different IDs suggests a copy, and a moved path with the same ID is a move
+  candidate. Owner: runtime. Durable object: identity and conflict state. Authority:
+  runtime identity rules. Degraded: an undecidable case is reported as a conflict
+  for review. Gate: G3. (per synthesis section 6; retains COURSE-03; supersedes
+  hash, path, or name as durable identity, rejected in section 12.4.)
+
+#### TREAT: treatment decisions and source binding
+
+- [ ] **TREAT-01**: Every objective has an explicit, reviewable treatment chosen
+  from direct reading, excerpt, guided lesson, notes or terms, worked example,
+  visual or demonstration, practice, formal test, assessment-first diagnostic,
+  learner artifact, or human review; direct reading is a complete result and
+  generation is never the automatic default. Owner: course builder via absorb-book.
+  Durable object: treatment binding. Authority: reviewer acceptance. Degraded: an
+  objective with no chosen treatment reads as untreated, never silently generated.
+  Gate: G7. (per synthesis sections 3 Loop B, 7; retains COURSE-04.)
+
+- [ ] **TREAT-02**: Every objective-to-source and coverage claim carries a stable
+  locator, confidence, and state (covered, thin, missing, conflicting, unknown);
+  heading or name similarity alone cannot produce covered. Owner: course builder.
+  Durable object: source binding. Authority: reviewed binding records. Degraded: an
+  unverifiable claim reads as unknown, not covered. Gate: G7. (per synthesis
+  section 2.2; retains COURSE-03.)
+
+#### FLOW: core end-to-end loops
+
+- [ ] **FLOW-01**: The seven core loops (A discover and bind, B design a course, C
+  learn and construct notes, D practice and test, E evidence and remediation, F
+  author, review, and accept, G maintain, recover, and leave) are the product's
+  end-to-end acceptance surface, each resumable with an exact position and a next
+  justified action. Owner: runtime plus app. Durable object: session and course
+  state. Authority: runtime for assessment loops, course records elsewhere.
+  Degraded: an interrupted loop preserves the last accepted state and exposes the
+  next safe action. Gate: G8. (per synthesis section 3; retains LEARNUI-04.)
+
+- [ ] **FLOW-02**: A learner moves between direct source reading, lesson, practice,
+  feedback, and the next course action without reconstructing context, and no loop
+  introduces a second parser or scorer. Owner: app. Durable object: navigation and
+  resume state. Authority: runtime. Degraded: a model-unavailable state still allows
+  reading, scoring, the authored hint ladder, evidence, and reports. Gate: G8. (per
+  synthesis section 3 Loops C and D; retains LEARNUI-02.)
+
+#### CAP: semantic lesson capability catalog
+
+- [ ] **CAP-01**: One parsed canonical lesson supports both continuous reader and
+  guided modes and renders semantic teaching roles (key idea, warning, prerequisite,
+  misconception, expert tip, worked example, counterexample, source excerpt, term
+  and definition, uncertainty, summary, inline check, hint, accessible visual
+  interaction) composed from shared primitives, not separate content types. Owner:
+  lesson-authoring skill. Durable object: canonical Markdown lesson. Authority: one
+  parser. Degraded: an unknown optional semantic renders its fallback with a warning;
+  an unknown required semantic fails safely. Gate: G4. (per synthesis sections 4,
+  7.1; retains LEARNUI-03; supersedes widget-specific lesson grammar.)
+
+- [ ] **CAP-02**: Each semantic capability declares an accessible-behavior,
+  offline-fallback, renderer-availability, version, validation, and known-limits
+  profile; no decorative block is required by style alone. Owner: capability owner
+  via MAINT. Durable object: capability support profile. Authority: capability
+  registry. Degraded: an unavailable renderer shows the static instructional path.
+  Gate: G4. (per synthesis sections 4.1, 4.2.)
+
+- [ ] **CAP-03**: Registered output modes (notebook page, outline, Cornell notes,
+  concept map, glossary, formula sheet, timeline, comparison table, study guide,
+  source-extracted notes) compose from shared note and activity schemas plus
+  provenance; a new canonical type is minted only when validation or behavior
+  genuinely differs. Owner: lesson-authoring skill. Durable object: registered
+  output-mode record. Authority: capability registry. Degraded: an unregistered mode
+  stays a backburner catalog entry naming its shared primitive, dependency, cost,
+  and trigger. Gate: G4, G12. (per synthesis sections 12.2, 12.3; breadth
+  preservation.)
+
+#### ACTIVITY: purpose-first activities and runtime-owned assessment
+
+- [ ] **ACTIVITY-01**: Every activity declares purpose, cognitive demand, objective,
+  stimulus or source, response schema, retry behavior, feedback and disclosure
+  policy, evidence status, accessibility equivalence, and static fallback; existing
+  response forms serve many purposes and a new item type is warranted only when
+  scoring semantics or response structure cannot be expressed safely. Owner:
+  author-bank and lesson-authoring. Durable object: activity record. Authority:
+  runtime for scored assessment. Degraded: an unsupported response form falls back
+  to its declared static equivalent. Gate: G6, G7. (per synthesis section 7.3.)
+
+- [ ] **ACTIVITY-02**: Formal assessment fidelity requires a cited, versioned
+  blueprint (construct, domain weight, demand, format, difficulty, timing, tools,
+  feedback conditions); the UI never claims exam fidelity without it, and
+  practice-generated questions stay drafts until parser, lint, review, blueprint,
+  and runtime gates pass. Owner: course builder via author-bank. Durable object:
+  blueprint plus frozen form. Authority: runtime and reviewer. Degraded: absent a
+  blueprint, the course presents practice without an exam-fidelity claim. Gate: G6,
+  G7. (per synthesis section 7.3; retains DIRECTOR-03.)
+
+- [ ] **ACTIVITY-03**: The runtime alone scores, grants keyed disclosure, selects
+  authoritative assessment behavior, and writes assessment evidence; prose remains
+  pending until approved marking, and no surface, agent, note, import, or visual
+  leaks a key, invents a score, auto-grades prose, or changes a frozen sitting.
+  Owner: deterministic runtime. Durable object: attempt evidence event. Authority:
+  runtime. Degraded: with no model, formal sittings run unchanged under runtime
+  authority. Gate: G6. (per synthesis sections 2.3, 4.2.)
+
+#### NOTE: learner-owned notes and artifacts
+
+- [ ] **NOTE-01**: Notes are learner-owned artifacts, never annotations baked into
+  accepted lessons, and carry note ID, ownership, course and objective relation,
+  anchor or selector, source or lesson revision, authorship type, strategy, text or
+  structure, privacy, revision, and optional promotion or review state. Owner:
+  learner. Durable object: note file or learner record. Authority: learner.
+  Degraded: a stale anchor keeps the note attached to its objective and flags the
+  broken selector. Gate: G9. (per synthesis section 7.2.)
+
+- [ ] **NOTE-02**: Notes may ground reflection, retrieval proposals, and draft
+  questions but never silently become accepted source, lesson, key, score, or
+  mastery; promotion requires explicit source-backed review. Owner: reviewer.
+  Durable object: promotion and review record. Authority: reviewer acceptance over
+  source-backed content. Degraded: an unreviewed note stays learner-private and
+  non-authoritative. Gate: G9, G6. (per synthesis section 7.2; section 12.4
+  rejection of silent promotion.)
+
+- [ ] **NOTE-03**: A learner artifact (proof, program, diagram, explanation,
+  project, observation) carries a rubric and pending or review state and produces
+  descriptive or pending evidence until reviewed. Owner: learner and reviewer.
+  Durable object: learner-owned file plus evidence relation. Authority: runtime
+  records pending, reviewer settles. Degraded: unreviewed artifacts read as pending,
+  never as settled mastery. Gate: G9. (per synthesis section 7.3.)
+
+#### STRATEGY: registered finite learning strategies
+
+- [ ] **STRATEGY-01**: Learning strategies are a finite registered set (continuous
+  reading, guided note spine, worked reasoning, retrieval-first or assessment-first
+  where policy permits) sharing canonical objects; each states purpose, eligibility,
+  required and optional learner actions, skip and resume, evidence effects,
+  accommodations, offline behavior, and tests. Owner: course builder within the
+  catalog. Durable object: versioned strategy registry. Authority: objective and
+  blueprint eligibility plus runtime for assessment. Degraded: an unavailable
+  strategy falls back to continuous reading. Gate: G9. (per synthesis sections 7.2,
+  8.)
+
+- [ ] **STRATEGY-02**: Learner preference, author or course strategy, objective
+  constraint, accommodation override, instructor policy, runtime authority, and
+  system safety are ordered precedence layers; a learner chooses only among allowed
+  strategies and runtime assessment behavior is never user-configurable during a
+  sitting. Owner: layered per row. Durable object: preference and policy records.
+  Authority: the precedence order is fixed. Degraded: a conflicting preference
+  yields to the higher layer with a stated reason. Gate: G9. (per synthesis section
+  8 table.)
+
+#### RIGHTS: rights by operation and egress
+
+- [ ] **RIGHTS-01**: Rights are operation-specific (read, quote, transform, remote
+  process, package, export, share) recorded per source; unknown stays unknown and
+  restrictive, and finding a file never grants permission to transmit or modify it.
+  Owner: source owner plus learner policy. Durable object: rights grant record.
+  Authority: local policy record. Degraded: an unknown right refuses the unsafe
+  operation by name. Gate: G11. (per synthesis sections 2.2, 6, 11.2; retains
+  COURSE-02.)
+
+- [ ] **RIGHTS-02**: Hosted operations minimize and disclose exact egress, agents
+  receive only approved source spans and operation authority, and presentation
+  visibility is never authorization. Owner: agent client plus runtime. Durable
+  object: operation manifest plus egress log. Authority: rights and egress policy.
+  Degraded: no reachable backend keeps all core work local and model-free. Gate:
+  G11. (per synthesis sections 2.3, 10, 11.1; section 12.4 rejection of presentation
+  state as authorization.)
+
+#### A11Y: authored-output accessibility and localization
+
+- [ ] **A11Y-01**: Representative authored outputs pass keyboard, touch,
+  screen-reader, zoom and reflow, high-contrast, reduced-motion, and equivalent-task
+  review; WCAG checks are necessary but insufficient and AI never self-certifies
+  accessibility. Owner: reviewer plus capability owner. Durable object:
+  accessibility review record. Authority: human acceptance. Degraded: an output
+  failing equivalence review is not accepted; its inaccessible form is rejected
+  while the capability remains pending equivalence. Gate: G4, G11. (per synthesis
+  section 11.4; section 12.4 rejection of hover-only or visual-only equivalence.)
+
+- [ ] **A11Y-02**: Canonical records carry language and direction, and localization
+  fixtures cover RTL, mixed code and math direction, CJK, combining marks, long
+  strings, localized numbers and units, and culturally dependent examples. Owner:
+  lesson-authoring plus MAINT. Durable object: localization fixtures plus language
+  metadata. Authority: capability validation. Degraded: an unhandled locale renders
+  a clearly-marked fallback rather than corrupt text. Gate: G4, G11. (per synthesis
+  section 11.3.)
+
+#### PORT: portability, interchange, and restore
+
+- [ ] **PORT-01**: The canonical lesson is UTF-8 Markdown with shallow metadata and
+  an additive, versioned semantic profile; complete core meaning, captions,
+  citations, definitions, static activity instructions, and media alternatives
+  remain readable outside the app, and derived HTML, index, or cache is never the
+  sole understandable copy. Owner: lesson-authoring. Durable object: canonical
+  Markdown file. Authority: one parser. Degraded: an unknown optional semantic
+  renders its fallback; derived views are disposable and rebuildable. Gate: G10, G4.
+  (per synthesis section 6; section 12.4 rejection of derived-only meaning.)
+
+- [ ] **PORT-02**: Portability is reported at five levels (readable, structurally
+  editable, behaviorally executable, evidence-preserving, round-trip safe);
+  interchange adapters carry a supported profile, conformance fixtures, and an
+  explicit semantic loss report; EPUB and narrow QTI are prototypes, and broader
+  packaging waits for a named consumer. Owner: export and adapter owner. Durable
+  object: export package plus loss report. Authority: adapter conformance suite.
+  Degraded: an unsupported capability appears in the loss report, never silently
+  dropped. Gate: G10. (per synthesis sections 4.2, 6; section 12.5 backburner.)
+
+- [ ] **PORT-03**: Export is not complete until a clean-machine, offline restore
+  validates a manifest and reports every loss, restoring all supported canonical
+  objects and evidence. Owner: packaging owner. Durable object: restore manifest.
+  Authority: restore validation. Degraded: a restore gap is reported against the
+  manifest, not silently accepted. Gate: G10. (per synthesis section 6.)
+
+#### RELIABILITY: atomic mutation, journals, and staleness
+
+- [ ] **RELIABILITY-01**: Every durable mutation uses an expected-base fingerprint
+  compare-and-swap, temporary output, validation, atomic commit, and an operation
+  journal; fault injection yields the old or new valid state, never a mixed state.
+  Owner: runtime plus operation owner. Durable object: journaled operation.
+  Authority: runtime write path. Degraded: crash, disk-full, offline, or
+  permission-denied preserves the last accepted state. Gate: G3. (per synthesis
+  sections 6, 11.7.)
+
+- [ ] **RELIABILITY-02**: Agent and maintenance operations run through a durable
+  local operation journal with intent, actor, scopes, inputs, expected fingerprints,
+  phases, checkpoints, proposals, validation, and undo, shared across hosted, local,
+  and manual continuation. Owner: agent client. Durable object: operation journal.
+  Authority: the journal is the durable job record, not a chat transcript. Degraded:
+  an interrupted job resumes or reverses from its last checkpoint. Gate: G3, G12.
+  (per synthesis sections 2.2, 10.)
+
+- [ ] **RELIABILITY-03**: External, source, or version changes mark affected
+  bindings and proposals stale and require a rebind, migrate, supersede, or retain
+  review; a stale derivative is rebuilt, never trusted silently. Owner: course
+  builder plus UPGRADE. Durable object: staleness and dependency state. Authority:
+  reviewer for rebinding. Degraded: a stale proposal is shown as stale and blocked
+  from acceptance until reconciled. Gate: G3. (per synthesis sections 3 Loop G, 6.)
+
+#### APP: course-first information architecture and packaging
+
+- [ ] **APP-01**: The home surface is a course shelf with an exact resume cue and
+  attention state; each course exposes Overview, Learn, Practice, Test, Course map
+  (outline first), Sources, Build and review, Evidence, and contextual Notes; banks
+  are assessment artifacts inside courses, not the primary navigation unit. Owner:
+  app. Durable object: course plus IA routes. Authority: course records. Degraded: a
+  course that fails to load shows its last valid overview and plain-file access.
+  Gate: G8. (per synthesis section 9.1; retains LEARNUI-01.)
+
+- [ ] **APP-02**: Navigation uses stable opaque deep links and anchors, explicit
+  parent and back semantics, focus and scroll restoration, and the same routes
+  across wide and narrow layouts; chat is contextual to an object or operation,
+  never the home or sole job record. Owner: app. Durable object: route and anchor
+  identity. Authority: app routing. Degraded: a narrow screen stacks supporting
+  panes as destinations without losing routes. Gate: G8. (per synthesis section 9.1;
+  section 12.4 rejection of chat-first home.)
+
+- [ ] **APP-03**: First launch offers a clearly synthetic, removable sample course
+  and a skippable, replayable walkthrough reachable without granting source roots or
+  configuring an agent; help is offline and routes from named error codes, and long
+  jobs never block learning or invent a percent when the denominator is unknown.
+  Owner: app plus packaging. Durable object: sample course plus offline help bundle.
+  Authority: app. Degraded: agent or network failure preserves local Learn,
+  Practice, Test, Evidence, and search over the last valid index. Gate: G8, G10.
+  (per synthesis section 9.2.)
+
+#### VISUAL: visual system and fixed rules
+
+- [ ] **VISUAL-01**: The default visual direction is Structured Studio with Quiet
+  Workbench density for long reading and bounded Guided Canvas staging for guided
+  moments; all three project the same semantic flow rather than three products.
+  Owner: visual system via UI-SPEC. Durable object: visual token set. Authority:
+  fixed hierarchy and accessibility rules override theme. Degraded: missing theme
+  assets fall back to the accessible default palette. Gate: G8. (per synthesis
+  section 9.3.)
+
+- [ ] **VISUAL-02**: Configurable tokens (light and dark palette, density, reading
+  measure within safe bounds, approved local fonts, modest surface treatment,
+  optional motion) are separated from fixed rules (content hierarchy, status
+  meaning, focus visibility, contrast, keyboard order, target size, zoom and reflow,
+  reduced motion, non-color state cues, source and acceptance visibility, semantic
+  equivalence across widths); authors select semantic roles, never raw colors,
+  shadows, coordinates, arbitrary icons, or animation. Owner: visual system. Durable
+  object: token and rule split. Authority: fixed rules are non-configurable.
+  Degraded: an out-of-bounds token clamps to its safe range. Gate: G8. (per
+  synthesis section 9.3.)
+
+#### AGENT: operation protocol and backend parity
+
+- [ ] **AGENT-01**: All clients implement one operation protocol (declare intent;
+  declare approved roots, rights, egress, write, and execute authority; inventory
+  before creating; plan treatment; checkpoint; draft the smallest missing artifact;
+  cite and label synthesis; run deterministic validation; render accessible, plain,
+  and rich previews; show a bounded diff; pass configured review; commit atomic
+  acceptance; update dependency and staleness; report undo and uncertainty). Owner:
+  agent client. Durable object: operation journal plus accepted revision. Authority:
+  reviewer for acceptance, runtime for assessment. Degraded: an unavailable agent
+  leaves the core loop fully operable. Gate: G6, G12. (per synthesis section 10;
+  retains DIRECTOR-02.)
+
+- [ ] **AGENT-02**: Hosted coding-agent and registered local backends reach the same
+  operations and schemas; backend choice changes capability, latency, cost, and
+  privacy disclosure, not the artifact or authority contract, and an agent may
+  recommend, draft-and-review, or perform approved bounded writes but never
+  self-expand scope, self-certify accessibility, transfer evidence, or cross runtime
+  disclosure. Owner: agent client. Durable object: operation manifest. Authority:
+  runtime and reviewer. Degraded: backend loss falls back to another registered
+  backend or manual continuation. Gate: G6, G12. (per synthesis section 10; retains
+  DIRECTOR-01.)
+
+- [ ] **AGENT-03**: Evidence-based proposals name their observation window,
+  denominator, included and missing signals, uncertainty, and competing
+  explanations; sparse evidence cannot produce a mastery percentage or a confident
+  causal claim, and accepted next actions remain recommendations until the learner
+  or deterministic selection policy acts. Owner: agent client. Durable object:
+  proposal record. Authority: the learner or selection policy acts, not the model.
+  Degraded: sparse evidence yields an explicitly uncertain recommendation. Gate: G5,
+  G7. (per synthesis sections 5, 10; retains DIRECTOR-04.)
+
+#### UPGRADE: legacy-artifact audit and upgrade
+
+- [ ] **UPGRADE-01**: Legacy-artifact upgrades begin with a baseline audit (current
+  parse, identity, fingerprint, objectives, sources, rights, media, assessment
+  boundaries, plain rendering, rich rendering, validation) and present a bounded
+  diff before editing; stable identity and source history are preserved and cosmetic
+  novelty is rejected. Owner: legacy-upgrade skill. Durable object: audited artifact
+  plus accepted revision. Authority: reviewer acceptance. Degraded: an artifact that
+  cannot express an enhancement retains its form and links a derived enhancement
+  with its portability cost. Gate: G6. (per synthesis section 10.)
+
+- [ ] **UPGRADE-02**: Assessment-semantic changes (keyed content, difficulty,
+  objective alignment) are separate reviewed revisions and are never silently
+  changed by an upgrade. Owner: reviewer. Durable object: reviewed assessment
+  revision. Authority: runtime and reviewer. Degraded: an upgrade touching keyed
+  meaning halts for explicit assessment review. Gate: G6. (per synthesis section 10;
+  CLAUDE.md audit-before-editing rule.)
+
+#### MAINT: capability ownership, breadth, and diagnostics
+
+- [ ] **MAINT-01**: Every capability has an owner, version, validator, fallback,
+  dependency and license record, research refresh trigger, migration rule, fixtures,
+  and retirement path; unsupported capabilities degrade visibly. Owner: named
+  maintenance owner. Durable object: capability catalog entry. Authority: capability
+  registry. Degraded: an unmaintained capability is marked degraded, not silently
+  broken. Gate: G12. (per synthesis section 11.9.)
+
+- [ ] **MAINT-02**: Architecture breadth is preserved through the capability
+  catalog: registered, prototype, and backburner capabilities name their shared
+  primitive, dependency, cost, and revisit trigger and remain in traceability even
+  when implementation is staged; hard rejections keep the full section 12.4 ledger
+  row and cannot be silently reintroduced or deleted. Owner: maintenance owner.
+  Durable object: disposition ledger. Authority: the append-only ledger. Degraded:
+  an untimely capability stays a backburner entry rather than being dropped. Gate:
+  G12. (per synthesis sections 12, 12.4, 12.5; breadth preservation.)
+
+- [ ] **MAINT-03**: Diagnostics redact secrets, protected content, private paths in
+  portable reports, and keys; evaluation of learning, authoring quality,
+  time-to-course, search, and recovery uses local synthetic or consented fixtures,
+  and page views, clicks, streaks, and time are never learning evidence. Owner:
+  maintenance owner. Durable object: redacted diagnostics bundle. Authority: local
+  policy. Degraded: a report that cannot be redacted is withheld rather than leaked.
+  Gate: G11, G12. (per synthesis sections 11.1, 11.8; section 12.4 rejection of
+  engagement-as-mastery.)
 
 ## v2 Requirements
 

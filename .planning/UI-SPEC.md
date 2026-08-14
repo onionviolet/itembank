@@ -302,6 +302,11 @@ Approval opens an explicit confirmation naming the one reversible unit. Success 
 
 ## 7. Visual Direction and Tokens
 
+> **Pointer added 2026-08-13:** the next-milestone default visual *direction* is
+> Structured Studio, with contextual Quiet Workbench density and bounded Guided
+> Canvas staging; see §15.3. The Paper/Ledger/Chrome/Code voice tokens below are
+> its typographic layer and are unchanged.
+
 ### System
 
 | Property | Contract |
@@ -691,6 +696,139 @@ Every browser-facing plan must include:
 | 3 | Typed adapter status/provenance and subject profiles | model unavailable/drop plus fourth-profile fixture pass |
 | 4 | Today/report recommendation cards | unknown/sufficient evidence and Anki separation pass |
 | 5 | Author/audit report-only → approval UI | source→claim→diff→one reversible write is inspectable |
+
+---
+
+## 15. Source-to-course UI additions (2026-08-13)
+
+**Source:** `.planning/research/phase-16/14-synthesis.md` sections 3, 5, 9, and
+11. These clauses extend this contract for the next milestone (subphases 14A
+through 17B in synthesis section 15). They are additive: sections 1 through 14
+govern the shipped phase 3 to 11 surfaces and are not rewritten here, and
+**section 8's nine accessibility gates remain LOCKED and untouched**. Where older
+dashboard-first, bank-first, or standalone visual-card language conflicts with
+the shared semantic primitives below, §15.5 marks it superseded.
+
+### 15.1 Course-first information architecture and navigation
+
+**RECOMMENDED (synthesis 9.1):** the normal entry is a resumable course, not a
+bank, a generated-artifact gallery, a universal dashboard, or a chat pane.
+
+App level:
+
+| Area | Purpose |
+|---|---|
+| Home | course shelf with an exact resume cue and per-course attention state |
+| Search | accepted and draft objects across approved indexed roots, with result type, provenance, validation, and index age |
+| Activity | durable agent and maintenance jobs, needs-input, outcomes, and recovery |
+| Utilities | Help, Settings, Diagnostics |
+
+Course level:
+
+| Area | Purpose |
+|---|---|
+| Overview | current goal, next justified action, blockers, alternate actions |
+| Learn | direct readings, lessons, guided activities, and contextual notes |
+| Practice | formative activities and runtime-governed remediation |
+| Test | quiet formal sitting with only permitted controls |
+| Course map | outline first, graph and coverage projections second |
+| Sources | scope, rights, bindings, locators, conflicts, and source inspection |
+| Build/review | treatments, drafts, diffs, validation, acceptance, upgrades |
+| Evidence | honest snapshots and remediation rationale |
+| Notes | contextual within Learn and Evidence first; a cross-course destination is deferred until real use demonstrates the need |
+
+**Route, deep-link, and resume semantics (RECOMMENDED, synthesis 9.1):**
+navigation uses stable opaque deep links and anchors, explicit parent and back
+semantics, and focus and scroll restoration. The same routes serve wide and
+narrow layouts; supporting panes become stacked destinations on narrow screens.
+Chat is contextual to an object or operation, never the home or the sole job
+record.
+
+**Durable jobs (RECOMMENDED, synthesis 9.2 and loop G):** long agent and
+maintenance jobs never block learning and never invent a percent when the
+denominator is unknown. A job survives an app restart through the operation
+journal, exposes needs-input and outcome states, and always offers the next safe
+action.
+
+**Approval hierarchy (LOCKED shape, synthesis section 8 layer table):** who may
+change what is layered, and a lower layer never overrides a higher one during a
+sitting: learner preference, author or course strategy, objective constraint,
+accommodation override, instructor policy, runtime authority, and system safety.
+Runtime authority (scoring, selection policy, keyed disclosure, retries,
+formal-test pause, pending prose) is fixed and not user-configurable mid-sitting.
+
+**Error and recovery matrix (RECOMMENDED, synthesis loops A and G, 9.2):**
+
+| State | Required behavior |
+|---|---|
+| Crash or forced quit | Restore the last accepted state; no partial write is visible |
+| Cancellation | Discovery and jobs are cancellable and resumable; partial results are labeled, never committed silently |
+| Disk full or interrupted write | Fault yields the old or the new valid state, never a mixed one; the journal names the next step |
+| Offline | Reading, scoring, authored hints, evidence, and reports continue; model-only actions become explicit unavailable controls |
+| Permission denied | The denied path is reported; the operation refuses rather than partially applying |
+| Future or unknown schema | Unknown required semantics fail safely; unknown optional semantics render a fallback with a warning |
+| Agent unavailable | The authored loop continues; a single learner-initiated retry is linked to the original interaction |
+
+### 15.2 Structured equivalents for rich objects (RECOMMENDED, synthesis sections 4 and 5)
+
+Every rich or visual object carries a semantic, keyboard-reachable equivalent
+scored or read through the same canonical record. This extends §8 gate 5; it does
+not replace it.
+
+| Object | Structured equivalent |
+|---|---|
+| Course map or concept graph | Outline projection first, with the same node identities, parent and back semantics, and coverage denominators as the graph view; the graph is a secondary projection |
+| Supporting pane (sources, hints, agent, evidence) | Follows the activity in DOM order, becomes a stacked destination on narrow screens, and never takes focus after an ordinary submit |
+| Diff and acceptance | Text diff of base, current, and proposal with citations and gate results; approve and reject are separate controls; acceptance records actor and undo id |
+| Interactive activity | Visible instructions plus equivalent native controls; the committed semantic action persists, raw pointer noise does not |
+| Progress claim | The honest-progress tuple: claim kind, scope and version, numerator, denominator or indeterminate, rule, snapshot or window, settled/pending/unknown, authority, and uncertainty; never one aggregate score |
+
+### 15.3 Visual direction: Structured Studio (RECOMMENDED, synthesis 9.3, supersedes prior default-direction language)
+
+Adopt **Structured Studio** as the default visual direction. Borrow **Quiet
+Workbench** calm density for long reading and review, and use **Guided Canvas**
+staging only inside bounded guided-learning moments. The three compose because all
+project the same semantic flow; this is one product, not three theme-specific
+products. The Paper/Ledger/Chrome/Code voice system in §7 is the typographic layer
+of this direction and is unchanged.
+
+- **Configurable tokens:** light and dark palette, density, reading measure within
+  safe bounds, font choice from approved local assets, modest surface treatment,
+  and optional motion.
+- **Fixed rules (not configurable):** content hierarchy, status meaning, focus
+  visibility, contrast, keyboard order, target size, zoom and reflow, reduced
+  motion, non-color state cues, source and acceptance visibility, and semantic
+  equivalence across widths. Authors select semantic roles, never raw colors,
+  shadows, coordinates, arbitrary icons, or animation.
+
+### 15.4 Additional acceptance scenarios (mandatory fixtures, synthesis sections 7, 9, 11)
+
+These extend §10; each is an integration and UAT fixture.
+
+| # | Goal and visible state | Pass condition |
+|---|---|---|
+| 11 | Required note construction in a guided strategy | The required action states its purpose and offers an accessible equivalent or a justified skip; a copied note alone is not credited as understanding, and the note never becomes a key |
+| 12 | Rights and egress before a hosted operation | Exact egress is disclosed and equals the captured manifest; rights-unknown refuses the unsafe operation; no evidence or bank content leaves the disk at rest |
+| 13 | External edit conflict on an owned file | Same ID with divergent bytes is a conflict, never a silent overwrite; the learner sees base, current, and proposal and chooses; the prior revision stays recoverable |
+| 14 | Offline sitting | Lesson, submit, authored ladder, evidence, and report remain usable with the network disabled; model-only controls read as explicitly unavailable |
+| 15 | Localization fixture | RTL, mixed code and math direction, CJK, combining marks, long strings, and localized numbers and units render without clipping provenance or breaking reading order |
+| 16 | Packaged offline help | Help is offline and routes from named error codes; a first local success is reachable without granting source roots or configuring an agent |
+
+### 15.5 Superseded presentation language (2026-08-13)
+
+Marked superseded, retained for history per the additive rule. The underlying
+user value is kept through the shared semantic primitives above.
+
+- Any "dashboard" framing that places aggregate metrics above the next
+  instructional action is superseded by the Overview and the honest-progress
+  tuple (§15.1, §15.2). Principle 3 in §2 already forbids a separate metric
+  dashboard; this records it as a supersession for the course-first IA.
+- Bank-first entry language is superseded by the course-first Home and course
+  shelf (§15.1). The bank remains a durable object and a validated input, not the
+  primary entry.
+- Standalone "visual card" inventories are superseded by semantic teaching blocks
+  and registered output modes that compose from shared relations; a card is a
+  presentation of a semantic block, not a content type of its own.
 
 ---
 

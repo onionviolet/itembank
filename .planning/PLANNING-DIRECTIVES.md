@@ -116,6 +116,57 @@ pick one and say why.
 Applies directly to: lesson styles, hint pacing, scheduler algorithm, refusal
 copy, reading layout, selection strategy, TTS engine, model backend.
 
+**Qualification added 2026-08-13 (synthesis sections 1, 1.2, and 8).** "Build
+both" is not unconditional. A second design is registrable only when it shares
+the canonical semantics, authority, accessibility, permission, recovery, and
+maintenance contracts. Concretely, a strategy or mode may be registered only if
+it shares the canonical objects, states a purpose and eligibility rule, defines
+required and optional learner actions, skip and resume, evidence effects,
+accommodations, offline behavior, and tests. When two options cannot share those
+contracts (two parsers, two scorers, two evidence stores, or a genuinely mutually
+exclusive design that cannot share an interface), you pick one and say why, or you
+prototype reversibly first. Avoid a Cartesian product of arbitrary style toggles.
+
+## 3a. Disposition, breadth, and accepted-recommendation discipline
+
+Added 2026-08-13 from `.planning/research/phase-16/14-synthesis.md` sections 1,
+12, and 15.
+
+**Breadth is preserved by default.** Ideaboarding breadth is not narrowed by
+coalescing. Coalescing gives broad capabilities one coherent architecture and
+shared primitives; it organizes viable proposals into `core now`, `registered`,
+`prototype`, or `backburner`. A capability is not dropped merely because it is
+optional, expensive, specialized, or absent from the next wave. **Simplicity
+alone is not a rejection reason.** Rejection is reserved for conflict with
+assessment authority, accessibility, rights or licensing, safety, truthful
+evidence, portability, or the coherent product model, including a genuinely
+mutually exclusive design that cannot share an interface.
+
+**Append-only rejection record.** A rejected or superseded idea is never deleted,
+even when the surrounding architecture changes. Each entry records: the proposal,
+its source or vision origin, the evidence considered, the exact reason, the
+conflicting rule or quality attribute, the alternatives retained, the date, and
+the reconsideration condition. The permanent ledger lives in synthesis section
+12.4 and is carried forward additively. A silently omitted, deleted, or
+simplicity-only rejection fails review.
+
+**Accepted-recommendation discipline.** Every accepted recommendation names its
+owner, its verification, its evidence class (see synthesis section 1.1), and its
+failure condition. A recommendation with no owner, no test, or no stated failure
+condition is not ready to enter a binding contract.
+
+**Reversible prototypes are mandatory** before any durable commitment to a format
+or schema, the objective graph, a registered strategy, an executable source, or a
+complex visual system. Prototype the graph-to-outline projection and the
+denominator or version migration before a course schema freeze; the Markdown
+rich-lesson stress corpus before a lesson-profile grammar freeze; the
+guided-note, worked-reasoning, and incorrect-note pathways before a strategy
+registry; restricted notebook preview before an execute or trust UI; visual-math
+equivalence before a broad interaction registry; cross-client interruption before
+an agent job protocol freeze; clean-machine restore before a course package or
+export promise; and the same logical flows in three visual directions before the
+Phase 17 tokens freeze.
+
 ## 4. What never bends
 
 Everything in `.claude/CLAUDE.md` bends per the 2026-08-09 amendment **except**:
@@ -241,12 +292,38 @@ alternatives. Only then may it narrow the ideas into a phase contract.
 
 ## 8. Learning UI planning split
 
-Logical experience design and visual system design are separate obligations.
-For the next milestone, Phase 16 defines the learner flow, lesson capability
-catalog, question-purpose matrix, semantic authored representation,
-interactions, accessibility, media policy, and agent authoring contract. Phase
-17 defines the visual language and implements the comprehensive UI against
-those approved contracts.
+> **Superseded 2026-08-13 (kept for history, synthesis section 15).** The prior
+> two-phase split read: "Logical experience design and visual system design are
+> separate obligations. For the next milestone, Phase 16 defines the learner
+> flow, lesson capability catalog, question-purpose matrix, semantic authored
+> representation, interactions, accessibility, media policy, and agent authoring
+> contract. Phase 17 defines the visual language and implements the comprehensive
+> UI against those approved contracts." That coarse split placed some Phase 16
+> discoveries after Phase 14 format commitments. It is replaced by the subphase
+> dependencies below, which preserve the same logical-before-visual order.
+
+Logical experience design and visual system design remain separate obligations.
+The high-level order is unchanged: durable course and file semantics precede AI
+course direction, and logical learning contracts precede visual productization.
+The four broad phases are divided into subphases (not a new top-level phase).
+Each subphase freezes shared interfaces and may register multiple composing
+capabilities; optional or expensive capabilities stay in the runway rather than
+being cut.
+
+| Subphase | Deliverable | Depends on | Freeze gate |
+|---|---|---|---|
+| 14A identity, lifecycle, operation | Stable IDs, revisions, fingerprints, operation journal, link/import/move/edit/supersede semantics, atomic recovery | Shipped parser and runtime | File fault and external-edit tracer |
+| 14B graph and course package | Typed graph kernel, outline projection, source and treatment bindings, versions, rights, minimal package | 14A | Three-domain graph tracer, clean restore, authorability review |
+| 15A director and treatment policy | Treatment recommender, source scope, rights and egress, autonomy levels, checkpoints | 14B | Four-subject recommendation review |
+| 15B quality, blueprint, acceptance | Blueprint fidelity, course audit, accepted revision, staleness and dependency impact | 15A | Lesson plus practice acceptance tracer |
+| 16A semantic capability and activity | Lesson roles, activity-purpose matrix, capability profiles, media and citation policy | 14B, assessment runtime | Portable rich-lesson stress corpus |
+| 16B IA, modes, recovery | Core loops, routes, resume, jobs, approvals, offline/help/error states | 14A, 16A | Full storyboard and interruption scenarios |
+| 16C strategies, notes, convergence | Notes, learner artifacts, finite strategies, progress comprehension, legacy upgrade | 14B, 16A, 16B | Cross-subject missing-feature suite |
+| 17A visual system and components | Tokens, hierarchy, responsive shell, accessible primitives | 16B, 16C | Same-flow visual comparison and accessibility QA |
+| 17B production vertical tracer | Polished unit from discovery through restore | All prior | End-to-end gates G1 through G11 |
+
+`/gsd-ui-phase` work for a learner-facing surface is owed at the subphase that
+introduces it (16B, 16C, 17A, 17B), not at a single monolithic Phase 17.
 
 Competitor research, including NotebookLM, Brilliant, Albert, and other current
 learning or source-grounded tools, records patterns, benefits, weaknesses, and
