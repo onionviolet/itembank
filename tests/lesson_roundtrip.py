@@ -2832,6 +2832,49 @@ def test_gloss_marks_and_print_modes():
         fail("print_gloss inline must reflow popovers as printed notes")
 
 
+def test_gloss_placement_hover_and_key_link_contract():
+    """Phase 13.5-05: placement is complete, hover is optional, and lookup
+    links to a matching key card without acquiring a scheduler control."""
+    tmp = tempfile.mkdtemp()
+    body = ("### Basics\n\nRead [[Airway]].\n\n"
+            "> [!KEY] Airway point\n"
+            "> [ID: 1111111111111111]\n"
+            "> The [[Airway]] must stay open.\n")
+    bank = gloss_bank(tmp, "Airway | The passage from mouth to lungs.\n", body)
+    pg = lesson.lesson_page(bank, itembank.load(bank),
+                            itembank.parse_lesson(bank))
+    for needle in ("position-area:block-end span-inline-end",
+                   "position-try-fallbacks:flip-block,flip-inline",
+                   "(max-width:767px) and (pointer:coarse)",
+                   '#gloss-airway{--gloss-anchor:--anchor-airway}',
+                   'href="#key-1111111111111111">Also a key point</a>',
+                   'dataset.glossOpen = "hover"', "Back to the text"):
+        if needle not in pg:
+            fail("phase 13.5 gloss contract missing %r" % needle)
+    panel = pg[pg.index('<div id="gloss-airway"'):
+               pg.index('</div>', pg.index('<div id="gloss-airway"'))]
+    if "Add to review" in panel or "<form" in panel:
+        fail("the transient gloss lookup must carry no scheduler control")
+
+    off = gloss_bank(
+        tmp, "Airway | The passage from mouth to lungs.\n", body,
+        settings_text=json.dumps({"reader": {"gloss_hover": "off"}}))
+    off_pg = lesson.lesson_page(off, itembank.load(off),
+                                itembank.parse_lesson(off))
+    if 'dataset.glossOpen = "hover"' in off_pg:
+        fail("gloss_hover off must omit the hover-intent script")
+
+    original = lesson.lesson_slug
+    try:
+        lesson.lesson_slug = lambda _text: "bad]slug"
+        if lesson._gloss_trigger_html("unsafe", "bad]slug") != "unsafe":
+            fail("an unsafe CSS slug must degrade to plain prose")
+        if lesson._gloss_anchor_css({"bad]slug"}):
+            fail("an unsafe CSS slug must emit no anchor rule")
+    finally:
+        lesson.lesson_slug = original
+
+
 def test_gloss_example_layout_and_reader_nav():
     """example_layout parallel adds the layout class to [!EXAMPLE]
     callouts; reader_nav column renders the sections nav (UI-SPEC §7.3,
@@ -3503,6 +3546,7 @@ test_glossable_gate()
 test_glossary_appendix_renders_after_lesson()
 test_gloss_triggers_panels_and_no_leak()
 test_gloss_marks_and_print_modes()
+test_gloss_placement_hover_and_key_link_contract()
 test_gloss_example_layout_and_reader_nav()
 test_gloss_route_and_cli_twin()
 test_reader_settings_registered_in_schema()

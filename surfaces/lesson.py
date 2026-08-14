@@ -198,20 +198,33 @@ th{background:var(--chip);color:var(--mut);font-weight:600;font-size:12px}
   color:var(--mut);margin:0 0 var(--space-2);font-family:var(--font-ledger)}
 .callout-icon{display:inline-flex}
 .callout-body p:last-child{margin:0}
-.term{text-decoration:underline dotted;text-underline-offset:.15em;
-  color:currentColor;background:none;border:0;padding:0;font:inherit;
+.term{text-decoration:underline dotted var(--edge);text-underline-offset:.15em;
+  text-decoration-thickness:from-font;color:currentColor;background:none;
+  border:0;padding:2px 0;font:inherit; /* inline-target spacing exception */
   cursor:pointer}
 .term:hover,.term:focus-visible{outline:2px solid var(--accent);
   outline-offset:2px}
-.gloss{max-width:min(38ch,calc(100vw - var(--space-4)));
+.gloss{--gloss-anchor:auto;position:absolute;position-anchor:var(--gloss-anchor);
+  position-area:block-end span-inline-end;margin-block-start:var(--space-2);
+  position-try-fallbacks:flip-block,flip-inline,block-start span-inline-start;
+  position-try-order:most-height;
+  max-width:min(38ch,calc(100vw - var(--space-4)));max-height:min(60vh,24rem);
+  overflow:auto;overscroll-behavior:contain;
   border:1px solid var(--line);border-radius:var(--r-3);
   background:var(--card);padding:var(--space-3);box-shadow:0 1px 0 var(--line)}
+@media (max-width:767px) and (pointer:coarse){
+  .gloss{position:fixed;inset:auto 0 0 0;margin:0;max-width:none;max-height:60vh;
+    border-radius:var(--r-3) var(--r-3) 0 0;border-inline:0;
+    border-block-end:0;padding:var(--space-3) var(--space-3) var(--space-4)}
+}
 .gloss-term{font-weight:600;margin:0 0 var(--space-1);font-size:18px}
 .gloss-def{margin:0 0 var(--space-2);font-size:18px;
   line-height:var(--leading-lesson)}
 .gloss-more{margin:0;font-size:12px}
 .gloss-more a{color:var(--accent);text-decoration:none}
 .gloss-more a:hover,.gloss-more a:focus-visible{text-decoration:underline}
+#glossary dt:target,#glossary dt:target + dd{background:var(--chip)}
+#glossary dt:target{border-inline-start:2px solid var(--accent)}
 #glossary{margin-top:var(--space-7)}
 #glossary h2{font-family:var(--font-ledger);font-size:12px;
   letter-spacing:.08em;text-transform:uppercase;color:var(--mut);
@@ -667,28 +680,89 @@ GLOSS_ENHANCEMENT_JS = """<script>
 </script>""" % {"loading": json.dumps(LOADING_COPY),
                  "unavailable": json.dumps(UNAVAILABLE_COPY)}
 
+GLOSS_HOVER_JS = """<script>
+(function () {
+  var media = matchMedia("(hover:hover) and (pointer:fine)");
+  if (!media.matches) { return; }
+  var openTimer = null, closeTimer = null, origin = null;
+  function cancel() { clearTimeout(openTimer); clearTimeout(closeTimer); }
+  function panelFor(term) {
+    return document.getElementById(term.getAttribute("aria-details"));
+  }
+  function pinned() {
+    return document.querySelector('.gloss:popover-open[data-gloss-open="click"]');
+  }
+  document.addEventListener("pointerenter", function (ev) {
+    var term = ev.target.closest && ev.target.closest(".term");
+    var panel = ev.target.closest && ev.target.closest(".gloss");
+    clearTimeout(closeTimer);
+    if (!term || pinned()) { return; }
+    openTimer = setTimeout(function () {
+      if (pinned()) { return; }
+      var gloss = panelFor(term);
+      if (gloss) { gloss.dataset.glossOpen = "hover"; gloss.showPopover(); }
+    }, 180);
+  }, true);
+  document.addEventListener("pointerleave", function (ev) {
+    var term = ev.target.closest && ev.target.closest(".term");
+    var panel = ev.target.closest && ev.target.closest(".gloss");
+    if (!term && !panel) { return; }
+    clearTimeout(openTimer);
+    closeTimer = setTimeout(function () {
+      var gloss = panel || (term && panelFor(term));
+      if (gloss && gloss.dataset.glossOpen === "hover") { gloss.hidePopover(); }
+    }, 260);
+  }, true);
+  document.addEventListener("click", function (ev) {
+    var term = ev.target.closest && ev.target.closest(".term");
+    if (term) {
+      var gloss = panelFor(term);
+      if (!term.id) { term.id = "gloss-origin-" + Date.now().toString(36); }
+      if (gloss) { gloss.dataset.glossOpen = "click"; origin = term.id; }
+    }
+    var more = ev.target.closest && ev.target.closest(".gloss-more a");
+    if (more) {
+      var panel = more.closest(".gloss");
+      var entry = document.querySelector(more.getAttribute("href"));
+      if (origin && entry) {
+        var back = entry.nextElementSibling && entry.nextElementSibling.querySelector(".gloss-back");
+        if (back) { back.href = "#" + origin; back.textContent = "Back to the text"; }
+      }
+      if (panel) { panel.hidePopover(); }
+    }
+  }, true);
+  ["scroll", "pointerdown", "keydown", "visibilitychange"].forEach(function (name) {
+    addEventListener(name, cancel, true);
+  });
+})();
+</script>"""
+
 
 def _gloss_trigger_html(ref_text, slug):
     """One Popover-API trigger (03.1-UI-SPEC §8.1 DOM LOCKED): a real
     `<button>` whose accessible name is the term text itself -- no
     aria-label, no title, so a definition can never ride the trigger's
     accessible name (C7)."""
+    if not re.match(r"^[a-z0-9-]+$", slug or ""):
+        return html.escape(ref_text)
     return ('<button type="button" class="term" popovertarget="gloss-%s" '
             'aria-details="gloss-%s">%s</button>'
             % (slug, slug, html.escape(ref_text)))
 
 
-def _gloss_panel_html(record, slug):
+def _gloss_panel_html(record, slug, key_anchor=None):
     """One `[popover]` panel: the definition ships with the page, so the
     reader gloss works with the network unplugged and before any script
     loads (§8.1). The `Full entry` link is the Chrome-voice target of the
     glossary appendix."""
+    key_link = ('<p class="gloss-key"><a href="#%s">Also a key point</a></p>'
+                % html.escape(key_anchor)) if key_anchor else ""
     return ('<div id="gloss-%s" class="gloss" popover>'
             '<p class="gloss-term">%s</p>'
             '<p class="gloss-def">%s</p>'
-            '<p class="gloss-more"><a href="#term-%s">%s</a></p></div>'
+            '%s<p class="gloss-more"><a href="#term-%s">%s</a></p></div>'
             % (slug, html.escape(record["canonical"]), _inline(record["def"]),
-               slug, html.escape(FULL_ENTRY_COPY)))
+               key_link, slug, html.escape(FULL_ENTRY_COPY)))
 
 
 def _glossary_html(gloss_map, first_uses):
@@ -717,10 +791,11 @@ def _gloss_anchor_css(marked_slugs):
     (03.1-UI-SPEC §8.1)."""
     rules = []
     for slug in sorted(marked_slugs):
+        if not re.match(r"^[a-z0-9-]+$", slug or ""):
+            continue
         rules.append(
             'button.term[popovertarget="gloss-%s"]{anchor-name:--anchor-%s}'
-            '#gloss-%s{position:absolute;position-anchor:--anchor-%s;'
-            'position-try-fallbacks:flip-block,flip-inline}'
+            '#gloss-%s{--gloss-anchor:--anchor-%s}'
             % (slug, slug, slug, slug))
     return "\n".join(rules)
 
@@ -1359,7 +1434,8 @@ def _gloss_placeholders(text, ctx):
                 ctx["panels_emitted"].add(slug)
                 ctx["first_uses"][slug] = "use-%s" % slug
                 ctx["first_use_now"].add(slug)
-                ctx["panels"].append((slug, _gloss_panel_html(rec, slug)))
+                ctx["panels"].append((slug, _gloss_panel_html(
+                    rec, slug, ctx["key_links"].get(slug))))
         return "\x00G%d\x00" % (len(tokens) - 1)
 
     return _GLOSS_MARK_RE.sub(_rep, text), tokens
@@ -1587,6 +1663,7 @@ def _reader_context(bank_path, qs):
         "gloss": {},
         "marks": reader.get("gloss_marks", "all"),
         "print_inline": reader.get("print_gloss", "appendix") == "inline",
+        "gloss_hover": reader.get("gloss_hover", "on") == "on",
         "example_layout": reader.get("example_layout", "stacked"),
         "reader_nav": reader.get("reader_nav", "none"),
         "section": "intro",
@@ -1599,7 +1676,15 @@ def _reader_context(bank_path, qs):
         "first_use_now": set(),
         "held_line": "",
         "suppressed": False,
+        "key_links": {},
     }
+    for key in parse_key_blocks(bank_path):
+        if not key.get("id"):
+            continue
+        for ref in _GLOSS_MARK_RE.findall(key.get("body") or ""):
+            slug = lesson_slug(ref.strip())
+            if re.match(r"^[a-z0-9-]+$", slug or ""):
+                ctx["key_links"].setdefault(slug, "key-%s" % lesson_slug(key["id"]))
     terms = parse_terms(bank_path)
     if terms is not None:
         ok = {slug: glossable(qs, rec)
@@ -1792,6 +1877,8 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
             print_css = _gloss_print_css(
                 "inline" if ctx["print_inline"] else "appendix")
             gloss_script = GLOSS_ENHANCEMENT_JS
+            if ctx["gloss_hover"]:
+                gloss_script += GLOSS_HOVER_JS
             if ctx["reader_nav"] == "column":
                 if stop_at is not None:
                     nav_html = (_reader_nav_html(lesson["headings"][:stop_at + 1])

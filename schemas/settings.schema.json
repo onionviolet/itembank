@@ -333,6 +333,7 @@
         "example_layout",
         "print_gloss",
         "gloss_marks",
+        "gloss_hover",
         "gate_skip",
         "gate_policy"
       ],
@@ -342,6 +343,7 @@
         "example_layout": "stacked",
         "print_gloss": "appendix",
         "gloss_marks": "all",
+        "gloss_hover": "on",
         "gate_skip": "always",
         "gate_policy": "as-authored"
       },
@@ -386,6 +388,16 @@
           ],
           "default": "all",
           "x-itembank-phase": 3.1
+        },
+        "gloss_hover": {
+          "type": "string",
+          "description": "Whether glossary hover intent is enabled under a fine hover pointer. off restores the pure click and keyboard path.",
+          "enum": [
+            "on",
+            "off"
+          ],
+          "default": "on",
+          "x-itembank-phase": 13.5
         },
         "gate_skip": {
           "type": "string",

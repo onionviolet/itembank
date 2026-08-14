@@ -999,7 +999,7 @@ Plans:
 
 **Open decisions**: none. `13.5-UI-SPEC.md` §17's seven OPEN items each carried a default; item 7 (whether `.visual-status` may keep an announcing region) was resolved at plan time by reading `06.1-UI-SPEC.md`, which requires one persistent polite region — 06.1 wins and the row is a recorded exception, not a silent divergence.
 
-**Plans**: 4/8 plans executed across 7 waves (waves 1-2 done); RTS-01..RTS-12 assigned
+**Plans**: 5/8 plans executed across 7 waves (waves 1-2 done); RTS-01..RTS-12 assigned
 
 Plans:
 **Wave 1**
@@ -1017,7 +1017,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3)*
 
-- [ ] 13.5-05-PLAN.md — The gloss: placement, bottom sheet, hover intent, key/appendix division of labour (D-C)
+- [x] 13.5-05-PLAN.md — The gloss: placement, bottom sheet, hover intent, key/appendix division of labour (D-C)
 
 **Wave 5** *(blocked on Wave 4)*
 
@@ -1498,6 +1498,7 @@ or expensive capabilities stay on the capability runway rather than being cut.
   interruption before the agent job protocol freezes; clean-machine restore
   before any course-package or export promise; and the same logical flows in
   three visual directions before Phase 17 tokens freeze.
+
 - **Implementation-readiness audit (gate before any Phase 14A plan).** After the
   contract files and requirements are updated and before the first Phase 14A
   implementation plan, run the readiness audit defined in synthesis section
@@ -1512,18 +1513,21 @@ or expensive capabilities stay on the capability runway rather than being cut.
   was introduced; and confirms every research proposal has a permanent
   disposition. The audit fails on any silently omitted, deleted, or
   simplicity-only rejection.
+
 - **Post-Phase-17 maintenance and restore audit.** After Phase 17B, a
   maintenance and restore audit confirms that a clean machine restores all
   supported canonical objects and evidence offline (gate G10), that every
   unsupported capability appears in a loss report, and that each accepted item
   still names its maintenance owner. New audit triggers are named after 14B,
   16C, and 17B.
+
 - **Durable capability runway.** Capability breadth is preserved as a runway of
   registered extensions, prototypes, and backburner items, not by cutting
   research. Promotion changes execution timing, not the existence of a proposal
   or its research trail. Each registered or backburner capability names its
   shared primitive, dependency, cost, and promotion trigger. Backburner
   proposals are tracked in synthesis section 12.5.
+
 - **Permanent rejection ledger (governance input).** The append-only rejection
   and supersession ledger in synthesis section 12.4 is a roadmap governance
   input. A rejected or superseded idea cannot be silently reintroduced or
