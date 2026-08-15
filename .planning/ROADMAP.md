@@ -1786,6 +1786,65 @@ explicitly not the course schema freeze, not a lesson-profile grammar freeze,
 not an agent job protocol freeze, and not a learner-facing surface freeze, and
 its freeze record says so.
 
+### Phase 16A: Semantic Capability & Activity Contract
+
+**Goal**: One parsed canonical lesson renders every semantic teaching role
+(key idea, warning, prerequisite, misconception, expert tip, worked example,
+counterexample, source excerpt, term and definition, uncertainty, summary,
+inline check, hint, accessible visual interaction) in both continuous reader
+and guided modes, composed from shared primitives through the one parser, with
+a worked example or concrete case placed before the formal definition by
+default and any override recorded; every semantic capability declares an
+accessible-behavior, offline-fallback, renderer-availability, version,
+validation, and known-limits profile, every media asset carries rights,
+credit, accessible-alternative, derivation, availability, and integrity
+metadata, and an unavailable renderer shows the static instructional path;
+registered output modes (notebook page, outline, Cornell notes, concept map,
+glossary, formula sheet, timeline, comparison table, study guide,
+source-extracted notes) compose from shared note and activity schemas plus
+provenance, and an unregistered mode stays a backburner catalog entry naming
+its shared primitive, dependency, cost, and trigger; every activity declares
+purpose, cognitive demand, objective, stimulus or source, response schema,
+retry behavior, feedback and disclosure policy, evidence status,
+accessibility equivalence, and static fallback, with existing response forms
+serving many purposes and a new item type minted only when scoring semantics
+or response structure cannot be expressed safely; the runtime alone scores,
+grants keyed disclosure, selects authoritative assessment behavior, and
+writes assessment evidence, refusing every scripted attempt by an agent,
+note, or import to leak a key, invent a score, auto-grade prose, or edit a
+frozen sitting; canonical records carry language and direction, with
+localization fixtures covering RTL, mixed code and math direction, CJK,
+combining marks, long strings, and localized numbers and units; and the
+canonical lesson remains UTF-8 Markdown with shallow metadata and an
+additive, versioned semantic profile whose core meaning, captions, citations,
+definitions, and media alternatives stay readable outside the app with every
+derived view deleted and rebuildable. The shipped hover, focus, and touch
+glossary definitions (RTS-05, complete) are the first catalogued capability,
+per the reframe note in `REQUIREMENTS.md`.
+**Depends on**: Phase 14B (typed graph kernel, outline projection, source and
+treatment bindings, course package) and the shipped assessment runtime.
+Phases 14A and 14B are planned but not yet executed, so every signature this
+phase imports is read from plan text at planning time; the first 16A plan
+opens with a recorded precondition check that halts by name on any
+divergence, the same pattern plans 14B-01, 15A-01, and 15B-01 set, extended
+to check for a `14B-FREEZE.md` record.
+**Freeze gate:** the portable rich-lesson stress corpus: one synthetic lesson
+exercising every semantic teaching role plus one unknown optional and one
+unknown required semantic, rendered in both continuous reader and guided
+modes; the medical evolving-case fixture with a dated jurisdiction warning
+and no premature reveal, and the disputed-timeline fixture preserving
+disagreement, locators, and uncertainty; the localization fixture set inside
+the corpus; the capability profile fixture with one renderer marked
+unavailable showing the static instructional path; the two-output-mode
+composition fixture plus one backburner catalog entry; the purpose-first
+activity set including one unsupported response form falling back to its
+declared static equivalent; the adversarial runtime-authority fixture in
+which every leak, invented-score, auto-grade, and frozen-sitting edit
+attempt is refused; and the corpus opened outside the app in a plain
+Markdown viewer with every derived HTML, index, and cache deleted, staying
+readable and rebuilding.
+**Requirements**: CAP-01, CAP-02, CAP-03, ACTIVITY-01, ACTIVITY-03, A11Y-02, PORT-01
+
 ### Next-milestone subphase sequence (14A through 17B)
 
 *Reframed 2026-08-13 from the four broad Phases 14 to 17, per
