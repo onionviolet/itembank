@@ -1653,6 +1653,57 @@ the operation journal against the protocol checklist, run through a mock hosted
 and a mock local backend with identical artifacts and journals, with the egress
 log listing exactly the approved synthetic source spans.
 **Requirements**: TREAT-01, TREAT-02, RIGHTS-02, RELIABILITY-02, AGENT-01, AGENT-02
+**Phase plan:** `.planning/phases/15A-director-treatment-policy/`
+(`15A-RESEARCH.md`, `15A-PATTERNS.md`, `15A-VALIDATION.md`; no CONTEXT.md, the
+same precedent Phases 14A and 14B set, with the binding decisions in
+`REQUIREMENTS.md`, `PLANNING-DIRECTIVES.md`, `DECISIONS-PRE-14A-2026-08-14.md`,
+and the phase-16 synthesis).
+**Plans:** 6 plans, written to the `PLANNING-DIRECTIVES.md` section 5 executor
+bar. Waves are strictly sequential (1 through 6) because each plan extends the
+module the previous one created. Two plans are not autonomous: plan 01 carries
+two blocking `checkpoint:decision` tasks gating one-way doors, and plan 06
+carries the blocking human recommendation review.
+
+Plans:
+- [ ] 15A-01-PLAN.md (wave 1, not autonomous) preconditions, the two one-way
+  doors, and the end-to-end tracer: verify Phases 14A and 14B landed or halt by
+  name; settle the recommendation wire boundary and where the egress record
+  lives; then one synthetic objective from declared intent through a bounded
+  request, the shipped `model_adapter.invoke` boundary, candidate validation, a
+  live rights check, and a treatment binding with the operation, its
+  checkpoint, and its egress on one journal entry, creating `director.py` in
+  its thinnest production form.
+- [ ] 15A-02-PLAN.md (wave 2) the treatment recommender: the closed eleven-kind
+  vocabulary read from one place, deterministic ranking tie-broken by
+  vocabulary order, direct reading as a complete result, an untreated report
+  computed from bindings and never from proposals, three outcomes and no
+  fourth, and the empty, ordering, and stability edges.
+- [ ] 15A-03-PLAN.md (wave 3) coverage claims and states: NFC and line-ending
+  locator normalization with no case folding and no fuzzy matching, six ordered
+  classification rules with `covered` reachable only through a resolved
+  locator, one fixture claim per `graph.BINDING_STATES` member, and a
+  heading-similarity decoy that reads unknown.
+- [ ] 15A-04-PLAN.md (wave 4) rights, egress, and autonomy: approved spans
+  drawn only from sources whose right reads granted in the live registry, an
+  exact and ordered egress record with named omissions and no secrets, the
+  `settings.agent_policy` block with restrictive defaults, and an
+  over-declaring agent refused by name rather than silently narrowed.
+- [ ] 15A-05-PLAN.md (wave 5) the operation protocol over the one journal: the
+  frozen thirteen-step vocabulary compared as exact ASCII, replay from the
+  journal alone, interruption at each of the thirteen phases with resume and
+  reverse through `journal.undo`, the `agent_operation` coupling test in
+  `tests/journal_roundtrip.py`, and the core loop proven operable with every
+  backend removed.
+- [ ] 15A-06-PLAN.md (wave 6, not autonomous) the freeze gate: the four-subject
+  recommendation review tracer implementing all six requirement Fixture
+  sentences, the human review a person signs, the Phase 13.9 precondition
+  check, and the freeze record or a `Freeze withheld` section naming the
+  missing leg.
+**Prototype-before-freeze coupling:** the 15A freeze covers the recommendation,
+coverage, egress, autonomy, and protocol surfaces only. It is explicitly not
+the course schema freeze, not a lesson-profile freeze, not an agent job
+protocol freeze, and not a learner-facing surface freeze, and its freeze record
+says so.
 
 ### Next-milestone subphase sequence (14A through 17B)
 
