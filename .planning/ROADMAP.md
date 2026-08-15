@@ -1559,6 +1559,74 @@ the smallest 14A identity/journal slice (14A-01 plus the journal append of
 14A-02); plans are ordered so that slice lands first (ROADMAP Phase 13.9,
 audit A9).
 
+### Phase 14B: Graph & Course Package Prototype
+
+**Goal**: The durable instructional spine is a constrained typed graph of
+concepts and objectives stored in one readable, diffable course sidecar per
+course; a deterministic outline projection renders it as plain Markdown from
+the authored structural order; sources and treatments bind to objectives with
+operation-specific rights enforced at the binding rather than at export;
+objective splits, merges, and renames produce reviewed migration proposals that
+never transfer historical evidence; and a course exports as a minimal package
+that a clean, offline machine can restore against a manifest with every loss
+reported by name.
+**Depends on**: Phase 14A. Every 14A signature this phase imports was read from
+plan text and not from source at planning time, so plan 14B-01 opens with a
+recorded precondition check that halts by name on any divergence.
+**Freeze gate:** three legs, all three green in one place: the three-domain
+graph tracer (plan 14B-06), the clean restore drill, and a human authorability
+review. No 14B freeze closes before Phase 13.9 has been walked, checked as an
+explicit precondition rather than assumed.
+**Requirements**: GRAPH-01, GRAPH-02, GRAPH-04, PORT-03
+**Phase plan:** `.planning/phases/14B-graph-course-package-prototype/`
+(`14B-RESEARCH.md`, `14B-PATTERNS.md`, `14B-VALIDATION.md`; no CONTEXT.md, the
+same precedent Phase 14A set, with the binding decisions in
+`DECISIONS-PRE-14A-2026-08-14.md`, `REQUIREMENTS.md`, and
+`PLANNING-DIRECTIVES.md`).
+**Plans:** 6 plans, written to the `PLANNING-DIRECTIVES.md` section 5 executor
+bar. Waves are strictly sequential (1 through 6) because each plan extends the
+modules the previous one created. Four plans are not autonomous: plans 01, 04,
+05, and 06 each carry a blocking `checkpoint:decision` gating a one-way door.
+
+Plans:
+- [ ] 14B-01-PLAN.md (wave 1, not autonomous) preconditions and the end-to-end
+  tracer: verify Phase 14A landed or halt by name; settle the Phase 13.9
+  `course.md` collision with a named non-destructive supersession path; then one
+  synthetic objective from mint through edge, sidecar compare-and-swap write,
+  outline projection, package export, and clean restore, creating `graph.py`,
+  `course.py`, and `course_package.py` in their thinnest production form.
+- [ ] 14B-02-PLAN.md (wave 2) the graph kernel: the frozen four-name edge
+  vocabulary with its degrade path and five GRAPH-02 carried fields, structural
+  containers accepting any local label without a schema change, the
+  deterministic outline projection with order validation and a stable
+  topological fallback, the published `schemas/course_graph.schema.json`, and
+  the byte-identical format-additivity fixture.
+- [ ] 14B-03-PLAN.md (wave 3) bindings and rights: source and treatment
+  bindings gated by `identity.rights_granted` at bind time, TREAT-01's eleven
+  treatment kinds mapped to the rights they consume, imported scopes as
+  immutable versions with overlay records, and the version-migration prototype.
+  Confirms D-12.6-8 and D-12.6-9, both of which read "pending confirmation at
+  14B plan time".
+- [ ] 14B-04-PLAN.md (wave 4, not autonomous) migration: `migrate` as an
+  additive `journal.RECORD_TYPES` member with `OPERATION_TYPES` left at exactly
+  six, reviewed migration proposals for split, merge, rename, demand change,
+  and overlay, and a split-and-rename scenario proving the evidence store is
+  untouched and each new identity reads unknown.
+- [ ] 14B-05-PLAN.md (wave 5, not autonomous) the minimal package: a
+  BagIt-inspired manifest hand-rolled in the standard library, a rights gate on
+  payload inclusion, five named loss categories, a clean-machine offline restore
+  drill that recomputes every fingerprint, and the Zip Slip containment guard on
+  the optional archive transport.
+- [ ] 14B-06-PLAN.md (wave 6, not autonomous) the freeze gate: the three-domain
+  tracer implementing all four requirement Fixture sentences, the authorability
+  review a human signs, the Phase 13.9 precondition check, and the freeze record
+  or a `Freeze withheld` section naming the missing leg.
+**Prototype-before-freeze coupling:** `PLANNING-DIRECTIVES.md` section 3a
+requires the graph-to-outline projection and the version migration to be
+prototyped before any course schema freeze. Plan 14B-02 delivers the first and
+plan 14B-03 the second; Phase 14B is that prototype and its freeze record
+states explicitly that it is not the course schema freeze.
+
 ### Next-milestone subphase sequence (14A through 17B)
 
 *Reframed 2026-08-13 from the four broad Phases 14 to 17, per
