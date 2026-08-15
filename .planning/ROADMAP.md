@@ -1963,6 +1963,56 @@ running the clearly synthetic sample course and walkthrough with no roots
 granted, no agent configured, and the network disabled, asserting offline help
 routes from named error codes (APP-03 fixture).
 **Requirements**: FLOW-01, FLOW-02, APP-01, APP-02, APP-03
+**Plans:** 11 plans
+**Phase plan:** `.planning/phases/16B-ia-modes-recovery-contract/`
+(`16B-RESEARCH.md`, `16B-PATTERNS.md`, `16B-UI-SPEC.md`, `16B-VALIDATION.md`; no
+CONTEXT.md, the same precedent Phases 14A, 14B, 15A, 15B, and 16A set, with the
+binding decisions in `REQUIREMENTS.md`, `PLANNING-DIRECTIVES.md`, the phase-16
+synthesis, and the checker-approved `16B-UI-SPEC.md` Decisions log D1 to D9).
+
+Plans:
+- [ ] 16B-01-PLAN.md (wave 1, not autonomous) preconditions and the one one-way
+  door: the recorded check against 14A and 16A plus both freeze records, plus
+  16A's own precondition dated result line and Phase 13.9 checked directly,
+  plus the settings additivity baseline; then D-16B-2 (where the IA read models
+  and the three new CLI handlers live). Transcribes UI-SPEC D1 through D9 and
+  locks D-16B-1 and D-16B-3 through D-16B-9.
+- [ ] 16B-02-PLAN.md (wave 2) the tracer: `GET /activity` end to end through a
+  new `surfaces/ia.py`, the shipped four parallel route structures, the shared
+  presentation shell, and a real daemon subprocess, plus every Activity job
+  state and the no-invented-percent rule.
+- [ ] 16B-03-PLAN.md (wave 3) offline help: twelve `ia.*` codes, the
+  `GET /help/<code>` route and its `help-code` CLI twin, the unknown-code
+  fallback sentence, and the offline claim proven structurally and behaviourally.
+- [ ] 16B-04-PLAN.md (wave 4) APP-01: the synthetic two-course corpus with one
+  corrupted course, `course_shelf_state` with six attention states and a total
+  ordering, and the course-shelf branch inside the shipped `handle_index`.
+- [ ] 16B-05-PLAN.md (wave 5) APP-02: the three course-level route patterns and
+  eight area frames, back and anchor semantics with progressive-enhancement
+  focus restoration, one route per object at every width, and the three deep-link
+  scenarios the probe left unresolved.
+- [ ] 16B-06-PLAN.md (wave 6) APP-03 clause C137: four additive settings
+  top-level keys with restrictive defaults, three defaults accessors, the
+  additivity proof against the recorded baseline, and the declared-not-enforced
+  note.
+- [ ] 16B-07-PLAN.md (wave 7) the mode-layer contract: seven layers as data with
+  their controllers, the two fixed layers rendered read-only, the pure
+  precedence function over an explicit mapping, and the conflict fixture 16C
+  extends rather than duplicates.
+- [ ] 16B-08-PLAN.md (wave 8) recovery: eight degraded banners with their codes,
+  next safe actions, and the basename-only rule, plus the FLOW-02 locked refusal
+  card that carries none of the content it withholds.
+- [ ] 16B-09-PLAN.md (wave 9) first launch: the bundled synthetic sample course,
+  the skippable and replayable walkthrough, two atomic `_ia` state records, the
+  one new mutating route `POST /api/shelf`, and the APP-03 interruption fixture.
+- [ ] 16B-10-PLAN.md (wave 10) FLOW-01 and FLOW-02: the seven enumerated loops
+  and their resume function, the interruption storyboard over durable records,
+  the empty-run outcomes and tie ordering, and the model-disabled reading,
+  practice, feedback walk against the real runtime.
+- [ ] 16B-11-PLAN.md (wave 11, not autonomous) the freeze gate: all five
+  fixtures in one measured pass, the blocking human contract-legibility review,
+  and the freeze record or a named withholding, plus the validation closure.
+
 **Prototype-before-freeze coupling:** the 16B freeze covers the loop
 storyboards, IA routes and anchors, resume semantics, the job and approval
 surface, the mode-layer contract, and the offline, help, and error states
