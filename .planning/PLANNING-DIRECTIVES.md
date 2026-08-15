@@ -155,6 +155,16 @@ owner, its verification, its evidence class (see synthesis section 1.1), and its
 failure condition. A recommendation with no owner, no test, or no stated failure
 condition is not ready to enter a binding contract.
 
+**Tiered record shape (added 2026-08-15).** The disciplines above bind at
+their stakes level, not uniformly. The three-tier record shape adopted from
+the 2026-08-15 rule audit lives in `AGENT-WORKFLOW.md` section 5: low-stakes
+reversible work needs only intent, owner, next action, and undo; the full
+disposition and accepted-recommendation fields apply to consequential
+proposals and durable writes; the complete evidence, prototype, ledger, and
+user-decision gates apply to binding formats, authority, rights, hard
+rejections, and scope. Rejections must quote the currently binding rule text
+they rely on.
+
 **Reversible prototypes are mandatory** before any durable commitment to a format
 or schema, the objective graph, a registered strategy, an executable source, or a
 complex visual system. Prototype the graph-to-outline projection and the

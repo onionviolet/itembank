@@ -110,6 +110,29 @@ proposal and origin, evidence considered, exact reason, conflicting rule,
 alternatives retained, date, and reconsideration condition. Never silently
 delete or omit a rejected idea. Simplicity alone is not a rejection reason.
 
+**Tiered record shape (adopted 2026-08-15, RULE-AUDIT-ROADMAP-DELTA
+proposal 1, approved by Weibao).** Record shape scales with consequence:
+
+1. Reversible, low-stakes work records intent, owner, next action, and undo
+   when a mutation occurs. It does not require a permanent disposition row or
+   a full operation manifest.
+2. Consequential proposals and durable writes use the existing disposition,
+   authority, rights, validation, recovery, and accepted-revision controls.
+3. Binding formats, assessment authority, rights or egress changes, hard
+   rejections, and milestone scope use the full evidence, prototype, ledger,
+   readiness, and direct-user-decision gates.
+
+The tier changes documentation burden only. It never relaxes one-parser and
+one-scorer authority, accessibility, data residency, rights,
+compare-and-swap mutation, validation, or recovery rules. When two readings
+disagree about an operation's tier, use the higher tier and record the
+disagreement.
+
+Additionally, from the same audit: a rejection must quote the currently
+binding rule text it relies on. A rejection citing a retired preference or a
+rule number without its text is invalid (stale-authority drift, the measured
+failure mode in `RULE-AUDIT-2026-08-15.md`).
+
 ## 6. Object and authority check
 
 Before accepting a feature or plan, name:

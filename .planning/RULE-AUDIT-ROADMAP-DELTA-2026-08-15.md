@@ -1,7 +1,32 @@
 # Proposed roadmap delta from the 2026-08-15 rule audit
 
-**Status:** proposal for Weibao's scope decision. This file does not amend
+**Status:** decided 2026-08-15. Weibao approved Proposal 1 and accepted
+Proposal 2 as routing within existing phases. This file does not amend
 ROADMAP.md.
+
+**Adoption record (2026-08-15).** Proposal 1's tier clause is now binding in
+`AGENT-WORKFLOW.md` section 5, with a pointer in `PLANNING-DIRECTIVES.md`
+section 3a. Proposal 2's routing already lives in IDEA-LEDGER entries
+IL-20260815-07 through -11 as gates and revisit triggers; no roadmap rows
+were added.
+
+**Verification run (per the step below), three real operations from
+2026-08-15 classified:**
+
+- Tier 1: correcting prose style in a planning note. Recorded as intent,
+  owner, next action, undo (git revert). No disposition row needed; none was
+  lost.
+- Tier 2: creating `IDEA-LEDGER.md` and its entries (durable writes).
+  Carried disposition, origin, evidence, dates, revisit triggers, and
+  reviewable diffs under pathspec-limited commits. Current gates preserved.
+- Tier 3: the one-scorer invariant reword and this proposal's own adoption.
+  Both went through evidence (rejection tally, audit), ledger entries, and a
+  direct user decision. Full gates exercised.
+
+No recovery information was lost at tier 1 and both reviewers of this run
+(the audit's classifier and this session) agreed on each tier, so the stated
+failure condition did not fire. The tie-break rule (ambiguity resolves to
+the higher tier) is part of the adopted clause.
 
 ## Proposal 1: add a three-tier process rule
 

@@ -231,6 +231,29 @@ Amendments to an existing entry are additive notes under the entry, dated.
   reversal-cost question) stay revisit-marked in the constraint audit and the
   2026-08-15 tally; no entry until a phase needs them.
 
+### IL-20260815-12: Three-tier process record shape
+
+- **Proposal:** Scale planning record shape to consequence: tier 1 for
+  reversible low-stakes work (intent, owner, next action, undo), tier 2 for
+  consequential proposals and durable writes (existing disposition and
+  operation controls), tier 3 for binding formats, authority, rights, hard
+  rejections, and scope (full evidence, prototype, ledger, and user-decision
+  gates). Companion rule: a rejection must quote the currently binding rule
+  text it relies on.
+- **Origin:** `RULE-AUDIT-2026-08-15.md` friction verdict and
+  `RULE-AUDIT-ROADMAP-DELTA-2026-08-15.md` proposal 1; approved by Weibao
+  2026-08-15.
+- **Evidence considered:** the audit's finding that uniform sixteen-field
+  records duplicate recording on low-stakes work, and that stale-authority
+  drift (about twenty vetoes by a retired preference) was the measured rule
+  failure the quoting requirement addresses.
+- **Disposition:** Core (binding in `AGENT-WORKFLOW.md` section 5, pointed to
+  from `PLANNING-DIRECTIVES.md` section 3a). Verification run recorded in the
+  delta file; failure condition did not fire.
+- **Reconsideration condition:** the delta's failure condition, two readers
+  classifying the same operation into different tiers in practice, or the low
+  tier permitting an irreversible or externally visible change.
+
 ## Rejected
 
 ### IL-20260815-04: Plugin-first core (no privileged core; swappable scorer)
