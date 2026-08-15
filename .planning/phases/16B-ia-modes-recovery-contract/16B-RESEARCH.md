@@ -28,7 +28,7 @@ graph.py MISSING          course.py MISSING        course_package.py MISSING
 director.py MISSING       blueprint.py MISSING
 ```
 
-`[VERIFIED: repo root `ls *.py`, this session — the listing contains
+`[VERIFIED: repo root `ls *.py`, this session, the listing contains
 `audit_writer.py, auditor.py, authoring.py, build.py, evidence.py,
 fake_hosted_unused.py, itembank.py, model.py, model_adapter.py, resources.py,
 retention.py, runner.py, runtime.py, schema_validate.py, selection.py,
@@ -36,17 +36,17 @@ server.py, subjects.py, tier_gate.py` and none of the eight names above.]`
 
 `.planning/phases/14A-identity-lifecycle-operation/` contains only
 `14A-01-PLAN.md` through `14A-04-PLAN.md`, `14A-BRIEF.md`, `14A-PATTERNS.md`,
-`14A-RESEARCH.md`, `14A-VALIDATION.md` — no `14A-FREEZE.md`, no
+`14A-RESEARCH.md`, `14A-VALIDATION.md`, no `14A-FREEZE.md`, no
 `14A-*-SUMMARY.md`. `[VERIFIED: directory listing, this session]`
 
 `.planning/phases/16A-semantic-capability-activity-contract/` contains only
 `16A-01-PLAN.md` through `16A-10-PLAN.md`, `16A-PATTERNS.md`, `16A-RESEARCH.md`,
-`16A-VALIDATION.md` — no `16A-FREEZE.md`, no `16A-DECISIONS.md`, no
+`16A-VALIDATION.md`, no `16A-FREEZE.md`, no `16A-DECISIONS.md`, no
 `16A-PRECONDITION.md`, no `16A-*-SUMMARY.md`. `[VERIFIED: directory listing,
 this session]`
 
 `.planning/phases/13.9-walking-skeleton/` contains only `13.9-01-PLAN.md`
-through `13.9-03-PLAN.md` — no `13.9-*-SUMMARY.md`, no `13.9-DECISIONS.md`.
+through `13.9-03-PLAN.md`, no `13.9-*-SUMMARY.md`, no `13.9-DECISIONS.md`.
 `[VERIFIED: directory listing, this session]` The walking skeleton has not been
 walked. Because `ROADMAP.md`'s Phase 14B entry forbids that freeze closing
 "before Phase 13.9 has been walked" and 16A's own dependency is 14B, the whole
@@ -90,7 +90,7 @@ These directives bind every plan this research feeds and are cited here so the
 planner does not have to re-derive them:
 
 1. **Runtime invariant, unchanged by this phase.** "One runtime, one scorer, one
-   evidence store — and the runtime, not the model, settles scoring, assessment
+   evidence store, and the runtime, not the model, settles scoring, assessment
    disclosure, and evidence." A 16B storyboard, job, or chat affordance must
    never gain scoring, disclosure, or evidence-write authority; only the
    existing runtime keeps that authority.
@@ -211,12 +211,12 @@ explicitly-labeled synthetic stand-in the freeze record names as such.
 |------------|-------------|----------------|-----------|
 | Course shelf / Home route | Frontend Server (daemon route + server-rendered HTML) | Course records (14B, not yet built) | `GET /` is served by `surfaces/daemon.py`'s `handle_index` today `[VERIFIED: surfaces/daemon.py:939-964]`; a course-first Home is the same tier, reading a course index once `course.py` exists, degrading to the current bank/plan listing until then. |
 | Deep links, anchors, back/parent semantics | Frontend Server (route table) | Browser (focus/scroll restoration, client-side) | Route identity and the HTML response are server-owned (SURF-02: "the browser page is a client of the same JSON API... it holds no key and implements no scoring" `[VERIFIED: REQUIREMENTS.md:161]`); focus/scroll restoration on navigation is necessarily client-side behavior over server-identified anchors. |
-| Activity view (durable agent/maintenance jobs) | Frontend Server (new route reading the journal) | API/Backend (journal.py, Phase 14A) | The durable record is `journal.py`'s append-only log (Phase 14A, runtime tier); the Activity **view** is a new daemon route that reads `journal.entries()`/`journal.replay()` and renders needs-input/outcome/recovery state — display, not a second job engine. |
+| Activity view (durable agent/maintenance jobs) | Frontend Server (new route reading the journal) | API/Backend (journal.py, Phase 14A) | The durable record is `journal.py`'s append-only log (Phase 14A, runtime tier); the Activity **view** is a new daemon route that reads `journal.entries()`/`journal.replay()` and renders needs-input/outcome/recovery state, display, not a second job engine. |
 | Mode-layer precedence enforcement | API/Backend (runtime authority layers) | Frontend Server (settings/course-record read for the other six layers) | Runtime authority (scoring, selection, keyed disclosure, formal-test pause) is fixed server-side truth today (`runtime.public_item`, `evidence.mark_event`'s human-only gate) `[VERIFIED: STATE.md:355; runtime.py cited in 16A-RESEARCH.md:73]`; the other six layers (preference through instructor policy) are read-only precedence data the frontend server resolves before rendering, never client-side logic that could be bypassed. |
 | First-run sample course + walkthrough | Frontend Server (route + bundled synthetic fixture) | CDN/Static (bundled sample-course asset, no network fetch) | APP-03 requires reachability "without granting source roots or configuring an agent" `[VERIFIED: REQUIREMENTS.md:837-839]`, so the sample course ships as a bundled resource read the same way `resources.py` already serves bundled assets, not a network fetch. |
-| Offline help routed from named error codes | Frontend Server (static help bundle keyed by code) | — | Follows the shipped `SETTINGS_CODES`/`LINT_CODES`/`GIFT_CODES` dotted-error-code precedent `[VERIFIED: surfaces/settings.py:10,39]`; help text is a local lookup table, never a network fetch, consistent with DEL-07's "fails silently when offline" precedent. |
+| Offline help routed from named error codes | Frontend Server (static help bundle keyed by code) | (none) | Follows the shipped `SETTINGS_CODES`/`LINT_CODES`/`GIFT_CODES` dotted-error-code precedent `[VERIFIED: surfaces/settings.py:10,39]`; help text is a local lookup table, never a network fetch, consistent with DEL-07's "fails silently when offline" precedent. |
 | Settings expansion (roots, egress policy, accessibility, storage, backups) | Frontend Server (settings.py + schema) | API/Backend (settings read by every route that needs approved-root or backend info) | Same tier the shipped `theme`, `daily_cap`, `model_backend` fields already occupy `[VERIFIED: schemas/settings.schema.json properties list, this session]`; additive top-level keys, one shared validator, no second settings surface. |
-| Degraded-state matrix (crash, cancel, offline, permission-denied, future-schema, agent-unavailable) | API/Backend (journal replay decides "old or new valid state") plus Frontend Server (rendering the next safe action) | — | RELIABILITY-01's "fault injection yields the old or new valid state, never a mixed state" is the backend guarantee `[VERIFIED: REQUIREMENTS.md:783-792]`; 16B's job is the **rendering contract** for that guarantee (what the learner sees and what action is offered), not the fault-tolerant write path itself. |
+| Degraded-state matrix (crash, cancel, offline, permission-denied, future-schema, agent-unavailable) | API/Backend (journal replay decides "old or new valid state") plus Frontend Server (rendering the next safe action) | (none) | RELIABILITY-01's "fault injection yields the old or new valid state, never a mixed state" is the backend guarantee `[VERIFIED: REQUIREMENTS.md:783-792]`; 16B's job is the **rendering contract** for that guarantee (what the learner sees and what action is offered), not the fault-tolerant write path itself. |
 
 ## Standard Stack
 
@@ -250,7 +250,7 @@ not a new package.
 
 **Installation:** none required.
 
-**Version verification:** not applicable — no external package is recommended.
+**Version verification:** not applicable, no external package is recommended.
 
 ## Package Legitimacy Audit
 
@@ -302,7 +302,7 @@ pinned version with a recorded checksum and a named license review"
              ┌───────────────────────────────────────────┐
              │ runtime.py :: score_response / public_item │
              │ evidence.py :: append_event / mark_event   │
-             │  (the ONE assessment authority — untouched │
+             │  (the ONE assessment authority, untouched │
              │   by any 16B route; APP-02's "runtime      │
              │   authority... fixed" layer)                │
              └───────────────────────────────────────────┘
@@ -332,7 +332,7 @@ surfaces/
 │                       #   following the module-naming precedent of
 │                       #   16A's capabilities.py): course-shelf listing,
 │                       #   deep-link/anchor resolution, mode-layer
-│                       #   precedence resolver — pure functions, no I/O
+│                       #   precedence resolver, pure functions, no I/O
 │                       #   beyond reading course.py/journal.py once they exist
 ├── settings.py         # existing: SETTINGS_CODES, load_settings, validator
 │                       #   gains: approved_roots, network_egress, accessibility,
@@ -358,7 +358,7 @@ with a `type="auto"` task that (a) imports every dependency module the phase
 was planned against and asserts it succeeds, (b) asserts every cited constant
 and function signature matches what the research/plan text recorded, (c)
 checks for the literal frozen heading in each upstream `*-FREEZE.md` (not just
-file existence — a withheld freeze must fail the check too), and (d) halts by
+file existence, a withheld freeze must fail the check too), and (d) halts by
 name, writing nothing else, on any divergence.
 
 **When to use:** Any 16B plan that would import `identity`, `journal`,
@@ -367,7 +367,7 @@ or the new `_CALLOUT_KINDS` entries (16A).
 
 **Example (the exact shape to extend for 16B-01, quoting the working pattern
 14A-01 was checked against by 16A-01 and that 16B-01 must extend one degree
-further — two freeze records instead of one):**
+further, two freeze records instead of one):**
 ```python
 # Source: 16A-01-PLAN.md Task 1, steps 1-9 (plan text, verified this session)
 # 16B-01 extends this shape to check BOTH 14A-FREEZE.md and 16A-FREEZE.md
@@ -383,7 +383,7 @@ print('14A surface matches')"
 #       16A-FREEZE.md contains literal '## Frozen at 16A' and NOT
 #       '## Freeze withheld'
 # then: check 16A's OWN precondition passed, i.e. 16A-PRECONDITION.md's
-#       "Dated result line" states 16A may proceed — otherwise a present
+#       "Dated result line" states 16A may proceed: otherwise a present
 #       16A-FREEZE.md could still rest on a divergence 16A itself recorded
 #       and never resolved
 ```
@@ -451,7 +451,7 @@ entry_id, actor_kind, actor_name)`.
 
 **Example:**
 ```python
-# Source: 14A-02-PLAN.md:104-140 (plan text, verified this session — journal.py
+# Source: 14A-02-PLAN.md:104-140 (plan text, verified this session: journal.py
 # does not exist on disk yet, so this cites the planned public surface)
 # journal.OBJECT_STATES = ("clean", "conflict", "interrupted", "missing",
 #                           "unavailable")
@@ -551,7 +551,7 @@ or relocated by this phase's scope. The one adjacent fact worth recording
 explicitly rather than leaving implicit: the shipped `GET /` route's *meaning*
 changes (bank/plan index → course shelf), which is a **behavior** supersession
 documented in `UI-SPEC.md` §15.5, not a rename of a route path, a file, or a
-stored key — the literal string `"/"` is unchanged.
+stored key, the literal string `"/"` is unchanged.
 
 ## Common Pitfalls
 
@@ -580,7 +580,7 @@ and it is tempting to give the route a direct write for responsiveness.
 **How to avoid:** Every state-changing Activity action must call into
 `journal.py`'s own commit/undo functions, never write `_journal/objects.json`
 or `journal.jsonl` directly; `objects.json` is explicitly documented as "a
-disposable projection" `[VERIFIED: 14A-02-PLAN.md:28]` and rebuildable —
+disposable projection" `[VERIFIED: 14A-02-PLAN.md:28]` and rebuildable , 
 writing to it directly breaks that guarantee.
 **Warning signs:** A route handler that opens `_journal/journal.jsonl` for
 append itself instead of calling a `journal.py` function.
@@ -738,11 +738,11 @@ superseded by semantic teaching blocks composed from shared relations.
 
 | Dependency | Required By | Available | Version | Fallback |
 |------------|------------|-----------|---------|----------|
-| Python 3.11+ | All 16B code and fixtures | Yes (per `.claude/CLAUDE.md` "Runtime": tested via `actions/setup-python@v5`) | 3.11+ | — |
-| `identity.py`, `journal.py`, `discovery.py` (Phase 14A) | Route wiring that reads real journal/course-adjacent state | No — confirmed missing this session | — | Build against plan-text signatures behind a precondition check; degrade route behavior to a documented "not yet available" state until 14A lands. |
-| `graph.py`, `course.py`, `course_package.py` (Phase 14B) | Course-shelf content, Course map, Sources routes | No — confirmed missing this session | — | Same as above; 16A already established this fallback discipline for its own dependency on 14B. |
-| `capabilities.py`, expanded `_CALLOUT_KINDS` (Phase 16A) | Learn-area rendering that surfaces new semantic roles | No — confirmed missing this session (no `16A-FREEZE.md`) | — | Build IA/route contracts that do not require the new semantic roles to exist; a Learn-area fixture can use the shipped four `_CALLOUT_KINDS` (`KEY`, `EXAMPLE`, `NOTE`, `WARNING`) until 16A lands. |
-| Git | Optional, for any phase-state inspection | Yes (repo is a git working tree) | — | — |
+| Python 3.11+ | All 16B code and fixtures | Yes (per `.claude/CLAUDE.md` "Runtime": tested via `actions/setup-python@v5`) | 3.11+ | (none) |
+| `identity.py`, `journal.py`, `discovery.py` (Phase 14A) | Route wiring that reads real journal/course-adjacent state | No, confirmed missing this session | (none) | Build against plan-text signatures behind a precondition check; degrade route behavior to a documented "not yet available" state until 14A lands. |
+| `graph.py`, `course.py`, `course_package.py` (Phase 14B) | Course-shelf content, Course map, Sources routes | No, confirmed missing this session | (none) | Same as above; 16A already established this fallback discipline for its own dependency on 14B. |
+| `capabilities.py`, expanded `_CALLOUT_KINDS` (Phase 16A) | Learn-area rendering that surfaces new semantic roles | No, confirmed missing this session (no `16A-FREEZE.md`) | (none) | Build IA/route contracts that do not require the new semantic roles to exist; a Learn-area fixture can use the shipped four `_CALLOUT_KINDS` (`KEY`, `EXAMPLE`, `NOTE`, `WARNING`) until 16A lands. |
+| Git | Optional, for any phase-state inspection | Yes (repo is a git working tree) | (none) |, |
 
 **Missing dependencies with no fallback:** none. Every missing dependency above
 has a documented degrade-and-precondition-check fallback, matching the pattern
@@ -750,7 +750,7 @@ has a documented degrade-and-precondition-check fallback, matching the pattern
 
 **Missing dependencies with fallback:** `identity.py`/`journal.py` (14A),
 `graph.py`/`course.py`/`course_package.py` (14B, transitively), `capabilities.py`
-(16A) — see table above.
+(16A), see table above.
 
 ## Validation Architecture
 
@@ -758,8 +758,8 @@ has a documented degrade-and-precondition-check fallback, matching the pattern
 
 | Property | Value |
 |----------|-------|
-| Framework | Direct-execution Python scripts, no pytest/unittest runner dependency, matching every existing `tests/*_roundtrip.py` file `[VERIFIED: .claude/CLAUDE.md "Testing" — "Python unittest/subprocess-based... Test runner: Direct Python script execution"]` |
-| Config file | none — see Wave 0 |
+| Framework | Direct-execution Python scripts, no pytest/unittest runner dependency, matching every existing `tests/*_roundtrip.py` file `[VERIFIED: .claude/CLAUDE.md "Testing", "Python unittest/subprocess-based... Test runner: Direct Python script execution"]` |
+| Config file | none, see Wave 0 |
 | Quick run command | `python tests/ia_route_roundtrip.py` (per-file, following e.g. `python tests/lesson_roundtrip.py`) |
 | Full suite command | the project's existing full-suite invocation (no single documented aggregate command was found in files read this session; the planner should confirm the CI invocation in `.github/workflows/ci.yml` before writing the plan's verify steps) |
 
@@ -771,7 +771,7 @@ has a documented degrade-and-precondition-check fallback, matching the pattern
 | FLOW-02 | Reading/lesson/practice/feedback/next-action moves without context reconstruction; model-unavailable degrade keeps scoring/hints/evidence/reports working | integration | `python tests/ia_storyboard_tracer.py` (same file, a distinct `scenario_*` function per the 16A precedent of `scenario_*` functions in one tracer module) | ❌ Wave 0 |
 | APP-01 | Course shelf shows exact resume cue; a corrupted course still shows last valid overview + plain-file access | integration | `python tests/ia_route_roundtrip.py` | ❌ Wave 0 |
 | APP-02 | Same deep links resolve identically wide and narrow; focus/scroll restoration | integration + manual-assist (narrow-width rendering is a visual check, deferred in substance to 17A but the route-identity assertion is automatable now) | `python tests/ia_route_roundtrip.py` | ❌ Wave 0 |
-| APP-03 | First-run sample course/walkthrough reachable with no roots/agent/network; offline help routes by error code; settings expose the five new groups | integration | `python tests/ia_route_roundtrip.py` plus `python tests/config_roundtrip.py` (existing settings-validation file, extended) | Partial — `tests/config_roundtrip.py` exists `[VERIFIED: repo tests/ directory listing, this session]`; the first-run/offline-help fixture is Wave 0 |
+| APP-03 | First-run sample course/walkthrough reachable with no roots/agent/network; offline help routes by error code; settings expose the five new groups | integration | `python tests/ia_route_roundtrip.py` plus `python tests/config_roundtrip.py` (existing settings-validation file, extended) | Partial, `tests/config_roundtrip.py` exists `[VERIFIED: repo tests/ directory listing, this session]`; the first-run/offline-help fixture is Wave 0 |
 
 ### Sampling Rate
 
@@ -787,20 +787,20 @@ has a documented degrade-and-precondition-check fallback, matching the pattern
 
 ### Wave 0 Gaps
 
-- [ ] `tests/ia_storyboard_tracer.py` — covers FLOW-01, FLOW-02 (loop A-G
+- [ ] `tests/ia_storyboard_tracer.py`, covers FLOW-01, FLOW-02 (loop A-G
       interruption scenarios; model-unavailable degrade scenario)
-- [ ] `tests/ia_route_roundtrip.py` — covers APP-01, APP-02, APP-03 (course
+- [ ] `tests/ia_route_roundtrip.py`, covers APP-01, APP-02, APP-03 (course
       shelf, deep-link/anchor resume, first-run/offline-help)
-- [ ] `tests/mode_layer_roundtrip.py` — covers the mode-layer precedence
+- [ ] `tests/mode_layer_roundtrip.py`, covers the mode-layer precedence
       table's conflict-resolution behavior (supports the ROADMAP Phase 16B
       goal clause on mode layering; shared with 16C's STRATEGY-02 fixture,
       see Open Question 3)
-- [ ] `tests/degraded_state_roundtrip.py` — covers the crash/cancel/offline/
+- [ ] `tests/degraded_state_roundtrip.py`, covers the crash/cancel/offline/
       permission-denied/future-schema/agent-unavailable matrix
-- [ ] `fixtures/course_storyboard_corpus.py` — shared synthetic fixture
+- [ ] `fixtures/course_storyboard_corpus.py`, shared synthetic fixture
       generator all four new test files above draw from, following
       `fixtures/corpus_14a.py`'s generator-into-caller-directory shape
-- [ ] Framework install: none — stdlib only, no new dependency to install
+- [ ] Framework install: none, stdlib only, no new dependency to install
 
 ## Security Domain
 
@@ -825,49 +825,49 @@ has a documented degrade-and-precondition-check fallback, matching the pattern
 
 ## Sources
 
-### Primary (HIGH confidence — read directly this session)
+### Primary (HIGH confidence: read directly this session)
 
-- `C:/Users/wayba/Downloads/CTF/itembank/.planning/REQUIREMENTS.md` — FLOW-01,
+- `C:/Users/wayba/Downloads/CTF/itembank/.planning/REQUIREMENTS.md`, FLOW-01,
   FLOW-02, APP-01, APP-02, APP-03, RELIABILITY-01/02/03, AGENT-01/02/03,
   MAINT-01-04, GRAPH-03, ACTIVITY-01/02/03 (lines 519-993, 1240-1310)
-- `C:/Users/wayba/Downloads/CTF/itembank/.planning/ROADMAP.md` — Phase 16B
+- `C:/Users/wayba/Downloads/CTF/itembank/.planning/ROADMAP.md`, Phase 16B
   section in full (lines 1906-1974), subphase table (lines 1975-2024)
-- `C:/Users/wayba/Downloads/CTF/itembank/.planning/PLANNING-DIRECTIVES.md` —
+- `C:/Users/wayba/Downloads/CTF/itembank/.planning/PLANNING-DIRECTIVES.md` , 
   full file (§1-10, especially §2, §3, §4, §4a, §5, §8)
-- `C:/Users/wayba/Downloads/CTF/itembank/.planning/SOURCE-TO-COURSE.md` — full
+- `C:/Users/wayba/Downloads/CTF/itembank/.planning/SOURCE-TO-COURSE.md`, full
   file
-- `C:/Users/wayba/Downloads/CTF/itembank/.planning/AGENT-WORKFLOW.md` — full
+- `C:/Users/wayba/Downloads/CTF/itembank/.planning/AGENT-WORKFLOW.md`, full
   file
-- `C:/Users/wayba/Downloads/CTF/itembank/.planning/UI-SPEC.md` — §8
+- `C:/Users/wayba/Downloads/CTF/itembank/.planning/UI-SPEC.md`, §8
   (Responsive/Offline/Accessibility, lines 580-603), §9-14 (lines 603-700),
   §15 (Source-to-course UI additions, lines 702-833)
-- `C:/Users/wayba/Downloads/CTF/itembank/.planning/PLAN-TEMPLATE.md` — full
+- `C:/Users/wayba/Downloads/CTF/itembank/.planning/PLAN-TEMPLATE.md`, full
   file
 - `C:/Users/wayba/Downloads/CTF/itembank/.planning/research/phase-16/14-synthesis.md`
-  — sections 3, 4, 5, 8, 9, 10, 11, 15, 16 (lines 195-603, 913-1031)
+ , sections 3, 4, 5, 8, 9, 10, 11, 15, 16 (lines 195-603, 913-1031)
 - `C:/Users/wayba/Downloads/CTF/itembank/.planning/phases/16A-semantic-capability-activity-contract/16A-01-PLAN.md`
-  — full frontmatter and Task 1 (lines 1-439)
+ , full frontmatter and Task 1 (lines 1-439)
 - `C:/Users/wayba/Downloads/CTF/itembank/.planning/phases/16A-semantic-capability-activity-contract/16A-RESEARCH.md`
-  — lines 1-130
+ , lines 1-130
 - `C:/Users/wayba/Downloads/CTF/itembank/.planning/phases/14A-identity-lifecycle-operation/14A-01-PLAN.md`
-  — lines 1-120
+ , lines 1-120
 - `C:/Users/wayba/Downloads/CTF/itembank/.planning/phases/14A-identity-lifecycle-operation/14A-02-PLAN.md`
-  — lines 1-140
+ , lines 1-140
 - `C:/Users/wayba/Downloads/CTF/itembank/.planning/phases/13.9-walking-skeleton/13.9-01-PLAN.md`
-  — lines 1-90
-- `C:/Users/wayba/Downloads/CTF/itembank/surfaces/daemon.py` — lines 195-334
+ , lines 1-90
+- `C:/Users/wayba/Downloads/CTF/itembank/surfaces/daemon.py`, lines 195-334
   (ROUTES/API_ROUTES/ROUTE_CLI/SURFACE_PARITY), 939-964 (handle_index),
   1118-1145 (handle_settings_get), 1965-1990 (handle_day_index,
   handle_day_save)
-- `C:/Users/wayba/Downloads/CTF/itembank/surfaces/settings.py` — lines 1-40
-- `C:/Users/wayba/Downloads/CTF/itembank/schemas/settings.schema.json` —
+- `C:/Users/wayba/Downloads/CTF/itembank/surfaces/settings.py`, lines 1-40
+- `C:/Users/wayba/Downloads/CTF/itembank/schemas/settings.schema.json` , 
   top-level `properties` keys, read via `python -c "json.load(...)"`
-- `C:/Users/wayba/Downloads/CTF/itembank/.claude/CLAUDE.md` — full file
+- `C:/Users/wayba/Downloads/CTF/itembank/.claude/CLAUDE.md`, full file
   (project instructions block in this session's system context)
-- `C:/Users/wayba/Downloads/CTF/itembank/.planning/STATE.md` — lines 1-470
+- `C:/Users/wayba/Downloads/CTF/itembank/.planning/STATE.md`, lines 1-470
   (decisions log, phase-6.2/13-01 route/gate precedents)
 - Repository root directory listing (`ls *.py`) and phase directory listings
-  for 14A, 16A, 13.9, 16B — run directly this session via Bash
+  for 14A, 16A, 13.9, 16B, run directly this session via Bash
 
 ### Secondary (MEDIUM confidence)
 
@@ -882,25 +882,25 @@ has a documented degrade-and-precondition-check fallback, matching the pattern
 ## Metadata
 
 **Confidence breakdown:**
-- Standard stack: HIGH — no new dependency; stdlib-only extension of shipped
+- Standard stack: HIGH, no new dependency; stdlib-only extension of shipped
   modules, verified by direct read.
 - Architecture (IA/route patterns): HIGH for the parts extending shipped
   `surfaces/daemon.py`/`settings.py` (read directly this session); MEDIUM for
   the parts composing planned 14A/16A signatures (read from plan text only,
   per the same caveat 16A-RESEARCH.md itself carries).
-- Mode-layer contract and degraded-state matrix: MEDIUM — the seven-layer
+- Mode-layer contract and degraded-state matrix: MEDIUM, the seven-layer
   table and the seven-state matrix are quoted verbatim from
   `research/phase-16/14-synthesis.md`, an accepted synthesis document, but
   their enforcement mechanism inside 16B's own new code is this research's
   synthesis (`[ASSUMED]`) pending the planner's checkpoint decisions.
-- Pitfalls: HIGH — every pitfall traces to a specific requirement clause, a
+- Pitfalls: HIGH, every pitfall traces to a specific requirement clause, a
   specific shipped-code precedent, or a specific line in 16A's own precondition
   check that establishes the pattern 16B must extend.
 
 **Research date:** 2026-08-15
 **Valid until:** Re-verify before 16B execution if either `14A-FREEZE.md` or
 `16A-FREEZE.md` comes into existence between this research and plan execution
-— at that point every plan-text-sourced claim in this document must be
+,  at that point every plan-text-sourced claim in this document must be
 re-checked against the real frozen surface, following the exact discipline
 16B-01's own precondition check (Pattern 1 above) is designed to enforce. If
 neither freeze record exists yet, this research remains valid (nothing it
