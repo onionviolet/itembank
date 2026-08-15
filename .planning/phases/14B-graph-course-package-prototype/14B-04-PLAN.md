@@ -118,6 +118,23 @@ No CLI command and no daemon route is produced by this plan.
 <task type="checkpoint:decision" gate="blocking">
   <name>Task 1: the migration record shape and where migrate lives</name>
   <files>.planning/phases/14B-graph-course-package-prototype/14B-DECISIONS.md</files>
+  <read_first>
+- `.planning/phases/14A-identity-lifecycle-operation/14A-FREEZE.md`, the
+  `## Frozen at 14A` section, specifically the item reading "the six operation
+  names". That sentence is what makes option-b a freeze amendment.
+- `.planning/phases/14A-identity-lifecycle-operation/14A-03-PLAN.md` Task 2,
+  the step that adds `reconcile` to `RECORD_TYPES` while keeping
+  `OPERATION_TYPES` at exactly six, and its out-of-scope note routing `migrate`
+  to Phase 14B.
+- `journal.py` as landed: `OPERATION_TYPES`, `RECORD_TYPES`, and
+  `commit_operation`'s step 1 validation.
+- `.agents/skills/OPERATION-CONTRACT.md`, the authority vocabulary sentence
+  listing link, import, copy, move, edit-in-place, supersede, migrate, and
+  synchronize as distinct operations. Read it before presenting the options so
+  the apparent conflict is explained rather than left to decide the answer.
+- `.planning/phases/14B-graph-course-package-prototype/14B-DECISIONS.md`, so
+  the new section is appended.
+  </read_first>
   <decision>
 Does `migrate` become a seventh member of the frozen `journal.OPERATION_TYPES`,
 or an additive member of `journal.RECORD_TYPES`, and what fields does a

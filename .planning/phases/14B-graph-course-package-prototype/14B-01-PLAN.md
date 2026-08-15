@@ -262,6 +262,18 @@ end of a failed run.
 <task type="checkpoint:decision" gate="blocking">
   <name>Task 2: the sidecar's on-disk name and the Phase 13.9 supersession path</name>
   <files>.planning/phases/14B-graph-course-package-prototype/14B-DECISIONS.md</files>
+  <read_first>
+- `.planning/phases/13.9-walking-skeleton/13.9-01-PLAN.md` in full, especially
+  its Task 2 step 1 header text and its `key_links` line stating that
+  `course.md` is a draft stub Phase 14B owns the real schema for and may
+  supersede.
+- `.planning/phases/13.9-walking-skeleton/13.9-01-SUMMARY.md` if it exists. It
+  tells you whether a real course has already been drafted into `course.md`,
+  which is the fact that makes option-b consequential.
+- `14B-RESEARCH.md` "Interaction with Phase 13.9" in full, and Assumption A7.
+- `.planning/phases/14B-graph-course-package-prototype/14B-DECISIONS.md` if it
+  already exists, so the new section is appended rather than overwriting one.
+  </read_first>
   <decision>
 Where does the Phase 14B course graph live on disk inside a course root, and
 what happens to the `course.md` stub that Phase 13.9 writes there?

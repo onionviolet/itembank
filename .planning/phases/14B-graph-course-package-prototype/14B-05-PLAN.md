@@ -135,6 +135,21 @@ Phase 14A already reserved.
 <task type="checkpoint:decision" gate="blocking">
   <name>Task 1: the package manifest format</name>
   <files>.planning/phases/14B-graph-course-package-prototype/14B-DECISIONS.md</files>
+  <read_first>
+- `14B-RESEARCH.md` "Pattern 6" in full, including the package tree diagram,
+  the loss-category table, and the Security note paragraph on why the package
+  is a plain directory tree first; plus Assumption A5 and the Alternatives
+  Considered row for `bagit`.
+- `course_package.py` as it stands after plan 14B-01: `MANIFEST_ENTRY_KEYS`,
+  `PACKAGE_STATES`, `export_package`, `restore_package`, `safe_target`.
+- `.claude/CLAUDE.md` Constraints, the Users bullet as amended 2026-08-14, and
+  the ROADMAP Phase 18 entry, for what an external installation means for a
+  package that leaves this machine.
+- `.planning/PLANNING-DIRECTIVES.md` section 4a, the Supply chain paragraph, in
+  full. It governs what option-c would cost.
+- `.planning/phases/14B-graph-course-package-prototype/14B-DECISIONS.md`, so
+  the new section is appended.
+  </read_first>
   <decision>
 What exactly does `manifest.json` contain, and is the package a plain directory
 tree with an optional archive, or an archive by default?

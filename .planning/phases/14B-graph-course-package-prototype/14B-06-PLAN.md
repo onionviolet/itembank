@@ -358,6 +358,22 @@ tracer runs. The human half cannot be automated and is not claimed to be.
 <task type="checkpoint:decision" gate="blocking">
   <name>Task 3: confirm the freeze scope before anything is declared durable</name>
   <files>.planning/phases/14B-graph-course-package-prototype/14B-DECISIONS.md</files>
+  <read_first>
+- Task 4 step 4 of this plan, the proposed Frozen and Not frozen lists, in
+  full. They are the options' content and must be presented verbatim.
+- `.planning/phases/14A-identity-lifecycle-operation/14A-FREEZE.md`, the
+  `## Frozen at 14A` section, as the precedent for what a freeze record says
+  and what it deliberately leaves open.
+- The tracer output from Task 1 and the sign-off line from Task 2 of this plan,
+  plus the three Phase 13.9 check results from Task 4 step 2. The answer is
+  given against real evidence, never against a prediction.
+- `.planning/ROADMAP.md`, the subphase dependency table showing that 15A, 15B,
+  16A, and 16C all depend on 14B, so the reader knows what composes onto this.
+- `.planning/PLANNING-DIRECTIVES.md` section 3a, the reversible-prototype
+  paragraph, for why this freeze is not the course schema freeze.
+- `.planning/phases/14B-graph-course-package-prototype/14B-DECISIONS.md`, so
+  the new section is appended.
+  </read_first>
   <decision>
 Which Phase 14B interfaces are declared frozen, and which stay deliberately
 changeable?
