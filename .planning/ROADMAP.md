@@ -1627,6 +1627,33 @@ prototyped before any course schema freeze. Plan 14B-02 delivers the first and
 plan 14B-03 the second; Phase 14B is that prototype and its freeze record
 states explicitly that it is not the course schema freeze.
 
+### Phase 15A: Director & Treatment Policy
+
+**Goal**: An approved agent client, hosted coding-agent-class or registered
+local backend, can recommend an explicit, reviewable treatment for every
+objective from the eleven-kind treatment vocabulary, with direct reading as a
+complete result and generation never the automatic default; every
+objective-to-source coverage claim carries a stable locator, confidence, and
+one of five states (covered, thin, missing, conflicting, unknown) with heading
+similarity never producing covered; every agent operation runs through the one
+operation protocol over the Phase 14A journal with declared intent, scope,
+rights, egress, checkpoints, resume, and undo; hosted operations minimize and
+disclose exact egress; autonomy levels bound what an agent may do without
+review; and backend loss leaves all core work local and model-free.
+**Depends on**: Phase 14B (typed graph, source and treatment bindings, rights
+enforced at the binding). Phase 14B is planned but not yet executed, so every
+14B and 14A signature this phase imports is read from plan text at planning
+time; the first 15A plan opens with a recorded precondition check that halts by
+name on any divergence, the same pattern plan 14B-01 set.
+**Freeze gate:** the four-subject recommendation review: one recommendation
+operation over four synthetic subject outlines (EMT, Math 1400, CSCI 1100, and
+one standardized-exam blueprint), including one objective bound to direct
+reading as a complete result and one left untreated, replayed step by step from
+the operation journal against the protocol checklist, run through a mock hosted
+and a mock local backend with identical artifacts and journals, with the egress
+log listing exactly the approved synthetic source spans.
+**Requirements**: TREAT-01, TREAT-02, RIGHTS-02, RELIABILITY-02, AGENT-01, AGENT-02
+
 ### Next-milestone subphase sequence (14A through 17B)
 
 *Reframed 2026-08-13 from the four broad Phases 14 to 17, per
