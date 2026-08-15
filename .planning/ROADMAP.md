@@ -1744,10 +1744,42 @@ second one rejected through the reviewer path; and a sparse-evidence proposal
 uncertainty and refuses a mastery percentage, all replayed from the operation
 journal.
 **Requirements**: ACTIVITY-02, RELIABILITY-03, AGENT-03
+**Plans:** 7 plans
 **Phase plan:** `.planning/phases/15B-quality-blueprint-acceptance/`
-(`15B-RESEARCH.md`, `15B-VALIDATION.md`; no CONTEXT.md, the same precedent
-Phases 14A, 14B, and 15A set, with the binding decisions in `REQUIREMENTS.md`,
-`PLANNING-DIRECTIVES.md`, and the phase-16 synthesis).
+(`15B-RESEARCH.md`, `15B-PATTERNS.md`, `15B-VALIDATION.md`, `COVERAGE.md`; no
+CONTEXT.md, the same precedent Phases 14A, 14B, and 15A set, with the binding
+decisions in `REQUIREMENTS.md`, `PLANNING-DIRECTIVES.md`, and the phase-16
+synthesis).
+
+Plans:
+- [ ] 15B-01-PLAN.md (wave 1, not autonomous) preconditions and the two one-way
+  doors: the recorded check against 14A, 14B, and 15A plus all three freeze
+  records, then D-15B-1 (where the blueprint, staleness, audit, and acceptance
+  code lives) and D-15B-2 (where a blueprint lives, which write path records an
+  acceptance, and which journal record type it uses).
+- [ ] 15B-02-PLAN.md (wave 2) the acceptance tracer and the five-gate pipeline:
+  one drafted set and one cited blueprint through parser, lint, review,
+  blueprint, and runtime to an accepted write; `blueprint.py`,
+  `schemas/blueprint.schema.json`, and the additive `gates.blueprint_findings`
+  array.
+- [ ] 15B-03-PLAN.md (wave 3) staleness and the four dispositions: a fingerprint
+  comparison recomputed on read, RELIABILITY-03's own rebind, migrate,
+  supersede, and retain vocabulary, and the hard block on acceptance until a
+  matching review is recorded.
+- [ ] 15B-04-PLAN.md (wave 4) accepted revision: `graph.accept_migration` and
+  `graph.reject_migration` closing the gap 14B-04 named, their write through
+  `course.write_course`, the live autonomy re-check at accept time, and exactly
+  one new `journal.RECORD_TYPES` member.
+- [ ] 15B-05-PLAN.md (wave 5, not autonomous) the cited course audit that names
+  which of three existing vocabularies each claim came from and mints no
+  fourth, plus D-15B-3 (where the course audit report shape lives).
+- [ ] 15B-06-PLAN.md (wave 6) AGENT-03 evidence-based proposals: observation
+  window, denominator, included and missing signals, uncertainty, competing
+  explanations, and the recursive ban that keeps sparse evidence from becoming
+  a mastery percentage.
+- [ ] 15B-07-PLAN.md (wave 7, not autonomous) the freeze gate: the
+  lesson-plus-practice acceptance tracer, the human acceptance-quality review,
+  and the freeze record or its named withholding.
 **Prototype-before-freeze coupling:** the 15B freeze covers the blueprint,
 audit, acceptance, staleness, and proposal-discipline surfaces only. It is
 explicitly not the course schema freeze, not a lesson-profile grammar freeze,

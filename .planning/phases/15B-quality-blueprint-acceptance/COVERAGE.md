@@ -1,0 +1,1 @@
+No external API integration: Phase 15B composes local Python-stdlib modules only (blueprint.py, graph.py, course.py, director.py, journal.py, authoring.py, model.py, runtime.py, schema_validate.py) plus three local JSON Schema files, and its freeze gate runs against fixture data rather than any hosted or local model backend.
