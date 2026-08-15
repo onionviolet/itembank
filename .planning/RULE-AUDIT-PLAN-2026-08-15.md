@@ -34,13 +34,36 @@ Ranked; audit in this order.
 
 ## Method
 
+### Audit controls
+
+- Assign each distinct rule a stable ID (`RA-001`, `RA-002`, and so on).
+  Mirrored or restated rules receive one canonical row plus source references,
+  rather than being counted as separate rules.
+- Treat an imperative as a rule when it uses mandatory or prohibitory language
+  (`must`, `never`, `only`, `required`, `do not`, or an equivalent command).
+  Mark descriptive text, recommendations, historical text, and superseded text
+  separately so they cannot silently become binding.
+- Record the authority class for every row: product invariant, product
+  contract, process control, quality gate, preference, or historical record.
+- Use exact source line spans from the audited revision. Record the audit base
+  commit and working-tree state so later line drift is detectable.
+- Give every verdict an evidence strength: direct conflict, observed misread,
+  plausible ambiguity with no observed harm, or no ambiguity found.
+- Do not amend a rule merely because a hypothetical misreading is possible.
+  `Clarify` requires an observed misread or a credible conflict with an accepted
+  feature. `Amend` requires evidence that the intended rule itself blocks an
+  accepted outcome. Otherwise keep the rule or record a non-binding editorial
+  suggestion.
+
 ### Step 1: rule inventory (about 2 hours, driver: rule count)
 
 Extract every imperative rule from the sources above into one table:
-rule text, source and line, intent (one sentence), literal misreading (one
-sentence, or "none"), feature class it could block, and a verdict of keep,
-clarify, or amend. The IL-20260815-06 findings are rows one through seven,
-already resolved; the table completes the sweep the spot check started.
+rule ID, normalized rule, exact source text, source and line, authority class,
+intent (one sentence), literal misreading (one sentence, or "none"), observed
+evidence, feature class it could block, evidence strength, and a verdict of
+keep, clarify, amend, preference, historical, or superseded. The
+IL-20260815-06 findings seed the first seven issue groups, but the inventory
+must independently verify their current wording and resolution.
 
 ### Step 2: retrospective feature audit (about 3 hours, driver: ledger size)
 
@@ -59,6 +82,12 @@ The initial evidence sweep completed 2026-08-15; its aggregate, flags, and
 revisit candidates are recorded in
 `.planning/research/2026-08-15-rejection-rule-tally.md` and seed this step.
 
+Build the retrospective population as a separate appendix before classifying
+it. Give each candidate a source locator and disposition, deduplicate repeated
+mentions by proposal and origin, and report counts for included, duplicate,
+historical-only, and unclassifiable records. This makes "every" testable and
+prevents prose searches from inflating the denominator.
+
 ### Step 3: friction measurement (about 1 hour, driver: honesty)
 
 Separate the two candidate friction sources and look for evidence of each:
@@ -74,6 +103,12 @@ Separate the two candidate friction sources and look for evidence of each:
 Deliverable: a one-page verdict naming which rules earn their cost, which
 need a lighter tier for low-stakes work, and which are noise.
 
+Repository history does not contain reliable wall-clock time. Use observable
+proxies (required artifact count, repeated fields, handoff/checkpoint count,
+documented stalls, and duplicated recording obligations), label estimates as
+estimates, and do not claim causal velocity effects from artifact counts
+alone. Separate prevention value from authoring cost.
+
 ### Step 4: apply and replan (about 2 hours, driver: findings count)
 
 - Apply clarify/amend verdicts from step 1 as dated additive notes, the same
@@ -85,6 +120,12 @@ need a lighter tier for low-stakes work, and which are noise.
   result to the roadmap as a proposed phase edit rather than editing
   ROADMAP.md unilaterally. Weibao decides scope changes.
 
+Before mutation, publish the complete findings table. Apply only changes whose
+evidence meets the thresholds above. Preserve exact historical wording, use
+dated additive clarifications, and verify AGENTS.md and CLAUDE.md remain
+semantically aligned. A roadmap delta is a proposal document, never a direct
+ROADMAP.md edit in this pass.
+
 ## Deliverables
 
 1. `RULE-AUDIT-2026-08-15.md` (or dated successor): the rule table, the
@@ -93,14 +134,20 @@ need a lighter tier for low-stakes work, and which are noise.
    clarify/amend verdict.
 3. New IDEA-LEDGER entries for every re-opened idea.
 4. A proposed roadmap delta, if the replanning gate fires.
+5. An appendix listing the complete retrospective population and exclusions.
 
 ## Exit criteria
 
 - Every rule in the five sources has a row and a verdict.
-- Every ledger rejection has been re-tested against clarified readings.
+- Every distinct rule is represented once, with all mirrors cross-referenced.
+- Every retrospective candidate has been included, deduplicated, or excluded
+  with a reason, and every included rejection has been re-tested against
+  clarified readings.
 - No rule text was deleted or weakened silently; every change is a dated
   additive note with a ledger citation.
 - The friction question has a written answer with named evidence, not a vibe.
+- Counts in the report reconcile with the inventory and retrospective
+  appendices, and all cited paths and line locators resolve.
 
 ## Out of scope
 
