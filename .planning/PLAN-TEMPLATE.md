@@ -80,3 +80,12 @@ Body sections, in order:
 - **Checkpoint hygiene.** A checkpoint states what is being asked, the options,
   the recommended default, and what the executor does with each answer. An
   unanswered checkpoint stops the wave; it never gets a silent default.
+- **Name the seam before adding a provider.** (Added 2026-08-15, IDEA-LEDGER
+  IL-20260815-02.) When a plan introduces or extends a capability that is
+  meant to vary (model backend, treatment policy, teaching surface,
+  source-discovery root), it names the interface, the provider being built,
+  and the consumers, and keeps the interface in one module so a later
+  provider is a config change, not a rewrite. Layers whose variation is a bug
+  (scorer, parser, evidence store) are never seams; they extend additively
+  inside the runtime per AGENTS.md rule 1. No plugin registry, loader, or
+  mount machinery is built until a second provider actually exists.

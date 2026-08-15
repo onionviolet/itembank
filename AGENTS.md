@@ -54,17 +54,28 @@ Non-negotiable rules:
 
 1. **One parser, one scorer.** Never parse a bank a second way and never decide
    correctness outside `runtime.py`. A future MCP/function-calling adapter must
-   wrap the JSON commands, not reimplement them.
+   wrap the JSON commands, not reimplement them. Clarified 2026-08-15
+   (IDEA-LEDGER IL-20260815-05): this names one scoring authority, not a frozen
+   capability set. New scoring behavior extends `score_response` additively,
+   and advisory graders, human or model, may propose a mark but never settle
+   one. A feature is wrong only if it needs a second, parallel authority whose
+   verdicts compete with the runtime's.
 2. **The runtime owns assessment authority.** Correctness, session state,
    evidence recording, and disclosure of keyed assessment content belong to
    the runtime. An agent may build and teach the course, but it may not invent
    a score, bypass the active feedback mode, or reveal keyed content early.
 3. **Never auto-grade prose.** A `short` item scores `None` (pending review),
    never `False`. Marking happens later against a rubric, by a human or a
-   human-approved model.
+   human-approved model. Clarified 2026-08-15 (IDEA-LEDGER IL-20260815-06):
+   a labeled, provisional AI assessment of a short answer is an advisory
+   grade and is allowed; only the settled mark waits for review.
 4. **Never commit real question banks.** This repository holds code and
    synthetic fixtures only. `itembank guard .` enforces it in CI.
 5. **Evidence and banks stay on disk.** No telemetry, no hosted gradebook.
+   Clarified 2026-08-15 (IDEA-LEDGER IL-20260815-06): this bans telemetry and
+   vendor-held data, not the learner's own copies. Learner-initiated export,
+   backup, and device sync are legitimate features gated by the export and
+   share rights grants; Phase 18 external installs need this distinction.
 
 For course-building work:
 
@@ -89,7 +100,11 @@ For course-building work:
     definitions, interactive diagrams, demonstrations, adaptive disclosure,
     and other learning controls, but core meaning cannot depend on the richer
     display. Every interactive feature needs a useful static representation
-    and an accessible interaction.
+    and an accessible interaction. Clarified 2026-08-15 (IDEA-LEDGER
+    IL-20260815-06): the static bar is that the fallback conveys the core
+    meaning and remains study-usable, not that it reproduces the interactive
+    experience. An inherently interactive treatment is acceptable when its
+    static form meets that bar.
 12. **Audit before upgrading.** When improving an older lesson, question, or
     exam for new UI capabilities, inspect it first, preserve its identity and
     source history, propose a reviewable diff, and validate it afterward. Do
@@ -106,7 +121,12 @@ For course-building work:
     trigger. The rejection and supersession ledger is append-only; a superseded
     or hard-rejected idea is never deleted, and every rejection records
     evidence, exact reason, conflicting rule, retained alternative, date, and
-    reconsideration condition (synthesis sections 1 and 12).
+    reconsideration condition (synthesis sections 1 and 12). Clarified
+    2026-08-15 (IDEA-LEDGER IL-20260815-06): append-only forbids deleting
+    records, not organizing them. Completed-milestone ledgers may be archived
+    or compacted into summaries that point to the full record, and disposition
+    upkeep scales with the stakes of the idea, so the ledger has a maintenance
+    path.
 15. **Name authority and recovery.** Every operation names its durable object,
     owner, source of truth, rights, remote egress, accepted revision, stale and
     conflict behavior, validation, and recovery. Presentation is not
@@ -166,7 +186,10 @@ agent, it does not replace that file.
 - **Authored-output accessibility (synthesis 11.4).** Representative authored
   outputs pass keyboard, touch, screen-reader, zoom and reflow, high-contrast,
   and reduced-motion review with equivalent tasks. An agent never self-certifies
-  accessibility.
+  accessibility. Clarified 2026-08-15 (IDEA-LEDGER IL-20260815-06):
+  "representative" means sampled per template or capability profile, with full
+  review when a template or interaction pattern changes; it does not mean human
+  review of every generated artifact.
 - **Clean recovery (synthesis 3 loop G, 6).** Export is not complete until a
   clean-machine, offline restore validates a manifest and reports every loss.
   Crash, cancel, disk-full, offline, permission-denied, future-schema, and

@@ -149,6 +149,10 @@ non-negotiable operation, authority, rights, acceptance, and recovery rules:
 - **Authored-output accessibility (synthesis 11.4).** Representative authored
   outputs pass keyboard, touch, screen-reader, zoom and reflow, high-contrast,
   and reduced-motion review. An agent never self-certifies accessibility.
+  Clarified 2026-08-15 (IDEA-LEDGER IL-20260815-06): "representative" means
+  sampled per template or capability profile, with full review when a template
+  or interaction pattern changes; it does not mean human review of every
+  generated artifact.
 - **Clean recovery (synthesis 3 loop G, 6).** Export is not complete until a
   clean-machine, offline restore validates a manifest and reports every loss.
   Interrupted, offline, denied, future-schema, and agent-unavailable states
@@ -159,7 +163,11 @@ non-negotiable operation, authority, rights, acceptance, and recovery rules:
   rejection reason. The rejection and supersession ledger is append-only: a
   superseded or hard-rejected idea is never deleted, and each rejection records
   evidence, exact reason, conflicting rule, retained alternative, date, and
-  reconsideration condition.
+  reconsideration condition. Clarified 2026-08-15 (IDEA-LEDGER IL-20260815-06):
+  append-only forbids deleting records, not organizing them. Completed-milestone
+  ledgers may be archived or compacted into summaries that point to the full
+  record, and disposition upkeep scales with the stakes of the idea, so the
+  ledger has a maintenance path.
 
 **Runtime invariant:** **One runtime, one scorer, one evidence store - and the
 runtime, not the model, settles scoring, assessment disclosure, and evidence.**
@@ -175,8 +183,15 @@ This invariant is a small safety and consistency boundary, not the product
 thesis. AI may search approved roots, design curricula, select readings, draft
 and revise artifacts, interpret metrics, propose remediation, and perform
 approved bounded writes. It cites sources, labels synthesis, reports uncertainty
-and denominators, and leaves acceptance and reversal visible. If a feature
-requires a second scorer, parser, or evidence store, the feature is wrong.
+and denominators, and leaves acceptance and reversal visible.
+
+The invariant names one scoring authority, not a frozen capability set
+(clarified 2026-08-15, IDEA-LEDGER IL-20260815-05). New scoring behavior
+(partial credit, semantic matching for short answers, AI-proposed marks, new
+item types) belongs inside the one scorer as an additive extension. Advisory
+graders, human or model, may propose a mark but never settle one. A feature is
+wrong only if it requires a second, parallel authority: a duplicate scorer,
+parser, or evidence store whose verdicts compete with the runtime's.
 
 ### Constraints
 
@@ -205,13 +220,13 @@ requires a second scorer, parser, or evidence store, the feature is wrong.
 
 - **Tech stack** *(relaxed 2026-08-09 - now a preference, see amendment above)*: Python standard library only, no install step - the founding design constraint. Two named exceptions: a vendored KaTeX asset for Math rendering (goal 5 forbids services and network, not files), and stdlib `urllib` for the opt-in updater.
 - **Network**: hosted models are permitted, so the tool is no longer offline-only. But the core loop must **degrade, never block**: sitting a quiz, scoring, lessons, the authored hint ladder, evidence, and reports all work with the network unplugged. The model layer goes quiet when unreachable, the same way `day` omits Anki counts when Anki is closed. Being out of credits must never stop you studying.
-- **Data residency**: evidence and banks stay on disk. No cloud sync, no hosted gradebook, no telemetry. Item text may transit to a model in a request; it is never stored remotely by this tool.
+- **Data residency**: evidence and banks stay on disk. No cloud sync, no hosted gradebook, no telemetry. Item text may transit to a model in a request; it is never stored remotely by this tool. Clarified 2026-08-15 (IDEA-LEDGER IL-20260815-06): this bans telemetry and vendor-held data, not the learner's own copies. Learner-initiated export, backup, and device sync are legitimate features gated by the export and share rights grants; Phase 18 external installs need this distinction.
 - **Accepted risk - the `update_policy` divergence is deliberate (D-13).** The schema default is `opt_in`, so a fresh install with no settings file never phones home without being asked; this repository's own checked-in `itembank.json` sets `check_on_launch` so the updater gets dogfooded through Phases 3–11, which is the reason this phase was pulled forward. The background check is throttled to the configured interval and prints a one-time disclosure before its first request, and the two values are meant to differ - recorded 2026-08-08 so this is not rediscovered later as a surprise.
 - **Model backends**: hosted (Claude Code, Codex, or a competitor) and local (an OpenAI-compatible server such as llama.cpp or Ollama running Qwen) are the same code path. The local backend is prepared in advance rather than retrofitted, so the hardware arriving is a config change and not a rewrite.
-- **Surfaces**: every capability has both a route in the daemon and a command in the CLI. Neither surface is the real one; both are clients of the runtime.
+- **Surfaces**: every capability has both a route in the daemon and a command in the CLI. Neither surface is the real one; both are clients of the runtime. Clarified 2026-08-15 (IDEA-LEDGER IL-20260815-06): this binds runtime capabilities. Presentation-only behaviors (hover definitions, focus disclosure, visual demonstrations) need an accessible equivalent, not a CLI command.
 - **Accepted risk - hosted models see item text.** Weibao's explicit decision on 2026-08-05, after the tradeoff was put to him. It means AAOS-12e-derivative EMT items and course-derived CSCI 1100 items transit to a hosted provider. Two things stay true and are recorded here so they are not rediscovered as surprises: hosted or local, this is **AI assistance on graded coursework**, and the CSCI 1100 AI-use ban applies to both; and the local-only path remains fully built, so any subject can be moved back behind it by changing one setting rather than by changing the code.
 - **Data**: No real question banks in this repository, enforced by `itembank guard` in CI. Fixtures are synthetic. Learner evidence lives beside the private bank.
-- **Compatibility**: Format changes must be additive. A bank without a `LESSON` section must parse exactly as it does today.
+- **Compatibility**: Format changes must be additive. A bank without a `LESSON` section must parse exactly as it does today. Clarified 2026-08-15 (IDEA-LEDGER IL-20260815-06): additive does not mean permanent. A format element may be deprecated with documentation and retired through an explicit `migrate` operation under the compare-and-swap mutation rules; only silent breakage of existing banks is forbidden.
 - **Hardware**: The local-model path targets a 7900 XTX build that does not exist yet. The adapter is designed now as a vendor-neutral interface; the local backend waits for the machine.
 - **Users**: One learner per installation. No accounts, no auth, no multi-tenancy. *(Amended 2026-08-14, vision inbox entry of the same date: external installations are now a supported goal, a friend installing and using their own copy. This fires V2-DEL-01's recorded signing trigger and is scoped as Phase 18 in ROADMAP.md and the A10 bar in READINESS-AUDIT-14A.md. The original wording "and no design work spent on them" is superseded; the no-accounts/no-multi-tenancy half still binds.)*
 
