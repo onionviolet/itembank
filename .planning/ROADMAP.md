@@ -1903,6 +1903,75 @@ not an information architecture or navigation freeze, not a notes or strategy
 freeze, not a learner-facing surface freeze, and not a course schema freeze,
 and its freeze record says so.
 
+### Phase 16B: IA, Modes & Recovery Contract
+
+**Goal**: The seven core loops (A discover and bind, B design a course, C learn
+and construct notes, D practice and test, E evidence and remediation, F author,
+review, and accept, G maintain, recover, and leave) are contracted as the
+product's end-to-end acceptance surface, each resumable at an exact position
+with a next justified action, and an interrupted loop preserves the last
+accepted state and exposes the next safe action; a learner moves between direct
+source reading, lesson, practice, feedback, and the next course action without
+reconstructing context, reading is continuous and scrolls with no paginating
+surface, no loop introduces a second parser or scorer, and a Socratic or
+tutoring refusal renders as a locked card stating its unlock condition, never
+as a chat exchange; the home surface is a course shelf with an exact resume cue
+and attention state, each course exposes Overview, Learn, Practice, Test,
+Course map (outline first), Sources, Build and review, Evidence, and contextual
+Notes, and banks are assessment artifacts inside courses, not the primary
+navigation unit; navigation uses stable opaque deep links and anchors, explicit
+parent and back semantics, focus and scroll restoration, and the same routes
+across wide and narrow layouts (supporting panes stack as destinations on
+narrow screens), with chat contextual to an object or operation, never the home
+or sole job record; durable agent and maintenance jobs surface in an Activity
+view with needs-input, outcomes, and recovery, long jobs never block learning
+and never invent a percent when the denominator is unknown, and hosted, local,
+and manual continuation share durable checkpoints under the one operation
+protocol; the mode layering from synthesis section 8 is contracted so learner
+preferences, author strategies, objective constraints, accommodation overrides,
+instructor policy, fixed runtime authority, and fixed system safety each name
+their controller and never collapse into one settings pile; first launch
+offers a clearly synthetic, removable sample course and a skippable,
+replayable walkthrough reachable without granting source roots or configuring
+an agent; help is offline and routes from named error codes; settings expose
+approved roots, model backends, network and egress policy, accessibility,
+theme, storage, backups, and update policy, growing the shipped DEL-04 subset
+to that list (clause C137, 2026-08-14); and crash, cancellation, offline,
+permission-denied, future-schema, and agent-unavailable states preserve the
+last accepted state and expose the next safe action, with a model-unavailable
+state still allowing reading, scoring, the authored hint ladder, evidence,
+and reports.
+**Depends on**: Phase 14A (stable IDs, revisions, fingerprints, operation
+journal, atomic recovery) and Phase 16A (semantic capability and activity
+contract). Phases 14A and 16A are planned but not yet executed, so every
+signature this phase imports is read from plan text at planning time; the
+first 16B plan opens with a recorded precondition check that halts by name on
+any divergence, the same pattern plans 14B-01, 15A-01, 15B-01, and 16A-01 set,
+extended to check for a `16A-FREEZE.md` record.
+**Freeze gate:** the full storyboard and interruption scenarios: a synthetic
+run of each of loops A through G interrupted mid-step, asserting each resumes
+at an exact position with a next justified action (FLOW-01 fixture); a
+synthetic reading, lesson, practice, and feedback walk with the model backend
+disabled, asserting scoring, the authored hint ladder, evidence, and reports
+still run through the one runtime (FLOW-02 fixture); the synthetic course
+shelf with two fictional courses, one corrupted so it must show its last valid
+overview and plain-file access, asserting exact resume cues and every named
+course section (APP-01 fixture); the same synthetic deep links replayed across
+wide and narrow layouts, asserting focus and scroll restoration and identical
+routes in both (APP-02 fixture); and the first-launch interruption scenario
+running the clearly synthetic sample course and walkthrough with no roots
+granted, no agent configured, and the network disabled, asserting offline help
+routes from named error codes (APP-03 fixture).
+**Requirements**: FLOW-01, FLOW-02, APP-01, APP-02, APP-03
+**Prototype-before-freeze coupling:** the 16B freeze covers the loop
+storyboards, IA routes and anchors, resume semantics, the job and approval
+surface, the mode-layer contract, and the offline, help, and error states
+only. Per synthesis section 15, the cross-client interruption prototype is
+owed before the agent job protocol freezes. The 16B freeze is explicitly not
+a visual system or token freeze (17A), not a notes, learner-artifact, or
+strategy freeze (16C), not a course schema freeze (14B), and not a semantic
+lesson capability freeze (16A), and its freeze record says so.
+
 ### Next-milestone subphase sequence (14A through 17B)
 
 *Reframed 2026-08-13 from the four broad Phases 14 to 17, per
