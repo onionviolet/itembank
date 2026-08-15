@@ -1844,6 +1844,64 @@ attempt is refused; and the corpus opened outside the app in a plain
 Markdown viewer with every derived HTML, index, and cache deleted, staying
 readable and rebuilding.
 **Requirements**: CAP-01, CAP-02, CAP-03, ACTIVITY-01, ACTIVITY-03, A11Y-02, PORT-01
+**Plans:** 10 plans
+**Phase plan:** `.planning/phases/16A-semantic-capability-activity-contract/`
+(`16A-RESEARCH.md`, `16A-PATTERNS.md`, `16A-VALIDATION.md`; no CONTEXT.md, the
+same precedent Phases 14A, 14B, 15A, and 15B set, with the binding decisions in
+`REQUIREMENTS.md`, `PLANNING-DIRECTIVES.md`, and the phase-16 synthesis).
+
+Plans:
+- [ ] 16A-01-PLAN.md (wave 1, not autonomous) preconditions and the two one-way
+  doors: the recorded check against 14A and 14B plus both freeze records, plus
+  Phase 13.9 checked directly because 14B's freeze may not close before the
+  skeleton is walked, plus the additivity baseline recorded as two golden
+  SHA-256 values; then D-16A-1 (promote the semantic-role registry or add the
+  seven roles alongside, and the exact role tokens) and D-16A-2 (where the
+  capability registry lives and which module owns the media and activity
+  grammar). Transcribes D-16A-3 through D-16A-9.
+- [ ] 16A-02-PLAN.md (wave 2) the tracer: one authored `[!PREREQUISITE]` block
+  travelling parser, capability registry, and both continuous and guided
+  renderers end to end, plus the three lesson directives, `capabilities.py`
+  with one seeded profile, and the golden-parse additivity proof.
+- [ ] 16A-03-PLAN.md (wave 3) CAP-01 expansion: the six remaining role
+  registrations, the fourteen-entry `SEMANTIC_ROLE_CATALOG` catalogging seven
+  shipped mechanisms rather than rebuilding them, the required-semantic marker
+  and both unknown-semantic degradation paths, and the worked-example-first
+  default with its recorded override.
+- [ ] 16A-04-PLAN.md (wave 4) CAP-02 profiles: fifteen capability support
+  profiles with all six declared fields, `schemas/capability_profile.schema.json`
+  validated by the shipped `schema_validate.py`, and the static instructional
+  path proven byte identical against the shipped gate-less check render.
+- [ ] 16A-05-PLAN.md (wave 5) CAP-02 media: the `## MEDIA` registry through the
+  one `_preamble_section` boundary rule, the figure renderer's three readable
+  degraded paths, and rights proven declared-not-enforced by a byte-identity
+  assertion.
+- [ ] 16A-06-PLAN.md (wave 6) ACTIVITY-01: the `## ACTIVITIES` registry, ten
+  purposes over the eight shipped response forms with no ninth type minted,
+  eleven lint codes, and the declaration-is-not-authority proof.
+- [ ] 16A-07-PLAN.md (wave 7) CAP-03: outline and glossary composed from shared
+  schemas with no second outline generator, the eight-entry backburner catalog
+  with testable triggers, and the derivation proof that no output mode invents
+  content.
+- [ ] 16A-08-PLAN.md (wave 8) A11Y-02: the ten-constant localization corpus, the
+  explicit `[LESSON-DIR: auto]` per-element opt-in that keeps the change
+  additive, and the byte-for-byte preservation proof including a precomposed
+  and decomposed pair that no normalization may collapse.
+- [ ] 16A-09-PLAN.md (wave 9) ACTIVITY-03: three attackers times four attacks
+  against the real shipped gates with no mock anywhere, the boundary and
+  precision probes, and four attacks on Phase 16A's own new places authored
+  text reaches a learner.
+- [ ] 16A-10-PLAN.md (wave 10, not autonomous) the freeze gate: the medical
+  evolving-case and disputed-timeline fixtures, `build_all_16a`, the PORT-01
+  delete-and-rebuild portability proof, the measured tracer report, the human
+  contract-legibility review, and the freeze record or its named withholding.
+**Prototype-before-freeze coupling:** the 16A freeze covers the semantic role
+vocabulary, the capability profile registry, the media and activity grammars,
+the registered output modes, the localization metadata, and the portable
+canonical format only. It is explicitly not a visual system or token freeze,
+not an information architecture or navigation freeze, not a notes or strategy
+freeze, not a learner-facing surface freeze, and not a course schema freeze,
+and its freeze record says so.
 
 ### Next-milestone subphase sequence (14A through 17B)
 
