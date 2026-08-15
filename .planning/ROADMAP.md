@@ -1705,6 +1705,55 @@ the course schema freeze, not a lesson-profile freeze, not an agent job
 protocol freeze, and not a learner-facing surface freeze, and its freeze record
 says so.
 
+### Phase 15B: Quality, Blueprint & Acceptance
+
+**Goal**: A drafted lesson treatment and a drafted practice question set become
+accepted, durable course state only through an explicit, reviewable acceptance
+pipeline: formal assessment fidelity requires a cited, versioned blueprint
+(construct, domain weight, demand, format, difficulty, timing, tools, feedback
+conditions) and no surface claims exam fidelity without one; practice-generated
+questions stay drafts until the parser, lint, review, blueprint, and runtime
+gates all pass, composed from the shipped `model.parse_bank`, `model.lint`,
+`authoring.quality_gate`, and `runtime.score_response` plus one new pure
+blueprint-fidelity classifier, never a second parser or scorer; a course audit
+aggregates treatment state, coverage state, quality findings, and blueprint
+compliance into one cited report that names which existing state vocabulary
+each claim came from and mints no fourth; a reviewer accepts or rejects
+migrations and drafts through the one 14A journal write path with a live
+rights and autonomy re-check at accept time; external, source, or version
+changes mark dependents stale by fingerprint comparison, and a stale binding
+or proposal is blocked from acceptance until a rebind, migrate, supersede, or
+retain review is recorded; and evidence-based proposals name their observation
+window, denominator, missing signals, and uncertainty, refuse a mastery
+percentage over sparse evidence, and remain recommendations until the learner
+or a deterministic selection policy acts.
+**Depends on**: Phase 15A (director module, operation protocol, autonomy and
+rights gates, coverage classifier). Phases 14A, 14B, and 15A are planned but
+not yet executed, so every signature this phase imports is read from plan text
+at planning time; the first 15B plan opens with a recorded precondition check
+that halts by name on any divergence, the same pattern plans 14B-01 and 15A-01
+set, extended to check for a `15A-FREEZE.md` record.
+**Freeze gate:** the lesson-plus-practice acceptance tracer: one synthetic
+cited blueprint paired with one drafted lesson treatment and one drafted
+practice set, walked from draft through all five gates to journaled
+acceptance; the exam-fidelity claim appearing only after the fifth gate; a
+mid-flow synthetic source edit marking dependents stale and blocking
+acceptance until a recorded disposition; a migration proposal accepted and a
+second one rejected through the reviewer path; and a sparse-evidence proposal
+(two attempts on one objective) that names its window, denominator, and
+uncertainty and refuses a mastery percentage, all replayed from the operation
+journal.
+**Requirements**: ACTIVITY-02, RELIABILITY-03, AGENT-03
+**Phase plan:** `.planning/phases/15B-quality-blueprint-acceptance/`
+(`15B-RESEARCH.md`, `15B-VALIDATION.md`; no CONTEXT.md, the same precedent
+Phases 14A, 14B, and 15A set, with the binding decisions in `REQUIREMENTS.md`,
+`PLANNING-DIRECTIVES.md`, and the phase-16 synthesis).
+**Prototype-before-freeze coupling:** the 15B freeze covers the blueprint,
+audit, acceptance, staleness, and proposal-discipline surfaces only. It is
+explicitly not the course schema freeze, not a lesson-profile grammar freeze,
+not an agent job protocol freeze, and not a learner-facing surface freeze, and
+its freeze record says so.
+
 ### Next-milestone subphase sequence (14A through 17B)
 
 *Reframed 2026-08-13 from the four broad Phases 14 to 17, per
