@@ -681,13 +681,24 @@ omission (mirrors `16B-UI-SPEC.md`'s deferred table).
 
 ## Checker Sign-Off
 
-Placeholder: a separate gsd-ui-checker pass fills this section.
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-- [ ] Dimension 1 Copywriting
-- [ ] Dimension 2 Visuals
-- [ ] Dimension 3 Color
-- [ ] Dimension 4 Typography
-- [ ] Dimension 5 Spacing
-- [ ] Dimension 6 Registry Safety
+Verified beyond the six dimensions: zero em dash characters (scripted count);
+every user-visible string written in full; no aggregate progress or
+Retrievability percentage in any specified copy; the 16B conflict copy
+reproduced verbatim; pixel, hex, and typography-size tokens deferred to 17A
+as the scope boundary requires; no dedicated Notes route (16B D4 upheld);
+anchor selection carries keyboard, touch, and screen-reader equivalent paths
+(Decision D13).
 
-**Approval:** pending checker pass.
+Recommendation (non-blocking): the "Decline" control in the promotion review
+flow is a single-word CTA; a noun-bearing form such as "Decline promotion"
+would be more specific. Mitigated by its required reason field and the flow
+context, so recorded as a FLAG-level note, not a change request.
+
+**Approval:** approved 2026-08-15 (gsd-ui-checker, all six dimensions PASS, one non-blocking recommendation recorded)
