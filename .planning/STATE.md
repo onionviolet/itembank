@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase_name: 13.5-reading-teaching-surface-quality-pass
-status: Phase 13.5 in flight, waves 1-2 executed (3 of 8 plans); source-to-course reframe merged from origin/main 2026-08-13, unpushed
+status: Phase 13.5 plans all executed (9 of 9), verification human_needed per 13.5-VERIFICATION.md; Phase 13.9 walking skeleton planned (3 plans), next to execute
 stopped_at: Phase 16B UI-SPEC approved
 last_updated: "2026-08-15T21:28:29.929Z"
 last_activity: 2026-08-14
