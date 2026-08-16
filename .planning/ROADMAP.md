@@ -100,7 +100,7 @@ are recorded on the phases they block; none blocks starting.
 - [x] **Phase 11: Closed Authoring Loop & Curriculum Auditor** - A closed spec-draft-lint-retry authoring loop, reused by a syllabus auditor that cites its coverage claims and never over-autonomizes silently. (completed 2026-08-11)
 - [ ] ~~**Phase 12: Packaging, Self-Update & Interop Export**~~ - MOVED to Phase 2.1 (2026-08-07) — see Phase 2.1 above. Slot retired, not reused.
 - [x] **Phase 13: Desktop Packaging — Tauri Shell over the Python Sidecar** - A signed, installable desktop app whose inside is still the same Python runtime, because porting it would temporarily create a second scorer. (completed 2026-08-10)
-- [ ] **Phase 13.5: Reading & Teaching Surface Quality Pass** - The reader and quiz surfaces shipped through Phase 13 meet a commercial quality bar. Planned 2026-08-12 as "Phase 14"; renumbered 2026-08-13 when the source-to-course reframe claimed that number. 3 of 8 plans executed.
+- [ ] **Phase 13.5: Reading & Teaching Surface Quality Pass** - The reader and quiz surfaces shipped through Phase 13 meet a commercial quality bar. Planned 2026-08-12 as "Phase 14"; renumbered 2026-08-13 when the source-to-course reframe claimed that number. All 9 plans executed; verification recorded 2026-08-14 with status human_needed (see 13.5-VERIFICATION.md), so the human-verify gates are what keep this box unchecked.
 - [ ] **Phase 13.9: Walking Skeleton — one real course, end to end (INSERTED 2026-08-14)** - One real source from one live fall course, discovered read-only, bound to at least three cited objectives, one treatment decision per objective, and sat by Weibao through the shipped serve/teach/evidence loop. Ugly is acceptable; simulated is not. Runs beside or after 13.5 waves 3+; may stub course storage with the smallest 14A identity/journal slice; introduces no second parser, scorer, or evidence store. Gate: no 14B-or-later freeze closes before this has been walked. See READINESS-AUDIT-14A.md A9.
 - [ ] **Phase 14A: Identity, Lifecycle & Operation Prototype** - Stable IDs, revisions, fingerprints, operation journal, and link/import/move/edit/supersede semantics with atomic recovery. Depends on the shipped parser/runtime. Freeze gate: file-fault and external-edit tracer.
 - [ ] **Phase 14B: Graph & Course Package Prototype** - Typed graph kernel, outline projection, source/treatment bindings, versions, rights, and a minimal package. Depends on 14A. Freeze gate: three-domain graph tracer, clean restore, authorability review.
@@ -1253,21 +1253,28 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 2.1 Packaging, Self-Update & Interop Export | 9/9 | Complete | 2026-08-08 |
 | 3. Lesson Format & In-App Reader | 6/6 | Complete | 2026-08-11 |
 | 3.1 Lesson Rich Blocks, Glossary & Style | 7/7 | Complete (human-verify items open; see 03.1-GATES.md) | 2026-08-11 |
-| 3.2 Seeding, Import & Provenance | 0/5 | Planned | - |
+| 3.2 Seeding, Import & Provenance | 5/5 | Complete | 2026-08-11 |
 | 4. Surface Redesign & Theming | 6/6 | Complete | 2026-08-11 |
-| 5. Check Item Type & Code Editor | 0/7 | Planned | - |
+| 5. Check Item Type & Code Editor | 7/7 | Complete | 2026-08-11 |
 | 6. Hint Ladder, Cursor-Hold & Feedback Modes | 2/2 | Complete    | 2026-08-10 |
 | 6.1 Interactive Visual Assessment Protocol | 3/3 | Complete | 2026-08-11 |
 | 6.2 Executable Textbook Loop | 4/4 | Complete | 2026-08-11 |
 | 7. Selection Engine | 6/6 | Complete (roadmap gaps in 07-VERIFICATION.md) | 2026-08-11 |
-| 8. Model Adapter Interface & Tier-Gate Enforcement | 5/6 | In Progress|  |
-| 9. Subject-Invariant Loop — EMT, Math, CS Integration | 0/5 | Planned | - |
+| 8. Model Adapter Interface & Tier-Gate Enforcement | 6/6 | Complete | 2026-08-11 |
+| 9. Subject-Invariant Loop — EMT, Math, CS Integration | 5/5 | Complete | 2026-08-11 |
 | 9.1 Audio Drill Export | 4/4 | Complete | 2026-08-11 |
 | 10. Retention, Pacing & Trends | 6/6 | Complete | 2026-08-11 |
-| 11. Closed Authoring Loop & Curriculum Auditor | 0/TBD | Not started | - |
+| 11. Closed Authoring Loop & Curriculum Auditor | 5/5 | Complete | 2026-08-11 |
 | 12. ~~Packaging, Self-Update & Interop Export~~ | — | Retired (moved to 2.1) | - |
 | 13. Desktop Packaging — Tauri Shell over Python Sidecar | 5/5 | Complete    | 2026-08-10 |
-| 14. Reading & Teaching Surface Quality Pass | 3/8 | In Progress (waves 1-2 done) | - |
+| 13.5 Reading & Teaching Surface Quality Pass | 9/9 | Plans executed; human verification pending (13.5-VERIFICATION.md: human_needed) | - |
+| 13.9 Walking Skeleton — one real course, end to end | 0/3 | Planned | - |
+
+Table corrected 2026-08-15 against the phase directories (plan SUMMARY files and
+VERIFICATION verdicts), which are the source of truth. Rows 3.2, 5, 8, 9, 11,
+and 13.5 were stale; the 13.5 row was still labeled "14" from before the
+2026-08-13 renumbering. Next-milestone subphases (14A through 17B, 18) are
+tracked in the "Next-milestone subphase sequence" section, not this v1.0 table.
 
 ## Backlog
 
