@@ -154,6 +154,15 @@ required before execution).
 beside Phase 13.9 (walking skeleton); expand and execute the 14A plans. Phase
 14A is unblocked.
 
+**Update 2026-08-16:** the four held decisions are resolved by delegation
+(`DECISIONS-12.6-REMAINING-2026-08-14.md`, all four Resolved fields). An
+agent browser pass closed most of the 13.5 human gates and found two defects
+(D1 reading measure 422px vs contracted 531px; D2 "Item 1 of 0" first-paint
+counter); results in `phases/13.5-reading-teaching-surface-quality-pass/
+13.5-GATES.md`, future-work entries in ROADMAP.md Backlog small-enhancements
+(D1, D2, and the remaining human-verify tail: screen reader, bottom-sheet
+paint, script-free/no-network walkthrough, font-face comparison).
+
 **Concurrent-edit notice for the audit chat (2026-08-14).** A direction-review
 session amended the planning surface WHILE the slice-5 audit run was in flight.
 If your audit snapshot predates these, re-read before sign-off and fold the
