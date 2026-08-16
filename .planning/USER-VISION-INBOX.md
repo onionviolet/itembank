@@ -100,6 +100,30 @@ question also changed `PLANNING-DIRECTIVES.md`.
   agent-onboarding checklist. Skill-update mechanics route to the skill
   library's operation contract owner (slice 4b) when that surface exists.
 
+### 2026-08-16: plugins as a feature mechanism; web and app runtimes
+
+> consider the plugin-first core as a way to add or iwork on features instead? Also, a digital web based runtime and also a app based runtime too, readjust accordingly?
+
+**Disposition:** Split (2026-08-16).
+
+- **Product intent (promote-worthy):** the product should be usable both as a
+  web experience in a browser and as an installed app. This extends the
+  recorded end goal "a packaged desktop app" (2026-08-09 amendment) with a
+  web-delivered sibling. One naming correction applies before this enters any
+  plan: these are two shells over the one runtime, not two runtimes. The
+  runtime invariant (one runtime, one scorer, one evidence store) means the
+  web surface and the app surface are both clients of the same runtime, the
+  same way the CLI and the loopback browser surfaces already are. A hosted
+  multi-tenant web service is not implied and would conflict with the
+  no-accounts rule and evidence-on-disk; the web shell is the learner's own
+  runtime reached through a browser.
+- **Routed:** the plugin question is a scoped reconsideration of rejected
+  ledger entry IL-20260815-04, registered as IL-20260816-01 (plugins as the
+  delivery mechanism for feature seams, never for the scorer, parser, or
+  evidence store). The two-shell runtime intent is registered as
+  IL-20260816-02 and ties to the Phase 18 packaging conflict already recorded
+  in IL-20260815-11.
+
 ## Disposition vocabulary
 
 - **Promote:** add the verbatim statement and interpretation to `USER-VISION`.

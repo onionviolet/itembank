@@ -254,6 +254,76 @@ Amendments to an existing entry are additive notes under the entry, dated.
   classifying the same operation into different tiers in practice, or the low
   tier permitting an irreversible or externally visible change.
 
+### IL-20260816-01: Plugins as the feature-delivery mechanism at named seams
+
+- **Proposal:** Use a plugin mechanism as the way features are added and
+  iterated, scoped to the seams where variation is a product goal. This is
+  the surviving half of the plugin-first idea: plugin as delivery vehicle for
+  registered capabilities (lesson styles, treatments, teaching surfaces,
+  exporters, model backends, discovery providers, schedulers), never plugin
+  as authority transfer. Raised by Weibao 2026-08-16 as a reconsideration of
+  IL-20260815-04: "consider the plugin-first core as a way to add or work on
+  features instead" (verbatim in `USER-VISION-INBOX.md`, 2026-08-16 entry).
+- **Origin:** deepseek-ai/deepseek-harness plugin architecture, rescoped;
+  builds directly on IL-20260815-02 (named seams) rather than reopening
+  IL-20260815-04.
+- **Evidence considered:** IL-20260815-02 already registers the seam
+  discipline and its note keeps plugin machinery (registry, loader, mounts)
+  out "until a second provider exists". The conflict rule in
+  `PLANNING-DIRECTIVES.md` section 3 ("build both, let the learner pick")
+  already assumes registration-not-fork; a plugin mechanism is the concrete
+  machinery that makes a registration cheap. What changes here is intent:
+  when a second provider does arrive at any seam, the answer is a small
+  registry at that seam, designed once and reused, not per-seam ad hoc
+  wiring.
+- **Boundary (unchanged from IL-20260815-04's rejection):** the scorer,
+  parser, and evidence store are not plugins and never load from
+  configuration. New scoring capability grows additively inside the one
+  scorer (IL-20260815-05 wording). Presentation of a new item type may be
+  pluggable; its scoring is not.
+- **Cost driver:** registry and loader machinery, a manifest format, and a
+  compatibility story per seam; also the supply-chain policy
+  (IL-20260815-09) if third-party plugins are ever loaded, which is not
+  proposed here.
+- **Disposition:** Registered.
+- **Revisit trigger:** the first phase where a second provider lands behind
+  any named seam; that phase designs the shared registry shape instead of a
+  one-off.
+
+### IL-20260816-02: One runtime, two shells (web and installed app)
+
+- **Proposal:** Deliver the product through two shells: a web-based surface
+  reached in a browser and an installed app. Raised by Weibao 2026-08-16:
+  "Also, a digital web based runtime and also a app based runtime too,
+  readjust accordingly?" (verbatim in `USER-VISION-INBOX.md`).
+- **Naming correction, applied before planning:** these are shells, not
+  runtimes. The runtime invariant (one runtime, one scorer, one evidence
+  store) does not bend; the web surface and the app surface are both clients
+  of the same runtime, exactly as the CLI, the loopback graded sitting, the
+  offline HTML quiz, and the JSON agent sessions are today. Any plan that
+  writes "web runtime" as a second scoring authority is wrong on its face.
+- **Evidence considered:** the packaged desktop app is already the recorded
+  end goal (2026-08-09 amendment). The web shell has shipped ground: the
+  daemon and loopback server already serve browser surfaces, so the local
+  web path is an extension of existing architecture, not new architecture.
+  Phase 18 (external installs) and IL-20260815-11 (packaging conflict:
+  build-step history, PyInstaller citation, signing trigger) already own the
+  app-shell packaging question.
+- **Boundary:** a hosted multi-tenant web service is out of scope under the
+  no-accounts rule and the data-residency rule (evidence and banks stay on
+  disk). The web shell means the learner's own runtime reached through a
+  browser: loopback today, self-hosted LAN or tunnel as a rights-gated
+  future question. If a genuinely hosted variant is ever wanted, it is a new
+  ledger entry against those rules, not an interpretation of this one.
+- **Cost driver:** the app shell carries the IL-20260815-11 packaging work.
+  The web shell's cost is mostly UI completeness (the 16B/16C/17A contracts)
+  plus whatever remote-access hardening a non-loopback bind would need;
+  today's server binds loopback only.
+- **Disposition:** Registered.
+- **Revisit trigger:** Phase 18 planning (app shell), and the first 16B/17A
+  session that must choose whether the comprehensive learning UI targets the
+  browser shell, the packaged shell, or one codebase for both.
+
 ## Rejected
 
 ### IL-20260815-04: Plugin-first core (no privileged core; swappable scorer)
@@ -289,3 +359,9 @@ Amendments to an existing entry are additive notes under the entry, dated.
   platform with third-party runtimes, or the rule audit in IL-20260815-05
   concludes the authority boundary can be held by some mechanism other than a
   single scorer implementation.
+- **Note 2026-08-16:** Weibao asked to reconsider this as "a way to add or
+  work on features instead". The rejection stands unchanged for the scorer,
+  parser, and evidence store; the feature-mechanism half is registered
+  separately as IL-20260816-01 (plugins as delivery machinery at the named
+  seams of IL-20260815-02). This note is additive; nothing above is
+  reopened.
