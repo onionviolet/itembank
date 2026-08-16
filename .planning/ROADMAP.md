@@ -2123,8 +2123,56 @@ synthetic item's keyed answer, halting for explicit assessment review
 (UPGRADE-02 fixture).
 **Requirements**: GRAPH-03, NOTE-01, NOTE-02, NOTE-03, STRATEGY-01,
 STRATEGY-02, UPGRADE-01, UPGRADE-02
-**Plans:** planned this session; the plan list is appended when the 16C plan
-set is written.
+**Plans:** 9 plans
+**Phase plan:** `.planning/phases/16C-strategies-notes-prototype-convergence/`
+(`16C-RESEARCH.md`, `16C-PATTERNS.md`, `16C-UI-SPEC.md`, `16C-VALIDATION.md`;
+no CONTEXT.md, the same precedent Phases 14A through 16B set, with the binding
+decisions in `REQUIREMENTS.md`, `PLANNING-DIRECTIVES.md`, the phase-16
+synthesis, and the checker-approved `16C-UI-SPEC.md` Decisions log D1 to D16).
+
+Plans:
+- [ ] 16C-01-PLAN.md (wave 1, not autonomous) preconditions and decisions: the
+  recorded check against 14B, 16A, and 16B plus all three freeze records, the
+  three upstream precondition dated result lines, Phase 13.9's A9 closure
+  checked directly, the live shipped-surface re-verification, and the evidence
+  additivity baselines; writes 16C-PRECONDITION.md and 16C-DECISIONS.md
+  (UI-SPEC D1 to D16 transcribed, D-16C-1 to D-16C-8 locked), then the
+  D-12.6-5 placement and Evidence-prominence checkpoint held for Weibao.
+- [ ] 16C-02-PLAN.md (wave 2) the four-subject synthetic corpus builder, the
+  NOTE-01 note record with closed vocabularies and multi-selector provenance,
+  the four relocation states with probable-never-auto-applied, the atomic note
+  document pair with schemas/note.schema.json, and the guard's additive
+  note-document marker.
+- [ ] 16C-03-PLAN.md (wave 2) the finite strategy registry: four versioned
+  data-record contracts with a code-owned continuous-reading fallback that
+  never errors, and the three-row-class picker contract with its locked copy.
+- [ ] 16C-04-PLAN.md (wave 2) GRAPH-03: the nine-field claim tuple, seven
+  separate dimensions, indeterminate and version-split paths, the D-14A-3
+  fill state with its legend, and the rendering scan proving no percent and no
+  aggregate anywhere.
+- [ ] 16C-05-PLAN.md (wave 3) STRATEGY-02: the composed precedence resolver as
+  a collector over 16B's one mode_layer_resolve, the 16B conflict copy reused
+  verbatim, the mid-sitting lock, and the conflict matrix appended to 16B's
+  CONFLICT_CASES rather than duplicated.
+- [ ] 16C-06-PLAN.md (wave 3) NOTE-02 and NOTE-03: two additive content-free
+  evidence event types proven against the recorded baselines, the
+  source-backed promotion flow with derived-copy acceptance and honest
+  decline, the pending-until-human-mark learner artifact, and honest deletion.
+- [ ] 16C-07-PLAN.md (wave 4) the note-output trio: notebook page, Cornell,
+  and concept map as three validated projections of one parse (call-counted),
+  three deliberately broken fixtures failing in the validators' own words with
+  plain-Markdown degradation, plus prototype tracers A, B, and C.
+- [ ] 16C-08-PLAN.md (wave 5) UPGRADE-01 and UPGRADE-02: the eleven-item
+  baseline audit with honest stand-ins, the bounded diff with cosmetic
+  rejection and the cannot-express derived link, the keyed-meaning halt with
+  no override, and the legacy-upgrade skill updated to reference the shipped
+  functions.
+- [ ] 16C-09-PLAN.md (wave 6, not autonomous) the freeze gate: the
+  cross-subject missing-feature suite in one measured pass over four subjects,
+  the 13.9 A9 closure check that halts by name, the blocking human
+  contract-legibility review, and the freeze record with the ROADMAP scope
+  sentences transcribed verbatim or a named withholding, plus the validation
+  closure.
 
 **Prototype-before-freeze coupling:** per `STYLE-DISCIPLINE-16A-2026-08-14.md`
 (binding order) the note-output trio prototype executes in 16C against the 16A
