@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase_name: 13.5-reading-teaching-surface-quality-pass
-status: Phase 13.5 plans all executed (9 of 9), verification human_needed per 13.5-VERIFICATION.md; Phase 13.9 walking skeleton planned (3 plans), next to execute
-stopped_at: Phase 16B UI-SPEC approved
+status: Phase 16C planned (9 plans, plan-checker READY); 13.9 executing on Codex (plans 01-02 committed); every subphase 14A through 16C now has a Sonnet-executable plan set; 17A and 17B are the remaining unplanned subphases
+stopped_at: Phase 16C plan set checker-verified READY
 last_updated: "2026-08-16T20:33:19.744Z"
-last_activity: 2026-08-14
+last_activity: 2026-08-16
 last_activity_desc: "Quick task 260813-x3g source-to-course contract reframe, slices 1-4a committed and pushed. Applied synthesis section 14 across nine contract/doc files: ROADMAP (nine subphases 14A-17B + governance), SOURCE-TO-COURSE (supersede pointer), REQUIREMENTS (eighteen families GRAPH..MAINT, 47 new requirements, old IDs mapped/superseded), PROJECT (course-first), UI-SPEC (Structured Studio; section 8 gates untouched), PLANNING-DIRECTIVES (finite-strategy + rejection-ledger; section 8 nine-subphase table), AGENTS + .claude/CLAUDE.md (object/authority + operation protocol; non-negotiables intact), README (course-first). Commits: 8b5cab4, e838407, e349c06 (REQUIREMENTS content landed split across the slice-3/4a commits because gsd `query commit` sweeps all modified files while the parallel 13.5 track shared the tree; content verified complete on disk, nothing lost)."
 progress:
   total_phases: 27
@@ -17,6 +17,44 @@ current_phase: 13.5
 ---
 
 # Project State
+
+## Phase 16C planning session (2026-08-15/16, Claude planning side)
+
+Phase 16C (Strategies, Notes & Prototype Convergence) is fully planned to the
+PLANNING-DIRECTIVES section 5 executor bar, following the 16A/16B artifact
+precedent (no CONTEXT.md; binding decisions in the roadmap details block,
+REQUIREMENTS, the phase-16 synthesis, and the checker-approved UI-SPEC):
+
+- ROADMAP details block (6439a6b): goal, dependencies (14B, 16A, 16B plus the
+  13.9 A9 coupling), the cross-subject missing-feature freeze gate, and the
+  prototype-before-freeze coupling (STYLE-DISCIPLINE trio; directives 3a
+  strategy-pathway prototypes).
+- 16C-RESEARCH.md (9ab4190): 11 assumptions, 11 pitfalls, 7 open questions all
+  resolved with recommendations, an 18-item Do Not Re-Open ledger, and the
+  binding nine-plan shape. Load-bearing resolution: strategy lifecycle events
+  (activity_completed, activity_skipped) append through the one evidence
+  writer as additive content-free event types; note content stays in the
+  deletable learner note store, because report 12 section 11.2 deletion is
+  incompatible with the append-only log.
+- 16C-PATTERNS.md (bd1a258), 16C-VALIDATION.md (5722b4a, map filled by the
+  planner), 16C-UI-SPEC.md (f136156, decisions D1-D16; checker sign-off
+  00a6de5, six dimensions PASS).
+- Nine plans 16C-01..09 (1d4813a..7283597, list recorded in ROADMAP by
+  4e39e28): waves 1:[01] 2:[02,03,04] 3:[05,06] 4:[07] 5:[08] 6:[09]; 01 and
+  09 not autonomous; 23 tasks; plan-checker verdict READY, all nine PASS,
+  zero material warnings. The planner run was interrupted once by a session
+  limit (16C-01 checkpoint-committed truncated as 313b688, repaired in
+  1d4813a); nothing was lost.
+- Held for Weibao, surfaced as the 16C-01 Task 2 checkpoint:decision rather
+  than silently defaulted: D-12.6-5 (notes default placement and Evidence
+  prominence; recommended default is margin capture with Evidence review and
+  Evidence as primary navigation).
+- Execution order note: 16C-01's precondition halts by name until 14B, 16A,
+  and 16B freezes exist and 13.9's A9 is closed, so handing 16C to Codex now
+  is safe but it will (correctly) refuse to pass wave 1.
+
+Remaining unplanned subphases: 17A (visual system, depends on 16B and 16C)
+and 17B (production vertical tracer), then Phase 18 (external-user v1).
 
 ## Project Reference
 
