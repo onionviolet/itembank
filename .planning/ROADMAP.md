@@ -2192,6 +2192,49 @@ token freeze (17A), not an information architecture or navigation freeze
 (16B), not a semantic lesson capability freeze (16A), and not a course schema
 freeze (14B), and its freeze record says so.
 
+### Phase 17A: Visual System & Component Foundation
+
+**Goal**: Freeze the learner-facing visual foundation on served bytes: one
+semantic token system for color, typography, spacing, measure, radius, density,
+and responsive hierarchy; one browser-served shell shared by the packaged app;
+and accessible primitives for every component inherited from 16B and 16C. The
+freeze follows a reversible same-flow comparison of Structured Studio, Quiet
+Workbench, and Guided Canvas, with the final direction selected by Weibao. It
+also brings the day route under the shared presentation shell, resolves the
+direction-neutral rendering decisions deferred by 16B and 16C, clamps authored
+token abuse to safe ranges, and proves the result through driven-browser plus
+human accessibility QA. It does not add runtime authority, reopen IA, notes,
+strategies, or lesson semantics, or implement the 17B production tracer.
+
+**Depends on:** Phase 16B and Phase 16C. The token freeze also remains blocked
+until the Phase 13.9 walking skeleton has been walked.
+
+**Freeze gate:** The VISUAL-01 synthetic lesson-plus-practice flow is rendered
+in all three directions at the required widths, the user selects the default
+direction, VISUAL-02 proves safe token clamping, A11Y-01 completes with human
+acceptance authority, and the accepted token and component contract is recorded
+without silently absorbing the non-token Phase 13.5 backlog.
+
+**Requirements:** VISUAL-01, VISUAL-02, A11Y-01
+
+**Plans:** 4 plans across 4 waves.
+
+**Wave 1**
+- [ ] 17A-01-PLAN.md, the synthetic same-flow tracer, three reversible
+  direction overlays, semantic parity, and VISUAL-02 abuse fixture.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 17A-02-PLAN.md, Weibao's direction checkpoint, five-token type scale,
+  bounded density tokens, and the day route shared-shell migration.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 17A-03-PLAN.md, the accessible direction-neutral primitives and the
+  complete 16B/16C component-state matrix.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 17A-04-PLAN.md, driven-browser evidence, scripted human A11Y-01 review,
+  the Phase 13.9 halt check, and the freeze or named withholding record.
+
 ### Next-milestone subphase sequence (14A through 17B)
 
 *Reframed 2026-08-13 from the four broad Phases 14 to 17, per
