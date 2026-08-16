@@ -722,13 +722,21 @@ decided at their owning subphase (or by Weibao where marked).
   *(CLOSED 2026-08-14: Khan-style per-objective fill state, D-14A-3; level
   vocabulary routed to 16B.)*
 - Authority for personal-course completion policies and solo self-acceptance by
-  risk tier. *(FRAMED: D-12.6-4, held for Weibao.)*
+  risk tier. *(CLOSED 2026-08-16: risk-tiered self-acceptance with a
+  strictness setting, user-defined completion predicate; D-12.6-4 in
+  `DECISIONS-12.6-REMAINING-2026-08-14.md`, resolved by delegation.)*
 - Notes default placement and Evidence default prominence.
-  *(FRAMED: D-12.6-5, held for Weibao.)*
+  *(CLOSED 2026-08-16: margin capture with course review, Evidence primary;
+  D-12.6-5 in `DECISIONS-12.6-REMAINING-2026-08-14.md`, resolved by
+  delegation, confirming 16C-UI-SPEC D1.)*
 - Formal-test pause policy, which must be decided by runtime contract.
-  *(FRAMED: D-12.6-6, held for Weibao.)*
+  *(CLOSED 2026-08-16: mode-dependent sealed pause, one mechanism gated by
+  blueprint timing policy; D-12.6-6 in
+  `DECISIONS-12.6-REMAINING-2026-08-14.md`, resolved by delegation.)*
 - Trust persistence for executable sources: one run, file, fingerprint, or root.
-  *(FRAMED: D-12.6-7, held for Weibao.)*
+  *(CLOSED 2026-08-16: per fingerprint with own-in-app-edit carry-forward,
+  strictness setting for stricter modes; D-12.6-7 in
+  `DECISIONS-12.6-REMAINING-2026-08-14.md`, resolved by delegation.)*
 - Rights representation when the user does not know.
   *(FRAMED: D-12.6-9, confirm at 14B.)*
 - Representative large-collection corpus and performance budgets.

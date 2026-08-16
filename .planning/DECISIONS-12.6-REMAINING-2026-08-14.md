@@ -5,6 +5,19 @@
 section 12.6. None blocks the Phase 14A plan; each is framed here so it is
 decided deliberately at its owning subphase rather than rediscovered mid-plan.
 
+**Update 2026-08-16:** the four held-for-Weibao decisions are resolved. Asked
+directly (planning chat, 2026-08-16), Weibao answered each with the standing
+delegation directive, restated verbatim: "just pick the considerations that
+are most useful/comprehensive/if conflicting potentially implement all of
+them and let the user choose in the future, keep going without human stopagge
+if its reasonable and wont cause lasting harm, or lower quality, the idea is
+for UI and other important stuff to be planned by a more capable model before
+hand". Under PLANNING-DIRECTIVES sections 2 and 3, each is therefore decided
+by the planning agent per its recorded recommendation, with rejected-option
+mechanics registered as settings only where they are honestly one
+implementation. Each Resolved field below names the option id, the basis, and
+what stays user-switchable. The four technical calibrations are unchanged.
+
 Four of the eight change the product and are held for Weibao's decision. The
 other four are technical calibrations: a recommendation is recorded and the
 owning subphase confirms or overturns it with evidence. Recommendations are not
@@ -47,7 +60,20 @@ predicate per course, the runtime only reports whether the predicate's
 evidence conditions are currently met, and the predicate is stored as course
 data, never inferred.
 
-**Resolved:** pending.
+**Resolved:** 2026-08-16, option B (risk-tiered self-acceptance), by
+delegation (see the 2026-08-16 status update above). One acceptance mechanism
+ships with a strictness setting: `relaxed` accepts everything in one action
+(option A as a configuration), `standard` is B as framed (default; keyed or
+evidence-bearing artifacts enable the accept control only after the rendered
+diff has been opened, and the acceptance records that the preview was shown),
+`strict` adds C's cooling-off on the high tier only. All three are the same
+implementation with two policy knobs (tier threshold, cooling-off delay), so
+the conflict rule's build-both condition is met; there is no second
+acceptance authority. Completion policy per the recommendation: Weibao
+defines the completion predicate per course, stored as course data; the
+runtime only reports whether its evidence conditions are met. Owning
+subphase 15B binds the setting names and the tier vocabulary at plan
+execution.
 
 ### D-12.6-5. Notes default placement and Evidence default prominence
 
@@ -77,7 +103,18 @@ The honest-evidence stance is a product differentiator; burying the Evidence
 view one level down contradicts the "improved by honest evidence" north star.
 Weibao should confirm because both choices shape daily feel, not correctness.
 
-**Resolved:** pending.
+**Resolved:** 2026-08-16, option C for notes (margin capture, course review)
+and Evidence as a primary navigation item, by delegation (see the 2026-08-16
+status update above). This confirms the reversible default 16C's UI-SPEC
+already adopted (16C-UI-SPEC Decision D1) and satisfies the 16C-01 Task 2
+blocking checkpoint in advance with a named option id, the path that plan
+explicitly allows ("D-12.6-5 may be updated from pending to resolved by a
+later docs commit"). The note schema stays placement-agnostic (anchors plus
+objective relation), so margin-first (A) and course-notes-first (B) remain
+registrable later as presentation emphases over the same anchored data;
+composition with 16B D4 (contextual Notes inside Learn and Evidence, no
+dedicated Notes route) is unchanged. The cross-course global notes
+destination stays backburner per synthesis 12.2.
 
 ### D-12.6-6. Formal-test pause policy
 
@@ -108,7 +145,17 @@ timing policy. Either way the runtime owns it: no surface or model may pause,
 resume, or peek. Weibao should decide because it defines what his own exam
 simulations are worth as evidence.
 
-**Resolved:** pending.
+**Resolved:** 2026-08-16, option C (mode-dependent) with exactly the
+recommendation's shape, by delegation (see the 2026-08-16 status update
+above). One implementation: B's sealed-pause mechanics (nothing served while
+paused, clock stopped, pause count and total paused duration in the evidence
+record) are the only pause path, and A is that path disabled by the
+blueprint's timing policy, so a timed blueprint sitting runs to completion or
+is recorded as abandoned. This is the literal implement-both case: two
+behaviors, one mechanism, selected by blueprint data. The runtime owns pause
+entirely; no surface or model may pause, resume, or peek. Owning subphase 16B
+states the storyboard states; the runtime contract clause is written in
+runtime terms per synthesis section 8.
 
 ### D-12.6-7. Trust persistence for executable sources
 
@@ -138,7 +185,20 @@ edit, agent write, import) drops back to untrusted. This keeps the security
 boundary exactly at "content Weibao has not seen since it last changed."
 Product-changing because it decides how annoying the notebook loop feels.
 
-**Resolved:** pending.
+**Resolved:** 2026-08-16, option B with the own-edit carve-out, by delegation
+(see the 2026-08-16 status update above). Default: trust binds to the exact
+content hash; in-session edits made by Weibao through the app's own editor
+(recorded in the operation journal) carry trust to the new fingerprint; any
+other change path (external edit, agent write, import) drops to untrusted.
+A trust-strictness setting registers the stricter options as configurations
+of the same trust record: `paranoid` is one-run (A), `strict` is per
+fingerprint with the carve-out off, `standard` is the default above. Option C
+(per file identity) is not offered even as a setting: an agent-modified cell
+would inherit trust it was never granted, which crosses the authority
+boundary rather than a convenience preference; reconsider only if agents
+lose write access to executable sources. Owning subphase 16A binds the
+setting names in the capability contract; the runtime and operation manifest
+enforce it.
 
 ---
 
