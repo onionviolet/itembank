@@ -5,14 +5,14 @@ milestone_name: milestone
 current_phase_name: 13.5-reading-teaching-surface-quality-pass
 status: Phase 13.5 plans all executed (9 of 9), verification human_needed per 13.5-VERIFICATION.md; Phase 13.9 walking skeleton planned (3 plans), next to execute
 stopped_at: Phase 16B UI-SPEC approved
-last_updated: "2026-08-15T21:28:29.929Z"
+last_updated: "2026-08-16T20:33:19.744Z"
 last_activity: 2026-08-14
 last_activity_desc: "Quick task 260813-x3g source-to-course contract reframe, slices 1-4a committed and pushed. Applied synthesis section 14 across nine contract/doc files: ROADMAP (nine subphases 14A-17B + governance), SOURCE-TO-COURSE (supersede pointer), REQUIREMENTS (eighteen families GRAPH..MAINT, 47 new requirements, old IDs mapped/superseded), PROJECT (course-first), UI-SPEC (Structured Studio; section 8 gates untouched), PLANNING-DIRECTIVES (finite-strategy + rejection-ledger; section 8 nine-subphase table), AGENTS + .claude/CLAUDE.md (object/authority + operation protocol; non-negotiables intact), README (course-first). Commits: 8b5cab4, e838407, e349c06 (REQUIREMENTS content landed split across the slice-3/4a commits because gsd `query commit` sweeps all modified files while the parallel 13.5 track shared the tree; content verified complete on disk, nothing lost)."
 progress:
-  total_phases: 26
+  total_phases: 27
   completed_phases: 18
-  total_plans: 160
-  completed_plans: 112
+  total_plans: 169
+  completed_plans: 114
 current_phase: 13.5
 ---
 
@@ -486,6 +486,10 @@ Recent decisions affecting current work:
 - [Phase 08]: mark_event(proposal_ref=None) folds the reference into the dedupe raw string so accepting two different proposals for the same response records two distinct human marks; the marker != 'human' guard stays byte-for-byte unchanged (D-14/D-23)
 - [Phase 08] 08-03: requirements TEACH-07/08/09, MODEL-03, MODEL-05 NOT yet marked complete -- the shared-ID gate (#2388) blocks them because 08-04/05/06 still declare them without SUMMARYs; requirements.mark-complete re-evaluates when the last declaring plan finishes
 - [Phase 09.1] 09.1-01..04: audio drill export complete on branch gsd/phase-09.1-audio-export -- one TTSEngine interface + registry (model-backend shape), transcript-only engine, edge-tts (LGPL-3.0 pin) + piper (bundled-binary sidecar decision; the wheel-bearing piper-tts is GPL-3.0-or-later and is NOT imported), assemble_pack one-writer with per-pack/per-item split, /api/export_audio daemon route, digest-stable atomic writes, no evidence write (D-01..D-16 all covered; AUDIO-01..07 marked complete in REQUIREMENTS.md)
+
+### Roadmap Evolution
+
+- Phase 18 edited: folded two-shell decision (IDEA-LEDGER IL-20260816-02) into Phase 18 scope
 
 ## Deferred Verification
 
