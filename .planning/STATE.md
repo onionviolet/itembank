@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 current_phase_name: 13.5-reading-teaching-surface-quality-pass
 status: Phase 16C planned (9 plans, plan-checker READY); 13.9 executing on Codex (plans 01-02 committed); every subphase 14A through 16C now has a Sonnet-executable plan set; 17A and 17B are the remaining unplanned subphases
-stopped_at: Phase 17A context gathered
-last_updated: "2026-08-16T20:42:35.043Z"
+stopped_at: Phase 17A UI-SPEC approved
+last_updated: "2026-08-16T21:01:05.096Z"
 last_activity: 2026-08-16
 last_activity_desc: "Quick task 260813-x3g source-to-course contract reframe, slices 1-4a committed and pushed. Applied synthesis section 14 across nine contract/doc files: ROADMAP (nine subphases 14A-17B + governance), SOURCE-TO-COURSE (supersede pointer), REQUIREMENTS (eighteen families GRAPH..MAINT, 47 new requirements, old IDs mapped/superseded), PROJECT (course-first), UI-SPEC (Structured Studio; section 8 gates untouched), PLANNING-DIRECTIVES (finite-strategy + rejection-ledger; section 8 nine-subphase table), AGENTS + .claude/CLAUDE.md (object/authority + operation protocol; non-negotiables intact), README (course-first). Commits: 8b5cab4, e838407, e349c06 (REQUIREMENTS content landed split across the slice-3/4a commits because gsd `query commit` sweeps all modified files while the parallel 13.5 track shared the tree; content verified complete on disk, nothing lost)."
 progress:
@@ -627,7 +627,7 @@ runtime would do:
 
 ## Session Continuity
 
-Last session: 2026-08-16T20:42:34.997Z
-Stopped at: Phase 17A context gathered
-Resume file: .planning/phases/17A-visual-system-component-foundation/17A-CONTEXT.md
+Last session: 2026-08-16T21:01:05.004Z
+Stopped at: Phase 17A UI-SPEC approved
+Resume file: .planning/phases/17A-visual-system-component-foundation/17A-UI-SPEC.md
 Deferred human verification: 02.1 (4), 03 (1), 03.1, 04 (7), 05 (2), 09 (KaTeX approval), 10 (1 UI gate), 11 (4), 999.4 (manual Canvas checklist), 999.5 (WINDOWS.md windows 2-3) — see the Deferred Verification table above; 09.1 manual audio-quality checks (see 09.1-UAT.md)
