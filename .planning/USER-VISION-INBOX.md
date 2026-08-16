@@ -124,6 +124,25 @@ question also changed `PLANNING-DIRECTIVES.md`.
   IL-20260816-02 and ties to the Phase 18 packaging conflict already recorded
   in IL-20260815-11.
 
+### 2026-08-16: subtle disclosure polish, hints collapsed by default
+
+> consider suble stuff like collapsing all of the hints originally and more
+
+**Disposition:** Route (2026-08-16).
+
+- Read as: the hint ladder (and similar assistance surfaces) should start
+  fully collapsed, with subtle progressive disclosure rather than visible
+  stacked tiers; "and more" invites a sweep for sibling refinements of the
+  same kind (collapsed session details, quiet secondary controls, disclosure
+  that never pre-announces what is behind it).
+- Constraint already binding: the ladder must never pre-announce a reveal
+  (RTS-09) and tier entitlement stays runtime-owned; collapsing is
+  presentation only and cannot change what is served.
+- Routed to the Phase 17A visual-system discussion (running 2026-08-16) as a
+  named consideration, with 16B's IA contract as the bound: default-collapsed
+  assistance, disclosure subtlety, and a pass over existing surfaces for
+  "quiet by default" candidates.
+
 ## Disposition vocabulary
 
 - **Promote:** add the verbatim statement and interpretation to `USER-VISION`.
