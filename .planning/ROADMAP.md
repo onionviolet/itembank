@@ -2029,6 +2029,118 @@ a visual system or token freeze (17A), not a notes, learner-artifact, or
 strategy freeze (16C), not a course schema freeze (14B), and not a semantic
 lesson capability freeze (16A), and its freeze record says so.
 
+### Phase 16C: Strategies, Notes & Prototype Convergence
+
+**Goal**: Learner notes are learner-owned artifacts stored under the
+approved-roots vocabulary, never annotations baked into accepted lessons, each
+carrying note ID, ownership, course and objective relation, anchor or selector
+with quoted-context hash, source or lesson revision, authorship type, strategy,
+text or structure, privacy, revision, and optional promotion or review state,
+with authored pre-highlighting rendered as sparse orientation and never
+recorded as learner evidence; a note whose anchor breaks against a revised
+lesson stays attached to its objective with the broken selector flagged and a
+relocation state of resolved, relocated_exact, relocated_probable, or orphaned,
+where probable requires review; notes may seed reflection, retrieval proposals,
+and draft questions but never silently become accepted source, lesson, key,
+score, or mastery, promotion requires explicit source-backed review, and an
+unreviewed note stays learner-private and non-authoritative; a learner artifact
+(proof, program, diagram, explanation, project, observation) carries a rubric
+and a pending or review state and reads as pending evidence until a reviewer
+settles it, with the runtime recording pending and never settling; learning
+strategies are the finite registered set (continuous reading with optional
+highlight and note, guided note spine with prompted selection and restatement,
+worked reasoning with prediction, explanation, and self-check, and a
+retrieval-first or assessment-first route where objective policy permits), each
+declaring purpose, eligibility, required and optional learner actions, skip and
+resume, evidence effects, accommodations, offline behavior, and tests, with an
+unavailable strategy falling back to continuous reading and no Cartesian
+product of arbitrary style toggles; the composed mode-layer precedence resolver
+reads every layer's live state over 16B's locked seven-layer table, a learner
+chooses only among allowed strategies, runtime assessment behavior is never
+user-configurable during a sitting, and a conflicting preference yields to the
+higher layer using 16B's fixed conflict copy verbatim ("{Setting name} is set
+by {higher layer name} for this course and can't be changed here."); progress
+renders through the independent claim tuple (claim kind, scope and version,
+numerator, denominator or indeterminate, rule, snapshot or window, settled or
+pending or unknown, authority, uncertainty) with the seven dimensions kept
+separate, no aggregate completion, mastery, or readiness score anywhere,
+separate denominators for required, required-choice, and enrichment membership,
+a missing denominator reporting indeterminate rather than an invented percent,
+and the learner display using the D-14A-3 per-objective self-adjustable fill
+state with Retrievability never surfaced as a percentage; the note-output trio
+(notebook page, Cornell notes, concept map) is proven as three validated
+projections of one parsed content instance, parsed once by the one parser with
+zero re-parsing and zero per-style content forks, each validator failing
+meaningfully on a deliberately broken fixture and each output degrading to
+coherent plain Markdown, before any further output mode registers; and
+legacy-artifact upgrades begin with the eleven-item baseline audit (current
+parse, identity, fingerprint, objectives, sources, rights, media, assessment
+boundaries, plain rendering, rich rendering, validation), present a bounded
+diff before editing, preserve stable identity and source history, reject
+cosmetic novelty, retain an artifact that cannot express an enhancement and
+link a derived enhancement with its portability cost, and halt for explicit
+assessment review whenever keyed content, difficulty, or objective alignment
+would change.
+**Depends on**: Phase 14B (course package; D-14A-2 component IDs are the anchor
+targets), Phase 16A (semantic capability and activity contract; shared note and
+activity schemas), and Phase 16B (IA, modes, and recovery contract; the locked
+seven-layer mode table and the contextual Notes placement inside Learn and
+Evidence per 16B-UI-SPEC decision D4). All three are planned but not yet
+executed, so every signature this phase imports is read from plan text at
+planning time; the first 16C plan opens with a recorded precondition check that
+halts by name on any divergence, the same pattern plans 14B-01, 15A-01, 15B-01,
+16A-01, and 16B-01 set, extended to check for `14B-FREEZE.md`, `16A-FREEZE.md`,
+and `16B-FREEZE.md` records and for Phase 13.9's A9 closure, because 16C's own
+freeze is a 14B-or-later freeze and may not close before the walking skeleton
+is walked.
+**Freeze gate:** the cross-subject missing-feature suite over four synthetic
+subjects (an EMT respiratory assessment, a mathematics linear system, a CS loop
+invariant with an off-by-one, and a history topic with conflicting primary
+accounts): every registered strategy runs against the synthetic subjects with
+one strategy marked unavailable, asserting fallback to continuous reading
+(STRATEGY-01 fixture); the conflict-matrix fixture in which a synthetic learner
+preference contradicts an accommodation override and an instructor policy,
+each yielding to the higher layer with the stated-reason copy and no
+mid-sitting change, extending 16B's conflict fixture rather than duplicating
+it (STRATEGY-02 fixture); the synthetic note set anchored to a synthetic
+lesson with one anchor invalidated by a lesson revision, asserting the note
+stays attached to its objective with the broken selector flagged (NOTE-01
+fixture); the promotion scenario in which one synthetic note passes
+source-backed review while a second unreviewed note is asserted to stay
+learner-private and non-authoritative (NOTE-02 fixture); the synthetic learner
+artifact, a fictional proof with a rubric, reading as pending evidence until a
+scripted review settles it (NOTE-03 fixture); the synthetic evidence set with
+a missing denominator, a pending prose mark, and a version-split objective,
+asserting each tuple dimension reports separately and no aggregate score
+appears (GRAPH-03 fixture); the note-output trio built from one parsed content
+instance with each validator failing on its deliberately broken fixture (a cue
+without notes, an unlabelled edge, an anchor to a moved block) and each output
+degrading to coherent plain Markdown; the legacy-upgrade scenario over a
+synthetic pre-13.5 lesson artifact, asserting the baseline audit runs first
+and the enhancement lands as a bounded diff with identity and source history
+preserved (UPGRADE-01 fixture); and the scripted upgrade attempting to touch a
+synthetic item's keyed answer, halting for explicit assessment review
+(UPGRADE-02 fixture).
+**Requirements**: GRAPH-03, NOTE-01, NOTE-02, NOTE-03, STRATEGY-01,
+STRATEGY-02, UPGRADE-01, UPGRADE-02
+**Plans:** planned this session; the plan list is appended when the 16C plan
+set is written.
+
+**Prototype-before-freeze coupling:** per `STYLE-DISCIPLINE-16A-2026-08-14.md`
+(binding order) the note-output trio prototype executes in 16C against the 16A
+contract before the strategy and output registry freezes at 16C's gate, and
+the remaining seven output modes plus on-demand genre styles register only
+after the trio passes, one validator and one representative fixture each. Per
+`PLANNING-DIRECTIVES.md` section 3a the guided-note, worked-reasoning, and
+provenance-relocation pathways are prototyped before the strategy registry
+freezes. The 16C freeze covers the note and learner-artifact schemas, the
+promotion and review contract, the finite strategy registry, the composed
+precedence resolver, the progress comprehension display, the note-output trio,
+and the legacy-upgrade contract only. It is explicitly not a visual system or
+token freeze (17A), not an information architecture or navigation freeze
+(16B), not a semantic lesson capability freeze (16A), and not a course schema
+freeze (14B), and its freeze record says so.
+
 ### Next-milestone subphase sequence (14A through 17B)
 
 *Reframed 2026-08-13 from the four broad Phases 14 to 17, per
