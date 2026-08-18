@@ -162,8 +162,9 @@ question of the 2026-08-13 entry above; everything else in that entry keeps
 its 2026-08-13 interpretation.
 
 **Planning effect:** Phase 17B's tracer renders a minimal scope tree in both
-rollup models (gate G7 of its details block); 14B adds the scope object's
-boundedness and membership classes to its course-package checklist.
+rollup models (under gate G5, evidence honesty, in its details block); 14B
+adds the scope object's boundedness and membership classes to its
+course-package checklist.
 
 ### 2026-08-13: complete app flow, visual experience, files in place, and edge cases
 

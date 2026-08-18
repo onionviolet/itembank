@@ -407,9 +407,13 @@ Amendments to an existing entry are additive notes under the entry, dated.
   fields (conflicts with GRAPH-03's honest-denominator rule). Backburner:
   F-b imported authority scopes (revisit when a real standard framework is
   imported).
-- **Revisit trigger:** the 17B tracer rendering both rollups (gate G7 in
-  the 17B details block), or 14B's course-package schema work meeting the
-  scope object.
+- **Revisit trigger:** the 17B tracer rendering both rollups (the
+  scope-and-rollup check under gate G5 in the 17B details block), or 14B's
+  course-package schema work meeting the scope object.
+- **Amendment 2026-08-17 (same session):** the first write of this entry
+  cited "gate G7" for the rollup check; G7 is the synthesis 16.1
+  course-quality gate, and the rollup check belongs under G5 (evidence
+  honesty). Corrected here and in the ideaboard and USER-VISION note.
 
 ### IL-20260817-02: Backlog 999.2 bilingual reader, post-reframe review
 

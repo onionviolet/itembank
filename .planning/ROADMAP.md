@@ -111,7 +111,7 @@ are recorded on the phases they block; none blocks starting.
 - [ ] **Phase 16C: Strategies, Notes & Prototype Convergence** - Notes, learner artifacts, finite strategies, progress comprehension, and legacy upgrade. Depends on 14B, 16A, and 16B. Freeze gate: cross-subject missing-feature suite.
 - [ ] **Phase 17A: Visual System & Component Foundation** - Tokens, hierarchy, responsive shell, and accessible primitives. Depends on 16B and 16C. Freeze gate: same-flow visual comparison and accessibility QA.
 - [ ] **Phase 17B: Production Vertical Tracer** - A polished unit from discovery through restore. Depends on all prior subphases. Freeze gate: end-to-end gates G1 through G11.
-- [ ] **Phase 18: External-User v1 — a friend can install and use this (ADDED 2026-08-14)** - The six-criterion bar in READINESS-AUDIT-14A.md A10: install without folklore, agent-guided onboarding from the public repo, first-run self-explanation, scope honesty, stranger-safe privacy defaults, and errors that name the next safe action. Criteria 1, 2, and 5 are largely shipped (Phase 2.1/13 packaging, the README onboarding section, the disclosure-gated updater) and get verified as they land; the phase closes after 17B with a real cold install by a second person. Fires V2-DEL-01's signing decision. Registered capability on this phase's runway (2026-08-14, vision inbox): **agent-facing update and capability disclosure**, where the app tells an agent the installed version is outdated and what features and contracts arrived, machine-readably, building on the shipped `update`/`usage`/`schema` surfaces, with a matching update path for the skill library. Future phase candidate; may land earlier as a cheap additive manifest. **Two-shell scope folded in (2026-08-16, IDEA-LEDGER IL-20260816-02):** the product ships as two shells over the one runtime: the installed app (this phase's packaging work, which resolves the IL-20260815-11 packaging conflict) and a web surface reached in a browser, meaning the learner's own runtime served to a browser, loopback today. Both shells are clients of the one runtime; this phase's cold-install verification covers whichever shells have shipped, and no second scoring authority may exist in either. A hosted multi-tenant web service stays out of scope under the no-accounts and evidence-on-disk rules. Which shell the comprehensive learning UI targets first (browser, packaged, or one codebase for both) is decided at 16B/17A planning, not here.
+- [ ] **Phase 18: External-User v1 — a friend can install and use this (ADDED 2026-08-14)** - The six-criterion bar in READINESS-AUDIT-14A.md A10: install without folklore, agent-guided onboarding from the public repo, first-run self-explanation, scope honesty, stranger-safe privacy defaults, and errors that name the next safe action. Criteria 1, 2, and 5 are largely shipped (Phase 2.1/13 packaging, the README onboarding section, the disclosure-gated updater) and get verified as they land; the phase closes after 17B with a real cold install by a second person. Fires V2-DEL-01's signing decision. Registered capability on this phase's runway (2026-08-14, vision inbox): **agent-facing update and capability disclosure**, where the app tells an agent the installed version is outdated and what features and contracts arrived, machine-readably, building on the shipped `update`/`usage`/`schema` surfaces, with a matching update path for the skill library. Future phase candidate; may land earlier as a cheap additive manifest. **Two-shell scope folded in (2026-08-16, IDEA-LEDGER IL-20260816-02):** the product ships as two shells over the one runtime: the installed app (this phase's packaging work, which resolves the IL-20260815-11 packaging conflict) and a web surface reached in a browser, meaning the learner's own runtime served to a browser, loopback today. Both shells are clients of the one runtime; this phase's cold-install verification covers whichever shells have shipped, and no second scoring authority may exist in either. A hosted multi-tenant web service stays out of scope under the no-accounts and evidence-on-disk rules. The shell question is closed (2026-08-17 correction of stale text): 17A-CONTEXT D-08 makes the browser-served UI the single canonical shell, and the packaged app wraps the same served pages, so this phase packages one shell rather than choosing between two. Details block added 2026-08-17 before the subphase-sequence section.
 
 **Superseded 2026-08-13 - flat Phase 14 to 17 sequence (historical rationale).** The nine subphases above replace the four broad phases below, per `.planning/research/phase-16/14-synthesis.md` sections 14 and 15. The originals are preserved here as rationale, not deleted. The high-level order (durable course and file semantics, then AI course direction, then logical learning contracts, then visual productization) remains correct; the four phases were too coarse and placed some Phase 16 discoveries after Phase 14 format commitments. Full historical detail is preserved in the Phase Details section below under "Superseded flat sequence (historical rationale)."
 > - **Phase 14: Course Workspace & Source Binding** - Make the course the primary object; safely discover and bind sources, objectives, prerequisites, treatments, existing lessons/banks, and gaps through a course shelf/map/source workspace.
@@ -1286,9 +1286,9 @@ tracked in the "Next-milestone subphase sequence" section, not this v1.0 table.
 
 | Item | Disposition |
 |---|---|
-| OLED / true-black theme mode | Deferred to backlog. Small, well-scoped add: one `theme` enum value (`oled`) plus a true-black token set (`bg` `#000000`, dimmer card/chip, semantic contrast re-verified) and the `/settings` theme option. Natural home: a small follow-up to Phase 4 theming, or folded into Phase 13's desktop pass when native window chrome is revisited. Raised from Phase 4 UAT (2026-08-10). |
-| 13.5 defect D1: reading measure renders 422px, not the contracted 531px (66 chars) | To be fixed (recorded 2026-08-16, agent browser pass). Mechanism and fix candidates in `phases/13.5-reading-teaching-surface-quality-pass/13.5-GATES.md` D1: `--measure-prose:59ch` resolves against the 16px `.wrap` font instead of the 18px reading face, and `.card` padding eats 48px more. CSS-only fix plus a corrected `stylesheet_roundtrip` pin. A spawned-task chip exists (2026-08-16); if unused, fold into the next 13.5 or reader-touching plan. Blocks the RTS-04 gate from closing. |
-| 13.5 defect D2: quiz context band shows "Item 1 of 0" on first paint | To be fixed (recorded 2026-08-16, same pass). `span#tot` is server-rendered as 0 and corrects only after interaction; server-render the real total in the quiz page template plus a `daemon_roundtrip` first-paint assertion. Same task chip as D1. |
+| OLED / true-black theme mode | Folded into Phase 17A on 2026-08-17 as plan 17A-05 (wave 3): one `theme` enum value (`oled`) plus a true-black token set (`bg` `#000000`, dimmer card/chip, semantic contrast re-verified through the stylesheet invariants) and the settings theme option. 17A is the theming-adjacent phase this row was waiting for. Originally raised from Phase 4 UAT (2026-08-10). |
+| 13.5 defect D1: reading measure renders 422px, not the contracted 531px (66 chars) | To be fixed (recorded 2026-08-16, agent browser pass). Mechanism and fix candidates in `phases/13.5-reading-teaching-surface-quality-pass/13.5-GATES.md` D1: `--measure-prose:59ch` resolves against the 16px `.wrap` font instead of the 18px reading face, and `.card` padding eats 48px more. CSS-only fix plus a corrected `stylesheet_roundtrip` pin. Executable plan written 2026-08-17: `.planning/quick/260817-q7d-fix-135-defects-d1-d2/260817-q7d-PLAN.md` (supersedes the 2026-08-16 task chip). Blocks the RTS-04 gate from closing. |
+| 13.5 defect D2: quiz context band shows "Item 1 of 0" on first paint | To be fixed (recorded 2026-08-16, same pass). `span#tot` is server-rendered as 0 and corrects only after interaction; server-render the real total in the quiz page template plus a `daemon_roundtrip` first-paint assertion. Same executable plan as D1: `.planning/quick/260817-q7d-fix-135-defects-d1-d2/260817-q7d-PLAN.md` (2026-08-17). |
 | 13.5 remaining human-verify tail | To be verified, not fixed (2026-08-16). After the agent browser pass, the only rows still needing a human are: real screen-reader announcement behavior (never agent-certifiable), the gloss bottom-sheet painted geometry on a touch device or displayed pane, the script-free and truly network-free ladder walkthrough, the perceptual font-face comparison, and an optional real-200%-zoom rasterization spot-check. Procedures in `13.5-GATES.md`. These are what keep 13.5's box unchecked; nothing else in the phase is open. |
 
 ### Phase 999.1: Advanced Visual Item Families (completed 2026-08-11)
@@ -1386,6 +1386,15 @@ requires (tokenization, lemmatization, a per-word state store), states the concl
 that follows (a second product, not a feature), and records the cheap thing already
 shipped in its place (the `zh=` meta field on `## TERMS` in Phase 3.1). Nothing to
 re-litigate.
+
+**2026-08-17 review verdict: KEEP, post-reframe (IDEA-LEDGER IL-20260817-02).**
+Re-argued against the source-to-course scope: direct source reading
+(SOURCE-TO-COURSE step 4) makes the trigger more reachable because it puts
+un-authored running prose in front of the learner, but the trigger itself
+stands unchanged and nothing is built until per-word tracked status is wanted
+over that surface. Sharpened revisit trigger: a recorded learner request for
+per-word lookup or tracked word status over a source-reading treatment, or a
+language-learning course entering the course shelf.
 
 ### Phase 999.3: MCP Surface — the runtime as a tool table (BACKLOG, added 2026-08-10)
 
@@ -1492,9 +1501,22 @@ name, and every payload path added without the evidence-log gate, is retrofit co
 later at a worse rate. That constraint is now Extensibility Rule 9 and binds now,
 without promoting the phase.
 
+**2026-08-17 review verdict: PROMOTED per its own trigger (IDEA-LEDGER
+IL-20260817-03).** Phase 8 is verified and the v1.0 milestone completed
+2026-08-11, so the trigger's second disjunct fired; the review is the lookup
+the 2026-08-10 entry promised. The source-to-course reframe strengthens the
+case: agents are first-class clients of the runtime, Extensibility Rule 9 has
+prepaid the retrofit cost on every route since 2026-08-10, and Phase 18's
+agent-facing capability disclosure manifest is a natural payload of the MCP
+`server/discover` surface. Sequencing: after 17B, beside Phase 18 (may run in
+parallel with it); nothing in the 14A through 17B spine depends on it, so it
+does not interrupt the milestone. Scope, the ten success criteria, and the
+three named unknowns above carry unchanged into planning. The heading stays
+999.3 until its planning session assigns the phase directory.
+
 Plans:
 
-- [ ] TBD (promote per the trigger above)
+- [ ] TBD (plan at promotion slot: after 17B, beside Phase 18)
 
 ### Phase 13.9: Walking Skeleton — one real course, end to end (INSERTED 2026-08-14)
 
@@ -2231,9 +2253,174 @@ without silently absorbing the non-token Phase 13.5 backlog.
 - [ ] 17A-03-PLAN.md, the accessible direction-neutral primitives and the
   complete 16B/16C component-state matrix.
 
+**Wave 3 (added 2026-08-17)**
+- [ ] 17A-05-PLAN.md, the OLED true-black theme registration: one `theme`
+  enum value (`oled`), a true-black token set with measured contrast
+  re-verified through the existing stylesheet invariants, and the settings
+  surface option. Promoted from the Backlog small-enhancements row
+  (2026-08-10); 17A is the theming-adjacent phase it was waiting for.
+
 **Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 17A-04-PLAN.md, driven-browser evidence, scripted human A11Y-01 review,
   the Phase 13.9 halt check, and the freeze or named withholding record.
+
+### Phase 17B: Production Vertical Tracer (details added 2026-08-17)
+
+**Goal:** One polished course unit travels the whole source-to-course loop at
+production quality, and the milestone exits through it: discovery and binding
+of sources, a cited objective map with a treatment per objective, artifacts
+authored through the skills and the deterministic contracts, the full learner
+experience (direct source reading, hover and focus term definitions,
+things-to-know and expert-tip blocks, a cited visual explanation, prediction,
+targeted feedback, varied practice, transfer, and course-path continuation) at
+desktop and phone widths, honest progress over a minimal scope tree, and a
+clean-machine offline restore. The authored lesson stays coherent when opened
+outside the itembank UI, and one legacy lesson plus one legacy question
+artifact pass the upgrade audit (per the preserved Phase 17 rationale in
+`SOURCE-TO-COURSE.md`). No phase is complete from framework tests alone: the
+tracer exits through a realistic synthetic end-to-end course fixture plus
+visual and accessibility verification (SOURCE-TO-COURSE closing bar).
+
+**Depends on:** every prior subphase frozen (14A, 14B, 15A, 15B, 16A, 16B,
+16C, 17A) and the Phase 13.9 walking skeleton walked. The 17B plans halt by
+name on those preconditions, following the 16C-01 precedent; handing them to
+an executor early is safe and the executor will correctly refuse to start.
+
+**Fixture rule:** every gate is proven on a realistic synthetic fixture
+course kept in this repository and `itembank guard` clean. Weibao may
+additionally exercise the same flow on a real course outside the repository;
+that evidence is supplementary and repo-side records carry pointers, counts,
+and hashes only.
+
+**Freeze gate: end-to-end gates G1 through G11, defined in
+`research/phase-16/14-synthesis.md` section 16.1 and made concrete for this
+tracer as follows.**
+
+- **G1 Coverage:** every capability the tracer exercises maps to its
+  requirement row and ledger disposition; no undischarged tracer promise.
+- **G2 Object/authority:** each artifact the tracer creates names its durable
+  object, owner, authority, and source of truth; derived views rebuild.
+- **G3 File safety:** the tracer's unit survives the file-fault drills
+  (move, external edit, conflict, interrupted write) preserving old or new
+  valid state.
+- **G4 Portable capability:** the authored lesson reads coherently in plain
+  Markdown outside the UI, and in the UI by keyboard, touch, screen reader,
+  narrow screen, and offline.
+- **G5 Evidence honesty:** progress over the tracer's scope tree (one open
+  field containing one bounded course containing the unit) renders in both
+  registered rollup models, ROLLUP-DIM and ROLLUP-MAP (IDEA-LEDGER
+  IL-20260817-01), with stated denominators, pending and unknown states
+  shown, and no aggregate score anywhere; the bounded course may complete,
+  the open field never does. Weibao picks the default rollup from the
+  rendered screens.
+- **G6 Assessment authority:** no surface, agent, or note in the tracer
+  leaks a key, invents a score, auto-grades prose, or changes a frozen
+  sitting.
+- **G7 Course quality:** the tracer's treatment decisions cite scope,
+  demand, rationale, uncertainty, and the existing-artifact search, and
+  pass review before authoring.
+- **G8 Flow/visual:** first-run, resume, learn, practice, test, source
+  inspection, review, agent failure, and narrow-screen transitions preserve
+  context and hierarchy on the tracer's unit.
+- **G9 Strategy/notes:** each strategy the tracer offers states choice,
+  requirement, skip and resume, accommodation, evidence effect, privacy,
+  provenance, and the note-authority guard.
+- **G10 Portability/recovery:** a clean machine restores the tracer's
+  canonical objects and evidence offline; every unsupported capability
+  appears in a loss report.
+- **G11 Cross-cutting:** egress capture equals disclosed manifests;
+  rights-unknown refuses unsafe operations; diagnostics are redacted.
+
+**Requirements:** verified end to end rather than newly landed; the gate
+checklist above is the acceptance record, kept in `17B-GATES.md`.
+
+**Plans:** 4 plans across 4 waves; see
+`.planning/phases/17B-production-vertical-tracer/`.
+
+**Wave 1**
+- [ ] 17B-01-PLAN.md, the precondition halt, the realistic synthetic course
+  fixture with its scope tree, and the 17B-GATES.md checklist scaffold.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 17B-02-PLAN.md, discovery through accepted authoring on the fixture:
+  binding, cited objective map, treatment review, authored unit; G1, G2,
+  G3, G7 evidence.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 17B-03-PLAN.md, the learner pass: reading, lesson, practice, graded
+  sitting, notes and strategies, both rollup displays with Weibao's default
+  choice checkpoint; G4, G5, G6, G8, G9 evidence plus the legacy upgrade
+  audit.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 17B-04-PLAN.md, clean-machine offline restore with loss report, egress
+  and rights checks, the human visual and accessibility checkpoint, and the
+  milestone exit record; G10, G11 evidence.
+
+### Phase 17C: Maintenance and Restore Audit (registered 2026-08-17)
+
+**Goal:** The post-Phase-17 maintenance and restore audit named in the
+governance clause below stops being ownerless: after 17B closes, one audit
+confirms a clean machine restores all supported canonical objects and
+evidence offline (gate G10), every unsupported capability appears in a loss
+report, and each accepted item still names its maintenance owner, then names
+the recurring audit triggers owed after 14B, 16C, and 17B changes.
+
+**Owner:** a Claude-class planning session runs the audit; Weibao holds
+acceptance authority on the report. The report is
+`.planning/phases/17C-maintenance-restore-audit/17C-AUDIT.md`.
+
+**Depends on:** Phase 17B complete (its G10 drill is this audit's input, not
+a substitute: 17B proves the tracer's unit restores; 17C sweeps all accepted
+items and owners).
+
+**Plans:** 1 plan; see `.planning/phases/17C-maintenance-restore-audit/`.
+
+- [ ] 17C-01-PLAN.md, the audit run: restore drill inventory, loss-report
+  completeness check, maintenance-owner sweep, and the named audit triggers.
+
+### Phase 18: External-User v1 (details added 2026-08-17)
+
+**Goal:** A friend with no knowledge of this project installs itembank, is
+walked through setup by an AI agent reading the public repo, and gets real
+value from the shipped loop. Acceptance bar: the six A10 criteria in
+`READINESS-AUDIT-14A.md` (install without folklore, agent-guided onboarding,
+first-run self-explanation, scope honesty, stranger-safe privacy defaults,
+and errors that name the next safe action), verified by a real cold install
+by a second person after 17B.
+
+**Sub-decisions this phase owns, dispositioned 2026-08-17 in 18-CONTEXT.md:**
+the packaging conflict IL-20260815-11 (resolved: the Phase 13 browser-served
+shell plus packaged wrapper is the delivery vehicle; 17A-CONTEXT D-08 already
+makes the browser-served UI the single canonical shell), the V2-DEL-01 code
+signing decision (a dated cost decision checkpoint for Weibao, with an
+unsigned-plus-documented-workaround recommended default), and the
+agent-facing update and capability disclosure manifest (a machine-readable
+additive surface on the shipped `update`/`usage`/`schema` ground; the
+promoted 999.3 MCP surface is a named future consumer).
+
+**Owed fixture:** the cold-agent onboarding transcript (one agent, one run,
+recorded) for the README onboarding section, per A10 check 2.
+
+**Depends on:** Phase 17B (the shipped loop it sells is the milestone's
+output); 17C may run beside it. The promoted Phase 999.3 (MCP surface) may
+run in parallel; neither blocks the other.
+
+**Plans:** 3 plans across 3 waves; see `.planning/phases/18-external-user-v1/`.
+
+**Wave 1**
+- [ ] 18-01-PLAN.md, packaging resolution and the install story: the
+  packaged artifact built from the Phase 13 shell, the IL-20260815-11
+  resolution record, and Weibao's signing cost checkpoint.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 18-02-PLAN.md, the agent-facing capability disclosure manifest and
+  its update-path wiring.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 18-03-PLAN.md, cold-install verification: the second-person install,
+  the cold-agent onboarding transcript fixture, and the A10 six-criterion
+  acceptance record.
 
 ### Next-milestone subphase sequence (14A through 17B)
 
@@ -2284,7 +2471,10 @@ or expensive capabilities stay on the capability runway rather than being cut.
   supported canonical objects and evidence offline (gate G10), that every
   unsupported capability appears in a loss report, and that each accepted item
   still names its maintenance owner. New audit triggers are named after 14B,
-  16C, and 17B.
+  16C, and 17B. *Owner assigned 2026-08-17: this audit is Phase 17C (details
+  block above), run by a Claude-class planning session with Weibao holding
+  acceptance; plan at
+  `.planning/phases/17C-maintenance-restore-audit/17C-01-PLAN.md`.*
 
 - **Durable capability runway.** Capability breadth is preserved as a runway of
   registered extensions, prototypes, and backburner items, not by cutting
@@ -2313,6 +2503,7 @@ or expensive capabilities stay on the capability runway rather than being cut.
 | 16C: strategies, notes, and prototype convergence | Notes, learner artifacts, finite strategies, progress comprehension, legacy upgrade | 14B, 16A, 16B | Cross-subject missing-feature suite |
 | 17A: visual system and component foundation | Tokens, hierarchy, responsive shell, accessible primitives | 16B, 16C | Same-flow visual comparison and accessibility QA |
 | 17B: production vertical tracer | Polished unit from discovery through restore | All prior | End-to-end gates G1 through G11 |
+| 17C: maintenance and restore audit (added 2026-08-17) | Clean-machine restore sweep, loss-report completeness, maintenance-owner sweep, named audit triggers | 17B | Audit report accepted with zero unowned accepted items |
 
 **Planning source:** `.planning/research/phase-16/14-synthesis.md` sections 15
 and 16.3, and `.planning/SOURCE-TO-COURSE.md`. Detailed discussion, UI

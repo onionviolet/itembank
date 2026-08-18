@@ -156,8 +156,9 @@ growing scope version.
 
 - **17B tracer:** the tracer's unit gains a minimal scope tree (one open
   field scope containing one bounded course scope containing the unit) and
-  must render both rollup models over real evidence; this is gate G7 in the
-  17B details block written this session.
+  must render both rollup models over real evidence; this lands under gate
+  G5 (evidence honesty) in the 17B details block written this session, as
+  the scope-and-rollup check named there.
 - **14B:** scope storage lands inside the course-package schema 14B already
   owns; this ideaboard adds the boundedness field and membership classes to
   its checklist, additively.
