@@ -181,6 +181,27 @@ Amendments to an existing entry are additive notes under the entry, dated.
   a dependency before IL-20260815-09 resolves).
 - **Revisit trigger:** first source-discovery or absorb-book phase that meets
   a real PDF or DOCX source.
+- **Note 2026-08-17:** the bounded research pass ran; findings in
+  `research/2026-08-17-pdf-docx-intake.md`, judged against the locator gold
+  cases in `fixtures/audit/locator_fidelity_cases.py`. Verdict: primary PDF
+  path is pdfplumber pinned with pdfminer.six as its engine (both MIT, pure
+  Python, page numbers plus word and table-cell geometry); primary DOCX path
+  is python-docx (MIT) with stdlib zipfile plus xml.etree reads for
+  footnotes, headers, comments, and tracked changes; pypdf (BSD-3, zero
+  deps) is the recorded fallback for page-level extraction. PyMuPDF is
+  parked, not rejected: technically strongest but AGPL, which
+  `SUPPLY-CHAIN-POLICY.md` section 2.4 routes to an explicit Weibao
+  decision. docling (torch-scale dependency weight) and markitdown and
+  mammoth (no locator output) are cut for import. OCR is deferred to the
+  existing local-Ollama ocr skill; scanned PDFs return the unsupported
+  result the gold manifest requires. The importer emits Markdown plus a
+  JSON locator sidecar, both plain UTF-8, so the one-parser rule is
+  untouched and the removal path leaves imported data readable.
+  IL-20260815-09 resolved the same day, so the ordering constraint is
+  satisfied. Disposition stays Registered with adoption ready: the first
+  plan that meets a real PDF or DOCX source adopts through the
+  `SUPPLY-CHAIN-POLICY.md` section 3 gate, citing the research file, and
+  owns the sidecar schema design it deliberately left open.
 
 ### IL-20260815-08: Re-open pytest and test-runner adoption (F17)
 
@@ -206,6 +227,17 @@ Amendments to an existing entry are additive notes under the entry, dated.
 - **Disposition:** Registered, blocking for dependency adoption.
 - **Revisit trigger:** the first plan that proposes a non-vendored
   dependency.
+- **Note 2026-08-17: settled.** The policy is written:
+  `.planning/SUPPLY-CHAIN-POLICY.md` (scope, vendoring and pinning rules,
+  SHA-256 recorded and CI-verified via a `VENDORED.md` table, license
+  review with copyleft routed to Weibao, per-plan adoption gate, update
+  cadence, threat-table language, plugin interaction). Disposition moves to
+  Core: binding on every plan that introduces, updates, or removes a
+  third-party artifact. The blocking condition on IL-20260815-07 and
+  IL-20260816-01 is discharged. Failure condition: a dependency lands
+  without its `VENDORED.md` row or with an unreviewed license; owner: any
+  planning session that reviews a dependency-introducing plan; verification:
+  the CI checksum step the first vendoring plan adds.
 
 ### IL-20260815-10: Re-open non-stdlib Anki import (F3)
 
@@ -289,6 +321,27 @@ Amendments to an existing entry are additive notes under the entry, dated.
 - **Revisit trigger:** the first phase where a second provider lands behind
   any named seam; that phase designs the shared registry shape instead of a
   one-off.
+- **Note 2026-08-17: settled as a standing pattern.** The open question was
+  bounded to seams that never touch the scorer, parser, or evidence store
+  (IL-20260815-04 stays rejected and is not reopened). Decision: plugins as
+  the delivery mechanism at named seams is adopted as the standing pattern,
+  disposition Core at the planning-rule level, with machinery still deferred
+  exactly as IL-20260815-02's note states: no registry, loader, manifest, or
+  mount code exists until a second provider actually lands at a seam. When
+  that first second provider arrives, its phase designs one shared registry
+  shape (name, version, capability declaration, accessible-degradation
+  statement, tests) that every later seam reuses; per-seam ad hoc wiring is
+  refused from that point. Third-party plugin loading is not proposed and
+  would be a new ledger entry under `SUPPLY-CHAIN-POLICY.md` sections 1 and
+  6; no plugin loader may fetch code at runtime. Eligible seams today, from
+  IL-20260815-02 and the registered-strategy work: model backend, lesson
+  output modes and styles, treatment policies, teaching surfaces, exporters,
+  source-discovery providers, schedulers. Nearest expected trigger: the
+  local model backend landing beside the hosted one, or a second lesson
+  output mode registering in 16C. Owner: the planning session of that
+  triggering phase; verification: the registry-shape design appears in that
+  phase's plan set; failure condition: a second provider lands as an
+  `if`-chain branch (Extensibility Rule 2 already fails that in review).
 
 ### IL-20260816-02: One runtime, two shells (web and installed app)
 
@@ -323,6 +376,86 @@ Amendments to an existing entry are additive notes under the entry, dated.
 - **Revisit trigger:** Phase 18 planning (app shell), and the first 16B/17A
   session that must choose whether the comprehensive learning UI targets the
   browser shell, the packaged shell, or one codebase for both.
+
+### IL-20260817-01: Field, scope object, boundedness, and progress rollup
+
+- **Proposal:** Answer Weibao's 2026-08-13 open question "what counts as an
+  entire field" with a recorded model: one recursive, authored, versioned
+  **scope** object over the one typed graph (members are objectives and
+  child scopes, tagged required, required-choice, or enrichment); free-text
+  level labels instead of a fixed level schema; a **boundedness** axis
+  (bounded scopes pin a membership version and may truthfully report
+  complete under their named predicate; open scopes never report complete
+  and state their scope version on every claim); and two registered rollup
+  display models over unchanged GRAPH-03 tuples, ROLLUP-DIM (dimension-wise
+  aggregation up the tree with stated denominators) and ROLLUP-MAP
+  (one-level map view, no aggregation past direct children).
+- **Origin:** `USER-VISION.md` 2026-08-13 "files, hierarchy, onboarding,
+  packaging, and future audit" entry; ideaboard
+  `.planning/IDEABOARD-FIELD-2026-08-17.md` (this session, closing
+  discussion A1 of `PROMPT-plan-the-rest-2026-08-17.md`).
+- **Evidence considered:** GRAPH-01 (structural containment nodes with local
+  labels, no universal hierarchy), GRAPH-02 (typed edges), GRAPH-03 (seven
+  separate dimensions, bounded-course completion predicate, open-field
+  no-percentage rule), GRAPH-04 (membership migration), D-14A-3 fill state.
+- **Disposition:** Core for the scope object and boundedness axis (14B owns
+  storage shape, additively); Registered for both rollup models, choice is
+  a per-scope setting with a global default, Weibao picks from the rendered
+  17B tracer screens. Rejected within the ideaboard, with full records
+  there: F-a fixed level vocabulary (conflicts with the GRAPH-01/02
+  supersession text quoted in the ideaboard) and F-c emergent-cluster
+  fields (conflicts with GRAPH-03's honest-denominator rule). Backburner:
+  F-b imported authority scopes (revisit when a real standard framework is
+  imported).
+- **Revisit trigger:** the 17B tracer rendering both rollups (gate G7 in
+  the 17B details block), or 14B's course-package schema work meeting the
+  scope object.
+
+### IL-20260817-02: Backlog 999.2 bilingual reader, post-reframe review
+
+- **Proposal:** Re-argue backlog phase 999.2 (bilingual reader) against the
+  source-to-course scope, as its last review (2026-08-10) predates the
+  reframe.
+- **Evidence considered:** the 2026-08-10 verdict (a correctly parked entry
+  with a sharp trigger: un-authored prose tappable with tracked word
+  status needs tokenization, lemmatization, and a per-word state store,
+  which is a second product); the reframe's direct-source-reading
+  treatment (SOURCE-TO-COURSE step 4), which puts un-authored running
+  prose in front of the learner as a first-class treatment.
+- **Disposition:** Keep (backburner, unchanged), with one addition: the
+  reframe makes the trigger more reachable, because direct source reading
+  gives the prose surface such a reader would sit on. The trigger itself
+  stands unchanged; nothing is built until per-word tracked status is
+  actually wanted over that surface. The `zh=` TERMS meta field remains
+  the shipped cheap alternative.
+- **Revisit trigger (sharpened):** a recorded learner request for per-word
+  lookup or tracked word status over a source-reading treatment, or any
+  language-learning course entering the course shelf.
+
+### IL-20260817-03: Backlog 999.3 MCP surface, promotion per its own trigger
+
+- **Proposal:** Re-argue backlog phase 999.3 (MCP surface) against current
+  scope.
+- **Evidence considered:** the entry's own recorded promotion trigger
+  ("promote when Phase 8 is verified and either an AI tutor is being used
+  against itembank often enough that shelling out to the CLI is the
+  friction, or V1 reaches /gsd-complete-milestone. Whichever comes
+  first."): Phase 8 is verified (6/6 complete) and the v1.0 milestone
+  completed 2026-08-11, so the disjunct fired. The source-to-course
+  reframe strengthens the case: agents are first-class clients of the
+  runtime, and Phase 18's agent-facing capability disclosure manifest is
+  the natural payload of an MCP `server/discover` surface. Extensibility
+  Rule 9 has been reserving MCP tool names on every new API route since
+  2026-08-10, so the promotion cost has been prepaid.
+- **Disposition:** Promote. 999.3 leaves the backlog and enters the active
+  runway sequenced after 17B, beside Phase 18: it may run parallel to 18,
+  and 18's capability disclosure manifest work should name the MCP surface
+  as a consumer. It does not interrupt the 14A through 17B milestone
+  spine; nothing in that spine depends on it. Scope, criteria, and named
+  unknowns are unchanged from the 999.3 entry.
+- **Revisit trigger:** Phase 18 planning already accounts for it (this
+  session's 18-CONTEXT names the interaction); the promotion is recorded
+  in the ROADMAP sequencing note of the same date.
 
 ## Rejected
 

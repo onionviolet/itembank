@@ -142,6 +142,29 @@ complete.
 progress semantics, onboarding, packaging, and a later implementation-readiness
 audit before committing to one universal structure.
 
+#### Interpretation update recorded 2026-08-17
+
+**Status:** the "what counts as an entire field" question is resolved; the
+2026-08-13 interpretation above is partly superseded on that point only.
+
+**Current interpretation:** the ideaboard Weibao asked for ran on 2026-08-17
+(`.planning/IDEABOARD-FIELD-2026-08-17.md`, ledger entry IL-20260817-01). A
+field is an authored, versioned scope object over the one typed graph, with
+unlimited nesting through recursive scopes, free level labels, and a declared
+boundedness: a bounded scope pins its membership and may truthfully report
+complete under its named predicate, while an open field never reports
+complete and states its scope version on every progress claim. Progress rolls
+up through two registered display models (dimension-wise rollup and one-level
+map view), never through a single percentage, per GRAPH-03.
+
+**Relationship to prior entries:** resolves the open hierarchy and completion
+question of the 2026-08-13 entry above; everything else in that entry keeps
+its 2026-08-13 interpretation.
+
+**Planning effect:** Phase 17B's tracer renders a minimal scope tree in both
+rollup models (gate G7 of its details block); 14B adds the scope object's
+boundedness and membership classes to its course-package checklist.
+
 ### 2026-08-13: complete app flow, visual experience, files in place, and edge cases
 
 > Also need to ideaboard/research comprehensively Comprehensive but also visually appealing app experience, what to show, how things folow, how things chain and more,  Splitting research into finer parts as needed? Working with files as they are and not moving them? More edge cases abd nire>
