@@ -333,9 +333,66 @@ def check_discovery():
         corpus_14a.teardown_corpus(d)
 
 
+def check_regressions():
+    bank_raw = b"CORRECT: B \n"
+    bank_stripped = b"CORRECT: B\n"
+    if identity.object_fingerprint(bank_raw, "bank") == \
+            identity.object_fingerprint(bank_stripped, "bank"):
+        fail("the keyed-content carve-out did not hold: a trailing space "
+             "inside a CORRECT: line did not change the bank fingerprint")
+    if identity.object_fingerprint(bank_raw, "course") != \
+            identity.object_fingerprint(bank_stripped, "course"):
+        fail("the same text fingerprinted as kind course was not "
+             "trailing-whitespace normalized")
+
+    fixture_path = os.path.join(ROOT, "fixtures", "lesson_bank.md")
+    qs = model.load(fixture_path)
+    before_fp = model.content_fingerprint(qs[0])
+    with open(fixture_path, "rb") as fh:
+        raw = fh.read()
+    identity.object_fingerprint(raw, "bank")   # side-effect-free by construction
+    qs_again = model.load(fixture_path)
+    after_fp = model.content_fingerprint(qs_again[0])
+    if before_fp != after_fp:
+        fail("calling identity.object_fingerprint() changed "
+             "model.content_fingerprint()'s scoring-relevant digest")
+
+    rec_empty = identity.mint_object("source", "s.md", b"x", "human", "w", "mint",
+                                      rights={})
+    rec_none = identity.mint_object("source", "s.md", b"x", "human", "w", "mint",
+                                     rights=None)
+    if rec_empty["rights"] != identity.rights_default() or \
+            rec_none["rights"] != identity.rights_default():
+        fail("rights={} and rights=None did not both default to rights_default()")
+
+    r1 = identity.mint_object("bank", "a.md", b"1", "human", "w", "mint")
+    r2 = identity.mint_object("bank", "b.md", b"2", "human", "w", "mint")
+    r3 = identity.mint_object("course", "c.md", b"3", "human", "w", "mint")
+    shuffled = [r3, r1, r2]
+    import random
+    random.shuffle(shuffled)
+    rows1 = identity.registry_rows(shuffled)
+    random.shuffle(shuffled)
+    rows2 = identity.registry_rows(shuffled)
+    if [r["object_id"] for r in rows1] != [r["object_id"] for r in rows2]:
+        fail("registry_rows() ordering was not stable across a shuffled input")
+
+    same_a = identity.mint_object("source", "x.md", b"same", "human", "w", "mint")
+    same_b = identity.mint_object("source", "y.md", b"same", "human", "w", "mint")
+    pairs = identity.copy_candidates([same_a, same_b])
+    if len(pairs) != 1:
+        fail("copy_candidates() did not return the pair for equal "
+             "fingerprints with different ids")
+    if identity.copy_candidates([r1, r2]):
+        fail("copy_candidates() returned candidates for differing fingerprints")
+
+    print("OK check_regressions")
+
+
 def main():
     check_identity()
     check_discovery()
+    check_regressions()
     print("OK identity_roundtrip")
 
 
