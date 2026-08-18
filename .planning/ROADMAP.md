@@ -2239,7 +2239,7 @@ without silently absorbing the non-token Phase 13.5 backlog.
 
 **Requirements:** VISUAL-01, VISUAL-02, A11Y-01
 
-**Plans:** 4 plans across 4 waves.
+**Plans:** 5 plans across 4 waves (17A-05 added 2026-08-17).
 
 **Wave 1**
 - [ ] 17A-01-PLAN.md, the synthetic same-flow tracer, three reversible

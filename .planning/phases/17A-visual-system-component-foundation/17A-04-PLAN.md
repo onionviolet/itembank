@@ -3,7 +3,7 @@ phase: 17A-visual-system-component-foundation
 plan: 04
 type: execute
 wave: 4
-depends_on: ["17A-03"]
+depends_on: ["17A-03", "17A-05"]
 files_modified:
   - tools/visual_qa.py
   - tests/visual_accessibility_roundtrip.py
@@ -33,13 +33,13 @@ must_haves:
 <task type="auto">
   <name>Task 1: Produce driven-browser evidence</name>
   <files>tools/visual_qa.py, tests/visual_accessibility_roundtrip.py, .planning/phases/17A-visual-system-component-foundation/17A-QA.md</files>
-  <action>Prefer an already-approved driver. Otherwise stop for supply-chain approval before adding a pinned version, checksum, license record, and dev-only isolation. Capture 1280, 768, and 375 layouts; 200 percent zoom and reflow; keyboard order and visible focus; 44px targets; light and dark contrast; reduced motion; touch-equivalent disclosure; static fallback; and deliberate hover-only failure. Write exact commands, artifacts, and failures to 17A-QA.md.</action>
+  <action>Prefer an already-approved driver. Otherwise stop for supply-chain approval before adding a pinned version, checksum, license record, and dev-only isolation. Capture 1280, 768, and 375 layouts; 200 percent zoom and reflow; keyboard order and visible focus; 44px targets; light, dark, and oled contrast; reduced motion; touch-equivalent disclosure; static fallback; and deliberate hover-only failure. Write exact commands, artifacts, and failures to 17A-QA.md.</action>
   <verify>Run `python tests/visual_accessibility_roundtrip.py`; the positive matrix passes and the negative hover-only case fails for the expected equivalence reason.</verify>
 </task>
 <task type="checkpoint:human-verify" gate="blocking">
   <name>Task 2: Human A11Y-01 review and freeze decision</name>
   <files>.planning/phases/17A-visual-system-component-foundation/17A-QA.md, .planning/phases/17A-visual-system-component-foundation/17A-FREEZE.md</files>
-  <action>Ask Weibao to perform the scripted keyboard, touch, screen-reader, zoom, high-contrast, and reduced-motion review. If any task is not equivalent, record Freeze withheld and the exact gap. If accepted, first verify Phase 13.9's walking-skeleton summary, then write the freeze with selected direction, token inventory, component inventory, served-byte hashes, human reviewer and date, command results, rollback boundary, and deferred items.</action>
+  <action>Ask Weibao to perform the scripted keyboard, touch, screen-reader, zoom, high-contrast, and reduced-motion review. If any task is not equivalent, record Freeze withheld and the exact gap. If accepted, first verify Phase 13.9's walking-skeleton summary, then write the freeze with selected direction, token inventory (including the 17A-05 oled token set), component inventory, served-byte hashes, human reviewer and date, command results, rollback boundary, and deferred items.</action>
   <verify>`python tests/visual_accessibility_roundtrip.py`, `python tests/component_primitives_roundtrip.py`, `python tests/stylesheet_roundtrip.py`, and `python itembank.py guard .` all pass; 17A-FREEZE.md contains either `## Frozen at` after human acceptance or `## Freeze withheld` with named recovery.</verify>
 </task>
 </tasks>
