@@ -53,6 +53,7 @@ import sys
 import time
 import uuid
 
+import discovery
 import identity
 
 JOURNAL_SCHEMA_VERSION = 1
@@ -351,8 +352,22 @@ def _commit_impl(base, object_id, kind, rel_path, operation, new_bytes,
             "approved root %s is not reachable; the last recorded index is "
             "still readable and nothing was written" % base)
 
+    target_path = os.path.join(os.path.abspath(base), rel_path)
+    # T-14A-02-04/05: a caller-supplied rel_path that walks upward (e.g.
+    # "../../etc/passwd") or a symlinked target that resolves outside base
+    # must never be trusted blind. Judged by where the path actually
+    # resolves to, after link resolution, the same containment check
+    # discovery.inside_any_root already gives every read-only walk. This is
+    # a preflight validation reached before the lock, like the operation
+    # and root checks above it, so it is never journaled (a busy refusal
+    # never acquired the lock either, for the same reason).
+    if not discovery.inside_any_root(target_path, [base]):
+        raise JournalError(
+            "journal.path_outside_root",
+            "%s resolves outside the approved root %s; the write is "
+            "refused rather than followed" % (rel_path, base))
+
     with _journal_lock(base):
-        target_path = os.path.join(os.path.abspath(base), rel_path)
         exists = os.path.exists(target_path)
         before_raw = None
         if exists:

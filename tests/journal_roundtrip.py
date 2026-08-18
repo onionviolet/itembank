@@ -241,6 +241,21 @@ def check_commit():
                 fail("commit_operation into a removed root raised the "
                      "wrong code: %r" % exc.code)
 
+        try:
+            journal.commit_operation(
+                d, identity.new_object_id(), "course",
+                os.path.join("..", "escaped.md"), "mint", b"x",
+                expected_fingerprint=None, actor_kind="human",
+                actor_name="weibao", create_if_missing=True)
+            fail("commit_operation with a rel_path escaping the root did "
+                 "not raise")
+        except journal.JournalError as exc:
+            if exc.code != "journal.path_outside_root":
+                fail("an escaping rel_path raised the wrong code: %r"
+                     % exc.code)
+        if os.path.exists(os.path.join(d, "..", "escaped.md")):
+            fail("an escaping rel_path actually wrote outside the root")
+
         print("OK check_commit")
     finally:
         shutil.rmtree(d, ignore_errors=True)
