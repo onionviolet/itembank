@@ -11,9 +11,11 @@ import os, re, shutil, sys, tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 import identity                                             # noqa: E402
+import discovery                                             # noqa: E402
 import evidence                                              # noqa: E402
 import authoring                                              # noqa: E402
 import model                                                  # noqa: E402
+import fixtures.corpus_14a as corpus_14a                     # noqa: E402
 
 TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
 
@@ -172,8 +174,168 @@ def check_identity():
     print("OK check_identity")
 
 
+def _snapshot(roots):
+    """(relative path, size, mtime_ns) for every regular file under
+    `roots`, access time deliberately excluded because reading a file
+    legitimately updates it."""
+    rows = []
+    for root in roots:
+        for dirpath, dirs, files in os.walk(root, followlinks=False):
+            dirs.sort()
+            for f in sorted(files):
+                p = os.path.join(dirpath, f)
+                try:
+                    st = os.lstat(p)
+                except OSError:
+                    continue
+                rel = os.path.relpath(p, root).replace(os.sep, "/")
+                rows.append((root, rel, st.st_size, st.st_mtime_ns))
+    return sorted(rows)
+
+
+def check_discovery():
+    d = tempfile.mkdtemp()
+    try:
+        corpus = corpus_14a.build_corpus(d, size="1k")
+        roots = corpus["roots"]
+        if len(roots) != 3:
+            fail("build_corpus did not produce exactly three roots")
+
+        report = discovery.run_report(roots)
+        for key in ("roots", "counts", "entries", "complete", "cancelled",
+                    "denied", "refused", "unavailable"):
+            if key not in report:
+                fail("run_report() is missing key %r" % key)
+        if report["complete"] is not True:
+            fail("an uninterrupted run did not report complete True")
+
+        for entry in report["entries"]:
+            if entry["state"] not in discovery.ENTRY_STATES:
+                fail("entry has an unrecognized state: %r" % entry["state"])
+
+        fps_by_relname = {}
+        for e in report["entries"]:
+            if e["path"].endswith("duplicate_a.md") or e["path"].endswith("duplicate_b.md"):
+                fps_by_relname[e["path"]] = e
+        names = list(fps_by_relname.keys())
+        if len(names) != 2:
+            fail("expected exactly two duplicate-pair entries, found %r" % names)
+        e_a, e_b = fps_by_relname[names[0]], fps_by_relname[names[1]]
+        if e_a["fingerprint"] != e_b["fingerprint"]:
+            fail("the duplicate-fingerprint pair did not fingerprint identically")
+        if e_a["path"] == e_b["path"]:
+            fail("the duplicate-fingerprint pair reported the same path")
+        rec_a = identity.mint_object("source", e_a["path"], None, "human", "w", "mint")
+        rec_a["fingerprint"] = e_a["fingerprint"]
+        rec_b = identity.mint_object("source", e_b["path"], None, "human", "w", "mint")
+        rec_b["fingerprint"] = e_b["fingerprint"]
+        if len(identity.copy_candidates([rec_a, rec_b])) != 1:
+            fail("identity.copy_candidates() did not report the duplicate pair")
+
+        before = _snapshot(roots)
+        discovery.run_report(roots)
+        after = _snapshot(roots)
+        if before != after:
+            fail("discovery mutated the corpus: before/after snapshot differs")
+
+        gen = discovery.inventory(roots)
+        first_five = [next(gen) for _ in range(5)]
+        if len(first_five) != 5:
+            fail("consuming five yields of inventory() did not return five entries")
+
+        count_box = {"n": 0}
+
+        def cancel_after_ten():
+            count_box["n"] += 1
+            return count_box["n"] > 10
+
+        cancelled_report = discovery.run_report(roots, cancel=cancel_after_ten)
+        if cancelled_report["cancelled"] is not True or cancelled_report["complete"] is not False:
+            fail("a cancel firing after ten entries did not report cancelled True, complete False")
+        expected_reason = ("cancelled by caller; the entries after %s were "
+                            "not inventoried" % cancelled_report["entries"][-1]["path"])
+        if cancelled_report["omitted_reason"] != expected_reason:
+            fail("omitted_reason did not match the expected exact string: %r"
+                 % cancelled_report["omitted_reason"])
+
+        last_path = cancelled_report["entries"][-1]["path"]
+        resumed_report = discovery.run_report(roots, resume_after=last_path)
+        full_report = discovery.run_report(roots)
+        concatenated = [e["path"] for e in cancelled_report["entries"]] + \
+            [e["path"] for e in resumed_report["entries"]]
+        full_paths = [e["path"] for e in full_report["entries"]]
+        if concatenated != full_paths:
+            fail("the concatenation of the cancelled and resumed runs did "
+                 "not equal one uninterrupted run's entry list")
+
+        if corpus["symlinks"]:
+            out_link_entries = [e for e in report["entries"]
+                                 if e["state"] == "symlink_out_of_root"]
+            if not out_link_entries:
+                fail("the out-of-root symlink was not reported as symlink_out_of_root")
+            if out_link_entries[0]["path"] not in report["refused"]:
+                fail("the out-of-root symlink's path is not listed in report['refused']")
+            if out_link_entries[0]["fingerprint"] is not None:
+                fail("the out-of-root symlink entry carries a fingerprint; its target was read")
+            outside_mtime_before = os.stat(corpus["outside_target"]).st_mtime_ns
+            discovery.run_report(roots)
+            outside_mtime_after = os.stat(corpus["outside_target"]).st_mtime_ns
+            if outside_mtime_before != outside_mtime_after:
+                fail("the out-of-root symlink target's mtime changed; it was read")
+
+            cycle_entries = [e for e in report["entries"] if e["state"] == "symlink_cycle"]
+            if not cycle_entries:
+                fail("the symlink cycle was not reported as symlink_cycle")
+        else:
+            print("SKIP: symlink assertions (os.symlink unavailable on this platform)")
+
+        if corpus["denied_mode"] == "read":
+            denied_rel = os.path.relpath(corpus["denied_path"],
+                                          [r for r in roots if corpus["denied_path"].startswith(r)][0])
+            denied_rel = denied_rel.replace(os.sep, "/")
+            denied_entries = [e for e in report["entries"] if e["state"] == "denied"]
+            if not denied_entries:
+                fail("the permission-denied pocket was not reported as denied")
+            if denied_rel not in report["denied"]:
+                fail("the denied path is not listed in report['denied']")
+        else:
+            print("SKIP: read-denial assertion (os.chmod cannot deny read on "
+                  "this platform); write refusal is proven in tests/journal_roundtrip.py")
+
+        missing_root = os.path.join(d, "does_not_exist_root")
+        mixed_report = discovery.run_report(roots + [missing_root])
+        if missing_root not in mixed_report["unavailable"]:
+            fail("a missing root was not reported in unavailable")
+        if not any(e["state"] == "readable" for e in mixed_report["entries"]):
+            fail("a missing root among valid roots stopped the rest of the inventory")
+
+        empty_report = discovery.run_report([])
+        if empty_report["entries"] != [] or empty_report["complete"] is not True:
+            fail("discovery.inventory([], ...) did not return an empty, complete result")
+
+        if discovery.inside_any_root("/etc/passwd", roots):
+            fail("inside_any_root() reported /etc/passwd as inside the corpus roots")
+
+        try:
+            discovery.run_report(["/some/path/outside"], approved_roots=roots)
+            fail("run_report() with an unapproved root did not raise")
+        except discovery.DiscoveryError as exc:
+            if exc.code != "discovery.root_unapproved":
+                fail("run_report() with an unapproved root raised the wrong code: %r"
+                     % exc.code)
+
+        if hasattr(discovery, "journal") or hasattr(discovery, "subprocess") or \
+                hasattr(discovery, "urllib"):
+            fail("discovery module carries a write/execute/network-capable attribute")
+
+        print("OK check_discovery")
+    finally:
+        corpus_14a.teardown_corpus(d)
+
+
 def main():
     check_identity()
+    check_discovery()
     print("OK identity_roundtrip")
 
 
