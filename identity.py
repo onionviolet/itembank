@@ -292,6 +292,38 @@ def registry_rows(records):
     return sorted(records, key=lambda r: (r["kind"], r["object_id"]))
 
 
+RIGHTS_STATES = ("granted", "denied", "unknown")
+
+
+def rights_state(record, operation):
+    """The string state of `operation` on `record`, one of `RIGHTS_STATES`.
+
+    Returns `RIGHTS_UNKNOWN` for an absent record (`None`), an empty record,
+    an operation name outside the closed `RIGHTS_OPERATIONS` vocabulary, or a
+    stored value outside `RIGHTS_STATES`. The comparison is exact lowercase
+    ASCII string equality: no case folding, no trimming, no near match
+    (RIGHTS-01). A source's rights authority is its owner or its license
+    terms, never the local reader of the file; this function only reports
+    what was recorded, and an unrecognized or missing record reads as
+    unknown rather than as permission.
+    """
+    if not record:
+        return RIGHTS_UNKNOWN
+    if operation not in RIGHTS_OPERATIONS:
+        return RIGHTS_UNKNOWN
+    value = record.get(operation)
+    if value not in RIGHTS_STATES:
+        return RIGHTS_UNKNOWN
+    return value
+
+
+def rights_granted(record, operation):
+    """True only when `rights_state(record, operation)` is exactly the
+    string `"granted"`; unknown and denied both return False, and neither
+    is treated as a lesser form of permission."""
+    return rights_state(record, operation) == "granted"
+
+
 def copy_candidates(records):
     """Return path-sorted pairs of records that share a fingerprint and
     differ in `object_id`: byte-identical content under two different ids is
