@@ -12,6 +12,10 @@ directories at test time so `python itembank.py guard .` never sees it.
 `teardown_corpus(dest)` restores write permissions on every path before
 removing `dest`, so `shutil.rmtree` succeeds even where a path was made
 read-only.
+
+`mutate_corpus(dest, count, seed)` produces a deterministic, realistic
+change set over an already-built corpus for the 14A-04 tracer's
+reflow-normalization corpus check.
 """
 import os
 import random
@@ -158,6 +162,103 @@ def build_corpus(dest, size="1k"):
     result["denied_path"] = denied_path
 
     return result
+
+
+def mutate_corpus(dest, count, seed):
+    """Deterministically mutate `count` existing `.md` files under `dest`
+    (an already-built corpus directory) into four labelled classes, in a
+    fixed 1:1:1:1 proportion (`count // 4` of each, with any remainder
+    from integer division assigned to `content`):
+
+    - `content`: a real semantic edit (a word changed, a line added);
+    - `trailing_ws`: trailing spaces added on lines that had none;
+    - `line_ending`: the file rewritten with CRLF instead of LF;
+    - `reflow`: the same words rewrapped at a different column, with no
+      word, punctuation, or ordering change.
+
+    Every mutated file is already part of `dest`; this function writes
+    nothing outside it. File selection and class assignment both come
+    from `random.Random(seed)`, so a rebuild with the same `dest`, `count`,
+    and `seed` mutates the same files into the same bytes. The
+    permission-denied pocket and any symlink are never selected: this
+    function mutates ordinary readable/writable corpus files only.
+
+    Returns a list of `(path, class, before_bytes, after_bytes)` tuples,
+    one per mutated file, in deterministic (path-sorted-then-selected)
+    order.
+    """
+    rng = random.Random(seed)
+    candidates = []
+    for root, dirs, files in os.walk(dest, followlinks=False):
+        dirs.sort()
+        for f in sorted(files):
+            p = os.path.join(root, f)
+            if f.endswith(".md") and not os.path.islink(p) and \
+                    os.access(p, os.R_OK | os.W_OK):
+                candidates.append(p)
+    candidates.sort()
+    if count > len(candidates):
+        count = len(candidates)
+    chosen = rng.sample(candidates, count)
+    chosen.sort()
+
+    classes = ("content", "trailing_ws", "line_ending", "reflow")
+    per_class = count // 4
+    remainder = count - per_class * 4
+    assignment = []
+    for i, cls in enumerate(classes):
+        n = per_class + (remainder if i == 0 else 0)
+        assignment.extend([cls] * n)
+    rng.shuffle(assignment)
+
+    results = []
+    for path, cls in zip(chosen, assignment):
+        with open(path, "rb") as fh:
+            before = fh.read()
+        after = _mutate_one(before, cls)
+        with open(path, "wb") as fh:
+            fh.write(after)
+        results.append((path, cls, before, after))
+    return results
+
+
+def _mutate_one(before, cls):
+    text = before.decode("utf-8")
+    if cls == "content":
+        lines = text.split("\n")
+        idx = min(2, len(lines) - 1)
+        lines[idx] = lines[idx] + " Additional synthetic sentence."
+        return "\n".join(lines).encode("utf-8")
+    if cls == "trailing_ws":
+        lines = text.split("\n")
+        new_lines = [(l + "   ") if l and not l.endswith(" ") else l
+                     for l in lines]
+        return "\n".join(new_lines).encode("utf-8")
+    if cls == "line_ending":
+        return text.replace("\n", "\r\n").encode("utf-8")
+    if cls == "reflow":
+        paragraphs = text.split("\n\n")
+        rewrapped = [_wrap_words(p.split(), 30) for p in paragraphs]
+        return "\n\n".join(rewrapped).encode("utf-8")
+    raise ValueError("unknown mutation class %r" % cls)
+
+
+def _wrap_words(words, width):
+    lines = []
+    current = []
+    cur_len = 0
+    for w in words:
+        add_len = len(w) + (1 if current else 0)
+        if cur_len + add_len > width and current:
+            lines.append(" ".join(current))
+            current = [w]
+            cur_len = len(w)
+        else:
+            current.append(w)
+            cur_len += add_len
+    if current:
+        lines.append(" ".join(current))
+    return "\n".join(lines)
 
 
 def teardown_corpus(dest):

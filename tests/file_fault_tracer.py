@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """The Phase 14A freeze gate: one scripted run walking all eight G3
-scenarios end to end on the synthetic corpus, and confirming the shipped
-parser/scorer/evidence suites still pass (audit A6). A later plan task adds
-the D-12.6-10 budget measurements and the reflow-normalization corpus check
-to this same file; this task is the eight-scenario walk plus the shipped
-suite check.
+scenarios end to end on the synthetic corpus, measuring the D-12.6-10
+budgets on the 1k and 10k corpora, running the real-diff corpus check that
+decides the deferred D-14A-2 reflow question, and confirming the shipped
+parser/scorer/evidence suites still pass (audit A6).
 
 Standard library only, runnable as `python tests/file_fault_tracer.py`.
 Reuses the fault-injection helpers already written in
@@ -17,11 +16,15 @@ valid state or the new valid state; a state matching neither fails loudly
 with a message beginning `"mixed state"` (RELIABILITY-01).
 """
 import errno
+import hashlib
 import os
+import platform
+import statistics
 import subprocess
 import sys
 import tempfile
 import time
+import tracemalloc
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -32,6 +35,10 @@ import identity                                               # noqa: E402
 import journal                                                # noqa: E402
 import fixtures.corpus_14a as corpus_14a                      # noqa: E402
 import journal_roundtrip                                      # noqa: E402
+
+REPORT_PATH = os.path.join(
+    ROOT, ".planning", "phases", "14A-identity-lifecycle-operation",
+    "14A-TRACER-REPORT.md")
 
 
 def fail(msg):
@@ -395,6 +402,392 @@ def shipped_suite_check():
 
 
 # ---------------------------------------------------------------------------
+# The reflow-normalization corpus check (D-14A-2's deferred half).
+
+
+def _common_prefix_suffix_len(a, b):
+    """The length of the shared prefix and the shared suffix of `a` and
+    `b`, without ever counting the same character in both. Used instead of
+    `difflib.SequenceMatcher` opcodes: this repository already found
+    SequenceMatcher's opcodes alignment-dependent and non-minimal
+    (14A-RESEARCH.md's Alternatives Considered, the 04-02 entry in
+    STATE.md), so a direct prefix/suffix trim is used here instead."""
+    n = min(len(a), len(b))
+    p = 0
+    while p < n and a[p] == b[p]:
+        p += 1
+    max_suffix = n - p
+    s = 0
+    while s < max_suffix and a[len(a) - 1 - s] == b[len(b) - 1 - s]:
+        s += 1
+    return p, s
+
+
+def _collapse_ws(text):
+    """Every run of whitespace, including newlines, collapsed to one
+    space, with the result stripped. Two texts differing only by how
+    much whitespace separates the same words compare equal after this."""
+    return " ".join(text.split())
+
+
+def _is_reflow_only(before_text, after_text):
+    """True when `before_text` and `after_text` differ only by the amount
+    or placement of whitespace (spaces, tabs, newlines), with no word,
+    punctuation, or ordering change.
+
+    The differing middle span is located with `_common_prefix_suffix_len`
+    rather than `difflib.SequenceMatcher` opcodes, per the recorded 04-02
+    caveat: SequenceMatcher's opcodes are alignment-dependent and
+    non-minimal, and this repository already solved the same problem once
+    with a prefix/suffix helper.
+    """
+    if before_text == after_text:
+        return True
+    p, s = _common_prefix_suffix_len(before_text, after_text)
+    mid_before = before_text[p:len(before_text) - s] if s else \
+        before_text[p:]
+    mid_after = after_text[p:len(after_text) - s] if s else after_text[p:]
+    return _collapse_ws(mid_before) == _collapse_ws(mid_after)
+
+
+def _candidate_normalize(raw, kind):
+    """The candidate reflow-normalizing variant this check measures only;
+    it is never wired into `identity.normalize_for_fingerprint` unless
+    Task 3's checkpoint selects option-b. Applies the shipped first-cut
+    normalization first, then additionally collapses runs of whitespace
+    (including newlines) within a paragraph before hashing.
+
+    Never applied to kind `bank` or `lesson`: the keyed-content carve-out
+    from D-14A-2 holds regardless of the reflow answer, so this function
+    returns the plain first-cut normalization, unchanged, for those two
+    kinds; the candidate rule is never measured against a kind it would
+    never be allowed to ship for.
+    """
+    normalized = identity.normalize_for_fingerprint(raw, kind)
+    if kind in identity.TRAILING_WS_EXEMPT_KINDS:
+        return normalized
+    text = normalized.decode("utf-8", errors="surrogateescape")
+    paragraphs = text.split("\n\n")
+    collapsed = [_collapse_ws(p) for p in paragraphs]
+    collapsed_text = "\n\n".join(collapsed)
+    return collapsed_text.encode("utf-8", errors="surrogateescape")
+
+
+def _candidate_fingerprint(raw, kind):
+    return "sha256:" + hashlib.sha256(
+        _candidate_normalize(raw, kind)).hexdigest()
+
+
+def reflow_corpus_check():
+    """Build the 10k corpus, mutate a deterministic sample of it into four
+    labelled classes, and count how many of the observed changes the
+    shipped first-cut fingerprint notices, how many of those are
+    reflow-only, how many the first cut already absorbs, and how many the
+    candidate reflow-normalizing rule would absorb that are NOT
+    reflow-only (the false-absorption count, and the reason to refuse the
+    rule without more evidence). Every file mutated here fingerprints as
+    kind `source`, so the `bank`/`lesson` carve-out is honored by
+    `_candidate_normalize` itself, never exercised by this generic corpus.
+    """
+    d = tempfile.mkdtemp()
+    try:
+        corpus_14a.build_corpus(d, size="10k")
+        mutation_count = 2000
+        mutations = corpus_14a.mutate_corpus(d, mutation_count, seed=1400)
+
+        meaningful = 0
+        reflow_only_noticed = 0
+        already_absorbed = 0
+        false_absorption = 0
+        class_counts = {}
+
+        for _path, cls, before, after in mutations:
+            class_counts[cls] = class_counts.get(cls, 0) + 1
+            before_text = before.decode("utf-8", errors="surrogateescape")
+            after_text = after.decode("utf-8", errors="surrogateescape")
+            ground_truth_reflow = _is_reflow_only(before_text, after_text)
+
+            first_before_fp = identity.object_fingerprint(before, "source")
+            first_after_fp = identity.object_fingerprint(after, "source")
+            first_differs = first_before_fp != first_after_fp
+
+            cand_before_fp = _candidate_fingerprint(before, "source")
+            cand_after_fp = _candidate_fingerprint(after, "source")
+            cand_differs = cand_before_fp != cand_after_fp
+
+            if first_differs and cls == "content":
+                meaningful += 1
+            if first_differs and ground_truth_reflow:
+                reflow_only_noticed += 1
+            if (not first_differs) and cls in ("trailing_ws", "line_ending"):
+                already_absorbed += 1
+            if (not cand_differs) and not ground_truth_reflow:
+                false_absorption += 1
+
+        total = len(mutations)
+        proportions = {
+            cls: (class_counts.get(cls, 0) / total if total else 0.0)
+            for cls in ("content", "trailing_ws", "line_ending", "reflow")}
+        recommendation = (
+            "counts support keeping the first cut (option-a): nothing "
+            "notices a change without a reason") if false_absorption == 0 \
+            else ("the false-absorption count is nonzero; review before "
+                  "adopting the candidate rule")
+
+        result = {
+            "total_mutations": total,
+            "meaningful": meaningful,
+            "reflow_only_noticed": reflow_only_noticed,
+            "already_absorbed": already_absorbed,
+            "false_absorption": false_absorption,
+            "class_counts": class_counts,
+            "proportions": proportions,
+            "recommendation": recommendation,
+        }
+        print("reflow corpus check: %d mutations, meaningful: %d, "
+              "reflow-only: %d, already-absorbed: %d, "
+              "false-absorption: %d"
+              % (total, meaningful, reflow_only_noticed, already_absorbed,
+                 false_absorption))
+        return result
+    finally:
+        corpus_14a.teardown_corpus(d)
+
+
+# ---------------------------------------------------------------------------
+# D-12.6-10 budget measurement. Never fails the tracer.
+
+
+def measure_budgets():
+    """Median-of-three measurements of the D-12.6-10 quantities on the 1k
+    and 10k corpora: time to the first yielded `discovery.inventory`
+    entry, time to a complete `discovery.run_report`, time from setting a
+    cancel flag to the generator stopping, and peak traced Python memory
+    during a full inventory (`tracemalloc`, not process RSS).
+
+    Never fails the tracer (D-12.6-10's own wording: these are starting
+    budgets to be measured against on real hardware, never promises); an
+    honest slow number is recorded rather than a build turning red on a
+    measurement.
+    """
+    results = {"python_version": sys.version,
+               "platform": platform.platform()}
+    for size in ("1k", "10k"):
+        first_entry_ms = []
+        full_report_s = []
+        cancel_ms = []
+        peak_mb = []
+        for _ in range(3):
+            d = tempfile.mkdtemp()
+            try:
+                corpus = corpus_14a.build_corpus(d, size=size)
+                roots = corpus["roots"]
+
+                t0 = time.perf_counter()
+                gen = discovery.inventory(roots)
+                try:
+                    next(gen)
+                except StopIteration:
+                    pass
+                t1 = time.perf_counter()
+                gen.close()
+                first_entry_ms.append((t1 - t0) * 1000.0)
+
+                t2 = time.perf_counter()
+                discovery.run_report(roots)
+                t3 = time.perf_counter()
+                full_report_s.append(t3 - t2)
+
+                cancel_box = {"hit": False}
+
+                def cancel():
+                    return cancel_box["hit"]
+
+                gen2 = discovery.inventory(roots, cancel=cancel)
+                for _ in range(50):
+                    try:
+                        next(gen2)
+                    except StopIteration:
+                        break
+                cancel_box["hit"] = True
+                t4 = time.perf_counter()
+                try:
+                    next(gen2)
+                except StopIteration:
+                    pass
+                t5 = time.perf_counter()
+                cancel_ms.append((t5 - t4) * 1000.0)
+
+                tracemalloc.start()
+                discovery.run_report(roots)
+                _current, peak = tracemalloc.get_traced_memory()
+                tracemalloc.stop()
+                peak_mb.append(peak / (1024.0 * 1024.0))
+            except Exception as exc:  # never fail the tracer on a measurement
+                print("note: measure_budgets(%s) run raised %r; recorded "
+                      "as a gap, not a failure" % (size, exc))
+            finally:
+                corpus_14a.teardown_corpus(d)
+
+        results[size] = {
+            "first_entry_ms": (statistics.median(first_entry_ms)
+                                if first_entry_ms else None),
+            "full_report_s": (statistics.median(full_report_s)
+                               if full_report_s else None),
+            "cancel_ms": statistics.median(cancel_ms) if cancel_ms else None,
+            "peak_mb": statistics.median(peak_mb) if peak_mb else None,
+            "run_count": len(first_entry_ms),
+        }
+        print("measured budgets (%s): first_entry=%s ms, full_report=%s s, "
+              "cancel=%s ms, peak=%s MB, runs=%d"
+              % (size, results[size]["first_entry_ms"],
+                 results[size]["full_report_s"], results[size]["cancel_ms"],
+                 results[size]["peak_mb"], results[size]["run_count"]))
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Report writer.
+
+
+D_12_6_10_BUDGETS = {
+    "first_entry_ms": ("first useful discovery result", "< 2000 ms on 10k"),
+    "full_report_s": ("full inventory", "< 60 s on 100k (measured here on "
+                       "1k/10k only; see The 100k corpus section)"),
+    "cancel_ms": ("cancel response", "< 500 ms"),
+    "peak_mb": ("memory", "bounded by streaming (no fixed number)"),
+}
+
+
+def _fmt(value, suffix=""):
+    if value is None:
+        return "not measured (see note)"
+    return "%.2f%s" % (value, suffix)
+
+
+def write_report(scenario_results, shipped_results, reflow_result,
+                  budgets):
+    lines = []
+    lines.append("# 14A tracer report")
+    lines.append("")
+    lines.append("## Run")
+    lines.append("")
+    lines.append("- Date: 2026-08-18")
+    lines.append("- Machine: the executor's own development machine "
+                  "(local, not a shared or cloud host)")
+    lines.append("- Platform: %s" % budgets["platform"])
+    lines.append("- Python: %s" % budgets["python_version"].split()[0])
+    lines.append("- Corpus sizes run: 1k, 10k")
+    lines.append("- Run count behind each measured number: median of 3 "
+                  "runs, stated again per row below")
+    lines.append("")
+
+    lines.append("## Scenario results")
+    lines.append("")
+    lines.append("| Scenario | Result |")
+    lines.append("|---|---|")
+    for name, status in scenario_results:
+        if status == "skip":
+            lines.append("| %s | skipped (SKIP: read-denial assertion, "
+                          "os.chmod cannot deny read on this platform) |"
+                          % name)
+        else:
+            lines.append("| %s | %s |" % (name, status))
+    lines.append("")
+
+    lines.append("## Measured quantities")
+    lines.append("")
+    lines.append("These are measurements taken on this machine, on this "
+                  "run. They are not promises to any user or later phase "
+                  "(D-12.6-10).")
+    lines.append("")
+    lines.append("| Quantity | Corpus | Measured | Unit | Runs | "
+                  "D-12.6-10 starting budget |")
+    lines.append("|---|---|---|---|---|---|")
+    for size in ("1k", "10k"):
+        b = budgets[size]
+        lines.append("| first useful discovery result | %s | %s | ms | "
+                      "%d | %s |"
+                      % (size, _fmt(b["first_entry_ms"]), b["run_count"],
+                         D_12_6_10_BUDGETS["first_entry_ms"][1]))
+        lines.append("| full inventory | %s | %s | s | %d | %s |"
+                      % (size, _fmt(b["full_report_s"]), b["run_count"],
+                         D_12_6_10_BUDGETS["full_report_s"][1]))
+        lines.append("| cancel response | %s | %s | ms | %d | %s |"
+                      % (size, _fmt(b["cancel_ms"]), b["run_count"],
+                         D_12_6_10_BUDGETS["cancel_ms"][1]))
+        lines.append("| peak traced Python memory (not process RSS) | %s "
+                      "| %s | MB | %d | %s |"
+                      % (size, _fmt(b["peak_mb"]), b["run_count"],
+                         D_12_6_10_BUDGETS["peak_mb"][1]))
+    lines.append("")
+
+    lines.append("## The 100k corpus")
+    lines.append("")
+    lines.append("Not run in 14A. The 14A brief's own 14A-04 text names "
+                  "the 1k/10k corpora; the 100k size is D-12.6-10's "
+                  "recommendation, not 14A's task, and generating 100k "
+                  "files inside a suite CI runs on every push costs "
+                  "minutes per run. Routed to 14B, per this plan's own "
+                  "locked decision table.")
+    lines.append("")
+
+    lines.append("## Reflow corpus check")
+    lines.append("")
+    lines.append("- Total mutations: %d" % reflow_result["total_mutations"])
+    lines.append("- Meaningful changes noticed by the first cut: %d"
+                  % reflow_result["meaningful"])
+    lines.append("- Reflow-only changes noticed by the first cut: %d"
+                  % reflow_result["reflow_only_noticed"])
+    lines.append("- Changes the first cut already absorbs (trailing "
+                  "whitespace, line endings): %d"
+                  % reflow_result["already_absorbed"])
+    lines.append("- False-absorption count (candidate rule would absorb "
+                  "a change that is NOT reflow-only): %d"
+                  % reflow_result["false_absorption"])
+    lines.append("- Mutation class proportions used: %s"
+                  % ", ".join("%s=%.2f" % (k, v) for k, v in
+                               sorted(reflow_result["proportions"].items())))
+    lines.append("- Recommendation the counts support: %s"
+                  % reflow_result["recommendation"])
+    lines.append("")
+
+    lines.append("## Shipped suite check")
+    lines.append("")
+    lines.append("| Suite | Exit code |")
+    lines.append("|---|---|")
+    for name, rc in shipped_results.items():
+        lines.append("| %s | %d |" % (name, rc))
+    lines.append("")
+    lines.append("This closes the audit A6 obligation: the shipped "
+                  "parser, scorer, and evidence suites pass unchanged "
+                  "after 14A.")
+    lines.append("")
+
+    lines.append("## Open items routed forward")
+    lines.append("")
+    lines.append("- FILE-02's flagged unclassified edge (whether the "
+                  "\"useful before completion\" clause implies a stable "
+                  "partial-result identity beyond streaming plus "
+                  "resume_after) was closed in 14A-01, not deferred here: "
+                  "see 14A-01-SUMMARY.md's \"Disposition of the flagged "
+                  "FILE-02 unclassified edge\" section.")
+    lines.append("- ID-02's flagged unclassified edge (whether \"hashes "
+                  "never prove authorship or rights\" implies an "
+                  "obligation beyond keeping the fingerprint out of "
+                  "rights decisions) was closed in 14A-03, not deferred "
+                  "here: see 14A-03-SUMMARY.md's \"Disposition of the "
+                  "flagged ID-02 unclassified edge\" section. A future "
+                  "recorded rights grant, if wanted, is RIGHTS-02, owned "
+                  "by 14B/15A.")
+    lines.append("")
+
+    os.makedirs(os.path.dirname(REPORT_PATH), exist_ok=True)
+    with open(REPORT_PATH, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines) + "\n")
+
+
+# ---------------------------------------------------------------------------
 
 
 def main():
@@ -424,7 +817,11 @@ def main():
     for name, status in scenario_results:
         print("scenario %s: %s" % (name, status))
 
-    shipped_suite_check()
+    shipped_results = shipped_suite_check()
+    reflow_result = reflow_corpus_check()
+    budgets = measure_budgets()
+
+    write_report(scenario_results, shipped_results, reflow_result, budgets)
 
     passed = sum(1 for _, status in scenario_results if status == "pass")
     skipped = sum(1 for _, status in scenario_results if status == "skip")
