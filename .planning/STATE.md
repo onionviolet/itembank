@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase_name: 13.5-reading-teaching-surface-quality-pass
-status: Phase 16C planned (9 plans, plan-checker READY); 13.9 executing on Codex (plans 01-02 committed); every subphase 14A through 16C now has a Sonnet-executable plan set; 17A and 17B are the remaining unplanned subphases
-stopped_at: Phase 17A UI-SPEC approved
-last_updated: "2026-08-16T21:11:28.677Z"
-last_activity: 2026-08-16
+status: Zero unplanned subphases and zero open discussions as of 2026-08-17; 17A (5 plans), 17B (4), 17C (1), 18 (3) all carry plan-checker READY/PASS verdicts; five Part A discussions closed with ledger dispositions; 13.9 executing on Codex (plans 01-02 committed)
+stopped_at: Plan-the-rest session complete; milestone fully planned
+last_updated: "2026-08-17T00:00:00.000Z"
+last_activity: 2026-08-17
 last_activity_desc: "Quick task 260813-x3g source-to-course contract reframe, slices 1-4a committed and pushed. Applied synthesis section 14 across nine contract/doc files: ROADMAP (nine subphases 14A-17B + governance), SOURCE-TO-COURSE (supersede pointer), REQUIREMENTS (eighteen families GRAPH..MAINT, 47 new requirements, old IDs mapped/superseded), PROJECT (course-first), UI-SPEC (Structured Studio; section 8 gates untouched), PLANNING-DIRECTIVES (finite-strategy + rejection-ledger; section 8 nine-subphase table), AGENTS + .claude/CLAUDE.md (object/authority + operation protocol; non-negotiables intact), README (course-first). Commits: 8b5cab4, e838407, e349c06 (REQUIREMENTS content landed split across the slice-3/4a commits because gsd `query commit` sweeps all modified files while the parallel 13.5 track shared the tree; content verified complete on disk, nothing lost)."
 progress:
   total_phases: 28
@@ -17,6 +17,46 @@ current_phase: 13.5
 ---
 
 # Project State
+
+## Plan-the-rest session (2026-08-17, Claude planning side)
+
+Ran `.planning/PROMPT-plan-the-rest-2026-08-17.md` end to end. The milestone
+now has zero unplanned subphases and zero open discussions; every remaining
+piece is executable by a lesser model without a design question reaching it.
+
+- **Discussions closed (Part A).** A1 field model: `IDEABOARD-FIELD-2026-08-17.md`
+  and IL-20260817-01 (scope object, boundedness axis; ROLLUP-DIM and
+  ROLLUP-MAP both registered, Weibao picks at the 17B-03 checkpoint). A2:
+  `SUPPLY-CHAIN-POLICY.md` settles IL-20260815-09, now Core. A3: PDF/DOCX
+  research pass recorded (`research/2026-08-17-pdf-docx-intake.md`;
+  pdfplumber plus pdfminer.six primary, python-docx for DOCX, pypdf
+  fallback, PyMuPDF parked on AGPL for Weibao). A4: IL-20260816-01 settled
+  as the standing seam-delivery pattern, machinery deferred to the first
+  second provider. A5: 999.2 KEEP (IL-20260817-02), 999.3 PROMOTED per its
+  own fired trigger (IL-20260817-03; after 17B, beside Phase 18).
+- **Plans (Part B).** 17B: CONTEXT (D-01..D-10), UI-SPEC (gsd-ui-checker
+  approved, six PASS), four plans; first checker run NOT-READY (one
+  blocker, five warnings), all six findings fixed, re-verified READY, all
+  four PASS. Gates G1-G11 are enumerated concretely in the ROADMAP 17B
+  details block. 18: CONTEXT (packaging conflict IL-20260815-11 resolved
+  onto the Phase 13 shell per 17A D-08; signing is a costed Weibao
+  checkpoint; capability disclosure manifest designed), three plans,
+  checker READY. 17C (post-17 maintenance and restore audit) registered
+  with an owner and one checker-PASS plan. 13.5 defects D1/D2:
+  code-verified executable plan at
+  `quick/260817-q7d-fix-135-defects-d1-d2/`. OLED theme folded into 17A
+  as plan 17A-05.
+- **Corrections (Part C).** This file's stale "17A and 17B unplanned" line
+  fixed. 17A now carries its plan-checker verdict: READY, all five plans
+  PASS (three findings applied: 17A-04 depends on 17A-05, oled named in
+  the QA matrix and freeze inventory, ROADMAP plan count five).
+- **Held for Weibao (checkpoints, not blockers):** 17A-02 direction pick,
+  17A-04 and 17B-04 human acceptance, 17B-03 default rollup model, 18-01
+  signing cost decision, 17C-01 audit acceptance, and the parked PyMuPDF
+  AGPL question if PDF fidelity ever demands it.
+- All commits pathspec-limited; the concurrent Codex track's in-flight
+  files (scripts/preflight.py, tests/preflight_roundtrip.py, AGENTS.md,
+  .gitattributes, fixtures/) untouched.
 
 ## Phase 16C planning session (2026-08-15/16, Claude planning side)
 
@@ -58,8 +98,10 @@ REQUIREMENTS, the phase-16 synthesis, and the checker-approved UI-SPEC):
   and 16B freezes exist and 13.9's A9 is closed, so handing 16C to Codex now
   is safe but it will (correctly) refuse to pass wave 1.
 
-Remaining unplanned subphases: 17A (visual system, depends on 16B and 16C)
-and 17B (production vertical tracer), then Phase 18 (external-user v1).
+Remaining unplanned subphases as of this 16C session: 17A and 17B, then
+Phase 18. (Superseded 2026-08-17: 17A gained plans on 2026-08-16 via
+aa21ac1, and the plan-the-rest session above planned 17B, 17C, and 18, so
+no unplanned subphase remains.)
 
 ## Project Reference
 

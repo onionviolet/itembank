@@ -2422,7 +2422,7 @@ run in parallel; neither blocks the other.
   the cold-agent onboarding transcript fixture, and the A10 six-criterion
   acceptance record.
 
-### Next-milestone subphase sequence (14A through 17B)
+### Next-milestone subphase sequence (14A through 17C)
 
 *Reframed 2026-08-13 from the four broad Phases 14 to 17, per
 `.planning/research/phase-16/14-synthesis.md` sections 14 and 15. The four
