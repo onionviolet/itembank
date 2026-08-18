@@ -127,11 +127,16 @@ def _git_target(target_path):
     tracked status, and staged/unstaged cleanliness at that exact path
     (T-11-18). Returns a dict {root, rel} when the target is tracked and
     clean -- the only case the Git backend may handle -- else None (shadow)."""
-    abspath = os.path.abspath(target_path)
+    # realpath, not abspath: `git rev-parse --show-toplevel` reports the
+    # physical worktree root, so a symlinked path component in the target
+    # (macOS /var -> /private/var, /tmp -> /private/tmp) would otherwise
+    # produce a bogus ../.. relative path and misroute a tracked-clean
+    # bank to the shadow backend.
+    abspath = os.path.realpath(target_path)
     root = _git_repo_root(target_path)
     if root is None:
         return None
-    rel = os.path.relpath(abspath, root)
+    rel = os.path.relpath(abspath, os.path.realpath(root))
     try:
         tracked = subprocess.run(
             ["git", "ls-files", "--error-unmatch", "--", rel],
@@ -550,8 +555,11 @@ def _undo_git(manifest, write_id, target_path):
         raise WriterError("undo.git_target_changed",
                           "target %s is no longer inside a Git worktree; "
                           "refusing to revert" % target_path)
-    git = {"root": root, "rel": os.path.relpath(os.path.abspath(target_path),
-                                                  root)}
+    # realpath for the same symlink reason as _git_target: git reports the
+    # physical root, so the target path must be resolved before relpath.
+    git = {"root": root,
+           "rel": os.path.relpath(os.path.realpath(target_path),
+                                  os.path.realpath(root))}
     commit_hash = manifest.get("git_commit")
     if not commit_hash:
         raise WriterError("undo.git_commit_missing",
