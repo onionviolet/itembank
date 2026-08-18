@@ -12,6 +12,8 @@ dist/
 _attempts/
 # Learner evidence stays on disk, beside the bank, and never enters the repository.
 _evidence/
+# The operation journal is durable local record, never repository content.
+_journal/
 session_*.json
 *_attempt_*.md
 *_quiz.html
