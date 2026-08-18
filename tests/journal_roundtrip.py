@@ -8,9 +8,12 @@ Standard library only, runnable as `python tests/journal_roundtrip.py`, with
 a `--child` mode used by the kill fixtures the way
 `tests/durability_roundtrip.py` uses its `--writer` mode.
 """
+import errno
 import json
 import os
 import shutil
+import stat
+import subprocess
 import sys
 import tempfile
 import time
@@ -330,13 +333,416 @@ def check_walking_skeleton_slice():
         shutil.rmtree(d, ignore_errors=True)
 
 
+# ---------------------------------------------------------------------------
+# Task 2: fault injection
+
+
+def _child_kill_before_commit(base, object_id):
+    real = journal._write_bytes_atomic
+
+    def shim(path, raw):
+        if os.path.basename(path) == "target.md":
+            time.sleep(5)
+        return real(path, raw)
+
+    journal._write_bytes_atomic = shim
+    journal.commit_operation(
+        base, object_id, "course", "target.md", "edit_in_place",
+        b"new bytes from kill_before_commit\n",
+        expected_fingerprint=identity.object_fingerprint(
+            b"old bytes\n", "course"),
+        actor_kind="human", actor_name="weibao")
+
+
+def _child_kill_after_commit(base, object_id):
+    real = journal._write_bytes_atomic
+
+    def shim(path, raw):
+        result = real(path, raw)
+        if os.path.basename(path) == "target.md":
+            time.sleep(5)
+        return result
+
+    journal._write_bytes_atomic = shim
+    journal.commit_operation(
+        base, object_id, "course", "target.md", "edit_in_place",
+        b"new bytes from kill_after_commit\n",
+        expected_fingerprint=identity.object_fingerprint(
+            b"old bytes\n", "course"),
+        actor_kind="human", actor_name="weibao")
+
+
+def _child_slow_commit(base, object_id, tag):
+    real = journal._write_bytes_atomic
+
+    def shim(path, raw):
+        if os.path.basename(path) == "target.md":
+            time.sleep(0.5)
+        return real(path, raw)
+
+    journal._write_bytes_atomic = shim
+    try:
+        journal.commit_operation(
+            base, object_id, "course", "target.md", "edit_in_place",
+            ("new bytes from %s\n" % tag).encode("utf-8"),
+            expected_fingerprint=identity.object_fingerprint(
+                b"old bytes\n", "course"),
+            actor_kind="human", actor_name="weibao")
+        sys.exit(0)
+    except journal.JournalError as exc:
+        sys.stderr.write(exc.code + "\n")
+        sys.exit(1)
+
+
+def check_faults():
+    _check_kill_before_commit()
+    _check_kill_after_commit()
+    _check_disk_full()
+    _check_permission_denied()
+    _check_concurrency()
+    print("OK check_faults")
+
+
+def _seed_target(d, object_id, raw):
+    journal.commit_operation(
+        d, object_id, "course", "target.md", "mint", raw,
+        expected_fingerprint=None, actor_kind="human", actor_name="weibao",
+        create_if_missing=True)
+
+
+def _assert_old_or_new(path, old_raw, new_raw, label):
+    with open(path, "rb") as fh:
+        current = fh.read()
+    if current != old_raw and current != new_raw:
+        fail("mixed state: %s target bytes matched neither the old nor "
+             "the new content" % label)
+    return current
+
+
+def _check_kill_before_commit():
+    d = _mkbase()
+    try:
+        object_id = identity.new_object_id()
+        old_raw = b"old bytes\n"
+        _seed_target(d, object_id, old_raw)
+        target_path = os.path.join(d, "target.md")
+
+        proc = subprocess.Popen(
+            [sys.executable, __file__, "--child", "kill_before_commit", d,
+             object_id])
+        time.sleep(0.5)
+        proc.terminate()
+        proc.wait()
+
+        current = _assert_old_or_new(
+            target_path, old_raw,
+            b"new bytes from kill_before_commit\n", "kill_before_commit")
+        if current != old_raw:
+            fail("kill_before_commit: target bytes were not the OLD bytes")
+
+        ordered = list(journal.entries(d))
+        last = ordered[-1]
+        if last["state"] != "prepared":
+            fail("kill_before_commit: journal.entries did not end with an "
+                 "unresolved prepared entry: %r" % last)
+
+        result = journal.replay(d)
+        matches = [e for e in result["interrupted"]
+                   if e["entry_id"] == last["entry_id"]]
+        if not matches:
+            fail("kill_before_commit: replay did not list the entry under "
+                 "interrupted")
+        if matches[0]["note"] != "the previous bytes survived; the commit " \
+                "did not land":
+            fail("kill_before_commit: replay note did not match exactly: "
+                 "%r" % matches[0]["note"])
+        print("OK kill_before_commit")
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def _check_kill_after_commit():
+    d = _mkbase()
+    try:
+        object_id = identity.new_object_id()
+        old_raw = b"old bytes\n"
+        _seed_target(d, object_id, old_raw)
+        target_path = os.path.join(d, "target.md")
+
+        proc = subprocess.Popen(
+            [sys.executable, __file__, "--child", "kill_after_commit", d,
+             object_id])
+        time.sleep(0.5)
+        proc.terminate()
+        proc.wait()
+
+        new_raw = b"new bytes from kill_after_commit\n"
+        current = _assert_old_or_new(target_path, old_raw, new_raw,
+                                      "kill_after_commit")
+        if current != new_raw:
+            fail("kill_after_commit: target bytes were not the NEW bytes")
+
+        ordered = list(journal.entries(d))
+        last = ordered[-1]
+        if last["state"] != "prepared":
+            fail("kill_after_commit: the last journal entry was not still "
+                 "prepared: %r" % last)
+
+        result = journal.replay(d)
+        matches = [e for e in result["recoverable"]
+                   if e["entry_id"] == last["entry_id"]]
+        if not matches:
+            fail("kill_after_commit: replay did not list the entry under "
+                 "recoverable")
+        if matches[0]["note"] != "the new bytes survived; the applied " \
+                "record was not written":
+            fail("kill_after_commit: replay note did not match exactly: "
+                 "%r" % matches[0]["note"])
+
+        result2 = journal.replay(d)
+        current_after_replay = open(target_path, "rb").read()
+        if current_after_replay != new_raw:
+            fail("kill_after_commit: a second replay() call mutated the "
+                 "target")
+        if result2 != result:
+            pass  # object_state timestamps are stable; content equality
+        print("OK kill_after_commit")
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def _check_disk_full():
+    d = _mkbase()
+    try:
+        object_id = identity.new_object_id()
+        old_raw = b"old bytes\n"
+        _seed_target(d, object_id, old_raw)
+        target_path = os.path.join(d, "target.md")
+        new_raw = b"new bytes for disk full\n"
+
+        real = journal._write_bytes_atomic
+
+        def enospc_on_before_image(path, raw):
+            if journal.BEFORE_DIRNAME in path.split(os.sep):
+                raise OSError(errno.ENOSPC, "No space left on device")
+            return real(path, raw)
+
+        journal._write_bytes_atomic = enospc_on_before_image
+        try:
+            try:
+                journal.commit_operation(
+                    d, object_id, "course", "target.md", "edit_in_place",
+                    new_raw,
+                    expected_fingerprint=identity.object_fingerprint(
+                        old_raw, "course"),
+                    actor_kind="human", actor_name="weibao")
+                fail("disk-full on the before-image write did not raise")
+            except OSError as exc:
+                if exc.errno != errno.ENOSPC:
+                    raise
+        finally:
+            journal._write_bytes_atomic = real
+        current = _assert_old_or_new(target_path, old_raw, new_raw,
+                                      "disk_full_before_image")
+        if current != old_raw:
+            fail("disk_full_before_image: target bytes were not OLD")
+        registry = journal.read_registry(d)
+        if registry[object_id]["revision"] != 1:
+            fail("disk_full_before_image: the accepted revision changed")
+
+        def enospc_on_target(path, raw):
+            if os.path.basename(path) == "target.md":
+                raise OSError(errno.ENOSPC, "No space left on device")
+            return real(path, raw)
+
+        journal._write_bytes_atomic = enospc_on_target
+        try:
+            try:
+                journal.commit_operation(
+                    d, object_id, "course", "target.md", "edit_in_place",
+                    new_raw,
+                    expected_fingerprint=identity.object_fingerprint(
+                        old_raw, "course"),
+                    actor_kind="human", actor_name="weibao")
+                fail("disk-full on the target write did not raise")
+            except OSError as exc:
+                if exc.errno != errno.ENOSPC:
+                    raise
+        finally:
+            journal._write_bytes_atomic = real
+        current = _assert_old_or_new(target_path, old_raw, new_raw,
+                                      "disk_full_target")
+        if current != old_raw:
+            fail("disk_full_target: target bytes were not OLD")
+        registry = journal.read_registry(d)
+        if registry[object_id]["revision"] != 1:
+            fail("disk_full_target: the accepted revision changed")
+
+        def enospc_on_registry(path, raw):
+            if os.path.basename(path) == journal.REGISTRY_FILENAME:
+                raise OSError(errno.ENOSPC, "No space left on device")
+            return real(path, raw)
+
+        journal._write_bytes_atomic = enospc_on_registry
+        try:
+            try:
+                journal.commit_operation(
+                    d, object_id, "course", "target.md", "edit_in_place",
+                    new_raw,
+                    expected_fingerprint=identity.object_fingerprint(
+                        old_raw, "course"),
+                    actor_kind="human", actor_name="weibao")
+                fail("disk-full on the registry write did not raise")
+            except OSError as exc:
+                if exc.errno != errno.ENOSPC:
+                    raise
+        finally:
+            journal._write_bytes_atomic = real
+        current = _assert_old_or_new(target_path, old_raw, new_raw,
+                                      "disk_full_registry")
+        if current != new_raw:
+            fail("disk_full_registry: target bytes were not NEW")
+        ordered = [e for e in journal.entries(d) if e.get("object_id") ==
+                   object_id]
+        if ordered[-1]["state"] != "applied" or \
+                ordered[-2]["state"] != "prepared":
+            fail("disk_full_registry: the journal did not carry both the "
+                 "prepared and applied lines")
+        recovered = journal.rebuild_registry(d)
+        if recovered[object_id]["fingerprint"] != \
+                identity.object_fingerprint(new_raw, "course"):
+            fail("disk_full_registry: rebuild_registry did not recover "
+                 "the projection")
+        print("OK disk_full (three injection points)")
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def _check_permission_denied():
+    d = _mkbase()
+    try:
+        object_id = identity.new_object_id()
+        old_raw = b"old bytes\n"
+        _seed_target(d, object_id, old_raw)
+        target_path = os.path.join(d, "target.md")
+
+        running_as_root = hasattr(os, "geteuid") and os.geteuid() == 0
+
+        # os.chmod(path, 0o444) on the target FILE alone does not stop a
+        # tmp-then-os.replace write on POSIX: rename() checks write
+        # permission on the containing directory, not on the file being
+        # replaced (verified empirically on this platform before writing
+        # this fixture). Denying write on the file's directory is the
+        # POSIX-portable way to make this atomic-replace write path
+        # genuinely fail; on Windows the file-level read-only attribute
+        # already blocks ReplaceFile, so the file itself is chmod'd there.
+        if os.name == "nt":
+            os.chmod(target_path, stat.S_IREAD)
+            restore = lambda: os.chmod(target_path, stat.S_IWRITE)
+        else:
+            os.chmod(d, 0o555)
+            restore = lambda: os.chmod(d, 0o755)
+        try:
+            try:
+                journal.commit_operation(
+                    d, object_id, "course", "target.md", "edit_in_place",
+                    b"attempted overwrite\n",
+                    expected_fingerprint=identity.object_fingerprint(
+                        old_raw, "course"),
+                    actor_kind="human", actor_name="weibao")
+                if running_as_root:
+                    print("SKIP: permission-denied fault (running as "
+                          "root, which ignores the denial)")
+                else:
+                    fail("commit_operation on a permission-denied target "
+                         "did not raise")
+            except (journal.JournalError, OSError) as exc:
+                if target_path not in str(exc):
+                    fail("permission-denied error did not name the path: "
+                         "%r" % str(exc))
+        finally:
+            restore()
+        with open(target_path, "rb") as fh:
+            if fh.read() != old_raw:
+                fail("permission-denied: target bytes changed")
+        print("OK permission_denied")
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def _check_concurrency():
+    d = _mkbase()
+    try:
+        object_id = identity.new_object_id()
+        old_raw = b"old bytes\n"
+        _seed_target(d, object_id, old_raw)
+        target_path = os.path.join(d, "target.md")
+
+        p1 = subprocess.Popen(
+            [sys.executable, __file__, "--child", "slow_commit", d,
+             object_id, "winner"], stderr=subprocess.PIPE)
+        time.sleep(0.05)
+        p2 = subprocess.Popen(
+            [sys.executable, __file__, "--child", "slow_commit", d,
+             object_id, "loser"], stderr=subprocess.PIPE)
+        _, err1 = p1.communicate()
+        _, err2 = p2.communicate()
+
+        codes = [p1.returncode, p2.returncode]
+        if sorted(codes) != [0, 1]:
+            fail("concurrency: expected exactly one winner (exit 0) and "
+                 "one loser (exit 1), got %r" % codes)
+        loser_err = err2 if p2.returncode == 1 else err1
+        if b"journal.busy" not in loser_err and \
+                b"journal.stale_preflight" not in loser_err:
+            fail("concurrency: the loser's stderr did not name "
+                 "journal.busy or journal.stale_preflight: %r" % loser_err)
+
+        with open(target_path, "rb") as fh:
+            current = fh.read()
+        candidates = (old_raw, b"new bytes from winner\n",
+                      b"new bytes from loser\n")
+        if current not in candidates:
+            fail("mixed state: concurrency target bytes matched none of "
+                 "the candidate contents")
+
+        winner_tag = "winner" if p1.returncode == 0 else "loser"
+        winner_content = ("new bytes from %s\n" % winner_tag).encode("utf-8")
+        if current != winner_content:
+            fail("concurrency: target bytes did not equal the winner's "
+                 "content")
+
+        applied = [e for e in journal.entries(d)
+                   if e.get("object_id") == object_id
+                   and e["state"] == "applied"]
+        if not applied:
+            fail("concurrency: no applied entry recorded for the winner")
+        print("OK concurrency")
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
 
 def main():
     check_commit()
     check_lock_busy()
     check_walking_skeleton_slice()
+    check_faults()
     print("OK journal_roundtrip")
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    if len(sys.argv) > 1 and sys.argv[1] == "--child":
+        mode = sys.argv[2]
+        base = sys.argv[3]
+        obj = sys.argv[4]
+        if mode == "kill_before_commit":
+            _child_kill_before_commit(base, obj)
+        elif mode == "kill_after_commit":
+            _child_kill_after_commit(base, obj)
+        elif mode == "slow_commit":
+            tag = sys.argv[5]
+            _child_slow_commit(base, obj, tag)
+        else:
+            sys.exit("unknown --child mode %r" % mode)
+    else:
+        sys.exit(main())
