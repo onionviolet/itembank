@@ -102,11 +102,18 @@ its owning contract per 17B-CONTEXT D-06.
 
 ## Checker sign-off
 
-- [ ] Flows match the 16B IA contract without invention
-- [ ] Every capability row names its contract owner
-- [ ] Progress contract matches GRAPH-03 and IL-20260817-01
-- [ ] Accessibility gates cited, human items marked human
-- [ ] Degraded and offline states specified
-- [ ] Scope boundary explicit
+- [x] Flows match the 16B IA contract without invention
+- [x] Every capability row names its contract owner
+- [x] Progress contract matches GRAPH-03 and IL-20260817-01
+- [x] Accessibility gates cited, human items marked human
+- [x] Degraded and offline states specified
+- [x] Scope boundary explicit
 
-**Approval:** pending
+Recommendation (non-blocking): the D-03 checkpoint requires both rollup
+screens rendered from 17A primitives, but no 17A primitive is named for the
+ROLLUP-MAP child card or the shelf progress display. If the freeze lacks a
+fitting card primitive, that is a 17A-03 primitive gap routed under D-06;
+naming the expected primitive in the 17B-03 plan would surface the gap
+before the checkpoint rather than at it.
+
+**Approval:** approved 2026-08-17 (gsd-ui-checker, 6 dimensions PASS, one non-blocking recommendation recorded)
