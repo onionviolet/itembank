@@ -76,3 +76,119 @@ after the fact, under option-b.
 Per the plan's Task 3 action list for option-a: nothing was changed in
 `identity.normalize_for_fingerprint`. The decision and the counts are
 recorded here. Task 4 proceeds on this basis.
+
+## Frozen at 14A
+
+### Frozen
+
+- The object id shape: 16 lowercase hex characters, minted with
+  `uuid4().hex[:16]` (`identity.new_object_id()`), never derived from
+  content, path, or name.
+- The eleven revision record keys, in their fixed order
+  (`identity.REVISION_KEYS`): `object_id`, `kind`, `revision`,
+  `parent_revision`, `fingerprint`, `timestamp`, `origin`,
+  `profile_version`, `source_version`, `generator_version`, `rights`.
+- The twenty-two journal entry keys, in their fixed order
+  (`journal.ENTRY_KEYS`): `schema_version`, `entry_id`, `timestamp`,
+  `operation`, `state`, `resolves_entry`, `object_id`, `kind`, `revision`,
+  `parent_revision`, `path`, `expected_fingerprint`, `before_fingerprint`,
+  `after_fingerprint`, `before_image`, `undo`, `source_object_id`,
+  `source_revision`, `restores_revision`, `origin`, `code`, `message`,
+  `rights`.
+- The two-line prepared-then-applied protocol and the append-only
+  resolution rule: every durable write appends a `prepared` entry, then
+  either an `applied` or a `refused` entry that names the `prepared`
+  entry it resolves via `resolves_entry`; no entry already written is
+  ever rewritten or deleted.
+- The six operation names (`journal.OPERATION_TYPES`): `link`, `import`,
+  `copy`, `move`, `edit_in_place`, `supersede`.
+- The object kinds (`identity.OBJECT_KINDS`): `course`, `objective`,
+  `source`, `lesson`, `bank`, `component`.
+- The seven rights operation names (`identity.RIGHTS_OPERATIONS`): `read`,
+  `quote`, `transform`, `remote_process`, `package`, `export`, `share`;
+  and the three rights states (`identity.RIGHTS_STATES`): `granted`,
+  `denied`, `unknown`.
+- The fingerprint normalization rule, as decided in Task 3 above: line
+  endings (`\r\n` and bare `\r`) normalized to `\n` for every kind;
+  trailing whitespace stripped from every line for every kind except
+  `bank` and `lesson`; no reflow, mid-content whitespace collapsing, or
+  Unicode normalization added. The `bank`/`lesson` carve-out
+  (`identity.TRAILING_WS_EXEMPT_KINDS`) holds regardless of the reflow
+  answer and stays exempt from trailing-whitespace normalization under
+  both options.
+
+### Not frozen, and deliberately so
+
+- The `_journal/` directory name and its internal file names
+  (`journal.jsonl`, `objects.json`, `journal.lock`, the `before/` image
+  directory): local layout a later phase may change with a migration.
+- The disposable `objects.json` registry projection shape: rebuildable
+  from the journal log alone via `journal.rebuild_registry`, never a
+  second source of truth.
+- The refusal message wording (the human-readable `message` string on a
+  `journal.JournalError` or a refused entry): copy, not contract. The
+  refusal `code` strings (for example `journal.conflict`,
+  `journal.stale_preflight`, `journal.rights_unknown`) are the stable,
+  machine-readable part.
+- Everything routed to 14B in the three plans' out-of-scope sections:
+  the graph kernel, the sidecar, the outline projection, course
+  packaging, the clean-machine restore check, and the 100k corpus run
+  (this plan's own "The 100k corpus" section).
+
+### The evidence
+
+Tracer's final line, quoted verbatim:
+
+```
+TRACER: 8 passed, 0 skipped, 0 failed
+```
+
+Full suite result: `for t in tests/*.py; do python3 "$t" || exit 1; done`
+exited 0 across all 68 files in `tests/` (0 failures).
+
+Guard result: `python3 itembank.py guard .` printed `0 offending files`
+and exited 0.
+
+Full report: `.planning/phases/14A-identity-lifecycle-operation/14A-TRACER-REPORT.md`.
+
+### What breaks if this is changed later
+
+- Changing the object id shape forces a migration of every id already
+  minted into `_journal/journal.jsonl` and every reference to it from
+  13.9's walking-skeleton slice forward, since ids are opaque and never
+  recomputed from content.
+- Changing the eleven revision record keys or their order forces a
+  migration of every stored revision record and every reader that
+  destructures a revision positionally or by `list(record.keys())`
+  equality (asserted directly in `tests/identity_roundtrip.py`).
+- Changing the twenty-two journal entry keys or their order forces a
+  rewrite of every line already appended to `journal.jsonl`, breaking the
+  append-only guarantee this format exists to provide, and breaks
+  `journal.entries()`'s `list(entry.keys()) == ENTRY_KEYS` conformance
+  used throughout `tests/journal_roundtrip.py` and
+  `tests/operations_roundtrip.py`.
+- Changing the prepared-then-applied protocol forces a re-derivation of
+  `journal.replay()`'s interrupted/recoverable classification, since that
+  classification depends on re-reading the target's actual bytes against
+  exactly two possible prior states.
+- Adding, removing, or renaming an operation name forces every existing
+  journal entry carrying the old name to be reinterpreted or migrated,
+  and breaks the closed-vocabulary membership tests in
+  `tests/operations_roundtrip.py`.
+- Adding or removing an object kind forces a review of every
+  kind-conditional rule that already exists (the `bank`/`lesson`
+  trailing-whitespace carve-out, the `source`-only default rights record)
+  for whether the new or removed kind needs the same treatment.
+- Changing the rights operation names or states forces a migration of
+  every stored `rights` dict and breaks `identity.rights_state`'s exact
+  lowercase ASCII string comparison, which the RIGHTS-01 refusal path
+  depends on to stay restrictive rather than permissive on an
+  unrecognized value.
+- Changing the fingerprint normalization rule (including reversing this
+  freeze's reflow decision) changes what counts as a change for every
+  object fingerprinted from that point forward: every fingerprint
+  recorded before the change would read as stale under a new rule, or,
+  the more dangerous direction, adopting a broader normalization after
+  the fact would mean changes it newly absorbs were never recorded as
+  having happened at all. This is exactly the one-way-door reasoning this
+  freeze record exists to make visible.
