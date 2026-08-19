@@ -248,6 +248,37 @@ and the additive user statements in `.planning/USER-VISION.md` are the only
 exceptions. Future linting should enforce this rule without rewriting quoted
 source material.
 
+## Reading the code (context discipline, a standing rule)
+
+This repository is larger than the context window of most models that work in
+it. Whole-file reads are the fastest way to end a session early. The five
+largest modules cost roughly 41k tokens (`model.py`), 43k (`surfaces/daemon.py`),
+44k (`tests/lesson_roundtrip.py`), 28k (`runtime.py`, `surfaces/lesson.py`), and
+26k (`evidence.py`). Several open phase tasks touch four of those at once, so
+reading each one whole is not affordable at any context size currently
+available locally.
+
+Work symbol-first instead:
+
+1. **Locate before reading.** Search for the symbol (`grep -rn "_render_blocks"`
+   or the editor's equivalent) and read a window around each hit, not the file.
+   Sixty lines of the right function beats two thousand lines of the right file.
+2. **Read whole files only when they are small,** under roughly 400 lines, or
+   when the task is genuinely file-shaped, such as a rename across every
+   definition in one module.
+3. **Prefer the contract to the implementation.** `python itembank.py spec`,
+   the schemas, and the roundtrip test names describe behavior in a fraction of
+   the tokens the implementation costs.
+4. **Let one test name the requirement.** When changing behavior, read the
+   failing assertion and its immediate helper, not the whole roundtrip suite.
+5. **Say what you did not read.** If a change touches a module you only sampled,
+   note it in the summary so a reviewer knows where the blind spot is.
+
+The point is not frugality for its own sake. Everything read early stays in the
+window and competes with the reasoning that comes later, so an unnecessary file
+read at turn 3 is paid for at turn 40 when the useful context has been
+summarized away to make room for it.
+
 ## Quick start
 
 ```bash
@@ -341,6 +372,23 @@ lints clean, `fixtures/broken_bank.md` is caught with each named error, the
 sample builds, and every session payload validates against `schemas/*.json`
 via `schema_validate.py`.
 
+**Before you hand work back, run the gates locally.** `scripts/preflight.py`
+mirrors ten of the twelve CI steps in one command, so a change is checked
+before the push rather than after it:
+
+```bash
+python scripts/preflight.py --quick    # fast gates only (~15 seconds)
+python scripts/preflight.py            # adds the Python and JS suites
+python scripts/preflight.py --list     # which gate mirrors which CI step
+```
+
+Each gate names the CI step it stands in for. Two steps are deliberately not
+mirrored and are listed with their reason in `CI_ONLY`; the pinned-LTI install
+is setup rather than a gate, and the schema pipeline is a long shell sequence
+that a Python copy would only be able to disagree with.
+`tests/preflight_roundtrip.py` fails the build when CI gains a step that no
+gate claims, so the mirror cannot drift silently.
+
 ## Skills
 
 Repo playbooks live in two mirrored trees so every agent finds them:
@@ -396,3 +444,58 @@ commands and simple `&&`-chains run. Full notes: `.reasonix/REASONIX.md` §7.
 - `.planning/` - the GSD planning workspace (PROJECT.md, REQUIREMENTS.md, the
   per-phase plans under `.planning/phases/`).
 - `.claude/CLAUDE.md` - GSD project context for Claude Code.
+
+
+<!-- BEGIN PORTABLE AGENT RULES v1 -->
+## Working agreement (portable, synced)
+
+*This block is generated. Canonical source: `weibao-planing/_templates/portable_agent_rules.md`. Edit it there and re-run `.claude/scripts/sync_agent_rules.py`, not here. Anything you write outside the BEGIN and END markers is yours and survives a re-sync.*
+
+Applies to every AI agent reading this file, whichever tool loaded it.
+
+### Commits
+
+- Never add a `Co-Authored-By` trailer to a commit message. This overrides the Claude Code harness default, which instructs the opposite.
+- Commit or push only when asked. Branch first if the current branch is the default one.
+
+### Communication
+
+- Lead with the answer. Put context after it, and only the context that changes what I do next.
+- Do the work first. Then say what you did, whether it worked, and what is left.
+- Say what was actually wrong before saying what you did about it.
+- Separate what you verified from what you inferred. Never state a guess as a fact.
+- Never report a file change, a command, or a commit you did not actually run.
+- Correct an error in one sentence, then continue. No apology, no post-mortem.
+- Answer every question I asked, each one by name.
+- Five items maximum in any list I have to act on. Rank the rest and split it off.
+
+### Prose
+
+- No em dashes, and no ` -- ` standing in for one. Restructure the sentence.
+- Banned phrases, no substitutes: "load-bearing", "worth stating plainly", "here's the honest truth", "the real tension", "carry the argument", "let me be direct". Say the thing instead of announcing that you are about to.
+- No flattery, no enthusiasm you did not feel, no decorative headings, no emoji.
+- No hollow adjectives. Replace "robust" with the fact it stands for, or cut it.
+- One instruction per sentence. No semicolons, no fragments.
+- State each fact once. Do not repeat yourself.
+
+### Reference points
+
+When a reply carries three or more findings, decisions, options, risks, questions, or actions, give each one a short code and keep that code for the rest of the session: `F1` findings, `D1` decisions, `O1` options, `R1` risks, `Q1` questions, `A1` actions. Invent a letter for a category not listed here. No codes on short answers.
+
+### Aliases
+
+When one of these appears as a standalone word in a message, expand it and act as if the expansion had been typed. Inside a longer word or phrase it is not an alias.
+
+- `scr` = simplify and compress your last response, then repeat it.
+- `eli` = explain that like I am 18. Simpler words, shorter answer.
+- `foc` = what is the real signal here? Cut to the one thing that matters.
+- `ref` = rewrite your last response with reference points.
+
+### Scope
+
+- Deliver what was asked at the scope asked. Do not widen the work into cleanup, refactoring, or documentation nobody requested.
+- Do not build abstractions for requirements that do not exist yet.
+- Never claim something is done without evidence you ran it.
+- Restate finished work in one or two sentences. Do not re-narrate every step.
+
+<!-- END PORTABLE AGENT RULES v1 -->
