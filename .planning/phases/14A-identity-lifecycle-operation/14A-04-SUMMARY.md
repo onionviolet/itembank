@@ -1,17 +1,17 @@
-# 14A-04 summary (PARTIAL: Tasks 1-2 complete, halted at Task 3 checkpoint)
+# 14A-04 summary
 
-**Status: Tasks 1-2 complete, halted at Task 3 checkpoint.** Task 3 (the
-reflow-normalization one-way door) is a blocking human decision this executor
-does not have authority to make. It is not answered here, `14A-FREEZE.md` is
-not written, and Task 4 (declaring the freeze) has not run. 14A remains open
-until Task 3 is answered and Task 4 is executed on a green tracer.
+**Status: complete.** All four tasks executed: the eight-scenario tracer
+(Task 1), the D-12.6-10 budgets and the reflow corpus check (Task 2), the
+reflow-normalization checkpoint (Task 3, resolved to option-a), and the
+freeze declaration on a green tracer (Task 4). Phase 14A is frozen.
 
 ## Precondition check (before Task 1)
 
 `for t in tests/*.py; do python3 "$t" || exit 1; done` was re-run at the
 start of this session (the `timeout` command is not installed on this
 machine, so the plain form was used, matching the precedent already recorded
-in `14A-03-SUMMARY.md`). All 67 files in `tests/` passed, including
+in `14A-03-SUMMARY.md`). All 67 files in `tests/` (before
+`file_fault_tracer.py` existed) passed, including
 `tests/audit_writer_roundtrip.py` and `tests/lti_roundtrip.py`, both of which
 were fixed by commits `a5a1c0d` and `6b33152` immediately before this
 session. The precondition was green; Task 1 proceeded.
@@ -23,10 +23,10 @@ eight scenario functions (`scenario_move`, `scenario_duplicate`,
 `scenario_conflict`, `scenario_external_edit`, `scenario_denied_path`,
 `scenario_interrupted_write`, `scenario_disk_full`, `scenario_root_missing`),
 `shipped_suite_check()`, and `main()`. `scenario_interrupted_write` imports
-`tests/journal_roundtrip.py` as a module and reuses its `_child_kill_before_commit`
-`--child` subprocess fixture rather than copying it, per the plan's own
-instruction. All eight scenarios run on one "1k" corpus built and torn down
-in a `finally` block.
+`tests/journal_roundtrip.py` as a module and reuses its
+`_child_kill_before_commit` `--child` subprocess fixture rather than copying
+it, per the plan's own instruction. All eight scenarios run on one "1k"
+corpus built and torn down in a `finally` block.
 
 Committed as `bc347a6` ("test(14A-04): the eight-scenario tracer"), with the
 file scoped to exactly Task 1's functions (no `reflow_corpus_check`,
@@ -61,9 +61,8 @@ alignment-dependent and non-minimal. `_candidate_normalize` never alters
 bytes for kind `bank` or `lesson`, honoring the keyed-content carve-out by
 construction; every mutated file in this generic corpus fingerprints as kind
 `source`, so the carve-out is coded but not exercised by this specific
-corpus (recorded as a deviation-adjacent note below, not a gap: the plan
-only requires the rule never be applied to those two kinds, not that the
-corpus contain them).
+corpus (not a gap: the plan only requires the rule never be applied to those
+two kinds, not that the corpus contain them).
 
 Added `tests/file_fault_tracer.py:measure_budgets()`, a median-of-three
 measurement of the four D-12.6-10 quantities (time to the first yielded
@@ -83,20 +82,91 @@ forward).
 Committed as `3ec3600` ("test(14A-04): budgets measured and the reflow
 corpus counted").
 
-## Verification results (Tasks 1-2)
+## Task 3: the reflow-normalization checkpoint
 
-- `python3 tests/file_fault_tracer.py` -- exit 0. Final line verbatim:
-  `TRACER: 8 passed, 0 skipped, 0 failed`. Re-run twice to confirm
-  idempotency; both runs produced the same final line and a clean guard
-  afterward.
+Weibao's verbatim answer, when the reflow corpus check's evidence and the
+two options were put to him: "do whats best and keep things open in case
+another option is better." This is a delegation with a keep-options-open
+condition, not a direct pick of option-a or option-b.
+
+The orchestrating agent resolved the delegation to **option-a** (keep the
+first cut, no reflow normalization) under that condition. Option-a is the
+reversibility-preserving choice: the rule can be added later as a recorded
+migration with its own corpus evidence, while option-b's absorbed changes
+could never be recorded retroactively once adopted, because the information
+about what changed would never have been written to the journal in the
+first place. The plan's own recommended default was also option-a, for the
+matching reason its Task 3 context states: a rule that absorbs a change is
+a change a compare-and-swap write will pass without noticing.
+
+`identity.normalize_for_fingerprint` was left unchanged, per the plan's
+own instruction for an option-a resolution. The decision, its provenance,
+the four reflow counts as evidence, and the reconsideration condition (add
+reflow normalization later as a recorded migration, or handle rewrap noise
+in the presentation layer instead) are recorded in
+`.planning/phases/14A-identity-lifecycle-operation/14A-FREEZE.md`'s
+"2026-08-18: reflow-normalization decision" section.
+
+Committed as `acd7147` ("docs(14A-04): record the reflow decision,
+option-a").
+
+## Task 4: the freeze declared on a green tracer
+
+Re-ran the freeze gate: `python3 tests/file_fault_tracer.py` exited 0,
+final line `TRACER: 8 passed, 0 skipped, 0 failed`. Ran the full suite the
+way CI runs it (`for t in tests/*.py; do python3 "$t" || exit 1; done`)
+across all 68 files in `tests/` (67 shipped plus `file_fault_tracer.py`
+itself), exit 0, 0 failures. Ran `python3 itembank.py guard .`, `0
+offending files`, exit 0.
+
+Appended the `## Frozen at 14A` section to `14A-FREEZE.md` with all four
+named subsections: **Frozen** (the object id shape, the eleven revision
+keys, the twenty-two journal entry keys, the prepared-then-applied
+protocol, the six operation names, the object kinds, the seven rights
+operations and three rights states, and the fingerprint normalization rule
+as decided in Task 3 including the bank/lesson carve-out); **Not frozen,
+and deliberately so** (the `_journal/` internal layout, the disposable
+`objects.json` projection, refusal message wording, and everything routed
+to 14B); **The evidence** (the tracer's final line quoted verbatim, the
+full-suite result, the guard result, and a pointer to
+`14A-TRACER-REPORT.md`); and **What breaks if this is changed later** (one
+sentence per frozen item naming the migration it would force).
+
+Updated `.planning/REQUIREMENTS.md`'s status table rows for FILE-01,
+FILE-02, FILE-03, ID-01, ID-02, RIGHTS-01, and RELIABILITY-01 from
+`Pending` to `Complete`, verified with `git diff .planning/REQUIREMENTS.md`
+to show exactly those seven changed rows and nothing else in the file
+(`git diff --stat` reports one changed file line, as expected for a
+single-file diff; the row-level check is `git diff` itself, which shows
+exactly 7 removed lines and 7 added lines).
+
+Committed as `b6b8947` ("docs(14A-04): declare the 14A freeze on a green
+tracer"), which also carries the freshest `14A-TRACER-REPORT.md` (timing
+numbers vary a few hundredths of a millisecond between runs on this
+machine; the reflow counts, scenario results, and shipped suite results
+are identical across every run in this session).
+
+## Verification results (all four tasks)
+
+- `python3 tests/file_fault_tracer.py` -- exit 0 on every run this session
+  (run after Task 1's commit, after Task 2's commit, and twice more for
+  Task 4). Final line every time: `TRACER: 8 passed, 0 skipped, 0 failed`.
 - `python3 itembank.py guard .` -- `0 offending files`, exit 0, run after
   every tracer invocation in this session.
+- `for t in tests/*.py; do python3 "$t" || exit 1; done` -- exit 0 across
+  68 files, 0 failures, run once before Task 1 (67 files) and once for
+  Task 4 (68 files, `file_fault_tracer.py` now included).
 - `python3 tests/identity_roundtrip.py` -- exit 0, `OK identity_roundtrip`.
 - `python3 tests/journal_roundtrip.py` -- exit 0, `OK journal_roundtrip`.
 - `python3 tests/operations_roundtrip.py` -- exit 0, `OK
   operations_roundtrip`.
+- `git diff .planning/REQUIREMENTS.md` -- exactly the seven named rows
+  changed from `Pending` to `Complete`, nothing else in the file touched.
 - No em dash character in `tests/file_fault_tracer.py`,
-  `fixtures/corpus_14a.py`, or `14A-TRACER-REPORT.md` (checked by grep).
+  `fixtures/corpus_14a.py`, `14A-TRACER-REPORT.md`, `14A-FREEZE.md`, or
+  this summary (checked by grep on every authored file; Weibao's quoted
+  sentence in `14A-FREEZE.md` and above is verbatim and happens to contain
+  no em dash either).
 
 ## Tracer's final line, verbatim
 
@@ -111,7 +181,7 @@ This machine is macOS (posix), so `corpus_14a.build_corpus`'s
 `scenario_denied_path` took the primary (`os.chmod`-denies-read) branch and
 returned `"pass"`, never the Windows-only `"skip"` branch that prints the
 exact line `SKIP: read-denial assertion (os.chmod cannot deny read on this
-platform)`. No scenario was skipped on this run; the write-mode branch's
+platform)`. No scenario was skipped on any run; the write-mode branch's
 code path exists and is written to the plan's exact table (verified by
 inspection, not by execution on this platform), and is exercised by
 `journal_roundtrip.py`'s own `_check_permission_denied` on the Windows CI
@@ -120,16 +190,17 @@ runner.
 ## Every measured number, with unit and run count
 
 All measurements are median-of-three (`run_count = 3` on every row; no
-`measure_budgets` run raised an exception on this machine, so no gap note
-appears in the report).
+`measure_budgets` run raised an exception on this machine on any run this
+session, so no gap note ever appeared in the report). Numbers below are
+from the Task 4 (final) run, committed in `14A-TRACER-REPORT.md`.
 
 | Quantity | Corpus | Value | Unit |
 |---|---|---|---|
-| first useful discovery result | 1k | 0.12 | ms |
+| first useful discovery result | 1k | 0.11 | ms |
 | full inventory | 1k | 0.02 | s |
 | cancel response | 1k | 0.06 | ms |
 | peak traced Python memory | 1k | 0.59 | MB |
-| first useful discovery result | 10k | 0.28 | ms |
+| first useful discovery result | 10k | 0.27 | ms |
 | full inventory | 10k | 0.19 | s |
 | cancel response | 10k | 0.02 | ms |
 | peak traced Python memory | 10k | 4.78 | MB |
@@ -152,24 +223,30 @@ heading sentence.
 
 Mutation class proportions used: `content=0.25, line_ending=0.25,
 reflow=0.25, trailing_ws=0.25` (the fixed 1:1:1:1 split
-`mutate_corpus` documents).
+`mutate_corpus` documents). These counts were identical across every run
+in this session, since `mutate_corpus` is deterministic on `(dest, count,
+seed)`.
 
 ## Checkpoint answer and who gave it
 
-**Not yet answered.** Task 3 is the phase's one blocking checkpoint (the
-reflow-normalization one-way door) and requires Weibao's decision between
-option-a (keep the first cut, recommended default) and option-b (add reflow
-normalization for kinds other than bank/lesson). This executor halted before
-Task 3 per its instructions and did not decide it. The orchestrator carries
-the "Reflow corpus check" section above (with its four counts) to Weibao for
-that decision.
+Weibao delegated the decision: "do whats best and keep things open in case
+another option is better." The orchestrating agent resolved that delegation
+to **option-a** (keep the first cut, no reflow normalization), reasoning
+recorded in full in `14A-FREEZE.md`'s "Decision provenance" section: option-a
+is the reversibility-preserving choice, since a normalization rule adopted
+later can be added as a recorded migration with its own evidence, while a
+rule adopted now could never be un-adopted without having lost information
+about what changed in the interim. `identity.normalize_for_fingerprint` is
+unchanged.
 
-## Freeze section: not written
+## The freeze
 
-`.planning/phases/14A-identity-lifecycle-operation/14A-FREEZE.md` was not
-created. Per the plan, the freeze is declared only after Task 3's checkpoint
-is answered and Task 4 re-verifies a green tracer, the full suite, and
-`guard`. None of that ran in this session.
+Declared on a green tracer. `14A-FREEZE.md` carries both the dated reflow
+decision (Task 3) and the `## Frozen at 14A` section (Task 4), with the
+tracer's final line, the full-suite result, and the guard result quoted as
+evidence. `.planning/REQUIREMENTS.md`'s seven 14A-owned requirement rows
+(FILE-01, FILE-02, FILE-03, ID-01, ID-02, RIGHTS-01, RELIABILITY-01) now
+read `Complete`.
 
 ## Disposition of the two flagged edge-probe rows carried from 14A-01 and 14A-03
 
@@ -204,6 +281,10 @@ tracer:
 | D-12.6-10 quantities are measured, not promised, and never fail the tracer | `measure_budgets()`'s own `try/except Exception` per run; the report's "Measured quantities" heading sentence |
 | The reflow question has real corpus evidence behind it | `reflow_corpus_check()`'s four counts, printed to stdout and written to `14A-TRACER-REPORT.md` |
 | The 100k corpus is deliberately not run, with its reason recorded | `14A-TRACER-REPORT.md`'s "The 100k corpus" section |
+| The reflow decision is recorded with its evidence, amending D-14A-2 | `14A-FREEZE.md`'s "2026-08-18: reflow-normalization decision" section |
+| The freeze is declared only on a green tracer, in one place | `14A-FREEZE.md`'s "## Frozen at 14A" section, written only after the Task 4 re-run confirmed `TRACER: 8 passed, 0 skipped, 0 failed` |
+| The shipped suites still pass byte-compatible after 14A (audit A6, closed) | full-suite run: `for t in tests/*.py; do python3 "$t" || exit 1; done`, 68 files, exit 0 |
+| Exactly the seven 14A-owned requirement rows moved to Complete | `git diff .planning/REQUIREMENTS.md` |
 
 ## Deviations from plan
 
@@ -254,19 +335,27 @@ tracer:
    inaccessible fixtures from a mutation sample is the only reading
    consistent with the corpus's own purpose (the denied pocket exists to be
    denied, not mutated).
+5. **The Task 3 checkpoint was answered by delegation, not by a direct
+   pick.** The plan's checkpoint expects a `resume-signal` of `option-a` or
+   `option-b` from Weibao directly. Weibao instead delegated ("do whats
+   best and keep things open in case another option is better"), and the
+   orchestrating agent resolved the delegation to option-a under the
+   keep-options-open condition, with the reasoning recorded in
+   `14A-FREEZE.md`. This is not a silent default (the plan's own
+   prohibition): the delegation, the resolution, and the reasoning are all
+   recorded, and the decision remains explicitly reversible per the
+   reconsideration condition also recorded there.
 
 No deviation changed what a scenario asserts, what the eight scenarios or
-`shipped_suite_check` prove, or the reflow check's methodology as specified
-in the plan's action list.
+`shipped_suite_check` prove, the reflow check's methodology as specified in
+the plan's action list, or the content of `identity.normalize_for_fingerprint`.
 
-## What Task 3 needs, carried forward
+## Commits
 
-The orchestrator should present Weibao with the "Reflow corpus check"
-section of `14A-TRACER-REPORT.md`, quoted verbatim (see above), and the two
-options from the plan's Task 3 (`option-a`: keep the first cut, recommended
-default; `option-b`: add reflow normalization for kinds other than
-bank/lesson). On this corpus, the false-absorption count is 0 and the
-reflow-only-noticed count is 500, both figures the plan says the
-recommendation should turn on. Task 3's own text already recommends
-option-a; this run's counts do not contradict that recommendation, but the
-decision itself is Weibao's to make, not this executor's.
+| Commit | Message |
+|---|---|
+| `bc347a6` | test(14A-04): the eight-scenario tracer |
+| `3ec3600` | test(14A-04): budgets measured and the reflow corpus counted |
+| `09bcbb0` | docs(14A-04): tasks 1-2 complete, halted at reflow checkpoint (superseded by this summary) |
+| `acd7147` | docs(14A-04): record the reflow decision, option-a |
+| `b6b8947` | docs(14A-04): declare the 14A freeze on a green tracer |
