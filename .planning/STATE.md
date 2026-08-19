@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase_name: 13.5-reading-teaching-surface-quality-pass
-status: Phase 16C planned (9 plans, plan-checker READY); 13.9 executing on Codex (plans 01-02 committed); every subphase 14A through 16C now has a Sonnet-executable plan set; 17A and 17B are the remaining unplanned subphases
-stopped_at: Phase 17A UI-SPEC approved
-last_updated: "2026-08-16T21:11:28.677Z"
-last_activity: 2026-08-16
+status: Phase 14A EXECUTED and FROZEN (2026-08-18, four plans, green tracer, verifier gaps_found closed by the key-count correction); 13.9 plans 01-02 committed, 13.9-03 awaits Weibao's sitting; 17B is the remaining unplanned subphase
+stopped_at: Phase 14A frozen; next is 14B (its plans must cite 13.9-CALIBRATION.md once 13.9-03 closes A9; no 14B freeze commits before that)
+last_updated: "2026-08-18T00:00:00.000Z"
+last_activity: 2026-08-18
 last_activity_desc: "Quick task 260813-x3g source-to-course contract reframe, slices 1-4a committed and pushed. Applied synthesis section 14 across nine contract/doc files: ROADMAP (nine subphases 14A-17B + governance), SOURCE-TO-COURSE (supersede pointer), REQUIREMENTS (eighteen families GRAPH..MAINT, 47 new requirements, old IDs mapped/superseded), PROJECT (course-first), UI-SPEC (Structured Studio; section 8 gates untouched), PLANNING-DIRECTIVES (finite-strategy + rejection-ledger; section 8 nine-subphase table), AGENTS + .claude/CLAUDE.md (object/authority + operation protocol; non-negotiables intact), README (course-first). Commits: 8b5cab4, e838407, e349c06 (REQUIREMENTS content landed split across the slice-3/4a commits because gsd `query commit` sweeps all modified files while the parallel 13.5 track shared the tree; content verified complete on disk, nothing lost)."
 progress:
   total_phases: 28
@@ -17,6 +17,41 @@ current_phase: 13.5
 ---
 
 # Project State
+
+## Phase 14A executed and frozen (2026-08-18, Claude Code session)
+
+All four 14A plans executed on main in one session, waves strictly in order:
+
+- 14A-01 identity kernel: `identity.py`, `discovery.py`, `fixtures/corpus_14a.py`,
+  `tests/identity_roundtrip.py`, evidence-field mapping doc (`db805dd..b28ba80`).
+- 14A-02 operation journal: `journal.py` compare-and-swap writes, fault
+  injection, path-containment refusal (`77b27e9..2afb7d1`). Real bug caught:
+  `append_entry` setdefault never fired, every entry_id/timestamp was None.
+- 14A-03 six lifecycle operations, external-edit detection, explicit
+  reconciliation, transform-rights gate (`5bdcc05`, `24e073a`, `28e6182`).
+  `ENTRY_KEYS` gained a `rights` key here, making it twenty-three keys.
+- Pre-14A-04 trunk repair, both pre-existing reds root-caused and fixed:
+  `audit_writer.py` macOS symlink bug, tracked-clean banks misrouted to the
+  shadow backend because `/var -> /private/var` broke relpath (`a5a1c0d`);
+  `tests/lti_roundtrip.py` broken crypto-free skip set (`6b33152`).
+- 14A-04 freeze gate: eight-scenario tracer `TRACER: 8 passed, 0 skipped,
+  0 failed`, D-12.6-10 budgets measured far inside starting budgets (10k full
+  inventory 0.19 s vs 2 s budget), reflow corpus check 2000 mutations with
+  zero false absorptions (`bc347a6`, `3ec3600`, `09bcbb0`, `acd7147`,
+  `b6b8947`, `cd11a86`).
+- Reflow checkpoint: Weibao delegated ("do whats best and keep things open in
+  case another option is better"); resolved option-a, no reflow normalization,
+  the reversibility-preserving reading, recorded with a reconsideration
+  condition in `14A-FREEZE.md`.
+- Independent verifier: all mechanical truths VERIFIED, `model.py`/`runtime.py`
+  untouched, walking-skeleton mint-plus-journal coupling proven live. One
+  gap found and corrected: the freeze record said twenty-two journal entry
+  keys where the shipped `ENTRY_KEYS` has twenty-three.
+- Seven 14A requirement rows (FILE-01/02/03, ID-01/02, RIGHTS-01,
+  RELIABILITY-01) moved to Complete. Full 68-file suite green, guard clean.
+
+Standing rule unchanged: 14B-or-later freezes still wait on 13.9-03 closing
+A9 (Weibao's sitting). 14A's own freeze is declared and does not depend on it.
 
 ## Phase 16C planning session (2026-08-15/16, Claude planning side)
 

@@ -88,7 +88,7 @@ recorded here. Task 4 proceeds on this basis.
   (`identity.REVISION_KEYS`): `object_id`, `kind`, `revision`,
   `parent_revision`, `fingerprint`, `timestamp`, `origin`,
   `profile_version`, `source_version`, `generator_version`, `rights`.
-- The twenty-two journal entry keys, in their fixed order
+- The twenty-three journal entry keys, in their fixed order
   (`journal.ENTRY_KEYS`): `schema_version`, `entry_id`, `timestamp`,
   `operation`, `state`, `resolves_entry`, `object_id`, `kind`, `revision`,
   `parent_revision`, `path`, `expected_fingerprint`, `before_fingerprint`,
@@ -161,7 +161,7 @@ Full report: `.planning/phases/14A-identity-lifecycle-operation/14A-TRACER-REPOR
   migration of every stored revision record and every reader that
   destructures a revision positionally or by `list(record.keys())`
   equality (asserted directly in `tests/identity_roundtrip.py`).
-- Changing the twenty-two journal entry keys or their order forces a
+- Changing the twenty-three journal entry keys or their order forces a
   rewrite of every line already appended to `journal.jsonl`, breaking the
   append-only guarantee this format exists to provide, and breaks
   `journal.entries()`'s `list(entry.keys()) == ENTRY_KEYS` conformance

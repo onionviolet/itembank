@@ -121,7 +121,7 @@ offending files`, exit 0.
 
 Appended the `## Frozen at 14A` section to `14A-FREEZE.md` with all four
 named subsections: **Frozen** (the object id shape, the eleven revision
-keys, the twenty-two journal entry keys, the prepared-then-applied
+keys, the twenty-three journal entry keys, the prepared-then-applied
 protocol, the six operation names, the object kinds, the seven rights
 operations and three rights states, and the fingerprint normalization rule
 as decided in Task 3 including the bank/lesson carve-out); **Not frozen,
@@ -349,6 +349,16 @@ tracer:
 No deviation changed what a scenario asserts, what the eight scenarios or
 `shipped_suite_check` prove, the reflow check's methodology as specified in
 the plan's action list, or the content of `identity.normalize_for_fingerprint`.
+
+## Post-verification correction (2026-08-18)
+
+The independent phase verifier found one factual error in the frozen record:
+`14A-FREEZE.md` (and this summary) said "twenty-two journal entry keys" while
+the shipped, tested `journal.ENTRY_KEYS` has twenty-three. The count was
+correct when 14A-02 designed the entry, and went stale when 14A-03 added the
+`rights` key; the key list itself was always complete and correct, only the
+cardinality word was wrong. Corrected in both files. The 14A-02 documents keep
+their "twenty-two" wording as accurate history of that plan's own state.
 
 ## Commits
 
