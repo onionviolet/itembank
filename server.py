@@ -9,7 +9,43 @@ in one of them.
 Nothing here listens on an external interface unless a surface asks for it, and
 nothing leaves the machine.
 """
-import http.server, json, socketserver, urllib.parse
+import http.server, json, os, socketserver, urllib.parse
+
+# The 17A visual-direction tracer (plan 17A-01). It renders a synthetic fixture
+# and nothing else: no bank, no session, no key, no evidence. It stays behind an
+# explicit environment opt in so a learner running the app can never reach a
+# prototype by guessing a URL, which is what 17A-UI-SPEC means by keeping the
+# prototypes off the production surface.
+VISUAL_FIXTURE_PREFIX = "/_visual-fixture"
+VISUAL_FIXTURE_ENV = "ITEMBANK_VISUAL_FIXTURE"
+
+
+def visual_fixture_enabled():
+    return os.environ.get(VISUAL_FIXTURE_ENV, "") == "1"
+
+
+def maybe_visual_fixture(handler, path):
+    """Serve one direction of the 17A tracer, or return False and let the real
+    router handle the path. Returns True only when it has written a response.
+
+    The page is built by `visual_fixture.page`, which goes through
+    `presentation.surface_shell`, so this route adds a URL and never a second
+    document shell.
+    """
+    if not visual_fixture_enabled():
+        return False
+    parsed = urllib.parse.urlparse(path)
+    if parsed.path != VISUAL_FIXTURE_PREFIX:
+        return False
+
+    from surfaces import visual_fixture
+
+    query = urllib.parse.parse_qs(parsed.query)
+    direction = (query.get("direction") or [visual_fixture.DEFAULT_DIRECTION])[0]
+    tokens = {k: v[0] for k, v in query.items() if k != "direction"}
+    body = visual_fixture.page(visual_fixture.load_fixture(), direction, tokens)
+    handler.send_html(body.encode("utf-8"))
+    return True
 
 
 class Handler(http.server.BaseHTTPRequestHandler):

@@ -1,0 +1,27 @@
+/* Direction overlay for the 17A comparison. Deletable on its own:
+   nothing outside this file references it, and removing it leaves the other
+   two directions and every shipped surface untouched (D-04). */
+
+/* Guided Canvas: staged panels with numbered steps. Progress is stated in
+   words, never as a percentage, because no denominator backs one here. */
+.surface { max-width: var(--measure-wide); }
+main { display: block; counter-reset: vfstage; }
+.vf-stage { counter-increment: vfstage; border: 2px solid var(--line);
+            border-radius: var(--r-3); background: var(--card);
+            padding: var(--space-5); margin-bottom: var(--space-5);
+            position: relative; }
+.vf-stage[data-stage="long_lesson"],
+.vf-stage[data-stage="wrong_answer_retry"] { border-color: var(--accent);
+            background: var(--accent-soft); }
+.vf-step { display: inline-block; border: 1px solid var(--line);
+           border-radius: var(--r-1); padding: 0 var(--space-2);
+           background: var(--chip); color: var(--ink);
+           margin-right: var(--space-2); }
+.vf-stage h2 { display: flex; align-items: baseline; gap: var(--space-2);
+               flex-wrap: wrap; }
+.vf-card { border: 1px solid var(--line); border-radius: var(--r-2);
+           padding: var(--space-3); background: var(--bg); }
+.vf-shelf { list-style: none; padding: 0; display: grid; gap: var(--space-3); }
+.vf-check, .vf-predict { border: 2px solid var(--accent);
+           border-radius: var(--r-2); padding: var(--space-4);
+           background: var(--card); }

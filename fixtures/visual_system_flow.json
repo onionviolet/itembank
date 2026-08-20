@@ -1,0 +1,84 @@
+{
+  "fixture_version": 1,
+  "synthetic": true,
+  "note": "Synthetic content only. No real course, learner, source, or key appears here. Seven stages per 17A-UI-SPEC Three-Direction Prototype Contract.",
+  "stages": [
+    {
+      "id": "shelf_resume",
+      "title": "Resume where you stopped",
+      "kind": "shelf",
+      "cards": [
+        {"course": "Synthetic Airway Course", "resume": "Objective 2 of 6", "state": "in_progress"},
+        {"course": "Synthetic Ratios Course", "resume": "Not started", "state": "available"},
+        {"course": "Synthetic Locked Course", "state": "locked", "unlock": "Bind a source to this course before it opens."},
+        {"course": "Synthetic Second Locked Course", "state": "locked", "unlock": "Grant read rights to the folder this course cites."}
+      ]
+    },
+    {
+      "id": "source_linked_objective",
+      "title": "Objective 2: recognize a compromised airway",
+      "kind": "objective",
+      "source": {"label": "Synthetic Field Manual, section 4.2", "cited": true, "rights": "read"},
+      "prerequisites": ["Objective 1: name the airway structures"],
+      "fill_state": 3,
+      "fill_legend": "Three of five blocks filled. Self-adjustable standing, never a probability."
+    },
+    {
+      "id": "long_lesson",
+      "title": "Reading: the airway, step by step",
+      "kind": "lesson",
+      "blocks": [
+        {"form": "definition", "term": "Stridor", "body": "A high, harsh sound on inspiration that means the upper airway is narrowed."},
+        {"form": "warning", "body": "A quiet chest in a patient who was noisy a minute ago is a worsening sign, not an improving one."},
+        {"form": "table", "caption": "Sound, meaning, action", "head": ["Sound", "What it means", "Action"], "rows": [["Snoring", "Tongue against the pharynx", "Reposition the head"], ["Gurgling", "Fluid in the airway", "Suction"], ["Stridor", "Upper airway narrowing", "Escalate early"]]},
+        {"form": "cited_image", "alt": "Line drawing of a head positioned for airway opening, synthetic placeholder.", "credit": "Synthetic placeholder, no external asset is fetched.", "cited": true},
+        {"form": "inline_prediction", "prompt": "Before reading on: which sound would worry you most in a patient who cannot speak?"},
+        {"form": "inline_check", "prompt": "Which finding most clearly suggests the airway is at risk?", "options": ["Clear speech in full sentences", "Stridor with weak effort", "Regular chest rise"], "released": false}
+      ]
+    },
+    {
+      "id": "wrong_answer_retry",
+      "title": "Practice: one wrong answer",
+      "kind": "practice",
+      "learner_choice": "Clear speech in full sentences",
+      "verdict": "incorrect",
+      "entitled_feedback": "That answer describes a patient who is moving air well. Look again at what changes when effort drops.",
+      "retry_available": true,
+      "hint_tiers": [
+        {"tier": 1, "released": true, "text": "Start from what the patient can still do without help."},
+        {"tier": 2, "released": false},
+        {"tier": 3, "released": false}
+      ]
+    },
+    {
+      "id": "evidence_review",
+      "title": "Evidence so far",
+      "kind": "evidence",
+      "sparse": true,
+      "denominator_note": "Two responses recorded against this objective. Too few to describe a trend.",
+      "rows": [
+        {"item": "Synthetic item A", "result": "correct", "recorded": "2026-08-20"},
+        {"item": "Synthetic item B", "result": "pending", "recorded": "2026-08-20", "pending_reason": "Constructed response awaiting a human mark."}
+      ]
+    },
+    {
+      "id": "ai_proposed_change",
+      "title": "Proposed lesson change, not accepted",
+      "kind": "proposal",
+      "status": "pending_review",
+      "rationale": "The stridor definition does not say what the learner should do next.",
+      "citations": ["Synthetic Field Manual, section 4.2"],
+      "diff": [
+        {"op": "context", "text": "A high, harsh sound on inspiration that means the upper airway is narrowed."},
+        {"op": "add", "text": "Escalate early: stridor with falling effort is a call, not a wait."}
+      ]
+    },
+    {
+      "id": "agent_offline_status",
+      "title": "Agent and connection",
+      "kind": "status",
+      "agent": {"state": "unavailable", "copy": "The model is unreachable. Authored hints and scoring still work."},
+      "offline": {"state": "offline", "copy": "No network. Everything on this page was produced on this machine."}
+    }
+  ]
+}

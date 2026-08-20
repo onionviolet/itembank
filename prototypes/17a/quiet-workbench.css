@@ -1,0 +1,19 @@
+/* Direction overlay for the 17A comparison. Deletable on its own:
+   nothing outside this file references it, and removing it leaves the other
+   two directions and every shipped surface untouched (D-04). */
+
+/* Quiet Workbench: single column, generous rhythm, borders that recede. */
+.surface { max-width: var(--measure-prose); }
+main { display: block; }
+.vf-stage { border: 1px solid var(--chip); border-radius: var(--r-1);
+            background: var(--bg); padding: var(--space-5) 0;
+            margin-bottom: var(--space-7); border-left: 0; border-right: 0;
+            border-top: 0; }
+.vf-stage p, .vf-stage li { line-height: var(--vf-leading); }
+.vf-stage h2 { margin-bottom: var(--space-4); }
+.vf-step { display: block; color: var(--mut); margin-bottom: var(--space-1); }
+.vf-card { border: 0; border-bottom: 1px solid var(--chip);
+           padding: var(--space-3) 0; background: transparent; }
+.vf-shelf { list-style: none; padding: 0; }
+.vf-def, .vf-warn, .vf-predict, .vf-check { margin: var(--space-5) 0; }
+.context-line { border-bottom: 1px solid var(--chip); background: var(--bg); }

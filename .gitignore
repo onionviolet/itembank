@@ -45,3 +45,4 @@ src-tauri/target/
 # them from every `git add`.
 !fixtures/legacy_attempts/
 !fixtures/legacy_attempts/*_attempt_*.md
+prototypes/17a/render/
