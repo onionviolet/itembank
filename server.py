@@ -42,8 +42,12 @@ def maybe_visual_fixture(handler, path):
 
     query = urllib.parse.parse_qs(parsed.query)
     direction = (query.get("direction") or [visual_fixture.DEFAULT_DIRECTION])[0]
-    tokens = {k: v[0] for k, v in query.items() if k != "direction"}
-    body = visual_fixture.page(visual_fixture.load_fixture(), direction, tokens)
+    nav_shape = (query.get("nav") or [visual_fixture.DEFAULT_NAV])[0]
+    stage_id = (query.get("stage") or [None])[0]
+    tokens = {k: v[0] for k, v in query.items()
+              if k not in ("direction", "nav", "stage")}
+    body = visual_fixture.page(visual_fixture.load_fixture(), direction, tokens,
+                               stage_id=stage_id, nav_shape=nav_shape)
     handler.send_html(body.encode("utf-8"))
     return True
 

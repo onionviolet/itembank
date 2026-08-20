@@ -1,0 +1,17 @@
+/* Bottom bar. Thumb-reachable, phone-shaped, and the shape that survives being
+   used one-handed on a shift. Costs a strip of vertical space on every screen. */
+.vf-app { display: block; padding-bottom: 5.5rem; }
+.vf-appnav { position: fixed; inset-inline: 0; inset-block-end: 0; z-index: 5;
+  background: var(--card); border-top: 1px solid var(--line);
+  padding: var(--space-2) var(--space-3); display: flex; align-items: center;
+  gap: var(--space-2); overflow-x: auto; }
+.vf-nav-brand, .vf-nav-label { display: none; }
+.vf-appnav ul { display: flex; gap: var(--space-1); }
+.vf-appnav a { padding: var(--space-2) var(--space-3); white-space: nowrap; }
+.vf-appnav a[aria-current] { background: var(--chip); }
+.vf-area-route { display: none; }
+.vf-nav-app { border-inline-end: 1px solid var(--line);
+  padding-inline-end: var(--space-2); margin-inline-end: var(--space-2); }
+@media (min-width: 900px) {
+  .vf-appnav { justify-content: center; }
+}

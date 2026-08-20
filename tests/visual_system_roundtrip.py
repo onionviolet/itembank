@@ -98,6 +98,7 @@ def check_no_keyed_leak():
 # every link. In the product a route names a screen, never a visual direction.
 SEMANTIC_STRIP = re.compile(
     r'<nav class="vf-chrome".*?</nav>'
+    r'|direction=[a-z-]+&amp;nav=[a-z-]+&amp;'
     r'|direction=[a-z-]+&amp;'
     r'|\sdata-direction="[^"]*"|\sclass="[^"]*"|<style>.*?</style>', re.S)
 
@@ -291,6 +292,71 @@ def check_no_raw_term_markers():
     ok("check_no_raw_term_markers")
 
 
+def check_nav_shapes():
+    """The navigation shape is a second axis from the visual direction, and it
+    is CSS over identical markup. 16B-UI-SPEC settles which areas exist; it is
+    silent on whether they are a sidebar, a tab row, or a bottom bar, so all
+    three ship until Weibao picks."""
+    from surfaces import visual_fixture
+    data = load()
+    shapes = visual_fixture.NAV_SHAPES
+    if len(shapes) < 3:
+        fail("fewer than three navigation shapes are offered")
+    bodies = {}
+    for shape in shapes:
+        html = visual_fixture.page(data, "structured-studio",
+                                   stage_id="long_lesson", nav_shape=shape)
+        if ('data-nav="%s"' % shape) not in html:
+            fail("shape %s did not reach the shell" % shape)
+        for other in shapes:
+            if ("nav=" + other) not in html:
+                fail("shape %s cannot reach shape %s" % (shape, other))
+        body = html.split("<main>", 1)[1].rsplit("</main>", 1)[0]
+        bodies[shape] = SEMANTIC_STRIP.sub("", body).replace(
+            'data-nav="%s"' % shape, "")
+    base = bodies[shapes[0]]
+    for shape in shapes[1:]:
+        if bodies[shape] != base:
+            fail("nav shape %s forked the markup instead of restyling it" % shape)
+    ok("check_nav_shapes")
+
+
+def check_app_shell_matches_16b():
+    """Every course-level area in 16B-UI-SPEC's route contract appears in the
+    shell, so the prototype and the contract can be diffed rather than trusted."""
+    from surfaces import visual_fixture
+    data = load()
+    areas = [a["label"] for a in (data.get("app") or {}).get("course_areas", [])]
+    for expected in ("Overview", "Learn", "Practice", "Test", "Map", "Sources",
+                     "Build", "Evidence"):
+        if expected not in areas:
+            fail("course area %s from the 16B route contract is missing" % expected)
+    html = visual_fixture.page(data, "structured-studio", stage_id="shelf_resume")
+    for route in ("/activity", "/settings", "/course/&lt;id&gt;/learn"):
+        if route not in html:
+            fail("route %s is not shown in the app shell" % route)
+    ok("check_app_shell_matches_16b")
+
+
+def check_home_screen():
+    """Home is a real screen: a justified next action, the course list, and the
+    activity queue, with no invented percentage anywhere."""
+    from surfaces import visual_fixture
+    data = load()
+    html = visual_fixture.page(data, "structured-studio", stage_id="shelf_resume")
+    body = html.split("<main>", 1)[1].rsplit("</main>", 1)[0]
+    for needed in ("Pick up where you stopped", "All courses", "Activity"):
+        if needed not in body:
+            fail("home screen is missing the %s region" % needed)
+    if "vf-resume" not in body:
+        fail("home screen has no resume card")
+    if re.search(r"\d+\s*%", body):
+        fail("home screen invented a percentage")
+    if "DIR" in body or "NAV" in body:
+        fail("home screen leaked an unsubstituted template placeholder")
+    ok("check_home_screen")
+
+
 def main():
     check_fixture_shape()
     check_no_em_dash()
@@ -307,6 +373,9 @@ def main():
     check_all_directions_reachable()
     check_hover_definitions()
     check_no_raw_term_markers()
+    check_nav_shapes()
+    check_app_shell_matches_16b()
+    check_home_screen()
     if failures:
         print("\n%d failure(s)" % len(failures))
         return 1

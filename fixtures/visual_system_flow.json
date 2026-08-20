@@ -5,8 +5,8 @@
   "stages": [
     {
       "id": "shelf_resume",
-      "title": "Resume where you stopped",
-      "kind": "shelf",
+      "title": "Your courses",
+      "kind": "home",
       "cards": [
         {
           "course": "Synthetic Airway Course",
@@ -27,6 +27,22 @@
           "course": "Synthetic Second Locked Course",
           "state": "locked",
           "unlock": "Grant read rights to the folder this course cites."
+        }
+      ],
+      "next_action": {
+        "course": "Synthetic Airway Course",
+        "label": "Continue: recognize a compromised airway",
+        "why": "Two objectives back you missed the same distinction twice. This reading addresses it directly.",
+        "stage": "long_lesson"
+      },
+      "activity": [
+        {
+          "state": "needs_input",
+          "text": "A proposed lesson change is waiting for your review."
+        },
+        {
+          "state": "done",
+          "text": "Source binding finished for Synthetic Field Manual."
         }
       ]
     },
@@ -218,5 +234,80 @@
       "def": "A high, harsh sound heard on breathing in, caused by narrowing of the upper airway.",
       "aliases": []
     }
-  ]
+  ],
+  "app": {
+    "course_name": "Synthetic Airway Course",
+    "app_areas": [
+      {
+        "id": "home",
+        "label": "Courses",
+        "route": "/"
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "route": "/activity"
+      },
+      {
+        "id": "settings",
+        "label": "Settings",
+        "route": "/settings"
+      },
+      {
+        "id": "help",
+        "label": "Help",
+        "route": "/help"
+      }
+    ],
+    "course_areas": [
+      {
+        "id": "overview",
+        "label": "Overview",
+        "route": "/course/<id>",
+        "stage": "source_linked_objective"
+      },
+      {
+        "id": "learn",
+        "label": "Learn",
+        "route": "/course/<id>/learn",
+        "stage": "long_lesson"
+      },
+      {
+        "id": "practice",
+        "label": "Practice",
+        "route": "/course/<id>/practice",
+        "stage": "wrong_answer_retry"
+      },
+      {
+        "id": "test",
+        "label": "Test",
+        "route": "/course/<id>/test",
+        "stage": null
+      },
+      {
+        "id": "map",
+        "label": "Map",
+        "route": "/course/<id>/map",
+        "stage": null
+      },
+      {
+        "id": "sources",
+        "label": "Sources",
+        "route": "/course/<id>/sources",
+        "stage": null
+      },
+      {
+        "id": "build",
+        "label": "Build",
+        "route": "/course/<id>/build",
+        "stage": "ai_proposed_change"
+      },
+      {
+        "id": "evidence",
+        "label": "Evidence",
+        "route": "/course/<id>/evidence",
+        "stage": "evidence_review"
+      }
+    ]
+  }
 }

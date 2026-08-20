@@ -208,3 +208,68 @@ pre-13.5 golden". This was verified as pre-existing: stashing every change in
 this working tree leaves it failing. The cause is the modified
 `fixtures/quiz_public_item_pre_13_5.json` that arrived from a concurrent track,
 not this plan.
+
+---
+
+## Second revision, 2026-08-20: app shell, home screen, navigation shapes
+
+Weibao: "what about the home UI? app based flow? tabs for things? side bar?"
+
+**Finding first.** The information architecture is already settled and nobody
+had noticed. `16B-UI-SPEC.md` "Information Architecture & Route Contract"
+names every area and its route: app level `/`, `/activity`, `/settings`,
+`/help/<code>` with Search reserved but explicitly not built; course level
+`/course/<id>` Overview plus `/learn`, `/practice`, `/test`, `/map`,
+`/sources`, `/build`, `/evidence`, with Notes deliberately having no route of
+its own.
+
+What is **not** settled anywhere is the shape of that navigation. Searching
+`16B-UI-SPEC.md`, `17A-UI-SPEC.md`, and the project `UI-SPEC.md` for sidebar,
+side rail, tab bar, tabbed, top nav, and nav rail returns zero hits. The areas
+were designed; the navigation was never drawn.
+
+**So the shape became a second axis, not a decision.** `NAV_SHAPES` offers
+`sidebar`, `tabs`, and `bottom`. All three render byte-identical markup and
+differ only in CSS, so picking one later is a stylesheet change rather than a
+rewrite. `check_nav_shapes` asserts the markup parity and that every shape can
+reach every other.
+
+| Shape | Thesis | Cost |
+|---|---|---|
+| `sidebar` | Every area visible at once, routes legible, nothing behind a menu | Horizontal space, which is free on a laptop and gone on a phone |
+| `tabs` | One row per level, full width stays with the content | Reads as a document with sections rather than as an application |
+| `bottom` | Thumb-reachable, survives one-handed use on a shift | A strip of vertical space on every screen |
+
+The look axis and the nav axis compose independently, so the static export is
+now 63 files: three looks by three navigation shapes by seven screens.
+
+**Home is a real screen now.** It carries a justified resume card (course, the
+reason this is next, and the action), the full course list including locked
+cards with their unlock conditions, and the activity queue with "Needs you"
+first. `check_home_screen` asserts all three regions exist and that no
+percentage is invented anywhere on it.
+
+**The shell shows its own routes.** Each nav entry renders its 16B route
+beneath its label in the sidebar shape, so the prototype can be diffed against
+the contract instead of trusted. `check_app_shell_matches_16b` fails if any of
+the eight course areas goes missing.
+
+Four areas (Test, Map, Sources, and the app-level Help and Settings targets)
+render as visibly unavailable rather than as working links, because no fixture
+stage backs them yet. That is deliberate: an area that looks clickable and does
+nothing is worse than one that says it is not built.
+
+### Verification after the second revision
+
+```
+$ python tests/visual_system_roundtrip.py     18/18 checks pass
+$ python tests/stylesheet_roundtrip.py        PASS
+$ python tests/daemon_roundtrip.py            PASS
+$ python itembank.py guard .                  0 offending files
+```
+
+### Still open, and deliberately not decided here
+
+Search is reserved in 16B and not built. Notes has no route by 16B's explicit
+choice. The default look and the default navigation shape are both 17A-02
+checkpoints and belong to Weibao.

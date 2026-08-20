@@ -26,6 +26,15 @@ PROTOTYPE_DIR = os.path.join(ROOT, "prototypes", "17a")
 FIXTURE_PATH = os.path.join(ROOT, "fixtures", "visual_system_flow.json")
 
 DIRECTIONS = ("structured-studio", "quiet-workbench", "guided-canvas")
+
+# The navigation SHAPE is a second, independent axis from the visual
+# direction. Nobody has ever chosen between a sidebar, a tab row and a
+# bottom bar for this app: 16B-UI-SPEC settles which areas exist and what
+# their routes are, and is silent on what the navigation looks like. All
+# three shapes render the same markup and differ only in CSS, so choosing
+# one later is a stylesheet decision and not a rewrite.
+NAV_SHAPES = ("sidebar", "tabs", "bottom")
+DEFAULT_NAV = "sidebar"
 DEFAULT_DIRECTION = "structured-studio"
 
 # VISUAL-02: configurable tokens with a safe range. Anything outside the range
@@ -190,6 +199,16 @@ def clamp_tokens(tokens):
             "leading": "%.2f" % leading, "accent": accent}
 
 
+def overlay_css(name):
+    """One deletable overlay stylesheet by file stem. Missing files degrade to
+    an empty overlay so any single overlay can be removed."""
+    path = os.path.join(PROTOTYPE_DIR, name + ".css")
+    if not os.path.exists(path):
+        return ""
+    with io.open(path, encoding="utf-8") as fh:
+        return fh.read()
+
+
 def direction_css(direction):
     """The one deletable stylesheet for a direction. A missing file degrades to
     an empty overlay rather than raising, so deleting a direction after the
@@ -242,6 +261,38 @@ def _fill_blocks(filled, total=5):
         state = "on" if index < filled else "off"
         marks.append('<span class="vf-fill vf-fill-%s" aria-hidden="true"></span>' % state)
     return "".join(marks)
+
+
+
+def _home(stage):
+    nxt = stage.get("next_action") or {}
+    cards = []
+    for card in stage.get("cards", []):
+        if card.get("state") == "locked":
+            cards.append(
+                '<li class="vf-card vf-locked"><h3>%s</h3>'
+                '<p class="vf-status">Locked</p><p>%s</p></li>'
+                % (_esc(card.get("course")), _esc(card.get("unlock"))))
+        else:
+            cards.append(
+                '<li class="vf-card"><h3>%s</h3><p class="vf-status">%s</p></li>'
+                % (_esc(card.get("course")), _esc(card.get("resume"))))
+    jobs = "".join(
+        '<li data-state="%s"><span class="vf-status">%s</span> %s</li>'
+        % (_esc(job.get("state")),
+           "Needs you" if job.get("state") == "needs_input" else "Done",
+           _esc(job.get("text")))
+        for job in stage.get("activity", []))
+    resume = ""
+    if nxt:
+        resume = ('<section class="vf-resume"><p class="vf-status">Pick up where '
+                  'you stopped</p><h3>%s</h3><p>%s</p>'
+                  '<p><a class="vf-next" href="?direction=DIR&amp;nav=NAV&amp;'
+                  'stage=%s">%s</a></p></section>'
+                  % (_esc(nxt.get("course")), _esc(nxt.get("why")),
+                     _esc(nxt.get("stage")), _esc(nxt.get("label"))))
+    return ('%s<h3>All courses</h3><ul class="vf-shelf">%s</ul>'
+            '<h3>Activity</h3><ul class="vf-jobs">%s</ul>' % (resume, "".join(cards), jobs))
 
 
 def _shelf(stage):
@@ -372,7 +423,7 @@ def _status(stage):
     return "".join(panels)
 
 
-RENDERERS = {"shelf": _shelf, "objective": _objective, "lesson": _lesson,
+RENDERERS = {"home": _home, "shelf": _shelf, "objective": _objective, "lesson": _lesson,
              "practice": _practice, "evidence": _evidence,
              "proposal": _proposal, "status": _status}
 
@@ -399,12 +450,48 @@ def find_stage(data, stage_id):
     return None
 
 
-def _link(direction, stage_id, label, current=""):
-    return ('<li><a href="?direction=%s&amp;stage=%s"%s>%s</a></li>'
-            % (direction, stage_id, current, _esc(label)))
+def _link(direction, stage_id, label, current="", nav_shape=DEFAULT_NAV):
+    return ('<li><a href="?direction=%s&amp;nav=%s&amp;stage=%s"%s>%s</a></li>'
+            % (direction, nav_shape, stage_id, current, _esc(label)))
 
 
-def _prototype_chrome(data, direction, stage_id):
+
+def _app_nav(data, direction, nav_shape, stage_id):
+    """The app shell navigation. Identical markup in all three shapes, because
+    a shape is a stylesheet and a rewrite is not a shape."""
+    app = data.get("app") or {}
+    stage_for = {}
+    for area in app.get("course_areas", []):
+        stage_for[area["id"]] = area.get("stage")
+    current = ""
+    for area_id, sid in stage_for.items():
+        if sid == stage_id:
+            current = area_id
+    def item(label, target, is_current, route):
+        mark = ' aria-current="page"' if is_current else ""
+        href = ("?direction=%s&amp;nav=%s&amp;stage=%s" % (direction, nav_shape, target)
+                if target else "#")
+        cls = "" if target else ' class="vf-area-todo"'
+        return ('<li%s><a href="%s"%s><span class="vf-area-label">%s</span>'
+                '<span class="vf-area-route">%s</span></a></li>'
+                % (cls, href, mark, _esc(label), _esc(route)))
+    app_items = "".join(
+        item(a["label"], "shelf_resume" if a["id"] == "home" else
+             ("agent_offline_status" if a["id"] in ("settings", "help") else None),
+             stage_id == "shelf_resume" and a["id"] == "home", a["route"])
+        for a in app.get("app_areas", []))
+    course_items = "".join(
+        item(a["label"], a.get("stage"), a["id"] == current, a["route"])
+        for a in app.get("course_areas", []))
+    return ('<nav class="vf-appnav" aria-label="Application">'
+            '<p class="vf-nav-brand">itembank</p>'
+            '<p class="vf-nav-label">App</p><ul class="vf-nav-app">%s</ul>'
+            '<p class="vf-nav-label">%s</p><ul class="vf-nav-course">%s</ul>'
+            "</nav>" % (app_items, _esc(app.get("course_name", "Course")),
+                        course_items))
+
+
+def _prototype_chrome(data, direction, stage_id, nav_shape=DEFAULT_NAV):
     """Navigation that exists because this is a prototype, not because the
     product has it. It is excluded from the semantic-parity fingerprint for
     exactly that reason: comparing two directions must not compare their
@@ -412,33 +499,39 @@ def _prototype_chrome(data, direction, stage_id):
     ids = stage_ids(data)
     dirs = "".join(
         _link(d, stage_id, d.replace("-", " "),
-              ' aria-current="true"' if d == direction else "")
+              ' aria-current="true"' if d == direction else "", nav_shape)
         for d in DIRECTIONS)
+    navs = "".join(
+        _link(direction, stage_id, shape,
+              ' aria-current="true"' if shape == nav_shape else "", shape)
+        for shape in NAV_SHAPES)
     steps = "".join(
         _link(direction, sid, STAGE_LABELS.get(sid, sid),
-              ' aria-current="page"' if sid == stage_id else "")
+              ' aria-current="page"' if sid == stage_id else "", nav_shape)
         for sid in ids)
     return ('<nav class="vf-chrome" data-prototype-chrome '
             'aria-label="Prototype controls">'
-            '<p class="vf-chrome-label">Direction</p>'
+            '<p class="vf-chrome-label">Look</p>'
             '<ul class="vf-dirs">%s</ul>'
-            '<p class="vf-chrome-label">Flow</p>'
-            '<ol class="vf-steps">%s</ol></nav>' % (dirs, steps))
+            '<p class="vf-chrome-label">Nav</p>'
+            '<ul class="vf-dirs vf-navs">%s</ul>'
+            '<p class="vf-chrome-label">Screen</p>'
+            '<ol class="vf-steps">%s</ol></nav>' % (dirs, navs, steps))
 
 
-def _pager(data, direction, stage_id):
+def _pager(data, direction, stage_id, nav_shape=DEFAULT_NAV):
     ids = stage_ids(data)
     index = ids.index(stage_id)
     links = []
     if index > 0:
-        links.append('<a class="vf-prev" href="?direction=%s&amp;stage=%s">'
+        links.append('<a class="vf-prev" href="?direction=%s&amp;nav=%s&amp;stage=%s">'
                      'Back to %s</a>'
-                     % (direction, ids[index - 1],
+                     % (direction, nav_shape, ids[index - 1],
                         _esc(STAGE_LABELS.get(ids[index - 1], ""))))
     if index < len(ids) - 1:
-        links.append('<a class="vf-next" href="?direction=%s&amp;stage=%s">'
+        links.append('<a class="vf-next" href="?direction=%s&amp;nav=%s&amp;stage=%s">'
                      'Continue to %s</a>'
-                     % (direction, ids[index + 1],
+                     % (direction, nav_shape, ids[index + 1],
                         _esc(STAGE_LABELS.get(ids[index + 1], ""))))
     return ('<nav class="vf-pager" aria-label="Flow"><p class="vf-progress">'
             "Step %d of %d</p>%s</nav>"
@@ -465,7 +558,8 @@ def render_stage(data, stage_id):
             % (_esc(stage.get("id")), _esc(stage.get("title")), renderer(stage)))
 
 
-def render_body(data, stage_id=None, direction=DEFAULT_DIRECTION):
+def render_body(data, stage_id=None, direction=DEFAULT_DIRECTION,
+                nav_shape=DEFAULT_NAV):
     ids = stage_ids(data)
     if not ids:
         return presentation.state_panel({
@@ -474,16 +568,19 @@ def render_body(data, stage_id=None, direction=DEFAULT_DIRECTION):
                       "synthetic fixture content only, and none was supplied."})
     if stage_id not in ids:
         stage_id = ids[0]
-    inner = render_stage(data, stage_id)
+    inner = render_stage(data, stage_id).replace("DIR", direction).replace("NAV", nav_shape)
     gmap = gloss_map(data)
     used = dict((slug, rec) for slug, rec in gmap.items()
                 if ('gloss-%s' % slug) in inner)
     panels = "".join(lesson._gloss_panel_html(rec, slug)
                      for slug, rec in used.items())
     appendix = lesson._glossary_html(used, {}) if used else ""
-    return "".join([_prototype_chrome(data, direction, stage_id),
-                    inner, panels, appendix,
-                    _pager(data, direction, stage_id)])
+    return "".join([
+        _prototype_chrome(data, direction, stage_id, nav_shape),
+        '<div class="vf-app" data-nav="%s">' % _esc(nav_shape),
+        _app_nav(data, direction, nav_shape, stage_id),
+        '<div class="vf-appmain">', inner, panels, appendix,
+        _pager(data, direction, stage_id, nav_shape), "</div></div>"])
 
 
 def token_css(tokens):
@@ -500,17 +597,21 @@ def token_css(tokens):
                safe["accent"]))
 
 
-def page(data, direction=DEFAULT_DIRECTION, tokens=None, stage_id=None):
+def page(data, direction=DEFAULT_DIRECTION, tokens=None, stage_id=None,
+         nav_shape=DEFAULT_NAV):
     """One screen of one direction. The body never varies by direction; the
     style block does. Hover definitions come from surfaces/lesson.py, so the
     product has one glossary implementation rather than two."""
     if direction not in DIRECTIONS:
         direction = DEFAULT_DIRECTION
-    body = render_body(data, stage_id, direction)
+    if nav_shape not in NAV_SHAPES:
+        nav_shape = DEFAULT_NAV
+    body = render_body(data, stage_id, direction, nav_shape)
     marked = set(re.findall(r'popovertarget="gloss-([a-z0-9-]+)"', body))
     css = "\n".join([theme.theme_css(theme.DEFAULT_THEME_CONFIG),
                       token_css(tokens), CHROME_CSS, lesson.gloss_css(),
                       lesson._gloss_anchor_css(marked), FIXED_RULES,
+                      overlay_css("_nav-shared"), overlay_css("nav-" + nav_shape),
                       direction_css(direction)])
     stage = find_stage(data, stage_id) or (data.get("stages") or [{}])[0]
     title = stage.get("title") or "Visual direction prototype (synthetic)"
@@ -528,17 +629,21 @@ def write_static(out_dir, data=None):
     written = []
     ids = stage_ids(data)
     for direction in DIRECTIONS:
-        target = os.path.join(out_dir, direction)
-        os.makedirs(target, exist_ok=True)
-        for sid in ids:
-            markup = page(data, direction, stage_id=sid)
-            for other in DIRECTIONS:
-                for other_stage in ids:
-                    markup = markup.replace(
-                        'href="?direction=%s&amp;stage=%s"' % (other, other_stage),
-                        'href="../%s/%s.html"' % (other, other_stage))
-            path = os.path.join(target, sid + ".html")
-            with io.open(path, "w", encoding="utf-8") as fh:
-                fh.write(markup)
-            written.append(path)
+        for nav_shape in NAV_SHAPES:
+            target = os.path.join(out_dir, "%s-%s" % (direction, nav_shape))
+            os.makedirs(target, exist_ok=True)
+            for sid in ids:
+                markup = page(data, direction, stage_id=sid, nav_shape=nav_shape)
+                for other in DIRECTIONS:
+                    for other_nav in NAV_SHAPES:
+                        for other_stage in ids:
+                            markup = markup.replace(
+                                'href="?direction=%s&amp;nav=%s&amp;stage=%s"'
+                                % (other, other_nav, other_stage),
+                                'href="../%s-%s/%s.html"'
+                                % (other, other_nav, other_stage))
+                path = os.path.join(target, sid + ".html")
+                with io.open(path, "w", encoding="utf-8") as fh:
+                    fh.write(markup)
+                written.append(path)
     return written
