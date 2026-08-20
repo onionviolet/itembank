@@ -2454,8 +2454,8 @@ a planned command is never written into a skill before it exists.
 | Item | Disposition |
 |---|---|
 | Native mobile apps (B2) | Descoped — iOS forbids the Python sidecar. Answer is responsive pages over `--lan` (shipped in Phase 2), a Tailscale recipe, and exports. Documentation, not a phase. |
-| Handwriting / stylus input (B10) | Explicitly descoped. |
-| OCR of photographed pages (B9) | Deferred to backlog; the photograph→model→draft loop later rides Phase 3.2's generation path. |
+| Handwriting / stylus input (B10) | Explicitly descoped. **Partially reopened 2026-08-20** (IDEA-LEDGER IL-20260820-02): recognition of handwriting already on paper is registered; live stylus authoring and ink canvases stay descoped. |
+| OCR of photographed pages (B9) | Deferred to backlog; the photograph→model→draft loop later rides Phase 3.2's generation path. **Reopened 2026-08-20** (IDEA-LEDGER IL-20260820-01): registered as paper-note intake whose purpose is expanding, deepening, correcting, and checking understanding of the learner's own notes. |
 | QTI / LTI / xAPI LRS (landscape verdict) | Skipped. Keep Anki TSV + JSON; align evidence **field names** with xAPI vocabulary so a future export is free. Canvas/LTI stays in **999.4** (split out of 999.1 on 2026-08-10). |
 | Dyslexia-specific typefaces (B13) | Research is negative. Ship measure and spacing controls instead (covered by the Phase 3.1 render pass). |
 | Backup/sync service (B7) | Convention, not code: a documented copy story plus export completeness, and the "one writing home" rule below. |

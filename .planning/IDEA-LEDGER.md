@@ -324,6 +324,85 @@ Amendments to an existing entry are additive notes under the entry, dated.
   session that must choose whether the comprehensive learning UI targets the
   browser shell, the packaged shell, or one codebase for both.
 
+### IL-20260820-01: Re-open image and paper-note intake (B9), scoped as an enhancement path
+
+- **Proposal:** Treat the learner's existing paper notes, photographed or
+  scanned, as a first-class source class that feeds the course. Intake produces
+  an image asset plus a derived transcription, and the value is what follows:
+  expanding a thin note, adding depth from a bound source, correcting an error
+  in the learner's own wording, and checking whether the learner understands
+  what they wrote. Digitization alone is not the feature.
+- **Origin:** Weibao, 2026-08-20, recorded verbatim in `USER-VISION-INBOX.md`
+  under "paper-note OCR, AI annotation, and note aesthetics".
+- **Prior disposition being reopened:** B9 (image ingestion and OCR) was
+  deferred to backlog in
+  `RESEARCH-BRIEF-learning-platform-2026-08-09.md` line 336, with the reason
+  recorded in `ROADMAP.md` line 2458: the photograph to model to draft loop
+  would later ride Phase 3.2's generation path. That reason was sequencing, not
+  a rejection, and the generation path it waited on now exists.
+- **Evidence considered:** the local vision-model path is already available
+  through the existing `ocr` skill, so intake is a seam consumer rather than
+  new architecture. Stream 12 (`research/phase-16/12-active-annotation-notes.md`)
+  already supplies note identity, ownership, privacy, provenance, and the rule
+  that a learner note is never keyed truth. `media-intake` exists as a skill
+  stub and already owns rights, credit, accessible alternatives, and derivation
+  records for images. IL-20260815-07 (PDF and DOCX intake) reopened an adjacent
+  intake question on similar grounds.
+- **Fit:** no second parser, scorer, or evidence store. A scan is a source; a
+  transcription is a derived artifact; anything the model adds is labeled
+  synthesis under the existing citation rule.
+- **Boundary:** the scan image is the record and the transcription is derived
+  and re-runnable, so a better model later can re-transcribe without touching
+  what was photographed. Transcribe, clean, and expand are three different
+  truth claims and must stay visibly distinct in the artifact, because
+  collapsing them is how a model's guess becomes the learner's note and then a
+  question and then a key. Transcription confidence is surfaced per line.
+  Rights differ between the learner's own handwriting and a photographed
+  copyrighted page; unknown rights stay restrictive. The CSCI 1100 AI-use ban
+  applies to OCR-plus-expansion on that course's notes.
+- **Degraded behavior:** handwriting is currently the clearest case where a
+  hosted model outperforms a local one, so intake must degrade rather than
+  block. Offline, the image attaches and remains readable and bindable, and
+  transcription is deferred.
+- **Cost driver:** transcription accuracy on cursive and on subject notation,
+  the correction interface, and reconciliation when the same page is scanned
+  twice.
+- **Disposition:** Registered.
+- **Revisit trigger:** the first phase that plans learner-note artifacts or
+  media intake, whichever lands first; or a decision to make note intake a
+  named phase of its own.
+
+### IL-20260820-02: Re-open handwriting and stylus input (B10), narrowed to recognition of existing paper
+
+- **Proposal:** Reopen the recorded descope of handwriting and stylus, narrowed.
+  What is reopened is recognition of handwriting that already exists on paper,
+  including subject notation such as handwritten mathematics, because
+  IL-20260820-01 depends on it. What is not reopened is live stylus authoring
+  inside itembank: ink capture, an ink canvas, pressure and palm rejection, ink
+  beautification, and drawing as a primary response mode.
+- **Origin:** Weibao, 2026-08-20, same inbox entry as IL-20260820-01.
+- **Prior disposition being reopened:** B10 was an explicit descope of
+  handwriting and stylus in
+  `RESEARCH-BRIEF-learning-platform-2026-08-09.md` line 337, and stream 12
+  section 10.3 parked handwriting recognition alongside diagram canvases and
+  card scheduling as items that should not land merely because a shared
+  contract can name them.
+- **Evidence considered:** the descope bundled two different costs. Ink
+  authoring carries a device, canvas, and accessibility surface that itembank
+  does not need. Recognition of an already-written page carries only model
+  accuracy and a correction interface, and it is the enabling half of paper
+  intake.
+- **Boundary:** handwriting stays an input for producing text, never a stored
+  response format the runtime must interpret. Any drawing-as-response question
+  remains descoped and keeps the alternatives listed in stream 12 section 11.1
+  (labeled relationships, ordered steps, coordinate entry, uploaded image with
+  description, oral explanation). Handwriting attachment also remains available
+  as an accessibility alternative, which section 11.1 already permits.
+- **Disposition:** Registered, narrowed. The stylus-authoring half of B10
+  remains descoped and is not reopened by this entry.
+- **Revisit trigger:** IL-20260820-01 planning; or a device change that makes
+  ink authoring the learner's actual working method rather than a hypothetical.
+
 ## Rejected
 
 ### IL-20260815-04: Plugin-first core (no privileged core; swappable scorer)

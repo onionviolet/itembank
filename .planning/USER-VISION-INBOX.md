@@ -143,6 +143,61 @@ question also changed `PLANNING-DIRECTIVES.md`.
   assistance, disclosure subtlety, and a pass over existing surfaces for
   "quiet by default" candidates.
 
+### 2026-08-20: paper-note OCR, AI annotation, and note aesthetics
+
+> functionality for notes stuff? consider OCR exiting paper notes, beautifying and highlighting and expanding on stuff and more? does stuff like that exist for digitizing ntoes and stueff? anything for Ai based highlighting and annotating and more? ALso aesthetics too? like papery style vs docs vs other stuff and more? other stuff to consider?
+
+> yes write the inbox entry and reopen B9 and B10, as something to enhance other things, like expanding or adding depth, coreecting and checking understandning and more?
+
+**Disposition:** Split (2026-08-20).
+
+**Promotable clause (product intent, not yet copied into `USER-VISION.md`):**
+the learner's existing paper notes are a first-class source class, and
+digitizing them is not the goal in itself. The goal is that a scanned note
+becomes something the course can act on: expand it, add depth to it, correct
+it, and check whether the learner actually understands what they wrote. This
+makes note intake an enhancement path for lessons, practice, and diagnosis
+rather than a filing feature.
+
+**Already owned, no new research needed:**
+
+- Highlighting, guided notes, note provenance, note-to-question authority, and
+  the note strategy registry (Cornell, outline, matrix, concept map, close
+  reading, worked reasoning) are settled in
+  `research/phase-16/12-active-annotation-notes.md`.
+- "Papery style vs docs vs other stuff" is three separate axes that already
+  have owners, and they must not collapse into one theme control: presentation
+  theme and tokens in `research/phase-16/10-visual-experience-system.md`;
+  instructional style in `RESEARCH-BRIEF-2-lesson-styles-2026-08-10.md` R1
+  (the style registry); note format in stream 12 section 10.2. The open
+  question already recorded there, which styles are semantic transformations
+  versus cosmetic themes, covers this.
+- Editor and reader surface patterns are in
+  `research/phase-16/16-editor-reader-landscape.md`.
+
+**Routed as new work:** paper-note intake is the one part with no owner. It was
+deferred as B9 (image ingestion and OCR) and descoped as B10 (handwriting and
+stylus) in `RESEARCH-BRIEF-learning-platform-2026-08-09.md` lines 336 to 337,
+and parked again in stream 12 section 10.3. Reopened on this entry as
+`IDEA-LEDGER` IL-20260820-01 and IL-20260820-02. Constraints those entries must
+respect, all pre-existing: the scan image is the record and the transcription is
+derived; transcribe, clean, and expand are three different truth claims and stay
+visibly distinct; a learner note never becomes keyed truth (stream 12 section
+7.2); AI-proposed highlighting is a reviewable proposal and never color-only
+(section 11.1); rights and egress differ between the learner's own handwriting
+and a photographed copyrighted page; and the CSCI 1100 AI-use ban applies to
+OCR-plus-expansion on that course's notes exactly as it applies to hosted
+tutoring.
+
+**Open questions for the eventual research stream:** whether a digitized note
+keeps its page identity (image beside transcript, marks preserved) or becomes
+clean typeset text by default; how transcription confidence is surfaced so an
+uncertain reading is corrected rather than trusted; whether checking
+understanding against a learner's own note is a lesson activity, a practice
+form, or a diagnostic that must not be scored; how a second scan of the same
+page is reconciled rather than duplicated; and whether "rebuild my notes for
+objective X from every scan" is the real deliverable rather than transcription.
+
 ## Disposition vocabulary
 
 - **Promote:** add the verbatim statement and interpretation to `USER-VISION`.
