@@ -93,8 +93,13 @@ def check_no_keyed_leak():
     ok("check_no_keyed_leak")
 
 
-SEMANTIC_STRIP = re.compile(r'\sdata-direction="[^"]*"|\sclass="[^"]*"'
-                            r'|<style>.*?</style>', re.S)
+# Prototype-only plumbing, excluded from the parity claim: the direction
+# switcher, and the `direction=` query parameter the prototype threads through
+# every link. In the product a route names a screen, never a visual direction.
+SEMANTIC_STRIP = re.compile(
+    r'<nav class="vf-chrome".*?</nav>'
+    r'|direction=[a-z-]+&amp;'
+    r'|\sdata-direction="[^"]*"|\sclass="[^"]*"|<style>.*?</style>', re.S)
 
 
 def semantic_fingerprint(html):
@@ -103,20 +108,25 @@ def semantic_fingerprint(html):
 
 
 def check_semantic_parity():
+    """Every screen must be byte-identical across directions once prototype
+    chrome and styling hooks are stripped."""
     from surfaces import visual_fixture
     data = load()
-    prints = {d: semantic_fingerprint(visual_fixture.page(data, d)) for d in DIRECTIONS}
-    base = prints[DIRECTIONS[0]]
-    for d in DIRECTIONS[1:]:
-        if prints[d] != base:
-            fail("direction %s forked the semantic markup" % d)
+    for sid in visual_fixture.stage_ids(data):
+        prints = {d: semantic_fingerprint(visual_fixture.page(data, d, stage_id=sid))
+                  for d in DIRECTIONS}
+        base = prints[DIRECTIONS[0]]
+        for d in DIRECTIONS[1:]:
+            if prints[d] != base:
+                fail("direction %s forked the markup on screen %s" % (d, sid))
     ok("check_semantic_parity")
 
 
 def check_directions_differ():
     from surfaces import visual_fixture
     data = load()
-    pages = {d: visual_fixture.page(data, d) for d in DIRECTIONS}
+    pages = {d: visual_fixture.page(data, d, stage_id="long_lesson")
+             for d in DIRECTIONS}
     if len(set(pages.values())) != len(DIRECTIONS):
         fail("two directions rendered byte-identical pages, so no comparison exists")
     ok("check_directions_differ")
@@ -202,6 +212,85 @@ def check_directions_are_deletable():
     ok("check_directions_are_deletable")
 
 
+def check_multi_page_flow():
+    """The prototype is a sequence of screens, not one scroll. Each screen
+    renders exactly one stage and links to its neighbours."""
+    from surfaces import visual_fixture
+    data = load()
+    ids = visual_fixture.stage_ids(data)
+    if len(ids) < 2:
+        fail("fixture has too few stages to form a flow")
+        return
+    for index, sid in enumerate(ids):
+        html = visual_fixture.page(data, "structured-studio", stage_id=sid)
+        body = html.split("<main>", 1)[1].rsplit("</main>", 1)[0]
+        stages_rendered = re.findall(r'<section class="vf-stage" data-stage="([^"]+)"', body)
+        if stages_rendered != [sid]:
+            fail("screen %s rendered %d stages, expected exactly one"
+                 % (sid, len(stages_rendered)))
+        if "Step %d of %d" % (index + 1, len(ids)) not in body:
+            fail("screen %s does not state its position in the flow" % sid)
+        if index > 0 and ("stage=" + ids[index - 1]) not in body:
+            fail("screen %s has no link back" % sid)
+        if index < len(ids) - 1 and ("stage=" + ids[index + 1]) not in body:
+            fail("screen %s has no link forward" % sid)
+    ok("check_multi_page_flow")
+
+
+def check_all_directions_reachable():
+    """Weibao asked to keep all three rather than freeze one, so every screen
+    offers every direction."""
+    from surfaces import visual_fixture
+    data = load()
+    for sid in visual_fixture.stage_ids(data):
+        html = visual_fixture.page(data, "quiet-workbench", stage_id=sid)
+        for d in DIRECTIONS:
+            if ("direction=" + d) not in html:
+                fail("screen %s cannot reach direction %s" % (sid, d))
+    ok("check_all_directions_reachable")
+
+
+def check_hover_definitions():
+    """Confusing terms carry a definition that ships with the page and works
+    with no network and no JavaScript, and it comes from the one shipped
+    glossary in surfaces/lesson.py rather than a second implementation."""
+    from surfaces import visual_fixture
+    data = load()
+    terms = {t["slug"] for t in data.get("terms", [])}
+    if "inspiration" not in terms:
+        fail("the fixture does not define inspiration, the term that prompted this")
+    html = visual_fixture.page(data, "structured-studio", stage_id="long_lesson")
+    body = html.split("<main>", 1)[1].rsplit("</main>", 1)[0]
+    if 'popovertarget="gloss-inspiration"' not in body:
+        fail("inspiration is not marked as a hover term in the lesson")
+    if "Breathing in" not in body:
+        fail("the definition text does not ship with the page")
+    for slug in ("inspiration", "patent"):
+        if ('id="gloss-%s"' % slug) not in body:
+            fail("term %s has no popover panel in the page" % slug)
+        if ('id="term-%s"' % slug) not in body:
+            fail("term %s is missing from the glossary appendix" % slug)
+    if "aria-label" in body.split('popovertarget="gloss-inspiration"')[0][-160:]:
+        fail("a definition rode in on the trigger accessible name")
+    src = open(os.path.join(ROOT, "surfaces", "visual_fixture.py"), encoding="utf-8").read()
+    if "_gloss_trigger_html" not in src or "_gloss_panel_html" not in src:
+        fail("visual_fixture built its own glossary instead of reusing lesson.py")
+    ok("check_hover_definitions")
+
+
+def check_no_raw_term_markers():
+    """A [[term]] with no glossary entry must never reach the page as literal
+    brackets."""
+    from surfaces import visual_fixture
+    data = load()
+    for sid in visual_fixture.stage_ids(data):
+        html = visual_fixture.page(data, "structured-studio", stage_id=sid)
+        body = html.split("<main>", 1)[1].rsplit("</main>", 1)[0]
+        if "[[" in body or "]]" in body:
+            fail("screen %s leaked a raw term marker" % sid)
+    ok("check_no_raw_term_markers")
+
+
 def main():
     check_fixture_shape()
     check_no_em_dash()
@@ -214,6 +303,10 @@ def main():
     check_route_is_dev_only()
     check_one_shell()
     check_directions_are_deletable()
+    check_multi_page_flow()
+    check_all_directions_reachable()
+    check_hover_definitions()
+    check_no_raw_term_markers()
     if failures:
         print("\n%d failure(s)" % len(failures))
         return 1

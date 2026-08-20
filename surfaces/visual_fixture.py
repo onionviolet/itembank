@@ -14,11 +14,12 @@ This module renders a fixture. It holds no key, scores nothing, and reaches no
 session state. It is development-only and its route stays behind an explicit
 opt in.
 """
+import io
 import json
 import os
 import re
 
-from surfaces import presentation, theme
+from surfaces import lesson, presentation, theme
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROTOTYPE_DIR = os.path.join(ROOT, "prototypes", "17a")
@@ -44,6 +45,107 @@ FIXED_RULES = """
 }
 [data-state] { border-left: 4px solid var(--line); }
 .vf-locked { border-left: 4px solid var(--unknown); }
+"""
+
+
+# Structure shared by all three directions: the type scale, the prototype
+# toolbar, and the pager. A direction overlay changes layout, weight and
+# rhythm on top of this; it never re-declares the scale, or the three
+# directions would be comparing typography instead of layout.
+CHROME_CSS = """
+.surface { padding-block: var(--space-5) var(--space-7); }
+h1 { font-size: var(--vf-h1); line-height: 1.15; letter-spacing: -0.02em;
+     margin: 0 0 var(--space-2); }
+.vf-stage h2 { font-size: var(--vf-h2); line-height: 1.2;
+     letter-spacing: -0.015em; margin: 0 0 var(--space-4); }
+.vf-stage h3 { font-size: var(--vf-h3); line-height: 1.3; margin:
+     var(--space-5) 0 var(--space-2); color: var(--ink); }
+.vf-stage p, .vf-stage li, .vf-stage td { font-size: var(--vf-body);
+     line-height: var(--vf-leading); }
+.vf-status, .vf-legend, .vf-progress, .vf-chrome-label, .vf-denominator,
+.vf-source, figcaption { font-size: var(--vf-meta); color: var(--mut);
+     font-family: var(--font-ledger); }
+
+/* Prototype toolbar. Deliberately reads as scaffolding, not as product. */
+.vf-chrome { display: flex; flex-wrap: wrap; align-items: center;
+     gap: var(--space-2) var(--space-3); padding: var(--space-2) var(--space-3);
+     margin-bottom: var(--space-6); border: 1px dashed var(--line);
+     border-radius: var(--r-2); background: var(--chip); }
+.vf-chrome-label { margin: 0; text-transform: uppercase;
+     letter-spacing: .09em; font-size: var(--vf-micro); }
+.vf-dirs, .vf-steps { display: flex; flex-wrap: wrap; gap: var(--space-1);
+     list-style: none; margin: 0; padding: 0; }
+.vf-steps { counter-reset: vfs; }
+.vf-dirs a, .vf-steps a { display: inline-block; padding: 2px var(--space-2);
+     border-radius: var(--r-1); text-decoration: none; color: var(--mut);
+     font-size: var(--vf-micro); border: 1px solid transparent; }
+.vf-dirs a:hover, .vf-steps a:hover { color: var(--ink); background: var(--card); }
+.vf-dirs a[aria-current], .vf-steps a[aria-current] { color: var(--ink);
+     background: var(--card); border-color: var(--line); font-weight: 600; }
+
+/* Pager: the flow control the product would actually have. */
+.vf-pager { display: flex; flex-wrap: wrap; align-items: center;
+     gap: var(--space-3); margin-top: var(--space-7);
+     padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.vf-progress { margin: 0; margin-inline-end: auto; }
+.vf-prev, .vf-next { text-decoration: none; font-size: var(--vf-body);
+     padding: var(--space-2) var(--space-4); border-radius: var(--r-2);
+     border: 1px solid var(--line); color: var(--ink); }
+.vf-next { background: var(--accent); color: var(--card); border-color: var(--accent); }
+.vf-prev:hover { background: var(--chip); }
+.vf-next:hover { filter: brightness(1.08); }
+
+/* Content forms. */
+.vf-def { margin: var(--space-5) 0; padding-inline-start: var(--space-4);
+     border-inline-start: 3px solid var(--accent); }
+.vf-def dt { font-weight: 650; font-size: var(--vf-h3); margin-bottom: var(--space-1); }
+.vf-def dd { margin: 0; }
+.vf-warn { margin: var(--space-5) 0; padding: var(--space-3) var(--space-4);
+     border-radius: var(--r-2); background: var(--warn-bg);
+     border-inline-start: 4px solid var(--warn); }
+.vf-warn p { margin: 0; }
+.vf-predict { margin: var(--space-5) 0; padding: var(--space-3) var(--space-4);
+     border-radius: var(--r-2); background: var(--chip); }
+.vf-predict p { margin: 0; font-style: italic; }
+.vf-check { margin: var(--space-6) 0; padding: var(--space-4);
+     border-radius: var(--r-2); border: 1px solid var(--line); background: var(--card); }
+.vf-check ul { list-style: none; padding: 0; margin: var(--space-3) 0; }
+.vf-check li { padding: var(--space-2) var(--space-3); margin-bottom: var(--space-2);
+     border: 1px solid var(--line); border-radius: var(--r-1); background: var(--bg); }
+.vf-table-wrap { margin: var(--space-5) 0; overflow-x: auto; }
+.vf-table-wrap table { border-collapse: collapse; width: 100%; }
+.vf-table-wrap th, .vf-table-wrap td { text-align: start;
+     padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); }
+.vf-table-wrap th { font-size: var(--vf-meta); text-transform: uppercase;
+     letter-spacing: .07em; color: var(--mut); font-family: var(--font-ledger); }
+.vf-image-slot { aspect-ratio: 16 / 7; border-radius: var(--r-2);
+     border: 1px dashed var(--line); background: var(--chip); }
+.vf-figure { margin: var(--space-5) 0; }
+.vf-fill { display: inline-block; width: 14px; height: 14px;
+     border-radius: var(--r-1); border: 1px solid var(--edge); margin-inline-end: 3px; }
+.vf-fill-on { background: var(--accent); border-color: var(--accent); }
+.vf-fill-off { background: transparent; }
+.vf-shelf { list-style: none; padding: 0; margin: 0; }
+.vf-card h3 { margin: 0 0 var(--space-1); font-size: var(--vf-h3); }
+.vf-card p { margin: 0; }
+.vf-diff { list-style: none; padding: 0; }
+.vf-diff li { padding: var(--space-1) var(--space-3); border-radius: var(--r-1);
+     font-family: var(--font-code); font-size: var(--vf-meta); }
+.vf-diff-add { background: var(--ok-bg); border-inline-start: 3px solid var(--ok); }
+.vf-diff-context { color: var(--mut); }
+.vf-feedback { margin: var(--space-4) 0; padding: var(--space-3) var(--space-4);
+     border-radius: var(--r-2); background: var(--bad-bg); }
+.vf-feedback p { margin: 0; }
+.vf-answer { margin: 0 0 var(--space-3); }
+button[type="button"]:not(.term) { font: inherit; font-size: var(--vf-body);
+     padding: var(--space-2) var(--space-4); border-radius: var(--r-2);
+     border: 1px solid var(--line); background: var(--card); color: var(--ink);
+     cursor: pointer; }
+button[type="button"]:not(.term):hover { background: var(--chip); }
+@media (max-width: 767px) {
+  .vf-pager { flex-direction: column; align-items: stretch; }
+  .vf-prev, .vf-next { text-align: center; }
+}
 """
 
 
@@ -105,6 +207,33 @@ def _esc(value):
     return presentation.esc("" if value is None else str(value))
 
 
+TERM_RE = re.compile(r"\[\[([^\]]+)\]\]")
+
+
+def gloss_map(data):
+    """Slug -> record, in authored order, in the shape lesson.py already uses."""
+    out = {}
+    for entry in data.get("terms", []):
+        out[entry["slug"]] = {"canonical": entry["canonical"], "def": entry["def"]}
+    return out
+
+
+def mark_terms(text, seen=None):
+    """Replace every [[term]] with the shipped popover trigger.
+
+    The trigger, the panel and the appendix all come from surfaces/lesson.py.
+    Building a second glossary here would put two hover definitions in the
+    product, which is the same mistake as a second scorer.
+    """
+    def swap(match):
+        raw = match.group(1)
+        slug = raw.lower().replace(" ", "-")
+        if seen is not None:
+            seen.add(slug)
+        return lesson._gloss_trigger_html(raw, slug)
+    return TERM_RE.sub(swap, text)
+
+
 def _fill_blocks(filled, total=5):
     """Five discrete blocks, never a continuous bar and never a percentage
     (D-06 ruling 10). The legend text always sits beside them."""
@@ -148,15 +277,17 @@ def _lesson(stage):
         form = block.get("form")
         if form == "definition":
             parts.append('<dl class="vf-def"><dt>%s</dt><dd>%s</dd></dl>'
-                         % (_esc(block.get("term")), _esc(block.get("body"))))
+                         % (mark_terms(_esc(block.get("term"))),
+                            mark_terms(_esc(block.get("body")))))
         elif form == "warning":
             parts.append('<aside class="vf-warn" data-state="warn">'
                          '<p><strong>Watch for this.</strong> %s</p></aside>'
-                         % _esc(block.get("body")))
+                         % mark_terms(_esc(block.get("body"))))
         elif form == "table":
             head = "".join("<th scope=\"col\">%s</th>" % _esc(h)
                            for h in block.get("head", []))
-            rows = "".join("<tr>%s</tr>" % "".join("<td>%s</td>" % _esc(c) for c in row)
+            rows = "".join("<tr>%s</tr>"
+                           % "".join("<td>%s</td>" % mark_terms(_esc(c)) for c in row)
                            for row in block.get("rows", []))
             parts.append('<figure class="vf-table-wrap"><figcaption>%s</figcaption>'
                          '<table><thead><tr>%s</tr></thead><tbody>%s</tbody></table>'
@@ -168,7 +299,7 @@ def _lesson(stage):
                          % (_esc(block.get("alt")), _esc(block.get("credit"))))
         elif form == "inline_prediction":
             parts.append('<aside class="vf-predict"><p>%s</p></aside>'
-                         % _esc(block.get("prompt")))
+                         % mark_terms(_esc(block.get("prompt"))))
         elif form == "inline_check":
             options = "".join("<li>%s</li>" % _esc(o) for o in block.get("options", []))
             parts.append('<section class="vf-check"><h3>Check yourself</h3>'
@@ -246,65 +377,168 @@ RENDERERS = {"shelf": _shelf, "objective": _objective, "lesson": _lesson,
              "proposal": _proposal, "status": _status}
 
 
-def render_body(data):
-    """The semantic body, identical for every direction.
+STAGE_LABELS = {
+    "shelf_resume": "Courses",
+    "source_linked_objective": "Objective",
+    "long_lesson": "Read",
+    "wrong_answer_retry": "Practice",
+    "evidence_review": "Evidence",
+    "ai_proposed_change": "Review change",
+    "agent_offline_status": "Status",
+}
 
-    An empty or unrecognized flow renders an explicit unavailable state rather
-    than an empty page or an invented number, because a prototype that quietly
-    shows nothing reads as a working prototype with no content.
-    """
-    stages = data.get("stages") or []
-    if not stages:
+
+def stage_ids(data):
+    return [stage.get("id") for stage in data.get("stages", [])]
+
+
+def find_stage(data, stage_id):
+    for stage in data.get("stages", []):
+        if stage.get("id") == stage_id:
+            return stage
+    return None
+
+
+def _link(direction, stage_id, label, current=""):
+    return ('<li><a href="?direction=%s&amp;stage=%s"%s>%s</a></li>'
+            % (direction, stage_id, current, _esc(label)))
+
+
+def _prototype_chrome(data, direction, stage_id):
+    """Navigation that exists because this is a prototype, not because the
+    product has it. It is excluded from the semantic-parity fingerprint for
+    exactly that reason: comparing two directions must not compare their
+    prototype chrome."""
+    ids = stage_ids(data)
+    dirs = "".join(
+        _link(d, stage_id, d.replace("-", " "),
+              ' aria-current="true"' if d == direction else "")
+        for d in DIRECTIONS)
+    steps = "".join(
+        _link(direction, sid, STAGE_LABELS.get(sid, sid),
+              ' aria-current="page"' if sid == stage_id else "")
+        for sid in ids)
+    return ('<nav class="vf-chrome" data-prototype-chrome '
+            'aria-label="Prototype controls">'
+            '<p class="vf-chrome-label">Direction</p>'
+            '<ul class="vf-dirs">%s</ul>'
+            '<p class="vf-chrome-label">Flow</p>'
+            '<ol class="vf-steps">%s</ol></nav>' % (dirs, steps))
+
+
+def _pager(data, direction, stage_id):
+    ids = stage_ids(data)
+    index = ids.index(stage_id)
+    links = []
+    if index > 0:
+        links.append('<a class="vf-prev" href="?direction=%s&amp;stage=%s">'
+                     'Back to %s</a>'
+                     % (direction, ids[index - 1],
+                        _esc(STAGE_LABELS.get(ids[index - 1], ""))))
+    if index < len(ids) - 1:
+        links.append('<a class="vf-next" href="?direction=%s&amp;stage=%s">'
+                     'Continue to %s</a>'
+                     % (direction, ids[index + 1],
+                        _esc(STAGE_LABELS.get(ids[index + 1], ""))))
+    return ('<nav class="vf-pager" aria-label="Flow"><p class="vf-progress">'
+            "Step %d of %d</p>%s</nav>"
+            % (index + 1, len(ids), "".join(links)))
+
+
+def render_stage(data, stage_id):
+    """One stage as one screen. The product is a sequence of screens rather
+    than one long scroll, so a prototype that stacks every state on one page
+    is not testing the flow it claims to test."""
+    stage = find_stage(data, stage_id)
+    if stage is None:
         return presentation.state_panel({
             "kind": "unknown",
-            "status": "Flow data is unavailable. This prototype renders synthetic "
-                      "fixture content only, and none was supplied."})
-    sections = []
-    for index, stage in enumerate(stages, start=1):
-        renderer = RENDERERS.get(stage.get("kind"))
-        if renderer is None:
-            inner = presentation.state_panel({
-                "kind": "unknown",
-                "status": "This stage kind is unavailable in the fixture renderer."})
-        else:
-            inner = renderer(stage)
-        sections.append(
-            '<section class="vf-stage" data-stage="%s">'
-            '<h2><span class="vf-step">Step %d</span> %s</h2>%s</section>'
-            % (_esc(stage.get("id")), index, _esc(stage.get("title")), inner))
-    return "".join(sections)
+            "status": "This screen is unavailable. The prototype renders "
+                      "synthetic fixture content only, and this flow stage "
+                      "was not supplied."})
+    renderer = RENDERERS.get(stage.get("kind"))
+    if renderer is None:
+        return presentation.state_panel({
+            "kind": "unknown",
+            "status": "This stage kind is unavailable in the fixture renderer."})
+    return ('<section class="vf-stage" data-stage="%s"><h2>%s</h2>%s</section>'
+            % (_esc(stage.get("id")), _esc(stage.get("title")), renderer(stage)))
+
+
+def render_body(data, stage_id=None, direction=DEFAULT_DIRECTION):
+    ids = stage_ids(data)
+    if not ids:
+        return presentation.state_panel({
+            "kind": "unknown",
+            "status": "Flow data is unavailable. This prototype renders "
+                      "synthetic fixture content only, and none was supplied."})
+    if stage_id not in ids:
+        stage_id = ids[0]
+    inner = render_stage(data, stage_id)
+    gmap = gloss_map(data)
+    used = dict((slug, rec) for slug, rec in gmap.items()
+                if ('gloss-%s' % slug) in inner)
+    panels = "".join(lesson._gloss_panel_html(rec, slug)
+                     for slug, rec in used.items())
+    appendix = lesson._glossary_html(used, {}) if used else ""
+    return "".join([_prototype_chrome(data, direction, stage_id),
+                    inner, panels, appendix,
+                    _pager(data, direction, stage_id)])
 
 
 def token_css(tokens):
     safe = clamp_tokens(tokens)
+    tight = safe["density"] == "compact"
     return (":root{--vf-density:%s;--vf-measure:%s;--vf-leading:%s;"
-            "--vf-text-xs:0.82rem;--accent:%s;}"
-            % (safe["density"], safe["measure"], safe["leading"], safe["accent"]))
+            "--vf-text-xs:0.8125rem;--vf-micro:0.75rem;--vf-meta:0.8125rem;"
+            "--vf-body:%s;--vf-h3:1.125rem;--vf-h2:%s;--vf-h1:%s;"
+            "--accent:%s;}"
+            % (safe["density"], safe["measure"], safe["leading"],
+               "1rem" if tight else "1.0625rem",
+               "1.375rem" if tight else "1.5rem",
+               "1.75rem" if tight else "2rem",
+               safe["accent"]))
 
 
-def page(data, direction=DEFAULT_DIRECTION, tokens=None):
-    """One rendered direction. The body never varies; the style block does."""
+def page(data, direction=DEFAULT_DIRECTION, tokens=None, stage_id=None):
+    """One screen of one direction. The body never varies by direction; the
+    style block does. Hover definitions come from surfaces/lesson.py, so the
+    product has one glossary implementation rather than two."""
     if direction not in DIRECTIONS:
         direction = DEFAULT_DIRECTION
-    base = theme.theme_css(theme.DEFAULT_THEME_CONFIG)
-    css = "\n".join([base, token_css(tokens), FIXED_RULES, direction_css(direction)])
+    body = render_body(data, stage_id, direction)
+    marked = set(re.findall(r'popovertarget="gloss-([a-z0-9-]+)"', body))
+    css = "\n".join([theme.theme_css(theme.DEFAULT_THEME_CONFIG),
+                      token_css(tokens), CHROME_CSS, lesson.gloss_css(),
+                      lesson._gloss_anchor_css(marked), FIXED_RULES,
+                      direction_css(direction)])
+    stage = find_stage(data, stage_id) or (data.get("stages") or [{}])[0]
+    title = stage.get("title") or "Visual direction prototype (synthetic)"
     return presentation.surface_shell(
-        "Visual direction: %s (synthetic)" % direction,
-        render_body(data),
-        theme_css=css,
-        context=["Synthetic fixture", "Development only", "Direction: %s" % direction],
-        noscript="This prototype needs no JavaScript. Everything above is static.")
+        title, body, theme_css=css,
+        context=["Synthetic fixture", "Development only",
+                 "Direction: %s" % direction],
+        noscript="Hover definitions also open on click, with no JavaScript.")
 
 
 def write_static(out_dir, data=None):
-    """Write the three directions as standalone files, for looking at them side
-    by side without running a server."""
+    """Write every direction and every screen as linked static files, so the
+    whole flow is walkable by opening one file with no server running."""
     data = data if data is not None else load_fixture()
-    os.makedirs(out_dir, exist_ok=True)
     written = []
+    ids = stage_ids(data)
     for direction in DIRECTIONS:
-        path = os.path.join(out_dir, direction + ".html")
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(page(data, direction))
-        written.append(path)
+        target = os.path.join(out_dir, direction)
+        os.makedirs(target, exist_ok=True)
+        for sid in ids:
+            markup = page(data, direction, stage_id=sid)
+            for other in DIRECTIONS:
+                for other_stage in ids:
+                    markup = markup.replace(
+                        'href="?direction=%s&amp;stage=%s"' % (other, other_stage),
+                        'href="../%s/%s.html"' % (other, other_stage))
+            path = os.path.join(target, sid + ".html")
+            with io.open(path, "w", encoding="utf-8") as fh:
+                fh.write(markup)
+            written.append(path)
     return written

@@ -135,3 +135,76 @@ choice is 17A-02's `checkpoint:decision` and belongs to Weibao.
 17A-02: review all three renderings at 1280, 768, and 375 pixels and record the
 chosen direction in `17A-DIRECTION.md`. That plan is `autonomous: false` by
 design.
+
+---
+
+## Revision, 2026-08-20, after Weibao's review
+
+Three corrections, all from direct feedback on the first rendering.
+
+**1. Keep all three directions, do not freeze one.** `PLANNING-DIRECTIVES.md`
+section 1 already records the standing rule: "if conflicting potentially
+implement all of them and let the user choose in the future". The prototype now
+carries a direction switcher on every screen, and
+`check_all_directions_reachable` asserts every screen can reach every
+direction. 17A-02 becomes a default-picking decision rather than a
+delete-the-losers decision.
+
+**2. Hover definitions for confusable terms.** Weibao named the real case:
+"inspiration" in a respiratory context means breathing in, not a good idea.
+The Phase 3.1 glossary already shipped this (`## TERMS`, `[[term]]`, the
+Popover API trigger, the panel, the appendix, the print fallback), so the
+fixture reuses `lesson._gloss_trigger_html`, `lesson._gloss_panel_html`,
+`lesson._glossary_html`, and `lesson._gloss_anchor_css` rather than building a
+second glossary. A second hover-definition implementation would be the same
+class of mistake as a second scorer.
+
+`lesson.gloss_css()` was added as a slice of the shipped `LESSON_CSS`, guarded
+by explicit markers that raise if they move, so the tracer and the reader style
+their definitions from the same bytes. `LESSON_CSS` itself is unchanged.
+
+Five terms are defined: inspiration, patent, acute, oropharynx, stridor. Each
+was chosen because its everyday meaning misleads.
+`check_hover_definitions` asserts the definition text ships with the page, the
+panel and appendix entry both exist, and no definition rides on the trigger's
+accessible name. `check_no_raw_term_markers` asserts no `[[term]]` reaches a
+page as literal brackets.
+
+**3. The first rendering was a state catalog, not a flow.** Weibao: "where is
+the logical multi page flow". Correct, and the tracer scope is the reason:
+seven states stacked on one scroll proves the seam and tests nothing about
+navigation. The prototype is now seven screens, one stage each, with a pager
+that states "Step N of 7" and links back and forward.
+`check_multi_page_flow` asserts each screen renders exactly one stage, states
+its position, and links to both neighbours.
+
+Semantic parity is now asserted per screen. The fingerprint additionally
+strips the prototype chrome nav and the `direction=` query parameter, both of
+which are prototype plumbing rather than product markup: in the product a route
+names a screen, never a visual direction.
+
+**Design pass.** `CHROME_CSS` in `visual_fixture.py` now carries a real type
+scale (`--vf-h1` through `--vf-micro`, tightening under compact density), a
+spacing rhythm, and styling for every content form. The three direction files
+were rewritten to differ by layout and rhythm rather than by border colour:
+Structured Studio is a two-column workspace with a support rail, Quiet
+Workbench is a single 46rem column with no card edges at all, and Guided Canvas
+is a single stepped panel with a named step band and pill controls.
+
+**Static export is now walkable.** `write_static` writes 21 files, seven
+screens for each of three directions, and rewrites the query links into sibling
+file links so the whole flow can be walked by opening one file with no server.
+
+### Verification after the revision
+
+```
+$ python tests/visual_system_roundtrip.py     15/15 checks pass
+$ python tests/stylesheet_roundtrip.py        PASS
+$ python itembank.py guard .                  0 offending files
+```
+
+`tests/lesson_roundtrip.py` fails on "plain-bank public item drifted from the
+pre-13.5 golden". This was verified as pre-existing: stashing every change in
+this working tree leaves it failing. The cause is the modified
+`fixtures/quiz_public_item_pre_13_5.json` that arrived from a concurrent track,
+not this plan.

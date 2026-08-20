@@ -1,27 +1,69 @@
-/* Direction overlay for the 17A comparison. Deletable on its own:
-   nothing outside this file references it, and removing it leaves the other
-   two directions and every shipped surface untouched (D-04). */
+/* Guided Canvas. Deletable on its own (D-04).
 
-/* Guided Canvas: staged panels with numbered steps. Progress is stated in
-   words, never as a percentage, because no denominator backs one here. */
-.surface { max-width: var(--measure-wide); }
-main { display: block; counter-reset: vfstage; }
-.vf-stage { counter-increment: vfstage; border: 2px solid var(--line);
-            border-radius: var(--r-3); background: var(--card);
-            padding: var(--space-5); margin-bottom: var(--space-5);
-            position: relative; }
-.vf-stage[data-stage="long_lesson"],
-.vf-stage[data-stage="wrong_answer_retry"] { border-color: var(--accent);
-            background: var(--accent-soft); }
-.vf-step { display: inline-block; border: 1px solid var(--line);
-           border-radius: var(--r-1); padding: 0 var(--space-2);
-           background: var(--chip); color: var(--ink);
-           margin-right: var(--space-2); }
-.vf-stage h2 { display: flex; align-items: baseline; gap: var(--space-2);
-               flex-wrap: wrap; }
-.vf-card { border: 1px solid var(--line); border-radius: var(--r-2);
-           padding: var(--space-3); background: var(--bg); }
-.vf-shelf { list-style: none; padding: 0; display: grid; gap: var(--space-3); }
-.vf-check, .vf-predict { border: 2px solid var(--accent);
-           border-radius: var(--r-2); padding: var(--space-4);
-           background: var(--card); }
+   Thesis: one step at a time, with the step named. The screen tells you where
+   you are before it tells you anything else. Progress is stated in words
+   because no denominator backs a percentage here. This is the direction to
+   pick if you want the app to lead rather than to present. */
+
+.surface { max-width: 60rem; }
+
+main { display: block; }
+
+.vf-stage {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--card);
+  padding: var(--space-7) var(--space-6) var(--space-6);
+  max-width: var(--vf-measure);
+  margin-inline: auto;
+  box-shadow: 0 1px 0 var(--line);
+}
+
+/* The stage band: a named step, not a progress bar. */
+.vf-stage::before {
+  content: "Guided step";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: var(--space-6);
+  transform: translateY(-50%);
+  padding: 2px var(--space-3);
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--card);
+  font-family: var(--font-ledger);
+  font-size: var(--vf-micro);
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.vf-stage h2 { font-size: 1.875rem; margin-bottom: var(--space-5); }
+
+.vf-check, .vf-predict {
+  border: 2px solid var(--accent);
+  border-radius: var(--r-3);
+  background: var(--bg);
+  padding: var(--space-5);
+}
+.vf-check li:hover { border-color: var(--accent); background: var(--card); }
+
+.vf-warn { border-radius: var(--r-3); border-inline-start-width: 6px; }
+
+.vf-shelf { display: grid; gap: var(--space-3); }
+.vf-card { border-radius: var(--r-3); padding: var(--space-4);
+  background: var(--bg); }
+
+.vf-pager { max-width: var(--vf-measure); margin-inline: auto;
+  border-top: 0; padding-top: var(--space-5); }
+.vf-next { padding-inline: var(--space-6); border-radius: 999px; }
+.vf-prev { border-radius: 999px; }
+
+.vf-progress { font-weight: 600; color: var(--ink); }
+
+.vf-chrome { border-radius: var(--r-3); }
+
+@media (max-width: 767px) {
+  .vf-stage { padding: var(--space-6) var(--space-4) var(--space-4);
+    border-radius: var(--r-2); }
+  .vf-stage::before { inset-inline-start: var(--space-4); }
+}

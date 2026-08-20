@@ -757,6 +757,26 @@ GLOSS_HOVER_JS = """<script>
 </script>"""
 
 
+
+# The glossary rules are sliced out of the shipped LESSON_CSS rather than copied,
+# so the 17A visual tracer and any later surface that shows a hover definition
+# style it from the same bytes the reader uses. A copy would drift silently; a
+# slice fails loudly the moment the markers move.
+GLOSS_CSS_START = ".term{text-decoration:underline dotted"
+GLOSS_CSS_END = ".gloss-back:hover,.gloss-back:focus-visible{text-decoration:underline}"
+
+
+def gloss_css():
+    """Just the term-trigger, popover-panel and glossary-appendix rules."""
+    start = LESSON_CSS.find(GLOSS_CSS_START)
+    end = LESSON_CSS.find(GLOSS_CSS_END)
+    if start == -1 or end == -1:
+        raise RuntimeError(
+            "glossary CSS markers moved in LESSON_CSS; update GLOSS_CSS_START/END "
+            "rather than copying the rules into a second stylesheet")
+    return LESSON_CSS[start:end + len(GLOSS_CSS_END)]
+
+
 def _gloss_trigger_html(ref_text, slug):
     """One Popover-API trigger (03.1-UI-SPEC §8.1 DOM LOCKED): a real
     `<button>` whose accessible name is the term text itself -- no

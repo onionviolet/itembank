@@ -1,27 +1,80 @@
-/* Direction overlay for the 17A comparison. Deletable on its own:
-   nothing outside this file references it, and removing it leaves the other
-   two directions and every shipped surface untouched (D-04). */
+/* Structured Studio. Deletable on its own: nothing outside this file
+   references it, and removing it leaves the other two directions and every
+   shipped surface untouched (D-04).
 
-/* Structured Studio: two column workspace, sticky context, bordered cards. */
-.surface { max-width: var(--measure-wide); }
-main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-       gap: var(--space-5); align-items: start; }
-.vf-stage { border: 1px solid var(--line); border-radius: var(--r-2);
-            background: var(--card); padding: var(--space-4);
-            margin-bottom: var(--space-4); }
+   Thesis: a workspace. The reading column carries the activity, a support rail
+   carries the things you glance at rather than read. Everything is bounded by
+   a visible card edge, so the eye can tell one region from the next without
+   reading it first. */
+
+.surface { max-width: 1120px; }
+
+main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 19rem;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.vf-chrome { grid-column: 1 / -1; }
+.vf-pager { grid-column: 1 / -1; }
+
+.vf-stage {
+  grid-column: 1;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--card);
+  padding: var(--space-6);
+  max-width: var(--vf-measure);
+}
+
+/* The support rail: reference material, not the thing you are doing. */
 .vf-stage[data-stage="source_linked_objective"],
-.vf-stage[data-stage="agent_offline_status"] { grid-column: 2; }
-.vf-stage[data-stage="shelf_resume"],
-.vf-stage[data-stage="long_lesson"],
-.vf-stage[data-stage="wrong_answer_retry"],
-.vf-stage[data-stage="evidence_review"],
-.vf-stage[data-stage="ai_proposed_change"] { grid-column: 1; }
-.vf-step { display: inline-block; font: var(--vf-text-xs);
-           color: var(--mut); margin-right: var(--space-2); }
-.vf-card { border: 1px solid var(--line); border-radius: var(--r-2);
-           padding: var(--space-3); background: var(--bg); }
-.vf-shelf { list-style: none; padding: 0; display: grid; gap: var(--space-3); }
-.context-line { position: sticky; top: 0; background: var(--card);
-                border-bottom: 1px solid var(--line); }
-@media (max-width: 767px) { main { grid-template-columns: 1fr; }
-  .vf-stage[data-stage] { grid-column: 1; } }
+.vf-stage[data-stage="agent_offline_status"] {
+  grid-column: 2;
+  grid-row: 2;
+  padding: var(--space-4);
+  background: var(--bg);
+  border-style: solid;
+  border-radius: var(--r-2);
+}
+
+.vf-stage[data-stage="source_linked_objective"] h2,
+.vf-stage[data-stage="agent_offline_status"] h2 {
+  font-size: var(--vf-h3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.context-line {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-2) var(--r-2) 0 0;
+}
+
+.vf-shelf {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: var(--space-3);
+}
+
+.vf-card {
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  padding: var(--space-4);
+  background: var(--bg);
+}
+
+.vf-card:hover { border-color: var(--edge); }
+
+.vf-locked { background: var(--chip); }
+
+@media (max-width: 899px) {
+  main { grid-template-columns: 1fr; }
+  .vf-stage[data-stage] { grid-column: 1; grid-row: auto; }
+  .vf-stage { padding: var(--space-4); }
+}
