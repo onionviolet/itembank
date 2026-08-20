@@ -1640,14 +1640,19 @@ def main():
         check_dep_pin_record_and_hosting_doc,
     ]
     # `cryptography`/`PyJWT` are optional and pinned: the surface refuses
-    # with `crypto_missing` when they are absent, and the three checks above
-    # that prove the refusal need nothing installed. Everything after them
-    # mints RSA keys and signs JWTs, so without the deps those checks were
-    # not testing the LTI surface -- they were re-testing the refusal, and
-    # reporting it as a failure. Run what can run, and name what did not.
-    crypto_free = {"check_registry_one_platform_per_issuer",
-                   "check_crypto_guard_doctor_refusal",
-                   "check_settings_schema_lti_block",
+    # with `crypto_missing` when they are absent. Only two checks need
+    # nothing installed: check_registry_one_platform_per_issuer and
+    # check_crypto_guard_doctor_refusal both instantiate FakePlatform(),
+    # whose constructor unconditionally mints an RSA keypair via
+    # make_rsa_keypair() (line 68) even though neither check performs an
+    # actual signing operation of its own -- that incidental coupling means
+    # both still require cryptography to construct their fixture. Only
+    # check_settings_schema_lti_block and check_dep_pin_record_and_hosting_doc
+    # touch no FakePlatform and truly need nothing installed. Everything
+    # else mints RSA keys and signs JWTs, so without the deps those checks
+    # are not testing the LTI surface -- they are re-testing the refusal,
+    # and reporting it as a failure. Run what can run, and name what did not.
+    crypto_free = {"check_settings_schema_lti_block",
                    "check_dep_pin_record_and_hosting_doc"}
     have_crypto = lti.crypto_available()
     if not have_crypto:
@@ -1657,9 +1662,9 @@ def main():
         check()
         print("ok  %s" % check.__name__)
     if not have_crypto:
-        print("lti roundtrip: %d checks ok; the signing checks were SKIPPED "
-              "-- install the pins to run them: "
-              "pip install cryptography==43.0.0 PyJWT==2.10.1"
+        print("SKIP: lti signature checks (python package cryptography not "
+              "installed) -- %d crypto-free checks ok; install the pins to "
+              "run the rest: pip install cryptography==43.0.0 PyJWT==2.10.1"
               % len(checks))
     else:
         print("lti roundtrip: ok (%d checks)" % len(checks))
