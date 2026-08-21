@@ -598,6 +598,52 @@ def check_course_selector():
     ok("check_course_selector")
 
 
+def check_controls_never_break_midword():
+    """SHARED_CSS grants p overflow-wrap:anywhere so a long path in prose can
+    wrap. That inherits into any control inside a paragraph, which is how a
+    one-word button ends up stacking one letter per line in a narrow column.
+    Every control must opt back out."""
+    from surfaces import visual_fixture
+    css = visual_fixture.CHROME_CSS
+    rule = [block for sel, block in
+            re.findall(r"([^{}]+)\{([^}]*)\}", css)
+            if "overflow-wrap: normal" in block]
+    if not rule:
+        fail("no rule returns controls to normal word wrapping")
+        return
+    guarded = ""
+    for sel, block in re.findall(r"([^{}]+)\{([^}]*)\}", css):
+        if "overflow-wrap: normal" in block:
+            guarded += sel
+    for control in (".vf-next", ".vf-prev", ".vf-appnav a", "button"):
+        if control not in guarded:
+            fail("control %s can still break mid-word" % control)
+    if "word-break: keep-all" not in css:
+        fail("controls do not forbid a mid-word break")
+    ok("check_controls_never_break_midword")
+
+
+def check_accent_is_swappable():
+    """The accent is a real setting, not a hard-coded green: itembank theme
+    preview/set/reset/pick ships, and theme.derive_theme raises a colour that
+    fails contrast rather than accepting it. The prototype offers four so the
+    question answers itself by looking."""
+    from surfaces import visual_fixture, theme
+    if len(visual_fixture.ACCENTS) < 3:
+        fail("fewer than three accents are offered")
+    html = visual_fixture.single_file(load())
+    for name, hexcode in visual_fixture.ACCENTS:
+        if ('id="accent-%s"' % name) not in html:
+            fail("accent %s has no switch" % name)
+        if ("body:has(#accent-%s:checked)" % name) not in html:
+            fail("accent %s has no scoped palette" % name)
+        derived = theme.derive_theme(hexcode)
+        for mode in ("light", "dark"):
+            if not derived[mode].get("accent"):
+                fail("accent %s derives no %s token" % (name, mode))
+    ok("check_accent_is_swappable")
+
+
 def main():
     check_fixture_shape()
     check_no_em_dash()
@@ -626,6 +672,8 @@ def main():
     check_nav_entries_are_uniform()
     check_horizontal_shapes_cannot_stack_text()
     check_course_selector()
+    check_controls_never_break_midword()
+    check_accent_is_swappable()
     if failures:
         print("\n%d failure(s)" % len(failures))
         return 1

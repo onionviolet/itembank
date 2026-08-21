@@ -31,9 +31,10 @@
       ],
       "next_action": {
         "course": "EMT (synthetic)",
-        "label": "Continue: recognize a compromised airway",
+        "label": "Continue",
         "why": "Two objectives back you missed the same distinction twice. This reading addresses it directly.",
-        "stage": "long_lesson"
+        "stage": "long_lesson",
+        "objective": "Recognize a compromised airway"
       },
       "activity": [
         {

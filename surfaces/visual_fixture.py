@@ -33,6 +33,14 @@ DIRECTIONS = ("structured-studio", "quiet-workbench", "guided-canvas")
 # their routes are, and is silent on what the navigation looks like. All
 # three shapes render the same markup and differ only in CSS, so choosing
 # one later is a stylesheet decision and not a rewrite.
+ACCENTS = (
+    ("teal", "#0e6e62"),
+    ("indigo", "#4a4ad4"),
+    ("plum", "#8a3ffc"),
+    ("clay", "#b4531f"),
+)
+DEFAULT_ACCENT_ID = "teal"
+
 NAV_SHAPES = ("sidebar", "tabs", "bottom")
 DEFAULT_NAV = "sidebar"
 DEFAULT_DIRECTION = "structured-studio"
@@ -114,9 +122,17 @@ h1 { font-size: var(--vf-h1); line-height: 1.15; letter-spacing: -0.02em;
      gap: var(--space-3); margin-top: var(--space-7);
      padding-top: var(--space-4); border-top: 1px solid var(--line); }
 .vf-progress { margin: 0; margin-inline-end: auto; }
-.vf-prev, .vf-next { text-decoration: none; font-size: var(--vf-body);
-     padding: var(--space-2) var(--space-4); border-radius: var(--r-2);
-     border: 1px solid var(--line); color: var(--ink); }
+/* A control must never shatter mid-word. SHARED_CSS grants p
+   overflow-wrap:anywhere so a long path in prose can wrap, and that inherits
+   into any control sitting inside a paragraph, which is how a one-word button
+   ends up stacking one letter per line in a narrow column. Controls opt out. */
+.vf-next, .vf-prev, .of-bar label, .vf-appnav a, .vf-appnav label,
+.vf-appnav .vf-area-entry, button { overflow-wrap: normal; word-break: keep-all;
+     hyphens: none; }
+.vf-prev, .vf-next { display: inline-block; text-decoration: none;
+     font-size: var(--vf-body); padding: var(--space-2) var(--space-4);
+     border-radius: var(--r-2); border: 1px solid var(--line);
+     color: var(--ink); text-align: center; }
 .vf-next { background: var(--accent); color: var(--card); border-color: var(--accent); }
 .vf-prev:hover { background: var(--chip); }
 .vf-next:hover { filter: brightness(1.08); }
@@ -163,7 +179,8 @@ h1 { font-size: var(--vf-h1); line-height: 1.15; letter-spacing: -0.02em;
      border-radius: var(--r-2); background: var(--bad-bg); }
 .vf-feedback p { margin: 0; }
 .vf-answer { margin: 0 0 var(--space-3); }
-button[type="button"]:not(.term) { font: inherit; font-size: var(--vf-body);
+button[type="button"]:not(.term) { display: inline-block; font: inherit;
+     font-size: var(--vf-body);
      padding: var(--space-2) var(--space-4); border-radius: var(--r-2);
      border: 1px solid var(--line); background: var(--card); color: var(--ink);
      cursor: pointer; }
@@ -302,12 +319,16 @@ def _home(stage):
         for job in stage.get("activity", []))
     resume = ""
     if nxt:
-        resume = ('<section class="vf-resume"><p class="vf-status">Pick up where '
-                  'you stopped</p><h3>%s</h3><p>%s</p>'
+        resume = ('<section class="vf-resume">'
+                  '<p class="vf-status">Pick up where you stopped</p>'
+                  "<h3>%s</h3>"
+                  '<p class="vf-resume-target">%s</p>'
+                  '<p class="vf-resume-why">%s</p>'
                   '<p><a class="vf-next" href="?direction=DIR&amp;nav=NAV&amp;'
                   'stage=%s">%s</a></p></section>'
-                  % (_esc(nxt.get("course")), _esc(nxt.get("why")),
-                     _esc(nxt.get("stage")), _esc(nxt.get("label"))))
+                  % (_esc(nxt.get("course")), _esc(nxt.get("objective")),
+                     _esc(nxt.get("why")), _esc(nxt.get("stage")),
+                     _esc(nxt.get("label"))))
     return ('%s<h3>All courses</h3><ul class="vf-shelf">%s</ul>'
             '<h3>Activity</h3><ul class="vf-jobs">%s</ul>' % (resume, "".join(cards), jobs))
 
@@ -982,6 +1003,9 @@ ONEFILE_CSS = """
   font-size: var(--vf-micro); color: var(--mut); }
 .of-bar label:hover { color: var(--ink); background: var(--card); }
 .of-screen { display: none; }
+.of-swatch { display: inline-block; width: 1.15rem; height: 1.15rem;
+  border-radius: 50%; border: 2px solid var(--line); vertical-align: -3px; }
+.of-bar label:has(.of-swatch) { padding: 3px; }
 .of-note { font-size: var(--vf-meta); color: var(--mut); margin: 0 0 var(--space-4);
   font-family: var(--font-ledger); }
 /* Nav and pager entries are labels here, not links, so they need the link look. */
@@ -1064,15 +1088,23 @@ def single_file(data=None, base=None):
     radios = "".join(
         [_radio("look", d, d == DEFAULT_DIRECTION) for d in DIRECTIONS] +
         [_radio("nav", n, n == DEFAULT_NAV) for n in NAV_SHAPES] +
+        [_radio("accent", name, name == DEFAULT_ACCENT_ID)
+         for name, _ in ACCENTS] +
         [_radio("screen", sid, i == 0) for i, sid in enumerate(ids)])
 
     bar = ('<div class="of-bar">'
            '<span class="of-group"><b>Look</b>%s</span>'
            '<span class="of-group"><b>Nav</b>%s</span>'
+           '<span class="of-group"><b>Accent</b>%s</span>'
            '<span class="of-group"><b>Screen</b>%s</span></div>'
            % ("".join(_label("look", d, _esc(d.replace("-", " ")))
                       for d in DIRECTIONS),
               "".join(_label("nav", n, _esc(n)) for n in NAV_SHAPES),
+              "".join(_label("accent", name,
+                             '<span class="of-swatch" style="background:%s"></span>'
+                             "<span class=\"of-switch\">%s</span>"
+                             % (_esc(hexcode), _esc(name)))
+                      for name, hexcode in ACCENTS),
               "".join(_label("screen", sid, _esc(STAGE_LABELS.get(sid, sid)))
                       for sid in ids)))
 
@@ -1111,6 +1143,12 @@ def single_file(data=None, base=None):
     screens = []
     for index, sid in enumerate(ids):
         inner = render_stage(data, sid, base)
+        # Turn the resume link into a real switch rather than a dead anchor.
+        for target in ids:
+            inner = inner.replace(
+                '<a class="vf-next" href="?direction=DIR&amp;nav=NAV&amp;stage=%s">'
+                % target,
+                '<label class="vf-next" for="screen-%s">' % target)
         inner = inner.replace('href="?direction=DIR&amp;nav=NAV&amp;stage=',
                               'data-screen-link="')
         pager = ['<p class="vf-progress">Step %d of %d</p>' % (index + 1, len(ids))]
@@ -1155,7 +1193,11 @@ def single_file(data=None, base=None):
         parts.append('body:has(#screen-%s:checked) label[for="screen-%s"]'
                      "{color:var(--ink);background:var(--card);"
                      "border-color:var(--line);font-weight:600}" % (sid, sid))
-    for group, values in (("look", DIRECTIONS), ("nav", NAV_SHAPES)):
+    for name, hexcode in ACCENTS:
+        palette = theme.theme_css({"theme": "system", "accent": {"source": hexcode}})
+        parts.append(_scope_css(palette, "body:has(#accent-%s:checked)" % name))
+    for group, values in (("look", DIRECTIONS), ("nav", NAV_SHAPES),
+                          ("accent", [n for n, _ in ACCENTS])):
         for value in values:
             parts.append('body:has(#%s-%s:checked) label[for="%s-%s"]'
                          "{color:var(--ink);background:var(--card);"
