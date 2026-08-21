@@ -62,6 +62,23 @@ FIXED_RULES = """
 # rhythm on top of this; it never re-declares the scale, or the three
 # directions would be comparing typography instead of layout.
 CHROME_CSS = """
+.vf-harness-run { border: 1px solid var(--line); border-radius: var(--r-3);
+     padding: var(--space-4); background: var(--card); margin-bottom: var(--space-5); }
+.vf-harness-run[data-state="waiting"] { border-color: var(--warn);
+     background: var(--warn-bg); }
+.vf-harness-run h3 { margin-top: var(--space-1); }
+.vf-approval { border: 1px solid var(--accent); border-radius: var(--r-3);
+     padding: var(--space-4); margin-bottom: var(--space-4); background: var(--card); }
+.vf-approval h4 { margin: 0 0 var(--space-1); font-size: var(--vf-h3); }
+.vf-skills { list-style: none; padding: 0; display: flex; flex-wrap: wrap;
+     gap: var(--space-2); }
+.vf-backends { list-style: none; padding: 0; }
+.vf-backends li { padding: var(--space-2) var(--space-3); border-radius: var(--r-2);
+     border: 1px solid var(--line); margin-bottom: var(--space-2); }
+.vf-backends li[data-state="ok"] { border-color: var(--ok); background: var(--ok-bg); }
+.vf-spend { font-family: var(--font-code); font-size: var(--vf-h3); margin-bottom: 0; }
+.vf-nav-course-name { margin: var(--space-5) 0 0; font-weight: 600;
+     font-size: var(--vf-meta); color: var(--ink); }
 .surface { padding-block: var(--space-5) var(--space-7); }
 h1 { font-size: var(--vf-h1); line-height: 1.15; letter-spacing: -0.02em;
      margin: 0 0 var(--space-2); }
@@ -295,6 +312,68 @@ def _home(stage):
             '<h3>Activity</h3><ul class="vf-jobs">%s</ul>' % (resume, "".join(cards), jobs))
 
 
+
+def _harness(stage):
+    """The agent console. Every control here maps to something that already
+    shipped: model_backend.active (Phase 8), auditor_autonomy (Phase 11), the
+    skills in .claude/skills, and journal.commit_operation (Phase 14A). The
+    harness is a surface over that machinery, never a second authority: it
+    proposes, and the runtime accepts."""
+    backends = "".join(
+        '<li%s><span class="vf-area-label">%s</span>'
+        '<span class="vf-status">%s. %s</span></li>'
+        % (' data-state="ok"' if b.get("active") else "",
+           _esc(b.get("label")), _esc(b.get("where")), _esc(b.get("egress")))
+        for b in stage.get("backends", []))
+    autonomy = stage.get("autonomy") or {}
+    levels = "".join(
+        '<li%s><span class="vf-area-label">%s</span>'
+        '<span class="vf-status">%s</span></li>'
+        % (' data-state="ok"' if lv["id"] == autonomy.get("current") else "",
+           _esc(lv["label"]), _esc(lv["what"]))
+        for lv in autonomy.get("levels", []))
+    skills = "".join('<li><button type="button">%s</button></li>' % _esc(sk["label"])
+                     for sk in stage.get("skills", []))
+    budget = stage.get("budget") or {}
+    running = stage.get("running") or {}
+    pending = []
+    for job in stage.get("pending", []):
+        lines = "".join('<li class="vf-diff-%s"><code>%s %s</code></li>'
+                        % (_esc(d.get("op")), "+" if d.get("op") == "add" else " ",
+                           _esc(d.get("text")))
+                        for d in job.get("diff", []))
+        pending.append(
+            '<article class="vf-approval"><h4>%s</h4>'
+            '<p class="vf-status">Cited from %s</p>'
+            '<ul class="vf-diff">%s</ul>'
+            '<p class="vf-status" data-state="ok">%s</p>'
+            '<p><button type="button">Accept</button> '
+            '<button type="button">Reject</button> '
+            '<button type="button">Open full diff</button></p></article>'
+            % (_esc(job.get("title")), _esc(job.get("cited")), lines,
+               _esc(job.get("validated"))))
+    log = "".join(
+        '<li><span class="vf-status">%s</span> %s%s</li>'
+        % (_esc(entry.get("when")), _esc(entry.get("text")),
+           ' <button type="button">Undo</button>' if entry.get("undo") else "")
+        for entry in stage.get("journal", []))
+    return (
+        '<section class="vf-harness-run" data-state="%s">'
+        '<p class="vf-status">Running, %s</p><h3>%s</h3><p>%s</p></section>'
+        '<h3>Waiting for you</h3>%s'
+        '<h3>Start something</h3><ul class="vf-skills">%s</ul>'
+        '<h3>Model</h3><ul class="vf-backends">%s</ul>'
+        '<h3>How much it may do on its own</h3><ul class="vf-backends">%s</ul>'
+        '<h3>Spend</h3><p class="vf-spend">%s spent, %s tokens</p>'
+        '<p class="vf-status">%s</p>'
+        '<h3>Operation journal</h3><ul class="vf-jobs">%s</ul>'
+        % (_esc(running.get("state")), _esc(running.get("elapsed")),
+           _esc(running.get("skill")), _esc(running.get("step")),
+           "".join(pending), skills, backends, levels,
+           _esc(budget.get("spent_usd")), _esc(budget.get("tokens")),
+           _esc(budget.get("note")), log))
+
+
 def _shelf(stage):
     cards = []
     for card in stage.get("cards", []):
@@ -423,7 +502,7 @@ def _status(stage):
     return "".join(panels)
 
 
-RENDERERS = {"home": _home, "shelf": _shelf, "objective": _objective, "lesson": _lesson,
+RENDERERS = {"home": _home, "harness": _harness, "shelf": _shelf, "objective": _objective, "lesson": _lesson,
              "practice": _practice, "evidence": _evidence,
              "proposal": _proposal, "status": _status}
 
@@ -436,6 +515,7 @@ STAGE_LABELS = {
     "evidence_review": "Evidence",
     "ai_proposed_change": "Review change",
     "agent_offline_status": "Status",
+    "agent_harness": "Agent",
 }
 
 
@@ -480,15 +560,29 @@ def _app_nav(data, direction, nav_shape, stage_id):
              ("agent_offline_status" if a["id"] in ("settings", "help") else None),
              stage_id == "shelf_resume" and a["id"] == "home", a["route"])
         for a in app.get("app_areas", []))
-    course_items = "".join(
-        item(a["label"], a.get("stage"), a["id"] == current, a["route"])
-        for a in app.get("course_areas", []))
+    by_id = {a["id"]: a for a in app.get("course_areas", [])}
+    blocks = []
+    for section in app.get("sections", []):
+        rows = "".join(
+            item(by_id[aid]["label"], by_id[aid].get("stage"),
+                 aid == current, by_id[aid]["route"])
+            for aid in section.get("areas", []) if aid in by_id)
+        if not rows:
+            continue
+        blocks.append('<p class="vf-nav-label" title="%s">%s</p>'
+                      '<ul class="vf-nav-course" data-section="%s">%s</ul>'
+                      % (_esc(section.get("hint")), _esc(section.get("label")),
+                         _esc(section["id"]), rows))
+    if not blocks:
+        blocks.append('<ul class="vf-nav-course">%s</ul>' % "".join(
+            item(a["label"], a.get("stage"), a["id"] == current, a["route"])
+            for a in app.get("course_areas", [])))
     return ('<nav class="vf-appnav" aria-label="Application">'
             '<p class="vf-nav-brand">itembank</p>'
             '<p class="vf-nav-label">App</p><ul class="vf-nav-app">%s</ul>'
-            '<p class="vf-nav-label">%s</p><ul class="vf-nav-course">%s</ul>'
+            '<p class="vf-nav-course-name">%s</p>%s'
             "</nav>" % (app_items, _esc(app.get("course_name", "Course")),
-                        course_items))
+                        "".join(blocks)))
 
 
 def _prototype_chrome(data, direction, stage_id, nav_shape=DEFAULT_NAV):

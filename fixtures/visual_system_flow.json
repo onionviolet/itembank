@@ -199,6 +199,124 @@
         "state": "offline",
         "copy": "No network. Everything on this page was produced on this machine."
       }
+    },
+    {
+      "id": "agent_harness",
+      "title": "Agent",
+      "kind": "harness",
+      "backends": [
+        {
+          "id": "deepseek-chat",
+          "label": "DeepSeek chat",
+          "where": "hosted",
+          "active": true,
+          "egress": "Item text and lesson prose leave this machine."
+        },
+        {
+          "id": "local-qwen",
+          "label": "Local Qwen",
+          "where": "local",
+          "active": false,
+          "egress": "Nothing leaves this machine."
+        },
+        {
+          "id": "claude",
+          "label": "Claude",
+          "where": "hosted",
+          "active": false,
+          "egress": "Item text and lesson prose leave this machine."
+        }
+      ],
+      "autonomy": {
+        "current": "draft_and_approve",
+        "levels": [
+          {
+            "id": "report_only",
+            "label": "Report only",
+            "what": "Reads and tells you. Writes nothing."
+          },
+          {
+            "id": "draft_and_approve",
+            "label": "Draft, you approve",
+            "what": "Writes drafts. Every change waits for you."
+          },
+          {
+            "id": "audit_draft_lint_fix_commit",
+            "label": "Draft, lint, fix, commit",
+            "what": "Commits validated changes on its own. Journalled and undoable."
+          }
+        ]
+      },
+      "skills": [
+        {
+          "id": "absorb-book",
+          "label": "Absorb a book or chapter"
+        },
+        {
+          "id": "author-bank",
+          "label": "Write or extend a question bank"
+        },
+        {
+          "id": "build-course",
+          "label": "Build a course from sources"
+        },
+        {
+          "id": "curriculum-design",
+          "label": "Design objectives from a syllabus"
+        },
+        {
+          "id": "legacy-upgrade",
+          "label": "Upgrade older lessons"
+        }
+      ],
+      "budget": {
+        "spent_usd": "0.14",
+        "tokens": "51,204,118",
+        "note": "This month, on this key. Cache hits are 99 percent of the volume and the reason the number is large and the cost is not."
+      },
+      "running": {
+        "skill": "author-bank",
+        "state": "waiting",
+        "step": "Drafted 6 items. Waiting for you to accept or reject.",
+        "elapsed": "4 minutes"
+      },
+      "pending": [
+        {
+          "title": "Add 6 items to Synthetic Airway Bank",
+          "cited": "Synthetic Field Manual, section 4.2",
+          "diff": [
+            {
+              "op": "add",
+              "text": "Q7 stem: a patient with stridor and falling effort"
+            },
+            {
+              "op": "add",
+              "text": "Q8 stem: choosing an adjunct by size"
+            }
+          ],
+          "validated": "Lints clean. 0 errors, 0 warnings."
+        }
+      ],
+      "journal": [
+        {
+          "op": "commit",
+          "text": "author-bank wrote 6 items",
+          "when": "4 min ago",
+          "undo": true
+        },
+        {
+          "op": "read",
+          "text": "discovery walked 1 approved root",
+          "when": "6 min ago",
+          "undo": false
+        },
+        {
+          "op": "commit",
+          "text": "source binding accepted",
+          "when": "1 hour ago",
+          "undo": true
+        }
+      ]
     }
   ],
   "terms": [
@@ -297,7 +415,7 @@
         "stage": null
       },
       {
-        "id": "build",
+        "id": "course_build",
         "label": "Build",
         "route": "/course/<id>/build",
         "stage": "ai_proposed_change"
@@ -307,6 +425,46 @@
         "label": "Evidence",
         "route": "/course/<id>/evidence",
         "stage": "evidence_review"
+      },
+      {
+        "id": "agent",
+        "label": "Agent",
+        "route": "/agent",
+        "stage": "agent_harness"
+      }
+    ],
+    "sections": [
+      {
+        "id": "study",
+        "label": "Study",
+        "hint": "The loop. Most of your time is here.",
+        "areas": [
+          "overview",
+          "learn",
+          "practice",
+          "test",
+          "evidence"
+        ]
+      },
+      {
+        "id": "build",
+        "label": "Build",
+        "hint": "Where you and a model shape the course.",
+        "areas": [
+          "sources",
+          "map",
+          "course_build"
+        ]
+      },
+      {
+        "id": "operate",
+        "label": "Operate",
+        "hint": "Watch, steer, and undo the work.",
+        "areas": [
+          "agent",
+          "activity",
+          "settings"
+        ]
       }
     ]
   }

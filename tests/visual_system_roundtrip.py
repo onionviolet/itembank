@@ -357,6 +357,64 @@ def check_home_screen():
     ok("check_home_screen")
 
 
+def check_harness_never_becomes_authority():
+    """The agent console proposes; the runtime accepts. Every write is gated by
+    an approval or an autonomy level, every commit is journalled with an undo,
+    and egress is stated per backend. A harness that could settle a score or
+    release a key would be the second authority the runtime invariant forbids."""
+    from surfaces import visual_fixture
+    data = load()
+    stage = [s for s in data["stages"] if s["id"] == "agent_harness"]
+    if not stage:
+        fail("no agent harness stage in the fixture")
+        return
+    stage = stage[0]
+    levels = [lv["id"] for lv in stage["autonomy"]["levels"]]
+    for shipped in ("report_only", "draft_and_approve", "audit_draft_lint_fix_commit"):
+        if shipped not in levels:
+            fail("autonomy level %s is not offered, but the setting ships it" % shipped)
+    for backend in stage["backends"]:
+        if not backend.get("egress"):
+            fail("backend %s does not state what leaves the machine" % backend["id"])
+    html = visual_fixture.page(data, "structured-studio", stage_id="agent_harness")
+    body = html.split("<main>", 1)[1].rsplit("</main>", 1)[0]
+    for control in ("Accept", "Reject", "Undo"):
+        if control not in body:
+            fail("the harness offers no %s control" % control)
+    for banned in ("score", "mark as correct", "reveal the answer", "answer key"):
+        if banned in body.lower():
+            fail("the harness surfaces a scoring or disclosure control: %s" % banned)
+    if not any(e.get("undo") for e in stage["journal"]):
+        fail("no journalled operation is undoable")
+    if "spent" not in body.lower():
+        fail("the harness does not show what it has spent")
+    ok("check_harness_never_becomes_authority")
+
+
+def check_nav_sections():
+    """Eight flat areas do not say that Learn is daily and Sources is
+    occasional. Three named sections do."""
+    from surfaces import visual_fixture
+    data = load()
+    sections = (data.get("app") or {}).get("sections", [])
+    if len(sections) < 3:
+        fail("the navigation is not sectioned")
+        return
+    known = set()
+    for section in sections:
+        if not section.get("hint"):
+            fail("section %s does not say what it is for" % section["id"])
+        known.update(section.get("areas", []))
+    for area in (data.get("app") or {}).get("course_areas", []):
+        if area["id"] not in known:
+            fail("area %s belongs to no section" % area["id"])
+    html = visual_fixture.page(data, "structured-studio", stage_id="long_lesson")
+    for label in ("Study", "Build", "Operate"):
+        if label not in html:
+            fail("section %s is not rendered in the shell" % label)
+    ok("check_nav_sections")
+
+
 def main():
     check_fixture_shape()
     check_no_em_dash()
@@ -376,6 +434,8 @@ def main():
     check_nav_shapes()
     check_app_shell_matches_16b()
     check_home_screen()
+    check_harness_never_becomes_authority()
+    check_nav_sections()
     if failures:
         print("\n%d failure(s)" % len(failures))
         return 1
