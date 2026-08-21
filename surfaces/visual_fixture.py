@@ -39,11 +39,14 @@ ACCENTS = (
     ("plum", "#8a3ffc"),
     ("clay", "#b4531f"),
 )
-DEFAULT_ACCENT_ID = "teal"
+# Chosen 2026-08-20 by Weibao after reviewing all thirty-six combinations.
+# Recorded in 17A-DIRECTION.md. The other options stay: a default is a starting
+# point, not a deletion, per PLANNING-DIRECTIVES section 1.
+DEFAULT_ACCENT_ID = "indigo"
 
 NAV_SHAPES = ("sidebar", "tabs", "bottom")
-DEFAULT_NAV = "sidebar"
-DEFAULT_DIRECTION = "structured-studio"
+DEFAULT_NAV = "sidebar"          # chosen 2026-08-20, see 17A-DIRECTION.md
+DEFAULT_DIRECTION = "structured-studio"   # chosen 2026-08-20, see 17A-DIRECTION.md
 
 # VISUAL-02: configurable tokens with a safe range. Anything outside the range
 # clamps rather than passing through, because a token that does not clamp is a
