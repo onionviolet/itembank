@@ -12,7 +12,17 @@
   "auditor_autonomy": "report_only",
   "model_backend": {
     "active": "",
-    "profiles": []
+    "profiles": [
+      {
+        "name": "local-qwen",
+        "transport": "openai_compatible",
+        "endpoint": "http://127.0.0.1:11434/v1/chat/completions",
+        "model": "qwen3.8-27b:latest",
+        "timeout_seconds": 120,
+        "max_output_bytes": 262144,
+        "context_window": 32768
+      }
+    ]
   },
   "suggestion_reveal": "after-self-mark",
   "update_policy": "check_on_launch",

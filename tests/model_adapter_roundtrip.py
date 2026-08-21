@@ -605,13 +605,29 @@ def test_stub_third_backend_registration():
 def test_secrets_from_env_never_inline():
     """Credentials are read from the environment by name (secret_env), never
     stored inline in itembank.json and never present in any request, result,
-    log, or evidence field (D-03/D-15); the shipped default config is
-    disabled (active "" and empty profiles)."""
+    log, or evidence field (D-03/D-15); the shipped default config reaches no
+    model.
+
+    The guarantee is empty `active`, not an empty registry. Plan 17A-06 ships
+    a `local-qwen` profile record so the local path is exercised rather than
+    only documented, and an empty `active` still resolves to
+    adapter.profile_disabled, so a fresh install phones nobody. A shipped
+    profile carrying a `secret_env` would be a different matter and is
+    rejected below."""
     shipped = settings_surface.load_settings(ROOT)
     mb = shipped.get("model_backend")
-    if not isinstance(mb, dict) or mb.get("active") != "" or \
-            mb.get("profiles") != []:
+    if not isinstance(mb, dict) or mb.get("active") != "":
         fail("the shipped default model_backend is not disabled: %r" % mb)
+    else:
+        profile, reason = model_adapter.resolve_profile(shipped)
+        if profile is not None or \
+                (reason or {}).get("code") != "adapter.profile_disabled":
+            fail("the shipped config resolved to %r / %r instead of "
+                 "adapter.profile_disabled" % (profile, reason))
+    for record in (mb or {}).get("profiles") or []:
+        if record.get("secret_env"):
+            fail("a shipped profile %r names a credential variable"
+                 % record.get("name"))
 
     raw_settings = open(SETTINGS_ON_DISK, encoding="utf-8").read()
     for needle in ("sk-", "hunter2", "Bearer "):
