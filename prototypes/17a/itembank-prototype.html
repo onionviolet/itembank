@@ -1,0 +1,566 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>itembank prototype (synthetic)</title><style>
+:root{
+  --bg:#f3f5f4; --card:#ffffff; --ink:#171d1c; --mut:#5f6d6a; --line:#dfe5e3; --accent:#0e6e62; --accent-soft:#cfe2e0; --ok:#1b7a3d; --ok-bg:#e8f4ec; --bad:#b4272b; --bad-bg:#fbebeb; --warn:#8a5900; --warn-bg:#f8f1e2; --unknown:#566067; --unknown-bg:#edf0f2; --pending:#5b4a9f; --pending-bg:#efecf7; --edge:#7f8b88; --chip:#eef2f1;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0e1413; --card:#161e1d; --ink:#e4ebe9; --mut:#8fa19d; --line:#26312f; --accent:#139484; --accent-soft:#161e1d; --ok:#4fbf74; --ok-bg:#11291b; --bad:#f0666a; --bad-bg:#2b1416; --warn:#e0a23a; --warn-bg:#2b2312; --unknown:#9aa7ad; --unknown-bg:#1b2325; --pending:#b3a3e6; --pending-bg:#221c33; --edge:#697774; --chip:#1d2726;
+  }
+}
+:root{--vf-density:comfortable;--vf-measure:68ch;--vf-leading:1.60;--vf-text-xs:0.8125rem;--vf-micro:0.75rem;--vf-meta:0.8125rem;--vf-body:1.0625rem;--vf-h3:1.125rem;--vf-h2:1.5rem;--vf-h1:2rem;--accent:#0e6e62;}
+
+.vf-harness-run { border: 1px solid var(--line); border-radius: var(--r-3);
+     padding: var(--space-4); background: var(--card); margin-bottom: var(--space-5); }
+.vf-harness-run[data-state="waiting"] { border-color: var(--warn);
+     background: var(--warn-bg); }
+.vf-harness-run h3 { margin-top: var(--space-1); }
+.vf-approval { border: 1px solid var(--accent); border-radius: var(--r-3);
+     padding: var(--space-4); margin-bottom: var(--space-4); background: var(--card); }
+.vf-approval h4 { margin: 0 0 var(--space-1); font-size: var(--vf-h3); }
+.vf-skills { list-style: none; padding: 0; display: flex; flex-wrap: wrap;
+     gap: var(--space-2); }
+.vf-backends { list-style: none; padding: 0; }
+.vf-backends li { padding: var(--space-2) var(--space-3); border-radius: var(--r-2);
+     border: 1px solid var(--line); margin-bottom: var(--space-2); }
+.vf-backends li[data-state="ok"] { border-color: var(--ok); background: var(--ok-bg); }
+.vf-spend { font-family: var(--font-code); font-size: var(--vf-h3); margin-bottom: 0; }
+.vf-nav-course-name { margin: var(--space-5) 0 0; font-weight: 600;
+     font-size: var(--vf-meta); color: var(--ink); }
+.surface { padding-block: var(--space-5) var(--space-7); }
+h1 { font-size: var(--vf-h1); line-height: 1.15; letter-spacing: -0.02em;
+     margin: 0 0 var(--space-2); }
+.vf-stage h2 { font-size: var(--vf-h2); line-height: 1.2;
+     letter-spacing: -0.015em; margin: 0 0 var(--space-4); }
+.vf-stage h3 { font-size: var(--vf-h3); line-height: 1.3; margin:
+     var(--space-5) 0 var(--space-2); color: var(--ink); }
+.vf-stage p, .vf-stage li, .vf-stage td { font-size: var(--vf-body);
+     line-height: var(--vf-leading); }
+.vf-status, .vf-legend, .vf-progress, .vf-chrome-label, .vf-denominator,
+.vf-source, figcaption { font-size: var(--vf-meta); color: var(--mut);
+     font-family: var(--font-ledger); }
+
+/* Prototype toolbar. Deliberately reads as scaffolding, not as product. */
+.vf-chrome { display: flex; flex-wrap: wrap; align-items: center;
+     gap: var(--space-2) var(--space-3); padding: var(--space-2) var(--space-3);
+     margin-bottom: var(--space-6); border: 1px dashed var(--line);
+     border-radius: var(--r-2); background: var(--chip); }
+.vf-chrome-label { margin: 0; text-transform: uppercase;
+     letter-spacing: .09em; font-size: var(--vf-micro); }
+.vf-dirs, .vf-steps { display: flex; flex-wrap: wrap; gap: var(--space-1);
+     list-style: none; margin: 0; padding: 0; }
+.vf-steps { counter-reset: vfs; }
+.vf-dirs a, .vf-steps a { display: inline-block; padding: 2px var(--space-2);
+     border-radius: var(--r-1); text-decoration: none; color: var(--mut);
+     font-size: var(--vf-micro); border: 1px solid transparent; }
+.vf-dirs a:hover, .vf-steps a:hover { color: var(--ink); background: var(--card); }
+.vf-dirs a[aria-current], .vf-steps a[aria-current] { color: var(--ink);
+     background: var(--card); border-color: var(--line); font-weight: 600; }
+
+/* Pager: the flow control the product would actually have. */
+.vf-pager { display: flex; flex-wrap: wrap; align-items: center;
+     gap: var(--space-3); margin-top: var(--space-7);
+     padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.vf-progress { margin: 0; margin-inline-end: auto; }
+.vf-prev, .vf-next { text-decoration: none; font-size: var(--vf-body);
+     padding: var(--space-2) var(--space-4); border-radius: var(--r-2);
+     border: 1px solid var(--line); color: var(--ink); }
+.vf-next { background: var(--accent); color: var(--card); border-color: var(--accent); }
+.vf-prev:hover { background: var(--chip); }
+.vf-next:hover { filter: brightness(1.08); }
+
+/* Content forms. */
+.vf-def { margin: var(--space-5) 0; padding-inline-start: var(--space-4);
+     border-inline-start: 3px solid var(--accent); }
+.vf-def dt { font-weight: 650; font-size: var(--vf-h3); margin-bottom: var(--space-1); }
+.vf-def dd { margin: 0; }
+.vf-warn { margin: var(--space-5) 0; padding: var(--space-3) var(--space-4);
+     border-radius: var(--r-2); background: var(--warn-bg);
+     border-inline-start: 4px solid var(--warn); }
+.vf-warn p { margin: 0; }
+.vf-predict { margin: var(--space-5) 0; padding: var(--space-3) var(--space-4);
+     border-radius: var(--r-2); background: var(--chip); }
+.vf-predict p { margin: 0; font-style: italic; }
+.vf-check { margin: var(--space-6) 0; padding: var(--space-4);
+     border-radius: var(--r-2); border: 1px solid var(--line); background: var(--card); }
+.vf-check ul { list-style: none; padding: 0; margin: var(--space-3) 0; }
+.vf-check li { padding: var(--space-2) var(--space-3); margin-bottom: var(--space-2);
+     border: 1px solid var(--line); border-radius: var(--r-1); background: var(--bg); }
+.vf-table-wrap { margin: var(--space-5) 0; overflow-x: auto; }
+.vf-table-wrap table { border-collapse: collapse; width: 100%; }
+.vf-table-wrap th, .vf-table-wrap td { text-align: start;
+     padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); }
+.vf-table-wrap th { font-size: var(--vf-meta); text-transform: uppercase;
+     letter-spacing: .07em; color: var(--mut); font-family: var(--font-ledger); }
+.vf-image-slot { aspect-ratio: 16 / 7; border-radius: var(--r-2);
+     border: 1px dashed var(--line); background: var(--chip); }
+.vf-figure { margin: var(--space-5) 0; }
+.vf-fill { display: inline-block; width: 14px; height: 14px;
+     border-radius: var(--r-1); border: 1px solid var(--edge); margin-inline-end: 3px; }
+.vf-fill-on { background: var(--accent); border-color: var(--accent); }
+.vf-fill-off { background: transparent; }
+.vf-shelf { list-style: none; padding: 0; margin: 0; }
+.vf-card h3 { margin: 0 0 var(--space-1); font-size: var(--vf-h3); }
+.vf-card p { margin: 0; }
+.vf-diff { list-style: none; padding: 0; }
+.vf-diff li { padding: var(--space-1) var(--space-3); border-radius: var(--r-1);
+     font-family: var(--font-code); font-size: var(--vf-meta); }
+.vf-diff-add { background: var(--ok-bg); border-inline-start: 3px solid var(--ok); }
+.vf-diff-context { color: var(--mut); }
+.vf-feedback { margin: var(--space-4) 0; padding: var(--space-3) var(--space-4);
+     border-radius: var(--r-2); background: var(--bad-bg); }
+.vf-feedback p { margin: 0; }
+.vf-answer { margin: 0 0 var(--space-3); }
+button[type="button"]:not(.term) { font: inherit; font-size: var(--vf-body);
+     padding: var(--space-2) var(--space-4); border-radius: var(--r-2);
+     border: 1px solid var(--line); background: var(--card); color: var(--ink);
+     cursor: pointer; }
+button[type="button"]:not(.term):hover { background: var(--chip); }
+@media (max-width: 767px) {
+  .vf-pager { flex-direction: column; align-items: stretch; }
+  .vf-prev, .vf-next { text-align: center; }
+}
+
+.term{text-decoration:underline dotted var(--edge);text-underline-offset:.15em;
+  text-decoration-thickness:from-font;color:currentColor;background:none;
+  border:0;padding:2px 0;font:inherit; /* inline-target spacing exception */
+  cursor:pointer}
+.term:hover,.term:focus-visible{outline:2px solid var(--accent);
+  outline-offset:2px}
+.gloss{--gloss-anchor:auto;position:absolute;position-anchor:var(--gloss-anchor);
+  position-area:block-end span-inline-end;margin-block-start:var(--space-2);
+  position-try-fallbacks:flip-block,flip-inline,block-start span-inline-start;
+  position-try-order:most-height;
+  max-width:min(38ch,calc(100vw - var(--space-4)));max-height:min(60vh,24rem);
+  overflow:auto;overscroll-behavior:contain;
+  border:1px solid var(--line);border-radius:var(--r-3);
+  background:var(--card);padding:var(--space-3);box-shadow:0 1px 0 var(--line)}
+@media (max-width:767px) and (pointer:coarse){
+  .gloss{position:fixed;inset:auto 0 0 0;margin:0;max-width:none;max-height:60vh;
+    border-radius:var(--r-3) var(--r-3) 0 0;border-inline:0;
+    border-block-end:0;padding:var(--space-3) var(--space-3) var(--space-4)}
+}
+.gloss-term{font-weight:600;margin:0 0 var(--space-1);font-size:18px}
+.gloss-def{margin:0 0 var(--space-2);font-size:18px;
+  line-height:var(--leading-lesson)}
+.gloss-more{margin:0;font-size:12px}
+.gloss-more a{color:var(--accent);text-decoration:none}
+.gloss-more a:hover,.gloss-more a:focus-visible{text-decoration:underline}
+#glossary dt:target,#glossary dt:target + dd{background:var(--chip)}
+#glossary dt:target{border-inline-start:2px solid var(--accent)}
+#glossary{margin-top:var(--space-7)}
+#glossary h2{font-family:var(--font-ledger);font-size:12px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--mut);
+  margin:0 0 var(--space-3)}
+#glossary dl{margin:0}
+#glossary dt{font-weight:600;margin:var(--space-3) 0 var(--space-1);
+  font-size:18px}
+#glossary dd{margin:0 0 var(--space-3);font-size:18px;
+  line-height:var(--leading-lesson)}
+.gloss-back{display:block;font-size:12px;color:var(--accent);
+  text-decoration:none;margin-top:var(--space-1)}
+.gloss-back:hover,.gloss-back:focus-visible{text-decoration:underline}
+button.term[popovertarget="gloss-acute"]{anchor-name:--anchor-acute}#gloss-acute{--gloss-anchor:--anchor-acute}
+button.term[popovertarget="gloss-inspiration"]{anchor-name:--anchor-inspiration}#gloss-inspiration{--gloss-anchor:--anchor-inspiration}
+button.term[popovertarget="gloss-oropharynx"]{anchor-name:--anchor-oropharynx}#gloss-oropharynx{--gloss-anchor:--anchor-oropharynx}
+button.term[popovertarget="gloss-patent"]{anchor-name:--anchor-patent}#gloss-patent{--gloss-anchor:--anchor-patent}
+button.term[popovertarget="gloss-stridor"]{anchor-name:--anchor-stridor}#gloss-stridor{--gloss-anchor:--anchor-stridor}
+
+.gloss[popover] { position: fixed; inset: auto var(--space-4) var(--space-4) auto;
+  max-width: min(38ch, calc(100vw - var(--space-6))); margin: 0; }
+@supports (position-area: block-end span-inline-end) {
+  .gloss[popover] { position: absolute; inset: auto; }
+}
+/* Where the Popover API itself is unavailable, :target still opens the panel,
+   so a definition is never unreachable. */
+.gloss:target { display: block; position: fixed;
+  inset: auto var(--space-4) var(--space-4) auto; }
+
+
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+[data-state] { border-left: 4px solid var(--line); }
+.vf-locked { border-left: 4px solid var(--unknown); }
+
+
+.of-switch { position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap; }
+.of-bar { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4);
+  align-items: center; padding: var(--space-3);
+  border: 1px dashed var(--line); border-radius: var(--r-2);
+  background: var(--chip); margin-bottom: var(--space-6); }
+.of-group { display: flex; flex-wrap: wrap; gap: var(--space-1);
+  align-items: center; }
+.of-group > b { font-size: var(--vf-micro); text-transform: uppercase;
+  letter-spacing: .09em; color: var(--mut); font-weight: 600;
+  margin-inline-end: var(--space-1); font-family: var(--font-ledger); }
+.of-bar label, .vf-appnav label, .vf-pager label, .vf-resume label {
+  cursor: pointer; }
+.of-bar label { display: inline-block; padding: 3px var(--space-3);
+  border-radius: var(--r-1); border: 1px solid transparent;
+  font-size: var(--vf-micro); color: var(--mut); }
+.of-bar label:hover { color: var(--ink); background: var(--card); }
+.of-screen { display: none; }
+.of-note { font-size: var(--vf-meta); color: var(--mut); margin: 0 0 var(--space-4);
+  font-family: var(--font-ledger); }
+/* Nav and pager entries are labels here, not links, so they need the link look. */
+.vf-appnav label { display: block; padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-2); color: var(--mut); }
+.vf-appnav label:hover { color: var(--ink); background: var(--chip); }
+.vf-pager label, .vf-resume label { display: inline-block; text-decoration: none;
+  font-size: var(--vf-body); padding: var(--space-2) var(--space-4);
+  border-radius: var(--r-2); border: 1px solid var(--line); color: var(--ink); }
+.vf-pager label.vf-next, .vf-resume label.vf-next { background: var(--accent);
+  color: var(--card); border-color: var(--accent); }
+
+body /* App shell structure shared by every nav shape. The areas and their routes
+   come from 16B-UI-SPEC's route contract; only the shape is undecided. */
+.vf-app{ display: block; }body .vf-appnav ul{ list-style: none; margin: 0; padding: 0; }body .vf-appnav a{ display: block; text-decoration: none; color: var(--mut);
+  border-radius: var(--r-2); }body .vf-appnav a:hover{ color: var(--ink); background: var(--chip); }body .vf-appnav a[aria-current]{ color: var(--ink); font-weight: 600; }body .vf-area-label{ display: block; font-size: var(--vf-body); }body .vf-area-route{ display: block; font-size: var(--vf-micro); color: var(--mut);
+  font-family: var(--font-code); opacity: .7; }body .vf-area-todo a{ opacity: .5; cursor: default; }body .vf-nav-brand{ margin: 0 0 var(--space-4); font-weight: 700;
+  letter-spacing: -0.02em; font-size: var(--vf-h3); color: var(--ink); }body .vf-nav-label{ margin: var(--space-4) 0 var(--space-1); font-size: var(--vf-micro);
+  text-transform: uppercase; letter-spacing: .09em; color: var(--mut);
+  font-family: var(--font-ledger); }body .vf-resume{ border: 1px solid var(--accent); border-radius: var(--r-3);
+  padding: var(--space-5); margin-bottom: var(--space-6); background: var(--card); }body .vf-resume h3{ margin: var(--space-1) 0 var(--space-2); }body .vf-jobs{ list-style: none; padding: 0; }body .vf-jobs li{ padding: var(--space-2) var(--space-3); margin-bottom: var(--space-2);
+  border-radius: var(--r-2); background: var(--chip); }body .vf-jobs [data-state="needs_input"], body .vf-jobs li[data-state="needs_input"]{
+  background: var(--warn-bg); }
+
+body:has(#look-structured-studio:checked) /* Structured Studio. Deletable on its own: nothing outside this file
+   references it, body:has(#look-structured-studio:checked) and removing it leaves the other two directions and every
+   shipped surface untouched (D-04).
+
+   Thesis: a workspace. The reading column carries the activity, body:has(#look-structured-studio:checked) a support rail
+   carries the things you glance at rather than read. Everything is bounded by
+   a visible card edge, body:has(#look-structured-studio:checked) so the eye can tell one region from the next without
+   reading it first. */
+
+.surface{ max-width: 1120px; }body:has(#look-structured-studio:checked) main{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 19rem;
+  gap: var(--space-6);
+  align-items: start;
+}body:has(#look-structured-studio:checked) .vf-chrome{ grid-column: 1 / -1; }body:has(#look-structured-studio:checked) .vf-pager{ grid-column: 1 / -1; }body:has(#look-structured-studio:checked) .vf-stage{
+  grid-column: 1;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--card);
+  padding: var(--space-6);
+  max-width: var(--vf-measure);
+}body:has(#look-structured-studio:checked) /* The support rail: reference material, body:has(#look-structured-studio:checked) not the thing you are doing. */
+.vf-stage[data-stage="source_linked_objective"], body:has(#look-structured-studio:checked) .vf-stage[data-stage="agent_offline_status"]{
+  grid-column: 2;
+  grid-row: 2;
+  padding: var(--space-4);
+  background: var(--bg);
+  border-style: solid;
+  border-radius: var(--r-2);
+}body:has(#look-structured-studio:checked) .vf-stage[data-stage="source_linked_objective"] h2, body:has(#look-structured-studio:checked) .vf-stage[data-stage="agent_offline_status"] h2{
+  font-size: var(--vf-h3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}body:has(#look-structured-studio:checked) .context-line{
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-2) var(--r-2) 0 0;
+}body:has(#look-structured-studio:checked) .vf-shelf{
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: var(--space-3);
+}body:has(#look-structured-studio:checked) .vf-card{
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  padding: var(--space-4);
+  background: var(--bg);
+}body:has(#look-structured-studio:checked) .vf-card:hover{ border-color: var(--edge); }body:has(#look-structured-studio:checked) .vf-locked{ background: var(--chip); }@media (max-width: 899px){body:has(#look-structured-studio:checked) main{ grid-template-columns: 1fr; }body:has(#look-structured-studio:checked) .vf-stage[data-stage]{ grid-column: 1; grid-row: auto; }body:has(#look-structured-studio:checked) .vf-stage{ padding: var(--space-4); }
+}
+
+body:has(#look-quiet-workbench:checked) /* Quiet Workbench. Deletable on its own (D-04).
+
+   Thesis: a page, body:has(#look-quiet-workbench:checked) not an app. One column, body:has(#look-quiet-workbench:checked) no card edges, body:has(#look-quiet-workbench:checked) nothing competing
+   with the sentence you are reading. Separation is carried by whitespace and
+   by a single hairline rule, body:has(#look-quiet-workbench:checked) never by a box. This is the direction to pick if
+   most of your time goes into long reading. */
+
+.surface{ max-width: 46rem; }body:has(#look-quiet-workbench:checked) main{ display: block; }body:has(#look-quiet-workbench:checked) .vf-stage{
+  border: 0;
+  background: transparent;
+  padding: 0;
+  max-width: var(--vf-measure);
+  margin-inline: auto;
+}body:has(#look-quiet-workbench:checked) .vf-stage h2{
+  font-size: 1.75rem;
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}body:has(#look-quiet-workbench:checked) .vf-stage h3{ margin-top: var(--space-7); color: var(--mut);
+  font-size: var(--vf-meta); text-transform: uppercase; letter-spacing: .09em;
+  font-family: var(--font-ledger); }body:has(#look-quiet-workbench:checked) .vf-stage p, body:has(#look-quiet-workbench:checked) .vf-stage dd, body:has(#look-quiet-workbench:checked) .vf-stage li{ line-height: 1.75; }body:has(#look-quiet-workbench:checked) .vf-stage p{ margin: 0 0 var(--space-4); }body:has(#look-quiet-workbench:checked) /* Callouts recede into the column rather than sitting on top of it. */
+.vf-warn, body:has(#look-quiet-workbench:checked) .vf-predict, body:has(#look-quiet-workbench:checked) .vf-check{
+  border-radius: 0;
+  background: transparent;
+  padding: var(--space-3) 0 var(--space-3) var(--space-4);
+  border: 0;
+  border-inline-start: 2px solid var(--line);
+}body:has(#look-quiet-workbench:checked) .vf-warn{ border-inline-start-color: var(--warn); }body:has(#look-quiet-workbench:checked) .vf-check{ border-inline-start-color: var(--accent); }body:has(#look-quiet-workbench:checked) .vf-check li{ border: 0; border-bottom: 1px solid var(--line);
+  border-radius: 0; background: transparent; padding-inline: 0; }body:has(#look-quiet-workbench:checked) .vf-def{ border-inline-start-width: 2px; }body:has(#look-quiet-workbench:checked) .vf-table-wrap th, body:has(#look-quiet-workbench:checked) .vf-table-wrap td{ padding-inline: 0 var(--space-4); }body:has(#look-quiet-workbench:checked) .vf-shelf{ display: block; }body:has(#look-quiet-workbench:checked) .vf-card{
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: var(--space-4) 0;
+}body:has(#look-quiet-workbench:checked) .vf-image-slot{ aspect-ratio: 16 / 6; border-style: solid;
+  border-color: var(--line); background: transparent; }body:has(#look-quiet-workbench:checked) .vf-chrome{ background: transparent; border-style: solid;
+  border-color: var(--line); }body:has(#look-quiet-workbench:checked) .context-line{ border-bottom: 1px solid var(--line); background: transparent;
+  padding-bottom: var(--space-2); }body:has(#look-quiet-workbench:checked) .vf-pager{ max-width: var(--vf-measure); margin-inline: auto; }
+
+body:has(#look-guided-canvas:checked) /* Guided Canvas. Deletable on its own (D-04).
+
+   Thesis: one step at a time, body:has(#look-guided-canvas:checked) with the step named. The screen tells you where
+   you are before it tells you anything else. Progress is stated in words
+   because no denominator backs a percentage here. This is the direction to
+   pick if you want the app to lead rather than to present. */
+
+.surface{ max-width: 60rem; }body:has(#look-guided-canvas:checked) main{ display: block; }body:has(#look-guided-canvas:checked) .vf-stage{
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--card);
+  padding: var(--space-7) var(--space-6) var(--space-6);
+  max-width: var(--vf-measure);
+  margin-inline: auto;
+  box-shadow: 0 1px 0 var(--line);
+}body:has(#look-guided-canvas:checked) /* The stage band: a named step, body:has(#look-guided-canvas:checked) not a progress bar. */
+.vf-stage::before{
+  content: "Guided step";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: var(--space-6);
+  transform: translateY(-50%);
+  padding: 2px var(--space-3);
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--card);
+  font-family: var(--font-ledger);
+  font-size: var(--vf-micro);
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}body:has(#look-guided-canvas:checked) .vf-stage h2{ font-size: 1.875rem; margin-bottom: var(--space-5); }body:has(#look-guided-canvas:checked) .vf-check, body:has(#look-guided-canvas:checked) .vf-predict{
+  border: 2px solid var(--accent);
+  border-radius: var(--r-3);
+  background: var(--bg);
+  padding: var(--space-5);
+}body:has(#look-guided-canvas:checked) .vf-check li:hover{ border-color: var(--accent); background: var(--card); }body:has(#look-guided-canvas:checked) .vf-warn{ border-radius: var(--r-3); border-inline-start-width: 6px; }body:has(#look-guided-canvas:checked) .vf-shelf{ display: grid; gap: var(--space-3); }body:has(#look-guided-canvas:checked) .vf-card{ border-radius: var(--r-3); padding: var(--space-4);
+  background: var(--bg); }body:has(#look-guided-canvas:checked) .vf-pager{ max-width: var(--vf-measure); margin-inline: auto;
+  border-top: 0; padding-top: var(--space-5); }body:has(#look-guided-canvas:checked) .vf-next{ padding-inline: var(--space-6); border-radius: 999px; }body:has(#look-guided-canvas:checked) .vf-prev{ border-radius: 999px; }body:has(#look-guided-canvas:checked) .vf-progress{ font-weight: 600; color: var(--ink); }body:has(#look-guided-canvas:checked) .vf-chrome{ border-radius: var(--r-3); }@media (max-width: 767px){body:has(#look-guided-canvas:checked) .vf-stage{ padding: var(--space-6) var(--space-4) var(--space-4);
+    border-radius: var(--r-2); }body:has(#look-guided-canvas:checked) .vf-stage::before{ inset-inline-start: var(--space-4); }
+}
+
+body:has(#nav-sidebar:checked) /* Sidebar. Every area visible at once, body:has(#nav-sidebar:checked) routes legible, body:has(#nav-sidebar:checked) nothing hidden behind a
+   menu. Costs horizontal space, body:has(#nav-sidebar:checked) which is free on a laptop and gone on a phone. */
+.vf-app{ display: grid; grid-template-columns: 15rem minmax(0, 1fr);
+  gap: var(--space-6); align-items: start; }body:has(#nav-sidebar:checked) .vf-appnav{ position: sticky; top: var(--space-4);
+  border-inline-end: 1px solid var(--line); padding-inline-end: var(--space-4);
+  padding-bottom: var(--space-4); }body:has(#nav-sidebar:checked) .vf-appnav a{ padding: var(--space-2) var(--space-3); }body:has(#nav-sidebar:checked) .vf-appnav li + li{ margin-top: 2px; }body:has(#nav-sidebar:checked) .vf-appnav a[aria-current]{ background: var(--chip);
+  box-shadow: inset 3px 0 0 var(--accent); }@media (max-width: 899px){body:has(#nav-sidebar:checked) .vf-app{ grid-template-columns: 1fr; }body:has(#nav-sidebar:checked) .vf-appnav{ position: static; border-inline-end: 0;
+    border-bottom: 1px solid var(--line); padding-inline-end: 0; }body:has(#nav-sidebar:checked) .vf-appnav ul{ display: flex; flex-wrap: wrap; gap: var(--space-1); }body:has(#nav-sidebar:checked) .vf-area-route{ display: none; }
+}
+
+body:has(#nav-tabs:checked) /* Tabs. One horizontal row per level, body:has(#nav-tabs:checked) so the whole width stays with the
+   content. Reads as a document with sections rather than as an application. */
+.vf-app{ display: block; }body:has(#nav-tabs:checked) .vf-appnav{ border-bottom: 1px solid var(--line); margin-bottom: var(--space-6);
+  padding-bottom: 0; }body:has(#nav-tabs:checked) .vf-nav-brand{ margin-bottom: var(--space-2); }body:has(#nav-tabs:checked) .vf-nav-label{ display: inline-block; margin-inline-end: var(--space-3);
+  margin-block: 0; vertical-align: middle; }body:has(#nav-tabs:checked) .vf-appnav ul{ display: inline-flex; flex-wrap: wrap; gap: var(--space-1);
+  vertical-align: middle; }body:has(#nav-tabs:checked) .vf-nav-app{ margin-bottom: var(--space-2) !important; }body:has(#nav-tabs:checked) .vf-appnav a{ padding: var(--space-2) var(--space-3); border-radius:
+  var(--r-2) var(--r-2) 0 0; border-bottom: 2px solid transparent; }body:has(#nav-tabs:checked) .vf-appnav a[aria-current]{ border-bottom-color: var(--accent);
+  background: transparent; }body:has(#nav-tabs:checked) .vf-area-route{ display: none; }body:has(#nav-tabs:checked) .vf-nav-course a{ font-size: var(--vf-body); }@media (max-width: 767px){body:has(#nav-tabs:checked) .vf-appnav ul{ overflow-x: auto; flex-wrap: nowrap; } }
+
+body:has(#nav-bottom:checked) /* Bottom bar. Thumb-reachable, body:has(#nav-bottom:checked) phone-shaped, body:has(#nav-bottom:checked) and the shape that survives being
+   used one-handed on a shift. Costs a strip of vertical space on every screen. */
+.vf-app{ display: block; padding-bottom: 5.5rem; }body:has(#nav-bottom:checked) .vf-appnav{ position: fixed; inset-inline: 0; inset-block-end: 0; z-index: 5;
+  background: var(--card); border-top: 1px solid var(--line);
+  padding: var(--space-2) var(--space-3); display: flex; align-items: center;
+  gap: var(--space-2); overflow-x: auto; }body:has(#nav-bottom:checked) .vf-nav-brand, body:has(#nav-bottom:checked) .vf-nav-label{ display: none; }body:has(#nav-bottom:checked) .vf-appnav ul{ display: flex; gap: var(--space-1); }body:has(#nav-bottom:checked) .vf-appnav a{ padding: var(--space-2) var(--space-3); white-space: nowrap; }body:has(#nav-bottom:checked) .vf-appnav a[aria-current]{ background: var(--chip); }body:has(#nav-bottom:checked) .vf-area-route{ display: none; }body:has(#nav-bottom:checked) .vf-nav-app{ border-inline-end: 1px solid var(--line);
+  padding-inline-end: var(--space-2); margin-inline-end: var(--space-2); }@media (min-width: 900px){body:has(#nav-bottom:checked) .vf-appnav{ justify-content: center; }
+}
+
+body:has(#screen-shelf_resume:checked) [data-screen="shelf_resume"]{display:block}
+body:has(#screen-shelf_resume:checked) label[for="screen-shelf_resume"]{color:var(--ink);background:var(--card);border-color:var(--line);font-weight:600}
+body:has(#screen-source_linked_objective:checked) [data-screen="source_linked_objective"]{display:block}
+body:has(#screen-source_linked_objective:checked) label[for="screen-source_linked_objective"]{color:var(--ink);background:var(--card);border-color:var(--line);font-weight:600}
+body:has(#screen-long_lesson:checked) [data-screen="long_lesson"]{display:block}
+body:has(#screen-long_lesson:checked) label[for="screen-long_lesson"]{color:var(--ink);background:var(--card);border-color:var(--line);font-weight:600}
+body:has(#screen-wrong_answer_retry:checked) [data-screen="wrong_answer_retry"]{display:block}
+body:has(#screen-wrong_answer_retry:checked) label[for="screen-wrong_answer_retry"]{color:var(--ink);background:var(--card);border-color:var(--line);font-weight:600}
+body:has(#screen-evidence_review:checked) [data-screen="evidence_review"]{display:block}
+body:has(#screen-evidence_review:checked) label[for="screen-evidence_review"]{color:var(--ink);background:var(--card);border-color:var(--line);font-weight:600}
+body:has(#screen-ai_proposed_change:checked) [data-screen="ai_proposed_change"]{display:block}
+body:has(#screen-ai_proposed_change:checked) label[for="screen-ai_proposed_change"]{color:var(--ink);background:var(--card);border-color:var(--line);font-weight:600}
+body:has(#screen-agent_offline_status:checked) [data-screen="agent_offline_status"]{display:block}
+body:has(#screen-agent_offline_status:checked) label[for="screen-agent_offline_status"]{color:var(--ink);background:var(--card);border-color:var(--line);font-weight:600}
+body:has(#screen-agent_harness:checked) [data-screen="agent_harness"]{display:block}
+body:has(#screen-agent_harness:checked) label[for="screen-agent_harness"]{color:var(--ink);background:var(--card);border-color:var(--line);font-weight:600}
+body:has(#look-structured-studio:checked) label[for="look-structured-studio"]{color:var(--ink);background:var(--card);border-color:var(--line);font-weight:600}
+body:has(#look-quiet-workbench:checked) label[for="look-quiet-workbench"]{color:var(--ink);background:var(--card);border-color:var(--line);font-weight:600}
+body:has(#look-guided-canvas:checked) label[for="look-guided-canvas"]{color:var(--ink);background:var(--card);border-color:var(--line);font-weight:600}
+body:has(#nav-sidebar:checked) label[for="nav-sidebar"]{color:var(--ink);background:var(--card);border-color:var(--line);font-weight:600}
+body:has(#nav-tabs:checked) label[for="nav-tabs"]{color:var(--ink);background:var(--card);border-color:var(--line);font-weight:600}
+body:has(#nav-bottom:checked) label[for="nav-bottom"]{color:var(--ink);background:var(--card);border-color:var(--line);font-weight:600}
+
+*{box-sizing:border-box}
+/* The document is the scroll container. If a shell introduces a nested
+   overflow canvas, this padding moves to that container in the same change. */
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--sticky-h,0px) + var(--space-2))}
+html:has([data-surface-context]){--sticky-h:56px}
+@media (max-width:767px){html:has([data-surface-context]){--sticky-h:88px}}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.5 var(--font-chrome)}
+/* Voice & measure tokens (03.1-UI-SPEC §2, §7.1): fonts resolve by token
+   only. --font-paper/--font-ledger prefer the vendored faces (Source Serif
+   4 / iA Writer Quattro -- landed in plan 03.1-01) and fall back to the
+   no-vendor stack Georgia / ui-monospace when no font file is present; the
+   @font-face rules for the vendored faces live in this same token layer
+   (plan 03.1-06 Task 2). A @font-face whose src cannot load (file absent)
+   makes its family unavailable, so the token stack degrades to the
+   fallback with no surface knowing a family name. --measure-prose/
+   --measure-wide are character measures, not pixel spacing;
+   --leading-lesson is the sustained-prose line height. */
+/* Vendored faces (03.1-06 Task 1): the last path segments match
+   fonts/MANIFEST.json file rows; weights are the reading surface's 400/600
+   pair for the paper voice and 400/700 for the ledger voice (UI-SPEC §7
+   "two weights per face"). The urls are root-absolute because a relative
+   one resolves against the page route and 404s; a file-scheme page
+   therefore resolves nothing here and degrades to the fallback stack by
+   design. Full rationale and rejected alternative: the module comment
+   above this constant. */
+@font-face{font-family:"Source Serif 4";font-style:normal;font-weight:400;
+  src:url("/assets/fonts/source-serif/SourceSerif4-Regular.ttf.woff2") format("woff2");
+  font-display:swap}
+@font-face{font-family:"Source Serif 4";font-style:normal;font-weight:600;
+  src:url("/assets/fonts/source-serif/SourceSerif4-Semibold.ttf.woff2") format("woff2");
+  font-display:swap}
+@font-face{font-family:"iA Writer Quattro";font-style:normal;font-weight:400;
+  src:url("/assets/fonts/ia-writer-quattro/iAWriterQuattroS-Regular.woff2") format("woff2");
+  font-display:swap}
+@font-face{font-family:"iA Writer Quattro";font-style:normal;font-weight:700;
+  src:url("/assets/fonts/ia-writer-quattro/iAWriterQuattroS-Bold.woff2") format("woff2");
+  font-display:swap}
+/* The spacing scale (14-UI-SPEC §3.1, fixing DEFECT D-A): exactly
+   .planning/UI-SPEC.md §7's 8-point scale with 03.1-UI-SPEC.md §3's
+   assignments. These seven names were referenced 64 times by LESSON_CSS and
+   defined nowhere, so every margin/padding/gap in the reader resolved to its
+   initial value -- no paragraph rhythm, no callout padding, no side gutter,
+   no section spacing, and no browser error to say so. There is no eighth step
+   and no second scale.
+   --font-chrome and --font-code complete the voice set that --font-paper and
+   --font-ledger began: the stacks are copied verbatim from the `body` and
+   `.mono`/`code,pre` declarations that spelled them out inline, so the
+   emitted stacks are unchanged. This is centralisation, not a new choice. */
+:root{
+  --font-paper:"Source Serif 4",Georgia,serif;
+  --font-ledger:"iA Writer Quattro",ui-monospace,monospace;
+  --font-chrome:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-code:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --space-1:4px;
+  --space-2:8px;
+  --space-3:16px;
+  --space-4:24px;
+  --space-5:32px;
+  --space-6:48px;
+  --space-7:64px;
+  --measure-prose:59ch;
+  --measure-wide:80ch;
+  --leading-lesson:1.65;
+  --r-1:6px;
+  --r-2:8px;
+  --r-3:12px
+}
+.surface{max-width:720px;margin:0 auto;padding:24px 16px 64px;min-width:0}
+.surface.wide{max-width:800px}
+h1{font-size:32px;font-weight:600;line-height:1.2;margin:0 0 8px}
+h2{font-size:20px;font-weight:600;line-height:1.2;margin:32px 0 16px}
+h3{font-size:16px;font-weight:600;line-height:1.4;margin:24px 0 8px}
+p{font-size:16px;line-height:1.5;margin:0 0 16px;overflow-wrap:anywhere}
+a{color:var(--accent);text-decoration:none;font-weight:600}
+a:hover,a:focus-visible,button:focus-visible,summary:focus-visible,
+input:focus-visible,textarea:focus-visible,select:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--font-code);
+  font-variant-numeric:tabular-nums}
+.back{margin:0 0 24px;color:var(--mut);font-size:16px}
+.context-line{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;
+  gap:4px 18px;align-items:center;background:var(--bg);padding:8px 0 10px;
+  border-bottom:1px solid var(--line);margin-bottom:14px;font-size:12px;
+  color:var(--mut)}
+.context-line .cx{overflow-wrap:anywhere}
+.card,.step,.state,.empty{background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:16px;margin:0 0 16px}
+.step .step-label{font-size:20px;font-weight:600;margin:0 0 8px}
+.step .step-prompt{font-size:16px;font-weight:600;margin:0 0 12px}
+.step-body{font-size:16px;line-height:1.5;overflow-wrap:anywhere}
+.step-status{min-height:24px;font-size:12px;color:var(--mut);
+  margin:12px 0 0}
+.step details{margin:12px 0 0;border-top:1px solid var(--line);
+  padding-top:8px}
+.step details summary{cursor:pointer;font-size:16px;font-weight:600}
+details.details-section{border:1px solid var(--line);border-radius:8px;
+  padding:8px 12px;margin:12px 0 16px;background:var(--card)}
+details.details-section summary{cursor:pointer;font-size:16px;
+  font-weight:600;padding:4px 0}
+.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}
+button.go,a.go{display:inline-flex;align-items:center;justify-content:center;
+  min-height:44px;font:inherit;font-size:16px;font-weight:600;
+  padding:10px 16px;border-radius:8px;border:1px solid var(--line);
+  background:var(--card);color:inherit;cursor:pointer;text-decoration:none;
+  transition:.12s}
+button.go.primary,a.go.primary{background:var(--accent-soft);
+  border-color:var(--accent);color:var(--accent)}
+button.go:disabled{opacity:.55;cursor:default}
+.state{padding:12px 16px;font-size:16px;color:var(--mut)}
+.state .state-text{margin:0}
+.state.state-ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok)}
+.state.state-bad{color:var(--bad);background:var(--bad-bg);border-color:var(--bad)}
+.state.state-warn{color:var(--warn);border-color:var(--warn)}
+.row{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:16px;margin:0 0 16px}
+.row .name{font-size:16px;font-weight:600;overflow-wrap:anywhere}
+.row .links{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:16px}
+.row a{color:var(--accent)}
+.empty h2{font-size:20px;font-weight:600;margin:0 0 16px}
+.empty p{color:var(--mut);font-size:16px}
+.headline{font-size:32px;font-weight:600;color:var(--accent);line-height:1.1}
+.headline-label{font-size:12px;color:var(--mut);margin:4px 0 0}
+.figures{display:flex;gap:32px;flex-wrap:wrap;margin-top:24px}
+.figure-value{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.figure-label{font-size:12px;color:var(--mut);margin-top:4px}
+/* Recovery copy, not a chip: LESSON_CSS defines no `.status` rule, so this
+   one declaration styles the reader's degraded-lesson and style-warning
+   notice. A learner who cannot read the failure sentence cannot recover from
+   it, so it takes the 16px floor alongside `.state` (14-UI-SPEC §4.2). A
+   genuinely compact status chip uses `.step-status`, which is 12px. */
+.status{font-size:16px;color:var(--mut);margin:16px 0 0}
+table{width:100%;border-collapse:collapse;margin:8px 0 16px}
+th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);
+  font-size:16px;overflow-wrap:anywhere;vertical-align:top}
+th{font-size:12px;color:var(--mut);font-weight:600}
+.table-wrap{overflow-x:auto;min-width:0}
+code,pre{font-family:var(--font-code);
+  overflow-wrap:anywhere}
+pre{background:var(--chip);border:1px solid var(--line);border-radius:8px;
+  padding:12px;overflow-x:auto;max-width:100%}
+@media (max-width:767px){
+  .surface{padding:16px 16px 56px}
+  h1{font-size:20px}
+  .actions button{width:100%}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important}
+  html{scroll-behavior:auto!important}
+}
+
+</style></head><body><div class="surface"><nav class="context-line" data-surface-context aria-label="Context"><span class="cx">Synthetic fixture</span><span class="cx">Development only</span><span class="cx">One file, no script</span></nav>
+<h1>itembank prototype (synthetic)</h1><main><input class="of-switch" type="radio" name="look" id="look-structured-studio" checked><input class="of-switch" type="radio" name="look" id="look-quiet-workbench"><input class="of-switch" type="radio" name="look" id="look-guided-canvas"><input class="of-switch" type="radio" name="nav" id="nav-sidebar" checked><input class="of-switch" type="radio" name="nav" id="nav-tabs"><input class="of-switch" type="radio" name="nav" id="nav-bottom"><input class="of-switch" type="radio" name="screen" id="screen-shelf_resume" checked><input class="of-switch" type="radio" name="screen" id="screen-source_linked_objective"><input class="of-switch" type="radio" name="screen" id="screen-long_lesson"><input class="of-switch" type="radio" name="screen" id="screen-wrong_answer_retry"><input class="of-switch" type="radio" name="screen" id="screen-evidence_review"><input class="of-switch" type="radio" name="screen" id="screen-ai_proposed_change"><input class="of-switch" type="radio" name="screen" id="screen-agent_offline_status"><input class="of-switch" type="radio" name="screen" id="screen-agent_harness"><div class="of-bar"><span class="of-group"><b>Look</b><label for="look-structured-studio">structured studio</label><label for="look-quiet-workbench">quiet workbench</label><label for="look-guided-canvas">guided canvas</label></span><span class="of-group"><b>Nav</b><label for="nav-sidebar">sidebar</label><label for="nav-tabs">tabs</label><label for="nav-bottom">bottom</label></span><span class="of-group"><b>Screen</b><label for="screen-shelf_resume">Courses</label><label for="screen-source_linked_objective">Objective</label><label for="screen-long_lesson">Read</label><label for="screen-wrong_answer_retry">Practice</label><label for="screen-evidence_review">Evidence</label><label for="screen-ai_proposed_change">Review change</label><label for="screen-agent_offline_status">Status</label><label for="screen-agent_harness">Agent</label></span></div><p class="of-note">Every screen, look and navigation shape is in this one file. Switching uses radio inputs and CSS, so nothing here needs JavaScript or a second file.</p><div class="of-screen" data-screen="shelf_resume"><div class="vf-app"><nav class="vf-appnav" aria-label="Application"><p class="vf-nav-brand">itembank</p><p class="vf-nav-label">App</p><ul class="vf-nav-app"><li><label for="screen-shelf_resume"><span class="vf-area-label">Courses</span><span class="vf-area-route">/</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Activity</span><span class="vf-area-route">/activity</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Settings</span><span class="vf-area-route">/settings</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Help</span><span class="vf-area-route">/help</span></label></li></ul><p class="vf-nav-course-name">Synthetic Airway Course</p><p class="vf-nav-label">Study</p><ul class="vf-nav-course" data-section="study"><li><label for="screen-source_linked_objective"><span class="vf-area-label">Overview</span><span class="vf-area-route">/course/&lt;id&gt;</span></label></li><li><label for="screen-long_lesson"><span class="vf-area-label">Learn</span><span class="vf-area-route">/course/&lt;id&gt;/learn</span></label></li><li><label for="screen-wrong_answer_retry"><span class="vf-area-label">Practice</span><span class="vf-area-route">/course/&lt;id&gt;/practice</span></label></li><li class="vf-area-todo"><span><span class="vf-area-label">Test</span><span class="vf-area-route">/course/&lt;id&gt;/test</span></span></li><li><label for="screen-evidence_review"><span class="vf-area-label">Evidence</span><span class="vf-area-route">/course/&lt;id&gt;/evidence</span></label></li></ul><p class="vf-nav-label">Build</p><ul class="vf-nav-course" data-section="build"><li class="vf-area-todo"><span><span class="vf-area-label">Sources</span><span class="vf-area-route">/course/&lt;id&gt;/sources</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Map</span><span class="vf-area-route">/course/&lt;id&gt;/map</span></span></li><li><label for="screen-ai_proposed_change"><span class="vf-area-label">Build</span><span class="vf-area-route">/course/&lt;id&gt;/build</span></label></li></ul><p class="vf-nav-label">Operate</p><ul class="vf-nav-course" data-section="operate"><li><label for="screen-agent_harness"><span class="vf-area-label">Agent</span><span class="vf-area-route">/agent</span></label></li><li class="vf-area-todo"><span><span class="vf-area-label">Activity</span><span class="vf-area-route">/activity</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Settings</span><span class="vf-area-route">/settings</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Help</span><span class="vf-area-route">/help</span></span></li></ul></nav><div class="vf-appmain"><section class="vf-stage" data-stage="shelf_resume"><h2>Your courses</h2><section class="vf-resume"><p class="vf-status">Pick up where you stopped</p><h3>Synthetic Airway Course</h3><p>Two objectives back you missed the same distinction twice. This reading addresses it directly.</p><p><a class="vf-next" data-screen-link="long_lesson">Continue: recognize a compromised airway</a></p></section><h3>All courses</h3><ul class="vf-shelf"><li class="vf-card"><h3>Synthetic Airway Course</h3><p class="vf-status">Objective 2 of 6</p></li><li class="vf-card"><h3>Synthetic Ratios Course</h3><p class="vf-status">Not started</p></li><li class="vf-card vf-locked"><h3>Synthetic Locked Course</h3><p class="vf-status">Locked</p><p>Bind a source to this course before it opens.</p></li><li class="vf-card vf-locked"><h3>Synthetic Second Locked Course</h3><p class="vf-status">Locked</p><p>Grant read rights to the folder this course cites.</p></li></ul><h3>Activity</h3><ul class="vf-jobs"><li data-state="needs_input"><span class="vf-status">Needs you</span> A proposed lesson change is waiting for your review.</li><li data-state="done"><span class="vf-status">Done</span> Source binding finished for Synthetic Field Manual.</li></ul></section><nav class="vf-pager" aria-label="Flow"><p class="vf-progress">Step 1 of 8</p><label for="screen-source_linked_objective" class="vf-next">Continue to Objective</label></nav></div></div></div><div class="of-screen" data-screen="source_linked_objective"><div class="vf-app"><nav class="vf-appnav" aria-label="Application"><p class="vf-nav-brand">itembank</p><p class="vf-nav-label">App</p><ul class="vf-nav-app"><li><label for="screen-shelf_resume"><span class="vf-area-label">Courses</span><span class="vf-area-route">/</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Activity</span><span class="vf-area-route">/activity</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Settings</span><span class="vf-area-route">/settings</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Help</span><span class="vf-area-route">/help</span></label></li></ul><p class="vf-nav-course-name">Synthetic Airway Course</p><p class="vf-nav-label">Study</p><ul class="vf-nav-course" data-section="study"><li><label for="screen-source_linked_objective"><span class="vf-area-label">Overview</span><span class="vf-area-route">/course/&lt;id&gt;</span></label></li><li><label for="screen-long_lesson"><span class="vf-area-label">Learn</span><span class="vf-area-route">/course/&lt;id&gt;/learn</span></label></li><li><label for="screen-wrong_answer_retry"><span class="vf-area-label">Practice</span><span class="vf-area-route">/course/&lt;id&gt;/practice</span></label></li><li class="vf-area-todo"><span><span class="vf-area-label">Test</span><span class="vf-area-route">/course/&lt;id&gt;/test</span></span></li><li><label for="screen-evidence_review"><span class="vf-area-label">Evidence</span><span class="vf-area-route">/course/&lt;id&gt;/evidence</span></label></li></ul><p class="vf-nav-label">Build</p><ul class="vf-nav-course" data-section="build"><li class="vf-area-todo"><span><span class="vf-area-label">Sources</span><span class="vf-area-route">/course/&lt;id&gt;/sources</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Map</span><span class="vf-area-route">/course/&lt;id&gt;/map</span></span></li><li><label for="screen-ai_proposed_change"><span class="vf-area-label">Build</span><span class="vf-area-route">/course/&lt;id&gt;/build</span></label></li></ul><p class="vf-nav-label">Operate</p><ul class="vf-nav-course" data-section="operate"><li><label for="screen-agent_harness"><span class="vf-area-label">Agent</span><span class="vf-area-route">/agent</span></label></li><li class="vf-area-todo"><span><span class="vf-area-label">Activity</span><span class="vf-area-route">/activity</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Settings</span><span class="vf-area-route">/settings</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Help</span><span class="vf-area-route">/help</span></span></li></ul></nav><div class="vf-appmain"><section class="vf-stage" data-stage="source_linked_objective"><h2>Objective 2: recognize a compromised airway</h2><p class="vf-source">Source: <cite>Synthetic Field Manual, section 4.2</cite></p><h3>Prerequisites</h3><ul><li>Objective 1: name the airway structures</li></ul><p class="vf-standing"><span class="vf-fill vf-fill-on" aria-hidden="true"></span><span class="vf-fill vf-fill-on" aria-hidden="true"></span><span class="vf-fill vf-fill-on" aria-hidden="true"></span><span class="vf-fill vf-fill-off" aria-hidden="true"></span><span class="vf-fill vf-fill-off" aria-hidden="true"></span> <span class="vf-legend">Three of five blocks filled. Self-adjustable standing, never a probability.</span></p></section><nav class="vf-pager" aria-label="Flow"><p class="vf-progress">Step 2 of 8</p><label for="screen-shelf_resume" class="vf-prev">Back to Courses</label><label for="screen-long_lesson" class="vf-next">Continue to Read</label></nav></div></div></div><div class="of-screen" data-screen="long_lesson"><div class="vf-app"><nav class="vf-appnav" aria-label="Application"><p class="vf-nav-brand">itembank</p><p class="vf-nav-label">App</p><ul class="vf-nav-app"><li><label for="screen-shelf_resume"><span class="vf-area-label">Courses</span><span class="vf-area-route">/</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Activity</span><span class="vf-area-route">/activity</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Settings</span><span class="vf-area-route">/settings</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Help</span><span class="vf-area-route">/help</span></label></li></ul><p class="vf-nav-course-name">Synthetic Airway Course</p><p class="vf-nav-label">Study</p><ul class="vf-nav-course" data-section="study"><li><label for="screen-source_linked_objective"><span class="vf-area-label">Overview</span><span class="vf-area-route">/course/&lt;id&gt;</span></label></li><li><label for="screen-long_lesson"><span class="vf-area-label">Learn</span><span class="vf-area-route">/course/&lt;id&gt;/learn</span></label></li><li><label for="screen-wrong_answer_retry"><span class="vf-area-label">Practice</span><span class="vf-area-route">/course/&lt;id&gt;/practice</span></label></li><li class="vf-area-todo"><span><span class="vf-area-label">Test</span><span class="vf-area-route">/course/&lt;id&gt;/test</span></span></li><li><label for="screen-evidence_review"><span class="vf-area-label">Evidence</span><span class="vf-area-route">/course/&lt;id&gt;/evidence</span></label></li></ul><p class="vf-nav-label">Build</p><ul class="vf-nav-course" data-section="build"><li class="vf-area-todo"><span><span class="vf-area-label">Sources</span><span class="vf-area-route">/course/&lt;id&gt;/sources</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Map</span><span class="vf-area-route">/course/&lt;id&gt;/map</span></span></li><li><label for="screen-ai_proposed_change"><span class="vf-area-label">Build</span><span class="vf-area-route">/course/&lt;id&gt;/build</span></label></li></ul><p class="vf-nav-label">Operate</p><ul class="vf-nav-course" data-section="operate"><li><label for="screen-agent_harness"><span class="vf-area-label">Agent</span><span class="vf-area-route">/agent</span></label></li><li class="vf-area-todo"><span><span class="vf-area-label">Activity</span><span class="vf-area-route">/activity</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Settings</span><span class="vf-area-route">/settings</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Help</span><span class="vf-area-route">/help</span></span></li></ul></nav><div class="vf-appmain"><section class="vf-stage" data-stage="long_lesson"><h2>Reading: the airway, step by step</h2><dl class="vf-def"><dt>Stridor</dt><dd>A high, harsh sound on <button type="button" class="term" popovertarget="gloss-inspiration" aria-details="gloss-inspiration">inspiration</button> that means the upper airway is narrowed. Check whether the airway is still <button type="button" class="term" popovertarget="gloss-patent" aria-details="gloss-patent">patent</button> before you do anything else.</dd></dl><aside class="vf-warn" data-state="warn"><p><strong>Watch for this.</strong> A quiet chest in a patient who was noisy a minute ago is a worsening sign, not an improving one. Treat it as an <button type="button" class="term" popovertarget="gloss-acute" aria-details="gloss-acute">acute</button> change.</p></aside><figure class="vf-table-wrap"><figcaption>Sound, meaning, action</figcaption><table><thead><tr><th scope="col">Sound</th><th scope="col">What it means</th><th scope="col">Action</th></tr></thead><tbody><tr><td>Snoring</td><td>Tongue against the pharynx</td><td>Reposition the head</td></tr><tr><td>Gurgling</td><td>Fluid in the <button type="button" class="term" popovertarget="gloss-oropharynx" aria-details="gloss-oropharynx">oropharynx</button></td><td>Suction</td></tr><tr><td><button type="button" class="term" popovertarget="gloss-stridor" aria-details="gloss-stridor">Stridor</button></td><td>Upper airway narrowing</td><td>Escalate early</td></tr></tbody></table></figure><figure class="vf-figure"><div class="vf-image-slot" role="img" aria-label="Line drawing of a head positioned for airway opening, synthetic placeholder."></div><figcaption>Synthetic placeholder, no external asset is fetched.</figcaption></figure><aside class="vf-predict"><p>Before reading on: which sound on <button type="button" class="term" popovertarget="gloss-inspiration" aria-details="gloss-inspiration">inspiration</button> would worry you most in a patient who cannot speak?</p></aside><section class="vf-check"><h3>Check yourself</h3><p>Which finding most clearly suggests the airway is at risk?</p><ul><li>Clear speech in full sentences</li><li>Stridor with weak effort</li><li>Regular chest rise</li></ul><p class="vf-status">The answer is released by the runtime after you respond. It is not in this page.</p></section></section><div id="gloss-inspiration" class="gloss" popover><p class="gloss-term">inspiration</p><p class="gloss-def">Breathing in. The movement of air into the lungs. It has nothing to do with the everyday sense of a good idea.</p><p class="gloss-more"><a href="#term-inspiration">Full entry</a></p></div><div id="gloss-patent" class="gloss" popover><p class="gloss-term">patent</p><p class="gloss-def">Open and unobstructed. A patent airway is one air can move through. Unrelated to the legal sense of the word.</p><p class="gloss-more"><a href="#term-patent">Full entry</a></p></div><div id="gloss-acute" class="gloss" popover><p class="gloss-term">acute</p><p class="gloss-def">Fast in onset, not necessarily severe. An acute problem started recently. A severe problem is a different axis.</p><p class="gloss-more"><a href="#term-acute">Full entry</a></p></div><div id="gloss-oropharynx" class="gloss" popover><p class="gloss-term">oropharynx</p><p class="gloss-def">The part of the throat directly behind the mouth, between the soft palate and the top of the epiglottis.</p><p class="gloss-more"><a href="#term-oropharynx">Full entry</a></p></div><div id="gloss-stridor" class="gloss" popover><p class="gloss-term">stridor</p><p class="gloss-def">A high, harsh sound heard on breathing in, caused by narrowing of the upper airway.</p><p class="gloss-more"><a href="#term-stridor">Full entry</a></p></div><section id="glossary"><h2>Glossary</h2><dl><dt id="term-inspiration">inspiration</dt><dd>Breathing in. The movement of air into the lungs. It has nothing to do with the everyday sense of a good idea.</dd><dt id="term-patent">patent</dt><dd>Open and unobstructed. A patent airway is one air can move through. Unrelated to the legal sense of the word.</dd><dt id="term-acute">acute</dt><dd>Fast in onset, not necessarily severe. An acute problem started recently. A severe problem is a different axis.</dd><dt id="term-oropharynx">oropharynx</dt><dd>The part of the throat directly behind the mouth, between the soft palate and the top of the epiglottis.</dd><dt id="term-stridor">stridor</dt><dd>A high, harsh sound heard on breathing in, caused by narrowing of the upper airway.</dd></dl></section><nav class="vf-pager" aria-label="Flow"><p class="vf-progress">Step 3 of 8</p><label for="screen-source_linked_objective" class="vf-prev">Back to Objective</label><label for="screen-wrong_answer_retry" class="vf-next">Continue to Practice</label></nav></div></div></div><div class="of-screen" data-screen="wrong_answer_retry"><div class="vf-app"><nav class="vf-appnav" aria-label="Application"><p class="vf-nav-brand">itembank</p><p class="vf-nav-label">App</p><ul class="vf-nav-app"><li><label for="screen-shelf_resume"><span class="vf-area-label">Courses</span><span class="vf-area-route">/</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Activity</span><span class="vf-area-route">/activity</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Settings</span><span class="vf-area-route">/settings</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Help</span><span class="vf-area-route">/help</span></label></li></ul><p class="vf-nav-course-name">Synthetic Airway Course</p><p class="vf-nav-label">Study</p><ul class="vf-nav-course" data-section="study"><li><label for="screen-source_linked_objective"><span class="vf-area-label">Overview</span><span class="vf-area-route">/course/&lt;id&gt;</span></label></li><li><label for="screen-long_lesson"><span class="vf-area-label">Learn</span><span class="vf-area-route">/course/&lt;id&gt;/learn</span></label></li><li><label for="screen-wrong_answer_retry"><span class="vf-area-label">Practice</span><span class="vf-area-route">/course/&lt;id&gt;/practice</span></label></li><li class="vf-area-todo"><span><span class="vf-area-label">Test</span><span class="vf-area-route">/course/&lt;id&gt;/test</span></span></li><li><label for="screen-evidence_review"><span class="vf-area-label">Evidence</span><span class="vf-area-route">/course/&lt;id&gt;/evidence</span></label></li></ul><p class="vf-nav-label">Build</p><ul class="vf-nav-course" data-section="build"><li class="vf-area-todo"><span><span class="vf-area-label">Sources</span><span class="vf-area-route">/course/&lt;id&gt;/sources</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Map</span><span class="vf-area-route">/course/&lt;id&gt;/map</span></span></li><li><label for="screen-ai_proposed_change"><span class="vf-area-label">Build</span><span class="vf-area-route">/course/&lt;id&gt;/build</span></label></li></ul><p class="vf-nav-label">Operate</p><ul class="vf-nav-course" data-section="operate"><li><label for="screen-agent_harness"><span class="vf-area-label">Agent</span><span class="vf-area-route">/agent</span></label></li><li class="vf-area-todo"><span><span class="vf-area-label">Activity</span><span class="vf-area-route">/activity</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Settings</span><span class="vf-area-route">/settings</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Help</span><span class="vf-area-route">/help</span></span></li></ul></nav><div class="vf-appmain"><section class="vf-stage" data-stage="wrong_answer_retry"><h2>Practice: one wrong answer</h2><p class="vf-answer">Your answer: <span data-state="bad">Clear speech in full sentences</span></p><div class="vf-feedback" data-state="bad"><p>That answer describes a patient who is moving air well. Look again at what changes when effort drops.</p></div><details class="details-section"><summary>Hint 1</summary><p>Start from what the patient can still do without help.</p></details><p class="vf-locked vf-status">Hint 2 is locked. The runtime releases it, not this page.</p><p class="vf-locked vf-status">Hint 3 is locked. The runtime releases it, not this page.</p><p><button type="button">Try again</button></p></section><nav class="vf-pager" aria-label="Flow"><p class="vf-progress">Step 4 of 8</p><label for="screen-long_lesson" class="vf-prev">Back to Read</label><label for="screen-evidence_review" class="vf-next">Continue to Evidence</label></nav></div></div></div><div class="of-screen" data-screen="evidence_review"><div class="vf-app"><nav class="vf-appnav" aria-label="Application"><p class="vf-nav-brand">itembank</p><p class="vf-nav-label">App</p><ul class="vf-nav-app"><li><label for="screen-shelf_resume"><span class="vf-area-label">Courses</span><span class="vf-area-route">/</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Activity</span><span class="vf-area-route">/activity</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Settings</span><span class="vf-area-route">/settings</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Help</span><span class="vf-area-route">/help</span></label></li></ul><p class="vf-nav-course-name">Synthetic Airway Course</p><p class="vf-nav-label">Study</p><ul class="vf-nav-course" data-section="study"><li><label for="screen-source_linked_objective"><span class="vf-area-label">Overview</span><span class="vf-area-route">/course/&lt;id&gt;</span></label></li><li><label for="screen-long_lesson"><span class="vf-area-label">Learn</span><span class="vf-area-route">/course/&lt;id&gt;/learn</span></label></li><li><label for="screen-wrong_answer_retry"><span class="vf-area-label">Practice</span><span class="vf-area-route">/course/&lt;id&gt;/practice</span></label></li><li class="vf-area-todo"><span><span class="vf-area-label">Test</span><span class="vf-area-route">/course/&lt;id&gt;/test</span></span></li><li><label for="screen-evidence_review"><span class="vf-area-label">Evidence</span><span class="vf-area-route">/course/&lt;id&gt;/evidence</span></label></li></ul><p class="vf-nav-label">Build</p><ul class="vf-nav-course" data-section="build"><li class="vf-area-todo"><span><span class="vf-area-label">Sources</span><span class="vf-area-route">/course/&lt;id&gt;/sources</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Map</span><span class="vf-area-route">/course/&lt;id&gt;/map</span></span></li><li><label for="screen-ai_proposed_change"><span class="vf-area-label">Build</span><span class="vf-area-route">/course/&lt;id&gt;/build</span></label></li></ul><p class="vf-nav-label">Operate</p><ul class="vf-nav-course" data-section="operate"><li><label for="screen-agent_harness"><span class="vf-area-label">Agent</span><span class="vf-area-route">/agent</span></label></li><li class="vf-area-todo"><span><span class="vf-area-label">Activity</span><span class="vf-area-route">/activity</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Settings</span><span class="vf-area-route">/settings</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Help</span><span class="vf-area-route">/help</span></span></li></ul></nav><div class="vf-appmain"><section class="vf-stage" data-stage="evidence_review"><h2>Evidence so far</h2><p class="vf-denominator">Two responses recorded against this objective. Too few to describe a trend.</p><figure class="vf-table-wrap"><table><thead><tr><th scope="col">Item</th><th scope="col">Result</th><th scope="col">Recorded</th><th scope="col">Note</th></tr></thead><tbody><tr><td>Synthetic item A</td><td data-state="correct">correct</td><td>2026-08-20</td><td></td></tr><tr><td>Synthetic item B</td><td data-state="pending">pending</td><td>2026-08-20</td><td>Constructed response awaiting a human mark.</td></tr></tbody></table></figure></section><nav class="vf-pager" aria-label="Flow"><p class="vf-progress">Step 5 of 8</p><label for="screen-wrong_answer_retry" class="vf-prev">Back to Practice</label><label for="screen-ai_proposed_change" class="vf-next">Continue to Review change</label></nav></div></div></div><div class="of-screen" data-screen="ai_proposed_change"><div class="vf-app"><nav class="vf-appnav" aria-label="Application"><p class="vf-nav-brand">itembank</p><p class="vf-nav-label">App</p><ul class="vf-nav-app"><li><label for="screen-shelf_resume"><span class="vf-area-label">Courses</span><span class="vf-area-route">/</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Activity</span><span class="vf-area-route">/activity</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Settings</span><span class="vf-area-route">/settings</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Help</span><span class="vf-area-route">/help</span></label></li></ul><p class="vf-nav-course-name">Synthetic Airway Course</p><p class="vf-nav-label">Study</p><ul class="vf-nav-course" data-section="study"><li><label for="screen-source_linked_objective"><span class="vf-area-label">Overview</span><span class="vf-area-route">/course/&lt;id&gt;</span></label></li><li><label for="screen-long_lesson"><span class="vf-area-label">Learn</span><span class="vf-area-route">/course/&lt;id&gt;/learn</span></label></li><li><label for="screen-wrong_answer_retry"><span class="vf-area-label">Practice</span><span class="vf-area-route">/course/&lt;id&gt;/practice</span></label></li><li class="vf-area-todo"><span><span class="vf-area-label">Test</span><span class="vf-area-route">/course/&lt;id&gt;/test</span></span></li><li><label for="screen-evidence_review"><span class="vf-area-label">Evidence</span><span class="vf-area-route">/course/&lt;id&gt;/evidence</span></label></li></ul><p class="vf-nav-label">Build</p><ul class="vf-nav-course" data-section="build"><li class="vf-area-todo"><span><span class="vf-area-label">Sources</span><span class="vf-area-route">/course/&lt;id&gt;/sources</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Map</span><span class="vf-area-route">/course/&lt;id&gt;/map</span></span></li><li><label for="screen-ai_proposed_change"><span class="vf-area-label">Build</span><span class="vf-area-route">/course/&lt;id&gt;/build</span></label></li></ul><p class="vf-nav-label">Operate</p><ul class="vf-nav-course" data-section="operate"><li><label for="screen-agent_harness"><span class="vf-area-label">Agent</span><span class="vf-area-route">/agent</span></label></li><li class="vf-area-todo"><span><span class="vf-area-label">Activity</span><span class="vf-area-route">/activity</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Settings</span><span class="vf-area-route">/settings</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Help</span><span class="vf-area-route">/help</span></span></li></ul></nav><div class="vf-appmain"><section class="vf-stage" data-stage="ai_proposed_change"><h2>Proposed lesson change, not accepted</h2><p class="vf-status" data-state="pending">Proposed, not accepted. Nothing changes until you accept it.</p><p>The stridor definition does not say what the learner should do next.</p><h3>Cited from</h3><ul><li><cite>Synthetic Field Manual, section 4.2</cite></li></ul><h3>Proposed change</h3><ul class="vf-diff"><li class="vf-diff-context"><code>  A high, harsh sound on inspiration that means the upper airway is narrowed.</code></li><li class="vf-diff-add"><code>+ Escalate early: stridor with falling effort is a call, not a wait.</code></li></ul><p><button type="button">Accept</button> <button type="button">Reject</button></p></section><nav class="vf-pager" aria-label="Flow"><p class="vf-progress">Step 6 of 8</p><label for="screen-evidence_review" class="vf-prev">Back to Evidence</label><label for="screen-agent_offline_status" class="vf-next">Continue to Status</label></nav></div></div></div><div class="of-screen" data-screen="agent_offline_status"><div class="vf-app"><nav class="vf-appnav" aria-label="Application"><p class="vf-nav-brand">itembank</p><p class="vf-nav-label">App</p><ul class="vf-nav-app"><li><label for="screen-shelf_resume"><span class="vf-area-label">Courses</span><span class="vf-area-route">/</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Activity</span><span class="vf-area-route">/activity</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Settings</span><span class="vf-area-route">/settings</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Help</span><span class="vf-area-route">/help</span></label></li></ul><p class="vf-nav-course-name">Synthetic Airway Course</p><p class="vf-nav-label">Study</p><ul class="vf-nav-course" data-section="study"><li><label for="screen-source_linked_objective"><span class="vf-area-label">Overview</span><span class="vf-area-route">/course/&lt;id&gt;</span></label></li><li><label for="screen-long_lesson"><span class="vf-area-label">Learn</span><span class="vf-area-route">/course/&lt;id&gt;/learn</span></label></li><li><label for="screen-wrong_answer_retry"><span class="vf-area-label">Practice</span><span class="vf-area-route">/course/&lt;id&gt;/practice</span></label></li><li class="vf-area-todo"><span><span class="vf-area-label">Test</span><span class="vf-area-route">/course/&lt;id&gt;/test</span></span></li><li><label for="screen-evidence_review"><span class="vf-area-label">Evidence</span><span class="vf-area-route">/course/&lt;id&gt;/evidence</span></label></li></ul><p class="vf-nav-label">Build</p><ul class="vf-nav-course" data-section="build"><li class="vf-area-todo"><span><span class="vf-area-label">Sources</span><span class="vf-area-route">/course/&lt;id&gt;/sources</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Map</span><span class="vf-area-route">/course/&lt;id&gt;/map</span></span></li><li><label for="screen-ai_proposed_change"><span class="vf-area-label">Build</span><span class="vf-area-route">/course/&lt;id&gt;/build</span></label></li></ul><p class="vf-nav-label">Operate</p><ul class="vf-nav-course" data-section="operate"><li><label for="screen-agent_harness"><span class="vf-area-label">Agent</span><span class="vf-area-route">/agent</span></label></li><li class="vf-area-todo"><span><span class="vf-area-label">Activity</span><span class="vf-area-route">/activity</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Settings</span><span class="vf-area-route">/settings</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Help</span><span class="vf-area-route">/help</span></span></li></ul></nav><div class="vf-appmain"><section class="vf-stage" data-stage="agent_offline_status"><h2>Agent and connection</h2><div class="state state-unknown" data-state="unknown" role="status" aria-live="polite"><p class="state-text">The model is unreachable. Authored hints and scoring still work.</p></div><div class="state state-unknown" data-state="unknown" role="status" aria-live="polite"><p class="state-text">No network. Everything on this page was produced on this machine.</p></div></section><nav class="vf-pager" aria-label="Flow"><p class="vf-progress">Step 7 of 8</p><label for="screen-ai_proposed_change" class="vf-prev">Back to Review change</label><label for="screen-agent_harness" class="vf-next">Continue to Agent</label></nav></div></div></div><div class="of-screen" data-screen="agent_harness"><div class="vf-app"><nav class="vf-appnav" aria-label="Application"><p class="vf-nav-brand">itembank</p><p class="vf-nav-label">App</p><ul class="vf-nav-app"><li><label for="screen-shelf_resume"><span class="vf-area-label">Courses</span><span class="vf-area-route">/</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Activity</span><span class="vf-area-route">/activity</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Settings</span><span class="vf-area-route">/settings</span></label></li><li><label for="screen-shelf_resume"><span class="vf-area-label">Help</span><span class="vf-area-route">/help</span></label></li></ul><p class="vf-nav-course-name">Synthetic Airway Course</p><p class="vf-nav-label">Study</p><ul class="vf-nav-course" data-section="study"><li><label for="screen-source_linked_objective"><span class="vf-area-label">Overview</span><span class="vf-area-route">/course/&lt;id&gt;</span></label></li><li><label for="screen-long_lesson"><span class="vf-area-label">Learn</span><span class="vf-area-route">/course/&lt;id&gt;/learn</span></label></li><li><label for="screen-wrong_answer_retry"><span class="vf-area-label">Practice</span><span class="vf-area-route">/course/&lt;id&gt;/practice</span></label></li><li class="vf-area-todo"><span><span class="vf-area-label">Test</span><span class="vf-area-route">/course/&lt;id&gt;/test</span></span></li><li><label for="screen-evidence_review"><span class="vf-area-label">Evidence</span><span class="vf-area-route">/course/&lt;id&gt;/evidence</span></label></li></ul><p class="vf-nav-label">Build</p><ul class="vf-nav-course" data-section="build"><li class="vf-area-todo"><span><span class="vf-area-label">Sources</span><span class="vf-area-route">/course/&lt;id&gt;/sources</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Map</span><span class="vf-area-route">/course/&lt;id&gt;/map</span></span></li><li><label for="screen-ai_proposed_change"><span class="vf-area-label">Build</span><span class="vf-area-route">/course/&lt;id&gt;/build</span></label></li></ul><p class="vf-nav-label">Operate</p><ul class="vf-nav-course" data-section="operate"><li><label for="screen-agent_harness"><span class="vf-area-label">Agent</span><span class="vf-area-route">/agent</span></label></li><li class="vf-area-todo"><span><span class="vf-area-label">Activity</span><span class="vf-area-route">/activity</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Settings</span><span class="vf-area-route">/settings</span></span></li><li class="vf-area-todo"><span><span class="vf-area-label">Help</span><span class="vf-area-route">/help</span></span></li></ul></nav><div class="vf-appmain"><section class="vf-stage" data-stage="agent_harness"><h2>Agent</h2><div class="state state-unknown" data-state="unknown" role="status" aria-live="polite"><p class="state-text">Nothing is running. Start a skill below.</p></div><h3>Waiting for you</h3><div class="state state-unknown" data-state="unknown" role="status" aria-live="polite"><p class="state-text">Nothing is waiting for you.</p></div><h3>Start something</h3><ul class="vf-skills"><li><button type="button">Absorb a book or chapter</button></li><li><button type="button">Write or extend a question bank</button></li><li><button type="button">Build a course from sources</button></li><li><button type="button">Design objectives from a syllabus</button></li><li><button type="button">Upgrade older lessons</button></li></ul><h3>Model</h3><p class="vf-status" data-state="unknown">No model backend is configured, so nothing can run here yet. Studying, scoring and authored hints are unaffected.</p><ul class="vf-backends"></ul><h3>How much it may do on its own</h3><ul class="vf-backends"><li data-state="ok"><span class="vf-area-label">Report only</span><span class="vf-status">Reads and tells you. Writes nothing.</span></li><li><span class="vf-area-label">Draft, you approve</span><span class="vf-status">Writes drafts. Every change waits for you.</span></li><li><span class="vf-area-label">Draft, lint, fix, commit</span><span class="vf-status">Commits validated changes on its own. Journalled and undoable.</span></li></ul><h3>Spend</h3><div class="state state-unknown" data-state="unknown" role="status" aria-live="polite"><p class="state-text">No spend recorded yet. This app does not have your provider bill, so it can only count what it sends.</p></div><h3>Operation journal</h3><p class="vf-status" data-state="unknown">No operations recorded yet. Every write this app makes lands here with a way back.</p><div class="state state-unknown" data-state="unknown" role="status" aria-live="polite"><p class="state-text">No operations recorded yet. Every write this app makes lands here with a way back.</p></div></section><nav class="vf-pager" aria-label="Flow"><p class="vf-progress">Step 8 of 8</p><label for="screen-agent_offline_status" class="vf-prev">Back to Status</label></nav></div></div></div></main><noscript><p>This page uses no JavaScript.</p></noscript></div></body></html>

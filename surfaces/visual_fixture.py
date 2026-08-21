@@ -746,6 +746,8 @@ def _app_nav(data, direction, nav_shape, stage_id):
              stage_id == "shelf_resume" and a["id"] == "home", a["route"])
         for a in app.get("app_areas", []))
     by_id = {a["id"]: a for a in app.get("course_areas", [])}
+    by_id.update({a["id"]: a for a in app.get("app_areas", [])
+                  if a["id"] not in by_id})
     blocks = []
     for section in app.get("sections", []):
         rows = "".join(
@@ -902,6 +904,249 @@ def page(data, direction=DEFAULT_DIRECTION, tokens=None, stage_id=None,
         context=["Synthetic fixture", "Development only",
                  "Direction: %s" % direction],
         noscript="Hover definitions also open on click, with no JavaScript.")
+
+
+
+# --------------------------------------------------------------------------
+# One self-contained file.
+#
+# The multi-file export links each screen to a sibling file. That is correct
+# for walking a folder and useless anywhere the sibling files are not present,
+# such as a preview pane handed a single file: every link is dead and the
+# prototype reads as broken when it is only incomplete.
+#
+# This builder inlines every screen, every look and every navigation shape into
+# one document and switches between them with radio inputs and CSS. No script,
+# no navigation, no sibling files. It works in a sandbox that blocks scripts,
+# because there is nothing to block.
+# --------------------------------------------------------------------------
+
+# The shipped glossary panel positions itself with CSS anchor positioning
+# (position-anchor, position-area, position-try-fallbacks), which is recent
+# enough that a viewer without it renders an absolutely positioned panel at an
+# arbitrary place on the page. That is most of what "looks broken" means here.
+# Progressive enhancement in the correct order: a fixed bottom sheet that works
+# everywhere is the base, and anchor positioning is the upgrade.
+GLOSS_FALLBACK_CSS = """
+.gloss[popover] { position: fixed; inset: auto var(--space-4) var(--space-4) auto;
+  max-width: min(38ch, calc(100vw - var(--space-6))); margin: 0; }
+@supports (position-area: block-end span-inline-end) {
+  .gloss[popover] { position: absolute; inset: auto; }
+}
+/* Where the Popover API itself is unavailable, :target still opens the panel,
+   so a definition is never unreachable. */
+.gloss:target { display: block; position: fixed;
+  inset: auto var(--space-4) var(--space-4) auto; }
+"""
+
+ONEFILE_CSS = """
+.of-switch { position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap; }
+.of-bar { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4);
+  align-items: center; padding: var(--space-3);
+  border: 1px dashed var(--line); border-radius: var(--r-2);
+  background: var(--chip); margin-bottom: var(--space-6); }
+.of-group { display: flex; flex-wrap: wrap; gap: var(--space-1);
+  align-items: center; }
+.of-group > b { font-size: var(--vf-micro); text-transform: uppercase;
+  letter-spacing: .09em; color: var(--mut); font-weight: 600;
+  margin-inline-end: var(--space-1); font-family: var(--font-ledger); }
+.of-bar label, .vf-appnav label, .vf-pager label, .vf-resume label {
+  cursor: pointer; }
+.of-bar label { display: inline-block; padding: 3px var(--space-3);
+  border-radius: var(--r-1); border: 1px solid transparent;
+  font-size: var(--vf-micro); color: var(--mut); }
+.of-bar label:hover { color: var(--ink); background: var(--card); }
+.of-screen { display: none; }
+.of-note { font-size: var(--vf-meta); color: var(--mut); margin: 0 0 var(--space-4);
+  font-family: var(--font-ledger); }
+/* Nav and pager entries are labels here, not links, so they need the link look. */
+.vf-appnav label { display: block; padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-2); color: var(--mut); }
+.vf-appnav label:hover { color: var(--ink); background: var(--chip); }
+.vf-pager label, .vf-resume label { display: inline-block; text-decoration: none;
+  font-size: var(--vf-body); padding: var(--space-2) var(--space-4);
+  border-radius: var(--r-2); border: 1px solid var(--line); color: var(--ink); }
+.vf-pager label.vf-next, .vf-resume label.vf-next { background: var(--accent);
+  color: var(--card); border-color: var(--accent); }
+"""
+
+
+def _scope_css(css, guard):
+    """Prefix every selector in `css` with `guard`, keeping at-rule wrappers.
+
+    Deliberately small: it handles the nesting these overlays actually use,
+    which is plain rules and one level of @media/@supports. It is not a CSS
+    parser and does not pretend to be one.
+    """
+    out = []
+    depth = 0
+    buf = ""
+    i = 0
+    while i < len(css):
+        ch = css[i]
+        if ch == "{":
+            selector = buf.strip()
+            buf = ""
+            if selector.startswith("@"):
+                out.append(selector + "{")
+                depth += 1
+            else:
+                scoped = ", ".join(
+                    ("%s %s" % (guard, part.strip())) if part.strip() else ""
+                    for part in selector.split(","))
+                out.append(scoped + "{")
+                depth += 1
+            i += 1
+            continue
+        if ch == "}":
+            out.append(buf)
+            buf = ""
+            out.append("}")
+            depth -= 1
+            i += 1
+            continue
+        if ch == ";" and depth > 0:
+            out.append(buf + ";")
+            buf = ""
+            i += 1
+            continue
+        buf += ch
+        i += 1
+    out.append(buf)
+    return "".join(out)
+
+
+def _radio(group, value, checked):
+    return ('<input class="of-switch" type="radio" name="%s" id="%s-%s"%s>'
+            % (group, group, value, " checked" if checked else ""))
+
+
+def _label(group, value, text, classes=""):
+    cls = ' class="%s"' % classes if classes else ""
+    return '<label for="%s-%s"%s>%s</label>' % (group, value, cls, text)
+
+
+def single_file(data=None, base=None):
+    """Every screen, look and nav shape in one document, switched by CSS."""
+    data = data if data is not None else load_fixture()
+    ids = stage_ids(data)
+    app = data.get("app") or {}
+    by_id = {a["id"]: a for a in app.get("course_areas", [])}
+    by_id.update({a["id"]: a for a in app.get("app_areas", [])
+                  if a["id"] not in by_id})
+
+    # --- switches -------------------------------------------------------
+    radios = "".join(
+        [_radio("look", d, d == DEFAULT_DIRECTION) for d in DIRECTIONS] +
+        [_radio("nav", n, n == DEFAULT_NAV) for n in NAV_SHAPES] +
+        [_radio("screen", sid, i == 0) for i, sid in enumerate(ids)])
+
+    bar = ('<div class="of-bar">'
+           '<span class="of-group"><b>Look</b>%s</span>'
+           '<span class="of-group"><b>Nav</b>%s</span>'
+           '<span class="of-group"><b>Screen</b>%s</span></div>'
+           % ("".join(_label("look", d, _esc(d.replace("-", " ")))
+                      for d in DIRECTIONS),
+              "".join(_label("nav", n, _esc(n)) for n in NAV_SHAPES),
+              "".join(_label("screen", sid, _esc(STAGE_LABELS.get(sid, sid)))
+                      for sid in ids)))
+
+    # --- app nav, as labels rather than links ---------------------------
+    def nav_entry(area_id):
+        area = by_id.get(area_id)
+        if not area:
+            return ""
+        target = area.get("stage")
+        inner = ('<span class="vf-area-label">%s</span>'
+                 '<span class="vf-area-route">%s</span>'
+                 % (_esc(area["label"]), _esc(area["route"])))
+        if target in ids:
+            return "<li>%s</li>" % _label("screen", target, inner)
+        return ('<li class="vf-area-todo"><span>%s</span></li>' % inner)
+
+    sections = "".join(
+        '<p class="vf-nav-label">%s</p><ul class="vf-nav-course" data-section="%s">%s</ul>'
+        % (_esc(sec["label"]), _esc(sec["id"]),
+           "".join(nav_entry(a) for a in sec.get("areas", [])))
+        for sec in app.get("sections", []))
+    app_rows = "".join(
+        "<li>%s</li>" % _label(
+            "screen", ids[0],
+            '<span class="vf-area-label">%s</span>'
+            '<span class="vf-area-route">%s</span>'
+            % (_esc(a["label"]), _esc(a["route"])))
+        for a in app.get("app_areas", []))
+    appnav = ('<nav class="vf-appnav" aria-label="Application">'
+              '<p class="vf-nav-brand">itembank</p>'
+              '<p class="vf-nav-label">App</p><ul class="vf-nav-app">%s</ul>'
+              '<p class="vf-nav-course-name">%s</p>%s</nav>'
+              % (app_rows, _esc(app.get("course_name", "Course")), sections))
+
+    # --- screens --------------------------------------------------------
+    screens = []
+    for index, sid in enumerate(ids):
+        inner = render_stage(data, sid, base)
+        inner = inner.replace('href="?direction=DIR&amp;nav=NAV&amp;stage=',
+                              'data-screen-link="')
+        pager = ['<p class="vf-progress">Step %d of %d</p>' % (index + 1, len(ids))]
+        if index > 0:
+            pager.append(_label("screen", ids[index - 1],
+                                "Back to " + _esc(STAGE_LABELS.get(ids[index - 1], "")),
+                                "vf-prev"))
+        if index < len(ids) - 1:
+            pager.append(_label("screen", ids[index + 1],
+                                "Continue to " + _esc(STAGE_LABELS.get(ids[index + 1], "")),
+                                "vf-next"))
+        gmap = gloss_map(data)
+        used = dict((slug, rec) for slug, rec in gmap.items()
+                    if ("gloss-%s" % slug) in inner)
+        panels = "".join(lesson._gloss_panel_html(rec, slug)
+                         for slug, rec in used.items())
+        appendix = lesson._glossary_html(used, {}) if used else ""
+        screens.append(
+            '<div class="of-screen" data-screen="%s"><div class="vf-app">%s'
+            '<div class="vf-appmain">%s%s%s'
+            '<nav class="vf-pager" aria-label="Flow">%s</nav>'
+            "</div></div></div>"
+            % (_esc(sid), appnav, inner, panels, appendix, "".join(pager)))
+
+    # --- css ------------------------------------------------------------
+    marked = set()
+    for slug in gloss_map(data):
+        marked.add(slug)
+    parts = [theme.theme_css(theme.DEFAULT_THEME_CONFIG), token_css(None),
+             CHROME_CSS, lesson.gloss_css(), lesson._gloss_anchor_css(marked),
+             GLOSS_FALLBACK_CSS, FIXED_RULES, ONEFILE_CSS,
+             _scope_css(overlay_css("_nav-shared"), "body")]
+    for direction in DIRECTIONS:
+        parts.append(_scope_css(direction_css(direction),
+                                "body:has(#look-%s:checked)" % direction))
+    for shape in NAV_SHAPES:
+        parts.append(_scope_css(overlay_css("nav-" + shape),
+                                "body:has(#nav-%s:checked)" % shape))
+    for sid in ids:
+        parts.append('body:has(#screen-%s:checked) [data-screen="%s"]'
+                     "{display:block}" % (sid, sid))
+        parts.append('body:has(#screen-%s:checked) label[for="screen-%s"]'
+                     "{color:var(--ink);background:var(--card);"
+                     "border-color:var(--line);font-weight:600}" % (sid, sid))
+    for group, values in (("look", DIRECTIONS), ("nav", NAV_SHAPES)):
+        for value in values:
+            parts.append('body:has(#%s-%s:checked) label[for="%s-%s"]'
+                         "{color:var(--ink);background:var(--card);"
+                         "border-color:var(--line);font-weight:600}"
+                         % (group, value, group, value))
+
+    note = ('<p class="of-note">Every screen, look and navigation shape is in '
+            "this one file. Switching uses radio inputs and CSS, so nothing "
+            "here needs JavaScript or a second file.</p>")
+    return presentation.surface_shell(
+        "itembank prototype (synthetic)",
+        radios + bar + note + "".join(screens),
+        theme_css="\n".join(parts),
+        context=["Synthetic fixture", "Development only", "One file, no script"],
+        noscript="This page uses no JavaScript.")
 
 
 def write_static(out_dir, data=None):

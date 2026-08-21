@@ -463,7 +463,8 @@
         "areas": [
           "agent",
           "activity",
-          "settings"
+          "settings",
+          "help"
         ]
       }
     ]

@@ -405,9 +405,15 @@ def check_nav_sections():
         if not section.get("hint"):
             fail("section %s does not say what it is for" % section["id"])
         known.update(section.get("areas", []))
-    for area in (data.get("app") or {}).get("course_areas", []):
-        if area["id"] not in known:
-            fail("area %s belongs to no section" % area["id"])
+    app = data.get("app") or {}
+    defined = {a["id"] for a in app.get("course_areas", [])}
+    defined |= {a["id"] for a in app.get("app_areas", [])}
+    for area_id in defined:
+        if area_id not in known and area_id != "home":
+            fail("area %s belongs to no section" % area_id)
+    for area_id in known:
+        if area_id not in defined:
+            fail("section names area %s, which is defined nowhere" % area_id)
     html = visual_fixture.page(data, "structured-studio", stage_id="long_lesson")
     for label in ("Study", "Build", "Operate"):
         if label not in html:
@@ -473,6 +479,54 @@ def check_harness_undo_classification():
     ok("check_harness_undo_classification")
 
 
+def check_single_file_is_self_contained():
+    """The multi-file export links each screen to a sibling file, which is dead
+    anywhere the siblings are absent, such as a preview pane handed one file.
+    The single-file build must carry every screen, look and nav shape inline and
+    switch without script or navigation."""
+    from surfaces import visual_fixture
+    data = load()
+    html = visual_fixture.single_file(data)
+    if "<script" in html.lower():
+        fail("the single file contains script, which a sandbox may block")
+    if 'href="?' in html or "../" in html:
+        fail("the single file still links to something that is not in it")
+    ids = visual_fixture.stage_ids(data)
+    for sid in ids:
+        if ('data-screen="%s"' % sid) not in html:
+            fail("screen %s is missing from the single file" % sid)
+        if ('for="screen-%s"' % sid) not in html:
+            fail("screen %s has no switch control" % sid)
+    for d in visual_fixture.DIRECTIONS:
+        if ('for="look-%s"' % d) not in html:
+            fail("look %s has no switch control" % d)
+    for n in visual_fixture.NAV_SHAPES:
+        if ('for="nav-%s"' % n) not in html:
+            fail("nav shape %s has no switch control" % n)
+    if html.count('type="radio"') < len(ids) + len(visual_fixture.DIRECTIONS)             + len(visual_fixture.NAV_SHAPES):
+        fail("fewer radio switches than screens plus looks plus nav shapes")
+    ok("check_single_file_is_self_contained")
+
+
+def check_gloss_positioning_degrades():
+    """The shipped glossary panel positions itself with CSS anchor positioning,
+    which is recent. Without it the panel lands somewhere arbitrary, which is
+    most of what "looks broken" means. The base must work everywhere and anchor
+    positioning must be the upgrade."""
+    from surfaces import visual_fixture
+    html = visual_fixture.single_file(load())
+    fallback = visual_fixture.GLOSS_FALLBACK_CSS
+    if "@supports (position-area" not in fallback:
+        fail("anchor positioning is not gated behind an @supports upgrade")
+    if "position: fixed" not in fallback:
+        fail("there is no positioning fallback for a browser without anchors")
+    if ".gloss:target" not in fallback:
+        fail("a definition is unreachable where the Popover API is absent")
+    if "@supports (position-area" not in html:
+        fail("the fallback did not reach the rendered page")
+    ok("check_gloss_positioning_degrades")
+
+
 def main():
     check_fixture_shape()
     check_no_em_dash()
@@ -496,6 +550,8 @@ def main():
     check_nav_sections()
     check_harness_live_wiring()
     check_harness_undo_classification()
+    check_single_file_is_self_contained()
+    check_gloss_positioning_degrades()
     if failures:
         print("\n%d failure(s)" % len(failures))
         return 1
