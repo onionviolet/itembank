@@ -30,6 +30,14 @@
 #   DIFFERENT tree tomorrow than it did today. Pinning the top-level version
 #   alone pins almost nothing.
 #
+#   How far that drifts, measured 2026-08-21: a lockfile generated from the
+#   top-level pin alone resolved 185 of the 191 `@deepseek-ai/dsh-*` packages
+#   to 0.1.0-rc.8, while the install that was verified running has rc.7
+#   throughout. Same top-level version, a different program. The overrides in
+#   deps/dsh/package.json therefore hold the whole scope at rc.7, so the
+#   locked tree is the tree that was tested rather than merely a tree that
+#   resolves.
+#
 #   The real pin is therefore the lockfile beside this note:
 #
 #       deps/dsh/package.json        the exact top-level version
@@ -43,6 +51,15 @@
 #   `deps/dsh/` is a pin, not a build input. Nothing in itembank imports from
 #   it and no shipped command reads it. It exists so the console the Agent tab
 #   frames can be reinstalled byte-for-byte.
+#
+#   The two overrides are load-bearing and are not preferences:
+#     @aws-sdk/core 3.977.8   a transitive package demands ^3.977.9, which the
+#                             registry does not carry (highest 3.977.8,
+#                             checked 2026-08-21). Without this the install
+#                             fails outright with ETARGET.
+#     @deepseek-ai/dsh-* rc.7 holds the scope at the tested version rather than
+#                             letting the carets walk it forward to rc.8.
+#   Remove either one and `npm ci` stops reproducing what was verified.
 #
 # EGRESS
 #   Whatever provider the learner's own `dsh` config names. Verified running

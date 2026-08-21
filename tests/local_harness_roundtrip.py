@@ -407,6 +407,49 @@ def check_agent_tab_embeds_the_pinned_console():
        % (visual_fixture.DSH_PACKAGE, visual_fixture.DSH_VERSION))
 
 
+def check_the_lockfile_holds_the_tested_tree():
+    """The pin is the lockfile, not the top-level version.
+
+    Measured 2026-08-21: `dsh` declares roughly sixty first-party
+    dependencies and every one is a caret range, so a lockfile generated from
+    the top-level pin alone resolved 185 of 191 `@deepseek-ai/dsh-*` packages
+    to 0.1.0-rc.8 while the verified install has rc.7 throughout. Same
+    version number, a different program. This check fails if the scope ever
+    walks away from the version the Agent panel names."""
+    lock_path = os.path.join(ROOT, "deps", "dsh", "package-lock.json")
+    if not os.path.exists(lock_path):
+        fail("deps/dsh/package-lock.json is missing, so the top-level "
+             "version is the only pin and it pins almost nothing")
+        return
+    from surfaces import visual_fixture
+
+    with open(lock_path, encoding="utf-8") as fh:
+        packages = json.load(fh).get("packages") or {}
+    top = packages.get("node_modules/" + visual_fixture.DSH_PACKAGE) or {}
+    if top.get("version") != visual_fixture.DSH_VERSION:
+        fail("the lockfile carries %s %r but the panel names %r"
+             % (visual_fixture.DSH_PACKAGE, top.get("version"),
+                visual_fixture.DSH_VERSION))
+        return
+    stray = sorted({
+        key.split("node_modules/")[-1]
+        for key, record in packages.items()
+        if key.startswith("node_modules/@deepseek-ai/dsh")
+        and str(record.get("version", "")).startswith("0.1.")
+        and record.get("version") != visual_fixture.DSH_VERSION})
+    if stray:
+        fail("%d packages in the dsh scope drifted off %s, starting with %s"
+             % (len(stray), visual_fixture.DSH_VERSION, ", ".join(stray[:3])))
+        return
+    missing = [k for k, v in packages.items()
+               if k and "integrity" not in v and not v.get("link")]
+    if missing:
+        fail("%d locked packages carry no integrity hash" % len(missing))
+        return
+    ok("the lockfile holds %d packages, the whole dsh scope at %s"
+       % (len(packages), visual_fixture.DSH_VERSION))
+
+
 def check_every_code_is_declared():
     """Each code this suite asserts is in ADAPTER_CODES, so a renamed code
     fails here rather than reaching a surface that switches on a string."""
@@ -429,6 +472,7 @@ def main():
     check_unknown_transport_stays_typed()
     check_agent_panel_calls_the_local_profile_local()
     check_agent_tab_embeds_the_pinned_console()
+    check_the_lockfile_holds_the_tested_tree()
     check_every_code_is_declared()
     if failures:
         print("\n%d failure(s)" % len(failures))
