@@ -2,9 +2,12 @@
   "name": "itembank-dsh-pin",
   "version": "0.0.0",
   "private": true,
-  "description": "Version pin for the DeepSeek Harness (dsh) agent console embedded by the itembank Agent tab (plan 17A-06). Not a build input: this directory exists so the exact dsh dependency tree is reproducible with `npm ci`.",
+  "description": "Version pin for the DeepSeek Harness (dsh) agent console embedded by the itembank Agent tab (plan 17A-06). Not a build input: this directory exists so the exact dsh dependency tree is reproducible with `npm ci`. The override is not a preference: a fresh resolve of dsh 0.1.0-rc.7 fails with ETARGET because a transitive package demands @aws-sdk/core ^3.977.9, which the registry does not carry (highest is 3.977.8, checked 2026-08-21). 3.977.8 is the version the working install actually has.",
   "license": "MIT",
   "dependencies": {
     "@deepseek-ai/dsh": "0.1.0-rc.7"
+  },
+  "overrides": {
+    "@aws-sdk/core": "3.977.8"
   }
 }

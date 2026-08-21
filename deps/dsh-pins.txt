@@ -1,0 +1,77 @@
+# DeepSeek Harness (dsh) version pin (phase 17A-06, Directive 4a / D-08)
+# ---------------------------------------------------------------------
+# The agent console embedded by the Agent tab. Adopted rather than built,
+# per 17A-06-DECISIONS.md: itembank does not maintain an agent console.
+#
+# PINNED VERSION
+#   @deepseek-ai/dsh  0.1.0-rc.7
+#   license:   MIT (package.json of the installed build, and the npm registry
+#              `license` field, both read 2026-08-21)
+#   tarball:   https://registry.npmjs.org/@deepseek-ai/dsh/-/dsh-0.1.0-rc.7.tgz
+#   shasum:    8a69013c06179d7af437de92fb4a9a2e1fd7d410
+#   integrity: sha512-ZceDCJ8FAywih+USW/OMk9jEhunlvJBGEz4kqrhau23hPzbciOaz
+#              ZrywH0nBRsaalSeAJ1JGBmjtw4OSjToStw==
+#   node:      verified on v22.22.3 (the version recorded in 13-RESEARCH.md
+#              section 5 for the Tauri CLI, so this adds no new runtime)
+#
+# This is the exact build that was installed and run on 2026-08-21, not the
+# newest one. The registry already carries 0.1.1-rc.2. An upgrade is a
+# deliberate, tested change, for the reason recorded in 17A-06-DECISIONS.md:
+# the README documents a `--no-open` flag that the published build rejects,
+# and AGENTS.md states SESSION_FORMAT_VERSION 0 with no compatibility
+# promise. The developer preview showed its teeth on the first day of
+# contact.
+#
+# WHY THE TOP-LEVEL VERSION IS NOT THE PIN
+#   Measured 2026-08-21: the package declares roughly sixty first-party
+#   dependencies (`@deepseek-ai/dsh-*`) and every one of them is a CARET
+#   range, `^0.1.0-rc.7`. For a 0.x version a caret still admits everything
+#   below 0.2.0, so `npm i -g @deepseek-ai/dsh@0.1.0-rc.7` resolves a
+#   DIFFERENT tree tomorrow than it did today. Pinning the top-level version
+#   alone pins almost nothing.
+#
+#   The real pin is therefore the lockfile beside this note:
+#
+#       deps/dsh/package.json        the exact top-level version
+#       deps/dsh/package-lock.json   the resolved tree, with an integrity
+#                                    hash for every transitive package
+#
+#   Reproduce that tree with:
+#
+#       cd deps/dsh && npm ci
+#
+#   `deps/dsh/` is a pin, not a build input. Nothing in itembank imports from
+#   it and no shipped command reads it. It exists so the console the Agent tab
+#   frames can be reinstalled byte-for-byte.
+#
+# EGRESS
+#   Whatever provider the learner's own `dsh` config names. Verified running
+#   on this machine 2026-08-21 against `qwen3.8-27b:latest` under the
+#   `weibao-planing` profile, which keeps traffic on the machine. `dsh` reads
+#   its own configuration and itembank does not set it, so the Agent tab
+#   cannot promise where a `dsh` session's text goes. It says so rather than
+#   claiming local.
+#
+# FRAMING
+#   Verified 2026-08-21 by running `dsh web --port 3080`: no
+#   X-Frame-Options, no Content-Security-Policy, no frame-ancestors. It
+#   frames. The served document is `<html lang="zh-CN">`, so the embedding
+#   page sets the locale explicitly rather than inheriting it.
+#
+# THE PYTHON SDK IS NOT PINNED, BECAUSE IT IS NOT PUBLISHED
+#   17A-06-DECISIONS.md names `deepseek-harness-sdk` as the package to pin
+#   for the stdio seam. Checked against PyPI on 2026-08-21: that name does
+#   not exist, and neither do `dsh-sdk`, `deepseek-harness-client`, or
+#   `deepseek-harness-runtime-bin`.
+#
+#   CAUTION, name collision. PyPI DOES carry `deepseek-harness` 0.2.0, and it
+#   is NOT this project. Its Homepage is github.com/HenryZ838978/deepseek-
+#   harness and its summary describes a protocol client for DeepSeek V4-Pro
+#   and V4-Flash. Installing it under the belief that it is the deepseek-ai
+#   harness SDK would pull an unrelated third-party package. Recorded here so
+#   the mistake is made once, on paper, instead of in an install command.
+#
+#   The Python seam therefore has no pinnable artifact today. Its source is
+#   `python/` inside the deepseek-ai/deepseek-harness repository. Until it
+#   publishes, the stdio transport work has no supply-chain unit to review,
+#   and the embedded web UI is the only integration that can be pinned.
