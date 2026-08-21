@@ -18,6 +18,7 @@ import io
 import json
 import os
 import re
+import urllib.parse
 
 from surfaces import lesson, presentation, theme
 
@@ -88,6 +89,23 @@ CHROME_CSS = """
      border: 1px solid var(--line); margin-bottom: var(--space-2); }
 .vf-backends li[data-state="ok"] { border-color: var(--ok); background: var(--ok-bg); }
 .vf-spend { font-family: var(--font-code); font-size: var(--vf-h3); margin-bottom: 0; }
+/* The embedded console. A visible seam on purpose: inside the frame is a
+   separate application with its own palette, its own interface language and
+   its own idea of what a session is. Pretending otherwise would be the
+   dishonest option, so the border says "different tool" rather than
+   blending in. */
+.vf-console { border: 1px solid var(--line); border-radius: var(--r-3);
+     background: var(--card); margin-bottom: var(--space-5); overflow: hidden; }
+.vf-console-head { display: flex; flex-wrap: wrap; align-items: baseline;
+     gap: var(--space-2) var(--space-3); padding: var(--space-2) var(--space-3);
+     border-bottom: 1px dashed var(--line); background: var(--chip); }
+.vf-console-head h3 { margin: 0; font-size: var(--vf-h3); }
+.vf-console-head p { margin: 0; }
+.vf-console iframe { display: block; width: 100%; height: 70vh; min-height: 22rem;
+     border: 0; background: var(--card); }
+.vf-console-foot { padding: var(--space-2) var(--space-3);
+     border-top: 1px dashed var(--line); }
+.vf-console-foot p { margin: 0; }
 .vf-nav-course-name { margin: var(--space-5) 0 0; font-weight: 600;
      font-size: var(--vf-meta); color: var(--ink); }
 .surface { padding-block: var(--space-5) var(--space-7); }
@@ -395,6 +413,39 @@ def live_journal(base):
     return rows, ""
 
 
+LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1", "[::1]", "0.0.0.0")
+
+
+def profile_is_local(profile):
+    """Whether this profile's traffic stays on the machine, derived from the
+    profile rather than authored beside it.
+
+    Derived, not named: an earlier version matched a list of transport names
+    and did not contain `openai_compatible`, which is the one transport the
+    adapter itself tags "local" (model_adapter._transport_openai_compatible).
+    The shipped local-qwen profile would have been labelled hosted, under a
+    sentence claiming item text leaves the machine. Wrong in the safe
+    direction, but still wrong on a panel whose whole job is to say where
+    text goes.
+
+    A transport with no endpoint (hosted_cli) is hosted. An endpoint is local
+    only when its host is a loopback address, because `openai_compatible`
+    can perfectly well address a remote server.
+    """
+    if not isinstance(profile, dict):
+        return False
+    endpoint = profile.get("endpoint") or ""
+    if not endpoint:
+        return False
+    try:
+        host = urllib.parse.urlsplit(endpoint).hostname
+    except ValueError:
+        return False
+    if not host:
+        return False
+    return host.lower() in LOOPBACK_HOSTS
+
+
 def live_backends(base):
     """(rows, note). Egress is derived from the profile's transport, never
     authored per profile, so a new backend cannot quietly claim to be local."""
@@ -413,8 +464,7 @@ def live_backends(base):
     for profile in profiles:
         if not isinstance(profile, dict):
             continue
-        transport = (profile.get("transport") or "").lower()
-        local = transport in ("local", "openai_compatible_local", "llama_cpp", "ollama")
+        local = profile_is_local(profile)
         rows.append({
             "id": profile.get("name", ""),
             "label": profile.get("name", ""),
@@ -478,6 +528,65 @@ def harness_state(stage, base=None):
     merged["pending"] = []
     merged["budget"] = None
     return merged
+
+
+# The adopted agent console (17A-06-DECISIONS.md, revision of 2026-08-21).
+# itembank frames it rather than rebuilding it. The version is pinned in
+# deps/dsh-pins.txt and deps/dsh/package-lock.json; an upgrade is a tested
+# change, not a drive-by.
+DSH_PACKAGE = "@deepseek-ai/dsh"
+DSH_VERSION = "0.1.0-rc.7"
+DSH_URL = "http://127.0.0.1:3080"
+DSH_START = "dsh web --port 3080"
+
+# The served document declares <html lang="zh-CN">. A framed document's
+# language belongs to that document and cannot be reassigned from outside, so
+# the frame ELEMENT carries the language of the text itembank supplies (its
+# title and its fallback), and the panel says in words that the tool sets its
+# own interface language. Claiming en on the inner content would be a lie a
+# screen reader would then act on.
+DSH_FRAME_LANG = "en"
+
+
+def _console(url=DSH_URL):
+    """The Agent tab's console: the `dsh` web UI, framed.
+
+    itembank does not build an agent console. The reasoning is recorded in
+    17A-06-DECISIONS.md and it is short: rebuilding a worse version of a
+    maintained interface costs months and buys nothing a learner can see.
+
+    The seam is deliberately visible. Inside the frame is a separate
+    application with its own palette, its own session log and its own idea of
+    what an approval means. What it CANNOT do is make a change real in
+    itembank: `journal.commit_operation` is the only writer, and a draft that
+    never reaches it never happened. That boundary is the same one that
+    forbids a second scorer, applied to a second writer.
+
+    There is no JavaScript on this page, so it cannot probe whether the
+    console is running. It states the condition and the command instead,
+    which is what a learner can act on anyway.
+    """
+    return (
+        '<section class="vf-console">'
+        '<div class="vf-console-head">'
+        "<h3>Agent console</h3>"
+        '<p class="vf-status">%s %s, expected at %s</p>'
+        "</div>"
+        '<iframe src="%s" lang="%s" title="DeepSeek Harness agent console, '
+        'an embedded separate application" loading="lazy">'
+        "</iframe>"
+        '<div class="vf-console-foot">'
+        '<p class="vf-status">Blank? The console is a separate program and '
+        "itembank does not start it. Run <code>%s</code> in a terminal, then "
+        "reload this page.</p>"
+        '<p class="vf-status">This tool keeps its own session log, its own '
+        "colours and its own interface language. Nothing it drafts changes "
+        "anything here until itembank records the operation, with a way back. "
+        "Where its text goes is set by its configuration and not by "
+        "itembank, so this panel does not claim.</p>"
+        "</div></section>"
+        % (_esc(DSH_PACKAGE), _esc(DSH_VERSION), _esc(url), _esc(url),
+           DSH_FRAME_LANG, _esc(DSH_START)))
 
 
 def _harness(stage):
@@ -570,13 +679,14 @@ def _harness(stage):
                       or "No operations recorded yet."})
 
     return (
+        "%s"
         "%s<h3>Waiting for you</h3>%s"
         '<h3>Start something</h3><ul class="vf-skills">%s</ul>'
         "<h3>Model</h3>%s<ul class=\"vf-backends\">%s</ul>"
         '<h3>How much it may do on its own</h3><ul class="vf-backends">%s</ul>'
         "<h3>Spend</h3>%s"
         "<h3>Operation journal</h3>%s%s"
-        % (run_block, pending_block, skills,
+        % (_console(), run_block, pending_block, skills,
            source_note(stage.get("backends_live"), stage.get("backends_note")),
            backends, levels, spend_block,
            source_note(stage.get("journal_live"), stage.get("journal_note")),
