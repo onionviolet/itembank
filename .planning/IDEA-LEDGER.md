@@ -203,6 +203,13 @@ Amendments to an existing entry are additive notes under the entry, dated.
   `SUPPLY-CHAIN-POLICY.md` section 3 gate, citing the research file, and
   owns the sidecar schema design it deliberately left open.
 
+- **Note 2026-08-21:** promoted to a phase. Phase 14C (Source Adapter Registry &
+  Remote Intake) owns the adoption and the sidecar schema this entry left open,
+  generalized from PDF and DOCX to one adapter contract covering PPTX, EPUB, web
+  capture, transcripts, audio and video, and OCR. Context:
+  `.planning/phases/14C-source-adapter-registry/14C-CONTEXT.md`. Disposition moves
+  from Registered to Scheduled.
+
 ### IL-20260815-08: Re-open pytest and test-runner adoption (F17)
 
 - **Proposal:** Re-decide the test-runner question on merit. Rejected under
