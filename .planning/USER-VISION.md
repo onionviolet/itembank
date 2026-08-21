@@ -271,6 +271,84 @@ Rejected ideas remain written down with the originating idea, evidence,
 reasoning, conflict, retained alternatives, date, and condition for
 reconsideration. They are not silently deleted.
 
+### 2026-08-21: the first real sitting, and what it cost to find out
+
+The first entry in this file written while Weibao was actually using the
+product. Phase 13.9 had been open five days; the sitting was started on
+2026-08-16 and abandoned at question zero. Everything below came out of about
+ten minutes of clicking.
+
+> for item bank, quizzing options eems pretty good, but should lesson be gated behind the quiz? it seems to be inverted, but I guess this is the quiz part, but there seems to be njo way to go back to home page and more?
+
+> Also writing summary and more seems to be token drain and more? costing me erxtra $$$
+
+> thughts and suggestions? Whats being served seem only tto be the quiz section rather than the full LMS app style? weith the lessons and more? other stuff and more?
+
+> do both, link the lesson and cut the summary rule, consider if the gsd rule us costing us too,  also need to consider, wasting time on duplicate tests if wasting time and also, Ui improvements and more?
+
+#### Interpretation recorded 2026-08-21
+
+**Status:** active. Three parts resolved the same day, two open.
+
+**Current interpretation:** four separate observations, and the first one was a
+real defect nobody had noticed in twelve completed phases.
+
+**The reading had no entrance.** The gate direction was correct: the lesson
+gates the quiz. What was wrong is that `/lesson/<stem>` existed, returned 200,
+rendered the whole lesson, and linked into every item, and **nothing anywhere
+linked to it.** The daemon index offered three links: sit, study, report.
+Fixed the same day, reading first, guarded by a test that fails if the link
+disappears. A route with no entrance is a route nobody has, and no framework
+test could see it because every framework test knew the URL already.
+
+**The quiz-only impression was correct but was the wrong surface.**
+`itembank serve` is the single graded sitting and has no home by design.
+`itembank daemon` is the app. That distinction is real and defensible, and it
+is invisible to anyone who was handed a `serve` command. Whether `serve` should
+exist as a separate front door at all is now an open question rather than a
+settled design.
+
+**The summaries were a real cost, not a feeling.** Measured: 129 `-SUMMARY.md`
+files holding 23,261 lines, more than half the size of the entire runtime, most
+of them restating commit messages. Cut the same day: a summary is now written
+only when a plan was left incomplete or a measured fact contradicts the plan.
+Recorded in `EXEC-CONTEXT.md` and `PLANNING-DIRECTIVES.md` section "Budget
+discipline".
+
+**GSD:** the plan format earns its cost, the ceremony around it does not. The
+artifacts that multiply are summaries, verification records, and roadmap rows,
+not plans. `CLAUDE.md` already permits skipping the framework for small work;
+the new budget rules make that the default rather than the exception. No
+further change recommended today.
+
+**Duplicate tests:** largely a false alarm, with one real cost. 19 suites call
+`score_response`, and that is the one-scorer invariant being enforced per
+surface, which is the point rather than duplication. The real cost is
+wall-clock: 32 of 71 suites spawn a server subprocess and 47 shell out to
+`itembank.py`, so the daemon suite alone takes 62 seconds. The fix is a shared
+fixture server, not fewer tests. Not scheduled.
+
+**Open questions:**
+
+1. Should `serve` remain a separate front door, or become a mode of the app.
+2. What the app's home page should be once it is more than a file list. It
+   currently lists bank stems, which is a directory listing wearing a product's
+   clothes.
+3. Which UI improvements come from use rather than from design sessions. This
+   entry produced one defect in ten minutes; the question is what a full unit
+   produces.
+
+**Planning effect:** the daemon index change shipped. The summary rule and five
+other budget rules are recorded in `PLANNING-DIRECTIVES.md`. B3 in particular,
+do not plan a phase whose inputs do not exist, comes directly from this
+sitting: the UI flow session was written before it and would have designed the
+wrong-answer flow without anyone having answered one.
+
+**Relationship to prior entries:** confirms the 2026-08-13 UI entry, which
+asked for a comprehensive lesson UI, by showing the lesson was not reachable at
+all. Supersedes nothing. It is the first entry here backed by use rather than
+by intention, and that is the part worth keeping.
+
 ## Additions
 
 Add future statements below as new dated sections. They may be short, rough,

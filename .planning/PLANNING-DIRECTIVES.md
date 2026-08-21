@@ -416,3 +416,52 @@ When uncertain, preserve the raw statement in a dated vision inbox or session
 capture first. Review it for promotion after the ideaboarding pass. Never force
 the user to classify thoughts while thinking aloud, and never discard a
 statement only because it is rough, repetitive, or contradictory.
+
+## Budget discipline, added 2026-08-21
+
+Weibao raised the cost of this process directly and the numbers supported him.
+Measured 2026-08-21:
+
+| Thing | Count |
+|---|---|
+| Planning prose | 111,747 lines across 673 markdown files |
+| Runtime Python | 42,033 lines |
+| `-SUMMARY.md` files | 129, holding 23,261 lines |
+| Commits, `docs` vs all code types | 391 vs 367 |
+| Plan files with no summary | 71 of 200 |
+| Real learner evidence recorded, ever | 2 lines |
+
+Planning prose is 2.7 lines for every line of runtime code, and more than half
+this project's commit history is writing about itself. The failure is not
+volume for its own sake, it is that planning is the only activity here whose
+feedback loop closes without a user. A plan produces a summary, which produces
+a roadmap row, which produces another plan, and none of that requires anyone to
+open the product.
+
+These rules bind every planner and executor, human or model.
+
+**B1. A summary is exceptional, not routine.** Write a `-SUMMARY.md` only when
+the plan was left incomplete, or when a measured fact contradicts the plan.
+Otherwise the commit messages are the record and a `<summary_obligations>`
+block is satisfied in the commit body. See `EXEC-CONTEXT.md`.
+
+**B2. Every plan names the evidence that would falsify it.** If no observation
+could show the plan is wrong, it is a description and not a plan. Say what
+would have to be seen, and whether it has been seen yet.
+
+**B3. Do not plan a phase whose inputs do not exist.** A flow designed for a
+product nobody has used is designed from imagination. Name the input, and if it
+is missing, say so in the first paragraph instead of planning around it.
+
+**B4. Do not re-derive established facts.** Reading the full planning stack per
+turn is roughly 122,000 tokens. One run spent 5.1 billion tokens at 99.24%
+cache-hit input, re-reading a prompt to produce 0.32% output. Executors read
+`EXEC-CONTEXT.md` plus one plan. Planners grep, they do not re-read.
+
+**B5. Use a non-reasoning model for mechanical work.** Measured 2026-08-11: on
+the same day's work the reasoning key spent $11.34 and the coding key spent
+$0.14, a factor of 81.
+
+**B6. End every turn with something openable.** Twelve phases closed before
+Weibao saw output. Every correction that mattered on 2026-08-21 came from him
+opening a rendered page or sitting a quiz, not from a document.

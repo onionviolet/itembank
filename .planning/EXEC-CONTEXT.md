@@ -70,6 +70,29 @@ One commit per plan task, atomic, conventional prefix and the plan id:
 Limit every commit to a pathspec you name explicitly. Do not use a bare
 `git commit -a`. Another agent may share this working tree.
 
+## Do not write a summary unless one of two things is true
+
+Added 2026-08-21 after Weibao measured the cost. There are 129 `-SUMMARY.md`
+files holding 23,261 lines, which is more than half the size of the entire
+runtime. Most of them restate commit messages that already said the same thing
+in more detail.
+
+**The commit messages are the record.** Write them properly: what was wrong,
+what you changed, what you measured, and what you did not do. A reader with
+`git log` should need nothing else.
+
+Write a `-SUMMARY.md` only when:
+
+1. **The plan was left incomplete.** Name exactly what is not built and why,
+   so nobody later reads a closed plan as a finished feature.
+2. **You found something that contradicts the plan.** A measured fact that
+   makes a plan task wrong, unnecessary, or impossible. Record the measurement
+   and the date.
+
+A plan whose `<summary_obligations>` block asks for a summary does not override
+this. If neither condition holds, satisfy the obligation in the commit body and
+move on. Ceremony that nobody reads is money spent on nothing.
+
 ## When you are stuck
 
 Write what you tried and what blocked you into the plan's `-SUMMARY.md`,
