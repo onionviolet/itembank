@@ -313,12 +313,163 @@ def _home(stage):
 
 
 
+
+# --------------------------------------------------------------------------
+# Live wiring. The harness reads the shipped journal and the shipped settings
+# rather than a fixture, and says per panel which it got. A prototype that
+# shows invented data indistinguishable from real data is worse than one that
+# shows nothing: you cannot tell what you are looking at, so you cannot tell
+# whether it works.
+# --------------------------------------------------------------------------
+
+# journal.RECORD_TYPES in learner-facing words. An operation with no phrase
+# here still renders, under its raw name, rather than being dropped.
+OPERATION_PHRASE = {
+    "mint": "created",
+    "link": "linked",
+    "import": "imported",
+    "copy": "copied",
+    "move": "moved",
+    "edit_in_place": "edited",
+    "supersede": "superseded",
+    "reconcile": "reconciled",
+    "restore": "restored",
+    "external_edit": "changed outside the app",
+}
+
+# A write can be reversed from its journalled prior revision; a read cannot,
+# and an external edit was never ours to reverse.
+UNDOABLE = {"mint", "link", "import", "copy", "move", "edit_in_place",
+            "supersede", "reconcile", "restore"}
+
+
+def live_journal(base):
+    """(rows, note). Empty rows with a note is the normal state on a machine
+    that has not run an operation yet, never an error."""
+    try:
+        import journal
+    except ImportError:
+        return [], "The operation journal is not available in this build."
+    try:
+        raw = list(journal.entries(base))
+    except OSError as exc:
+        return [], "The operation journal could not be read: %s" % exc.__class__.__name__
+    rows = []
+    for entry in raw[-12:]:
+        operation = entry.get("operation", "")
+        rows.append({
+            "op": operation,
+            "text": "%s %s" % (OPERATION_PHRASE.get(operation, operation),
+                               entry.get("rel_path") or entry.get("object_id") or ""),
+            "when": entry.get("recorded_at") or entry.get("at") or "",
+            "undo": operation in UNDOABLE,
+        })
+    rows.reverse()
+    if not rows:
+        return [], ("No operations recorded yet. Every write this app makes "
+                    "lands here with a way back.")
+    return rows, ""
+
+
+def live_backends(base):
+    """(rows, note). Egress is derived from the profile's transport, never
+    authored per profile, so a new backend cannot quietly claim to be local."""
+    try:
+        from surfaces import settings as settings_mod
+    except ImportError:
+        return [], "Settings are not available in this build."
+    try:
+        data = settings_mod.load_settings(base)
+    except (OSError, ValueError) as exc:
+        return [], "Settings could not be read: %s" % exc.__class__.__name__
+    mb = (data or {}).get("model_backend") or {}
+    profiles = mb.get("profiles") or []
+    active = mb.get("active") or ""
+    rows = []
+    for profile in profiles:
+        if not isinstance(profile, dict):
+            continue
+        transport = (profile.get("transport") or "").lower()
+        local = transport in ("local", "openai_compatible_local", "llama_cpp", "ollama")
+        rows.append({
+            "id": profile.get("name", ""),
+            "label": profile.get("name", ""),
+            "where": "local" if local else "hosted",
+            "active": profile.get("name") == active,
+            "egress": ("Nothing leaves this machine." if local else
+                       "Item text and lesson prose leave this machine."),
+        })
+    if not rows:
+        return [], ("No model backend is configured, so nothing can run here "
+                    "yet. Studying, scoring and authored hints are unaffected.")
+    if not active:
+        return rows, "No backend is active. Choose one before starting a skill."
+    return rows, ""
+
+
+def live_autonomy(base):
+    try:
+        from surfaces import settings as settings_mod
+        data = settings_mod.load_settings(base)
+    except (ImportError, OSError, ValueError):
+        return None
+    return (data or {}).get("auditor_autonomy") or None
+
+
+def harness_state(stage, base=None):
+    """Merge the fixture stage with whatever is really on disk.
+
+    Each panel carries its own `live` flag. They are independent on purpose:
+    a machine can have a configured backend and an empty journal, and saying
+    so is more useful than picking one word for the whole screen.
+    """
+    merged = dict(stage or {})
+    if base is None:
+        merged["journal_live"] = False
+        merged["backends_live"] = False
+        return merged
+
+    rows, note = live_journal(base)
+    merged["journal_live"] = True
+    merged["journal_note"] = note
+    merged["journal"] = rows
+
+    rows, note = live_backends(base)
+    merged["backends_live"] = True
+    merged["backends_note"] = note
+    # An empty live read means no backend is configured. Falling back to the
+    # fixture list here would show three model names this machine cannot
+    # reach, under a heading claiming the panel was read from disk.
+    merged["backends"] = rows
+
+    current = live_autonomy(base)
+    if current:
+        autonomy = dict(merged.get("autonomy") or {})
+        autonomy["current"] = current
+        merged["autonomy"] = autonomy
+
+    # Nothing on disk can tell us what a model is doing right now, because
+    # nothing is running one yet. Say so rather than showing a stale job.
+    merged["running"] = None
+    merged["pending"] = []
+    merged["budget"] = None
+    return merged
+
+
 def _harness(stage):
     """The agent console. Every control here maps to something that already
     shipped: model_backend.active (Phase 8), auditor_autonomy (Phase 11), the
     skills in .claude/skills, and journal.commit_operation (Phase 14A). The
     harness is a surface over that machinery, never a second authority: it
     proposes, and the runtime accepts."""
+    def source_note(live, note):
+        if not live:
+            return ('<p class="vf-status" data-state="unknown">Synthetic sample. '
+                    "Nothing on this machine was read for this panel.</p>")
+        if note:
+            return '<p class="vf-status" data-state="unknown">%s</p>' % _esc(note)
+        return '<p class="vf-status" data-state="ok">Read from this machine.</p>'
+
     backends = "".join(
         '<li%s><span class="vf-area-label">%s</span>'
         '<span class="vf-status">%s. %s</span></li>'
@@ -357,21 +508,55 @@ def _harness(stage):
         % (_esc(entry.get("when")), _esc(entry.get("text")),
            ' <button type="button">Undo</button>' if entry.get("undo") else "")
         for entry in stage.get("journal", []))
+    if running:
+        run_block = ('<section class="vf-harness-run" data-state="%s">'
+                     '<p class="vf-status">Running, %s</p><h3>%s</h3>'
+                     "<p>%s</p></section>"
+                     % (_esc(running.get("state")), _esc(running.get("elapsed")),
+                        _esc(running.get("skill")), _esc(running.get("step"))))
+    else:
+        run_block = presentation.state_panel({
+            "kind": "unknown",
+            "status": "Nothing is running. Start a skill below."})
+
+    if pending:
+        pending_block = "".join(pending)
+    else:
+        pending_block = presentation.state_panel({
+            "kind": "unknown",
+            "status": "Nothing is waiting for you."})
+
+    if budget:
+        spend_block = ('<p class="vf-spend">%s spent, %s tokens</p>'
+                       '<p class="vf-status">%s</p>'
+                       % (_esc(budget.get("spent_usd")), _esc(budget.get("tokens")),
+                          _esc(budget.get("note"))))
+    else:
+        spend_block = presentation.state_panel({
+            "kind": "unknown",
+            "status": "No spend recorded yet. This app does not have your "
+                      "provider bill, so it can only count what it sends."})
+
+    if log:
+        log_block = '<ul class="vf-jobs">%s</ul>' % log
+    else:
+        log_block = presentation.state_panel({
+            "kind": "unknown",
+            "status": stage.get("journal_note")
+                      or "No operations recorded yet."})
+
     return (
-        '<section class="vf-harness-run" data-state="%s">'
-        '<p class="vf-status">Running, %s</p><h3>%s</h3><p>%s</p></section>'
-        '<h3>Waiting for you</h3>%s'
+        "%s<h3>Waiting for you</h3>%s"
         '<h3>Start something</h3><ul class="vf-skills">%s</ul>'
-        '<h3>Model</h3><ul class="vf-backends">%s</ul>'
+        "<h3>Model</h3>%s<ul class=\"vf-backends\">%s</ul>"
         '<h3>How much it may do on its own</h3><ul class="vf-backends">%s</ul>'
-        '<h3>Spend</h3><p class="vf-spend">%s spent, %s tokens</p>'
-        '<p class="vf-status">%s</p>'
-        '<h3>Operation journal</h3><ul class="vf-jobs">%s</ul>'
-        % (_esc(running.get("state")), _esc(running.get("elapsed")),
-           _esc(running.get("skill")), _esc(running.get("step")),
-           "".join(pending), skills, backends, levels,
-           _esc(budget.get("spent_usd")), _esc(budget.get("tokens")),
-           _esc(budget.get("note")), log))
+        "<h3>Spend</h3>%s"
+        "<h3>Operation journal</h3>%s%s"
+        % (run_block, pending_block, skills,
+           source_note(stage.get("backends_live"), stage.get("backends_note")),
+           backends, levels, spend_block,
+           source_note(stage.get("journal_live"), stage.get("journal_note")),
+           log_block))
 
 
 def _shelf(stage):
@@ -632,7 +817,7 @@ def _pager(data, direction, stage_id, nav_shape=DEFAULT_NAV):
             % (index + 1, len(ids), "".join(links)))
 
 
-def render_stage(data, stage_id):
+def render_stage(data, stage_id, base=None):
     """One stage as one screen. The product is a sequence of screens rather
     than one long scroll, so a prototype that stacks every state on one page
     is not testing the flow it claims to test."""
@@ -648,12 +833,14 @@ def render_stage(data, stage_id):
         return presentation.state_panel({
             "kind": "unknown",
             "status": "This stage kind is unavailable in the fixture renderer."})
+    if stage.get("kind") == "harness":
+        stage = harness_state(stage, base)
     return ('<section class="vf-stage" data-stage="%s"><h2>%s</h2>%s</section>'
             % (_esc(stage.get("id")), _esc(stage.get("title")), renderer(stage)))
 
 
 def render_body(data, stage_id=None, direction=DEFAULT_DIRECTION,
-                nav_shape=DEFAULT_NAV):
+                nav_shape=DEFAULT_NAV, base=None):
     ids = stage_ids(data)
     if not ids:
         return presentation.state_panel({
@@ -662,7 +849,8 @@ def render_body(data, stage_id=None, direction=DEFAULT_DIRECTION,
                       "synthetic fixture content only, and none was supplied."})
     if stage_id not in ids:
         stage_id = ids[0]
-    inner = render_stage(data, stage_id).replace("DIR", direction).replace("NAV", nav_shape)
+    inner = render_stage(data, stage_id, base).replace(
+        "DIR", direction).replace("NAV", nav_shape)
     gmap = gloss_map(data)
     used = dict((slug, rec) for slug, rec in gmap.items()
                 if ('gloss-%s' % slug) in inner)
@@ -692,7 +880,7 @@ def token_css(tokens):
 
 
 def page(data, direction=DEFAULT_DIRECTION, tokens=None, stage_id=None,
-         nav_shape=DEFAULT_NAV):
+         nav_shape=DEFAULT_NAV, base=None):
     """One screen of one direction. The body never varies by direction; the
     style block does. Hover definitions come from surfaces/lesson.py, so the
     product has one glossary implementation rather than two."""
@@ -700,7 +888,7 @@ def page(data, direction=DEFAULT_DIRECTION, tokens=None, stage_id=None,
         direction = DEFAULT_DIRECTION
     if nav_shape not in NAV_SHAPES:
         nav_shape = DEFAULT_NAV
-    body = render_body(data, stage_id, direction, nav_shape)
+    body = render_body(data, stage_id, direction, nav_shape, base)
     marked = set(re.findall(r'popovertarget="gloss-([a-z0-9-]+)"', body))
     css = "\n".join([theme.theme_css(theme.DEFAULT_THEME_CONFIG),
                       token_css(tokens), CHROME_CSS, lesson.gloss_css(),

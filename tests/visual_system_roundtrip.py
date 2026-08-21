@@ -415,6 +415,64 @@ def check_nav_sections():
     ok("check_nav_sections")
 
 
+def check_harness_live_wiring():
+    """The harness reads the shipped journal and the shipped settings, and says
+    per panel which it got. Fixture data must never be presented as real."""
+    from surfaces import visual_fixture
+    data = load()
+    stage = [st for st in data["stages"] if st["id"] == "agent_harness"][0]
+
+    synthetic = visual_fixture.page(data, "structured-studio",
+                                    stage_id="agent_harness")
+    if "Synthetic sample" not in synthetic:
+        fail("unwired harness does not declare itself synthetic")
+
+    live = visual_fixture.page(data, "structured-studio",
+                               stage_id="agent_harness", base=ROOT)
+    if "Synthetic sample" in live:
+        fail("wired harness still claims a panel is synthetic")
+
+    state = visual_fixture.harness_state(stage, ROOT)
+    if not state.get("journal_live") or not state.get("backends_live"):
+        fail("a wired panel did not report itself live")
+    fixture_names = {b["label"] for b in stage["backends"]}
+    live_names = {b["label"] for b in state["backends"]}
+    if live_names and live_names == fixture_names:
+        fail("live backends are the fixture list, so the read did nothing")
+    if not state["backends"] and not state.get("backends_note"):
+        fail("no backends and no explanation of why")
+    for row in state["journal"]:
+        if row.get("op") and row["op"] not in visual_fixture.OPERATION_PHRASE                 and row["op"] not in visual_fixture.UNDOABLE:
+            fail("journal row %s is neither phrased nor classified" % row["op"])
+
+    missing = visual_fixture.live_journal(os.path.join(ROOT, "no-such-dir"))
+    if missing[0]:
+        fail("a missing journal produced rows instead of a note")
+    if not missing[1]:
+        fail("a missing journal produced neither rows nor a note")
+    ok("check_harness_live_wiring")
+
+
+def check_harness_undo_classification():
+    """A read is not undoable and an external edit was never ours to reverse.
+    Every write is."""
+    from surfaces import visual_fixture
+    for write in ("mint", "edit_in_place", "supersede", "restore"):
+        if write not in visual_fixture.UNDOABLE:
+            fail("write operation %s is not marked undoable" % write)
+    if "external_edit" in visual_fixture.UNDOABLE:
+        fail("an external edit is marked undoable, but it was never ours to undo")
+    try:
+        import journal
+    except ImportError:
+        ok("check_harness_undo_classification (journal absent, skipped)")
+        return
+    for record in journal.RECORD_TYPES:
+        if record not in visual_fixture.OPERATION_PHRASE:
+            fail("journal record type %s has no learner-facing phrase" % record)
+    ok("check_harness_undo_classification")
+
+
 def main():
     check_fixture_shape()
     check_no_em_dash()
@@ -436,6 +494,8 @@ def main():
     check_home_screen()
     check_harness_never_becomes_authority()
     check_nav_sections()
+    check_harness_live_wiring()
+    check_harness_undo_classification()
     if failures:
         print("\n%d failure(s)" % len(failures))
         return 1

@@ -46,8 +46,9 @@ def maybe_visual_fixture(handler, path):
     stage_id = (query.get("stage") or [None])[0]
     tokens = {k: v[0] for k, v in query.items()
               if k not in ("direction", "nav", "stage")}
+    base = os.path.dirname(os.path.abspath(__file__))
     body = visual_fixture.page(visual_fixture.load_fixture(), direction, tokens,
-                               stage_id=stage_id, nav_shape=nav_shape)
+                               stage_id=stage_id, nav_shape=nav_shape, base=base)
     handler.send_html(body.encode("utf-8"))
     return True
 
