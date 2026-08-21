@@ -1,0 +1,10 @@
+{
+  "name": "itembank-dsh-pin",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Version pin for the DeepSeek Harness (dsh) agent console embedded by the itembank Agent tab (plan 17A-06). Not a build input: this directory exists so the exact dsh dependency tree is reproducible with `npm ci`.",
+  "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.1.0-rc.7"
+  }
+}
