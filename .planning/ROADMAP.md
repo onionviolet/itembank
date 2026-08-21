@@ -1282,7 +1282,8 @@ without silently absorbing the non-token Phase 13.5 backlog.
 
 **Requirements:** VISUAL-01, VISUAL-02, A11Y-01
 
-**Plans:** 5 plans across 4 waves (17A-05 added 2026-08-17).
+**Plans:** 7 plans across 4 waves (17A-05 added 2026-08-17; 17A-06 and 17A-07
+added 2026-08-21).
 
 **Wave 1**
 - [ ] 17A-01-PLAN.md, the synthetic same-flow tracer, three reversible
@@ -1302,6 +1303,20 @@ without silently absorbing the non-token Phase 13.5 backlog.
   re-verified through the existing stylesheet invariants, and the settings
   surface option. Promoted from the Backlog small-enhancements row
   (2026-08-10); 17A is the theming-adjacent phase it was waiting for.
+
+**Wave 3 (added 2026-08-21)**
+- [x] 17A-06-PLAN.md, the local model harness: the shipped `local-qwen`
+  profile reaching Ollama through the existing `openai_compatible` transport,
+  the five typed unavailable states, and the adopted `dsh` agent console
+  embedded as the Agent tab rather than rebuilt. Tasks 1 and 2 complete and
+  the embed half of Task 3 complete; the run-and-journal half moved to
+  17A-07 rather than left half-done inside a closed plan. See
+  `17A-06-SUMMARY.md`.
+- [ ] 17A-07-PLAN.md, the agent operation seam: one skill run from the Agent
+  area through `model_adapter.invoke`, a bounded diff, and exactly one
+  `journal.commit_operation` write with a proven undo. This is the plan that
+  makes "agentic" true of the product rather than of an embedded window
+  (USER-VISION 2026-08-21).
 
 **Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 17A-04-PLAN.md, driven-browser evidence, scripted human A11Y-01 review,
