@@ -20,12 +20,12 @@ every medium, rather than per format.
 
 ## Decisions already made, do not re-litigate
 
-- **D-01. One registry, not one subphase per format.** The locator sidecar
+- **D-01:** One registry, not one subphase per format. The locator sidecar
   schema is designed once here. `IL-20260815-07` owns the dependency choices
   already: pdfplumber pinned with pdfminer.six for PDF, python-docx for DOCX,
   pypdf as the page-level fallback. PyMuPDF stays parked on its AGPL decision.
   Adoption runs through `SUPPLY-CHAIN-POLICY.md` section 3.
-- **D-02. Python, and the boundary is the existing daemon.** `surfaces/daemon.py`
+- **D-02:** Python, and the boundary is the existing daemon. `surfaces/daemon.py`
   already exposes a token-gated JSON API, and line 1022 records that a request
   with no `Origin` header (a CLI or curl-style client) is accepted deliberately.
   Intake gets a route there like every other capability. No TypeScript rewrite,
@@ -33,17 +33,17 @@ every medium, rather than per format.
   one included, is an HTTP client of that route. HTTP is the wider contract:
   Cordis can consume it, and nothing that is not Cordis can consume a Cordis
   plugin.
-- **D-03. Remote sources are in scope.** "Learner-owned" is interpretation
+- **D-03:** Remote sources are in scope. "Learner-owned" is interpretation
   drift, not language from `USER-VISION.md`. Recorded in
   `USER-VISION-INBOX.md` (2026-08-20). Online courses, video, and web material
   are first-class source types.
-- **D-04. Bind a snapshot, not a URL.** A remote source has no stable bytes, and
+- **D-04:** Bind a snapshot, not a URL. A remote source has no stable bytes, and
   the whole binding model runs on fingerprints. Capture on bind, fingerprint the
   capture, record the URL and capture timestamp as provenance. This keeps
   citations stable when a video is re-uploaded, keeps bound material readable
   offline (the degrade-never-block rule), and makes a changed remote source a
   detectable stale state rather than a silently broken citation.
-- **D-05. The adapter never touches the scorer.** Adapters produce sources.
+- **D-05:** The adapter never touches the scorer. Adapters produce sources.
   One parser, one scorer, one evidence store is unchanged.
 
 ## The adapter contract
