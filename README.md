@@ -737,6 +737,41 @@ written for this repo. `itembank guard` enforces it in CI: any markdown outside
 `fixtures/` that parses as a bank fails the build. Real banks are usually
 coursework-derived or textbook-derived, and they belong somewhere private.
 
+## Working on this repo
+
+CI runs twelve named gates. Run the portable ones locally, in one command,
+before you push:
+
+```
+python scripts/preflight.py            # every portable gate
+python scripts/preflight.py --quick    # skip the two slow suites
+python scripts/preflight.py --list     # gate ids and the CI step each mirrors
+```
+
+Exit 0 means every gate that ran passed. Two CI steps are deliberately not
+mirrored (the optional LTI dependency install, and the runtime-versus-schema
+shell pipeline); `--list` names them and says why. `tests/preflight_roundtrip.py`
+fails the build if a CI step appears that no gate claims, so the mirror cannot
+drift silently.
+
+**Working from two machines.** There is no server and no shared state beyond
+git, so a second checkout is a normal clone. The rules that keep two machines
+from fighting:
+
+- Push before you switch machines. Local work that is not pushed is invisible
+  to the other checkout, and this repo carries planning artifacts under
+  `.planning/` that agents on both sides read as current truth.
+- Never commit learner evidence. `_attempts/`, `_evidence/`, `_journal/`, and
+  session JSON are gitignored on purpose. They stay on the machine that
+  produced them and are not meant to sync.
+- Machine-specific config does not travel. `reasonix.toml` and `.reasonix/`
+  are gitignored; copy `reasonix.toml.example` on the new machine. The `paths`
+  preflight gate fails if a machine-specific path leaks into an agent doc or
+  into checked-in config.
+- Run `python scripts/preflight.py` after a pull on the second machine before
+  starting work, so a gate failure is attributed to the pull and not to your
+  next change.
+
 ## Layout
 
 ```
@@ -757,7 +792,8 @@ schemas/                  published JSON contracts (12 documents; `itembank sche
 styles/                   lesson render styles (6; `itembank render-style`)
 launchers/                itembank.bat / itembank.command / itembank.desktop
 installers/               NSIS installer sources
-scripts/                  build/asset generators and the OCR helper scripts
+scripts/                  build/asset generators, the OCR helpers, and preflight.py
+                          (preflight.py runs the CI gates locally before a push)
 src-tauri/                the desktop shell (Tauri over the Python sidecar)
 fixtures/sample_bank.md   synthetic, exercises six of the seven types, lints clean
 fixtures/broken_bank.md   deliberately defective; CI asserts lint catches each defect
@@ -766,6 +802,7 @@ AGENTS.md                 agent on-ramp: layers, boundaries, authoring + tutorin
 .agents/skills/           agent playbooks (absorb-book, curriculum-design, guiding-questions, author-bank, ocr)
 .claude/skills/           same playbooks, mirrored for Claude Code (CI keeps the two trees byte-identical)
 tests/                    every tests/*_roundtrip.py; CI runs each one
+deps/dsh/                 version pin for the embedded DeepSeek Harness console
 ROADMAP.md                product contract and sequenced improvement plan
 ```
 
