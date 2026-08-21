@@ -537,9 +537,15 @@ EMPTY_STATE = """<div class="empty">
   restart the daemon.</p>
 </div>"""
 
+# The reading link comes first because the reading comes first. Weibao sat the
+# 13.9 skeleton on 2026-08-21 and reported the lesson as "gated behind the
+# quiz", which read as inverted. The gate was doing the right thing; the index
+# was the problem. /lesson/<stem> already existed, rendered the whole lesson,
+# and linked into each item, and nothing anywhere linked to it. A route with no
+# entrance is a route nobody has.
 BANK_ROW = """<div class="row">
   <div class="name">__STEM__</div>
-  <div class="links">
+  <div class="links">__LESSON_LINK__
     <a href="/quiz/__STEM__">Sit this bank</a>
     <a href="/study/__STEM__">Study this bank</a>__REPORT_LINK__
   </div>
@@ -957,7 +963,20 @@ def handle_index(handler):
                 link = ('\n    <a class="go secondary" data-action-secondary '
                         'href="/report?session=%s">View report</a>'
                         % html.escape(session_id)) if session_id else ""
-                row = BANK_ROW.replace("__STEM__", esc).replace("__REPORT_LINK__", link)
+                # Offered only when this bank actually has a lesson, so the
+                # index never advertises a reading that does not exist.
+                # parse_lesson is falsy for a bank with no LESSON section and
+                # no external lesson source, which is the whole test.
+                try:
+                    has_lesson = bool(parse_lesson(banks[stem]))
+                except Exception:      # a bank we cannot read is not a lesson
+                    has_lesson = False
+                lesson_link = ('\n    <a class="go primary" '
+                               'data-action-primary href="/lesson/%s">'
+                               "Read the lesson</a>" % esc) if has_lesson else ""
+                row = (BANK_ROW.replace("__STEM__", esc)
+                       .replace("__LESSON_LINK__", lesson_link)
+                       .replace("__REPORT_LINK__", link))
             else:
                 row = PLAN_ROW.replace("__STEM__", esc)
             rows.append(row)

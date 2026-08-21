@@ -29,6 +29,7 @@ import serve_roundtrip                                      # noqa: E402
 
 BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
 PLAN = os.path.join(ROOT, "fixtures", "sample_plan.md")
+LESSON_BANK = os.path.join(ROOT, "fixtures", "lesson_bank.md")
 
 
 def fail(msg):
@@ -289,6 +290,45 @@ def check_index_populated():
                        "/quiz/sample_bank", "/study/sample_bank"):
             if needle not in body:
                 fail("populated index missing %r" % needle)
+        # sample_bank carries no lesson, so the index must not advertise a
+        # reading that does not exist.
+        if "/lesson/sample_bank" in body:
+            fail("index offers a lesson for a bank that has none")
+    finally:
+        proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def check_index_offers_the_reading():
+    """A bank WITH a lesson gets a reading link, and it comes before the
+    sitting link.
+
+    Weibao sat the 13.9 skeleton on 2026-08-21 and read the lesson gate as
+    inverted. The gate was right; `/lesson/<stem>` existed, rendered the whole
+    lesson, and linked into each item, and nothing linked to it. A route with
+    no entrance is a route nobody has, and that is not something the other 72
+    checks here could notice."""
+    workdir = tempfile.mkdtemp()
+    shutil.copy(LESSON_BANK, os.path.join(workdir, "reading_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        status, body = get(url)
+        if status != 200:
+            fail("GET / returned %d, expected 200" % status)
+            return
+        if "/lesson/reading_bank" not in body:
+            fail("a bank with a lesson gets no reading link on the index")
+            return
+        if "Read the lesson" not in body:
+            fail("the reading link has no name a learner would recognise")
+            return
+        if body.index("/lesson/reading_bank") > body.index("/quiz/reading_bank"):
+            fail("the sitting is offered before the reading, which is the "
+                 "order Weibao reported as inverted")
+            return
+        status, page = get(url + "lesson/reading_bank")
+        if status != 200:
+            fail("the advertised reading returned %d" % status)
     finally:
         proc.terminate()
         shutil.rmtree(workdir, ignore_errors=True)
@@ -3493,6 +3533,7 @@ def check_gate_print_no_evidence():
 def main():
     checks = (
         check_index_populated,
+        check_index_offers_the_reading,
         check_index_order,
         check_index_empty,
         check_index_malformed_tolerated,
