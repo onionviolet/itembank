@@ -5,6 +5,7 @@ type: execute
 wave: 3
 depends_on: ["17A-01", "17A-02"]
 files_modified:
+  - model_adapter.py
   - itembank.json
   - surfaces/visual_fixture.py
   - surfaces/daemon.py
@@ -15,6 +16,7 @@ requirements: [AGENT-01, VISUAL-01]
 must_haves:
   truths:
     - "A local model is reachable through the shipped openai_compatible transport with a settings entry and no new transport code."
+    - "A dsh_stdio transport is a new module plus a registry entry, with zero edits to tier-gate, evidence, or prompt-assembly code (D-27)."
     - "The Agent page runs one skill against the active local profile and writes exactly one journal entry through journal.commit_operation."
     - "Claude and Codex are named as externally harnessed and get no duplicate console inside itembank."
     - "Every unavailable state is typed and names the next safe action; a stopped model never blocks studying, scoring, or authored hints."
@@ -73,8 +75,8 @@ against what exists rather than against what was assumed.
 </findings>
 
 <tasks>
-<task type="checkpoint:decision" gate="blocking">
-  <name>Task 1: adopt the external harness, or build the page</name>
+<task type="auto" status="resolved">
+  <name>Task 1: adopt the external harness, or build the page (RESOLVED 2026-08-21)</name>
   <files>.planning/phases/17A-visual-system-component-foundation/17A-06-DECISIONS.md</files>
   <action>
 Weibao proposed reusing an existing, actively developed DeepSeek harness rather
@@ -92,13 +94,25 @@ diff; `journal.commit_operation` is what makes a change real. That boundary is
 not negotiable and is the whole reason this is a checkpoint rather than an
 auto task.
   </action>
-  <verify>17A-06-DECISIONS.md names the project, licence, embed-or-launch, and egress, or records the build verdict with the reason the adopt branch lost.</verify>
+  <resolution>
+ADOPT deepseek-ai/deepseek-harness (MIT, TypeScript, 180,182 stars, pushed
+2026-08-21, not archived; all four verified against the GitHub API). Drive it
+as a subprocess through its Python SDK over newline-delimited JSON-RPC on
+stdio, not as an embedded web UI. Full record and risks in 17A-06-DECISIONS.md.
+  </resolution>
+  <verify>17A-06-DECISIONS.md names the project, licence, integration shape, and egress. Done.</verify>
 </task>
 
 <task type="auto">
   <name>Task 2: a working local profile, shipped in the repo's own settings</name>
   <files>itembank.json, tests/local_harness_roundtrip.py</files>
   <action>
+Begin by running `npx @deepseek-ai/dsh web` once and confirming it starts. The
+adopt decision was made from documentation, not from a running program, and no
+code should be written against it until that is corrected.
+
+Then, unchanged from the original scope:
+
 Add a `local-qwen` profile to `model_backend.profiles` using `endpoint`, and
 leave `model_backend.active` empty so a fresh install still reaches no model
 until asked. Write the test first: profile resolution succeeds; a stubbed
