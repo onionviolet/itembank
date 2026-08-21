@@ -19,6 +19,8 @@ must_haves:
     - "A dsh_stdio transport is a new module plus a registry entry, with zero edits to tier-gate, evidence, or prompt-assembly code (D-27)."
     - "The Agent page runs one skill against the active local profile and writes exactly one journal entry through journal.commit_operation."
     - "Claude and Codex are named as externally harnessed and get no duplicate console inside itembank."
+    - "The Agent tab embeds the dsh web UI; itembank builds no agent console of its own."
+    - "The embedded frame sets an explicit lang rather than inheriting zh-CN."
     - "Every unavailable state is typed and names the next safe action; a stopped model never blocks studying, scoring, or authored hints."
   artifacts:
     - "tests/local_harness_roundtrip.py covers profile resolution, a stubbed endpoint, timeout, refusal, and the journal write."
@@ -107,9 +109,10 @@ stdio, not as an embedded web UI. Full record and risks in 17A-06-DECISIONS.md.
   <name>Task 2: a working local profile, shipped in the repo's own settings</name>
   <files>itembank.json, tests/local_harness_roundtrip.py</files>
   <action>
-Begin by running `npx @deepseek-ai/dsh web` once and confirming it starts. The
-adopt decision was made from documentation, not from a running program, and no
-code should be written against it until that is corrected.
+Running it is DONE (2026-08-21): it installs on Node 22, serves at
+127.0.0.1:3080, sets no framing headers, frames cleanly, and is already driving
+qwen3.8-27b:latest. Pin the package version before writing code against it,
+because the published build already differs from the README (no --no-open).
 
 Then, unchanged from the original scope:
 

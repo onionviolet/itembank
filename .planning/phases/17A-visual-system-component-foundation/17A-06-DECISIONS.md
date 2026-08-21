@@ -101,3 +101,77 @@ from `README.md`, `docs/architecture.md`, `AGENTS.md`, `python/README.md`, and
 `packages/llm/llm/README.md` read on 2026-08-21. Task 2 should begin by running
 `npx @deepseek-ai/dsh web` once and confirming it starts before any code is
 written against it.
+
+---
+
+## Revision, 2026-08-21: embed the web UI. The earlier rejection was wrong.
+
+Weibao pushed back on "do not embed" and was right on the facts. `dsh` was
+installed and run rather than read about this time, and the objection did not
+survive contact.
+
+### What running it actually showed
+
+| Check | Result |
+|---|---|
+| `npx @deepseek-ai/dsh --help` | Installs and runs on Node 22 |
+| `dsh web --port 3080` | Serves at `http://127.0.0.1:3080` |
+| `X-Frame-Options` | **absent** |
+| `Content-Security-Policy` | **absent** |
+| `frame-ancestors` | **absent** |
+| iframe from a `file://` host page | Loads. `contentWindow` reachable, zero console errors |
+| Model in the running UI | **`qwen3.8-27b:latest`**, profile `weibao-planing` |
+
+The last row closes risk 3 from the original record. It is not a question of
+whether `dsh` reaches an open local model: it is doing so on this machine right
+now, against the model named in `Modelfile.exec`.
+
+The installed build also carries `--trusted-host <authority...>`, described as
+"extra authority the `/api` browser-trust fence accepts". A plain iframe does
+not need it, since the framed document's own requests are same-origin inside
+the frame. It exists for the case where an itembank page on another port calls
+`/api` directly, which is a supported path rather than a workaround.
+
+Note the installed build has **no** `--no-open` flag despite the README naming
+one. The README documents `main`; the published package differs. That is the
+developer-preview risk showing up on the first day of contact, and it is an
+argument for pinning, not against adopting.
+
+### The revised shape: embed the surface, keep the subprocess seam
+
+Both, not one. This is the standing rule in `PLANNING-DIRECTIVES.md` section 1
+applied to an implementation choice.
+
+- **Agent tab: the embedded `dsh` web UI.** The whole console, its tool rows,
+  its approval flow, its session view, maintained by someone else. Weibao's
+  argument stands: rebuilding a worse version of a clean interface does not
+  serve coherence, it just costs months.
+- **Programmatic seam: the Python SDK over stdio.** Kept for operations
+  itembank drives itself from other screens, where a UI is the wrong shape:
+  running `author-bank` from the Build area, and writing the accepted result
+  through `journal.commit_operation`.
+
+### What the earlier objection was actually worth
+
+The original record said embedding "would put a second application shell, a
+second visual system, and a second navigation model inside the app 17A exists
+to make coherent." That was stated as a blocker and it is not one. It is a real
+but ordinary cost, of the same kind as embedding any mature tool, and it is
+paid back by not maintaining an agent console.
+
+Two concrete pieces of it survive as work rather than as objection:
+
+1. **Locale.** The served document is `<html lang="zh-CN">`. A learner-facing
+   embed needs the locale set explicitly rather than inherited.
+2. **Theme seam.** `dsh` renders its own palette. The 17A accent
+   (`indigo` `#4a4ad4`) does not reach inside a cross-origin frame. Either the
+   tab visibly hands off to a different-looking tool, which is honest, or a
+   later plan explores whether `dsh` exposes theming through its plugin
+   config. Not investigated.
+
+### Unchanged
+
+The authority boundary does not move an inch. `dsh` may draft, run tools, and
+show a diff inside its own surface. `journal.commit_operation` is still what
+makes a change real in itembank, and the evidence store and the one scorer are
+untouched by any of this.
