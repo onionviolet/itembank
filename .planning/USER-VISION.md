@@ -281,6 +281,337 @@ as requirements before recording them.
 
 > Add the user's exact words here.
 
+### 2026-08-20: the product does not match expectations
+
+> the thing is the current product doesnt match expectations at all ngl
+
+> also Im not going to lie the design is still not the best it could be even after all the inspiration? like where is the logical pulti page flow and more?
+
+#### Interpretation recorded 2026-08-20
+
+**Status:** active, and acted on the same day.
+
+**Current interpretation:** the gap named here is specifically the experience
+layer, not the runtime. Phases 1 through 13 shipped a working assessment
+runtime with 65 test suites, and the lesson surface rendered semantic Markdown
+as a plain HTML document: prose, a list, a table, a link list. That is a long
+way from the 2026-08-13 "brilliant.com level" entry. The second quotation adds
+that a single scrolling page of states is not a product flow, which was correct:
+the 17A tracer stacked seven states on one page because a tracer proves a seam
+and says nothing about navigation.
+
+**Open questions:** whether the remaining gap is closed by design work inside
+the current Python string templating, or whether it needs a component library
+and a TypeScript frontend over the same daemon routes.
+
+**Planning effect:** 17A was pulled forward ahead of 14B, 15A, 15B, 16A, 16B
+and 16C, none of which its plan graph depends on. `17A-01` became eight
+navigable screens rather than one scrolling catalog.
+
+**Relationship to prior entries:** confirms and sharpens the 2026-08-13
+"quality benchmark and visual ambition" entry by naming the shipped surface as
+the thing that falls short.
+
+---
+
+### 2026-08-20: hover definitions for terms whose everyday meaning misleads
+
+> also need a dictionary extention or something or explantion on hover for potentially confusing terms like inspiration, since that doesnt mean what I think it does
+
+#### Interpretation recorded 2026-08-20
+
+**Status:** resolved for the prototype; the capability already existed.
+
+**Current interpretation:** this is a learner observation, not a feature
+request in the abstract. "Inspiration" in a respiratory context means breathing
+in. The capability shipped in Phase 3.1 (`## TERMS`, `[[term]]`, a Popover API
+trigger, a panel, a glossary appendix, a print fallback) and was simply not
+wired into the 17A tracer. The lesson generalizes: the terms that need a
+definition are the ones whose ordinary meaning actively misleads, not the ones
+that merely look technical.
+
+**Open questions:** who selects the terms. An author, a model proposing
+candidates for review, or the learner marking words that tripped them.
+
+**Planning effect:** `17A-01` reuses `lesson.py`'s glossary rather than
+building a second one, and `lesson.gloss_css()` was added so the tracer and the
+reader style definitions from the same bytes. Five terms are defined in the
+fixture, each chosen because its everyday sense misleads.
+
+**Relationship to prior entries:** confirms the 2026-08-13 "hoverable
+definitions" clause and supplies the selection criterion that entry lacked.
+
+---
+
+### 2026-08-20: home, app flow, sectioning, and a tab for the harness
+
+> what about the home UI? app based flow? tabs for things? side bar? other stuff to ocnsider and more?
+
+> consider how the app use workflow should  even look? Homepage? sectioning? other stuff and much more?a tab for just the deepseek harness kinda thing, and then other tabs for other stuff and more? with deepseek harness we can spend less work implementing Open agents and other stuff and more?
+
+> right now both of these looks pretty broken and java script or whatver is blocked and clicking between dosnt do anything, and also things are section ed properly accordingly to vision and more? more to consider?
+
+#### Interpretation recorded 2026-08-20
+
+**Status:** partly resolved. The information architecture existed; its shape did
+not.
+
+**Current interpretation:** two separate things were being asked. `16B-UI-SPEC`
+already settles which areas exist and what their routes are, including a
+deliberate decision that Search is reserved but unbuilt and that Notes has no
+route of its own. What no document settled was whether that navigation is a
+sidebar, a tab row, or a bottom bar: searching `16B-UI-SPEC`, `17A-UI-SPEC` and
+`UI-SPEC` for those terms returns zero hits. The areas were designed and the
+navigation was never drawn.
+
+The harness clause is a distinct and stronger claim: that hosting an existing
+agent harness costs less than implementing agent features one at a time. It is
+correct, and by more than expected, because the machinery already shipped
+(`model_backend` in Phase 8, `auditor_autonomy` in Phase 11, ten skills, and
+`journal.commit_operation` in Phase 14A). Nothing rendered it.
+
+**Open questions:** whether Study, Build and Operate are the right three
+sections or an artifact of the current feature set. Where the course switch
+lives when the navigation is a thumb bar with no room for it.
+
+**Planning effect:** navigation shape became a second switchable axis rather
+than a decision, alongside the visual direction. An Agent screen was added
+under Operate. `17A-06` was written for the harness.
+
+**Relationship to prior entries:** extends the 2026-08-13 "complete app flow"
+and "one coherent product" entries with the concrete observation that the
+sections were rendering incompletely.
+
+---
+
+### 2026-08-20: keep every option, choose a default, and use what exists
+
+> all of them?
+
+> we caan keeep all of the options as something for the user to choose from, but the agent page, we use skills with  claude and codex, but for local ai, we need a homepage/harness there, and we can just take Deep seek harness and slap it there,
+
+> structured studio, sidebar, indigo, consider higher starred stuff as well
+
+> also everything has an interessting green theme right now, will we have swappoing options in the future?
+
+> We can also just used an precreated recreation of learning software that is already out there for now
+
+#### Interpretation recorded 2026-08-20
+
+**Status:** active. The default is chosen; the options remain.
+
+**Current interpretation:** four claims. First, a default is a starting point
+and never a deletion, which restates `PLANNING-DIRECTIVES.md` section 1 as a UI
+rule. Second, Claude and Codex are already harnessed by Claude Code and the
+Codex CLI, so only the local model lacks a console; that split is the reason
+`17A-06` builds one page rather than three. Third, the accent was never
+hard-coded: `itembank theme preview/set/reset/pick` shipped in Phase 4 and
+`derive_theme` raises a colour that fails contrast rather than accepting it.
+Fourth, reusing existing software is worth splitting in two, because adopting an
+LMS shell and adopting a component library are different trades.
+
+**Open questions:** whether "higher starred stuff" should become a bounded
+research pass over high-star learning and agent projects, and what specifically
+would be taken from each.
+
+**Planning effect:** `17A-DIRECTION.md` records structured-studio, sidebar and
+indigo as defaults with every alternative retained as one deletable stylesheet.
+Four accent swatches were added to the prototype. `theme.DEFAULT_ACCENT` is
+deliberately unchanged, since moving the shipped default belongs to `17A-04`
+with its accessibility pass.
+
+**Relationship to prior entries:** confirms the 2026-08-13 "preserve viable
+ideas" entry and applies it to implementation choices, not only to ideas.
+
+---
+
+### 2026-08-20: build off the original vision, course selector, cohesion
+
+> build off the original vision too, course selector, opther stuf fand more, cohesion pass and more?
+
+#### Interpretation recorded 2026-08-20
+
+**Status:** partly resolved.
+
+**Current interpretation:** a shell that names one course and offers no way off
+it cannot express the stated goal of one learner across EMT, Math 1400 and CSCI
+1100 at once. The course selector is shell furniture, not a control buried on
+Home. "Cohesion pass" is read as an instruction to audit the whole surface
+rather than fix the reported symptom, which found the same class of layout fault
+in six of nine look-by-navigation combinations.
+
+**Open questions:** whether courses are peers in one list or whether a term or
+semester groups them.
+
+**Planning effect:** a course selector with three courses, each stating where
+the learner stopped, visible in sidebar and tabs and hidden in the thumb bar.
+
+**Relationship to prior entries:** confirms the 2026-08-13 "files, hierarchy,
+onboarding" entry at the shell level.
+
+---
+
+### 2026-08-20: get more per token
+
+> how can we theoretically get all these done and implemented? NEed any planning? how to get more per token rather than spending 5 billion like last time and not getting much out of it?
+
+#### Interpretation recorded 2026-08-21
+
+**Status:** active. This is a process constraint, recorded here because it
+shapes what gets built and how.
+
+**Current interpretation:** the 5.1 billion tokens were not wasted on nothing.
+That spend bought 76,465 lines of Python across 139 feature, 95 test and 32 fix
+commits between 2026-08-08 and 2026-08-20, and twelve phases closed. The
+dashboard shows 99.24 percent of it was cache-hit input, 0.32 percent output,
+and 25,154 requests for 25.33 US dollars. The reason it reads as nothing is that
+no phase output ever reached the learner: twelve phases closed without the
+product being used on real material once.
+
+Four measured rules follow. Context size times turn count is the bill, so the
+standing prompt was cut from about 122,000 tokens to 775. Model tier matters
+enormously: on 2026-08-11 one key spent 11.34 dollars and another spent 0.14 on
+the same day's work, because a reasoning model emits thousands of discarded
+tokens per turn. A test is cheaper than an explanation, because a guard costs
+tokens once and a re-explanation costs them every time. And a turn should end in
+something openable, because every correction in this session came from Weibao
+opening a rendered file and looking at it.
+
+**Open questions:** whether the roadmap's remaining phases should be re-ordered
+so that each one ends in something the learner can open, rather than in a freeze
+gate that can go green without anyone using the product.
+
+**Planning effect:** `.planning/EXEC-CONTEXT.md` created as the entire standing
+prompt for an execution run. `ROADMAP.md` halved, with completed phase details
+moved to `ROADMAP-ARCHIVE.md`.
+
+**Relationship to prior entries:** does not conflict with any product entry. It
+constrains how they are delivered.
+
+---
+
+### 2026-08-21: embed the harness, and customize it
+
+> I feel like we can embed, with how clean their interface is, we can use that to help with the main coherence and more too
+
+> we can sustomize dsh as needed and more?
+
+#### Interpretation recorded 2026-08-21
+
+**Status:** active. Recorded because it corrected a planning decision.
+
+**Current interpretation:** the claim is that a clean external interface can
+serve coherence rather than fragment it, so embedding beats rebuilding. It was
+tested rather than argued: `dsh` was installed and run, sets no
+`X-Frame-Options`, no CSP and no `frame-ancestors`, frames cleanly with no
+console error, and was already driving `qwen3.8-27b:latest`. The earlier
+planning record had rejected embedding on coherence grounds and stated that as a
+blocker. It is an ordinary integration cost, repaid by not maintaining a
+console, and the rejection was revised.
+
+The customization question is answered by the project's own architecture
+documentation: everything is a plugin, including the model adapter, the tool
+registry, the session log and the agent loop. Three tiers exist. A
+`cordis.patch.yml` row replacement with no code, a plugin package, or a fork
+under MIT.
+
+**Open questions:** whether `dsh` exposes theming through plugin config, since
+the chosen indigo accent cannot reach inside a cross-origin frame. Whether
+itembank's ten skills should become a `dsh` skill provider, which would make the
+embed genuinely coherent rather than merely adjacent. Neither investigated.
+
+**Planning effect:** `17A-06-DECISIONS.md` revised from subprocess-only to
+embed-plus-subprocess. Two items became work rather than objection: the served
+document is `lang="zh-CN"` and a learner-facing embed must set locale
+explicitly, and the theme seam is unresolved.
+
+**Relationship to prior entries:** extends the 2026-08-20 harness clause above,
+and supersedes the reasoning in the first version of `17A-06-DECISIONS.md`
+without deleting it.
+
+---
+
+### 2026-08-21: a proper agentic based LMS, and a UI flow plan to get there
+
+> push it, make reasonable plan and more, and make prompt to plan the UI flow and more to make everything truly a proper agentic based LMS?
+
+> update uservision accordingly and relevantly
+
+#### Interpretation recorded 2026-08-21
+
+**Status:** active. New scope language, not yet a requirement.
+
+**Current interpretation:** two words in this entry are new to the record and
+neither is decoration.
+
+**"Agentic based."** Earlier entries said the course "could be partially
+drivable by ai" (2026-08-13) and that AI "can play a reasonable role if need
+be" (2026-08-13). Those describe an assistant beside the product. This entry
+asks for something stronger: the agent is an operator of the system. It should
+be able to take a goal, read the course state, choose and run a skill, produce
+a cited artifact, and have that artifact become real through the normal
+acceptance path, without a human retyping the work into a different tool.
+
+The measured gap on the day this was written: the Agent tab embeds a working
+agent console (plan 17A-06), and `journal.commit_operation` is a working
+compare-and-swap writer with an undo, and **nothing joins them.** The skill
+buttons on that page run nothing. An embedded chat window beside a course is
+not an agentic LMS, it is two programs in one window.
+
+**"LMS."** The first use of the term in this record. Read as the capability
+set, not the administration model: a course a learner is enrolled in and moves
+through, assignments and due work, a gradebook-shaped honest record of
+evidence, and a next action that is chosen rather than browsed for. It is NOT
+read as multi-tenancy, accounts, roles, or institutional administration, which
+`CLAUDE.md` still rules out for one learner per installation. Phase 18 already
+covers a second person installing their own copy, which is a different thing
+from a second person in this copy.
+
+**The boundary does not move, and this entry does not ask it to.** The runtime
+invariant stands: one parser, one scorer, one evidence store, and the runtime
+settles scoring, session state, keyed disclosure, and evidence. "Truly
+agentic" means the agent can operate everything the learner can operate and
+propose everything an author can propose. It does not mean the agent can
+settle a mark or release a key. An agent that could do either would be the
+second authority the architecture exists to prevent.
+
+**Open questions:**
+
+1. What is the agent's unit of work? A skill invocation, a goal that decomposes
+   into several, or a standing role that watches evidence and proposes without
+   being asked.
+2. Where does an agent operation appear in the UI? Inside the Agent area only,
+   or as a proposal that surfaces in the area it affects (a lesson revision on
+   the lesson, a bank extension on the bank).
+3. What does the learner see while an operation runs, and what happens to a
+   half-finished operation when the app closes.
+4. Does an agent get its own view of the course state, or does it read the same
+   routes the learner does. The second is cheaper to keep honest.
+5. Which of the LMS-shaped objects (assignment, due date, enrollment-style
+   progress, gradebook view) are real durable objects and which are derived
+   views over evidence that already exists.
+6. Whether the embedded external console and an itembank-driven operation seam
+   stay two paths permanently, or converge once the second one works.
+
+**Planning effect:**
+
+- `17A-07-PLAN.md` (registered 2026-08-21) builds the missing seam: one skill
+  run from the Agent area through `model_adapter.invoke`, a bounded diff, and
+  exactly one `journal.commit_operation` write with a visible undo. It is the
+  smallest change that makes the claim true rather than aspirational.
+- `PROMPT-ui-flow-agentic-lms-2026-08-21.md` carries the UI-flow planning ask
+  into its own session, because flow design and seam implementation are
+  different work and mixing them produces neither.
+- The open questions above are the agenda for that session. They are not
+  requirements yet and must not be cited as if they were.
+
+**Relationship to prior entries:** extends the 2026-08-13 course-generator and
+agent-skills entries, and the 2026-08-13 UI-flow entry ("Need a plan to work on
+how the UI flow should logically work"), which asked for the same flow planning
+and has not yet been done. It narrows nothing and supersedes nothing. It
+conflicts with no recorded decision, including the runtime invariant, because
+it asks for reach and not for authority.
+
 ## Interpretation protocol
 
 An interpretation may appear immediately after a verbatim entry when it helps
