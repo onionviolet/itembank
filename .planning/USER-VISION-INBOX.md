@@ -151,7 +151,11 @@ question also changed `PLANNING-DIRECTIVES.md`.
 
 **Disposition:** Split (2026-08-20).
 
-**Promotable clause (product intent, not yet copied into `USER-VISION.md`):**
+**Promoted 2026-08-21** to `USER-VISION.md` as "2026-08-20: paper notes as a
+source, and digitization as an enhancement path". This entry stays here as the
+intake record.
+
+**Promotable clause (promoted 2026-08-21):**
 the learner's existing paper notes are a first-class source class, and
 digitizing them is not the goal in itself. The goal is that a scanned note
 becomes something the course can act on: expand it, add depth to it, correct

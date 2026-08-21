@@ -690,6 +690,84 @@ and has not yet been done. It narrows nothing and supersedes nothing. It
 conflicts with no recorded decision, including the runtime invariant, because
 it asks for reach and not for authority.
 
+### 2026-08-20: paper notes as a source, and digitization as an enhancement path
+
+> functionality for notes stuff? consider OCR exiting paper notes, beautifying and highlighting and expanding on stuff and more? does stuff like that exist for digitizing ntoes and stueff? anything for Ai based highlighting and annotating and more? ALso aesthetics too? like papery style vs docs vs other stuff and more? other stuff to consider?
+
+> yes write the inbox entry and reopen B9 and B10, as something to enhance other things, like expanding or adding depth, coreecting and checking understandning and more?
+
+#### Interpretation recorded 2026-08-21
+
+**Status:** active. New source class, not yet a requirement.
+
+**Current interpretation:** the learner's existing paper notes are a source the
+course can act on, and the second statement is the one that carries the scope.
+Digitization is not the goal. The goal is what becomes possible once a written
+page is readable by the system: expanding a thin note, adding depth from a
+bound source, correcting an error in the learner's own wording, and checking
+whether the learner understands what they wrote. OCR is the enabling step, not
+the feature.
+
+This is the first entry to treat something the learner already produced, on
+paper, away from the machine, as course input. Every earlier source statement
+(2026-08-13 on books and syllabi, and the source-to-course milestone) assumed
+the source arrived as a file. A photographed page is a different kind of object:
+its identity is an image, its text is a guess, and its author is the learner.
+
+**The aesthetics half of the first statement is not new scope.** "Papery style
+vs docs vs other stuff" resolves to three axes the record already separates and
+must keep separate: presentation theme and tokens (Phase 17A and Stream 10),
+instructional style (the style registry, RESEARCH-BRIEF-2 R1), and note format
+such as Cornell, outline, or matrix (Stream 12 section 10.2). Collapsing them
+into one style control is the failure mode already named in that stream.
+Similarly, AI highlighting and annotating is not new: Stream 12 settled it,
+including the finding that instructor-provided emphasis has better evidence
+than learner highlighting, which is why AI emphasis is a reviewable proposal
+rather than something applied to the learner's page.
+
+**What the boundary already answers.** A learner note never becomes keyed truth
+(Stream 12 section 7.2), so a transcribed page cannot become an answer key by
+passing through a model. Transcribe, clean, and expand are three different
+truth claims and stay visibly distinct in the artifact, because collapsing them
+is how a model's guess becomes the learner's note and then a question. The scan
+image is the record and the transcription is derived, so a better model later
+re-transcribes without touching what was photographed. Rights differ between
+the learner's own handwriting and a photographed copyrighted page. The CSCI
+1100 AI-use ban applies to OCR-plus-expansion on that course's notes exactly as
+it applies to hosted tutoring.
+
+**Open questions:**
+
+1. Whether a digitized note keeps its page identity, image beside transcript
+   with the learner's own marks preserved, or becomes clean typeset text by
+   default.
+2. How transcription confidence is surfaced so an uncertain reading gets
+   corrected rather than trusted.
+3. Whether checking understanding against a learner's own note is a lesson
+   activity, a practice form, or a diagnostic that must never be scored.
+4. How a second scan of the same page is reconciled rather than duplicated.
+5. Whether the real deliverable is transcription at all, or "rebuild my notes
+   for objective X from every scan."
+
+**Planning effect:** recorded verbatim in `USER-VISION-INBOX.md` on 2026-08-20
+with disposition Split, and promoted here on 2026-08-21. The implementation
+half is registered in `IDEA-LEDGER.md`: IL-20260820-01 reopens B9 (image and
+paper-note intake), whose original deferral reason was sequencing behind the
+Phase 3.2 generation path that now exists; IL-20260820-02 reopens B10 narrowly,
+registering recognition of handwriting already on paper while live stylus
+authoring and ink canvases stay descoped. The descope table in
+`ROADMAP-ARCHIVE.md` carries dated pointers to both. No phase is scheduled.
+
+**Relationship to prior entries:** extends the 2026-08-13 course-generator
+entry, which named books and syllabi as sources, by adding a source the learner
+wrote. Extends the 2026-08-13 guided-highlighting and learner-note entry, which
+asked about notes the learner builds while going through a lesson, with the
+inverse case: notes that already exist and arrive from outside. Supersedes
+nothing, and narrows nothing except B10, which is narrowed deliberately and
+recorded as such.
+
+---
+
 ## Interpretation protocol
 
 An interpretation may appear immediately after a verbatim entry when it helps
