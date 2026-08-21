@@ -9,12 +9,17 @@
       "kind": "home",
       "cards": [
         {
-          "course": "Synthetic Airway Course",
+          "course": "EMT (synthetic)",
           "resume": "Objective 2 of 6",
           "state": "in_progress"
         },
         {
-          "course": "Synthetic Ratios Course",
+          "course": "Math 1400 (synthetic)",
+          "resume": "Objective 1 of 9",
+          "state": "in_progress"
+        },
+        {
+          "course": "CSCI 1100 (synthetic)",
           "resume": "Not started",
           "state": "available"
         },
@@ -22,15 +27,10 @@
           "course": "Synthetic Locked Course",
           "state": "locked",
           "unlock": "Bind a source to this course before it opens."
-        },
-        {
-          "course": "Synthetic Second Locked Course",
-          "state": "locked",
-          "unlock": "Grant read rights to the folder this course cites."
         }
       ],
       "next_action": {
-        "course": "Synthetic Airway Course",
+        "course": "EMT (synthetic)",
         "label": "Continue: recognize a compromised airway",
         "why": "Two objectives back you missed the same distinction twice. This reading addresses it directly.",
         "stage": "long_lesson"
@@ -354,7 +354,7 @@
     }
   ],
   "app": {
-    "course_name": "Synthetic Airway Course",
+    "course_name": "EMT (synthetic)",
     "app_areas": [
       {
         "id": "home",
@@ -466,6 +466,26 @@
           "settings",
           "help"
         ]
+      }
+    ],
+    "courses": [
+      {
+        "id": "emt",
+        "label": "EMT (synthetic)",
+        "current": true,
+        "resume": "Objective 2 of 6"
+      },
+      {
+        "id": "math1400",
+        "label": "Math 1400 (synthetic)",
+        "current": false,
+        "resume": "Objective 1 of 9"
+      },
+      {
+        "id": "csci1100",
+        "label": "CSCI 1100 (synthetic)",
+        "current": false,
+        "resume": "Not started"
       }
     ]
   }

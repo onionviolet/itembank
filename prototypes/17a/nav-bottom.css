@@ -1,17 +1,23 @@
-/* Bottom bar. Thumb-reachable, phone-shaped, and the shape that survives being
-   used one-handed on a shift. Costs a strip of vertical space on every screen. */
-.vf-app { display: block; padding-bottom: 5.5rem; }
+/* Bottom bar. Thumb-reachable, phone-shaped, survives one-handed use on a
+   shift. Costs a strip of vertical space on every screen. */
+.vf-app { display: block; padding-bottom: 6rem; }
 .vf-appnav { position: fixed; inset-inline: 0; inset-block-end: 0; z-index: 5;
   background: var(--card); border-top: 1px solid var(--line);
   padding: var(--space-2) var(--space-3); display: flex; align-items: center;
-  gap: var(--space-2); overflow-x: auto; }
-.vf-nav-brand, .vf-nav-label { display: none; }
-.vf-appnav ul { display: flex; gap: var(--space-1); }
-.vf-appnav a { padding: var(--space-2) var(--space-3); white-space: nowrap; }
-.vf-appnav a[aria-current] { background: var(--chip); }
+  gap: var(--space-2); overflow-x: auto; overscroll-behavior-x: contain; }
+/* The brand and the course picker do not belong in a thumb bar. Hiding the
+   picker without hiding its heading is what produced a column of single
+   letters, so both go, and the current course is named on Home instead. */
+.vf-nav-brand, .vf-nav-label, .vf-courses, .vf-nav-course-name { display: none; }
+.vf-appnav ul { display: flex; gap: var(--space-1); margin: 0; flex: 0 0 auto; }
+.vf-appnav a, .vf-appnav label, .vf-appnav .vf-area-entry {
+  white-space: nowrap; flex: 0 0 auto; padding: var(--space-2) var(--space-3);
+  font-size: var(--vf-meta); }
+.vf-appnav a[aria-current], .vf-appnav label[aria-current] { background: var(--chip); }
 .vf-area-route { display: none; }
-.vf-nav-app { border-inline-end: 1px solid var(--line);
-  padding-inline-end: var(--space-2); margin-inline-end: var(--space-2); }
-@media (min-width: 900px) {
-  .vf-appnav { justify-content: center; }
-}
+.vf-courses .vf-area-entry[aria-current] { box-shadow: none; }
+/* Sections stay legible as a hairline between groups rather than as headings. */
+.vf-nav-course + .vf-nav-course, .vf-nav-app + * {
+  border-inline-start: 1px solid var(--line);
+  padding-inline-start: var(--space-2); margin-inline-start: var(--space-1); }
+@media (min-width: 900px) { .vf-appnav { justify-content: center; } }

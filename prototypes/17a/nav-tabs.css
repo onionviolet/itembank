@@ -1,18 +1,21 @@
-/* Tabs. One horizontal row per level, so the whole width stays with the
-   content. Reads as a document with sections rather than as an application. */
+/* Tabs. One horizontal row per level, so the full width stays with the content.
+   Reads as a document with sections rather than as an application. */
 .vf-app { display: block; }
 .vf-appnav { border-bottom: 1px solid var(--line); margin-bottom: var(--space-6);
   padding-bottom: 0; }
 .vf-nav-brand { margin-bottom: var(--space-2); }
-.vf-nav-label { display: inline-block; margin-inline-end: var(--space-3);
+.vf-nav-label { display: inline-block; margin-inline-end: var(--space-2);
   margin-block: 0; vertical-align: middle; }
 .vf-appnav ul { display: inline-flex; flex-wrap: wrap; gap: var(--space-1);
-  vertical-align: middle; }
-.vf-nav-app { margin-bottom: var(--space-2) !important; }
-.vf-appnav a { padding: var(--space-2) var(--space-3); border-radius:
-  var(--r-2) var(--r-2) 0 0; border-bottom: 2px solid transparent; }
-.vf-appnav a[aria-current] { border-bottom-color: var(--accent);
-  background: transparent; }
+  vertical-align: middle; margin-bottom: var(--space-2); }
+/* Horizontal shapes must never let an entry shrink below its own word. */
+.vf-appnav a, .vf-appnav label, .vf-appnav .vf-area-entry {
+  white-space: nowrap; flex: 0 0 auto;
+  border-radius: var(--r-2) var(--r-2) 0 0;
+  border-bottom: 2px solid transparent; }
+.vf-appnav a[aria-current], .vf-appnav label[aria-current] {
+  border-bottom-color: var(--accent); background: transparent; }
 .vf-area-route { display: none; }
-.vf-nav-course a { font-size: var(--vf-body); }
+.vf-courses .vf-area-entry[aria-current] { box-shadow: none;
+  border-bottom-color: var(--accent); }
 @media (max-width: 767px) { .vf-appnav ul { overflow-x: auto; flex-wrap: nowrap; } }

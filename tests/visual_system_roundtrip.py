@@ -527,6 +527,77 @@ def check_gloss_positioning_degrades():
     ok("check_gloss_positioning_degrades")
 
 
+def check_nav_entries_are_uniform():
+    """Every navigation entry, whether it links, switches, or is unavailable,
+    carries one entry class. An entry that missed it was styled by nothing, so
+    in the horizontal shapes it collapsed below its own word width and rendered
+    one letter per line. This is the bug Weibao photographed."""
+    from surfaces import visual_fixture
+    data = load()
+    for nav_shape in visual_fixture.NAV_SHAPES:
+        html = visual_fixture.page(data, "structured-studio",
+                                   stage_id="shelf_resume", nav_shape=nav_shape)
+        for block in re.findall(r'<nav class="vf-appnav".*?</nav>', html, re.S):
+            if "<span>" in block:
+                fail("%s nav contains an unclassed span, which nothing styles"
+                     % nav_shape)
+            for entry in re.findall(r"<li[^>]*>(.*?)</li>", block, re.S):
+                if "vf-area-entry" not in entry and "<a " not in entry                         and "<label " not in entry:
+                    fail("%s nav has an entry with no entry class" % nav_shape)
+    single = visual_fixture.single_file(data)
+    for block in re.findall(r'<nav class="vf-appnav".*?</nav>', single, re.S):
+        if "<span>" in block:
+            fail("the single-file nav contains an unclassed span")
+    ok("check_nav_entries_are_uniform")
+
+
+def check_horizontal_shapes_cannot_stack_text():
+    """A shape that lays entries out in a row must stop them shrinking below
+    their own word, and must hide the route line that doubles their height."""
+    from surfaces import visual_fixture
+    for shape in ("tabs", "bottom"):
+        css = visual_fixture.overlay_css("nav-" + shape)
+        if "white-space: nowrap" not in css:
+            fail("nav-%s lets an entry wrap inside a row" % shape)
+        if ".vf-area-route { display: none; }" not in css:
+            fail("nav-%s shows the route line in a horizontal row" % shape)
+    bottom = visual_fixture.overlay_css("nav-bottom")
+    hidden = re.search(r"\.vf-nav-brand[^{]*\{[^}]*display:\s*none", bottom)
+    if not hidden:
+        fail("nav-bottom does not hide the chrome that does not fit a thumb bar")
+    for should_hide in (".vf-courses", ".vf-nav-label", ".vf-nav-course-name"):
+        if should_hide not in hidden.group(0) and should_hide not in                 bottom[:hidden.end()]:
+            fail("nav-bottom does not hide %s, which stacked letter by letter"
+                 % should_hide)
+    ok("check_horizontal_shapes_cannot_stack_text")
+
+
+def check_course_selector():
+    """The vision is one learner across three subjects at once, so the shell
+    offers the switch rather than hiding it on Home."""
+    from surfaces import visual_fixture
+    data = load()
+    courses = (data.get("app") or {}).get("courses", [])
+    if len(courses) < 3:
+        fail("the course selector offers fewer than three courses")
+    current = [c for c in courses if c.get("current")]
+    if len(current) != 1:
+        fail("exactly one course must be current, found %d" % len(current))
+    for course in courses:
+        if not course.get("resume"):
+            fail("course %s does not say where you stopped" % course.get("id"))
+    for nav_shape in ("sidebar", "tabs"):
+        html = visual_fixture.page(data, "structured-studio",
+                                   stage_id="shelf_resume", nav_shape=nav_shape)
+        if "vf-courses" not in html:
+            fail("%s does not render the course selector" % nav_shape)
+        for course in courses:
+            if course["label"] not in html:
+                fail("course %s is missing from the %s shell"
+                     % (course["id"], nav_shape))
+    ok("check_course_selector")
+
+
 def main():
     check_fixture_shape()
     check_no_em_dash()
@@ -552,6 +623,9 @@ def main():
     check_harness_undo_classification()
     check_single_file_is_self_contained()
     check_gloss_positioning_degrades()
+    check_nav_entries_are_uniform()
+    check_horizontal_shapes_cannot_stack_text()
+    check_course_selector()
     if failures:
         print("\n%d failure(s)" % len(failures))
         return 1

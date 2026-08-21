@@ -2,24 +2,30 @@
    come from 16B-UI-SPEC's route contract; only the shape is undecided. */
 .vf-app { display: block; }
 .vf-appnav ul { list-style: none; margin: 0; padding: 0; }
-.vf-appnav a { display: block; text-decoration: none; color: var(--mut);
-  border-radius: var(--r-2); }
-.vf-appnav a:hover { color: var(--ink); background: var(--chip); }
-.vf-appnav a[aria-current] { color: var(--ink); font-weight: 600; }
+/* One class for every nav entry, whether it is a link, a label, or an
+   unavailable area. An entry that missed this class collapsed to a sliver in
+   the horizontal shapes and stacked its text one letter per line. */
+.vf-appnav a, .vf-appnav label, .vf-appnav .vf-area-entry {
+  display: block; text-decoration: none; color: var(--mut);
+  border-radius: var(--r-2); padding: var(--space-2) var(--space-3); }
+.vf-appnav a:hover, .vf-appnav label:hover { color: var(--ink); background: var(--chip); }
+.vf-appnav a[aria-current], .vf-appnav label[aria-current],
+.vf-appnav .vf-area-entry[aria-current] { color: var(--ink); font-weight: 600; }
 .vf-area-label { display: block; font-size: var(--vf-body); }
 .vf-area-route { display: block; font-size: var(--vf-micro); color: var(--mut);
   font-family: var(--font-code); opacity: .7; }
-.vf-area-todo a { opacity: .5; cursor: default; }
+.vf-area-todo .vf-area-entry { opacity: .45; cursor: default; }
 .vf-nav-brand { margin: 0 0 var(--space-4); font-weight: 700;
   letter-spacing: -0.02em; font-size: var(--vf-h3); color: var(--ink); }
 .vf-nav-label { margin: var(--space-4) 0 var(--space-1); font-size: var(--vf-micro);
   text-transform: uppercase; letter-spacing: .09em; color: var(--mut);
   font-family: var(--font-ledger); }
+.vf-courses .vf-area-entry[aria-current] { background: var(--chip);
+  box-shadow: inset 3px 0 0 var(--accent); }
 .vf-resume { border: 1px solid var(--accent); border-radius: var(--r-3);
   padding: var(--space-5); margin-bottom: var(--space-6); background: var(--card); }
 .vf-resume h3 { margin: var(--space-1) 0 var(--space-2); }
 .vf-jobs { list-style: none; padding: 0; }
 .vf-jobs li { padding: var(--space-2) var(--space-3); margin-bottom: var(--space-2);
   border-radius: var(--r-2); background: var(--chip); }
-.vf-jobs [data-state="needs_input"], .vf-jobs li[data-state="needs_input"] {
-  background: var(--warn-bg); }
+.vf-jobs li[data-state="needs_input"] { background: var(--warn-bg); }

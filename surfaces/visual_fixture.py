@@ -721,6 +721,29 @@ def _link(direction, stage_id, label, current="", nav_shape=DEFAULT_NAV):
 
 
 
+
+def _course_picker(app, chooser=None):
+    """The course selector. The vision is one learner across three subjects at
+    once, so the shell has to offer the switch rather than hide it on Home."""
+    courses = app.get("courses") or []
+    if not courses:
+        return ('<p class="vf-nav-course-name">%s</p>'
+                % _esc(app.get("course_name", "Course")))
+    rows = []
+    for course in courses:
+        label = ('<span class="vf-area-label">%s</span>'
+                 '<span class="vf-area-route">%s</span>'
+                 % (_esc(course.get("label")), _esc(course.get("resume"))))
+        mark = ' aria-current="true"' if course.get("current") else ""
+        if chooser is not None:
+            rows.append("<li>%s</li>" % chooser(course, label, mark))
+        else:
+            rows.append('<li><span class="vf-area-entry"%s>%s</span></li>'
+                        % (mark, label))
+    return ('<p class="vf-nav-label">Course</p>'
+            '<ul class="vf-nav-course vf-courses">%s</ul>' % "".join(rows))
+
+
 def _app_nav(data, direction, nav_shape, stage_id):
     """The app shell navigation. Identical markup in all three shapes, because
     a shape is a stylesheet and a rewrite is not a shape."""
@@ -734,12 +757,15 @@ def _app_nav(data, direction, nav_shape, stage_id):
             current = area_id
     def item(label, target, is_current, route):
         mark = ' aria-current="page"' if is_current else ""
-        href = ("?direction=%s&amp;nav=%s&amp;stage=%s" % (direction, nav_shape, target)
-                if target else "#")
-        cls = "" if target else ' class="vf-area-todo"'
-        return ('<li%s><a href="%s"%s><span class="vf-area-label">%s</span>'
-                '<span class="vf-area-route">%s</span></a></li>'
-                % (cls, href, mark, _esc(label), _esc(route)))
+        inner = ('<span class="vf-area-label">%s</span>'
+                 '<span class="vf-area-route">%s</span>'
+                 % (_esc(label), _esc(route)))
+        if not target:
+            return ('<li class="vf-area-todo">'
+                    '<span class="vf-area-entry">%s</span></li>' % inner)
+        return ('<li><a class="vf-area-entry" href="?direction=%s&amp;nav=%s'
+                '&amp;stage=%s"%s>%s</a></li>'
+                % (direction, nav_shape, target, mark, inner))
     app_items = "".join(
         item(a["label"], "shelf_resume" if a["id"] == "home" else
              ("agent_offline_status" if a["id"] in ("settings", "help") else None),
@@ -767,9 +793,7 @@ def _app_nav(data, direction, nav_shape, stage_id):
     return ('<nav class="vf-appnav" aria-label="Application">'
             '<p class="vf-nav-brand">itembank</p>'
             '<p class="vf-nav-label">App</p><ul class="vf-nav-app">%s</ul>'
-            '<p class="vf-nav-course-name">%s</p>%s'
-            "</nav>" % (app_items, _esc(app.get("course_name", "Course")),
-                        "".join(blocks)))
+            "%s%s</nav>" % (app_items, _course_picker(app), "".join(blocks)))
 
 
 def _prototype_chrome(data, direction, stage_id, nav_shape=DEFAULT_NAV):
@@ -1063,7 +1087,8 @@ def single_file(data=None, base=None):
                  % (_esc(area["label"]), _esc(area["route"])))
         if target in ids:
             return "<li>%s</li>" % _label("screen", target, inner)
-        return ('<li class="vf-area-todo"><span>%s</span></li>' % inner)
+        return ('<li class="vf-area-todo"><span class="vf-area-entry">%s'
+                "</span></li>" % inner)
 
     sections = "".join(
         '<p class="vf-nav-label">%s</p><ul class="vf-nav-course" data-section="%s">%s</ul>'
@@ -1080,8 +1105,7 @@ def single_file(data=None, base=None):
     appnav = ('<nav class="vf-appnav" aria-label="Application">'
               '<p class="vf-nav-brand">itembank</p>'
               '<p class="vf-nav-label">App</p><ul class="vf-nav-app">%s</ul>'
-              '<p class="vf-nav-course-name">%s</p>%s</nav>'
-              % (app_rows, _esc(app.get("course_name", "Course")), sections))
+              "%s%s</nav>" % (app_rows, _course_picker(app), sections))
 
     # --- screens --------------------------------------------------------
     screens = []
