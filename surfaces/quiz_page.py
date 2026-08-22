@@ -56,6 +56,12 @@ body{margin:0;background:var(--bg);color:var(--ink);
   color:var(--mut)}
 .context-line .objective{flex:1 1 220px;min-width:0;overflow-wrap:anywhere}
 .context-line .lesson{margin-left:auto}
+/* The way back, when the serving surface has one. Underlined rather than
+   coloured, so it reads as a link at any contrast setting and does not
+   depend on the accent to be recognisable. */
+.context-line .cx-home{color:inherit;text-decoration:underline;
+  text-underline-offset:2px}
+.context-line .cx-home:hover{color:var(--accent)}
 .context-line a.lesson{color:var(--accent);text-decoration:none;font-weight:600}
 .context-line a.lesson:hover,.context-line a.lesson:focus-visible{
   text-decoration:underline;outline:2px solid var(--accent);outline-offset:2px}

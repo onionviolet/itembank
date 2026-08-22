@@ -141,7 +141,8 @@ def cmd_lesson_skip(a):
 
 def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
              lesson_base="", lesson_slugs=None, bank_stem=None, mode=None,
-             theme_css=None, lti_framing="", boot_extra=None, assist=False):
+             theme_css=None, lti_framing="", boot_extra=None, assist=False,
+             home_href=""):
     """Render one quiz page. `theme_css`, when given, is the per-render
     generated token block (the daemon passes
     `theme.theme_css(load_settings(root))` so quiz shares the one palette
@@ -165,7 +166,20 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
     mix = ", ".join("%d %s" % (v, k) for k, v in counts.most_common())
     sub = "%d items &middot; %s &middot; dichotomous scoring" % (len(qs), mix)
     sub += " &middot; answers recorded" if serve else " &middot; nothing recorded"
+    # The way back. Weibao sat the 13.9 skeleton on 2026-08-21 and reported
+    # "no way to go back to home page". The home existed the whole time: serve
+    # and daemon are the same server (cmd_serve calls daemon.serve_scoped),
+    # and both answer GET /. The page just never linked to it.
+    #
+    # Off by default so every existing caller stays byte-identical, and
+    # because two callers genuinely have no home to offer: the offline build
+    # output has no server at all, and an LTI launch is framed inside the
+    # host LMS, where a link to itembank's own index would walk the learner
+    # out of the course they launched from.
     ctx_bank = html.escape(title)
+    if home_href:
+        ctx_bank = ('<a class="cx-home" href="%s">%s</a>'
+                    % (html.escape(home_href), ctx_bank))
     ctx_mode = html.escape(mode or "")
     # Served mode (SURF-02): the page receives bootstrap metadata only --
     # allowlisted bank stem, item count, configured session mode, and the

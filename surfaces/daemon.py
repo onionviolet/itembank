@@ -1265,7 +1265,7 @@ def handle_quiz_get(handler, stem):
                             bank_stem=stem, mode=sess.get("mode", "practice"),
                             lesson_base="/lesson/%s" % stem,
                             lesson_slugs=lesson_slugs, theme_css=theme_block,
-                            assist=True)
+                            assist=True, home_href="/")
     if view is not None:
         baseline = quiz_page.baseline_for(view, teaching,
                                           "/quiz/%s/answer" % stem, tokens, flash)

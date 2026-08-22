@@ -299,6 +299,32 @@ def check_index_populated():
         shutil.rmtree(workdir, ignore_errors=True)
 
 
+def check_quiz_offers_the_way_back():
+    """The sitting links back to the index it was reached from.
+
+    Weibao sat the 13.9 skeleton on 2026-08-21 and reported "no way to go back
+    to home page". The home existed the whole time: `serve` and `daemon` are
+    the same server, cmd_serve calls daemon.serve_scoped, and both answer
+    GET /. Nothing linked to it, which is indistinguishable from not having
+    one."""
+    workdir = tempfile.mkdtemp()
+    shutil.copy(BANK, os.path.join(workdir, "sample_bank.md"))
+    proc, url, lines = start_daemon(workdir)
+    try:
+        status, body = get(url + "quiz/sample_bank")
+        if status != 200:
+            fail("GET /quiz returned %d, expected 200" % status)
+            return
+        if 'class="cx-home"' not in body:
+            fail("the sitting offers no way back to the index")
+            return
+        if 'href="/"' not in body:
+            fail("the way back does not point at the index")
+    finally:
+        proc.terminate()
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
 def check_index_offers_the_reading():
     """A bank WITH a lesson gets a reading link, and it comes before the
     sitting link.
@@ -3534,6 +3560,7 @@ def main():
     checks = (
         check_index_populated,
         check_index_offers_the_reading,
+        check_quiz_offers_the_way_back,
         check_index_order,
         check_index_empty,
         check_index_malformed_tolerated,
