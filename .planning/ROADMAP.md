@@ -1282,7 +1282,7 @@ without silently absorbing the non-token Phase 13.5 backlog.
 
 **Requirements:** VISUAL-01, VISUAL-02, A11Y-01
 
-**Plans:** 7 plans across 4 waves (17A-05 added 2026-08-17; 17A-06 and 17A-07
+**Plans:** 8 plans across 4 waves (17A-05 added 2026-08-17; 17A-06, 17A-07 and 17A-08
 added 2026-08-21).
 
 **Wave 1**
@@ -1317,6 +1317,12 @@ added 2026-08-21).
   `journal.commit_operation` write with a proven undo. This is the plan that
   makes "agentic" true of the product rather than of an embedded window
   (USER-VISION 2026-08-21).
+
+- [ ] 17A-08-PLAN.md, the shelf home and the four home modes: cards with real
+  resume state, one next action with an evidence-sourced reason, and the three
+  home shapes Weibao did not pick shipped as settings rather than deleted.
+  Chosen 2026-08-21 after he sat the 13.9 skeleton and found the daemon still
+  serving a pre-16B file list.
 
 **Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 17A-04-PLAN.md, driven-browser evidence, scripted human A11Y-01 review,
