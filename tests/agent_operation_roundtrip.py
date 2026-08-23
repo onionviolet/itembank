@@ -498,6 +498,112 @@ def check_unknown_skill_or_missing_target_names_the_problem():
         course.close()
 
 
+def _agent_html(base=True):
+    """The Agent tab's HTML, with a real course root or without one."""
+    from surfaces import visual_fixture
+    data = visual_fixture.load_fixture()
+    return visual_fixture.page(data, "structured-studio",
+                               stage_id="agent_harness",
+                               base=ROOT if base else None)
+
+
+def check_agent_tab_lists_the_real_skills():
+    """Task 2. The skill buttons come from the skills that exist under
+    .claude/skills, not from the fixture list. A skill whose command
+    surface has not shipped renders as unavailable with the reason, not
+    as a button that does nothing."""
+    from surfaces import visual_fixture
+    rows = visual_fixture.live_skills(ROOT)
+    ids = [r["id"] for r in rows]
+    for expected in ("author-bank", "build-course", "guiding-questions",
+                     "discovery-and-binding", "legacy-upgrade"):
+        if expected not in ids:
+            fail("live_skills missed %r (found %r)" % (expected, ids))
+            return
+    by_id = dict((r["id"], r) for r in rows)
+    if not by_id["author-bank"]["runnable"]:
+        fail("author-bank is shipped and must render runnable")
+        return
+    for stub in ("discovery-and-binding", "legacy-upgrade",
+                 "lesson-authoring", "media-intake"):
+        row = by_id.get(stub)
+        if row is None:
+            continue
+        if row["runnable"]:
+            fail("%r is a stub and must not render runnable" % stub)
+            return
+        if "not shipped" not in row["why"]:
+            fail("%r carries no not-shipped reason: %r" % (stub, row["why"]))
+            return
+    html = _agent_html()
+    for expected in ("author-bank", "build-course", "guiding-questions"):
+        if expected not in html:
+            fail("the Agent tab does not name the real skill %r" % expected)
+            return
+    if 'data-state="unavailable"' not in html:
+        fail("no skill renders as unavailable")
+        return
+    if "Upgrade older lessons" in html:
+        fail("the fixture skill list still renders over the real one")
+        return
+    ok("the Agent tab renders the real skills, stubs marked unavailable")
+
+
+def check_every_adapter_code_has_copy_on_the_page():
+    """The truth on the page: every adapter unavailable code carries its
+    named next action, so a learner can act on any failure the boundary
+    can produce without reading the source."""
+    html = _agent_html()
+    for code, action in ao.NEXT_ACTIONS.items():
+        if code not in html:
+            fail("the Agent tab never names %s" % code)
+            return
+        if action not in html:
+            fail("the Agent tab does not carry the next action for %s"
+                 % code)
+            return
+    ok("all %d adapter codes carry their next action on the page"
+       % len(ao.NEXT_ACTIONS))
+
+
+def check_the_four_states_are_named_on_the_page():
+    """Each of the four states is rendered: the page says what a run
+    looks like at every step instead of hiding the machine."""
+    html = _agent_html()
+    for state in ao.STATES:
+        if 'data-state="%s"' % state not in html:
+            fail("the state %r is not rendered on the Agent tab" % state)
+            return
+        if ao.STATE_COPY[state] not in html:
+            fail("the state %r renders without its copy" % state)
+            return
+    ok("the four states render with the machine's own copy")
+
+
+def check_two_paths_says_which_is_which():
+    """Two paths ship, per PLANNING-DIRECTIVES section 1: the framed
+    console is the open-ended one, the skills are the itembank-driven
+    one. One sentence says which is which, so the pair reads as a
+    decision rather than as duplication."""
+    html = _agent_html()
+    harness = html.split('class="vf-stage"', 1)[1]
+    for needle in ("open-ended", "propose", "Accept"):
+        if needle not in harness:
+            fail("the two-paths sentence is missing %r" % needle)
+            return
+    ok("the Agent tab says the console is open-ended and the skills "
+       "propose through itembank")
+
+
+def check_agent_tab_still_renders_without_a_root():
+    """Rendering without a course root keeps working (the prototype
+    pages do it), falling back to the fixture list it always had."""
+    html = _agent_html(base=False)
+    if "vf-stage" not in html:
+        fail("the Agent tab stopped rendering without a base")
+    ok("the Agent tab renders without a course root")
+
+
 def main():
     check_only_four_states_exist()
     check_next_actions_cover_every_adapter_code()
@@ -511,6 +617,11 @@ def main():
     check_stale_target_is_conflict_not_overwrite()
     check_junk_candidate_never_proposes()
     check_unknown_skill_or_missing_target_names_the_problem()
+    check_agent_tab_lists_the_real_skills()
+    check_every_adapter_code_has_copy_on_the_page()
+    check_the_four_states_are_named_on_the_page()
+    check_two_paths_says_which_is_which()
+    check_agent_tab_still_renders_without_a_root()
     if failures:
         print("\n%d failure(s)" % len(failures))
         return 1

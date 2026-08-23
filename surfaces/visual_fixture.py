@@ -490,6 +490,62 @@ def live_autonomy(base):
     return (data or {}).get("auditor_autonomy") or None
 
 
+def _skill_frontmatter(path):
+    """(name, description) from a SKILL.md's leading frontmatter block,
+    read only. A file without frontmatter comes back empty."""
+    name, description = "", ""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read(8192)
+    except OSError:
+        return name, description
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return name, description
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        key, sep, value = line.partition(":")
+        if not sep:
+            continue
+        key, value = key.strip(), value.strip().strip('"').strip("'")
+        if key == "name":
+            name = value
+        elif key == "description":
+            description = value
+    return name, description
+
+
+def live_skills(root=None):
+    """The real skill rows, from the skills that exist under
+    .claude/skills rather than from the fixture.
+
+    Each row is {id, label, runnable, why}. A skill whose description
+    declares itself a Stub renders as unavailable with that reason, never
+    as a button that does nothing: a control that looks armed but runs
+    nothing is the exact dishonesty the live-read rule above exists for.
+    """
+    root = root or ROOT
+    skills_dir = os.path.join(root, ".claude", "skills")
+    rows = []
+    if not os.path.isdir(skills_dir):
+        return rows
+    for entry_id in sorted(os.listdir(skills_dir)):
+        path = os.path.join(skills_dir, entry_id, "SKILL.md")
+        if not os.path.isfile(path):
+            continue
+        name, description = _skill_frontmatter(path)
+        if description.startswith("Stub:"):
+            rows.append({"id": entry_id, "label": name or entry_id,
+                         "runnable": False,
+                         "why": description[len("Stub:"):].strip()
+                                or "its command surface has not shipped"})
+        else:
+            rows.append({"id": entry_id, "label": name or entry_id,
+                         "runnable": True, "why": ""})
+    return rows
+
+
 def harness_state(stage, base=None):
     """Merge the fixture stage with whatever is really on disk.
 
@@ -521,6 +577,10 @@ def harness_state(stage, base=None):
         autonomy = dict(merged.get("autonomy") or {})
         autonomy["current"] = current
         merged["autonomy"] = autonomy
+
+    # The skill list is live for the same reason the journal is: a fixture
+    # list would show buttons for skills this build cannot run.
+    merged["skills"] = live_skills()
 
     # Nothing on disk can tell us what a model is doing right now, because
     # nothing is running one yet. Say so rather than showing a stale job.
@@ -616,8 +676,60 @@ def _harness(stage):
         % (' data-state="ok"' if lv["id"] == autonomy.get("current") else "",
            _esc(lv["label"]), _esc(lv["what"]))
         for lv in autonomy.get("levels", []))
-    skills = "".join('<li><button type="button">%s</button></li>' % _esc(sk["label"])
-                     for sk in stage.get("skills", []))
+    skill_rows = stage.get("skills") or []
+    live_rows = bool(skill_rows) and isinstance(skill_rows[0], dict) \
+        and "runnable" in skill_rows[0]
+    items = []
+    for sk in skill_rows:
+        if not live_rows:
+            items.append(
+                '<li><button type="button">%s</button></li>'
+                % _esc(sk["label"] if isinstance(sk, dict) else sk))
+        elif sk.get("runnable"):
+            items.append(
+                '<li data-state="ok"><span class="vf-area-label">%s</span>'
+                '<span class="vf-status">Runs through the model boundary: '
+                "it proposes a bounded diff of one file and writes only "
+                "when you accept, once, through the journal below."
+                "</span></li>" % _esc(sk.get("label")))
+        else:
+            items.append(
+                '<li data-state="unavailable">'
+                '<span class="vf-area-label">%s</span>'
+                '<span class="vf-status">Unavailable: %s</span></li>'
+                % (_esc(sk.get("label")),
+                   _esc(sk.get("why")
+                        or "its command surface has not shipped")))
+    skills = "".join(items)
+
+    # Two paths ship on purpose (PLANNING-DIRECTIVES section 1): the
+    # framed console is the open-ended one, these runs are the one
+    # itembank drives. One sentence says which is which, so the pair
+    # reads as a decision rather than as duplication.
+    two_paths = (
+        '<p class="vf-status">Two paths, two jobs: the framed console '
+        "above is the open-ended one, a chat that runs under its own "
+        "tools. This list is the one itembank drives: each run proposes "
+        "a bounded diff and changes a file only when you Accept.</p>")
+
+    try:
+        from surfaces import agent_operation as agent_op
+    except ImportError:
+        agent_op = None
+    if agent_op is not None:
+        states_block = "".join(
+            '<li data-state="%s"><span class="vf-area-label">%s</span>'
+            "<span class=\"vf-status\">%s</span></li>"
+            % (_esc(name), _esc(name), _esc(agent_op.STATE_COPY[name]))
+            for name in agent_op.STATES)
+        codes_block = "".join(
+            '<li><span class="vf-area-label"><code>%s</code></span>'
+            "<span class=\"vf-status\">%s</span></li>"
+            % (_esc(code), _esc(action))
+            for code, action in sorted(agent_op.NEXT_ACTIONS.items()))
+    else:
+        states_block = ""
+        codes_block = ""
     budget = stage.get("budget") or {}
     running = stage.get("running") or {}
     pending = []
@@ -681,12 +793,16 @@ def _harness(stage):
     return (
         "%s"
         "%s<h3>Waiting for you</h3>%s"
-        '<h3>Start something</h3><ul class="vf-skills">%s</ul>'
+        '<h3>Start something</h3>%s<ul class="vf-skills">%s</ul>'
+        "<h3>What a run does</h3><ul class=\"vf-backends\">%s</ul>"
+        "<h3>If a skill cannot reach a model</h3>"
+        "<ul class=\"vf-backends\">%s</ul>"
         "<h3>Model</h3>%s<ul class=\"vf-backends\">%s</ul>"
         '<h3>How much it may do on its own</h3><ul class="vf-backends">%s</ul>'
         "<h3>Spend</h3>%s"
         "<h3>Operation journal</h3>%s%s"
-        % (_console(), run_block, pending_block, skills,
+        % (_console(), run_block, pending_block, two_paths, skills,
+           states_block, codes_block,
            source_note(stage.get("backends_live"), stage.get("backends_note")),
            backends, levels, spend_block,
            source_note(stage.get("journal_live"), stage.get("journal_note")),
