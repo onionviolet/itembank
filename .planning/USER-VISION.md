@@ -832,8 +832,9 @@ rules. Nothing in this entry asks for those.
 2. RESOLVED 2026-08-22, see the interpretation update below. Whether the
    retention boundary moves, and if it does, what happens to the Anki export
    path that currently owns scheduling.
-3. Which parts of the notes-to-quiz loop are worth having without the parts
-   that make an attention mark into an answer key.
+3. ANSWERED 2026-08-22, see the interpretation update below. Which parts of
+   the notes-to-quiz loop are worth having without the parts that make an
+   attention mark into an answer key.
 4. Whether displacing a paid subscription is a success criterion the product
    is measured on, or a motivation that stays out of the requirements.
 5. Whether the gamification these products rely on belongs here at all, given
@@ -890,6 +891,86 @@ scheduler is Anki and is reached through export, and the stream 12 section 7
 authority table governs what a learner note may become. A generated card
 leaving for Anki is subject to the same rule as any other item, so a note
 cannot acquire a key by being exported.
+
+### 2026-08-22: paper item formats as a fit check, and the answer to question 3
+
+Weibao supplied photographs of four worked paper assessments as examples of
+question shapes to consider. No item text from them is reproduced here or
+anywhere in this repository: they are third-party published handouts, and the
+never-a-content-store rule applies to them exactly as it applies to a course
+bank. Only the shapes are recorded.
+
+**Three of the four shapes are already shipped.** A shared code list applied to
+a long stem list is `[TYPE: table]` and its shuffled sibling `[TYPE: dnd]`:
+categories declared once, many rows classified against them. Ordinary four
+option multiple choice is the default type. Neither is a gap.
+
+**What the sample does raise, in order of value:**
+
+1. **A deliberately unscored item, and the record has no such type.** One
+   handout asks the learner to judge each case before instruction, in its own
+   words go with the initial instinct for now, and the value of the answer is
+   entirely in the later contrast with the taught answer. Every shipped type
+   scores dichotomously except `short`, which is pending-review rather than
+   unscored. A commitment item that must never be scored is a real gap, and it
+   is the same object as the diagnostic named in question 3 of the
+   subscription entry above. One type answers both.
+
+2. **Elimination marks are response data and nothing captures them.** The
+   photographed quizzes carry crosses through rejected options and circles
+   around finalists. That is the reasoning, and it separates an answer reached
+   by elimination from a lucky guess. The runtime records the chosen option and
+   nothing else, so the distinction is lost at the moment it is made. Capturing
+   it changes what remediation can say without changing what scoring may claim.
+
+3. **A shared-taxonomy block at real scale is untested.** The handout runs
+   nineteen stems against seven categories, and its whole pedagogic point is
+   discriminating between near neighbours across many instances. `table`
+   supports that structurally. Whether the linter's answer-position balance and
+   item-mix checks behave sensibly at that shape is a calibration question
+   nobody has asked.
+
+#### Interpretation update recorded 2026-08-22
+
+**Status:** answers open question 3 of the 2026-08-22 subscription entry above.
+Answered by the agent at Weibao's instruction rather than by him.
+
+**The dividing line.** Keep every part of the notes-to-quiz loop where the note
+is evidence about the learner. Drop every part where the note is evidence about
+the world. Consumer apps in this class blur the two, and that single blur is
+what produces a confident wrong card from a confidently wrong note.
+
+**Worth having, all five safe under that line:**
+
+1. Intake and transcription of the learner's own pages, image kept as the
+   record. Transport, carrying no truth claim at all.
+2. Gap detection against the bound source: objectives the learner wrote nothing
+   about. Pure diagnosis, needs no key.
+3. Misconception mining. The learner's wrong wording becomes a candidate
+   distractor on a source-backed item, subject to author review. This is the
+   highest-value use in the whole loop and it is safe precisely because the key
+   still comes from the source, so the note improves the question without ever
+   answering it.
+4. Unkeyed self-prompts, labeled as from your notes, ungraded and editable.
+   This is the fast Gizmo-style loop, minus the claim.
+5. Note-driven selection: the notes decide which source-validated objectives
+   get practiced next. Influence over what is asked, never over what is right.
+
+**Not worth having, at any convenience:** auto-cloze from highlights, already
+rejected in stream 12; any key derived from a note; and streak or score
+gamification attached to note quizzing, which would put a progress claim on
+material the evidence rules do not let it stand on.
+
+**Recommendation on the scheduling question:** paper-note intake earns a narrow
+phase. Items 1 through 3 above are bounded, and every rule they need is already
+written in stream 12 and the 2026-08-21 entry. Item 4 is small. Item 5 waits on
+the graph. The unscored commitment item from the fit check should be scoped
+with it, because it is the one new type both halves of this entry ask for.
+
+**Planning effect:** none scheduled yet. When it is, the phase covers intake,
+gap detection, distractor mining, and the unscored commitment type, and it
+cites `research/phase-16/12-active-annotation-notes.md` section 7 as its
+authority rather than restating it.
 
 ## Interpretation protocol
 

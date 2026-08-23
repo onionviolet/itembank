@@ -46,3 +46,6 @@ src-tauri/target/
 !fixtures/legacy_attempts/
 !fixtures/legacy_attempts/*_attempt_*.md
 prototypes/17a/render/
+
+# Unattended run logs (tool output, not product state)
+.planning/_ox-logs/
