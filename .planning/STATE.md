@@ -18,6 +18,37 @@ current_phase: 13.5
 
 # Project State
 
+## 2026-08-23: 17A is not as far along as the commit log suggests
+
+Verified by checking artifacts rather than commit messages, after a
+message-based count gave a wrong answer twice in one session.
+
+| Plan | Real state |
+|---|---|
+| 17A-01 | Built. |
+| 17A-02 | **Half done.** Its `checkpoint:decision` closed on 2026-08-20 and `17A-DIRECTION.md` records the choice, but the code never landed: `surface_shell` appears zero times in `surfaces/day.py` and `surfaces/theme.py` carries no density tokens. Two of its three must-have truths are unmet. |
+| 17A-03 | Not built. `tests/component_primitives_roundtrip.py` does not exist. Blocked by 17A-02's code. |
+| 17A-04 | Not built. `tools/visual_qa.py` does not exist. Blocked by 03, 05, and the 13.9 sitting. |
+| 17A-05 | **Not built.** Its only two commits are the plan and a roadmap edit. `tests/stylesheet_roundtrip.py` exists but came from Phase 14 (`test(14-01)`, `test(14-02)`), and `surfaces/theme.py` contains no OLED work. Blocked by 17A-02's code. |
+| 17A-06, 07, 08 | Built, and 07 and 08 were executed unattended on 2026-08-22. |
+
+**The consequence for sequencing.** 06, 07 and 08 were executed ahead of 02's
+implementation even though the wave order puts 02 before them, so the phase has
+a hole in the middle rather than a clean frontier. **Nothing in 17A is
+unblocked right now except finishing 17A-02's code**, and 17A-04 additionally
+waits on the 13.9 sitting.
+
+**How the wrong answer was reached, since it will recur.** Counting
+`git log --grep="(17A-05)"` returns two commits and both are planning commits.
+A count that does not exclude planning commits reads a planned phase as an
+executed one, and `scripts/ox_overnight.sh`'s skip guard keys on the same
+convention, so it can be wrong in both directions: it would re-run a plan whose
+implementation landed under an off-convention message, and skip one that was
+only ever planned. `IB_FORCE=1` is the override. **Check an artifact the plan
+names, not a commit message.**
+
+
+
 ## Phase 14A executed and frozen (2026-08-18, Claude Code session)
 
 All four 14A plans executed on main in one session, waves strictly in order:
