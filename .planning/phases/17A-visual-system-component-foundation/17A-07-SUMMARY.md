@@ -86,4 +86,46 @@ only the write is.
   keeps its object id (`edit_in_place`, revisions chain); a new path mints
   one (`mint`, revision 1).
 
-## Task 2: not started yet
+## Task 2: the Agent tab drives it, and says what it cannot do
+
+Shipped in `aa7b5bd`. `surfaces/visual_fixture.py` and the same suite
+(17 checks, exit 0). All five verification commands exit 0:
+`agent_operation_roundtrip`, `local_harness_roundtrip`,
+`visual_system_roundtrip`, `journal_roundtrip`, and `itembank.py guard .`.
+
+### Which skills rendered unavailable, and why
+
+The list is read from `.claude/skills/*/SKILL.md` frontmatter, not from the
+fixture. Stub descriptions render as unavailable with their own reason:
+
+- `discovery-and-binding`: not usable yet; its command surface has not
+  shipped.
+- `legacy-upgrade`: same reason.
+- `lesson-authoring`: same reason.
+- `media-intake`: same reason.
+
+`absorb-book`, `author-bank`, `build-course`, `curriculum-design`,
+`guiding-questions`, and `ocr` render runnable. A runnable row states its
+contract in one line: it proposes a bounded diff of one file and writes
+only on accept, once, through the journal.
+
+### What the page renders
+
+- Each of the four states with the machine's own `STATE_COPY` sentence,
+  under "What a run does".
+- Every adapter unavailable code with its `NEXT_ACTIONS` copy under
+  "If a skill cannot reach a model", so the shipped no-active-profile
+  state reads first-class and says studying, scoring and authored hints
+  are unaffected.
+- One sentence separating the two paths: the framed console is the
+  open-ended one; this list is the one itembank drives.
+
+### Deliberate deferral
+
+Browser-clickable activation would need a served GET or POST route owned
+by `server.py`. `server.py` is not in this plan's file list, so activation
+from a browser is out of scope here. The run-propose-accept loop itself is
+proven end to end against a stubbed endpoint in task 3. A page rendered
+without a course root keeps the old fixture list, which is what the
+prototype pages use.
+
