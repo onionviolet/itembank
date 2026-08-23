@@ -13,6 +13,13 @@
 #   scripts/ox_overnight.sh 13.9-01 13.9-02 17A-03           # spans phases; the
 #                                                            # prompt is chosen
 #                                                            # per plan id
+#   IB_FORCE=1 scripts/ox_overnight.sh 13.9-01 13.9-02       # deliberate re-run
+#
+# A plan that already has non-planning commits is skipped, because one session
+# can run past its own plan into the next one and a queued invocation would then
+# redo finished work. A deliberate re-run needs IB_FORCE=1: the 13.9 rebuild is
+# exactly that case, since 13.9-01 carries a commit from the Windows execution
+# whose output is now unreachable.
 #
 # Run two plans concurrently ONLY from separate worktrees, and only when their
 # plans' files_modified sets do not intersect. 17A-03 and 17A-07 both write
@@ -78,6 +85,12 @@ for PLAN in "${PLANS[@]}"; do
   if [ -n "${IB_PROMPT:-}" ]; then PROMPT="$IB_PROMPT"; else PROMPT="$REPO/.planning/$(prompt_for "$PLAN")"; fi
   [ -f "$PROMPT" ] || PROMPT="$SELF_REPO/.planning/$(basename "$PROMPT")"
   [ -f "$PROMPT" ] || fail "no prompt file for $PLAN"
+  # Skip a plan another session already executed. The 17A-07 run continued
+  # into 17A-08 inside one session, so a queued invocation would redo it.
+  if [ -z "${IB_FORCE:-}" ] && git log --oneline --grep="($PLAN)" | grep -qv "^[0-9a-f]* docs($PLAN): plan"; then
+    echo "ox_overnight: $PLAN already has commits, skipping. IB_FORCE=1 to run anyway."
+    continue
+  fi
   LOG="$LOGDIR/$STAMP-$PLAN.log"
   echo "ox_overnight: starting $PLAN in $REPO with $(basename "$PROMPT"), logging to $LOG"
   TASK="$(sed -e "s/<PLAN_ID>/$PLAN/g" -e "s#/Users/weiwei/Documents/Dev/itembank#$REPO#g" "$PROMPT")"
