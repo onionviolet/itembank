@@ -202,6 +202,26 @@ form, or a diagnostic that must not be scored; how a second scan of the same
 page is reconciled rather than duplicated; and whether "rebuild my notes for
 objective X from every scan" is the real deliverable rather than transcription.
 
+### 2026-08-21: the completion bar, quality enough to be useful
+
+> What we need is something to finish up itembank to a quality extent to be usefu;l
+
+**Disposition:** Hold (2026-08-22).
+
+Captured from the 2026-08-21 model-budget session, where the surrounding
+discussion was provider cost and not product scope. It is recorded here because
+the clause is about the product, not the budget: it names a completion bar
+("quality extent to be useful") that the record does not currently define
+anywhere as the user's own standard.
+
+Held rather than promoted because two existing bars may already cover it and
+the overlap has not been resolved. `READINESS-AUDIT-14A.md` A10 defines the
+external-user v1 bar, and Phase 13.9 defines the walking-skeleton bar of one
+real unit sat end to end. Neither was written as an answer to "useful to
+Weibao, daily", which is what this clause appears to mean. Promote it if it
+turns out to be a third, learner-facing bar; mark it Duplicate against A10 if
+it is not.
+
 ## Disposition vocabulary
 
 - **Promote:** add the verbatim statement and interpretation to `USER-VISION`.

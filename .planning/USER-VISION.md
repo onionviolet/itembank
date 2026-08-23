@@ -768,6 +768,88 @@ recorded as such.
 
 ---
 
+### 2026-08-22: recreating the paid learning subscriptions, including notes to quiz
+
+> also stuff like recreating a certain subscription service?
+
+> All of these, but also some sort of subscription based notes to quiz and similar, like gizmo unlimited or something, save to uservision
+
+#### Interpretation recorded 2026-08-22
+
+**Status:** active, and it introduces a scope claim the record has not carried
+before.
+
+**Current interpretation:** the target is not one competitor. Asked which
+service he meant, from a list of the four already named somewhere in this
+record, Weibao answered "all of these" and added a fifth class. The claim is
+that itembank should do for him what a set of paid learning subscriptions does,
+so that the subscription is not needed. That is substitution, and it is
+different from every role those products already hold here.
+
+What each product already holds, and what changes:
+
+- **Brilliant.com** was recorded 2026-08-13 as the visual and quality benchmark
+  ("I want their visual design"). It becomes a capability target as well, not
+  only a look.
+- **Albert.io** is the item-writing discipline the linter enforces and the
+  "albert style" quizzing named in the source-to-course goal. Unchanged in
+  substance, now also named as a paid product being displaced.
+- **NotebookLM** was recorded 2026-08-13 as a research input, with the
+  interpretation "NotebookLM is a research input, not the product target."
+  This entry puts pressure on that line and does not by itself settle it.
+- **Notes and reader products** (Goodnotes, Notability, RemNote and their
+  competitors) were landscape research in the 2026-08-21 paper-notes entry and
+  in stream 16. They gain a product-intent role.
+
+**The fifth class is the new one.** Consumer notes-to-quiz apps, named by
+example as Gizmo, take a learner's own material (typed notes, PDFs, slides,
+photographed handwriting, an existing Quizlet or Anki deck) and return
+gamified quizzing on a spaced-repetition schedule, with the useful volume
+behind a subscription. This is the closest existing product to the paper-notes
+source class promoted on 2026-08-21, and it is the first named example of what
+that class is supposed to feel like once it works.
+
+**Two recorded boundaries this claim runs into, and neither is resolved here.**
+First, "Not a spaced-repetition engine. Anki owns retention." A notes-to-quiz
+subscription is a scheduler with a quiz surface attached, so either the
+boundary holds and itembank keeps exporting to Anki for retention, or the
+boundary is revisited deliberately. Second, the notes-to-question authority
+table (`research/phase-16/12-active-annotation-notes.md` section 7) already
+forbids a learner note from supplying keyed truth, and explicitly rejects
+turning every highlight into a cloze. Consumer apps in this class do exactly
+that. Matching their convenience without adopting their epistemics is the real
+design problem, not the OCR.
+
+**A third distinction to keep visible:** recreating the experience is not
+recreating the business. Hosted accounts, multi-tenancy and metered tiers
+conflict with the no-accounts, evidence-on-disk, one-learner-per-installation
+rules. Nothing in this entry asks for those.
+
+**Open questions:**
+
+1. Whether "all of these" means one product spanning four experiences, or a
+   stated ambition level to measure any single capability against.
+2. Whether the retention boundary moves, and if it does, what happens to the
+   Anki export path that currently owns scheduling.
+3. Which parts of the notes-to-quiz loop are worth having without the parts
+   that make an attention mark into an answer key.
+4. Whether displacing a paid subscription is a success criterion the product
+   is measured on, or a motivation that stays out of the requirements.
+5. Whether the gamification these products rely on belongs here at all, given
+   the evidence-honesty rules already governing progress claims.
+
+**Planning effect:** none scheduled. Recorded here on the user's instruction
+("save to uservision") rather than routed through the inbox first, because he
+named it as vision. The retention-boundary question and the notes-to-quiz
+authority question are the two that must be answered before any phase cites
+this entry.
+
+**Relationship to prior entries:** extends the 2026-08-13 quality-benchmark
+entry from visual design to capability, extends the 2026-08-21 paper-notes
+entry with a named example of the finished experience, and conflicts with the
+2026-08-13 interpretation that NotebookLM is not the product target. The
+conflict stays visible and unresolved, per the interpretation protocol below.
+
 ## Interpretation protocol
 
 An interpretation may appear immediately after a verbatim entry when it helps
@@ -789,7 +871,7 @@ changed and why.
 
 ## Interpretation pointers
 
-These files interpret—but do not replace—the statements above:
+These files interpret, but do not replace, the statements above:
 
 - `SOURCE-TO-COURSE.md` — current product contract and boundaries.
 - `PROJECT.md` — milestone context and north star.
