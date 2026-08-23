@@ -34,6 +34,8 @@ KIND = "bank"
 ORIGINAL = "# Lesson draft\n\nWritten by hand before any run.\n"
 DRAFT = ("# Lesson draft\n\nRewritten by the model draft.\n\n"
          "Q1. Which boundary settles a score? [OBJECTIVE: a1]\n")
+SECOND_DRAFT = ("# Lesson draft\n\nSecond pass, a different rewrite.\n\n"
+                "Q1. Which boundary settles a mark? [OBJECTIVE: a1]\n")
 CITATIONS = ["LESSON: What a predicate is", "source: syllabus p.12"]
 
 failures = []
@@ -604,6 +606,101 @@ def check_agent_tab_still_renders_without_a_root():
     ok("the Agent tab renders without a course root")
 
 
+def check_full_loop_undo_restores_the_pre_run_bytes():
+    """Task 3: one whole loop against a stubbed endpoint and a temporary
+    course directory. Start, propose, accept, confirm the change landed,
+    then undo through the prior revision the journal recorded and
+    confirm the file is byte-identical to what it was before the run.
+
+    Two cycles, because the claim has two halves. The first run creates
+    the object (mint): its undo goes through the recorded before-image
+    and lands on the exact pre-run bytes. The second run edits in place:
+    its undo must go through the prior revision the journal actually
+    recorded, revision 1."""
+    import journal
+
+    def one_run(course, draft):
+        stub = _Stub(candidate={"draft": draft, "citations": CITATIONS})
+        try:
+            settings = make_settings(PROFILE_NAME,
+                                     [local_profile(stub.port)],
+                                     autonomy="draft_and_approve")
+            return ao.accept(ao.start(SKILL, settings, course.base),
+                             settings)
+        finally:
+            stub.close()
+
+    course = _Course()
+    before_run = course.bytes()
+    settled = one_run(course, DRAFT)
+    if not settled.get("ok"):
+        fail("the loop never accepted: %r" % settled.get("reason"))
+        return
+    if course.bytes() != DRAFT.encode("utf-8"):
+        fail("the accepted draft did not land")
+        return
+    if settled.get("prior_revision") is not None:
+        fail("a first revision claims a prior one: %r"
+             % settled.get("prior_revision"))
+        return
+    try:
+        record = journal.undo(course.base, settled["entry_id"],
+                              "learner", "agent tab undo")
+    except journal.JournalError as exc:
+        fail("journal.undo refused its own recorded entry: %s (%s)"
+             % (exc.code, exc.message))
+        return
+    if course.bytes() != before_run:
+        fail("the undo left %r bytes, not the pre-run bytes"
+             % len(course.bytes()))
+        return
+    if record.get("revision") != 2:
+        fail("the restore revision is %r, not 2" % record.get("revision"))
+        return
+    ok("start, propose, accept, undo lands and reverses exactly one "
+       "change")
+
+    # Second cycle: edit in place, then undo through the recorded prior
+    # revision. The first cycle's undo is itself revision 2, so this run
+    # becomes revision 3 with prior revision 2, and its undo must land
+    # back on revision 2's bytes, which are the pre-run content.
+    settled = one_run(course, SECOND_DRAFT)
+    if not settled.get("ok"):
+        fail("the second loop never accepted: %r" % settled.get("reason"))
+        return
+    if settled.get("operation") != "edit_in_place":
+        fail("the second run recorded %r, not edit_in_place"
+             % settled.get("operation"))
+        return
+    if settled.get("prior_revision") != 2:
+        fail("the second run claims prior revision %r"
+             % settled.get("prior_revision"))
+        return
+    if course.bytes() != SECOND_DRAFT.encode("utf-8"):
+        fail("the second draft did not land")
+        return
+    journal.undo(course.base, settled["entry_id"],
+                 "learner", "agent tab undo")
+    if course.bytes() != before_run:
+        fail("undoing the second run did not restore its prior "
+             "revision")
+        return
+    restores = [e for e in course.journal_lines()
+                if e.get("operation") == "restore"
+                and e.get("state") == "applied"]
+    if len(restores) != 2:
+        fail("%d applied restores recorded, not 2" % len(restores))
+        return
+    if restores[-1].get("restores_revision") != \
+            settled.get("prior_revision"):
+        fail("the restore does not name the prior revision it went "
+             "through: %r vs %r" % (restores[-1].get("restores_revision"),
+                                    settled.get("prior_revision")))
+        return
+    ok("a second run undoes through the prior revision the journal "
+       "recorded, byte for byte")
+
+
 def main():
     check_only_four_states_exist()
     check_next_actions_cover_every_adapter_code()
@@ -622,6 +719,7 @@ def main():
     check_the_four_states_are_named_on_the_page()
     check_two_paths_says_which_is_which()
     check_agent_tab_still_renders_without_a_root()
+    check_full_loop_undo_restores_the_pre_run_bytes()
     if failures:
         print("\n%d failure(s)" % len(failures))
         return 1
