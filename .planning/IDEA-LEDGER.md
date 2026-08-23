@@ -605,6 +605,30 @@ Amendments to an existing entry are additive notes under the entry, dated.
   constantly or never on a seven-category block, and either way it is noise.
 - **Disposition:** registered, small. A fixture and a lint run, not a feature.
 
+### IL-20260822-04: A lint code for the paraphrase rule
+
+- **Proposal:** Add a `lint` check that reports runs of N or more consecutive
+  words shared between a bank or lesson and the source files its `## SOURCES`
+  registry names.
+- **Origin:** executing 13.9-02 on 2026-08-22. The plan states the rule as
+  "no sentence of eight or more consecutive words is copied from the source"
+  and calls it "the paraphrase lint", but no such lint exists. A hand-written
+  check found seven violations in the first authored pass, all of which the
+  author believed were paraphrases at the time.
+- **Evidence considered:** the rule is load-bearing for a real reason. EMT
+  material here derives from a copyrighted textbook, and the vault's own
+  recorded miss on this source was a learner answer that was the book's
+  sentences near verbatim. An author who does not think to check will not
+  discover the problem, and a model under length pressure drifts toward the
+  source's phrasing precisely on the passages it understands least.
+- **Fit:** the registry and the file paths already exist in `## SOURCES`, so
+  the check needs no new grammar. It is a warning, not an error: a defined
+  term or a statutory phrase legitimately matches.
+- **Risks:** a source file that is large or absent makes the check slow or
+  impossible, so it must degrade to a skip with a stated reason rather than
+  failing the lint. N needs a default and probably an override.
+- **Disposition:** registered, small.
+
 ## Rejected
 
 ### IL-20260815-04: Plugin-first core (no privileged core; swappable scorer)
