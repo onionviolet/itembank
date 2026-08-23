@@ -33,7 +33,13 @@ platform-independent and will still fail. Not caused by recent work.
 lines) records the Windows-specific decisions; read it if a path behaves
 oddly, not otherwise.
 
-**3. The course root is a Windows absolute path.** The real EMT course lives at
+**3. The course root is a Windows absolute path.** SUPERSEDED 2026-08-22: the
+Windows machine is out of reach for good, so this folder cannot be copied. The
+rebuild path and what it costs are recorded in
+`.planning/phases/13.9-walking-skeleton/13.9-DECISIONS.md` under the 2026-08-22
+entry. The original text follows for the record.
+
+**The original item 3.** The real EMT course lives at
 `C:\Users\wayba\Downloads\Personal\itembank-courses\emt-unit-1` and is NOT in
 this repository, by design: `itembank guard` fails CI if real bank content
 lands here. Copy that folder to the Mac and point at it with its new path.
@@ -51,7 +57,12 @@ with ETARGET. The working install is reproduced with:
 cd deps/dsh && npm ci
 ```
 
-**6. The local model** is Ollama serving `qwen3.8-27b:latest`. The profile is
+**6. The local model** was Ollama serving `qwen3.8-27b:latest`. SUPERSEDED
+2026-08-22: that Ollama install lived on the Windows desktop, which is gone, so
+the `local-qwen` profile in `itembank.json` now points at nothing. Hosted models
+only until the dorm build exists. The original text follows.
+
+The local model The profile is
 already in `itembank.json` as `local-qwen` and points at
 `http://127.0.0.1:11434/v1/chat/completions`. `model_backend.active` is empty,
 so nothing reaches a model until you set it. That is deliberate.
