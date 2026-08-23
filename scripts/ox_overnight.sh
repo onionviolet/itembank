@@ -4,7 +4,9 @@
 # Tool config, not product config. Nothing here is imported by itembank.
 #
 # Usage:
-#   export OPENROUTER_API_KEY=...        # your key, never stored in this repo
+#   export OPENROUTER_API_KEY=...        # per-run override, or save it once in
+#                                        # ~/.dsh/.credentials.yaml and skip this.
+#                                        # Never stored in this repo either way.
 #   scripts/ox_overnight.sh              # both plans, in this checkout
 #   scripts/ox_overnight.sh 17A-07       # one plan
 #   IB_DIR=~/dev/IB-17A-03 scripts/ox_overnight.sh 17A-03    # in a worktree
@@ -38,7 +40,16 @@ read -r -a PLANS <<< "${*:-17A-07 17A-08}"
 
 fail() { echo "ox_overnight: $*" >&2; exit 1; }
 
-[ -n "${OPENROUTER_API_KEY:-}" ] || fail "OPENROUTER_API_KEY is not set. Export it, then rerun."
+# Key resolution, in dsh's own precedence order: the launching environment wins,
+# then the managed credentials document. Saving it in the document means no
+# export is needed and the key never sits in shell history.
+CREDS="$HOME/.dsh/.credentials.yaml"
+if [ -z "${OPENROUTER_API_KEY:-}" ] && [ -f "$CREDS" ]; then
+  OPENROUTER_API_KEY="$(sed -n 's/^OPENROUTER_API_KEY:[[:space:]]*//p' "$CREDS" | head -1 | tr -d '"'"'"' \r')"
+fi
+if [ -z "${OPENROUTER_API_KEY:-}" ]; then
+  fail "no key. Either export OPENROUTER_API_KEY, or put it in $CREDS as: OPENROUTER_API_KEY: sk-or-..."
+fi
 [ -x "$DSH" ] || fail "dsh not installed. Run: cd deps/dsh && npm ci"
 [ -f "$PATCH" ] || fail "missing $PATCH"
 mkdir -p "$LOGDIR"

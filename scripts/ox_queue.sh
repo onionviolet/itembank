@@ -6,14 +6,17 @@
 # not urgent; a worktree (IB_DIR) is the answer when they are.
 #
 # Usage:
-#   export OPENROUTER_API_KEY=...
-#   IB_PROMPT=.planning/PROMPT-ox-13.9-rebuild-2026-08-22.md \
-#     scripts/ox_queue.sh 13.9-01 13.9-02
+#   scripts/ox_queue.sh 13.9-01 13.9-02 17A-03
+#
+# The key comes from the environment or from ~/.dsh/.credentials.yaml.
 
 set -u -o pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-[ -n "${OPENROUTER_API_KEY:-}" ] || { echo "ox_queue: OPENROUTER_API_KEY is not set" >&2; exit 1; }
+if [ -z "${OPENROUTER_API_KEY:-}" ] && [ ! -f "$HOME/.dsh/.credentials.yaml" ]; then
+  echo "ox_queue: no key. Export OPENROUTER_API_KEY, or save it in ~/.dsh/.credentials.yaml" >&2
+  exit 1
+fi
 
 waited=0
 while pgrep -f "dsh --profile headless" >/dev/null 2>&1; do

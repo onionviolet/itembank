@@ -21,9 +21,31 @@ the difference rather than treating a prior summary as the user's intent.
 
 > Not copying the content, like I wnat their visial design and more
 
+#### Interpretation pointer recorded 2026-08-22
+
+This statement predates the practice of writing a dated interpretation
+beside each entry, so it has none. It was not dropped: its interpretation
+is the Phase 17A visual system and component foundation, and `research/phase-16/10-visual-experience-system.md` for the presentation theme and token axis. The 2026-08-22 subscription entry later extended this statement from visual design to capability.
+
+This is a pointer, not a new interpretation. Nothing here restates or
+narrows what Weibao said, and the quotation above is untouched. Added after
+`scripts/vision_audit.py` found that the seven oldest entries were the only
+ones with no traceable planning effect.
+
 ### 2026-08-13 — source-to-course goal
 
 > THe goal is for like kind of creating a course based on, say a book or a syllabus or something, and then it can extract the actual useful lessons, or the key terms or notes to be read, or if its best to read source text, etc, and be able to quiz and test albert style, and everything could be partially drivable by ai,
+
+#### Interpretation pointer recorded 2026-08-22
+
+This statement predates the practice of writing a dated interpretation
+beside each entry, so it has none. It was not dropped: its interpretation
+is `SOURCE-TO-COURSE.md`, which is the product contract this statement became and is the north star every later phase cites.
+
+This is a pointer, not a new interpretation. Nothing here restates or
+narrows what Weibao said, and the quotation above is untouched. Added after
+`scripts/vision_audit.py` found that the seven oldest entries were the only
+ones with no traceable planning effect.
 
 ### 2026-08-13 — course generator, assessment alignment, UI, and agents
 
@@ -37,6 +59,17 @@ the difference rather than treating a prior summary as the user's intent.
 
 > more to consider?
 
+#### Interpretation pointer recorded 2026-08-22
+
+This statement predates the practice of writing a dated interpretation
+beside each entry, so it has none. It was not dropped: its interpretation
+is `SOURCE-TO-COURSE.md` for the loop, `REQUIREMENTS.md` for the obligations it became, and the Phase 16A semantic capability and activity contract for the assessment-alignment half.
+
+This is a pointer, not a new interpretation. Nothing here restates or
+narrows what Weibao said, and the quotation above is untouched. Added after
+`scripts/vision_audit.py` found that the seven oldest entries were the only
+ones with no traceable planning effect.
+
 ### 2026-08-13 — correcting the prior direction
 
 > our work for pointing things in the direction might need phases and audtiting too, first the prior 14 phases, and also the ui design and research, and any remnant impacts or wrong direction and more? Explaining the situation, and satisfying and destroying all he grievances? seperating the goal in phases? Centeral goal correction, Learning UI pass, agentic stuff such how how to create fitting lessons and more, so like exposing how lessons are built and then making the agents follow that?
@@ -47,13 +80,46 @@ the difference rather than treating a prior summary as the user's intent.
 
 > We need to research features and more, and what looks good/is cool
 
+#### Interpretation pointer recorded 2026-08-22
+
+This statement predates the practice of writing a dated interpretation
+beside each entry, so it has none. It was not dropped: its interpretation
+is the nine-subphase sequence in `ROADMAP.md` section 8, which is the rescoping this statement asked for, and `RULE-AUDIT-2026-08-15.md` for the audit of the prior phases.
+
+This is a pointer, not a new interpretation. Nothing here restates or
+narrows what Weibao said, and the quotation above is untouched. Added after
+`scripts/vision_audit.py` found that the seven oldest entries were the only
+ones with no traceable planning effect.
+
 ### 2026-08-13 — broader learning-program research
 
 > might need to absorb how other similar programs, or to research things in sections,from researching similar programs, or the features of learning programs and more to be taken in to consideration
 
+#### Interpretation pointer recorded 2026-08-22
+
+This statement predates the practice of writing a dated interpretation
+beside each entry, so it has none. It was not dropped: its interpretation
+is `research/phase-16/05-learning-program-landscape.md`, and the feature atlas at `research/phase-16/06-feature-style-atlas.md`.
+
+This is a pointer, not a new interpretation. Nothing here restates or
+narrows what Weibao said, and the quotation above is untouched. Added after
+`scripts/vision_audit.py` found that the seven oldest entries were the only
+ones with no traceable planning effect.
+
 ### 2026-08-13 — keep the goal editable
 
 > we should also write somewhere, stuff,  in my words exactly, the goal for the program? Next to it with what is there, I can Add to it as needed and more?
+
+#### Interpretation pointer recorded 2026-08-22
+
+This statement predates the practice of writing a dated interpretation
+beside each entry, so it has none. It was not dropped: its interpretation
+is this file, which exists because of this statement, plus `USER-VISION-INBOX.md` as the capture funnel and the promotion contract in `PLANNING-DIRECTIVES.md`.
+
+This is a pointer, not a new interpretation. Nothing here restates or
+narrows what Weibao said, and the quotation above is untouched. Added after
+`scripts/vision_audit.py` found that the seven oldest entries were the only
+ones with no traceable planning effect.
 
 ### 2026-08-13 — finding prior work, progressive lessons, and agent skills
 
@@ -62,6 +128,17 @@ the difference rather than treating a prior summary as the user's intent.
 > also will then make the lesson doc file lessons, look reasonable without the display but look so mucch better and have extra features and more while inside UI display as lessons, like the hovering, the better UI with JS or some other way, diagrams and more? Might need further refinement of ideas too
 
 > So skills so that Agents and Codex or claude code or anything else can understand how to work properly with itembank and at a higher level, so for creating lessons and questions and exams and more?
+
+#### Interpretation pointer recorded 2026-08-22
+
+This statement predates the practice of writing a dated interpretation
+beside each entry, so it has none. It was not dropped: its interpretation
+is the Phase 14C source adapter registry for finding work that already exists, `research/phase-16/04-portable-contract-agents.md` for the authoring contract, and the Phase 999.5 agent onboarding skill library for the skills half.
+
+This is a pointer, not a new interpretation. Nothing here restates or
+narrows what Weibao said, and the quotation above is untouched. Added after
+`scripts/vision_audit.py` found that the seven oldest entries were the only
+ones with no traceable planning effect.
 
 ### 2026-08-13: UI flow, lesson capabilities, question variety, and reusable visioning
 

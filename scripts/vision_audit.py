@@ -8,7 +8,9 @@ answered while nothing downstream ever names it.
 
 This checks four things, all mechanically:
 
-  1. Every vision entry has a dated interpretation.
+  1. Every vision entry has a dated interpretation, or at minimum a dated
+     pointer to where its interpretation already lives. A pointer is a weaker
+     but honest state and is counted separately, never merged into the first.
   2. Every interpretation states a Planning effect.
   3. Every file path an interpretation names actually exists.
   4. Every entry is referenced somewhere else under .planning, or is flagged
@@ -63,12 +65,17 @@ def main():
     ie = entries(INBOX)
     corpus = planning_corpus()
 
-    no_interp, no_effect, missing_paths, orphaned = [], [], [], []
+    no_interp, no_effect, missing_paths, orphaned, pointer_only = [], [], [], [], []
     for e in ve:
         body = e["body"]
-        if "Interpretation recorded" not in body and "Interpretation update" not in body:
+        has_interp = ("Interpretation recorded" in body
+                      or "Interpretation update" in body)
+        has_pointer = "Interpretation pointer recorded" in body
+        if has_pointer and not has_interp:
+            pointer_only.append(e)
+        elif not has_interp:
             no_interp.append(e)
-        if "Planning effect" not in body:
+        if "Planning effect" not in body and not has_pointer:
             no_effect.append(e)
         for m in PATHLIKE.finditer(body):
             rel = m.group(1)
@@ -93,6 +100,8 @@ def main():
             print(f"  ... and {len(rows) - 12} more")
 
     print(f"USER-VISION entries: {len(ve)}    inbox entries: {len(ie)}")
+    show("Entries carried by a pointer, not a full interpretation", pointer_only,
+         lambda e: f"{e['date']} {e['title'][:64]}")
     show("Entries with no dated interpretation", no_interp,
          lambda e: f"{e['date']} {e['title'][:64]}")
     show("Entries stating no planning effect", no_effect,
