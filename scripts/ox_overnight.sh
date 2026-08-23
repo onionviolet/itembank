@@ -5,17 +5,25 @@
 #
 # Usage:
 #   export OPENROUTER_API_KEY=...        # your key, never stored in this repo
-#   scripts/ox_overnight.sh              # both plans
+#   scripts/ox_overnight.sh              # both plans, in this checkout
 #   scripts/ox_overnight.sh 17A-07       # one plan
+#   IB_DIR=~/dev/IB-17A-03 scripts/ox_overnight.sh 17A-03    # in a worktree
+#
+# Run two plans concurrently ONLY from separate worktrees, and only when their
+# plans' files_modified sets do not intersect. 17A-03 and 17A-07 both write
+# surfaces/visual_fixture.py, so that pair must never overlap.
 #
 # Written 2026-08-22. The free Ox Alpha preview ends 2026-08-27.
 
 set -u -o pipefail
 
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DSH="$REPO/deps/dsh/node_modules/.bin/dsh"
+SELF_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO="${IB_DIR:-$SELF_REPO}"
+REPO="$(cd "$REPO" 2>/dev/null && pwd)" || { echo "ox_overnight: IB_DIR is not a directory" >&2; exit 1; }
+DSH="$SELF_REPO/deps/dsh/node_modules/.bin/dsh"   # one install serves every worktree
 PATCH="$HOME/.dsh/ox-alpha.patch.yml"
 PROMPT="$REPO/.planning/PROMPT-ox-17A-overnight-2026-08-22.md"
+[ -f "$PROMPT" ] || PROMPT="$SELF_REPO/.planning/PROMPT-ox-17A-overnight-2026-08-22.md"
 LOGDIR="$REPO/.planning/_ox-logs"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 read -r -a PLANS <<< "${*:-17A-07 17A-08}"
@@ -45,12 +53,13 @@ case "$SMOKE" in
 esac
 
 cd "$REPO" || fail "cannot enter $REPO"
-git rev-parse --abbrev-ref HEAD | grep -qx main || echo "ox_overnight: WARNING, not on main"
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+echo "ox_overnight: tree $REPO on branch $BRANCH"
 
 for PLAN in "${PLANS[@]}"; do
   LOG="$LOGDIR/$STAMP-$PLAN.log"
-  echo "ox_overnight: starting $PLAN, logging to $LOG"
-  TASK="$(sed "s/<PLAN_ID>/$PLAN/g" "$PROMPT")"
+  echo "ox_overnight: starting $PLAN in $REPO, logging to $LOG"
+  TASK="$(sed -e "s/<PLAN_ID>/$PLAN/g" -e "s#/Users/weiwei/Documents/Dev/itembank#$REPO#g" "$PROMPT")"
   "$DSH" --profile headless --patch "$PATCH" "$TASK" 2>&1 | tee "$LOG"
   echo "ox_overnight: $PLAN exited with ${PIPESTATUS[0]}" | tee -a "$LOG"
   echo "ox_overnight: commits since start:" | tee -a "$LOG"
