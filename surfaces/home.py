@@ -407,7 +407,8 @@ def render_agent(state, note=None):
         % (_esc(card["stem"]), _esc(_resume_line(card)))
         for card in state["cards"])
     return (
-        '<section class="home home-mode-agent">%s%s'
+        '<section class="home home-mode-agent">%s'
+        "<h3>Agent area</h3>%s"
         "<h3>Your %ss, as context</h3><ul class=\"home-cards\">%s</ul>"
         "</section>"
         % (head, _agent_html(state), _esc(state["unit"]), context))

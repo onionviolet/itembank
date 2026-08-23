@@ -115,7 +115,9 @@ def test_schema_names_every_project_key():
                 "auditor_autonomy", "model_backend", "suggestion_reveal",
                 "update_policy", "daemon", "update", "accent", "reader",
                 "teaching", "style", "paraphrase", "lti", "check",
-                "subject_profiles", "retention", "audio"}
+                "subject_profiles", "retention", "audio",
+                # plan 17A-08: the home shape key (shelf default).
+                "home"}
     if keys != expected:
         fail("schema properties %r do not equal the expected key set %r" % (keys, expected))
     for name, sub in schema["properties"].items():

@@ -287,6 +287,135 @@ def check_shelf_carries_the_sitting_links():
         r.close()
 
 
+def check_four_modes_render_from_one_state():
+    """All four modes ship and render from the same state dict: a mode
+    is a template, never a second data path."""
+    r = _Root()
+    try:
+        r.write_session("sample_bank", cursor=3, total=6)
+        state = home.home_state(r.root)
+        if tuple(home.MODES) != ("shelf", "next-action", "agent", "split"):
+            fail("MODES is %r" % (home.MODES,))
+            return
+        if home.DEFAULT_MODE != "shelf":
+            fail("the default mode is %r, not shelf"
+                 % home.DEFAULT_MODE)
+            return
+        shelf = home.render_home(state, "shelf")
+        for mode in ("next-action", "agent", "split"):
+            body = home.render_home(state, mode)
+            if "sample_bank" not in body:
+                fail("mode %r lost the card stems" % mode)
+                return
+        nxt = home.render_home(state, "next-action")
+        if "Everything else" not in nxt:
+            fail("next-action mode hides the shelf entirely")
+            return
+        agent = home.render_home(state, "agent")
+        if "sample_bank" not in agent or "Agent area" not in agent \
+                and "agent area" not in agent.lower():
+            fail("agent mode shows neither the area nor card context")
+            return
+        split = home.render_home(state, "split")
+        if "home-split" not in split:
+            fail("split mode renders no two-column layout")
+            return
+        if "max-width:640px" not in home.HOME_CSS.replace(" ", ""):
+            fail("split has no phone-width degradation")
+            return
+        if "nowrap" in home.HOME_CSS or "ellipsis" in home.HOME_CSS:
+            fail("home CSS truncates link text")
+            return
+        if "In progress: 3 of 6" not in split:
+            fail("split disagrees with the shelf about the cursor")
+            return
+        ok("all four modes render one state, split degrades at 640px")
+    finally:
+        r.close()
+
+
+def check_unknown_mode_falls_back_saying_so():
+    """An unknown setting falls back to shelf and says so exactly once,
+    rather than failing to serve a home."""
+    r = _Root()
+    try:
+        state = home.home_state(r.root)
+        html = home.render_home(state, "magazine")
+        if html.count("magazine") != 1:
+            fail("the fallback note appears %d times, not once"
+                 % html.count("magazine"))
+            return
+        if "Sit this bank" not in html:
+            fail("the fallback did not serve a shelf")
+            return
+        mode, note = home.resolve_mode("")
+        if mode != "shelf" or note is not None:
+            fail("an empty setting resolved to %r/%r" % (mode, note))
+            return
+        ok("an unknown mode falls back to shelf with one note")
+    finally:
+        r.close()
+
+
+def check_setting_and_schema_carry_the_modes():
+    """`home` is a real settings key: typed as the four modes, defaulted
+    to the shelf Weibao chose, described, and validated by the same
+    loader every other key uses."""
+    import schema_validate
+    schema_path = os.path.join(ROOT, "schemas", "settings.schema.json")
+    with open(schema_path, encoding="utf-8") as fh:
+        schema = json.load(fh)
+    prop = schema["properties"].get("home")
+    if prop is None:
+        fail("settings.schema.json carries no home key")
+        return
+    if list(prop.get("enum") or []) != list(home.MODES):
+        fail("home enum is %r, not the four modes" % prop.get("enum"))
+        return
+    if prop.get("default") != "shelf":
+        fail("home defaults to %r, not the chosen shelf"
+             % prop.get("default"))
+        return
+    if "description" not in prop:
+        fail("home carries no description naming what each mode shows")
+        return
+    r = _Root(banks=())
+    try:
+        cfg_path = os.path.join(r.root, "itembank.json")
+        with open(cfg_path, "w", encoding="utf-8") as fh:
+            json.dump({"home": "split"}, fh)
+        from surfaces import settings as settings_mod
+        doc = settings_mod.load_settings(r.root)
+        if doc.get("home") != "split":
+            fail("load_settings read home as %r" % doc.get("home"))
+            return
+        with open(cfg_path, "w", encoding="utf-8") as fh:
+            json.dump({"home": "magazine"}, fh)
+        try:
+            settings_mod.load_settings(r.root)
+            fail("an invalid home mode was accepted")
+        except SystemExit:
+            pass
+        errs = schema_validate.validate(
+            "shelf", schema["properties"]["home"])
+        if errs:
+            fail("the shipped default fails its own subschema: %r" % errs)
+            return
+        if not schema_validate.validate(
+                "magazine", schema["properties"]["home"]):
+            fail("the subschema accepted a mode outside the enum")
+            return
+    finally:
+        r.close()
+    with open(os.path.join(ROOT, "itembank.json"), encoding="utf-8") as fh:
+        shipped = json.load(fh)
+    if shipped.get("home") != "shelf":
+        fail("the repository's itembank.json ships home=%r"
+             % shipped.get("home"))
+        return
+    ok("home is a validated setting, shipped at the chosen default")
+
+
 def main():
     check_empty_root_is_honest()
     check_bank_with_no_session_is_not_started()
@@ -295,6 +424,9 @@ def main():
     check_no_evidence_means_no_next_action()
     check_activity_lists_real_events()
     check_shelf_carries_the_sitting_links()
+    check_four_modes_render_from_one_state()
+    check_unknown_mode_falls_back_saying_so()
+    check_setting_and_schema_carry_the_modes()
     if failures:
         print("\n%d failure(s)" % len(failures))
         return 1

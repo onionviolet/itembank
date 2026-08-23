@@ -10,6 +10,7 @@
     "recency_decay": 0.2
   },
   "auditor_autonomy": "report_only",
+  "home": "shelf",
   "model_backend": {
     "active": "",
     "profiles": [

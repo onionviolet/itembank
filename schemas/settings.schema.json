@@ -264,6 +264,18 @@
       "default": "after-self-mark",
       "x-itembank-phase": 8
     },
+    "home": {
+      "type": "string",
+      "description": "Which home shape the daemon serves at GET / (plan 17A-08). shelf: cards with resume state, one evidence-sourced next action, and recent activity; the default, chosen 2026-08-21. next-action: the single next action full width with its reason, everything else one click behind it; suits a quick between-things check. agent: the agent area is the home, card state beside it as context; suits a session driven from the agent side. split: cards and agent side by side, degrading to shelf at phone width; suits a wide screen watched while working. All four render from one data function, so they cannot disagree about what is true.",
+      "enum": [
+        "shelf",
+        "next-action",
+        "agent",
+        "split"
+      ],
+      "default": "shelf",
+      "x-itembank-phase": 17.1
+    },
     "update_policy": {
       "type": "string",
       "description": "Whether the opt-in updater checks GitHub Releases automatically. check_on_launch checks once at daemon launch, silently and non-blockingly; opt_in only checks when the user runs itembank update. The declared default is opt_in, so a fresh installation with no settings file makes no automatic check; this repository's own checked-in itembank.json intentionally sets check_on_launch to dogfood the updater (D-13), so the two values are meant to differ. Read by this phase (2.1).",
