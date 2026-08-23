@@ -36,6 +36,11 @@ DEFAULT_MODE = "shelf"
 
 ACTIVITY_MAX = 5
 
+# Where the Agent area lives today: the 17A tracer page, which is served
+# only behind the ITEMBANK_VISUAL_FIXTURE opt-in. When a production agent
+# route ships, this constant is the one place its URL changes.
+AGENT_AREA_HREF = "/_visual-fixture?stage=agent_harness"
+
 
 def resolve_mode(value):
     """(mode, note). An unknown or missing setting falls back to the
@@ -183,15 +188,17 @@ def _activity(root, banks=None):
     return rows[:ACTIVITY_MAX]
 
 
-def build_state(root, banks, plans, collisions):
+def build_state(root, banks, plans, collisions, proposals=None):
     """Assemble the one state dict every mode renders from. Callers that
     already hold the startup scan (the daemon) pass it in; `home_state`
-    scans first for everyone else."""
+    scans first for everyone else. `proposals` overrides
+    `pending_proposals(root)` for callers that already hold the list."""
     from surfaces import daemon as daemon_mod
-    from model import load, parse_bank, parse_lesson
+    from model import parse_bank, parse_lesson
 
     sessions = daemon_mod.sessions_by_bank(root, banks)
-    proposals = pending_proposals(root)
+    if proposals is None:
+        proposals = pending_proposals(root)
     proposal_counts = {}
     for row in proposals:
         proposal_counts[row.get("path")] = row.get("count", 0)
@@ -241,7 +248,6 @@ def build_state(root, banks, plans, collisions):
         "next_action": action,
         "next_action_blocker": blocker,
         "activity": _activity(root, banks),
-        "load": load,
     }
 
 
@@ -297,10 +303,12 @@ def _cards_html(state):
             meta.append(card["objectives_note"])
         badge = ""
         if card["proposal_count"]:
-            badge = ('<span class="home-badge">%d pending proposal%s, '
-                     'review it in the Agent area</span>'
-                     % (card["proposal_count"],
-                        "" if card["proposal_count"] == 1 else "s"))
+            label = "%d pending proposal%s" % (
+                card["proposal_count"],
+                "" if card["proposal_count"] == 1 else "s")
+            badge = ('<a class="home-badge" data-state="pending" '
+                     'href="%s">%s, review it in the Agent area</a>'
+                     % (_esc(AGENT_AREA_HREF), _esc(label)))
         rows.append(
             '<li class="home-card"><h3>%s</h3>'
             '<p class="vf-status">%s</p>'
@@ -406,12 +414,19 @@ def render_agent(state, note=None):
         '<li class="home-card"><h3>%s</h3><p class="vf-status">%s</p></li>'
         % (_esc(card["stem"]), _esc(_resume_line(card)))
         for card in state["cards"])
+    # The third placement Weibao did not pick stays registered here, as
+    # a named slot that says what it would hold, never a hidden TODO.
+    slot = ('<section class="home-slot" data-state="unknown">'
+            "<p class=\"vf-status\">Inline affordances are registered, "
+            "not built yet: ask about this item, revise this lesson. "
+            "They will open here, beside the object they act on.</p>"
+            "</section>")
     return (
         '<section class="home home-mode-agent">%s'
-        "<h3>Agent area</h3>%s"
+        "<h3>Agent area</h3>%s%s"
         "<h3>Your %ss, as context</h3><ul class=\"home-cards\">%s</ul>"
         "</section>"
-        % (head, _agent_html(state), _esc(state["unit"]), context))
+        % (head, _agent_html(state), slot, _esc(state["unit"]), context))
 
 
 def render_split(state, note=None):

@@ -536,6 +536,68 @@ def check_reading_stays_first_on_every_card():
         r.close()
 
 
+def check_proposals_surface_on_the_object_only():
+    """Task 4: a pending proposal about an object shows one badge with
+    the count and a link into the Agent area, on that object's card.
+    Acceptance never happens from the badge. With nothing pending, the
+    home renders no badge and fabricates nothing."""
+    from surfaces import daemon as daemon_mod
+    r = _Root()
+    try:
+        state = home.home_state(r.root)
+        if home.pending_proposals(r.root) != []:
+            fail("nothing persists proposals yet; the source returned "
+                 "non-zero")
+            return
+        shelf = home.render_home(state, "shelf")
+        if "home-badge" in shelf:
+            fail("a zero-proposal root rendered a badge")
+            return
+        banks, plans, collisions = daemon_mod.scan_dir(r.root)
+        abspath = os.path.abspath(os.path.join(r.root, "sample_bank.md"))
+        proposals = [{"path": abspath, "count": 2}]
+        state = home.build_state(r.root, banks, plans, collisions,
+                                 proposals=proposals)
+        card = card_by_stem(state, "sample_bank")
+        if card["proposal_count"] != 2:
+            fail("the card carries count %r" % card["proposal_count"])
+            return
+        shelf = home.render_home(state, "shelf")
+        if "2 pending proposals" not in shelf:
+            fail("the badge does not carry the count")
+            return
+        start = shelf.index("home-badge")
+        segment = shelf[start:start + 400]
+        if home.AGENT_AREA_HREF not in segment:
+            fail("the badge does not link into the Agent area")
+            return
+        if ">Accept<" in segment or ">Reject<" in segment:
+            fail("the badge offers acceptance outside the Agent area")
+            return
+        ok("a pending proposal surfaces as a counted badge linking to "
+           "the Agent area")
+    finally:
+        r.close()
+
+
+def check_agent_area_keeps_room_for_inline_affordances():
+    """The third placement option stays registered: the Agent area holds
+    a named slot for inline affordances, rendered as not built yet
+    rather than hidden or dropped."""
+    r = _Root()
+    try:
+        state = home.home_state(r.root)
+        body = home.render_home(state, "agent")
+        for needle in ("ask about this item", "revise this lesson",
+                       "not built yet"):
+            if needle not in body.lower():
+                fail("the inline-affordance slot is missing %r" % needle)
+                return
+        ok("the Agent area names its registered-but-unbuilt slots")
+    finally:
+        r.close()
+
+
 def main():
     check_empty_root_is_honest()
     check_bank_with_no_session_is_not_started()
@@ -551,6 +613,8 @@ def main():
     check_file_list_stays_reachable_at_banks()
     check_daemon_empty_case_keeps_its_copy()
     check_reading_stays_first_on_every_card()
+    check_proposals_surface_on_the_object_only()
+    check_agent_area_keeps_room_for_inline_affordances()
     if failures:
         print("\n%d failure(s)" % len(failures))
         return 1
