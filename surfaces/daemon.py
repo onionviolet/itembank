@@ -26,8 +26,9 @@ import subjects
 from model import (lesson_slug, load, parse_bank, parse_key_blocks,
                    parse_lesson, parse_terms)
 from runtime import explain_payload, glossable, read_session, upgrade_session
-from surfaces import (day, launcher, lesson, presentation, quiz, quiz_page, retention_view,
-                      seeding, session, settings, study, update)
+from surfaces import (day, home, launcher, lesson, presentation, quiz,
+                      quiz_page, retention_view, seeding, session, settings,
+                      study, update)
 from surfaces import audio as audio_surface
 from surfaces import theme
 from surfaces.session import UNKNOWN_LANGUAGE_COPY
@@ -244,6 +245,7 @@ API_ROUTES = (
 # ordered ahead of them for the same reason.
 ROUTES = (
     ("GET", "/", "handle_index"),
+    ("GET", "/banks", "handle_banks"),
     ("GET", MARKER_PATH, "handle_marker"),
     ("GET", "/day", "handle_day_index"),
     ("GET", "/report", "handle_report_get"),
@@ -276,6 +278,7 @@ ROUTES = (
 # fails the build instead of shipping silently.
 ROUTE_CLI = {
     ("GET", "/"): "daemon",
+    ("GET", "/banks"): "daemon",
     ("GET", MARKER_PATH): "daemon",
     ("GET", "/report"): "report",
     ("GET", "/settings"): "theme",
@@ -943,13 +946,39 @@ def sessions_by_bank(root, banks):
 
 
 def handle_index(handler):
-    """`GET /` -- the index of every bank and day plan this daemon found at
-    startup, rendered through the shared presentation shell with the
-    per-render theme block (plan 04-04 Task 2). The page distinguishes the
-    populated case, the no-configured-banks/plans case, and stem collisions
-    (files that were found but are not served because another file shares
-    their stem) as a labelled warning with recovery actions.
-    """
+    """`GET /` -- the configured home (plan 17A-08). One data function
+    (`home.home_state`) feeds every mode; the setting picks the shape and
+    an unknown value falls back to the shelf saying so. The empty case
+    keeps its documented copy, and the old stem list stays reachable at
+    `/banks`, which is also where a stem collision is reported."""
+    try:
+        cfg = settings.load_settings(handler.root)
+    except SystemExit as exc:
+        handler.send_server_error(RuntimeError(str(exc.code)))
+        return
+    banks, plans = handler.banks, handler.plans
+    theme_block = theme.theme_css(cfg)
+    if not banks and not plans:
+        served_dir = html.escape(os.path.abspath(handler.root))
+        body = EMPTY_STATE.replace("__DIR__", served_dir)
+    else:
+        mode, note = home.resolve_mode(
+            cfg.get("home") if isinstance(cfg, dict) else None)
+        state = home.build_state(handler.root, banks, plans,
+                                 handler.collisions)
+        body = home.render_home(state, mode, note=note)
+    page = presentation.surface_shell(
+        "itembank", body,
+        theme_css=theme_block + home.HOME_CSS)
+    handler.send_html(page.encode("utf-8"))
+
+
+def handle_banks(handler):
+    """`GET /banks` -- the file list that used to be `GET /`: every bank
+    and day-plan stem this daemon found at startup, plus the labelled
+    warning naming any files it could not serve because another file
+    shares their stem. The home links here instead of duplicating the
+    list, because this is the only view that shows a collision."""
     banks, plans = handler.banks, handler.plans
     theme_block = theme.theme_css(settings.load_settings(handler.root))
     stems = sorted(set(banks) | set(plans), key=str.lower)
@@ -981,6 +1010,8 @@ def handle_index(handler):
                 row = PLAN_ROW.replace("__STEM__", esc)
             rows.append(row)
         body = "\n".join(rows)
+        body += ('\n<p class="vf-status"><a href="/">Back to the '
+                 "home</a></p>")
         if handler.collisions:
             losers = sorted(stem for _, _, loser in handler.collisions
                             for stem in [os.path.splitext(

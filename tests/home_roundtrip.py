@@ -416,6 +416,126 @@ def check_setting_and_schema_carry_the_modes():
     ok("home is a validated setting, shipped at the chosen default")
 
 
+class _FakeHandler(object):
+    """Just enough handler for the daemon's GET / handlers: a root, the
+    startup scan, and a place to capture the HTML."""
+
+    def __init__(self, root):
+        from surfaces import daemon as daemon_mod
+        self.root = root
+        self.banks, self.plans, self.collisions = daemon_mod.scan_dir(root)
+        self.sent = None
+
+    def send_html(self, body):
+        self.sent = body.decode("utf-8")
+
+
+def check_daemon_serves_the_configured_home():
+    """Task 3: GET / renders the configured home through the daemon's own
+    handlers; the mode setting switches the shape without touching the
+    data function."""
+    from surfaces import daemon as daemon_mod
+    r = _Root()
+    try:
+        r.write_session("sample_bank", cursor=3, total=6)
+        handler = _FakeHandler(r.root)
+        daemon_mod.handle_index(handler)
+        html = handler.sent or ""
+        for needle in ("Sit this bank", "Study this bank",
+                       "In progress: 3 of 6"):
+            if needle not in html:
+                fail("the served home is missing %r" % needle)
+                return
+        with open(os.path.join(r.root, "itembank.json"), "w",
+                  encoding="utf-8") as fh:
+            json.dump({"home": "next-action"}, fh)
+        handler = _FakeHandler(r.root)
+        daemon_mod.handle_index(handler)
+        if "Everything else" not in (handler.sent or ""):
+            fail("the configured next-action home did not serve")
+            return
+        ok("GET / serves the configured mode over the same state")
+    finally:
+        r.close()
+
+
+def check_file_list_stays_reachable_at_banks():
+    """The old stem list moves to /banks whole: stems, day plans, and the
+    stem-collision warning the daemon still needs somewhere to report."""
+    from surfaces import daemon as daemon_mod
+    r = _Root()
+    try:
+        shutil.copy(os.path.join(ROOT, "fixtures", "sample_plan.md"),
+                    os.path.join(r.root, "sample_plan.md"))
+        # A stem collision: two directories, same filename stem.
+        os.makedirs(os.path.join(r.root, "a"))
+        os.makedirs(os.path.join(r.root, "b"))
+        shutil.copy(BANK, os.path.join(r.root, "a", "dupe_bank.md"))
+        shutil.copy(BANK, os.path.join(r.root, "b", "dupe_bank.md"))
+        handler = _FakeHandler(r.root)
+        daemon_mod.handle_banks(handler)
+        html = handler.sent or ""
+        for needle in ("sample_bank", "sample_plan", "Open day view",
+                       "shares their name"):
+            if needle not in html:
+                fail("/banks is missing %r" % needle)
+                return
+        home_html = _FakeHandler(r.root)
+        daemon_mod.handle_index(home_html)
+        if 'href="/banks"' not in (home_html.sent or ""):
+            fail("the home does not link the file list")
+            return
+        ok("/banks keeps the stem list, plans and collision warning")
+    finally:
+        r.close()
+
+
+def check_daemon_empty_case_keeps_its_copy():
+    """A daemon serving nothing still says exactly what it said before."""
+    from surfaces import daemon as daemon_mod
+    r = _Root(banks=())
+    try:
+        handler = _FakeHandler(r.root)
+        daemon_mod.handle_index(handler)
+        if "Nothing to serve here yet" not in (handler.sent or ""):
+            fail("the empty home lost its documented copy")
+            return
+        ok("the empty case keeps its copy")
+    finally:
+        r.close()
+
+
+def check_reading_stays_first_on_every_card():
+    """The 2026-08-21 fix holds on the new surface: when a bank has a
+    lesson its reading link precedes the sitting link, on the home and
+    on /banks alike."""
+    from surfaces import daemon as daemon_mod
+    r = _Root()
+    try:
+        shutil.copy(os.path.join(ROOT, "fixtures", "lesson_bank.md"),
+                    os.path.join(r.root, "lesson_bank.md"))
+        handler = _FakeHandler(r.root)
+        daemon_mod.handle_index(handler)
+        html = handler.sent or ""
+        if "/lesson/lesson_bank" not in html:
+            fail("a bank with a lesson gets no reading link on the home")
+            return
+        if html.index("/lesson/lesson_bank") > \
+                html.index("/quiz/lesson_bank"):
+            fail("the sitting is offered before the reading")
+            return
+        banks_handler = _FakeHandler(r.root)
+        daemon_mod.handle_banks(banks_handler)
+        old = banks_handler.sent or ""
+        if old.index("/lesson/lesson_bank") > \
+                old.index("/quiz/lesson_bank"):
+            fail("/banks inverted the order")
+            return
+        ok("reading stays first on the home and on /banks")
+    finally:
+        r.close()
+
+
 def main():
     check_empty_root_is_honest()
     check_bank_with_no_session_is_not_started()
@@ -427,6 +547,10 @@ def main():
     check_four_modes_render_from_one_state()
     check_unknown_mode_falls_back_saying_so()
     check_setting_and_schema_carry_the_modes()
+    check_daemon_serves_the_configured_home()
+    check_file_list_stays_reachable_at_banks()
+    check_daemon_empty_case_keeps_its_copy()
+    check_reading_stays_first_on_every_card()
     if failures:
         print("\n%d failure(s)" % len(failures))
         return 1
