@@ -27,6 +27,14 @@ one never was.
 `tests/lesson_roundtrip.py` fails on a pre-13.5 golden fixture drift. That is
 platform-independent and will still fail. Not caused by recent work.
 
+**CORRECTED 2026-08-23: it does not fail here.** Run on this Mac it exits 0 and
+reports every check, slug through preamble section boundary. So the "two test
+failures" framing above is wrong on this machine: there are none. Both this
+file and the 2026-08-22 overnight run's report carried it forward as a known
+failure without re-running it, which is how a stale expectation survives. Do
+not skip it, and if it does fail, that is a real finding rather than a
+recognised one.
+
 **2. Six runtime modules branch on platform:** `audit_writer.py`, `evidence.py`,
 `journal.py`, `model.py`, `runner.py`, `surfaces/day.py`. They use `msvcrt`,
 `win32`, or `APPDATA`. All have POSIX branches. `.planning/WINDOWS.md` (61
