@@ -129,3 +129,48 @@ proven end to end against a stubbed endpoint in task 3. A page rendered
 without a course root keeps the old fixture list, which is what the
 prototype pages use.
 
+## Task 3: the undo proven by use
+
+Shipped in `bfbbf65`. `tests/agent_operation_roundtrip.py` only, 19
+checks, exit 0.
+
+The whole loop runs against a stubbed loopback endpoint and a temporary
+course directory. Two cycles, because the claim has two halves:
+
+1. First run creates the object (`mint`, revision 1). Undo goes through
+   `journal.undo` with the entry id the settled state carries, restores
+   the recorded before-image as a forward `restore` revision 2, and the
+   file is byte-identical to what it was before the run.
+2. Second run edits in place: revision 3 with prior revision 2. Its undo
+   records `restores_revision` 2 and lands on revision 2's exact bytes.
+   No second undo mechanism exists anywhere in this plan; the test calls
+   `journal.undo` directly with the id the page would carry.
+
+Guard proof: with accept's settled-state guard deleted, the suite fails
+at `check_double_accept_records_nothing` (exit 1). A second submit past
+the missing guard reaches the commit path instead of returning unchanged.
+Guard restored, suite green.
+
+## Verification, end of plan
+
+    python3 tests/agent_operation_roundtrip.py     19 checks, exit 0
+    python3 tests/local_harness_roundtrip.py       exit 0
+    python3 tests/visual_system_roundtrip.py       exit 0
+    python3 tests/journal_roundtrip.py             exit 0
+    python3 itembank.py guard .                    exit 0
+
+`tests/lesson_roundtrip.py` was not run as a gate: its golden-fixture
+drift is the one recorded pre-existing failure on this machine and is not
+this plan's.
+
+## What this plan did not do
+
+- Browser-clickable activation of a skill run needs a served route owned
+  by `server.py`; that file is outside this plan's list. The machine is
+  driven and proven at the module level, and the tab renders every state
+  and every next action honestly.
+- No conversation history store, no new durable object, no transport, no
+  harness SDK (still unpublished), no scoring or marking or key
+  disclosure from the Agent area, no change to `theme.DEFAULT_ACCENT`.
+
+
