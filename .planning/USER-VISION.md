@@ -829,8 +829,9 @@ rules. Nothing in this entry asks for those.
 
 1. Whether "all of these" means one product spanning four experiences, or a
    stated ambition level to measure any single capability against.
-2. Whether the retention boundary moves, and if it does, what happens to the
-   Anki export path that currently owns scheduling.
+2. RESOLVED 2026-08-22, see the interpretation update below. Whether the
+   retention boundary moves, and if it does, what happens to the Anki export
+   path that currently owns scheduling.
 3. Which parts of the notes-to-quiz loop are worth having without the parts
    that make an attention mark into an answer key.
 4. Whether displacing a paid subscription is a success criterion the product
@@ -849,6 +850,46 @@ entry from visual design to capability, extends the 2026-08-21 paper-notes
 entry with a named example of the finished experience, and conflicts with the
 2026-08-13 interpretation that NotebookLM is not the product target. The
 conflict stays visible and unresolved, per the interpretation protocol below.
+
+#### Interpretation update recorded 2026-08-22
+
+**Status:** resolves open question 2 of the entry above. Everything else in
+that entry keeps its 2026-08-22 interpretation.
+
+User statement, verbatim:
+
+> keep anki for retention, but like we can also have the features of gizmo unlimited and more
+
+**Current interpretation:** the retention boundary does not move. "Not a
+spaced-repetition engine, Anki owns retention" survives this entry unchanged,
+and the Anki export path keeps owning scheduling. What itembank takes from the
+notes-to-quiz class is everything upstream and downstream of the scheduler:
+intake of the learner's own material including photographed pages, generation
+of cards and items from it, the quiz and feedback surface, and the evidence
+record. The subscription is displaced by covering the whole loop except the
+one part Anki already does well.
+
+**The consequence that must be designed for, not discovered later.** In the
+products being displaced, the quiz surface and the scheduler are one thing.
+Splitting them means two systems can both hold a review history, and if both
+claim to measure retention they will disagree. The split only stays coherent
+if itembank practice is explicitly not a retention signal: sittings and
+practice are diagnosis and evidence against objectives, Anki reviews are
+retention, and neither reschedules the other. This is the same division
+already shipped between this tool and `ankictl`, so the pattern exists rather
+than needing invention.
+
+**What this does not settle.** "And more" is open by construction. Gamification
+in particular stays unresolved, because these products lean on streaks and
+scores while the evidence-honesty rules here already constrain what a progress
+claim may assert. Open questions 1, 3, 4 and 5 of the entry above remain open.
+
+**Planning effect:** none scheduled, but the boundary is now firm enough to
+plan against. Any future notes-to-quiz work inherits two fixed constraints: the
+scheduler is Anki and is reached through export, and the stream 12 section 7
+authority table governs what a learner note may become. A generated card
+leaving for Anki is subject to the same rule as any other item, so a note
+cannot acquire a key by being exported.
 
 ## Interpretation protocol
 
