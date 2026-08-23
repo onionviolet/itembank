@@ -8,6 +8,8 @@
 #   scripts/ox_overnight.sh              # both plans, in this checkout
 #   scripts/ox_overnight.sh 17A-07       # one plan
 #   IB_DIR=~/dev/IB-17A-03 scripts/ox_overnight.sh 17A-03    # in a worktree
+#   IB_PROMPT=.planning/PROMPT-ox-13.9-rebuild-2026-08-22.md \
+#     scripts/ox_overnight.sh 13.9-01 13.9-02                 # a different job
 #
 # Run two plans concurrently ONLY from separate worktrees, and only when their
 # plans' files_modified sets do not intersect. 17A-03 and 17A-07 both write
@@ -22,8 +24,8 @@ REPO="${IB_DIR:-$SELF_REPO}"
 REPO="$(cd "$REPO" 2>/dev/null && pwd)" || { echo "ox_overnight: IB_DIR is not a directory" >&2; exit 1; }
 DSH="$SELF_REPO/deps/dsh/node_modules/.bin/dsh"   # one install serves every worktree
 PATCH="$HOME/.dsh/ox-alpha.patch.yml"
-PROMPT="$REPO/.planning/PROMPT-ox-17A-overnight-2026-08-22.md"
-[ -f "$PROMPT" ] || PROMPT="$SELF_REPO/.planning/PROMPT-ox-17A-overnight-2026-08-22.md"
+PROMPT="${IB_PROMPT:-$REPO/.planning/PROMPT-ox-17A-overnight-2026-08-22.md}"
+[ -f "$PROMPT" ] || PROMPT="$SELF_REPO/.planning/$(basename "$PROMPT")"
 LOGDIR="$REPO/.planning/_ox-logs"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 read -r -a PLANS <<< "${*:-17A-07 17A-08}"

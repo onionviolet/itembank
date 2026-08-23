@@ -546,6 +546,65 @@ Amendments to an existing entry are additive notes under the entry, dated.
 - **Revisit trigger:** IL-20260820-01 planning; or a device change that makes
   ink authoring the learner's actual working method rather than a hypothetical.
 
+### IL-20260822-01: An item type that is never scored, for pre-instruction commitment
+
+- **Proposal:** Add a selected-response type whose responses are recorded and
+  never scored, used to capture the learner's judgment before instruction so
+  the taught answer can be contrasted with it afterwards.
+- **Origin:** Weibao supplied photographs of four worked paper assessments on
+  2026-08-22 as a fit check on the shipped types. One handout instructs the
+  learner to judge each case and, in its own words, go with the initial
+  instinct for now. Recorded in `USER-VISION.md`, entry 2026-08-22 on paper
+  item formats. No item text from those handouts is in this repository; they
+  are third-party published material and the content rule covers them.
+- **Evidence considered:** all eight shipped types score dichotomously except
+  `short`, which is pending-review rather than unscored. There is no way to ask
+  a question whose answer must not become a score. This is the same object as
+  the diagnostic named in the 2026-08-22 answer to the notes-to-quiz scope
+  question, where checking understanding against a learner's own note must not
+  be scored either. One type serves both.
+- **Fit:** does not touch the scorer. The runtime keeps owning correctness; this
+  type simply has none to own. The recording path is the existing evidence
+  store, and the contrast view is presentation.
+- **Risks:** an unscored response sitting in the same store as scored ones can
+  be mistaken for a miss by anything that counts. The type needs a distinct
+  state, not a null score, and every count that reports a denominator must
+  exclude it explicitly.
+- **Disposition:** registered, unscheduled. Scope it with the paper-note intake
+  phase recommended in the same vision entry, since both halves of that entry
+  ask for it.
+
+### IL-20260822-02: Capture elimination marks as response data
+
+- **Proposal:** Record which options the learner ruled out, and in what order,
+  alongside the option they chose.
+- **Origin:** same 2026-08-22 fit check. The photographed quizzes carry crosses
+  through rejected options and circles around finalists, on paper, unprompted.
+  That is the learner's own reasoning, produced without being asked for.
+- **Evidence considered:** the runtime records the chosen option and nothing
+  else, so an answer reached by eliminating three options is indistinguishable
+  from a guess that happened to land. That distinction is exactly what
+  remediation needs and cannot currently see. It is also cheap: the marks are
+  produced anyway on paper, so the surface is capturing something that already
+  exists rather than adding work for the learner.
+- **Fit:** additive to the response record, changes no key and no score. What
+  remediation may say changes; what scoring may claim does not.
+- **Risks:** eliminations are optional and must stay optional, or the interface
+  starts grading process. An empty elimination set means nothing and must not
+  be read as a guess.
+- **Disposition:** registered, unscheduled.
+
+### IL-20260822-03: Calibrate the bank checks at shared-taxonomy scale
+
+- **Proposal:** Check that the answer-position balance and item-mix warnings
+  behave sensibly on a block of roughly twenty stems classified against roughly
+  seven shared categories, which is the shape the 2026-08-22 fit check supplied.
+- **Evidence considered:** `[TYPE: table]` and `[TYPE: dnd]` support the shape
+  structurally, and nobody has run the linter against one at that size. A
+  position-balance warning tuned for four-option multiple choice may fire
+  constantly or never on a seven-category block, and either way it is noise.
+- **Disposition:** registered, small. A fixture and a lint run, not a feature.
+
 ## Rejected
 
 ### IL-20260815-04: Plugin-first core (no privileged core; swappable scorer)
