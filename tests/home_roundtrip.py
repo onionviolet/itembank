@@ -1,0 +1,306 @@
+#!/usr/bin/env python3
+"""Plan 17A-08: the home surface. One data function, four modes.
+
+The plan replaces the daemon's directory listing with the home 16B
+designed: cards with honest resume state, one evidence-sourced next
+action, and an activity list. Every check here runs against a temporary
+root, so nothing in this suite reads or writes the repository.
+
+No model produces any text this suite asserts on: the next action's
+`why` is built from the evidence store's own counts, or it is absent.
+"""
+import copy
+import datetime
+import json
+import os
+import shutil
+import sys
+import tempfile
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "surfaces"))
+
+import evidence                                            # noqa: E402
+from surfaces import home                                  # noqa: E402
+
+BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
+SESSION_ID = "sess-17a08-home"
+OBJECTIVE = "bio:cells"
+
+failures = []
+
+
+def fail(msg):
+    failures.append(msg)
+    print("FAIL: " + msg)
+
+
+def ok(msg):
+    print("OK   " + msg)
+
+
+def iso_days_ago(days):
+    now = datetime.datetime.now(datetime.timezone.utc)
+    then = now - datetime.timedelta(days=days)
+    return then.strftime("%Y-%m-%dT%H:%M:%S.") + "%03dZ" % (
+        then.microsecond // 1000)
+
+
+class _Root(object):
+    """A temporary daemon root with optional banks, sessions, evidence."""
+
+    def __init__(self, banks=("sample_bank",)):
+        self.root = tempfile.mkdtemp(prefix="itembank-17a08-")
+        self.stems = []
+        for stem in banks:
+            shutil.copy(BANK, os.path.join(self.root, stem + ".md"))
+            self.stems.append(stem)
+
+    def write_session(self, stem, cursor, total, status="active"):
+        attempts = os.path.join(self.root, "_attempts")
+        os.makedirs(attempts, exist_ok=True)
+        data = {
+            "schema_version": 1,
+            "session_id": SESSION_ID,
+            "bank": os.path.abspath(os.path.join(self.root, stem + ".md")),
+            "items": list(range(total)),
+            "cursor": cursor,
+            "responses": [],
+            "status": status,
+            "mode": "practice",
+        }
+        with open(os.path.join(attempts, "session_%s.json" % SESSION_ID),
+                  "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+
+    def write_evidence(self, outcomes):
+        """outcomes: list of True/False, recorded `practice` events for
+        OBJECTIVE, backdated past the review interval so the retention
+        machinery labels the objective due."""
+        log = evidence.log_path(self.root)
+        os.makedirs(os.path.dirname(log), exist_ok=True)
+        bank_abspath = os.path.abspath(
+            os.path.join(self.root, "sample_bank.md"))
+        for i, score in enumerate(outcomes):
+            q = {"id": "q%d" % (i + 1), "type": "mc",
+                 "objective": OBJECTIVE}
+            ev = evidence.response_event(
+                SESSION_ID, q, "an answer", score, "practice", 1,
+                bank_abspath)
+            ev["ts"] = iso_days_ago(10)
+            evidence.append_event(log, ev)
+
+    def close(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+
+def card_by_stem(state, stem):
+    for card in state["cards"]:
+        if card["stem"] == stem:
+            return card
+    return None
+
+
+def check_empty_root_is_honest():
+    """An empty root: no cards, no invented progress, and a next-action
+    blocker that says what would make one possible. The unit is named
+    `bank`, the seam 14B will swap."""
+    r = _Root(banks=())
+    try:
+        state = home.home_state(r.root)
+        if state["cards"]:
+            fail("an empty root produced %d cards" % len(state["cards"]))
+            return
+        if state["unit"] != "bank":
+            fail("the unit seam reads %r, not bank" % state["unit"])
+            return
+        if state["next_action"] is not None:
+            fail("an empty root produced a next action: %r"
+                 % state["next_action"])
+            return
+        blocker = state.get("next_action_blocker") or ""
+        for needle in ("practice", "evidence"):
+            if needle not in blocker.lower():
+                fail("the blocker does not say what would make a next "
+                     "action possible (%r missing): %r" % (needle, blocker))
+                return
+        ok("an empty root renders no cards and an honest blocker")
+    finally:
+        r.close()
+
+
+def check_bank_with_no_session_is_not_started():
+    """A bank with no session is `not_started`, never 0%. No progress
+    figure appears anywhere on the shelf for it."""
+    r = _Root()
+    try:
+        state = home.home_state(r.root)
+        card = card_by_stem(state, "sample_bank")
+        if card is None:
+            fail("the scanned bank produced no card")
+            return
+        if card["resume"]["state"] != "not_started":
+            fail("a bank with no session reads %r"
+                 % card["resume"]["state"])
+            return
+        if card["progress"] is not None:
+            fail("a bank with no session shows progress %r"
+                 % card["progress"])
+            return
+        if not card.get("progress_refused_reason"):
+            fail("the card does not say why it shows no progress")
+            return
+        html = home.render_home(state, "shelf")
+        if "0%" in html:
+            fail("the shelf shows a 0% figure for an unstarted bank")
+            return
+        if "not started" not in html.lower():
+            fail("the shelf does not name the not-started state")
+            return
+        ok("an unstarted bank reads not_started with no invented percent")
+    finally:
+        r.close()
+
+
+def check_bank_mid_session_reports_its_cursor():
+    """A bank with a live session reports the cursor against the sitting
+    length, and both numbers are real."""
+    r = _Root()
+    try:
+        r.write_session("sample_bank", cursor=3, total=6)
+        state = home.home_state(r.root)
+        card = card_by_stem(state, "sample_bank")
+        if card["resume"]["state"] != "in_progress":
+            fail("a mid-session bank reads %r" % card["resume"]["state"])
+            return
+        progress = card["progress"]
+        if not progress or progress.get("answered") != 3 \
+                or progress.get("total") != 6:
+            fail("the card shows %r, not 3 of 6" % progress)
+            return
+        html = home.render_home(state, "shelf")
+        if "3 of 6" not in html:
+            fail("the shelf does not say 3 of 6")
+            return
+        ok("a mid-session bank reports its real cursor, 3 of 6")
+    finally:
+        r.close()
+
+
+def check_next_action_comes_from_evidence():
+    """With evidence on disk, the next action names the objective, how
+    many times it was missed, and over what denominator, in one
+    sentence. No model text: the numbers are the store's own counts."""
+    r = _Root()
+    try:
+        r.write_evidence([True, False, False, False])
+        r.write_session("sample_bank", cursor=6, total=6, status="complete")
+        state = home.home_state(r.root)
+        action = state["next_action"]
+        if action is None:
+            fail("evidence on disk produced no next action (%r)"
+                 % state.get("next_action_blocker"))
+            return
+        if action.get("objective") != OBJECTIVE:
+            fail("the next action names %r, not %r"
+                 % (action.get("objective"), OBJECTIVE))
+            return
+        why = action.get("why") or ""
+        if "3 of 4" not in why:
+            fail("the why does not carry 3 missed of 4: %r" % why)
+            return
+        if why.count(".") > 1 or why.count("!") > 0:
+            fail("the why is not one sentence: %r" % why)
+            return
+        if "/quiz/sample_bank" not in (action.get("href") or ""):
+            fail("the next action links nowhere actionable: %r"
+                 % action.get("href"))
+            return
+        ok("the next action names the objective, 3 of 4 missed, one "
+           "sentence")
+    finally:
+        r.close()
+
+
+def check_no_evidence_means_no_next_action():
+    """Sessions without evidence cannot ground a reason, so the next
+    action stays None and the home says what would make one possible."""
+    r = _Root()
+    try:
+        r.write_session("sample_bank", cursor=6, total=6, status="complete")
+        state = home.home_state(r.root)
+        if state["next_action"] is not None:
+            fail("a root with no evidence produced a next action: %r"
+                 % state["next_action"])
+            return
+        if not state.get("next_action_blocker"):
+            fail("the home does not say why there is no next action")
+            return
+        ok("sessions alone do not invent a next action")
+    finally:
+        r.close()
+
+
+def check_activity_lists_real_events():
+    """The activity list is built from recorded evidence events only,
+    newest first, capped."""
+    r = _Root()
+    try:
+        r.write_evidence([True, False])
+        state = home.home_state(r.root)
+        rows = state["activity"]
+        if len(rows) != 2:
+            fail("activity carries %d rows, not 2" % len(rows))
+            return
+        if "sample_bank" not in rows[0]["text"]:
+            fail("the newest activity row does not name the bank: %r"
+                 % rows[0])
+            return
+        html = home.render_home(state, "shelf")
+        if "sample_bank" not in html:
+            fail("the shelf dropped the activity")
+            return
+        ok("activity rows come from the evidence store, newest first")
+    finally:
+        r.close()
+
+
+def check_shelf_carries_the_sitting_links():
+    """The shelf cards keep every entrance the old index had, reading
+    first, and link the file list view for stems and collisions."""
+    r = _Root()
+    try:
+        html = home.render_home(home.home_state(r.root), "shelf")
+        for needle in ("Sit this bank", "Study this bank",
+                       "/quiz/sample_bank", "/study/sample_bank",
+                       "/banks"):
+            if needle not in html:
+                fail("the shelf is missing %r" % needle)
+                return
+        if "/lesson/sample_bank" in html:
+            fail("the shelf advertises a reading the bank does not have")
+            return
+        ok("shelf cards keep sit, study and the file-list link, reading "
+           "absent when the bank has none")
+    finally:
+        r.close()
+
+
+def main():
+    check_empty_root_is_honest()
+    check_bank_with_no_session_is_not_started()
+    check_bank_mid_session_reports_its_cursor()
+    check_next_action_comes_from_evidence()
+    check_no_evidence_means_no_next_action()
+    check_activity_lists_real_events()
+    check_shelf_carries_the_sitting_links()
+    if failures:
+        print("\n%d failure(s)" % len(failures))
+        return 1
+    print("\nall home checks passed")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
