@@ -37,7 +37,8 @@ PATCH="$HOME/.dsh/ox-alpha.patch.yml"
 # Prompt is chosen per plan, so one queue can span phases. IB_PROMPT overrides.
 prompt_for() {
   case "$1" in
-    13.9-*) echo "PROMPT-ox-13.9-rebuild-2026-08-22.md" ;;
+    13.9-*)              echo "PROMPT-ox-13.9-rebuild-2026-08-22.md" ;;
+    17A-02|17A-03|17A-05) echo "PROMPT-ox-17A-finish-2026-08-23.md" ;;
     *)      echo "PROMPT-ox-17A-overnight-2026-08-22.md" ;;
   esac
 }
