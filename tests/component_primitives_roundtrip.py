@@ -540,7 +540,9 @@ def check_no_em_dash():
     start = body.find("17A-03: the accessible component primitive layer")
     if start < 0:
         fail("the 17A-03 section marker is gone from presentation.py")
-    if "—" in body[start:]:
+    # Spelled as an escape so the detector does not itself carry the
+    # character it bans.
+    if "\u2014" in body[start:]:
         fail("an em dash entered repository-authored prose")
     ok("prose: no em dash in anything 17A-03 added")
 
