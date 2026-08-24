@@ -3,20 +3,81 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase_name: 13.5-reading-teaching-surface-quality-pass
-status: Phase 14A EXECUTED and FROZEN (2026-08-18, four plans, green tracer). 13.9 plans 01-02 committed; 13.9-03 awaits Weibao's sitting. 17A (5 plans), 17B (4), 17C (1), 18 (3) all carry plan-checker READY/PASS verdicts; zero open discussions as of 2026-08-17.
-stopped_at: Phase 14A frozen; next is 13.9-03 (closes A9), then 14B (its plans must cite 13.9-CALIBRATION.md; no 14B freeze commits before 13.9-03 closes).
-last_updated: "2026-08-20T00:00:00.000Z"
-last_activity: 2026-08-20
-last_activity_desc: "Quick task 260813-x3g source-to-course contract reframe, slices 1-4a committed and pushed. Applied synthesis section 14 across nine contract/doc files: ROADMAP (nine subphases 14A-17B + governance), SOURCE-TO-COURSE (supersede pointer), REQUIREMENTS (eighteen families GRAPH..MAINT, 47 new requirements, old IDs mapped/superseded), PROJECT (course-first), UI-SPEC (Structured Studio; section 8 gates untouched), PLANNING-DIRECTIVES (finite-strategy + rejection-ledger; section 8 nine-subphase table), AGENTS + .claude/CLAUDE.md (object/authority + operation protocol; non-negotiables intact), README (course-first). Commits: 8b5cab4, e838407, e349c06 (REQUIREMENTS content landed split across the slice-3/4a commits because gsd `query commit` sweeps all modified files while the parallel 13.5 track shared the tree; content verified complete on disk, nothing lost)."
+status: Phase 14A EXECUTED and FROZEN (2026-08-18). 17A is 7 of 8 plans built as of 2026-08-24 (01, 02, 03, 05, 06, 07, 08); only 17A-04 remains and it waits on the 13.9 sitting. 13.9 plans 01-02 committed; 13.9-03 awaits Weibao's sitting. Full suite 70 of 70 green at 19edacc.
+stopped_at: 17A-04 is the only unbuilt 17A plan and is blocked on 13.9-03 (Weibao's sitting, closes A9). After that: 17A-04, then 14B (its plans must cite 13.9-CALIBRATION.md; no 14B freeze commits before 13.9-03 closes).
+last_updated: "2026-08-24T00:00:00.000Z"
+last_activity: 2026-08-24
+last_activity_desc: "Executed the 17A finish prompt in order: 17A-02 Task 2 (five type tokens, three density aliases, day.py migrated onto surface_shell), 17A-05 (oled true-black mode, executed by Ox Alpha and committed by the orchestrator after independent re-verification), 17A-03 (17 accessible component primitives plus a full inventory fixture). Also closed the frozen-token consumption gap, fixed two pins that guarded nothing, and added a worktree guard to ox_overnight.sh. Commits a79c626..19edacc. Full suite 70 of 70 green, guard clean."
 progress:
   total_phases: 28
   completed_phases: 18
   total_plans: 173
-  completed_plans: 114
+  completed_plans: 117
 current_phase: 13.5
 ---
 
 # Project State
+
+## 2026-08-24: 17A-02, 17A-05 and 17A-03 executed; only 17A-04 remains
+
+Ran the 2026-08-23 finish prompt in order, 02 then 05 then 03, from a Claude
+Code orchestrating session on the Mac. Every claim below was checked against
+an artifact, not a commit message, because that is the mistake the previous
+entry exists to record.
+
+| Plan | State now | Evidence |
+|---|---|---|
+| 17A-01 | Built. | unchanged |
+| 17A-02 | **Built.** Task 1 was already closed on 2026-08-20; Task 2 landed. | `a79c626`, `9115ba9`. `surface_shell` is called by `day_page`; the five `--text-*` and three `--density-*` tokens are in `SHARED_CSS`. |
+| 17A-03 | **Built.** | `44482d5..366b6fa`. `tests/component_primitives_roundtrip.py` exists and passes; 17 primitives in `presentation.py`. |
+| 17A-04 | Not built, and still blocked. | `tools/visual_qa.py` does not exist. Its remaining blocker is now only the 13.9 sitting; 03 and 05 no longer block it. |
+| 17A-05 | **Built.** | `7a0fb65`, `faee59d`. `BASE_TOKENS`/`SEMANTIC_TOKENS` carry an `oled` mode; `stylesheet_roundtrip` invariant 4 measures it. |
+| 17A-06, 07, 08 | Built. | unchanged |
+
+**Full suite: 70 of 70 green, `itembank guard .` clean**, measured on the
+consolidated tree at `19edacc` with `ANKI_CONNECT_URL` pointed at a dead port.
+
+### Four things worth carrying forward
+
+**1. The day route is no longer outside the token layer.** `surfaces/day.py`
+was the one served route that assembled its own doctype, so it carried neither
+`SHARED_CSS` nor any of the four vendored faces. It composes
+`presentation.surface_shell` now, and `served /day/sample_plan` moved out of
+`REPORTED_FONT_ROUTES` into `REQUIRED_FONT_ROUTES`, so gate 9 asserts four
+served routes instead of three.
+
+**2. A frozen token nothing could consume.** 17A-02 named five type sizes;
+17A-03 then found `size_problems` demanded a literal px and rejected
+`font-size:var(--text-xs)` while accepting the `12px` it stands for. The gate
+resolves the five frozen names now, and only those five (`544fef1`). Record
+the shape of this, not just the instance: **a freeze is only real once
+something is required to consume it.**
+
+**3. Two pins that guarded nothing.** `config_roundtrip`'s
+`test_theme_schema_additive_accent` was defined and never called from
+`main()`, so 17A-05's red gate could not have gone red. And
+`day_edit_roundtrip`'s `run_cli` merged stderr into stdout while fifteen
+callers ran `json.loads` over the whole stream, so the suite passed or failed
+on whether an earlier suite had created `_evidence/`. Both fixed
+(`7a0fb65`, `259c2db`). Both are the same failure as the 2026-08-23 entry
+below: **trusting a name instead of an artifact.**
+
+**4. An unattended ox run in a worktree cannot commit.** 17A-05 was executed
+and fully verified by Ox Alpha and landed zero commits, because a worktree's
+`.git` points into the main checkout, outside the agent's writable root. The
+agent stopped rather than stacking the next plan on an uncommitted tree, which
+was correct, but a whole run was spent first. `scripts/ox_overnight.sh` now
+refuses that configuration before the smoke test, with `IB_ALLOW_WORKTREE=1`
+as the override for when a human intends to commit the result (`e6f5a43`).
+That override is how 17A-05 actually landed: reviewed, re-verified
+independently, and committed from the orchestrating session.
+
+### Standing environmental note
+
+`day_roundtrip` and `retention_ui_roundtrip` assert the exact Anki-closed
+copy, so they fail while Anki Desktop is running. Quit Anki, or export
+`ANKI_CONNECT_URL=http://127.0.0.1:59999`. This is not a code defect and it
+has now cost two sessions a wrong baseline.
 
 ## 2026-08-23: 17A is not as far along as the commit log suggests
 
