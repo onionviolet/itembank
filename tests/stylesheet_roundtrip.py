@@ -718,8 +718,26 @@ def check_type_scale(sheets):
 
 
 def size_problems(where, prop, value):
-    """A single length, asserted for unit first and magnitude second."""
+    """A single length, asserted for unit first and magnitude second.
+
+    A frozen type token resolves to its own value first. Plan 17A-02 named
+    five sizes and plan 17A-03 then found it could not USE them: this function
+    demanded a literal px, so `font-size:var(--text-xs)` failed gate 12 while
+    the literal `12px` it stands for passed. A freeze nothing may consume is a
+    documentation exercise, so the gate resolves the name instead. Only the
+    five frozen names resolve; any other `var(...)` still fails, because an
+    unresolvable name is exactly the hole that would let a sixth size in.
+    """
     val = value.strip()
+    if VAR_ONLY_RE.match(val):
+        token = CUSTOM_NAME_RE.search(val).group(0)
+        if token not in FROZEN_TYPE_TOKENS:
+            return ["%s declares %s:%s, and %s is not one of the five frozen "
+                    "type tokens; a size may name %s or be a literal px on the "
+                    "scale, and nothing else"
+                    % (where, prop, val, token,
+                       "/".join(sorted(FROZEN_TYPE_TOKENS)))]
+        val = FROZEN_TYPE_TOKENS[token]
     m = LENGTH_RE.match(val)
     if not m:
         return ["%s declares %s:%s, which is not a length this scale can "

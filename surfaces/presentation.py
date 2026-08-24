@@ -300,44 +300,39 @@ pre{background:var(--chip);border:1px solid var(--line);border-radius:8px;
 #     `_clip_node_label`, with the full label kept untouched in the textual
 #     adjacency list that is the accessible form.
 #
-# ONE RECORDED CONTRADICTION WITH THE PLAN'S KEY LINK, measured 2026-08-24.
-# The key link asks primitive CSS to consume the frozen `--text-*` tokens.
-# It cannot yet, and the blocker is a fixture rather than a preference:
-# `tests/stylesheet_roundtrip.py:size_problems` matches every `font-size`
-# value against `LENGTH_RE` and reports "not a length this scale can check"
-# for anything that is not a literal px, so `font-size:var(--text-xs)` fails
-# gate 12 today. Verified directly:
+# Every size below names a frozen token rather than restating its value, and
+# that was not true when this block was first written. Recorded because the
+# order matters: plan 17A-02 froze five names, and plan 17A-03 then found it
+# could not USE them, because `tests/stylesheet_roundtrip.py:size_problems`
+# demanded a literal px and rejected `font-size:var(--text-xs)` while
+# accepting the `12px` it stands for. A freeze nothing may consume is a
+# documentation exercise, so the gate learned to resolve the five frozen names
+# to their values, and only those five: any other `var(...)` in a `font-size`
+# still fails, which is what keeps a sixth size out.
 #
-#     >>> size_problems('x', 'font-size', 'var(--text-xs)')
-#     ['x declares font-size:var(--text-xs), which is not a length ...']
-#
-# The `font` shorthand does slip past (a var-valued size makes `size_at` -1
-# and the whole shorthand goes unchecked), which is a hole in the gate and not
-# a licence to use it. So every size below is a literal px identical to the
-# frozen token's own value, which is what every rule already in SHARED_CSS
-# does, and no sixth size enters. Teaching the gate to resolve a frozen token
-# name to its value is a one-function change in a file this plan does not
-# own; it is recorded in 17A-03-SUMMARY.md rather than done here.
+# The `font` shorthand remains a hole in that gate, since a var-valued size
+# makes its `size_at` -1 and the whole shorthand goes unchecked. Nothing here
+# uses the shorthand, and the hole is recorded rather than exploited.
 PRIMITIVE_CSS = r"""
 .ib-list{list-style:none;margin:0;padding:0;display:flex;
   flex-direction:column;gap:var(--density-list-gap)}
 .ib-card{background:var(--card);border:1px solid var(--line);
   border-radius:var(--r-2);padding:var(--density-card-pad)}
 .ib-group{margin:0 0 var(--space-4)}
-.ib-group-head{font-size:16px;font-weight:600;line-height:1.4;
+.ib-group-head{font-size:var(--text-body);font-weight:600;line-height:1.4;
   margin:0 0 var(--space-2)}
-.ib-name{font-family:var(--font-paper);font-size:16px;font-weight:600;
+.ib-name{font-family:var(--font-paper);font-size:var(--text-body);font-weight:600;
   line-height:1.4;margin:0;overflow-wrap:anywhere}
-.ib-meta{font-family:var(--font-ledger);font-size:12px;line-height:1.4;
+.ib-meta{font-family:var(--font-ledger);font-size:var(--text-xs);line-height:1.4;
   color:var(--mut);margin:var(--space-1) 0 0;overflow-wrap:anywhere}
-.ib-body{font-size:16px;line-height:1.5;margin:var(--space-2) 0 0;
+.ib-body{font-size:var(--text-body);line-height:1.5;margin:var(--space-2) 0 0;
   max-width:var(--measure-prose);overflow-wrap:anywhere}
-.ib-empty{font-size:16px;line-height:1.5;color:var(--mut);margin:0}
-.ib-slow{font-family:var(--font-ledger);font-size:16px;line-height:1.5;
+.ib-empty{font-size:var(--text-body);line-height:1.5;color:var(--mut);margin:0}
+.ib-slow{font-family:var(--font-ledger);font-size:var(--text-body);line-height:1.5;
   color:var(--mut);margin:0}
 .ib-notice{border:1px solid var(--line);border-radius:var(--r-2);
   padding:var(--space-2) var(--space-3);margin:0 0 var(--space-3);
-  font-family:var(--font-ledger);font-size:16px;line-height:1.5;
+  font-family:var(--font-ledger);font-size:var(--text-body);line-height:1.5;
   overflow-wrap:anywhere}
 .ib-notice-label{font-weight:600;margin-inline-end:var(--space-1)}
 .ib-notice-ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok)}
@@ -352,7 +347,7 @@ PRIMITIVE_CSS = r"""
 .ib-chips{list-style:none;display:flex;flex-wrap:wrap;
   gap:var(--density-list-gap);margin:var(--space-2) 0 0;padding:0}
 .ib-chip{display:inline-flex;align-items:center;gap:var(--space-1);
-  font-family:var(--font-ledger);font-size:12px;line-height:1.4;
+  font-family:var(--font-ledger);font-size:var(--text-xs);line-height:1.4;
   background:var(--chip);color:var(--ink);border:1px solid var(--line);
   border-inline-start:3px solid var(--edge);border-radius:var(--r-1);
   padding:var(--space-1) var(--space-2);overflow-wrap:anywhere}
@@ -374,13 +369,13 @@ PRIMITIVE_CSS = r"""
 .ib-fill i{display:inline-block;width:12px;height:12px;
   border-radius:var(--r-1);border:1px solid var(--edge);background:transparent}
 .ib-fill i.on{background:var(--ink);border-color:var(--ink)}
-.ib-fill-legend{font-family:var(--font-ledger);font-size:12px;line-height:1.4;
+.ib-fill-legend{font-family:var(--font-ledger);font-size:var(--text-xs);line-height:1.4;
   color:var(--mut)}
-.ib-path{font-family:var(--font-code);font-size:12px;line-height:1.5;
+.ib-path{font-family:var(--font-code);font-size:var(--text-xs);line-height:1.5;
   overflow-wrap:anywhere}
 .ib-setting-row{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-3);
   padding:var(--space-2) 0}
-.ib-setting-label{font-size:16px;line-height:1.5}
+.ib-setting-label{font-size:var(--text-body);line-height:1.5}
 .ib-settings-group + .ib-settings-group{border-top:1px solid var(--line);
   margin-top:var(--space-3);padding-top:var(--space-3)}
 .ib-walkthrough{border:1px solid var(--accent);border-radius:var(--r-3);
@@ -388,11 +383,11 @@ PRIMITIVE_CSS = r"""
   margin:0 0 var(--space-3)}
 .ib-walkthrough p{max-width:var(--measure-prose)}
 .ib-capture textarea{display:block;width:100%;min-width:0;min-height:44px;
-  max-height:calc(16px * 1.5 * 8 + var(--space-3));overflow-y:auto;
-  font-family:var(--font-paper);font-size:16px;line-height:1.5;
+  max-height:calc(var(--text-body) * 1.5 * 8 + var(--space-3));overflow-y:auto;
+  font-family:var(--font-paper);font-size:var(--text-body);line-height:1.5;
   color:var(--ink);background:var(--bg);border:1px solid var(--edge);
   border-radius:var(--r-1);padding:var(--space-2)}
-.ib-capture label{display:block;font-size:16px;font-weight:600;
+.ib-capture label{display:block;font-size:var(--text-body);font-weight:600;
   line-height:1.4;margin:var(--space-2) 0 var(--space-1)}
 .ib-stage{border:1px solid var(--line);border-radius:var(--r-3);
   padding:var(--density-card-pad);margin:0 0 var(--space-3)}
@@ -400,7 +395,7 @@ PRIMITIVE_CSS = r"""
   margin:var(--space-2) 0 0;padding:0;list-style:none}
 .ib-node{border:1px solid var(--line);border-radius:var(--r-1);
   padding:var(--space-1) var(--space-2);background:var(--chip);
-  font-family:var(--font-ledger);font-size:12px;line-height:1.4}
+  font-family:var(--font-ledger);font-size:var(--text-xs);line-height:1.4}
 .ib-diff{margin:0 0 var(--space-3)}
 .ib-diff pre{margin:var(--space-2) 0 0}
 """
