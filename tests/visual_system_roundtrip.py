@@ -644,6 +644,54 @@ def check_accent_is_swappable():
     ok("check_accent_is_swappable")
 
 
+def check_primitives_stay_direction_neutral():
+    """Plan 17A-03: a state's meaning belongs to the shared primitive layer,
+    never to a direction's stylesheet.
+
+    Three things are asserted. The prototype consumes
+    `presentation.fill_state` rather than carrying its own copy of D-06 ruling
+    10, and the old copy (which painted a standing with the reserved accent) is
+    gone for good. The primitive markup is byte-identical in all three
+    directions, so the comparison still measures one variable. And no overlay
+    redefines an `.ib-` selector, because a direction that could restyle a
+    state chip could change what the state means while the label kept saying
+    the old thing.
+    """
+    from surfaces import presentation, visual_fixture
+    data = load()
+    if "vf-fill" in visual_fixture.CHROME_CSS:
+        fail("the prototype still carries its own fill-state rules")
+    if hasattr(visual_fixture, "_fill_blocks"):
+        fail("the prototype still carries its own fill-state renderer")
+
+    bodies = []
+    for direction in DIRECTIONS:
+        body = visual_fixture.render_body(data, "source_linked_objective",
+                                          direction)
+        if "ib-fill" not in body:
+            fail("%s does not render the shared fill-state primitive"
+                 % direction)
+        bodies.append(re.findall(r'<[^>]*class="ib-[^"]*"[^>]*>', body))
+    if len(set(tuple(b) for b in bodies)) != 1:
+        fail("the primitive markup differs between directions, so a state "
+             "means something different depending on the look")
+
+    expected = presentation.fill_state(3, "x")
+    if expected.count("<i") != presentation.FILL_BLOCKS:
+        fail("the shared primitive stopped rendering five discrete blocks")
+
+    for name in os.listdir(visual_fixture.PROTOTYPE_DIR):
+        if not name.endswith(".css"):
+            continue
+        with open(os.path.join(visual_fixture.PROTOTYPE_DIR, name),
+                  encoding="utf-8") as fh:
+            sheet = fh.read()
+        if re.search(r"(^|[\s,{}])\.ib-", sheet):
+            fail("%s restyles a shared primitive; a direction is a token and "
+                 "stylesheet overlay over the SAME components" % name)
+    ok("check_primitives_stay_direction_neutral")
+
+
 def main():
     check_fixture_shape()
     check_no_em_dash()
@@ -674,6 +722,7 @@ def main():
     check_course_selector()
     check_controls_never_break_midword()
     check_accent_is_swappable()
+    check_primitives_stay_direction_neutral()
     if failures:
         print("\n%d failure(s)" % len(failures))
         return 1

@@ -184,10 +184,6 @@ h1 { font-size: var(--vf-h1); line-height: 1.15; letter-spacing: -0.02em;
 .vf-image-slot { aspect-ratio: 16 / 7; border-radius: var(--r-2);
      border: 1px dashed var(--line); background: var(--chip); }
 .vf-figure { margin: var(--space-5) 0; }
-.vf-fill { display: inline-block; width: 14px; height: 14px;
-     border-radius: var(--r-1); border: 1px solid var(--edge); margin-inline-end: 3px; }
-.vf-fill-on { background: var(--accent); border-color: var(--accent); }
-.vf-fill-off { background: transparent; }
 .vf-shelf { list-style: none; padding: 0; margin: 0; }
 .vf-card h3 { margin: 0 0 var(--space-1); font-size: var(--vf-h3); }
 .vf-card p { margin: 0; }
@@ -308,14 +304,13 @@ def mark_terms(text, seen=None):
     return TERM_RE.sub(swap, text)
 
 
-def _fill_blocks(filled, total=5):
-    """Five discrete blocks, never a continuous bar and never a percentage
-    (D-06 ruling 10). The legend text always sits beside them."""
-    marks = []
-    for index in range(total):
-        state = "on" if index < filled else "off"
-        marks.append('<span class="vf-fill vf-fill-%s" aria-hidden="true"></span>' % state)
-    return "".join(marks)
+# The fill-state blocks are NOT rendered here. `presentation.fill_state` is the
+# shared primitive for D-06 ruling 10, and this fixture had its own copy: five
+# spans, no accessible name, and `--accent` as the filled colour, which is the
+# one thing 17A-UI-SPEC's accent reserve forbids a standing display from using.
+# A prototype that renders a ruling differently from the shipped primitive is
+# testing something the product does not have, so the copy is gone and the
+# prototype consumes the primitive like any other surface.
 
 
 
@@ -830,10 +825,10 @@ def _objective(stage):
     return (
         '<p class="vf-source">Source: <cite>%s</cite></p>'
         '<h3>Prerequisites</h3><ul>%s</ul>'
-        '<p class="vf-standing">%s <span class="vf-legend">%s</span></p>'
+        '%s'
         % (_esc(source.get("label")), prereqs,
-           _fill_blocks(stage.get("fill_state", 0)),
-           _esc(stage.get("fill_legend"))))
+           presentation.fill_state(stage.get("fill_state", 0),
+                                   stage.get("fill_legend") or "")))
 
 
 def _lesson(stage):
