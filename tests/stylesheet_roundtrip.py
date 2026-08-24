@@ -437,7 +437,7 @@ def check_semantic_token_contrast():
     from surfaces import theme                                  # noqa: PLC0415
 
     problems = []
-    for mode in ("light", "dark"):
+    for mode in ("light", "dark", "oled"):
         semantic = theme.SEMANTIC_TOKENS.get(mode, {})
         base = theme.BASE_TOKENS.get(mode, {})
         for fg in SEMANTIC_FOREGROUNDS:

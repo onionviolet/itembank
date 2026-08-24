@@ -37,6 +37,12 @@ BASE_TOKENS = {
               "chip": "#eef2f1", "line": "#dfe5e3", "mut": "#5f6d6a"},
     "dark": {"bg": "#0e1413", "ink": "#e4ebe9", "card": "#161e1d",
              "chip": "#1d2726", "line": "#26312f", "mut": "#8fa19d"},
+    # OLED true-black ground: dark's per-surface offset above bg, translated
+    # down so bg is #000000 (card = #161e1d - #0e1413, likewise chip and
+    # line); ink and mut are reused from dark verbatim, because a darker
+    # ground only raises their measured ratios.
+    "oled": {"bg": "#000000", "ink": "#e4ebe9", "card": "#080a0a",
+             "chip": "#0f1313", "line": "#181d1c", "mut": "#8fa19d"},
 }
 
 # `unknown`/`pending` and the three `*_bg` backgrounds close 14-UI-SPEC §3.3:
@@ -62,6 +68,16 @@ SEMANTIC_TOKENS = {
               "pending": "#5b4a9f", "pending_bg": "#efecf7",
               "edge": "#7f8b88"},
     "dark": {"ok": "#4fbf74", "ok_bg": "#11291b", "bad": "#f0666a",
+             "bad_bg": "#2b1416", "warn": "#e0a23a", "warn_bg": "#2b2312",
+             "unknown": "#9aa7ad", "unknown_bg": "#1b2325",
+             "pending": "#b3a3e6", "pending_bg": "#221c33",
+             "edge": "#697774"},
+    # oled reuses dark's semantic set verbatim: each foreground was measured
+    # against dark's bg and card, and oled's grounds are strictly darker, so
+    # every ratio moves up. The proof is the fixture, not this comment:
+    # stylesheet_roundtrip's check_semantic_token_contrast re-measures every
+    # pairing through contrast_ratio at 4.5:1 text / 3.0:1 edge on each run.
+    "oled": {"ok": "#4fbf74", "ok_bg": "#11291b", "bad": "#f0666a",
              "bad_bg": "#2b1416", "warn": "#e0a23a", "warn_bg": "#2b2312",
              "unknown": "#9aa7ad", "unknown_bg": "#1b2325",
              "pending": "#b3a3e6", "pending_bg": "#221c33",
@@ -196,17 +212,18 @@ def derive_theme(source):
     """Deterministic per-mode palette for one source accent.
 
     Returns ``{"source": normalized, "light": {...}, "dark": {...},
-    "adjusted_modes": [...]}``; each mode carries ``accent``, ``accent_soft``,
-    the base tokens, and the fixed semantic token set. Any accessibility
-    correction preserves the source value and is reported in
+    "oled": {...}, "adjusted_modes": [...]}``; each mode carries ``accent``,
+    ``accent_soft``, the base tokens, and the fixed semantic token set. Any
+    accessibility correction preserves the source value and is reported in
     ``adjusted_modes``; no derived value is persisted anywhere.
     """
     src = normalize_source(source)
     if src is None:
         sys.exit("settings.invalid_value: %r is not an opaque #RRGGBB color"
                  % (source,))
-    derived = {"source": src, "light": {}, "dark": {}, "adjusted_modes": []}
-    for mode in ("light", "dark"):
+    derived = {"source": src, "light": {}, "dark": {}, "oled": {},
+               "adjusted_modes": []}
+    for mode in ("light", "dark", "oled"):
         accent, adjusted = _accent_for_mode(src, mode)
         tokens = dict(BASE_TOKENS[mode])
         tokens["accent"] = accent
@@ -294,6 +311,8 @@ def theme_css(config):
     derived = derive_theme(accent)
     if mode == "dark":
         return _root_block(derived["dark"])
+    if mode == "oled":
+        return _root_block(derived["oled"])
     light = _root_block(derived["light"])
     if mode == "light":
         return light

@@ -134,8 +134,8 @@ def test_theme_schema_additive_accent():
     """
     schema = json.load(open(SCHEMA_PATH, encoding="utf-8"))
     theme = schema["properties"]["theme"]
-    if theme["enum"] != ["system", "light", "dark"] or theme["default"] != "system":
-        fail("theme property changed; it must stay system|light|dark default system")
+    if theme["enum"] != ["system", "light", "dark", "oled"] or theme["default"] != "system":
+        fail("theme property changed; it must stay system|light|dark|oled default system")
     accent = schema["properties"].get("accent")
     if not accent:
         fail("schema has no top-level accent group")
@@ -717,6 +717,7 @@ def test_all_codes_reachable():
 
 def main():
     test_schema_names_every_project_key()
+    test_theme_schema_additive_accent()
     test_accent_source_hex_pattern()
     test_boundary_values_exact()
     test_config_no_args_prints_table()

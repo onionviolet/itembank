@@ -29,11 +29,12 @@
   "properties": {
     "theme": {
       "type": "string",
-      "description": "The app's color theme. Read by this phase (4).",
+      "description": "The app's color theme. Read by this phase (4). The oled value is a true-black variant of dark for OLED displays.",
       "enum": [
         "system",
         "light",
-        "dark"
+        "dark",
+        "oled"
       ],
       "default": "system",
       "x-itembank-phase": 4
