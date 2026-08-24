@@ -117,9 +117,15 @@ frozen only after the slice has been walked.
       store, and at least one later plan (14B, 15A, or the 3.2-style warning
       calibration obligations) names that evidence as its calibration corpus in
       place of a synthetic fixture.
-- [ ] Phase 13.5 waves 3 and later are scheduled before or beside the
+- [x] Phase 13.5 waves 3 and later are scheduled before or beside the
       skeleton, or explicitly waived with a reason, because the skeleton
       renders through exactly the surfaces 13.5 hardens.
+      (WAIVED 2026-08-24 by Weibao, reason and measured supporting evidence in
+      `13.9-DECISIONS.md` entry 2026-08-24: 17A-02 and 17A-03 hardened the
+      token layer and primitive layer these surfaces render through on the same
+      date, and a smoke test of the sitting path found the loop working with
+      one cosmetic defect, `Item 1 of 0`, routed to 13.5. This waiver closes
+      this checkbox only; every other A9 box still requires the real sitting.)
 - [ ] Freeze gates in A3 that the skeleton can exercise cheaply (graph-to-
       outline, rich-lesson stress corpus) cite skeleton artifacts where they
       exist rather than inventing parallel fixtures.
