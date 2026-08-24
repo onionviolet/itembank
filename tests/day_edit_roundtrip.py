@@ -235,6 +235,27 @@ def run_cli(args, cwd=None, timeout=15):
     return result.returncode, result.stdout
 
 
+def cli_json(out):
+    """The JSON document inside a merged CLI stream.
+
+    `run_cli` merges stderr into stdout so a caller can assert on an advisory
+    line, and the day surface legitimately writes advisories to that stream:
+
+        note: no _evidence/evidence.jsonl found yet; reading ticks straight
+        from ...
+
+    A bare `cli_json(out)` therefore passes or fails on whether some earlier
+    suite in the same run happened to create `_evidence/`, which is an
+    order-dependent flake in the harness rather than a defect in the command.
+    Parsing from the first line that opens a document is stable either way,
+    and a stream carrying no document still fails, with the stream quoted.
+    """
+    for i, line in enumerate(out.splitlines()):
+        if line.lstrip()[:1] in ("{", "["):
+            return json.loads("\n".join(out.splitlines()[i:]))
+    raise ValueError("no JSON document in the CLI stream: %r" % out[-600:])
+
+
 def http_post(url, payload, timeout=5):
     """POST a JSON payload, returning parsed JSON. Raises HTTPError on a
     non-2xx so callers can assert refusal codes exactly.
@@ -333,7 +354,7 @@ def check_task1_snapshot_via_cli():
         code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit"])
         if code != 0:
             fail("snapshot exited %d, want 0: %s" % (code, out))
-        snap = json.loads(out)
+        snap = cli_json(out)
         if snap.get("status") != "ready":
             fail("snapshot status %r, want 'ready'" % snap.get("status"))
         if not re.fullmatch(r"[0-9a-f]{64}", snap.get("revision", "")):
@@ -364,13 +385,13 @@ def check_task1_single_cell_edit():
         path = write_plan(tmp, [HEADER, row_for()])
         before = open(path, "rb").read()
         code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit"])
-        snap = json.loads(out)
+        snap = cli_json(out)
         rev = snap["revision"]
         code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit",
                              "--set", "EMT=ch 3, start", "--revision", rev])
         if code != 0:
             fail("save exited %d: %s" % (code, out))
-        result = json.loads(out)
+        result = cli_json(out)
         if result.get("status") != "saved":
             fail("save status %r, want 'saved'" % result.get("status"))
         if result.get("revision") == rev:
@@ -405,7 +426,7 @@ def check_task1_preservation_corpus():
             code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit"])
             if code != 0:
                 fail("%s: snapshot exited %d: %s" % (name, code, out))
-            snap = json.loads(out)
+            snap = cli_json(out)
             if snap.get("status") != "ready":
                 fail("%s: snapshot status %r, want ready" % (name, snap.get("status")))
             editable = [c for c in snap["columns"] if c != "Date"]
@@ -419,7 +440,7 @@ def check_task1_preservation_corpus():
                                  "--revision", snap["revision"]])
             if code != 0:
                 fail("%s: save exited %d: %s" % (name, code, out))
-            result = json.loads(out)
+            result = cli_json(out)
             if result.get("status") != "saved":
                 fail("%s: save status %r, want saved" % (name, result.get("status")))
             after = open(path, "rb").read()
@@ -485,7 +506,7 @@ def check_task1_escape_survival_outside_edit():
             fh.write(doc)
         before = open(path, "rb").read()
         code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit"])
-        snap = json.loads(out)
+        snap = cli_json(out)
         if snap.get("status") != "ready":
             fail("survival: snapshot not ready: %r" % snap)
         if snap["cells"].get("EMT") != "read p. 1 | 2":
@@ -498,7 +519,7 @@ def check_task1_escape_survival_outside_edit():
                              "--revision", snap["revision"]])
         if code != 0:
             fail("survival: save exited %d: %s" % (code, out))
-        result = json.loads(out)
+        result = cli_json(out)
         if result.get("status") != "saved":
             fail("survival: save status %r" % result.get("status"))
         after = open(path, "rb").read()
@@ -534,7 +555,7 @@ def check_task1_refusals():
             code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit"])
             if code == 0:
                 fail("%s: refusal snapshot exited 0" % name)
-            result = json.loads(out)
+            result = cli_json(out)
             if result.get("status") not in ("invalid", "unsupported"):
                 fail("%s: snapshot status %r, want invalid/unsupported"
                      % (name, result.get("status")))
@@ -546,14 +567,14 @@ def check_task1_refusals():
         path = write_plan(tmp, [HEADER, row_for()], "valid.md")
         before = open(path, "rb").read()
         code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit"])
-        snap = json.loads(out)
+        snap = cli_json(out)
 
         code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit",
                              "--set", "NoSuchColumn=value",
                              "--revision", snap["revision"]])
         if code == 0:
             fail("unknown-column edit exited 0, want failure")
-        result = json.loads(out)
+        result = cli_json(out)
         if result.get("status") != "invalid":
             fail("unknown-column edit status %r, want invalid" % result.get("status"))
         if result.get("draft") != {"NoSuchColumn": "value"}:
@@ -565,7 +586,7 @@ def check_task1_refusals():
         code, out = run_cli(["day", path, "--date", "2026-01-07", "--edit",
                              "--set", "Date=2026-01-08",
                              "--revision", snap["revision"]])
-        result = json.loads(out)
+        result = cli_json(out)
         if result.get("status") != "invalid":
             fail("date-column edit status %r, want invalid" % result.get("status"))
 
@@ -583,7 +604,7 @@ def check_task1_refusals():
         code, out = run_cli(["day", path, "--date", "2026-01-08", "--edit"])
         if code == 0:
             fail("missing-date snapshot exited 0, want failure")
-        result = json.loads(out)
+        result = cli_json(out)
         if result.get("status") != "invalid":
             fail("missing-date snapshot status %r, want invalid" % result.get("status"))
 
@@ -665,7 +686,7 @@ def check_task2_conflict_no_write():
                              "--set", "EMT=ch 3", "--revision", snap["revision"]])
         if code == 0:
             fail("CLI conflict exited 0")
-        cli = json.loads(out)
+        cli = cli_json(out)
         if cli.get("status") != "conflict":
             fail("CLI conflict status %r" % cli.get("status"))
         if cli.get("draft") != {"EMT": "ch 3"}:
@@ -808,7 +829,7 @@ def check_task2_confirmed_force():
                              "--force", "--confirm-force", "OVERWRITE"])
         if code != 0:
             fail("CLI confirmed force exited %d: %s" % (code, out))
-        cli = json.loads(out)
+        cli = cli_json(out)
         if cli.get("status") != "saved":
             fail("CLI confirmed force status %r" % cli.get("status"))
 
