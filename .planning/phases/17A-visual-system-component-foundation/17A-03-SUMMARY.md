@@ -87,6 +87,19 @@ resolve a frozen token name to its value is a one-function change in
 `tests/stylesheet_roundtrip.py`, which is not in this plan's `files_modified`;
 it is the right next move and belongs to whoever owns that file next.
 
+> **Closed the same day, 2026-08-24, in commit `544fef1`.** The orchestrating
+> session already owned `tests/stylesheet_roundtrip.py` from 17A-02 and 17A-05,
+> so it made the one-function change rather than leaving the freeze
+> unconsumable. `size_problems` now resolves the five frozen names to their
+> values and nothing else: `var(--text-xs)` and `var(--text-body)` pass,
+> `var(--space-2)` and `14px` still fail. The fourteen `font-size` declarations
+> in `PRIMITIVE_CSS` name their token now, and the note-capture eight-line
+> grow ceiling tracks `var(--text-body)` rather than restating 16px. The
+> `font` shorthand hole this section names is still open and still unexploited.
+> The twenty-six literal sizes in `SHARED_CSS`'s own rules were deliberately
+> left alone: they are on the scale, and collapsing them is the wider 13.5
+> quiz-scale sweep that 17A-UI-SPEC D-03 assigns elsewhere.
+
 **2. `prototypes/17a/itembank-prototype.html` is already stale.** It is a
 committed export of `visual_fixture.single_file()`. Regenerated with this
 plan's changes reverted in memory, the generator produces 97,410 bytes against
