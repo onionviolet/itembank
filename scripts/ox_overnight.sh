@@ -9,7 +9,10 @@
 #                                        # Never stored in this repo either way.
 #   scripts/ox_overnight.sh              # both plans, in this checkout
 #   scripts/ox_overnight.sh 17A-07       # one plan
-#   IB_DIR=~/dev/IB-17A-03 scripts/ox_overnight.sh 17A-03    # in a worktree
+#   IB_ALLOW_WORKTREE=1 IB_DIR=~/dev/IB-17A-03 \
+#     scripts/ox_overnight.sh 17A-03     # in a worktree, and YOU commit the
+#                                        # result: the agent cannot. See the
+#                                        # worktree guard below.
 #   scripts/ox_overnight.sh 13.9-01 13.9-02 17A-03           # spans phases; the
 #                                                            # prompt is chosen
 #                                                            # per plan id
@@ -48,6 +51,33 @@ read -r -a PLANS <<< "${*:-17A-07 17A-08}"
 
 fail() { echo "ox_overnight: $*" >&2; exit 1; }
 
+# A worktree's .git is a FILE pointing at a directory inside the main
+# checkout, so the agent's sandbox, whose writable root is the tree it was
+# handed, cannot write the index. Every `git add` fails with `Operation not
+# permitted` and the run finishes its work with nothing committed. That is
+# exactly what happened to 17A-05 on 2026-08-24: the plan was executed and
+# verified, and zero commits landed.
+#
+# Refuse early rather than discover it at the first commit. Either run in the
+# main checkout (queue with ox_queue.sh; never two agents in one tree at
+# once), or accept that you will commit the result yourself, which is what
+# IB_ALLOW_WORKTREE=1 says out loud.
+GITDIR="$(cd "$REPO" && git rev-parse --absolute-git-dir)"
+case "$GITDIR" in
+  "$REPO"/*|"$REPO") ;;
+  *)
+    if [ -z "${IB_ALLOW_WORKTREE:-}" ]; then
+      fail "$REPO is a worktree whose git directory is $GITDIR, outside it.
+  The agent's sandbox cannot write there, so it will do the work and commit
+  nothing. Run in the main checkout via scripts/ox_queue.sh, or set
+  IB_ALLOW_WORKTREE=1 if you intend to review and commit the result yourself."
+    fi
+    echo "ox_overnight: WARNING, $REPO is a worktree and its git directory is"
+    echo "ox_overnight: outside it. The agent will not be able to commit."
+    echo "ox_overnight: You are expected to review and commit the result."
+    ;;
+esac
+
 # Key resolution, in dsh's own precedence order: the launching environment wins,
 # then the managed credentials document. Saving it in the document means no
 # export is needed and the key never sits in shell history.
@@ -80,6 +110,7 @@ esac
 
 cd "$REPO" || fail "cannot enter $REPO"
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+
 echo "ox_overnight: tree $REPO on branch $BRANCH"
 
 for PLAN in "${PLANS[@]}"; do
