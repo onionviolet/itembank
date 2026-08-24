@@ -395,8 +395,68 @@ def check_local_day_recut():
     print("  day re-cuts from one fresh snapshot after a live event; old payload stable")
 
 
+def check_day_composes_one_shell():
+    """Plan 17A-02: the day route composes `presentation.surface_shell` rather
+    than assembling a second document, and its content survives the move.
+
+    Parity, not appearance, is what is asserted here. `day.py` was the one
+    served route that owned its own doctype, so it carried neither the shared
+    token layer nor a single vendored face. The migration is only worth
+    anything if every section, id and boot payload the day JS binds to came
+    through unchanged, so both halves are checked in one place: the shell is
+    present exactly once, and every part of the route is still there.
+    """
+    from surfaces import day as day_mod, presentation, theme
+    hist = [{"status": "full", "date": "2026-08-23"},
+            {"status": "miss", "date": "2026-08-22"}]
+    row = {"EMT": "water practice", "Math": "sets"}
+    html_out = day_mod.day_page("2026-08-24", "Monday", row, {}, 3, hist,
+                                "plan.md", theme_css=theme.THEME_CSS)
+
+    for marker, why in ((("<!doctype html>"), "one doctype"),
+                        ("<h1>", "one h1"),
+                        ("<main>", "one main landmark")):
+        if html_out.count(marker) != 1:
+            fail("day emits %d of %s; the shell must own exactly %s"
+                 % (html_out.count(marker), marker, why))
+    if '<div class="surface"' not in html_out:
+        fail("day is not inside the shared surface wrapper, so it did not go "
+             "through presentation.surface_shell")
+    if presentation.SHARED_CSS not in html_out:
+        fail("the day document does not carry SHARED_CSS verbatim; a served "
+             "route outside the token layer is what 17A-02 exists to end")
+    faces = html_out.count("src:url(\"/assets/fonts/")
+    if faces != 4:
+        fail("day declares %d of the 4 vendored faces; before this migration "
+             "it declared none" % faces)
+
+    # The tab keeps the date while the heading keeps the weekday. That split
+    # predates the migration and a shell that collapsed them would be a
+    # silent content change.
+    if "<title>2026-08-24</title>" not in html_out:
+        fail("the day document title is no longer the date")
+    if "<h1>Monday</h1>" not in html_out:
+        fail("the day heading is no longer the weekday")
+
+    # Every id and section the day JS binds to, plus the boot payload.
+    for hook in ("id=streak", "id=streakword", "id=hist", "id=verdict",
+                 "class=sub", "class=bar", "class=note",
+                 "window.__day__=", "Plan read from"):
+        if hook not in html_out:
+            fail("the migrated day page lost %r; route content must be "
+                 "unchanged by a shell migration" % hook)
+    for lane in day_mod.DAY_LANES:
+        if lane not in html_out:
+            fail("the migrated day page lost the %s lane" % lane)
+    if html_out.rstrip().index("window.__day__=") < html_out.index("</main>"):
+        fail("the boot script moved inside main; it belongs after the "
+             "landmark, where it was")
+    print("  day composes one shared shell: token layer, 4 faces, content parity")
+
+
 def main():
     check_parser()
+    check_day_composes_one_shell()
     check_floor()
     check_streak_ignores_unfinished_today()
     check_server()

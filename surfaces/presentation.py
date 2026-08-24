@@ -154,7 +154,37 @@ body{margin:0;background:var(--bg);color:var(--ink);
   --leading-lesson:1.65;
   --r-1:6px;
   --r-2:8px;
-  --r-3:12px
+  --r-3:12px;
+  /* The five frozen type tokens (17A-UI-SPEC Typography, plan 17A-02 Task 2).
+     These are a transcription of the sizes already rendering across
+     quiz_page.py, lesson.py, study.py and this file, not a new scale: there
+     is no sixth size, and a component that wants one routes the need through
+     these five rows first. Each token carries only the SIZE; the paired
+     weight and line height stay in the rule that uses it, because a weight
+     belongs to a heading rather than to a size. */
+  --text-xs:12px;
+  --text-body:16px;
+  --text-lesson:18px;
+  --text-heading:20px;
+  --text-display:32px;
+  /* Density aliases (17A-UI-SPEC Density tokens). Comfortable is the default
+     and is what every existing rule already spaces by, so adopting a token
+     changes nothing until a surface opts into compact. Every value on both
+     sides is an alias of the existing --space-* scale, never a new raw pixel,
+     which is what keeps compact bounded: --space-1 is the floor of the scale,
+     so density cannot express anything tighter than 4px. The 44px touch
+     target is fixed regardless of density and is not aliased here. */
+  --density-row-gap:var(--space-3);
+  --density-card-pad:var(--space-3);
+  --density-list-gap:var(--space-2)
+}
+/* Compact is one opt-in attribute on any ancestor, so a dense panel can sit
+   inside a comfortable page. The bound is the alias, not a clamp: there is no
+   third step below this one. */
+[data-density="compact"]{
+  --density-row-gap:var(--space-2);
+  --density-card-pad:var(--space-2);
+  --density-list-gap:var(--space-1)
 }
 .surface{max-width:720px;margin:0 auto;padding:24px 16px 64px;min-width:0}
 .surface.wide{max-width:800px}
@@ -279,12 +309,25 @@ def _action_markup(action, primary=False):
 
 
 def surface_shell(title, body, theme_css="", back=None, wide=False,
-                  context=None, noscript=None):
+                  context=None, noscript=None, extra_css="", doc_title=None,
+                  tail="", classes=""):
     """The one shared semantic document shell: doctype, generated theme
     block plus shared design-token CSS, an optional sticky context line,
     an optional back link, a single `h1`, a `main` landmark holding `body`,
     and an optional `<noscript>` fallback note. `wide=True` uses the 800px
     quiz measure; the default is the 720px reading column.
+
+    The four trailing arguments exist so a surface can join this shell
+    instead of assembling a second one, which is the whole point of plan
+    17A-02: a token freeze that a served route bypasses is not a freeze.
+    Each defaults to today's behaviour, so no existing caller changes.
+
+    `extra_css` is emitted AFTER `SHARED_CSS`, so a surface's own sheet still
+    wins the cascade it won when it owned the whole document. `doc_title`
+    separates the `<title>` element from the `h1` for a route whose two
+    headings legitimately differ. `tail` is markup placed after `main` and
+    the noscript note, which is where a boot script belongs. `classes` adds
+    to the shell wrapper, which is how a route opts into compact density.
     """
     parts = []
     if context:
@@ -297,13 +340,18 @@ def surface_shell(title, body, theme_css="", back=None, wide=False,
     ns = ""
     if noscript is not None:
         ns = "<noscript><p>%s</p></noscript>" % esc(noscript)
-    style = "<style>\n%s\n%s\n</style>" % (theme_css, SHARED_CSS)
+    sheet = SHARED_CSS if not extra_css else (SHARED_CSS + "\n" + extra_css)
+    style = "<style>\n%s\n%s\n</style>" % (theme_css, sheet)
     cls = "surface" + (" wide" if wide else "")
+    if classes:
+        cls = cls + " " + classes
+    head_title = title if doc_title is None else doc_title
     return ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
             "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
             "<title>%s</title>%s</head><body><div class=\"%s\">%s<main>%s"
-            "</main>%s</div></body></html>"
-            % (esc(title), style, esc(cls), "\n".join(parts), body, ns))
+            "</main>%s%s</div></body></html>"
+            % (esc(head_title), style, esc(cls), "\n".join(parts), body, ns,
+               tail))
 
 
 def context_line(parts, label="Context"):

@@ -95,19 +95,18 @@ STATIC_DOC = "module constants (reported, never failed on)"
 # the shape of the pooling that let D-B through. `served /quiz/lesson_bank` is
 # the route the shared-CSS include exists for.
 REQUIRED_FONT_ROUTES = ("served /lesson/lesson_bank", "served /quiz/lesson_bank",
-                        "served /study/lesson_bank")
+                        "served /study/lesson_bank", "served /day/sample_plan")
 
-# `served /day/sample_plan` is deliberately NOT in the required set, and this
-# is a recorded gap rather than a waiver. `surfaces/day.py` assembles its own
-# document from `theme_css(cfg) + DAY_CSS` instead of going through
-# `presentation.surface_shell`, so it has never carried the shared token layer
-# and declares no face -- the same defect as D-B, on a surface plan 14-01 does
-# not own (14-UI-SPEC §4.2: "this phase does not widen its diff to reach
-# them"). Joining a fourth surface inside the phase's tracer slice is exactly
-# what would make the tracer unverifiable. A route outside the required set is
-# REPORTED on every run, never silently pooled, so the gap stays visible until
-# a plan claims it.
-REPORTED_FONT_ROUTES = ("served /day/sample_plan",)
+# `served /day/sample_plan` WAS the one recorded gap here. Plan 14-01 left it
+# out because `surfaces/day.py` assembled its own document from
+# `theme_css(cfg) + DAY_CSS` instead of going through
+# `presentation.surface_shell`, so it carried neither the shared token layer
+# nor a single face: the same defect as D-B, on a surface that phase did not
+# own. Plan 17A-02 claimed the surface and migrated it, so the route moved up
+# into the required set above and the reported set is now empty. Leaving the
+# tuple in place, rather than deleting it, keeps the mechanism that made the
+# gap visible for the next surface that needs it.
+REPORTED_FONT_ROUTES = ()
 
 # 14-UI-SPEC §15 gate 12. The project type scale is five sizes at two weights,
 # and a family is named only by token (.planning/UI-SPEC.md §7).
@@ -549,6 +548,111 @@ def bad_family_names(value):
             if part.strip() and not VAR_ONLY_RE.match(part.strip())]
 
 
+# ---- invariant 10: the 17A frozen token layer ------------------------------
+
+# 17A-UI-SPEC Typography, frozen by plan 17A-02. Name to exact declared value.
+# The set of VALUES is asserted to equal TYPE_SCALE_SIZES, so a sixth size
+# cannot enter through a token while gate 12 keeps passing on literals.
+FROZEN_TYPE_TOKENS = {"--text-xs": "12px", "--text-body": "16px",
+                      "--text-lesson": "18px", "--text-heading": "20px",
+                      "--text-display": "32px"}
+
+# 17A-UI-SPEC Density tokens. Each row is (comfortable, compact), and each side
+# must be an ALIAS of the existing spacing scale, never a raw length: that
+# aliasing is the whole bound. --space-1 is the floor of the scale, so nothing
+# tighter than 4px is expressible.
+DENSITY_TOKENS = {"--density-row-gap": ("--space-3", "--space-2"),
+                  "--density-card-pad": ("--space-3", "--space-2"),
+                  "--density-list-gap": ("--space-2", "--space-1")}
+# Matched against the RAW stylesheet, not the normalised one: `normalise`
+# blanks quoted-string contents, so the word `compact` inside the attribute
+# selector is whitespace by the time the brace scanner sees it.
+COMPACT_SELECTOR_RE = re.compile(r"\[data-density\s*=\s*[\"']?compact")
+DECL_RE = re.compile(r"(?<![\w-])(--[A-Za-z0-9_-]+)\s*:\s*([^;{}]+)")
+TOUCH_TARGET_PX = 44
+
+
+def declared_values(css, name):
+    """Every value declared for one custom property in one stylesheet."""
+    return [value.strip() for prop, value in DECL_RE.findall(normalise(css))
+            if prop == name]
+
+
+def check_frozen_type_tokens(sheets):
+    """The five named type tokens exist, carry their UI-SPEC values, and add no
+    sixth size to the scale gate 12 already polices.
+
+    Gate 12 checks literal `font-size` declarations. Without this, a token
+    could introduce a 14px sixth step and gate 12 would never see it, because
+    the rule that consumes it reads `font-size:var(--text-small)`.
+    """
+    found = {}
+    for name, raw in sheets:
+        for token, expected in FROZEN_TYPE_TOKENS.items():
+            for value in declared_values(raw, token):
+                found.setdefault(token, set()).add(value)
+                if value != expected:
+                    fail("%s declares %s:%s; 17A-UI-SPEC freezes it at %s, and "
+                         "a redefinition is how a scale stops being one"
+                         % (name, token, value, expected))
+    missing = sorted(set(FROZEN_TYPE_TOKENS) - set(found))
+    if missing:
+        fail("the frozen type tokens are not defined anywhere in the emitted "
+             "CSS: %s. The freeze is a claim about served bytes, not about a "
+             "specification document" % ", ".join(missing))
+    sizes = set(int(v[:-2]) for v in FROZEN_TYPE_TOKENS.values())
+    if sizes != set(TYPE_SCALE_SIZES):
+        fail("the five frozen type tokens cover %s but the project type scale "
+             "is %s; a token and a literal may not disagree about how many "
+             "sizes exist" % (sorted(sizes), sorted(TYPE_SCALE_SIZES)))
+
+
+def check_density_bounds(sheets):
+    """Density is bounded because both sides alias the spacing scale.
+
+    A raw pixel value on either side would let a future edit express a
+    half-step, and the 44px touch floor is asserted to be independent of
+    density in the same pass: a target sized by a density token is a target
+    that shrinks when a panel goes compact.
+    """
+    comfortable, compact = {}, {}
+    for name, raw in sheets:
+        # Everything before the compact selector is the comfortable default,
+        # everything from it onward is the compact override. Splitting on the
+        # selector is enough because the override is one flat block.
+        hit = COMPACT_SELECTOR_RE.search(raw)
+        halves = ((raw, comfortable),) if not hit else \
+                 ((raw[:hit.start()], comfortable), (raw[hit.start():], compact))
+        for half, bucket in halves:
+            for token in DENSITY_TOKENS:
+                for value in declared_values(half, token):
+                    if not VAR_ONLY_RE.match(value):
+                        fail("%s declares %s:%s, which is not an alias of the "
+                             "spacing scale; density stays bounded only while "
+                             "every value is a var(--space-N)"
+                             % (name, token, value))
+                    alias = CUSTOM_NAME_RE.search(value).group(0)
+                    bucket.setdefault(token, set()).add(alias)
+    for token, (want_comfortable, want_compact) in DENSITY_TOKENS.items():
+        got_c = comfortable.get(token, set())
+        got_x = compact.get(token, set())
+        if got_c != {want_comfortable}:
+            fail("comfortable %s resolves to %s; 17A-UI-SPEC sets it to %s"
+                 % (token, sorted(got_c) or "nothing", want_comfortable))
+        if got_x != {want_compact}:
+            fail("compact %s resolves to %s; 17A-UI-SPEC sets it to %s"
+                 % (token, sorted(got_x) or "nothing", want_compact))
+    for name, raw in sheets:
+        norm = normalise(raw)
+        for prop in ("min-height", "min-width"):
+            for match in re.finditer(prop + r"\s*:\s*([^;{}]+)", norm):
+                value = match.group(1).strip()
+                if "--density-" in value:
+                    fail("%s sizes a %s from a density token (%s). The %dpx "
+                         "touch target is fixed regardless of density"
+                         % (name, prop, value, TOUCH_TARGET_PX))
+
+
 def check_type_scale(sheets):
     """14-UI-SPEC §15 gate 12: inside the files this phase owns, no font size
     outside {12,16,18,20,32}px, no font weight outside {400,600}, and no
@@ -939,6 +1043,8 @@ def main():
         check_balanced_braces(sheets)
         check_popover_scope(sheets)
         check_token_completeness(sheets)
+        check_frozen_type_tokens(sheets)
+        check_density_bounds(sheets)
         check_type_scale(sheets)
         check_no_colour_literal(sheets)
         check_control_boundary_token(sheets)

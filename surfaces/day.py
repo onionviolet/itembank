@@ -731,11 +731,19 @@ def day_history(log, today, span=14):
     return out
 
 
+# What is left of the day sheet after plan 17A-02 moved the document shell to
+# `presentation.surface_shell`. The reset, the reading column, the centring and
+# the box-sizing rule are the shell's now and were deleted here rather than
+# overridden, because two owners of one layout is the duplication the migration
+# exists to remove. The three lines below are the parts that are genuinely
+# day's: the 15px/1.45 chrome font this route reads at, the iOS text-size
+# guard, and day's tighter column padding, which the shell's 24/64 reading
+# padding would otherwise loosen. This sheet is emitted after SHARED_CSS, so it
+# still wins the cascade it won when it owned the whole document.
 DAY_CSS = """
-*{box-sizing:border-box}
-body{margin:0;padding:14px 16px 24px;font:15px/1.45 -apple-system,BlinkMacSystemFont,
-"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);
-max-width:720px;margin-inline:auto;-webkit-text-size-adjust:100%}
+body{font:15px/1.45 -apple-system,BlinkMacSystemFont,
+"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+.surface{padding:14px 16px 24px}
 h1{font-size:1.35rem;margin:0 0 1px}
 .sub{color:var(--mut);font-size:.85rem;margin-bottom:10px}
 .bar{display:flex;align-items:center;gap:14px;padding:9px 14px;border-radius:12px;
@@ -1444,10 +1452,13 @@ def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None,
     empty_row = ""
     if not plan_row:
         empty_row = '<div class="empty">No plan row for this date.</div>'
-    return ("<!doctype html><html lang=en><head><meta charset=utf-8>"
-            "<meta name=viewport content='width=device-width,initial-scale=1'>"
-            "<title>%s</title><style>%s</style></head><body>"
-            "<h1>%s</h1><div class=sub>%s</div>%s"
+    # One shell, composed rather than re-assembled. `doc_title` keeps the tab
+    # showing the date while the h1 stays the weekday, which is the split this
+    # route always had; `tail` keeps the boot script at the end of the
+    # document, where it was. Route content and behaviour are unchanged: the
+    # same sections in the same order, the same ids the JS binds to, and the
+    # same boot payload.
+    body = ("<div class=sub>%s</div>%s"
             "<div class=bar><div class=streak id=streak>%d"
             "<small><span id=streakword>%s</span> unbroken</small></div>"
             "<div class=hist id=hist>%s</div></div>"
@@ -1458,15 +1469,18 @@ def day_page(iso, weekday, plan_row, done, streak, hist, plan_path, info=None,
             "%s%s"
             "%s<div class=note>Plan read from <code>%s</code>. Ticks are written to disk "
             "as you make them.</div>"
-            "<script>window.__day__=%s;\n%s</script></body></html>"
-            % (e(iso), theme_css + DAY_CSS, e(weekday), e(iso), chips,
+            % (e(iso), chips,
                streak, "day" if streak == 1 else "days",
                "".join('<i class="%s" title="%s: %s"></i>'
                        % ("" if h["status"] == "miss" else h["status"], h["date"], h["status"])
                        for h in hist),
                "".join(lanes), today_html, editor, empty_row, pacing, anki,
-               notes, e(plan_path),
-               presentation.script_safe_json(boot), DAY_JS))
+               notes, e(plan_path)))
+    tail = ("<script>window.__day__=%s;\n%s</script>"
+            % (presentation.script_safe_json(boot), DAY_JS))
+    return presentation.surface_shell(weekday, body, theme_css=theme_css,
+                                      doc_title=iso, extra_css=DAY_CSS,
+                                      tail=tail)
 
 
 def lan_address():
