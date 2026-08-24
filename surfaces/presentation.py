@@ -271,6 +271,149 @@ pre{background:var(--chip);border:1px solid var(--line);border-radius:8px;
 """
 
 
+# ---- 17A-03: the accessible component primitive layer ---------------------
+#
+# One CSS block for every 16B/16C component primitive below. It is appended to
+# SHARED_CSS at the bottom of this section, so every surface that composes
+# `surface_shell` already carries it and no component ships a second sheet.
+#
+# What this block may and may not do, and why each bound is mechanical rather
+# than documentary:
+#
+#   - Colour comes from `surfaces/theme.py` by token name only. There is no
+#     hex, rgb or hsl literal here. `--accent` appears exactly once, on the
+#     walkthrough callout border, which is the one use 17A-UI-SPEC's component
+#     table assigns it. A status chip, a job outcome or a fill-state block
+#     that reached for it would widen the reserve, so none of them do: the
+#     fill block is `--ink`, and every chip is its own semantic token.
+#   - Spacing comes from `--space-*`, panel padding and list gaps from
+#     `--density-*`, radius from `--r-*`. No raw length is introduced except
+#     the two glyph box sizes (the fill block and the chip dot), which are
+#     decorative marks rather than spacing and are not interactive targets.
+#   - `min-height` on an interactive control is a literal 44px and is never
+#     sized from a density token, so compact density cannot shrink a target.
+#   - NO TRUNCATION RULE ANYWHERE. Neither `white-space` nor the overflow
+#     ellipsis property appears in this block, and three shipped fixtures scan
+#     the served bytes for exactly those two strings. The one place
+#     17A-UI-SPEC does authorise a clipped label (Direction-Neutral #8, the
+#     decorative concept-map node) is therefore clipped in PYTHON, in
+#     `_clip_node_label`, with the full label kept untouched in the textual
+#     adjacency list that is the accessible form.
+#
+# ONE RECORDED CONTRADICTION WITH THE PLAN'S KEY LINK, measured 2026-08-24.
+# The key link asks primitive CSS to consume the frozen `--text-*` tokens.
+# It cannot yet, and the blocker is a fixture rather than a preference:
+# `tests/stylesheet_roundtrip.py:size_problems` matches every `font-size`
+# value against `LENGTH_RE` and reports "not a length this scale can check"
+# for anything that is not a literal px, so `font-size:var(--text-xs)` fails
+# gate 12 today. Verified directly:
+#
+#     >>> size_problems('x', 'font-size', 'var(--text-xs)')
+#     ['x declares font-size:var(--text-xs), which is not a length ...']
+#
+# The `font` shorthand does slip past (a var-valued size makes `size_at` -1
+# and the whole shorthand goes unchecked), which is a hole in the gate and not
+# a licence to use it. So every size below is a literal px identical to the
+# frozen token's own value, which is what every rule already in SHARED_CSS
+# does, and no sixth size enters. Teaching the gate to resolve a frozen token
+# name to its value is a one-function change in a file this plan does not
+# own; it is recorded in 17A-03-SUMMARY.md rather than done here.
+PRIMITIVE_CSS = r"""
+.ib-list{list-style:none;margin:0;padding:0;display:flex;
+  flex-direction:column;gap:var(--density-list-gap)}
+.ib-card{background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r-2);padding:var(--density-card-pad)}
+.ib-group{margin:0 0 var(--space-4)}
+.ib-group-head{font-size:16px;font-weight:600;line-height:1.4;
+  margin:0 0 var(--space-2)}
+.ib-name{font-family:var(--font-paper);font-size:16px;font-weight:600;
+  line-height:1.4;margin:0;overflow-wrap:anywhere}
+.ib-meta{font-family:var(--font-ledger);font-size:12px;line-height:1.4;
+  color:var(--mut);margin:var(--space-1) 0 0;overflow-wrap:anywhere}
+.ib-body{font-size:16px;line-height:1.5;margin:var(--space-2) 0 0;
+  max-width:var(--measure-prose);overflow-wrap:anywhere}
+.ib-empty{font-size:16px;line-height:1.5;color:var(--mut);margin:0}
+.ib-slow{font-family:var(--font-ledger);font-size:16px;line-height:1.5;
+  color:var(--mut);margin:0}
+.ib-notice{border:1px solid var(--line);border-radius:var(--r-2);
+  padding:var(--space-2) var(--space-3);margin:0 0 var(--space-3);
+  font-family:var(--font-ledger);font-size:16px;line-height:1.5;
+  overflow-wrap:anywhere}
+.ib-notice-label{font-weight:600;margin-inline-end:var(--space-1)}
+.ib-notice-ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok)}
+.ib-notice-bad{color:var(--bad);background:var(--bad-bg);
+  border-color:var(--bad)}
+.ib-notice-warn{color:var(--warn);background:var(--warn-bg);
+  border-color:var(--warn)}
+.ib-notice-unknown{color:var(--unknown);background:var(--unknown-bg);
+  border-color:var(--unknown)}
+.ib-notice-pending{color:var(--pending);background:var(--pending-bg);
+  border-color:var(--pending)}
+.ib-chips{list-style:none;display:flex;flex-wrap:wrap;
+  gap:var(--density-list-gap);margin:var(--space-2) 0 0;padding:0}
+.ib-chip{display:inline-flex;align-items:center;gap:var(--space-1);
+  font-family:var(--font-ledger);font-size:12px;line-height:1.4;
+  background:var(--chip);color:var(--ink);border:1px solid var(--line);
+  border-inline-start:3px solid var(--edge);border-radius:var(--r-1);
+  padding:var(--space-1) var(--space-2);overflow-wrap:anywhere}
+.ib-chip .ib-dot{width:8px;height:8px;border-radius:var(--r-1);
+  background:var(--edge);flex:none}
+.ib-chip-ok{border-inline-start-color:var(--ok)}
+.ib-chip-ok .ib-dot{background:var(--ok)}
+.ib-chip-bad{border-inline-start-color:var(--bad)}
+.ib-chip-bad .ib-dot{background:var(--bad)}
+.ib-chip-warn{border-inline-start-color:var(--warn)}
+.ib-chip-warn .ib-dot{background:var(--warn)}
+.ib-chip-unknown{border-inline-start-color:var(--unknown)}
+.ib-chip-unknown .ib-dot{background:var(--unknown)}
+.ib-chip-pending{border-inline-start-color:var(--pending)}
+.ib-chip-pending .ib-dot{background:var(--pending)}
+.ib-fill-row{display:flex;flex-wrap:wrap;align-items:center;
+  gap:var(--space-2);margin:var(--space-2) 0 0}
+.ib-fill{display:inline-flex;gap:var(--space-1);align-items:center}
+.ib-fill i{display:inline-block;width:12px;height:12px;
+  border-radius:var(--r-1);border:1px solid var(--edge);background:transparent}
+.ib-fill i.on{background:var(--ink);border-color:var(--ink)}
+.ib-fill-legend{font-family:var(--font-ledger);font-size:12px;line-height:1.4;
+  color:var(--mut)}
+.ib-path{font-family:var(--font-code);font-size:12px;line-height:1.5;
+  overflow-wrap:anywhere}
+.ib-setting-row{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-3);
+  padding:var(--space-2) 0}
+.ib-setting-label{font-size:16px;line-height:1.5}
+.ib-settings-group + .ib-settings-group{border-top:1px solid var(--line);
+  margin-top:var(--space-3);padding-top:var(--space-3)}
+.ib-walkthrough{border:1px solid var(--accent);border-radius:var(--r-3);
+  background:var(--card);padding:var(--density-card-pad);
+  margin:0 0 var(--space-3)}
+.ib-walkthrough p{max-width:var(--measure-prose)}
+.ib-capture textarea{display:block;width:100%;min-width:0;min-height:44px;
+  max-height:calc(16px * 1.5 * 8 + var(--space-3));overflow-y:auto;
+  font-family:var(--font-paper);font-size:16px;line-height:1.5;
+  color:var(--ink);background:var(--bg);border:1px solid var(--edge);
+  border-radius:var(--r-1);padding:var(--space-2)}
+.ib-capture label{display:block;font-size:16px;font-weight:600;
+  line-height:1.4;margin:var(--space-2) 0 var(--space-1)}
+.ib-stage{border:1px solid var(--line);border-radius:var(--r-3);
+  padding:var(--density-card-pad);margin:0 0 var(--space-3)}
+.ib-nodes{display:flex;flex-wrap:wrap;gap:var(--density-list-gap);
+  margin:var(--space-2) 0 0;padding:0;list-style:none}
+.ib-node{border:1px solid var(--line);border-radius:var(--r-1);
+  padding:var(--space-1) var(--space-2);background:var(--chip);
+  font-family:var(--font-ledger);font-size:12px;line-height:1.4}
+.ib-diff{margin:0 0 var(--space-3)}
+.ib-diff pre{margin:var(--space-2) 0 0}
+"""
+
+# One sheet, not two. Every existing caller of `surface_shell` emits
+# `SHARED_CSS`, so folding the primitive block in here is what makes a
+# primitive usable from any surface without that surface shipping CSS of its
+# own. `PRIMITIVE_CSS` stays a separate name because
+# `tests/stylesheet_roundtrip.py` collects every module-level `*_CSS` constant
+# by name, and a named block is what a failure message can point at.
+SHARED_CSS = SHARED_CSS + PRIMITIVE_CSS
+
+
 def esc(value):
     """Escape one presentation value for HTML text."""
     return html.escape("" if value is None else str(value))
@@ -453,3 +596,532 @@ def render_surface(view, adapter=None):
     if adapter is None:
         adapter = default_adapter
     return adapter(view)
+
+
+# ---- 17A-03: component primitives -----------------------------------------
+#
+# One function per 16B/16C component in 17A-UI-SPEC's Component Styling
+# Assignments table, each rendering native semantic HTML from a behavior-free
+# dictionary. The same contract as the primitives above holds: no scorer, no
+# session path, no evidence writer, no key, no mutation callback ever reaches
+# these arguments, and none of them decides anything. A component reads a
+# label, a piece of content, a state name, and an action's label and href.
+#
+# Direction neutrality is the point of the layer. The 17A prototypes differ by
+# token and stylesheet overlay only, so a state's MEANING lives in the class
+# name and the required text label here, never in a direction's CSS. The
+# component fixture asserts that a state row renders its label as text even
+# with every stylesheet removed.
+
+# Copy this phase locks (17A-UI-SPEC Copywriting Contract). A caller may pass
+# its own surface-specific empty or error copy, which 16B and 16C already
+# locked per surface, but it may never re-word one of these control strings.
+LOADING_PATTERN = "Loading %s…"
+SHOW_ALL_NOTES = "Show all %d notes"
+SHOW_EARLIER_ACTIVITY = "Show earlier activity"
+SHOW_NEXT_DIFFS = "Show next 10 proposed changes"
+REVIEW_EVIDENCE = "Review evidence"
+SHOW_ALL_OBJECTIVES = "Show all %d objectives"
+
+# The bounds the Progressive Disclosure Contract fixes. Each is the count of
+# rows that stay VISIBLE, never a page size that hides the first rows too.
+NOTES_PER_GROUP = 3
+ACTIVITY_HISTORY_SHOWN = 5
+OBJECTIVE_FILL_SHOWN = 10
+DIFF_PAGE_SIZE = 10
+FILL_BLOCKS = 5
+
+# Activity's three groups, in the fixed order 17A-UI-SPEC Direction-Neutral #2
+# rules: actionable first, then running, then finished.
+ACTIVITY_NEEDS_INPUT = "Needs your input"
+ACTIVITY_IN_PROGRESS = "In progress"
+ACTIVITY_HISTORY = "Completed and failed"
+
+# A decorative concept-map node label is clipped at this many characters
+# (Direction-Neutral #8). The accessible adjacency list never clips.
+NODE_LABEL_MAX = 18
+
+SEMANTIC_KINDS = ("ok", "bad", "warn", "unknown", "pending")
+
+
+def semantic_kind(kind):
+    """A state name reduced to one of the five semantic tokens, or `neutral`.
+
+    An unrecognised state falls back to neutral rather than to a plausible
+    guess: a state whose meaning this layer does not know must not be painted
+    as if it did, because colour would then be asserting something the label
+    does not say.
+    """
+    return kind if kind in SEMANTIC_KINDS else "neutral"
+
+
+def _text(tag, cls, value):
+    return "<%s class=\"%s\">%s</%s>" % (tag, esc(cls), esc(value), tag)
+
+
+def _actions(actions, primary=None):
+    """An action row: at most one primary, every other action secondary."""
+    out = []
+    if primary:
+        out.append(_action_markup(primary, primary=True))
+    for a in actions or ():
+        out.append(_action_markup(a))
+    if not out:
+        return ""
+    return '<div class="actions">%s</div>' % "".join(out)
+
+
+def _section(cls, label, inner, extra=""):
+    return ('<section class="%s" aria-label="%s"%s>%s</section>'
+            % (esc(cls), esc(label), extra, inner))
+
+
+def _fallback(state, label, empty_text, has_rows):
+    """The shared zero/loading/error head every list primitive shares.
+
+    Returns rendered markup when the list must NOT render its rows, and `None`
+    when it must. Three rules from 17A-UI-SPEC live here rather than in each
+    caller, because a rule restated per component is a rule that drifts:
+    a slow read shows a stated loading line and never a wordless spinner; a
+    failed read shows the surface's own degraded copy; and an empty section
+    renders its empty copy directly, never a disclosure control with nothing
+    behind it.
+    """
+    state = state or {}
+    if state.get("kind") == "loading":
+        return _section("ib-state", label, loading_line(state.get("of", label)))
+    if state.get("kind") in ("error", "bad", "warn", "unavailable"):
+        return _section("ib-state", label, state_panel(
+            {"kind": "bad" if state.get("kind") in ("error", "bad") else "warn",
+             "status": state.get("status", ""),
+             "actions": state.get("actions", ())}))
+    if not has_rows:
+        return _section("ib-state", label,
+                        _text("p", "ib-empty", empty_text))
+    return None
+
+
+def loading_line(content_name):
+    """The one slow-read state this phase authorises: a stated Ledger-voice
+    line, announced once, never a wordless spinner.
+
+    The class is `ib-slow` rather than the obvious name. Every page carries
+    `SHARED_CSS`, and `daemon_roundtrip.check_unreachable_runtime_band` fails
+    a served page whose bytes contain the substring "loading" anywhere,
+    because a degraded band that appears to be working on something is a lie
+    about the runtime's state. A class name is bytes on that page, so the
+    class had to lose the word even though the learner-visible copy keeps it.
+    """
+    return ('<p class="ib-slow" role="status" aria-live="polite">%s</p>'
+            % esc(LOADING_PATTERN % content_name))
+
+
+def status_notice(text, kind="neutral", label="", urgent=False):
+    """An inline banner, never a card and never collapsible: a status notice
+    that has to be expanded before it can be read has failed at the one job it
+    has. `urgent=True` uses `role=alert` for a state that interrupts; every
+    other severity is a polite `role=status`.
+    """
+    k = semantic_kind(kind)
+    role = "alert" if urgent else "status"
+    live = "" if urgent else ' aria-live="polite"'
+    head = _text("span", "ib-notice-label", label) if label else ""
+    return ('<p class="ib-notice ib-notice-%s" data-state="%s" role="%s"%s>'
+            "%s%s</p>" % (esc(k), esc(k), role, live, head, esc(text)))
+
+
+def anchor_chip(label, kind="unknown"):
+    """A small state chip: a token-coloured start border and dot plus a text
+    label that is always present and always sufficient on its own. Never an
+    icon-only chip, and never the full semantic background fill, which is a
+    banner's intensity and would make a list of chips unreadable.
+    """
+    k = semantic_kind(kind)
+    return ('<span class="ib-chip ib-chip-%s" data-state="%s">'
+            '<span class="ib-dot" aria-hidden="true"></span>%s</span>'
+            % (esc(k), esc(k), esc(label)))
+
+
+def chip_row(chips, label="State"):
+    """A wrapping list of chips. Chips wrap onto new lines and are never
+    packed into a special many-chips layout, so the count changes the height
+    and nothing else.
+    """
+    if not chips:
+        return ""
+    items = "".join('<li>%s</li>' % anchor_chip(c.get("label", ""),
+                                                c.get("kind", "unknown"))
+                    for c in chips)
+    return ('<ul class="ib-chips" aria-label="%s">%s</ul>'
+            % (esc(label), items))
+
+
+def fill_state(filled, legend, total=FILL_BLOCKS):
+    """Five discrete blocks, the filled count being the current standing.
+
+    Never a continuous bar and never a probability: the discreteness is the
+    anti-precision signal. The blocks are decorative, so the group carries an
+    `img` role with the same discrete count as its accessible name, and the
+    fixed legend text sits beside them at every width.
+    """
+    total = max(1, int(total))
+    filled = max(0, min(total, int(filled)))
+    marks = "".join('<i%s></i>' % (' class="on"' if i < filled else "")
+                    for i in range(total))
+    return ('<p class="ib-fill-row"><span class="ib-fill" role="img" '
+            'aria-label="%d of %d" data-filled="%d">%s</span>%s</p>'
+            % (filled, total, filled, marks,
+               _text("span", "ib-fill-legend", legend)))
+
+
+def course_shelf(courses, label="Courses", empty="", state=None):
+    """One vertically scrolling list of course cards at any count.
+
+    No pagination control and no load-more: the page scrolls, which is the
+    project's own long-content rule, and a locked card renders in its normal
+    list position with its own unlock sentence rather than being summarised
+    into a count of locked items.
+    """
+    head = _fallback(state, label, empty, bool(courses))
+    if head is not None:
+        return head
+    rows = []
+    for course in courses:
+        body = [_text("h2", "ib-name", course.get("name", ""))]
+        if course.get("meta"):
+            body.append(_text("p", "ib-meta", course["meta"]))
+        if course.get("locked"):
+            body.append(_text("p", "ib-body", course.get("unlock", "")))
+        body.append(chip_row(course.get("chips", ()), label="Course state"))
+        body.append(_actions(course.get("actions", ()),
+                             course.get("action")))
+        rows.append('<li class="ib-card">%s</li>' % "".join(body))
+    return _section("ib-shelf", label,
+                    '<ul class="ib-list">%s</ul>' % "".join(rows))
+
+
+def _job_rows(jobs):
+    rows = []
+    for job in jobs:
+        body = [_text("h3", "ib-name", job.get("name", ""))]
+        # Ledger voice, stated status text only. An in-progress job never
+        # renders a percent, because no module on disk produces one and an
+        # invented number is the precise failure this contract forbids.
+        if job.get("status"):
+            body.append(_text("p", "ib-meta", job["status"]))
+        body.append(chip_row(job.get("chips", ()), label="Job outcome"))
+        rows.append('<li class="ib-card">%s</li>' % "".join(body))
+    return '<ul class="ib-list">%s</ul>' % "".join(rows)
+
+
+def activity_view(needs_input=(), in_progress=(), history=(),
+                  label="Activity", empty="", state=None):
+    """Job groups in the fixed order: needs-your-input, in progress, then
+    completed and failed, each internally reverse-chronological as the caller
+    supplies it.
+
+    The actionable group is never collapsed at any count. History past the
+    five most recent sits behind one disclosure, and no group heading renders
+    over an empty group.
+    """
+    rows = list(needs_input) + list(in_progress) + list(history)
+    head = _fallback(state, label, empty, bool(rows))
+    if head is not None:
+        return head
+    parts = []
+    for name, jobs in ((ACTIVITY_NEEDS_INPUT, needs_input),
+                       (ACTIVITY_IN_PROGRESS, in_progress)):
+        if jobs:
+            parts.append('<div class="ib-group">%s%s</div>'
+                         % (_text("h2", "ib-group-head", name),
+                            _job_rows(jobs)))
+    hist = list(history)
+    if hist:
+        shown, rest = hist[:ACTIVITY_HISTORY_SHOWN], hist[ACTIVITY_HISTORY_SHOWN:]
+        inner = _text("h2", "ib-group-head", ACTIVITY_HISTORY) + _job_rows(shown)
+        if rest:
+            inner += details_section(SHOW_EARLIER_ACTIVITY, _job_rows(rest),
+                                     data={"disclosure": "activity-history"})
+        parts.append('<div class="ib-group">%s</div>' % inner)
+    return _section("ib-activity", label, "".join(parts))
+
+
+def wrap_path(path):
+    """A filesystem path that wraps at its separators and nowhere else.
+
+    A `<wbr>` after each separator gives the browser a legal break point per
+    segment; `overflow-wrap:anywhere` in the stylesheet is the fallback for a
+    single pathologically long segment. Nothing is clipped and the root is
+    never hidden: a learner auditing which roots an agent may read has to be
+    able to read the whole path.
+    """
+    out = esc(path)
+    for sep in ("/", "\\"):
+        out = out.replace(sep, sep + "<wbr>")
+    return '<span class="ib-path">%s</span>' % out
+
+
+def settings_panel(groups, label="Settings", empty="", state=None):
+    """Setting rows grouped with a divider between groups and no card border
+    between rows inside one. No group collapses, and a row whose value is a
+    path renders through `wrap_path`.
+    """
+    head = _fallback(state, label, empty, bool(groups))
+    if head is not None:
+        return head
+    parts = []
+    for group in groups:
+        rows = []
+        for row in group.get("rows", ()):
+            value = (wrap_path(row["path"]) if row.get("path")
+                     else _text("span", "ib-meta", row.get("value", "")))
+            rows.append('<div class="ib-setting-row">%s%s</div>'
+                        % (_text("span", "ib-setting-label",
+                                 row.get("label", "")), value))
+        parts.append('<div class="ib-settings-group">%s%s</div>'
+                     % (_text("h2", "ib-group-head", group.get("label", "")),
+                        "".join(rows)))
+    return _section("ib-settings", label, "".join(parts))
+
+
+def first_launch_walkthrough(step, label="Walkthrough"):
+    """One transient callout anchored to the element it explains.
+
+    Copy wraps to as many lines as it needs and the callout's height is
+    intrinsic to its content. It is dismissible, which is not a collapse:
+    there is no disclosure control and nothing stays hidden behind one.
+    """
+    body = [_text("h2", "ib-group-head", step.get("label", ""))]
+    if step.get("body"):
+        body.append(_text("p", "ib-body", step["body"]))
+    body.append(_actions(step.get("actions", ()), step.get("action")))
+    anchor = ""
+    if step.get("anchor"):
+        anchor = ' data-anchor="%s"' % esc(step["anchor"])
+    return _section("ib-walkthrough", label, "".join(body), extra=anchor)
+
+
+def note_capture_panel(field_id="note-capture", label="Note",
+                       anchor_label="", role_line="", privacy_line="",
+                       value="", action=None, actions=(), state=None):
+    """The capture field at an anchored block.
+
+    The field grows with its content to roughly eight lines and then scrolls
+    inside itself, so the anchored lesson block underneath never gets pushed
+    out of view. The role line and the privacy line are never collapsed: what
+    a note is and where it goes is not secondary metadata.
+    """
+    body = [_text("h2", "ib-group-head", label)]
+    if anchor_label:
+        body.append(_text("p", "ib-meta", anchor_label))
+    if role_line:
+        body.append(_text("p", "ib-meta", role_line))
+    if privacy_line:
+        body.append(_text("p", "ib-meta", privacy_line))
+    if state:
+        body.append(state_panel(state))
+    body.append('<label for="%s">%s</label>' % (esc(field_id), esc(label)))
+    body.append('<textarea id="%s" name="%s" rows="3">%s</textarea>'
+                % (esc(field_id), esc(field_id), esc(value)))
+    body.append(_actions(actions, action))
+    return _section("ib-capture", label, "".join(body))
+
+
+def notes_panel_evidence(groups, label="Notes", empty="", state=None):
+    """Notes grouped by objective, each group showing its first three rows.
+
+    The group heading and its first three rows are always visible, so the
+    objective structure survives first paint; the rest of a group sits behind
+    one disclosure named with the group's real total. A group with three or
+    fewer notes renders no control at all.
+    """
+    head = _fallback(state, label, empty,
+                     any(g.get("notes") for g in groups or ()))
+    if head is not None:
+        return head
+    parts = []
+    for group in groups:
+        notes = list(group.get("notes", ()))
+        if not notes:
+            continue
+        rows = []
+        for note in notes:
+            body = [_text("p", "ib-name", note.get("text", ""))]
+            body.append(chip_row(note.get("chips", ()), label="Note state"))
+            rows.append('<li class="ib-card">%s</li>' % "".join(body))
+        inner = _text("h2", "ib-group-head", group.get("objective", ""))
+        inner += '<ul class="ib-list">%s</ul>' % "".join(rows[:NOTES_PER_GROUP])
+        if len(rows) > NOTES_PER_GROUP:
+            inner += details_section(
+                SHOW_ALL_NOTES % len(rows),
+                '<ul class="ib-list">%s</ul>' % "".join(rows[NOTES_PER_GROUP:]),
+                data={"disclosure": "notes-group"})
+        parts.append('<div class="ib-group">%s</div>' % inner)
+    return _section("ib-notes", label, "".join(parts))
+
+
+def strategy_picker(rows, label="Strategies", empty="", state=None):
+    """Every available, locked and fallback row, always visible.
+
+    Nothing here collapses: a learner choosing a strategy has to be able to
+    see the ones that are not available and read why in the same glance.
+    """
+    head = _fallback(state, label, empty, bool(rows))
+    if head is not None:
+        return head
+    items = []
+    for row in rows:
+        body = [_text("h2", "ib-group-head", row.get("name", ""))]
+        if row.get("purpose"):
+            body.append(_text("p", "ib-body", row["purpose"]))
+        if row.get("note"):
+            body.append(_text("p", "ib-meta", row["note"]))
+        body.append(chip_row(row.get("chips", ()), label="Strategy state"))
+        body.append(_actions(row.get("actions", ()), row.get("action")))
+        items.append('<li class="ib-card">%s</li>' % "".join(body))
+    return _section("ib-strategies", label,
+                    '<ul class="ib-list">%s</ul>' % "".join(items))
+
+
+def progress_comprehension_display(dimensions, objectives=(),
+                                   label="Progress", empty="", state=None):
+    """The claim dimensions, then per-objective standing.
+
+    Every dimension row renders, always: an aggregate that hides its parts is
+    the failure this display exists to prevent, so there is no disclosure over
+    the dimension rows at any count. Per-objective standing is unbounded in
+    the general case and follows the long-list rule, ten visible and the rest
+    behind one named control.
+    """
+    head = _fallback(state, label, empty,
+                     bool(dimensions) or bool(objectives))
+    if head is not None:
+        return head
+    rows = []
+    for dim in dimensions or ():
+        body = [_text("h2", "ib-group-head", dim.get("label", ""))]
+        body.append(_text("p", "ib-meta", dim.get("text", "")))
+        rows.append('<li class="ib-card">%s</li>' % "".join(body))
+    parts = ['<ul class="ib-list" data-dimensions="%d">%s</ul>'
+             % (len(rows), "".join(rows))] if rows else []
+    objectives = list(objectives)
+    if objectives:
+        def block(items):
+            out = []
+            for obj in items:
+                out.append('<li class="ib-card">%s%s</li>'
+                           % (_text("h3", "ib-name", obj.get("label", "")),
+                              fill_state(obj.get("filled", 0),
+                                         obj.get("legend", ""))))
+            return '<ul class="ib-list">%s</ul>' % "".join(out)
+        parts.append(block(objectives[:OBJECTIVE_FILL_SHOWN]))
+        if len(objectives) > OBJECTIVE_FILL_SHOWN:
+            parts.append(details_section(
+                SHOW_ALL_OBJECTIVES % len(objectives),
+                block(objectives[OBJECTIVE_FILL_SHOWN:]),
+                data={"disclosure": "objective-fill"}))
+    return _section("ib-progress", label, "".join(parts))
+
+
+def _clip_node_label(text):
+    """Clip a decorative concept-map node label in Python, not in CSS.
+
+    17A-UI-SPEC authorises clipping exactly here and nowhere else, and the
+    stylesheet cannot be the place it happens: three shipped fixtures scan
+    served bytes for a truncation rule, because a CSS clip hides text from a
+    reader with no indication it did. Clipping in Python keeps the rule to
+    this one decorative label, and the adjacency list below keeps the full
+    string.
+    """
+    text = "" if text is None else str(text)
+    if len(text) <= NODE_LABEL_MAX:
+        return text
+    return text[:NODE_LABEL_MAX - 1].rstrip() + "…"
+
+
+def note_output_trio(mode="notebook", sections=(), nodes=(), adjacency=(),
+                     label="Note output", empty="", state=None):
+    """Notebook, Cornell, or concept map, all three from one primitive.
+
+    The map's graphic nodes are a secondary projection: their labels clip and
+    they are hidden from assistive technology, because the textual adjacency
+    structure beneath them is the contract form and it never clips. Removing
+    the graphic leaves a complete, operable note.
+    """
+    head = _fallback(state, label, empty, bool(sections) or bool(adjacency))
+    if head is not None:
+        return head
+    parts = ['<p class="ib-meta" data-mode="%s">%s</p>'
+             % (esc(mode), esc(mode))]
+    for section in sections or ():
+        parts.append('<div class="ib-card">%s%s%s</div>'
+                     % (_text("h2", "ib-group-head", section.get("label", "")),
+                        _text("p", "ib-body", section.get("body", "")),
+                        chip_row(section.get("chips", ()),
+                                 label="Note provenance")))
+    if nodes:
+        parts.append('<ul class="ib-nodes" aria-hidden="true">%s</ul>'
+                     % "".join('<li class="ib-node">%s</li>'
+                               % esc(_clip_node_label(n))
+                               for n in nodes))
+    if adjacency:
+        rows = "".join("<li>%s</li>" % esc(a) for a in adjacency)
+        parts.append('<div class="ib-group">%s<ul>%s</ul></div>'
+                     % (_text("h2", "ib-group-head", "Related concepts"),
+                        rows))
+    return _section("ib-trio", label, "".join(parts))
+
+
+def evidence_drawer(summary, trail=(), label="Evidence", empty="",
+                    state=None):
+    """A one-line reason, with the full trail behind a named control.
+
+    The summary line is always readable without expanding anything and reads
+    identically whether the trail holds one entry or many, because a count
+    there would be an aggregate nobody computed. A drawer with nothing behind
+    it renders its empty copy and no control.
+    """
+    head = _fallback(state, label, empty, bool(trail))
+    body = _text("p", "ib-body", summary) if summary else ""
+    if head is not None:
+        return _section("ib-drawer", label, body + head)
+    rows = "".join('<li class="ib-card">%s</li>'
+                   % _text("p", "ib-body", entry) for entry in trail)
+    return _section("ib-drawer", label,
+                    body + details_section(
+                        REVIEW_EVIDENCE,
+                        '<ul class="ib-list">%s</ul>' % rows,
+                        data={"disclosure": "evidence-trail"}))
+
+
+def diff_review(diffs, offset=0, label="Proposed changes", empty="",
+                state=None, more_action=None):
+    """Bounded diff review: every shown diff is open, the list is paged.
+
+    A diff is never collapsed, because a reviewer must be able to read what
+    they are accepting without an extra click. What is bounded is the working
+    set: ten at a time, with one named control for the next ten, and no
+    control at all at ten or fewer.
+    """
+    head = _fallback(state, label, empty, bool(diffs))
+    if head is not None:
+        return head
+    diffs = list(diffs)
+    offset = max(0, min(len(diffs), int(offset)))
+    window = diffs[offset:offset + DIFF_PAGE_SIZE]
+    items = []
+    for diff in window:
+        body = [_text("h2", "ib-group-head", diff.get("label", ""))]
+        if diff.get("finding"):
+            body.append(_text("p", "ib-meta", diff["finding"]))
+        if diff.get("body"):
+            body.append("<pre>%s</pre>" % esc(diff["body"]))
+        body.append(chip_row(diff.get("chips", ()), label="Change state"))
+        body.append(_actions(diff.get("actions", ()), diff.get("action")))
+        items.append('<li class="ib-card ib-diff">%s</li>' % "".join(body))
+    inner = '<ul class="ib-list">%s</ul>' % "".join(items)
+    if offset + DIFF_PAGE_SIZE < len(diffs):
+        nxt = dict(more_action or {})
+        nxt["label"] = SHOW_NEXT_DIFFS
+        inner += _actions((nxt,))
+    return _section("ib-diffs", label, inner)
