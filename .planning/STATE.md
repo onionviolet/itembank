@@ -3,20 +3,90 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase_name: 13.5-reading-teaching-surface-quality-pass
-status: Phase 14A EXECUTED and FROZEN (2026-08-18). Phase 13.9 WALKED 2026-08-24: Weibao sat the rebuilt EMT bank end to end, session 13d56ab15efb4709821a6dd86357a5dc, and A9 is closed. 17A is 7 of 8 plans built (01, 02, 03, 05, 06, 07, 08); only 17A-04 remains and it is now unblocked. Full suite green.
-stopped_at: 13.9-03 is closed and A9 with it, so 17A-04 is unblocked and 14B-or-later freezes may now commit, each citing 13.9-CALIBRATION.md where it covers them. Still open from the sitting queue: draft autosave on the served answer form, and Weibao's two-sentence post-sitting reaction, which no agent may write for him.
+status: Phase 13.9 COMPLETE (2026-08-25): walked 2026-08-24, A9 closed, and every sitting-fallout defect is now fixed (13.9-04, 13.9-05, 260817-q7d all executed). Phase 14A EXECUTED and FROZEN (2026-08-18). 17A is 7 of 8 plans built; 17A-04 waits on the browser-driver supply-chain decision and Weibao's A11Y review. Full suite green on the merged tree.
+stopped_at: The sitting queue is finished. What remains needs Weibao or a decision only he can make; the 2026-08-25 entry below lists the exact handoff. 14B-or-later freezes may commit, each citing 13.9-CALIBRATION.md where it covers them.
 last_updated: "2026-08-25T00:00:00.000Z"
 last_activity: 2026-08-25
-last_activity_desc: "Walked the Phase 13.9 skeleton to a close: registered the real sitting as 13.9-CALIBRATION.md (pointers, hashes and counts only), closed the four remaining A9 checkboxes with dated citations, and pointed 14B and 15A validation at the corpus. Fixed the five defects the sitting opened: the unwritten attempt file, the discarded answer on a failed submit, missing own-selection feedback on a held multi, NREMT option counts as a subject-scoped lint error, and empirical distractor usage in stats. Full roundtrip suite green, guard clean."
+last_activity_desc: "Finished the sitting fallout with a plans-then-lesser-executor split: wrote and committed 13.9-04 and 13.9-05, executed them plus 260817-q7d through Sonnet executors (main tree sequential, q7d in an isolated worktree, merged after independent verification), drove every user-facing change on the real served page, and rolled up ROADMAP and STATE. The real-page drive caught a draft-keying defect no suite saw."
 progress:
   total_phases: 28
-  completed_phases: 18
-  total_plans: 173
-  completed_plans: 117
+  completed_phases: 19
+  total_plans: 175
+  completed_plans: 120
 current_phase: 13.5
 ---
 
 # Project State
+
+## 2026-08-25 (second entry): the sitting queue is finished; what is left needs Weibao
+
+**What landed today, all verified against artifacts and the real served page,
+never against commit messages alone.**
+
+- **13.9-04, the five-defect sweep** (`0a3c68e`, `cf097af`, `12f7dae`,
+  `d4ea72f`, `84ac02a`): the serve banner id now IS the evidence id
+  (`do_start` gained `preset_session_id` and the daemon passes the CLI-minted
+  id through; confirmed live, banner `d82657ff...` matched every evidence
+  row); an exam or diagnostic duplicate resubmit returns `defer_feedback`
+  instead of a `hold` whose copy discloses "Not correct"; `explain_payload(q,
+  reveal=False)` blanks `answer_text` alongside `model` and `rubric`, closing
+  the offline `--blind` landmine; `itembank mark` gained `--notes` on the
+  single form and the pending attempt render prints a ready-to-edit
+  `--rubric` template with every authored point verbatim; and `itembank
+  marks --base <root>` lists every short awaiting a mark across all sessions
+  with the exact command to settle each. The whole solo-marker loop was
+  driven live: sit, park, list, copy, flip a boolean, mark with notes, list
+  again reads zero.
+- **13.9-05, draft autosave** (`5134560`, `5e0eb71`): the served graded
+  sitting keeps typed text in localStorage, restores only into empty
+  controls (the 080bffc echo wins), ships only in SERVED_JS, and degrades to
+  the script-free baseline when storage is off. The acceptance drive on the
+  real page caught that the first commit keyed drafts by session id, which a
+  server restart re-mints, orphaning the draft in exactly the loss case
+  autosave exists for; `5e0eb71` rekeys by bank and item. Verified live:
+  type, kill the server, restart, reload, the prose is back.
+- **260817-q7d, the 13.5 D1 and D2 defects** (`c70a29e`, `3ec90f4`, merged
+  as `b980671`): the lesson wrap pays the card padding and reads at the 18px
+  face (candidate 1; the fallback never fired), and the quiz band total is
+  server-rendered, so first paint reads Item 1 of 3. Executed in an isolated
+  worktree in parallel with 13.9-04, verified independently in the worktree
+  (seven suites, guard), then merged. The 13.5-GATES D1/D2 rows still need
+  their re-measure to flip RTS-04.
+- **ROADMAP corrected:** the 13.9 checkbox and status row read walked and
+  5/5 Complete now; the stale `0/3 Planned` row would have made 14B-06's
+  freeze gate record a withheld freeze over bookkeeping.
+
+**Found and left open, deliberately.** The served baseline's position
+counter still always reads Item 1: q7d's D2 fix server-renders the total,
+but the position half of the 13.5 D2 defect (the client render() never runs
+under the server baseline) needs a per-request substitution in the daemon's
+baseline injection, and widening q7d mid-acceptance was refused. Cosmetic,
+visible, routed to the backlog beside the original D2 entry.
+
+**Process note worth keeping.** Two suites (`evidence_roundtrip`
+`test_one_writer`, `model_phase_roundtrip`'s scorer scan) fail while an
+agent worktree exists under `.claude/worktrees/`, because they scan
+directories for second copies of `evidence.py`/`runtime.py`. Merge and
+remove the worktree before the acceptance suite run, or the scanners report
+the parallelism itself as a defect.
+
+**The handoff: everything still open needs Weibao.**
+
+1. **17A-04.** Task 1 needs a supply-chain decision no agent may make: no
+   approved browser driver exists, `17A-RESEARCH.md` recommends a pinned
+   Playwright harness, and its ffmpeg component is LGPL, which section 2.4
+   routes to him. The decision packet with both options argued is
+   `.planning/DECISIONS-17A04-DRIVER-2026-08-25.md`; on a yes, 17A-04 Task 1
+   is executable and Task 2 is his A11Y-01 review either way.
+2. **The 13.5 human gates** (13.5-GATES.md): bottom-sheet paint on a coarse
+   pointer, network-free ladder, script-free ladder, screen-reader
+   announcements, and the font-face comparison. D1 and D2 need only an agent
+   re-measure now, not him.
+3. **His two-sentence post-sitting reaction** (13.9-03 Task 1 step 4), which
+   no agent may write.
+4. **14B execution** is unblocked: plans exist, `14B-VALIDATION.md` cites
+   the calibration corpus, A9 is closed, and the ROADMAP row no longer
+   trips 14B-06's gate. 14C still blocks the source-binding half of 14B.
 
 ## 2026-08-25: the walking skeleton is walked, A9 closed, and five defects it opened are fixed
 
