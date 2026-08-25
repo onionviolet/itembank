@@ -1610,6 +1610,40 @@ def test_mark_flow():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_marks_listing():
+    """`itembank marks --base .`: a read-only, cross-session pending-short
+    listing, derived from the evidence log and the session files, printing
+    the exact mark command for each so a marker never has to construct one
+    by hand.
+    """
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "sample_bank.md")
+        shutil.copyfile(BANK, bank)
+
+        session_id, qs, qs_by_id, short_ref, auto_refs = drive_full_session(
+            tmp, bank, mode="practice")
+
+        out_before = run(["marks", "--base", tmp], tmp)
+        if "1 short answer(s) awaiting a marker." not in out_before:
+            fail("marks listing did not report one pending short:\n%s" % out_before)
+        if session_id not in out_before:
+            fail("marks listing did not name the session id:\n%s" % out_before)
+        if short_ref not in out_before:
+            fail("marks listing did not name the pending item ref:\n%s" % out_before)
+        if "itembank mark --session" not in out_before:
+            fail("marks listing did not print a ready mark command:\n%s" % out_before)
+
+        mark_json(["--session", session_id, "--item", short_ref, "--verdict", "pass"], tmp)
+
+        out_after = run(["marks", "--base", tmp], tmp)
+        if out_after.strip() != "0 short answer(s) awaiting a marker.":
+            fail("marks listing after the last mark should read exactly "
+                 "'0 short answer(s) awaiting a marker.', got %r" % out_after)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 # ---- serve and day, pinned against the log (01-10) -------------------------
 # The last two writers -- `itembank serve`'s attempt file and `itembank day`'s
 # daily_log.md -- are proven end to end against the real CLI/loopback path,
@@ -2334,6 +2368,7 @@ def main():
     test_index_bank_disposable_and_version()
     test_renders_match_log()
     test_mark_flow()
+    test_marks_listing()
     test_serve_writes_events()
     test_day_ticks_are_events()
     test_migration_reconciliation()

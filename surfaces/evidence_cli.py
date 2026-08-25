@@ -24,6 +24,7 @@ for missing data.
 bank file. `lint` stays read-only by design (D-03) — every identity change a
 learner's bank ever gets lands in `git diff` through this command alone.
 """
+import glob
 import json
 import os
 import sys
@@ -353,6 +354,56 @@ def cmd_mark(a):
               "marks": results, "recorded": recorded, "already_recorded": already_recorded}
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     print("%d recorded, %d already recorded" % (recorded, already_recorded))
+    return 0
+
+
+def cmd_marks(a):
+    """List every short answer awaiting a mark, across every session under
+    --base. Read-only: it derives from the evidence log and the session
+    files and writes nothing.
+    """
+    log = evidence.log_path(a.base)
+    session_paths = sorted(
+        glob.glob(os.path.join(a.base, "_attempts", "session_*.json")))
+    rows = []
+    for path in session_paths:
+        try:
+            sdata = json.load(open(path, encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("skipping %s: %s" % (path, exc), file=sys.stderr)
+            continue
+        session_id = sdata.get("session_id")
+        bank_path = sdata.get("bank")
+        events_ = evidence.session_events(log, session_id)
+        marks = evidence.marks_by_event(log)
+        shorts = [ev for ev in events_ if ev.get("item_type") == "short"]
+        pending = [ev for ev in shorts if ev["event_id"] not in marks]
+        if not pending:
+            continue
+        rubric_by_ref = {}
+        if bank_path:
+            try:
+                qs = model.load(bank_path)
+                for q in qs:
+                    if q.get("rubric"):
+                        rubric_by_ref[q["id"]] = q["rubric"]
+            except Exception:
+                pass
+        rows.append((session_id, path, pending, rubric_by_ref))
+
+    total = sum(len(pending) for _, _, pending, _ in rows)
+    print("%d short answer(s) awaiting a marker." % total)
+    if total:
+        print("")
+    for session_id, path, pending, rubric_by_ref in rows:
+        print("session %s  (%s)" % (session_id, path))
+        for ev in pending:
+            item_ref = ev.get("item_ref")
+            print("  %s: itembank mark --session %s --item %s --verdict pass|fail" %
+                 (item_ref, session_id, item_ref))
+            rubric = rubric_by_ref.get(item_ref)
+            if rubric:
+                print("      --rubric '%s'" % evidence.rubric_template(rubric))
     return 0
 
 

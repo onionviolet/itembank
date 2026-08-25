@@ -18,8 +18,8 @@ from surfaces.audit_cli import cmd_audit
 from surfaces.daemon import (cmd_cli_twin, cmd_daemon, cmd_disclosure,
                              cmd_sidecar)
 from surfaces.day import cmd_day
-from surfaces.evidence_cli import (cmd_evidence, cmd_id_assign, cmd_mark, cmd_render,
-                                   cmd_retract, cmd_trends)
+from surfaces.evidence_cli import (cmd_evidence, cmd_id_assign, cmd_mark, cmd_marks,
+                                   cmd_render, cmd_retract, cmd_trends)
 from surfaces.import_anki import cmd_import_anki
 from surfaces.lesson import cmd_gloss, cmd_key_review, cmd_lesson, cmd_render_style
 from surfaces.lti import (PRIVACY_STATEMENT, cmd_lti_doctor, cmd_lti_serve,
@@ -946,6 +946,11 @@ def main():
                    "single-form mark (--item/--proposal); batch entries carry "
                    "their own notes key")
     s.set_defaults(fn=cmd_mark)
+
+    s = sub.add_parser("marks", help="list short answers awaiting a mark across "
+                       "every session under --base; read-only")
+    s.add_argument("--base", default=".", help="course root holding _attempts and _evidence")
+    s.set_defaults(fn=cmd_marks)
 
     s = sub.add_parser("id-assign", help="assign opaque ids and content-hash fingerprints "
                        "into a bank; the only command that writes into a bank -- lint "
