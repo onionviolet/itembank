@@ -13,6 +13,7 @@ import urllib.parse, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+import evidence                                            # noqa: E402
 import itembank                                            # noqa: E402
 import surfaces.day                                        # noqa: E402
 
@@ -993,6 +994,85 @@ def test_objective_query():
             tmp))
         if [e["score"] for e in rebuilt["events"]] != [False, True]:
             fail("same-ts log order changed after --rebuild-index: %r" % rebuilt["events"])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_distractor_usage_and_retraction():
+    """Empirical distractor analysis: which options nobody has ever chosen.
+
+    Research 2026-08-24 calls this "the check we are not doing, and should":
+    the strongest item-quality signal available with no language model and no
+    external authority, and one no standards body can give you. It is a
+    measurement, so what is pinned here is that it counts LIVE events only,
+    reports its denominator, and never calls a keyed option a dead
+    distractor.
+    """
+    tmp = tempfile.mkdtemp()
+    try:
+        bank = os.path.join(tmp, "synth_bank.md")
+        shutil.copyfile(BANK, bank)
+        qs = itembank.load(bank)
+        q = next(x for x in qs if x["type"] == "mc")
+        log = itembank.log_path(tmp)
+        letters = sorted(q["opts"])
+        picked = [q["correct"][0], letters[1] if letters[1] != q["correct"][0]
+                  else letters[0]]
+        events = []
+        for n, letter in enumerate(picked + [picked[0]], 1):
+            ev = itembank.response_event("distractor-session", q, letter,
+                                         letter == q["correct"][0], "practice",
+                                         n, "synth_bank.md")
+            events.append(ev)
+            itembank.append_line(log, json.dumps(ev, ensure_ascii=False,
+                                                 sort_keys=True))
+        rows = evidence.distractor_usage(log, qs, bank="synth_bank.md",
+                                         min_attempts=3)
+        row = next(r for r in rows if r["item"] == q["id"])
+        if row["attempts"] != 3 or not row["assessed"]:
+            fail("three live responses were not counted as an assessed item: %r"
+                 % row)
+        never = [k for k in letters if k not in picked]
+        if sorted(row["unused"]) != sorted(never):
+            fail("unused options %r do not match the letters nobody picked %r"
+                 % (row["unused"], never))
+        if q["correct"][0] in row["unused"]:
+            fail("the keyed option was reported as a dead distractor")
+        if row["counts"][q["correct"][0]] != 2:
+            fail("option counts do not match what was recorded: %r"
+                 % row["counts"])
+
+        # Thin items are returned with their real count, never hidden, so a
+        # caller cannot present a two-attempt item as a verdict.
+        thin = [r for r in rows if r["item"] != q["id"]]
+        if any(r["assessed"] for r in thin):
+            fail("an item with no responses was reported as assessed")
+
+        # A retracted attempt does not vote: the option it chose goes back to
+        # never chosen. Same rule as every other view (D-10).
+        itembank.append_line(log, json.dumps(
+            itembank.retraction_event(events[1]["event_id"], "test"),
+            ensure_ascii=False, sort_keys=True))
+        after = next(r for r in evidence.distractor_usage(
+            log, qs, bank="synth_bank.md", min_attempts=2)
+            if r["item"] == q["id"])
+        if after["attempts"] != 2 or picked[1] not in after["unused"]:
+            fail("a retracted response still voted for its option: %r" % after)
+
+        out = run(["stats", bank, "--min-attempts", "2"], tmp)
+        if "distractor usage" not in out or picked[1] not in out:
+            fail("itembank stats did not report distractor usage: %r" % out)
+        bare = tempfile.mkdtemp()
+        try:
+            fresh = os.path.join(bare, "synth_bank.md")
+            shutil.copyfile(BANK, fresh)
+            clean = run(["stats", fresh], bare)
+            if "distractor usage" in clean:
+                fail("stats reported distractor usage for a bank with no "
+                     "evidence log beside it; the section must degrade to "
+                     "absent, the way day omits Anki counts")
+        finally:
+            shutil.rmtree(bare, ignore_errors=True)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -2233,6 +2313,7 @@ def main():
     test_duplicate_submit_dedupes()
     test_retraction()
     test_objective_query()
+    test_distractor_usage_and_retraction()
     test_index_is_disposable()
     test_bank_scoped_query()
     test_history_row_width()
@@ -2247,7 +2328,7 @@ def main():
     print("evidence contract: ok (tracer end-to-end, mode recorded, empty log, one writer, "
           "identity survives edit, missing/duplicate ids, fingerprint stability, hash "
           "states, lint order, duplicate-submit dedupe, retraction, objective query, "
-          "index disposability, bank scoping, row width, index bank version, renders match log, mark flow, serve writes events, "
+          "distractor usage, index disposability, bank scoping, row width, index bank version, renders match log, mark flow, serve writes events, "
           "day ticks are events, migration reconciliation, term_lookup)")
     return 0
 

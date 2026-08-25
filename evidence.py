@@ -1000,6 +1000,70 @@ def objective_history(log, objective, prefix=False, subject=None, mode=None,
         log, objective, prefix, subject, mode, session_id, since, bank)
 
 
+def distractor_usage(log, qs, bank=None, min_attempts=5):
+    """Which options no learner has ever chosen, per item.
+
+    The strongest item-quality signal available without a language model and
+    without an external authority (research 2026-08-24, "the check we are not
+    doing"): an option that nobody has ever picked is doing no work, and no
+    standards body can tell you which of your options those are. It gets
+    better with every sitting.
+
+    Reads the recorded `canonical` field of LIVE response events only, so a
+    retracted attempt does not vote and nothing is rescored here. Options are
+    counted per item across every session and mode; the denominator is the
+    number of live responses to that item, and it is reported rather than
+    assumed, because an item with two attempts tells you nothing about its
+    distractors.
+
+    Returns one row per mc/multi item, oldest bank order:
+      {"item", "item_id", "objective", "type", "attempts", "counts",
+       "unused"}
+    where `counts` maps every option key to how many responses selected it and
+    `unused` lists the NON-keyed options that no response ever selected. A
+    keyed option nobody picked is a different finding (nobody gets this item
+    right), so it is visible in `counts` and deliberately not called a dead
+    distractor. `assessed` is False when the item has fewer than
+    `min_attempts` responses: the row is still returned, with its real count,
+    so a caller states the denominator instead of hiding a thin item.
+    """
+    picks = {}
+    for ev in live_events(log):
+        if ev.get("event_type") != RESPONSE_EVENT_TYPE:
+            continue
+        if bank is not None and ev.get("bank") != bank:
+            continue
+        if ev.get("item_type") not in ("mc", "multi"):
+            continue
+        key = evidence_key({"item_id": ev.get("item_id", ""),
+                            "id": ev.get("item_ref", "")})
+        chosen = [x.strip().upper()
+                  for x in str(ev.get("canonical") or "").split(",")
+                  if x.strip()]
+        bucket = picks.setdefault(key, {"attempts": 0, "counts": {}})
+        bucket["attempts"] += 1
+        for k in set(chosen):
+            bucket["counts"][k] = bucket["counts"].get(k, 0) + 1
+    rows = []
+    for q in qs:
+        if q.get("type") not in ("mc", "multi"):
+            continue
+        seen = picks.get(evidence_key(q)) or {"attempts": 0, "counts": {}}
+        counts = dict((k, seen["counts"].get(k, 0)) for k in sorted(q.get("opts") or {}))
+        keyed = set(q.get("correct") or [])
+        rows.append({
+            "item": q["id"],
+            "item_id": q.get("item_id", ""),
+            "objective": q.get("objective", ""),
+            "type": q["type"],
+            "attempts": seen["attempts"],
+            "assessed": seen["attempts"] >= min_attempts,
+            "counts": counts,
+            "unused": [k for k, n in counts.items() if n == 0 and k not in keyed],
+        })
+    return rows
+
+
 def objective_rollup(rows):
     """Per-mode rollup over `objective_history()`'s rows: EVID-08's visible
     half. A drill-mode correct and an exam-mode correct are counted in

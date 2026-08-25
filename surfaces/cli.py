@@ -6,6 +6,7 @@ than an edit here and there.
 """
 import argparse, collections, json, os, re, sys
 
+import evidence
 import selection
 from model import (BANK_FILE_HINTS, SPEC, STYLE_CHECK_CATALOGUE, coverage_map,
                    lint, load, load_style, parse_bank, parse_key_blocks,
@@ -178,7 +179,49 @@ def cmd_stats(a):
         print("\nanswer position, %d multiple-choice items" % len(mc))
         for k in sorted(pos):
             print("  %s  %3d  %4.0f%%" % (k, pos[k], pos[k] / len(mc) * 100))
+    _print_distractor_usage(a, qs)
     return 0
+
+
+def _print_distractor_usage(a, qs):
+    """Empirical distractor analysis: which options no learner has ever
+    chosen (research 2026-08-24, "the check we are not doing, and should").
+
+    It needs no model and no external authority, only the evidence store that
+    already exists beside the bank, and it is the one item-quality check no
+    standards body can give you. Every count below is measured; nothing here
+    is a judgement about the option's wording.
+
+    Degrades rather than blocks, the way `day` omits Anki counts when Anki is
+    closed: no log beside the bank means no section. Both denominators are
+    printed, because an item with two attempts says nothing about its
+    distractors and a report that hid that would be worse than no report.
+    """
+    log = evidence.log_path(os.path.dirname(os.path.abspath(a.bank)) or ".")
+    if not os.path.exists(log):
+        return
+    floor = getattr(a, "min_attempts", 5)
+    rows = evidence.distractor_usage(log, qs, bank=os.path.basename(a.bank),
+                                     min_attempts=floor)
+    assessed = [r for r in rows if r["assessed"]]
+    thin = [r for r in rows if not r["assessed"]]
+    if not rows:
+        return
+    print("\ndistractor usage, %d of %d choice items with at least %d recorded "
+          "response%s" % (len(assessed), len(rows), floor,
+                          "" if floor == 1 else "s"))
+    dead = [r for r in assessed if r["unused"]]
+    for r in dead:
+        print("  %-4s %3d recorded, never chosen: %s%s"
+              % (r["item"], r["attempts"], ", ".join(r["unused"]),
+                 "   [%s]" % r["objective"] if r["objective"] else ""))
+    if assessed and not dead:
+        print("  every distractor on every assessed item has been chosen at "
+              "least once")
+    if thin:
+        print("  not assessed (fewer than %d recorded): %s"
+              % (floor, ", ".join("%s [%d]" % (r["item"], r["attempts"])
+                                  for r in thin)))
 
 
 def cmd_coverage(a):
@@ -652,8 +695,13 @@ def main():
     s.add_argument("dir", nargs="?", default=".")
     s.set_defaults(fn=cmd_disclosure)
 
-    s = sub.add_parser("stats", help="item mix, coverage, answer-position skew")
+    s = sub.add_parser("stats", help="item mix, coverage, answer-position skew, "
+                       "and empirical distractor usage when evidence exists")
     s.add_argument("bank")
+    s.add_argument("--min-attempts", type=int, default=5,
+                   help="how many recorded responses an item needs before its "
+                        "distractors are assessed (default: 5). An item below "
+                        "the floor is listed with its real count, never hidden")
     s.set_defaults(fn=cmd_stats)
 
     s = sub.add_parser("coverage", help="objective coverage map, computed on "
