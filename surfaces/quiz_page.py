@@ -3272,8 +3272,8 @@ function emptyState(){
   </div>`;
 }
 
-function draftKey(sessionId, itemId){
-  return "itembank.draft." + sessionId + "." + itemId;
+function draftKey(bank, itemId){
+  return "itembank.draft." + bank + "." + itemId;
 }
 function installDraft(baseline){
   // Draft autosave is presentation state only (080bffc): it refills the
@@ -3281,15 +3281,22 @@ function installDraft(baseline){
   // anywhere, and never recorded until the form POST itself succeeds.
   // Storage unavailable or scripting off degrades to exactly the
   // script-free baseline, so every branch here is allowed to give up.
+  //
+  // Keyed by bank and item, not session: cmd_serve mints a fresh session id
+  // on every launch (surfaces/quiz.py, surfaces/daemon.py _ensure_quiz_session),
+  // so a session-keyed draft is orphaned by exactly the restart it exists to
+  // survive. The bank stem is stable across a restart, which is the whole
+  // point. One learner per installation, so a draft surviving to whichever
+  // session next opens the same item is the desired behaviour, not a leak.
   try{
     var store = window.localStorage;
     if(!store) return;
-    var sid = baseline.dataset.sessionId, iid = baseline.dataset.itemId;
-    if(!sid || !iid) return;
+    var bank = (BOOT && BOOT.bank) || "", iid = baseline.dataset.itemId;
+    if(!bank || !iid) return;
     var form = baseline.querySelector("[data-answer-form]");
     if(!form) return;
-    var prefix = "itembank.draft." + sid + ".";
-    var key = draftKey(sid, iid);
+    var prefix = "itembank.draft." + bank + ".";
+    var key = draftKey(bank, iid);
     for(var i = store.length - 1; i >= 0; i--){
       var k = store.key(i);
       if(k && k.indexOf(prefix) === 0 && k !== key) store.removeItem(k);

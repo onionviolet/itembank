@@ -239,7 +239,12 @@ def check_draft_is_served_only_and_presentation_only():
         fail("restore must only fill EMPTY controls, so a server echo wins")
     if "installDraft(baseline);" not in js:
         fail("the installer must run on the server-baseline branch of start()")
-    ok("draft autosave: served-only, text-only controls, empty-only restore")
+    if "function draftKey(bank, itemId)" not in js:
+        fail("drafts must be keyed by bank and item, not session; a restart re-mints the session id")
+    if '"itembank.draft." + sid' in js:
+        fail("drafts must be keyed by bank and item, not session; a restart re-mints the session id")
+    ok("draft autosave: served-only, text-only controls, empty-only restore, "
+       "keyed by bank and item so a restart cannot orphan it")
 
 
 # ---- 3. served page carries the renderer and stays key-free over HTTP -------
