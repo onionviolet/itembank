@@ -1306,7 +1306,19 @@ def handle_quiz_get(handler, stem):
 
 QUIZ_AUTHORITY_FIELDS = frozenset(("tier", "tier_id", "tier_index", "requested_tier",
                                    "key", "correct", "score", "entitled"))
-QUIZ_TOKEN_TTL = 300
+# Four hours, not five minutes. The token is minted when an item RENDERS and
+# checked when the answer is submitted, so its lifetime is a budget on how long
+# a learner may spend reading and thinking. Five minutes is shorter than one
+# real item: the 13.9 sitting on 2026-08-24 hit `403 invalid or expired quiz
+# form token` on an EMT item whose source block runs several pages, and the
+# sitting recorded nothing at all.
+#
+# What the token defends is replay and cross-origin submission on a loopback
+# server serving one learner, and that defence is not weakened by outliving a
+# reading session: the token is still single-session, single-item, single-use,
+# and `_reject_cross_origin` is the check that actually guards the origin. A
+# budget on thinking time was never the point.
+QUIZ_TOKEN_TTL = 4 * 60 * 60
 QUIZ_TOKEN_CAP = 2048
 
 
