@@ -1637,6 +1637,9 @@ def explain_payload(q, reveal=True, run_result=None):
         out["rubric"] = (q.get("rubric") or []) if reveal else []
         if not reveal:
             out["trap"] = ""
+            # answer_text for a short IS the model answer; blanking model
+            # while leaving it here defeated the blanking.
+            out["answer_text"] = ""
     elif t == "check":
         # With `run_result` the per-case actual output and the timed-out /
         # truncated flags are zipped against the authored input and expected

@@ -240,6 +240,18 @@ def test_exam_duplicate_resubmit_defers_and_changes_nothing():
         fail("a blank submit stays hold in every mode, got %r" % blank["action"])
 
 
+def test_short_unrevealed_explain_carries_no_model_text():
+    """13.9 sitting fallout, 2026-08-25. reveal=False blanked model and rubric
+    but answer_text still carried the identical model text: a landmine on the
+    offline --blind build, closed as defence in depth."""
+    p = runtime.explain_payload(q3(), reveal=False)
+    if p.get("answer_text") != "" or p.get("model") != "" or p.get("rubric"):
+        fail("reveal=False must blank answer_text, model and rubric, got %r" % p)
+    full = runtime.explain_payload(q3(), reveal=True)
+    if not full.get("answer_text") or full["answer_text"] != full["model"]:
+        fail("reveal=True must still return the model answer")
+
+
 def test_practice_hint_reveals_one_fixed_tier_in_order():
     s = session(mode="practice", items=(0,), cursor=0)
     s = runtime.teaching_transition(s, q1(),
@@ -1248,6 +1260,7 @@ def main():
     test_practice_wrong_holds_and_unlocks_one_tier()
     test_practice_duplicate_and_empty_unlock_nothing()
     test_exam_duplicate_resubmit_defers_and_changes_nothing()
+    test_short_unrevealed_explain_carries_no_model_text()
     test_multi_hold_names_own_picks_and_never_an_unpicked_option()
     test_multi_selection_feedback_is_policy_gated()
     test_practice_hint_reveals_one_fixed_tier_in_order()
