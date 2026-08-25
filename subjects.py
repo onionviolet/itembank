@@ -259,6 +259,52 @@ def load_registry(base):
     return validate_registry(data.get("subject_profiles"))
 
 
+# ---- subject-scoped structural item rules (2026-08-24) ---------------------
+# A certifying body governs the subject it certifies and nothing else. NREMT's
+# published EMT examination specifications fix the shape of two item types:
+# Multiple Choice is one correct of exactly four options, and Multiple Response
+# is two correct of five or three correct of six, in both cases with exactly
+# three incorrect options. That is mechanically checkable, so `model.lint`
+# checks it, but ONLY for items whose objective namespace is the subject NREMT
+# actually binds. A linter demanding four options everywhere would be wrong on
+# Math 1400 and CSCI 1100, which NREMT has no authority over at all.
+#
+# Verified citations, including which authorities say nothing about item
+# writing, are in `.planning/research/2026-08-24-item-writing-standards.md`.
+# Read it before adding a rule here; the National EMS Education Standards, for
+# one, contain zero occurrences of "item writing" or "distractor" and govern
+# curriculum rather than items.
+#
+# Code-owned like DEFAULT_PROFILE, and deliberately not part of the profile
+# shape: a profile is capability data a learner's settings may supply, while
+# this is an external body's published specification that settings must not be
+# able to soften.
+STRUCTURE_RULES = {
+    "emt": {
+        "authority": "NREMT",
+        # (options, correct) shapes permitted for each governed type.
+        "mc": ((4, 1),),
+        "multi": ((5, 2), (6, 3)),
+    },
+}
+
+
+def structure_rules(subject_id):
+    """The structural item rules bound to `subject_id`, or None when no body
+    governs it. An unnamespaced objective yields no subject and is governed by
+    nobody, which is the honest answer rather than a default standard."""
+    return STRUCTURE_RULES.get(subject_id or "")
+
+
+def structure_shape(q):
+    """The (options, correct) shape of an item, or None for a type no rule
+    governs. Counting lives here beside the rules so a caller cannot disagree
+    with the table about what is being counted."""
+    if q.get("type") not in ("mc", "multi"):
+        return None
+    return (len(q.get("opts") or {}), len(q.get("correct") or []))
+
+
 # No temporary shipped-entry constant: known subjects are settings data
 # (plan 09-02, D-02). The conservative fallback above is the only code-owned
 # profile.

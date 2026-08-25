@@ -45,6 +45,7 @@
         "item.row_category_unknown",
         "item.rubric_point_too_long",
         "item.select_mismatch",
+        "item.structure_nonconformant",
         "item.tolerance_unstated",
         "item.too_few_categories",
         "item.too_few_options",

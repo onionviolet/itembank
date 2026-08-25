@@ -63,6 +63,7 @@ AIRWAY_ITEM = (
     "A) Stridor\n"
     "B) Normal breath sounds\n"
     "C) Wheezing\n"
+    "D) Hiccups\n"
     "\n"
     "CORRECT: A\n"
     "\n"
@@ -95,7 +96,11 @@ FAKE_OUTLINE = "Stem\nOptions\nRationale"
 # Deliberately distinct from the bank's own Q1 (an airway item) so the
 # exactly-once fingerprint dedup never fires on a first accept.
 FAKE_STEM = "Which sign most strongly suggests upper-airway obstruction?"
-FAKE_OPTIONS = ("A) Inspiratory stridor\nB) Expiratory wheeze\nC) Productive cough\n\nCORRECT: A")
+# Four options, not three: an `emt:` item is linted against NREMT's published
+# structure (1 correct of exactly 4), so a three-option draft would now be a
+# stage-4 error and would change the retry counts these tests assert.
+FAKE_OPTIONS = ("A) Inspiratory stridor\nB) Expiratory wheeze\n"
+                "C) Productive cough\nD) Hoarse voice\n\nCORRECT: A")
 FAKE_RATIONALE = (
     "WHY BEST: Inspiratory stridor is the upper-airway sign.\n\n"
     "KEY DISCRIMINATOR: Inspiratory timing.\n\n"
@@ -640,7 +645,7 @@ PARA_SEED_BANK = (
     "emt:airway | corpus/ch5.txt\n\n"
     "Q1. Which finding suggests an at-risk airway?   (difficulty: recall)\n"
     "[OBJECTIVE: emt:airway]\n"
-    "A) Stridor\nB) Normal breath sounds\nC) Wheezing\n"
+    "A) Stridor\nB) Normal breath sounds\nC) Wheezing\nD) Hiccups\n"
     "CORRECT: A\n"
     "WHY BEST: Stridor indicates upper-airway obstruction.\n"
     "CONFIDENCE: high\n")

@@ -99,6 +99,7 @@ Objective: It exercises the grammar the spec documents.
 A) the new grammar
 B) the old grammar
 C) the same grammar
+D) no grammar at all
 CORRECT: A
 WHY BEST: because every new construct parses
 KEY DISCRIMINATOR: B is right when the constructs predate the spec

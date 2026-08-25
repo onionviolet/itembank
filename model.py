@@ -2211,6 +2211,7 @@ LINT_CODES = tuple(sorted({
     "item.visual_invalid_geometry",
     "item.visual_executable_member",
     "bank.answer_position_skew",
+    "item.structure_nonconformant",
     "lesson.invalid_gate", "lesson.check_ref_unknown",
 }))
 
@@ -2861,6 +2862,34 @@ def _looks_float(s):
     return "." in s or "e" in s.lower()
 
 
+def structure_findings(q, tag):
+    """Structural conformance with the body that governs this item's subject.
+
+    Subject-scoped on purpose (see `subjects.STRUCTURE_RULES`): NREMT binds
+    EMT and has no authority over Math 1400 or CSCI 1100, so an item whose
+    objective names another subject, or names no subject at all, is checked
+    against nothing. This is a tier 1 mechanical check in the sense of
+    `.planning/research/2026-08-24-item-writing-standards.md`: it counts
+    options and keyed answers and makes no judgement about meaning, which is
+    why it can be an error at all. Whether options are mutually exclusive IN
+    MEANING is tier 3 and deliberately not a lint rule.
+    """
+    import evidence, subjects        # function-local: model owns no store
+    rules = subjects.structure_rules(
+        evidence.subject_of(q.get("objective") or ""))
+    if not rules:
+        return []
+    shapes = rules.get(q.get("type"))
+    shape = subjects.structure_shape(q)
+    if not shapes or shape is None or shape in shapes:
+        return []
+    allowed = " or ".join("%d correct of %d options" % (c, o) for o, c in shapes)
+    return [LintError(
+        "item.structure_nonconformant", "opts", tag,
+        "%s permits %s for a %s item; this one has %d correct of %d options"
+        % (rules["authority"], allowed, q.get("type"), shape[1], shape[0]))]
+
+
 def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
          keys=KEYS_UNCHECKED, style=STYLE_UNCHECKED,
          sources=SOURCES_UNCHECKED, cases=CASES_UNCHECKED,
@@ -3073,6 +3102,7 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
             if len(q["opts"]) < 3:
                 errors.append(LintError("item.too_few_options", "opts", tag,
                               "only %d options" % len(q["opts"])))
+            errors.extend(structure_findings(q, tag))
             if t == "mc" and q["correct"]:
                 letter_hits[q["correct"][0]] += 1
             if t == "mc" and not q.get("second"):

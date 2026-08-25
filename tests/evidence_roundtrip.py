@@ -822,6 +822,7 @@ cross-subject and cross-session query testing.
 A) Option one
 B) Option two
 C) Option three
+D) Option four
 
 CORRECT: A
 
@@ -835,6 +836,7 @@ surface, for prefix-adjacency testing.
 A) Option one
 B) Option two
 C) Option three
+D) Option four
 
 CORRECT: A
 

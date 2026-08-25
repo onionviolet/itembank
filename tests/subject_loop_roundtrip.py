@@ -339,6 +339,56 @@ def test_subject_ids_use_the_one_extractor():
                 os.remove(p)
 
 
+def test_nremt_structure_rule_is_subject_scoped():
+    """NREMT's published option counts are linted for EMT items and for no
+    other subject (plan item 4, 2026-08-24).
+
+    NREMT binds EMT: Multiple Choice is one correct of exactly four options,
+    Multiple Response is two of five or three of six, always with exactly
+    three incorrect. It has no authority over Math 1400 or CSCI 1100, so the
+    same item under `math:` or with no namespace at all is checked against
+    nothing. A linter that demanded four options everywhere would be wrong on
+    two of the three subjects this workspace serves.
+
+    Citations, including the authorities that say nothing at all about item
+    writing, are in
+    `.planning/research/2026-08-24-item-writing-standards.md`.
+    """
+    def findings(objective, opts, correct, kind="mc"):
+        q = {"type": kind, "objective": objective,
+             "opts": dict((chr(65 + i), "option %d" % i) for i in range(opts)),
+             "correct": [chr(65 + i) for i in range(correct)]}
+        return [f.code for f in model.structure_findings(q, "Q1")]
+
+    if findings("emt:airway", 4, 1) != []:
+        fail("a conformant EMT multiple-choice item was flagged")
+    for opts in (3, 5):
+        if findings("emt:airway", opts, 1) != ["item.structure_nonconformant"]:
+            fail("an EMT multiple-choice item with %d options was not flagged"
+                 % opts)
+    for opts, correct in ((5, 2), (6, 3)):
+        if findings("emt:airway", opts, correct, "multi") != []:
+            fail("a conformant EMT multiple-response item (%d of %d) was "
+                 "flagged" % (correct, opts))
+    for opts, correct in ((6, 2), (5, 3), (4, 2)):
+        if findings("emt:airway", opts, correct, "multi") != \
+                ["item.structure_nonconformant"]:
+            fail("an EMT multiple-response item with %d correct of %d options "
+                 "was not flagged" % (correct, opts))
+
+    # The whole point of the scoping: the same shapes elsewhere are silent.
+    for objective in ("math:algebra.factoring", "cs:loops.for", "airway", ""):
+        if findings(objective, 5, 1) or findings(objective, 6, 2, "multi"):
+            fail("NREMT's option counts were enforced on %r, which NREMT does "
+                 "not govern" % objective)
+
+    if "item.structure_nonconformant" not in model.LINT_CODES:
+        fail("the structural code is not declared in LINT_CODES")
+    if set(subjects.STRUCTURE_RULES) != {"emt"}:
+        fail("a subject gained structural rules without a cited authority "
+             "and a test: %r" % sorted(subjects.STRUCTURE_RULES))
+
+
 def test_validate_registry_rejects_bad_shapes():
     good = {"version": 1, "entries": {"emt": minimal_profile()}}
     if subjects.validate_registry(good) is not good:
@@ -1388,6 +1438,7 @@ def main():
     try:
         test_subject_ids_use_the_one_extractor()
         test_validate_registry_rejects_bad_shapes()
+        test_nremt_structure_rule_is_subject_scoped()
         test_conservative_fallback_and_capability_report()
         test_mixed_subject_refusal_and_explicit_resolution()
         test_disallowed_item_type_refuses_before_write()
