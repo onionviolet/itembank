@@ -135,9 +135,9 @@ WARN_CSS = """.warn{color:var(--warn);font-size:16px;margin:14px auto 0;max-widt
 #    to `none` because its 16px is already the matched size (0.516 x 16 =
 #    8.26px against Paper's 8.55px at 18px) and adjusting it would undo that.
 LESSON_CSS = r"""
-.wrap{max-width:calc(var(--measure-prose) + 2 * var(--space-3));
+.wrap{max-width:calc(var(--measure-prose) + 2 * var(--space-3) + 2 * var(--space-4));
   margin:0 auto;padding:var(--space-4) var(--space-3) var(--space-7);
-  font-family:var(--font-paper)}
+  font-family:var(--font-paper);font-size:18px}
 header{margin-bottom:var(--space-4)}
 h1{font-size:32px;font-weight:600;line-height:1.1;margin:0 0 var(--space-3)}
 .sub{color:var(--mut);font-size:12px}

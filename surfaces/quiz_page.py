@@ -311,7 +311,7 @@ textarea.ans:disabled{opacity:.75}
 <nav class="context-line" data-surface-context aria-label="Session context">
   <span class="cx" id="cx-bank">__CTX_BANK__</span>
   <span class="cx objective" id="cx-objective"></span>
-  <span class="cx mono">Item <b id="pos">1</b> of <b id="tot">0</b></span>
+  <span class="cx mono">Item <b id="pos">1</b> of <b id="tot">__CTX_TOTAL__</b></span>
   <span class="cx mode" id="cx-mode">__CTX_MODE__</span>
   <span class="cx lesson" id="cx-lesson"></span>
 </nav>
