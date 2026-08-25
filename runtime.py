@@ -2037,13 +2037,21 @@ def teaching_transition(session, q, action, evidence_state=None):
                                 cursor=cursor, status=status),
                 "hint_tier": hint_tier}
 
+    policy = FEEDBACK_POLICIES.get(session["mode"], FEEDBACK_POLICIES["practice"])
+
     if not genuine:
         # Empty, canonical-identical, or deduped replays unlock nothing and
-        # move nothing (D-04/D-05).
+        # move nothing (D-04/D-05). Under a defer_feedback policy the replay
+        # of a real answer also DISCLOSES nothing: hold's served copy is a
+        # verdict ("Not correct"), which exam and diagnostic must never show,
+        # so a canonical duplicate defers there instead. A blank submit
+        # (no canonical form at all) holds in every mode; there is nothing
+        # to have recorded.
+        if canon and policy["wrong"] == "defer_feedback":
+            return {"action": "defer_feedback", "session": session,
+                    "hint_tier": hint_tier, "tier_unlocked": None}
         return {"action": "hold", "session": session,
                 "hint_tier": hint_tier, "tier_unlocked": None}
-
-    policy = FEEDBACK_POLICIES.get(session["mode"], FEEDBACK_POLICIES["practice"])
 
     if score is None:
         # A constructed response is pending review, never wrong (T-06-05).

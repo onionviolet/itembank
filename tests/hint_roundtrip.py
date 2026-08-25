@@ -215,6 +215,31 @@ def test_practice_duplicate_and_empty_unlock_nothing():
         fail("an empty response must not unlock or count as a new attempt")
 
 
+def test_exam_duplicate_resubmit_defers_and_changes_nothing():
+    """13.9 sitting fallout, 2026-08-25. A second submit of the same answer in
+    exam mode used to return hold, whose served copy reads "Not correct", a
+    verdict exam mode must never disclose. A duplicate under a defer_feedback
+    policy defers, unlocks nothing, and moves nothing."""
+    import copy
+    s = session(mode="exam", items=(0,), cursor=0)
+    first = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": q1_wrong()})
+    if first["action"] != "defer_feedback":
+        fail("exam genuine wrong submit must defer, got %r" % first["action"])
+    before = copy.deepcopy(first["session"]["teaching_state"])
+    second = runtime.teaching_transition(first["session"], q1(),
+                                         {"kind": "submit", "answer": q1_wrong()})
+    if second["action"] != "defer_feedback":
+        fail("exam duplicate resubmit must defer, got %r" % second["action"])
+    if second["session"]["teaching_state"] != before:
+        fail("a duplicate resubmit must not change teaching state")
+    if second["session"]["cursor"] != first["session"]["cursor"]:
+        fail("a duplicate resubmit must not move the cursor")
+    blank = runtime.teaching_transition(first["session"], q1(),
+                                        {"kind": "submit", "answer": ""})
+    if blank["action"] != "hold":
+        fail("a blank submit stays hold in every mode, got %r" % blank["action"])
+
+
 def test_practice_hint_reveals_one_fixed_tier_in_order():
     s = session(mode="practice", items=(0,), cursor=0)
     s = runtime.teaching_transition(s, q1(),
@@ -1222,6 +1247,7 @@ def main():
     test_transition_rejects_unknown_action()
     test_practice_wrong_holds_and_unlocks_one_tier()
     test_practice_duplicate_and_empty_unlock_nothing()
+    test_exam_duplicate_resubmit_defers_and_changes_nothing()
     test_multi_hold_names_own_picks_and_never_an_unpicked_option()
     test_multi_selection_feedback_is_policy_gated()
     test_practice_hint_reveals_one_fixed_tier_in_order()
