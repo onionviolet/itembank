@@ -1080,6 +1080,8 @@ def test_lesson_heading_ramp_locked():
         fail("lesson prose must render at text-lesson 18px/1.65")
     if "max-width:var(--measure-prose)" not in style:
         fail("the prose column must cap at --measure-prose")
+    if ".wrap{max-width:calc(var(--measure-prose) + 2 * var(--space-3) + 2 * var(--space-4))" not in style:
+        fail("D1: the wrap cap must pay the .card 24px side padding so prose renders the contracted 531px")
 
 
 def test_lesson_content_region_byte_identical_phase3():
