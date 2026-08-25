@@ -124,6 +124,8 @@ def check_no_key(page, qs):
             fail("served page contains the model answer for %s" % q["id"])
         if q.get("why") and q["why"] in page:
             fail("served page contains the WHY BEST text for %s" % q["id"])
+    if "function installDraft(" not in page:
+        fail("the served page does not ship the draft installer")
 
 
 def check_served_page_js(page, stem):

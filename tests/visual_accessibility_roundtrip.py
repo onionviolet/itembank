@@ -28,6 +28,7 @@ sys.path.insert(0, ROOT)
 
 import model                                           # noqa: E402
 import runtime                                         # noqa: E402
+from surfaces import quiz_page                         # noqa: E402
 
 
 def fail(msg):
@@ -217,6 +218,30 @@ def check_offline_build_page():
     ok("static build: visual items refuse loudly with no key/scoring material")
 
 
+def check_draft_is_served_only_and_presentation_only():
+    """13.9-05 sitting fallout, 2026-08-25. Draft autosave is a served-page
+    enhancement over the script-free baseline: it lives in SERVED_JS only,
+    touches only text controls, restores only into empty controls (the
+    server echo wins), and never joins a submit payload."""
+    js = served_js()
+    if "function installDraft(" not in js:
+        fail("SERVED_JS lacks the draft installer")
+    if "itembank.draft." not in js:
+        fail("the draft key prefix is missing from SERVED_JS")
+    off = offline_js()
+    if "localStorage" in off or "installDraft" in off:
+        fail("OFFLINE_JS must stay storage-free; the offline build has no session")
+    if "localStorage" in quiz_page.ASSIST_JS:
+        fail("ASSIST_JS must stay storage-free; the assist layer has no session")
+    if 'querySelectorAll("textarea, input[type=text]")' not in js:
+        fail("the draft must touch only text controls")
+    if "if(saved && !el.value" not in js:
+        fail("restore must only fill EMPTY controls, so a server echo wins")
+    if "installDraft(baseline);" not in js:
+        fail("the installer must run on the server-baseline branch of start()")
+    ok("draft autosave: served-only, text-only controls, empty-only restore")
+
+
 # ---- 3. served page carries the renderer and stays key-free over HTTP -------
 
 def check_served_page():
@@ -271,6 +296,7 @@ def main():
     check_offline_refusal()
     check_offline_build_page()
     check_served_page()
+    check_draft_is_served_only_and_presentation_only()
     print("PASS visual_accessibility_roundtrip.py")
     return 0
 

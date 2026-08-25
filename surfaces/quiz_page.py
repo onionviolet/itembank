@@ -3272,12 +3272,49 @@ function emptyState(){
   </div>`;
 }
 
+function draftKey(sessionId, itemId){
+  return "itembank.draft." + sessionId + "." + itemId;
+}
+function installDraft(baseline){
+  // Draft autosave is presentation state only (080bffc): it refills the
+  // visible controls and is never read back as an answer, never sent
+  // anywhere, and never recorded until the form POST itself succeeds.
+  // Storage unavailable or scripting off degrades to exactly the
+  // script-free baseline, so every branch here is allowed to give up.
+  try{
+    var store = window.localStorage;
+    if(!store) return;
+    var sid = baseline.dataset.sessionId, iid = baseline.dataset.itemId;
+    if(!sid || !iid) return;
+    var form = baseline.querySelector("[data-answer-form]");
+    if(!form) return;
+    var prefix = "itembank.draft." + sid + ".";
+    var key = draftKey(sid, iid);
+    for(var i = store.length - 1; i >= 0; i--){
+      var k = store.key(i);
+      if(k && k.indexOf(prefix) === 0 && k !== key) store.removeItem(k);
+    }
+    var fields = form.querySelectorAll("textarea, input[type=text]");
+    var saved = null;
+    try{ saved = JSON.parse(store.getItem(key) || "null"); }catch(e){ saved = null; }
+    fields.forEach(function(el, idx){
+      if(saved && !el.value && typeof saved[idx] === "string") el.value = saved[idx];
+    });
+    form.addEventListener("input", function(){
+      var vals = [];
+      fields.forEach(function(el){ vals.push(el.value); });
+      try{ store.setItem(key, JSON.stringify(vals)); }catch(e){}
+    });
+  }catch(e){}
+}
+
 /* ---- start: one /api/start call bootstraps the whole sitting -------------- */
 async function start(){
   const baseline = host.querySelector("[data-server-baseline]");
   if(baseline){
     sessionId = baseline.dataset.sessionId || null;
     if(window.Assist) window.Assist.setSession(sessionId);
+    installDraft(baseline);
     return;
   }
   host.innerHTML = `<div class="card"><div class="feedback" role="status"
