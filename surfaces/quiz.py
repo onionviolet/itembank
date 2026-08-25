@@ -252,6 +252,7 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                           else theme_css)
                  .replace("__SHARED__", presentation.SHARED_CSS)
                  .replace("__SERVE__", "true" if serve else "false")
+                 .replace("__CTX_TOTAL__", str(len(qs)))
                  .replace("__TITLE__", html.escape(title))
                  .replace("__SUB__", sub)
                  .replace("__CTX_BANK__", ctx_bank)

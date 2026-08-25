@@ -1578,6 +1578,29 @@ def check_api_sitting():
 LESSON_BANK = os.path.join(ROOT, "fixtures", "lesson_bank.md")
 
 
+def check_quiz_first_paint_total():
+    """13.5 defect D2: the context band total is server-rendered, so the
+    first paint of a 3-item sitting reads Item 1 of 3, never of 0."""
+    workdir = tempfile.mkdtemp()
+    try:
+        shutil.copy(LESSON_BANK, os.path.join(workdir, "lesson_bank.md"))
+        proc, url, lines = start_daemon(workdir)
+        try:
+            status, body = get(url.rstrip("/") + "/quiz/lesson_bank")
+            if status != 200:
+                fail("GET /quiz/lesson_bank returned %d, expected 200" % status)
+            if '<b id="tot">3</b>' not in body:
+                fail("first paint must server-render the total 3")
+            if '<b id="tot">0</b>' in body:
+                fail("first paint still renders the D2 zero total")
+            if "__CTX_TOTAL__" in body:
+                fail("the total placeholder leaked unsubstituted")
+        finally:
+            proc.terminate()
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
 def teach_hint_events(workdir, session_id):
     """Every live hint event this sitting has recorded -- the evidence half of
     "a shown tier writes exactly one hint event, a read writes none"."""
@@ -3561,6 +3584,7 @@ def main():
         check_index_populated,
         check_index_offers_the_reading,
         check_quiz_offers_the_way_back,
+        check_quiz_first_paint_total,
         check_index_order,
         check_index_empty,
         check_index_malformed_tolerated,
