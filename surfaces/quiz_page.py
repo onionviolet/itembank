@@ -507,17 +507,32 @@ window.Assist = Assist;
 """)
 
 
-def _form_controls(item):
-    """Render only the response vocabulary declared by a public item."""
+def _prefilled(prefill, name):
+    """The last value the learner submitted under this control name, or "".
+
+    `prefill` is the raw submitted form mapping, presentation state only: it
+    is echoed back into the controls so a failed POST does not throw away what
+    was typed. It never reaches the scorer, the session, or evidence.
+    """
+    values = (prefill or {}).get(name) or []
+    return values[-1] if values else ""
+
+
+def _form_controls(item, prefill=None):
+    """Render only the response vocabulary declared by a public item, with any
+    previously submitted values echoed back in (see `_prefilled`)."""
     t = item.get("type")
     schema = item.get("response_schema") or {}
     if t in ("mc", "multi"):
         kind = "checkbox" if t == "multi" else "radio"
+        chosen = set((prefill or {}).get("option") or [])
         rows = []
         for option in item.get("options") or []:
+            key = str(option.get("key", ""))
             rows.append('<label class="choice"><input type="%s" name="option" '
-                        'value="%s"><span class="k">%s</span><span class="ot">%s</span></label>'
-                        % (kind, html.escape(str(option.get("key", "")), quote=True),
+                        'value="%s"%s><span class="k">%s</span><span class="ot">%s</span></label>'
+                        % (kind, html.escape(key, quote=True),
+                           " checked" if key in chosen else "",
                            html.escape(str(option.get("label", option.get("key", "")))),
                            html.escape(str(option.get("text", "")))))
         legend = "Select %s" % schema.get("select", "all that apply") if t == "multi" else "Choose one"
@@ -526,8 +541,11 @@ def _form_controls(item):
         cats = item.get("categories") or []
         rows = []
         for n, row in enumerate(item.get("rows") or []):
-            opts = ''.join('<option value="%s">%s</option>' %
-                           (html.escape(str(c), quote=True), html.escape(str(c))) for c in cats)
+            was = _prefilled(prefill, "row_%d" % n)
+            opts = ''.join('<option value="%s"%s>%s</option>' %
+                           (html.escape(str(c), quote=True),
+                            " selected" if str(c) == was else "",
+                            html.escape(str(c))) for c in cats)
             rows.append('<label class="rowline"><span class="rowtext">%s</span><select name="row_%d">'
                         '<option value=""></option>%s</select></label>' %
                         (html.escape(str(row.get("text", ""))), n, opts))
@@ -535,12 +553,15 @@ def _form_controls(item):
     if t == "build":
         return "".join('<label class="rowline"><span class="rowtext">Step %d</span>'
                        '<select name="step_%d"><option value=""></option>%s</select></label>' %
-                       (n + 1, n, ''.join('<option value="%s">%s</option>' %
-                                         (html.escape(str(s), quote=True), html.escape(str(s)))
+                       (n + 1, n, ''.join('<option value="%s"%s>%s</option>' %
+                                         (html.escape(str(s), quote=True),
+                                          " selected" if str(s) == _prefilled(prefill, "step_%d" % n) else "",
+                                          html.escape(str(s)))
                                          for s in item.get("steps") or []))
                        for n in range(len(item.get("steps") or [])))
     label = "Code response" if t == "check" else "Your response"
-    return '<label>%s<textarea class="ans" name="answer"></textarea></label>' % label
+    return '<label>%s<textarea class="ans" name="answer">%s</textarea></label>' % (
+        label, html.escape(_prefilled(prefill, "answer")))
 
 
 def _hint_card(row, locked=False):
@@ -550,8 +571,13 @@ def _hint_card(row, locked=False):
         html.escape(str(body)))
 
 
-def baseline_for(view, teaching_result, post_path, tokens, flash=None):
-    """Pure, key-free HTML adapter over public runtime projections."""
+def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=None):
+    """Pure, key-free HTML adapter over public runtime projections.
+
+    `prefill` is the raw form mapping of a submission that did not go through
+    (an expired token, a refused body), echoed back into the controls so the
+    learner does not lose what they wrote. Presentation state, never truth.
+    """
     item = (view or {}).get("item")
     if not item:
         return '<div class="done empty" data-server-baseline>Session complete.</div>'
@@ -617,7 +643,7 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None):
             '<div class="act"><button class="go" type="submit">Submit answer</button></div></form>%s</div>' %
             (html.escape(str(view.get("session_id", "")), quote=True),
              html.escape(str(item.get("id", "")), quote=True), html.escape(str(item.get("stem", ""))),
-             html.escape(post_path, quote=True), _form_controls(item),
+             html.escape(post_path, quote=True), _form_controls(item, prefill),
              html.escape(tokens["submit"], quote=True), feedback, ladder))
 ASSIST_JS = (ASSIST_JS
     .replace("__ASSIST_PREPARING__", ASSIST_COPY["preparing"])

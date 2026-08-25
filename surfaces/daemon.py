@@ -1288,6 +1288,18 @@ def handle_quiz_get(handler, stem):
         return
     receipt = urllib.parse.parse_qs(urllib.parse.urlsplit(handler.path).query).get("receipt", [""])[-1]
     flash = _consume_quiz_flash(handler, receipt, view) if receipt and view else None
+    _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs, flash)
+
+
+def _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs,
+                    flash=None, prefill=None, status=200):
+    """Render and send `GET /quiz/<stem>`'s page for the state it is in.
+
+    Shared with the POST failure paths (plan item 2, 2026-08-24): a submit
+    that does not go through comes back as this page with a fresh token and
+    the learner's own answer echoed into the controls, instead of the bare
+    error document that ate a written response during the 13.9 sitting.
+    """
     tokens = (dict((kind, _mint_quiz_token(handler, view, kind))
                    for kind in ("submit", "hint", "stumped")) if view else None)
     theme_block = theme.theme_css(settings.load_settings(handler.root))
@@ -1299,9 +1311,10 @@ def handle_quiz_get(handler, stem):
                             assist=True, home_href="/")
     if view is not None:
         baseline = quiz_page.baseline_for(view, teaching,
-                                          "/quiz/%s/answer" % stem, tokens, flash)
+                                          "/quiz/%s/answer" % stem, tokens, flash,
+                                          prefill)
         page = page.replace('<div id="host"></div>', '<div id="host">%s</div>' % baseline, 1)
-    handler.send_html(page.encode("utf-8"))
+    handler.send_html(page.encode("utf-8"), status)
 
 
 QUIZ_AUTHORITY_FIELDS = frozenset(("tier", "tier_id", "tier_index", "requested_tier",
@@ -1419,6 +1432,35 @@ def _form_answer(item, fields):
     return one("answer")
 
 
+def _echo_quiz_failure(handler, stem, path, qs, session_file, fields, message,
+                      status=403):
+    """A quiz POST that did not go through, answered with the quiz page rather
+    than a bare error document: same item, a fresh token, the learner's own
+    submitted fields echoed back into the controls, and `message` shown in the
+    feedback region.
+
+    The 13.9 sitting on 2026-08-24 lost a written constructed response to a
+    `403 invalid or expired quiz form token`. The expiry itself is fixed at
+    its trigger, but a network blip, a server restart or a stray reload throws
+    the same answer away, so the class is closed here. The status still says
+    the submission failed; only the body becomes useful.
+
+    Nothing echoed is authority: `prefill` reaches the rendered controls and
+    nothing else, and the answer is not recorded until a submit succeeds.
+    """
+    sess = handler.sessions.get(stem) or {}
+    lesson = parse_lesson(path)
+    lesson_slugs = set(h["slug"] for h in lesson["headings"]) if lesson else set()
+    try:
+        view = session.do_next(session_file)
+        teaching = session.do_teach(session_file)
+    except Exception:
+        handler.send_error(status, message)
+        return
+    _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs,
+                    flash={"refused": message}, prefill=fields, status=status)
+
+
 def handle_quiz_answer(handler, stem):
     """`POST /quiz/<stem>/answer` -- the legacy served-page answer route,
     now a compatibility wrapper over the one session adapter (06-02 Task 3):
@@ -1459,11 +1501,21 @@ def handle_quiz_answer(handler, stem):
             before = session.do_next(session_file)
             with handler.quiz_state_lock:
                 _prune_quiz_store(handler.quiz_form_tokens)
-                grant = handler.quiz_form_tokens.pop(token, None)
+                # Read, do not spend. The token used to be popped here, before
+                # `do_action` ran, so any later failure burned it and a
+                # back-then-resubmit hit a second 403. It is spent below, once
+                # the action has actually produced a result.
+                grant = handler.quiz_form_tokens.get(token)
             expected = {"session_id": before.get("session_id"), "item_id": (before.get("item") or {}).get("id"),
                         "cursor": before.get("position"), "action": action}
             if not grant or any(grant.get(k) != v for k, v in expected.items()):
-                handler.send_error(403, "invalid or expired quiz form token"); return
+                _echo_quiz_failure(
+                    handler, stem, path, qs, session_file, fields,
+                    "That submission did not go through: this page's form token "
+                    "was expired, already used, or minted for a different item. "
+                    "Your answer is still here, exactly as you wrote it. "
+                    "Submit it again.")
+                return
             q = by_id.get(expected["item_id"])
             refusal = _check_refusal_body(handler, q) if action == "submit" else None
             try:
@@ -1477,7 +1529,14 @@ def handle_quiz_answer(handler, stem):
             except SystemExit as exc:
                 result = _refusal_from_exit(exc.code, q)
                 if result is None:
-                    handler.send_error(400, str(exc.code)); return
+                    _echo_quiz_failure(handler, stem, path, qs, session_file,
+                                       fields, str(exc.code), status=400)
+                    return
+            # The action ran and produced a result, so the token is spent
+            # now: a replay finds it gone, and every path that bailed out
+            # above left it usable for the resubmit it asked for.
+            with handler.quiz_state_lock:
+                handler.quiz_form_tokens.pop(token, None)
             if action == "submit" and result.get("accepted"):
                 # The browser form path wrote evidence but never the second,
                 # human-readable copy: `_refresh_attempt_view` was reachable

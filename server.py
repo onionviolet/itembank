@@ -89,8 +89,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def send_html(self, body):
-        self.send_bytes(body, "text/html; charset=utf-8")
+    def send_html(self, body, status=200):
+        """`status` is for the pages that are a real HTTP failure and still
+        need a usable body: a refused quiz submit comes back as the quiz page
+        carrying the learner's own answer, under the status that says it did
+        not go through."""
+        self.send_bytes(body, "text/html; charset=utf-8", status)
 
     def send_json(self, payload):
         self.send_bytes(json.dumps(payload, ensure_ascii=False).encode("utf-8"),

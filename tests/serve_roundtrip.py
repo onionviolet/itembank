@@ -254,6 +254,130 @@ def check_form_submit_writes_the_attempt_file():
     print("  a script-free form submit refreshed the attempt view at %s" % out)
 
 
+def seed_serving_first(qs, want_type):
+    """The lowest seed whose scoped-serve session opens on a `want_type` item.
+
+    Built with the same `_ensure_quiz_session` the served page uses, so the
+    order this returns is the order the browser will actually see.
+    """
+    from surfaces import daemon as daemon_mod
+
+    class _Handler(object):
+        pass
+
+    with tempfile.TemporaryDirectory() as tmp:
+        bank = os.path.join(tmp, "sample_bank.md")
+        shutil.copyfile(BANK, bank)
+        for seed in range(40):
+            handler = _Handler()
+            handler.root = tmp
+            handler.sessions = {"sample_bank": {"mode": "practice",
+                                                "progress": True, "seed": seed}}
+            path = daemon_mod._ensure_quiz_session(handler, "sample_bank", bank, qs)
+            with open(path, encoding="utf-8") as fh:
+                first = json.load(fh)["items"][0]
+            if qs[first]["type"] == want_type:
+                return seed
+    return None
+
+
+def start_serve(bank, out, extra=()):
+    """Boot `itembank serve` on an OS-assigned port; returns (proc, base_url)."""
+    proc = subprocess.Popen(
+        [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "serve", bank,
+         "--no-open", "--port", "0", "--out", out] + list(extra),
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    lines = []
+    threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
+                     daemon=True).start()
+    for _ in range(60):
+        time.sleep(0.1)
+        m = re.search(r"http://127\.0\.0\.1:\d+/", "".join(lines))
+        if m:
+            return proc, m.group(0)
+    proc.terminate()
+    fail("serve never printed a URL. Output was:\n" + "".join(lines))
+
+
+def submit_token(page):
+    m = re.search(r'name="form_token" value="([^"]+)">'
+                  r'<input type="hidden" name="action" value="submit"', page)
+    return m.group(1) if m else None
+
+
+def check_a_failed_submit_keeps_the_answer():
+    """A submit that does not go through comes back carrying what was typed.
+
+    On 2026-08-24 the 13.9 sitting wrote a constructed response, submitted it,
+    and got `403 invalid or expired quiz form token` as a bare error document:
+    no link, no retry, no echo. The prose was gone. The expired-token trigger
+    is fixed separately (`QUIZ_TOKEN_TTL`), but a network blip, a server
+    restart or a stray reload does exactly the same thing, so the class is
+    what is pinned here.
+
+    Two guarantees: the failing response still carries the failure status and
+    the learner's own text, and the token is not spent by a failure, so the
+    resubmit the page invites actually works.
+    """
+    qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
+    seed = seed_serving_first(qs, "short")
+    if seed is None:
+        fail("no seed in 0..39 serves a constructed response first")
+    work_root = tempfile.mkdtemp(prefix="serve-echo-")
+    bank = os.path.join(work_root, "sample_bank.md")
+    shutil.copyfile(BANK, bank)
+    out = os.path.join(tempfile.mkdtemp(), "attempt.md")
+    prose = "Scene safety first, then BSI, then a general impression of the patient."
+    proc, base = start_serve(bank, out, ["--seed", str(seed)])
+    quiz_url = base + "quiz/sample_bank"
+    try:
+        page = urllib.request.urlopen(quiz_url, timeout=5).read().decode("utf-8")
+        if "<textarea" not in page:
+            fail("seed %d did not serve a constructed response first" % seed)
+        good = submit_token(page)
+        if not good:
+            fail("the served baseline minted no submit token")
+
+        # A token that was never minted stands in for every way a submit can
+        # fail after the answer is typed.
+        body = urllib.parse.urlencode(
+            {"form_token": "not-a-token", "action": "submit", "answer": prose}).encode()
+        req = urllib.request.Request(
+            quiz_url + "/answer", data=body, method="POST",
+            headers={"Content-Type": "application/x-www-form-urlencoded"})
+        try:
+            urllib.request.urlopen(req, timeout=5)
+            fail("an unminted quiz form token was accepted")
+        except urllib.error.HTTPError as exc:
+            if exc.code != 403:
+                fail("a bad quiz token returned HTTP %d, expected 403" % exc.code)
+            refused = exc.read().decode("utf-8")
+        if prose not in refused:
+            fail("the refused submit did not echo the learner's answer back")
+        if "<textarea" not in refused:
+            fail("the refused submit returned no usable page, only an error document")
+        retry = submit_token(refused)
+        if not retry:
+            fail("the refused page offered no fresh token to resubmit with")
+
+        # The failure must not have burned the token minted for this item.
+        body = urllib.parse.urlencode(
+            {"form_token": good, "action": "submit", "answer": prose}).encode()
+        req = urllib.request.Request(
+            quiz_url + "/answer", data=body, method="POST",
+            headers={"Content-Type": "application/x-www-form-urlencoded"})
+        with urllib.request.urlopen(req, timeout=5) as res:
+            res.read()
+    finally:
+        proc.terminate()
+    if not os.path.exists(out):
+        fail("the resubmitted answer wrote no attempt file")
+    if prose not in open(out, encoding="utf-8").read():
+        fail("the resubmitted answer is not in the attempt record")
+    print("  a refused submit returns 403 with the answer intact, and the "
+          "token it did not spend still works")
+
+
 def check_serve_seed_reaches_the_session():
     """`itembank serve --seed N` chooses the item order the sitting runs in.
 
@@ -308,6 +432,7 @@ def check_serve_seed_reaches_the_session():
 def main():
     check_serve_seed_reaches_the_session()
     check_form_submit_writes_the_attempt_file()
+    check_a_failed_submit_keeps_the_answer()
     qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
     stem = os.path.splitext(os.path.basename(BANK))[0]
     # Isolate this test's bank (and its evidence log) from the shared
