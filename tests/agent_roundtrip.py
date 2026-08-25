@@ -19,6 +19,22 @@ from surfaces import session as session_surface       # noqa: E402
 from surfaces import selection_cli as selection_surface  # noqa: E402
 
 
+def fail(msg):
+    print("FAIL: " + msg)
+    sys.exit(1)
+
+
+def run_raw(*args):
+    """Run a command without parsing stdout.
+
+    `mark` prints its JSON document and then a human summary line ("1
+    recorded, 0 already recorded"), so `json.loads` over the whole stream
+    raises "Extra data". Callers that only need the side effect use this.
+    """
+    return subprocess.run([sys.executable, str(TOOL), *map(str, args)],
+                          cwd=ROOT, check=True, capture_output=True, text=True)
+
+
 def run(*args):
     result = subprocess.run([sys.executable, str(TOOL), *map(str, args)],
                             cwd=ROOT, check=True, capture_output=True, text=True)
@@ -58,8 +74,78 @@ def check_cli_reaches_shared_do_functions():
     print("agent/daemon shared do_* inventory: ok")
 
 
+def check_marker_close():
+    """The marker's desk is collected: a sitting parked on a pending prose
+    answer advances once the mark is recorded, and not one action before.
+
+    This is the regression test for `runtime.marker_close`. Before 2026-08-24 a
+    bank holding one short item could not be completed on any surface: the park
+    is deliberate and pinned by `hint_roundtrip`, but nothing ever unparked it,
+    so `lti_roundtrip` reached the marker-closed state by hand-writing cursor
+    and status into the session file. Both halves are asserted here, because a
+    test that only checked the advance would pass on a runtime that never
+    parked at all.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        bank = Path(tmp) / "sample_bank.md"
+        shutil.copyfile(BANK, bank)
+        session = Path(tmp) / "marker.json"
+        view = run("start", bank, "--count", "6", "--seed", "7",
+                   "--mode", "practice", "--out", session)
+        # Drive to the first short item; every other type is answered
+        # correctly, since practice holds the cursor on a wrong answer.
+        while view["status"] == "active" and view["item"]["type"] != "short":
+            view = run("submit", session, "--answer",
+                       json.dumps(answer_for(view["item"])))["next"]
+        if view["status"] != "active" or view["item"]["type"] != "short":
+            fail("the seeded sitting never reached a short item")
+        short_id = view["item"]["id"]
+        before = json.loads(session.read_text())["cursor"]
+
+        result = run("submit", session, "--answer",
+                     json.dumps("A constructed response, in full sentences."))
+        if result["action"] != "defer_feedback" or result["score"] is not None:
+            fail("a short response must defer with no score: %r" % result)
+        if json.loads(session.read_text())["cursor"] != before:
+            fail("a pending short response must not advance the cursor")
+
+        # Parked: `next` re-serves the same item, because nothing has ruled.
+        if run("next", session)["item"]["id"] != short_id:
+            fail("next moved past a pending item before any mark existed")
+
+        session_id = json.loads(session.read_text())["session_id"]
+        run_raw("mark", "--session", session_id, "--base", tmp,
+                "--item", short_id, "--verdict", "pass")
+
+        # Collected: the same call now hands back the following item.
+        after = run("next", session)
+        if after.get("status") == "active" and after["item"]["id"] == short_id:
+            fail("next stayed on a marked item; the marker's desk was not collected")
+        if json.loads(session.read_text())["cursor"] == before:
+            fail("an accepted mark did not advance the cursor")
+
+        while after["status"] == "active":
+            item = after["item"]
+            if item["type"] == "short":
+                run("submit", session, "--answer", json.dumps("More prose."))
+                sid = json.loads(session.read_text())["session_id"]
+                run_raw("mark", "--session", sid, "--base", tmp,
+                        "--item", item["id"], "--verdict", "pass")
+                after = run("next", session)
+                continue
+            after = run("submit", session, "--answer",
+                        json.dumps(answer_for(item)))["next"]
+        if json.loads(session.read_text())["status"] != "complete":
+            fail("a sitting containing a short item never reached complete")
+        report = run("report", session)
+        if report["summary"]["pending_manual"] < 1:
+            fail("the completed sitting does not report its pending mark")
+    print("  marker close: parked before a mark, advances after, sitting completes")
+
+
 def main():
     check_cli_reaches_shared_do_functions()
+    check_marker_close()
     with tempfile.TemporaryDirectory() as tmp:
         # Run against a temp COPY of the fixture bank so the evidence log
         # lands in tmp/_evidence, never fixtures/_evidence: plan 10-03 makes
