@@ -149,6 +149,20 @@ h1.stem{font-size:32px;font-weight:600;line-height:1.2;margin:0 0 14px;
 .feedback{min-height:96px;margin-top:14px;padding-top:12px;
   border-top:1px solid var(--line);font-size:16px}
 .feedback .status{color:var(--mut);margin-bottom:8px}
+/* Own-selection feedback on a held multiple-response attempt: which of the
+   learner's OWN picks were right and which were wrong. Never colour alone --
+   every row carries the word as text, because a verdict a learner cannot
+   read is not feedback (UI-SPEC section 8). */
+.picks{margin-top:var(--space-2)}
+.picks p{margin:0 0 var(--space-2)}
+.picks ul{list-style:none;margin:0;padding:0;display:flex;
+  flex-direction:column;gap:var(--space-1)}
+.picks li{display:flex;gap:var(--space-2);align-items:baseline;
+  font:16px/1.5 var(--font-paper)}
+.picks .mark{font:12px/1.5 var(--font-ledger);letter-spacing:.08em;
+  text-transform:uppercase;flex:0 0 auto}
+.picks li.y .mark{color:var(--ok)}
+.picks li.n .mark{color:var(--bad)}
 .support-region{border-top:1px solid var(--line);margin-top:var(--space-4);
   padding-top:var(--space-4)}
 .hint-heading{font:12px/1.5 var(--font-ledger);letter-spacing:.08em;
@@ -564,6 +578,28 @@ def _form_controls(item, prefill=None):
         label, html.escape(_prefilled(prefill, "answer")))
 
 
+def _selection_card(picks):
+    """Render the runtime's own-selection disclosure, or nothing.
+
+    The sentence is the runtime's (`runtime.selection_feedback` shapes it);
+    this only lays out what it released, and shows nothing about options the
+    learner did not pick because the payload does not name them. It is not a
+    verdict and not partial credit: the item is still marked as a whole.
+    """
+    if not isinstance(picks, dict) or not picks.get("display"):
+        return ""
+    rows = []
+    for cls, word, group in (("y", "right", picks.get("right") or []),
+                             ("n", "not right", picks.get("wrong") or [])):
+        for option in group:
+            rows.append('<li class="pick %s"><span class="mark">%s</span>'
+                        '<span>%s) %s</span></li>'
+                        % (cls, word, html.escape(str(option.get("key", ""))),
+                           html.escape(str(option.get("text", "")))))
+    return '<div class="picks" data-selection-feedback><p>%s</p><ul>%s</ul></div>' % (
+        html.escape(str(picks["display"])), "".join(rows))
+
+
 def _hint_card(row, locked=False):
     body = " ".join(row.get("unlock_copy") or []) if locked else row.get("display", "")
     return '<li class="hint-card %s"><h4>%s</h4><p>%s</p></li>' % (
@@ -588,6 +624,7 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=N
             feedback = '<div class="refused pend">%s</div>' % html.escape(str(flash["refused"]))
         elif flash.get("action") == "hold":
             feedback = '<div class="verdict n">Not correct. Try a different answer, or open the next hint.</div>'
+            feedback += _selection_card(flash.get("selection_feedback"))
         elif flash.get("action") == "defer_feedback":
             # The scoped serve path renders server-side, so this branch is what
             # a learner actually sees after a constructed response. It did not

@@ -1712,20 +1712,100 @@ HINT_TIERS = (
 # One policy table keyed ONLY by feedback mode (D-01/D-10..D-13). `selection`
 # is the Phase 7 axis and is deliberately absent: feedback policy never
 # consults selection_mode.
+# `selection` is the third axis (2026-08-24): what a not-fully-correct
+# multiple-response attempt may learn about its OWN selections while the item
+# is still open. "own_picks" names which of the learner's picks were right and
+# which were wrong and says nothing at all about options they did not pick;
+# "none" is silence. It is a DISCLOSURE decision, not a scoring one: the
+# scorer is untouched and a `multi` response stays all or nothing, which is
+# also how NREMT marks a multiple response item (no credit for a partially
+# correct response). Weibao, USER-VISION 2026-08-24: "its just to rule out
+# wrong answers and also show what I got right so I can keep on going rather
+# than gambling", and he is explicit that this is NOT partial credit.
 FEEDBACK_POLICIES = {
-    "drill": {"wrong": "advance", "right": "advance"},
-    "practice": {"wrong": "hold", "right": "advance"},
-    "diagnostic": {"wrong": "defer_feedback", "right": "defer_feedback"},
-    "exam": {"wrong": "defer_feedback", "right": "defer_feedback"},
+    # drill already discloses the full authored reveal on a wrong answer, so
+    # a partial disclosure before it would be strictly less than it gets.
+    "drill": {"wrong": "advance", "right": "advance", "selection": "none"},
+    "practice": {"wrong": "hold", "right": "advance", "selection": "own_picks"},
+    # Diagnostic and exam stay silent, which is fidelity to how the real
+    # examination behaves: an examinee learns nothing mid-item.
+    "diagnostic": {"wrong": "defer_feedback", "right": "defer_feedback",
+                   "selection": "none"},
+    "exam": {"wrong": "defer_feedback", "right": "defer_feedback",
+             "selection": "none"},
     # remediation was not one of the four planned Phase 6 modes, but it ships
     # in the session mode enum; practice's held-retry ladder is the honest
     # teaching behavior for it rather than an unhandled mode.
-    "remediation": {"wrong": "hold", "right": "advance"},
+    "remediation": {"wrong": "hold", "right": "advance",
+                    "selection": "own_picks"},
     # 'legacy' appears only on events migrated from a pre-mode store; a
     # live session can never carry it, and a legacy mode must not pretend to
     # be a policy it never was.
-    "legacy": {"wrong": "defer_feedback", "right": "defer_feedback"},
+    "legacy": {"wrong": "defer_feedback", "right": "defer_feedback",
+               "selection": "none"},
 }
+
+
+def _selection_display(right, wrong):
+    """The learner-facing sentence for `selection_feedback`.
+
+    Shaped here for the same reason `_reveal_display` is: the runtime already
+    owns what a learner may read at this point, and a surface re-deriving the
+    words would be a second place deciding disclosure.
+    """
+    joined = lambda ks: ", ".join(ks)
+    if right and wrong:
+        return ("Of the options you picked, these are right: %s. These are not: %s. "
+                "Nothing is said here about the options you did not pick, and the "
+                "item is still marked right or wrong as a whole."
+                % (joined(right), joined(wrong)))
+    if right:
+        return ("Every option you picked is right: %s. You have not picked all of "
+                "them yet, so the item is not correct until the set is complete."
+                % joined(right))
+    return ("None of the options you picked are right: %s. Nothing is said here "
+            "about the options you did not pick." % joined(wrong))
+
+
+def selection_feedback(q, answer):
+    """Which of the learner's OWN selections were right and which were wrong.
+
+    Ruling out what the learner already tried is the difference between a
+    second attempt and a guess, and it costs no key: an option the learner
+    did not pick is not mentioned, present or absent from the answer.
+
+    This is disclosure, not credit. `score_response` is not consulted and not
+    changed, the response stays all or nothing, and nothing here reaches
+    evidence: it is released by policy on an open item and rebuilt on demand.
+
+    The one way to widen it is to pick every option, which trades an attempt
+    recorded in evidence for the same reveal the hint ladder gives away
+    anyway after a wrong answer. That is a worse deal than answering, so it
+    is left as a known and stated property rather than defended against.
+
+    Returns None for any item type that is not `multi`, and for a response
+    that selected nothing recognizable.
+    """
+    if q.get("type") != "multi":
+        return None
+    given = answer if isinstance(answer, list) else [answer]
+    opts = q.get("opts") or {}
+    picked, seen = [], set()
+    for x in given:
+        k = str(x).strip().upper()
+        if k in opts and k not in seen:
+            seen.add(k)
+            picked.append(k)
+    if not picked:
+        return None
+    key = set(q.get("correct") or [])
+    right = sorted(k for k in picked if k in key)
+    wrong = sorted(k for k in picked if k not in key)
+    entry = lambda k: {"key": k, "text": opts[k]}
+    return {"kind": "own_selections",
+            "right": [entry(k) for k in right],
+            "wrong": [entry(k) for k in wrong],
+            "display": _selection_display(right, wrong)}
 
 
 def new_teaching_record():
@@ -2014,8 +2094,13 @@ def teaching_transition(session, q, action, evidence_state=None):
                         last_genuine_canonical=canon)
         state = dict(state)
         state[teaching_key(q)] = next_rec
-        return {"action": "hold", "session": dict(session, teaching_state=state),
+        held = {"action": "hold", "session": dict(session, teaching_state=state),
                 "hint_tier": hint_tier, "tier_unlocked": unlocked}
+        if policy.get("selection") == "own_picks":
+            picks = selection_feedback(q, answer)
+            if picks is not None:
+                held["selection_feedback"] = picks
+        return held
 
     # score is True.
     if policy["right"] == "defer_feedback":

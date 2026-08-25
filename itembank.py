@@ -63,7 +63,8 @@ from runtime import (FEEDBACK_POLICIES, FIELD_SEP, HINT_TIERS, ITEM_VERSION,  # 
                      canonical_key, canonical_response, explain_payload,
                      glossable, new_teaching_record, normalize_answer,
                      page_item, public_item, read_session, reconcile_teaching_state,
-                     response_text, score_response, session_path,
+                     response_text, score_response, selection_feedback,
+                     session_path,
                      session_summary, session_view, teaching_key,
                      teaching_payload, teaching_transition, upgrade_session,
                      write_session)
@@ -139,6 +140,7 @@ __all__ = [
     "response_event", "response_text", "retracted_ids", "retraction_event",
     "scan_legacy",
     "expand_spec", "reconcile_teaching_state", "score_response", "section", "select",
+    "selection_feedback",
     "selection_event",
     "session_events", "session_path",
     "key_review_event", "session_summary", "session_view", "source_key",

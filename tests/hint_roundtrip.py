@@ -125,6 +125,78 @@ def test_practice_wrong_holds_and_unlocks_one_tier():
              % r.get("hint_tier"))
 
 
+def test_multi_hold_names_own_picks_and_never_an_unpicked_option():
+    """Plan item 3, 2026-08-24. A held multiple-response attempt says which of
+    the learner's OWN picks were right and which were wrong.
+
+    Weibao, USER-VISION 2026-08-24: "its just to rule out wrong answers and
+    also show what I got right so I can keep on going rather than gambling."
+    He is explicit that this is NOT partial credit, so the assertion that
+    matters most is the last one: the score is still False. NREMT scores a
+    multiple response item dichotomously with no credit for a partially
+    correct response, so all-or-nothing is also the conformant behaviour.
+    """
+    q = q2()                                  # multi, correct A and B, opts A..E
+    s = session(mode="practice", items=(1,), cursor=0)
+    r = runtime.teaching_transition(s, q, {"kind": "submit", "answer": ["A", "C"]})
+    if r["action"] != "hold":
+        fail("a wrong multi submit must still hold, got %r" % r["action"])
+    picks = r.get("selection_feedback")
+    if not picks:
+        fail("a held multi attempt released no own-selection feedback")
+    right = [o["key"] for o in picks["right"]]
+    wrong = [o["key"] for o in picks["wrong"]]
+    if right != ["A"] or wrong != ["C"]:
+        fail("own-selection feedback got right=%r wrong=%r, expected A right "
+             "and C wrong" % (right, wrong))
+    # B is correct and was NOT picked: naming it, in any field, would hand
+    # over the part of the key the learner has not earned.
+    blob = json.dumps(picks)
+    if '"B"' in blob or q["opts"]["B"] in blob:
+        fail("own-selection feedback named an option the learner did not pick")
+    if not picks.get("display"):
+        fail("own-selection feedback carried no learner-facing sentence")
+
+    # Not partial credit, in either direction: an under-selection of only
+    # correct options is still wrong, and the scorer is untouched.
+    if runtime.score_response(q, ["A", "C"]) is not False:
+        fail("the scorer changed: a partially correct multi is not False")
+    if runtime.score_response(q, ["A"]) is not False:
+        fail("the scorer changed: an under-selection is not False")
+    under = runtime.teaching_transition(
+        session(mode="practice", items=(1,), cursor=0), q,
+        {"kind": "submit", "answer": ["A"]})
+    if under["action"] != "hold":
+        fail("an under-selection must hold, got %r" % under["action"])
+    picks = under["selection_feedback"]
+    if [o["key"] for o in picks["right"]] != ["A"] or picks["wrong"]:
+        fail("an all-correct under-selection must report every pick right: %r"
+             % picks)
+
+
+def test_multi_selection_feedback_is_policy_gated():
+    """Exam and diagnostic stay silent, and no other item type carries it."""
+    q = q2()
+    for mode in ("exam", "diagnostic"):
+        r = runtime.teaching_transition(
+            session(mode=mode, items=(1,), cursor=0), q,
+            {"kind": "submit", "answer": ["A", "C"]})
+        if r.get("selection_feedback") is not None:
+            fail("%s released own-selection feedback; it must stay silent" % mode)
+    for mode, policy in runtime.FEEDBACK_POLICIES.items():
+        if policy.get("selection") not in ("own_picks", "none"):
+            fail("mode %r declares no own-selection disclosure policy" % mode)
+    r = runtime.teaching_transition(
+        session(mode="practice", items=(0,), cursor=0), q1(),
+        {"kind": "submit", "answer": q1_wrong()})
+    if r.get("selection_feedback") is not None:
+        fail("a single-answer item released own-selection feedback")
+    if runtime.selection_feedback(q1(), "C") is not None:
+        fail("selection_feedback answered for a non-multi item")
+    if runtime.selection_feedback(q2(), []) is not None:
+        fail("selection_feedback answered for a response that picked nothing")
+
+
 def test_practice_duplicate_and_empty_unlock_nothing():
     s = session(mode="practice", items=(0,), cursor=0)
     r1 = runtime.teaching_transition(s, q1(), {"kind": "submit", "answer": q1_wrong()})
@@ -1150,6 +1222,8 @@ def main():
     test_transition_rejects_unknown_action()
     test_practice_wrong_holds_and_unlocks_one_tier()
     test_practice_duplicate_and_empty_unlock_nothing()
+    test_multi_hold_names_own_picks_and_never_an_unpicked_option()
+    test_multi_selection_feedback_is_policy_gated()
     test_practice_hint_reveals_one_fixed_tier_in_order()
     test_practice_hint_without_attempt_unlocks_tier_zero()
     test_practice_stumped_reveals_exactly_next_tier()

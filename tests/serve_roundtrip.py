@@ -378,6 +378,63 @@ def check_a_failed_submit_keeps_the_answer():
           "token it did not spend still works")
 
 
+def check_multi_hold_shows_which_of_my_picks_were_right():
+    """The served page shows a held multiple-response attempt which of the
+    learner's OWN picks were right, and nothing about the ones he did not pick.
+
+    Weibao, USER-VISION 2026-08-24: "its just to rule out wrong answers and
+    also show what I got right so I can keep on going rather than gambling."
+    The runtime decides the disclosure (`FEEDBACK_POLICIES`); this pins that it
+    reaches the script-free page a learner actually sits, and that the card
+    stops where the policy stops.
+    """
+    qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
+    by_id = dict((q["id"], q) for q in qs)
+    seed = seed_serving_first(qs, "multi")
+    if seed is None:
+        fail("no seed in 0..39 serves a multiple-response item first")
+    work_root = tempfile.mkdtemp(prefix="serve-multi-")
+    bank = os.path.join(work_root, "sample_bank.md")
+    shutil.copyfile(BANK, bank)
+    out = os.path.join(tempfile.mkdtemp(), "attempt.md")
+    proc, base = start_serve(bank, out, ["--seed", str(seed)])
+    quiz_url = base + "quiz/sample_bank"
+    try:
+        page = urllib.request.urlopen(quiz_url, timeout=5).read().decode("utf-8")
+        item_id = re.search(r'data-item-id="([^"]+)"', page).group(1)
+        q = by_id[item_id]
+        if q["type"] != "multi":
+            fail("seed %d did not serve a multiple-response item first" % seed)
+        keyed = list(q["correct"])
+        unpicked = keyed[-1]
+        decoy = next(k for k in sorted(q["opts"]) if k not in keyed)
+        fields = [("option", keyed[0]), ("option", decoy),
+                  ("form_token", submit_token(page)), ("action", "submit")]
+        req = urllib.request.Request(
+            quiz_url + "/answer", data=urllib.parse.urlencode(fields).encode(),
+            method="POST",
+            headers={"Content-Type": "application/x-www-form-urlencoded"})
+        with urllib.request.urlopen(req, timeout=5) as res:
+            held = res.read().decode("utf-8")
+    finally:
+        proc.terminate()
+    card = re.search(r'<div class="picks" data-selection-feedback>(.*?)</div>\s*</div>',
+                     held, re.S)
+    if not card:
+        fail("a held multi attempt showed no own-selection card")
+    card = card.group(1)
+    if ("%s)" % keyed[0]) not in card or ("%s)" % decoy) not in card:
+        fail("the card did not name both of the learner's own picks: %r" % card)
+    if "right" not in card or "not right" not in card:
+        fail("the card marks its verdicts by colour alone, with no words")
+    if ("%s)" % unpicked) in card or q["opts"][unpicked] in card:
+        fail("the card named a keyed option the learner did not pick")
+    if "Not correct" not in held:
+        fail("a partially correct multi stopped being marked wrong as a whole")
+    print("  a held multi attempt rules out the learner's own wrong pick "
+          "without touching an option he did not choose")
+
+
 def check_serve_seed_reaches_the_session():
     """`itembank serve --seed N` chooses the item order the sitting runs in.
 
@@ -433,6 +490,7 @@ def main():
     check_serve_seed_reaches_the_session()
     check_form_submit_writes_the_attempt_file()
     check_a_failed_submit_keeps_the_answer()
+    check_multi_hold_shows_which_of_my_picks_were_right()
     qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
     stem = os.path.splitext(os.path.basename(BANK))[0]
     # Isolate this test's bank (and its evidence log) from the shared

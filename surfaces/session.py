@@ -1020,6 +1020,11 @@ def do_action(session_file, action, confidence=None, renderer_meta=None,
             # Only a check item carries it; every other type's body is
             # byte-identical to before, asserted by check_roundtrip.
             ret["run_result"] = run_result
+        if result.get("selection_feedback") is not None:
+            # Only a held multiple-response attempt in a mode whose policy
+            # allows it carries this key at all, so no other body changes.
+            # The transition decided the disclosure; this is passthrough.
+            ret["selection_feedback"] = result["selection_feedback"]
         return ret
     return {"accepted": accepted, "item_id": q["id"], "action": action_name,
             "hint": result.get("hint"),

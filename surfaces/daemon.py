@@ -1602,6 +1602,9 @@ def handle_quiz_answer(handler, stem):
             # D-12/D-13: the legacy served route also withholds verdicts.
             result.pop("score", None)
             result.pop("explain", None)
+            # Defence in depth: the transition never releases own-selection
+            # feedback in a silent mode, and a silent mode never ships it.
+            result.pop("selection_feedback", None)
         if result.get("action") in ("advance", "complete") and q is not None:
             # The rebuild applies the reveal policy, and for a check item it
             # must carry the one run's per-case result (05-05 Task 1) or the
@@ -2894,6 +2897,9 @@ def handle_api_submit(handler):
         # the served client cannot infer correctness before the release gate.
         result.pop("score", None)
         result.pop("explain", None)
+        # Defence in depth: the transition never releases own-selection
+        # feedback in a silent mode, and a silent mode never ships it.
+        result.pop("selection_feedback", None)
     if cfg is not None and result.get("accepted") and qs:
         _refresh_attempt_view(cfg, session_id, qs, bank_path)
     handler.send_json(result)
