@@ -105,3 +105,15 @@ each is a decision or a judgment that cannot be automated rather than a gap.
 - [ ] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending
+
+---
+
+## Calibration corpus (added 2026-08-24)
+
+| Corpus | Pointer | What it covers |
+|---|---|---|
+| Phase 13.9 walking-skeleton sitting, real learner evidence | `.planning/phases/13.9-walking-skeleton/13.9-CALIBRATION.md` | One real domain for the three-domain graph tracer, by pointer: a four-objective EMT course with recorded prerequisite shape, two direct-reading and two lesson-plus-practice treatment decisions, and the sitting evidence those decisions produced. 14B-06's freeze gate already checks that Phase 13.9 has been walked; this file is what that check reads. |
+
+Cite that file rather than minting a synthetic fixture for what it covers.
+It carries pointers, hashes and counts only: the corpus itself lives outside
+this repository and no item text may ever be copied in (`itembank guard .`).

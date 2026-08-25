@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase_name: 13.5-reading-teaching-surface-quality-pass
-status: Phase 14A EXECUTED and FROZEN (2026-08-18). 17A is 7 of 8 plans built as of 2026-08-24 (01, 02, 03, 05, 06, 07, 08); only 17A-04 remains and it waits on the 13.9 sitting. 13.9 plans 01-02 committed; 13.9-03 awaits Weibao's sitting. Full suite 70 of 70 green at 19edacc.
-stopped_at: 17A-04 is the only unbuilt 17A plan and is blocked on 13.9-03 (Weibao's sitting, closes A9). After that: 17A-04, then 14B (its plans must cite 13.9-CALIBRATION.md; no 14B freeze commits before 13.9-03 closes).
-last_updated: "2026-08-24T00:00:00.000Z"
-last_activity: 2026-08-24
-last_activity_desc: "Executed the 17A finish prompt in order: 17A-02 Task 2 (five type tokens, three density aliases, day.py migrated onto surface_shell), 17A-05 (oled true-black mode, executed by Ox Alpha and committed by the orchestrator after independent re-verification), 17A-03 (17 accessible component primitives plus a full inventory fixture). Also closed the frozen-token consumption gap, fixed two pins that guarded nothing, and added a worktree guard to ox_overnight.sh. Commits a79c626..19edacc. Full suite 70 of 70 green, guard clean."
+status: Phase 14A EXECUTED and FROZEN (2026-08-18). Phase 13.9 WALKED 2026-08-24: Weibao sat the rebuilt EMT bank end to end, session 13d56ab15efb4709821a6dd86357a5dc, and A9 is closed. 17A is 7 of 8 plans built (01, 02, 03, 05, 06, 07, 08); only 17A-04 remains and it is now unblocked. Full suite green.
+stopped_at: 13.9-03 is closed and A9 with it, so 17A-04 is unblocked and 14B-or-later freezes may now commit, each citing 13.9-CALIBRATION.md where it covers them. Still open from the sitting queue: draft autosave on the served answer form, and Weibao's two-sentence post-sitting reaction, which no agent may write for him.
+last_updated: "2026-08-25T00:00:00.000Z"
+last_activity: 2026-08-25
+last_activity_desc: "Walked the Phase 13.9 skeleton to a close: registered the real sitting as 13.9-CALIBRATION.md (pointers, hashes and counts only), closed the four remaining A9 checkboxes with dated citations, and pointed 14B and 15A validation at the corpus. Fixed the five defects the sitting opened: the unwritten attempt file, the discarded answer on a failed submit, missing own-selection feedback on a held multi, NREMT option counts as a subject-scoped lint error, and empirical distractor usage in stats. Full roundtrip suite green, guard clean."
 progress:
   total_phases: 28
   completed_phases: 18
@@ -17,6 +17,57 @@ current_phase: 13.5
 ---
 
 # Project State
+
+## 2026-08-25: the walking skeleton is walked, A9 closed, and five defects it opened are fixed
+
+**The sitting.** Weibao sat the rebuilt EMT bank end to end through
+`itembank serve` on 2026-08-24: session `13d56ab15efb4709821a6dd86357a5dc`,
+status complete, 10 items, 18 auto attempts with 9 correct, one constructed
+response marked `fail`, 4 hint tiers opened on a single item, all four course
+objectives exercised. The corpus is registered at
+`.planning/phases/13.9-walking-skeleton/13.9-CALIBRATION.md`, pointers and
+hashes only, `itembank guard .` clean.
+
+**Standing rule this unlocks.** 14B-or-later freezes may now commit; their
+plans must cite `13.9-CALIBRATION.md` where it covers them.
+`14B-VALIDATION.md` and `15A-VALIDATION.md` carry that pointer as of today.
+
+**Weibao's two-sentence reaction is still uncaptured.** 13.9-03 Task 1 step 4
+asks for it after the sitting, and no agent may write it for him. It is
+evidence about the experience rather than about whether the skeleton was
+walked, so A9 closed without it, and the open slot is named in A9 itself.
+
+**What the skeleton was for.** One real sitting on real material found five
+defects that seventy green suites had agreed with, all fixed 2026-08-24 into
+2026-08-25:
+
+1. The browser form path never wrote the attempt markdown the `serve` banner
+   promised. `_refresh_attempt_view` was reachable only from the JSON route.
+2. A failed submit threw away what the learner had typed. It now comes back as
+   the quiz page with the answer echoed in and the token unspent, so the
+   resubmit works.
+3. A held multiple-response attempt said nothing about which of the learner's
+   own picks were right. `FEEDBACK_POLICIES` gained a `selection` axis;
+   practice and remediation disclose, exam and diagnostic stay silent, and the
+   scorer is untouched (this is NOT partial credit).
+4. NREMT's published option counts are now a lint error for `emt:` items and
+   for no other subject.
+5. Distractors nobody has ever chosen are now reported by `itembank stats`
+   from the evidence store, with both denominators stated.
+
+Before those, on 2026-08-24: a bank containing a `short` item could not be
+completed on any surface, found by the first attempt at this sitting and fixed
+under `.planning/quick/260824-m4k-marker-closed-transition/`.
+
+**Still open, routed, not fixed here.** `Item 1 of 0` and the never-advancing
+position (13.5 defect D2, plan already written at
+`.planning/quick/260817-q7d-fix-135-defects-d1-d2/`, unexecuted); the `serve`
+banner printing a session id that is not the evidence id; a second exam-mode
+submit returning `hold`; `explain_payload(q, reveal=False)` blanking `model`
+and `rubric` while returning the same text in `answer_text`, a landmine rather
+than a live leak; marking ergonomics for a solo learner-marker; and draft
+autosave, the one answer-loss fix that survives a server restart.
+
 
 ## 2026-08-24: 17A-02, 17A-05 and 17A-03 executed; only 17A-04 remains
 

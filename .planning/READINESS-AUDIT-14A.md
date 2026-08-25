@@ -102,21 +102,52 @@ wants to use, and the sequence currently answers that question last. The
 skeleton inverts that: a thin, ugly, real slice early, with the deep phases
 frozen only after the slice has been walked.
 
-- [ ] The Phase 14A plan set (or a sibling plan scheduled no later than 14B)
+- [x] The Phase 14A plan set (or a sibling plan scheduled no later than 14B)
       names a **walking-skeleton tracer**: one real source from one live fall
       course, discovered and bound read-only, mapped to at least three cited
       objectives, with a recorded treatment decision per objective (at least
       one direct reading and at least one generated lesson plus practice), and
       **sat by Weibao end to end** through the shipped serve/teach/evidence
       loop. Ugly is acceptable; simulated is not.
-- [ ] The skeleton runs on shipped surfaces (`serve`, `lesson`, `study`,
+      (satisfied 2026-08-24: Phase 13.9 plans 01 through 03. One real source
+      (`src-01`, Weibao's own worked AAOS 12e chapter sheet), four cited
+      objectives, both treatment kinds recorded (obj-01 and obj-04 direct
+      reading, obj-02 and obj-03 lesson plus practice), sat end to end through
+      `itembank serve` as session `13d56ab15efb4709821a6dd86357a5dc`, status
+      complete, 10 items, 18 auto attempts and 1 settled human mark. Counts,
+      hashes and pointers in `13.9-CALIBRATION.md`. It was ugly: the sitting
+      before it produced one response of ten and exposed a blocking runtime
+      defect, recorded in `13.9-DECISIONS.md` 2026-08-24 and fixed under
+      `.planning/quick/260824-m4k-marker-closed-transition/`. It was not
+      simulated.
+      **Open, and deliberately not waived:** Task 1 step 4's two-sentence
+      reaction after the sitting is still uncaptured. It is Weibao's to give
+      and no agent may write it for him. It is evidence about the experience,
+      not about whether the skeleton was walked, so it does not hold this
+      checkbox open, and the slot stays named here until he fills it.)
+- [x] The skeleton runs on shipped surfaces (`serve`, `lesson`, `study`,
       `teach`, evidence). It may stub course-level storage with the smallest
       14A identity/journal slice, and it introduces no second parser, scorer,
       or evidence store (A6 applies to it in full).
-- [ ] Evidence recorded by the skeleton sitting lands in the one evidence
+      (satisfied 2026-08-24: the sitting ran on `itembank serve` with no
+      flags beyond the defaults, the reading was the direct-reading treatment
+      in `course.md`, the hint ladder used was the shipped authored one (four
+      tiers opened on one item, `stumped` path), and every response went
+      through `runtime.score_response` into the one `_evidence/evidence.jsonl`.
+      No second parser, scorer, or store was added by 13.9; `course.md`
+      remains a stub no tool parses, as 14B-01 records.)
+- [x] Evidence recorded by the skeleton sitting lands in the one evidence
       store, and at least one later plan (14B, 15A, or the 3.2-style warning
       calibration obligations) names that evidence as its calibration corpus in
       place of a synthetic fixture.
+      (satisfied 2026-08-24: all 19 responses, 4 hint events and 1 mark landed
+      in `<course-root>/_evidence/evidence.jsonl` and are queryable per
+      objective with honest denominators. `13.9-CALIBRATION.md` names three
+      consumers, and both `14B-VALIDATION.md` and `15A-VALIDATION.md` now cite
+      it by name. What the corpus replaces is the claim that a synthetic
+      corpus is sufficient evidence; it cannot replace the generated fixtures
+      themselves, because no real item text may enter this repository and
+      `itembank guard` enforces that.)
 - [x] Phase 13.5 waves 3 and later are scheduled before or beside the
       skeleton, or explicitly waived with a reason, because the skeleton
       renders through exactly the surfaces 13.5 hardens.
@@ -126,9 +157,14 @@ frozen only after the slice has been walked.
       date, and a smoke test of the sitting path found the loop working with
       one cosmetic defect, `Item 1 of 0`, routed to 13.5. This waiver closes
       this checkbox only; every other A9 box still requires the real sitting.)
-- [ ] Freeze gates in A3 that the skeleton can exercise cheaply (graph-to-
+- [x] Freeze gates in A3 that the skeleton can exercise cheaply (graph-to-
       outline, rich-lesson stress corpus) cite skeleton artifacts where they
       exist rather than inventing parallel fixtures.
+      (satisfied 2026-08-24: `14B-VALIDATION.md` and `15A-VALIDATION.md` carry
+      a dated calibration-corpus row pointing at `13.9-CALIBRATION.md`, and
+      14B-06's existing freeze gate already checks that Phase 13.9 has been
+      walked. The citation is a pointer to artifacts outside this repository,
+      which is the only form it can take under the guard.)
 - **Fail** if the first learner-visible course experience in the sequence
   remains 17B.
 

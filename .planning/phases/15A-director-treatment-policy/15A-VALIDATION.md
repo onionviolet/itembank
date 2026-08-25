@@ -116,3 +116,15 @@ no install step.
 - [ ] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending
+
+---
+
+## Calibration corpus (added 2026-08-24)
+
+| Corpus | Pointer | What it covers |
+|---|---|---|
+| Phase 13.9 walking-skeleton sitting, real learner evidence | `.planning/phases/13.9-walking-skeleton/13.9-CALIBRATION.md` | One real subject for the four-subject recommendation review: the treatment decisions in `course.md` are the decision half, and the per-objective attempt and outcome counts in the calibration file are the outcome half, including a direct-reading case and a marked-incorrect constructed response. |
+
+Cite that file rather than minting a synthetic fixture for what it covers.
+It carries pointers, hashes and counts only: the corpus itself lives outside
+this repository and no item text may ever be copied in (`itembank guard .`).
