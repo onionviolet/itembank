@@ -1470,20 +1470,39 @@ def session_view(data, qs):
     return view
 
 
-def session_summary(data):
+def session_summary(data, settled_marks=None):
+    """The session's own arithmetic.
+
+    `settled_marks` is the set of item REFS a human marker has ruled on (the
+    `q["id"]` a response row stores under its confusingly named `item_id`
+    field), supplied by the caller because this function is pure over the
+    session dict and reads no files. Without it, `pending_manual` counts every unscored
+    response, which is what a marker sees as outstanding work. That was wrong
+    once a mark existed: the 13.9 sitting marked q8 `fail` and the report went
+    on reporting one pending manual mark, so the marker's own ruling was
+    invisible to the marker. A settled mark is not outstanding, whichever way
+    it went.
+
+    Omitting the argument reproduces the previous counts exactly, so a caller
+    without a log in hand is unchanged.
+    """
     responses = data["responses"]
+    settled = settled_marks or set()
     auto = [r for r in responses if r["score"] is not None]
     correct = sum(1 for r in auto if r["score"] is True)
     by_objective = collections.defaultdict(lambda: {"attempts": 0, "correct": 0, "pending": 0})
+    pending_manual = 0
     for r in responses:
         bucket = by_objective[r.get("objective") or "(unmapped)"]
         bucket["attempts"] += 1
         if r["score"] is None:
-            bucket["pending"] += 1
+            if r.get("item_id") not in settled:
+                bucket["pending"] += 1
+                pending_manual += 1
         elif r["score"]:
             bucket["correct"] += 1
     return {"schema_version": REPORT_VERSION, "auto_attempts": len(auto),
-            "auto_correct": correct, "pending_manual": len(responses) - len(auto),
+            "auto_correct": correct, "pending_manual": pending_manual,
             "objectives": dict(by_objective)}
 
 

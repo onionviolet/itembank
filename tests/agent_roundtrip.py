@@ -138,8 +138,35 @@ def check_marker_close():
         if json.loads(session.read_text())["status"] != "complete":
             fail("a sitting containing a short item never reached complete")
         report = run("report", session)
-        if report["summary"]["pending_manual"] < 1:
-            fail("the completed sitting does not report its pending mark")
+        # A settled mark is not outstanding work. This assertion previously
+        # required `pending_manual >= 1` after a `pass` verdict, which pinned
+        # the very defect the 13.9 sitting later exposed: the marker's own
+        # ruling stayed invisible to the marker, and the report went on asking
+        # for work that was already done.
+        if report["summary"]["pending_manual"] != 0:
+            fail("a sitting whose only short item is marked still reports %d "
+                 "pending manual mark(s)"
+                 % report["summary"]["pending_manual"])
+        outcomes = report["summary"]["teaching_outcomes"]
+        settled = [r["outcome"] for r in outcomes.values()
+                   if r["item_ref"] == short_id]
+        if settled != ["accepted_mark"]:
+            fail("a passed mark should read accepted_mark, got %r" % settled)
+
+        # The fail verdict is settled too, and reads differently. Both halves
+        # matter: `pending` must mean nobody has looked yet, never "looked and
+        # said no".
+        sid = json.loads(session.read_text())["session_id"]
+        run_raw("mark", "--session", sid, "--base", tmp,
+                "--item", short_id, "--verdict", "fail")
+        report = run("report", session)
+        if report["summary"]["pending_manual"] != 0:
+            fail("a failed mark left the item counted as pending manual work")
+        outcomes = report["summary"]["teaching_outcomes"]
+        failed = [r["outcome"] for r in outcomes.values()
+                  if r["item_ref"] == short_id]
+        if failed != ["marked_incorrect"]:
+            fail("a failed mark should read marked_incorrect, got %r" % failed)
     print("  marker close: parked before a mark, advances after, sitting completes")
 
 

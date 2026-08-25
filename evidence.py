@@ -1604,8 +1604,10 @@ def teaching_outcomes(log, session_id):
     correct_after_tier (same, but a hint had been shown), stumped_at_tier,
     revealed, hints_used (live hint events), highest_tier (highest tier shown
     or None), and one of the D-17 outcome labels: first_try_correct,
-    correct_after_attempts, correct_after_tier, accepted_mark, revealed,
-    stumped, pending, or unresolved. A stumped action never counts as a wrong
+    correct_after_attempts, correct_after_tier, accepted_mark,
+    marked_incorrect, revealed, stumped, pending, or unresolved. A settled
+    mark is never `pending`: `pending` means no human has ruled yet, and both
+    verdicts end that state. A stumped action never counts as a wrong
     response; a retracted event never counts at all.
     """
     resp_by_item = {}
@@ -1651,6 +1653,17 @@ def teaching_outcomes(log, session_id):
                  and marks.get(resp.get("event_id"), {}).get("verdict") is True
                  for resp in resps):
             outcome = "accepted_mark"
+        elif any(resp.get("score") is None
+                 and marks.get(resp.get("event_id"), {}).get("verdict") is False
+                 for resp in resps):
+            # A failed mark is SETTLED, not outstanding. Until 2026-08-24 this
+            # branch did not exist and a `fail` verdict fell through to
+            # `pending`, which is the label for an item no human has looked at
+            # yet. The marker's own work therefore disappeared from the report
+            # that marker reads, and the honest reading of the row was "still
+            # to do". Found by the 13.9 sitting, where q8 was marked fail and
+            # the report went on claiming one pending manual mark.
+            outcome = "marked_incorrect"
         elif any(resp.get("score") is None for resp in resps):
             outcome = "pending"
         else:

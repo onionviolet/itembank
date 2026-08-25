@@ -807,6 +807,29 @@ def settled_mark_keys(log, session_id):
     return marked
 
 
+def settled_mark_refs(log, session_id):
+    """The item REFS a human marker has ruled on in this session.
+
+    `settled_mark_keys` answers the same question in evidence-key space, which
+    is what the runtime's cursor logic matches on. A session response row keys
+    on `q["id"]` instead, stored under a field confusingly named `item_id`, so
+    the report needs the ref form. Both verdicts count: a failed mark is
+    settled.
+    """
+    resp_ref, marked = {}, set()
+    for ev in evidence.live_events(log):
+        if ev.get("session_id") != session_id:
+            continue
+        et = ev.get("event_type")
+        if et == evidence.RESPONSE_EVENT_TYPE:
+            resp_ref[ev.get("event_id")] = ev.get("item_ref", "")
+        elif et == evidence.MARK_EVENT_TYPE:
+            ref = resp_ref.get(ev.get("marks_event"))
+            if ref:
+                marked.add(ref)
+    return marked
+
+
 def do_action(session_file, action, confidence=None, renderer_meta=None,
               elapsed_ms=None):
     """The ONE session adapter for every sitting action (D-01/D-02): it
@@ -1011,7 +1034,7 @@ def do_report(session_file):
     data = read_session(session_file)
     log = evidence.log_path(os.path.dirname(data["bank"]))
     outcomes = evidence.teaching_outcomes(log, data["session_id"])
-    summary = session_summary(data)
+    summary = session_summary(data, settled_mark_refs(log, data["session_id"]))
     summary["teaching_outcomes"] = outcomes["teaching_outcomes"]
     return {"schema_version": REPORT_VERSION, "session_id": data["session_id"],
             "status": data["status"], "summary": summary,
