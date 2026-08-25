@@ -562,6 +562,28 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None):
             feedback = '<div class="refused pend">%s</div>' % html.escape(str(flash["refused"]))
         elif flash.get("action") == "hold":
             feedback = '<div class="verdict n">Not correct. Try a different answer, or open the next hint.</div>'
+        elif flash.get("action") == "defer_feedback":
+            # The scoped serve path renders server-side, so this branch is what
+            # a learner actually sees after a constructed response. It did not
+            # exist until 2026-08-24: the flash fell through every case and
+            # `feedback` stayed empty, so answering a short item produced a
+            # blank panel and no control. A designed pause was indistinguishable
+            # from a hung page, which is how the 13.9 sitting read it.
+            #
+            # No verdict, no model answer, no explanation: deferring feedback is
+            # the point of the branch. It says only where the sitting is and how
+            # to move it, and the reload works because this route's GET runs
+            # `session.do_next`, which collects a settled mark.
+            feedback = (
+                '<div class="pend"><b>Recorded, and waiting on a mark.</b>'
+                '<div>A constructed response is not scored by the machine. This'
+                ' sitting stays on this item until a human marker records a'
+                ' verdict, so nothing you wrote has been graded and no model'
+                ' answer is shown to you now.</div>'
+                '<div>Record the verdict with <span class="mono">itembank mark'
+                ' --session &lt;id&gt; --item %s --verdict pass|fail</span>,'
+                ' then reload this page to continue.</div></div>'
+                % html.escape(str(item.get("id", ""))))
         elif flash.get("action") in ("advance", "complete"):
             score = flash.get("score")
             feedback = '<div class="%s">%s</div>' % (
@@ -3044,8 +3066,47 @@ function close(q, card, act, v, revert){
     return;
   }
   if(v.action === "defer_feedback"){
-    fb.innerHTML = `<div class="pend">Recorded. ${q.type === "short"
-      ? "Not marked here — a human marker reviews it." : ""}</div>`;
+    /* The sitting is parked at the marker's desk and the runtime will not
+       move it until a mark is recorded, which is deliberate. What was NOT
+       deliberate is that this branch used to print "Recorded." and return,
+       leaving no control and no explanation, so a designed pause was
+       indistinguishable from a hung page. Found by the 13.9 sitting on
+       2026-08-24, whose shuffle put the short item first.
+
+       It still releases no verdict, no model answer and no explanation:
+       deferring feedback is the point. It only says where the sitting is. */
+    const waiting = (q.type === "short")
+      ? `<div class="pend"><b>Recorded, and waiting on a mark.</b>
+         <div>A constructed response is not scored here. This sitting stays on
+         this item until a human marker records a verdict, so nothing you wrote
+         is graded by the machine and no model answer is shown to you now.</div>
+         <div>Mark it with <span class="mono">itembank mark --session
+         ${esc(sessionId || "")} --item ${esc(q.id || "")} --verdict pass|fail</span>,
+         then continue.</div></div>`
+      : `<div class="pend"><b>Recorded.</b>
+         <div>This mode holds every verdict until the sitting is closed.</div></div>`;
+    fb.innerHTML = waiting;
+    const dnext = document.createElement("button");
+    dnext.className = "go ghost"; dnext.type = "button";
+    dnext.textContent = "Check again";
+    dnext.onclick = async ()=>{
+      /* Ask the server whether the desk has been collected. If the mark
+         landed, the runtime has advanced and hands back the next item; if it
+         has not, the same item comes back and the page says so again. The
+         client never decides that a mark exists. */
+      try {
+        const view = await api("/api/next", {session_id: sessionId});
+        if(view && view.item && view.item.id !== q.id){ renderItem(view); return; }
+        if(view && view.status === "complete"){ finish(view.summary || {}); return; }
+        fb.innerHTML = waiting
+          + `<div class="pend">Still waiting on a mark for this item.</div>`;
+      } catch(err){
+        fb.innerHTML = waiting
+          + `<div class="pend">Could not reach itembank to check.</div>`;
+      }
+    };
+    act.appendChild(dnext);
+    dnext.focus();
     return;
   }
   /* advance / complete: the runtime released the verdict and explanation. */
