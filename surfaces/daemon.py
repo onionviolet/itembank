@@ -1356,7 +1356,8 @@ def _ensure_quiz_session(handler, stem, path, qs):
     # its existing marker). Do not make that validated surface fail a second,
     # narrower lint pass when the daemon creates its public baseline.
     created = session.do_start(path, spec, cfg.get("mode", "practice"), out,
-                               bool(cfg.get("progress")))
+                               bool(cfg.get("progress")),
+                               preset_session_id=cfg.get("session_id"))
     cfg["api_session_id"] = created["session_id"]
     return out
 

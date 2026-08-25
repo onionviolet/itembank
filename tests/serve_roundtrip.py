@@ -254,6 +254,95 @@ def check_form_submit_writes_the_attempt_file():
     print("  a script-free form submit refreshed the attempt view at %s" % out)
 
 
+def check_banner_id_is_the_evidence_id():
+    """The id `itembank serve` prints in its banner must be the id every
+    evidence row of that sitting carries, and the id inside the session file
+    the daemon creates under the hood.
+
+    Found 2026-08-24: the banner minted one id in `cmd_serve`, but
+    `_ensure_quiz_session` minted a second, independent id for the actual
+    session file the first API request created. A marker who copied the
+    printed banner id into `itembank mark` would find no matching evidence.
+    """
+    qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
+    by_id = dict((q["id"], q) for q in qs)
+    work_root = tempfile.mkdtemp(prefix="serve-banner-")
+    bank = os.path.join(work_root, "sample_bank.md")
+    shutil.copyfile(BANK, bank)
+    out = os.path.join(tempfile.mkdtemp(), "attempt.md")
+    proc = subprocess.Popen(
+        [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "serve", bank,
+         "--no-open", "--port", "0", "--out", out],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    lines = []
+    threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
+                     daemon=True).start()
+    base = None
+    for _ in range(60):
+        time.sleep(0.1)
+        m = re.search(r"http://127\.0\.0\.1:\d+/", "".join(lines))
+        if m:
+            base = m.group(0)
+            break
+    if not base:
+        fail("serve never printed a URL. Output was:\n" + "".join(lines))
+    banner_m = re.search(r"session ([0-9a-f]{32})", "".join(lines))
+    if not banner_m:
+        fail("serve never printed a banner session id. Output was:\n" +
+             "".join(lines))
+    banner_id = banner_m.group(1)
+    quiz_url = base + "quiz/sample_bank"
+    try:
+        page = urllib.request.urlopen(quiz_url, timeout=5).read().decode("utf-8")
+        item_id = re.search(r'data-item-id="([^"]+)"', page)
+        token = re.search(r'name="form_token" value="([^"]+)">'
+                          r'<input type="hidden" name="action" value="submit"', page)
+        if not item_id or not token:
+            fail("the served baseline carried no item id or no submit token")
+        q = by_id[item_id.group(1)]
+        fields = form_fields_for(q, correct_answer(q))
+        fields.append(("form_token", token.group(1)))
+        fields.append(("action", "submit"))
+        req = urllib.request.Request(
+            quiz_url + "/answer", data=urllib.parse.urlencode(fields).encode(),
+            method="POST",
+            headers={"Content-Type": "application/x-www-form-urlencoded"})
+        with urllib.request.urlopen(req, timeout=5) as res:
+            res.read()
+    finally:
+        proc.terminate()
+    log = evidence.log_path(work_root)
+    if not os.path.exists(log):
+        fail("no evidence log was written at %s" % log)
+    ev_ids = set()
+    for line in open(log, encoding="utf-8"):
+        line = line.strip()
+        if not line:
+            continue
+        row = json.loads(line)
+        if row.get("item_ref") == q["id"]:
+            ev_ids.add(row.get("session_id"))
+    for ev_id in ev_ids:
+        if ev_id != banner_id:
+            fail("the banner id %s is not the evidence id %s; the daemon "
+                 "must honor the CLI-minted session id" % (banner_id, ev_id))
+    if not ev_ids:
+        fail("no evidence row carried the submitted item %s" % q["id"])
+    session_files = [f for f in os.listdir(os.path.join(work_root, "_attempts"))
+                     if f.startswith("session_") and f.endswith(".json")]
+    if not session_files:
+        fail("no session_*.json file was created under %s/_attempts" % work_root)
+    for fname in session_files:
+        sdata = json.load(open(os.path.join(work_root, "_attempts", fname),
+                               encoding="utf-8"))
+        if sdata.get("session_id") != banner_id:
+            fail("the banner id %s is not the evidence id %s; the daemon "
+                 "must honor the CLI-minted session id" %
+                 (banner_id, sdata.get("session_id")))
+    print("  the served banner id %s matches the evidence and session file"
+         % banner_id)
+
+
 def seed_serving_first(qs, want_type):
     """The lowest seed whose scoped-serve session opens on a `want_type` item.
 
@@ -489,6 +578,7 @@ def check_serve_seed_reaches_the_session():
 def main():
     check_serve_seed_reaches_the_session()
     check_form_submit_writes_the_attempt_file()
+    check_banner_id_is_the_evidence_id()
     check_a_failed_submit_keeps_the_answer()
     check_multi_hold_shows_which_of_my_picks_were_right()
     qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())

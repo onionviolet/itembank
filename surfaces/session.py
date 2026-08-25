@@ -180,7 +180,10 @@ def _derive_subject(spec):
 
 
 def do_start(bank_path, spec, mode, out, force, *, override_token=None,
-             profile_id=None):
+             profile_id=None, preset_session_id=None):
+    # A caller that already announced a session id (the serve banner) passes
+    # it here; the cap override still mints its own, because the override
+    # event is bound to that id.
     # The D-09 focus pin is a session-level concern, not a selection filter:
     # it rides inside the spec dict so the signature stays the same for every
     # caller, and it is consumed here before the spec reaches `select()`,
@@ -307,7 +310,7 @@ def do_start(bank_path, spec, mode, out, force, *, override_token=None,
             items = items[:sel_spec.get("count", selection.DEFAULT_COUNT)]
     out = out or os.path.join(os.path.dirname(os.path.abspath(bank_path)) or ".", "_attempts",
                               "session_%s.json" % uuid.uuid4().hex[:12])
-    session_id = override["session_id"] if override else uuid.uuid4().hex
+    session_id = override["session_id"] if override else (preset_session_id or uuid.uuid4().hex)
     data = {"schema_version": SESSION_VERSION, "session_id": session_id,
             "bank": os.path.abspath(bank_path), "items": items, "cursor": 0,
             "responses": [], "status": "active", "mode": mode,
