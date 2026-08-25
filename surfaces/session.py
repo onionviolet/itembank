@@ -33,7 +33,8 @@ from runtime import (INTERACTION_VERSION, REPORT_VERSION, SESSION_VERSION,
                      VISUAL_ACTIONS, VISUAL_PROTOCOL_VERSION,
                      VISUAL_TOLERANCE_POLICY_VERSION, canonical_visual_response,
                      explain_payload, interaction_result, invoke_hint,
-                     invoke_rubric_review, new_teaching_record,
+                     invoke_rubric_review, marker_close,
+                     new_teaching_record,
                      normalize_answer, public_item,
                      read_session, reconcile_teaching_state, score_response,
                      session_path, session_summary, session_view, teaching_key,
@@ -431,6 +432,19 @@ def cmd_override(a):
 def do_next(session_file):
     data = read_session(session_file)
     qs = load(data["bank"])
+    # Collect the marker's desk before serving. A sitting parked on a pending
+    # prose answer stays parked until a human rules on it; once the mark is
+    # recorded, the item is settled and `next` means the FOLLOWING item, not
+    # the one already answered and marked. Without this the sitting could
+    # never end, because `mark` writes evidence and never touches a session.
+    if data["status"] == "active" and data["cursor"] < len(data["items"]):
+        parked = qs[data["items"][data["cursor"]]]
+        moved = marker_close(
+            data, parked,
+            settled_mark_keys(evidence.log_path(os.path.dirname(data["bank"])),
+                              data["session_id"]))
+        if moved is not None:
+            data = moved
     # `next` starts writing the session here: the clock for response_time_ms
     # starts the moment an item is handed over, not the moment it is
     # answered, so a learner who reads an item for a while has that time
@@ -758,6 +772,39 @@ def _validate_renderer_meta(renderer_meta):
     if len(renderer_meta.encode("utf-8")) > RENDERER_META_MAX_BYTES:
         sys.exit("renderer_meta must be at most %d UTF-8 bytes"
                  % RENDERER_META_MAX_BYTES)
+
+
+def settled_mark_keys(log, session_id):
+    """The item keys a human marker has already ruled on in this session.
+
+    A mark event names the RESPONSE event it marks (`marks_event`), not the
+    item, so the responses are indexed first and the marks resolved through
+    them. A mark always follows its response in an append-only log, so one
+    forward pass is enough.
+
+    Both verdicts count. `pass` and `fail` are equally settled: the marker has
+    decided, and a sitting that stayed parked on a failed mark would be parked
+    on a question that has been answered. `live_events` already drops anything
+    retracted, so a retracted mark correctly stops counting.
+
+    This lives here, not in `runtime.teaching_transition`, because that
+    function is pure over its arguments and reads no files. The runtime still
+    decides what a settled mark means for the cursor; this only reports which
+    ones exist.
+    """
+    resp_key, marked = {}, set()
+    for ev in evidence.live_events(log):
+        if ev.get("session_id") != session_id:
+            continue
+        et = ev.get("event_type")
+        if et == evidence.RESPONSE_EVENT_TYPE:
+            resp_key[ev.get("event_id")] = evidence.evidence_key(
+                {"item_id": ev.get("item_id", ""), "id": ev.get("item_ref", "")})
+        elif et == evidence.MARK_EVENT_TYPE:
+            key = resp_key.get(ev.get("marks_event"))
+            if key:
+                marked.add(key)
+    return marked
 
 
 def do_action(session_file, action, confidence=None, renderer_meta=None,

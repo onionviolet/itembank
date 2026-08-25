@@ -1948,6 +1948,15 @@ def teaching_transition(session, q, action, evidence_state=None):
 
     if score is None:
         # A constructed response is pending review, never wrong (T-06-05).
+        #
+        # It parks the sitting at the marker's desk, and until 2026-08-24 it
+        # parked there forever: nothing unparked it, so a bank holding one
+        # short item could not be completed on any surface. `mark` writes an
+        # evidence event and never touches a session, and `lti_roundtrip` had
+        # to hand-write cursor and status to reach the state it calls
+        # marker-closed. Once the marker has ruled, the item is settled and the
+        # sitting moves on; before that it does not, which is the half of the
+        # rule `test_short_response_stays_pending` pins.
         next_rec = dict(rec, attempt_count=rec["attempt_count"] + 1,
                         last_genuine_canonical=canon)
         state = dict(state)
@@ -2008,6 +2017,27 @@ def teaching_transition(session, q, action, evidence_state=None):
             "session": dict(session, teaching_state=state,
                             cursor=cursor, status=status),
             "hint_tier": hint_tier}
+
+
+def marker_close(session, q, settled_marks):
+    """Close a sitting parked on an answered item whose mark is now settled.
+
+    This is the "after" in `exam must not move the cursor before an accepted
+    mark`. A pending prose answer parks the sitting at the marker's desk, and
+    before 2026-08-24 nothing ever collected it: `mark` appends an evidence
+    event and never touches a session, so a bank holding one short item could
+    not be completed on any surface. `lti_roundtrip` reached that state only by
+    hand-writing cursor and status into the session file.
+
+    Returns the advanced session, or None when the item is not settled, so the
+    caller can tell "moved" from "still parked" without comparing cursors. The
+    cursor arithmetic stays here because the runtime owns session state; the
+    caller supplies only the facts, since this module reads no files.
+    """
+    if not settled_marks or teaching_key(q) not in settled_marks:
+        return None
+    cursor, status = _advance_cursor(session)
+    return dict(session, cursor=cursor, status=status)
 
 
 def _advance_cursor(session):
