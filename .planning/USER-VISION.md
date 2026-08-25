@@ -15,6 +15,55 @@ the difference rather than treating a prior summary as the user's intent.
 
 ## Verbatim goal statements
 
+### 2026-08-24 - feedback that lets you proceed, and building from the standards
+
+> Im not asking for partial credit, its just to rule out wrong answers and also show what I got right so I can keep on going rather than gambling and more other stuff to consider and more,
+
+> Consider building all from the Education standards and whatever, and if the real test is all multiple choice the practice for it is fine to be all multiple choice and more, write relevant stuff into uservision accordingly. Stuff to consider and more?
+
+#### Interpretation recorded 2026-08-24
+
+Separate from the quotation above, and correcting one factual premise inside it
+rather than editing his words.
+
+**The first clause is a teaching requirement, not a scoring one.** He is
+explicit that he is not asking for partial credit. What he is asking for is that
+a not-fully-correct multiple-response attempt tell him what he got right and
+what he got wrong, so the retry is reasoning rather than guessing. The word he
+used is "gambling", and it names the current behaviour accurately: a wrong
+`multi` answer in practice mode returns a generic "Not correct" and the learner
+re-picks blind. The authored per-option rationale (`DA:`) that would answer this
+already exists in the format and is already carried by `explain_payload`; what
+is missing is the disclosure policy deciding when the runtime releases it. This
+is therefore an addition to the Phase 6 feedback policy, mode gated, and not a
+change to the scorer. See `.planning/research/2026-08-24-item-writing-standards.md`,
+final section: no external standard governs per-option feedback, so this is a
+free design choice constrained only by our own rule that exam mode stays silent.
+
+**The second clause is right about the source and wrong about the format, and
+the correction matters.** Building the course from the National EMS Education
+Standards is correct: that document is curriculum and competency, and it is the
+right authority for what to teach and in what order. Verified the same day that
+it contains zero occurrences of "distractor", "item writing", "test item" or
+"multiple choice", so it is NOT an authority on item construction; NBME and
+Haladyna are.
+
+**The real examination is not all multiple choice.** NREMT's published EMT test
+plan names Multiple Choice, Multiple Response, Options Table, Build List and
+Drag-and-Drop. Those map onto itembank's existing `mc`, `multi`, `table`,
+`build` and `dnd`. So the premise "if the real test is all multiple choice"
+does not hold, and acting on it would narrow fidelity rather than preserve it.
+The underlying principle he is stating, that practice should mirror the real
+examination's format, is accepted and is stronger than the example: it argues
+for keeping all five types and for pinning their structure to NREMT's published
+counts.
+
+**Recorded consequence, not yet planned.** NREMT scores dichotomously and gives
+no credit for a partially correct response, so itembank's existing all-or-nothing
+`multi` scoring is already conformant for EMT and should not be changed to
+partial credit. If partial credit is ever wanted for Math or CS, where no such
+body binds, it is a per-subject policy and belongs with the subject profile.
+
 ### 2026-08-13 — quality benchmark and visual ambition
 
 > what will it take for the lessons and more to be brilliant.com level? WHy cant we scrape site and more?
