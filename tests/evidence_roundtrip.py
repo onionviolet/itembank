@@ -1503,6 +1503,14 @@ def test_mark_flow():
                  attempt_before)
 
         short_q = qs_by_id[short_ref]
+        first_point = short_q["rubric"][0]
+        template_line = "Rubric template (edit pass per point): --rubric '"
+        if template_line not in attempt_before:
+            fail("a pending short with an authored rubric did not render a "
+                 "rubric template line:\n%s" % attempt_before)
+        if first_point not in attempt_before.split(template_line, 1)[1]:
+            fail("the rubric template line did not carry the first authored "
+                 "rubric point verbatim:\n%s" % attempt_before)
         marks_file = os.path.join(tmp, "marks.ndjson")
         with open(marks_file, "w", encoding="utf-8") as fh:
             fh.write(json.dumps({
@@ -1537,9 +1545,11 @@ def test_mark_flow():
             fail("replaying an identical mark batch appended a line to the log: "
                  "%d -> %d" % (lines_before_replay, lines_after_replay))
 
-        # A correction: mark the short item again with the opposite verdict.
+        # A correction: mark the short item again with the opposite verdict,
+        # carrying a free-text note through --notes (D-24 ergonomics).
         result3 = mark_json(
-            ["--session", session_id, "--item", short_ref, "--verdict", "fail"], tmp)
+            ["--session", session_id, "--item", short_ref, "--verdict", "fail",
+             "--notes", "second sentence misses the airway step"], tmp)
         if result3["recorded"] != 1:
             fail("a corrected verdict reported %r, not recorded" % result3)
         flip_event_id = result3["marks"][0]["event_id"]
@@ -1547,6 +1557,10 @@ def test_mark_flow():
         if "MARK: FAIL" not in attempt_flipped:
             fail("the corrected verdict did not render as MARK: FAIL:\n%s" %
                  attempt_flipped)
+        mark_line = next((l for l in attempt_flipped.splitlines()
+                          if l.startswith("MARK: FAIL")), "")
+        if not mark_line.endswith(": second sentence misses the airway step"):
+            fail("--notes did not reach the rendered MARK line: %r" % mark_line)
 
         # Undo the correction: the render shows the original verdict again.
         run(["retract", flip_event_id, "--reason", "undo the test correction",

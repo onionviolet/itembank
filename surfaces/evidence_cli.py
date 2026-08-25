@@ -267,6 +267,8 @@ def _load_marks_batch(a):
         entry["item_ref"] = a.item
     if a.proposal:
         entry["proposal"] = a.proposal
+    if a.notes is not None:
+        entry["notes"] = a.notes
     if a.rubric:
         try:
             rubric = json.loads(a.rubric)

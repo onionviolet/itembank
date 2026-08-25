@@ -942,6 +942,9 @@ def main():
                    "single-form marks (--item/--proposal)")
     s.add_argument("--verdict", choices=("pass", "fail"), default=None,
                    help="required with --item or --proposal")
+    s.add_argument("--notes", default=None, help="free-text note recorded on the "
+                   "single-form mark (--item/--proposal); batch entries carry "
+                   "their own notes key")
     s.set_defaults(fn=cmd_mark)
 
     s = sub.add_parser("id-assign", help="assign opaque ids and content-hash fingerprints "

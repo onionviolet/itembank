@@ -1753,6 +1753,14 @@ def teaching_outcomes(log, session_id):
             "teaching_outcomes": rows}
 
 
+def rubric_template(rubric):
+    """A ready-to-edit --rubric value for `itembank mark`: every authored
+    point verbatim with pass true, so a marker flips booleans instead of
+    retyping point text (matching at render time is exact string equality)."""
+    return json.dumps([{"point": p, "pass": True} for p in rubric],
+                      ensure_ascii=False)
+
+
 def render_attempt_md(log, session_id, qs, bank_path):
     """The attempt markdown for one session, computed fresh from the log
     every time this is called (D-11) -- never read back in as an input by
@@ -1864,6 +1872,9 @@ def render_attempt_md(log, session_id, qs, bank_path):
                 L.append("MARK: pending -- run `itembank mark --session %s --item %s "
                          "--verdict pass|fail` to record a verdict" %
                          (session_id, ev.get("item_ref")))
+                if rubric:
+                    L.append("Rubric template (edit pass per point): --rubric '%s'" %
+                             rubric_template(rubric))
         elif ev.get("item_type") == "check":
             # The evidence answer for a check item is the results vector;
             # the learner's own source lives in check_source. Render the
