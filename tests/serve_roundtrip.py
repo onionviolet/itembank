@@ -172,6 +172,88 @@ def api_submit(base, session_id, answer):
                 {"session_id": session_id, "answer": answer})
 
 
+def form_fields_for(q, answer):
+    """The urlencoded field list `_form_controls` renders for this item type,
+    carrying `answer` -- the browser's own vocabulary, not the JSON API's."""
+    if q["type"] == "mc":
+        return [("option", answer)]
+    if q["type"] == "multi":
+        return [("option", k) for k in answer]
+    if q["type"] in ("table", "dnd"):
+        return [("row_%s" % n, v) for n, v in sorted(answer.items(), key=lambda kv: int(kv[0]))]
+    if q["type"] == "build":
+        return [("step_%d" % n, v) for n, v in enumerate(answer)]
+    return [("answer", answer)]
+
+
+def check_form_submit_writes_the_attempt_file():
+    """A script-free `serve` sitting writes the attempt markdown the banner
+    promises.
+
+    It never did. `_refresh_attempt_view` was reachable only from the JSON
+    `/api/submit` route, so the browser form branch recorded evidence and
+    returned its redirect with the configured `--out` file untouched. The
+    banner printed a path that stayed absent for the whole sitting, and
+    13.9-03's verify step asked for a file the served path could not produce.
+    Found 2026-08-24 after the 13.9 sitting; the typed prose was safe in
+    `evidence.jsonl`, so this was a missing second copy rather than data loss.
+
+    Driven through the real served bytes (GET the page, read its own token and
+    item id, POST the form) because a suite of green tests agreed with a broken
+    served page all night on 2026-08-24.
+    """
+    qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
+    by_id = dict((q["id"], q) for q in qs)
+    work_root = tempfile.mkdtemp(prefix="serve-form-")
+    bank = os.path.join(work_root, "sample_bank.md")
+    shutil.copyfile(BANK, bank)
+    out = os.path.join(tempfile.mkdtemp(), "attempt.md")
+    proc = subprocess.Popen(
+        [sys.executable, "-u", os.path.join(ROOT, "itembank.py"), "serve", bank,
+         "--no-open", "--port", "0", "--out", out],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    lines = []
+    threading.Thread(target=lambda: [lines.append(l) for l in proc.stdout],
+                     daemon=True).start()
+    base = None
+    for _ in range(60):
+        time.sleep(0.1)
+        m = re.search(r"http://127\.0\.0\.1:\d+/", "".join(lines))
+        if m:
+            base = m.group(0)
+            break
+    if not base:
+        fail("serve never printed a URL. Output was:\n" + "".join(lines))
+    quiz_url = base + "quiz/sample_bank"
+    try:
+        page = urllib.request.urlopen(quiz_url, timeout=5).read().decode("utf-8")
+        item_id = re.search(r'data-item-id="([^"]+)"', page)
+        token = re.search(r'name="form_token" value="([^"]+)">'
+                          r'<input type="hidden" name="action" value="submit"', page)
+        if not item_id or not token:
+            fail("the served baseline carried no item id or no submit token")
+        q = by_id[item_id.group(1)]
+        if os.path.exists(out):
+            fail("the attempt file existed before any answer was given")
+        fields = form_fields_for(q, correct_answer(q))
+        fields.append(("form_token", token.group(1)))
+        fields.append(("action", "submit"))
+        req = urllib.request.Request(
+            quiz_url + "/answer", data=urllib.parse.urlencode(fields).encode(),
+            method="POST",
+            headers={"Content-Type": "application/x-www-form-urlencoded"})
+        with urllib.request.urlopen(req, timeout=5) as res:
+            res.read()
+    finally:
+        proc.terminate()
+    if not os.path.exists(out):
+        fail("a form submit wrote no attempt file at %s" % out)
+    text = open(out, encoding="utf-8").read()
+    if q["stem"].split("\n")[0][:40] not in text:
+        fail("the attempt file does not carry the item that was answered")
+    print("  a script-free form submit refreshed the attempt view at %s" % out)
+
+
 def check_serve_seed_reaches_the_session():
     """`itembank serve --seed N` chooses the item order the sitting runs in.
 
@@ -225,6 +307,7 @@ def check_serve_seed_reaches_the_session():
 
 def main():
     check_serve_seed_reaches_the_session()
+    check_form_submit_writes_the_attempt_file()
     qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
     stem = os.path.splitext(os.path.basename(BANK))[0]
     # Isolate this test's bank (and its evidence log) from the shared

@@ -1478,6 +1478,14 @@ def handle_quiz_answer(handler, stem):
                 result = _refusal_from_exit(exc.code, q)
                 if result is None:
                     handler.send_error(400, str(exc.code)); return
+            if action == "submit" and result.get("accepted"):
+                # The browser form path wrote evidence but never the second,
+                # human-readable copy: `_refresh_attempt_view` was reachable
+                # only from the JSON route, so every `serve` sitting printed
+                # an attempt path it never wrote (found 2026-08-24 after the
+                # 13.9 sitting finished with an empty `_attempts/` markdown).
+                cfg = handler.sessions[stem]
+                _refresh_attempt_view(cfg, cfg.get("api_session_id"), qs, path)
             after = session.do_next(session_file)
             receipt = _mint_quiz_flash(handler, before, after, result)
             handler.send_redirect("/quiz/%s?receipt=%s" % (stem, urllib.parse.quote(receipt)))
