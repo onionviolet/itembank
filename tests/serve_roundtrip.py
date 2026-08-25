@@ -172,7 +172,59 @@ def api_submit(base, session_id, answer):
                 {"session_id": session_id, "answer": answer})
 
 
+def check_serve_seed_reaches_the_session():
+    """`itembank serve --seed N` chooses the item order the sitting runs in.
+
+    The daemon hardcoded `seed: 0` until 2026-08-24, so a scoped serve could
+    not influence order at all. That is not cosmetic. A sitting parks on a
+    constructed response until a marker rules on it, so a bank whose `short`
+    item lands first under seed 0 ends at item one, which is exactly how the
+    13.9 walking-skeleton sitting produced one response out of ten.
+
+    Asserted through `_ensure_quiz_session`, the function that builds the
+    selection spec, rather than by booting a server: the plumbing is the part
+    that regressed, and it is the part worth pinning.
+    """
+    from surfaces import daemon as daemon_mod
+    from surfaces import session as session_mod
+    from model import load as load_bank
+
+    class _Handler(object):
+        pass
+
+    with tempfile.TemporaryDirectory() as tmp:
+        bank = os.path.join(tmp, "sample_bank.md")
+        shutil.copyfile(BANK, bank)
+        qs = load_bank(bank)
+
+        def order_for(cfg):
+            handler = _Handler()
+            handler.root = tmp
+            handler.sessions = {"sample_bank": dict(cfg)}
+            path = daemon_mod._ensure_quiz_session(handler, "sample_bank", bank, qs)
+            with open(path, encoding="utf-8") as fh:
+                return json.load(fh)["items"]
+
+        default = order_for({"mode": "practice", "progress": True})
+        expect = order_for({"mode": "practice", "progress": True, "seed": 0})
+        if default != expect:
+            fail("serve without --seed must keep the seed-0 order it always "
+                 "had: %r vs %r" % (default, expect))
+
+        # A seed that reorders proves the value is consumed rather than
+        # accepted and dropped. Scanning avoids pinning a specific shuffle,
+        # which is selection's business and not this test's.
+        moved = next((s for s in range(1, 40)
+                      if order_for({"mode": "practice", "progress": True,
+                                    "seed": s}) != default), None)
+        if moved is None:
+            fail("no seed in 1..39 changed the item order, so --seed is not "
+                 "reaching the selection spec")
+    print("  serve --seed reaches the session spec; default order unchanged")
+
+
 def main():
+    check_serve_seed_reaches_the_session()
     qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
     stem = os.path.splitext(os.path.basename(BANK))[0]
     # Isolate this test's bank (and its evidence log) from the shared

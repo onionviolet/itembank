@@ -609,6 +609,11 @@ def main():
                    choices=("diagnostic", "practice", "exam", "remediation", "drill"),
                    help="recorded on every response, so a drill sitting is distinguishable "
                         "from an exam sitting in the evidence")
+    s.add_argument("--seed", type=int, default=0,
+                   help="deterministic item-order seed, the same one `start` takes "
+                        "(default: 0). Order matters more than it looks: a sitting "
+                        "parks on a constructed response until a marker rules on it, "
+                        "so a short item served first ends the sitting at item one")
     s.add_argument("--no-open", action="store_true", dest="no_open",
                    help="do not launch a browser")
     s.add_argument("--force", action="store_true", help="serve despite lint errors")

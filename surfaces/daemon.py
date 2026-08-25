@@ -1316,7 +1316,13 @@ def _ensure_quiz_session(handler, stem, path, qs):
     found = api_session_path(handler, api_id) if api_id else None
     if found:
         return found
-    spec = {"objective": "", "count": len(qs), "seed": 0,
+    # The seed was hardcoded to 0 until 2026-08-24, so a scoped `serve` had no
+    # way to influence item order. That is not cosmetic: a sitting parks on a
+    # constructed response until a marker rules on it, so a bank whose short
+    # item lands first under seed 0 ends at item one. `itembank serve --seed`
+    # is the way out, and 0 stays the default so every existing caller and
+    # every recorded sitting order is unchanged.
+    spec = {"objective": "", "count": len(qs), "seed": int(cfg.get("seed", 0) or 0),
             "selection_mode": cfg.get("selection_mode", "practice")}
     out = os.path.join(os.path.abspath(handler.root), "_attempts",
                        "session_%s.json" % uuid.uuid4().hex[:12])

@@ -415,5 +415,6 @@ def cmd_serve(a):
         extra={"sessions": {stem: {
             "session_id": session_id, "log": log, "out": out, "mode": a.mode,
             "reveal": a.reveal, "progress": True,
+            "seed": getattr(a, "seed", 0),
         }}})
     return 0
