@@ -1,0 +1,389 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/course_graph.schema.json",
+  "title": "itembank course graph sidecar",
+  "description": "The published contract for the structured portions of a course root's course-graph.md sidecar. The sidecar itself is plain Markdown pipe tables, readable and diffable by hand; this schema describes the records those tables carry once read. One rule is deliberately absent: the downgrade of an unregistered edge type to an advisory recommended-before is not expressible in the keyword subset schema_validate.py supports, so it lives only in graph.validate_edge. Expressing it here would need a conditional keyword the validator refuses outright, turning a green schema check into a hard SchemaError, and a validator that checks half a contract while reporting green is worse than no validator at all.",
+  "x-itembank-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "header"
+  ],
+  "properties": {
+    "header": {
+      "$ref": "#/$defs/header"
+    },
+    "structure": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/container"
+      },
+      "description": "Structural containers in authored order."
+    },
+    "objectives": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/objective"
+      },
+      "description": "Objectives in authored order."
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/source"
+      },
+      "description": "Sources this course graph refers to. A source's rights live on the source object in the operation journal, never in this table."
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/edge"
+      },
+      "description": "Edges that relate two independently identified objects."
+    },
+    "bindings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/binding"
+      },
+      "description": "Source and treatment bindings."
+    },
+    "migrations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/migration"
+      },
+      "description": "Recorded migration proposals and their dispositions."
+    }
+  },
+  "$defs": {
+    "header": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The sidecar's header table.",
+      "required": [
+        "graph_schema_version",
+        "course_object_id",
+        "title"
+      ],
+      "properties": {
+        "graph_schema_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1,
+          "description": "The graph schema version this sidecar declares. A build refuses a version above the one it understands rather than silently dropping fields it does not know."
+        },
+        "course_object_id": {
+          "type": "string",
+          "description": "The course object's minted opaque id.",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "title": {
+          "type": "string",
+          "description": "The course title, as authored.",
+          "minLength": 1
+        }
+      }
+    },
+    "container": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One structural container.",
+      "required": [
+        "id",
+        "label",
+        "title"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The container's minted opaque id.",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "label": {
+          "type": "string",
+          "description": "A local structural label such as program, semester, module, week, unit, or chapter. The value is deliberately unconstrained: GRAPH-01 requires a local label to be accepted without a schema change."
+        },
+        "parent": {
+          "type": "string",
+          "description": "The parent container's id, or empty for a top-level container.",
+          "pattern": "^([0-9a-f]{16})?$"
+        },
+        "order": {
+          "type": "string",
+          "description": "The authored position within the parent, as written."
+        },
+        "title": {
+          "type": "string",
+          "description": "The container's display title.",
+          "minLength": 1
+        }
+      }
+    },
+    "objective": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One objective.",
+      "required": [
+        "id",
+        "statement"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The objective's minted opaque id.",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "container": {
+          "type": "string",
+          "description": "The containing container's id, or empty when unplaced.",
+          "pattern": "^([0-9a-f]{16})?$"
+        },
+        "order": {
+          "type": "string",
+          "description": "The authored position within the container, as written."
+        },
+        "statement": {
+          "type": "string",
+          "description": "The objective statement, as authored.",
+          "minLength": 1
+        },
+        "origin": {
+          "type": "string",
+          "description": "Whether this objective was authored locally or imported from a scope or framework.",
+          "enum": [
+            "local",
+            "imported"
+          ]
+        },
+        "import_version": {
+          "type": "string",
+          "description": "The imported scope version this objective came from, when it was imported."
+        },
+        "overlays": {
+          "type": "string",
+          "description": "Local overlays applied over an imported objective."
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One source this course graph refers to.",
+      "required": [
+        "source_object_id"
+      ],
+      "properties": {
+        "source_object_id": {
+          "type": "string",
+          "description": "The source object's minted opaque id.",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "title": {
+          "type": "string",
+          "description": "The source's display title."
+        },
+        "note": {
+          "type": "string",
+          "description": "A free-text note about this reference."
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One edge relating two independently identified objects. An edge carries no minted id: its identity is the tuple of source, edge_type, and target.",
+      "required": [
+        "source",
+        "edge_type",
+        "target"
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "description": "The edge's source object id.",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "edge_type": {
+          "type": "string",
+          "description": "The relation, from the frozen four-name vocabulary. A row carrying a name outside this set is kept and read as an advisory recommended-before by graph.validate_edge; that downgrade is not expressible here.",
+          "enum": [
+            "prerequisite-of",
+            "covers-objective",
+            "source-supports",
+            "treatment-of"
+          ]
+        },
+        "target": {
+          "type": "string",
+          "description": "The edge's target object id.",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "authority": {
+          "type": "string",
+          "description": "Who asserted this relation.",
+          "enum": [
+            "authored",
+            "imported",
+            "proposed"
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Why this relation was asserted. May be empty."
+        },
+        "confidence": {
+          "type": "string",
+          "description": "How confident the asserter is.",
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            "unknown"
+          ]
+        },
+        "override": {
+          "type": "string",
+          "description": "How strongly this relation binds. A hard gate is the exceptional case a human writes explicitly; it is never a default and is never reachable from an unrecognized edge type.",
+          "enum": [
+            "advisory",
+            "recommended-before",
+            "hard-gate"
+          ]
+        }
+      }
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One source or treatment binding.",
+      "required": [
+        "binding_kind",
+        "objective"
+      ],
+      "properties": {
+        "binding_kind": {
+          "type": "string",
+          "description": "Whether this binds a source or a treatment.",
+          "enum": [
+            "source",
+            "treatment"
+          ]
+        },
+        "objective": {
+          "type": "string",
+          "description": "The bound objective's id.",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "source_object_id": {
+          "type": "string",
+          "description": "The bound source's id, when one is bound.",
+          "pattern": "^([0-9a-f]{16})?$"
+        },
+        "treatment_kind": {
+          "type": "string",
+          "description": "The treatment this binding names.",
+          "enum": [
+            "direct-reading",
+            "excerpt",
+            "guided-lesson",
+            "notes-or-terms",
+            "worked-example",
+            "visual-or-demonstration",
+            "practice",
+            "formal-test",
+            "assessment-first-diagnostic",
+            "learner-artifact",
+            "human-review"
+          ]
+        },
+        "locator": {
+          "type": "string",
+          "description": "Where inside the source this binding points."
+        },
+        "state": {
+          "type": "string",
+          "description": "How well this objective is covered. There is deliberately no verified and no assumed member: coverage is reported, never claimed.",
+          "enum": [
+            "covered",
+            "thin",
+            "missing",
+            "conflicting",
+            "unknown"
+          ]
+        },
+        "confidence": {
+          "type": "string",
+          "description": "How confident this coverage judgement is.",
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            "unknown"
+          ]
+        },
+        "rights_snapshot": {
+          "type": "string",
+          "description": "The rights state recorded at binding time, for the record. The authority is always the source object's own rights record, never this copy."
+        }
+      }
+    },
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One recorded migration proposal and its disposition.",
+      "required": [
+        "migration_id",
+        "kind",
+        "state"
+      ],
+      "properties": {
+        "migration_id": {
+          "type": "string",
+          "description": "The migration's minted opaque id.",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "kind": {
+          "type": "string",
+          "description": "What this migration proposes.",
+          "enum": [
+            "split",
+            "merge",
+            "rename",
+            "demand-change",
+            "overlay"
+          ]
+        },
+        "from": {
+          "type": "string",
+          "description": "The objective ids this migration moves from, as written."
+        },
+        "to": {
+          "type": "string",
+          "description": "The objective ids this migration moves to, as written."
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Why the migration was proposed."
+        },
+        "state": {
+          "type": "string",
+          "description": "The proposal's disposition. A proposal is never applied without an explicit acceptance.",
+          "enum": [
+            "proposed",
+            "accepted",
+            "rejected"
+          ]
+        },
+        "actor": {
+          "type": "string",
+          "description": "Who proposed or decided this migration."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "When the disposition was recorded."
+        }
+      }
+    }
+  }
+}

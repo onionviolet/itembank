@@ -196,7 +196,7 @@ def migrate_stub(course_root, actor_kind, actor_name):
     objective_rows = tables.get("Objectives", [])
     for cells in objective_rows[1:]:
         graph.add_objective(doc, cells[1] if len(cells) > 1 else "",
-                            origin="imported-13.9")
+                            origin="imported")
 
     raw = graph.serialize_course(doc).encode("utf-8")
     revision = journal.commit_operation(

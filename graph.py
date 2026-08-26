@@ -40,6 +40,45 @@ EDGE_TYPES = ("prerequisite-of", "covers-objective", "source-supports",
 # degrade path itself.
 DEGRADED_EDGE_TYPE = "recommended-before"
 
+EDGE_AUTHORITIES = ("authored", "imported", "proposed")
+
+EDGE_CONFIDENCES = ("high", "medium", "low", "unknown")
+
+# `hard-gate` is the exceptional value GRAPH-02 names. It is never a default,
+# a human has to write it explicitly, and it is never reachable from an
+# unrecognized edge type: an edge this build cannot understand can only ever
+# be advisory. Blocking a learner is not something a typo may do.
+EDGE_OVERRIDES = ("advisory", "recommended-before", "hard-gate")
+
+# Every default is the least-blocking value in its set, so an unrecognized or
+# missing cell can only ever move a field away from blocking, never toward it.
+EDGE_FIELD_DEFAULTS = {
+    "authority": "proposed",
+    "confidence": "unknown",
+    "override": "advisory",
+}
+
+EDGE_CLOSED_SETS = {
+    "authority": EDGE_AUTHORITIES,
+    "confidence": EDGE_CONFIDENCES,
+    "override": EDGE_OVERRIDES,
+}
+
+# The authority an edge reads as once its type has been downgraded. It sits
+# deliberately outside EDGE_AUTHORITIES: a relation this build does not
+# recognize is not making any of the three authority claims, and saying so in
+# a distinct word is more honest than picking the least wrong one.
+DEGRADED_AUTHORITY = "advisory"
+
+# Documentation only. This tuple is never used in a membership test and no
+# other tuple, frozenset, or comparison in this module restricts a container
+# label, because GRAPH-01 requires a local structural label to be accepted
+# without a schema change. A course that calls its unit a fortnight is not
+# wrong, and finding out would cost a release.
+CONTAINER_LABEL_EXAMPLES = ("program", "semester", "module", "week", "unit",
+                            "chapter")
+
+
 SECTION_ORDER = ("Course", "Structure", "Objectives", "Sources", "Edges",
                  "Bindings", "Migrations", "Log")
 
@@ -334,7 +373,32 @@ def add_edge(doc, source, edge_type, target, authority="proposed",
     An edge is deliberately given no minted id: its identity is the tuple
     (source, edge_type, target), so editing its rationale edits that edge
     rather than creating a different one.
+
+    A duplicate key is refused rather than merged or recorded twice, a self
+    edge is refused, and an endpoint this graph does not know is refused. All
+    three are refusals by name: a graph that quietly absorbs a contradiction
+    is a graph nobody can trust to answer a question.
     """
+    if source == target:
+        raise GraphError(
+            "graph.self_edge",
+            "an edge cannot point an object at itself: %s %s %s"
+            % (source, edge_type, target))
+    known = _endpoint_ids(doc)
+    for endpoint in (source, target):
+        if endpoint not in known:
+            raise GraphError(
+                "graph.unknown_objective",
+                "%s is not a recorded objective or source in this course "
+                "graph" % endpoint)
+    key = (source, edge_type or "", target)
+    for existing in doc["edges"]:
+        if edge_key(existing) == key:
+            raise GraphError(
+                "graph.duplicate_edge",
+                "an edge %s %s %s is already recorded; a duplicate edge is "
+                "refused, never merged and never recorded twice"
+                % (source, edge_type, target))
     record = new_record("Edges", {
         "source": source, "edge_type": edge_type, "target": target,
         "authority": authority, "rationale": rationale,
@@ -370,29 +434,207 @@ def outline_projection(doc):
     containers_by_id = {c["id"]: c for c in doc["structure"]}
     by_container = {}
     unplaced = []
-    for obj in objectives:
+    for index, obj in enumerate(objectives):
         container = obj.get("container", "")
         if container and container in containers_by_id:
-            by_container.setdefault(container, []).append(obj)
+            by_container.setdefault(container, []).append((_order_key(obj, index), obj))
         else:
-            unplaced.append(obj)
+            unplaced.append((_order_key(obj, index), obj))
+    for group in by_container.values():
+        group.sort(key=lambda pair: pair[0])
+    unplaced.sort(key=lambda pair: pair[0])
 
-    for container in doc["structure"]:
+    ordered_containers = sorted(
+        ((_order_key(c, i), c) for i, c in enumerate(doc["structure"])),
+        key=lambda pair: pair[0])
+    for _key, container in ordered_containers:
         level = 2 + _depth(containers_by_id, container["id"])
         out.append("")
         out.append("%s %s (%s)" % ("#" * level, container["title"],
                                    container["label"]))
         out.append("")
-        for obj in by_container.get(container["id"], []):
+        for _k, obj in by_container.get(container["id"], []):
             out.append("- %s [%s]" % (obj["statement"], obj["id"]))
 
     if unplaced:
         out.append("")
         out.append("## Unplaced")
         out.append("")
-        for obj in unplaced:
+        for _k, obj in unplaced:
             out.append("- %s [%s]" % (obj["statement"], obj["id"]))
 
     while out and out[-1] == "":
         out.pop()
     return "\n".join(out) + "\n"
+
+
+def validate_edge(record):
+    """The effective reading of one edge row, as a NEW dict. Never mutates
+    its input and never returns None.
+
+    The four-name vocabulary is frozen by D-14A-1, and this plan adds no
+    fifth. An unrecognized edge type is kept and downgraded rather than
+    dropped, which is exactly where this function differs from
+    `evidence.events`: that reader drops an unrecognized record, and GRAPH-02
+    requires the opposite, because a relation a human wrote down is evidence
+    about the course even when this build cannot act on it.
+
+    An unrecognized value can only ever move a field toward its
+    least-blocking default. Nothing here can reach `hard-gate`.
+    """
+    original_type = record.get("edge_type") or ""
+    known = original_type in EDGE_TYPES
+
+    out = {
+        "source": record.get("source", ""),
+        "target": record.get("target", ""),
+        "rationale": record.get("rationale", "") or "",
+        "effective_type": original_type if known else DEGRADED_EDGE_TYPE,
+        "original_type": original_type,
+    }
+    for field, closed in EDGE_CLOSED_SETS.items():
+        raw = record.get(field, "") or ""
+        out["original_" + field] = raw
+        out[field] = raw if raw in closed else EDGE_FIELD_DEFAULTS[field]
+    if not known:
+        # An edge this build cannot read never carries authority and never
+        # blocks, whatever the row said.
+        out["authority"] = DEGRADED_AUTHORITY
+        out["override"] = EDGE_FIELD_DEFAULTS["override"]
+    return out
+
+
+def edge_key(record):
+    """The identity of one edge: the tuple (source, edge_type, target), read
+    from the ORIGINAL type rather than the effective one, so two different
+    unregistered relations between the same pair stay distinct instead of
+    collapsing into one downgraded edge."""
+    return (record.get("source", ""), record.get("edge_type") or "",
+            record.get("target", ""))
+
+
+def _endpoint_ids(doc):
+    ids = set(o["id"] for o in doc["objectives"])
+    ids.update(s["source_object_id"] for s in doc["sources"])
+    ids.update(c["id"] for c in doc["structure"])
+    return ids
+
+
+def _order_key(record, index):
+    """Sort by the authored `order` cell, falling back to authored list
+    position. Both are what the human wrote; neither is inferred."""
+    raw = record.get("order", "")
+    try:
+        return (0, int(raw), index)
+    except (TypeError, ValueError):
+        return (1, 0, index)
+
+
+def validate_order(doc):
+    """Warnings about the authored order, one string per violated
+    prerequisite, plus one line naming a prerequisite cycle if one exists.
+
+    This reports and never corrects: the authored sequence is left exactly as
+    the human wrote it, because authored order is primary and a projection
+    that silently reorders makes every future diff unreadable. Only edges
+    whose effective type is `prerequisite-of` are considered, so an advisory
+    downgraded relation cannot be violated at all.
+    """
+    positions = {}
+    for index, objective in enumerate(doc["objectives"]):
+        positions[objective["id"]] = index
+
+    warnings, pairs = [], []
+    for record in doc["edges"]:
+        edge = validate_edge(record)
+        if edge["effective_type"] != "prerequisite-of":
+            continue
+        prereq, dependent = edge["source"], edge["target"]
+        if prereq not in positions or dependent not in positions:
+            continue
+        pairs.append((prereq, dependent))
+        if positions[prereq] > positions[dependent]:
+            warnings.append(
+                "prerequisite %s appears after dependent %s in the authored "
+                "order; the authored order is unchanged and this is reported "
+                "for review" % (prereq, dependent))
+    if pairs:
+        try:
+            propose_order(list(positions), pairs)
+        except GraphError as err:
+            if err.code == "graph.prerequisite_cycle":
+                warnings.append(err.message)
+            else:
+                raise
+    return warnings
+
+
+def propose_order(objective_ids, prerequisite_edges):
+    """A proposed order over `objective_ids` satisfying every prerequisite.
+
+    This is a fallback, not the normal path. The normal path reads the
+    authored order verbatim; this runs only when a set of objectives carries
+    prerequisite edges and no authored container placement to read instead.
+
+    Kahn's algorithm with the ready set sorted ascending by object id before
+    each pop, and successors sorted before each decrement. The tie-break is
+    not decoration: without it two runs over one unchanged graph can differ
+    wherever a topological tie exists, and every diff becomes noise. Dict
+    iteration order is not a specification.
+    """
+    ids = list(objective_ids)
+    known = set(ids)
+    successors = {i: set() for i in ids}
+    indegree = {i: 0 for i in ids}
+    for edge in prerequisite_edges:
+        if isinstance(edge, dict):
+            prereq, dependent = edge.get("source", ""), edge.get("target", "")
+        else:
+            prereq, dependent = edge
+        if prereq not in known or dependent not in known:
+            continue
+        if dependent in successors[prereq]:
+            continue
+        successors[prereq].add(dependent)
+        indegree[dependent] += 1
+
+    ready = sorted(i for i in ids if indegree[i] == 0)
+    out = []
+    while ready:
+        current = ready.pop(0)
+        out.append(current)
+        for nxt in sorted(successors[current]):
+            indegree[nxt] -= 1
+            if indegree[nxt] == 0:
+                ready.append(nxt)
+        ready.sort()
+
+    if len(out) != len(ids):
+        remaining = sorted(i for i in ids if i not in set(out))
+        raise GraphError(
+            "graph.prerequisite_cycle",
+            "a prerequisite cycle involves at least these objectives: %s; "
+            "reported for review, never silently broken"
+            % ", ".join(remaining))
+    return out
+
+
+def public_api():
+    """This module's public callable names, sorted.
+
+    The test asserts this against an explicit expected list, so the module's
+    surface cannot grow without a plan edit that also edits that list. That
+    is what keeps a completion, mastery, or readiness computation from ever
+    appearing here quietly: GRAPH-03's honest-progress tuple is read over the
+    graph and is never stored in it.
+    """
+    out = []
+    for name, value in globals().items():
+        if name.startswith("_") or not callable(value):
+            continue
+        if isinstance(value, type):
+            continue
+        if getattr(value, "__module__", None) != __name__:
+            continue
+        out.append(name)
+    return sorted(out)

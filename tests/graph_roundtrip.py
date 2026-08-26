@@ -12,7 +12,7 @@ interrupted export, a corrupted payload, and a traversing package entry.
 
 Standard library only, runnable as `python tests/graph_roundtrip.py`.
 """
-import os, shutil, sys, tempfile, time
+import json, os, random, shutil, sys, tempfile, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -21,6 +21,8 @@ import journal                                               # noqa: E402
 import graph                                                 # noqa: E402
 import course                                                # noqa: E402
 import course_package                                        # noqa: E402
+import model                                                 # noqa: E402
+import schema_validate                                       # noqa: E402
 import fixtures.corpus_14b as corpus_14b                     # noqa: E402
 
 
@@ -302,9 +304,356 @@ def check_thin_slice():
                  "offline operation" % name)
 
 
+
+# ------------------------------------------------------------------ 14B-02
+
+EXPECTED_PUBLIC_API = [
+    "add_container", "add_edge", "add_objective", "edge_key", "is_rule_row",
+    "new_course", "new_record", "outline_projection", "parse_course",
+    "propose_order", "public_api", "serialize_course", "split_row",
+    "validate_edge", "validate_order",
+]
+
+SCHEMA_PATH = os.path.join(ROOT, "schemas", "course_graph.schema.json")
+
+
+def _schema_instance(doc):
+    """Project a document to the shape the published schema describes: known
+    columns only, with the round-trip bookkeeping keys dropped."""
+    out = {"header": dict(doc["header"])}
+    for section, key in (("Structure", "structure"), ("Objectives", "objectives"),
+                         ("Sources", "sources"), ("Edges", "edges")):
+        rows = []
+        for record in doc[key]:
+            rows.append({c: record[c] for c in graph.SECTION_COLUMNS[section]})
+        out[key] = rows
+    return out
+
+
+def check_edges():
+    eq(len(graph.EDGE_TYPES), 4, "the frozen edge vocabulary has four names")
+    eq(graph.EDGE_TYPES, ("prerequisite-of", "covers-objective",
+                          "source-supports", "treatment-of"),
+       "the frozen edge vocabulary")
+    eq(graph.EDGE_AUTHORITIES, ("authored", "imported", "proposed"),
+       "the edge authority vocabulary")
+    eq(graph.EDGE_CONFIDENCES, ("high", "medium", "low", "unknown"),
+       "the edge confidence vocabulary")
+    eq(graph.EDGE_OVERRIDES, ("advisory", "recommended-before", "hard-gate"),
+       "the edge override vocabulary")
+
+    bare = graph.validate_edge({"source": "a", "edge_type": "prerequisite-of",
+                                "target": "b"})
+    eq(bare["authority"], "proposed", "the default authority")
+    eq(bare["confidence"], "unknown", "the default confidence")
+    eq(bare["override"], "advisory", "the default override")
+    eq(bare["rationale"], "", "the default rationale")
+
+    for known in graph.EDGE_TYPES:
+        got = graph.validate_edge({"source": "a", "edge_type": known,
+                                   "target": "b"})
+        eq(got["effective_type"], known, "a known type is not downgraded")
+        eq(got["original_type"], known, "a known type keeps its original")
+
+    for unknown in ("alternate-path", "", None):
+        record = {"source": "a", "target": "b", "override": "hard-gate"}
+        if unknown is not None:
+            record["edge_type"] = unknown
+        got = graph.validate_edge(record)
+        if not isinstance(got, dict):
+            fail("an unrecognized edge type must be kept, never dropped")
+        eq(got["effective_type"], "recommended-before",
+           "an unrecognized edge type degrades")
+        eq(got["authority"], "advisory",
+           "an unrecognized edge type cannot carry authority")
+        eq(got["override"], "advisory",
+           "an unrecognized edge type can never hard-block")
+        eq(got["original_type"], unknown or "",
+           "the original type string is preserved")
+        eq(got["original_override"], "hard-gate",
+           "the original override string is preserved")
+
+    degraded = graph.validate_edge({"source": "a", "edge_type": "covers-objective",
+                                    "target": "b", "authority": "decreed",
+                                    "confidence": "certain",
+                                    "override": "block-everything"})
+    eq(degraded["authority"], "proposed", "an unrecognized authority degrades")
+    eq(degraded["original_authority"], "decreed", "the authority string is kept")
+    eq(degraded["confidence"], "unknown", "an unrecognized confidence degrades")
+    eq(degraded["original_confidence"], "certain",
+       "the confidence string is kept")
+    eq(degraded["override"], "advisory", "an unrecognized override degrades")
+    eq(degraded["original_override"], "block-everything",
+       "the override string is kept")
+
+    # The file records what the human wrote; only the reading is downgraded.
+    cid = identity.new_object_id()
+    doc = graph.new_course("Degrade Round Trip", cid)
+    a = graph.add_objective(doc, "First")
+    b = graph.add_objective(doc, "Second")
+    graph.add_edge(doc, a["id"], "alternate-path", b["id"],
+                   override="hard-gate")
+    text = graph.serialize_course(doc)
+    if "alternate-path" not in text or "hard-gate" not in text:
+        fail("the sidecar must record what the human wrote, not the downgrade")
+    eq(graph.serialize_course(graph.parse_course(text)), text,
+       "a downgraded edge round trips byte for byte")
+
+    eq(graph.edge_key(doc["edges"][0]),
+       (a["id"], "alternate-path", b["id"]),
+       "edge_key uses the original type so two unknown types stay distinct")
+
+    raises(lambda: graph.add_edge(doc, a["id"], "alternate-path", b["id"]),
+           graph.GraphError, "graph.duplicate_edge", "a duplicate edge")
+    eq(len(doc["edges"]), 1, "a refused duplicate is never recorded twice")
+    raises(lambda: graph.add_edge(doc, a["id"], "prerequisite-of", a["id"]),
+           graph.GraphError, "graph.self_edge", "an edge pointing at itself")
+    raises(lambda: graph.add_edge(doc, a["id"], "prerequisite-of", "0" * 16),
+           graph.GraphError, "graph.unknown_objective", "an unknown endpoint")
+
+    shared = graph.new_course("Shared Endpoints", cid)
+    s1 = graph.add_objective(shared, "One")
+    s2 = graph.add_objective(shared, "Two")
+    s3 = graph.add_objective(shared, "Three")
+    graph.add_edge(shared, s1["id"], "prerequisite-of", s2["id"])
+    graph.add_edge(shared, s1["id"], "prerequisite-of", s3["id"])
+    eq(len(shared["edges"]), 2, "two edges sharing a source stay separate")
+    shared2 = graph.new_course("Shared Targets", cid)
+    t1 = graph.add_objective(shared2, "One")
+    t2 = graph.add_objective(shared2, "Two")
+    t3 = graph.add_objective(shared2, "Three")
+    graph.add_edge(shared2, t1["id"], "prerequisite-of", t3["id"])
+    graph.add_edge(shared2, t2["id"], "prerequisite-of", t3["id"])
+    eq(len(shared2["edges"]), 2, "two edges sharing a target stay separate")
+
+    # GRAPH-02 empty edge.
+    lone = graph.new_course("No Edges", cid)
+    lone_id = graph.add_objective(lone, "Only")["id"]
+    eq(graph.validate_order(lone), [], "a zero-edge document warns about nothing")
+    if "Only" not in graph.outline_projection(lone):
+        fail("a zero-edge document still projects every objective")
+    eq(graph.propose_order([], []), [], "propose_order over nothing")
+    eq(graph.propose_order([lone_id], []), [lone_id],
+       "propose_order over one objective")
+
+
+def check_structure_and_outline():
+    cid = identity.new_object_id()
+
+    # GRAPH-01: any local label, including an invented one, needs no schema
+    # change.
+    labels = ("program", "semester", "module", "week", "unit", "chapter",
+              "fortnight", "quarter", "sprint")
+    doc = graph.new_course("Every Label", cid)
+    for label in labels:
+        made = graph.add_container(doc, label, "Container " + label)
+        graph.add_objective(doc, "Objective under " + label,
+                            container=made["id"])
+    text = graph.serialize_course(doc)
+    eq(graph.serialize_course(graph.parse_course(text)), text,
+       "every container label round trips")
+    outline = graph.outline_projection(doc)
+    for label in labels:
+        if "(%s)" % label not in outline:
+            fail("the outline must render the local label %r" % label)
+
+    # Structural order mints no prerequisite status.
+    bare = graph.new_course("Structure Only", cid)
+    for n in range(3):
+        cn = graph.add_container(bare, "module", "Module %d" % (n + 1))
+        graph.add_objective(bare, "Objective %d" % (n + 1), container=cn["id"])
+    eq(bare["edges"], [], "containers and objectives alone mint no edge")
+
+    # Authored order is read verbatim, and a reorder moves exactly two lines.
+    ordered = graph.new_course("Ordered", cid)
+    oc = graph.add_container(ordered, "module", "Only Module")
+    ids = [graph.add_objective(ordered, "Objective %d" % n,
+                               container=oc["id"])["id"] for n in (1, 2, 3)]
+    before = graph.outline_projection(ordered)
+    eq(before, graph.outline_projection(ordered),
+       "the outline is byte-identical across two runs")
+    eq(graph.outline_projection(
+        graph.parse_course(graph.serialize_course(ordered))), before,
+       "the outline survives a serialize and parse round trip")
+    ordered["objectives"][0]["order"], ordered["objectives"][1]["order"] = \
+        ordered["objectives"][1]["order"], ordered["objectives"][0]["order"]
+    after = graph.outline_projection(ordered)
+    changed = [(x, y) for x, y in zip(before.split("\n"), after.split("\n"))
+               if x != y]
+    eq(len(changed), 2, "reversing two order values moves exactly two lines")
+    ordered["objectives"][0]["order"], ordered["objectives"][1]["order"] = \
+        ordered["objectives"][1]["order"], ordered["objectives"][0]["order"]
+
+    # The outline is plain Markdown and never reorders around an edge.
+    without = graph.outline_projection(ordered)
+    graph.add_edge(ordered, ids[2], "prerequisite-of", ids[0])
+    eq(graph.outline_projection(ordered), without,
+       "a violated prerequisite never reorders the authored sequence")
+    for line in without.split("\n"):
+        if not line.strip():
+            continue
+        if line[0] not in "#-" and not line[0].isalpha():
+            fail("the outline must be plain Markdown, saw %r" % line)
+        if "<" in line or line.lstrip().startswith("{"):
+            fail("the outline must carry no HTML or JSON, saw %r" % line)
+        if "\u2014" in line:
+            fail("the outline must carry no em dash, saw %r" % line)
+
+    # Order validation reports, it does not correct.
+    warnings = graph.validate_order(ordered)
+    eq(len(warnings), 1, "one violated prerequisite gives one warning")
+    if ids[2] not in warnings[0] or ids[0] not in warnings[0]:
+        fail("the warning must name both objectives: %s" % warnings[0])
+    if "appears after" not in warnings[0]:
+        fail("the warning must say 'appears after': %s" % warnings[0])
+
+    satisfied = graph.new_course("Satisfied", cid)
+    sc = graph.add_container(satisfied, "module", "Only")
+    s1 = graph.add_objective(satisfied, "First", container=sc["id"])
+    s2 = graph.add_objective(satisfied, "Second", container=sc["id"])
+    graph.add_edge(satisfied, s1["id"], "prerequisite-of", s2["id"])
+    eq(graph.validate_order(satisfied), [],
+       "an order that satisfies every prerequisite warns about nothing")
+
+    for other in ("covers-objective", "source-supports", "treatment-of"):
+        quiet = graph.new_course("Quiet " + other, cid)
+        q1 = graph.add_objective(quiet, "First")
+        q2 = graph.add_objective(quiet, "Second")
+        graph.add_edge(quiet, q2["id"], other, q1["id"])
+        eq(graph.validate_order(quiet), [],
+           "a %s edge never produces an order warning" % other)
+
+    advisory = graph.new_course("Advisory", cid)
+    a1 = graph.add_objective(advisory, "First")
+    a2 = graph.add_objective(advisory, "Second")
+    graph.add_edge(advisory, a2["id"], "alternate-path", a1["id"])
+    eq(graph.validate_order(advisory), [],
+       "a downgraded advisory edge cannot be violated")
+
+    # The topological fallback and its tie-break.
+    roots = sorted([identity.new_object_id() for _ in range(4)])
+    eq(graph.propose_order(list(roots), []), roots,
+       "independent roots come back in object_id ascending order")
+    shuffled = list(roots)
+    random.Random(1400).shuffle(shuffled)
+    eq(graph.propose_order(shuffled, []), graph.propose_order(list(roots), []),
+       "shuffling the input does not change the proposed order")
+    chain = [(roots[0], roots[1]), (roots[1], roots[2])]
+    got = graph.propose_order(list(roots), chain)
+    for prereq, dependent in chain:
+        if got.index(prereq) >= got.index(dependent):
+            fail("the proposed order must satisfy every prerequisite edge")
+    cyc = [(roots[0], roots[1]), (roots[1], roots[2]), (roots[2], roots[0])]
+    err = raises(lambda: graph.propose_order(list(roots), cyc),
+                 graph.GraphError, "graph.prerequisite_cycle",
+                 "a prerequisite cycle")
+    for member in roots[:3]:
+        if member not in err.message:
+            fail("the cycle refusal must list its members")
+
+    cycle_doc = graph.parse_course(corpus_14b.sidecar_text_with_cycle())
+    projected = graph.outline_projection(cycle_doc)
+    if not projected.startswith("# "):
+        fail("a cyclic graph must still project its authored outline")
+    if not graph.validate_order(cycle_doc):
+        fail("a cycle must surface through validate_order as a warning")
+
+    # Encoding and identity: no Unicode normalization, ever.
+    if hasattr(graph, "unicodedata"):
+        fail("graph.py must apply no Unicode normalization")
+    pre = graph.new_course("Accents", cid)
+    graph.add_objective(pre, "Mesure la r\u00e9ponse")
+    comb = graph.new_course("Accents", cid)
+    graph.add_objective(comb, "Mesure la re\u0301ponse")
+    fa = identity.object_fingerprint(graph.serialize_course(pre).encode("utf-8"),
+                                     "course")
+    fb = identity.object_fingerprint(graph.serialize_course(comb).encode("utf-8"),
+                                     "course")
+    if fa == fb:
+        fail("two accent compositions must fingerprint differently")
+
+    same = graph.new_course("Same Statement", cid)
+    d1 = graph.add_objective(same, "Identical statement")
+    d2 = graph.add_objective(same, "Identical statement")
+    eq(len(same["objectives"]), 2,
+       "two objectives with one statement stay two records")
+    if d1["id"] == d2["id"]:
+        fail("identity is minted, never derived from a statement")
+
+    eq(graph.public_api(), EXPECTED_PUBLIC_API,
+       "the module's public surface must not grow without a plan edit")
+
+    # The three-domain corpus.
+    tmp = tempfile.mkdtemp(prefix="graph_corpus_")
+    try:
+        built = corpus_14b.build_three_domains(tmp)
+        eq(len(built["domains"]), 3, "the corpus builds three domains")
+        seen_labels = set()
+        for domain in built["domains"]:
+            doc = course.read_course(domain["root"])["doc"]
+            eq(len([e for e in doc["edges"]
+                    if e["edge_type"] == "prerequisite-of"]),
+               domain["prerequisite_edges"],
+               "%s has exactly the prerequisite edges it wrote" % domain["slug"])
+            for container in doc["structure"]:
+                seen_labels.add(container["label"])
+        for label in ("module", "week", "fortnight", "chapter"):
+            if label not in seen_labels:
+                fail("the corpus must exercise the container label %r" % label)
+    finally:
+        corpus_14b.teardown(tmp)
+
+
+def check_schema_file():
+    with open(SCHEMA_PATH, encoding="utf-8") as fh:
+        schema = json.load(fh)
+    schema_validate.check_schema(schema)
+    eq(schema["x-itembank-version"], 1, "the schema's itembank version")
+    eq(schema["$defs"]["edge"]["properties"]["edge_type"]["enum"],
+       list(graph.EDGE_TYPES), "the published frozen edge vocabulary")
+    if "enum" in schema["$defs"]["container"]["properties"]["label"]:
+        fail("the container label must carry no enum; GRAPH-01 requires a "
+             "local label to be accepted without a schema change")
+    if "\u2014" in json.dumps(schema, ensure_ascii=False):
+        fail("the schema must contain no em dash character")
+
+    tmp = tempfile.mkdtemp(prefix="graph_schema_")
+    try:
+        built = corpus_14b.build_three_domains(tmp)
+        root = built["domains"][0]["root"]
+        instance = _schema_instance(course.read_course(root)["doc"])
+        errors = schema_validate.validate(instance, schema)
+        if errors:
+            fail("the meridian domain must validate: %s" % errors[:3])
+        instance["edges"][0].pop("target")
+        if not schema_validate.validate(instance, schema):
+            fail("an edge missing its target must be rejected")
+    finally:
+        corpus_14b.teardown(tmp)
+
+
+def check_format_additivity():
+    if hasattr(graph, "model"):
+        fail("graph.py must never reach the one parser")
+    golden_path = os.path.join(ROOT, "fixtures", "lesson_golden_phase3_parse.json")
+    bank = os.path.join(ROOT, "fixtures", "lesson_bank.md")
+    golden = json.load(open(golden_path, encoding="utf-8"))
+    qs = model.load(bank)
+    if json.dumps(qs, sort_keys=True) != json.dumps(golden["qs"],
+                                                    sort_keys=True):
+        fail("this phase changed the shipped parse; it must be additive")
+    text = corpus_14b.sidecar_text_with_unknowns()
+    eq(graph.serialize_course(graph.parse_course(text)), text,
+       "an unknown section and column survive byte for byte")
+
+
 def main():
     started = time.time()
     check_thin_slice()
+    check_edges()
+    check_structure_and_outline()
+    check_schema_file()
+    check_format_additivity()
     elapsed = time.time() - started
     print("OK graph_roundtrip (%.2fs)" % elapsed)
 

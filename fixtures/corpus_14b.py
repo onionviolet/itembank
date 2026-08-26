@@ -16,35 +16,94 @@ time, so `python itembank.py guard .` never sees it.
 import os
 import shutil
 
-# Fictional. Named so it reads as a course without resembling any real one.
+# Fictional throughout. Every course name, container title, objective
+# statement, and source title below is invented. None names a real course,
+# book, learner, bank, or lesson, which the project content rule requires and
+# `python itembank.py guard .` enforces.
+#
+# The three domains are shaped differently on purpose: `module` containers,
+# `week` containers plus one invented `fortnight` label, and `chapter`
+# containers. The invented label is the one that proves GRAPH-01's clause
+# that a local structural label needs no schema change.
 DOMAINS = (
     {
         "slug": "meridian-field-response",
         "title": "Meridian Field Response",
-        "container": "Scene Size Up",
+        "label": "module",
+        "containers": ("Scene Size Up", "Primary Assessment"),
         "objectives": (
             "Identify scene hazards on arrival",
             "Choose a body substance isolation level",
+            "State the number of patients before approaching",
+            "Form a general impression in one sentence",
+            "Rank the three findings that change transport priority",
+            "Hand off using a fixed report order",
         ),
+        # Three prerequisite edges and one covers-objective edge, all
+        # satisfied by the authored order.
+        "prerequisites": ((0, 1), (1, 2), (3, 4)),
+        "covers": (5, 3),
+        "supports": None,
+        "treatments": None,
+        "unregistered": None,
+        "source_title": "Field response unit one, working notes",
+        "source_rights": {},
     },
     {
-        "slug": "lattice-quantitative-methods",
-        "title": "Lattice Quantitative Methods",
-        "container": "Rates of Change",
+        "slug": "orrery-algebra",
+        "title": "Orrery Algebra",
+        "label": "week",
+        "containers": ("Rates of Change", "Reading a Graph"),
+        "extra_container": ("fortnight", "Consolidation Fortnight"),
         "objectives": (
             "Read a rate of change from a table",
             "Relate a rate of change to its graph",
+            "Predict a value between two measured points",
+            "Name the units a rate of change carries",
+            "Decide when a straight line model stops being honest",
         ),
+        # The second pair is deliberately violated by the authored order: the
+        # prerequisite sits after its dependent, so validate_order has a real
+        # violation to report and the outline has a real chance to wrongly
+        # correct it.
+        "prerequisites": ((0, 1), (3, 2)),
+        "covers": None,
+        "supports": 4,
+        "treatments": None,
+        "unregistered": None,
+        "source_title": "Orrery algebra, worked graph readings",
+        "source_rights": {"quote": "granted"},
     },
     {
-        "slug": "harbour-computing-foundations",
-        "title": "Harbour Computing Foundations",
-        "container": "Values and Names",
+        "slug": "lantern-computing",
+        "title": "Lantern Computing Foundations",
+        "label": "chapter",
+        "containers": ("Values and Names", "Repetition"),
         "objectives": (
             "Predict the value a name is bound to",
             "Trace a rebinding through a short program",
+            "State the condition a loop ends on",
+            "Rewrite a counted loop as a conditional loop",
+            "Explain why an off by one error reads as correct",
         ),
+        "prerequisites": (),
+        "covers": None,
+        "supports": None,
+        "treatments": (1, 0),
+        # An unregistered relation carrying an explicit hard gate. The point
+        # of keeping it in the corpus is that a regression which lets an
+        # unknown type block a learner fails a test instead of shipping.
+        "unregistered": (4, 2),
+        "source_title": "Lantern computing, chapter exercises",
+        "source_rights": {"transform": "granted", "package": "denied"},
     },
+)
+
+SOURCE_BODY = (
+    "# %s\n\nThis synthetic passage exists only to give the graph kernel a\n"
+    "source object to bind against. It names no real course, book, or\n"
+    "learner, and its content is generated from a fixed seed so a rebuild is\n"
+    "byte-identical.\n"
 )
 
 STUB_HEADER = (
@@ -114,41 +173,162 @@ def build_stub_course(dest):
 
 
 def build_three_domains(dest):
-    """Build the corpus's course roots under `dest`.
+    """Build the corpus's three course roots under `dest` and describe them.
 
-    Plan 14B-01 builds only the first domain, which is all the thin slice
-    needs; plan 14B-02 widens this to all three for the three-domain tracer.
-    The full `DOMAINS` tuple is already declared above so widening it is a
-    loop bound change and not a second fixture.
+    Every authored string is fixed, so a rebuild produces byte-identical
+    content. Object ids are not fixed and cannot be: D-14A-2 requires a
+    minted opaque id that is never derived from content, so two builds mint
+    two different id sets on purpose. What is stable is everything a human
+    wrote.
     """
     import course
     import graph
+    import identity
+    import journal
 
     built = []
-    for domain in DOMAINS[:1]:
+    for domain in DOMAINS:
         root = os.path.join(dest, domain["slug"])
         os.makedirs(root, exist_ok=True)
+
+        # One real source object per domain, minted through the 14A path so
+        # its rights record is a recorded grant rather than a claim in a
+        # comment. Rights default to all unknown, which is restrictive.
+        source_rel = "sources/%s.md" % domain["slug"]
+        os.makedirs(os.path.join(root, "sources"), exist_ok=True)
+        rights = identity.rights_default()
+        rights.update(domain["source_rights"])
+        source_object_id = identity.new_object_id()
+        journal.commit_operation(
+            base=root, object_id=source_object_id, kind="source",
+            rel_path=source_rel, operation="link",
+            new_bytes=(SOURCE_BODY % domain["source_title"]).encode("utf-8"),
+            expected_fingerprint=None, actor_kind="agent",
+            actor_name="corpus-14b", create_if_missing=True,
+            write_target=False, rights=rights)
+        with open(os.path.join(root, source_rel), "w", encoding="utf-8") as fh:
+            fh.write(SOURCE_BODY % domain["source_title"])
+
         course.create_course(root, domain["title"], "agent", "corpus-14b")
         read = course.read_course(root)
         doc = read["doc"]
-        container = graph.add_container(doc, "module", domain["container"])
+
+        containers = [graph.add_container(doc, domain["label"], title)
+                      for title in domain["containers"]]
+        if domain.get("extra_container"):
+            label, title = domain["extra_container"]
+            containers.append(graph.add_container(doc, label, title))
+
         objective_ids = []
-        for statement in domain["objectives"]:
+        for n, statement in enumerate(domain["objectives"]):
+            container = containers[n % len(containers)]
             objective_ids.append(
                 graph.add_objective(doc, statement,
                                     container=container["id"])["id"])
-        graph.add_edge(doc, objective_ids[0], "prerequisite-of",
-                       objective_ids[1],
-                       rationale="hazards are read before isolation is chosen")
+
+        doc["sources"].append(graph.new_record("Sources", {
+            "source_object_id": source_object_id,
+            "title": domain["source_title"],
+            "note": "rights are recorded on the source object, never here"}))
+
+        prerequisite_edges = 0
+        for a, b in domain["prerequisites"]:
+            graph.add_edge(doc, objective_ids[a], "prerequisite-of",
+                           objective_ids[b], authority="authored",
+                           confidence="medium",
+                           rationale="the first is read before the second")
+            prerequisite_edges += 1
+        if domain["covers"] is not None:
+            a, b = domain["covers"]
+            graph.add_edge(doc, objective_ids[a], "covers-objective",
+                           objective_ids[b], authority="authored")
+        if domain["supports"] is not None:
+            graph.add_edge(doc, source_object_id, "source-supports",
+                           objective_ids[domain["supports"]],
+                           authority="imported")
+        if domain["treatments"] is not None:
+            a, b = domain["treatments"]
+            graph.add_edge(doc, objective_ids[a], "treatment-of",
+                           objective_ids[b], authority="proposed")
+        if domain["unregistered"] is not None:
+            a, b = domain["unregistered"]
+            graph.add_edge(doc, objective_ids[a], "alternate-path",
+                           objective_ids[b], override="hard-gate",
+                           rationale="an unregistered relation, kept and "
+                                     "downgraded rather than dropped")
+
         course.write_course(root, doc, read["fingerprint"], "agent",
                             "corpus-14b")
         built.append({
             "slug": domain["slug"], "root": root, "title": domain["title"],
-            "container": container["id"], "objectives": objective_ids,
-            "edges": 1,
+            "label": domain["label"],
+            "containers": [c["id"] for c in containers],
+            "objectives": objective_ids,
+            "source_object_id": source_object_id,
+            "prerequisite_edges": prerequisite_edges,
+            "edges": len(doc["edges"]),
         })
     return {"dest": dest, "domains": built, "built": len(built),
             "declared": len(DOMAINS)}
+
+
+def sidecar_text_with_unknowns():
+    """A sidecar carrying a section and a column this build does not know.
+
+    This is the fixture behind the additive-by-construction claim: an older
+    build must be able to rewrite a newer build's file without dropping what
+    it could not read, and a promise in prose is not evidence.
+    """
+    import graph
+    import identity
+
+    doc = graph.new_course("Unknown Field Survivor", identity.new_object_id())
+    container = graph.add_container(doc, "module", "Only Module")
+    graph.add_objective(doc, "Survive an older build's rewrite",
+                        container=container["id"])
+    graph.add_objective(doc, "Keep a column nobody here understands",
+                        container=container["id"])
+    text = graph.serialize_course(doc)
+
+    out, inside, index = [], False, 0
+    for line in text.split("\n"):
+        if line.startswith("## "):
+            inside = (line == "## Objectives")
+            index = 0
+            out.append(line)
+            continue
+        if inside and line.startswith("|"):
+            if index == 0:
+                out.append(line + " owner |")
+            elif index == 1:
+                out.append(line + "---|")
+            else:
+                out.append(line + " weibao |")
+            index += 1
+            continue
+        out.append(line)
+    return "\n".join(out) + \
+        "\n## Cohorts\n\n| cohort | term |\n|---|---|\n| alpha | fall |\n"
+
+
+def sidecar_text_with_cycle():
+    """A sidecar whose edges form a three-node prerequisite cycle.
+
+    A cycle has to exist in the corpus so that a regression which loops, or
+    which silently truncates the order, fails a test rather than shipping.
+    """
+    import graph
+    import identity
+
+    doc = graph.new_course("Cyclic Prerequisites", identity.new_object_id())
+    container = graph.add_container(doc, "module", "Only Module")
+    ids = [graph.add_objective(doc, "Cyclic objective %d" % n,
+                               container=container["id"])["id"]
+           for n in (1, 2, 3)]
+    graph.add_edge(doc, ids[0], "prerequisite-of", ids[1])
+    graph.add_edge(doc, ids[1], "prerequisite-of", ids[2])
+    graph.add_edge(doc, ids[2], "prerequisite-of", ids[0])
+    return graph.serialize_course(doc)
 
 
 def teardown(dest):
