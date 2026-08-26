@@ -211,3 +211,96 @@ def migrate_stub(course_root, actor_kind, actor_name):
         "revision": revision["revision"],
         "stub_rewritten": False,
     }
+
+
+def rights_for_binding(base, source_object_id, operation):
+    """The CURRENT rights state of `operation` on `source_object_id`, read
+    from the journal registry at the moment of the call.
+
+    This reports a state and makes no decision. It is deliberately read fresh
+    every time: a rights value copied into a binding row is history, and a
+    revoked right must take effect on the next operation rather than staying
+    effective forever because an old row still says granted.
+    """
+    registry = journal.read_registry(base)
+    record = registry.get(source_object_id)
+    if record is None:
+        raise CourseError(
+            "course.unknown_source",
+            "%s is not a registered object in this course root's journal "
+            "registry" % source_object_id)
+    return identity.rights_state(record.get("rights"), operation)
+
+
+def _require_right(base, source_object_id, operation):
+    """Refuse unless `operation` on `source_object_id` is exactly granted.
+
+    Unknown and denied both refuse, and neither is treated as a lesser form
+    of permission (RIGHTS-01). The refusal names the right, the source, the
+    current state, and the one edit that fixes it, so the next safe action is
+    never a guess.
+    """
+    registry = journal.read_registry(base)
+    record = registry.get(source_object_id)
+    if record is None:
+        raise CourseError(
+            "course.unknown_source",
+            "%s is not a registered object in this course root's journal "
+            "registry" % source_object_id)
+    if not identity.rights_granted(record.get("rights"), operation):
+        state = identity.rights_state(record.get("rights"), operation)
+        raise CourseError(
+            "course.rights_not_granted",
+            "the %s right for source %s is %s, so this binding is refused; "
+            "next safe action: record %s: granted on that source's rights "
+            "record, or choose a treatment that does not consume that right"
+            % (operation, source_object_id, state, operation))
+    return identity.rights_state(record.get("rights"), operation)
+
+
+def _bind(base, objective, source_object_id, binding_kind, operation,
+          treatment_kind, locator, state, confidence, actor_kind, actor_name):
+    snapshot = _require_right(base, source_object_id, operation)
+    read = read_course(base)
+    doc = read["doc"]
+    graph.add_binding(doc, binding_kind, objective, source_object_id,
+                      treatment_kind=treatment_kind, locator=locator,
+                      state=state, confidence=confidence,
+                      rights_snapshot=snapshot)
+    return write_course(base, doc, read["fingerprint"], actor_kind, actor_name)
+
+
+def bind_source(base, objective, source_object_id, locator="",
+                state="unknown", confidence="unknown", actor_kind="human",
+                actor_name=""):
+    """Bind a source to an objective, refusing unless the source's `read`
+    right is granted.
+
+    A coverage claim points at a locator and reproduces nothing, so it
+    consumes `read` and not `quote`. A freshly minted source still refuses,
+    because `read` defaults to unknown like every other right and unknown is
+    restrictive: finding a file never grants permission to use it.
+    """
+    return _bind(base, objective, source_object_id, "source",
+                 graph.SOURCE_BINDING_RIGHT, "", locator, state, confidence,
+                 actor_kind, actor_name)
+
+
+def bind_treatment(base, objective, source_object_id, treatment_kind,
+                   locator="", state="unknown", confidence="unknown",
+                   actor_kind="human", actor_name=""):
+    """Bind a treatment to an objective, refusing unless the right that
+    treatment consumes is granted.
+
+    The right is looked up through `graph.treatment_right`, so an excerpt
+    consumes `quote` and a guided lesson consumes `transform`. A right
+    granted for one operation never implies another.
+
+    The binding row's `rights_snapshot` column is history and is never read
+    back for an authorization decision. Every call re-reads the current
+    registry instead, which is what makes a revoked right take effect
+    immediately rather than staying effective forever behind a stale row.
+    """
+    return _bind(base, objective, source_object_id, "treatment",
+                 graph.treatment_right(treatment_kind), treatment_kind,
+                 locator, state, confidence, actor_kind, actor_name)

@@ -213,7 +213,7 @@ def check_thin_slice():
             fail("migrate_stub must create the course-graph sidecar")
         eq(open(stub_path, "rb").read(), stub_before,
            "migrate_stub leaves the hand-authored stub byte-identical")
-        if not journal.entries(stub_root):
+        if not list(journal.entries(stub_root)):
             fail("migrate_stub must append a journal entry")
         raises(lambda: course.migrate_stub(os.path.join(tmp, "no_course"),
                                            "agent", "claude-code"),
@@ -311,8 +311,11 @@ EXPECTED_PUBLIC_API = [
     "add_container", "add_edge", "add_objective", "edge_key", "is_rule_row",
     "new_course", "new_record", "outline_projection", "parse_course",
     "propose_order", "public_api", "serialize_course", "split_row",
-    "validate_edge", "validate_order",
+    "treatment_right", "upgrade_0_to_1", "upgrade_document", "validate_binding",
+    "validate_edge", "validate_order", "add_binding", "add_source",
+    "overlay_objective",
 ]
+EXPECTED_PUBLIC_API = sorted(EXPECTED_PUBLIC_API)
 
 SCHEMA_PATH = os.path.join(ROOT, "schemas", "course_graph.schema.json")
 
@@ -647,6 +650,262 @@ def check_format_additivity():
        "an unknown section and column survive byte for byte")
 
 
+
+def _objective_line(text, objective_id):
+    for line in text.split("\n"):
+        if line.startswith("| " + objective_id + " "):
+            return line
+    fail("no objectives row for %s" % objective_id)
+
+
+def check_bindings_and_rights():
+    eq(len(graph.TREATMENT_KINDS), 11, "TREAT-01 has eleven treatment kinds")
+    eq(graph.TREATMENT_KINDS,
+       ("direct-reading", "excerpt", "guided-lesson", "notes-or-terms",
+        "worked-example", "visual-or-demonstration", "practice",
+        "formal-test", "assessment-first-diagnostic", "learner-artifact",
+        "human-review"), "the TREAT-01 treatment vocabulary")
+    eq(graph.BINDING_KINDS, ("source", "treatment"), "the binding kinds")
+    eq(graph.BINDING_STATES,
+       ("covered", "thin", "missing", "conflicting", "unknown"),
+       "the TREAT-02 binding states")
+    for forbidden in ("verified", "assumed"):
+        if forbidden in graph.BINDING_STATES:
+            fail("coverage is reported, never claimed: %r must not be a "
+                 "binding state" % forbidden)
+    eq(len(graph.TREATMENT_RIGHTS), 11, "every treatment maps to a right")
+    for kind, right in graph.TREATMENT_RIGHTS.items():
+        if right not in identity.RIGHTS_OPERATIONS:
+            fail("%s maps to %r, which is not a rights operation"
+                 % (kind, right))
+    eq(graph.treatment_right("excerpt"), "quote", "excerpt consumes quote")
+    eq(graph.treatment_right("guided-lesson"), "transform",
+       "a guided lesson consumes transform")
+    eq(graph.treatment_right("direct-reading"), "read",
+       "direct reading consumes read")
+    raises(lambda: graph.treatment_right("flashcards"), graph.GraphError,
+           "graph.unknown_treatment_kind", "a twelfth treatment kind")
+
+    cid = identity.new_object_id()
+    doc = graph.new_course("Bindings", cid)
+    obj = graph.add_objective(doc, "An objective")
+    src_id = identity.new_object_id()
+    graph.add_source(doc, src_id, "A source")
+    err = raises(lambda: graph.add_binding(doc, "treatment", obj["id"], src_id,
+                                           treatment_kind="flashcards"),
+                 graph.GraphError, "graph.unknown_treatment_kind",
+                 "binding an unknown treatment kind")
+    if "eleven" not in err.message:
+        fail("the refusal must name the closed vocabulary: %s" % err.message)
+
+    # An unrecognized state degrades to unknown, never to covered.
+    degraded = graph.validate_binding({"binding_kind": "source",
+                                       "objective": obj["id"],
+                                       "state": "looks-fine"})
+    eq(degraded["state"], "unknown", "an unrecognized binding state degrades")
+    eq(degraded["original_state"], "looks-fine", "the source string is kept")
+    if degraded["state"] == "covered":
+        fail("similarity alone must never produce covered")
+
+    # An empty bindings table parses to a list, never to None.
+    empty = graph.parse_course(graph.serialize_course(doc))
+    eq(empty["bindings"], [], "an empty bindings table parses to a list")
+
+    # Two bindings differing only by locator are two rows.
+    graph.add_binding(doc, "source", obj["id"], src_id, locator="page 1")
+    graph.add_binding(doc, "source", obj["id"], src_id, locator="page 2")
+    eq(len(doc["bindings"]), 2,
+       "a binding is not identified by its endpoints alone")
+
+    tmp = tempfile.mkdtemp(prefix="graph_rights_")
+    try:
+        built = corpus_14b.build_three_domains(tmp)
+        domains = {d["slug"]: d for d in built["domains"]}
+
+        # Every right unknown: every binding refuses, and names the fix.
+        mer = domains["meridian-field-response"]
+        root = mer["root"]
+        before_bytes = open(course.sidecar_path(root), "rb").read()
+        before_entries = len(list(journal.entries(root)))
+        err = raises(lambda: course.bind_source(
+            root, mer["objectives"][0], mer["source_object_id"],
+            locator="section 1.2", actor_kind="human", actor_name="weibao"),
+            course.CourseError, "course.rights_not_granted",
+            "binding against a source whose rights are all unknown")
+        for token in (mer["source_object_id"], "read", "unknown",
+                      "next safe action: record"):
+            if token not in err.message:
+                fail("the refusal must contain %r: %s" % (token, err.message))
+        eq(open(course.sidecar_path(root), "rb").read(), before_bytes,
+           "a refused binding writes no bytes")
+        eq(len(list(journal.entries(root))), before_entries,
+           "a refused binding appends no journal entry")
+
+        # A granted right does not imply another.
+        orr = domains["orrery-algebra"]
+        raises(lambda: course.bind_source(
+            orr["root"], orr["objectives"][0], orr["source_object_id"],
+            locator="week 1", actor_kind="human", actor_name="weibao"),
+            course.CourseError, "course.rights_not_granted",
+            "a granted quote right does not grant read")
+
+        corpus_14b.grant_right(orr["root"], orr["source_object_id"], "read")
+        before_rev = course.read_course(orr["root"])["revision"]
+        rec = course.bind_source(orr["root"], orr["objectives"][0],
+                                 orr["source_object_id"], locator="week 1",
+                                 actor_kind="human", actor_name="weibao")
+        eq(rec["revision"], before_rev + 1, "an accepted binding is one revision")
+        bound = course.read_course(orr["root"])["doc"]
+        rows = [b for b in bound["bindings"] if b["binding_kind"] == "source"]
+        eq(len(rows), 1, "the sidecar gains exactly one source binding row")
+        eq(rows[0]["rights_snapshot"], "granted",
+           "the binding records the rights state at bind time")
+
+        # A stale snapshot never authorizes: revoke, then bind again.
+        corpus_14b.revoke_right(orr["root"], orr["source_object_id"], "read")
+        err = raises(lambda: course.bind_source(
+            orr["root"], orr["objectives"][1], orr["source_object_id"],
+            locator="week 2", actor_kind="human", actor_name="weibao"),
+            course.CourseError, "course.rights_not_granted",
+            "binding after the right was revoked")
+        if "denied" not in err.message:
+            fail("the refusal must name the current state: %s" % err.message)
+        still = course.read_course(orr["root"])["doc"]
+        eq([b for b in still["bindings"]][0]["rights_snapshot"], "granted",
+           "the earlier snapshot row is untouched and still reads granted")
+
+        # A treatment consumes the right its kind maps to.
+        lan = domains["lantern-computing"]
+        course.bind_treatment(lan["root"], lan["objectives"][0],
+                              lan["source_object_id"],
+                              treatment_kind="guided-lesson",
+                              actor_kind="human", actor_name="weibao")
+        err = raises(lambda: course.bind_treatment(
+            lan["root"], lan["objectives"][1], lan["source_object_id"],
+            treatment_kind="excerpt", actor_kind="human", actor_name="weibao"),
+            course.CourseError, "course.rights_not_granted",
+            "an excerpt consumes quote, which is not granted")
+        if "quote" not in err.message:
+            fail("the refusal must name the right: %s" % err.message)
+        raises(lambda: course.bind_treatment(
+            lan["root"], lan["objectives"][2], lan["source_object_id"],
+            treatment_kind="direct-reading", actor_kind="human",
+            actor_name="weibao"),
+            course.CourseError, "course.rights_not_granted",
+            "direct reading is a treatment, not a free pass")
+        raises(lambda: course.bind_source(
+            lan["root"], lan["objectives"][0], "0" * 16,
+            actor_kind="human", actor_name="weibao"),
+            course.CourseError, "course.unknown_source",
+            "binding an object the registry does not know")
+
+        # The derived title cell is not load-bearing.
+        read = course.read_course(lan["root"])
+        doc2 = read["doc"]
+        doc2["sources"][0]["title"] = "a deliberately wrong derived title"
+        course.write_course(lan["root"], doc2, read["fingerprint"], "human",
+                            "weibao")
+        course.bind_treatment(lan["root"], lan["objectives"][3],
+                              lan["source_object_id"],
+                              treatment_kind="practice",
+                              actor_kind="human", actor_name="weibao")
+    finally:
+        corpus_14b.teardown(tmp)
+
+
+def check_overlays():
+    eq(graph.OBJECTIVE_ORIGINS, ("local", "imported"), "the objective origins")
+    cid = identity.new_object_id()
+    doc = graph.new_course("Imported Scope", cid)
+    container = graph.add_container(doc, "module", "Only")
+    imported = graph.add_objective(doc, "An imported statement",
+                                   container=container["id"],
+                                   origin="imported",
+                                   import_version="scope-2026.1")
+    eq(imported["origin"], "imported", "an imported objective says so")
+    eq(imported["import_version"], "scope-2026.1", "the import version is kept")
+
+    before = _objective_line(graph.serialize_course(doc), imported["id"])
+    local = graph.overlay_objective(doc, imported["id"], "a revised statement",
+                                    "weibao")
+    after = _objective_line(graph.serialize_course(doc), imported["id"])
+    eq(after, before, "the imported row is byte-identical after an overlay")
+    eq(local["origin"], "local", "an overlay is a local record")
+    eq(local["overlays"], imported["id"], "the overlay names what it overlays")
+    if local["id"] == imported["id"]:
+        fail("an overlay carries its own minted id")
+
+    migrations = [m for m in doc["migrations"] if m["kind"] == "overlay"]
+    eq(len(migrations), 1, "an overlay records one migration row")
+    eq(migrations[0]["from"], imported["id"], "the migration names the import")
+    eq(migrations[0]["to"], local["id"], "the migration names the overlay")
+    eq(migrations[0]["state"], "proposed", "an overlay is proposed, not applied")
+
+    raises(lambda: graph.add_objective(doc, "a rewrite", origin="imported",
+                                       objective_id=imported["id"]),
+           graph.GraphError, "graph.imported_objective_immutable",
+           "rewriting an imported objective in place")
+
+    second = graph.overlay_objective(doc, local["id"], "a second revision",
+                                     "weibao")
+    eq(second["overlays"], local["id"], "an overlay of an overlay chains")
+    eq(_objective_line(graph.serialize_course(doc), imported["id"]), before,
+       "the import is still untouched after a second overlay")
+    eq(len(doc["objectives"]), 3, "nothing in the chain is deleted")
+
+    outline = graph.outline_projection(doc)
+    eq(outline.count("a second revision"), 1, "the newest row is rendered")
+    if "An imported statement" in outline or "a revised statement" in outline:
+        fail("a superseded row must not be rendered twice")
+
+
+def check_version_migration():
+    eq(graph.COURSE_GRAPH_VERSION, 1, "the current course graph version")
+    if not isinstance(graph.UPGRADES, dict):
+        fail("UPGRADES must be a dict keyed by from-version")
+    if 0 not in graph.UPGRADES:
+        fail("UPGRADES must carry a step from version 0")
+    for key, value in graph.UPGRADES.items():
+        if not isinstance(key, int) or not callable(value):
+            fail("UPGRADES maps an integer version to a callable step")
+
+    text = corpus_14b.sidecar_text_version_0()
+    if "| graph_schema_version | 0 |" not in text:
+        fail("the version-0 fixture must declare version 0")
+    if "| source | edge_type | target | authority | rationale | confidence |" \
+            not in text:
+        fail("the version-0 fixture's edges table must lack the override column")
+
+    doc = graph.parse_course(text)
+    eq(doc["header"]["graph_schema_version"], 1, "a version-0 sidecar upgrades")
+    eq(doc["upgraded_from"], 0, "the document records where it came from")
+    for edge in doc["edges"]:
+        eq(edge["override"], "advisory",
+           "the upgrade supplies the least-blocking default, never a hard gate")
+
+    out = graph.serialize_course(doc)
+    if "| graph_schema_version | 1 |" not in out:
+        fail("an upgraded document is written back at the current version")
+    if "| source | edge_type | target | authority | rationale | confidence | override |" \
+            not in out:
+        fail("the upgraded edges table must carry the override column")
+    if "## Cohorts" not in out or "| alpha | fall |" not in out:
+        fail("an unknown section must survive the upgrade untouched")
+
+    future = text.replace("| graph_schema_version | 0 |",
+                          "| graph_schema_version | 2 |")
+    future = future.replace("## Edges\n", "## Edges\n\nnot a table at all\n")
+    err = raises(lambda: graph.parse_course(future), graph.GraphError,
+                 "graph.future_schema_version",
+                 "a future version with a malformed section")
+    if "2" not in err.message or "1" not in err.message:
+        fail("the refusal must name both versions: %s" % err.message)
+
+    raises(lambda: graph.upgrade_document(graph.new_course("x", "0" * 16), 7),
+           graph.GraphError, "graph.unknown_upgrade_path",
+           "a gap in the upgrade chain")
+
+
 def main():
     started = time.time()
     check_thin_slice()
@@ -654,6 +913,9 @@ def main():
     check_structure_and_outline()
     check_schema_file()
     check_format_additivity()
+    check_bindings_and_rights()
+    check_overlays()
+    check_version_migration()
     elapsed = time.time() - started
     print("OK graph_roundtrip (%.2fs)" % elapsed)
 

@@ -79,6 +79,50 @@ CONTAINER_LABEL_EXAMPLES = ("program", "semester", "module", "week", "unit",
                             "chapter")
 
 
+# TREAT-01's vocabulary, canonical in `.planning/REQUIREMENTS.md`. It is closed
+# and this phase adds no twelfth value. Phase 14B owns only the record shape;
+# choosing which treatment an objective gets is Phase 15A's director work.
+TREATMENT_KINDS = ("direct-reading", "excerpt", "guided-lesson",
+                   "notes-or-terms", "worked-example",
+                   "visual-or-demonstration", "practice", "formal-test",
+                   "assessment-first-diagnostic", "learner-artifact",
+                   "human-review")
+
+# Which rights operation each treatment consumes. Every value is a member of
+# `identity.RIGHTS_OPERATIONS`. This mapping is the plan's decision and not the
+# executor's: leaving it open would have produced eleven separate judgement
+# calls at eleven call sites. Reading a source is `read`; reproducing part of
+# it is `quote`; making something new out of it is `transform`.
+TREATMENT_RIGHTS = {
+    "direct-reading": "read",
+    "excerpt": "quote",
+    "guided-lesson": "transform",
+    "notes-or-terms": "transform",
+    "worked-example": "transform",
+    "visual-or-demonstration": "transform",
+    "practice": "transform",
+    "formal-test": "transform",
+    "assessment-first-diagnostic": "transform",
+    "learner-artifact": "read",
+    "human-review": "read",
+}
+
+BINDING_KINDS = ("source", "treatment")
+
+# TREAT-02's vocabulary. There is deliberately no `verified` and no `assumed`
+# member: coverage is reported, never claimed, and heading or name similarity
+# alone can never produce `covered`. Making `covered` unreachable by
+# degradation is how that rule is enforced rather than merely stated.
+BINDING_STATES = ("covered", "thin", "missing", "conflicting", "unknown")
+
+# A coverage claim points at a locator and reproduces nothing, so it consumes
+# `read`. Quoting is what `excerpt` does. Even so a freshly minted source
+# refuses, because `read` also defaults to unknown and unknown is restrictive.
+SOURCE_BINDING_RIGHT = "read"
+
+OBJECTIVE_ORIGINS = ("local", "imported")
+
+
 SECTION_ORDER = ("Course", "Structure", "Objectives", "Sources", "Edges",
                  "Bindings", "Migrations", "Log")
 
@@ -161,6 +205,7 @@ def new_course(title, course_object_id):
     for section in SECTION_ORDER[1:]:
         doc[SECTION_KEYS[section]] = []
     doc["unknown_sections"] = []
+    doc["upgraded_from"] = None
     return doc
 
 
@@ -281,6 +326,7 @@ def parse_course(text):
     header["graph_schema_version"] = declared
 
     doc = {"header": header}
+    doc["upgraded_from"] = None
     for section in SECTION_ORDER[1:]:
         doc[SECTION_KEYS[section]] = []
     doc["unknown_sections"] = []
@@ -291,6 +337,14 @@ def parse_course(text):
             doc[SECTION_KEYS[name]] = records
         else:
             doc["unknown_sections"].append({"name": name, "body": list(body)})
+
+    # The version check above happens before a single section is read, and
+    # deliberately so: an older build that partially reads a newer sidecar and
+    # then rewrites it destroys the fields it did not understand. Refusing
+    # first is what makes that impossible rather than merely unlikely.
+    if declared < COURSE_GRAPH_VERSION:
+        doc = upgrade_document(doc, declared)
+        doc["upgraded_from"] = declared
     return doc
 
 
@@ -353,15 +407,30 @@ def add_container(doc, label, title, parent="", order=None):
     return record
 
 
-def add_objective(doc, statement, container="", order=None, origin="local"):
+def add_objective(doc, statement, container="", order=None, origin="local",
+                  import_version="", objective_id=None):
     """Add one objective and return it. Adds zero edges, for the same reason
-    `add_container` does."""
+    `add_container` does.
+
+    Passing `objective_id` for a row that already exists is refused when that
+    row was imported: GRAPH-01 binds an imported scope as an immutable
+    version, so a revision is a sibling overlay record and never a rewrite.
+    """
+    if objective_id is not None:
+        existing = _objective_by_id(doc, objective_id)
+        if existing is not None and existing.get("origin") == "imported":
+            raise GraphError(
+                "graph.imported_objective_immutable",
+                "objective %s was imported at version %s and is never edited "
+                "in place; record a local overlay with "
+                "graph.overlay_objective instead"
+                % (objective_id, existing.get("import_version", "")))
     if order is None:
         order = len(doc["objectives"]) + 1
     record = new_record("Objectives", {
-        "id": identity.new_object_id(), "container": container,
+        "id": objective_id or identity.new_object_id(), "container": container,
         "order": str(order), "statement": statement, "origin": origin,
-        "import_version": "", "overlays": ""})
+        "import_version": import_version, "overlays": ""})
     doc["objectives"].append(record)
     return record
 
@@ -426,6 +495,13 @@ def outline_projection(doc):
     """
     out = ["# " + str(doc["header"].get("title", ""))]
     objectives = doc["objectives"]
+    if not objectives:
+        out.append("")
+        out.append("No objectives are recorded yet.")
+        return "\n".join(out) + "\n"
+
+    superseded = set(o["overlays"] for o in objectives if o.get("overlays"))
+    objectives = [o for o in objectives if o["id"] not in superseded]
     if not objectives:
         out.append("")
         out.append("No objectives are recorded yet.")
@@ -638,3 +714,182 @@ def public_api():
             continue
         out.append(name)
     return sorted(out)
+
+
+def treatment_right(treatment_kind):
+    """The rights operation `treatment_kind` consumes."""
+    if treatment_kind not in TREATMENT_RIGHTS:
+        raise GraphError(
+            "graph.unknown_treatment_kind",
+            "%s is not one of the eleven treatment kinds in TREAT-01; the "
+            "vocabulary is closed and this phase adds no twelfth"
+            % treatment_kind)
+    return TREATMENT_RIGHTS[treatment_kind]
+
+
+def add_source(doc, source_object_id, title, note=""):
+    """Record a reference to a source object in the sidecar.
+
+    The row's `title` is a derived, regenerable annotation for a human reader:
+    the source file owns its own title, and nothing is ever validated against
+    this copy (D-12.6-8). A source's rights live on the source object in the
+    operation journal, never here.
+    """
+    record = new_record("Sources", {
+        "source_object_id": source_object_id, "title": title, "note": note})
+    doc["sources"].append(record)
+    return record
+
+
+def add_binding(doc, binding_kind, objective, source_object_id,
+                treatment_kind="", locator="", state="unknown",
+                confidence="unknown", rights_snapshot=""):
+    """Record one source or treatment binding, in authored order.
+
+    A binding is not identified by its endpoints: two bindings of the same
+    objective to the same source at two different locators are two rows,
+    because they are two claims about two different places.
+
+    This function records. It enforces no rights, because it is pure and has
+    no registry to read; `course.bind_source` and `course.bind_treatment` are
+    the gated entry points, and they are the only ones a caller should use to
+    create a binding.
+    """
+    if binding_kind not in BINDING_KINDS:
+        raise GraphError(
+            "graph.unknown_treatment_kind",
+            "%s is not one of the eleven treatment kinds in TREAT-01; the "
+            "vocabulary is closed and this phase adds no twelfth"
+            % binding_kind)
+    if treatment_kind:
+        treatment_right(treatment_kind)
+    known = _endpoint_ids(doc)
+    if objective not in known:
+        raise GraphError(
+            "graph.unknown_objective",
+            "%s is not a recorded objective or source in this course graph"
+            % objective)
+    record = new_record("Bindings", {
+        "binding_kind": binding_kind, "objective": objective,
+        "source_object_id": source_object_id,
+        "treatment_kind": treatment_kind, "locator": locator, "state": state,
+        "confidence": confidence, "rights_snapshot": rights_snapshot})
+    doc["bindings"].append(record)
+    return record
+
+
+def validate_binding(record):
+    """The effective reading of one binding row, as a NEW dict.
+
+    An unrecognized state degrades to `unknown` and never to `covered`: a
+    value this build cannot read is not evidence that an objective is
+    covered, and TREAT-02 forbids inferring coverage from resemblance. The
+    source string is preserved, the same way an unrecognized edge value is.
+    """
+    out = dict(record)
+    raw_state = record.get("state", "") or ""
+    out["original_state"] = raw_state
+    out["state"] = raw_state if raw_state in BINDING_STATES else "unknown"
+    raw_conf = record.get("confidence", "") or ""
+    out["original_confidence"] = raw_conf
+    out["confidence"] = raw_conf if raw_conf in EDGE_CONFIDENCES else "unknown"
+    return out
+
+
+def _objective_by_id(doc, objective_id):
+    for record in doc["objectives"]:
+        if record["id"] == objective_id:
+            return record
+    return None
+
+
+def overlay_objective(doc, imported_objective_id, statement, actor):
+    """Record a local revision of an objective as a sibling record.
+
+    GRAPH-01 requires an imported scope to bind as an immutable version. That
+    is true here by construction rather than by care: an overlay is a new row
+    with its own minted id, joined to the import by an `overlays` reference
+    and a recorded migration, so no code path targets the import's bytes at
+    all. Nothing in an overlay chain is ever deleted; the superseded rows stay
+    in the file and stop being projected.
+    """
+    target = _objective_by_id(doc, imported_objective_id)
+    if target is None:
+        raise GraphError(
+            "graph.unknown_objective",
+            "%s is not a recorded objective or source in this course graph"
+            % imported_objective_id)
+
+    record = new_record("Objectives", {
+        "id": identity.new_object_id(),
+        "container": target.get("container", ""),
+        "order": str(len(doc["objectives"]) + 1),
+        "statement": statement,
+        "origin": "local",
+        "import_version": target.get("import_version", ""),
+        "overlays": imported_objective_id})
+    doc["objectives"].append(record)
+
+    doc["migrations"].append(new_record("Migrations", {
+        "migration_id": identity.new_object_id(),
+        "kind": "overlay",
+        "from": imported_objective_id,
+        "to": record["id"],
+        "rationale": "a local revision recorded as an overlay, never an edit "
+                     "to the import",
+        "state": "proposed",
+        "actor": actor,
+        "timestamp": identity.utc_now()}))
+    return record
+
+
+def upgrade_0_to_1(doc):
+    """The single step from course graph version 0 to version 1.
+
+    Version 1 introduced the edge `override` column. This step supplies
+    `advisory` for every edge that has none, which is the least-blocking
+    value in the set: an upgrade never guesses a `hard-gate`, because a guess
+    that blocks a learner is the one guess that costs something.
+    """
+    for record in doc["edges"]:
+        if not record.get("override"):
+            record["override"] = "advisory"
+        if "override" not in record["columns"]:
+            record["columns"].append("override")
+    doc["header"]["graph_schema_version"] = 1
+    return doc
+
+
+# Keyed by the version being upgraded FROM. A named, testable step per version
+# is what makes the version migration a prototype rather than a promise, which
+# PLANNING-DIRECTIVES section 3a asks for by name before any course schema
+# freeze.
+UPGRADES = {0: upgrade_0_to_1}
+
+
+def upgrade_document(doc, from_version):
+    """Apply every registered upgrade step from `from_version` forward until
+    the document is at `COURSE_GRAPH_VERSION`.
+
+    A gap in the chain is refused by name rather than skipped: skipping a step
+    would leave the document claiming a version whose fields it does not
+    actually carry.
+    """
+    version = from_version
+    while version < COURSE_GRAPH_VERSION:
+        step = UPGRADES.get(version)
+        if step is None:
+            raise GraphError(
+                "graph.unknown_upgrade_path",
+                "no upgrade step is registered from course graph version %d; "
+                "the chain to version %d is incomplete and this build refuses "
+                "to guess" % (version, COURSE_GRAPH_VERSION))
+        doc = step(doc)
+        version += 1
+    if version > COURSE_GRAPH_VERSION:
+        raise GraphError(
+            "graph.unknown_upgrade_path",
+            "no upgrade step is registered from course graph version %d; "
+            "the chain to version %d is incomplete and this build refuses to "
+            "guess" % (from_version, COURSE_GRAPH_VERSION))
+    return doc

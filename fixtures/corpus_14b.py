@@ -71,6 +71,8 @@ DOMAINS = (
         "supports": 4,
         "treatments": None,
         "unregistered": None,
+        "imported_objectives": 2,
+        "import_version": "orrery-scope-2026.1",
         "source_title": "Orrery algebra, worked graph readings",
         "source_rights": {"quote": "granted"},
     },
@@ -199,15 +201,17 @@ def build_three_domains(dest):
         rights = identity.rights_default()
         rights.update(domain["source_rights"])
         source_object_id = identity.new_object_id()
+        with open(os.path.join(root, source_rel), "w", encoding="utf-8") as fh:
+            fh.write(SOURCE_BODY % domain["source_title"])
+        # `link` records where a file already lives and writes nothing, so the
+        # file is written first and the recorded fingerprint is the fingerprint
+        # of the bytes actually on disk.
         journal.commit_operation(
             base=root, object_id=source_object_id, kind="source",
-            rel_path=source_rel, operation="link",
-            new_bytes=(SOURCE_BODY % domain["source_title"]).encode("utf-8"),
+            rel_path=source_rel, operation="link", new_bytes=None,
             expected_fingerprint=None, actor_kind="agent",
             actor_name="corpus-14b", create_if_missing=True,
             write_target=False, rights=rights)
-        with open(os.path.join(root, source_rel), "w", encoding="utf-8") as fh:
-            fh.write(SOURCE_BODY % domain["source_title"])
 
         course.create_course(root, domain["title"], "agent", "corpus-14b")
         read = course.read_course(root)
@@ -220,11 +224,18 @@ def build_three_domains(dest):
             containers.append(graph.add_container(doc, label, title))
 
         objective_ids = []
+        imported = domain.get("imported_objectives", 0)
         for n, statement in enumerate(domain["objectives"]):
             container = containers[n % len(containers)]
-            objective_ids.append(
-                graph.add_objective(doc, statement,
-                                    container=container["id"])["id"])
+            if n < imported:
+                record = graph.add_objective(
+                    doc, statement, container=container["id"],
+                    origin="imported",
+                    import_version=domain["import_version"])
+            else:
+                record = graph.add_objective(doc, statement,
+                                             container=container["id"])
+            objective_ids.append(record["id"])
 
         doc["sources"].append(graph.new_record("Sources", {
             "source_object_id": source_object_id,
@@ -265,6 +276,7 @@ def build_three_domains(dest):
             "containers": [c["id"] for c in containers],
             "objectives": objective_ids,
             "source_object_id": source_object_id,
+            "source_rel": source_rel,
             "prerequisite_edges": prerequisite_edges,
             "edges": len(doc["edges"]),
         })
@@ -329,6 +341,73 @@ def sidecar_text_with_cycle():
     graph.add_edge(doc, ids[1], "prerequisite-of", ids[2])
     graph.add_edge(doc, ids[2], "prerequisite-of", ids[0])
     return graph.serialize_course(doc)
+
+
+
+def _set_right(root, source_object_id, operation, value):
+    """Record a new rights state for one source object through the 14A path.
+
+    This is a fixture helper, not a product surface. It exists so a test can
+    revoke a right that was previously granted and prove that a stale
+    snapshot row in a binding never authorizes anything.
+    """
+    import identity
+    import journal
+
+    registry = journal.read_registry(root)
+    record = registry[source_object_id]
+    rights = dict(record.get("rights") or identity.rights_default())
+    rights[operation] = value
+    journal.commit_operation(
+        base=root, object_id=source_object_id, kind="source",
+        rel_path=record["path"], operation="edit_in_place", new_bytes=None,
+        expected_fingerprint=record["fingerprint"], actor_kind="human",
+        actor_name="weibao", write_target=False, rights=rights)
+
+
+def grant_right(root, source_object_id, operation):
+    _set_right(root, source_object_id, operation, "granted")
+
+
+def revoke_right(root, source_object_id, operation):
+    _set_right(root, source_object_id, operation, "denied")
+
+
+def sidecar_text_version_0():
+    """A sidecar declaring course graph version 0.
+
+    Version 1 introduced the edge `override` column, so this fixture's edges
+    table lacks it entirely. It also carries a section this build does not
+    know, because an upgrade that quietly dropped an unknown section would be
+    exactly the destructive rewrite the version check exists to prevent.
+    """
+    import graph
+    import identity
+
+    doc = graph.new_course("Version Zero Course", identity.new_object_id())
+    container = graph.add_container(doc, "module", "Only Module")
+    ids = [graph.add_objective(doc, "Version zero objective %d" % n,
+                               container=container["id"])["id"]
+           for n in (1, 2)]
+    graph.add_edge(doc, ids[0], "prerequisite-of", ids[1])
+    text = graph.serialize_course(doc)
+
+    out = []
+    inside = False
+    for line in text.split("\n"):
+        if line.startswith("## "):
+            inside = (line == "## Edges")
+            out.append(line)
+            continue
+        if inside and line.startswith("|"):
+            cells = line.strip().strip("|").split("|")
+            out.append("|" + "|".join(cells[:-1]) + "|")
+            continue
+        out.append(line)
+    text = "\n".join(out)
+    text = text.replace("| graph_schema_version | 1 |",
+                        "| graph_schema_version | 0 |")
+    return text + "\n## Cohorts\n\n| cohort | term |\n|---|---|\n| alpha | fall |\n"
 
 
 def teardown(dest):
