@@ -190,7 +190,7 @@ No CLI command, no daemon route, and no schema file is produced by this plan.
    - `journal.OPERATION_TYPES` equals `("link", "import", "copy", "move",
      "edit_in_place", "supersede")` and has exactly six members.
    - `"reconcile"` is in `journal.RECORD_TYPES` and `"migrate"` is not yet.
-   - `len(journal.ENTRY_KEYS)` equals `22`.
+   - `len(journal.ENTRY_KEYS)` equals `23`.
    - `journal.JOURNAL_SCHEMA_VERSION` equals `1`.
    - Every one of these names is callable on its module:
      `identity.new_object_id`, `identity.object_fingerprint`,
@@ -237,7 +237,7 @@ No CLI command, no daemon route, and no schema file is produced by this plan.
    No em dash characters anywhere in the file.
   </action>
   <verify>
-  <automated>python -c "import identity, journal, discovery; assert len(identity.REVISION_KEYS)==11 and len(journal.OPERATION_TYPES)==6 and len(journal.ENTRY_KEYS)==22; print('14A surface matches')"</automated>
+  <automated>python -c "import identity, journal, discovery; assert len(identity.REVISION_KEYS)==11 and len(journal.OPERATION_TYPES)==6 and len(journal.ENTRY_KEYS)==23; print('14A surface matches')"</automated>
 Expected: prints `14A surface matches` and exits 0. The degraded state this
 task must prove rather than paper over is the halt itself: if any assertion
 fails, the run exits non-zero with the named HALT line and no module file is

@@ -47,7 +47,7 @@ measured figure.
 
 | Plan | Task | Req ID | Behavior | Test Type | Automated Command | Assertion function | Status |
 |------|------|--------|----------|-----------|-------------------|--------------------|--------|
-| 14B-01 | 1 | (precondition) | Phase 14A landed and its frozen surface matches what 14B was planned against; halt by name on divergence | precondition | `python -c "import identity, journal, discovery; assert len(identity.REVISION_KEYS)==11 and len(journal.OPERATION_TYPES)==6 and len(journal.ENTRY_KEYS)==22; print('14A surface matches')"` | n/a | ⬜ pending |
+| 14B-01 | 1 | (precondition) | Phase 14A landed and its frozen surface matches what 14B was planned against; halt by name on divergence | precondition | `python -c "import identity, journal, discovery; assert len(identity.REVISION_KEYS)==11 and len(journal.OPERATION_TYPES)==6 and len(journal.ENTRY_KEYS)==23; print('14A surface matches')"` | n/a | ⬜ pending |
 | 14B-01 | 2 | (decision) | Sidecar path and the Phase 13.9 supersession recorded as D-14B-1 | checkpoint | manual, blocking | n/a | ⬜ pending |
 | 14B-01 | 3 | GRAPH-01, PORT-03 | One objective end to end: mint, edge, sidecar compare-and-swap write, outline, package, clean restore. Empty-course and single-objective projection. Unknown section and column round trip | tracer | `python tests/graph_roundtrip.py` | `check_thin_slice()` | ⬜ pending |
 | 14B-02 | 1 | GRAPH-02 | Four frozen edge types plus one unknown; degrade to advisory recommended-before, never dropped, never blocking; duplicate and self edge refused | unit | `python tests/graph_roundtrip.py` | `check_edges()` | ⬜ pending |
