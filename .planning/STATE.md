@@ -2,21 +2,94 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase_name: 13.5-reading-teaching-surface-quality-pass
-status: Phase 13.9 COMPLETE (2026-08-25): walked 2026-08-24, A9 closed, and every sitting-fallout defect is now fixed (13.9-04, 13.9-05, 260817-q7d all executed). Phase 14A EXECUTED and FROZEN (2026-08-18). 17A is 7 of 8 plans built; 17A-04 waits on the browser-driver supply-chain decision and Weibao's A11Y review. Full suite green on the merged tree.
-stopped_at: The sitting queue is finished. What remains needs Weibao or a decision only he can make; the 2026-08-25 entry below lists the exact handoff. 14B-or-later freezes may commit, each citing 13.9-CALIBRATION.md where it covers them.
-last_updated: "2026-08-25T00:00:00.000Z"
-last_activity: 2026-08-25
-last_activity_desc: "Finished the sitting fallout with a plans-then-lesser-executor split: wrote and committed 13.9-04 and 13.9-05, executed them plus 260817-q7d through Sonnet executors (main tree sequential, q7d in an isolated worktree, merged after independent verification), drove every user-facing change on the real served page, and rolled up ROADMAP and STATE. The real-page drive caught a draft-keying defect no suite saw."
+current_phase_name: 14B-graph-course-package-prototype
+status: Phase 14B waves 1 to 3 EXECUTED (2026-08-26): graph.py, course.py, and course_package.py exist, the sidecar schema is published, rights gate bindings at bind time, and the version migration is prototyped. Waves 4 to 6 all carry human checkpoints and are not started. Phase 13.5 RTS-04 flipped to AGENT VERIFIED by the D1/D2 re-measure. Phase 13.9 COMPLETE. Phase 14A EXECUTED and FROZEN. 17A is 7 of 8 plans built; 17A-04 still waits on the browser-driver supply-chain decision.
+stopped_at: Deliberately stopped before 14B-04. Waves 4, 5, and 6 each carry a blocking human checkpoint, and 14B-04 also modifies the frozen journal.py. The one decision an agent already had to stand in for, D-14B-1, is recorded as provisional and needs Weibao's verbatim answer.
+last_updated: "2026-08-26T00:00:00.000Z"
+last_activity: 2026-08-26
+last_activity_desc: "Executed Phase 14B waves 1 to 3 overnight under a standing authorization, plus the 13.5 D1/D2 agent re-measure in parallel. Each plan was driven test-first and its assertions falsified before being trusted; three deliberate breakages across the three plans were caught, one was absorbed by a second guard and is recorded as defense in depth. Stopped at the first human checkpoint rather than standing in for it twice."
 progress:
   total_phases: 28
   completed_phases: 19
   total_plans: 175
-  completed_plans: 120
-current_phase: 13.5
+  completed_plans: 123
+current_phase: 14B
 ---
 
 # Project State
+
+## 2026-08-26: Phase 14B waves 1 to 3, executed overnight; the wave stops at the first checkpoint
+
+**What landed.** Three plans, three commits, each verified against artifacts
+and a falsified test rather than against its own commit message.
+
+- **14B-01** (`93bb913`): the thin slice. One synthetic objective travels mint,
+  edge, sidecar compare-and-swap write, outline projection, package export, and
+  clean-machine restore in one green test. `graph.py` (model tier, no file input
+  or output, never reaches `model.py`), `course.py` (writes only through
+  `journal.commit_operation`, imports no `evidence`), and `course_package.py`
+  (imports no `urllib`, `socket`, or `subprocess`; recomputes every fingerprint
+  rather than trusting the manifest) exist in their thinnest production form.
+- **14B-02** (`1c3ff60`): the typed graph kernel. The frozen four-name edge
+  vocabulary with its five carried fields, every default the least-blocking
+  value in its set; the degrade path that keeps an unregistered relation and
+  downgrades it to an advisory `recommended-before` that can never hard-block;
+  containers accepting any local label with no enum anywhere, in the code and
+  in the published contract; a deterministic outline that reports order
+  violations and cycles and never corrects them; and
+  `schemas/course_graph.schema.json`, which `schema_validate.check_schema`
+  passes in whole.
+- **14B-03** (`1c64ecf`): bindings, rights, overlays, and the version
+  migration. A binding against a source whose right is unknown or denied is
+  refused before any write, naming the one edit that fixes it. A revoked right
+  refuses immediately even though a stale snapshot row still reads granted. An
+  imported scope is immutable by construction: an overlay is a sibling record,
+  so no code path targets the import's bytes. `graph.UPGRADES` makes the
+  version migration a prototype rather than a promise, which
+  `PLANNING-DIRECTIVES.md` section 3a requires before any course schema freeze.
+
+**Also landed:** the 13.5 D1 and D2 agent re-measure (`9d24b20`), run in
+parallel. The reading measure renders 529px against the contracted 531px, the
+2px being the card border the plan arithmetic never counted, and the quiz band
+server-renders its total at first paint. **RTS-04 flips to AGENT VERIFIED.**
+The position half of D2 stays open and is stated plainly in the gate rows.
+
+**The one decision an agent stood in for, and it needs Weibao.** 14B-01 Task 2
+is a blocking, one-way checkpoint: where the course graph lives on disk and
+what happens to the Phase 13.9 `course.md` stub. The plan's recommended default
+`option-a` was recorded as **provisional** in `14B-DECISIONS.md`, with the slot
+for his verbatim answer open and both reversal recipes written out. The default
+is the safe stand-in on evidence, not merely the convenient one:
+`13.9-CALIBRATION.md` records `course.md` in the real EMT course root holding a
+hand-approved objective map, outside this repository and covered by no backup,
+and the in-place option would have had a tool rewrite it unattended. The
+reversal window stays open until a package is built or `migrate_stub` is first
+run against that real root, and neither has happened.
+
+**Why the wave stopped where it did.** 14B-04, 14B-05, and 14B-06 each carry a
+blocking human checkpoint, and 14B-04 also modifies `journal.py`, which 14A
+froze. Standing in for one checkpoint under a standing overnight authorization
+is defensible and recorded; standing in for four, one of them a freeze gate
+whose whole point is a human authorability review, is not.
+
+**Two things found and deliberately left open.**
+
+1. **A tracked planning file is rewritten by running the suite.**
+   `.planning/phases/14A-identity-lifecycle-operation/14A-TRACER-REPORT.md`
+   re-records its own measured timings on every run, so `git status` reports it
+   modified after any full-suite run by anyone. Reverted rather than committed
+   here, since re-recording 14A's measurements is not 14B's work. Whether it
+   should regenerate on every run belongs to whoever owns 14A's tracer.
+2. **The 260817-q7d quick plan never produced its required SUMMARY.** Its
+   `summary_obligations` asked for `260817-q7d-SUMMARY.md` beside the plan; the
+   directory holds only the PLAN.
+
+**Three suites fail and did before any of this work.** `day_roundtrip.py`,
+`retention_ui_roundtrip.py`, and `phase_062_audit.py` assert the exact copy
+printed with Anki closed, and Anki is running on this machine. Confirmed by
+stashing every change and re-running on the clean tree, where they fail
+identically. 72 of 75 pass.
+
 
 ## 2026-08-25 (second entry): the sitting queue is finished; what is left needs Weibao
 

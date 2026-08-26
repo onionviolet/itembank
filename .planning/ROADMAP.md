@@ -383,7 +383,7 @@ accordingly — it is no longer parallel-eligible with Phase 1.
 | 11. Closed Authoring Loop & Curriculum Auditor | 5/5 | Complete | 2026-08-11 |
 | 12. ~~Packaging, Self-Update & Interop Export~~ | — | Retired (moved to 2.1) | - |
 | 13. Desktop Packaging — Tauri Shell over Python Sidecar | 5/5 | Complete    | 2026-08-10 |
-| 13.5 Reading & Teaching Surface Quality Pass | 9/9 | Plans executed; human verification pending (13.5-VERIFICATION.md: human_needed) | - |
+| 13.5 Reading & Teaching Surface Quality Pass | 9/9 | Plans executed; D1 and D2 closed and RTS-04 AGENT VERIFIED by the 2026-08-26 agent re-measure; the remaining human-verify tail is what keeps the box unchecked | - |
 | 13.9 Walking Skeleton — one real course, end to end | 5/5 | Complete (A9 closed; Weibao's two-sentence reaction still owed, named in A9) | 2026-08-25 |
 
 Table corrected 2026-08-15 against the phase directories (plan SUMMARY files and
@@ -664,19 +664,19 @@ modules the previous one created. Four plans are not autonomous: plans 01, 04,
 05, and 06 each carry a blocking `checkpoint:decision` gating a one-way door.
 
 Plans:
-- [ ] 14B-01-PLAN.md (wave 1, not autonomous) preconditions and the end-to-end
+- [x] 14B-01-PLAN.md (wave 1, not autonomous) preconditions and the end-to-end
   tracer: verify Phase 14A landed or halt by name; settle the Phase 13.9
   `course.md` collision with a named non-destructive supersession path; then one
   synthetic objective from mint through edge, sidecar compare-and-swap write,
   outline projection, package export, and clean restore, creating `graph.py`,
   `course.py`, and `course_package.py` in their thinnest production form.
-- [ ] 14B-02-PLAN.md (wave 2) the graph kernel: the frozen four-name edge
+- [x] 14B-02-PLAN.md (wave 2) the graph kernel: the frozen four-name edge
   vocabulary with its degrade path and five GRAPH-02 carried fields, structural
   containers accepting any local label without a schema change, the
   deterministic outline projection with order validation and a stable
   topological fallback, the published `schemas/course_graph.schema.json`, and
   the byte-identical format-additivity fixture.
-- [ ] 14B-03-PLAN.md (wave 3) bindings and rights: source and treatment
+- [x] 14B-03-PLAN.md (wave 3) bindings and rights: source and treatment
   bindings gated by `identity.rights_granted` at bind time, TREAT-01's eleven
   treatment kinds mapped to the rights they consume, imported scopes as
   immutable versions with overlay records, and the version-migration prototype.
