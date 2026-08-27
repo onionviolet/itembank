@@ -165,7 +165,7 @@ also modifies the frozen `journal.py`, so `14A-FREEZE.md` is read before that
 file is touched; this answer is what keeps that read from turning into a freeze
 amendment.
 
-## D-14B-4. The 14B freeze covers vocabularies and record shapes
+## D-14B-5. The 14B freeze covers vocabularies and record shapes
 
 **Date:** 2026-08-27. **Decided by Weibao**, from
 `.planning/DECISIONS-14B-DRIVER-2026-08-27.md`.
@@ -193,7 +193,16 @@ recommendation stayed option-a because 15A and 16A both compose onto these
 shapes and would otherwise build on sand, and Weibao selected it with that
 caveat visible.
 
-## D-14B-5. Manifest contents and package shape
+## D-14B-4. Manifest contents and package shape
+
+**Numbering note, 2026-08-27.** These two decisions were first written the same
+day with 4 and 5 transposed, before the plans were checked for the ids they
+expect. Corrected here rather than left to collide: `14B-05-PLAN.md` cites
+`D-14B-4` for the manifest and `14B-06-PLAN.md` cites `D-14B-5` for the freeze
+scope, and the headings above now match. No content changed, only the two
+numbers. Recorded because plan 14B-05's executor hit the mismatch and worked
+around it, and 14B-06's executor should not have to.
+
 
 **Date:** 2026-08-27. **Decided by Weibao**, on the second asking, from
 `.planning/DECISIONS-14B-DRIVER-2026-08-27.md`.
