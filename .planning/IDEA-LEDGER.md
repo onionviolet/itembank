@@ -779,8 +779,18 @@ Amendments to an existing entry are additive notes under the entry, dated.
   never relocates, per the edit-files-where-they-live rule.
 - **Blocked by:** IL-20260826-08. There is no evidence event for having read
   something.
-- **Disposition:** Registered.
-- **Revisit trigger:** once a reading evidence event exists.
+- **Disposition:** Registered, **narrowed 2026-08-26 (same day)** to the
+  cross-course view only.
+- **Note 2026-08-26, narrowing after checking APP-01 and 16B.** APP-01 already
+  gives every course a `Sources` area, routed in 16B-01 and 16B-05 as
+  `/course/<id>/sources`. The per-course half of this idea is therefore already
+  specified and is withdrawn. What survives is the **cross-course** half:
+  grouping bindings by source rather than by course, so a book that serves three
+  courses reads as one book, with coverage of the source distinct from coverage
+  of any course using it. Nothing in APP-01 covers that, because APP-01's IA is
+  course-first by design.
+- **Revisit trigger:** once a reading evidence event exists (IL-20260826-08),
+  and not before 16B ships the per-course `Sources` area.
 
 ### IL-20260826-07: A time axis for the course shell
 
@@ -795,9 +805,14 @@ Amendments to an existing entry are additive notes under the entry, dated.
 - **Open question:** whether this is a shell concern or belongs to `day`, which
   already owns the cross-subject time view. Possibly the shell holds the dates
   and `day` renders them.
-- **Disposition:** Registered.
-- **Revisit trigger:** before the first non-EMT subject is added, since that is
-  when the gap becomes load-bearing.
+- **Disposition:** Registered, **narrowed 2026-08-26 (same day)**.
+- **Note 2026-08-26, narrowing after checking 16B-04.** The shelf already ships
+  `due` as one of six attention states, so the display half is specified. What
+  is not specified is **where `due` comes from**: nothing in `graph.py` holds a
+  date, and no requirement says what makes a container due. The residue is the
+  data question, not the display question.
+- **Revisit trigger:** before the first non-EMT subject is added, since a graded
+  college course with real deadlines is when the gap becomes load-bearing.
 
 ### IL-20260826-08: An evidence event for a non-scored treatment
 
