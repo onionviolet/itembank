@@ -1,0 +1,654 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/source_locator.schema.json",
+  "title": "itembank source locator sidecar",
+  "description": "The frozen locator sidecar contract (Phase 14C, D-14C-1). A sidecar sits beside the derived Markdown a source adapter produced and records where every derived line came from in the original medium, so a citation naming a source_id, a fingerprint, and a span_id resolves back to a page, a slide, a cue, or a spine item without the citation shape changing. locators[].span_id joins to the span ids auditor.normalize_source assigns to the derived Markdown, which is what keeps exactly one parser true across every medium.",
+  "x-itembank-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "source_id",
+    "adapter",
+    "adapter_version",
+    "fingerprint",
+    "captured_at",
+    "origin",
+    "rights",
+    "confidence",
+    "reading_order",
+    "locators",
+    "unsupported"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "This document's own schema version; must equal x-itembank-version."
+    },
+    "source_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}$",
+      "description": "The identity.new_object_id() of the derived Markdown source object this sidecar describes."
+    },
+    "adapter": {
+      "type": "string",
+      "enum": [
+        "markdown",
+        "text",
+        "pdf",
+        "docx",
+        "pptx",
+        "epub",
+        "web",
+        "transcript",
+        "asr",
+        "ocr"
+      ],
+      "description": "Which ADAPTER_REGISTRY entry produced this sidecar."
+    },
+    "adapter_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "ADAPTER_VERSIONS[adapter] at extraction time, so a re-extraction by a changed adapter is visible."
+    },
+    "fingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "identity.object_fingerprint(md_bytes, 'source'), the same value the journal entry records as after_fingerprint."
+    },
+    "captured_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+      "description": "identity.utc_now() at extraction time."
+    },
+    "origin": {
+      "$ref": "#/$defs/origin",
+      "description": "Where the bytes came from."
+    },
+    "rights": {
+      "$ref": "#/$defs/rights",
+      "description": "The seven rights operations as recorded for this source. Unknown is restrictive, never permissive."
+    },
+    "confidence": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "high",
+        "medium",
+        "low",
+        null
+      ],
+      "description": "The adapter's own confidence in the extraction; null means not assessed. Advisory only: it never gates disclosure or scoring."
+    },
+    "reading_order": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Locator ids in document reading order."
+    },
+    "locators": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/locator"
+      },
+      "description": "Every locator this adapter emitted. May be empty only when unsupported is non-empty."
+    },
+    "unsupported": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/unsupported_entry"
+      },
+      "description": "Every structure the adapter refused, by named code and message. A refusal is recorded, never silently dropped."
+    }
+  },
+  "$defs": {
+    "origin": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The provenance of the raw bytes this source was derived from.",
+      "required": [
+        "kind",
+        "value",
+        "fetched_at",
+        "http_etag",
+        "http_last_modified",
+        "snapshot_rel_path"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "local_file",
+            "remote_url"
+          ],
+          "description": "Whether the bytes came from a file on an approved root or from a fetch."
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The raw file's registry-relative path, or the URL that was fetched."
+        },
+        "fetched_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "When the fetch happened; null for a local file."
+        },
+        "http_etag": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The response ETag, captured so a later re-fetch can tell whether the remote changed; null when absent."
+        },
+        "http_last_modified": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The response Last-Modified header; null when absent."
+        },
+        "snapshot_rel_path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Where the captured snapshot was stored when snapshot storage is inline; null for reference-plus-cache and for a local file."
+        }
+      }
+    },
+    "rights": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The seven identity.RIGHTS_OPERATIONS, each independently granted, denied, or unknown. Read, quote, transform, remote_process, package, export, and share are separate grants and one never implies another.",
+      "required": [
+        "read",
+        "quote",
+        "transform",
+        "remote_process",
+        "package",
+        "export",
+        "share"
+      ],
+      "properties": {
+        "read": {
+          "type": "string",
+          "enum": [
+            "granted",
+            "denied",
+            "unknown"
+          ],
+          "description": "The recorded state of the read right."
+        },
+        "quote": {
+          "type": "string",
+          "enum": [
+            "granted",
+            "denied",
+            "unknown"
+          ],
+          "description": "The recorded state of the quote right."
+        },
+        "transform": {
+          "type": "string",
+          "enum": [
+            "granted",
+            "denied",
+            "unknown"
+          ],
+          "description": "The recorded state of the transform right."
+        },
+        "remote_process": {
+          "type": "string",
+          "enum": [
+            "granted",
+            "denied",
+            "unknown"
+          ],
+          "description": "The recorded state of the remote_process right."
+        },
+        "package": {
+          "type": "string",
+          "enum": [
+            "granted",
+            "denied",
+            "unknown"
+          ],
+          "description": "The recorded state of the package right."
+        },
+        "export": {
+          "type": "string",
+          "enum": [
+            "granted",
+            "denied",
+            "unknown"
+          ],
+          "description": "The recorded state of the export right."
+        },
+        "share": {
+          "type": "string",
+          "enum": [
+            "granted",
+            "denied",
+            "unknown"
+          ],
+          "description": "The recorded state of the share right."
+        }
+      }
+    },
+    "unsupported_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One structure the adapter refused, named rather than dropped.",
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "source.adapter_unknown",
+            "source.approval_required",
+            "source.backend_unconfigured",
+            "source.dependency_missing",
+            "source.encrypted",
+            "source.fetch_failed",
+            "source.internal_error",
+            "source.malformed_input",
+            "source.origin_refused",
+            "source.oversized",
+            "source.redirect_refused",
+            "source.unsupported"
+          ],
+          "description": "A named source.* refusal code from SOURCE_ADAPTER_CODES."
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A plain-sentence explanation naming what was refused and why."
+        }
+      }
+    },
+    "locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One addressable structure in the original medium, joined to the derived Markdown by span_id.",
+      "required": [
+        "id",
+        "span_id",
+        "kind",
+        "body"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The short reading-order id, in the shapes the locator-fidelity gold cases already use: p1.0, p1.c1.0, t.r0c0, hdr1, fn1.0."
+        },
+        "span_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The auditor.normalize_source span id of the derived Markdown line this locator maps to, literally sp-N; null only when the locator maps to no derived line."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "page",
+            "paragraph",
+            "column",
+            "table",
+            "table_cell",
+            "heading",
+            "list_item",
+            "header",
+            "footer",
+            "footnote",
+            "endnote",
+            "tracked_insert",
+            "tracked_delete",
+            "comment",
+            "slide",
+            "notes",
+            "spine_item",
+            "block",
+            "cue",
+            "segment",
+            "image_region"
+          ],
+          "description": "The frozen union vocabulary of structure kinds across every medium."
+        },
+        "body": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/body_docx"
+            },
+            {
+              "$ref": "#/$defs/body_epub"
+            },
+            {
+              "$ref": "#/$defs/body_markdown"
+            },
+            {
+              "$ref": "#/$defs/body_ocr"
+            },
+            {
+              "$ref": "#/$defs/body_pdf"
+            },
+            {
+              "$ref": "#/$defs/body_pptx"
+            },
+            {
+              "$ref": "#/$defs/body_transcript"
+            },
+            {
+              "$ref": "#/$defs/body_web"
+            }
+          ],
+          "description": "The per-medium locator body, discriminated by its required medium const."
+        }
+      }
+    },
+    "body_markdown": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A locator into derived Markdown produced by an identity adapter.",
+      "required": [
+        "medium",
+        "line"
+      ],
+      "properties": {
+        "medium": {
+          "type": "string",
+          "const": "markdown",
+          "description": "Discriminator for the oneOf branch."
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "One-based line number in the derived Markdown."
+        }
+      }
+    },
+    "body_pdf": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A locator into a PDF page.",
+      "required": [
+        "medium",
+        "page",
+        "index",
+        "column",
+        "bbox"
+      ],
+      "properties": {
+        "medium": {
+          "type": "string",
+          "const": "pdf",
+          "description": "Discriminator for the oneOf branch."
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "One-based page number."
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Zero-based index of the structure within the page, in reading order."
+        },
+        "column": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Zero-based column index when column detection ran; null when it did not. Column detection arrives in plan 14C-02."
+        },
+        "bbox": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "minItems": 4,
+          "items": {
+            "type": "number"
+          },
+          "description": "The [x0, top, x1, bottom] bounding box in PDF user space, or null when the extractor reported no geometry."
+        }
+      }
+    },
+    "body_docx": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A locator into a WordprocessingML part.",
+      "required": [
+        "medium",
+        "part",
+        "paragraph_index",
+        "ref_id"
+      ],
+      "properties": {
+        "medium": {
+          "type": "string",
+          "const": "docx",
+          "description": "Discriminator for the oneOf branch."
+        },
+        "part": {
+          "type": "string",
+          "enum": [
+            "body",
+            "footnote",
+            "endnote",
+            "header",
+            "footer",
+            "comment"
+          ],
+          "description": "Which document part the paragraph lives in."
+        },
+        "paragraph_index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Zero-based paragraph index within that part."
+        },
+        "ref_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The relationship or note id when the part is referenced rather than inline; null otherwise."
+        }
+      }
+    },
+    "body_pptx": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A locator into a PresentationML slide.",
+      "required": [
+        "medium",
+        "slide",
+        "shape_index",
+        "notes"
+      ],
+      "properties": {
+        "medium": {
+          "type": "string",
+          "const": "pptx",
+          "description": "Discriminator for the oneOf branch."
+        },
+        "slide": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "One-based slide number."
+        },
+        "shape_index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Zero-based shape index within the slide, in reading order."
+        },
+        "notes": {
+          "type": "boolean",
+          "description": "True when the text came from the slide's notes part rather than the slide itself."
+        }
+      }
+    },
+    "body_epub": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A locator into an EPUB spine item.",
+      "required": [
+        "medium",
+        "spine_index",
+        "spine_idref",
+        "element_index",
+        "fragment"
+      ],
+      "properties": {
+        "medium": {
+          "type": "string",
+          "const": "epub",
+          "description": "Discriminator for the oneOf branch."
+        },
+        "spine_index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Zero-based position in the spine reading order."
+        },
+        "spine_idref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The spine item's idref from the OPF manifest."
+        },
+        "element_index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Zero-based index of the block element within the spine item."
+        },
+        "fragment": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The element's id attribute, usable as a URL fragment; null when it has none."
+        }
+      }
+    },
+    "body_web": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A locator into a fetched web page, carrying both a structural and a textual anchor so one surviving the other still resolves.",
+      "required": [
+        "medium",
+        "css_selector",
+        "text_quote"
+      ],
+      "properties": {
+        "medium": {
+          "type": "string",
+          "const": "web",
+          "description": "Discriminator for the oneOf branch."
+        },
+        "css_selector": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A CSS selector addressing the element in the captured snapshot."
+        },
+        "text_quote": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "A W3C-style text-quote anchor: the exact text plus its surrounding context.",
+          "required": [
+            "exact",
+            "prefix",
+            "suffix"
+          ],
+          "properties": {
+            "exact": {
+              "type": "string",
+              "description": "The exact quoted text."
+            },
+            "prefix": {
+              "type": "string",
+              "description": "Text immediately preceding the quote."
+            },
+            "suffix": {
+              "type": "string",
+              "description": "Text immediately following the quote."
+            }
+          }
+        }
+      }
+    },
+    "body_transcript": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A locator into a timed transcript cue.",
+      "required": [
+        "medium",
+        "cue_index",
+        "start_ms",
+        "end_ms"
+      ],
+      "properties": {
+        "medium": {
+          "type": "string",
+          "const": "transcript",
+          "description": "Discriminator for the oneOf branch."
+        },
+        "cue_index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Zero-based cue index in the transcript file."
+        },
+        "start_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Cue start time in milliseconds."
+        },
+        "end_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Cue end time in milliseconds."
+        }
+      }
+    },
+    "body_ocr": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A locator into OCR output. bbox and confidence are typed strictly null on purpose: scripts/ocr_lib.py returns flat transcribed text with no coordinates and no confidence score, so this schema makes a fabricated bounding box invalid rather than trusting an adapter not to invent one. A structured-output OCR mode that measures geometry is a schema_version bump and a recorded migration, never a loosened type.",
+      "required": [
+        "medium",
+        "page",
+        "bbox",
+        "confidence"
+      ],
+      "properties": {
+        "medium": {
+          "type": "string",
+          "const": "ocr",
+          "description": "Discriminator for the oneOf branch."
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "One-based page or image number."
+        },
+        "bbox": {
+          "type": "null",
+          "description": "Always null. See this definition's description."
+        },
+        "confidence": {
+          "type": "null",
+          "description": "Always null. See this definition's description."
+        }
+      }
+    }
+  }
+}

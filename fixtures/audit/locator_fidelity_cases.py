@@ -86,12 +86,36 @@ def pdf_pages(pages, extra_objects=None):
 
 def pdf_text_page(lines, font_size=12, y_start=720):
     """A single-page content stream drawing each line with the standard
-    font. `lines` are (y_offset, text) pairs; text is written as a UTF-16BE
-    hex string so arbitrary Unicode survives as exact bytes."""
+    font. `lines` are (y_offset, text) pairs; text is written as a hex
+    string so exact bytes survive without needing string-literal escaping.
+
+    Corrected 2026-08-27 (plan 14C-01 Task 3). This function previously
+    emitted a UTF-16BE hex string with a byte-order mark, on the reasoning
+    that UTF-16BE preserves arbitrary Unicode. It does not, under the font
+    these pages declare: object 5 is a simple `/Type1 /Helvetica`, whose
+    codes are single bytes, so a real extractor reads each UTF-16 byte as
+    its own glyph and returns `(cid:254)(cid:255)(cid:0)C(cid:0)h...` rather
+    than `Chapter`. Nothing caught it because no PDF adapter existed to read
+    these bytes back until this plan. Preserving arbitrary Unicode needs a
+    composite Type0 font with an Identity-H encoding and a ToUnicode CMap,
+    which these fixtures do not carry; a non-Latin-1 character therefore
+    raises here rather than silently producing a page whose text no
+    extractor can recover. Every gold case in this file is ASCII, so no case
+    is lost by that refusal, and the gold sha256 values were recomputed in
+    the same commit.
+    """
     parts = [b"BT /F1 %d Tf" % font_size]
     for dy, text in lines:
-        hexed = "".join("%04X" % ord(ch) for ch in text)
-        parts.append(b"1 0 0 1 72 %d Tm <FEFF%s> Tj"
+        try:
+            encoded = text.encode("latin-1")
+        except UnicodeEncodeError:
+            raise ValueError(
+                "pdf_text_page cannot encode %r: object 5 is a simple "
+                "Type1 font with single-byte codes. A fixture needing "
+                "non-Latin-1 text needs a Type0 Identity-H font with a "
+                "ToUnicode CMap, which this module does not build." % text)
+        hexed = "".join("%02X" % b for b in encoded)
+        parts.append(b"1 0 0 1 72 %d Tm <%s> Tj"
                      % (y_start - dy, hexed.encode("ascii")))
     parts.append(b"ET")
     return b"\n".join(parts)
@@ -191,7 +215,7 @@ CASE_TABLE = [
                            (24, "The airway is the first priority.")]),
         ]),
         "gold": {
-            "sha256": "f60e19131775bc5fb6a9a3821f90da4fd44922f8f19ab71f1ce62cd872784de5",
+            "sha256": "83931428207800206e9aab0bddda0f6a0f4a8820c94a25649e4a6f7a9e34d74f",
             "structures": [
                 {"kind": "page", "page": 1},
                 {"kind": "paragraph", "page": 1, "index": 0,

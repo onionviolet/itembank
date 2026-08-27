@@ -859,13 +859,21 @@ def undo(base, entry_id, actor_kind, actor_name):
 # from), exactly the two axes FILE-03 names.
 
 
-def op_link(base, kind, rel_path, actor_kind, actor_name):
+def op_link(base, kind, rel_path, actor_kind, actor_name, rights=None):
     """Mint a new id for a file that stays where it lives. The bytes are
     never written by this operation: `commit_operation` is called with
     `write_target=False`, so the target's `mtime_ns` is unchanged and the
     recorded fingerprint is simply the fingerprint observed at link time.
     Binding a file this way records no source rights obligation, because
-    nothing is copied out of the file's owner's control."""
+    nothing is copied out of the file's owner's control.
+
+    `rights`, meaningful only for `kind == "source"`, is the learner's
+    declaration about a file they already hold, recorded once at link time.
+    It defaults to `None`, which `commit_operation` turns into
+    `identity.rights_default()`, so an omitted grant stays all-unknown and
+    unknown stays restrictive. A later link never overwrites an earlier
+    grant; changing a recorded right is its own decision, not a side effect
+    of binding the file again."""
     target_path = os.path.join(os.path.abspath(base), rel_path)
     raw = None
     if os.path.exists(target_path):
@@ -876,7 +884,7 @@ def op_link(base, kind, rel_path, actor_kind, actor_name):
         base, object_id, kind, rel_path, "link", raw,
         expected_fingerprint=None, actor_kind=actor_kind,
         actor_name=actor_name, create_if_missing=False,
-        write_target=False)
+        write_target=False, rights=rights)
 
 
 def _op_pull_source(base, operation, source_object_id, kind, rel_path, raw,

@@ -1,0 +1,71 @@
+# Source-adapter optional dependencies (phase 14C, D-14C-3)
+# --------------------------------------------------------
+# The six optional, pinned, checksummed, license-reviewed imports the source
+# adapter registry uses. They are OPTIONAL: every third-party import lives
+# inside an adapter function body, `source_adapters.py` imports with none of
+# them present, and an adapter whose backing package is absent refuses by name
+# with the install command rather than raising. Every non-adapter command stays
+# byte-identical without them (degrade, never block).
+#
+# Adopted under `.planning/SUPPLY-CHAIN-POLICY.md` section 3, cleared by the
+# batched Package Legitimacy Gate sign-off recorded in
+# `.planning/phases/14C-source-adapter-registry/14C-DECISIONS.md` as D-14C-3.
+# All six were flagged SUS by the checker for the single reason
+# `unknown-downloads`; `pypdf` additionally for `too-new`, which reflects only
+# its most recent point-release date. All six resolved to their canonical,
+# long-established upstream repositories. OSV reported zero vulnerabilities
+# affecting any of the six pinned versions on the review date.
+#
+# License review (named, reviewer Weibao, 2026-08-27, verified against PyPI
+# metadata):
+#   pdfplumber       -- MIT, permissive.
+#   pdfminer.six     -- MIT, permissive.
+#   python-docx      -- MIT, permissive.
+#   pypdf            -- BSD-3-Clause, permissive.
+#   python-pptx      -- MIT, permissive.
+#   readability-lxml -- Apache-2.0, permissive.
+#
+# CVE disposition (reviewed 2026-08-27 against OSV.dev): no advisory affects any
+# of the six pinned versions. Re-review is owed at the next pin bump.
+#
+# NOT pinned here, named so the refusal is visible rather than silent:
+#   PyMuPDF (fitz) is parked pending an explicit AGPL decision. Not installed.
+#   ebooklib 0.20 is AGPL and is parked on the same decision (D-14C-2); plan
+#     14C-07 builds EPUB import on stdlib zipfile plus xml.etree instead.
+#   trafilatura 2.2.0 is Apache-2.0 and legitimate, refused on dependency
+#     weight: six hard runtime dependencies against readability-lxml's two to
+#     three. Refused on cost, not on legitimacy.
+#   webvtt-py refused as not earning its cost; transcript intake uses a
+#     hand-rolled stdlib SRT and VTT parser.
+#
+# Transitive dependencies are resolved by pip and are not pinned by this file,
+# matching the deps/lti-pins.txt precedent. Recorded at first install on this
+# machine for reference: Pillow, XlsxWriter, cffi, chardet, charset-normalizer,
+# cryptography, cssselect, lxml, lxml_html_clean, pycparser, pypdfium2,
+# typing_extensions. Note that pdfminer.six pulls cryptography, which
+# deps/lti-pins.txt pins at 43.0.0 for its own surface; the version resolved
+# here is newer than the >=49.0.0 floor that file names for x509 verification,
+# so the two do not conflict today. A future pin bump on either side re-checks
+# this.
+#
+# Checksums: sha256 of the wheel artifacts, recorded at implementation time on
+# Darwin arm64, Python 3.14. All six are py3-none-any, so these hashes are not
+# platform specific.
+#   pdfplumber-0.11.10-py3-none-any.whl
+#     sha256: 7741ea81bf165b474b153e6789d10d18e06b6ddcf3ec84289c3ef2fed6802580
+#   pdfminer_six-20260107-py3-none-any.whl
+#     sha256: 366585ba97e80dffa8f00cebe303d2f381884d8637af4ce422f1df3ef38111a9
+#   python_docx-1.2.0-py3-none-any.whl
+#     sha256: 3fd478f3250fbbbfd3b94fe1e985955737c145627498896a8a6bf81f4baf66c7
+#   pypdf-6.16.1-py3-none-any.whl
+#     sha256: 63fec31c4092ae50b6729beedcb469055b60d20c834bde1c402df241f371f644
+#   python_pptx-1.0.2-py3-none-any.whl
+#     sha256: 160838e0b8565a8b1f67947675886e9fea18aa5e795db7ae531606d68e785cba
+#   readability_lxml-0.8.4.1-py3-none-any.whl
+#     sha256: 874c0cea22c3bf2b78c7f8df831bfaad3c0a89b7301d45a188db581652b4b465
+pdfplumber==0.11.10 --hash=sha256:7741ea81bf165b474b153e6789d10d18e06b6ddcf3ec84289c3ef2fed6802580
+pdfminer.six==20260107 --hash=sha256:366585ba97e80dffa8f00cebe303d2f381884d8637af4ce422f1df3ef38111a9
+python-docx==1.2.0 --hash=sha256:3fd478f3250fbbbfd3b94fe1e985955737c145627498896a8a6bf81f4baf66c7
+pypdf==6.16.1 --hash=sha256:63fec31c4092ae50b6729beedcb469055b60d20c834bde1c402df241f371f644
+python-pptx==1.0.2 --hash=sha256:160838e0b8565a8b1f67947675886e9fea18aa5e795db7ae531606d68e785cba
+readability-lxml==0.8.4.1 --hash=sha256:874c0cea22c3bf2b78c7f8df831bfaad3c0a89b7301d45a188db581652b4b465
