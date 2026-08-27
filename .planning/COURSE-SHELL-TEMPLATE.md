@@ -106,20 +106,40 @@ omission is the point: the treatment-selection rule says direct reading is
 sometimes enough, and a uniform nine-slot grid per chapter is precisely the
 failure mode observed in the specimen.
 
-## 5. The two surfaces
+## 5. The surfaces
 
-### 5.1 Workspace view, "which course"
+### 5.1 Workspace view, the first page
 
-A card per course. Each card shows: subject, unit count, and **two separate
-numbers that must never be merged**:
+A card per course. This is the page the learner lands on, so its numbers set
+the tone for everything, and the specimen gets them wrong in a way worth
+stating precisely.
 
-- `coverage`: units with any accepted treatment, out of total units
-- `mastery`: objectives with sufficient evidence, out of total objectives
+Navigate2's card shows **one** number, a bar reading `0% complete`. It is an
+activity-completion count. Of the 435 activities in the observed course, 394
+complete by a self-pressed `Mark as done`, so **90.6% of that denominator is
+self-report**. Tick every box, open nothing, and the card reads 100% complete
+beside an empty gradebook.
 
-Navigate2 shows one number, `Progress: 0 / N`, computed from self-pressed
-checkboxes. Showing coverage and mastery separately is the fix, and it keeps
-the accepted-content / workflow-state / confidence axes uncollapsed as the
-CLAUDE.md state-axes rule requires.
+The card therefore shows **three separate quantities that may never be merged
+into one bar**:
+
+| Quantity | Means | Source |
+|----------|-------|--------|
+| `coverage` | units with any accepted treatment, over total units | course manifest |
+| `mastery` | objectives with sufficient evidence, over total objectives | evidence store |
+| `claimed` | treatments marked done-by-claim, over total claimable | learner claims |
+
+`claimed` is rendered visibly weaker than the other two: it is the learner's
+own word, useful for orientation and never mistaken for attainment. If only one
+number can be shown at card size, it is `mastery`, because it is the only one
+backed by the runtime.
+
+Also on the card, and cheap: subject, unit count, last activity date, and the
+next action if one is ready. Not a hero image. The specimen's card devotes most
+of its area to a generated hexagon pattern carrying no information.
+
+Filter, search, sort and a card-or-list toggle are worth keeping as-is. That
+part of `block_myoverview` is fine and costs nothing to match.
 
 ### 5.2 Course view, two panes
 
@@ -131,6 +151,61 @@ CLAUDE.md state-axes rule requires.
 The specimen's left drawer of 41 chapters, each expanding to 9 leaf links, is a
 table of contents pretending to be a path. Keeping it as `Browse` is fine.
 Letting it be the primary navigation is the mistake.
+
+### 5.3 Reading, a surface of its own
+
+Recorded 2026-08-26 at Weibao's instruction. In the specimen the readings live
+inside each chapter as one row among nine, which he judged "good enough for now"
+but not the end state, and asked for a better page or tab for reading.
+
+Holding readings inside the unit is correct as the **default placement**: a
+reading belongs to the objective it serves, and pulling it out would break the
+treatment ladder. What is missing is a **second view over the same bindings**,
+not a second home for them. Sketch:
+
+- A `Read` tab listing every `read` treatment across all courses, grouped by
+  source rather than by unit, so a book reads as a book.
+- Per source: what is bound, what is cited by which objectives, what has been
+  read, and what is queued next.
+- Coverage of the source itself, distinct from coverage of the course. A
+  chapter no objective cites is visible as unbound rather than invisible.
+- Opens the source in place. The existing rule that files are linked and edited
+  where they live still holds; the reading view binds and never relocates.
+
+This is one view over existing `read` bindings, so it costs a renderer and no
+new durable object. It stays open only because of question 2 in section 7: there
+is still no evidence event for having read something.
+
+### 5.4 Selection, the one thing the specimen does well
+
+TestPrep's practice-test builder is the strongest artifact in the whole
+specimen, and three of its four ideas are already itembank's while the fourth
+is a real gap.
+
+**Already ours, and independently confirmed by a shipped commercial NREMT
+product.** `Tutorial Mode` versus `Test Mode` is exactly the mode-gated
+disclosure the runtime invariant describes, arrived at by a different vendor for
+the same reason. `Include Confidence meter`, on by default, confirms the
+existing `conf` field is not an eccentricity.
+
+**A real gap: pool depletion.** Every category is shown as unanswered over
+total, `Airway and Breathing (115 / 115)`, with the total pool as
+`Qbank (690 QUESTIONS)`, `0 Taken, 690 Remaining`. itembank records attempts but
+has no notion of how much of a bank the learner has ever seen. That number
+answers "am I actually practising, or recycling the same twelve items", and it
+belongs beside `coverage` and `mastery` as a third denominator the learner can
+inspect.
+
+**A second real gap: error-driven reselection.** The checkbox
+`Include questions previously answered incorrectly` composes a form from the
+learner's own wrong answers. itembank holds the evidence to do this and has no
+selector that uses it.
+
+**One thing to not copy.** The six categories hold exactly 115 items each. That
+uniformity is a content-production artifact, not a blueprint: the real NREMT
+weights its domains unevenly. Equal pools per category quietly teach the wrong
+proportions, so a blueprint in itembank states weights explicitly and the linter
+should notice when a bank's category counts are suspiciously flat.
 
 ## 6. Degraded and offline behaviour
 
@@ -152,6 +227,11 @@ the unit.
    how discovery binds it without mutating anything.
 5. **Cross-course scheduling.** `day` already spans subjects. Does the workspace
    view compete with it, or feed it?
+6. **Pool depletion needs a definition.** "Seen" is not "attempted" is not
+   "mastered", and a shuffled variant of an item is not a new item. Before a
+   remaining-count can be shown it has to say what it counts.
+7. **Does the reading view need its own progress model** or does it borrow the
+   same `self_report` answer as question 2? Probably the latter, unverified.
 
 ## 8. How this template is meant to improve
 
@@ -174,3 +254,8 @@ stock Boost defaults and were used only to confirm that nothing bespoke exists
 worth copying. This template is clean-room derived from the information
 architecture, which is an idea rather than an expression. Raw capture is kept
 outside the repository.
+
+The TestPrep pass on 2026-08-26 was read-only in the same sense: the
+practice-test dialog was opened to record its options and cancelled without
+creating a test, no assessment was started, and no item text was viewed or
+captured. The 690-item Qbank remains untouched at `0 Taken`.

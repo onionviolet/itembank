@@ -1170,6 +1170,86 @@ non-scored treatment, so `self_report` needs an honesty story before it ships.
 `.planning/COURSE-SHELL-TEMPLATE.md`. Binding scope remains
 `SOURCE-TO-COURSE.md`, and the course shell has no phase assignment yet.
 
+### 2026-08-26: the course first page, reading as its own surface, and TestPrep
+
+> commit this, dont forget the first page for the course either, like how it shows the completeness and  more? Other stuff to consider?
+>
+> Reading stuff, well this one is where the readings are in the sections/chapters, which is a good enough way for now but we can have a better page or tab for reading and more, and everything testprep right now is localized into https://testprep.jblearning.com/TestPrep/Home/MyHome?ProductId=... which is also worth scraping, more stuff to consider and more?
+
+(The TestPrep URL is abbreviated above only to keep an account-scoped product
+token out of the record. The full link was supplied by Weibao and was used.)
+
+#### Interpretation recorded 2026-08-26
+
+Separate from the quotation above.
+
+**"The first page and how it shows the completeness" turned out to be the
+sharpest finding of the whole teardown.** The workspace card shows one number,
+a bar reading `0% complete`, and the course landing page shows the same
+quantity per section as `Progress: 0 / N`. Both are activity-completion counts
+that never consult the gradebook. Counted out: the course holds 435 activities,
+41 of which carry a grade item, so **394, or 90.6%, complete by a self-pressed
+`Mark as done`**. A learner who opens nothing and ticks every box reads as 100%
+complete beside an empty gradebook. The template's answer is that the first page
+shows three quantities that may never be merged into one bar, `coverage`,
+`mastery` and `claimed`, with `claimed` rendered visibly weaker because it is
+the learner's own word, and `mastery` the one shown if only one fits.
+
+**The reading judgment is accepted as stated, and refined rather than
+overturned.** Readings living inside the chapter is the correct default
+placement, because a reading belongs to the objective it serves and pulling it
+out would break the treatment ladder. What Weibao is missing is a second view
+over the same bindings, not a second home for them: a `Read` tab across all
+courses, grouped by source so a book reads as a book, showing what is bound,
+what each objective cites, what has been read, and coverage of the source itself
+as distinct from coverage of the course. That is a renderer over existing `read`
+bindings and costs no new durable object. Section 5.3 of the template.
+
+**TestPrep was scraped and is the best-designed thing in the specimen.** It is a
+separate application on a separate domain, reached by an outbound link. Three of
+its four selection ideas are already itembank's, which is useful independent
+confirmation rather than new scope: `Tutorial Mode` versus `Test Mode` is
+mode-gated disclosure arrived at by another vendor for the same reason, and
+`Include Confidence meter` ships checked by default, so the existing `conf`
+field is not an eccentricity.
+
+**Two genuine gaps came out of it.** First, **pool depletion**: every category
+reads as unanswered over total, `Airway and Breathing (115 / 115)`, over a
+`Qbank (690 QUESTIONS)` at `0 Taken, 690 Remaining`. itembank records attempts
+but has no notion of how much of a bank has ever been seen, and that number
+answers whether the learner is practising or recycling. Second, **error-driven
+reselection**: the checkbox `Include questions previously answered incorrectly`
+composes a form from the learner's own wrong answers, which itembank holds the
+evidence to do and has no selector for. Both are recorded in section 5.4.
+
+**One thing from TestPrep is explicitly rejected.** Its six categories hold
+exactly 115 items each. That flatness is a content-production artifact, not a
+blueprint, and the real NREMT weights its domains unevenly. Equal pools per
+category quietly teach the wrong proportions. A blueprint in itembank states
+weights explicitly, and the linter should notice suspiciously flat category
+counts.
+
+**The silo is the finding that matters most, and it is the invariant observed
+failing in the wild.** TestPrep knows taken, remaining, correct, incorrect,
+confidence and per-subject depletion. Moodle's gradebook knows 41 empty SCORM
+rows. Neither knows what the other knows, so the learner's real evidence is
+split across two products that cannot see each other, and no page in either can
+answer "how am I doing". This is exactly what one runtime, one scorer, one
+evidence store exists to prevent, and it is worth keeping as the standing
+example of why.
+
+**Boundaries held during the scrape.** The practice-test dialog was opened to
+record its options and cancelled without creating a test; no assessment was
+started; no item text was viewed or captured; the 690-item Qbank remains at
+`0 Taken`. Nothing was vendored.
+
+**Planning effect.** Still recommendation only. Evidence is
+`.planning/research/2026-08-26-navigate2-teardown.md` sections 2c and 2d; the
+proposal is `.planning/COURSE-SHELL-TEMPLATE.md` sections 5.1, 5.3 and 5.4.
+Open questions grew from five to seven: pool depletion needs a definition of
+what "seen" counts, and the reading view probably borrows the unresolved
+`self_report` answer rather than needing its own.
+
 ## Interpretation protocol
 
 An interpretation may appear immediately after a verbatim entry when it helps

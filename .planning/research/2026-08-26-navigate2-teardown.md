@@ -97,6 +97,72 @@ an idea rather than an expression. The template itembank builds is therefore
 **clean-room derived**, not a copied theme.
 
 
+## 2c. The completeness number, and what it is made of (fact + arithmetic)
+
+Added 2026-08-26 third pass, prompted by the workspace card screenshot.
+
+The `My courses` card carries a progress bar reading **`0% complete`**. The
+course landing page carries the same quantity per section as
+`Activities: N` / `Progress: 0 / N`, confirmed by reading the section summary
+nodes directly. Both are Moodle **activity completion** counts. Neither is a
+grade, and neither consults the gradebook.
+
+Counting the observed course:
+
+| | Activities |
+|---|---|
+| 17 chapters at 11 | 187 |
+| 24 chapters at 9 | 216 |
+| 4 course-level sections (1 + 1 + 13 + 17) | 32 |
+| **Total** | **435** |
+| Of which carry a grade item (SCORM Interactive Lecture) | 41 |
+| Of which complete only by a self-pressed `Mark as done` | **394** |
+
+So **90.6% of the denominator behind the headline completeness number is
+self-report.** A learner who opens nothing and ticks every box reaches 100%
+complete with an empty gradebook. That is not a subtle flaw in the progress
+model; it is the progress model.
+
+## 2d. TestPrep is a second, disconnected evidence store (fact)
+
+`testprep.jblearning.com` is a **separate application** on a separate domain
+with separate branding, reached from Moodle by an outbound link. Its home
+screen, `TestPrep/Home/MyHome`, is the real assessment engine, and it is far
+better designed than the shell that links to it.
+
+**Two test kinds, different authority.**
+- `CREATE NEW PRACTICE TEST` plus `REVIEW PRACTICE TESTS`, learner-composed.
+- `COMPLETE ASSESSMENT TEST(1)` plus `REVIEW MY ASSESSMENT TESTS`, assigned.
+
+**Its own performance store**, headed `Review My Performance`:
+- `Completed`: 0 Assessment, 0 Practice, 0 Questions.
+- `Last Assessment`: 0 Correct, 0 Incorrect.
+- `Qbank (690 QUESTIONS)`: `0 Taken, 690 Remaining`.
+
+**The practice-test builder**, captured verbatim from the dialog:
+- `Assessment Settings`: **Tutorial Mode** or **Test Mode**.
+- `Timer`: On or Off.
+- `Include Confidence meter`, **checked by default**.
+- `CHOOSE QUESTIONS FROM THESE SUBJECTS`, each shown as unanswered over total:
+  All subjects 690/690, Airway and Breathing 115/115, Cardiology 115/115,
+  Medical 115/115, Obstetrics and Pediatrics 115/115, Operations 115/115,
+  Trauma 115/115.
+- Explanatory note, verbatim: the numbers after each subject represent the
+  questions the user has not yet answered versus the total in that category.
+- `Include questions previously answered incorrectly`, a checkbox.
+- The submit button carries a live count: `CREATE TEST(0 QUESTIONS)`.
+
+No test was created and no assessment was started; the dialog was cancelled.
+No item text was viewed or captured.
+
+**The silo.** TestPrep knows taken, remaining, correct, incorrect, confidence
+and per-subject depletion. Moodle's gradebook knows 41 empty SCORM rows. Neither
+knows what the other knows, and the learner's actual evidence is split across
+two products that cannot see each other. This is precisely the failure the
+one-runtime-one-scorer-one-evidence-store invariant exists to prevent, observed
+in the wild.
+
+
 ## 3. Interpretation
 
 The **template is the product**. The nine-slot chapter contract is the genuinely
