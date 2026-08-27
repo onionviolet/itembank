@@ -71,7 +71,23 @@ so the rights gate is exercised rather than bypassed, then measures the ratio
 back out of the sidecar. A card whose record cannot be read shows `unknown`
 rather than a number.
 
-**Amendments still outstanding**, listed in `IDEA-LEDGER.md` IL-20260827-01 and
-not applied: `REQUIREMENTS.md` GRAPH-03, Phase 16 synthesis section 12.4, and
-plan 16B-04's own must-have, prohibition, threat T-16B-04-05 and three
-percent-absence tests. Unamended, Phase 16B will fail its own tests.
+**Corrected 2026-08-27, later the same day.** This file was written at 08:40,
+before commit `59de37a` applied the amendments, and then said they were
+outstanding. They are not. Checked against the tree rather than against memory
+of it: `REQUIREMENTS.md` GRAPH-03 carries its amendment note, Phase 16 synthesis
+12.4 carries a dated overturn note beside an untouched row, and `16B-04-PLAN.md`
+carries an amendment banner plus all five percent sites amended in place, with
+`status: overturned-by-owner-2026-08-27` on the prohibition. Two further sites
+found while applying, `16B-RESEARCH.md` Pitfall 3 and 16B-04's inputs list, were
+amended the same day. **Phase 16B will not fail its own tests on the percent
+clauses.** The applied state is itemised in `IDEA-LEDGER.md` IL-20260827-01.
+
+Original claim, superseded, preserved for trace: "Amendments still outstanding,
+listed in `IDEA-LEDGER.md` IL-20260827-01 and not applied: `REQUIREMENTS.md`
+GRAPH-03, Phase 16 synthesis section 12.4, and plan 16B-04's own must-have,
+prohibition, threat T-16B-04-05 and three percent-absence tests. Unamended,
+Phase 16B will fail its own tests."
+
+**One amendment genuinely is outstanding**, and it is deliberate:
+`16B-DECISIONS.md` `## D7` must be authored in its amended form when plan
+16B-01 first creates that file, because the file does not exist yet.

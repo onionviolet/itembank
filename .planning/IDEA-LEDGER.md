@@ -664,6 +664,40 @@ Amendments to an existing entry are additive notes under the entry, dated.
   outright: the sidecar is one compare-and-swap lineage and a second authored
   manifest would put two object kinds in competition for the same bytes, which
   `course.py` refuses by design.
+- **Note 2026-08-27, the narrowed remainder is now a drafted requirement
+  awaiting Weibao.** The one level this entry was narrowed to has a proposal:
+  `.planning/PROPOSAL-WORKSPACE-2026-08-27.md`, drafting `FILE-04` and
+  recommending one of the three shapes `COURSE-SHELL-TEMPLATE.md` line 117 names
+  (directory scan, authored Markdown manifest, or a root registry plus a derived
+  index). **Disposition is unchanged at Registered**, narrowed, pending Weibao's
+  answer; nothing above is reopened and no requirement was edited.
+  - **Reconciliation with IL-20260817-01, which this entry's boundary clause
+    required.** They do not compete, on one stated line: the scope object is a
+    membership set over the typed graph and answers what must be learned and
+    whether it may report complete; the workspace is a **locator set** and
+    answers only which courses exist on this machine and where their bytes are.
+    The workspace therefore carries no objective, no completion predicate, and
+    no progress claim, and every rollup question stays with scope and GRAPH-03.
+    Scope travels in a package; the workspace is machine-local and must not.
+  - **Two findings from the tree that were not known when this entry was
+    narrowed.** First, `discovery.py:174-177` already refers in prose to an
+    "approved-root registry" that does not exist in the code, so half the
+    proposed object is an absence the shipped docstring already names. Second,
+    **FILE-01's degraded clause is currently unimplementable**: it promises "an
+    unreachable root reports unavailable and the course opens over the last
+    valid index", and no index persists anywhere, because discovery writes
+    nothing and `surfaces/home.py:254-258` rebuilds from a live scan per
+    request. So this gap is not only the mockup's top line; it is a shipped
+    requirement with no object under it.
+  - **What 16B-04 would invent, located exactly.** `16B-04-PLAN.md:382-384`
+    takes the set of courses to be the daemon root's immediate subdirectories
+    holding a sidecar, and lines 386 to 395 fall back to the directory basename
+    for course identity, which is the name-based identity FILE-03 forbids. The
+    plan's flagged-assumptions block at lines 695 to 702 does **not** list this
+    assumption. Recorded here so that if the proposal is declined the assumption
+    is at least a chosen one.
+  - **Revisit trigger, sharpened:** Weibao answering the proposal, or plan
+    16B-04 being scheduled, whichever comes first.
 
 ### IL-20260826-02: Treatment purpose determines the evidence contract
 
