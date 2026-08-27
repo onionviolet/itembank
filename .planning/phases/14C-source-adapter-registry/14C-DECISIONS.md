@@ -93,14 +93,103 @@ six rows above, and a `## Backfill owed` section naming KaTeX and CodeMirror as
 pre-policy vendored artifacts whose rows and CI checksum step are owed by plan
 14C-08.
 
+### Legitimacy gate satisfied, 2026-08-27, with evidence
+
+**The `blocking-human` gate on plan 14C-01 Task 2 is answered.** Weibao was
+shown per-package evidence gathered from the PyPI JSON API, the GitHub REST API,
+and OSV.dev on 2026-08-27, rather than approving from a name and a license
+string. On that evidence he replied "do whats most optimal", which is read as
+approval of all six with the pin details delegated to the agent. **What follows
+separates his approval from the agent's delegated choices**, so a later reader
+can tell which is which.
+
+**The evidence, as of 2026-08-27.** OSV reports zero vulnerabilities affecting
+any of the six pinned versions.
+
+| Package | Latest | Maintainer | Last commit | Open issues |
+|---|---|---|---|---|
+| `pdfplumber` | 0.11.10, current | jsvine, solo | 2026-06-15 | 98 |
+| `pdfminer.six` | 20260107, current | `pdfminer` org | 2026-03-13 | 231 |
+| `python-docx` | 1.2.0, current | scanny, solo | 2025-06-16 | 513 |
+| `pypdf` | 6.16.2, **pin was behind** | `py-pdf` org | 2026-08-27 | 131 |
+| `python-pptx` | 1.0.2, current | scanny, solo | 2024-08-07 | 534 |
+| `readability-lxml` | 0.8.4.1, current | buriy, solo | 2026-08-26 | 21 |
+
+**Agent choice under the delegation: `pypdf` is pinned at 6.16.2, not 6.16.1.**
+6.16.2 shipped 2026-08-23, four days before the approval, so the plan's pin was
+already one release behind when it was given. Weibao did not name a version;
+this is the agent reading "most optimal" as the current release rather than a
+knowingly stale one. Strikeable by him in one sentence.
+
+**Accepted risk: `python-pptx` is dormant.** Last commit 2024-08-07, two years
+with no branch activity, 534 open issues, one individual holding both the repo
+and the PyPI account, in a personal namespace rather than the `python-openxml`
+org that holds its sibling `python-docx`. No CVEs, and safe to use today.
+Recorded because a popular but dormant package under a single PyPI account is a
+plausible future account-takeover target, and because expecting upstream fixes
+for PPTX would be a mistake. The alternative offered was dropping PPTX from the
+roster, which would have left `body_pptx` frozen in the D-14C-1 contract with no
+adapter producing it.
+
+**A correction to what was put to Weibao.** The agent flagged `readability-lxml`
+to the researcher as probably the weakest of the six. That was wrong.
+Its last release is 2025-05-03, but it had eight commits in August 2026
+including one the day before the approval, preparing an 0.9, and it carries the
+smallest issue backlog of the six. On last-commit date and backlog it is among
+the healthier three. `python-pptx` is the least maintained, and `python-docx` is
+second.
+
+**`pypdf`'s CVE count read correctly.** OSV lists roughly forty advisories
+against `pypdf`, nearly all 2025 to 2026. They are overwhelmingly
+denial-of-service on malformed PDFs, each disclosed and fixed by the maintainers
+themselves within days. That is an active security process on hostile-input
+parsing, not a compromised package. The real consequence is that a `pypdf` pin
+goes stale quickly, at roughly weekly release cadence, so it needs a bump
+policy. **No bump policy exists yet and none is decided here.**
+
+### Accepted risk: `pdfplumber` exact-pins `pdfminer.six`
+
+**Decided by Weibao, 2026-08-27**, from the two options put to him. Recorded as
+an accepted risk with a monitoring note, in the same shape as the existing
+`update_policy` divergence and hosted-models-see-item-text risks, so it is not
+rediscovered later as a surprise.
+
+**The coupling.** `pdfplumber` 0.11.10 declares `pdfminer.six==20260107`, an
+exact equality pin rather than a range. Its other two dependencies are ranges
+(`Pillow>=12.2.0`, `pypdfium2>=5.9.0`). This is a longstanding deliberate choice
+by pdfplumber's author, because `pdfminer.six`'s date-versioned releases have
+historically changed extraction output. It is not an anomaly.
+
+**Why it matters here.** `pdfminer.six` carried two real 2025 advisories,
+CVE-2025-64512 (arbitrary code execution via a crafted PDF) and CVE-2025-70559
+(pickle deserialization in the CMap loader). **Neither affects the pinned
+20260107.** But under the exact pin, a future `pdfminer.six` security fix cannot
+be applied independently: it requires bumping `pdfplumber`, or overriding the
+constraint and accepting whatever extraction drift follows.
+
+**Monitoring note, which is the whole content of the mitigation.** An advisory
+against `pdfminer.six` means a `pdfplumber` bump, not an independent patch. A
+reviewer who tries to patch the transitive dependency alone will either fail or
+silently change PDF extraction output, and the fidelity corpus is what would
+catch the second case.
+
+**What was not chosen.** A CI check failing the build on a new advisory was
+offered and not taken; it needs an advisory data source and a CI step, which is
+scope beyond what plan 14C-01 currently carries. Dropping `pdfplumber` for
+`pypdf` alone was also offered and not taken: `pypdf` has effectively no runtime
+dependencies on Python 3.11+, but `pdfplumber` supplies the word-level
+positioning and table extraction the PDF adapter needs, which is why it was
+chosen over `pypdf` alone in the first place.
+
 **Two things the executor must not treat as settled by this approval.**
 
-1. **The eye check on the six PyPI pages.** Plan 14C-01 Task 2 is gated
-   `checkpoint:human-verify`, `gate="blocking-human"`, with the resume signal
-   'Type "approved" once the six PyPI pages check out'. Weibao approved the
-   adoption on the basis of the summary presented to him. Whether he opened the
-   six pages was not established, and this record does not assert that he did.
-   The executor confirms this before the pins land.
+1. **The eye check on the six PyPI pages: now SATISFIED**, see the legitimacy
+   gate section above. Originally recorded as outstanding because Weibao had
+   approved on a summary and whether he opened the six pages was not
+   established. He was then shown per-package evidence from PyPI, GitHub, and
+   OSV and approved on it. The executor does not need to re-ask, but does need
+   to apply the `pypdf` 6.16.2 pin recorded above rather than the plan's
+   6.16.1.
 2. **Vendored versus pinned install.** Policy section 2.1 says vendored by
    default, copied into the repository at a pinned version. Plan 14C-01 Task 2
    implements adoption as a one-time pinned `pip install` plus
