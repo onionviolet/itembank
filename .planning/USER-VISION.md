@@ -1098,6 +1098,78 @@ gap detection, distractor mining, and the unscored commitment type, and it
 cites `research/phase-16/12-active-annotation-notes.md` section 7 as its
 authority rather than restating it.
 
+### 2026-08-26: Navigate2 as a scrapeable template for organizing multiple courses
+
+> Scrape and download code and more accordingly starting from https://navigate2.jblearning.com/my/courses.php
+>
+> as a way to organize multiple courses and more, we can use this as an template and develope better ones as we try more learning programs and more, dont forget to record all these in user vision as well accordingly
+
+#### Interpretation recorded 2026-08-26
+
+Separate from the quotation above.
+
+**The durable intent is the container, not the specimen.** The clause that
+matters is "a way to organize multiple courses and more". itembank has banks,
+sessions, lessons and a cross-subject `day` cockpit, but no durable object that
+says this is a course, these are its parts, here is where the learner stands in
+it. Every new subject therefore costs bespoke wiring. Navigate2 was walked as
+the first specimen of that container. The proposed answer is
+`.planning/COURSE-SHELL-TEMPLATE.md`, a tentative v0: workspace, course, unit,
+treatment.
+
+**"Use this as a template and develop better ones" is accepted as a method, and
+it is the more important half of the statement.** It sets up a repeating
+practice rather than a one-off copy: study a real learning program, tear it
+down into observed fact and separate interpretation, take what is good, record
+what is rejected and why, and raise the template each time. Section 8 of the
+template names the next candidate specimens (Brilliant, Albert, Anki, Khan,
+Duolingo, edX or Coursera). This is compatible with the existing bounded
+research-wave contract in `AGENT-WORKFLOW.md` and needs no new process.
+
+**"Scrape and download code" was performed, with one boundary the agent set and
+is recording rather than burying.** The pages were read in Weibao's own
+logged-in browser and captured structurally to a scratchpad outside the
+repository. Nothing was vendored. The finding that justifies the boundary is
+also the finding that makes it cheap: the platform is stock Moodle 4.x with a
+Boost child theme, Bootstrap 5 markup, and unmodified core `block_myoverview`,
+and its design tokens are Boost defaults. There is no bespoke expression worth
+copying, so the template is clean-room derived from the information
+architecture. Moodle core is GPLv3; the `navigatexl` theme and JB Learning
+branding are not ours. No item content, eBook text, or TestPrep question was
+extracted, and the never-a-content-store rule was applied exactly as it was to
+the 2026-08-22 paper handouts.
+
+**The specimen's central defect is now a design rule.** Navigate2 gives every
+chapter the same nine activities, seven of which are plain outbound links, and
+completes all nine with a self-pressed `Mark as done`. Its gradebook carries 41
+SCORM rows and one practice assessment, all empty. Eight of nine activities
+emit no evidence and the shell still displays `Progress: 0 / 9`. That is
+presentation state standing in for evidence, which the standing rule forbids.
+The template answers it in two places: treatment purpose determines the
+evidence contract, and coverage and mastery are shown as two numbers that may
+never be merged. There is no `Mark as done` primitive; the nearest thing is a
+typed, dated, visibly-a-claim `self_report` on a reading.
+
+**One mechanism is taken outright.** Moodle 4.x types activities by pedagogical
+purpose and tints them consistently course-wide. Navigate2 inherits it and
+leaves every purpose blank. itembank should define its own closed set (`orient`,
+`read`, `teach`, `drill`, `apply`, `check`, `reflect`) and make purpose
+load-bearing rather than decorative, because purpose is exactly what decides
+whether a treatment may move a mastery number.
+
+**What this does not settle.** The template ships three levels below the
+workspace. The 2026-08-13 entry asks for field, subject, subcourse, concept and
+for progress on completing an entire field, and that depth question stays open
+by the same reasoning Weibao gave then: what counts as an entire field needs
+more ideaboarding. Four further questions are carried in section 7 of the
+template, the sharpest being that no evidence event type exists today for a
+non-scored treatment, so `self_report` needs an honesty story before it ships.
+
+**Planning effect.** Recommendation only, nothing accepted. Evidence is
+`.planning/research/2026-08-26-navigate2-teardown.md`; the proposal is
+`.planning/COURSE-SHELL-TEMPLATE.md`. Binding scope remains
+`SOURCE-TO-COURSE.md`, and the course shell has no phase assignment yet.
+
 ## Interpretation protocol
 
 An interpretation may appear immediately after a verbatim entry when it helps
