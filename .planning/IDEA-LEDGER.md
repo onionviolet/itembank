@@ -629,6 +629,226 @@ Amendments to an existing entry are additive notes under the entry, dated.
   failing the lint. N needs a default and probably an override.
 - **Disposition:** registered, small.
 
+### IL-20260826-01: Course shell, the multi-course container
+
+- **Proposal:** A durable container so itembank holds more than one course at
+  once: `workspace` > `course` > `unit` > `treatment`, with the course manifest
+  as plain Markdown beside the banks, and all progress derived from the
+  evidence store rather than written into the manifest. Full sketch in
+  `.planning/COURSE-SHELL-TEMPLATE.md`.
+- **Origin:** Weibao 2026-08-26, "as a way to organize multiple courses and
+  more, we can use this as an template". Specimen was Navigate2.
+- **Evidence considered:**
+  `.planning/research/2026-08-26-navigate2-teardown.md`. itembank has banks,
+  sessions, lessons and a cross-subject `day` cockpit but no object naming a
+  course and its parts, so every additional subject costs bespoke wiring.
+- **Fit:** additive. No change to bank parsing, no second scorer, no second
+  evidence store. The manifest stays readable in Obsidian per the dual-form
+  rule.
+- **Boundary:** the shell ships three levels below the workspace. Deeper
+  nesting is NOT re-opened here; it is already answered by IL-20260817-01's
+  recursive scope object, and the shell must reconcile with that model rather
+  than compete with it.
+- **Disposition:** Registered, **narrowed 2026-08-26 (same day)** to the
+  workspace level only. See the note below.
+- **Revisit trigger:** the first phase that adds a second subject (Math 1400 or
+  CSCI 1100) to the workspace, or any phase touching progress display.
+- **Note 2026-08-26, narrowing after checking shipped code.** Written before
+  reading Phase 14B. `course.py`, `graph.py` and `course_package.py` already
+  ship the course sidecar, containers with free-text labels nesting arbitrarily
+  by `parent`, objectives, treatments, outline projection, and validated
+  package export and restore. Course, container, objective and treatment are
+  therefore **not** open proposals. What remains genuinely missing is exactly
+  one level: the **workspace**, the named set of courses, and how it relates to
+  discovery roots. The proposed plain-Markdown course manifest is withdrawn
+  outright: the sidecar is one compare-and-swap lineage and a second authored
+  manifest would put two object kinds in competition for the same bytes, which
+  `course.py` refuses by design.
+
+### IL-20260826-02: Treatment purpose determines the evidence contract
+
+- **Proposal:** A closed set of treatment purposes (`orient`, `read`, `teach`,
+  `drill`, `apply`, `check`, `reflect`) where purpose decides both the visual
+  role and, load-bearingly, what evidence the runtime will accept and whether
+  the treatment may move a mastery number. `reflect` never becomes truth.
+- **Origin:** Moodle 4.x activity-purpose tokens, observed 2026-08-26. The
+  mechanism exists in the specimen and every purpose is left blank.
+- **Evidence considered:** the specimen colours activities by purpose as pure
+  decoration. Making the same taxonomy decide the evidence contract is what
+  separates a legible list from a trustworthy one.
+- **Fit:** restates existing authority rules in a form the UI can render. No new
+  authority.
+- **Disposition:** **Duplicate in its proposed form, narrowed and registered in
+  its residue.** See the note below.
+- **Note 2026-08-26, correction after checking shipped code.** The proposed
+  seven-value set (`orient`, `read`, `teach`, `drill`, `apply`, `check`,
+  `reflect`) is **withdrawn**. `graph.py` already ships `TREATMENT_KINDS`, an
+  eleven-value closed vocabulary canonical in `REQUIREMENTS.md` as TREAT-01:
+  `direct-reading`, `excerpt`, `guided-lesson`, `notes-or-terms`,
+  `worked-example`, `visual-or-demonstration`, `practice`, `formal-test`,
+  `assessment-first-diagnostic`, `learner-artifact`, `human-review`. Proposing a
+  parallel vocabulary for the same concept is the second-authority mistake this
+  repository legislates against, and it was proposed only because the shipped
+  code was not read first.
+- **What survives, and is the registered part:** TREAT-01 says which treatment
+  an objective gets; it does not say **which treatment kinds may emit evidence
+  that moves a GRAPH-03 dimension and which structurally cannot**. Three kinds
+  share one hole, `direct-reading`, `excerpt` and `visual-or-demonstration`,
+  all of which produce nothing the runtime can verify. That hole is
+  IL-20260826-08.
+- **Revisit trigger:** with IL-20260826-08.
+
+### IL-20260826-03: Coverage, mastery and claimed as three unmerged numbers
+
+- **Proposal:** The workspace first page shows three quantities that may never
+  be combined into one bar: `coverage` (units treated), `mastery` (objectives
+  with sufficient evidence), `claimed` (treatments the learner marked done by
+  their own word). `claimed` renders visibly weaker. If only one fits, show
+  `mastery`.
+- **Origin:** Weibao 2026-08-26, "dont forget the first page for the course
+  either, like how it shows the completeness".
+- **Evidence considered:** teardown section 2c. The specimen's headline
+  `0% complete` counts activity completion, and of 435 activities only 41 carry
+  a grade item, so 394 (90.6%) of the denominator is a self-pressed checkbox.
+  Ticking every box without opening anything reads as 100% complete beside an
+  empty gradebook.
+- **Fit:** direct application of the separate-state-axes rule (accepted
+  content, workflow state, epistemic confidence are independent).
+- **Disposition:** **Duplicate of GRAPH-03, retained as field evidence for it.**
+  See the note below.
+- **Note 2026-08-26, correction after checking REQUIREMENTS.md.** GRAPH-03
+  already specifies something strictly stronger: a nine-field tuple over seven
+  permanently separate dimensions (design coverage, participation, settled
+  evidence, current retention, formal completion, selected enrichment,
+  uncertainty), no single aggregate completion, mastery or readiness score,
+  separate denominators for required, required-choice and enrichment, and the
+  rule that adding enrichment can never lower completion. It is owned by
+  Phase 16C. The proposed three numbers were a weaker restatement and are
+  withdrawn as a model.
+- **What survives:** the 90.6% measurement is concrete field evidence for why
+  GRAPH-03's no-single-score clause is correct, useful whenever someone asks
+  why one friendly percentage would not be simpler. Two display questions are
+  handed to Phase 16C rather than answered here: participation must not be
+  silently sourced from an unverifiable claim, and seven dimensions do not fit
+  on a course card, so which one shows at card size (and whether showing one
+  re-creates the aggregate problem by the back door) needs deciding.
+- **Revisit trigger:** Phase 16C, when GRAPH-03 is implemented.
+
+### IL-20260826-04: Pool depletion, a bank-seen denominator
+
+- **Proposal:** Track and display how much of a bank the learner has ever seen,
+  per category and overall, as unanswered over total.
+- **Origin:** TestPrep practice-test builder, observed 2026-08-26:
+  `Airway and Breathing (115 / 115)` over `Qbank (690 QUESTIONS)`,
+  `0 Taken, 690 Remaining`.
+- **Evidence considered:** itembank records attempts but has no notion of bank
+  coverage, so it cannot answer "am I practising, or recycling the same twelve
+  items". The number is cheap to derive from existing evidence.
+- **Open design question:** "seen" is not "attempted" is not "mastered", and a
+  shuffled variant is not a new item. The definition must precede the display.
+- **Disposition:** Registered.
+- **Revisit trigger:** first phase that adds an item selector or a bank report.
+
+### IL-20260826-05: Error-driven reselection
+
+- **Proposal:** A selector that composes a form from items the learner
+  previously answered incorrectly.
+- **Origin:** TestPrep checkbox `Include questions previously answered
+  incorrectly`, observed 2026-08-26.
+- **Evidence considered:** itembank already holds the attempt evidence needed
+  and has no selector that uses it. Complements rather than duplicates the Anki
+  export path, which owns scheduling.
+- **Boundary:** selection only. Scheduling stays Anki's, per the 2026-08-22
+  notes-to-quiz disposition.
+- **Disposition:** Registered.
+- **Revisit trigger:** with IL-20260826-04.
+
+### IL-20260826-06: A reading view across sources
+
+- **Proposal:** A second view over existing `read` bindings, grouped by source
+  rather than by unit, showing what is bound, which objectives cite it, what has
+  been read, and coverage of the source as distinct from coverage of the course.
+  Readings keep their default placement inside the unit.
+- **Origin:** Weibao 2026-08-26, "this one is where the readings are in the
+  sections/chapters, which is a good enough way for now but we can have a better
+  page or tab for reading and more".
+- **Evidence considered:** in the specimen a reading is one row among nine,
+  legible per chapter and illegible as a book. Placement inside the unit is
+  still correct, because a reading belongs to the objective it serves.
+- **Fit:** a renderer over existing bindings. No new durable object. Links and
+  never relocates, per the edit-files-where-they-live rule.
+- **Blocked by:** IL-20260826-08. There is no evidence event for having read
+  something.
+- **Disposition:** Registered.
+- **Revisit trigger:** once a reading evidence event exists.
+
+### IL-20260826-07: A time axis for the course shell
+
+- **Proposal:** Give the shell deadlines and pacing, so a unit can be due and a
+  course can be behind or ahead.
+- **Origin:** agent observation 2026-08-26 while reviewing the shell against
+  Weibao's actual autumn.
+- **Evidence considered:** the specimen's course carries no dates at all, which
+  suits self-paced EMT and does not suit Math 1400 or CSCI 1100, which are
+  graded courses with due dates and exam weeks. `day` currently infers pace from
+  a hand-maintained plan table, which is the closest existing mechanism.
+- **Open question:** whether this is a shell concern or belongs to `day`, which
+  already owns the cross-subject time view. Possibly the shell holds the dates
+  and `day` renders them.
+- **Disposition:** Registered.
+- **Revisit trigger:** before the first non-EMT subject is added, since that is
+  when the gap becomes load-bearing.
+
+### IL-20260826-08: An evidence event for a non-scored treatment
+
+- **Proposal:** A typed, dated `self_report` evidence event for treatments that
+  produce no runtime verdict, chiefly `read` and `orient`, visibly a learner
+  claim and structurally incapable of moving a mastery number.
+- **Origin:** falls out of IL-20260826-02 and blocks IL-20260826-06.
+- **Evidence considered:** no such event type exists. The specimen's answer,
+  `Mark as done`, is rejected as IL-20260826-11, so the gap is real and the
+  obvious fix is the wrong one.
+- **Open design question:** the honesty story. A claim the learner can make
+  freely is useful for orientation and dangerous the moment anything aggregates
+  it, so what may consume it needs stating before it ships.
+- **Disposition:** Registered.
+- **Revisit trigger:** with IL-20260826-01; it is the smallest blocking piece.
+
+### IL-20260826-09: A media treatment purpose
+
+- **Proposal:** A `watch` purpose distinct from `read` and `teach`, for video
+  and simulation treatments.
+- **Origin:** agent observation 2026-08-26. Thirty of the specimen's 32
+  course-level activities are video (Virtual Mentor, Ride-Along, Soft-Skill
+  Simulations).
+- **Evidence considered:** media is currently folded into `read` or `teach` in
+  IL-20260826-02's closed set, and its evidence story matches neither: a video
+  is neither a citable passage nor a lesson with checkpoints.
+- **Cost driver:** widening a closed set is cheap now and expensive once
+  manifests exist in the wild.
+- **Disposition:** **Duplicate.** Withdrawn 2026-08-26, same day.
+- **Note 2026-08-26.** TREAT-01 already ships `visual-or-demonstration`, which
+  covers video and simulation. The perceived gap was an artifact of
+  IL-20260826-02's withdrawn seven-value set, which had no media kind. With
+  TREAT-01 as the vocabulary there is nothing to add. The real question about
+  video, that it emits no verifiable evidence, is IL-20260826-08 and is shared
+  with `direct-reading` and `excerpt`.
+
+### IL-20260826-10: Teaching pool separate from exam-fidelity pool
+
+- **Proposal:** Distinguish items authored to teach from items authored to
+  mirror the real examination, so a blueprint can draw from the right
+  population.
+- **Origin:** agent observation 2026-08-26. The specimen keeps per-chapter
+  `Assessment in Action` items and a 690-item exam Qbank as separate
+  populations in separate systems.
+- **Evidence considered:** itembank treats a bank as a bank. The distinction may
+  already be expressible with existing objective and difficulty metadata, in
+  which case this needs a tag and not a structure.
+- **Disposition:** Backburner, pending a check of whether existing metadata
+  already covers it.
+- **Revisit trigger:** first blueprint-driven form assembly.
+
 ## Rejected
 
 ### IL-20260815-04: Plugin-first core (no privileged core; swappable scorer)
@@ -670,3 +890,58 @@ Amendments to an existing entry are additive notes under the entry, dated.
   separately as IL-20260816-01 (plugins as delivery machinery at the named
   seams of IL-20260815-02). This note is additive; nothing above is
   reopened.
+
+### IL-20260826-11: Self-report completion as a progress primitive
+
+- **Proposal considered:** Adopt the specimen's `Mark as done` model, a manual
+  per-activity checkbox that the learner presses, aggregated into a course
+  completeness percentage shown on the workspace card.
+- **Origin:** Navigate2, observed 2026-08-26. Considered because it is cheap,
+  familiar, and solves the real problem that most treatments produce no verdict.
+- **Evidence considered:** teardown sections 2, 2c and 2d. In the observed
+  course 435 activities exist, 41 carry a grade item, and 394 complete only by
+  the checkbox. The card's headline `0% complete` is therefore 90.6%
+  self-report, and a learner who opens nothing and ticks everything reads as
+  100% complete beside an empty gradebook.
+- **Exact reason:** it makes presentation state into attainment. The number
+  cannot distinguish a learner who studied from one who tidied a list, so it is
+  worse than no number, because it is trusted. It also collapses three
+  independent axes (accepted content, workflow state, epistemic confidence)
+  into one bar.
+- **Conflicting rule:** "Presentation state never grants authorization" and the
+  separate-state-axes rule, both in CLAUDE.md; and the runtime invariant, since
+  a self-pressed checkbox is a verdict settled by something other than the
+  runtime.
+- **Retained alternatives:** IL-20260826-08 keeps the useful half, a typed dated
+  claim that is visibly a claim and can never aggregate into mastery.
+  IL-20260826-03 keeps it visible as `claimed`, beside and weaker than
+  `coverage` and `mastery`.
+- **Date:** 2026-08-26.
+- **Reconsideration condition:** none foreseen for aggregation into a progress
+  figure. The claim-capture half is already retained, so there is nothing left
+  to reconsider unless the axes rule itself changes.
+
+### IL-20260826-12: Flat equal-size category pools as a blueprint
+
+- **Proposal considered:** Follow the specimen's Qbank shape, six subject
+  categories holding exactly 115 items each, as the model for organising an
+  itembank exam bank by category.
+- **Origin:** TestPrep practice-test builder, observed 2026-08-26.
+- **Evidence considered:** the six categories are uniform to the item. The real
+  NREMT test plan weights its domains unevenly, so the uniformity is a
+  content-production convenience rather than a measurement decision.
+- **Exact reason:** equal pools per category silently teach the wrong
+  proportions. A learner drawing evenly across categories practises a
+  distribution the examination does not use, and the practice looks faithful
+  precisely because the numbers are tidy.
+- **Conflicting rule:** the 2026-08-24 accepted principle that practice should
+  mirror the real examination's format, recorded in `USER-VISION.md`, which was
+  already applied there to item types and applies here to domain weights.
+- **Retained alternatives:** a blueprint that states weights explicitly, per
+  the existing NREMT pinning work; and a linter check that notices suspiciously
+  flat category counts, which is a candidate to fold into IL-20260822-03's
+  calibration work rather than a separate check.
+- **Date:** 2026-08-26.
+- **Reconsideration condition:** a target examination that genuinely weights its
+  domains equally, in which case flat pools are correct for that blueprint and
+  wrong as a default.

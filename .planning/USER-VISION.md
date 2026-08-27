@@ -1250,6 +1250,39 @@ Open questions grew from five to seven: pool depletion needs a definition of
 what "seen" counts, and the reading view probably borrows the unresolved
 `self_report` answer rather than needing its own.
 
+
+#### Correction appended 2026-08-26
+
+Appended the same day, before commit, and kept separate from both the quotation
+and the interpretation above rather than folded into either.
+
+The proposal recorded above was written **without first reading the shipped
+Phase 14B code or `REQUIREMENTS.md`**, and three of its parts duplicated work
+that already exists. `graph.py`, `course.py` and `course_package.py` ship the
+course sidecar, containers with free-text labels nesting arbitrarily,
+objectives, treatments, outline projection, and validated package export and
+restore.
+
+- The proposed fixed three-level hierarchy is withdrawn. Containers already
+  nest freely, deliberately, because GRAPH-01 requires a local structural label
+  to be accepted without a schema change.
+- The proposed seven treatment purposes are withdrawn. TREAT-01 already defines
+  an eleven-value closed vocabulary, and proposing a parallel one is the
+  second-authority mistake this repository legislates against.
+- The proposed coverage / mastery / claimed model is withdrawn. GRAPH-03
+  already specifies seven permanently separate dimensions with no aggregate
+  score, and is owned by Phase 16C.
+
+**What actually remains missing is one level: the workspace**, the named set of
+courses. The teardown's other findings stand, and the 90.6% measurement is now
+recorded as field evidence for GRAPH-03's no-single-score clause rather than as
+a competing model. Dispositions are in `IDEA-LEDGER.md` IL-20260826-01 through
+-12; the withdrawn parts are marked Duplicate there rather than deleted.
+
+This correction is recorded because the same mistake is cheap to repeat: the
+planning documents describe the product, and the shipped code is ahead of the
+part of them a fresh reader lands on first.
+
 ## Interpretation protocol
 
 An interpretation may appear immediately after a verbatim entry when it helps

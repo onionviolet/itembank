@@ -1,7 +1,10 @@
 # Course shell template, v0 (tentative)
 
 Date: 2026-08-26
-Status: **tentative proposal.** Not an accepted product clause. Derived from
+Status: **tentative proposal, corrected 2026-08-26 against shipped Phase 14B
+work.** See section 0.1: three of this document's original proposals turned out
+to duplicate existing requirements or shipped code and are withdrawn there
+rather than silently edited out. Not an accepted product clause. Derived from
 `.planning/research/2026-08-26-navigate2-teardown.md`, which is the evidence.
 Binding scope remains `.planning/SOURCE-TO-COURSE.md`.
 
@@ -18,128 +21,184 @@ object that says "this is a course, these are its parts, here is where the
 learner is in it". Every additional subject currently costs bespoke wiring.
 The shell is the missing container.
 
-## 1. The three levels
+## 0.1 Correction, 2026-08-26: what this document got wrong
 
-Navigate2's one defensible structural idea, kept:
+Written before checking Phase 14B, which had already shipped `graph.py`,
+`course.py` and `course_package.py`, and before checking `REQUIREMENTS.md`.
+Three proposals below are withdrawn. They are recorded rather than deleted
+because the reasoning that produced them is still the evidence for the parts
+that survive.
+
+**Withdrawn 1: a fixed three-level hierarchy.** `graph.py` already ships
+`add_container(doc, label, title, parent, order)` with a **free-text** label
+and arbitrary nesting by `parent`, deliberately unconstrained because GRAPH-01
+requires a local structural label to be accepted without a schema change. The
+code comment is explicit that a course calling its unit a fortnight is not
+wrong. Depth is solved. The shell **renders containers it does not own** and
+must not introduce a competing level scheme. Section 1 is rewritten below.
+
+**Withdrawn 2: a new seven-value treatment purpose set.** `graph.py` ships
+`TREATMENT_KINDS`, an eleven-value **closed** vocabulary canonical in
+`REQUIREMENTS.md` as TREAT-01: `direct-reading`, `excerpt`, `guided-lesson`,
+`notes-or-terms`, `worked-example`, `visual-or-demonstration`, `practice`,
+`formal-test`, `assessment-first-diagnostic`, `learner-artifact`,
+`human-review`. Proposing `orient` / `read` / `teach` / `drill` / `apply` /
+`check` / `reflect` beside it would have created a second vocabulary for the
+same thing, which is the exact mistake this repository legislates against. The
+proposed set is withdrawn entirely. What survives is the *question* it was
+asking, which TREAT-01 does not answer: **which treatment kinds may emit
+evidence that moves a progress dimension, and which may not.** Section 3 is
+rewritten to ask only that.
+
+**Withdrawn 3: coverage / mastery / claimed as the progress model.** GRAPH-03
+already specifies something stronger: a nine-field tuple over **seven
+dimensions kept permanently separate** (design coverage, participation, settled
+evidence, current retention, formal completion, selected enrichment,
+uncertainty), with no single aggregate score, separate denominators for
+required, required-choice and enrichment, and the rule that adding enrichment
+can never lower completion. It is owned by Phase 16C and read over the graph
+rather than stored. My three numbers were a weaker restatement. Section 5.1 is
+rewritten to contribute what it actually can, which is field evidence for
+GRAPH-03 rather than a competing model.
+
+**What survives unchanged.** The teardown facts; the reading view
+(IL-20260826-06); pool depletion (IL-20260826-04); error-driven reselection
+(IL-20260826-05); the time-axis gap (IL-20260826-07); the non-scored evidence
+event (IL-20260826-08); and both rejections (IL-20260826-11, -12).
+
+## 1. Structure: render containers, do not redefine them
+
+`graph.py` already models structure as containers with free-text labels nesting
+by `parent`, plus objectives placed in a container with an order. A container's
+position is structure and adds zero edges; prerequisites are separate typed
+edges. `outline` already projects this to a Markdown heading tree whose depth
+follows `_depth(containers_by_id, ...)`.
+
+So the shell's structural job is **rendering, not modelling**:
 
 ```
-workspace          all courses the learner owns
-  └── course       EMT, Math 1400, CSCI 1100, ...
-        └── unit   chapter, module, week, topic
-              └── treatment   one thing to actually do
+workspace          the set of courses the learner owns   <- the genuine gap
+  └── course       one course sidecar (course.py)        <- exists
+        └── container   arbitrary depth, free-text label <- exists
+              └── objective + its treatment              <- exists
 ```
 
-Deliberately only three levels below the workspace. The 2026-08-13 vision entry
-asks for deeper nesting (field > subject > subcourse > concept). That is
-recorded and NOT resolved here; see section 7. v0 ships three and is designed so
-`unit` can nest later without breaking existing courses.
+Only the top line is missing. Everything below it ships. `IDEA-LEDGER.md`
+IL-20260817-01 additionally answers what a bounded scope is and when one may
+truthfully report complete, and the shell must reconcile with that rather than
+compete with it.
 
 ## 2. Durable objects
 
-Per the CLAUDE.md rule that every feature names its actor, source of truth,
-authority and recovery:
+Most of this table already exists. Marked accordingly.
 
-| Object | Source of truth | Authority | Derived? |
-|--------|-----------------|-----------|----------|
-| workspace index | `courses.md` at the workspace root | learner | no |
-| course | `<course>/course.md` manifest | course builder | no |
-| unit | a section in `course.md` | course builder | no |
-| treatment | a row in a unit, pointing at an artifact | course builder | no |
-| artifact | the bank, lesson, or source file itself | existing contracts | no |
-| progress / mastery | evidence store | **runtime only** | **yes, disposable** |
-| course card, outline, next-actions | rendered view | none | **yes, disposable** |
+| Object | Source of truth | Status |
+|--------|-----------------|--------|
+| course | the course sidecar, one `kind="course"` object | **ships** (`course.py`) |
+| container | a record inside that sidecar | **ships** (`graph.py`) |
+| objective | a record inside that sidecar | **ships** (`graph.py`) |
+| treatment | a TREAT-01 kind on an objective | **ships** (`graph.py`) |
+| artifact | the bank, lesson, or source file | ships, existing contracts |
+| package | portable export and validated restore | **ships** (`course_package.py`) |
+| **workspace index** | **the set of courses; undecided** | **the gap** |
+| progress tuple | GRAPH-03, read over the graph | specified, Phase 16C |
+| cards, outlines, next-actions | rendered views | derived, disposable |
 
-The manifest is plain Markdown so it stays readable and editable in Obsidian,
-per the existing dual-form rule. Progress is never written into it.
+The original draft proposed a plain-Markdown course manifest. **Withdrawn.**
+The sidecar exists, is written only through `journal.commit_operation` on one
+compare-and-swap lineage, and deliberately keeps objectives and edges as
+addressable records inside one file rather than as independently tracked files.
+A second hand-authored manifest beside it would put two object kinds in
+competition for the same bytes, which is the exact thing `course.py`'s
+docstring says it refuses. Section 4 is withdrawn with it.
 
-## 3. Treatment purposes, and the evidence contract per purpose
+The one genuinely open durable object is the **workspace**: what names the set
+of courses, whether it is a file at all or just a directory scan, and how it
+relates to the discovery roots. That is the whole gap.
 
-The closed set. Purpose decides the icon, the colour, AND what evidence the
-runtime will accept from it. This is the correction to Navigate2, where eight of
-nine activities emitted nothing and the shell still showed `Progress: 0 / 9`.
+## 3. The open question TREAT-01 does not answer
 
-| Purpose | Typical artifact | Evidence emitted | Counts toward mastery |
-|---------|------------------|------------------|-----------------------|
-| `orient` | objective card, unit map | viewed only | no |
-| `read` | source binding, direct reading | `self_report` | no |
-| `teach` | lesson with checkpoint items | scored checkpoints | yes |
-| `drill` | term bank, Anki export | attempt records | yes |
-| `apply` | case / scenario items | scored, advisory mark allowed | yes |
-| `check` | blueprint form from the bank | full session evidence | yes |
-| `reflect` | learner note, error log | learner-owned | **never** |
+TREAT-01's eleven kinds are canonical and closed, and nothing here adds a
+twelfth. What no shipped requirement states is the **evidence contract per
+kind**: which treatments can produce something that moves a GRAPH-03 dimension,
+and which structurally cannot.
 
-Two hard rules, both of them things Navigate2 gets wrong:
+A first cut, as a question to be answered rather than an answer:
 
-1. **A treatment that emits no runtime evidence is labelled as such in the UI**
-   and cannot move a mastery number. `orient` and `read` show as done-by-claim,
-   visibly distinct from done-by-evidence.
-2. **`reflect` never becomes truth.** Direct restatement of the existing rule
-   that learner notes never silently become source truth, answer keys, scores,
-   or mastery.
+| TREAT-01 kind | Plausibly emits | Note |
+|---|---|---|
+| `direct-reading` | nothing the runtime can verify | needs IL-20260826-08 |
+| `excerpt` | nothing the runtime can verify | same |
+| `visual-or-demonstration` | nothing the runtime can verify | same; covers video |
+| `guided-lesson` | scored checkpoints | inside the lesson |
+| `worked-example` | unclear | may be read-like or practice-like |
+| `notes-or-terms` | attempt records | drill-like |
+| `practice` | attempt records | settled evidence |
+| `formal-test` | full session evidence | settled evidence |
+| `assessment-first-diagnostic` | deliberately unscored | see IL-20260822-01 |
+| `learner-artifact` | learner-owned only | never mastery |
+| `human-review` | a human verdict | advisory, not the scorer |
 
-There is no `Mark as done` primitive. The nearest thing is `self_report` on a
-`read`, and it is typed, dated, and visibly a claim.
+Three kinds land in the same hole: `direct-reading`, `excerpt` and
+`visual-or-demonstration` produce nothing the runtime can check. That is one
+gap, not three, and it is IL-20260826-08. Note that `visual-or-demonstration`
+already covers video, so the separate `watch` purpose proposed earlier is a
+duplicate and is withdrawn (IL-20260826-09).
 
-## 4. The manifest
+The rule that must hold however this resolves: **a treatment kind that cannot
+emit verifiable evidence must not be able to move a settled-evidence
+dimension**, and the UI must show which dimension a number came from. GRAPH-03
+already keeps the dimensions separate; this is about which one a treatment is
+allowed to touch.
 
-Sketch, additive to existing formats, no change to bank parsing:
+## 4. The manifest (withdrawn)
 
-```markdown
-# COURSE: EMT
-ID: emt
-SOURCE: AAOS Emergency Care and Transportation, 12e
-FRAMEWORK: National EMS Education Standards
-BLUEPRINT: nremt-emt
+The original sketch proposed a plain-Markdown `course.md` with `UNIT:` sections
+and `purpose label -> artifact` rows. Withdrawn: see section 2. The course
+sidecar already holds this, `graph.py` already projects a readable outline from
+it, and Phase 14B's D-14B-1 deliberately leaves the hand-authored Phase 13.9
+`course.md` stub byte-identical rather than writing to it. Adding an authored
+manifest would reopen a decision that was made for good reasons.
 
-## UNIT: Chapter 1 EMS Systems
-OBJECTIVES: emt.1.1, emt.1.2, emt.1.3
-
-- orient  Objectives          -> objectives/emt-01.md
-- read    Chapter 1           -> sources/aaos12e.md#ch1        pages 4-29
-- teach   EMS system roles    -> lessons/emt-01-roles.md
-- drill   Chapter 1 terms     -> banks/emt-01-terms.md
-- check   Chapter 1 check     -> banks/emt-01.md  blueprint: 10 mc, 2 multi
-```
-
-Every row is `purpose  label  -> artifact`. A unit may omit any purpose. That
-omission is the point: the treatment-selection rule says direct reading is
-sometimes enough, and a uniform nine-slot grid per chapter is precisely the
-failure mode observed in the specimen.
+The readable-outline requirement the sketch was reaching for is already met by
+`graph.outline`.
 
 ## 5. The surfaces
 
 ### 5.1 Workspace view, the first page
 
-A card per course. This is the page the learner lands on, so its numbers set
-the tone for everything, and the specimen gets them wrong in a way worth
-stating precisely.
+The progress model here is GRAPH-03's, not this document's. What the teardown
+contributes is **field evidence for why GRAPH-03 is right**, which is worth
+recording because the requirement is written abstractly and the specimen shows
+concretely what the alternative costs.
 
 Navigate2's card shows **one** number, a bar reading `0% complete`. It is an
-activity-completion count. Of the 435 activities in the observed course, 394
-complete by a self-pressed `Mark as done`, so **90.6% of that denominator is
-self-report**. Tick every box, open nothing, and the card reads 100% complete
-beside an empty gradebook.
+activity-completion count that never consults the gradebook. Of the 435
+activities in the observed course, 41 carry a grade item and **394 (90.6%)
+complete by a self-pressed `Mark as done`**. Tick every box, open nothing, and
+the card reads 100% complete beside an empty gradebook.
 
-The card therefore shows **three separate quantities that may never be merged
-into one bar**:
+That is precisely the failure GRAPH-03's "no single aggregate completion,
+mastery, or readiness score" clause forbids, and the specimen shows the failure
+is not theoretical: the number is not merely imprecise, it is uncorrelated with
+learning and is trusted anyway. Worth citing whenever someone asks why one
+friendly percentage would not be simpler.
 
-| Quantity | Means | Source |
-|----------|-------|--------|
-| `coverage` | units with any accepted treatment, over total units | course manifest |
-| `mastery` | objectives with sufficient evidence, over total objectives | evidence store |
-| `claimed` | treatments marked done-by-claim, over total claimable | learner claims |
+Two things the teardown adds that GRAPH-03 does not obviously already cover:
 
-`claimed` is rendered visibly weaker than the other two: it is the learner's
-own word, useful for orientation and never mistaken for attainment. If only one
-number can be shown at card size, it is `mastery`, because it is the only one
-backed by the runtime.
+- **Participation must not be sourced from an unverifiable claim** without
+  saying so. GRAPH-03 has a participation dimension and an authority field; the
+  specimen shows what happens when a claim silently fills a participation slot.
+  This is IL-20260826-08's honesty story, restated as a display rule.
+- **Card-size display needs a rule.** Seven dimensions do not fit on a course
+  card. Which one shows when only one fits, and whether showing one re-creates
+  the aggregate problem by the back door, is unresolved and belongs to Phase
+  16C rather than here.
 
-Also on the card, and cheap: subject, unit count, last activity date, and the
-next action if one is ready. Not a hero image. The specimen's card devotes most
-of its area to a generated hexagon pattern carrying no information.
-
-Filter, search, sort and a card-or-list toggle are worth keeping as-is. That
-part of `block_myoverview` is fine and costs nothing to match.
+Beyond the numbers, and cheap: subject, container count, last activity, and the
+next action if one is ready. Not a hero image; the specimen's card spends most
+of its area on a generated hexagon pattern carrying no information. Filter,
+search, sort and a card-or-list toggle are worth matching as-is.
 
 ### 5.2 Course view, two panes
 
@@ -217,20 +276,27 @@ the unit.
 
 ## 7. Open questions, carried not answered
 
-1. **Depth.** The 2026-08-13 vision asks for field > subject > subcourse >
-   concept and for "completing a field". v0 ships three levels. What counts as a
-   field, and what completion of one means, is unresolved and needs ideaboarding.
-2. **Evidence event for a non-scored treatment.** No type exists today for
-   "read this". `self_report` needs an honesty story before it ships.
+1. **Depth, and it is less open than it looked.** The 2026-08-13 vision asks
+   for field > subject > subcourse > concept and for "completing a field".
+   `IDEA-LEDGER.md` IL-20260817-01 already answers it with a recursive,
+   authored, versioned **scope** object over the typed graph, plus a
+   boundedness axis so an open scope never reports complete. v0's three levels
+   must therefore **reconcile with that model rather than compete with it**:
+   `unit` is a scope, and the question is whether the shell needs its own
+   nesting at all or should render scopes it does not own. Resolve this before
+   the manifest format is fixed, because getting it wrong is expensive later.
+2. **Evidence event for a non-scored treatment** (IL-20260826-08, the smallest
+   blocking piece). No type exists today for "read this". `self_report` needs an
+   honesty story before it ships, and the obvious fix is the rejected one.
 3. **Surface or mode.** Is the course view a new surface, or a mode of `day`?
 4. **Where the manifest lives** relative to banks and to an Obsidian vault, and
    how discovery binds it without mutating anything.
 5. **Cross-course scheduling.** `day` already spans subjects. Does the workspace
    view compete with it, or feed it?
-6. **Pool depletion needs a definition.** "Seen" is not "attempted" is not
+6. **Pool depletion needs a definition** (IL-20260826-04). "Seen" is not "attempted" is not
    "mastered", and a shuffled variant of an item is not a new item. Before a
    remaining-count can be shown it has to say what it counts.
-7. **Does the reading view need its own progress model** or does it borrow the
+7. **Does the reading view need its own progress model** (IL-20260826-06) or does it borrow the
    same `self_report` answer as question 2? Probably the latter, unverified.
 
 ## 8. How this template is meant to improve
@@ -246,7 +312,26 @@ teaching), Albert (practice and blueprint reporting), Anki and its scheduler,
 Khan Academy (mastery model and prerequisite graph), Duolingo (path and streak
 mechanics), edX or Coursera (multi-course workspace at scale).
 
-## 9. Rights note
+## 9. Dispositions
+
+Every idea in this document has a durable route in `.planning/IDEA-LEDGER.md`,
+per the standing rule that no viable idea is left without one:
+
+- Registered: IL-20260826-01 (narrowed to the workspace level only), -04 (pool
+  depletion), -05 (error-driven reselection), -06 (reading view), -07 (time
+  axis), -08 (evidence event for a non-scored treatment, the smallest blocking
+  piece).
+- Backburner: IL-20260826-10 (teaching pool separate from exam-fidelity pool).
+- Duplicate, withdrawn same day after checking shipped code: IL-20260826-02
+  (a parallel treatment vocabulary; TREAT-01 is canonical), -03 (a progress
+  model; GRAPH-03 is stronger and owned by Phase 16C), -09 (a `watch` purpose;
+  TREAT-01 ships `visual-or-demonstration`).
+- Rejected: IL-20260826-11 (`Mark as done` as a progress primitive),
+  -12 (flat equal-size category pools as a blueprint).
+- Reconcile with, do not duplicate: IL-20260817-01 (scope object, boundedness,
+  progress rollup), TREAT-01, GRAPH-01, GRAPH-03.
+
+## 10. Rights note
 
 Nothing from the specimen is vendored. Moodle core is GPLv3 and the `navigatexl`
 theme and JB Learning branding are not ours; the observed design tokens are
