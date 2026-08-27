@@ -937,6 +937,97 @@ def set_migration_state(doc, migration_id, state):
         "proposed and stays proposed")
 
 
+def _require_objective(doc, objective_id):
+    record = _objective_by_id(doc, objective_id)
+    if record is None:
+        raise GraphError(
+            "graph.unknown_objective",
+            "%s is not a recorded objective or source in this course graph"
+            % objective_id)
+    return record
+
+
+def _successor(doc, source, statement):
+    """One new local objective row succeeding `source`, in the same
+    container. The source row is never touched."""
+    return add_objective(doc, statement, container=source.get("container", ""),
+                         origin="local")
+
+
+def split_objective(doc, objective_id, statements, rationale, actor):
+    """Split one objective into several, as a reviewed proposal.
+
+    Returns `(records, proposal)`. The original row is left exactly as it
+    was: a split adds rows and deletes none, which is the same append-only
+    discipline PLANNING-DIRECTIVES section 3a requires of the rejection
+    ledger, applied to objective identity. An objective the learner's
+    evidence was recorded against has to stay in the file, or that evidence
+    stops naming anything.
+
+    This function takes no evidence log, no event, and no event count, and it
+    cannot reach one: `graph.py` imports no `evidence` module. Historical
+    evidence stays where it was recorded, and each new identity reads
+    `unknown` until real evidence is recorded against it.
+    """
+    source = _require_objective(doc, objective_id)
+    records = [_successor(doc, source, statement) for statement in statements]
+    proposal = migration_proposal("split", [objective_id],
+                                  [r["id"] for r in records], rationale, actor)
+    add_migration(doc, proposal)
+    return records, proposal
+
+
+def rename_objective(doc, objective_id, statement, rationale, actor):
+    """Restate one objective, as a reviewed proposal.
+
+    Returns `(record, proposal)`. A rename is a new row plus a migration
+    relation and never an edit to the original row, for the reason
+    `split_objective` gives: the identity evidence was recorded against
+    stays in the file.
+    """
+    source = _require_objective(doc, objective_id)
+    record = _successor(doc, source, statement)
+    proposal = migration_proposal("rename", [objective_id], [record["id"]],
+                                  rationale, actor)
+    add_migration(doc, proposal)
+    return record, proposal
+
+
+def merge_objectives(doc, objective_ids, statement, rationale, actor):
+    """Merge several objectives into one, as a reviewed proposal.
+
+    Returns `(record, proposal)`. Every merged-from row stays in the file,
+    for the reason `split_objective` gives.
+    """
+    sources = [_require_objective(doc, oid) for oid in objective_ids]
+    record = _successor(doc, sources[0], statement)
+    proposal = migration_proposal("merge", list(objective_ids), [record["id"]],
+                                  rationale, actor)
+    add_migration(doc, proposal)
+    return record, proposal
+
+
+def objective_evidence_state(doc, objective_id, event_count):
+    """One of exactly two words about whether an objective has any evidence.
+
+    This function takes the count as an argument rather than reading the
+    evidence store, because `graph.py` performs no file input or output and
+    imports no `evidence` module.
+
+    It returns one of two state words and never a number, because GRAPH-03
+    forbids the graph from producing a completion, mastery, readiness, or
+    progress value. That tuple is Phase 16C's and is read over the graph,
+    never stored in it.
+
+    It exists so GRAPH-04's degraded clause has a named function to assert
+    against: unmigrated evidence stays on the original objective identity and
+    reads `unknown` on the new one. `unknown` is the honest answer for a
+    freshly split identity. It does not mean zero progress; it means nothing
+    has been recorded here yet.
+    """
+    return "present" if event_count else "unknown"
+
+
 def upgrade_0_to_1(doc):
     """The single step from course graph version 0 to version 1.
 

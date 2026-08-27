@@ -22,6 +22,7 @@ import graph                                                 # noqa: E402
 import course                                                # noqa: E402
 import course_package                                        # noqa: E402
 import model                                                 # noqa: E402
+import evidence                                              # noqa: E402
 import schema_validate                                       # noqa: E402
 import fixtures.corpus_14b as corpus_14b                     # noqa: E402
 
@@ -316,6 +317,8 @@ EXPECTED_PUBLIC_API = [
     "overlay_objective",
     # 14B-04
     "add_migration", "migration_proposal", "set_migration_state",
+    "split_objective", "rename_objective", "merge_objectives",
+    "objective_evidence_state",
 ]
 EXPECTED_PUBLIC_API = sorted(EXPECTED_PUBLIC_API)
 
@@ -1026,6 +1029,110 @@ def check_migration():
                    actor_name="claude-code", create_if_missing=True),
                journal.JournalError, "journal.unknown_operation",
                "an operation outside the vocabulary this phase opened by one")
+
+        # ------------------------------------ GRAPH-04's split fixture
+        log = evidence.log_path(root)
+        old_id = domain["objectives"][1]
+        corpus_14b.seed_objective_evidence(root, old_id)
+        before_count = len(list(evidence.events(log)))
+        eq(before_count, 1, "the fixture seeds exactly one evidence event")
+        with open(log, "rb") as fh:
+            before_bytes = fh.read()
+
+        read = course.read_course(root)
+        doc = read["doc"]
+        old_line = _objective_line(graph.serialize_course(doc), old_id)
+        objectives_before = len(doc["objectives"])
+        migrations_before = len(doc["migrations"])
+
+        parts, split = graph.split_objective(
+            doc, old_id, ["statement one", "statement two"],
+            "the original objective asked for two separable things", "weibao")
+        eq(len(parts), 2, "a split into two statements makes two new rows")
+        eq(split["kind"], "split", "the proposal names the split")
+        eq(split["state"], "proposed", "a split is proposed, never applied")
+        eq(split["from"], old_id, "the split names the objective it came from")
+        eq(split["to"], parts[0]["id"] + " " + parts[1]["id"],
+           "the split names both new ids, space separated")
+        eq(len(doc["objectives"]), objectives_before + 2,
+           "a split adds two rows and deletes none")
+        eq(_objective_line(graph.serialize_course(doc), old_id), old_line,
+           "the original objective row is byte-identical after a split")
+        eq(len(doc["migrations"]), migrations_before + 1,
+           "a split records exactly one migration row")
+        for part in parts:
+            eq(part["origin"], "local", "a split part is a local record")
+            eq(part["overlays"], "", "a split is not an overlay")
+            _hex16(part["id"], "a freshly minted split id")
+            if part["id"] == old_id:
+                fail("a split part must carry its own minted id")
+
+        # The load-bearing half: nothing moved.
+        eq(len(list(evidence.events(log))), before_count,
+           "no evidence event was added, removed, or rewritten by a split")
+        with open(log, "rb") as fh:
+            eq(fh.read(), before_bytes,
+               "the evidence log is byte-identical after a split")
+        seeded = list(evidence.events(log))
+        eq(seeded[0]["objective"], old_id,
+           "the recorded event still carries the original identity")
+        for part in parts:
+            eq(len([e for e in seeded if e["objective"] == part["id"]]), 0,
+               "a new identity carries zero events")
+            eq(graph.objective_evidence_state(doc, part["id"], 0), "unknown",
+               "unmigrated evidence reads unknown on the new identity")
+        eq(graph.objective_evidence_state(doc, old_id, 1), "present",
+           "the original identity still reads present")
+        for count in (0, 1, 1000):
+            state = graph.objective_evidence_state(doc, old_id, count)
+            if not isinstance(state, str):
+                fail("objective_evidence_state must return a str, got %r"
+                     % type(state).__name__)
+            if state not in graph.EVIDENCE_CLAIM_STATES:
+                fail("objective_evidence_state returned %r, outside the two "
+                     "claim states" % state)
+            if "%" in state:
+                fail("objective_evidence_state must never return a percentage")
+
+        # ------------------------------------ rename
+        other_id = domain["objectives"][2]
+        other_line = _objective_line(graph.serialize_course(doc), other_id)
+        renamed, rename_proposal = graph.rename_objective(
+            doc, other_id, "a clearer statement",
+            "the original wording was ambiguous", "weibao")
+        eq(rename_proposal["kind"], "rename", "the proposal names the rename")
+        eq(rename_proposal["state"], "proposed", "a rename is proposed")
+        eq(rename_proposal["from"], other_id, "the rename names the original")
+        eq(rename_proposal["to"], renamed["id"], "the rename names the new row")
+        eq(_objective_line(graph.serialize_course(doc), other_id), other_line,
+           "the renamed objective's original row is present and unchanged")
+        eq(renamed["statement"], "a clearer statement", "the new row is clearer")
+        eq(len(list(evidence.events(log))), before_count,
+           "a rename moves no evidence either")
+        eq(list(evidence.events(log))[0]["objective"], old_id,
+           "the recorded event still carries the identity it was recorded on")
+
+        # ------------------------------------ merge
+        merged, merge_proposal = graph.merge_objectives(
+            doc, [parts[0]["id"], parts[1]["id"]], "one combined statement",
+            "the two turned out to be one skill after all", "weibao")
+        eq(merge_proposal["kind"], "merge", "the proposal names the merge")
+        eq(merge_proposal["from"], parts[0]["id"] + " " + parts[1]["id"],
+           "the merge names both ids it came from")
+        eq(merge_proposal["to"], merged["id"], "the merge names the new row")
+        for part in parts:
+            if _objective_line(graph.serialize_course(doc), part["id"]) is None:
+                fail("a merged-from row must stay in the file")
+        eq(len(list(evidence.events(log))), before_count,
+           "a merge moves no evidence either")
+
+        # ------------------------------------ order and byte stability
+        kinds = [m["kind"] for m in doc["migrations"]]
+        eq(kinds, ["demand-change", "split", "rename", "merge"],
+           "migration rows appear in the order recorded and are never sorted")
+        text = graph.serialize_course(doc)
+        eq(graph.serialize_course(graph.parse_course(text)), text,
+           "the document round trips byte for byte after four migrations")
     finally:
         corpus_14b.teardown(tmp)
 

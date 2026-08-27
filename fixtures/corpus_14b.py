@@ -410,5 +410,42 @@ def sidecar_text_version_0():
     return text + "\n## Cohorts\n\n| cohort | term |\n|---|---|\n| alpha | fall |\n"
 
 
+def seed_objective_evidence(course_root, objective_id):
+    """Record one synthetic response event against `objective_id` and return
+    its event id.
+
+    The event is built by calling `evidence.response_event` and appended
+    through `evidence.append_event`, so its key set is the shipped builder's
+    key set and nothing is hand-assembled. Everything it names is invented:
+    the bank, the item, and the session are fixture strings, the objective is
+    a minted opaque id, and the whole store is written into a temp directory.
+
+    This fixture is the only place Phase 14B imports `evidence` outside a
+    test. It is a fixture, not a module under test: `graph.py` and
+    `course.py` import no `evidence` module at all, which is what makes
+    "a migration never transfers evidence" structural rather than careful.
+    """
+    import evidence
+
+    q = {
+        "id": "Q1",
+        "item_id": "fixture-item-" + objective_id,
+        "type": "mc",
+        "stem": "A fictional fixture stem that names nothing real.",
+        "opts": {"A": "the first invented option",
+                 "B": "the second invented option"},
+        "correct": "A",
+        "objective": objective_id,
+    }
+    event = evidence.response_event(
+        session_id="fixture-session-" + objective_id, q=q, answer="A",
+        score=True, mode="quiz", attempt_num=1,
+        bank="fixture-synthetic-bank")
+    log = evidence.log_path(course_root)
+    os.makedirs(os.path.dirname(log), exist_ok=True)
+    evidence.append_event(log, event)
+    return event["event_id"]
+
+
 def teardown(dest):
     shutil.rmtree(dest, ignore_errors=True)
