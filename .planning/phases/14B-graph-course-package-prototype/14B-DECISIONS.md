@@ -64,6 +64,24 @@ The reversal window is therefore open until plan 14B-05 builds a package or
 until `migrate_stub` is first run against the real EMT course root, whichever
 comes first, and neither has happened as of this date.
 
+### D-14B-1 confirmed by Weibao, 2026-08-27
+
+**The provisional marker is removed. This is now a settled answer.**
+
+The 2026-08-26 record above was made by an agent under a standing overnight
+authorization and was marked provisional because the call is rated one-way. It
+was put to Weibao on 2026-08-27 in `.planning/DECISIONS-14B-DRIVER-2026-08-27.md`
+and he selected **confirm**. Option-a stands exactly as recorded above: a
+separate `course-graph.md`, `migrate_stub` non-destructive, the 13.9 `course.md`
+stub left byte-identical.
+
+Nothing in the recorded answer changes. Waves 1 to 3, which were built on it,
+need no rework. The reversal window described above is now closed by decision
+rather than by elapsed time, and the standing cost is accepted: two
+course-shaped files sit in the course root until a later phase retires the
+stub, each carrying a header line pointing at the other.
+
+
 ## D-14B-2. D-12.6-8 and D-12.6-9 confirmed at 14B plan time
 
 **Date:** 2026-08-26.
@@ -111,3 +129,96 @@ carries an unknown section so the test can prove an upgrade preserves what it
 could not read. The version check runs before a single section is parsed, so an
 older build can never partially consume a newer sidecar and then destroy the
 fields it did not understand on rewrite.
+
+## D-14B-3. `migrate` is a record type, not a seventh operation
+
+**Date:** 2026-08-27. **Decided by Weibao**, from
+`.planning/DECISIONS-14B-DRIVER-2026-08-27.md`. Rated one-way, because a
+migration proposal is appended to an append-only journal and written into a
+sidecar that later subphases read.
+
+**Question.** Does `migrate` join `RECORD_TYPES`, become a seventh member of
+`OPERATION_TYPES`, or get no journal record at all?
+
+**Recorded answer: option-a.** `migrate` joins `RECORD_TYPES` with an
+eight-field proposal (`migration_id`, `kind`, `from`, `to`, `rationale`,
+`state`, `actor`, `timestamp`), which is the `## Migrations` column set plan
+14B-01 already writes, so no sidecar column changes. `OPERATION_TYPES` stays at
+exactly six and `14A-FREEZE.md` is untouched. `RECORD_TYPES` grows the way it
+already grew twice in 14A.
+
+**Why this does not contradict `OPERATION-CONTRACT.md`.** That document lists
+link, import, copy, move, edit-in-place, supersede, migrate, and synchronize as
+distinct operations. That sentence is about the operations being distinct, not
+about the membership of `journal.OPERATION_TYPES`. Both remain true under this
+answer.
+
+**What was rejected, and why it is worth remembering.** Option-b (a seventh
+operation type) would have been a freeze amendment: `14A-FREEZE.md` names "the
+six operation names" in its Frozen list, so every assertion expecting six would
+need updating and an amendment section appending. Option-c (no journal record,
+sidecar row only) was the smallest change but would have made a migration the
+only durable course operation `journal.replay` cannot reconstruct.
+
+**Consequence for plan 14B-04.** Task 1 proceeds as written on option-a. 14B-04
+also modifies the frozen `journal.py`, so `14A-FREEZE.md` is read before that
+file is touched; this answer is what keeps that read from turning into a freeze
+amendment.
+
+## D-14B-4. The 14B freeze covers vocabularies and record shapes
+
+**Date:** 2026-08-27. **Decided by Weibao**, from
+`.planning/DECISIONS-14B-DRIVER-2026-08-27.md`.
+
+**Question.** Which 14B interfaces freeze at plan 14B-06 Task 3?
+
+**Recorded answer: option-a.** Freeze the vocabularies **and** the record
+shapes: the sidecar file name and section order, the seven table column sets,
+the four-name edge vocabulary and its three closed field sets, the unknown-type
+downgrade rule, the eleven treatment kinds and their rights mapping, and the
+five migration kinds and three states. Copy and layout stay changeable.
+
+**Precondition, unchanged by this answer.** Task 3 asks this question only if
+the three freeze legs are green. If a leg is red the freeze is withheld on that
+ground and this answer is not reached. Plan 14B-06 still writes exactly one of
+`## Frozen at 14B` or `## Freeze withheld`, and this decision does not
+pre-commit which.
+
+**The caveat, recorded because it was put to him and he chose anyway.** This
+freezes seven column sets before Phase 15A has run a real course through them,
+and the 2026-08-26 teardown work established that plan text written against an
+unbuilt tree goes stale quickly. Option-b (vocabularies only) was named in the
+packet as the more honest answer if the column sets are expected to move. The
+recommendation stayed option-a because 15A and 16A both compose onto these
+shapes and would otherwise build on sand, and Weibao selected it with that
+caveat visible.
+
+## D-14B-5. Manifest contents and package shape: STILL OPEN
+
+**Date raised:** 2026-08-27. **Status: unanswered. Wave 5 is stopped.**
+
+**Question.** What fields does `manifest.json` carry, and is a package a plain
+directory tree, an archive by default, or BagIt proper?
+
+**What happened.** The question was put to Weibao on 2026-08-27 alongside the
+other three. In place of selecting an option he gave a standing directive:
+"make adaptability and modularity a important coding principle, (add to
+uservisio as well". That is recorded verbatim in `USER-VISION.md` under the
+2026-08-27 entry of the same name, and it is **not** recorded as an answer to
+this checkpoint.
+
+**Why it is not treated as an answer.** A plain directory tree is plausibly the
+most adaptable and most independently readable of the three shapes, so the
+principle does point toward option-a. But this plan says, in the same words
+every 14B plan uses, "Do not proceed with a silent default. An unanswered
+checkpoint stops the wave." Converting a general principle into a specific
+answer is the silent default that sentence forbids, and one provisional
+stand-in has already been made on this phase. The question is being re-asked
+instead.
+
+**Effect on sequencing.** Plans 14B-04 and 14B-06 do not depend on this answer
+and may proceed. Plan 14B-05 may not. Note also that answering option-c (BagIt)
+would not proceed at all: it introduces the `bagit` dependency, and
+`14B-RESEARCH.md`'s Package Legitimacy Audit was skipped precisely because this
+phase proposes zero external packages, so option-c means recording the answer
+and re-running the gate protocol.

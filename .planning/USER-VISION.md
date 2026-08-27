@@ -1364,6 +1364,66 @@ against (being told no). It is recorded as an agent choice so Weibao can strike
 it with one sentence if he wants the constraint gone entirely rather than
 replaced.
 
+### 2026-08-27: adaptability and modularity as a coding principle
+
+> make adaptability and modularity a important coding principle, (add to uservisio as well
+
+#### Interpretation recorded 2026-08-27
+
+Separate from the quotation above.
+
+**Status:** active direction, newly stated, with one open question named below.
+
+**Origin, stated plainly because it matters.** This was given in place of an
+answer to the Phase 14B-05 checkpoint (what `manifest.json` carries, and whether
+a package is a plain directory tree, an archive by default, or BagIt). **It is
+recorded here as a standing principle and is NOT read as an answer to that
+checkpoint.** 14B-05 remains unanswered and wave 5 remains stopped. Treating a
+general principle as a specific one-way answer is exactly the silent-default
+pattern every 14B plan forbids.
+
+**Current interpretation:** adaptability and modularity join the small set of
+standing coding principles the project judges designs against, alongside the
+existing one-parser, one-scorer, one-evidence-store invariant and the
+additive-format rule. Concretely, and in the terms this repository already
+uses: a capability should compose rather than special-case; a new medium,
+treatment kind, item type, surface, or backend should enter through a
+registered extension point rather than through a branch inside an existing
+function; a durable artifact should stay readable and reusable by something
+other than the tool that wrote it; and a part should be removable with a
+stated degraded behaviour rather than being load-bearing by accident.
+
+**What it does not license.** Modularity is not a reason to add a second
+parser, a second scorer, or a second evidence store, and adaptability is not a
+reason to leave a durable contract unfrozen. Those two are the standing
+non-negotiables, and this principle is judged inside them rather than against
+them. Where the two genuinely pull apart, for example the 14B-06 freeze
+question (freezing record shapes buys composability for 15A and 16A, and costs
+adaptability if the shapes turn out wrong), the tension is a decision to be
+put to Weibao, not one an agent resolves by citing this entry.
+
+**Open questions:**
+
+1. Whether this is meant as a general standing principle, which is how it is
+   recorded here, or as guidance specifically toward the most modular of the
+   three 14B-05 package shapes. A plain directory tree is the most adaptable
+   and the most independently readable of the three, so the principle does
+   point that way, but the checkpoint is rated by its plan as needing an
+   explicit answer and is being re-asked rather than inferred.
+2. Whether it should become a testable obligation in `REQUIREMENTS.md` (a
+   MAINT-family requirement) or stay a judgement principle. Not decided here.
+
+**Planning effect:** recorded as direction. No requirement is added, no phase
+is opened, and no checkpoint is answered by this entry. It is available to be
+cited in design arguments from 2026-08-27 onward, and under the 2026-08-27
+precedence ruling it outranks a conflicting clause in another document.
+
+**Relationship to prior entries:** extends the 2026-08-13 "keep the goal
+editable" and "complete app flow" entries, and sits beside the 2026-08-09
+constraint relaxation, which already judged ideas on product merit and real
+cost rather than on a fixed stack.
+
+
 ## Interpretation protocol
 
 An interpretation may appear immediately after a verbatim entry when it helps
