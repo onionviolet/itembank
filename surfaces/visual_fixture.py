@@ -372,12 +372,22 @@ OPERATION_PHRASE = {
     "reconcile": "reconciled",
     "restore": "restored",
     "external_edit": "changed outside the app",
+    "migrate": "proposed a change to",
 }
 
 # A write can be reversed from its journalled prior revision; a read cannot,
 # and an external edit was never ours to reverse.
+#
+# `migrate` is the exception to the sentence above, included on Weibao's
+# decision of 2026-08-27. A migration is a proposal carrying its own
+# proposed/accepted/rejected states, so it has no prior revision of bytes to
+# restore and `graph.set_migration_state` is already a typed way to reject one.
+# That makes this the second route to the same outcome, which was put to him as
+# the cost and accepted. Whatever wires this control must therefore reject
+# through the state machine rather than inventing a parallel reversal, or the
+# two paths will disagree about what a rejected migration is.
 UNDOABLE = {"mint", "link", "import", "copy", "move", "edit_in_place",
-            "supersede", "reconcile", "restore"}
+            "supersede", "reconcile", "restore", "migrate"}
 
 
 def live_journal(base):
