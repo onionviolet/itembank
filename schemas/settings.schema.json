@@ -24,7 +24,8 @@
     "check",
     "lti",
     "retention",
-    "subject_profiles"
+    "subject_profiles",
+    "source"
   ],
   "properties": {
     "theme": {
@@ -1530,6 +1531,75 @@
               }
             }
           }
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "description": "How a book, document, page, or transcript becomes a cited source: which bind policy governs the write step, how a captured remote snapshot is stored, whether a private origin may be fetched, and the fetch and intake caps (Phase 14C, plan 14C-01). Searching and reading a source are free under either bind policy; only the write is gated. Read by this phase (14).",
+      "additionalProperties": false,
+      "required": [
+        "allow_private_origins",
+        "bind_policy",
+        "fetch_timeout_seconds",
+        "max_input_bytes",
+        "snapshot_inline_max_bytes",
+        "snapshot_storage"
+      ],
+      "x-itembank-phase": 14,
+      "default": {
+        "bind_policy": "approve_before_bind",
+        "snapshot_storage": "auto",
+        "snapshot_inline_max_bytes": 8388608,
+        "allow_private_origins": false,
+        "fetch_timeout_seconds": 15,
+        "max_input_bytes": 209715200
+      },
+      "properties": {
+        "bind_policy": {
+          "type": "string",
+          "enum": [
+            "approve_before_bind",
+            "auto_fetch"
+          ],
+          "default": "approve_before_bind",
+          "description": "Which policy governs the bind step when an agent actor requests an import. Searching and reading a source are free under both policies; only the write is gated. Under approve_before_bind, an actor_kind of agent must supply confirm: true or the import is refused by name with source.approval_required."
+        },
+        "snapshot_storage": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "inline",
+            "reference"
+          ],
+          "default": "auto",
+          "description": "Whether a captured remote snapshot is copied inline beside the course or cached with a reference. auto picks inline under snapshot_inline_max_bytes and reference above it. The fingerprint is the same either way, so a citation never notices which was used. Read by plan 14C-04."
+        },
+        "snapshot_inline_max_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 268435456,
+          "default": 8388608,
+          "description": "The largest snapshot auto mode stores inline. Above this it stores a reference plus a cache entry instead."
+        },
+        "allow_private_origins": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether the web-capture adapter may fetch a URL whose host resolves to a loopback, private, or link-local address. Default deny: an unknown origin stays refused rather than reachable."
+        },
+        "fetch_timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120,
+          "default": 15,
+          "description": "Wall-clock deadline for one source fetch. A fetch that exceeds it is refused with source.fetch_failed rather than left hanging."
+        },
+        "max_input_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483648,
+          "default": 209715200,
+          "description": "The largest single input file or archive member an adapter will read before refusing with source.oversized. This is an intake cap and is distinct from auditor.MAX_SOURCE_BYTES, which caps the derived text."
         }
       }
     }

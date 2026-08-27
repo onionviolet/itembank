@@ -35,6 +35,18 @@ STAGE_FILES = (
     "schema_validate.py", "selection.py", "retention.py", "resources.py",
     "auditor.py", "authoring.py", "audit_writer.py",
     "runner.py", "subjects.py",
+    # Phase 14A and 14B, added 2026-08-27 by plan 14C-01 Task 4. These
+    # shipped without ever entering the artifact: nothing in `surfaces/`
+    # imported them at module scope, so the built .pyz stayed importable and
+    # the omission stayed invisible. `surfaces/cli.py` now imports identity,
+    # journal, and source_adapters for `itembank source import`, which turned
+    # the latent gap into a hard ImportError inside the .pyz and is how it was
+    # found. discovery is journal's own dependency; course, graph, and
+    # course_package are staged with them so the same class of gap does not
+    # reappear the first time a surface reaches for a course.
+    "identity.py", "journal.py", "discovery.py", "source_adapters.py",
+    "course.py", "graph.py", "course_package.py",
+    "model_adapter.py", "tier_gate.py",
 )
 STAGE_DIRS = ("surfaces", "schemas", "styles", "fonts", "vendor")
 

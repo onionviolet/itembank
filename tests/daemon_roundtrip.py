@@ -1094,6 +1094,53 @@ def check_route_cli_inventory():
                  "surfaces/cli.py" % name)
 
 
+def check_api_source_import_route():
+    """14C-01: `POST /api/source/import` is authority-gated and
+    authority-shaped. A cross-origin POST is 403 and writes nothing; an
+    unlisted body field is a 400 naming that field; an adapter outside the
+    registry is a 400; and a body carrying a filesystem path is refused,
+    because this route addresses a source by opaque id and never by path
+    (T-2-01).
+    """
+    workdir = temp_dir_with(bank=True)
+    proc, url, lines = start_daemon(workdir)
+    try:
+        endpoint = url + "api/source/import"
+        body = {"adapter": "markdown", "source_object_id": "0" * 16}
+
+        status, _ = json_request(endpoint, body,
+                                 headers={"Origin": "http://evil.example"})
+        if status != 403:
+            fail("a cross-origin source import returned %d, expected 403"
+                 % status)
+
+        extra = dict(body)
+        extra["nope"] = 1
+        status, _ = json_request(endpoint, extra)
+        if status != 400:
+            fail("an unlisted field returned %d, expected 400" % status)
+
+        bad = dict(body)
+        bad["adapter"] = "not-an-adapter"
+        status, _ = json_request(endpoint, bad)
+        if status != 400:
+            fail("an unregistered adapter returned %d, expected 400" % status)
+
+        for field in ("path", "out"):
+            pathy = dict(body)
+            pathy[field] = "../etc/passwd"
+            status, _ = json_request(endpoint, pathy)
+            if status != 400:
+                fail("a body carrying %r returned %d, expected 400"
+                     % (field, status))
+
+        for name in os.listdir(workdir):
+            if name.endswith(".locator.json"):
+                fail("a refused source import wrote %s" % name)
+    finally:
+        proc.terminate()
+
+
 def check_cli_twin_route():
     """13-02: `POST /cli-twin` returns the CLI command that reaches the same
     runtime call as a served view path -- the daemon-owned mapping the
@@ -1166,9 +1213,10 @@ def check_api_route_scope():
     and in SURFACE_PARITY with its reserved MCP tool name (Extensibility
     Rule 9(a)).
     """
-    if len(daemon.API_ROUTES) != 12:
+    if len(daemon.API_ROUTES) != 13:
         fail("D-04 + Phase 6 + 06.1-02 + 08-05 + 10-04/10-05 + 09.1 + 09 + 14 "
-             "scope /api/* to exactly twelve routes; API_ROUTES has %d"
+             "+ 14C scope /api/* to exactly thirteen routes, the thirteenth "
+             "being POST /api/source/import; API_ROUTES has %d"
              % len(daemon.API_ROUTES))
     if not {"start", "next", "submit", "hint", "teach", "interact", "report",
             "override", "rubric-review", "export"} <= \
@@ -1183,6 +1231,10 @@ def check_api_route_scope():
     if ("POST", "/api/lesson/run") not in daemon.ROUTE_CLI or \
             daemon.ROUTE_CLI[("POST", "/api/lesson/run")] != "lesson":
         fail("POST /api/lesson/run must map to the lesson CLI twin")
+    if ("POST", "/api/source/import") not in daemon.ROUTE_CLI or \
+            daemon.ROUTE_CLI[("POST", "/api/source/import")] != "source":
+        fail("POST /api/source/import must map to the source CLI twin "
+             "(`itembank source import`)")
 
 
 def check_surface_parity():
@@ -2975,6 +3027,8 @@ def check_cross_origin_gate_on_mutating_routes():
             (url + "api/next", {"session_id": "nope"}),
             (url + "api/submit", {"session_id": "nope", "answer": "B"}),
             (url + "api/report", {"session_id": "nope"}),
+            (url + "api/source/import",
+             {"adapter": "markdown", "source_object_id": "0" * 16}),
         )
         plan_path = os.path.join(workdir, os.path.basename(PLAN))
         log_path = os.path.join(workdir, "daily_log.md")
@@ -3609,6 +3663,7 @@ def main():
         check_cli_twin_route,
         check_disclosure_route,
         check_api_route_scope,
+        check_api_source_import_route,
         check_api_override_route,
         check_api_export_audio,
         check_surface_parity,

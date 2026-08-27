@@ -117,7 +117,10 @@ def test_schema_names_every_project_key():
                 "teaching", "style", "paraphrase", "lti", "check",
                 "subject_profiles", "retention", "audio",
                 # plan 17A-08: the home shape key (shelf default).
-                "home"}
+                "home",
+                # plan 14C-01: the source-adapter group (bind policy,
+                # snapshot storage, fetch and intake caps).
+                "source"}
     if keys != expected:
         fail("schema properties %r do not equal the expected key set %r" % (keys, expected))
     for name, sub in schema["properties"].items():
@@ -544,6 +547,71 @@ def test_phase_4_theme_keys_read_not_inert():
 # ---- structural: SETTINGS_CODES is sorted, deduped, and every code is ------
 # reachable from at least one input this test itself supplies.
 
+def test_source_group_contract():
+    """The six source keys are typed, bounded, defaulted in the schema and in
+    the shipped itembank.json, accept valid values and reject unknown or
+    out-of-range ones, and a file with no source key reads back with every
+    source default present (plan 14C-01 Task 4)."""
+    schema = json.load(open(SCHEMA_PATH, encoding="utf-8"))
+    c = schema["properties"]["source"]
+    if c.get("x-itembank-phase") != 14:
+        fail("source group x-itembank-phase is %r, expected 14"
+             % c.get("x-itembank-phase"))
+    if c.get("additionalProperties") is not False:
+        fail("source group must reject unknown keys")
+    expected_required = ["allow_private_origins", "bind_policy",
+                         "fetch_timeout_seconds", "max_input_bytes",
+                         "snapshot_inline_max_bytes", "snapshot_storage"]
+    if sorted(c.get("required", [])) != expected_required:
+        fail("source required list is %r" % c.get("required"))
+    if c["properties"]["bind_policy"]["default"] != "approve_before_bind":
+        fail("bind_policy default is not approve_before_bind; unknown "
+             "authority must stay restrictive")
+    if c["properties"]["allow_private_origins"]["default"] is not False:
+        fail("allow_private_origins default is not false")
+    if c["properties"]["fetch_timeout_seconds"]["default"] != 15:
+        fail("fetch_timeout_seconds default is not 15")
+    if c["properties"]["max_input_bytes"]["default"] != 209715200:
+        fail("max_input_bytes default is not 209715200")
+    if "source" not in schema.get("required", []):
+        fail("source is not a top-level required key")
+
+    shipped = json.load(open(SETTINGS_ON_DISK, encoding="utf-8"))
+    if shipped.get("source") != c.get("default"):
+        fail("shipped itembank.json source group %r disagrees with schema "
+             "defaults %r" % (shipped.get("source"), c.get("default")))
+
+    base = fresh_base()
+    try:
+        r = run(["set", "source.bind_policy", '"auto_fetch"'], base)
+        if r.returncode != 0:
+            fail("config set source.bind_policy auto_fetch failed: %s"
+                 % (r.stdout + r.stderr))
+        data = json.load(open(settings_file(base), encoding="utf-8"))
+        if data["source"]["bind_policy"] != "auto_fetch":
+            fail("source.bind_policy did not read back: %r" % data["source"])
+        assert_rejected(base, ["set", "source.bind_policy", '"sometimes"'],
+                        "settings.invalid_value")
+        assert_rejected(base, ["set", "source.fetch_timeout_seconds", "0"],
+                        "settings.out_of_range")
+        assert_rejected(base, ["set", "source.nope", "1"],
+                        "settings.unknown_key")
+
+        # A file with no source key at all reads back with every default.
+        nodata = json.load(open(settings_file(base), encoding="utf-8"))
+        nodata.pop("source", None)
+        json.dump(nodata, open(settings_file(base), "w", encoding="utf-8"),
+                  indent=2)
+        loaded = settings.load_settings(base)
+        if sorted(loaded["source"]) != expected_required:
+            fail("a file with no source key did not read back all six "
+                 "defaults: %r" % loaded["source"])
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+    print("ok: source settings group -- six typed, bounded, defaulted keys, "
+          "restrictive by default, and readable when absent")
+
+
 def test_check_group_contract():
     """The four check keys are typed, bounded, defaulted in the schema and in
     the shipped itembank.json,  accepts valid values and rejects
@@ -739,6 +807,7 @@ def main():
     test_theme_preview_readonly_reports_tokens()
     test_phase_4_theme_keys_read_not_inert()
     test_check_group_contract()
+    test_source_group_contract()
     test_teaching_group_contract()
     test_settings_codes_declared()
     # Reachability is checked last, after every other test has had a chance

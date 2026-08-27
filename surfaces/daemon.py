@@ -21,6 +21,7 @@ import resources
 import retention
 import runner
 import selection
+import source_adapters
 import server
 import subjects
 from model import (lesson_slug, load, parse_bank, parse_key_blocks,
@@ -208,6 +209,14 @@ DAY_EDIT_ALLOWED_FIELDS = ("revision", "edits", "force_token", "confirmation",
 # the same authority-shaped-field discipline every mutating route here takes.
 SEED_ACCEPT_ALLOWED_FIELDS = ("bank", "action", "draft")
 
+# The only body fields `POST /api/source/import` reads (plan 14C-01). An
+# adapter name and an opaque object id, never a filesystem path: `path` and
+# `out` are refused here for the same reason `API_FORBIDDEN_FIELDS` refuses
+# them everywhere else, and this route accepts no path field at all.
+SOURCE_IMPORT_ALLOWED_FIELDS = ("adapter", "source_object_id", "url",
+                                "rights_grant", "snapshot_storage",
+                                "preview", "confirm")
+
 # The `/api/*` session routes: D-04's four plus Phase 6's `/api/hint`,
 # plan 06.1-02's `/api/interact`, plan 08-05's `/api/rubric-review`, Phase
 # 10's `/api/override` and `/api/lesson-complete`, Phase 09.1's
@@ -218,7 +227,11 @@ SEED_ACCEPT_ALLOWED_FIELDS = ("bank", "action", "draft")
 # purpose. Fixed literals, not stem-parameterised: a session or a bank is
 # addressed by an opaque identifier in the JSON body (T-2-01), never by a
 # path segment, so there is no `<stem>`/`<id>` group in any of these
-# patterns at all. The twelve-entry length is asserted by
+# patterns at all. Phase 14C's `/api/source/import` is the thirteenth: it
+# turns one linked book, document, page, or transcript into derived Markdown
+# plus a locator sidecar, addressed by an opaque `source_object_id` resolved
+# server-side against the daemon's own journal registry. The thirteen-entry
+# length is asserted by
 # `check_api_route_scope` in `tests/daemon_roundtrip.py`, and every entry
 # is mirrored in ROUTE_CLI and SURFACE_PARITY (Extensibility Rule 9(a)).
 API_ROUTES = (
@@ -234,6 +247,7 @@ API_ROUTES = (
     ("POST", "/api/rubric-review", "handle_api_rubric_review"),
     ("POST", "/api/export_audio", "handle_api_export_audio"),
     ("POST", "/api/lesson/run", "handle_api_lesson_run"),
+    ("POST", "/api/source/import", "handle_api_source_import"),
 )
 
 # Order is load-bearing: every fixed literal route comes before every
@@ -300,6 +314,7 @@ ROUTE_CLI = {
     ("GET", FONT_ASSET_RE): "daemon",
     ("POST", "/api/export_audio"): "export",
     ("POST", "/api/lesson/run"): "lesson",
+    ("POST", "/api/source/import"): "source",
     ("GET", QUIZ_GET_RE): "serve",
     ("POST", QUIZ_ANSWER_RE): "serve",
     ("GET", STUDY_GET_RE): "study",
@@ -335,6 +350,7 @@ SURFACE_PARITY = (
     (("POST", "/api/rubric-review"), "rubric-review", "rubric_review"),
     (("POST", "/api/export_audio"), "export", "export_audio"),
     (("POST", "/api/lesson/run"), "lesson", "lesson_run"),
+    (("POST", "/api/source/import"), "source", "source_import"),
 )
 
 
@@ -460,6 +476,75 @@ def handle_seed_accept(handler):
         return
     handler.send_json({"action": "cancel", "cancelled": True,
                        "summary": seeding.CANCELLED_SUMMARY})
+
+
+def handle_api_source_import(handler):
+    """`POST /api/source/import` -- the daemon half of the one source-import
+    boundary (plan 14C-01). The browser and agent surface is a client of the
+    same `source_adapters.import_source` function `itembank source import`
+    calls: one implementation, two surfaces, never two decisions.
+
+    The body carries an `adapter` name and an opaque `source_object_id`,
+    never a filesystem path (T-2-01). The raw file is resolved server-side
+    from the daemon's own journal registry, so a client can never assert a
+    path, a fingerprint, or a rights record it does not own; the transform
+    right that governs the write is read from that registry inside the
+    journal's own lock and a body field cannot widen it.
+
+    Markdown extracted from a learner-supplied or fetched file is data
+    returned to the caller. It is never instructions this daemon, or any
+    downstream agent reading the response, acts on.
+
+    `preview: true` runs the same extraction and returns the would-be
+    sidecar without writing anything, which is the free read half of the
+    bind-policy pair: searching and reading a source stay free under either
+    policy and only the write is gated.
+    """
+    if _reject_cross_origin_write(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    extra = sorted(k for k in data if k not in SOURCE_IMPORT_ALLOWED_FIELDS)
+    if extra:
+        handler.send_error(
+            400, "field %r is not accepted by /api/source/import; only "
+            "adapter, source_object_id, url, rights_grant, snapshot_storage, "
+            "preview, and confirm are read" % extra[0])
+        return
+    adapter = data.get("adapter")
+    if not isinstance(adapter, str) or \
+            adapter not in source_adapters.ADAPTER_REGISTRY:
+        handler.send_error(
+            400, "adapter must be one of %s"
+            % ", ".join(sorted(source_adapters.ADAPTER_REGISTRY)))
+        return
+    source_object_id = data.get("source_object_id")
+    if not isinstance(source_object_id, str) or not source_object_id:
+        handler.send_error(
+            400, "source_object_id must be the opaque id of a linked object")
+        return
+    base = getattr(handler, "root", None) or os.getcwd()
+    if data.get("preview") is True:
+        try:
+            result = source_adapters.preview_source(
+                base, adapter, source_object_id)
+        except Exception as exc:          # never let a bad POST kill the daemon
+            handler.send_server_error(exc)
+            return
+        handler.send_json(result)
+        return
+    try:
+        # An HTTP client is not a human at a terminal, so the recorded actor
+        # is the agent kind under this daemon's name. The journal entry says
+        # who wrote, and nothing in the body can claim otherwise.
+        result = source_adapters.import_source(
+            base, adapter, source_object_id, "agent", "daemon",
+            rights_grant=data.get("rights_grant"))
+    except Exception as exc:              # never let a bad POST kill the daemon
+        handler.send_server_error(exc)
+        return
+    handler.send_json(result)
 
 
 def scan_dir(root):

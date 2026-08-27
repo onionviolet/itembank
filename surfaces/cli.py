@@ -7,7 +7,10 @@ than an edit here and there.
 import argparse, collections, json, os, re, sys
 
 import evidence
+import identity
+import journal
 import selection
+import source_adapters
 from model import (BANK_FILE_HINTS, SPEC, STYLE_CHECK_CATALOGUE, coverage_map,
                    lint, load, load_style, parse_bank, parse_key_blocks,
                    parse_lesson, parse_sources, parse_terms,
@@ -120,6 +123,84 @@ STYLE FILES (styles/<id>.md)
   is the only legal parent (one inheritance level). Selection precedence is
   lesson -> bank -> subject profile -> house.
 """
+
+
+def cmd_source(a):
+    """`itembank source import` -- the CLI half of the one source-import
+    boundary (plan 14C-01). It reaches exactly the same
+    `source_adapters.import_source` the daemon route reaches; neither surface
+    is the real one and neither extracts anything itself.
+
+    A raw file is linked before it is imported, because linking is what mints
+    the raw object's id and records the learner's rights declaration about a
+    file they already hold. `--grant` applies only to that first link: a
+    later run never overwrites a recorded grant, so widening a right is its
+    own decision rather than a side effect of importing again.
+    """
+    base = os.path.abspath(a.base)
+    rel_path = os.path.relpath(os.path.abspath(
+        os.path.join(base, a.file)), base)
+    grant = None
+    if a.grant:
+        names = [n.strip() for n in a.grant.split(",") if n.strip()]
+        unknown = [n for n in names if n not in identity.RIGHTS_OPERATIONS]
+        if unknown:
+            sys.exit("unknown right %r; the seven rights are: %s"
+                     % (unknown[0], ", ".join(identity.RIGHTS_OPERATIONS)))
+        grant = {op: ("granted" if op in names else "unknown")
+                 for op in identity.RIGHTS_OPERATIONS}
+
+    registry = journal.read_registry(base)
+    raw_object_id = None
+    for object_id, row in registry.items():
+        if row.get("path") == rel_path and row.get("kind") == "source":
+            raw_object_id = object_id
+            break
+    if raw_object_id is None:
+        try:
+            record = journal.op_link(base, "source", rel_path, "human", "cli",
+                                     rights=grant)
+        except journal.JournalError as exc:
+            sys.exit("%s: %s" % (exc.code, exc))
+        raw_object_id = record["object_id"]
+    elif grant is not None:
+        print("note: %s is already linked; its recorded rights stand and "
+              "--grant was not applied" % rel_path)
+
+    if a.preview:
+        result = source_adapters.preview_source(base, a.adapter, raw_object_id)
+    else:
+        try:
+            result = source_adapters.import_source(
+                base, a.adapter, raw_object_id, "human", "cli",
+                rights_grant=grant)
+        except journal.JournalError as exc:
+            sys.exit("%s: %s" % (exc.code, exc))
+
+    if result["status"] != "ok":
+        if a.json:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        else:
+            print("%s: %s" % (result["error"]["code"],
+                              result["error"]["message"]))
+        sys.exit(1)
+
+    if a.json:
+        preview = result.pop("preview", None)
+        if preview is not None:
+            result["preview"] = preview
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    if a.preview:
+        sidecar = result["preview"]["sidecar"]
+        print("%s: %d locators, %d unsupported, nothing written"
+              % (a.adapter, len(sidecar["locators"]),
+                 len(sidecar["unsupported"])))
+        return
+    print("%s -> %s" % (rel_path, result["md_rel_path"]))
+    print("   sidecar: %s" % result["sidecar_rel_path"])
+    print("   source id: %s" % result["source_id"])
+
 
 
 def cmd_spec(a):
@@ -1107,6 +1188,33 @@ def main():
     s.add_argument("--base", default=".",
                    help="directory holding itembank.json (default: current directory)")
     s.set_defaults(fn=cmd_config)
+
+    s = sub.add_parser("source", help="import a book, document, page, or "
+                       "transcript as a cited source")
+    t = s.add_subparsers(dest="action", required=True)
+    si = t.add_parser("import", help="extract one source file into Markdown "
+                      "plus a locator sidecar")
+    si.add_argument("--base", default=".",
+                    help="approved root holding the file and its journal "
+                         "(default: current directory)")
+    si.add_argument("--file", required=True,
+                    help="path to the raw file, relative to --base. A path is "
+                         "accepted here because the CLI is not a network "
+                         "boundary; the daemon route takes an opaque id "
+                         "instead")
+    si.add_argument("--adapter", required=True,
+                    choices=sorted(source_adapters.ADAPTER_REGISTRY),
+                    help="which registered adapter extracts this medium")
+    si.add_argument("--grant", default="",
+                    help="comma-separated rights to record when this file is "
+                         "linked for the first time, from: %s. Omitted rights "
+                         "stay unknown, and unknown is restrictive"
+                         % ", ".join(identity.RIGHTS_OPERATIONS))
+    si.add_argument("--preview", action="store_true",
+                    help="extract and print without writing anything")
+    si.add_argument("--json", action="store_true",
+                    help="emit the result dict as JSON")
+    si.set_defaults(fn=cmd_source)
 
     s = sub.add_parser("theme", help="preview, set, reset, or pick the source accent")
     t = s.add_subparsers(dest="action", required=True)

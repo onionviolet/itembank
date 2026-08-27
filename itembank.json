@@ -139,5 +139,13 @@
       "python": ["{interpreter}", "-I", "{source}"]
     },
     "allow_lan": false
+  },
+  "source": {
+    "bind_policy": "approve_before_bind",
+    "snapshot_storage": "auto",
+    "snapshot_inline_max_bytes": 8388608,
+    "allow_private_origins": false,
+    "fetch_timeout_seconds": 15,
+    "max_input_bytes": 209715200
   }
 }

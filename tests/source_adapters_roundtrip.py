@@ -377,6 +377,73 @@ def check_write_containment():
           "root is refused and nothing is written")
 
 
+def check_cli_and_route_parity():
+    """SURF-04: the CLI command and the daemon route reach the same function
+    rather than two implementations. The same Markdown imported through each,
+    into two separate bases, produces sidecars that are identical once the
+    three fields that are supposed to differ per run are removed."""
+    import subprocess
+    import surfaces.daemon as daemon_module
+
+    body = "# Parity\n\nOne body line.\n- and a list item\n"
+
+    def sidecar_via_cli(base):
+        with open(os.path.join(base, "parity.md"), "w",
+                  encoding="utf-8") as fh:
+            fh.write(body)
+        proc = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "itembank.py"), "source",
+             "import", "--base", base, "--file", "parity.md",
+             "--adapter", "markdown", "--grant",
+             ",".join(identity.RIGHTS_OPERATIONS), "--json"],
+            capture_output=True, text=True, cwd=ROOT)
+        if proc.returncode != 0:
+            fail("parity: the CLI import failed: %s" % (proc.stdout + proc.stderr))
+        result = json.loads(proc.stdout)
+        return json.loads(open(os.path.join(base, result["sidecar_rel_path"]),
+                                encoding="utf-8").read())
+
+    def sidecar_via_module(base):
+        with open(os.path.join(base, "parity.md"), "w",
+                  encoding="utf-8") as fh:
+            fh.write(body)
+        raw_id = link_with_rights(base, "parity.md", all_granted())
+        # The route's own body-shaped call, with the daemon's actor identity.
+        result = source_adapters.import_source(
+            base, "markdown", raw_id, "agent", "daemon")
+        if result["status"] != "ok":
+            fail("parity: the route-shaped import failed: %r" % (result["error"],))
+        return json.loads(open(os.path.join(base, result["sidecar_rel_path"]),
+                                encoding="utf-8").read())
+
+    if not hasattr(daemon_module, "handle_api_source_import"):
+        fail("parity: the daemon has no handle_api_source_import")
+
+    a = tempfile.mkdtemp(prefix="srcadapt-cli-")
+    b = tempfile.mkdtemp(prefix="srcadapt-route-")
+    try:
+        left = sidecar_via_cli(a)
+        right = sidecar_via_module(b)
+        for field in ("source_id", "captured_at"):
+            left.pop(field)
+            right.pop(field)
+        # The fingerprint is over identical derived bytes, so it must AGREE
+        # rather than be removed: two surfaces disagreeing here would mean two
+        # extractions, which is the thing this check exists to refuse.
+        if left["fingerprint"] != right["fingerprint"]:
+            fail("parity: the two surfaces derived different bytes")
+        if left != right:
+            for key in sorted(set(left) | set(right)):
+                if left.get(key) != right.get(key):
+                    fail("parity: the two surfaces disagree on %r: %r vs %r"
+                         % (key, left.get(key), right.get(key)))
+    finally:
+        shutil.rmtree(a, ignore_errors=True)
+        shutil.rmtree(b, ignore_errors=True)
+    print("ok: cli and route parity -- both surfaces reach one function and "
+          "produce one sidecar")
+
+
 if __name__ == "__main__":
     check_thin_slice()
     check_scanned_pdf_is_typed_unsupported()
@@ -387,6 +454,7 @@ if __name__ == "__main__":
     check_no_second_parser()
     check_degrades_without_dependencies()
     check_write_containment()
+    check_cli_and_route_parity()
     print("ok: source adapters -- one typed import boundary, one parser's "
           "span ids, one fingerprint, typed refusals, and a degraded path "
           "that names its install command")
