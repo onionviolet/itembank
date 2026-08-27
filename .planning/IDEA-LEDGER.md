@@ -864,6 +864,47 @@ Amendments to an existing entry are additive notes under the entry, dated.
   already covers it.
 - **Revisit trigger:** first blueprint-driven form assembly.
 
+### IL-20260827-01: Percent permitted on a course card, by owner override
+
+- **Proposal:** Permit a percent character and a progress percentage on a
+  course shelf card, overriding plan 16B-04's prohibition.
+- **Origin:** Weibao, 2026-08-27, verbatim in `USER-VISION.md`: "Percent is
+  fine even if it breaks contract, since uservision over any other contracts
+  and more".
+- **Authority:** the owner, exercising the precedence rule the same statement
+  establishes: `USER-VISION.md` outranks any other contract in this repository.
+  That precedence is the larger half of the ruling and is not limited to
+  percentages.
+- **Evidence considered:** the 2026-08-26 Navigate2 teardown measured a
+  completeness bar at 90.6% self-report and argued a card percentage is a
+  fabricated measurement. That argument stands as an observation about
+  Navigate2 and is overruled as a constraint on itembank. The agent argued the
+  other way on 2026-08-26 and records the reversal rather than softening it.
+- **What was retained without instruction:** every percentage in the mockup is
+  computed from a real numerator over a real denominator the records hold
+  (objectives with an accepted treatment binding, over objectives), and a card
+  whose record cannot be read shows `unknown` rather than a number. Weibao may
+  strike this and ask for a synthesized figure; it was kept only because it was
+  free.
+- **Disposition:** Accepted, owner ruling. Not a proposal awaiting review.
+- **Outstanding amendments, none of them applied yet.** Amending a requirement
+  and a hard rejection is a recorded act, not a side effect of a mockup change,
+  so these are listed rather than edited:
+  1. `REQUIREMENTS.md` GRAPH-03, the clause "no single aggregate completion,
+     mastery, or readiness score is produced".
+  2. Phase 16 synthesis section 12.4, the single-aggregate-score hard
+     rejection. Append-only: overturned by a dated note carrying evidence and
+     authority, never deleted.
+  3. Plan 16B-04: the line 30 must-have truth, the line 39 `status: kept`
+     prohibition, threat T-16B-04-05, and the three percent-absence assertions
+     at lines 301 and 384. Unamended, Phase 16B will fail its own tests.
+  4. IL-20260826-03 above, whose Duplicate disposition rests on GRAPH-03.
+- **Revisit trigger:** before Phase 16B executes. The precondition check already
+  halts on Phase 16A, so there is time, but the amendments must land first.
+- **Reconsideration condition:** none. This is an owner ruling, not an agent
+  recommendation, and it is recorded so that a future agent does not re-argue
+  the 2026-08-26 position as though it were still open.
+
 ## Rejected
 
 ### IL-20260815-04: Plugin-first core (no privileged core; swappable scorer)

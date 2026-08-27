@@ -184,13 +184,24 @@
   .legend span{display:flex; align-items:center; gap:6px;}
   .swatch{width:11px; height:11px; border-radius:3px; border:1px solid var(--line);}
   .swatch.real{background:var(--accent);}
+  .prog{padding:11px 0 0; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:6px;}
+  .pline{display:flex; justify-content:space-between; align-items:baseline; gap:10px;}
+  .plab{font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:var(--mut); font-family:"IBM Plex Mono",monospace;}
+  .pval{font-size:14px; font-weight:600;}
+  .bar{height:6px; border-radius:99px; background:var(--line); overflow:hidden;}
+  .bar i{display:block; height:100%; border-radius:99px; background:var(--accent);}
+  .pnote{font-size:11.5px; color:var(--mut); line-height:1.45;}
+  .override{border-left:3px solid var(--accent); background:var(--panel); padding:14px 16px; border-radius:0 10px 10px 0; margin:0 0 14px;}
+  .override h3{margin:0 0 6px; font-size:14px;}
+  .override p{margin:0 0 7px; font-size:13.5px; color:var(--mut); line-height:1.55;}
+  .override p:last-child{margin-bottom:0;}
   .swatch.illus{background:repeating-linear-gradient(45deg,var(--mut),var(--mut) 2px,transparent 2px,transparent 4px);}
 </style>
 <div class="wrap">
   <header class="top">
     <div class="eyebrow">itembank &middot; APP-01 &middot; plan 16B-04</div>
     <h1>Course shelf</h1>
-    <p class="lede">An illustration of the <strong>already-planned</strong> home surface. Card structure and copy follow plan 16B-04; the tokens are lifted from <code>surfaces/theme.py</code>. Every count below is <strong>read from a real course sidecar</strong> built by <code>fixtures/corpus_14b.py</code> and read back through <code>course.read_course</code>. Not an implementation.</p>
+    <p class="lede">An illustration of the <strong>already-planned</strong> home surface. Card structure and copy follow plan 16B-04, <strong>except the percent prohibition, overridden by the owner on 2026-08-27</strong> and recorded below. Tokens are lifted from <code>surfaces/theme.py</code>. Every count and every ratio is <strong>read from a real course sidecar</strong> built by <code>fixtures/corpus_14b.py</code>, bound through <code>course.bind_treatment</code>, and read back through <code>course.read_course</code>. Not an implementation.</p>
     <div class="legend">
       <span><span class="swatch real"></span>Read from shipped code</span>
       <span><span class="swatch illus"></span>Illustration, marked <em>i</em> on the card</span>
@@ -204,12 +215,20 @@
       <article class="card s-bad">
         <div>
           <h3 class="cname">Meridian Field Response</h3>
-          <div class="cid mono">69a177e0d9ef40c7</div>
+          <div class="cid mono">3c2d606f85ef4487</div>
         </div>
         <span class="chip c-bad"><span class="dot"></span>needs your input<span
           class="mark" title="Illustration. No shipped code computes an attention state.">i</span></span>
         <p class="cue"><span class="lab">Resume<span class="mark"
           title="Illustration. A resume cue must be computed from evidence, which the course sidecar deliberately never touches.">i</span></span>Choose a treatment for objective 2 of 6</p>
+        <div class="prog">
+          <div class="pline">
+            <span class="plab">Objectives with an accepted treatment</span>
+            <span class="pval mono">4 of 6 &middot; 67%</span>
+          </div>
+          <div class="bar"><i style="width:67%"></i></div>
+          <div class="pnote">Real numerator and denominator, read from the sidecar's treatment bindings.</div>
+        </div>
         <div class="areas"><a href="#">Overview</a><a href="#">Learn</a><a href="#">Practice</a><a href="#">Test</a><a href="#">Course map</a><a href="#">Sources</a><a href="#">Build and review</a><a href="#">Evidence</a></div>
         <dl class="facts">
           <div><dt>Objectives</dt><dd class="mono">6</dd></div>
@@ -219,18 +238,26 @@
         </dl>
         <div class="meta">
           <span>Labels: <span class="mono">module</span></span>
-          <span>state <span class="mono">clean</span>, rev <span class="mono">2</span></span>
+          <span>state <span class="mono">clean</span>, rev <span class="mono">6</span></span>
         </div>
       </article>
       <article class="card s-bad">
         <div>
           <h3 class="cname">Orrery Algebra</h3>
-          <div class="cid mono">8300ac0713f044f4</div>
+          <div class="cid mono">68082d0ca30749df</div>
         </div>
         <span class="chip c-bad"><span class="dot"></span>needs reconciliation<span
           class="mark" title="Illustration. No shipped code computes an attention state.">i</span></span>
         <p class="cue"><span class="lab">Resume<span class="mark"
           title="Illustration. A resume cue must be computed from evidence, which the course sidecar deliberately never touches.">i</span></span>Continue Rates of Change, item 3 of 9</p>
+        <div class="prog">
+          <div class="pline">
+            <span class="plab">Objectives with an accepted treatment</span>
+            <span class="pval mono">2 of 5 &middot; 40%</span>
+          </div>
+          <div class="bar"><i style="width:40%"></i></div>
+          <div class="pnote">Real numerator and denominator, read from the sidecar's treatment bindings.</div>
+        </div>
         <div class="areas"><a href="#">Overview</a><a href="#">Learn</a><a href="#">Practice</a><a href="#">Test</a><a href="#">Course map</a><a href="#">Sources</a><a href="#">Build and review</a><a href="#">Evidence</a></div>
         <dl class="facts">
           <div><dt>Objectives</dt><dd class="mono">5</dd></div>
@@ -240,18 +267,26 @@
         </dl>
         <div class="meta">
           <span>Labels: <span class="mono">week, fortnight</span></span>
-          <span>state <span class="mono">clean</span>, rev <span class="mono">2</span></span>
+          <span>state <span class="mono">clean</span>, rev <span class="mono">4</span></span>
         </div>
       </article>
       <article class="card s-warn">
         <div>
           <h3 class="cname">Lantern Computing Foundations</h3>
-          <div class="cid mono">92f4894182914856</div>
+          <div class="cid mono">be2693eacf034498</div>
         </div>
         <span class="chip c-warn"><span class="dot"></span>due<span
           class="mark" title="Illustration. No shipped code computes an attention state.">i</span></span>
         <p class="cue"><span class="lab">Resume<span class="mark"
           title="Illustration. A resume cue must be computed from evidence, which the course sidecar deliberately never touches.">i</span></span>Review 4 drafted items for Values and Names</p>
+        <div class="prog">
+          <div class="pline">
+            <span class="plab">Objectives with an accepted treatment</span>
+            <span class="pval mono">5 of 5 &middot; 100%</span>
+          </div>
+          <div class="bar"><i style="width:100%"></i></div>
+          <div class="pnote">Real numerator and denominator, read from the sidecar's treatment bindings.</div>
+        </div>
         <div class="areas"><a href="#">Overview</a><a href="#">Learn</a><a href="#">Practice</a><a href="#">Test</a><a href="#">Course map</a><a href="#">Sources</a><a href="#">Build and review</a><a href="#">Evidence</a></div>
         <dl class="facts">
           <div><dt>Objectives</dt><dd class="mono">5</dd></div>
@@ -261,7 +296,7 @@
         </dl>
         <div class="meta">
           <span>Labels: <span class="mono">chapter</span></span>
-          <span>state <span class="mono">clean</span>, rev <span class="mono">2</span></span>
+          <span>state <span class="mono">clean</span>, rev <span class="mono">7</span></span>
         </div>
       </article>
       <article class="card s-unknown">
@@ -271,6 +306,10 @@
         </div>
         <span class="chip c-unknown"><span class="dot"></span>Showing last valid overview</span>
         <p class="cue none"><span class="lab">Resume</span>Not started</p>
+        <div class="prog">
+          <div class="pline"><span class="plab">Objectives with an accepted treatment</span><span class="pval mono">unknown</span></div>
+          <div class="pnote">No percentage is shown, because the record could not be read. A percent with no denominator behind it is the one case still worth refusing.</div>
+        </div>
         <div class="recover">
           <a class="btn primary" href="#">Open last valid overview</a>
           <a class="btn" href="#">View files</a>
@@ -282,12 +321,14 @@
   </section>
 
   <section>
-    <h2>Contract check</h2>
-    <div class="check pass" id="pctcheck">
-      <span class="verdict" id="pctverdict">checking</span>
-      <span id="pctmsg">Scanning the shelf for a percent character.</span>
+    <h2>Percent: an owner override, recorded</h2>
+    <div class="override">
+      <h3>Weibao, 2026-08-27</h3>
+      <p>&ldquo;Percent is fine even if it breaks contract, since uservision over any other contracts and more&rdquo;</p>
+      <p>Plan 16B-04 carried a prohibition with <code>status: kept</code> against a percent character on a shelf card, and a second against a single aggregate completion figure. <code>USER-VISION.md</code> is the authoritative intent record and the owner has ruled that it outranks a plan clause. The percentages above are therefore shown deliberately, not by oversight.</p>
+      <p><strong>What was kept anyway, without being asked.</strong> Every percentage has a real numerator over a real denominator that <code>graph.py</code> holds: objectives carrying an accepted treatment binding, over objectives. The ratio is measured back out of the sidecar after <code>course.bind_treatment</code> writes it through the compare-and-swap path. The card with an unreadable record shows <code>unknown</code> rather than a number, because a percent with nothing behind it is a different thing from a percent with a denominator.</p>
+      <p><strong>Blast radius, flagged not resolved.</strong> This clause is not only 16B-04's. <code>REQUIREMENTS.md</code> GRAPH-03 states that no single aggregate completion, mastery, or readiness score is produced; the Phase 16 synthesis carries it as a hard rejection in section 12.4; 16B-04 threat T-16B-04-05 and three of its tests assert the absence of a percent character. Those need amending by the same authority before 16B runs, or the phase will fail its own tests.</p>
     </div>
-    <p class="sec-note">16B-04 asserts that no shelf card, chip, or resume cue contains a percent character, and that no single aggregate completion, mastery, or readiness percentage appears on a card. That prohibition carries <code>status: kept</code>. This page runs the same check against its own DOM.</p>
   </section>
 
   <section>
@@ -324,28 +365,8 @@
   </section>
 
   <footer>
-    <p>Generated by <code>prototypes/16b/build_shelf_mockup.py</code>, built from fixtures/corpus_14b.py via course.read_course. Regenerate with <code>python prototypes/16b/build_shelf_mockup.py &gt; prototypes/16b/course-shelf.html</code>.</p>
+    <p>Generated by <code>prototypes/16b/build_shelf_mockup.py</code>, built from fixtures/corpus_14b.py via course.bind_treatment and course.read_course. Regenerate with <code>python prototypes/16b/build_shelf_mockup.py &gt; prototypes/16b/course-shelf.html</code>.</p>
     <p>Regeneration is byte-identical except for the three course object IDs, which <code>identity.new_object_id()</code> mints fresh on every build. Those lines are the only expected diff; anything else changing means a shipped record shape moved.</p>
     <p>Phase 16B has not started; its precondition check halts on Phase 16A. Phase 14B waves 4 to 6 each carry a blocking human checkpoint. The shelf is plan 16B-04, four plans into a phase that cannot begin yet.</p>
   </footer>
 </div>
-
-<script>
-  (function(){
-    var shelf = document.getElementById('shelf');
-    var box = document.getElementById('pctcheck');
-    var verdict = document.getElementById('pctverdict');
-    var msg = document.getElementById('pctmsg');
-    if(!shelf || !box) return;
-    var hit = (shelf.innerText || '').indexOf('%') !== -1;
-    if(hit){
-      box.classList.remove('pass'); box.classList.add('fail');
-      verdict.textContent = 'FAIL';
-      msg.textContent = 'A percent character appears on the shelf. 16B-04 forbids it.';
-    } else {
-      verdict.textContent = 'PASS';
-      msg.textContent = 'No percent character anywhere on the shelf, across ' +
-        shelf.querySelectorAll('.card').length + ' cards. No aggregate score is rendered.';
-    }
-  })();
-</script>

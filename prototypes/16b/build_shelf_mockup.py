@@ -15,6 +15,15 @@ stores. Container labels, objective counts, source counts, edge counts, course
 object IDs and the journal's object state are therefore real values produced by
 shipped code.
 
+Percentages are shown. Weibao's 2026-08-27 direction overrides plan 16B-04's
+prohibition on a percent character, and `USER-VISION.md` records that user
+vision outranks a contract. Rather than fabricate a ratio, every percentage
+here is computed from a real numerator over a real denominator that `graph.py`
+actually holds: objectives carrying an accepted treatment binding, over
+objectives. The generator binds those treatments itself through
+`course.bind_treatment` after granting the right, so the coverage figure is a
+measured property of the records rather than a decoration.
+
 What is still invented, and is labelled as such in the output:
 
   * the attention state
@@ -51,6 +60,7 @@ sys.path.insert(0, os.path.join(ROOT, "fixtures"))
 
 import corpus_14b
 import course
+import graph
 
 
 # Illustration only. Plan 16B-04 fixes that ATTENTION_ORDER exists and is a
@@ -74,6 +84,15 @@ ILLUSTRATIVE_CUES = [
 ]
 ILLUSTRATIVE_DATES = ["2026-08-26", "2026-08-24", "2026-08-21"]
 
+# How many objectives in each domain get an accepted treatment binding. Chosen
+# so the three cards show different real coverage rather than three identical
+# figures. The bindings are genuine: `course.bind_treatment` writes them through
+# the compare-and-swap path and refuses without the right, so these numerators
+# are measured back out of the sidecar, not asserted here.
+BIND_COUNTS = [4, 2, 5]
+BIND_KINDS = ("guided-lesson", "practice", "direct-reading",
+              "worked-example", "notes-or-terms")
+
 AREAS = ("Overview", "Learn", "Practice", "Test", "Course map",
          "Sources", "Build and review", "Evidence")
 
@@ -83,13 +102,41 @@ EMPTY_BODY = ("Start with the sample course, or bind a source to create your "
               "first course.")
 
 
+def bind_some_treatments(dom, how_many):
+    """Bind real treatments so design coverage is a measured value.
+
+    Grants `read` and `transform` on the domain's source first, because
+    `course.bind_treatment` refuses without the right. That refusal is the
+    point of the rights gate, so the mockup goes through it rather than around.
+    """
+    root = dom["root"]
+    source = dom["source_object_id"]
+    for operation in ("read", "transform"):
+        corpus_14b.grant_right(root, source, operation)
+    objectives = course.read_course(root)["doc"]["objectives"]
+    for n, objective in enumerate(objectives[:how_many]):
+        course.bind_treatment(root, objective["id"], source,
+                              BIND_KINDS[n % len(BIND_KINDS)],
+                              state="accepted", confidence="high",
+                              actor_name="shelf mockup")
+
+
 def read_domains(dest):
     """Build the 14B corpus and return one fact dict per real course."""
     info = corpus_14b.build_three_domains(dest)
     out = []
     for i, dom in enumerate(info["domains"]):
+        bind_some_treatments(dom, BIND_COUNTS[i])
         record = course.read_course(dom["root"])
         doc = record["doc"]
+        # Measured back out of the sidecar rather than taken from BIND_COUNTS,
+        # so a binding that silently failed shows up as a lower number here.
+        treated = len(set(
+            b.get("objective", "") for b in doc["bindings"]
+            if b.get("binding_kind") == "treatment"
+            and b.get("state") == "accepted"))
+        total = len(doc["objectives"])
+        pct = int(round(100.0 * treated / total)) if total else 0
         labels = []
         for container in doc["structure"]:
             label = container.get("label", "")
@@ -107,6 +154,8 @@ def read_domains(dest):
             "objectives": len(doc["objectives"]),
             "sources": len(doc["sources"]),
             "edges": len(doc["edges"]),
+            "treated": treated,
+            "pct": pct,
             "attention": ILLUSTRATIVE_ATTENTION[i][0],
             "tone": ILLUSTRATIVE_ATTENTION[i][1],
             "cue": ILLUSTRATIVE_CUES[i],
@@ -132,6 +181,14 @@ def card(facts):
           class="mark" title="Illustration. No shipped code computes an attention state.">i</span></span>
         <p class="cue"><span class="lab">Resume<span class="mark"
           title="Illustration. A resume cue must be computed from evidence, which the course sidecar deliberately never touches.">i</span></span>{cue}</p>
+        <div class="prog">
+          <div class="pline">
+            <span class="plab">Objectives with an accepted treatment</span>
+            <span class="pval mono">{treated} of {objectives} &middot; {pct}%</span>
+          </div>
+          <div class="bar"><i style="width:{pct}%"></i></div>
+          <div class="pnote">Real numerator and denominator, read from the sidecar's treatment bindings.</div>
+        </div>
         <div class="areas">{areas}</div>
         <dl class="facts">
           <div><dt>Objectives</dt><dd class="mono">{objectives}</dd></div>
@@ -150,7 +207,8 @@ def card(facts):
         objectives=facts["objectives"], containers=facts["containers"],
         edges=facts["edges"], sources=facts["sources"],
         labels=esc(labels), state=esc(facts["state"]),
-        revision=facts["revision"])
+        revision=facts["revision"], treated=facts["treated"],
+        pct=facts["pct"])
 
 
 def degraded_card():
@@ -163,6 +221,10 @@ def degraded_card():
         </div>
         <span class="chip c-unknown"><span class="dot"></span>Showing last valid overview</span>
         <p class="cue none"><span class="lab">Resume</span>Not started</p>
+        <div class="prog">
+          <div class="pline"><span class="plab">Objectives with an accepted treatment</span><span class="pval mono">unknown</span></div>
+          <div class="pnote">No percentage is shown, because the record could not be read. A percent with no denominator behind it is the one case still worth refusing.</div>
+        </div>
         <div class="recover">
           <a class="btn primary" href="#">Open last valid overview</a>
           <a class="btn" href="#">View files</a>
@@ -201,7 +263,8 @@ def main():
     dest = tempfile.mkdtemp(prefix="shelf-mockup-")
     try:
         domains = read_domains(dest)
-        stamp = "built from fixtures/corpus_14b.py via course.read_course"
+        stamp = ("built from fixtures/corpus_14b.py via course.bind_treatment "
+                 "and course.read_course")
         sys.stdout.write(render(domains, stamp))
     finally:
         shutil.rmtree(dest, ignore_errors=True)

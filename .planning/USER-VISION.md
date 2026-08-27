@@ -1283,6 +1283,74 @@ This correction is recorded because the same mistake is cheap to repeat: the
 planning documents describe the product, and the shipped code is ahead of the
 part of them a fresh reader lands on first.
 
+### 2026-08-27: percent is permitted, and user vision outranks a contract clause
+
+> Percent is fine even if it breaks contract, since uservision over any other contracts and more
+
+#### Interpretation recorded 2026-08-27
+
+Separate from the quotation above. Recorded by the agent, who had argued the
+other way the previous day and is recording the reversal rather than softening
+it.
+
+**Two rulings, and the second is larger than the first.**
+
+**Ruling one, the narrow one.** A percent character and a progress percentage
+may appear on a course card. This overrides plan 16B-04's must-have truth that
+"no shelf card, chip, or resume cue contains a percent character", and its
+prohibition, carried at `status: kept`, that "a single aggregate completion,
+mastery, or readiness percentage must not appear on a course card". Both were
+written by the agent-side planning process, not by Weibao, and he has now ruled
+against them.
+
+**Ruling two, the standing one.** `USER-VISION.md` outranks any other contract
+in this repository. This is a precedence rule and it applies beyond percentages.
+It resolves a question the planning documents never stated: `USER-VISION.md`
+already described itself as the authoritative intent record, but nothing said
+what happens when it conflicts with `REQUIREMENTS.md`, a phase plan's
+`status: kept` prohibition, or a hard rejection in the Phase 16 synthesis. The
+answer is that the vision wins and the other document is amended to match.
+
+**What this costs, stated once and then acted on.** The 2026-08-26 teardown
+measured Navigate2's completeness bar at 90.6% self-report and argued from that
+that a single card percentage is a fabricated measurement presented as fact.
+That argument is not withdrawn as an observation about Navigate2; it is
+overruled as a constraint on itembank. The risk it names is real: a percentage
+invites a learner to read it as attainment. Weibao has weighed that and decided
+a percentage is worth more than the risk, and that is a legitimate owner
+judgment about his own tool rather than a mistake to be argued down twice.
+
+**One distinction the agent kept without being asked, and which Weibao may
+strike.** Navigate2's failure was not the percent character; it was a
+percentage with no honest denominator behind it. The mockup therefore shows
+percentages that are computed from a real numerator over a real denominator the
+records actually hold: objectives carrying an accepted treatment binding, over
+objectives. The card whose record cannot be read shows `unknown` instead of a
+number. If Weibao wants a synthesized cross-dimension figure as well, or wants
+the denominator dropped, that is a further instruction and it will be followed;
+the distinction is preserved here only because it was free.
+
+**Blast radius, flagged rather than silently applied.** The clause overridden
+is not only 16B-04's, and the agent has NOT edited the other documents, because
+amending a requirement and a hard rejection is a recorded act rather than a
+side effect of a mockup change. These need amending by the same authority
+before Phase 16B executes, or the phase will fail its own tests:
+
+- `REQUIREMENTS.md` **GRAPH-03**: "no single aggregate completion, mastery, or
+  readiness score is produced". This is a requirement, not a plan clause.
+- Phase 16 synthesis section **12.4**, which carries the single-aggregate-score
+  rejection in the permanent hard-rejection ledger. Under the append-only rule
+  it is overturned by a dated note with evidence and authority, never deleted.
+- Plan **16B-04**: the line 30 must-have, the line 39 prohibition, threat
+  **T-16B-04-05** ("an invented progress figure presented as a measurement"),
+  and the three tests at line 301 and line 384 that assert a percent character
+  appears in no chip, cue, or CTA.
+- `IDEA-LEDGER.md` **IL-20260826-03**, whose disposition rests on GRAPH-03.
+
+**Planning effect.** The mockup at `prototypes/16b/` shows percentages as of
+today. The requirement, synthesis, and plan amendments are outstanding and are
+listed in `IDEA-LEDGER.md` IL-20260827-01.
+
 ## Interpretation protocol
 
 An interpretation may appear immediately after a verbatim entry when it helps

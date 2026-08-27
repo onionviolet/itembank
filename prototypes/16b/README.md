@@ -38,7 +38,8 @@ makes this a cheap canary on `graph.py` and `course.py`.
 
 **Read from shipped code:** course titles, course object IDs, container counts
 and their free-text labels (including the corpus's deliberate `fortnight`),
-objective counts, edge counts, source counts, and the journal object state and
+objective counts, edge counts, source counts, accepted treatment bindings and
+the coverage ratio computed from them, and the journal object state and
 revision.
 
 **Illustration, marked with an `i` on the card:** the attention state, the
@@ -56,9 +57,21 @@ So the structural half of the shelf is fully backed by shipped code today, and
 the attention-and-resume half, which is what makes a shelf worth looking at, has
 no data behind it yet.
 
-## Contract check
+## Percent, and the owner override
 
-The page runs 16B-04's own percent-character assertion against its own DOM:
-no shelf card, chip, or resume cue may contain a percent character, and no
-single aggregate completion, mastery, or readiness score may appear. That
-prohibition carries `status: kept` in the plan.
+Plan 16B-04 prohibited a percent character on a shelf card at `status: kept`.
+Weibao overrode that on 2026-08-27, ruling that `USER-VISION.md` outranks any
+other contract in this repository. Percentages are therefore shown here
+deliberately.
+
+Every percentage has a real numerator over a real denominator: objectives
+carrying an accepted treatment binding, over objectives. The generator writes
+those bindings itself through `course.bind_treatment`, after granting the right
+so the rights gate is exercised rather than bypassed, then measures the ratio
+back out of the sidecar. A card whose record cannot be read shows `unknown`
+rather than a number.
+
+**Amendments still outstanding**, listed in `IDEA-LEDGER.md` IL-20260827-01 and
+not applied: `REQUIREMENTS.md` GRAPH-03, Phase 16 synthesis section 12.4, and
+plan 16B-04's own must-have, prohibition, threat T-16B-04-05 and three
+percent-absence tests. Unamended, Phase 16B will fail its own tests.

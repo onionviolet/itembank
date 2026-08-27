@@ -57,6 +57,13 @@ the specimen supplies the field measurement that shows the principle is not
 fussiness. That measurement is the note's main contribution and belongs in any
 future defence of the clause.
 
+**Overridden 2026-08-27.** Weibao ruled that a percent is permitted even where
+it breaks a contract clause, and that `USER-VISION.md` outranks any other
+contract. Section 2 above is therefore superseded as a constraint, though the
+90.6% measurement remains accurate as an observation about Navigate2. See
+`USER-VISION.md` 2026-08-27 and `IDEA-LEDGER.md` IL-20260827-01, which lists the
+requirement, synthesis, and plan amendments still outstanding.
+
 **The replacement is also better than what this teardown proposed.** A
 qualitative attention state plus an exact resume cue answers "what should I do
 about this course" directly, where any percentage answers a question the learner
