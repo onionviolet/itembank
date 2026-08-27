@@ -74,14 +74,21 @@ OPERATION_TYPES = ("link", "import", "copy", "move", "edit_in_place",
                     "supersede")
 
 # The full set of `operation` values a journal entry may carry: the six
-# operation types above, plus the four this plan's own machinery writes
+# operation types above, plus the five this module's own machinery writes
 # ("mint" for a brand-new object, "restore" for an undo, "external_edit" for
-# a detected out-of-band change, and "reconcile" for a recorded human
-# decision that clears a conflict). None of these four are added to
-# OPERATION_TYPES, which stays exactly the six FILE-03 names so a caller can
-# test membership against the frozen vocabulary.
+# a detected out-of-band change, "reconcile" for a recorded human decision
+# that clears a conflict, and "migrate" for a recorded course migration
+# proposal). None of these five are added to OPERATION_TYPES, which stays
+# exactly the six FILE-03 names so a caller can test membership against the
+# frozen vocabulary.
+#
+# "migrate" was deferred out of Phase 14A by 14A-03-PLAN.md and routed to
+# Phase 14B, which adds it here. OPERATION_TYPES stays at exactly six because
+# 14A-FREEZE.md names the six operation names in its Frozen list, so a
+# seventh member would be a one-way amendment to a freeze Phase 14B does not
+# own. This is the same additive path "reconcile" took in 14A-03.
 RECORD_TYPES = OPERATION_TYPES + ("mint", "restore", "external_edit",
-                                  "reconcile")
+                                  "reconcile", "migrate")
 
 # The journal entry key order, fixed. Every entry this module writes carries
 # exactly this key set, in exactly this order, so `list(entry.keys())` is

@@ -314,6 +314,8 @@ EXPECTED_PUBLIC_API = [
     "treatment_right", "upgrade_0_to_1", "upgrade_document", "validate_binding",
     "validate_edge", "validate_order", "add_binding", "add_source",
     "overlay_objective",
+    # 14B-04
+    "add_migration", "migration_proposal", "set_migration_state",
 ]
 EXPECTED_PUBLIC_API = sorted(EXPECTED_PUBLIC_API)
 
@@ -906,6 +908,135 @@ def check_version_migration():
            "a gap in the upgrade chain")
 
 
+# ------------------------------------------------------------------ 14B-04
+
+def _hex16(value, what):
+    if len(value) != 16 or any(c not in "0123456789abcdef" for c in value):
+        fail("%s: want sixteen lowercase hex characters, got %r" % (what, value))
+
+
+def check_migration():
+    # ------------------------------------------- the journal vocabulary
+    eq(journal.OPERATION_TYPES,
+       ("link", "import", "copy", "move", "edit_in_place", "supersede"),
+       "the six frozen operation names are unchanged by this phase")
+    eq(len(journal.OPERATION_TYPES), 6,
+       "OPERATION_TYPES stays at exactly six members")
+    if "migrate" not in journal.RECORD_TYPES:
+        fail("migrate must be a member of journal.RECORD_TYPES")
+    eq(len(journal.RECORD_TYPES), len(journal.OPERATION_TYPES) + 5,
+       "RECORD_TYPES adds mint, restore, external_edit, reconcile, migrate")
+
+    # ------------------------------------------- the proposal
+    eq(graph.MIGRATION_KINDS,
+       ("split", "merge", "rename", "demand-change", "overlay"),
+       "the five migration kinds")
+    eq(graph.MIGRATION_STATES, ("proposed", "accepted", "rejected"),
+       "the three migration states")
+    eq(graph.EVIDENCE_CLAIM_STATES, ("unknown", "present"),
+       "the two evidence claim states")
+
+    one = identity.new_object_id()
+    two = identity.new_object_id()
+    three = identity.new_object_id()
+    proposal = graph.migration_proposal(
+        "split", [one], [two, three],
+        "the original objective asked for two separable things", "weibao")
+    eq(sorted(proposal.keys()),
+       sorted(["migration_id", "kind", "from", "to", "rationale", "state",
+               "actor", "timestamp"]),
+       "a proposal carries exactly the eight recorded fields")
+    eq(proposal["state"], "proposed", "a proposal is minted proposed")
+    eq(proposal["kind"], "split", "the proposal names its kind")
+    eq(proposal["from"], one, "the proposal names what it moves from")
+    eq(proposal["to"], two + " " + three,
+       "several ids are written space separated in one cell")
+    eq(proposal["actor"], "weibao", "the proposal names its actor")
+    _hex16(proposal["migration_id"], "the minted migration id")
+
+    for empty in ("", "   ", "\t\n"):
+        raises(lambda empty=empty: graph.migration_proposal(
+                   "split", [one], [two], empty, "weibao"),
+               graph.GraphError, "graph.empty_rationale",
+               "a proposal with rationale %r" % empty)
+    raises(lambda: graph.migration_proposal("refactor", [one], [two], "why",
+                                            "weibao"),
+           graph.GraphError, "graph.unknown_migration_kind",
+           "a kind outside the closed vocabulary")
+
+    try:
+        graph.migration_proposal("split", [one], [two], "why", "weibao",
+                                 state="accepted")
+    except TypeError:
+        pass
+    except Exception as err:                                 # noqa: BLE001
+        fail("minting an accepted proposal: want TypeError, got %s: %s"
+             % (type(err).__name__, err))
+    else:
+        fail("graph.migration_proposal must take no state argument at all")
+
+    # ------------------------------------------- the recorded migration
+    tmp = tempfile.mkdtemp(prefix="graph_migrate_")
+    try:
+        built = corpus_14b.build_three_domains(tmp)
+        domain = [d for d in built["domains"]
+                  if d["slug"] == "lantern-computing"][0]
+        root = domain["root"]
+        before = course.read_course(root)
+
+        doc = before["doc"]
+        recorded = graph.add_migration(doc, proposal)
+        raises(lambda: graph.set_migration_state(doc, proposal["migration_id"],
+                                                 "accepted"),
+               graph.GraphError, "graph.migration_state_not_settable",
+               "setting a recorded proposal to accepted")
+        eq(recorded["state"], "proposed",
+           "a refused acceptance leaves the row proposed")
+
+        demand = graph.migration_proposal(
+            "demand-change", [domain["objectives"][0]],
+            [domain["objectives"][0]],
+            "the objective now asks for application rather than recall",
+            "weibao")
+        revision = course.record_migration(root, demand, "agent",
+                                           "claude-code")
+        eq(revision["revision"], (before["revision"] or 0) + 1,
+           "a recorded migration is one new revision")
+
+        back = course.read_course(root)
+        rows = [m for m in back["doc"]["migrations"]
+                if m["migration_id"] == demand["migration_id"]]
+        eq(len(rows), 1, "the proposal round trips as exactly one sidecar row")
+        for field in ("kind", "from", "to", "rationale", "state", "actor",
+                      "timestamp"):
+            eq(rows[0][field], demand[field],
+               "the %s field survives the sidecar round trip" % field)
+
+        operations = [e["operation"] for e in journal.entries(root)]
+        if "migrate" not in operations:
+            fail("a recorded migration appends a migrate journal entry")
+        eq(journal.replay(root)["interrupted"], [],
+           "a recorded migration leaves no interrupted entry")
+
+        raises(lambda: journal.commit_operation(
+                   base=root, object_id=identity.new_object_id(),
+                   kind="course", rel_path="nothing.md",
+                   operation="synchronize", new_bytes=b"x",
+                   expected_fingerprint=None, actor_kind="agent",
+                   actor_name="claude-code", create_if_missing=True),
+               journal.JournalError, "journal.unknown_operation",
+               "an operation outside the vocabulary this phase opened by one")
+    finally:
+        corpus_14b.teardown(tmp)
+
+    # ------------------------------------------- the structural boundary
+    if hasattr(course, "evidence"):
+        fail("course.py must not import evidence; a migration never "
+             "transfers evidence, and that must be structural")
+    if hasattr(graph, "evidence"):
+        fail("graph.py must not import evidence")
+
+
 def main():
     started = time.time()
     check_thin_slice()
@@ -916,6 +1047,7 @@ def main():
     check_bindings_and_rights()
     check_overlays()
     check_version_migration()
+    check_migration()
     elapsed = time.time() - started
     print("OK graph_roundtrip (%.2fs)" % elapsed)
 

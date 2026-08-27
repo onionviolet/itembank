@@ -213,6 +213,28 @@ def migrate_stub(course_root, actor_kind, actor_name):
     }
 
 
+def record_migration(course_root, proposal, actor_kind, actor_name):
+    """Append one reviewed migration proposal to the course sidecar through
+    the frozen 14A compare-and-swap path, journaled as `migrate`.
+
+    This function touches no evidence. `course.py` deliberately does not
+    import `evidence`, so a migration cannot transfer a learner's recorded
+    history even by accident: the rule is enforced by the module boundary
+    rather than by care. Historical evidence stays on the identity it was
+    recorded against, and the new identity reads `unknown` until real
+    evidence is recorded against it (GRAPH-04's degraded clause).
+
+    `migrate` is a journal record type and not a seventh operation type
+    (D-14B-3): `journal.OPERATION_TYPES` stays at exactly six, which is what
+    14A-FREEZE.md froze.
+    """
+    read = read_course(course_root)
+    doc = read["doc"]
+    graph.add_migration(doc, proposal)
+    return write_course(course_root, doc, read["fingerprint"], actor_kind,
+                        actor_name, operation="migrate")
+
+
 def rights_for_binding(base, source_object_id, operation):
     """The CURRENT rights state of `operation` on `source_object_id`, read
     from the journal registry at the moment of the call.

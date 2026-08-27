@@ -122,6 +122,26 @@ SOURCE_BINDING_RIGHT = "read"
 
 OBJECTIVE_ORIGINS = ("local", "imported")
 
+# GRAPH-04's five triggers. A split, a merge, a rename, a changed demand, and
+# an overlay are all the same shape of fact: identity moved, and a reviewer
+# has to be able to see why. "demand-change" is carried as a kind and nothing
+# more: no artifact this phase read defines a demand vocabulary, so none is
+# invented here.
+MIGRATION_KINDS = ("split", "merge", "rename", "demand-change", "overlay")
+
+# Phase 14B records proposals only. "accepted" and "rejected" are named so
+# the vocabulary is complete in one place and a later reviewer surface does
+# not invent a second spelling; no code path in this phase produces either.
+MIGRATION_STATES = ("proposed", "accepted", "rejected")
+
+MIGRATION_PROPOSED = "proposed"
+
+# The only two things this module will ever say about evidence. Two state
+# words, never a count, a percentage, a completion, or a mastery value:
+# GRAPH-03 forbids the graph from producing an aggregate, and a vocabulary of
+# exactly two words is how that is enforced rather than merely intended.
+EVIDENCE_CLAIM_STATES = ("unknown", "present")
+
 
 SECTION_ORDER = ("Course", "Structure", "Objectives", "Sources", "Edges",
                  "Bindings", "Migrations", "Log")
@@ -841,6 +861,80 @@ def overlay_objective(doc, imported_objective_id, statement, actor):
         "actor": actor,
         "timestamp": identity.utc_now()}))
     return record
+
+
+def migration_proposal(kind, from_ids, to_ids, rationale, actor):
+    """One reviewed migration proposal, as a plain dict of eight fields.
+
+    A proposal is reviewed and never automatic. It carries the same
+    recorded-human-decision posture `journal.reconcile` uses: the record
+    names who proposed it and why, so a reviewer reading the sidecar months
+    later can evaluate it without the conversation that produced it.
+
+    Nothing in Phase 14B accepts a proposal. This function takes no `state`
+    argument at all, so `state="accepted"` is a `TypeError` rather than a
+    value that has to be checked, and the returned `state` is always
+    `proposed`. Acceptance belongs to a reviewer and is Phase 15B's work.
+
+    A proposal moves identity. It does not move, copy, relink, or rewrite a
+    single evidence event, and this module cannot: `graph.py` imports no
+    `evidence` module and performs no file input or output.
+    """
+    if kind not in MIGRATION_KINDS:
+        raise GraphError(
+            "graph.unknown_migration_kind",
+            "%s is not one of the migration kinds split, merge, rename, "
+            "demand-change, or overlay" % kind)
+    if not str(rationale).strip():
+        raise GraphError(
+            "graph.empty_rationale",
+            "a migration proposal needs a rationale a reviewer can evaluate; "
+            "an empty rationale is refused")
+    return {
+        "migration_id": identity.new_object_id(),
+        "kind": kind,
+        "from": _id_cell(from_ids),
+        "to": _id_cell(to_ids),
+        "rationale": rationale,
+        "state": MIGRATION_PROPOSED,
+        "actor": actor,
+        "timestamp": identity.utc_now(),
+    }
+
+
+def _id_cell(ids):
+    """Several object ids in one table cell, space separated, in the order
+    given. Never sorted: the order a split was proposed in is part of what
+    was proposed."""
+    if isinstance(ids, str):
+        return ids
+    return " ".join(ids)
+
+
+def add_migration(doc, proposal):
+    """Append one proposal to the `## Migrations` table, in authored order.
+
+    Rows are never sorted and never rewritten, so the migration table reads
+    as the history it is.
+    """
+    record = new_record("Migrations", dict(proposal))
+    doc["migrations"].append(record)
+    return record
+
+
+def set_migration_state(doc, migration_id, state):
+    """Refuse, by name, every attempt to settle a proposal in this phase.
+
+    This function exists so the refusal has somewhere to live: a caller
+    reaching for a way to accept a proposal finds a named refusal that says
+    where acceptance actually belongs, rather than an absent function it
+    might be tempted to add.
+    """
+    raise GraphError(
+        "graph.migration_state_not_settable",
+        "a migration state is set by a reviewer at acceptance time, and "
+        "Phase 14B implements no acceptance path; a proposal is recorded as "
+        "proposed and stays proposed")
 
 
 def upgrade_0_to_1(doc):
