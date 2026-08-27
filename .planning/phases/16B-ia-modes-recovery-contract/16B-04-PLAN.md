@@ -379,6 +379,23 @@ record, which is what a real unparseable sidecar does.
    - When the module is `None`, return
      `{"available": False, "cards": [], "empty_heading": SHELF_EMPTY_HEADING,
        "empty_body": SHELF_EMPTY_BODY}`.
+   - **Amendment 2026-08-27, FILE-04 accepted.** The set of courses is no
+     longer this plan's to define. `REQUIREMENTS.md` FILE-04 names the workspace
+     as the source of that set: an ordered list of approved roots plus one
+     member entry per course pinned by `course_object_id`, with the walked index
+     derived and disposable. When a workspace record exists, the shelf reads its
+     members and must reconcile a moved or renamed course by pinned id, must
+     render an unreachable root's courses from the last valid index marked
+     unavailable rather than dropping them, and must surface a pinned id that
+     disagrees with the sidecar at its path as a conflict without writing. The
+     directory-scan behaviour described below is retained **only** as FILE-04's
+     documented degraded mode, reached when no record exists or its root list is
+     empty. The basename fallback for `course_id` in the next bullet is
+     name-based identity, which FILE-03 forbids; under FILE-04 an unreadable or
+     id-less sidecar is a degraded card, never a course keyed by its folder
+     name. This amendment supersedes the previously unflagged assumption at
+     these lines, recorded in IDEA-LEDGER IL-20260826-01.
+
    - Otherwise list `root`'s immediate subdirectories, sorted, and keep those
      containing a file named `course.COURSE_SIDECAR_FILENAME`. For each, call
      `course.read_course(<that directory>)` inside a `try`.
@@ -692,6 +709,15 @@ Refused by this plan, by name:
   are 17A rendering decisions; concurrency is confirmed by plan 16B-09's
   interruption fixture. At verification time, no explicit evidence for a
   backstop row is `insufficient_spec` and needs a human, never a silent pass.
+
+- **Resolved 2026-08-27, previously unflagged.** This plan assumed the daemon
+  root's immediate subdirectories *are* the workspace, and fell back to the
+  directory basename for course identity. That assumption was never listed here.
+  It is now answered by `REQUIREMENTS.md` FILE-04 rather than by this plan; see
+  the amendment in Task 2. FILE-04 is accepted but unscheduled, so if it has not
+  shipped when this plan executes, the scan path runs as FILE-04's degraded mode
+  and the summary must say so explicitly rather than presenting it as the
+  contract.
 </flagged_assumptions>
 
 <summary_obligations>

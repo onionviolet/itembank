@@ -331,6 +331,62 @@ selection. FILE-04 is therefore accepted in principle and unscheduled. It is
 is an agent reading of an ambiguous reply and one confirming word from Weibao
 should precede a write to the binding requirement document.
 
+### Confirmation, 2026-08-27
+
+The three open items below were closed the same day. **Section 9's answer and
+interpretation above are untouched**; this section records what happened next.
+
+#### Quoted verbatim
+
+> Make judgement accordingly to user vision and future expnandabiliuty and
+> improvabnility as needed and more
+
+#### Interpretation recorded 2026-08-27
+
+Separate from the quotation. Read as: **confirm the section 9 reading and act on
+it**, deciding the delegated details against the user vision and against future
+expandability. This is taken as the one confirming word section 9 said should
+precede a write to `REQUIREMENTS.md`, because the criterion he names is the same
+criterion that separates the three shapes.
+
+**Open item 1, the shape reading: confirmed.** Shape C is the only one of the
+three that is expandable, which is the axis he named. Shape A cannot hold more
+than one root, so it forecloses the arrangement `SOURCE-TO-COURSE.md` and the
+2026-08-13 vision entry both assume, a book in a vault and a bank beside it.
+Shape B forecloses nothing but competes for authority. Shape C forecloses
+neither: A is its degraded mode and B is a derived projection of it.
+
+**Open item 2, the phase: still deferred, deliberately.** The owner selected
+"decide after the 14B freeze" and this confirmation does not override that
+selection. FILE-04's traceability row reads Unscheduled.
+
+**Open item 3, the record format and location: decided by the agent, as
+delegated.** JSON at `_journal/workspace.json`, validated by
+`schemas/workspace.schema.json`, mutated only through `journal.commit_operation`.
+Rationale, on the expandability axis: it sits with the existing machine-local
+state (`_journal/objects.json`) rather than with user-authored Markdown, which
+keeps the dual-form rule honest, since the workspace is not a document a learner
+edits; adding a field to a schema-validated JSON record is additive, whereas
+adding one to an authored Markdown format is a parser change; and colocating it
+under `_journal/` makes the `course_package` exclusion structural rather than a
+rule someone must remember. **This is an agent choice, not Weibao's**, and is
+reversible before FILE-04 is scheduled.
+
+#### What was written on this confirmation
+
+1. `REQUIREMENTS.md`: `FILE-04` inserted under the FILE family, with section 9's
+   added degraded clause (absent record or empty root list is not an error).
+2. `REQUIREMENTS.md`: traceability row `FILE-04 | Unscheduled (phase chosen
+   after the 14B freeze) | Pending`.
+3. `REQUIREMENTS.md`: a dated pointer under FILE-01, its text unchanged.
+4. `IDEA-LEDGER.md` IL-20260826-01: disposition Registered -> Core, by dated
+   note. Nothing above it rewritten, per append-only.
+5. `16B-04-PLAN.md`: Task 2 amendment naming FILE-04 as the source of the course
+   set, and the previously unflagged assumption added to `<flagged_assumptions>`
+   as resolved. No executed plan was touched.
+
+Nothing here opens a phase, and no code was written.
+
 ### What is still open
 
 1. Whether the interpretation above is what Weibao meant. One word settles it.

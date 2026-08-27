@@ -698,6 +698,19 @@ Amendments to an existing entry are additive notes under the entry, dated.
     is at least a chosen one.
   - **Revisit trigger, sharpened:** Weibao answering the proposal, or plan
     16B-04 being scheduled, whichever comes first.
+- **Note 2026-08-27, accepted. Disposition moves Registered -> Core.** Weibao
+  answered the proposal the day it was drafted ("attempt all of them, or using
+  the most optimal one, with room for other ones if we need to") and confirmed
+  the agent's reading on 2026-08-27 with the instruction to judge by the user
+  vision and by future expandability and improvability. The workspace level
+  landed as **FILE-04** in `REQUIREMENTS.md`, built as shape C, a registry of
+  approved roots plus a derived course index. Shape A survives as FILE-04's
+  documented degraded mode (no record or no roots degrades to a single-root
+  scan), and shape B survives as a derived, read-only Markdown projection and
+  never as a second authored authority. Nothing above is rewritten; the
+  2026-08-26 narrowing and the 2026-08-27 pending note stand as recorded.
+  **Phase is deliberately still unassigned**, per the owner's selection to
+  decide it after the 14B freeze; the traceability row reads Unscheduled.
 - **Note 2026-08-27, owner answered the proposal the same day.** Disposition
   moves from Registered, narrowed, to **Core in principle and unscheduled**.
   Quoted verbatim on the shape question: "attempt all of them, or using the most

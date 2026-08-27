@@ -472,6 +472,9 @@ staged implementation (per synthesis sections 1 and 12).
   external-edit tracer's synthetic multi-root tree (vault, source, bank, and
   note directories of fictional files), with one root made unreachable to assert
   the course opens over the last valid index.
+  *Pointer added 2026-08-27: FILE-01's degraded clause becomes implementable
+  under FILE-04, which persists the index the clause needs. FILE-01's text is
+  unchanged.*
 
 - [ ] **FILE-02**: Discovery is read-only, root-bounded, cancellable, resumable,
   symlink-safe, and useful before completion; it never grants transmit, transform,
@@ -494,6 +497,29 @@ staged implementation (per synthesis sections 1 and 12).
   bytes, exercising link, import, copy, move, and supersede as distinct
   journaled operations and asserting the name match is surfaced, never auto-
   merged.
+
+- [ ] **FILE-04**: A workspace names the learner's set of courses as an ordered
+  set of approved roots plus one durable member entry per course, pinned by
+  `course_object_id` rather than by directory name; the course index built by
+  walking those roots is derived and disposable. The workspace is a locator set
+  and not a membership set: it carries no objective, no completion predicate,
+  and no progress claim, and every question of curricular membership,
+  boundedness, and rollup stays with the scope object and GRAPH-03. It is
+  machine-local and never travels in a course package. Owner: the learner.
+  Durable object: workspace record. Authority: root approval by the learner,
+  mutated only through the operation journal. Degraded: an absent record or an
+  empty root list is not an error and degrades to a single-root scan, so a fresh
+  install needs no setup step before the shelf works; an unreachable root reports
+  unavailable and its courses open over the last valid index, marked unavailable
+  rather than dropped; a pinned id that disagrees with the sidecar found at its
+  path is a conflict, surfaced and never merged. Gate: G3. (per synthesis
+  section 6; makes FILE-01's degraded clause implementable, and supersedes the
+  daemon-root-is-the-workspace assumption at `16B-04-PLAN.md:382`.) Fixture: a
+  synthetic two-root workspace holding three courses, one root made unreachable,
+  one course moved between roots, and one path whose sidecar reports a different
+  `course_object_id`, asserting the unreachable root's courses render from the
+  last valid index as unavailable, the moved course reconciles by id to one card
+  rather than two, and the id disagreement reports a conflict without writing.
 
 #### ID: stable identity, fingerprints, and versions
 
@@ -1284,6 +1310,7 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | FILE-01 | Phase 14A | Complete |
 | FILE-02 | Phase 14A | Complete |
 | FILE-03 | Phase 14A | Complete |
+| FILE-04 | Unscheduled (phase chosen after the 14B freeze) | Pending |
 | ID-01 | Phase 14A | Complete |
 | ID-02 | Phase 14A | Complete |
 | TREAT-01 | Phase 15A | Pending |
