@@ -193,32 +193,49 @@ recommendation stayed option-a because 15A and 16A both compose onto these
 shapes and would otherwise build on sand, and Weibao selected it with that
 caveat visible.
 
-## D-14B-5. Manifest contents and package shape: STILL OPEN
+## D-14B-5. Manifest contents and package shape
 
-**Date raised:** 2026-08-27. **Status: unanswered. Wave 5 is stopped.**
+**Date:** 2026-08-27. **Decided by Weibao**, on the second asking, from
+`.planning/DECISIONS-14B-DRIVER-2026-08-27.md`.
 
 **Question.** What fields does `manifest.json` carry, and is a package a plain
 directory tree, an archive by default, or BagIt proper?
 
-**What happened.** The question was put to Weibao on 2026-08-27 alongside the
-other three. In place of selecting an option he gave a standing directive:
-"make adaptability and modularity a important coding principle, (add to
-uservisio as well". That is recorded verbatim in `USER-VISION.md` under the
-2026-08-27 entry of the same name, and it is **not** recorded as an answer to
-this checkpoint.
+**Recorded answer: option-a.** A package is a plain directory tree, with `zip`
+as optional transport. `manifest.json` carries `schema_version`, `package_id`,
+`created`, `course_object_id`, `state`, `entries`, `loss_report`. Each entry
+carries `object_id`, `kind`, `revision`, `relpath`, `fingerprint`. A human can
+open and read a package without this tool.
 
-**Why it is not treated as an answer.** A plain directory tree is plausibly the
-most adaptable and most independently readable of the three shapes, so the
-principle does point toward option-a. But this plan says, in the same words
-every 14B plan uses, "Do not proceed with a silent default. An unanswered
-checkpoint stops the wave." Converting a general principle into a specific
-answer is the silent default that sentence forbids, and one provisional
-stand-in has already been made on this phase. The question is being re-asked
-instead.
+This matches the standing rule that a package is a plain directory tree first
+and an archive only as optional transport, which `course_package.py`'s docstring
+already states as shipped behaviour. It is also the most independently readable
+of the three shapes, which is consistent with the adaptability and modularity
+directive recorded in `USER-VISION.md` on the same date, though the answer was
+given explicitly rather than inferred from that directive.
 
-**Effect on sequencing.** Plans 14B-04 and 14B-06 do not depend on this answer
-and may proceed. Plan 14B-05 may not. Note also that answering option-c (BagIt)
-would not proceed at all: it introduces the `bagit` dependency, and
-`14B-RESEARCH.md`'s Package Legitimacy Audit was skipped precisely because this
-phase proposes zero external packages, so option-c means recording the answer
-and re-running the gate protocol.
+**What was rejected.** Option-b (archive by default) would have made the
+traversal guard load-bearing on every restore rather than on an opt-in path, and
+a human could not read a package without unpacking it. Option-c (BagIt) would
+have introduced the `bagit` dependency and would not have proceeded: this
+phase's Package Legitimacy Audit was skipped precisely because it proposes zero
+external packages.
+
+**Wave 5 is unblocked.**
+
+### History: this checkpoint was asked twice
+
+**First asking, 2026-08-27.** In place of selecting an option Weibao gave a
+standing directive: "make adaptability and modularity a important coding
+principle, (add to uservisio as well". That is recorded verbatim in
+`USER-VISION.md` under the 2026-08-27 entry of the same name.
+
+**It was not treated as an answer, and the checkpoint was re-asked.** A plain
+directory tree is plausibly the most adaptable of the three shapes, so the
+principle did point at option-a, and option-a is what he then chose. Recording
+this anyway, because the reasoning matters more than the outcome matching: every
+14B plan says "Do not proceed with a silent default. An unanswered checkpoint
+stops the wave", and converting a general principle into a specific one-way
+answer is that silent default. Had the inference been made instead of the
+question re-asked, the right answer would have been reached for the wrong
+reason, and the next such inference might not land.
