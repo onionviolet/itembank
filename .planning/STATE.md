@@ -457,7 +457,29 @@ recorded in 06.2-GATES.md. Six GATE-01..06 requirements delivered.
 
 ## Current Position
 
-Phase: **13.5 — Reading & Teaching Surface Quality Pass**, waves 1-2 executed (3 of 8 plans)
+> **Corrected 2026-08-27.** The block below described Phase 13.5 and said the
+> reframe was "not yet pushed". Both were stale: the frontmatter has read
+> `current_phase: 14B` since 2026-08-26, and `main` is pushed. A cold agent
+> reading this file top-down was getting the wrong phase. The current position
+> is stated here; the 2026-08-14 text is preserved underneath as history.
+>
+> **Phase: 14B, waves 1 to 3 executed 2026-08-26.** `graph.py`, `course.py` and
+> `course_package.py` ship. Waves 4 to 6 are BLOCKED on four decisions only
+> Weibao can make: D-14B-1's provisional stand-in plus three blocking
+> checkpoints in plans 14B-04, 14B-05 and 14B-06. Packet:
+> `.planning/DECISIONS-14B-DRIVER-2026-08-27.md`. Sequencing:
+> `.planning/NEXT-2026-08-27.md`.
+>
+> **Also true 2026-08-27:** Phase 16A is planned and unexecuted, so Phase 16B's
+> precondition check HALTS (dry run:
+> `.planning/phases/16B-ia-modes-recovery-contract/16B-PRECONDITION-DRYRUN-2026-08-27.md`).
+> 17A-04 still waits on the 2026-08-25 supply-chain packet. Weibao's 2026-08-27
+> percent ruling amended GRAPH-03, synthesis 12.4, plan 16B-04 and
+> 16B-RESEARCH.md; see `IDEA-LEDGER.md` IL-20260827-01.
+
+### Historical, as written 2026-08-14
+
+Phase: **13.5 - Reading & Teaching Surface Quality Pass**, waves 1-2 executed (3 of 8 plans)
 Status: v1.0's 18 phases are shipped. A next milestone opened on 2026-08-13 with the source-to-course reframe (Phases 14 through 17), merged into `main` and not yet pushed.
 Last activity: 2026-08-14 - Quick task 260813-x3g source-to-course contract reframe, slices 1-4a committed and pushed. Applied synthesis section 14 across nine contract/doc files: ROADMAP (nine subphases 14A-17B + governance), SOURCE-TO-COURSE (supersede pointer), REQUIREMENTS (eighteen families GRAPH..MAINT, 47 new requirements, old IDs mapped/superseded), PROJECT (course-first), UI-SPEC (Structured Studio; section 8 gates untouched), PLANNING-DIRECTIVES (finite-strategy + rejection-ledger; section 8 nine-subphase table), AGENTS + .claude/CLAUDE.md (object/authority + operation protocol; non-negotiables intact), README (course-first). Commits: 8b5cab4, e838407, e349c06 (REQUIREMENTS content landed split across the slice-3/4a commits because gsd `query commit` sweeps all modified files while the parallel 13.5 track shared the tree; content verified complete on disk, nothing lost).
 
