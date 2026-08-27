@@ -733,6 +733,24 @@ Amendments to an existing entry are additive notes under the entry, dated.
   on a course card, so which one shows at card size (and whether showing one
   re-creates the aggregate problem by the back door) needs deciding.
 - **Revisit trigger:** Phase 16C, when GRAPH-03 is implemented.
+- **Note 2026-08-27, disposition partly reopened by owner ruling.** This entry
+  was dispositioned Duplicate because GRAPH-03 was stronger. GRAPH-03 was
+  amended on 2026-08-27 (IL-20260827-01), so the ground under half of that
+  disposition moved and the entry is corrected rather than left misleading.
+  - **Still Duplicate:** the seven separate dimensions remain GRAPH-03's and
+    are unchanged by the ruling, so the proposed `coverage` / `mastery` /
+    `claimed` triple is still a weaker restatement of them and is still
+    withdrawn as a model.
+  - **No longer excluded:** the reason a single card figure was impossible was
+    GRAPH-03's no-aggregate clause, and that clause is now amended. An
+    aggregate display over the seven dimensions is permitted from 2026-08-27.
+    The open card-size question this entry handed to Phase 16C, which one
+    number shows when only one fits, is therefore no longer blocked; it is a
+    live design question rather than a foreclosed one.
+  - **Unchanged and still the entry's main value:** the 90.6% measurement. It
+    stays as field evidence about Navigate2, and the overturn note in Phase 16
+    synthesis 12.4 records that it was weighed and overruled rather than
+    forgotten.
 
 ### IL-20260826-04: Pool depletion, a bank-seen denominator
 
@@ -887,9 +905,9 @@ Amendments to an existing entry are additive notes under the entry, dated.
   strike this and ask for a synthesized figure; it was kept only because it was
   free.
 - **Disposition:** Accepted, owner ruling. Not a proposal awaiting review.
-- **Outstanding amendments, none of them applied yet.** Amending a requirement
-  and a hard rejection is a recorded act, not a side effect of a mockup change,
-  so these are listed rather than edited:
+- **Amendments: all four APPLIED 2026-08-27**, at Weibao's explicit instruction
+  ("yes, apply all four amendments") given after they were listed. Each was
+  amended in place with its original wording preserved for trace, never deleted:
   1. `REQUIREMENTS.md` GRAPH-03, the clause "no single aggregate completion,
      mastery, or readiness score is produced".
   2. Phase 16 synthesis section 12.4, the single-aggregate-score hard
@@ -899,8 +917,42 @@ Amendments to an existing entry are additive notes under the entry, dated.
      prohibition, threat T-16B-04-05, and the three percent-absence assertions
      at lines 301 and 384. Unamended, Phase 16B will fail its own tests.
   4. IL-20260826-03 above, whose Duplicate disposition rests on GRAPH-03.
-- **Revisit trigger:** before Phase 16B executes. The precondition check already
-  halts on Phase 16A, so there is time, but the amendments must land first.
+- **Applied state, 2026-08-27.**
+  1. `REQUIREMENTS.md` GRAPH-03: clause marked amended inline, with an
+     amendment note naming what is permitted, what is unchanged (the seven
+     dimensions stay separate underneath), and what was deliberately not
+     widened by inference.
+  2. Phase 16 synthesis 12.4: the row is marked `OVERTURNED 2026-08-27` and an
+     overturn note follows the table. The row itself is untouched, per the
+     append-only rule.
+  3. Plan 16B-04: an amendment banner opens the objective, and all five percent
+     sites are amended in place (frontmatter must-have, `status: kept`
+     prohibition now `overturned-by-owner-2026-08-27`, the Task 2 behaviour
+     assertion, the Task 2 docstring rule, and threat T-16B-04-05's
+     mitigation). Frontmatter structure was re-checked after editing.
+  4. IL-20260826-03: disposition corrected. Still Duplicate on the seven
+     dimensions; no longer foreclosed on the single-card-figure question.
+- **Two further sites found while applying, and amended.** The four listed
+  above were not the whole set. `16B-RESEARCH.md` Pitfall 3 and its
+  progress-reporting anti-pattern row carried the same clause and were amended
+  the same day, narrowed rather than deleted: the danger is now a percentage
+  with no denominator behind it, not the percent character. Plan 16B-04's
+  inputs list restated the prohibition in a sixth place and was amended too.
+  Leaving these would have left the amended plan disagreeing with its own
+  inputs.
+- **One site deliberately left for later.** `16B-DECISIONS.md` `## D7` carries
+  the same prohibition but the file does not exist yet: plan 16B-01 creates it
+  and 16B-01 has not run, because its precondition check halts on Phase 16A. D7
+  must therefore be **authored in its amended form** when that file is first
+  written, rather than written in the old form and retrofitted.
+- **The replacement rule adopted throughout, stated once.** A percentage must
+  carry the numerator and denominator it was derived from, and a record
+  supplying neither reports indeterminate rather than an invented number. This
+  was not instructed; it is the agent's reading of what the ruling permits
+  versus what it was reacting against, and Weibao may strike it.
+- **Revisit trigger:** before Phase 16B executes. The precondition check still
+  halts on Phase 16A, which is the remaining blocker; the amendments no longer
+  are.
 - **Reconsideration condition:** none. This is an owner ruling, not an agent
   recommendation, and it is recorded so that a future agent does not re-argue
   the 2026-08-26 position as though it were still open.

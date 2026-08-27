@@ -406,7 +406,9 @@ staged implementation (per synthesis sections 1 and 12).
   coverage, participation, settled evidence, current retention, formal
   completion, selected enrichment, uncertainty) stay
   separate and no single aggregate completion, mastery, or readiness score is
-  produced. Required, required-choice, and enrichment memberships keep separate
+  produced *(this last clause is **amended 2026-08-27**, see the amendment note
+  at the end of this requirement; the seven dimensions still stay separate, but
+  an aggregate figure and a percent display are now permitted)*. Required, required-choice, and enrichment memberships keep separate
   denominators, and adding enrichment can never lower completion. A bounded,
   versioned course may truthfully report complete under its named predicate; an
   open field has no universal completion percentage; formal completion persists
@@ -421,7 +423,33 @@ staged implementation (per synthesis sections 1 and 12).
   aggregate-score idea rejected in section 12.4.) Fixture: a synthetic evidence
   set in the 16C cross-subject missing-feature suite with a missing denominator,
   a pending prose mark, and a version-split objective, asserting each tuple
-  dimension reports separately and no aggregate score appears.
+  dimension reports separately *(the "and no aggregate score appears" leg of
+  this fixture is amended 2026-08-27, see below)*.
+
+  **Amendment 2026-08-27, owner ruling.** Weibao ruled, verbatim in
+  `USER-VISION.md`: "Percent is fine even if it breaks contract, since
+  uservision over any other contracts and more". Under the precedence rule that
+  same statement establishes, `USER-VISION.md` outranks this requirement.
+  Disposition recorded as `IDEA-LEDGER.md` IL-20260827-01.
+
+  - **Permitted from 2026-08-27:** a single aggregate completion, mastery, or
+    readiness figure may be produced and displayed, and a percent character may
+    appear in learner-facing progress display including a course card.
+  - **Unchanged, and not reached by the ruling:** the seven dimensions still
+    stay separate underneath, because the aggregate is now a permitted
+    *display* over them and not a replacement for them. Required,
+    required-choice, and enrichment memberships still keep separate
+    denominators. Adding enrichment still never lowers completion. A bounded,
+    versioned course may still truthfully report complete under its named
+    predicate.
+  - **Also unchanged, and adjacent enough to name:** the degraded rule that a
+    missing denominator reports indeterminate and never an invented percent,
+    and the D-14A-3 decision that Retrievability is never surfaced to the
+    learner as a percentage. Neither was raised in the ruling. Both are
+    strikeable by the same authority if Weibao wants them gone; they are left
+    standing rather than widened by inference.
+  - **Consequence for the fixture:** the 16C suite asserts each dimension
+    reports separately, and no longer asserts the absence of an aggregate.
 
 - [ ] **GRAPH-04**: Objective splits, merges, renames, and changed demand generate
   reviewed migration proposals; historical evidence is never transferred

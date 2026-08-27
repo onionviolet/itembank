@@ -1330,11 +1330,13 @@ number. If Weibao wants a synthesized cross-dimension figure as well, or wants
 the denominator dropped, that is a further instruction and it will be followed;
 the distinction is preserved here only because it was free.
 
-**Blast radius, flagged rather than silently applied.** The clause overridden
-is not only 16B-04's, and the agent has NOT edited the other documents, because
-amending a requirement and a hard rejection is a recorded act rather than a
-side effect of a mockup change. These need amending by the same authority
-before Phase 16B executes, or the phase will fail its own tests:
+**Blast radius, flagged rather than silently applied, then applied on
+instruction.** The clause overridden is not only 16B-04's. The agent listed the
+four affected documents rather than editing them, because amending a
+requirement and a hard rejection is a recorded act rather than a side effect of
+a mockup change. Weibao then instructed "yes, apply all four amendments", and
+**all four were applied the same day**, each preserving its original wording for
+trace and none deleted. The four:
 
 - `REQUIREMENTS.md` **GRAPH-03**: "no single aggregate completion, mastery, or
   readiness score is produced". This is a requirement, not a plan clause.
@@ -1348,8 +1350,19 @@ before Phase 16B executes, or the phase will fail its own tests:
 - `IDEA-LEDGER.md` **IL-20260826-03**, whose disposition rests on GRAPH-03.
 
 **Planning effect.** The mockup at `prototypes/16b/` shows percentages as of
-today. The requirement, synthesis, and plan amendments are outstanding and are
-listed in `IDEA-LEDGER.md` IL-20260827-01.
+today, and all four document amendments are applied. The applied state is
+recorded in `IDEA-LEDGER.md` IL-20260827-01. Phase 16B's remaining blocker is
+unchanged and unrelated: its precondition check still halts on Phase 16A.
+
+**One replacement rule the agent adopted throughout, not instructed.** Where the
+old text forbade a percent, the amendments do not simply delete the constraint;
+they replace it with the requirement that a percentage carries the numerator and
+denominator it came from, and that a record supplying neither reports
+indeterminate rather than an invented number. This is the agent's reading of
+what the ruling permits (a percentage) versus what the ruling was reacting
+against (being told no). It is recorded as an agent choice so Weibao can strike
+it with one sentence if he wants the constraint gone entirely rather than
+replaced.
 
 ## Interpretation protocol
 

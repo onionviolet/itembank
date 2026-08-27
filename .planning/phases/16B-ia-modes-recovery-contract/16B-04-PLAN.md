@@ -27,7 +27,7 @@ must_haves:
     - "The populated happy path renders every named attention state with its exact chip text and never with color alone: up to date, due, pending review, needs your input, needs reconciliation, and showing last valid overview each carry a required text label (CourseShelf populated consideration)."
     - "Zero renders the empty state, one course renders through the identical card structure many courses render through with no singular-copy special case, and many courses scroll rather than paginate (CourseShelf zero-one-many consideration)."
     - "Card names wrap to a second line rather than truncating, and no rendered card name is shortened or elided by the surface (CourseShelf long-text consideration)."
-    - "No surface derives or rounds a progress percentage: no shelf card, chip, or resume cue contains a percent character, and a denominator appears only when the underlying record carried one (FLOW-02 precision edge, Pitfall 3)."
+    - "AMENDED 2026-08-27 by owner ruling (USER-VISION.md; IL-20260827-01). A percent character and a progress percentage MAY appear on a shelf card, chip, or resume cue. What survives from the original clause: a percentage is derived from a real numerator over a real denominator the record carries, and a denominator that is absent reports indeterminate rather than an invented percent (FLOW-02 precision edge, Pitfall 3). Original clause, superseded, preserved for trace: 'No surface derives or rounds a progress percentage: no shelf card, chip, or resume cue contains a percent character, and a denominator appears only when the underlying record carried one.'"
     - "When the course module is absent or reports no courses, GET / renders the shipped bank and plan listing byte-for-byte as it does today, so the entry point degrades to its previous meaning rather than to an error (D1)."
     - statement: "A genuinely slow multi-root course read renders a stated loading state rather than a blank shelf; today the read is synchronous and server-rendered, so no loading state is reachable, and asserting that by construction needs a held-out timing test rather than a claim."
       verification: backstop
@@ -36,9 +36,9 @@ must_haves:
     - statement: "A shelf read concurrent with a job mutating course state shows the last accepted state with no torn read, which the atomic write rule guarantees; confirmed by the plan 16B-09 interruption fixture rather than asserted here."
       verification: backstop
   prohibitions:
-    - statement: "A single aggregate completion, mastery, or readiness percentage must not appear on a course card, because a ratio synthesized across incompatible evidence dimensions is a fabricated measurement presented as fact."
-      status: kept
-      verification: flagged-unverified
+    - statement: "OVERTURNED 2026-08-27 by owner ruling (USER-VISION.md; IL-20260827-01; Phase 16 synthesis 12.4 overturn note). A single aggregate completion, mastery, or readiness percentage MAY appear on a course card. Original prohibition, preserved for trace: 'A single aggregate completion, mastery, or readiness percentage must not appear on a course card, because a ratio synthesized across incompatible evidence dimensions is a fabricated measurement presented as fact.' The 2026-08-26 Navigate2 teardown measured that that product's equivalent bar at 90.6 self-report and is the field evidence the ruling overruled; it is recorded, not reopened."
+      status: overturned-by-owner-2026-08-27
+      verification: not-applicable
     - statement: "A resume cue must not be guessed, cached client-side, or carried over from a previous render; when the underlying record is unavailable the cue reads 'Not started' or 'Showing last valid overview' and never a stale value."
       status: kept
       verification: flagged-unverified
@@ -61,6 +61,25 @@ must_haves:
 ---
 
 <objective>
+AMENDED 2026-08-27 BY OWNER RULING. Weibao ruled that a percent is permitted
+even where it breaks a contract clause, and that `USER-VISION.md` outranks any
+other contract in this repository. Six places in this plan carried the percent
+prohibition and all six are amended in place, each preserving its original
+wording for trace: the must-have truth in the frontmatter, the `status: kept`
+prohibition, the D7 and Pitfall 3 restatement in the inputs list, the behaviour
+assertion in Task 2, the docstring rule in Task 2, and threat T-16B-04-05's
+mitigation. Nothing else in this plan changes. Note that `16B-DECISIONS.md` D7
+and `16B-RESEARCH.md` Pitfall 3 are separate documents and are NOT amended
+here. `16B-RESEARCH.md` Pitfall 3 and its anti-pattern row WERE amended the
+same day. `16B-DECISIONS.md` does not exist yet, because plan 16B-01 creates it
+and 16B-01 has not run, so D7 must be written in its amended form when that
+file is first authored rather than retrofitted. The
+replacement rule throughout is that a percentage must carry the numerator and
+denominator it was derived from, and that a record supplying neither reports
+indeterminate rather than an invented number. Trace: `USER-VISION.md`
+2026-08-27, `IDEA-LEDGER.md` IL-20260827-01, `REQUIREMENTS.md` GRAPH-03
+amendment, Phase 16 synthesis section 12.4 overturn note.
+
 Turn the app's entry point into a course shelf, and make a course that will not
 load still open.
 
@@ -86,9 +105,15 @@ Decisions already made, cited, and never re-derived here:
   `handle_index`, gated on course existence; when no course exists the shipped
   bank and plan listing renders unchanged; the literal `"/"` and its
   `ROUTE_CLI` value `daemon` do not change.
-- **`16B-DECISIONS.md` `## D7`** and **`16B-RESEARCH.md` Pitfall 3**: no
-  percent-complete number, and the attention cue is qualitative and built from
-  named denominators.
+- **`16B-DECISIONS.md` `## D7`** and **`16B-RESEARCH.md` Pitfall 3**: AMENDED
+  2026-08-27 by owner ruling. A percent-complete number is permitted, provided
+  it carries the numerator and denominator it came from. The attention cue
+  stays qualitative and built from named denominators, which the ruling does
+  not reach. Original: "no percent-complete number, and the attention cue is
+  qualitative and built from named denominators." **`D7` in `16B-DECISIONS.md`
+  Pitfall 3 in `16B-RESEARCH.md` was amended on the same date. `D7` does not
+  exist on disk yet (plan 16B-01 creates `16B-DECISIONS.md`), so it must be
+  authored in its amended form rather than retrofitted.**
 - **`16B-DECISIONS.md` `## D9`**: path-bearing copy shows the basename only.
 - **`16B-UI-SPEC.md` Copywriting Contract**, rows for the two primary CTAs, the
   empty-state heading, the empty-state body, and the corrupted-course row.
@@ -298,8 +323,13 @@ record, which is what a real unparseable sidecar does.
       labelled `Open last valid overview` and `View files`.
     - `build_same_name_pair` yields two cards with two different `course_id`
       values and one shared `name`, ordered `crs-twin-a` before `crs-twin-b`.
-    - No card's `chip`, `resume_cue`, or `cta_label` contains a percent
-      character, for any fixture.
+    - AMENDED 2026-08-27 by owner ruling. A percent character is permitted in
+      `chip`, `resume_cue`, and `cta_label`. What is asserted instead: any
+      percentage a card carries is accompanied by the numerator and denominator
+      it was derived from, and a card whose record could not be read carries no
+      percentage at all. Original assertion, superseded, preserved for trace:
+      "No card's `chip`, `resume_cue`, or `cta_label` contains a percent
+      character, for any fixture."
   </behavior>
   <read_first>
 - `surfaces/ia.py` in full as it stands after plan 16B-03, in particular
@@ -381,9 +411,14 @@ record, which is what a real unparseable sidecar does.
    - Return `{"available": True, "cards": cards,
      "empty_heading": SHELF_EMPTY_HEADING, "empty_body": SHELF_EMPTY_BODY}`.
 
-   No field this function produces ever contains a percent character, and no
-   card carries a computed ratio of any kind. State that in the docstring and
-   cite D7.
+   AMENDED 2026-08-27 by owner ruling. A field this function produces MAY
+   contain a percent character, and a card MAY carry a computed ratio. The rule
+   that replaces it: a ratio is computed only where the record supplies both a
+   numerator and a denominator, and where either is missing the field reports
+   indeterminate rather than an invented percent. State that in the docstring,
+   cite D7 as amended, and cite IL-20260827-01. Original rule, superseded,
+   preserved for trace: "No field this function produces ever contains a percent
+   character, and no card carries a computed ratio of any kind."
 
 3. Append `## D-16B-10. Course-shelf ordering` to `16B-DECISIONS.md`, carrying
    the three-key rule and the one-line rationale from this plan's objective
@@ -606,7 +641,7 @@ of which is also what keeps `tests/daemon_roundtrip.py` green.
 | T-16B-04-02 | Information Disclosure | a resolved absolute path in a degraded card | high | mitigate | The degraded card takes `os.path.basename` of the directory and nothing else from the failed record, per D9; the acceptance criteria assert the rendered name contains no `os.sep`. |
 | T-16B-04-03 | Information Disclosure | a malformed record's raw contents rendered into the page | high | mitigate | The degraded path copies **no** field from the failed record; every field of a degraded card is either the basename or a fixed literal string. |
 | T-16B-04-04 | Tampering | a hostile record injecting markup into the shelf | high | mitigate | Every record-derived value is emitted through `presentation.esc`; the card template interpolates no unescaped record field, and the two `data-*` values are drawn from closed tuples (`ATTENTION_STATES`, the token names) rather than from the record. |
-| T-16B-04-05 | Repudiation | an invented progress figure presented as a measurement | high | mitigate | No card carries a ratio; `ATTENTION_COPY` has no percent form; three checks assert `"%"` appears in no chip, cue, or CTA across every fixture. |
+| T-16B-04-05 | Repudiation | an invented progress figure presented as a measurement | high | mitigate | **Mitigation amended 2026-08-27 by owner ruling (IL-20260827-01).** A card may carry a ratio and a percent. The threat is unchanged and is now mitigated by honesty of derivation rather than by absence: every displayed percentage is accompanied by the numerator and denominator it came from, a record that supplies neither reports indeterminate rather than a number, and checks assert that no percentage appears without its denominator. Original mitigation, superseded, preserved for trace: "No card carries a ratio; `ATTENTION_COPY` has no percent form; three checks assert `\"%\"` appears in no chip, cue, or CTA across every fixture." |
 | T-16B-04-06 | Repudiation | a stale resume cue presented as current | medium | mitigate | The cue is recomputed by the route handler on every request from the record, never cached and never carried over; an absent record yields the literal `Not started` and an unreadable one yields `Showing last valid overview`. |
 | T-16B-04-07 | Spoofing | two distinct courses collapsed into one card because their names match | medium | mitigate | Cards are keyed by `course_id` throughout, and `build_same_name_pair` asserts two cards with one shared name and two ids render separately in a locked order. |
 | T-16B-04-08 | Information Disclosure | real course or learner material entering the repository through the fixture | high | mitigate | Every course, name, and cue in `FICTIONAL_COURSES` is invented, no builder writes a `.md` file, and `python itembank.py guard .` reporting `0 offending files` is an acceptance criterion on every task here. |

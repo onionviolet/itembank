@@ -529,7 +529,7 @@ surfaces/settings.py:26,39]`
 |---------|-------------|-------------|-----|
 | Route dispatch for new IA surfaces | A second router/framework, or an `if`-chain outside `_dispatch` | The shipped `ROUTES`/`API_ROUTES` tuples plus `ROUTE_CLI`/`SURFACE_PARITY` parity maps | One daemon, one dispatcher is a SURF-01/SURF-04 non-negotiable pattern already enforced by `tests/daemon_roundtrip.py`'s coupling checks. |
 | Durable job/checkpoint tracking for Activity view | A new job queue, task table, or second event log | `journal.py`'s planned `entries`/`replay`/`object_state`/`undo` (Phase 14A) | RELIABILITY-02 already names the journal as "the durable job record, not a chat transcript" `[VERIFIED: REQUIREMENTS.md:797-798]`; a second job store would be a second evidence-adjacent authority. |
-| Progress/completion reporting on the course shelf or Overview | A single aggregate mastery/completion percentage | The honest-progress tuple (claim kind, scope/version, numerator, denominator-or-indeterminate, rule, snapshot/window, settled/pending/unknown, authority, uncertainty) from GRAPH-03 | GRAPH-03 explicitly forbids "a single aggregate completion, mastery, or readiness score" `[VERIFIED: REQUIREMENTS.md:403-407]`; APP-01's Overview area must compose the tuple, not invent a rollup. |
+| Progress/completion reporting on the course shelf or Overview | A percentage with no numerator and denominator behind it **(amended 2026-08-27: an aggregate percentage is no longer itself the anti-pattern)** | The honest-progress tuple (claim kind, scope/version, numerator, denominator-or-indeterminate, rule, snapshot/window, settled/pending/unknown, authority, uncertainty) from GRAPH-03, with an aggregate permitted as a display over it | **AMENDED 2026-08-27 by owner ruling (IL-20260827-01).** GRAPH-03's no-aggregate clause was amended the same day, so the original citation no longer holds. What survives: the seven dimensions stay separate underneath, and a percentage carries the numerator and denominator it came from. Original: GRAPH-03 explicitly forbids "a single aggregate completion, mastery, or readiness score"; APP-01's Overview area must compose the tuple, not invent a rollup. |
 | Mode/feedback authority for a sitting | A UI-level toggle that lets a learner change scoring or disclosure mid-sitting | The existing runtime authority layer (`runtime.public_item`, `evidence.mark_event`'s human-only marker gate) plus the mode-layer precedence table naming runtime authority as fixed | MODE-01 through MODE-06 already lock feedback policy to session mode server-side; 16B's settings/preference layer must sit below that layer in the precedence order, never override it. |
 | Offline help content | A hosted help site or network-fetched FAQ | A bundled, local, error-code-keyed lookup table following `SETTINGS_CODES`/`LINT_CODES` | APP-03 requires help to be "offline and routes from named error codes" `[VERIFIED: REQUIREMENTS.md:839]`; a network dependency for help text would violate the no-blocking-on-network resilience rule (`CLAUDE.md:57`, quoted in `PLANNING-DIRECTIVES.md` §4a). |
 | First-run sample course delivery | A generated-on-first-run course (calling an agent or a model) | A bundled, pre-built synthetic sample course shipped as a resource, read the same way `resources.py` serves other bundled assets | APP-03 requires the walkthrough reachable "without granting source roots or configuring an agent" `[VERIFIED: REQUIREMENTS.md:837-839]`; generating it on first run would require exactly the agent configuration the requirement says must not be needed. |
@@ -585,20 +585,37 @@ writing to it directly breaks that guarantee.
 **Warning signs:** A route handler that opens `_journal/journal.jsonl` for
 append itself instead of calling a `journal.py` function.
 
-### Pitfall 3: A percent-complete number appearing anywhere on the course shelf or Overview
+### Pitfall 3: A percentage with no denominator behind it
 
-**What goes wrong:** A "76% complete" badge appears on a course card because it
-is visually satisfying and easy to compute as `answered / total`.
+**AMENDED 2026-08-27 by owner ruling** (`USER-VISION.md`; `IDEA-LEDGER.md`
+IL-20260827-01). The original pitfall forbade a percent-complete number
+anywhere on the shelf or Overview. Weibao ruled that a percent is permitted even
+where it breaks a contract clause, and that `USER-VISION.md` outranks any other
+contract. GRAPH-03 and Phase 16 synthesis 12.4 were amended the same day. The
+pitfall is therefore **narrowed, not deleted**: what remains dangerous is not
+the percent character but a percentage the record cannot support.
+
+**What goes wrong:** A "76% complete" badge appears on a course card with
+nothing behind it, or synthesized across dimensions whose denominators are not
+comparable, and the learner reads it as attainment.
 **Why it happens:** A single number is the path of least resistance for a
-shelf-card layout, and the honest-progress tuple is more verbose to render.
-**How to avoid:** GRAPH-03's fixture explicitly asserts "each tuple dimension
-reports separately and no aggregate score appears" `[VERIFIED:
-REQUIREMENTS.md:421-424]`; the course-shelf attention cue (APP-01) must use a
-qualitative resume cue (e.g., "3 objectives due", "last read 2 days ago") built
-from named denominators, never a synthesized ratio across incompatible
-dimensions.
-**Warning signs:** Any UI copy or fixture assertion containing a bare `%`
-computed from more than one evidence dimension.
+shelf-card layout, and computing an honest numerator and denominator is more
+work than rounding something plausible.
+**How to avoid:** show the numerator and denominator alongside any percentage,
+derive it from one dimension whose denominator the record actually carries, and
+report indeterminate rather than a number when the record supplies neither.
+GRAPH-03's fixture still asserts that each tuple dimension reports separately;
+its "and no aggregate score appears" leg is amended as of 2026-08-27. The
+qualitative resume cue (APP-01) is unchanged and still built from named
+denominators, because the ruling reached the percentage, not the cue.
+**Warning signs:** a `%` with no numerator and denominator rendered beside it;
+a ratio spanning more than one evidence dimension without saying so; a
+percentage on a card whose underlying record could not be read.
+
+**Original pitfall, superseded, preserved for trace:** "A percent-complete
+number appearing anywhere on the course shelf or Overview ... the course-shelf
+attention cue (APP-01) must use a qualitative resume cue built from named
+denominators, never a synthesized ratio across incompatible dimensions."
 
 ### Pitfall 4: Narrow-screen stacking losing route identity
 

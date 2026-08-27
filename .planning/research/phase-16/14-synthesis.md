@@ -676,7 +676,7 @@ initial synthesis disposition is **2026-08-13**.
 | Chat-first home, chat history as course map, or agent activity as product center | `USER-VISION.md` source-grounded and NotebookLM ideaboarding; report 01 | `01-source-grounded-products.md` sections 3.3, 4, 6; report 09 sections 11 to 16 | Superseded by course-first workspace because chat cannot preserve accepted objects, coverage, review, resumption, or safe operation state | Coherent product model, provenance, maintainability | Contextual source chat and object-scoped agent actions | 2026-08-13 | Reconsider only if chat projects the same durable objects and never becomes their sole state |
 | Automatic artifact gallery or one-shot generate-everything workflow | NotebookLM and course-generation vision entries | Report 01 sections 3.3 to 4; report 05 sections 8 to 10 | Superseded by treatment-driven generation because automatic parallel artifacts lack objective need and create verification/staleness cost | Pedagogy, maintainability, truthful provenance | Every artifact family remains available through a treatment or registered output | 2026-08-13 | Reconsider default automation after measured review burden and artifact-use evidence |
 | Fixed universal hierarchy or tree as prerequisite model | Hierarchy vision entry and coverage audit | `08-curriculum-hierarchy-progress.md` sections 4, 7, 10, 13 | Superseded by typed graph plus authored outline because one tree cannot represent alternate paths, reuse, cross-listing, and distinct dependency authority | Coherent product model, truthful evidence | Familiar outline projection with user-defined level labels | 2026-08-13 | Reconsider only as a projection, never canonical storage, unless all required fixtures fit losslessly |
-| One aggregate completion, mastery, readiness, or personalization score | Progress vision and expected-feature audit | Report 08 section 6 and 13; report 11 sections 3 and 9 | Hard reject because it combines incompatible denominators and implies certainty unsupported by evidence | Truthful evidence, learner agency | Separate coverage, participation, evidence, retention, completion, enrichment, and uncertainty plus contextual summary | 2026-08-13 | No reconsideration as an authoritative claim; a summary may link visibly to all component claims |
+| One aggregate completion, mastery, readiness, or personalization score | Progress vision and expected-feature audit | Report 08 section 6 and 13; report 11 sections 3 and 9 | Hard reject because it combines incompatible denominators and implies certainty unsupported by evidence | Truthful evidence, learner agency | Separate coverage, participation, evidence, retention, completion, enrichment, and uncertainty plus contextual summary | 2026-08-13 | No reconsideration as an authoritative claim; a summary may link visibly to all component claims **OVERTURNED 2026-08-27 by owner ruling, see the note below section 12.4.** |
 | Viewed, clicks, elapsed time, streaks, percentile, or engagement used as mastery | Learning-metrics vision | Reports 05 sections 7 to 10; 08 section 10; 11 sections 8 to 9 | Hard reject because participation and comparison do not establish understanding | Truthful evidence, privacy | Local participation state, valid response evidence, learner-controlled reminders | 2026-08-13 | Reconsider a signal only with construct-valid evidence and no surveillance incentive |
 | Punitive streaks, hearts or lives, paid error relief, compulsory leaderboards, or public comparison | Broader feature research request | `05-learning-program-landscape.md` sections 7, 9, 10; report 11 motivation analysis | Hard reject because these punish error or absence and distort learning incentives | Pedagogy, learner agency, privacy | Calm progress, purposeful play, optional private reminders | 2026-08-13 | A separately scoped social product with evidence of benefit and safeguards, never as core mastery |
 | Arbitrary authored JavaScript, auto-running imported notebooks, or untrusted active embeds | Rich lesson, executable notebook vision | Reports 04 sections 6 to 9; 05 section 9; 07 executable-artifact sections | Hard reject because authored code would acquire executable authority outside trusted runtime components | Safety, accessibility, portability, maintainability | Registered trusted interactions, restricted notebook preview, explicit execution, static fallback | 2026-08-13 | Reconsider a specific sandbox only after threat model, reproducibility, equivalence, offline, and maintenance gates pass |
@@ -687,6 +687,49 @@ initial synthesis disposition is **2026-08-13**.
 | Copying protected commercial content, assets, visual identity, or distinctive voice | Brilliant visual ambition and competitor research vision | Research program copyright boundary; reports 05, 06, 10 pattern analyses | Hard reject because benchmark learning value does not grant copying or licensing rights | Rights and licensing, coherent original identity | Original Structured Studio system and transferable semantic patterns | 2026-08-13 | Only with an actual license and an independent product-fit review |
 | Hidden citations or presentation state used as authorization | Source-grounded and rich UI vision | Report 01 sections 3.3 and 5; report 09 section 14 | Hard reject because hiding a panel neither revokes file access nor protects keys | Safety, privacy, assessment authority | Runtime/filesystem authorization plus always-inspectable provenance | 2026-08-13 | Never as authorization; presentation variants remain allowed |
 | Automatic evidence transfer across renamed, split, merged, aligned, or superseded objectives | Flexible hierarchy and progress vision | Report 08 sections 5, 6, 10, 13; report 13 section 12 | Hard reject because similarity or alignment does not prove unchanged construct | Truthful evidence, provenance | Preserve raw evidence, propose reviewed mappings, show unknown and uncertainty | 2026-08-13 | Explicit construct-equivalence decision with preserved source events and disclosed uncertainty |
+
+#### Overturn note, 2026-08-27: the aggregate-score hard rejection
+
+Recorded per this ledger's append-only rule. The row above is **not deleted**
+and its 2026-08-13 reasoning is preserved verbatim, because the reasoning was
+sound and remains the record of why the rejection was made. What changed is not
+the evidence but the authority.
+
+**Ruling.** Weibao, 2026-08-27, verbatim in `USER-VISION.md`: "Percent is fine
+even if it breaks contract, since uservision over any other contracts and more".
+That statement carries two rulings, and the second is what reaches this ledger:
+`USER-VISION.md` outranks any other contract in this repository, including a
+hard rejection recorded here.
+
+**Effect.** "One aggregate completion, mastery, readiness, or personalization
+score" is **no longer hard-rejected**. It may be produced and displayed,
+including as a percentage on a course card. The row's reconsideration condition,
+which read "no reconsideration as an authoritative claim", is discharged by
+owner authority rather than by new evidence.
+
+**Evidence weighed against the ruling, and overruled.** The 2026-08-26 Navigate2
+teardown measured that product's headline completeness bar at **90.6%
+self-report**: of 435 activities, 41 carried a grade item and 394 completed by a
+self-pressed checkbox. That measurement is field evidence for the original
+rejection and is why the agent argued the other way on 2026-08-26. It stands as
+an accurate observation about Navigate2 and is overruled as a constraint on
+itembank. It is recorded here so a future reader sees what was traded, not to
+reopen the question.
+
+**Retained alternatives, which survive as the underlying model.** The separate
+coverage, participation, evidence, retention, completion, enrichment, and
+uncertainty dimensions are unchanged. The aggregate is now a permitted display
+*over* those dimensions rather than a replacement for them, and GRAPH-03's
+amendment of the same date says so explicitly.
+
+**Not reached by this overturn.** The adjacent rules that a missing denominator
+reports indeterminate rather than an invented percent, and that Retrievability
+is never shown to the learner as a percentage (D-14A-3), were not raised in the
+ruling and are left standing rather than widened by inference. Both are
+strikeable by the same authority.
+
+**Trace.** `USER-VISION.md` 2026-08-27; `IDEA-LEDGER.md` IL-20260827-01;
+`REQUIREMENTS.md` GRAPH-03 amendment of 2026-08-27.
 
 ### 12.5 Backburner proposals
 
