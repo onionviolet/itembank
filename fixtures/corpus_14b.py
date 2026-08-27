@@ -447,5 +447,107 @@ def seed_objective_evidence(course_root, objective_id):
     return event["event_id"]
 
 
+def register_source(root, slug, rights=None, operation="mint", body=None):
+    """Write one synthetic source file into `root` and register it through the
+    frozen 14A compare-and-swap path.
+
+    `rights` records exactly what the caller states and nothing more, so a
+    test can build a source that is granted one right and not another and
+    prove that one grant never implies a second.
+    """
+    import identity
+    import journal
+
+    rel_path = "sources/%s.md" % slug
+    body = body if body is not None else SOURCE_BODY % ("Source " + slug)
+    # The bytes are written by `commit_operation` and not beforehand: writing
+    # them first and then committing the same bytes is a no-change refusal,
+    # which is the journal doing its job rather than a fixture problem.
+    record = identity.rights_default()
+    record.update(rights or {})
+    object_id = identity.new_object_id()
+    journal.commit_operation(
+        base=root, object_id=object_id, kind="source", rel_path=rel_path,
+        operation=operation, new_bytes=body.encode("utf-8"),
+        expected_fingerprint=None, actor_kind="agent",
+        actor_name="corpus-14b", create_if_missing=True, rights=record)
+    return object_id
+
+
+def packaged_source(root, slug, rights=None):
+    """Register one source whose `package` right is granted, so a package
+    has something it may legitimately carry."""
+    grants = {"package": "granted"}
+    grants.update(rights or {})
+    return register_source(root, slug, grants)
+
+
+def linked_source(root, slug):
+    """Register one source through `journal.op_link` and grant its `package`
+    right.
+
+    The grant is the point: a linked file stays out of a package because
+    linking preserves external identity and location, not because nobody
+    granted permission. Granting the right first is what makes the
+    `external-link` loss row mean what it says.
+    """
+    import journal
+
+    rel_path = "sources/%s.md" % slug
+    target = os.path.join(root, rel_path)
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    with open(target, "w", encoding="utf-8") as fh:
+        fh.write(SOURCE_BODY % ("Linked source " + slug))
+    record = journal.op_link(root, "source", rel_path, "agent", "corpus-14b")
+    grant_right(root, record["object_id"], "package")
+    return record["object_id"]
+
+
+def component_object(root, slug):
+    """Register one `component` object, a kind no package carries.
+
+    `component` is a real member of `identity.OBJECT_KINDS`, so this is a
+    genuine unsupported kind rather than an invented one, and the export has
+    to name it rather than skip it.
+    """
+    import identity
+    import journal
+
+    rel_path = "components/%s.md" % slug
+    body = "# %s\n\nA synthetic component block that names nothing real.\n" % slug
+    object_id = identity.new_object_id()
+    journal.commit_operation(
+        base=root, object_id=object_id, kind="component", rel_path=rel_path,
+        operation="mint", new_bytes=body.encode("utf-8"),
+        expected_fingerprint=None, actor_kind="agent",
+        actor_name="corpus-14b", create_if_missing=True)
+    return object_id
+
+
+def unreachable_root_case(dest):
+    """Register a packageable source and then remove the file it names.
+
+    The rights are granted on purpose: an unreachable source must be reported
+    as unreachable, not misreported as rights-restricted, so the export has to
+    get past the rights gate before it discovers the file is gone.
+    """
+    object_id = packaged_source(dest, "vanished-source")
+    os.remove(os.path.join(dest, "sources/vanished-source.md"))
+    return object_id
+
+
+def duplicate_fingerprint_sources(root):
+    """Two byte-identical sources registered under two ids.
+
+    Two ids are two objects (ID-02), so a package carries two payloads and
+    two manifest entries for these. Deduplicating them into one payload would
+    quietly merge two objects a copy report is supposed to surface.
+    """
+    body = SOURCE_BODY % "Byte identical twin"
+    first = register_source(root, "twin-a", {"package": "granted"}, body=body)
+    second = register_source(root, "twin-b", {"package": "granted"}, body=body)
+    return first, second
+
+
 def teardown(dest):
     shutil.rmtree(dest, ignore_errors=True)
