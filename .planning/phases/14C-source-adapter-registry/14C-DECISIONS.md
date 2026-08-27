@@ -109,11 +109,95 @@ pre-policy vendored artifacts whose rows and CI checksum step are owed by plan
    thing being approved here and it was not put to Weibao separately. Recorded
    so it is a visible known state rather than a silent one.
 
-## D-14C-2. The EPUB path and the ebooklib AGPL question: STILL OPEN
+## D-14C-2. The EPUB path is stdlib, and ebooklib is parked on AGPL
 
-**Date raised:** 2026-08-27. **Status: unanswered.** Plan 14C-07 is stopped at
-its Task 1 checkpoint. Rated one-way, because adopting an AGPL dependency is a
-product-wide licensing commitment that cannot be quietly undone once code
+**Date:** 2026-08-27. **Decided by Weibao**, on the second asking. Rated
+one-way, because adopting an AGPL dependency is a product-wide licensing
+commitment that cannot be quietly undone once code depends on it; parking is the
+reversible branch, which is why parking was the recommended default.
+
+**Recorded answer: option-a.** The stdlib `zipfile` plus `xml.etree` path is the
+accepted way to import EPUB. `ebooklib` 0.20 is **parked, not rejected**,
+pending an explicit AGPL decision, exactly as PyMuPDF is parked for the PDF
+path.
+
+**The rider he attached, quoted:** "consider how good it even looks and more".
+
+**Interpretation of the rider, the agent's and kept separate.** Read as an
+instruction that shipping EPUB is not sufficient on its own: the stdlib
+adapter's extraction fidelity and the resulting reading presentation are part
+of whether this answer holds. Two consequences, both additive to plan 14C-07 and
+neither changing its option-a path:
+
+1. **Fidelity is evaluated, not assumed.** The EPUB gold cases in
+   `fixtures/audit/epub_fidelity_cases.py` are judged on what a learner actually
+   reads, not only on whether locators resolve. A spine-order read that loses
+   headings, lists, tables, or figure captions is a failure of this rider even
+   if every assertion passes.
+2. **Presentation quality is a named reconsideration trigger.** See the
+   condition below.
+
+**Reconsideration condition, widened by the rider.** Revisit this parking if any
+of the following becomes true. The first two are the plan's own; the third is
+new and comes from the rider.
+
+- A real EPUB proves unreadable by the stdlib path.
+- The product's licensing posture changes, for example a decision that itembank
+  ships as AGPL open source, at which point `ebooklib` costs nothing.
+- **The stdlib path's extraction fidelity or reading presentation is visibly
+  worse than what a library would give**, and the gap matters to a learner
+  rather than only to a test.
+
+**The reasoning recorded so it is not re-derived.**
+
+- **For personal use alone, AGPL costs nothing.** Its obligations trigger on
+  distribution and on network service use. A tool Weibao runs on his own machine
+  and never hands to anyone triggers neither.
+- **For the recorded product goal it is expensive and one-way.** `ROADMAP.md`
+  Phase 18 is a packaged desktop app that a friend installs, and the 2026-08-14
+  vision entry made external installations a supported goal. Distribution
+  triggers the copyleft source-offer obligation over the whole product, not just
+  the one adapter, and forecloses a closed-source or dual-licensed future.
+- **The decisive technical point, which only became true once D-14C-1 was
+  answered the same day.** `ebooklib`'s main advantage over the stdlib path is
+  the navigation document's hierarchical table of contents. The `body_epub`
+  field set frozen in D-14C-1 carries `spine_index`, `spine_idref`,
+  `element_index`, and `fragment`, and **has no field for a TOC hierarchy**. So
+  adopting `ebooklib` today would buy data the frozen contract cannot store
+  without a schema version bump. The advantage is real and currently unusable.
+  If the rider's quality review concludes the TOC hierarchy is what is missing,
+  the honest response is a `body_epub` schema field first, and only then a
+  library decision.
+- **The asymmetry.** Parking is reversible and adoption is not, in practice.
+- **Consistency.** PyMuPDF was parked on identical grounds for the PDF path
+  (D-01, `14C-CONTEXT.md`, and `IDEA-LEDGER.md` IL-20260815-07, parked and not
+  rejected). Parking `ebooklib` treats the same license the same way twice.
+
+**Recording obligations this answer carries**, per plan 14C-07 Task 1 on
+option-a. Both are owed and neither is done yet:
+
+1. A dated `## D-14C-2. ebooklib is parked on an AGPL decision` section carrying
+   all seven `PLANNING-DIRECTIVES.md` section 3a fields. This entry is its
+   substance; the executor confirms the seven fields are present in the form
+   that document requires.
+2. One appended `IL-` entry in `.planning/IDEA-LEDGER.md` with disposition
+   `Parked (needs an explicit Weibao AGPL decision)` and the widened
+   reconsideration condition above.
+
+**Executor consequence.** Plan 14C-07 proceeds to Task 2 unchanged, with the
+fidelity rider applied to its gold-case review.
+
+### Superseded framing, preserved for trace
+
+This decision was first recorded on 2026-08-27 as STILL OPEN, because Weibao
+answered the first asking with a question ("idk whats the best method, for
+personal use and potential product wise for future and more?") rather than a
+selection. The analysis above was given in reply and the checkpoint was
+re-asked rather than answered on his behalf. The costs of each option, as the
+plan states them, are unchanged:
+
+**Date raised:** 2026-08-27. Rated one-way, because adopting an AGPL dependency
+is a product-wide licensing commitment that cannot be quietly undone once code
 depends on it; parking is the reversible branch.
 
 **Question.** Is the stdlib `zipfile` plus `xml.etree` path the accepted way to
