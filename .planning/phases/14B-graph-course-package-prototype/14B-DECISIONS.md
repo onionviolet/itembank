@@ -248,3 +248,61 @@ stops the wave", and converting a general principle into a specific one-way
 answer is that silent default. Had the inference been made instead of the
 question re-asked, the right answer would have been reached for the wrong
 reason, and the next such inference might not land.
+
+## D-14B-5. The Phase 14B freeze scope
+
+**Date asked:** 2026-08-27. **Date answered:** 2026-08-27. **Answered by
+Weibao**, from `.planning/DECISIONS-14B-DRIVER-2026-08-27.md`.
+
+This is plan 14B-06 Task 3's checkpoint heading. The answer itself is the
+section above, "D-14B-5. The 14B freeze covers vocabularies and record
+shapes", recorded when the driver packet was answered and not re-derived
+here. This section exists because the plan names this exact heading, and
+because the answer and what an executor did with it are two different facts
+that belong in two different places.
+
+**Recorded answer: option-a.** Freeze the vocabularies and the record shapes:
+the sidecar file name and section order, the seven table column sets, the
+four-name edge vocabulary and its three closed field sets, the unknown-type
+downgrade rule, the eleven treatment kinds and their rights mapping, the five
+migration kinds and three states, the seven-key manifest and its five-key
+entry shape, and the five loss categories. Refusal wording, outline
+formatting, loss report reason sentences, and internal directory names stay
+changeable.
+
+**The evidence the answer was checked against, 2026-08-27.**
+
+- **Leg one, the three-domain graph tracer: green.**
+  `python3 tests/three_domain_tracer.py` prints
+  `TRACER: 5 passed, 0 skipped, 0 failed` and exits 0.
+- **Leg two, the clean restore drill: green.** `scenario_clean_restore()`
+  inside that run exports a course carrying a rights-restricted, a linked,
+  and an unreachable source, restores it on a destination with `HOME`,
+  `APPDATA`, and `XDG_DATA_HOME` redirected, and asserts the manifest
+  verifies complete, the restored sidecar is byte-identical, and all four
+  applicable loss categories are named with a reason.
+- **Leg three, the authorability review: NOT green.** The machine half is
+  green. The human half is unsigned:
+  `14B-AUTHORABILITY-REVIEW.md`'s Sign-off section is blank, because an agent
+  never records that verdict.
+- **The Phase 13.9 precondition: satisfied.** All three checks are `ok`, and
+  they are listed by name in `14B-FREEZE.md`.
+
+**What the executor did with the answer.** Nothing yet, and deliberately.
+The plan's own text is that Task 3 is asked only when the three legs are
+green, and that if a leg is not, "the freeze is withheld on that ground and
+this answer is not reached". One leg is not green, so plan 14B-06 Task 4
+wrote `## Freeze withheld` in `14B-FREEZE.md`, named the authorability
+sign-off as the missing item, and left GRAPH-01, GRAPH-02, GRAPH-04, and
+PORT-03 as `Pending` in `.planning/REQUIREMENTS.md`.
+
+**What this does not mean.** The answer is not withdrawn and does not need
+re-asking. It is a scope decision that was made on real evidence about legs
+one and two, and it stays valid. When the sign-off is recorded, re-running
+Task 4 writes the `## Frozen at 14B` section against this scope, without
+another checkpoint.
+
+**What would change the answer.** A `not authorable` verdict on the human
+half. If Weibao cannot read or hand-edit the sidecar, freezing its seven
+column sets would freeze a shape he has just said does not work, and the
+right response is to fix the shape and re-ask, not to freeze it anyway.
