@@ -20,12 +20,14 @@ person is untrusted input the moment it crosses a machine boundary.
 
 Standard library only, runnable as `python tests/course_package_roundtrip.py`.
 """
-import json, os, shutil, subprocess, sys, tempfile
+import json, os, shutil, subprocess, sys, tempfile, zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 import course                                                # noqa: E402
 import course_package                                        # noqa: E402
+import evidence                                              # noqa: E402
+import graph                                                 # noqa: E402
 import identity                                              # noqa: E402
 import journal                                               # noqa: E402
 import fixtures.corpus_14b as corpus_14b                     # noqa: E402
@@ -262,8 +264,7 @@ def check_empty_course(tmp):
     os.makedirs(dest)
     restored = course_package.restore_package(pkg, dest, "human", "weibao")
     eq(restored["entries_verified"], 1, "the empty package restores one entry")
-    eq(restored["losses"], manifest["loss_report"],
-       "the export-time loss report travels with the package")
+    eq(restored["restore_losses"], [], "an empty package loses nothing on restore")
 
 
 def check_interrupted_export(tmp):
@@ -290,6 +291,276 @@ def check_interrupted_export(tmp):
            "restoring an interrupted export")
 
 
+# ------------------------------------------------------------------ task 3
+
+def check_clean_restore():
+    """The clean-machine, offline restore drill, honestly simulated."""
+    tmp = tempfile.mkdtemp(prefix="course_package_restore_")
+    saved_env = {k: os.environ.get(k)
+                 for k in ("HOME", "APPDATA", "XDG_DATA_HOME")}
+    try:
+        built = corpus_14b.build_three_domains(tmp)
+        meridian = built["domains"][0]
+        root = meridian["root"]
+        corpus_14b.packaged_source(root, "carried-source")
+        seeded = [corpus_14b.seed_objective_evidence(root, objective_id)
+                  for objective_id in meridian["objectives"][:2]]
+
+        pkg = os.path.join(tmp, "package")
+        manifest = course_package.export_package(root, root, pkg)
+        sidecar_raw = open(course.sidecar_path(root), "rb").read()
+
+        exported = os.path.join(pkg, course_package.EVIDENCE_DIRNAME,
+                                course_package.EVIDENCE_FILENAME)
+        lines = [ln for ln in open(exported, encoding="utf-8").read().split("\n")
+                 if ln.strip()]
+        eq(len(lines), len(seeded),
+           "the evidence export carries this course's own events")
+
+        # A package a restore validates must survive an untouched check first.
+        verified = course_package.verify_manifest(pkg)
+        eq(set(verified.keys()),
+           {"entries_verified", "mismatches", "missing", "complete"},
+           "the verify_manifest key set")
+        eq(verified["complete"], True, "an untouched package verifies complete")
+        eq(verified["mismatches"], [], "an untouched package has no mismatch")
+        eq(verified["missing"], [], "an untouched package is missing nothing")
+        eq(verified["entries_verified"], len(manifest["entries"]),
+           "every manifest entry was verified by recomputation")
+
+        clean = corpus_14b.clean_machine_dest(tmp)
+        dest = clean["dest"]
+        if os.path.exists(os.path.join(dest, journal.JOURNAL_DIRNAME)):
+            fail("the clean destination must share no journal")
+        if os.listdir(dest):
+            fail("the clean destination must start empty")
+
+        for key, value in clean["env"].items():
+            os.environ[key] = value
+        restored = course_package.restore_package(pkg, dest, "human", "weibao")
+        for key, value in saved_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+        if not os.path.exists(os.path.join(dest, journal.JOURNAL_DIRNAME)):
+            fail("a restore mints the destination's own journal")
+        eq(restored["entries_verified"], len(manifest["entries"]),
+           "every entry was verified on restore")
+        eq(restored["complete"], True, "the restore reports itself complete")
+
+        restored_sidecar = os.path.join(dest, course.COURSE_SIDECAR_FILENAME)
+        eq(open(restored_sidecar, "rb").read(), sidecar_raw,
+           "the restored sidecar is byte-identical")
+        original_ids = [r["id"] for r in graph.parse_course(
+            sidecar_raw.decode("utf-8"))["objectives"]]
+        restored_ids = [r["id"] for r in graph.parse_course(
+            open(restored_sidecar, encoding="utf-8").read())["objectives"]]
+        eq(restored_ids, original_ids, "the restored objective ids")
+
+        registry = journal.read_registry(dest)
+        eq(len(registry), len(manifest["entries"]),
+           "the destination registry holds one row per restored object")
+        if not any(e.get("operation") == "restore"
+                   for e in journal.entries(dest)):
+            fail("a restore must journal operation=restore")
+
+        # Both loss reports come back, and neither replaces the other.
+        eq(restored["losses"], manifest["loss_report"],
+           "the export-time loss report travels with the package")
+        eq(restored["restore_losses"], [],
+           "restore-time losses are their own, separate list")
+
+        # Evidence goes through the one writer, so a restore is idempotent.
+        dest_log = evidence.log_path(dest)
+        eq(restored["evidence_recorded"], len(seeded),
+           "every exported event was recorded in the destination")
+        eq(restored["evidence_already_recorded"], 0,
+           "a first restore records nothing twice")
+        before = len(list(evidence.events(dest_log)))
+        again = course_package.restore_package(pkg, dest, "human", "weibao")
+        eq(again["evidence_recorded"], 0,
+           "a second restore records no new event")
+        eq(again["evidence_already_recorded"], len(seeded),
+           "a second restore reports every event as already recorded")
+        eq(len(list(evidence.events(dest_log))), before,
+           "a second restore leaves the destination's event count unchanged")
+
+        # A restore gap is reported against the manifest, never accepted.
+        entry = manifest["entries"][0]
+        payload = os.path.join(pkg, course_package.PAYLOAD_DIRNAME,
+                               entry["object_id"] + ".md")
+        raw = open(payload, "rb").read()
+        open(payload, "wb").write(raw + b"tampered\n")
+        gap = course_package.verify_manifest(pkg)
+        eq(gap["complete"], False, "a corrupted payload is not complete")
+        eq(len(gap["mismatches"]), 1, "the corrupted entry is reported once")
+        eq(gap["mismatches"][0]["expected"], entry["fingerprint"],
+           "the mismatch names the expected fingerprint")
+        if gap["mismatches"][0]["found"] == entry["fingerprint"]:
+            fail("the mismatch must name what was actually found")
+        dest2 = os.path.join(tmp, "restore_corrupt")
+        os.makedirs(dest2)
+        raises(lambda: course_package.restore_package(pkg, dest2, "human",
+                                                      "weibao"),
+               course_package.PackageError, "package.fingerprint_mismatch",
+               "restoring a corrupted payload")
+        open(payload, "wb").write(raw)
+
+        os.remove(payload)
+        absent = course_package.verify_manifest(pkg)
+        eq(len(absent["missing"]), 1, "the deleted payload is reported missing")
+        eq(absent["missing"][0]["object_id"], entry["object_id"],
+           "the missing report names the entry")
+        dest3 = os.path.join(tmp, "restore_missing")
+        os.makedirs(dest3)
+        raises(lambda: course_package.restore_package(pkg, dest3, "human",
+                                                      "weibao"),
+               course_package.PackageError, "package.missing_payload",
+               "restoring a package with a missing payload")
+        open(payload, "wb").write(raw)
+
+        manifest_path = os.path.join(pkg, course_package.MANIFEST_FILENAME)
+        saved = open(manifest_path, encoding="utf-8").read()
+        open(manifest_path, "w", encoding="utf-8").write("{not json at all")
+        raises(lambda: course_package.read_manifest(pkg),
+               course_package.PackageError, "package.manifest_unreadable",
+               "an unreadable manifest")
+        raises(lambda: course_package.restore_package(
+                   pkg, os.path.join(tmp, "restore_unreadable"), "human",
+                   "weibao"),
+               course_package.PackageError, "package.manifest_unreadable",
+               "restoring a package with an unreadable manifest")
+        open(manifest_path, "w", encoding="utf-8").write(saved)
+
+        # A restore is offline by construction, not by intention.
+        for name in ("urllib", "socket", "http", "subprocess"):
+            if hasattr(course_package, name):
+                fail("course_package.py must not reach %s; a restore is an "
+                     "offline operation" % name)
+        print("ok  clean-machine restore, validated by recomputation")
+    finally:
+        for key, value in saved_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def check_archive_containment():
+    """A package archive is untrusted input the moment it crosses a machine
+    boundary, so every entry is contained before anything is written.
+
+    The oversized-entry assertion lowers `MAX_ENTRY_BYTES` for the duration
+    rather than writing a genuine hundred-megabyte declared size. The guard
+    under test is the comparison and its refusal, and the shipped ceiling is
+    asserted separately as a constant; building a real bomb here would cost a
+    hundred megabytes of memory per run to prove the same comparison.
+    """
+    tmp = tempfile.mkdtemp(prefix="course_package_zip_")
+    try:
+        eq(course_package.ARCHIVE_FORMATS, (None, "zip"), "ARCHIVE_FORMATS")
+        eq(course_package.MAX_ENTRY_BYTES, 104857600,
+           "the shipped uncompressed-entry ceiling")
+
+        for name in ("../escape.md", "payload/../../escape.md"):
+            archive = os.path.join(tmp, "traversing.zip")
+            corpus_14b.build_traversing_archive(archive, name)
+            dest = os.path.join(tmp, "extract_dest")
+            os.makedirs(dest, exist_ok=True)
+            raises(lambda: course_package.extract_archive(archive, dest),
+                   course_package.PackageError, "package.path_escape",
+                   "the traversing archive entry %r" % name)
+            escaped = os.path.join(dest, "..", "escape.md")
+            if os.path.exists(escaped):
+                fail("a refused entry must never be written: %s exists" % escaped)
+            os.remove(archive)
+
+        absolute = os.path.join(tmp, "absolute.zip")
+        corpus_14b.build_traversing_archive(
+            absolute, "/" + os.path.join(tmp, "escape.md").lstrip("/"))
+        raises(lambda: course_package.extract_archive(
+                   absolute, os.path.join(tmp, "extract_dest")),
+               course_package.PackageError, "package.path_escape",
+               "an absolute archive entry name")
+        if os.name == "nt":
+            drive = os.path.join(tmp, "drive.zip")
+            corpus_14b.build_traversing_archive(drive, "C:\\escape.md")
+            raises(lambda: course_package.extract_archive(
+                       drive, os.path.join(tmp, "extract_dest")),
+                   course_package.PackageError, "package.path_escape",
+                   "an archive entry naming a drive")
+
+        symlink = corpus_14b.build_symlink_archive(
+            os.path.join(tmp, "symlink.zip"))
+        if symlink is None:
+            print("SKIP: symlink archive assertion (this platform cannot "
+                  "write a symlink zip entry)")
+        else:
+            raises(lambda: course_package.extract_archive(
+                       symlink, os.path.join(tmp, "extract_dest")),
+                   course_package.PackageError, "package.symlink_payload",
+                   "a symbolic-link archive entry")
+
+        raises(lambda: course_package.extract_archive(
+                   absolute, os.path.join(tmp, "extract_dest"), "tar"),
+               course_package.PackageError, "package.unsupported_archive",
+               "an archive format outside ARCHIVE_FORMATS")
+        raises(lambda: course_package.extract_archive(
+                   absolute, os.path.join(tmp, "extract_dest"), None),
+               course_package.PackageError, "package.unsupported_archive",
+               "extracting with no archive format at all")
+
+        big = os.path.join(tmp, "oversized.zip")
+        with zipfile.ZipFile(big, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("payload/big.md", "x" * 4096)
+        ceiling = course_package.MAX_ENTRY_BYTES
+        course_package.MAX_ENTRY_BYTES = 16
+        try:
+            err = raises(lambda: course_package.extract_archive(
+                             big, os.path.join(tmp, "extract_big")),
+                         course_package.PackageError,
+                         "package.unsupported_archive",
+                         "an entry declaring more than the ceiling")
+            if "payload/big.md" not in err.message:
+                fail("an oversized entry must be refused by name")
+            if os.path.exists(os.path.join(tmp, "extract_big",
+                                           "payload", "big.md")):
+                fail("an oversized entry must be refused before it is written")
+        finally:
+            course_package.MAX_ENTRY_BYTES = ceiling
+
+        # The optional zip transport round trips: tree, archive, tree again.
+        root = os.path.join(tmp, "transport_course")
+        os.makedirs(root)
+        course.create_course(root, "Transport Course", "agent", "corpus-14b")
+        corpus_14b.packaged_source(root, "carried-source")
+        pkg = os.path.join(tmp, "transport_package")
+        manifest = course_package.export_package(root, root, pkg,
+                                                  archive="zip")
+        archive = pkg + ".zip"
+        if not os.path.exists(archive):
+            fail("archive='zip' must write the optional transport archive")
+        unpacked = os.path.join(tmp, "unpacked_package")
+        course_package.extract_archive(archive, unpacked)
+        dest = os.path.join(tmp, "transport_restore")
+        os.makedirs(dest)
+        restored = course_package.restore_package(unpacked, dest, "human",
+                                                  "weibao")
+        eq(restored["entries_verified"], len(manifest["entries"]),
+           "a package that travelled as a zip still restores every entry")
+
+        raises(lambda: course_package.export_package(
+                   root, root, os.path.join(tmp, "bad_format"), archive="tar"),
+               course_package.PackageError, "package.unsupported_archive",
+               "exporting with an unsupported archive format")
+        print("ok  archive containment and the optional zip transport")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def kill_export(root, pkg):
     """Run one export in this process and die inside the first payload write.
 
@@ -310,6 +581,8 @@ def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--kill-export":
         return kill_export(sys.argv[2], sys.argv[3])
     check_manifest_and_losses()
+    check_clean_restore()
+    check_archive_containment()
     print("OK course_package_roundtrip")
     return 0
 

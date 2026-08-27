@@ -549,5 +549,56 @@ def duplicate_fingerprint_sources(root):
     return first, second
 
 
+def clean_machine_dest(tmp):
+    """An empty restore destination plus the environment overrides that point
+    a restore away from the exporting machine's home directory.
+
+    A restore drill that quietly read the exporting machine's registry,
+    settings, or evidence store would pass while proving nothing, so the
+    destination shares nothing and `HOME`, `APPDATA`, and `XDG_DATA_HOME` all
+    point at a second empty directory for the duration.
+    """
+    dest = os.path.join(tmp, "clean_machine_dest")
+    home = os.path.join(tmp, "clean_machine_home")
+    os.makedirs(dest, exist_ok=True)
+    os.makedirs(home, exist_ok=True)
+    return {"dest": dest, "home": home,
+            "env": {"HOME": home, "APPDATA": home, "XDG_DATA_HOME": home}}
+
+
+def build_traversing_archive(path, name="../escape.md"):
+    """A zip carrying one entry whose literal name escapes its root.
+
+    Hand-built with `writestr`, because an ordinary zip writer will not
+    produce such a name. This is the Zip Slip probe: the extractor must
+    refuse it, and must not clamp it to a safe name.
+    """
+    import zipfile
+
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr(name, "this file must never be written\n")
+    return path
+
+
+def build_symlink_archive(path, name="payload/link.md", target="../../etc"):
+    """A zip carrying one symbolic-link entry, or None when this platform
+    cannot express one.
+
+    Returns None rather than a file when the entry cannot be written, so the
+    caller skips that one assertion by name instead of passing silently.
+    """
+    import zipfile
+
+    try:
+        info = zipfile.ZipInfo(name)
+        info.create_system = 3
+        info.external_attr = (0o120777 << 16)
+        with zipfile.ZipFile(path, "w") as zf:
+            zf.writestr(info, target)
+    except Exception:                                        # noqa: BLE001
+        return None
+    return path
+
+
 def teardown(dest):
     shutil.rmtree(dest, ignore_errors=True)
