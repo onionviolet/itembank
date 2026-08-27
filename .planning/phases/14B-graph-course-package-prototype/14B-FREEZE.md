@@ -130,3 +130,40 @@ freeze against D-14B-5's recorded scope with no second checkpoint. A
 `not authorable` verdict is a different outcome and is not a formality: it
 would mean freezing seven column sets Weibao had just said he cannot read,
 and the right response is to fix the shape and re-ask.
+
+## Note 2026-08-27, later the same day: ground two is closed
+
+Appended rather than rewritten. **The verdict above is unchanged: the freeze
+is still withheld.** What changed is that only one of its two grounds now
+stands.
+
+**Ground two is closed.** Item 2 of "What closes this" is done in commit
+`0912f5c`. `surfaces/visual_fixture.OPERATION_PHRASE` gained
+`"migrate": "proposed a change to"`, and `migrate` was added to `UNDOABLE`.
+Both values are Weibao's decisions of the same date, not an agent's, because
+the first is learner-facing copy and the second is a reversibility judgment.
+The `UNDOABLE` inclusion was made against the recommendation put to him, and
+the comment above that set records the accepted cost: a migration has no
+journalled prior revision of bytes to restore, and `graph.set_migration_state`
+is already a typed rejection path, so the undo control is a second route to the
+same outcome and must reject through the state machine rather than invent a
+parallel reversal.
+
+**Measured after the fix**, rather than assumed: `tests/visual_system_roundtrip.py`
+passes, and `tests/phase_062_audit.py` no longer cascades from it. That audit's
+full-suite check now reports exactly two reds, `tests/day_roundtrip.py` and
+`tests/retention_ui_roundtrip.py`, both failing their "Anki closed" assertions
+because a live Anki is answering AnkiConnect on this machine. Neither touches
+`graph.py`, `course.py`, `course_package.py`, or `surfaces/visual_fixture.py`.
+`python3 itembank.py guard .` reports `0 offending files`.
+
+**So the remaining barrier is environmental plus human, not code.** With Anki
+closed, the full-suite leg should come back green with no further change. That
+is stated as an expectation and not as a measurement: it was not verified,
+because closing Weibao's Anki is not the agent's call to make.
+
+**Ground one still stands, alone and sufficient.** Item 1 of "What closes this"
+is untouched. `14B-AUTHORABILITY-REVIEW.md` still has a blank Sign-off section,
+and no agent may fill it. Phase 14B stays unfrozen until Weibao performs that
+review, and a `not authorable` verdict remains a real possible outcome rather
+than a formality.
