@@ -602,3 +602,64 @@ def build_symlink_archive(path, name="payload/link.md", target="../../etc"):
 
 def teardown(dest):
     shutil.rmtree(dest, ignore_errors=True)
+
+
+def platform_capabilities(dest):
+    """What this machine can express, measured rather than assumed.
+
+    A tracer that cannot create a symbolic link must print a named skip line
+    instead of passing, so the capability is measured once here and carried
+    in the built corpus rather than rediscovered at each assertion.
+    """
+    probe = os.path.join(dest, "_platform_probe")
+    os.makedirs(probe, exist_ok=True)
+    target = os.path.join(probe, "target.md")
+    with open(target, "w", encoding="utf-8") as fh:
+        fh.write("probe\n")
+    symlink = False
+    try:
+        os.symlink(target, os.path.join(probe, "link.md"))
+        symlink = True
+    except (OSError, NotImplementedError, AttributeError):
+        symlink = False
+    archive = build_symlink_archive(os.path.join(probe, "symlink.zip"))
+    return {"symlink": symlink, "archive_symlink_entry": archive is not None}
+
+
+def build_all(dest):
+    """Build the whole Phase 14B corpus in one call and describe it.
+
+    The freeze-gate tracer sets up in one statement so that what it proves is
+    the graph and the package, not a page of fixture wiring. Returned keys:
+
+    - `domains`, the three built domain descriptors, each carrying its
+      course root path plus the container, objective, and source ids the
+      tracer asserts against.
+    - `roots`, the same three course-root paths alone, in the same order.
+    - `stub_root`, a root carrying a Phase 13.9 shaped `course.md`.
+    - `evidence_seeds`, one recorded event id per seeded objective, keyed by
+      domain slug, so a migration scenario has real evidence to leave alone.
+    - `platform`, what this machine can express, so a fallback is recorded
+      as a named skip rather than passing silently.
+    """
+    built = build_three_domains(dest)
+    stub_root = os.path.join(dest, "stub-course")
+    build_stub_course(stub_root)
+
+    seeds = {}
+    for domain in built["domains"]:
+        if domain["slug"] != "lantern-computing":
+            continue
+        seeds[domain["slug"]] = [
+            seed_objective_evidence(domain["root"], domain["objectives"][0])]
+
+    return {
+        "dest": dest,
+        "domains": built["domains"],
+        "roots": [d["root"] for d in built["domains"]],
+        "stub_root": stub_root,
+        "evidence_seeds": seeds,
+        "platform": platform_capabilities(dest),
+        "built": built["built"],
+        "declared": built["declared"],
+    }
