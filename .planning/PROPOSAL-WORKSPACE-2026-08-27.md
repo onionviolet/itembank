@@ -267,3 +267,74 @@ It does not open a phase, does not edit `REQUIREMENTS.md`, does not touch
 `NEXT-2026-08-27.md`, and does not reopen the 2026-08-27 percent ruling. It
 proposes one requirement and recommends one of three shapes the template already
 named.
+
+---
+
+## 9. Owner answer, 2026-08-27
+
+Recorded the same day the packet was drafted. The quotation is verbatim; the
+interpretation below it is the agent's and is kept separate, per the standing
+rule that quotations, interpretations, and accepted clauses stay visibly
+distinct.
+
+### Quoted verbatim
+
+On the shape question:
+
+> attempt all of them, or using the most optimal one, with room for other ones
+> if we need to,
+
+On the phase question, selected from the offered options: **decide after the
+14B freeze.**
+
+### Interpretation recorded 2026-08-27
+
+Separate from the quotation above. **Flagged for correction, because the shape
+answer did not pick one of the three labels and the reading below is the
+agent's.**
+
+**Read as: adopt FILE-04, build shape C, and do not foreclose A or B.** "The
+most optimal one" is taken to mean the recommended shape, and "with room for
+other ones if we need to" is taken as a design constraint on it rather than as a
+request for three parallel implementations.
+
+**Why "attempt all of them" is largely satisfiable rather than a compromise, and
+where it is not.** Two of the three collapse into shape C cleanly, and the third
+cannot, and the difference is worth stating once:
+
+- **Shape A is shape C's degraded mode, not a rival.** A workspace record with
+  no configured roots, falling back to a scan of the daemon root, is exactly
+  shape A. So A costs nothing extra and is reachable at runtime rather than by
+  rebuilding. This should be the documented default for a fresh install, which
+  also means a new install needs no setup step before the shelf works.
+- **Shape B survives as a derived view, not as a source of truth.** A readable
+  Markdown rendering of the workspace, openable in Obsidian, is compatible and
+  cheap. What it may not be is a second authored authority over the same bytes:
+  that is the competition `course.py` refuses by design and the reason
+  IL-20260826-01 withdrew the authored course manifest on 2026-08-26. So B is
+  available as an export or a projection, and never as an editable second copy.
+- **The one thing that is not available.** Two shapes may not both be the source
+  of truth at the same time. Exactly one is authoritative, and the other two are
+  a degraded mode and a derived view of it. Recording this because "attempt all
+  of them" read literally would produce the second-authority mistake this
+  repository legislates against, and that reading is refused here rather than
+  silently narrowed.
+
+**Consequence for the drafted FILE-04 text.** One clause is added when the
+requirement is inserted: the workspace record's absence or empty root list is
+not an error state, and degrades to a single-root scan. Everything else in the
+section 4 draft stands as written.
+
+**Phase.** Deferred until 14B-06 writes its freeze verdict, per the owner's
+selection. FILE-04 is therefore accepted in principle and unscheduled. It is
+**not** inserted into `REQUIREMENTS.md` by this note, because the shape answer
+is an agent reading of an ambiguous reply and one confirming word from Weibao
+should precede a write to the binding requirement document.
+
+### What is still open
+
+1. Whether the interpretation above is what Weibao meant. One word settles it.
+2. The phase, deliberately, until the 14B freeze.
+3. The record's file format and location. The packet recommended JSON beside
+   the existing settings, matching `settings.schema.json` and the journal's
+   `_journal/objects.json`. Not raised in the answer and not treated as settled.

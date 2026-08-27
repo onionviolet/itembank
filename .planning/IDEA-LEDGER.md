@@ -698,6 +698,36 @@ Amendments to an existing entry are additive notes under the entry, dated.
     is at least a chosen one.
   - **Revisit trigger, sharpened:** Weibao answering the proposal, or plan
     16B-04 being scheduled, whichever comes first.
+- **Note 2026-08-27, owner answered the proposal the same day.** Disposition
+  moves from Registered, narrowed, to **Core in principle and unscheduled**.
+  Quoted verbatim on the shape question: "attempt all of them, or using the most
+  optimal one, with room for other ones if we need to,". On the phase question
+  he selected: decide after the 14B freeze. Full record, with the agent
+  interpretation kept separate from the quotation, is section 9 of
+  `.planning/PROPOSAL-WORKSPACE-2026-08-27.md`.
+  - **Interpretation, the agent's, flagged for correction.** Read as: adopt
+    FILE-04, build the recommended shape (root registry plus derived index), and
+    do not foreclose the other two. The shape answer did not name one of the
+    three labels, so this reading is stated rather than assumed settled.
+  - **Why two of the three collapse in cleanly.** A workspace record with no
+    configured roots, falling back to a scan of the daemon root, **is** the
+    directory-scan shape, so that shape becomes a runtime degraded mode rather
+    than a rival and should be the documented fresh-install default. A readable
+    Markdown rendering of the workspace is available as a derived view or
+    export.
+  - **The one part refused rather than silently narrowed.** Two shapes may not
+    both be the source of truth at once. The authored Markdown shape may never
+    be an editable second copy competing with the record, which is the
+    two-authorities-over-the-same-bytes mistake this entry already invoked on
+    2026-08-26 when it withdrew the authored course manifest. Recorded because
+    "attempt all of them" read literally would produce exactly that.
+  - **Not done, deliberately.** `REQUIREMENTS.md` is unedited and FILE-04 is not
+    inserted. One confirming word on the interpretation above should precede a
+    write to the binding requirement document, and the phase is deferred by the
+    owner's own selection until 14B-06 writes its freeze verdict.
+  - **Still open:** whether the interpretation is what he meant; the phase; and
+    the record's file format and location, which the packet recommended as JSON
+    beside the existing settings and which the answer did not reach.
 
 ### IL-20260826-02: Treatment purpose determines the evidence contract
 
