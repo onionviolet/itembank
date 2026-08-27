@@ -1,0 +1,274 @@
+<title>Course Shelf Mockup</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Tokens lifted verbatim from surfaces/theme.py, the shipped system. */
+  :root{
+    --bg:#f3f5f4; --ink:#171d1c; --card:#ffffff; --chip:#eef2f1;
+    --line:#dfe5e3; --mut:#5f6d6a; --accent:#0e6e62;
+    --ok:#1b7a3d; --ok-bg:#e8f4ec;
+    --bad:#b4272b; --bad-bg:#fbebeb;
+    --warn:#8a5900; --warn-bg:#f8f1e2;
+    --unknown:#566067; --unknown-bg:#edf0f2;
+    --pending:#5b4a9f; --pending-bg:#efecf7;
+    --edge:#7f8b88;
+    --shadow:0 1px 2px rgba(23,29,28,.05), 0 4px 14px rgba(23,29,28,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0e1413; --ink:#e4ebe9; --card:#161e1d; --chip:#1d2726;
+      --line:#26312f; --mut:#8fa19d; --accent:#4fbfae;
+      --ok:#4fbf74; --ok-bg:#11291b;
+      --bad:#f0666a; --bad-bg:#2b1416;
+      --warn:#e0a23a; --warn-bg:#2b2312;
+      --unknown:#9aa7ad; --unknown-bg:#1b2325;
+      --pending:#b3a3e6; --pending-bg:#221c33;
+      --edge:#697774;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.25);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e1413; --ink:#e4ebe9; --card:#161e1d; --chip:#1d2726;
+    --line:#26312f; --mut:#8fa19d; --accent:#4fbfae;
+    --ok:#4fbf74; --ok-bg:#11291b;
+    --bad:#f0666a; --bad-bg:#2b1416;
+    --warn:#e0a23a; --warn-bg:#2b2312;
+    --unknown:#9aa7ad; --unknown-bg:#1b2325;
+    --pending:#b3a3e6; --pending-bg:#221c33;
+    --edge:#697774;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.25);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    font-size:15px; line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:40px 24px 72px; display:flex; flex-direction:column; gap:44px;}
+
+  .mono{font-family:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric:tabular-nums;}
+
+  header.top{display:flex; flex-direction:column; gap:14px; border-bottom:1px solid var(--line); padding-bottom:26px;}
+  .eyebrow{
+    font-family:"IBM Plex Mono", monospace; font-size:11.5px; letter-spacing:.13em;
+    text-transform:uppercase; color:var(--mut);
+  }
+  h1{margin:0; font-size:31px; line-height:1.15; font-weight:600; letter-spacing:-.017em; text-wrap:balance;}
+  .lede{margin:0; max-width:64ch; color:var(--mut); font-size:15.5px;}
+  .lede strong{color:var(--ink); font-weight:500;}
+
+  h2{
+    margin:0 0 4px; font-size:12px; font-weight:600; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--mut);
+    font-family:"IBM Plex Mono", monospace;
+  }
+  section{display:flex; flex-direction:column; gap:16px;}
+  .sec-note{margin:0; color:var(--mut); font-size:14px; max-width:70ch;}
+
+  /* ---- shelf ---- */
+  .shelf{display:grid; grid-template-columns:repeat(auto-fill, minmax(310px,1fr)); gap:16px;}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:10px;
+    padding:18px 18px 15px; display:flex; flex-direction:column; gap:12px;
+    box-shadow:var(--shadow); position:relative; overflow:hidden;
+  }
+  .card::before{
+    content:""; position:absolute; inset:0 auto 0 0; width:3px; background:var(--stripe, transparent);
+  }
+  .card.s-ok{--stripe:var(--ok);} .card.s-warn{--stripe:var(--warn);}
+  .card.s-bad{--stripe:var(--bad);} .card.s-pending{--stripe:var(--pending);}
+  .card.s-unknown{--stripe:var(--unknown);}
+
+  .cname{
+    margin:0; font-size:17px; font-weight:600; line-height:1.3; letter-spacing:-.008em;
+    overflow-wrap:anywhere; /* wraps, never truncates */
+  }
+  .cid{font-size:11.5px; color:var(--mut); letter-spacing:.04em;}
+
+  .chip{
+    display:inline-flex; align-items:center; gap:6px; align-self:flex-start;
+    font-size:12px; font-weight:500; padding:3px 9px; border-radius:999px;
+    border:1px solid currentColor; line-height:1.5;
+  }
+  .chip .dot{width:6px; height:6px; border-radius:50%; background:currentColor; flex:none;}
+  .c-ok{color:var(--ok); background:var(--ok-bg);}
+  .c-warn{color:var(--warn); background:var(--warn-bg);}
+  .c-bad{color:var(--bad); background:var(--bad-bg);}
+  .c-pending{color:var(--pending); background:var(--pending-bg);}
+  .c-unknown{color:var(--unknown); background:var(--unknown-bg);}
+
+  .cue{
+    margin:0; padding:10px 12px; background:var(--chip); border-radius:7px;
+    font-size:14px; line-height:1.45;
+  }
+  .cue .lab{
+    display:block; font-family:"IBM Plex Mono",monospace; font-size:10.5px;
+    letter-spacing:.11em; text-transform:uppercase; color:var(--mut); margin-bottom:3px;
+  }
+  .cue.none{color:var(--mut); font-style:italic;}
+
+  .meta{display:flex; justify-content:space-between; gap:10px; font-size:12.5px; color:var(--mut); border-top:1px solid var(--line); padding-top:11px; flex-wrap:wrap;}
+
+  .areas{display:flex; flex-wrap:wrap; gap:5px;}
+  .areas a{
+    font-size:12px; color:var(--ink); text-decoration:none;
+    padding:3px 8px; border:1px solid var(--line); border-radius:6px; background:transparent;
+  }
+  .areas a:hover{border-color:var(--accent); color:var(--accent);}
+  .areas a:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+
+  .recover{display:flex; gap:8px; flex-wrap:wrap;}
+  .btn{
+    font-size:13px; font-weight:500; padding:6px 12px; border-radius:7px; text-decoration:none;
+    border:1px solid var(--line); color:var(--ink); background:var(--chip);
+  }
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff;}
+  :root[data-theme="dark"] .btn.primary{color:#0e1413;}
+  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .btn.primary{color:#0e1413;}
+  .btn:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+
+  /* ---- empty ---- */
+  .empty{
+    background:var(--card); border:1px dashed var(--line); border-radius:10px;
+    padding:40px 28px; text-align:center; display:flex; flex-direction:column; gap:8px; align-items:center;
+  }
+  .empty h3{margin:0; font-size:19px; font-weight:600;}
+  .empty p{margin:0; color:var(--mut); max-width:44ch;}
+
+  /* ---- reference table ---- */
+  .tblwrap{overflow-x:auto; border:1px solid var(--line); border-radius:9px; background:var(--card);}
+  table{border-collapse:collapse; width:100%; font-size:13.5px; min-width:560px;}
+  th,td{text-align:left; padding:10px 14px; border-bottom:1px solid var(--line); vertical-align:top;}
+  th{font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--mut); font-weight:500;}
+  tr:last-child td{border-bottom:0;}
+  td.rank{color:var(--mut);}
+
+  /* ---- contract panel ---- */
+  .panel{
+    border:1px solid var(--line); border-left:3px solid var(--accent);
+    background:var(--card); border-radius:0 9px 9px 0; padding:18px 20px;
+    display:flex; flex-direction:column; gap:10px;
+  }
+  .panel h3{margin:0; font-size:15px; font-weight:600;}
+  .panel ul{margin:0; padding-left:19px; display:flex; flex-direction:column; gap:7px; color:var(--mut); font-size:14px;}
+  .panel li strong{color:var(--ink); font-weight:500;}
+  code{
+    font-family:"IBM Plex Mono",monospace; font-size:.9em;
+    background:var(--chip); padding:1px 5px; border-radius:4px;
+  }
+
+  .check{
+    display:flex; align-items:center; gap:10px; font-size:13.5px;
+    padding:11px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card);
+  }
+  .check .verdict{font-weight:600;}
+  .check.pass .verdict{color:var(--ok);}
+  .check.fail .verdict{color:var(--bad);}
+
+  footer{color:var(--mut); font-size:13px; border-top:1px solid var(--line); padding-top:20px;}
+  footer p{margin:0 0 6px;}
+</style>
+<style>
+  .mark{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:13px; height:13px; margin-left:6px; border-radius:50%;
+    border:1px solid currentColor; font-size:9px; font-style:italic;
+    font-weight:600; opacity:.6; cursor:help; flex:none;
+  }
+  .facts{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:0; padding:11px 0 0; border-top:1px solid var(--line);}
+  .facts div{display:flex; flex-direction:column; gap:1px;}
+  .facts dt{font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:var(--mut); font-family:"IBM Plex Mono",monospace;}
+  .facts dd{margin:0; font-size:16px; font-weight:500;}
+  .legend{display:flex; gap:16px; flex-wrap:wrap; font-size:13px; color:var(--mut);}
+  .legend span{display:flex; align-items:center; gap:6px;}
+  .swatch{width:11px; height:11px; border-radius:3px; border:1px solid var(--line);}
+  .swatch.real{background:var(--accent);}
+  .swatch.illus{background:repeating-linear-gradient(45deg,var(--mut),var(--mut) 2px,transparent 2px,transparent 4px);}
+</style>
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">itembank &middot; APP-01 &middot; plan 16B-04</div>
+    <h1>Course shelf</h1>
+    <p class="lede">An illustration of the <strong>already-planned</strong> home surface. Card structure and copy follow plan 16B-04; the tokens are lifted from <code>surfaces/theme.py</code>. Every count below is <strong>read from a real course sidecar</strong> built by <code>fixtures/corpus_14b.py</code> and read back through <code>course.read_course</code>. Not an implementation.</p>
+    <div class="legend">
+      <span><span class="swatch real"></span>Read from shipped code</span>
+      <span><span class="swatch illus"></span>Illustration, marked <em>i</em> on the card</span>
+    </div>
+  </header>
+
+  <section>
+    <h2>Populated shelf</h2>
+    <p class="sec-note">Real courses in this shelf: @@REAL_NOTE@@. Their titles, object IDs, container labels, objective, edge and source counts, and journal state all come from <code>graph.py</code> records. Ordering is a total order (D-16B-10): attention rank, then most recent activity descending, then course ID ascending.</p>
+    <div class="shelf" id="shelf">@@CARDS@@
+    </div>
+  </section>
+
+  <section>
+    <h2>Contract check</h2>
+    <div class="check pass" id="pctcheck">
+      <span class="verdict" id="pctverdict">checking</span>
+      <span id="pctmsg">Scanning the shelf for a percent character.</span>
+    </div>
+    <p class="sec-note">16B-04 asserts that no shelf card, chip, or resume cue contains a percent character, and that no single aggregate completion, mastery, or readiness percentage appears on a card. That prohibition carries <code>status: kept</code>. This page runs the same check against its own DOM.</p>
+  </section>
+
+  <section>
+    <h2>What could not be sourced, and why that matters</h2>
+    <div class="panel">
+      <h3>Three fields on every card are illustration</h3>
+      <ul>
+        <li><strong>Attention state.</strong> <code>course_shelf_state</code> belongs to plan 16B-04 and does not exist. The 16B-01 precondition check halts on Phase 16A, so nothing downstream of it has run.</li>
+        <li><strong>Resume cue.</strong> Needs evidence, and <code>course.py</code> imports no <code>evidence</code> by design, so the course sidecar structurally cannot answer it. Whatever computes the cue will be a third thing reading both.</li>
+        <li><strong>Last activity date.</strong> Nothing in <code>graph.py</code> holds a date. This is the open half of IL-20260826-07, and it is also why <code>due</code> has no source.</li>
+      </ul>
+      <p class="sec-note" style="margin-top:2px;">This is the mockup's most useful output. The structural half of the shelf is fully backed by shipped code today; the entire attention-and-resume half, which is what makes a shelf worth looking at, has no data behind it yet.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Zero courses</h2>
+    <p class="sec-note">Both strings are contractual, quoted exactly from 16B-04. The region is never left blank.</p>
+    <div class="empty">
+      <h3>@@EMPTY_HEADING@@</h3>
+      <p>@@EMPTY_BODY@@</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>The six attention states</h2>
+    <p class="sec-note">Each carries required text and is never signalled by colour alone. Rank shown is the mockup's own: D-16B-10 fixes that a total order exists, not which state outranks which.</p>
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th>Rank</th><th>State</th><th>Chip</th></tr></thead>
+        <tbody>@@ROWS@@</tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <p>Generated by <code>prototypes/16b/build_shelf_mockup.py</code>, @@STAMP@@. Regenerate with <code>python prototypes/16b/build_shelf_mockup.py &gt; prototypes/16b/course-shelf.html</code>.</p>
+    <p>Regeneration is byte-identical except for the three course object IDs, which <code>identity.new_object_id()</code> mints fresh on every build. Those lines are the only expected diff; anything else changing means a shipped record shape moved.</p>
+    <p>Phase 16B has not started; its precondition check halts on Phase 16A. Phase 14B waves 4 to 6 each carry a blocking human checkpoint. The shelf is plan 16B-04, four plans into a phase that cannot begin yet.</p>
+  </footer>
+</div>
+
+<script>
+  (function(){
+    var shelf = document.getElementById('shelf');
+    var box = document.getElementById('pctcheck');
+    var verdict = document.getElementById('pctverdict');
+    var msg = document.getElementById('pctmsg');
+    if(!shelf || !box) return;
+    var hit = (shelf.innerText || '').indexOf('%') !== -1;
+    if(hit){
+      box.classList.remove('pass'); box.classList.add('fail');
+      verdict.textContent = 'FAIL';
+      msg.textContent = 'A percent character appears on the shelf. 16B-04 forbids it.';
+    } else {
+      verdict.textContent = 'PASS';
+      msg.textContent = 'No percent character anywhere on the shelf, across ' +
+        shelf.querySelectorAll('.card').length + ' cards. No aggregate score is rendered.';
+    }
+  })();
+</script>

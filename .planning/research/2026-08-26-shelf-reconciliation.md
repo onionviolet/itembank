@@ -113,6 +113,17 @@ something behind it.
 Recorded here rather than edited into those plans, since amending a built plan
 is a decision for whoever executes 16B.
 
+**Correction appended 2026-08-27, after actually running the check.** The stale
+annotation above is real but is not the blocker, and this section overstated its
+importance. The 16B-01 precondition check was re-run against the current tree
+and **halts on Phase 16A, not on 14B**: `capabilities` does not exist,
+`model.SEMANTIC_PROFILE_VERSION` is absent, and neither `16A-FREEZE.md` nor
+`16A-PRECONDITION.md` exists, because 16A is planned and unexecuted. All three
+14B modules import cleanly, so the stale annotation is stale in the harmless
+direction. Full result, including the additivity baseline and two further
+plan-text defects, in
+`.planning/phases/16B-ia-modes-recovery-contract/16B-PRECONDITION-DRYRUN-2026-08-27.md`.
+
 ## 6. What this note does not do
 
 It opens no plan, changes no requirement, and does not schedule 16B. Phase 14B
