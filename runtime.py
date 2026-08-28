@@ -1538,14 +1538,56 @@ def glossable(qs, term):
     against the file on disk: the learner owns the bank markdown, and
     UI-SPEC §8.4 states that plainly.
 
-    The answer-bearing fragments are the plan's locked set: the correct
-    option labels, the canonical key output of `canonical_key()`, and the
-    collapsed key/answer text for short/build items.
+    The answer-bearing fragments are the fields `public_item()` WITHHOLDS:
+    the correct option labels, the canonical key output of `canonical_key()`,
+    the collapsed key/answer text for short and build items, and, added
+    2026-08-28, the authored rationale block (`WHY BEST`, `KEY DISCRIMINATOR`,
+    `SECOND-BEST`, and each `DISTRACTOR ANALYSIS` line).
+
+    Deriving the fragment set from what `public_item` withholds makes the two
+    gates agree BY CONSTRUCTION rather than by coincidence. Before the
+    rationale was added they disagreed: `public_item` withheld `WHY BEST` and
+    `glossable` admitted a definition quoting it verbatim, so an author could
+    reproduce the rationale into a term definition or a source excerpt and no
+    gate saw it. Rationale fragments are whole sentences, so this catches
+    verbatim reproduction and not incidental word overlap, which is exactly
+    the sensitivity wanted: quoting a rationale is a disclosure, sharing a
+    noun with one is not.
+
+    **How a fragment is matched, and why it is not a bare substring
+    (corrected 2026-08-28).** A multi-character fragment must appear on word
+    boundaries, so a definition is refused for containing the option text
+    "two" but not for containing "twofold". A SINGLE-CHARACTER fragment, which
+    in practice is a multiple-choice item's option letter, must additionally
+    appear as a capital letter that is not opening a sentence.
+
+    That last rule exists because the previous bare-substring test made this
+    gate useless. `canonical_key()` for a multiple-choice item returns the
+    bare correct option letter, so a bank keyed `A` refused every definition
+    containing the letter "a", which is every definition anyone would write:
+    both terms in `fixtures/terms_above_lesson_bank.md` were suppressed, and
+    the hover, focus, and touch glossary was effectively off in any bank with
+    a multiple-choice item. A gate that refuses everything is not a
+    conservative gate; it is a disabled feature that looks like a gate.
+
+    The rule distinguishes the two ways a single letter appears in English:
+    "The keyed letter is B, placed with the stem" names a letter and is
+    refused, while "A small invented thing" opens with an article and is
+    admitted. It reads the ORIGINAL definition for case, not the collapsed
+    one, because case is the whole signal.
+
+    This loosening is bounded and deliberate. Per UI-SPEC section 8.4 this
+    gate is NOT a secrecy mechanism against the file on disk: the learner owns
+    the bank markdown and can read the key there. It exists so a definition
+    does not hand over an answer mid-sitting, and every fragment that actually
+    carries the answer, the option text, the model answer, the build steps,
+    and every multi-character canonical key, is still matched.
     """
     def _collapse(s):
         return " ".join(str(s or "").split()).lower()
 
-    definition = _collapse(term.get("def"))
+    raw_definition = " ".join(str(term.get("def") or "").split())
+    definition = raw_definition.lower()
     if not definition:
         return True
     for q in qs:
@@ -1561,11 +1603,61 @@ def glossable(qs, term):
         key = canonical_key(q)
         if key is not None:
             frags.append(key)
+        # The authored rationale block: every field `public_item()` withholds
+        # and `explain_payload()` releases only after a response exists.
+        frags.append(q.get("why") or "")
+        frags.append(q.get("disc") or "")
+        frags.append(q.get("second") or "")
+        frags.extend((q.get("da") or {}).values())
         for frag in frags:
             frag = _collapse(frag)
-            if frag and frag in definition:
+            if not frag:
+                continue
+            if _fragment_discloses(definition, raw_definition, frag):
                 return False
     return True
+
+
+# The word characters a fragment must not be embedded inside. `definition` is
+# already lowercased and whitespace-collapsed when this runs, so ASCII letters
+# and digits are the whole class that matters.
+_GLOSS_WORD_RE = re.compile(r"[0-9a-z]")
+
+
+def _fragment_discloses(definition, raw_definition, frag):
+    """True when `frag` appears in `definition` as a real occurrence rather
+    than as a coincidence inside a longer word.
+
+    Split out of `glossable` so the single-character rule has one home and one
+    docstring rather than being an inline branch nobody can find. `definition`
+    is lowercased and collapsed; `raw_definition` is the same text with its
+    original case, which the single-character rule reads.
+    """
+    start = 0
+    while True:
+        at = definition.find(frag, start)
+        if at == -1:
+            return False
+        end = at + len(frag)
+        before = definition[at - 1] if at else ""
+        after = definition[end] if end < len(definition) else ""
+        embedded = bool(_GLOSS_WORD_RE.fullmatch(before)) \
+            or bool(_GLOSS_WORD_RE.fullmatch(after))
+        if not embedded:
+            if len(frag) > 1:
+                return True
+            # A single character, which in practice is an option letter. It
+            # discloses only when it is NAMING a letter, which in English
+            # means a capital that is not opening a sentence. An article or a
+            # sentence-initial capital is not a disclosure.
+            original = raw_definition[at:end]
+            if original.isupper():
+                preceding = raw_definition[:at].rstrip()
+                sentence_initial = (not preceding
+                                    or preceding[-1] in ".!?:;")
+                if not sentence_initial:
+                    return True
+        start = at + 1
 
 
 def response_text(q, answer):

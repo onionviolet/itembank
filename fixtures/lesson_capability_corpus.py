@@ -1022,14 +1022,18 @@ ADVERSARIAL_ACTIVITY_FALLBACK = (
     "begun to close.")
 ADVERSARIAL_TERM_SLUG = "chamber-verdict"
 
-# The second, BENIGN term. Its definition restates no keyed text, and it also
-# contains no letter "b", which is not an aesthetic choice: `canonical_key`
-# for a multiple-choice item is the bare correct option letter, so
-# `runtime.glossable` refuses any definition containing that letter. A benign
-# control term whose definition happened to contain a "b" would be refused
-# too, and the glossary attack could then not tell a real catch from the
-# gate's own over-strictness. That over-strictness is recorded as a finding in
-# 16A-09-SUMMARY.md rather than worked around silently.
+# The second, BENIGN term: a control the glossary attack needs, because an
+# assertion that only checks the leaky term would pass even if the gate
+# refused everything it was ever shown.
+#
+# It also contains no letter "b", which is now belt and braces rather than a
+# necessity. When this fixture was written, `runtime.glossable` matched a
+# multiple-choice item's bare option letter as a raw substring, so ANY
+# definition containing that letter was refused and a control term had to
+# avoid it. That defect was fixed on 2026-08-28: a single-character fragment
+# now discloses only when it appears as a capital naming a letter rather than
+# as an article. The avoidance is kept so this fixture keeps testing the same
+# thing under either behavior.
 ADVERSARIAL_BENIGN_TERM_SLUG = "slack-water"
 
 

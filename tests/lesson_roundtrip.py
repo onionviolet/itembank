@@ -2739,6 +2739,54 @@ def test_glossable_gate():
             is not True:
         fail("an empty definition must pass the gate (nothing to leak)")
 
+    # ---- regression, 2026-08-28: a gate that refuses everything ----------
+    #
+    # `canonical_key()` for a multiple-choice item returns the bare correct
+    # option letter, and the fragment test used to be a raw substring match.
+    # A bank keyed `A` therefore refused every definition containing the
+    # letter "a", which is every definition anyone would write: both terms in
+    # fixtures/terms_above_lesson_bank.md were suppressed and the hover,
+    # focus, and touch glossary was effectively off in any bank carrying a
+    # multiple-choice item.
+    #
+    # These assertions are the ones that would have caught it. A gate that
+    # refuses everything looks identical to a strict gate from the outside,
+    # so the admit cases matter as much as the refuse cases.
+    keyed_letter_article = {"canonical": "Article", "aliases": [], "def": (
+        "A small invented thing this fixture uses to test the gate.")}
+    if itembank.glossable(qs, keyed_letter_article) is not True:
+        fail("a definition opening with the article 'A' was suppressed by a "
+             "bank keyed A; the option letter must be matched as a named "
+             "letter, not as every occurrence of that character")
+    embedded = {"canonical": "Embedded", "aliases": [], "def": (
+        "Twofold and network both embed shorter words and disclose nothing.")}
+    if itembank.glossable(qs, embedded) is not True:
+        fail("a definition was suppressed for embedding a fragment inside a "
+             "longer word; fragments match on word boundaries")
+
+    # ---- the tightening that landed with it ------------------------------
+    #
+    # The fragment set is now the fields `public_item()` withholds, so the two
+    # gates agree by construction. Before the rationale was added they
+    # disagreed: `public_item` withheld WHY BEST and `glossable` admitted a
+    # definition quoting it verbatim.
+    leaky_rationale = {"canonical": "Quoted", "aliases": [], "def": (
+        "One is the keyed answer. That is what this term means.")}
+    if itembank.glossable(qs, leaky_rationale) is not False:
+        fail("a definition quoting WHY BEST verbatim must be suppressed; the "
+             "fragment set is the fields public_item withholds")
+    leaky_second = {"canonical": "Runner", "aliases": [], "def": (
+        "One vs the rest. Nothing else distinguishes them.")}
+    if itembank.glossable(qs, leaky_second) is not False:
+        fail("a definition quoting KEY DISCRIMINATOR verbatim must be "
+             "suppressed")
+    shares_a_noun = {"canonical": "Noun", "aliases": [], "def": (
+        "The keyed answer to any question is simply the one that is right.")}
+    if itembank.glossable(qs, shares_a_noun) is not True:
+        fail("a definition sharing ordinary words with a rationale was "
+             "suppressed; rationale fragments are whole sentences so that "
+             "verbatim quoting is caught and word overlap is not")
+
 
 # ---- plan 03.1-02 Task 3: glossary appendix, inline gloss, /gloss route ----
 
