@@ -837,6 +837,12 @@ def parse_terms(bank_path):
 
 _SRC_DIRECTIVE_RE = re.compile(r"\[SRC:\s*([^\]]+?)\]")
 _OBJ_DIRECTIVE_RE = re.compile(r"\[OBJ:\s*([^\]]+?)\]")
+# The media reference form (plan 16A-05). D-16A-7 settles the registry shape
+# and not the reference form; this follows the [SRC:] and [OBJ:] precedent
+# directly above rather than inventing a third spelling. An empty id is
+# matched and resolved to nothing, so `[MEDIA: ]` is a lint finding rather
+# than a silent no-op.
+_MEDIA_REF_RE = re.compile(r"\[MEDIA:\s*([^\]]*?)\s*\]")
 
 
 def parse_sources(bank_path):
@@ -913,6 +919,91 @@ def parse_sources(bank_path):
         return None
     return {"sources": sources, "srcs": srcs, "objs": objs,
             "duplicates": duplicates, "path": bank_path}
+
+
+def parse_media(bank_path):
+    """An independent read over the bank file for media: the `## MEDIA`
+    registry and every `[MEDIA: <id>]` reference in the lesson body (D-16A-7,
+    CAP-02). Never called from inside `load()` or `parse_bank()`, and it
+    changes neither's return shape, exactly as `parse_sources` and
+    `parse_terms` are not.
+
+    The registry lives in the bank preamble, above the first question, under
+    the same boundary rule as `## LESSON`, `## TERMS`, and `## SOURCES`: this
+    function calls `_preamble_section` and compiles no section regex of its
+    own. A sixth reader with its own scanner would be the first place the
+    file's one boundary rule stopped being one, which is exactly what that
+    function's docstring says it exists to prevent.
+
+    One pipe row per asset, positional against `MEDIA_COLUMNS`: the first cell
+    is the id and the remaining seven map onto `path`, `credit`, `alt`,
+    `rights`, `derivation`, `availability`, `integrity`. A row with fewer
+    cells fills the rest with the empty string rather than raising, so a
+    malformed row is lint's problem and never a parse failure, and this
+    function raises on no input at all.
+
+    Returns `None` when the bank carries no `## MEDIA` section and no
+    `[MEDIA:]` reference; otherwise a dict with exactly:
+      `assets`     -- asset id -> a dict carrying exactly `MEDIA_COLUMNS`
+      `refs`       -- `[MEDIA:]` references, in document order, each
+          `{"id", "heading"}`, where `heading` is the `###` heading text the
+          reference falls under and the empty string above the first one
+      `duplicates` -- asset ids registered more than once, in first-seen order
+      `path`       -- the bank path as given, so lint findings name the file
+
+    Rights are read here and enforced nowhere (D-16A-8). This function records
+    what an author declared; no code path in Phase 16A gates on it.
+    """
+    text = open(bank_path, encoding="utf-8").read()
+    preamble = []
+    for ch in re.split(r"(?m)^(?=Q\d+\.)", text):
+        if re.match(r"Q\d+\.", ch.strip()) and parse_question(ch) is not None:
+            break
+        preamble.append(ch)
+    head = "".join(preamble)
+
+    assets = {}
+    duplicates = []
+    block = _preamble_section(head, "MEDIA")
+    if block is not None:
+        for line in block.splitlines():
+            if not line.strip():
+                continue
+            cells, is_sep = _terms_row_cells(line)
+            if is_sep or not cells or not cells[0]:
+                continue
+            aid = cells[0]
+            if aid in assets:
+                duplicates.append(aid)
+                continue
+            row = {"id": aid}
+            for offset, column in enumerate(MEDIA_COLUMNS[1:]):
+                index = offset + 1
+                row[column] = (cells[index].strip()
+                               if index < len(cells) else "")
+            assets[aid] = row
+
+    # References are resolved to the `###` heading they fall under by walking
+    # the effective lesson body the same way `parse_lesson` splits it, so a
+    # lint finding can name where the author has to go to fix it.
+    refs = []
+    lesson = parse_lesson(bank_path)
+    body = ""
+    if isinstance(lesson, dict):
+        body = lesson.get("body") or ""
+    heading = ""
+    for line in body.split("\n"):
+        hm = re.match(r"^###\s+(.+?)\s*$", line)
+        if hm:
+            heading = hm.group(1).strip()
+            continue
+        for mm in _MEDIA_REF_RE.finditer(line):
+            refs.append({"id": mm.group(1).strip(), "heading": heading})
+
+    if not assets and not refs:
+        return None
+    return {"assets": assets, "refs": refs, "duplicates": duplicates,
+            "path": bank_path}
 
 
 def coverage_map(bank_path):
@@ -2187,6 +2278,17 @@ VISUAL LINT CODES
   lesson.example_order_no_reason
                             error     [EXAMPLE-ORDER: definition-first] carries
                                       no because clause (D-16A-6)
+  media.duplicate_id        error     a ## MEDIA id is registered more than
+                                      once (D-16A-7)
+  media.missing_alt         error     a ## MEDIA row carries no accessible
+                                      alternative (CAP-02)
+  media.unknown_rights      error     a ## MEDIA row declares a rights value
+                                      outside identity.RIGHTS_STATES (D-16A-8)
+  media.unknown_availability
+                            error     a ## MEDIA row declares an availability
+                                      outside present|missing|remote
+  media.ref_unknown         error     [MEDIA: <id>] names no id in the
+                                      ## MEDIA registry
 """)
 
 # The Phase 6.2 gate grammar (06.2-CONTEXT D-02): one [GATE:] directive in
@@ -2195,6 +2297,22 @@ VISUAL LINT CODES
 # invalid value is a named lint error, never a render-time crash and never
 # a silent default (T-062-01).
 GATE_VALUES = ("required", "recommended", "off")
+
+
+# The `## MEDIA` registry's fixed column order (D-16A-7). Eight columns: an id
+# and a path, plus CAP-02's own six media fields verbatim. The order is fixed
+# because the rows are positional, exactly as `## SOURCES` rows are, so
+# reordering a column after a lesson carries one is a content migration and
+# not a code change.
+#
+# The `rights` and `availability` vocabularies deliberately do NOT live here.
+# `rights` is `identity.RIGHTS_STATES` reached through
+# `capabilities.MEDIA_RIGHTS_STATES` (D-16A-8), and `availability` is
+# `capabilities.MEDIA_AVAILABILITY`. Retyping either set of member strings in
+# this file would mint a second vocabulary, which is the one thing D-16A-8
+# exists to prevent.
+MEDIA_COLUMNS = ("id", "path", "credit", "alt", "rights", "derivation",
+                 "availability", "integrity")
 
 # The semantic profile a lesson document was authored against (D-16A-4,
 # PORT-01's "additive, versioned semantic profile"). A document declaring
@@ -2306,6 +2424,15 @@ CASES_UNCHECKED = object()
 PARAPHRASE_UNCHECKED = object()
 
 
+# The same additive sentinel once more, for the `## MEDIA` pass (plan
+# 16A-05): "the caller did not supply media data" (skip every media check,
+# which is what every pre-16A caller relies on) stays distinct from "the
+# caller supplied media data and this bank has no ## MEDIA section and no
+# [MEDIA:] reference", where `parse_media` legitimately returns None and there
+# is genuinely nothing to check.
+MEDIA_UNCHECKED = object()
+
+
 # The closed rule-kind catalogue (D-16, Pitfall 3): a style row may
 # parameterize exactly these kinds, and a row claiming anything else is
 # style.rule_unimplemented before the rule is ever applied. `house.mandate`
@@ -2381,6 +2508,8 @@ LINT_CODES = tuple(sorted({
     "lesson.invalid_direction",
     "lesson.unknown_semantic", "lesson.unknown_required_semantic",
     "lesson.definition_before_example", "lesson.example_order_no_reason",
+    "media.duplicate_id", "media.missing_alt", "media.unknown_rights",
+    "media.unknown_availability", "media.ref_unknown",
 }))
 
 
@@ -3061,7 +3190,7 @@ def structure_findings(q, tag):
 def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
          keys=KEYS_UNCHECKED, style=STYLE_UNCHECKED,
          sources=SOURCES_UNCHECKED, cases=CASES_UNCHECKED,
-         paraphrase=PARAPHRASE_UNCHECKED):
+         paraphrase=PARAPHRASE_UNCHECKED, media=MEDIA_UNCHECKED):
     """Return (errors, warnings) as lists of LintError records.
 
     str(record) reproduces the historical 'Qn: message' text exactly; the code and
@@ -3137,6 +3266,7 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
     sources_on = sources is not SOURCES_UNCHECKED
     cases_on = cases is not CASES_UNCHECKED
     paraphrase_on = paraphrase is not PARAPHRASE_UNCHECKED
+    media_on = media is not MEDIA_UNCHECKED
     if lesson_on:
         known_slugs = set()
         if lesson:
@@ -3577,6 +3707,56 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                     errors.append(LintError(
                         "lesson.check_ref_unknown", "refs", "BANK",
                         "[!CHECK: %s] %s" % (cid, CHECK_UNRESOLVED_COPY)))
+
+    # Bank-level media findings (CAP-02, D-16A-7, D-16A-8), in a
+    # deterministic order: duplicates, then per-asset field checks in registry
+    # order, then unresolvable references in document order, so two runs over
+    # one bank produce byte-identical output.
+    #
+    # The rights and availability vocabularies are READ from `capabilities`
+    # through a function-local import, never restated here. `capabilities`
+    # does not import `model`, so this edge does not cycle; the local import
+    # keeps `model`'s top-level import list unchanged, which is the same
+    # technique `parse_terms` uses to reach `surfaces.lesson`.
+    #
+    # Membership is all that is checked. No finding here gates anything, and
+    # no code path in Phase 16A reads a rights value to decide whether an
+    # operation may proceed (D-16A-8): 16A declares and does not enforce.
+    if media_on and media:
+        import capabilities as _capabilities
+        for aid in media.get("duplicates") or []:
+            errors.append(LintError(
+                "media.duplicate_id", "media", "BANK",
+                "media id %s is registered more than once; the first "
+                "registration is used" % aid))
+        assets = media.get("assets") or {}
+        for aid, asset in assets.items():
+            if not (asset.get("alt") or "").strip():
+                errors.append(LintError(
+                    "media.missing_alt", "media", "BANK",
+                    "media id %s carries no accessible alternative; the alt "
+                    "column is required because the alternative is the only "
+                    "copy a reader without the image has" % aid))
+            rights = (asset.get("rights") or "").strip()
+            if rights not in _capabilities.MEDIA_RIGHTS_STATES:
+                errors.append(LintError(
+                    "media.unknown_rights", "media", "BANK",
+                    "media id %s declares rights %s, which is not one of %s"
+                    % (aid, rights or "''",
+                       ", ".join(_capabilities.MEDIA_RIGHTS_STATES))))
+            availability = (asset.get("availability") or "").strip()
+            if availability not in _capabilities.MEDIA_AVAILABILITY:
+                errors.append(LintError(
+                    "media.unknown_availability", "media", "BANK",
+                    "media id %s declares availability %s, which is not one "
+                    "of %s" % (aid, availability or "''",
+                               ", ".join(_capabilities.MEDIA_AVAILABILITY))))
+        for ref in media.get("refs") or []:
+            if ref["id"] not in assets:
+                errors.append(LintError(
+                    "media.ref_unknown", "media", "BANK",
+                    "[MEDIA: %s] under heading %r names no id in the "
+                    "## MEDIA registry" % (ref["id"], ref["heading"])))
 
     # Bank-level terms/key findings, in a deterministic order: collisions,
     # then the empty-block warning, then unknown refs, then duplicate [!KEY]

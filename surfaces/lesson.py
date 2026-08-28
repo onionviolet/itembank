@@ -12,7 +12,8 @@ import evidence
 import retention
 import subjects
 from model import (CHECK_UNRESOLVED_COPY, grab, lesson_slug, load, load_style,
-                   parse_key_blocks, parse_lesson, parse_terms, resolve_style)
+                   parse_key_blocks, parse_lesson, parse_media, parse_terms,
+                   resolve_style)
 from runtime import glossable
 from surfaces.presentation import SHARED_CSS
 from surfaces import settings
@@ -640,6 +641,12 @@ def _truncate(text, limit):
 _TOKEN_RE = re.compile(r"^\x00K(\d+)\x00$")
 _FENCE_RE = re.compile(r"^(`{3,})\s*(.*?)\s*$")
 _CALLOUT_MARK_RE = re.compile(r"^>\s*\[!([A-Za-z][^\]]*)\]\s*(.*)$")
+# A line that is ONLY a `[MEDIA: <id>]` directive (plan 16A-05). Anchored at
+# both ends on purpose: a figure is a block-level thing, so a `[MEDIA:]`
+# appearing inside a paragraph, a list item, a table cell, or a fence is left
+# alone and renders as literal text. Inlining a figure would break the run it
+# sits in, and no requirement asks for one.
+_MEDIA_BLOCK_RE = re.compile(r"^\s*\[MEDIA:\s*([^\]]*?)\s*\]\s*$")
 
 # The locked callout kinds (03.1-UI-SPEC §9.2-§9.4): each maps to the exact
 # Ledger-voice label the renderer and the linter share (§15). The `CHECK:`
@@ -912,6 +919,19 @@ def _callout_spec(raw):
 # Phase 16A.
 UNSUPPORTED_SEMANTIC_COPY = ("This block needs a lesson feature this reader "
                              "does not have. Its text is below, unchanged.")
+
+
+# The two locked media degraded-path strings (CAP-02, plan 16A-05). Both are
+# user-visible copy and both are locked here: do not rephrase them, do not add
+# a variant, and do not localize them in Phase 16A.
+#
+# Neither says "error". A missing asset and a remote asset are ordinary states
+# of a lesson a learner can still read, and the sentence's job is to hand the
+# reader straight to the description rather than to report a fault.
+MEDIA_MISSING_COPY = ("This image is not available on this machine. Its "
+                      "description is below.")
+MEDIA_REMOTE_COPY = ("This image lives outside this course and is not loaded "
+                     "here. Its description is below, and the link opens it.")
 
 
 def _callout_required_of(raw):
@@ -1257,6 +1277,80 @@ def _callout_html(spec, body, ctx=None, required=False):
     return ('<section class="callout callout-%s"%s><p class="callout-label">'
             "%s%s</p><div class=\"callout-body\">%s</div></section>"
             % (slug + extra, flag, icon, html.escape(label), inner))
+
+
+def _media_figure_html(asset, ref_id, ctx=None):
+    """One media asset as a figure, in all four of its states (CAP-02,
+    D-16A-7).
+
+    `asset` is the registry row for `ref_id`, or `None` when the reference
+    resolves to nothing, which happens both for a typo and for a render given
+    no registry at all. Those two cases render the SAME figure on purpose: an
+    author debugging a blank figure should not first have to work out which
+    of the two failures they are looking at before they can read the message.
+
+    The three declared states, from `capabilities.MEDIA_AVAILABILITY`:
+
+    - `present` renders the image with its declared alternative and credit.
+    - `missing` renders no image, the locked missing copy, and the
+      alternative as readable text, so the lesson still says what the picture
+      showed.
+    - `remote` renders no image, the locked remote copy, the alternative, and
+      a plain link. NOTHING is fetched here or anywhere else at render time:
+      the recorded network rule is that the core loop must degrade and never
+      block, and a lesson that needed a network to be understood would block.
+
+    Every interpolated value passes through `html.escape`, the same
+    escape-first discipline every other text run in this file follows, so an
+    author-supplied path stays text and never becomes markup.
+
+    No width, no height, no `style` attribute, no color, no spacing value, and
+    no token. `media`, `media-unavailable`, and `media-remote` are class names
+    for Phase 17A to style; this plan adds no CSS rule for any of them.
+    """
+    anchor = lesson_slug(ref_id) or "unknown"
+    if not isinstance(asset, dict):
+        # Unknown reference, or no registry at all. Show the id: the author
+        # needs to see which reference failed, and the learner needs to know
+        # something was meant to be here.
+        return ('<figure class="media media-unavailable" id="media-%s">'
+                "<p>%s</p><p>%s</p></figure>"
+                % (html.escape(anchor), html.escape(MEDIA_MISSING_COPY),
+                   html.escape(ref_id)))
+
+    availability = (asset.get("availability") or "").strip()
+    alt = (asset.get("alt") or "").strip()
+    credit = (asset.get("credit") or "").strip()
+    derivation = (asset.get("derivation") or "").strip()
+    path = (asset.get("path") or "").strip()
+
+    caption = ""
+    if credit or derivation:
+        parts = []
+        if credit:
+            parts.append(html.escape(credit))
+        if derivation:
+            parts.append(html.escape(derivation))
+        caption = "<figcaption>%s</figcaption>" % "<br>".join(parts)
+
+    if availability == "present":
+        return ('<figure class="media" id="media-%s"><img src="%s" alt="%s">'
+                "%s</figure>"
+                % (html.escape(anchor), html.escape(path), html.escape(alt),
+                   caption))
+    if availability == "remote":
+        return ('<figure class="media media-remote" id="media-%s">'
+                '<p>%s</p><p>%s</p><a href="%s">%s</a>%s</figure>'
+                % (html.escape(anchor), html.escape(MEDIA_REMOTE_COPY),
+                   html.escape(alt), html.escape(path), html.escape(path),
+                   caption))
+    # `missing`, and anything the registry declares that lint has already
+    # refused: the honest render is the one that still says what the picture
+    # showed.
+    return ('<figure class="media media-unavailable" id="media-%s">'
+            "<p>%s</p><p>%s</p>%s</figure>"
+            % (html.escape(anchor), html.escape(MEDIA_MISSING_COPY),
+               html.escape(alt), caption))
 
 
 def _static_instructional_html(name, registry=None):
@@ -1690,6 +1784,18 @@ def _render_blocks(text, ctx=None):
             if ctx is not None and ctx.get("gate_stop"):
                 break
             continue
+        mb = _MEDIA_BLOCK_RE.match(line)
+        if mb:
+            # The media branch (plan 16A-05): one line in, one figure out. The
+            # registry rides in `ctx` under "media" exactly as the gate policy
+            # and the example layout already do. A render given no registry
+            # resolves every reference to None, which renders the honest
+            # unavailable figure rather than guessing or dropping the line.
+            registry = (ctx or {}).get("media") or {}
+            ref_id = mb.group(1).strip()
+            out.append(_media_figure_html(registry.get(ref_id), ref_id, ctx))
+            i += 1
+            continue
         hm = re.match(r"^#{4,}\s+(.+?)\s*$", line)
         if hm:
             # The grammar defines exactly two heading levels; any deeper
@@ -1755,7 +1861,8 @@ def _render_blocks(text, ctx=None):
             if (re.match(r"^#{4,}\s", nxt) or re.match(r"^-\s+", nxt)
                     or re.match(r"^\d+\.\s+", nxt) or _TOKEN_RE.match(nxt)
                     or "|" in nxt
-                    or _callout_entered(nxt)):
+                    or _callout_entered(nxt)
+                    or _MEDIA_BLOCK_RE.match(nxt)):
                 break
             buf.append(nxt)
             i += 1
@@ -1856,6 +1963,13 @@ def _reader_context(bank_path, qs):
         "held_line": "",
         "suppressed": False,
         "key_links": {},
+        # The parsed `## MEDIA` registry, or an empty dict. `lesson_page`
+        # replaces this when a caller supplies one; a caller that supplies
+        # none leaves it empty, and every [MEDIA:] reference then renders the
+        # honest unavailable figure. `_reader_context` reads settings and does
+        # not read the bank's media registry itself, because the render
+        # function takes parsed data and reads no file of its own.
+        "media": {},
     }
     for key in parse_key_blocks(bank_path):
         if not key.get("id"):
@@ -2007,7 +2121,7 @@ def _split_rendered_stages(rendered):
 def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
                 style_override=None, profile=None, gate=None, focus=None,
                 announce=None, session_id=None, lan_refused=False,
-                mode="continuous"):
+                mode="continuous", media=None):
     """The one render both surfaces call: the daemon route and `cmd_lesson`
     write the same document because there is only one `lesson_page`.
 
@@ -2020,6 +2134,13 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
     here. Any other value raises `ValueError`, because an unknown mode is a
     programming error at a call site rather than authored content and must
     fail loudly instead of falling back.
+
+    `media` is whatever `model.parse_media()` returned, or `None`. It defaults
+    to `None` so no positional caller changes and a bank with no `[MEDIA:]`
+    line renders byte identically whether or not it is supplied. A `None`
+    registry renders every `[MEDIA:]` reference as the unavailable figure
+    carrying its own id, rather than dropping it: the renderer was given no
+    registry, so it knows nothing about the asset and says so.
 
     A non-empty `ref` narrows the document to the single heading whose slug
     matches the caller's text (D-11): the heading is resolved through
@@ -2128,6 +2249,12 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
         ctx = _reader_context(bank_path, qs)
         ctx["runtime"] = runtime
         ctx["drill"] = drill
+        # The parsed `## MEDIA` registry, threaded in exactly as the gate
+        # policy and the example layout are. An absent registry stays the
+        # empty dict `_reader_context` seeded, which is what makes a render
+        # with no media argument byte identical to a pre-16A-05 render.
+        if isinstance(media, dict):
+            ctx["media"] = media.get("assets") or {}
         ctx["key_answers"] = []
         # 09-05 runnable lesson code: the sequential data-code-block counter,
         # the profile's runnable languages, the session id to post against,
@@ -2521,7 +2648,8 @@ def cmd_lesson(a):
             explicit_id=getattr(a, "subject_profile", None))
     except subjects.SubjectProfileError:
         profile = None
-    page = lesson_page(a.bank, qs, lesson, ref=a.ref, profile=profile)
+    page = lesson_page(a.bank, qs, lesson, ref=a.ref, profile=profile,
+                       media=parse_media(a.bank))
     if page is None:
         sys.exit("no lesson heading matching %r in %s" % (a.ref, a.bank))
     open(out, "w", encoding="utf-8").write(page)

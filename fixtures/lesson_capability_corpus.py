@@ -633,3 +633,111 @@ def build_no_callouts(dest_dir):
     with open(path, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(NO_CALLOUTS_BANK)
     return path
+
+
+# The media lesson (plan 16A-05 Task 3): one bank exercising all four states
+# `_media_figure_html` handles, plus the two lint findings the states cannot
+# produce on their own.
+#
+# The placeholder asset is a synthetic 67-byte one-pixel greyscale PNG written
+# from the literal byte string below. It is not a photograph, not a diagram,
+# and not derived from anything: it exists so the `present` state has real
+# bytes on disk to point at without a real image entering this repository.
+PLACEHOLDER_PNG = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00"
+    b"\x00\x01\x08\x00\x00\x00\x00:~\x9bU\x00\x00\x00\nIDATx\x9cch"
+    b"\x00\x00\x00\x82\x00\x81w\xcdr\xb6\x00\x00\x00\x00IEND\xaeB`\x82")
+
+PLACEHOLDER_PNG_FILENAME = "capability_tide_chart_placeholder.png"
+
+MEDIA_BANK = """# Reading a fictional tide chart (synthetic)
+
+Fully invented teaching content for exercising the Phase 16A media grammar.
+Every asset row below is fictional: the station, the photographer, the host,
+and the derivation are invented, and nothing here is derived from any real
+course, exam, textbook, photograph, or chart.
+
+[SEMANTIC-PROFILE: 1]
+
+## MEDIA
+
+tide-chart | capability_tide_chart_placeholder.png | Chart by the invented Kestrel Point survey, fictional | A one pixel placeholder standing in for a tide chart whose curve rises from a low water at 04:12 to a high water at 10:38. | granted | Redrawn from the invented survey's own plotted figures, no tracing. | present | sha256:0000000000000000000000000000000000000000000000000000000000000000
+harbour-photo | capability_harbour_photo.jpg | Photograph by the invented Ilse Marrow, fictional | A harbour wall at low water with the tide gauge board visible, its lowest painted mark standing clear of the water. | unknown | Original photograph, no derivation. | missing | sha256:1111111111111111111111111111111111111111111111111111111111111111
+remote-diagram | https://example.invalid/fictional/lock-diagram.svg | Diagram by the invented Harrow Cut trust, fictional | A schematic of a lock chamber with its upper and lower gates and the sluice paths between them. | denied | Traced from the invented trust's published schematic. | remote | sha256:2222222222222222222222222222222222222222222222222222222222222222
+no-alt-asset | capability_no_alt.png |  |  | granted | Invented placeholder with no alternative on purpose. | present | sha256:3333333333333333333333333333333333333333333333333333333333333333
+
+## LESSON
+
+### Reading A Tide Chart
+
+A tide chart draws the curve a table only samples. The turning points are the
+same in both; what the chart adds is the shape between them.
+
+[MEDIA: tide-chart]
+
+The gauge board on the wall is the same measurement taken by eye, and a photo
+of one is a reading rather than a record.
+
+[MEDIA: harbour-photo]
+
+### Reading A Lock Diagram
+
+A lock diagram is a schematic, so it draws relationships and not distances.
+The gates and the sluice paths are what it is for.
+
+[MEDIA: remote-diagram]
+
+[MEDIA: no-alt-asset]
+
+[MEDIA: ghost]
+
+Q1. A tide chart draws a curve between two turning points. What does the curve between them establish?   (difficulty: application)
+[LESSON-REF: Reading A Tide Chart]
+[OBJECTIVE: nav:tides.chart]
+
+A) The exact height at every clock time
+B) The shape of the water's travel between two turning points
+C) The times of the turning points only
+D) Nothing that a table does not already say
+
+CORRECT: B
+
+WHY BEST: The turning points are the same in a chart and a table; the curve
+between them is the one thing the chart adds.
+
+KEY DISCRIMINATOR: The answer must name what the curve adds over the table
+rather than what both already carry.
+
+SECOND-BEST: A. The curve does give a height for any time, and this would be
+correct if the chart were an exact record rather than a drawn interpolation.
+
+DISTRACTOR ANALYSIS:
+- A) A drawn curve is an interpolation and not an exact record; this would be correct if the chart plotted measured readings at every minute.
+- B) Correct: the shape between the turning points is what a chart adds to a table.
+- C) Turning point times are what a table already gives; this would be correct if the question asked what the two share.
+- D) The curve is more than the table carries; this would be correct if the chart plotted only the turning points.
+
+TRAP: Reading a drawn interpolation as a measured record.
+
+CONFIDENCE: high
+"""
+
+MEDIA_FILENAME = "capability_media_bank.md"
+
+
+def build_media_lesson(dest_dir):
+    """Write the media bank plus its one synthetic placeholder asset into
+    `dest_dir` and return the bank's absolute path.
+
+    Two files, not one: the `present` state needs real bytes on disk to point
+    at, and pointing at a file that is not there would make `present` and
+    `missing` render the same thing and prove nothing.
+    """
+    os.makedirs(dest_dir, exist_ok=True)
+    root = os.path.abspath(dest_dir)
+    with open(os.path.join(root, PLACEHOLDER_PNG_FILENAME), "wb") as fh:
+        fh.write(PLACEHOLDER_PNG)
+    path = os.path.join(root, MEDIA_FILENAME)
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(MEDIA_BANK)
+    return path

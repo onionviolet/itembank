@@ -30,6 +30,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "fixtures"))
 
 import capabilities                                          # noqa: E402
+import identity                                              # noqa: E402
 import model                                                 # noqa: E402
 import schema_validate                                       # noqa: E402
 import lesson_capability_corpus                              # noqa: E402
@@ -465,10 +466,159 @@ def scenario_unavailable_renderer():
     print("scenario unavailable_renderer: pass")
 
 
+def scenario_media_metadata():
+    """CAP-02's media sentence and PORT-01's alternatives clause, over the one
+    fixture carrying all four asset states.
+
+    The last leg is the one that matters most and is the easiest to lose: it
+    proves that rights are DECLARED and not ENFORCED, by rendering the same
+    lesson with every rights cell rewritten to `denied` and requiring the two
+    pages to be byte identical. That assertion goes red the day someone
+    quietly adds enforcement without deciding to.
+    """
+    workdir = tempfile.mkdtemp(prefix="cap-tracer-media-")
+    path = lesson_capability_corpus.build_media_lesson(workdir)
+    parsed = model.parse_media(path)
+
+    if parsed is None:
+        fail("media, parse hop: parse_media returned None for a bank that "
+             "carries a ## MEDIA registry")
+    if len(parsed["assets"]) != 4:
+        fail("media, parse hop: %d assets, expected 4"
+             % len(parsed["assets"]))
+    if len(parsed["refs"]) != 5:
+        fail("media, parse hop: %d references, expected 5"
+             % len(parsed["refs"]))
+    if parsed["duplicates"]:
+        fail("media, parse hop: %r reported as duplicates, expected none"
+             % parsed["duplicates"])
+    for aid, asset in parsed["assets"].items():
+        if tuple(sorted(asset)) != tuple(sorted(model.MEDIA_COLUMNS)):
+            fail("media, parse hop: asset %r carries the key set %s, "
+                 "expected exactly MEDIA_COLUMNS" % (aid, sorted(asset)))
+
+    # D-16A-8, by identity and never by equality. A retyped tuple carrying the
+    # same three strings would pass `==` and would be exactly the second
+    # rights vocabulary this phase exists to not create.
+    if not (capabilities.MEDIA_RIGHTS_STATES is identity.RIGHTS_STATES):
+        fail("media, vocabulary hop: capabilities.MEDIA_RIGHTS_STATES is not "
+             "identity.RIGHTS_STATES by identity, so a second rights "
+             "vocabulary has been minted (D-16A-8)")
+
+    qs = model.load(path)
+    errors, warnings = model.lint(
+        qs, lesson=model.parse_lesson(path), terms=model.parse_terms(path),
+        keys=model.parse_key_blocks(path), media=parsed)
+    codes = [e.code for e in errors] + [w.code for w in warnings]
+    media_codes = sorted(c for c in codes if c.startswith("media."))
+    if media_codes != ["media.missing_alt", "media.ref_unknown"]:
+        fail("media, lint hop: media findings are %r, expected exactly one "
+             "media.missing_alt and one media.ref_unknown" % media_codes)
+    texts = [str(e) for e in errors]
+    if not any("no-alt-asset" in t and "media.missing_alt" not in t
+               and "accessible alternative" in t for t in texts):
+        fail("media, lint hop: the missing-alt finding does not name "
+             "no-alt-asset")
+    if not any("[MEDIA: ghost]" in t for t in texts):
+        fail("media, lint hop: the unknown-reference finding does not name "
+             "ghost")
+
+    assets = parsed["assets"]
+    page = lesson.lesson_page(path, qs, model.parse_lesson(path),
+                              media=parsed)
+
+    # Two `present` assets in this fixture, so two images: tide-chart and
+    # no-alt-asset. The alt-less one is present on purpose, because
+    # media.missing_alt has to fire against a real rendered image rather than
+    # against a state that renders no image anyway.
+    if page.count("<img") != 2:
+        fail("media, render hop: %d img elements, expected exactly the two "
+             "present-state assets" % page.count("<img"))
+    if 'alt="%s"' % assets["tide-chart"]["alt"] not in page:
+        fail("media, render hop: the present asset's img does not carry its "
+             "declared accessible alternative as its alt attribute")
+
+    if assets["harbour-photo"]["alt"] not in page:
+        fail("media, render hop: the missing asset's declared alternative "
+             "did not reach the page, so the lesson lost what the picture "
+             "showed")
+    if 'src="%s"' % assets["harbour-photo"]["path"] in page:
+        fail("media, render hop: a missing asset rendered an img pointing at "
+             "bytes that are not there")
+    if lesson.MEDIA_MISSING_COPY not in page:
+        fail("media, render hop: the locked missing copy did not reach the "
+             "page")
+
+    remote = assets["remote-diagram"]
+    if remote["alt"] not in page:
+        fail("media, render hop: the remote asset's declared alternative did "
+             "not reach the page, so a reader with no network reads a "
+             "different lesson")
+    if 'src="%s"' % remote["path"] in page:
+        fail("media, render hop: a remote asset rendered an img, so reading "
+             "the lesson would require a network")
+    if 'href="%s"' % remote["path"] not in page:
+        fail("media, render hop: the remote asset rendered no link")
+    if lesson.MEDIA_REMOTE_COPY not in page:
+        fail("media, render hop: the locked remote copy did not reach the "
+             "page")
+
+    if "media-ghost" not in page or "ghost" not in page:
+        fail("media, render hop: an unknown reference was dropped instead of "
+             "rendering the unavailable figure carrying its id")
+
+    # PORT-01, asserted against the canonical file rather than against the
+    # render: with every derived HTML deleted, the Markdown still says what
+    # each picture showed, who made it, and where it came from.
+    source = open(path, encoding="utf-8").read()
+    for aid, asset in assets.items():
+        for column in ("credit", "alt", "derivation"):
+            value = (asset.get(column) or "").strip()
+            if not value:
+                continue
+            if value not in source:
+                fail("media, portability hop: asset %r's %s is not readable "
+                     "in the Markdown source, so deleting the derived HTML "
+                     "would lose it" % (aid, column))
+
+    # D-16A-8's whole content, as an executable assertion. Rewrite every
+    # rights cell to `denied` and require the rendered bytes to be identical:
+    # 16A declares rights and enforces none of them, and nothing in this
+    # phase's code may read a rights value to decide what happens.
+    denied_dir = tempfile.mkdtemp(prefix="cap-tracer-media-denied-")
+    denied_path = os.path.join(denied_dir, os.path.basename(path))
+    rewritten = []
+    for line in source.split("\n"):
+        cells = line.split(" | ")
+        if len(cells) == len(model.MEDIA_COLUMNS):
+            cells[model.MEDIA_COLUMNS.index("rights")] = "denied"
+            line = " | ".join(cells)
+        rewritten.append(line)
+    with open(denied_path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write("\n".join(rewritten))
+    denied_parsed = model.parse_media(denied_path)
+    if not denied_parsed:
+        fail("media, enforcement hop: the rights-rewritten bank did not "
+             "parse, so the assertion below would prove nothing")
+    if {a["rights"] for a in denied_parsed["assets"].values()} != {"denied"}:
+        fail("media, enforcement hop: the rights rewrite did not take, so "
+             "the byte-identity assertion below would prove nothing")
+    denied_page = lesson.lesson_page(
+        denied_path, model.load(denied_path),
+        model.parse_lesson(denied_path), media=denied_parsed)
+    if denied_page.replace(os.path.basename(denied_path),
+                           os.path.basename(path)) != page:
+        fail("media, enforcement hop: rewriting every rights cell to denied "
+             "changed the rendered page, so something in Phase 16A is "
+             "enforcing a rights value D-16A-8 says is declared only")
+
+    print("scenario media_metadata: pass")
+
+
 SCENARIOS = (scenario_thin_slice, scenario_additivity_golden_parse,
              scenario_fourteen_roles, scenario_unknown_semantics,
              scenario_example_order, scenario_capability_profiles,
-             scenario_unavailable_renderer)
+             scenario_unavailable_renderer, scenario_media_metadata)
 
 
 def main():

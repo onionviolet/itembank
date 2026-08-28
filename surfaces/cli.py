@@ -13,7 +13,7 @@ import selection
 import source_adapters
 from model import (BANK_FILE_HINTS, SPEC, STYLE_CHECK_CATALOGUE, coverage_map,
                    lint, load, load_style, parse_bank, parse_key_blocks,
-                   parse_lesson, parse_sources, parse_terms,
+                   parse_lesson, parse_media, parse_sources, parse_terms,
                    warning_ship_state)
 from surfaces.anki import cmd_export
 from surfaces.audio import cmd_export_audio
@@ -219,7 +219,8 @@ def cmd_lint(a):
     # the whole point of lint is that it fails loudly.
     errors, warnings = lint(qs, lesson=parse_lesson(a.bank),
                             terms=parse_terms(a.bank),
-                            keys=parse_key_blocks(a.bank))
+                            keys=parse_key_blocks(a.bank),
+                            media=parse_media(a.bank))
     if a.json:
         payload = {
             "schema_version": 1,

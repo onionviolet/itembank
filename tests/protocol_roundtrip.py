@@ -20,7 +20,12 @@ SCHEMAS_DIR = os.path.join(ROOT, "schemas")
 # rather than restating the literal, so the two files cannot drift -- a second
 # copy of the prefix list is the same class of drift this set exists to
 # prevent.
-LINT_PREFIXES = ("item", "bank", "lesson", "terms", "key", "style", "prov")
+# "media" added 2026-08-28 by plan 16A-05: the `## MEDIA` registry is the
+# eighth published lint namespace. A namespace is declared here rather than
+# derived so a typo'd prefix fails by name instead of quietly founding a
+# ninth namespace nobody agreed to.
+LINT_PREFIXES = ("item", "bank", "lesson", "terms", "key", "style", "prov",
+                 "media")
 
 
 def fail(msg):
