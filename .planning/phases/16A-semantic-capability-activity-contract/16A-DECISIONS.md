@@ -117,6 +117,34 @@ implicit.
 working enforcement mechanism against a vocabulary this phase does not own is
 how a second rights vocabulary is created.
 
+**Note added 2026-08-27 at execution, routed rather than resolved.** Surfaced
+while transcribing this decision and verified against plans 16A-04 and 16A-05
+before being recorded, so it is an observation and not a suspicion.
+
+A `## MEDIA` row's `rights` column holds one member of
+`identity.RIGHTS_STATES`, so one of `granted`, `denied`, or `unknown`.
+Everywhere else in this repository that records rights durably, a rights record
+is a seven-key map over `identity.RIGHTS_OPERATIONS`: `identity.rights_default()`
+returns one, `journal.commit_operation` stores one on a source object, and the
+14C locator sidecar's `$defs.rights` requires exactly those seven keys. **A
+media row is therefore coarser than every other rights record in the tree: it
+says a right is granted without saying which of the seven operations is
+granted.**
+
+**This is not an error in D-16A-8 and does not reopen it.** The decision is
+deliberate and consistent across plan 16A-04 step 5 and plan 16A-05, and its
+whole purpose is to avoid minting a second rights vocabulary, which referencing
+`identity.RIGHTS_STATES` by identity rather than by value achieves. While 16A
+declares and enforces nothing, the coarseness costs nothing.
+
+**Where it lands.** It becomes a real question for whichever later subphase
+first packages or exports a media asset, which is the same subphase this
+decision already names as owning enforcement. That phase cannot decide whether
+a media asset may be packaged from a single `granted` without knowing whether
+the `package` operation specifically was granted, so it will have to either read
+the seven-key record on the underlying source object or widen this column. It is
+recorded here so that phase inherits the question instead of rediscovering it.
+
 ## D-16A-9. Guided mode's 16A data contract
 
 **Date:** 2026-08-27. Locked by plan 16A-01's objective, not by a checkpoint,
