@@ -1134,6 +1134,7 @@ def test_lesson_parse_identity_phase3():
     additive_defaults = {"semantic_profile": 1, "semantic_profile_raw": "",
                          "lang": "en", "lang_raw": "",
                          "dir": "auto", "dir_raw": "",
+                         "dir_declared": False,
                          "example_order": "example-first",
                          "example_order_reason": ""}
     for key, default in additive_defaults.items():

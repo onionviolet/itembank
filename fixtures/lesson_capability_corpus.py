@@ -793,3 +793,196 @@ def build_output_mode_lesson(dest_dir):
     with open(path, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(OUTPUT_MODE_BANK)
     return path
+
+
+# ---- A11Y-02's seven localization cases, plus three encoding probes -------
+#
+# Every string below is synthetic. None is drawn from a real course, a real
+# exam, a real document, or a real person's name. Non-ASCII characters are
+# spelled as \uXXXX escapes wherever that makes the intent readable in a diff.
+#
+# They are TEN NAMED CONSTANTS rather than one long fixture string on purpose:
+# a single blob could pass its assertion while one case had been quietly
+# dropped from it, and seven constants each asserted by name cannot.
+
+# 1. RTL. Synthetic Arabic prose: "the water rises then falls".
+LOC_RTL = "\u0627\u0644\u0645\u0627\u0621 \u064a\u0631\u062a\u0641\u0639 \u062b\u0645 \u064a\u0646\u062e\u0641\u0636"
+
+# 2. Mixed code and math direction: one right-to-left sentence carrying a
+# left-to-right inline code span and a left-to-right formula fragment, so the
+# case is genuinely mixed WITHIN one run rather than being two adjacent runs.
+LOC_MIXED_DIRECTION = (
+    "\u0627\u0644\u062f\u0627\u0644\u0629 `tide_height(t)` "
+    "\u062a\u0639\u0637\u064a h = a + b*t "
+    "\u0644\u0643\u0644 \u0644\u062d\u0638\u0629")
+
+# 3. CJK, with a full-width punctuation mark.
+LOC_CJK = "\u6f6e\u4f4d\u8868\u306f\u8ee2\u63db\u70b9\u3092\u793a\u3059\u3002\u9014\u4e2d\u306e\u9ad8\u3055\u306f\u793a\u3055\u306a\u3044"
+
+# 4. Combining marks: four diacritics stacked on one base character, so the
+# stacking case is real rather than a single accented letter.
+LOC_COMBINING = "Kestrel Poi\u0300\u0301\u0302\u0303nt"
+
+# 5. A long string: one unbroken token with no space, no hyphen, and no
+# zero-width break opportunity anywhere in it.
+LOC_LONG_STRING = "Kestrelpointtidalobservationstationreferencedesignator" * 6
+
+# 6. Localized numbers and units: a comma decimal separator, a period decimal
+# separator, a non-breaking space before a unit, and a degree symbol.
+LOC_NUMBERS_UNITS = (
+    "The invented gauge read 3,14 m at one station and 3.14 m at the next, "
+    "with a range of 12\u00a0cm and a bearing of 47\u00b0.")
+
+# 7. Culturally dependent example: one date in two formats, a family name
+# written surname first, and a currency amount. All fictional.
+LOC_CULTURAL = (
+    "The invented harbour office logged 03/04/2026 as 2026-04-03, filed by "
+    "\u9234\u6728 Haruka, against a fee of \u00a512,500.")
+
+# A bidi override, PRESERVED BYTE FOR BYTE ON PURPOSE.
+#
+# U+202E RIGHT-TO-LEFT OVERRIDE visually reorders the text that follows it,
+# and U+202C POP DIRECTIONAL FORMATTING ends that scope. Both are written as
+# escapes rather than as literal characters so this fixture's source stays
+# reviewable in a diff and no reviewing tool sees an invisible reordering
+# control.
+#
+# Stripping them would corrupt legitimate right-to-left content, which is why
+# nothing in this repository strips them. The display-spoofing risk they carry
+# is an accepted characteristic of any right-to-left-capable renderer, the same
+# posture every text editor and browser takes, and it is recorded here, in
+# tests/capability_stress_corpus_tracer.py, and in the 16A freeze record rather
+# than papered over. See 16A-RESEARCH.md's Security Domain table.
+LOC_BIDI_OVERRIDE = "The invented board reads \u202Enrut ot ydaer\u202C now."
+
+# Two spellings of the same visible text: once precomposed (U+00E9), once as a
+# base letter plus a combining acute (U+0065 U+0301).
+#
+# THESE MUST REMAIN TWO DISTINCT STRINGS through parse and render. A single
+# `unicodedata.normalize` call anywhere in the path would collapse them into
+# one, and no other assertion in this phase would notice, because they look
+# identical on screen. That is exactly why this pair exists.
+LOC_PRECOMPOSED = "The invented r\u00e9sum\u00e9 of the station"
+LOC_DECOMPOSED = "The invented re\u0301sume\u0301 of the station"
+
+# The seven A11Y-02 cases, in the order the requirement lists them, keyed by
+# the heading text the generated bank files each one under.
+LOCALIZATION_CASES = (
+    ("RTL", LOC_RTL),
+    ("Mixed Code And Math Direction", LOC_MIXED_DIRECTION),
+    ("CJK", LOC_CJK),
+    ("Combining Marks", LOC_COMBINING),
+    ("Long Strings", LOC_LONG_STRING),
+    ("Localized Numbers And Units", LOC_NUMBERS_UNITS),
+    ("Culturally Dependent Examples", LOC_CULTURAL),
+)
+
+# The rendered form of a case whose SOURCE carries Markdown markup, keyed by
+# label. Only the mixed-direction case needs one: its left-to-right inline
+# code span is authored with backticks, and the renderer turns a code span
+# into a `<code>` element, which is a legitimate transformation of MARKUP.
+# The assertion in `scenario_localization` compares against this form so it
+# stays a check on TEXT preservation rather than being weakened into a check
+# that ignores markup.
+#
+# Every character of the string other than the two backticks is identical
+# between the two forms, which is the whole point: the Arabic run, the
+# identifier, and the formula fragment all survive byte for byte.
+LOC_MIXED_DIRECTION_RENDERED = LOC_MIXED_DIRECTION.replace(
+    "`tide_height(t)`", "<code>tide_height(t)</code>")
+
+LOCALIZATION_RENDERED = {
+    "Mixed Code And Math Direction": LOC_MIXED_DIRECTION_RENDERED,
+}
+
+LOCALIZATION_PROBES = (
+    ("Bidi Override", LOC_BIDI_OVERRIDE),
+    ("Precomposed Spelling", LOC_PRECOMPOSED),
+    ("Decomposed Spelling", LOC_DECOMPOSED),
+)
+
+_LOCALIZATION_HEAD = """# Localization fixture set (synthetic)
+
+Fully invented strings for exercising the Phase 16A encoding path. Every
+string below is synthetic and exists only to travel from this file through
+the parser to the renderer unchanged. Nothing here is derived from any real
+course, exam, document, or person.
+
+itembank applies no Unicode normalization, no reordering, no case folding, no
+width folding, and no segmentation to authored text. Bidi resolution, CJK line
+breaking, and combining-mark composition are the browser's and the font
+stack's, once the correct attributes and untouched UTF-8 bytes are emitted.
+
+[SEMANTIC-PROFILE: 1]
+[LESSON-LANG: en]
+[LESSON-DIR: auto]
+
+## LESSON
+"""
+
+_LOCALIZATION_ITEM = """
+Q1. What does itembank do to the authored text of a lesson written in a script other than Latin?   (difficulty: recall)
+[LESSON-REF: RTL]
+[OBJECTIVE: a11y:text.passthrough]
+
+A) It normalizes the text to a canonical Unicode form
+B) It passes the bytes through unchanged and emits language and direction attributes
+C) It strips bidi control characters as a safety measure
+D) It folds full-width characters to their half-width equivalents
+
+CORRECT: B
+
+WHY BEST: The tool emits the language and direction metadata a browser needs
+and changes no authored byte, so what an author wrote is what a reader reads.
+
+KEY DISCRIMINATOR: The answer must describe passing text through rather than
+correcting it.
+
+SECOND-BEST: A. Normalizing would make two spellings compare equal, and this
+would be correct if the tool ever compared authored text for equality across
+spellings.
+
+DISTRACTOR ANALYSIS:
+- A) Normalizing would silently collapse two distinct authored spellings; this would be correct if the tool needed spelling-insensitive comparison.
+- B) Correct: the bytes are unchanged and the attributes carry the metadata.
+- C) Stripping a bidi control would corrupt legitimate right-to-left content; this would be correct if the authored content came from an untrusted third party.
+- D) Width folding changes what an author wrote; this would be correct if the tool were building a search index rather than rendering a lesson.
+
+TRAP: Treating a renderer that corrects the learner's script as safer than one
+that passes it through.
+
+CONFIDENCE: high
+"""
+
+LOCALIZATION_FILENAME = "capability_localization_bank.md"
+
+
+def _localization_body():
+    """The `## LESSON` body: one `### ` heading per case, named in English so
+    a human reading the file can tell which case is which, each carrying its
+    one constant in its own paragraph."""
+    parts = []
+    for heading, value in LOCALIZATION_CASES + LOCALIZATION_PROBES:
+        parts.append("")
+        parts.append("### " + heading)
+        parts.append("")
+        parts.append(value)
+    return "\n".join(parts) + "\n"
+
+
+def build_localization_lesson(dest_dir):
+    """Write the one localization bank into `dest_dir` and return its
+    absolute path.
+
+    Deterministic for `build_thin_slice`'s reason: every string is a
+    module-level literal, so two builds into two directories produce two
+    byte-identical files. The open call pins `encoding="utf-8"` and
+    `newline="\\n"`, the same as every other builder in this module, so the
+    written bytes do not depend on the platform.
+    """
+    os.makedirs(dest_dir, exist_ok=True)
+    path = os.path.join(os.path.abspath(dest_dir), LOCALIZATION_FILENAME)
+    text = _LOCALIZATION_HEAD + _localization_body() + _LOCALIZATION_ITEM
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(text)
+    return path

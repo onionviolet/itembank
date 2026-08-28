@@ -506,13 +506,25 @@ def _lesson_lang(head):
 def _lesson_direction(head):
     """`[LESSON-DIR: <value>]`, defaulting to `"auto"`. A value outside
     `LESSON_DIRECTIONS` falls back and is reported by
-    `lesson.invalid_direction`."""
-    raw = grab(r"(?m)^\[LESSON-DIR:\s*(.*?)\s*\]", head)
+    `lesson.invalid_direction`.
+
+    Returns `(value, raw, declared)`. `declared` is True when the directive is
+    PRESENT at all, whatever its value, and it is a different fact from the
+    value being `"auto"`: `auto` is also the default a lesson that never asked
+    receives. The renderer needs that distinction, because per-element
+    direction resolution is an explicit opt-in and emitting it on the default
+    path would add an attribute to every paragraph of every existing bank
+    (plan 16A-08 Task 1 step 2).
+    """
+    m = re.search(r"(?m)^\[LESSON-DIR:\s*(.*?)\s*\]", head)
+    if m is None:
+        return "auto", "", False
+    raw = m.group(1).strip()
     if not raw:
-        return "auto", ""
+        return "auto", "", True
     if raw in LESSON_DIRECTIONS:
-        return raw, ""
-    return "auto", raw
+        return raw, "", True
+    return "auto", raw, True
 
 
 def _lesson_example_order(head):
@@ -553,7 +565,7 @@ def _lesson_directive_defaults():
     return {"semantic_profile": SEMANTIC_PROFILE_VERSION,
             "semantic_profile_raw": "",
             "lang": "en", "lang_raw": "",
-            "dir": "auto", "dir_raw": "",
+            "dir": "auto", "dir_raw": "", "dir_declared": False,
             "example_order": "example-first", "example_order_reason": ""}
 
 
@@ -648,7 +660,7 @@ def parse_lesson(bank_path):
     # is what makes "absent" and "present but wrong" distinguishable.
     semantic_profile, semantic_profile_raw = _lesson_profile(head)
     lang, lang_raw = _lesson_lang(head)
-    direction, dir_raw = _lesson_direction(head)
+    direction, dir_raw, dir_declared = _lesson_direction(head)
     example_order, example_order_reason = _lesson_example_order(head)
 
     m = re.search(r"(?m)^##\s+LESSON\s*$", head)
@@ -682,6 +694,7 @@ def parse_lesson(bank_path):
             "lang_raw": lang_raw,
             "dir": direction,
             "dir_raw": dir_raw,
+            "dir_declared": dir_declared,
             "example_order": example_order,
             "example_order_reason": example_order_reason,
             "body": lesson_text.strip(),

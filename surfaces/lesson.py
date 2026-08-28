@@ -1288,8 +1288,28 @@ def _callout_html(spec, body, ctx=None, required=False):
         extra = " example-parallel"
     flag = ' data-required="1"' if required else ""
     return ('<section class="callout callout-%s"%s><p class="callout-label">'
-            "%s%s</p><div class=\"callout-body\">%s</div></section>"
-            % (slug + extra, flag, icon, html.escape(label), inner))
+            "%s%s</p><div class=\"callout-body\"%s>%s</div></section>"
+            % (slug + extra, flag, icon, html.escape(label),
+               _dir_attr(ctx), inner))
+
+
+def _dir_attr(ctx):
+    """` dir="auto"` when the author explicitly declared `[LESSON-DIR: auto]`,
+    the empty string otherwise (A11Y-02, plan 16A-08).
+
+    The condition is `dir_declared AND the value survived validation AND
+    dir == "auto"`, never `dir == "auto"` alone. `auto` is also the value a lesson that never asked receives, so the
+    shorter condition would put this attribute on every paragraph of every
+    existing bank, change the shipped golden content fixture's bytes, and turn
+    tests/lesson_roundtrip.py red for a reason that has nothing to do with
+    localization. Explicit opt-in is what makes this addition additive.
+
+    On the opt-in path each text run resolves its own direction from its own
+    first strong character, which is what a lesson mixing scripts inside one
+    document needs. The resolution itself is the browser's: this file
+    implements no bidi algorithm and adds no dependency that does.
+    """
+    return ' dir="auto"' if (ctx or {}).get("auto_dir") else ""
 
 
 def _media_figure_html(asset, ref_id, ctx=None):
@@ -1344,7 +1364,8 @@ def _media_figure_html(asset, ref_id, ctx=None):
             parts.append(html.escape(credit))
         if derivation:
             parts.append(html.escape(derivation))
-        caption = "<figcaption>%s</figcaption>" % "<br>".join(parts)
+        caption = ("<figcaption%s>%s</figcaption>"
+                   % (_dir_attr(ctx), "<br>".join(parts)))
 
     if availability == "present":
         return ('<figure class="media" id="media-%s"><img src="%s" alt="%s">'
@@ -1612,7 +1633,8 @@ def _table_html(rows, ctx=None):
     label = (ctx or {}).get("section_title") or "Lesson table"
     head = "".join('<th scope="col">%s</th>' % _inline(c) for c in header)
     rows_html = "".join(
-        "<tr>%s</tr>" % "".join("<td>%s</td>" % _inline(c) for c in r)
+        "<tr>%s</tr>" % "".join("<td%s>%s</td>"
+                                % (_dir_attr(ctx), _inline(c)) for c in r)
         for r in body)
     return ('<div class="scroll lesson-table-scroll" tabindex="0" '
             'role="region" aria-label="%s"><table><thead><tr>%s</tr>'
@@ -1829,7 +1851,8 @@ def _render_blocks(text, ctx=None):
                 rendered = _inline(raw_item)
                 for gidx, tok in enumerate(g_tokens):
                     rendered = rendered.replace("\x00G%d\x00" % gidx, tok)
-                items.append("<li>%s</li>" % rendered)
+                items.append("<li%s>%s</li>"
+                             % (_dir_attr(ctx), rendered))
                 i += 1
             out.append("<ul>%s</ul>" % "".join(items))
             if ctx is not None:
@@ -1849,7 +1872,8 @@ def _render_blocks(text, ctx=None):
                 rendered = _inline(raw_item)
                 for gidx, tok in enumerate(g_tokens):
                     rendered = rendered.replace("\x00G%d\x00" % gidx, tok)
-                items.append("<li>%s</li>" % rendered)
+                items.append("<li%s>%s</li>"
+                             % (_dir_attr(ctx), rendered))
                 i += 1
             out.append("<ol>%s</ol>" % "".join(items))
             if ctx is not None:
@@ -1888,7 +1912,7 @@ def _render_blocks(text, ctx=None):
         if ctx is not None and ctx["first_use_now"]:
             ids = "".join(' id="use-%s"' % s
                           for s in sorted(ctx["first_use_now"]))
-        para = "<p%s>%s</p>" % (ids, _inline(raw))
+        para = "<p%s%s>%s</p>" % (ids, _dir_attr(ctx), _inline(raw))
         for gidx, tok in enumerate(g_tokens):
             para = para.replace("\x00G%d\x00" % gidx, tok)
         out.append(para)
@@ -1976,6 +2000,10 @@ def _reader_context(bank_path, qs):
         "held_line": "",
         "suppressed": False,
         "key_links": {},
+        # A11Y-02's per-element direction opt-in (plan 16A-08). True only
+        # when the author explicitly wrote [LESSON-DIR: auto]; see _dir_attr
+        # for why the parsed default is not enough.
+        "auto_dir": False,
         # The parsed `## ACTIVITIES` registry, item id -> declaration, or an
         # empty dict. Read only to resolve a fallback TEXT for an unsupported
         # response form; no feedback, retry, or evidence value is consulted
@@ -2283,6 +2311,15 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
             ctx["media"] = media.get("assets") or {}
         if isinstance(activities, dict):
             ctx["activities"] = activities.get("activities") or {}
+        # The opt-in needs all three: the directive was present
+        # (`dir_declared`), its value survived validation (`dir_raw` empty,
+        # so nothing was refused), and that surviving value is `auto`. A
+        # refused value like `[LESSON-DIR: sideways]` falls back to `auto`
+        # too, and a fallback is not a declaration.
+        ctx["auto_dir"] = bool(isinstance(lesson, dict)
+                               and lesson.get("dir_declared")
+                               and not (lesson.get("dir_raw") or "")
+                               and lesson.get("dir") == "auto")
         ctx["key_answers"] = []
         # 09-05 runnable lesson code: the sequential data-code-block counter,
         # the profile's runnable languages, the session id to post against,

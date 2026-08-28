@@ -18,6 +18,7 @@ Standard library only, no test framework, runnable as
 `python tests/capability_stress_corpus_tracer.py`.
 """
 import hashlib
+import html
 import json
 import os
 import re
@@ -930,13 +931,162 @@ def scenario_backburner_catalog():
     print("scenario backburner_catalog: pass")
 
 
+def _digest(text):
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _survives(page, value, label, where):
+    """Assert `value` reached `page` unchanged.
+
+    The comparison is SHA-256 of the source string against SHA-256 of the
+    rendered substring after `html.unescape`, not against the raw rendered
+    bytes. Escaping a markup character is a legitimate transformation of
+    markup; normalization is not. Comparing raw bytes would fail on a
+    legitimate ampersand escape and would teach a later reader to weaken this
+    check, which is how the real assertion gets lost.
+    """
+    unescaped = html.unescape(page)
+    if value not in unescaped:
+        fail("localization, %s: the %s case did not survive the round trip "
+             "unchanged; something in the parse or render path transformed "
+             "authored text" % (where, label))
+    start = unescaped.index(value)
+    got = unescaped[start:start + len(value)]
+    if _digest(got) != _digest(value):
+        fail("localization, %s: the %s case round-tripped to a different "
+             "byte sequence" % (where, label))
+
+
+def scenario_localization():
+    """A11Y-02's seven cases, each asserted by name, plus the three encoding
+    probes that catch what the seven cannot.
+
+    The point of this scenario is negative: itembank transforms no authored
+    text. Bidi resolution, CJK line breaking, and combining-mark composition
+    belong to the browser and the font stack once the right attributes and
+    untouched UTF-8 bytes are emitted, so this phase adds no ICU binding, no
+    bidi algorithm, no segmentation library, and no normalization pass. This
+    scenario is what fails the day someone adds one.
+    """
+    workdir = tempfile.mkdtemp(prefix="cap-tracer-loc-")
+    path = lesson_capability_corpus.build_localization_lesson(workdir)
+    source = open(path, encoding="utf-8").read()
+    parsed = model.parse_lesson(path)
+    qs = model.load(path)
+
+    cases = lesson_capability_corpus.LOCALIZATION_CASES
+    probes = lesson_capability_corpus.LOCALIZATION_PROBES
+    if len(cases) != 7:
+        fail("localization, corpus hop: %d A11Y-02 cases, expected the seven "
+             "the requirement names" % len(cases))
+
+    # PORT-01 for localized content: the non-Latin text is readable in the
+    # plain Markdown with every rendered page deleted.
+    for label, value in cases + probes:
+        if value not in source:
+            fail("localization, source hop: the %s case is not in the "
+                 "canonical Markdown, so deleting the derived HTML would "
+                 "lose it" % label)
+
+    continuous = lesson.lesson_page(path, qs, parsed)
+    guided = lesson.lesson_page(path, qs, parsed, mode="guided")
+
+    rendered_forms = lesson_capability_corpus.LOCALIZATION_RENDERED
+    for label, value in cases + probes:
+        # A case whose SOURCE carries Markdown markup has a declared rendered
+        # form; every other case is compared against its source string
+        # unchanged. Turning a backtick code span into a <code> element is a
+        # transformation of markup, which is legitimate; transforming text is
+        # not, which is what every one of these assertions is about.
+        want = rendered_forms.get(label, value)
+        _survives(continuous, want, label, "continuous render hop")
+        _survives(guided, want, label, "guided render hop")
+
+    # The bidi override survives ON PURPOSE. Stripping U+202E and U+202C
+    # would corrupt legitimate right-to-left content, and the
+    # display-spoofing risk they carry is an accepted characteristic of any
+    # right-to-left-capable renderer rather than an itembank defect. Recorded
+    # here, in the fixture, and in the freeze record rather than papered over.
+    for char, name in (("\u202e", "U+202E RIGHT-TO-LEFT OVERRIDE"),
+                       ("\u202c", "U+202C POP DIRECTIONAL FORMATTING")):
+        if char not in source:
+            fail("localization, bidi hop: %s is not in the fixture source, "
+                 "so this assertion would prove nothing" % name)
+        if char not in continuous:
+            fail("localization, bidi hop: %s was stripped from the rendered "
+                 "page; stripping it would corrupt legitimate right-to-left "
+                 "content" % name)
+
+    # No normalization. These two spellings look identical on screen, so a
+    # single unicodedata.normalize call anywhere in the path would collapse
+    # them and nothing else in this phase would notice.
+    pre = lesson_capability_corpus.LOC_PRECOMPOSED
+    dec = lesson_capability_corpus.LOC_DECOMPOSED
+    if _digest(pre) == _digest(dec):
+        fail("localization, normalization hop: the precomposed and "
+             "decomposed constants are already the same string, so this "
+             "assertion would prove nothing")
+    unescaped = html.unescape(continuous)
+    if pre not in unescaped or dec not in unescaped:
+        fail("localization, normalization hop: one of the two spellings did "
+             "not reach the page")
+    rendered_pre = unescaped[unescaped.index(pre):
+                             unescaped.index(pre) + len(pre)]
+    rendered_dec = unescaped[unescaped.index(dec):
+                             unescaped.index(dec) + len(dec)]
+    if _digest(rendered_pre) == _digest(rendered_dec):
+        fail("localization, normalization hop: the precomposed and "
+             "decomposed spellings became the same string after the round "
+             "trip, so something normalized authored text")
+
+    # The long string survives in full. Asserted on the whole string's
+    # presence rather than on a length, because nothing in this phase
+    # measures a length and asserting one would invite a later reader to add
+    # a measurement.
+    if lesson_capability_corpus.LOC_LONG_STRING not in unescaped:
+        fail("localization, long-string hop: the unbroken token was "
+             "truncated or broken in the rendered page")
+
+    # A11Y-02's Degraded clause: an unhandled input produces a named finding
+    # and readable text, never corrupt text.
+    bad_dir = tempfile.mkdtemp(prefix="cap-tracer-loc-bad-")
+    bad_path = os.path.join(bad_dir, os.path.basename(path))
+    with open(bad_path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(source.replace("[LESSON-DIR: auto]",
+                                "[LESSON-DIR: zz-invalid]", 1))
+    bad_parsed = model.parse_lesson(bad_path)
+    bad_page = lesson.lesson_page(bad_path, model.load(bad_path), bad_parsed)
+    if 'dir="auto"' not in bad_page:
+        fail("localization, degraded hop: an unrecognized direction did not "
+             "fall back to auto on the document element")
+    for label, value in cases + probes:
+        _survives(bad_page, rendered_forms.get(label, value), label,
+                  "degraded render hop")
+    bad_errors, _bad_warnings = model.lint(model.load(bad_path),
+                                           lesson=bad_parsed)
+    if not any(e.code == "lesson.invalid_direction" for e in bad_errors):
+        fail("localization, degraded hop: an unrecognized direction produced "
+             "no lesson.invalid_direction finding")
+
+    # The whole phase's posture, asserted against the source rather than
+    # against output, because the behavior it guards is invisible in output.
+    for name in ("model.py", "surfaces/lesson.py", "capabilities.py"):
+        text = open(os.path.join(ROOT, name), encoding="utf-8").read()
+        if "unicodedata" in text:
+            fail("localization, posture hop: %s mentions unicodedata; "
+                 "Phase 16A applies no Unicode normalization anywhere in the "
+                 "authored-text path" % name)
+
+    print("scenario localization: pass")
+
+
 SCENARIOS = (scenario_thin_slice, scenario_additivity_golden_parse,
              scenario_fourteen_roles, scenario_unknown_semantics,
              scenario_example_order, scenario_capability_profiles,
              scenario_unavailable_renderer, scenario_media_metadata,
              scenario_activity_declarations,
              scenario_unsupported_response_form, scenario_output_modes,
-             scenario_backburner_catalog)
+             scenario_backburner_catalog, scenario_localization)
 
 
 def main():
