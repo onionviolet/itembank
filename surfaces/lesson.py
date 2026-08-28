@@ -329,7 +329,7 @@ h2[id],h3[id],section[id],#glossary dt,.term[id],[id^="use-"],.gate:is(*){
 """
 
 
-LESSON_TEMPLATE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+LESSON_TEMPLATE = r"""<!doctype html><html lang="__LANG__" dir="__DIR__"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>__TITLE__</title>
 <style>
 __THEME__
@@ -650,6 +650,12 @@ _CALLOUT_KINDS = {
     "EXAMPLE": ("example", "Example"),
     "NOTE": ("note", "Note"),
     "WARNING": ("warning", "Warning"),
+    # Phase 16A, D-16A-1 option-a: added alongside the shipped four rather
+    # than promoting the dict into a semantic-role registry, so this dict
+    # stays the one source of truth for what a callout kind means. The
+    # container and its degradation contract are unchanged, which is what the
+    # comment above already promises.
+    "PREREQUISITE": ("prerequisite", "Before this"),
 }
 
 # One in-repo decorative callout mark (03.1-UI-SPEC §2): a single 16×16
@@ -1751,11 +1757,138 @@ def _backlinks_html(stem, qs, slug):
         html.escape(BACKLINKS_LABEL), rows)
 
 
+# ---- Phase 16A guided mode (D-16A-9) --------------------------------------
+# Guided mode groups a heading's already-rendered blocks into stages. It does
+# not re-render them: the rendered callout containers are byte-identical in
+# both modes, because guided mode cuts the very string continuous mode
+# produced rather than producing a second one. That is what keeps one
+# renderer, and it is asserted rather than asserted-in-prose by the tracer.
+#
+# Reading position and resume are Phase 16B's and are deliberately absent
+# here. A stage is a semantic grouping proven by an attribute; what it looks
+# like is Phase 17A's decision and no color, spacing, token, transition, or
+# script is introduced by any of this.
+
+_CALLOUT_OPEN = '<section class="callout'
+_SECTION_CLOSE = "</section>"
+
+
+def guided_stages(heading_body, heading_slug=""):
+    """Split one `###` heading's body into stages at each callout boundary.
+
+    A stage is the run of blocks up to and including the next callout, so a
+    callout ends a stage rather than starting one: the prose that leads up to
+    a prerequisite or an example belongs with it, not with what follows.
+
+    Returns a list of dicts carrying `index` (zero based), `slug`, `blocks`
+    (the raw text of the stage), and `requires` (the required-semantic kinds
+    found in the stage, always empty in this plan because required semantics
+    are plan 16A-03's). A body with no callout returns a one-element list; an
+    empty body returns an empty list.
+
+    `heading_slug` is optional and is a deliberate departure from plan
+    16A-02's one-argument signature, recorded in that plan's summary: the
+    field spec says a stage slug is the heading slug plus a `-stage-<index>`
+    suffix, which a function given only the body cannot produce. It defaults
+    to the empty string so the one-argument call the plan writes still works,
+    and the slug is built through `model.lesson_slug` either way, imported
+    into this module as `lesson_slug`, rather than by raw string
+    manipulation.
+    """
+    if not (heading_body or "").strip():
+        return []
+    lines = heading_body.split("\n")
+    stages = []
+    current = []
+    in_callout = False
+    for line in lines:
+        stripped = line.strip()
+        is_callout_mark = bool(_CALLOUT_MARK_RE.match(stripped))
+        if is_callout_mark:
+            in_callout = True
+        current.append(line)
+        # A callout ends at the first line that is not a blockquote line, so
+        # the stage boundary is the end of the callout and not its first line.
+        if in_callout and not stripped.startswith(">"):
+            in_callout = False
+            body = "\n".join(current).strip()
+            if body:
+                stages.append(body)
+            current = []
+    tail = "\n".join(current).strip()
+    if tail:
+        stages.append(tail)
+    if not stages:
+        return []
+    out = []
+    for index, blocks in enumerate(stages):
+        out.append({
+            "index": index,
+            "slug": lesson_slug("%s stage %d" % (heading_slug, index)),
+            "blocks": blocks,
+            "requires": [],
+        })
+    return out
+
+
+def _stage_html(stage, rendered_blocks):
+    """Wrap one stage's already-rendered block HTML in its stage section.
+
+    Exactly one attribute beyond the class: `data-stage`, plus
+    `data-stage-open` on index 0 only. No other class, no inline style, no
+    script.
+    """
+    open_attr = ' data-stage-open="1"' if stage["index"] == 0 else ""
+    return ('<section class="stage" data-stage="%d"%s>%s</section>'
+            % (stage["index"], open_attr, rendered_blocks))
+
+
+def _split_rendered_stages(rendered):
+    """Cut one heading's rendered HTML after each callout container close.
+
+    Operates on the rendered string rather than re-rendering, so every
+    callout container in guided mode is the same bytes continuous mode
+    produced. Callout containers do not nest a `<section>`, so the first
+    `</section>` at or after a callout open is that callout's own close.
+    Returns a list of HTML strings; a render with no callout returns a
+    one-element list, and an empty render returns an empty list.
+    """
+    if not rendered:
+        return []
+    pieces = []
+    pos = 0
+    while True:
+        start = rendered.find(_CALLOUT_OPEN, pos)
+        if start == -1:
+            break
+        close = rendered.find(_SECTION_CLOSE, start)
+        if close == -1:
+            break
+        cut = close + len(_SECTION_CLOSE)
+        pieces.append(rendered[pos:cut])
+        pos = cut
+    tail = rendered[pos:]
+    if tail.strip():
+        pieces.append(tail)
+    return pieces or [rendered]
+
+
 def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
                 style_override=None, profile=None, gate=None, focus=None,
-                announce=None, session_id=None, lan_refused=False):
+                announce=None, session_id=None, lan_refused=False,
+                mode="continuous"):
     """The one render both surfaces call: the daemon route and `cmd_lesson`
     write the same document because there is only one `lesson_page`.
+
+    `mode` is `"continuous"` or `"guided"` (D-16A-9). It defaults to
+    `"continuous"`, so every shipped caller renders the document it always
+    rendered and guided mode is reached only by asking for it. Guided mode
+    groups a heading's already-rendered blocks into stages; it does not
+    re-render them, so the callout containers are byte-identical in both.
+    Reading position and resume are Phase 16B's and are deliberately absent
+    here. Any other value raises `ValueError`, because an unknown mode is a
+    programming error at a call site rather than authored content and must
+    fail loudly instead of falling back.
 
     A non-empty `ref` narrows the document to the single heading whose slug
     matches the caller's text (D-11): the heading is resolved through
@@ -1812,6 +1945,10 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
     document grew). `announce` is the composed status-region text
     (section 7.2), rendered inside the single `role=status` region.
     """
+    if mode not in ("continuous", "guided"):
+        raise ValueError(
+            'lesson_page: mode must be "continuous" or "guided" (got %r)'
+            % mode)
     bank_text = open(bank_path, encoding="utf-8").read()
     title = (grab(r"(?m)^#\s+(.*?)\s*$", bank_text)
              or os.path.basename(bank_path))
@@ -1883,11 +2020,37 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
             ctx["focus_section"] = focus
         parts = []
         stop_at = None
+        stage_index = 0
         for idx in idxs:
             h = lesson["headings"][idx]
             ctx["section"] = h["slug"] or ("section-%d" % idx)
             rendered = render_markdown(
                 "### %s\n\n%s" % (h["text"], h["body"]), ctx)
+            if mode == "guided":
+                # Group, never re-render: the cuts are taken out of the very
+                # string continuous mode produced, so every callout container
+                # below is the same bytes it is above.
+                #
+                # Stage indices run across the whole document rather than
+                # restarting per heading, so exactly one stage in the document
+                # carries `data-stage-open`. Per-heading numbering would open
+                # the first stage of every heading, which is not one guided
+                # reading but several started at once.
+                stages = guided_stages(h["body"], h["slug"] or "")
+                chunks = _split_rendered_stages(rendered)
+                if chunks:
+                    if len(stages) != len(chunks):
+                        stages = [{"index": i, "slug": "", "blocks": "",
+                                   "requires": []}
+                                  for i in range(len(chunks))]
+                    numbered = []
+                    for offset, (stage, chunk) in enumerate(
+                            zip(stages, chunks)):
+                        stage = dict(stage)
+                        stage["index"] = stage_index + offset
+                        numbered.append(_stage_html(stage, chunk))
+                    stage_index += len(chunks)
+                    rendered = "".join(numbered)
             if ctx.get("gate_stop"):
                 # G1 truncation: the section ends at the band; the rest of
                 # this section and every later section is withheld, and the
@@ -1991,7 +2154,17 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
     runnable_js = RUNNABLE_JS if run_emitted else ""
     run_session_attr = (' data-run-session="%s"'
                         % html.escape(session_id) if session_id else "")
+    # A11Y-02: the document language and direction come from the parsed
+    # lesson's own directives, escaped exactly as every other interpolated
+    # value in this chain is. `lesson` may be None and may predate the two
+    # directives entirely, so both fall back to the same defaults
+    # `model.parse_lesson` uses, which is what keeps a bank written before
+    # this phase rendering the page it always rendered.
+    doc_lang = html.escape((lesson or {}).get("lang") or "en")
+    doc_dir = html.escape((lesson or {}).get("dir") or "auto")
     return (LESSON_TEMPLATE
+            .replace("__LANG__", doc_lang)
+            .replace("__DIR__", doc_dir)
             .replace("__THEME__", THEME_CSS)
             .replace("__SHARED_CSS__", SHARED_CSS)
             .replace("__LESSON_CSS__", LESSON_CSS)

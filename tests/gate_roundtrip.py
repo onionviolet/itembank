@@ -127,10 +127,28 @@ def test_gate_grammar_additive():
     try:
         path = _write_bank(tmp)
         les = itembank.parse_lesson(path)
-        if set(les) != {"source", "gate", "body", "intro", "headings",
-                        "error", "detail"}:
+        # The six Phase 16A directive keys (plan 16A-02) were added to every
+        # parse_lesson return path after this assertion was written. They are
+        # checked for carrying exactly their documented defaults before being
+        # removed from the key-set comparison, so this stays a statement about
+        # additivity rather than becoming a weaker "the old keys are still
+        # there": a bank carrying none of the three new directives must parse
+        # to the same values it did before they existed.
+        additive_defaults = {"semantic_profile": 1, "semantic_profile_raw": "",
+                             "lang": "en", "lang_raw": "",
+                             "dir": "auto", "dir_raw": ""}
+        for key, default in additive_defaults.items():
+            if key not in les:
+                fail("parse_lesson no longer returns the additive key %r"
+                     % key)
+            if les[key] != default:
+                fail("a bank carrying no %r directive parsed to %r, not its "
+                     "default %r" % (key, les[key], default))
+        core = {k: v for k, v in les.items() if k not in additive_defaults}
+        if set(core) != {"source", "gate", "body", "intro", "headings",
+                         "error", "detail"}:
             fail("no-gate parse must carry exactly the pre-6.2 key set "
-                 "plus 'gate', got %r" % sorted(les))
+                 "plus 'gate', got %r" % sorted(core))
         qs = itembank.load(path)
         errors, warnings = itembank.lint(
             qs, lesson=les)
