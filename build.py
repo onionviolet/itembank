@@ -47,6 +47,13 @@ STAGE_FILES = (
     "identity.py", "journal.py", "discovery.py", "source_adapters.py",
     "course.py", "graph.py", "course_package.py",
     "model_adapter.py", "tier_gate.py",
+    # Phase 16A, added 2026-08-28 by plan 16A-04 Task 3. `surfaces/lesson.py`
+    # now imports `capabilities` at module scope, so that the inline check's
+    # static instructional copy has one home instead of two. Omitting it here
+    # is a hard ImportError inside the built .pyz, which is exactly the class
+    # of gap the 14A and 14B entry above records; it is caught by
+    # tests/packaging_roundtrip.py and tests/math_offline_roundtrip.py.
+    "capabilities.py",
 )
 STAGE_DIRS = ("surfaces", "schemas", "styles", "fonts", "vendor")
 

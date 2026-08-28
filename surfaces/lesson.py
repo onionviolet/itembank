@@ -7,6 +7,7 @@ only way out of a lesson is to another surface, never to a score.
 """
 import html, json, os, re, sys
 
+import capabilities
 import evidence
 import retention
 import subjects
@@ -1232,8 +1233,16 @@ def _callout_html(spec, body, ctx=None, required=False):
     if slug == "check":
         gate = ctx.get("gate") if ctx is not None else None
         if gate is None:
+            # CAP-02's Degraded clause, and the one place the shipped
+            # renderer already implemented it before CAP-02 existed. The copy
+            # now has exactly one home, the `inline_check` profile's
+            # `offline_fallback`, so the contract and the learner-visible
+            # string cannot drift. The surrounding markup is unchanged on
+            # purpose: tests/gate_roundtrip.py asserts these bytes, and a
+            # one-character difference in the registry turns it red rather
+            # than shipping wrong copy quietly.
             inner = "<p>%s</p>" % html.escape(
-                "This check is available when you are reading with a session.")
+                capabilities.static_path("inline_check"))
             return ('<section class="callout callout-check">'
                     '<p class="callout-label">%s%s</p>'
                     '<div class="callout-body">%s</div></section>'
@@ -1248,6 +1257,23 @@ def _callout_html(spec, body, ctx=None, required=False):
     return ('<section class="callout callout-%s"%s><p class="callout-label">'
             "%s%s</p><div class=\"callout-body\">%s</div></section>"
             % (slug + extra, flag, icon, html.escape(label), inner))
+
+
+def _static_instructional_html(name, registry=None):
+    """The declared static instructional path for one capability, as one
+    `<p class="capability-static">`, or the empty string when the capability
+    is unregistered or declares no fallback (CAP-02's Degraded clause).
+
+    One class and nothing else: no inline style, no color, no spacing value,
+    no token, and no script. `.capability-static` has no CSS rule after Phase
+    16A, deliberately. An unstyled paragraph is still legible, and Phase 17A
+    owns how it looks; adding a rule here would be a visual decision Phase 16A
+    is not allowed to make.
+    """
+    text = capabilities.static_path(name, registry)
+    if not text:
+        return ""
+    return '<p class="capability-static">%s</p>' % html.escape(text)
 
 
 def _unsupported_callout_html(kind, body):

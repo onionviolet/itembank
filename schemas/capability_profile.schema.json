@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/capability_profile.schema.json",
+  "title": "itembank capability support profile",
+  "description": "One semantic capability's published support profile (Phase 16A, CAP-02, D-16A-2/D-16A-5): the accessible behavior a learner gets, the offline fallback shown when the renderer is not there, the declared renderer availability, the profile version, the concrete check that catches a malformed use, and the capability's real known limits. A profile answers whether a renderer exists and what a learner sees when it does not; it never answers whether a learner may see an answer, a key, a rationale, or a hint tier, which runtime.public_item and runtime.glossable answer and no other module does. offline_fallback carries minLength 1 on purpose: a capability with no declared fallback fails CAP-02's Degraded clause by construction.",
+  "x-itembank-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "accessible_behavior",
+    "offline_fallback",
+    "renderer_availability",
+    "version",
+    "validation",
+    "known_limits"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The registry key, unique across the registry; registering a second profile under the same name is refused."
+    },
+    "accessible_behavior": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What a learner using a keyboard, a screen reader, touch, zoom, high contrast, or reduced motion actually gets."
+    },
+    "offline_fallback": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What renders with no network and no scripting. Never empty: a capability with no fallback fails CAP-02's Degraded clause."
+    },
+    "renderer_availability": {
+      "type": "string",
+      "enum": [
+        "available",
+        "degraded",
+        "unavailable"
+      ],
+      "description": "The declared ceiling (D-16A-5). A caller's own situation may lower it through capabilities.resolved_availability; nothing may raise it."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The semantic profile version this capability was described against (D-16A-4)."
+    },
+    "validation": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The concrete check that catches a malformed use, named by lint code where one exists. A capability with no validation path says so in plain words."
+    },
+    "known_limits": {
+      "type": "string",
+      "minLength": 1,
+      "description": "A real limitation a reader would actually hit. Never the word none."
+    }
+  }
+}

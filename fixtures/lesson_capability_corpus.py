@@ -491,3 +491,145 @@ def build_definition_first(dest_dir, override=None):
     with open(path, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(text)
     return path
+
+
+# The unavailable-capability bank (plan 16A-04 Task 3): one lesson carrying a
+# `[!CHECK:]` slot resolving to a real item in the same bank, so a gate-less
+# render exercises CAP-02's static instructional path against real shipped
+# code rather than against a stub.
+UNAVAILABLE_CAPABILITY_BANK = """# Reading a fictional siding diagram (synthetic)
+
+Fully invented teaching content for exercising CAP-02's static instructional
+path. It is not derived from any real course, exam, textbook, or railway
+publication, and no real question bank belongs in this repository.
+
+[SEMANTIC-PROFILE: 1]
+
+## LESSON
+
+### Reading A Siding Diagram
+
+> [!EXAMPLE]
+> The invented Harrow Loop diagram draws the siding as a stub off the running
+> line, with the points shown lying for the running line.
+
+A siding diagram draws where a vehicle may be put, never where one is. The
+points symbol says which way the blades lie in the drawing, and a drawing is
+not a report about this morning.
+
+> [!NOTE]
+> The diagram is a plan of the layout. It is not a live indication and it
+> never was.
+
+> [!CHECK: q1]
+
+Q1. A siding diagram shows the points lying for the running line. What does that establish about the layout right now?   (difficulty: application)
+[LESSON-REF: Reading A Siding Diagram]
+[OBJECTIVE: rail:siding.diagram]
+
+A) The points are lying for the running line right now
+B) The diagram records the normal position of the points
+C) A vehicle is standing in the siding
+D) The siding is out of use
+
+CORRECT: B
+
+WHY BEST: A diagram records the layout and the normal position of its points,
+so the only thing it establishes is what normal means here.
+
+KEY DISCRIMINATOR: The answer must describe the drawing's record of a normal
+position rather than a live state.
+
+SECOND-BEST: A. The points often do lie as drawn, and this would be correct
+if the diagram were a live indication panel.
+
+DISTRACTOR ANALYSIS:
+- A) A plan is not an indication; this would be correct if the question named a live panel.
+- B) Correct: a diagram records the layout and the normal position of its points.
+- C) Vehicles are not drawn on a layout plan; this would be correct if the drawing were an occupancy chart.
+- D) Out of use is a separate notice; this would be correct if the diagram carried a possession marking.
+
+TRAP: Reading a layout plan as a live indication of where the blades are
+lying this minute.
+
+CONFIDENCE: high
+"""
+
+UNAVAILABLE_CAPABILITY_FILENAME = "capability_unavailable_bank.md"
+
+
+def build_unavailable_capability(dest_dir):
+    """Write the one unavailable-capability bank into `dest_dir` and return
+    its absolute path. Deterministic for `build_thin_slice`'s reason."""
+    os.makedirs(dest_dir, exist_ok=True)
+    path = os.path.join(os.path.abspath(dest_dir),
+                        UNAVAILABLE_CAPABILITY_FILENAME)
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(UNAVAILABLE_CAPABILITY_BANK)
+    return path
+
+
+# A lesson with no callout of any kind (plan 16A-04 Task 3 step 5). CAP-02's
+# no-decorative-block clause is only checkable against a document that uses
+# none: a style system that required a decorative block would fire here.
+NO_CALLOUTS_BANK = """# Reading a fictional gauge board (synthetic)
+
+Fully invented teaching content carrying no callout of any kind, so CAP-02's
+no-decorative-block clause is checkable rather than aspirational. It is not
+derived from any real course, exam, textbook, or engineering publication, and
+no real question bank belongs in this repository.
+
+## LESSON
+
+### Reading A Gauge Board
+
+A gauge board pairs a reading with the moment it was taken. Neither number
+means anything without the other, and a board that has lost its timestamps is
+a list of numbers rather than a record.
+
+The reading is what the instrument said. It is not what the quantity was, and
+the difference between those two is the whole of instrument work.
+
+Q1. A gauge board pairs a reading with a time. What does one pair establish?   (difficulty: recall)
+[LESSON-REF: Reading A Gauge Board]
+[OBJECTIVE: eng:gauge.pairs]
+
+A) What the instrument said at that moment
+B) What the quantity was at that moment
+C) What the quantity will be next
+D) Whether the instrument is accurate
+
+CORRECT: A
+
+WHY BEST: A pair records an instrument reading and the moment it was taken,
+which is a statement about the instrument and not about the quantity.
+
+KEY DISCRIMINATOR: The answer must stay with what the instrument said rather
+than with what was true.
+
+SECOND-BEST: B. A calibrated instrument reading is usually close to the
+quantity, and this would be correct if the board recorded corrected values.
+
+DISTRACTOR ANALYSIS:
+- A) Correct: a pair is a reading and the moment it was taken.
+- B) The quantity and the reading differ by the instrument's error; this would be correct if the board recorded corrected values.
+- C) A board is a record and not a forecast; this would be correct if the question named a trend line.
+- D) Accuracy is established by calibration and not by a single pair; this would be correct if the question named a calibration certificate.
+
+TRAP: Treating a raw reading as the quantity itself and dropping the
+instrument from the account.
+
+CONFIDENCE: high
+"""
+
+NO_CALLOUTS_FILENAME = "capability_no_callouts_bank.md"
+
+
+def build_no_callouts(dest_dir):
+    """Write the one callout-free bank into `dest_dir` and return its
+    absolute path. Deterministic for `build_thin_slice`'s reason."""
+    os.makedirs(dest_dir, exist_ok=True)
+    path = os.path.join(os.path.abspath(dest_dir), NO_CALLOUTS_FILENAME)
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(NO_CALLOUTS_BANK)
+    return path

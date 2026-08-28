@@ -18,6 +18,7 @@ Standard library only, no test framework, runnable as
 `python tests/capability_stress_corpus_tracer.py`.
 """
 import hashlib
+import json
 import os
 import re
 import subprocess
@@ -30,6 +31,7 @@ sys.path.insert(0, os.path.join(ROOT, "fixtures"))
 
 import capabilities                                          # noqa: E402
 import model                                                 # noqa: E402
+import schema_validate                                       # noqa: E402
 import lesson_capability_corpus                              # noqa: E402
 from surfaces import lesson                                  # noqa: E402
 
@@ -326,9 +328,147 @@ def scenario_example_order():
     print("scenario example_order: pass")
 
 
+def _capability_schema():
+    with open(os.path.join(ROOT, "schemas",
+                           "capability_profile.schema.json"),
+              encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def scenario_capability_profiles():
+    """CAP-02's first half: every capability declares all six fields, every
+    catalogued role has a profile, every profile validates against the
+    published schema, and no style rule requires a decorative block."""
+    entries = capabilities.profiles()
+    if len(entries) != 15:
+        fail("capability profiles, registry hop: %d profiles, expected 15"
+             % len(entries))
+
+    by_name = {e["name"]: e for e in entries}
+    mapped = set()
+    for role in capabilities.SEMANTIC_ROLE_CATALOG:
+        name = capabilities.catalog_profile_name(role["role"])
+        if name not in by_name:
+            fail("capability profiles, coupling hop: catalogued role %r maps "
+                 "to %r, which is not registered" % (role["role"], name))
+        mapped.add(name)
+    extra = sorted(set(by_name) - mapped)
+    if extra != ["guided_mode"]:
+        fail("capability profiles, coupling hop: the profiles with no "
+             "catalog role are %r, expected exactly ['guided_mode']" % extra)
+
+    schema = _capability_schema()
+    try:
+        schema_validate.check_schema(schema)
+    except schema_validate.SchemaError as exc:
+        fail("capability profiles, schema hop: the published schema uses a "
+             "keyword the shipped validator refuses: %s" % exc)
+    for entry in entries:
+        findings = capabilities.validate_profile(entry)
+        if findings:
+            fail("capability profiles, validation hop: %r is malformed: %s"
+                 % (entry["name"], "; ".join(findings)))
+        errors = schema_validate.validate(entry, schema)
+        if errors:
+            fail("capability profiles, schema hop: %r does not validate: %s"
+                 % (entry["name"], "; ".join(errors)))
+
+    # CAP-02's no-decorative-block clause, checked against a document that
+    # uses none. A style system that required a decorative block would fire
+    # here, which is what makes the clause checkable rather than
+    # aspirational.
+    workdir = tempfile.mkdtemp(prefix="cap-tracer-plain-")
+    path = lesson_capability_corpus.build_no_callouts(workdir)
+    errors, warnings = _lint(path)
+    offending = [c for c in list(errors) + list(warnings)
+                 if c.startswith("style.") or c in (
+                     "lesson.unknown_semantic",
+                     "lesson.unknown_required_semantic",
+                     "lesson.definition_before_example")]
+    if offending:
+        fail("capability profiles, no-decorative-block hop: a lesson using "
+             "zero callouts produced %r, so something requires a block "
+             "CAP-02 says nothing may require" % offending)
+    print("scenario capability_profiles: pass")
+
+
+def scenario_unavailable_renderer():
+    """CAP-02's Fixture sentence executed literally: one synthetic
+    capability's full support profile, a second with its renderer marked
+    unavailable, and the static instructional path asserted shown."""
+    workdir = tempfile.mkdtemp(prefix="cap-tracer-unavail-")
+    path = lesson_capability_corpus.build_unavailable_capability(workdir)
+    page = lesson.lesson_page(path, model.load(path),
+                              model.parse_lesson(path))
+    fallback = capabilities.profile("inline_check")["offline_fallback"]
+    if fallback not in page:
+        fail("unavailable renderer, render hop: a gate-less check did not "
+             "show the inline_check profile's declared offline_fallback, so "
+             "the Degraded clause is documented and not implemented")
+
+    if capabilities.resolved_availability("inline_check", {}) != "unavailable":
+        fail("unavailable renderer, resolution hop: inline_check with no "
+             "gate context does not resolve to unavailable")
+    if capabilities.resolved_availability(
+            "inline_check", {"gate_context": True}) != "available":
+        fail("unavailable renderer, resolution hop: inline_check with a gate "
+             "context does not resolve to available")
+
+    before = len(capabilities.profiles())
+    registry = capabilities.register({
+        "name": "synthetic_available",
+        "accessible_behavior": (
+            "Fictional. Renders as a labelled section reachable in document "
+            "order by keyboard and by screen reader."),
+        "offline_fallback": (
+            "Fictional. Renders as a labelled paragraph with no script."),
+        "renderer_availability": "available",
+        "version": 1,
+        "validation": "Fictional. Nothing validates a synthetic capability.",
+        "known_limits": "Fictional. It teaches nothing and is never authored.",
+    })
+    registry = capabilities.register({
+        "name": "synthetic_unavailable",
+        "accessible_behavior": (
+            "Fictional. There is no renderer for this capability here."),
+        "offline_fallback": (
+            "This fictional capability has no renderer here. Read the "
+            "printed steps instead."),
+        "renderer_availability": "unavailable",
+        "version": 1,
+        "validation": "Fictional. Nothing validates a synthetic capability.",
+        "known_limits": "Fictional. It exists only to be unavailable.",
+    }, registry)
+
+    static = lesson._static_instructional_html("synthetic_unavailable",
+                                               registry)
+    if 'class="capability-static"' not in static:
+        fail("unavailable renderer, static-path hop: the declared static "
+             "instructional path did not render a container")
+    if "Read the printed steps instead." not in static:
+        fail("unavailable renderer, static-path hop: the container does not "
+             "carry the capability's own declared fallback text")
+    if capabilities.resolved_availability(
+            "synthetic_unavailable", {"scripting": True, "network": True},
+            registry) != "unavailable":
+        fail("unavailable renderer, resolution hop: a declared unavailable "
+             "capability was raised by a caller's context, but the declared "
+             "value is a ceiling nothing may raise")
+    if lesson._static_instructional_html("no_such_capability") != "":
+        fail("unavailable renderer, static-path hop: an unregistered name "
+             "did not render the empty string")
+
+    if len(capabilities.profiles()) != before:
+        fail("unavailable renderer, purity hop: registering two synthetic "
+             "capabilities changed the module registry, so a fixture can "
+             "leak a capability into every later caller")
+    print("scenario unavailable_renderer: pass")
+
+
 SCENARIOS = (scenario_thin_slice, scenario_additivity_golden_parse,
              scenario_fourteen_roles, scenario_unknown_semantics,
-             scenario_example_order)
+             scenario_example_order, scenario_capability_profiles,
+             scenario_unavailable_renderer)
 
 
 def main():
