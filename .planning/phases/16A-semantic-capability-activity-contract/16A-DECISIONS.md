@@ -333,3 +333,42 @@ plans 05 through 10, and replacing the `import capabilities` assertion that
 16A-01 Task 1 step 3 and every later plan's acceptance criteria depend on. After
 the 16A freeze record enumerates the module, reversal renames a published
 surface.
+
+## D-16A-10. Freeze scope
+
+**Date:** 2026-08-28. Recorded by plan 16A-10 Task 3 alongside
+`16A-FREEZE.md`, which currently carries `## Freeze withheld` pending the
+signed contract-legibility review. This section records what the freeze WOULD
+cover and what it explicitly would not, so a later phase reading only this file
+gets the same answer as one reading the freeze record.
+
+**What the 16A freeze covers.** The authored grammar and its published
+vocabulary: the eleven `_CALLOUT_KINDS` members and the seven role tokens with
+their `(slug, label)` pairs; the fourteen-entry `SEMANTIC_ROLE_CATALOG`; the
+trailing exclamation mark as the required marker, the locked
+`UNSUPPORTED_SEMANTIC_COPY`, and the two unknown-semantic degradation paths;
+the four lesson directives `[SEMANTIC-PROFILE:]`, `[LESSON-LANG:]`,
+`[LESSON-DIR:]`, and `[EXAMPLE-ORDER:]` with their defaults; the full
+`capabilities.py` symbol list and the fifteen capability profile names;
+`schemas/capability_profile.schema.json`; `MEDIA_COLUMNS` and the
+`[MEDIA: id]` reference form with the two locked media copy strings;
+`ACTIVITY_COLUMNS` and the five activity vocabularies; `RESPONSE_FORMS`;
+`OUTPUT_MODES` and `BACKBURNER_MODES`; `lesson_page`'s `mode`, `media`, and
+`activities` keyword arguments; and the twenty lint codes plus the two new
+namespace prefixes `media` and `activity`.
+
+**What the 16A freeze explicitly does not cover.** It is not a visual system or
+token freeze: no color, spacing, typography, motion, or token decision was made
+anywhere in Phase 16A, and every class name introduced is unstyled on purpose
+(Phase 17A). It is not an information architecture or navigation freeze: guided
+mode is a data contract and nothing persists across a stage boundary
+(Phase 16B). It is not a notes or strategy freeze: there is no learner-note
+durable object (Phase 16C). It is not a learner-facing surface freeze: no
+composed output-mode record reaches any surface (Phase 16B). It is not a course
+schema freeze: `compose_outline`'s graph path is exercised by no fixture, and
+the corpus carries lessons rather than courses.
+
+**The canonical format verdict carried forward.** The canonical lesson stays
+UTF-8 Markdown with an additive versioned semantic profile. A proprietary or
+open-package canonical format stays rejected, and none of the eight criteria in
+research report 04 section 8 was met.

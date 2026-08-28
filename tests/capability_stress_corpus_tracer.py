@@ -1116,6 +1116,310 @@ def scenario_localization():
     print("scenario localization: pass")
 
 
+def _gate_context(bank_path, qs, states):
+    """A gate policy context built exactly the way the daemon builds one
+    (`surfaces/daemon.py:_lesson_gate_ctx`, and the same shape
+    `tests/gate_roundtrip.py` uses): a policy, per-check states derived from
+    the evidence log, a resolver over this bank's own items, and the
+    provenance the band needs.
+
+    This matters for what the medical-case assertion is worth. `lesson_page`
+    is the daemon's renderer: the route calls it and sends its output with
+    `handler.send_html(page.encode("utf-8"))` and nothing in between. Its
+    return value therefore IS the served bytes, and the truncation asserted
+    below is the server-side stop rather than a DOM hide.
+    """
+    by_id = {q["id"]: q for q in qs}
+    by_id.update({q["item_id"]: q for q in qs if q.get("item_id")})
+    return {
+        "policy": "required",
+        "states": states,
+        "resolve": lambda cid: by_id.get(cid),
+        "skip": "always",
+        "attempted": False,
+        "degraded": False,
+        "unreachable": False,
+        "print": False,
+        "stem": os.path.splitext(os.path.basename(bank_path))[0],
+        "bank": os.path.basename(bank_path),
+    }
+
+
+def scenario_medical_case():
+    """CAP-01's medical evolving-case leg: a dated jurisdiction warning, and
+    no premature reveal proven against Phase 6.2's server-side truncation."""
+    workdir = tempfile.mkdtemp(prefix="cap-tracer-medical-")
+    path = lesson_capability_corpus.build_medical_case(workdir)
+    qs = model.load(path)
+    parsed = model.parse_lesson(path)
+    token = lesson_capability_corpus.MEDICAL_RESOLUTION_TOKEN
+    check_id = lesson_capability_corpus.MEDICAL_CHECK_ID
+
+    if parsed.get("gate") != "required":
+        fail("medical case, gate hop: the fixture's gate is %r, expected "
+             "required; without it the truncation below never runs"
+             % parsed.get("gate"))
+
+    source = open(path, encoding="utf-8").read()
+    if source.count(token) < 1:
+        fail("medical case, source hop: the resolution token is not in the "
+             "canonical Markdown, so the assertion below would prove nothing")
+
+    served_open = lesson.lesson_page(
+        path, qs, parsed, runtime=True,
+        gate=_gate_context(path, qs, {check_id: "open"}))
+    if token in served_open:
+        fail("medical case, truncation hop: the resolution token is in the "
+             "bytes served while the check is still open, so a learner is "
+             "handed the answer before answering")
+
+    served_cleared = lesson.lesson_page(
+        path, qs, parsed, runtime=True,
+        gate=_gate_context(path, qs, {check_id: "cleared"}))
+    if token not in served_cleared:
+        fail("medical case, release hop: the resolution token is still "
+             "absent after the check is cleared, so the gate withholds "
+             "rather than gates")
+
+    for label, needle in (
+            ("date", lesson_capability_corpus.MEDICAL_WARNING_DATE),
+            ("jurisdiction",
+             lesson_capability_corpus.MEDICAL_WARNING_JURISDICTION)):
+        if needle not in served_open:
+            fail("medical case, warning hop: the warning's %s (%r) is not in "
+                 "the served page" % (label, needle))
+    if "callout-warning" not in served_open:
+        fail("medical case, warning hop: no warning container reached the "
+             "served page")
+
+    print("scenario medical_case: pass")
+
+
+def scenario_disputed_timeline():
+    """CAP-01's disputed-timeline leg: disagreement, locators, and
+    uncertainty all preserved, with neither account presented as settled."""
+    workdir = tempfile.mkdtemp(prefix="cap-tracer-timeline-")
+    path = lesson_capability_corpus.build_disputed_timeline(workdir)
+    qs = model.load(path)
+    parsed = model.parse_lesson(path)
+    page = lesson.lesson_page(path, qs, parsed)
+
+    for date in lesson_capability_corpus.DISPUTED_DATES:
+        if date not in page:
+            fail("disputed timeline, render hop: the account giving %s did "
+                 "not reach the page, so the disagreement was flattened"
+                 % date)
+
+    sources = model.parse_sources(path)
+    if sources is None:
+        fail("disputed timeline, provenance hop: the bank carries no "
+             "## SOURCES registry")
+    for source_id in lesson_capability_corpus.DISPUTED_SOURCE_IDS:
+        if source_id not in sources["sources"]:
+            fail("disputed timeline, provenance hop: %r is not registered"
+                 % source_id)
+        if not any(d["id"] == source_id for d in sources["srcs"]):
+            fail("disputed timeline, provenance hop: no [SRC:] directive "
+                 "cites %r, so that account carries no resolvable locator"
+                 % source_id)
+
+    errors, warnings = model.lint(qs, lesson=parsed, sources=sources,
+                                  terms=model.parse_terms(path))
+    codes = [e.code for e in errors] + [w.code for w in warnings]
+    if "prov.src_unknown" in codes:
+        fail("disputed timeline, provenance hop: a [SRC:] directive does not "
+             "resolve")
+
+    if "callout-uncertainty" not in page:
+        fail("disputed timeline, uncertainty hop: no uncertainty container "
+             "reached the page, so nothing on it says the question is open")
+
+    body = parsed.get("body") or ""
+    if "[!KEY]" in body:
+        fail("disputed timeline, settledness hop: a [!KEY] block asserts "
+             "something in a lesson whose whole point is that nothing is "
+             "settled")
+    if "CORRECT:" in body:
+        fail("disputed timeline, settledness hop: a CORRECT: field appears "
+             "inside the lesson body")
+    for q in qs:
+        keyed = " ".join(q["opts"].get(c, "") for c in q.get("correct") or [])
+        for date in lesson_capability_corpus.DISPUTED_DATES:
+            if date in keyed:
+                fail("disputed timeline, settledness hop: item %s keys the "
+                     "date %s, so the lesson resolves the disagreement it "
+                     "claims to preserve" % (q["id"], date))
+
+    print("scenario disputed_timeline: pass")
+
+
+def scenario_section_order():
+    """PORT-01's ordering probe: one boundary rule across all five readers,
+    so preamble section order is free."""
+    workdir = tempfile.mkdtemp(prefix="cap-tracer-order-perm-")
+    first, second = lesson_capability_corpus.build_section_order_permutation(
+        workdir)
+    readers = (("parse_terms", model.parse_terms),
+               ("parse_sources", model.parse_sources),
+               ("parse_media", model.parse_media),
+               ("parse_activities", model.parse_activities),
+               ("parse_lesson", model.parse_lesson))
+    for name, reader in readers:
+        a = reader(first)
+        b = reader(second)
+        # `source` and `path` carry the bank's own filename, which differs by
+        # construction; every other field must be equal.
+        for record in (a, b):
+            if isinstance(record, dict):
+                record.pop("source", None)
+                record.pop("path", None)
+        if a != b:
+            fail("section order, %s hop: the two permutations parse to "
+                 "different results, so that reader is not using the one "
+                 "_preamble_section boundary rule" % name)
+    print("scenario section_order: pass")
+
+
+def _derived_digests(built, derived_dir):
+    """Render every corpus lesson to HTML and compose both output modes into
+    `derived_dir`, returning {path: sha256}."""
+    os.makedirs(derived_dir, exist_ok=True)
+    digests = {}
+    for name, bank in sorted(built.items()):
+        parsed = model.parse_lesson(bank)
+        if not isinstance(parsed, dict) or parsed.get("error"):
+            continue
+        qs = model.load(bank)
+        target = os.path.join(derived_dir, name + ".html")
+        with open(target, "w", encoding="utf-8") as fh:
+            fh.write(lesson.lesson_page(bank, qs, parsed,
+                                        media=model.parse_media(bank),
+                                        activities=model.parse_activities(
+                                            bank)))
+        digests[target] = hashlib.sha256(
+            open(target, "rb").read()).hexdigest()
+
+        outline = os.path.join(derived_dir, name + ".outline.json")
+        with open(outline, "w", encoding="utf-8") as fh:
+            json.dump(capabilities.compose_outline(parsed), fh,
+                      sort_keys=True)
+        digests[outline] = hashlib.sha256(
+            open(outline, "rb").read()).hexdigest()
+
+        glossary = os.path.join(derived_dir, name + ".glossary.json")
+        with open(glossary, "w", encoding="utf-8") as fh:
+            json.dump(capabilities.compose_glossary(model.parse_terms(bank),
+                                                    source=bank),
+                      fh, sort_keys=True)
+        digests[glossary] = hashlib.sha256(
+            open(glossary, "rb").read()).hexdigest()
+    return digests
+
+
+def scenario_portability():
+    """PORT-01's Fixture, executed literally.
+
+    Everything happens inside a fresh temporary tree and never in the
+    repository: deleting derived files in the working tree would pass by
+    accident on a machine where they were never generated, and would be
+    destructive on one where they were. Every path this scenario removes is
+    derived from `workdir`.
+    """
+    workdir = tempfile.mkdtemp(prefix="cap-tracer-port-")
+    corpus_dir = os.path.join(workdir, "corpus")
+    derived_dir = os.path.join(workdir, "derived")
+    built = lesson_capability_corpus.build_all_16a(corpus_dir)
+
+    canonical = {}
+    for name in sorted(os.listdir(corpus_dir)):
+        target = os.path.join(corpus_dir, name)
+        if os.path.isfile(target):
+            canonical[target] = hashlib.sha256(
+                open(target, "rb").read()).hexdigest()
+    if len(canonical) < len(built):
+        fail("portability, build hop: build_all_16a reported %d artifacts "
+             "but only %d files are on disk"
+             % (len(built), len(canonical)))
+
+    derived = _derived_digests(built, derived_dir)
+    if not derived:
+        fail("portability, render hop: nothing was derived, so the delete "
+             "and rebuild cycle below would prove nothing")
+
+    # Delete every derived artifact. Every path is under `workdir`.
+    for target in sorted(derived):
+        if not os.path.abspath(target).startswith(os.path.abspath(workdir)):
+            fail("portability, delete hop: %r is outside the temporary tree"
+                 % target)
+        os.remove(target)
+    if os.listdir(derived_dir):
+        fail("portability, delete hop: %r still holds %r"
+             % (derived_dir, os.listdir(derived_dir)))
+
+    for target, digest in canonical.items():
+        now = hashlib.sha256(open(target, "rb").read()).hexdigest()
+        if now != digest:
+            fail("portability, canonical hop: %s changed while its derived "
+                 "views were deleted" % os.path.basename(target))
+
+    # Every capability's meaning survives in the plain Markdown. Read from
+    # the canonical bytes, with every derived view gone from disk.
+    for name, bank in sorted(built.items()):
+        raw = open(bank, encoding="utf-8").read()
+        terms = model.parse_terms(bank)
+        for record in (terms or {}).get("terms", {}).values():
+            definition = (record.get("def") or "").strip()
+            if definition and definition not in raw:
+                fail("portability, meaning hop: %s's definition of %r is not "
+                     "in the canonical Markdown"
+                     % (name, record.get("canonical")))
+        media = model.parse_media(bank)
+        for aid, asset in (media or {}).get("assets", {}).items():
+            for column in ("credit", "alt"):
+                value = (asset.get(column) or "").strip()
+                if value and value not in raw:
+                    fail("portability, meaning hop: %s's media %r has a %s "
+                         "that is not in the canonical Markdown"
+                         % (name, aid, column))
+        activities = model.parse_activities(bank)
+        for item, row in (activities or {}).get("activities", {}).items():
+            value = (row.get("static_fallback") or "").strip()
+            if value and value not in raw:
+                fail("portability, meaning hop: %s's activity %r has a "
+                     "static fallback that is not in the canonical Markdown"
+                     % (name, item))
+        sources = model.parse_sources(bank)
+        for directive in (sources or {}).get("srcs", []):
+            locator = (directive.get("locators") or "").strip()
+            if locator and locator not in raw:
+                fail("portability, meaning hop: %s's [SRC:] locator %r is "
+                     "not in the canonical Markdown" % (name, locator))
+        parsed = model.parse_lesson(bank)
+        if isinstance(parsed, dict) and not parsed.get("error"):
+            for heading in parsed.get("headings") or []:
+                if heading["text"] not in raw:
+                    fail("portability, meaning hop: %s's heading %r is not "
+                         "in the canonical Markdown" % (name, heading["text"]))
+
+    rebuilt = _derived_digests(built, derived_dir)
+    if sorted(rebuilt) != sorted(derived):
+        fail("portability, rebuild hop: the rebuild produced %d artifacts "
+             "against %d before" % (len(rebuilt), len(derived)))
+    for target, digest in derived.items():
+        if rebuilt[target] != digest:
+            fail("portability, rebuild hop: %s rebuilt to a different "
+                 "digest, so a derived view is not reproducible from the "
+                 "canonical file alone" % os.path.basename(target))
+
+    for target, digest in canonical.items():
+        now = hashlib.sha256(open(target, "rb").read()).hexdigest()
+        if now != digest:
+            fail("portability, canonical hop: %s changed during the rebuild"
+                 % os.path.basename(target))
+
+    print("scenario portability: pass")
+
+
 SCENARIOS = (scenario_thin_slice, scenario_additivity_golden_parse,
              scenario_fourteen_roles, scenario_unknown_semantics,
              scenario_example_order, scenario_capability_profiles,
@@ -1123,7 +1427,9 @@ SCENARIOS = (scenario_thin_slice, scenario_additivity_golden_parse,
              scenario_activity_declarations,
              scenario_unsupported_response_form, scenario_output_modes,
              scenario_backburner_catalog, scenario_localization,
-             scenario_assessment_authority)
+             scenario_assessment_authority, scenario_medical_case,
+             scenario_disputed_timeline, scenario_section_order,
+             scenario_portability)
 
 
 def main():

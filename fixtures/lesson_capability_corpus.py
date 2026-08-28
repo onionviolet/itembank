@@ -1041,3 +1041,129 @@ def build_adversarial_bank(dest_dir):
     with open(path, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(ADVERSARIAL_BANK)
     return path
+
+
+# ---- the two freeze-gate fixtures (plan 16A-10 Task 1) --------------------
+#
+# FICTIONAL TEACHING FIXTURE. NOT CLINICAL GUIDANCE.
+#
+# Every finding, timing, service, jurisdiction, and date in MEDICAL_CASE_BANK
+# is invented. No real condition, protocol, drug, or dose is named,
+# reproduced, or paraphrased. The bank exists to exercise one thing: that a
+# lesson under [GATE: required] does not put its resolution into the bytes a
+# learner receives before they have answered the check. The distinctive token
+# `KESTREL-RESOLUTION` appears only under the third heading, so an assertion
+# can look for exactly one string rather than for a paraphrase.
+#
+# The dated jurisdiction warning is free prose with a stated date inside the
+# shipped [!WARNING] callout, which is D-16A-7's form. No structured date or
+# jurisdiction field is minted.
+MEDICAL_CASE_BANK = "# Evolving presentation, fictional (synthetic)\n\nFICTIONAL TEACHING FIXTURE. NOT CLINICAL GUIDANCE.\n\nEvery finding, every timing, the service, the jurisdiction, and the date below\nare invented. No real condition, protocol, drug, or dose is named, reproduced,\nor paraphrased. This file exists to exercise one thing: that a lesson under a\nrequired gate does not put its resolution into the bytes a learner receives\nbefore they have answered the check.\n\n[SEMANTIC-PROFILE: 1]\n[GATE: required]\n\n## LESSON\n\n### First Contact\n\nThe invented patient is seated and answering questions. Skin is described in\nthe invented service's notes as warm and dry. The complaint is a dull\ndiscomfort behind the breastbone that began while walking uphill and has not\nchanged with position.\n\n> [!WARNING]\n> Protocol current as of 2026-03-01 for the fictional Kestrel County service. Check your own service's current protocol before acting.\n\n> [!PREREQUISITE]\n> You can read a set of vital signs and say which of them has changed.\n\n### Ten Minutes Later\n\nThe invented notes record that the discomfort has not moved and that the\npatient now describes it as heavier. Nothing in the invented findings has\nresolved on its own, and one of them has changed.\n\n> [!MISCONCEPTION]\n> A finding that has not changed is often read as a finding that does not\n> matter. In an evolving presentation the opposite is closer to true: what\n> has not moved is what the next decision turns on.\n\n> [!CHECK: q1]\n\n### What The Invented Case Turned On\n\nKESTREL-RESOLUTION. The invented case turned on the finding that did not\nchange with position, because that is the one the invented service's own\nprotocol asks about first.\n\n> [!SUMMARY]\n> KESTREL-RESOLUTION is the token this fixture uses to prove a gate. It\n> appears nowhere above this heading.\n\nQ1. In the invented case above, which finding does the invented service's protocol ask about first?   (difficulty: application)\n[LESSON-REF: Ten Minutes Later]\n[OBJECTIVE: emt:invented.evolving]\n\nA) The finding that resolved on its own\nB) The finding that did not change with position\nC) The finding that was normal at first contact\nD) The finding that the patient did not mention\n\nCORRECT: B\n\nWHY BEST: The invented protocol asks first about the finding that persists unchanged, because a finding that has not moved is the one the next decision turns on.\n\nKEY DISCRIMINATOR: The answer must name persistence rather than resolution or normality.\n\nSECOND-BEST: C. A finding normal at first contact is worth noticing, and this would be correct if the invented protocol asked what to reassess rather than what to ask about first.\n\nDISTRACTOR ANALYSIS:\n- A) A finding that resolved is not what the invented protocol asks first about; this would be correct if the protocol were about ruling things out.\n- B) Correct: the invented protocol asks first about the finding that persists unchanged.\n- C) A normal finding is a baseline rather than a question; this would be correct if the item asked what to reassess.\n- D) An unmentioned finding cannot be asked about first; this would be correct if the item asked what to elicit.\n\nTRAP: Reading an unchanged finding as an unimportant one.\n\nCONFIDENCE: high\n"
+
+MEDICAL_CASE_FILENAME = "capability_medical_case_bank.md"
+MEDICAL_RESOLUTION_TOKEN = "KESTREL-RESOLUTION"
+MEDICAL_WARNING_DATE = "2026-03-01"
+MEDICAL_WARNING_JURISDICTION = "the fictional Kestrel County service"
+MEDICAL_CHECK_ID = "q1"
+
+
+def build_medical_case(dest_dir):
+    """Write the one medical evolving-case bank into `dest_dir` and return
+    its absolute path. Deterministic for `build_thin_slice`'s reason."""
+    os.makedirs(dest_dir, exist_ok=True)
+    path = os.path.join(os.path.abspath(dest_dir), MEDICAL_CASE_FILENAME)
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(MEDICAL_CASE_BANK)
+    return path
+
+
+# The disputed timeline. Both accounts, both dates, both locators, and the cut
+# itself are invented. The fixture's whole job is to be a lesson that
+# preserves a disagreement rather than resolving one, so NOTHING in it keys
+# either date: there is no [!KEY] block, and the one item keys the state of
+# the evidence rather than a year.
+DISPUTED_TIMELINE_BANK = '# The disputed opening of the invented Marrow Cut (synthetic)\n\nFully invented content. The cut, both chronicles, both dates, and both\nlocators are made up, and nothing here is derived from any real historical\nrecord. The fixture exists to show a lesson preserving a disagreement rather\nthan resolving one.\n\n[SEMANTIC-PROFILE: 1]\n\n## SOURCES\n\nharrow-chronicle | page 41, entry for the spring quarter\nmarrow-ledger | folio 7 verso, the tolls column\n\n## LESSON\n\n### Two Accounts Of One Opening\n\nThe invented Harrow chronicle and the invented Marrow ledger disagree about\nwhen the cut opened, and both are first-hand. Neither is a copy of the other,\nand no third record survives.\n\n> [!EXCERPT]\n> From the invented Harrow chronicle, page 41, entry for the spring quarter: "the cut was opened to traffic in 1794, in the spring quarter, and the first tolls were taken that same week."\n\n> [!EXCERPT]\n> From the invented Marrow ledger, folio 7 verso, the tolls column: "no toll is entered against the cut before 1796, and the first entry is in a hand that appears nowhere earlier in this book."\n\n> [!UNCERTAINTY]\n> This question is open. The invented chronicle gives 1794 and the invented\n> ledger gives 1796, both first-hand, and neither is settled by the other.\n> A toll ledger records collection rather than opening, and a chronicle\n> records what its writer was told. This lesson does not choose between them\n> and no item in this bank keys either date.\n\n> [!COUNTEREXAMPLE]\n> A later summary that gives one date and cites both records is not a\n> resolution of the disagreement. It is a third account that happens to be\n> shorter.\n\nQ1. What do the two invented records establish about when the cut opened?   (difficulty: analysis)\n[LESSON-REF: Two Accounts Of One Opening]\n[OBJECTIVE: hist:invented.records]\n[SRC: harrow-chronicle page 41]\n[SRC: marrow-ledger folio 7 verso]\n\nA) That it opened in the earlier of the two years\nB) That the two first-hand records disagree and neither settles the other\nC) That it opened in the later of the two years\nD) That neither record is about the cut\n\nCORRECT: B\n\nWHY BEST: Two first-hand records giving different years, with no third record and no dependency between them, establish a disagreement and nothing more.\n\nKEY DISCRIMINATOR: The answer must describe the state of the evidence rather than pick a year from it.\n\nSECOND-BEST: C. A toll entry is a hard fact about collection, and this would be correct if the question asked when tolls are first recorded rather than when the cut opened.\n\nDISTRACTOR ANALYSIS:\n- A) Preferring the earlier year is a choice the records do not support; this would be correct if the later record depended on the earlier one.\n- B) Correct: two independent first-hand records disagree and neither settles the other.\n- C) Preferring the later year treats collection as opening; this would be correct if the question asked when tolls were first taken.\n- D) Both records name the cut; this would be correct if one of them were about a different waterway.\n\nTRAP: Resolving a disagreement by picking the record that feels more official.\n\nCONFIDENCE: high\n'
+
+DISPUTED_TIMELINE_FILENAME = "capability_disputed_timeline_bank.md"
+DISPUTED_DATES = ("1794", "1796")
+DISPUTED_SOURCE_IDS = ("harrow-chronicle", "marrow-ledger")
+
+
+def build_disputed_timeline(dest_dir):
+    """Write the one disputed-timeline bank into `dest_dir` and return its
+    absolute path. Deterministic for `build_thin_slice`'s reason."""
+    os.makedirs(dest_dir, exist_ok=True)
+    path = os.path.join(os.path.abspath(dest_dir),
+                        DISPUTED_TIMELINE_FILENAME)
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(DISPUTED_TIMELINE_BANK)
+    return path
+
+
+# PORT-01's ordering probe, made buildable: two banks whose content is
+# identical except for the order of their four preamble registry sections.
+# Every one of those registries reads through `model._preamble_section`, so
+# section order is free and both must parse to equal dicts.
+_ORDER_HEAD = "# Preamble section order permutation (synthetic)\n\nFully invented content. Two banks with identical material and two different\npreamble section orders, so PORT-01's ordering probe is buildable: every\npreamble registry reads through the one `_preamble_section` boundary rule, so\nsection order is free and both must parse to equal dicts.\n\n[SEMANTIC-PROFILE: 1]\n"
+_ORDER_TERMS = '\n## TERMS\n\nReach | The invented stretch of the cut between two sets of gates\nSill | The invented ledge at the foot of a gate that fixes the least depth\n'
+_ORDER_SOURCES = '\n## SOURCES\n\nharrow-chronicle | page 41, entry for the spring quarter\n'
+_ORDER_MEDIA = "\n## MEDIA\n\nreach-plan | capability_reach_plan.png | Plan by the invented Marrow Cut trust, fictional | A schematic of one reach with a set of gates at each end and the sill marked at the lower gate. | granted | Redrawn from the invented trust's own plan. | missing | sha256:5555555555555555555555555555555555555555555555555555555555555555\n"
+_ORDER_ACTIVITIES = '\n## ACTIVITIES\n\nq1 | comparison | weigh two invented features against a stated criterion | nav:cut.parts | The invented reach plan | mc | unlimited | immediate | scored_by_runtime | Every option is a labelled radio control in document order. | Write down which feature fixes the least depth, then check the key.\n'
+_ORDER_BODY = '\n## LESSON\n\n### Reading A Reach Plan\n\nA reach is measured between gates and a sill is measured against the water.\nThe two are read from the same plan and answer different questions.\n\nQ1. Which invented feature fixes the least depth available in a reach?   (difficulty: recall)\n[LESSON-REF: Reading A Reach Plan]\n[OBJECTIVE: nav:cut.parts]\n\nA) The reach\nB) The sill\nC) The gates\nD) The tolls column\n\nCORRECT: B\n\nWHY BEST: The sill is the ledge at the foot of a gate, so it is the shallowest point a vessel must pass over and it fixes the least depth.\n\nKEY DISCRIMINATOR: The answer must name the feature that is a depth rather than a length or a structure.\n\nSECOND-BEST: A. A reach does have a depth, and this would be correct if the question asked where the depth is measured rather than what fixes it.\n\nDISTRACTOR ANALYSIS:\n- A) A reach is a length between gates; this would be correct if the question asked what a depth is measured along.\n- B) Correct: the sill is the shallowest point and fixes the least depth.\n- C) The gates hold water back rather than fixing a depth; this would be correct if the question asked what makes a reach separate.\n- D) A tolls column is a record; this would be correct if the question named the ledger.\n\nTRAP: Reading a length as a depth because both are measured from the same plan.\n\nCONFIDENCE: high\n'
+
+SECTION_ORDER_FILENAMES = ("capability_section_order_a_bank.md",
+                           "capability_section_order_b_bank.md")
+
+
+def build_section_order_permutation(dest_dir):
+    """Write both permutations into `dest_dir` and return both paths, in the
+    order (terms first, activities first)."""
+    os.makedirs(dest_dir, exist_ok=True)
+    root = os.path.abspath(dest_dir)
+    forward = (_ORDER_HEAD + _ORDER_TERMS + _ORDER_SOURCES + _ORDER_MEDIA
+               + _ORDER_ACTIVITIES + _ORDER_BODY)
+    reverse = (_ORDER_HEAD + _ORDER_ACTIVITIES + _ORDER_MEDIA
+               + _ORDER_SOURCES + _ORDER_TERMS + _ORDER_BODY)
+    paths = []
+    for name, text in zip(SECTION_ORDER_FILENAMES, (forward, reverse)):
+        path = os.path.join(root, name)
+        with open(path, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(text)
+        paths.append(path)
+    return tuple(paths)
+
+
+# The one entry point that materializes the whole Phase 16A corpus, so no
+# caller has to know the builder list. The order below is the order the plans
+# landed them, which is also roughly the order a reader should meet them.
+def build_all_16a(dest_dir):
+    """Build every Phase 16A corpus fixture into `dest_dir` and return a dict
+    mapping a short name to each written path.
+
+    The section-order permutation contributes two entries, `section_order_a`
+    and `section_order_b`. Every other builder contributes one.
+    """
+    os.makedirs(dest_dir, exist_ok=True)
+    built = {
+        "thin_slice": build_thin_slice(dest_dir),
+        "all_roles": build_all_roles(dest_dir),
+        "unknown_semantics": build_unknown_semantics(dest_dir),
+        "definition_first": build_definition_first(dest_dir),
+        "definition_first_with_reason": build_definition_first(
+            dest_dir, override="with_reason"),
+        "definition_first_no_reason": build_definition_first(
+            dest_dir, override="no_reason"),
+        "unavailable_capability": build_unavailable_capability(dest_dir),
+        "no_callouts": build_no_callouts(dest_dir),
+        "media": build_media_lesson(dest_dir),
+        "activity_set": build_activity_set(dest_dir),
+        "output_mode": build_output_mode_lesson(dest_dir),
+        "localization": build_localization_lesson(dest_dir),
+        "adversarial": build_adversarial_bank(dest_dir),
+        "medical_case": build_medical_case(dest_dir),
+        "disputed_timeline": build_disputed_timeline(dest_dir),
+    }
+    order_a, order_b = build_section_order_permutation(dest_dir)
+    built["section_order_a"] = order_a
+    built["section_order_b"] = order_b
+    return built
