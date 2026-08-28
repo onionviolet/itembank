@@ -466,6 +466,67 @@ def lesson_slug(text):
     return s.strip("-")
 
 
+# The three Phase 16A lesson directives, one reader each (D-16A-4, A11Y-02).
+# Each returns `(value, raw)`: the value the reader will use, and the text the
+# author wrote when that text was refused. A refusal is never an exception
+# here, because `parse_lesson` must return a dict on every path; it is a
+# fallback plus a `raw` string that `lint` turns into a named finding.
+
+
+def _lesson_profile(head):
+    """`[SEMANTIC-PROFILE: <positive integer>]`, defaulting to
+    `SEMANTIC_PROFILE_VERSION`. Anything that is not a decimal positive
+    integer falls back and is reported by `lesson.invalid_semantic_profile`."""
+    raw = grab(r"(?m)^\[SEMANTIC-PROFILE:\s*(.*?)\s*\]", head)
+    if not raw:
+        return SEMANTIC_PROFILE_VERSION, ""
+    if raw.isdigit() and int(raw) > 0:
+        return int(raw), ""
+    return SEMANTIC_PROFILE_VERSION, raw
+
+
+def _lesson_lang(head):
+    """`[LESSON-LANG: <tag>]`, defaulting to `"en"`. The tag is checked for
+    being non-empty and nothing more: BCP 47 is an open set.
+
+    A directive that is present but empty is distinguished from an absent one
+    by the sentinel `"<empty>"`, because those two cases mean different things
+    to an author: one is a document that never asked, and the other is a
+    document that asked and said nothing.
+    """
+    m = re.search(r"(?m)^\[LESSON-LANG:\s*(.*?)\s*\]", head)
+    if m is None:
+        return "en", ""
+    tag = m.group(1).strip()
+    if not tag:
+        return "en", "<empty>"
+    return tag, ""
+
+
+def _lesson_direction(head):
+    """`[LESSON-DIR: <value>]`, defaulting to `"auto"`. A value outside
+    `LESSON_DIRECTIONS` falls back and is reported by
+    `lesson.invalid_direction`."""
+    raw = grab(r"(?m)^\[LESSON-DIR:\s*(.*?)\s*\]", head)
+    if not raw:
+        return "auto", ""
+    if raw in LESSON_DIRECTIONS:
+        return raw, ""
+    return "auto", raw
+
+
+# The six keys every `parse_lesson` return path carries for the three
+# directives above. Held in one function so an early return and the success
+# return cannot drift apart: every path out of `parse_lesson` returns the same
+# key set, which is the discipline the existing `error` and `detail` keys
+# already follow.
+def _lesson_directive_defaults():
+    return {"semantic_profile": SEMANTIC_PROFILE_VERSION,
+            "semantic_profile_raw": "",
+            "lang": "en", "lang_raw": "",
+            "dir": "auto", "dir_raw": ""}
+
+
 def parse_lesson(bank_path):
     """A second, independent read over the bank file for a different purpose:
     the LESSON section's teaching text. Never called from inside `load()` or
@@ -489,6 +550,14 @@ def parse_lesson(bank_path):
     reason; the function returns a dict on every path and raises on none
     (T-3-04). An external source wins over an inline `## LESSON` section when
     a bank carries both.
+
+    Three additive Phase 16A directives are read from the same effective
+    preamble: `[SEMANTIC-PROFILE: <positive integer>]` defaulting to
+    `SEMANTIC_PROFILE_VERSION`, `[LESSON-LANG: <tag>]` defaulting to `"en"`,
+    and `[LESSON-DIR: <value>]` defaulting to `"auto"`. Like `[GATE:]`, their
+    values are validated at lint time and never here, so a malformed directive
+    falls back to its default and is reported as a named lint finding rather
+    than raising.
 
     Returns `None` when the preamble carries no `## LESSON` section; otherwise
     a dict with exactly: `source`, `body`, `intro`, `headings` (each with
@@ -517,14 +586,19 @@ def parse_lesson(bank_path):
         bank_dir = os.path.dirname(source) or "."
         resolved = os.path.abspath(os.path.join(bank_dir, src))
         if resolved != bank_dir and not resolved.startswith(bank_dir + os.sep):
-            return {"source": source, "body": "", "intro": "", "headings": [],
-                    "error": "lesson.src_unreadable",
-                    "detail": "%s escapes the bank's directory" % src}
+            early = {"source": source, "body": "", "intro": "",
+                     "headings": [], "error": "lesson.src_unreadable",
+                     "detail": "%s escapes the bank's directory" % src}
+            early.update(_lesson_directive_defaults())
+            return early
         try:
             head = open(resolved, encoding="utf-8").read()
         except OSError as exc:
-            return {"source": source, "body": "", "intro": "", "headings": [],
-                    "error": "lesson.src_unreadable", "detail": str(exc)}
+            early = {"source": source, "body": "", "intro": "",
+                     "headings": [], "error": "lesson.src_unreadable",
+                     "detail": str(exc)}
+            early.update(_lesson_directive_defaults())
+            return early
         source = resolved
 
     # The Phase 6.2 gate directive (D-02): one [GATE:] in the effective
@@ -533,6 +607,18 @@ def parse_lesson(bank_path):
     # pattern -- additive grammar, default "recommended" when absent, and
     # the value validated at lint time, never here (a parse must not raise).
     gate = grab(r"(?m)^\[GATE:\s*(.*?)\s*\]", head) or "recommended"
+
+    # The Phase 16A directives (D-16A-4, A11Y-02), each copying the [GATE:]
+    # shape above exactly: a multiline anchored grab over the effective
+    # preamble, a default applied by an `or` expression, and the value
+    # validated at lint time and never here. Each keeps a `_raw` companion
+    # holding what the author actually wrote when the value was refused, so
+    # `lint` can name the offending text instead of reporting that a default
+    # was used. An absent directive leaves its `_raw` the empty string, which
+    # is what makes "absent" and "present but wrong" distinguishable.
+    semantic_profile, semantic_profile_raw = _lesson_profile(head)
+    lang, lang_raw = _lesson_lang(head)
+    direction, dir_raw = _lesson_direction(head)
 
     m = re.search(r"(?m)^##\s+LESSON\s*$", head)
     if m is None:
@@ -559,6 +645,12 @@ def parse_lesson(bank_path):
         h["body"] = "\n".join(h["body"]).strip()
     return {"source": source,
             "gate": gate,
+            "semantic_profile": semantic_profile,
+            "semantic_profile_raw": semantic_profile_raw,
+            "lang": lang,
+            "lang_raw": lang_raw,
+            "dir": direction,
+            "dir_raw": dir_raw,
             "body": lesson_text.strip(),
             "intro": "\n".join(intro).strip(),
             "headings": headings,
@@ -2042,6 +2134,13 @@ VISUAL LINT CODES
                                       required|recommended|off
   lesson.check_ref_unknown  error     [!CHECK: <id>] names no item in its own
                                       bank (D-01)
+  lesson.invalid_semantic_profile
+                            error     [SEMANTIC-PROFILE:] is not a positive
+                                      integer (D-16A-4)
+  lesson.lang_empty         error     [LESSON-LANG:] is present but carries no
+                                      language tag (A11Y-02)
+  lesson.invalid_direction  error     [LESSON-DIR:] names a value outside
+                                      ltr|rtl|auto (A11Y-02)
 """)
 
 # The Phase 6.2 gate grammar (06.2-CONTEXT D-02): one [GATE:] directive in
@@ -2050,6 +2149,20 @@ VISUAL LINT CODES
 # invalid value is a named lint error, never a render-time crash and never
 # a silent default (T-062-01).
 GATE_VALUES = ("required", "recommended", "off")
+
+# The semantic profile a lesson document was authored against (D-16A-4,
+# PORT-01's "additive, versioned semantic profile"). A document declaring
+# none is profile 1, so every bank written before this directive existed is
+# a profile 1 document without being edited. The value is validated at lint
+# time; the parse falls back rather than raising.
+SEMANTIC_PROFILE_VERSION = 1
+
+# The closed direction vocabulary for [LESSON-DIR:] (A11Y-02), in
+# GATE_VALUES' shape. There is deliberately no companion vocabulary for
+# [LESSON-LANG:]: BCP 47 tags are an open set, and validating them would
+# need a table this project has no reason to carry, so a language tag is
+# checked for being non-empty and nothing more.
+LESSON_DIRECTIONS = ("ltr", "rtl", "auto")
 
 # The one source of truth for the unresolvable [!CHECK:] copy (06.2-UI-SPEC
 # section 15, LOCKED): the linter, the lesson renderer and the tests all
@@ -2213,6 +2326,8 @@ LINT_CODES = tuple(sorted({
     "bank.answer_position_skew",
     "item.structure_nonconformant",
     "lesson.invalid_gate", "lesson.check_ref_unknown",
+    "lesson.invalid_semantic_profile", "lesson.lang_empty",
+    "lesson.invalid_direction",
 }))
 
 
@@ -3296,6 +3411,31 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                     "lesson.invalid_gate", "gate", "BANK",
                     "[GATE: %s] is not one of %s -- use required, "
                     "recommended, or off" % (gate, "/".join(GATE_VALUES))))
+            # Phase 16A directive findings (D-16A-4, A11Y-02). Each fires
+            # only when its `_raw` companion is non-empty, so a bank carrying
+            # none of the three directives emits none of these three findings
+            # and the shipped lint output is byte identical. The reader has
+            # already fallen back by the time lint runs; these findings name
+            # what the author wrote, which a report of the fallback alone
+            # could not.
+            profile_raw = lesson.get("semantic_profile_raw") or ""
+            if profile_raw:
+                errors.append(LintError(
+                    "lesson.invalid_semantic_profile", "semantic_profile",
+                    "BANK",
+                    "[SEMANTIC-PROFILE: %s] is not a positive integer; the "
+                    "reader falls back to profile 1" % profile_raw))
+            if lesson.get("lang_raw"):
+                errors.append(LintError(
+                    "lesson.lang_empty", "lang", "BANK",
+                    "[LESSON-LANG:] carries no language tag; the reader "
+                    "falls back to en"))
+            dir_raw = lesson.get("dir_raw") or ""
+            if dir_raw:
+                errors.append(LintError(
+                    "lesson.invalid_direction", "dir", "BANK",
+                    "[LESSON-DIR: %s] is not one of ltr, rtl, auto; the "
+                    "reader falls back to auto" % dir_raw))
             known_check_ids = {q.get("id") for q in questions}
             known_check_ids.update(
                 q.get("item_id") for q in questions if q.get("item_id"))
