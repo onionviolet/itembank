@@ -89,9 +89,9 @@ expected count has added or lost a scenario and its summary must say which.
 | 16A-01 | T1 preconditions | all seven | 14A and 14B landed with the frozen surface 16A was planned against, 13.9 walked, the shipped lesson and evidence surface unmoved, and the additivity baseline recorded | Precondition check, halts by name | `python -c` assertion in the plan's verify block | inline assertions plus `16A-PRECONDITION.md` | planned |
 | 16A-01 | T2 D-16A-1 | CAP-01 | The semantic-role representation and the seven role tokens are decided by a human, not adopted | Blocking checkpoint | none (checkpoint) | `16A-DECISIONS.md` heading `## D-16A-1` | planned |
 | 16A-01 | T3 D-16A-2 | CAP-02, CAP-03 | The capability registry's module boundary and the media and activity grammar's owner are decided by a human | Blocking checkpoint | none (checkpoint) | `16A-DECISIONS.md` heading `## D-16A-2` | planned |
-| 16A-02 | T1 parse layer | CAP-01, A11Y-02, PORT-01 | Three lesson directives parse with documented defaults, never raise on a malformed value, and a bank carrying none of them parses unchanged | Unit assertions plus corpus build | `python -c` assertion in the plan's verify block; `python tests/protocol_roundtrip.py`; `python tests/lesson_roundtrip.py` | inline assertions plus `build_thin_slice` | planned |
-| 16A-02 | T2 registry and render | CAP-01, CAP-02 | One capability profile resolves, one new role registers, `lesson_page` gains `mode`, and both modes render the same containers | Unit assertions | `python -c` assertion in the plan's verify block; `python tests/lesson_roundtrip.py`; `python tests/presentation_roundtrip.py` | inline assertions | planned |
-| 16A-02 | T3 the tracer | CAP-01, CAP-02, A11Y-02, PORT-01 | One authored block travels parser, registry, and both renderers end to end; the shipped format did not move while it did | Tracer scenario | `python tests/capability_stress_corpus_tracer.py` | `scenario_thin_slice`, `scenario_additivity_golden_parse` | planned |
+| 16A-02 | T1 parse layer | CAP-01, A11Y-02, PORT-01 | Three lesson directives parse with documented defaults, never raise on a malformed value, and a bank carrying none of them parses unchanged | Unit assertions plus corpus build | `python -c` assertion in the plan's verify block; `python tests/protocol_roundtrip.py`; `python tests/lesson_roundtrip.py` | inline assertions plus `build_thin_slice` | passing |
+| 16A-02 | T2 registry and render | CAP-01, CAP-02 | One capability profile resolves, one new role registers, `lesson_page` gains `mode`, and both modes render the same containers | Unit assertions | `python -c` assertion in the plan's verify block; `python tests/lesson_roundtrip.py`; `python tests/presentation_roundtrip.py` | inline assertions | passing |
+| 16A-02 | T3 the tracer | CAP-01, CAP-02, A11Y-02, PORT-01 | One authored block travels parser, registry, and both renderers end to end; the shipped format did not move while it did | Tracer scenario | `python tests/capability_stress_corpus_tracer.py` | `scenario_thin_slice`, `scenario_additivity_golden_parse` | passing |
 | 16A-03 | T1 six roles plus catalog | CAP-01 | All fourteen CAP-01 roles have a live rendering path and a machine-readable catalog says which is which | Unit assertions plus tracer | `python -c` assertion in the plan's verify block; `python tests/gate_roundtrip.py`; `python tests/visual_roundtrip.py` | inline assertions plus `SEMANTIC_ROLE_CATALOG` | planned |
 | 16A-03 | T2 unknown semantics | CAP-01 | A semantic can be marked required; an unknown optional degrades unchanged with a warning; an unknown required renders a named refusal carrying the author's text | Unit assertions plus tracer | `python -c` assertion in the plan's verify block | inline assertions | planned |
 | 16A-03 | T3 example order plus scenarios | CAP-01 | The worked-example-first default fires, is suppressed only by an override carrying a reason, and an override with no reason produces both codes | Tracer scenarios | `python tests/capability_stress_corpus_tracer.py` | `scenario_fourteen_roles`, `scenario_unknown_semantics`, `scenario_example_order` | planned |
@@ -123,7 +123,7 @@ Seeded from `16A-RESEARCH.md` Wave 0 Gaps; ownership assigned by the planner
 2026-08-15. All 16A test infrastructure is new direct-execution Python scripts
 beside the existing `tests/` set. No framework and no install step.
 
-- [ ] `tests/capability_stress_corpus_tracer.py`, the freeze-gate tracer
+- [x] `tests/capability_stress_corpus_tracer.py`, the freeze-gate tracer
   covering CAP-01, CAP-02, CAP-03, ACTIVITY-01, A11Y-02, and PORT-01. **Owner:
   plan 16A-02 Task 3** creates it carrying `scenario_thin_slice` and
   `scenario_additivity_golden_parse`; every later plan appends its own
@@ -137,7 +137,7 @@ beside the existing `tests/` set. No framework and no install step.
   **Owner: plan 16A-09**, Task 1 creating it and Tasks 2 and 3 growing it to
   eighteen attacks. Final line convention: `ADVERSARIAL: N attempted, N
   refused, 0 succeeded`.
-- [ ] `fixtures/lesson_capability_corpus.py`, the synthetic stress-corpus
+- [x] `fixtures/lesson_capability_corpus.py`, the synthetic stress-corpus
   generator (fictional content, deterministic literal constants, no `random`).
   **Owner: plan 16A-02 Task 1** creates it with `build_thin_slice`; plans
   16A-03 through 16A-10 each add their own builders; plan 16A-10 Task 1 adds
