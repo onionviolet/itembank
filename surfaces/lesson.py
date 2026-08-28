@@ -656,6 +656,12 @@ _CALLOUT_KINDS = {
     # container and its degradation contract are unchanged, which is what the
     # comment above already promises.
     "PREREQUISITE": ("prerequisite", "Before this"),
+    "MISCONCEPTION": ("misconception", "Common mistake"),
+    "TIP": ("tip", "Expert tip"),
+    "COUNTEREXAMPLE": ("counterexample", "Counterexample"),
+    "EXCERPT": ("excerpt", "From the source"),
+    "UNCERTAINTY": ("uncertainty", "Not settled"),
+    "SUMMARY": ("summary", "In short"),
 }
 
 # One in-repo decorative callout mark (03.1-UI-SPEC §2): a single 16×16
@@ -898,6 +904,41 @@ def _callout_spec(raw):
     return (slug, label, None)
 
 
+# The locked user-visible copy of the unsupported-block refusal (D-16A-3,
+# CAP-01's Degraded clause). One string, one place: a learner who meets a
+# block this reader cannot honor reads this sentence and then the author's own
+# text. Do not rephrase it, do not add a variant, and do not localize it in
+# Phase 16A.
+UNSUPPORTED_SEMANTIC_COPY = ("This block needs a lesson feature this reader "
+                             "does not have. Its text is below, unchanged.")
+
+
+def _callout_required_of(raw):
+    """Split one captured `[!...]` marker into its `(kind, required)` pair.
+
+    A trailing `!` inside the brackets declares the semantic required
+    (D-16A-3): `MISCONCEPTION!` is `("MISCONCEPTION", True)` and
+    `MISCONCEPTION` is `("MISCONCEPTION", False)`. This runs BEFORE any
+    registry lookup and never consults one, so an unregistered kind still
+    reports its required flag -- which is the whole point, because an unknown
+    REQUIRED semantic must be refused out loud rather than falling through
+    the unknown-optional paragraph path and disappearing.
+
+    `_CALLOUT_MARK_RE` is not involved and is not changed: its group 1 already
+    accepts a trailing exclamation mark, so a bank using none of them captures
+    byte identically.
+
+    `CHECK:` is resolved by `_callout_spec` before this function is consulted,
+    exactly as it is today. `[!CHECK: id!]` is therefore not a supported form
+    and is treated as an unknown kind; a later reader should not add a branch
+    for it.
+    """
+    kind = (raw or "").strip()
+    if kind.endswith("!"):
+        return kind[:-1], True
+    return kind, False
+
+
 def _callout_kind_of(line):
     """The dispatch key of one `> [!...]` line: the literal string "KEY"
     for any [!KEY] variant (the plan 03.1-03 card), the locked `(slug,
@@ -910,6 +951,28 @@ def _callout_kind_of(line):
     if kind == "KEY" or kind.startswith("KEY:"):
         return "KEY"
     return _callout_spec(kind)
+
+
+def _callout_entered(line):
+    """True when one line opens a block the callout branch handles.
+
+    Defined once because two guards share it: the branch itself, and the
+    paragraph-continuation break. If only the branch knew about unknown
+    required semantics, a required block sitting directly under a paragraph
+    would be swallowed into that paragraph and lost, which is the same
+    silent drop the whole contract exists to refuse.
+
+    A known kind enters, exactly as it did before Phase 16A. An unknown kind
+    enters only when it is marked required with a trailing `!`; an unknown
+    optional kind still returns False and still falls through to the
+    pre-16A paragraph output byte for byte.
+    """
+    m = _CALLOUT_MARK_RE.match(line)
+    if m is None:
+        return False
+    if _callout_kind_of(line) is not None:
+        return True
+    return _callout_required_of(m.group(1))[1]
 
 
 _KEY_CLOZE_RE = re.compile(r"\{\{([^{}]+)\}\}")
@@ -1144,7 +1207,7 @@ def _check_ids(lesson):
                         lesson.get("body", ""))]
 
 
-def _callout_html(spec, body, ctx=None):
+def _callout_html(spec, body, ctx=None, required=False):
     """One honest callout container (D-18): a `<section class="callout
     callout-<slug>">` whose Ledger-voice label and decorative icon are
     accompanied by the escape-first `_inline()` body pass every other text
@@ -1157,6 +1220,12 @@ def _callout_html(spec, body, ctx=None):
     reader setting (03.1-UI-SPEC §9.3/§14): an `[!EXAMPLE]` callout carries
     the `example-parallel` class when the setting is `parallel`, and stays
     stacked (the default) otherwise.
+
+    `required` (D-16A-3) adds `data-required="1"` and nothing else, and
+    defaults to False so every shipped call site renders byte identically. A
+    required semantic is not a different block; it is the same block that
+    says it matters. The attribute is a presentation marker: nothing in the
+    runtime reads it and it grants no authorization.
     """
     slug, label, check_id = spec
     icon = '<span class="callout-icon">%s</span>' % _CALLOUT_ICON
@@ -1175,9 +1244,33 @@ def _callout_html(spec, body, ctx=None):
     if slug == "example" and ctx is not None \
             and ctx.get("example_layout") == "parallel":
         extra = " example-parallel"
-    return ('<section class="callout callout-%s"><p class="callout-label">'
+    flag = ' data-required="1"' if required else ""
+    return ('<section class="callout callout-%s"%s><p class="callout-label">'
             "%s%s</p><div class=\"callout-body\">%s</div></section>"
-            % (slug + extra, icon, html.escape(label), inner))
+            % (slug + extra, flag, icon, html.escape(label), inner))
+
+
+def _unsupported_callout_html(kind, body):
+    """The one refusal container for an unknown REQUIRED semantic (D-16A-3).
+
+    The same shape `_callout_html` produces, with a literal label rather than
+    a registry lookup (there is no registry entry to look up), the locked
+    `UNSUPPORTED_SEMANTIC_COPY` sentence, and then the author's own body run
+    through the identical escape-first `_inline()` pass every other text run
+    uses. Nothing is dropped: a reader that quietly swallowed a block the
+    author marked essential would be lying about what the lesson said.
+
+    `kind` is accepted so a caller cannot lose it, and is deliberately NOT
+    printed: the sentence a learner reads must not depend on an arbitrary
+    author token. It is the linter, naming the kind, that tells the author.
+    No color, no spacing value, no token, and no script is introduced here.
+    """
+    icon = '<span class="callout-icon">%s</span>' % _CALLOUT_ICON
+    return ('<section class="callout callout-unsupported" '
+            'data-required="1"><p class="callout-label">%s%s</p>'
+            "<p>%s</p><div class=\"callout-body\">%s</div></section>"
+            % (icon, html.escape("Unsupported block"),
+               html.escape(UNSUPPORTED_SEMANTIC_COPY), _inline(body)))
 
 
 def lesson_fence_languages(lesson):
@@ -1517,12 +1610,15 @@ def _render_blocks(text, ctx=None):
             i += 1
             continue
         cm = _CALLOUT_MARK_RE.match(line)
-        if cm and _callout_kind_of(line) is not None:
+        if cm and _callout_entered(line):
             # The callout branch (D-18): a `> [!KIND]` marker starts a run
             # whose body is every following `>`-prefixed line, closed at
             # the first non-`>` line. Only locked kinds -- plus the plan
-            # 03.1-03 [!KEY] card -- enter here; an unknown kind falls
-            # through to the paragraph path unchanged.
+            # 03.1-03 [!KEY] card -- enter here; an unknown OPTIONAL kind
+            # falls through to the paragraph path unchanged. Phase 16A adds
+            # one more entrant and no other change: an unknown kind marked
+            # REQUIRED with a trailing `!` (D-16A-3), which is refused out
+            # loud below rather than silently dropped.
             if _callout_kind_of(line) == "KEY":
                 raw_lines = [line]
                 i += 1
@@ -1532,12 +1628,21 @@ def _render_blocks(text, ctx=None):
                 out.append(_key_card_html(raw_lines, ctx))
                 continue
             spec = _callout_spec(cm.group(1))
+            kind, required = _callout_required_of(cm.group(1))
+            if spec is None and required:
+                spec = _callout_spec(kind)
             body = [cm.group(2)] if cm.group(2) else []
             i += 1
             while i < len(lines) and lines[i].startswith(">"):
                 body.append(re.sub(r"^>\s?", "", lines[i]))
                 i += 1
-            out.append(_callout_html(spec, "\n".join(body), ctx))
+            if spec is None:
+                # Unknown and required: the only path that reaches here,
+                # because an unknown optional kind never entered the branch.
+                out.append(_unsupported_callout_html(kind, "\n".join(body)))
+                continue
+            out.append(_callout_html(spec, "\n".join(body), ctx,
+                                     required=required))
             # G1 truncation (06.2-UI-SPEC section 5.2): under required,
             # the server emits nothing below the first OPEN check -- the
             # band already rendered, so the rest of this section and every
@@ -1624,7 +1729,7 @@ def _render_blocks(text, ctx=None):
             if (re.match(r"^#{4,}\s", nxt) or re.match(r"^-\s+", nxt)
                     or re.match(r"^\d+\.\s+", nxt) or _TOKEN_RE.match(nxt)
                     or "|" in nxt
-                    or _callout_kind_of(nxt) is not None):
+                    or _callout_entered(nxt)):
                 break
             buf.append(nxt)
             i += 1

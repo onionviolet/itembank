@@ -26,6 +26,12 @@ below, the pattern `model.GATE_VALUES` and `surfaces/lesson.py`'s
 `_CALLOUT_KINDS` already establish. `register()` returns a new dict rather
 than mutating the module's own, so a fixture or a test that registers a
 synthetic capability cannot leak it into another caller's view.
+
+`SEMANTIC_ROLE_CATALOG` is a catalog and not a source of truth (D-16A-1
+option-a): `surfaces.lesson._CALLOUT_KINDS` and the seven shipped mechanisms
+outside it remain authoritative for what a role means, and the catalog exists
+only so CAP-01's fourteen-role completeness claim is machine checkable rather
+than prose that can quietly go stale.
 """
 
 # The exact key set every capability profile carries, in this order. A profile
@@ -147,3 +153,99 @@ def static_path(name, registry=None):
     """
     entry = _registry_or_default(registry).get(name)
     return entry["offline_fallback"] if entry is not None else ""
+
+
+# CAP-01's fourteen semantic teaching roles, in the order the requirement
+# lists them, each pointing at the concrete mechanism that renders it. Seven
+# of the fourteen shipped before Phase 16A and are catalogued here rather than
+# rebuilt; the seven carrying `shipped_in` "16A" are this phase's own.
+#
+# This tuple is a catalog, never an authority. Nothing renders from it and
+# nothing gates on it. It exists so a test can walk CAP-01's completeness
+# claim and fail by name when an entry stops resolving, which prose in a
+# requirements file cannot do.
+SEMANTIC_ROLE_CATALOG = (
+    {"role": "key idea",
+     "mechanism": "the [!KEY] index card",
+     "module": "surfaces.lesson",
+     "shipped_in": "3.1",
+     "reachable_by": "> [!KEY]"},
+    {"role": "warning",
+     "mechanism": "the [!WARNING] callout",
+     "module": "surfaces.lesson",
+     "shipped_in": "3.1",
+     "reachable_by": "> [!WARNING]"},
+    {"role": "prerequisite",
+     "mechanism": "the [!PREREQUISITE] callout",
+     "module": "surfaces.lesson",
+     "shipped_in": "16A",
+     "reachable_by": "> [!PREREQUISITE]"},
+    {"role": "misconception",
+     "mechanism": "the [!MISCONCEPTION] callout",
+     "module": "surfaces.lesson",
+     "shipped_in": "16A",
+     "reachable_by": "> [!MISCONCEPTION]"},
+    {"role": "expert tip",
+     "mechanism": "the [!TIP] callout",
+     "module": "surfaces.lesson",
+     "shipped_in": "16A",
+     "reachable_by": "> [!TIP]"},
+    {"role": "worked example",
+     "mechanism": "the [!EXAMPLE] callout",
+     "module": "surfaces.lesson",
+     "shipped_in": "3.1",
+     "reachable_by": "> [!EXAMPLE]"},
+    {"role": "counterexample",
+     "mechanism": "the [!COUNTEREXAMPLE] callout",
+     "module": "surfaces.lesson",
+     "shipped_in": "16A",
+     "reachable_by": "> [!COUNTEREXAMPLE]"},
+    {"role": "source excerpt",
+     "mechanism": "the [!EXCERPT] callout",
+     "module": "surfaces.lesson",
+     "shipped_in": "16A",
+     "reachable_by": "> [!EXCERPT]"},
+    {"role": "term and definition",
+     "mechanism": "the ## TERMS registry and [[term]] references",
+     "module": "model",
+     "shipped_in": "3.1",
+     "reachable_by": "model.parse_terms"},
+    {"role": "uncertainty",
+     "mechanism": "the [!UNCERTAINTY] callout",
+     "module": "surfaces.lesson",
+     "shipped_in": "16A",
+     "reachable_by": "> [!UNCERTAINTY]"},
+    {"role": "summary",
+     "mechanism": "the [!SUMMARY] callout",
+     "module": "surfaces.lesson",
+     "shipped_in": "16A",
+     "reachable_by": "> [!SUMMARY]"},
+    {"role": "inline check",
+     "mechanism": "the [!CHECK: <id>] reserved slot and its gate band",
+     "module": "surfaces.lesson",
+     "shipped_in": "6.2",
+     "reachable_by": "surfaces.lesson._gate_band_html"},
+    {"role": "hint",
+     "mechanism": "the six-tier authored hint ladder",
+     "module": "runtime",
+     "shipped_in": "6",
+     "reachable_by": "runtime.authored_hint"},
+    {"role": "accessible visual interaction",
+     "mechanism": "the visual item type and its interaction contract",
+     "module": "runtime",
+     "shipped_in": "06.1",
+     "reachable_by": "runtime.public_item"},
+)
+
+
+def role_mechanism(role):
+    """The `SEMANTIC_ROLE_CATALOG` entry for `role`, as a shallow copy, or
+    `None` for a name CAP-01 does not list.
+
+    A copy for `profile()`'s reason: a caller that edits what it was handed
+    must not be able to rewrite the catalog every later caller reads.
+    """
+    for entry in SEMANTIC_ROLE_CATALOG:
+        if entry["role"] == role:
+            return dict(entry)
+    return None

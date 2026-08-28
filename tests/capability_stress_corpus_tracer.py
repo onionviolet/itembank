@@ -195,7 +195,140 @@ def scenario_additivity_golden_parse():
     print("scenario additivity_golden_parse: pass")
 
 
-SCENARIOS = (scenario_thin_slice, scenario_additivity_golden_parse)
+def _lint(path):
+    """`model.lint` over one bank with every lesson-side pass switched on,
+    which is the combination `itembank lint` itself uses. Returns
+    `(error_codes, warning_codes)` as plain lists in emission order."""
+    qs = model.load(path)
+    errors, warnings = model.lint(
+        qs, lesson=model.parse_lesson(path), terms=model.parse_terms(path),
+        keys=model.parse_key_blocks(path))
+    return [e.code for e in errors], [w.code for w in warnings]
+
+
+CALLOUT_SLUGS = ("key", "example", "note", "warning", "prerequisite",
+                 "misconception", "tip", "counterexample", "excerpt",
+                 "uncertainty", "summary")
+
+
+def scenario_fourteen_roles():
+    """CAP-01's completeness claim, checked against real code rather than
+    against prose: every catalogued role resolves to a module that imports
+    and, when it names one, to a function that is actually callable, and
+    every callout slug reaches both renderers."""
+    catalog = capabilities.SEMANTIC_ROLE_CATALOG
+    if len(catalog) != 14:
+        fail("fourteen roles, catalog hop: SEMANTIC_ROLE_CATALOG has %d "
+             "entries, expected 14" % len(catalog))
+    for entry in catalog:
+        if set(entry) != {"role", "mechanism", "module", "shipped_in",
+                          "reachable_by"}:
+            fail("fourteen roles, catalog hop: role %r carries the key set "
+                 "%s, expected exactly role, mechanism, module, shipped_in, "
+                 "reachable_by" % (entry.get("role"), sorted(entry)))
+        try:
+            mod = __import__(entry["module"], fromlist=["*"])
+        except ImportError as exc:
+            fail("fourteen roles, catalog hop: role %r names module %r, "
+                 "which does not import (%s)"
+                 % (entry["role"], entry["module"], exc))
+        reach = entry["reachable_by"]
+        if "." in reach and not reach.startswith(">"):
+            attr = reach.split(".")[-1]
+            target = getattr(mod, attr, None)
+            if not callable(target):
+                fail("fourteen roles, catalog hop: role %r names %r, which "
+                     "is not callable on %s"
+                     % (entry["role"], reach, entry["module"]))
+        if capabilities.role_mechanism(entry["role"]) != entry:
+            fail("fourteen roles, catalog hop: role_mechanism(%r) does not "
+                 "return that role's entry" % entry["role"])
+    if capabilities.role_mechanism("not a CAP-01 role") is not None:
+        fail("fourteen roles, catalog hop: role_mechanism returns something "
+             "for a role CAP-01 does not name")
+
+    workdir = tempfile.mkdtemp(prefix="cap-tracer-roles-")
+    path = lesson_capability_corpus.build_all_roles(workdir)
+    errors, _warnings = _lint(path)
+    if errors:
+        fail("fourteen roles, lint hop: the all-roles bank reports %r"
+             % errors)
+
+    parsed = model.parse_lesson(path)
+    qs = model.load(path)
+    for mode in ("continuous", "guided"):
+        page = lesson.lesson_page(path, qs, parsed, mode=mode)
+        for slug in CALLOUT_SLUGS:
+            if 'callout-%s"' % slug not in page \
+                    and "callout-%s " % slug not in page:
+                fail("fourteen roles, %s render hop: no callout-%s container "
+                     "reached the page, so a catalogued role does not render"
+                     % (mode, slug))
+    print("scenario fourteen_roles: pass")
+
+
+def scenario_unknown_semantics():
+    """CAP-01's Degraded clause, both halves: an unknown optional semantic
+    renders its pre-16A paragraph fallback with a warning, an unknown
+    required one is refused out loud, and neither loses the author's words."""
+    workdir = tempfile.mkdtemp(prefix="cap-tracer-unknown-")
+    path = lesson_capability_corpus.build_unknown_semantics(workdir)
+    page = lesson.lesson_page(path, model.load(path),
+                              model.parse_lesson(path))
+
+    count = page.count('class="callout callout-unsupported"')
+    if count != 1:
+        fail("unknown semantics, render hop: %d unsupported containers, "
+             "expected exactly 1" % count)
+    if lesson.UNSUPPORTED_SEMANTIC_COPY not in page:
+        fail("unknown semantics, render hop: the locked refusal copy does "
+             "not appear in the page")
+    for needle in ("the reader refuses it out loud",
+                   "it degrades to an ordinary paragraph"):
+        if needle not in page:
+            fail("unknown semantics, render hop: the author's own text %r "
+                 "did not survive into the page, so a degradation path "
+                 "dropped what the author wrote" % needle)
+
+    errors, warnings = _lint(path)
+    if errors.count("lesson.unknown_required_semantic") != 1:
+        fail("unknown semantics, lint hop: %d unknown_required_semantic "
+             "errors, expected exactly 1"
+             % errors.count("lesson.unknown_required_semantic"))
+    if warnings.count("lesson.unknown_semantic") != 1:
+        fail("unknown semantics, lint hop: %d unknown_semantic warnings, "
+             "expected exactly 1"
+             % warnings.count("lesson.unknown_semantic"))
+    print("scenario unknown_semantics: pass")
+
+
+def scenario_example_order():
+    """D-16A-6's three states: the default fires, a reasoned override
+    suppresses it, and an override with no reason is not an override."""
+    workdir = tempfile.mkdtemp(prefix="cap-tracer-order-")
+    expected = {
+        None: (0, 1),
+        "with_reason": (0, 0),
+        "no_reason": (1, 1),
+    }
+    for override, (want_err, want_warn) in expected.items():
+        path = lesson_capability_corpus.build_definition_first(
+            workdir, override=override)
+        errors, warnings = _lint(path)
+        got_err = errors.count("lesson.example_order_no_reason")
+        got_warn = warnings.count("lesson.definition_before_example")
+        if got_err != want_err:
+            fail("example order, override=%r: %d example_order_no_reason "
+                 "errors, expected %d" % (override, got_err, want_err))
+        if got_warn != want_warn:
+            fail("example order, override=%r: %d definition_before_example "
+                 "warnings, expected %d" % (override, got_warn, want_warn))
+    print("scenario example_order: pass")
+
+
+SCENARIOS = (scenario_thin_slice, scenario_additivity_golden_parse,
+             scenario_fourteen_roles, scenario_unknown_semantics,
+             scenario_example_order)
 
 
 def main():

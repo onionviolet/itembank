@@ -515,7 +515,36 @@ def _lesson_direction(head):
     return "auto", raw
 
 
-# The six keys every `parse_lesson` return path carries for the three
+def _lesson_example_order(head):
+    """`[EXAMPLE-ORDER: <value> [because <reason>]]`, defaulting to
+    `("example-first", "")` (D-16A-6).
+
+    The first whitespace-delimited token is the order value; everything after
+    the literal word `because` is the recorded reason CAP-01 requires of an
+    override. A value outside `LESSON_EXAMPLE_ORDERS` falls back to
+    `"example-first"` and is deliberately NOT a lint code in Phase 16A: a
+    fourth code was considered and refused here, so a later reader adding one
+    is making that decision rather than discovering it was missing.
+
+    An override carrying no reason is not silently accepted: it keeps its
+    `"definition-first"` value so `lint` can see it, and `lint` reports
+    `lesson.example_order_no_reason` without suppressing the default check.
+    """
+    raw = grab(r"(?m)^\[EXAMPLE-ORDER:\s*(.*?)\s*\]", head)
+    if not raw:
+        return "example-first", ""
+    parts = raw.split(None, 1)
+    value = parts[0] if parts else ""
+    reason = ""
+    rest = parts[1] if len(parts) > 1 else ""
+    if "because" in rest:
+        reason = rest.split("because", 1)[1].strip()
+    if value not in LESSON_EXAMPLE_ORDERS:
+        return "example-first", reason
+    return value, reason
+
+
+# The eight keys every `parse_lesson` return path carries for the four
 # directives above. Held in one function so an early return and the success
 # return cannot drift apart: every path out of `parse_lesson` returns the same
 # key set, which is the discipline the existing `error` and `detail` keys
@@ -524,7 +553,8 @@ def _lesson_directive_defaults():
     return {"semantic_profile": SEMANTIC_PROFILE_VERSION,
             "semantic_profile_raw": "",
             "lang": "en", "lang_raw": "",
-            "dir": "auto", "dir_raw": ""}
+            "dir": "auto", "dir_raw": "",
+            "example_order": "example-first", "example_order_reason": ""}
 
 
 def parse_lesson(bank_path):
@@ -619,6 +649,7 @@ def parse_lesson(bank_path):
     semantic_profile, semantic_profile_raw = _lesson_profile(head)
     lang, lang_raw = _lesson_lang(head)
     direction, dir_raw = _lesson_direction(head)
+    example_order, example_order_reason = _lesson_example_order(head)
 
     m = re.search(r"(?m)^##\s+LESSON\s*$", head)
     if m is None:
@@ -651,6 +682,8 @@ def parse_lesson(bank_path):
             "lang_raw": lang_raw,
             "dir": direction,
             "dir_raw": dir_raw,
+            "example_order": example_order,
+            "example_order_reason": example_order_reason,
             "body": lesson_text.strip(),
             "intro": "\n".join(intro).strip(),
             "headings": headings,
@@ -2141,6 +2174,19 @@ VISUAL LINT CODES
                                       language tag (A11Y-02)
   lesson.invalid_direction  error     [LESSON-DIR:] names a value outside
                                       ltr|rtl|auto (A11Y-02)
+  lesson.unknown_semantic   warning   > [!KIND] names no known semantic role;
+                                      it renders as a plain paragraph
+                                      (D-16A-3)
+  lesson.unknown_required_semantic
+                            error     > [!KIND!] is marked required and names
+                                      no known semantic role; it renders the
+                                      unsupported-block fallback (D-16A-3)
+  lesson.definition_before_example
+                            warning   a heading places a definition before its
+                                      first worked example (D-16A-6)
+  lesson.example_order_no_reason
+                            error     [EXAMPLE-ORDER: definition-first] carries
+                                      no because clause (D-16A-6)
 """)
 
 # The Phase 6.2 gate grammar (06.2-CONTEXT D-02): one [GATE:] directive in
@@ -2156,6 +2202,11 @@ GATE_VALUES = ("required", "recommended", "off")
 # a profile 1 document without being edited. The value is validated at lint
 # time; the parse falls back rather than raising.
 SEMANTIC_PROFILE_VERSION = 1
+
+# The closed [EXAMPLE-ORDER:] vocabulary (D-16A-6), in GATE_VALUES' shape.
+# CAP-01's default is a worked example before the formal definition; the
+# second member is the override an author records a reason for.
+LESSON_EXAMPLE_ORDERS = ("example-first", "definition-first")
 
 # The closed direction vocabulary for [LESSON-DIR:] (A11Y-02), in
 # GATE_VALUES' shape. There is deliberately no companion vocabulary for
@@ -2328,6 +2379,8 @@ LINT_CODES = tuple(sorted({
     "lesson.invalid_gate", "lesson.check_ref_unknown",
     "lesson.invalid_semantic_profile", "lesson.lang_empty",
     "lesson.invalid_direction",
+    "lesson.unknown_semantic", "lesson.unknown_required_semantic",
+    "lesson.definition_before_example", "lesson.example_order_no_reason",
 }))
 
 
@@ -3436,6 +3489,84 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                     "lesson.invalid_direction", "dir", "BANK",
                     "[LESSON-DIR: %s] is not one of ltr, rtl, auto; the "
                     "reader falls back to auto" % dir_raw))
+            # Phase 16A unknown-semantic findings (D-16A-3, CAP-01's
+            # Degraded clause). The marker shape and the required-marker
+            # rule are read from `surfaces.lesson` through a function-local
+            # import rather than re-spelled here: `surfaces.lesson` imports
+            # this module, so a top-level edge would cycle, and this is the
+            # same pattern `parse_terms` already uses to reuse that module's
+            # cell splitter. One finding per DISTINCT kind, in
+            # first-appearance order, so a lesson using the same unknown
+            # kind six times reports it once rather than six times.
+            from surfaces.lesson import (_CALLOUT_MARK_RE,
+                                         _callout_required_of, _callout_spec)
+            seen_unknown = []
+            for raw_line in (lesson.get("body") or "").split("\n"):
+                cm = _CALLOUT_MARK_RE.match(raw_line)
+                if cm is None:
+                    continue
+                marker = cm.group(1)
+                if _callout_spec(marker) is not None:
+                    continue
+                kind, required = _callout_required_of(marker)
+                if _callout_spec(kind) is not None and required:
+                    continue
+                if (kind, required) in seen_unknown:
+                    continue
+                seen_unknown.append((kind, required))
+                if required:
+                    errors.append(LintError(
+                        "lesson.unknown_required_semantic", "semantics",
+                        "BANK",
+                        "[!%s!] is marked required and is not a known "
+                        "semantic role; it renders the unsupported-block "
+                        "fallback" % kind))
+                else:
+                    warnings.append(LintError(
+                        "lesson.unknown_semantic", "semantics", "BANK",
+                        "[!%s] is not a known semantic role; it renders as "
+                        "a plain paragraph" % kind))
+            # Phase 16A worked-example-order findings (D-16A-6, CAP-01's
+            # "worked example or concrete case before the formal
+            # definition" default and its recorded-override clause).
+            #
+            # The check runs PER HEADING BODY, never per lesson. A per-lesson
+            # check fires on any lesson whose first heading is an overview,
+            # and a warning that fires on correct documents is worse than no
+            # warning: it teaches the author to skim lint output.
+            #
+            # Offsets are compared with `str.find` on three literal markers
+            # rather than with a regex scan, so the rule stays readable and
+            # its false-positive surface stays small.
+            order = lesson.get("example_order") or "example-first"
+            reason = lesson.get("example_order_reason") or ""
+            if order == "definition-first" and not reason:
+                errors.append(LintError(
+                    "lesson.example_order_no_reason", "example_order",
+                    "BANK",
+                    "[EXAMPLE-ORDER: definition-first] carries no because "
+                    "clause; CAP-01 requires a recorded reason for the "
+                    "override"))
+            # An override with no reason is not an override, so it does not
+            # suppress. Only a reasoned one does.
+            if not (order == "definition-first" and reason):
+                for h in lesson["headings"]:
+                    body = h.get("body") or ""
+                    ex = body.find("> [!EXAMPLE]")
+                    if ex == -1:
+                        continue
+                    key = body.find("> [!KEY]")
+                    term = body.find("[[")
+                    firsts = [o for o in (key, term) if o != -1 and o < ex]
+                    if not firsts:
+                        continue
+                    warnings.append(LintError(
+                        "lesson.definition_before_example", "headings",
+                        "BANK",
+                        "heading %r places a definition before its first "
+                        "worked example; CAP-01's default is example "
+                        "first, or record a reason with [EXAMPLE-ORDER: "
+                        "definition-first because ...]" % h["text"]))
             known_check_ids = {q.get("id") for q in questions}
             known_check_ids.update(
                 q.get("item_id") for q in questions if q.get("item_id"))

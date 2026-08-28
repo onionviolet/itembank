@@ -127,7 +127,8 @@ def test_gate_grammar_additive():
     try:
         path = _write_bank(tmp)
         les = itembank.parse_lesson(path)
-        # The six Phase 16A directive keys (plan 16A-02) were added to every
+        # The eight Phase 16A directive keys (six from plan 16A-02, two
+        # from plan 16A-03's [EXAMPLE-ORDER:]) were added to every
         # parse_lesson return path after this assertion was written. They are
         # checked for carrying exactly their documented defaults before being
         # removed from the key-set comparison, so this stays a statement about
@@ -136,7 +137,9 @@ def test_gate_grammar_additive():
         # to the same values it did before they existed.
         additive_defaults = {"semantic_profile": 1, "semantic_profile_raw": "",
                              "lang": "en", "lang_raw": "",
-                             "dir": "auto", "dir_raw": ""}
+                             "dir": "auto", "dir_raw": "",
+                             "example_order": "example-first",
+                             "example_order_reason": ""}
         for key, default in additive_defaults.items():
             if key not in les:
                 fail("parse_lesson no longer returns the additive key %r"

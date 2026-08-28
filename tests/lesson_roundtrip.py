@@ -1133,7 +1133,9 @@ def test_lesson_parse_identity_phase3():
     # added without a default, fails here by name (plan 16A-02, PORT-01).
     additive_defaults = {"semantic_profile": 1, "semantic_profile_raw": "",
                          "lang": "en", "lang_raw": "",
-                         "dir": "auto", "dir_raw": ""}
+                         "dir": "auto", "dir_raw": "",
+                         "example_order": "example-first",
+                         "example_order_reason": ""}
     for key, default in additive_defaults.items():
         if key not in now:
             fail("parse_lesson no longer returns the additive key %r; every "
@@ -2465,15 +2467,18 @@ def test_spec_names_every_lesson_lint_code():
 
     Count raised from six to nine by plan 16A-02, which added
     lesson.invalid_semantic_profile, lesson.lang_empty, and
-    lesson.invalid_direction for the three new lesson directives. The count is
-    asserted rather than derived on purpose: a code added without a SPEC row
-    should fail here, which is exactly what it did when those three were added
-    and the SPEC table had not yet been written."""
+    lesson.invalid_direction for the three new lesson directives, and from
+    nine to thirteen by plan 16A-03, which added lesson.unknown_semantic,
+    lesson.unknown_required_semantic, lesson.definition_before_example, and
+    lesson.example_order_no_reason. The count is asserted rather than derived
+    on purpose: a code added without a SPEC row should fail here, which is
+    exactly what it did when those three were added and the SPEC table had
+    not yet been written."""
     s = itembank.SPEC + "\n" + SPEC_03_1
     lesson_codes = [c for c in itembank.LINT_CODES
                     if c.startswith("lesson.") or c == "item.lesson_ref_unknown"]
-    if len(lesson_codes) != 9:
-        fail("expected exactly 9 lesson lint codes, got %d: %r"
+    if len(lesson_codes) != 13:
+        fail("expected exactly 13 lesson lint codes, got %d: %r"
              % (len(lesson_codes), lesson_codes))
     for c in lesson_codes:
         if c not in s:
