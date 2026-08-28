@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase_name: 14B-graph-course-package-prototype
-status: Phase 14B waves 1 to 3 EXECUTED (2026-08-26): graph.py, course.py, and course_package.py exist, the sidecar schema is published, rights gate bindings at bind time, and the version migration is prototyped. Waves 4 to 6 all carry human checkpoints and are not started. Phase 13.5 RTS-04 flipped to AGENT VERIFIED by the D1/D2 re-measure. Phase 13.9 COMPLETE. Phase 14A EXECUTED and FROZEN. 17A is 7 of 8 plans built; 17A-04 still waits on the browser-driver supply-chain decision.
-stopped_at: Deliberately stopped before 14B-04. Waves 4, 5, and 6 each carry a blocking human checkpoint, and 14B-04 also modifies the frozen journal.py. The one decision an agent already had to stand in for, D-14B-1, is recorded as provisional and needs Weibao's verbatim answer.
-last_updated: "2026-08-26T00:00:00.000Z"
-last_activity: 2026-08-26
-last_activity_desc: "Executed Phase 14B waves 1 to 3 overnight under a standing authorization, plus the 13.5 D1/D2 agent re-measure in parallel. Each plan was driven test-first and its assertions falsified before being trusted; three deliberate breakages across the three plans were caught, one was absorbed by a second guard and is recorded as defense in depth. Stopped at the first human checkpoint rather than standing in for it twice."
+current_phase_name: 14C-source-adapter-registry
+status: Phase 14B EXECUTED and FROZEN (2026-08-27): all six waves ran, all four decisions answered, and 14B-FREEZE.md carries a real freeze on three green legs. GRAPH-01, GRAPH-02, GRAPH-04 and PORT-03 are Complete. Phase 14C plan 01 EXECUTED: source_adapters.py, the frozen locator sidecar schema, the source route, the source CLI command, the source settings group, and VENDORED.md all ship; plans 02 to 08 remain. Phase 16A precondition PASSED with no deviations, so 16A may proceed. Phase 16B still HALTS, correctly, on 16A not having executed. FILE-04 (the workspace) is accepted, shape C, unscheduled. 17A-04 still waits on the browser-driver supply-chain decision.
+stopped_at: Mid Phase 14C. Plan 14C-01 is complete and committed; 14C-02 (docx plus the remaining PDF gold cases) is the next executable plan and overlaps a running background task on the pdf-encrypted gold fixture. 16A-01 Task 1 is done and its decision records are in flight.
+last_updated: "2026-08-27T00:00:00.000Z"
+last_activity: 2026-08-27
+last_activity_desc: "Closed the 14B freeze after both grounds of its withholding fell, executed Phase 14C plan 01 end to end, accepted FILE-04 as the workspace object, and ran the 16A precondition check green. The authorability leg was signed by an agent under Weibao's explicit waiver, which is named in the freeze record rather than buried. Three defects were found by verifying rather than assuming: unreadable PDF gold fixtures, a build.py staging allowlist that never held the 14A or 14B modules, and an inverted question polarity in the authorability review itself."
 progress:
   total_phases: 28
   completed_phases: 19
   total_plans: 175
   completed_plans: 123
-current_phase: 14B
+current_phase: 14C
 ---
 
 # Project State
@@ -456,6 +456,35 @@ executable fixtures; one human-verify item (screen-reader announcement) is
 recorded in 06.2-GATES.md. Six GATE-01..06 requirements delivered.
 
 ## Current Position
+
+> **Superseded 2026-08-27, later the same day.** The block below was accurate
+> when written and is preserved as history. It says waves 4 to 6 are blocked on
+> four decisions: **all four were answered, all three waves ran, and Phase 14B
+> is frozen.** `14B-FREEZE.md` carries `## Frozen at 14B` on three green legs,
+> and its authorability leg was signed by an agent under Weibao's explicit
+> waiver of that document's own agent-never-self-certifies clause, which the
+> freeze record names in full rather than burying.
+>
+> **Phase: 14C, plan 01 executed.** `source_adapters.py`, the frozen locator
+> sidecar contract, `POST /api/source/import`, `itembank source import`, the
+> `source` settings group, and `VENDORED.md` all ship. One PDF imports as a
+> cited source with one fingerprint agreeing across sidecar, journal entry, and
+> registry. Plans 14C-02 through 14C-08 remain.
+>
+> **What is unblocked now.** Phase 15A and Phase 16A, both by the 14B freeze.
+> 16A-01's precondition check ran green on 2026-08-27 with zero deviations
+> (`16A-PRECONDITION.md`), so 16A may proceed.
+>
+> **What still halts, correctly.** Phase 16B. Its precondition halts on Phase
+> 16A never having executed, not on 14B: `capabilities.py`,
+> `16A-FREEZE.md`, and `model.SEMANTIC_PROFILE_VERSION` are all absent. That
+> halt stays right until 16A runs and freezes, and the course shelf 16B-04
+> draws sits behind it.
+>
+> **What still waits on Weibao.** The 17A-04 browser-driver supply-chain packet,
+> open since 2026-08-25. FILE-04's phase, deliberately, which he chose to decide
+> after the 14B freeze; that freeze has now closed, so it is answerable.
+
 
 > **Corrected 2026-08-27.** The block below described Phase 13.5 and said the
 > reframe was "not yet pushed". Both were stale: the frontmatter has read
