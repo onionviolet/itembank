@@ -81,6 +81,7 @@
         "key.missing_hash",
         "key.missing_id",
         "key.no_front",
+        "lesson.authored_key_disclosure",
         "lesson.check_ref_unknown",
         "lesson.duplicate_heading",
         "lesson.invalid_direction",

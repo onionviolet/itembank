@@ -2474,12 +2474,13 @@ def test_spec_names_every_lesson_lint_code():
     lesson.example_order_no_reason. The count is asserted rather than derived
     on purpose: a code added without a SPEC row should fail here, which is
     exactly what it did when those three were added and the SPEC table had
-    not yet been written."""
+    not yet been written. Raised again to fourteen on 2026-08-28 by
+    lesson.authored_key_disclosure."""
     s = itembank.SPEC + "\n" + SPEC_03_1
     lesson_codes = [c for c in itembank.LINT_CODES
                     if c.startswith("lesson.") or c == "item.lesson_ref_unknown"]
-    if len(lesson_codes) != 13:
-        fail("expected exactly 13 lesson lint codes, got %d: %r"
+    if len(lesson_codes) != 14:
+        fail("expected exactly 14 lesson lint codes, got %d: %r"
              % (len(lesson_codes), lesson_codes))
     for c in lesson_codes:
         if c not in s:

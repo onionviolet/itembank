@@ -2403,6 +2403,11 @@ VISUAL LINT CODES
   activity.unsupported_response_form
                             warning   a response form outside the eight shipped
                                       types; the activity falls back
+  lesson.authored_key_disclosure
+                            warning   authored text shown before a response
+                                      reproduces keyed material the runtime
+                                      withholds (an [!EXCERPT] body, a ## MEDIA
+                                      alt, or an activity static fallback)
 """)
 
 # The Phase 6.2 gate grammar (06.2-CONTEXT D-02): one [GATE:] directive in
@@ -2510,6 +2515,14 @@ BANK_FILE_HINTS = ("_mc_bank", "_exam_bank", "_question_bank", "_quiz_bank")
 WOULD_BE = re.compile(
     r"would be|would win|would apply|if the stem|correct when|correct if|"
     r"right for|right when|right if|applies when", re.I)
+
+
+def _truncate_text(text, limit=70):
+    """One short quotation of authored text for a lint message. Long enough
+    that an author can find the block, short enough that a lint line stays a
+    line."""
+    flat = " ".join(str(text or "").split())
+    return flat if len(flat) <= limit else flat[:limit - 3] + "..."
 
 
 class LintError(collections.namedtuple("LintError", "code field item message")):
@@ -2681,6 +2694,7 @@ LINT_CODES = tuple(sorted({
     "activity.unknown_retry", "activity.unknown_feedback",
     "activity.unknown_evidence_state", "activity.missing_static_fallback",
     "activity.missing_a11y_equivalent", "activity.unsupported_response_form",
+    "lesson.authored_key_disclosure",
 }))
 
 
@@ -4014,6 +4028,71 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                     "item %s declares response form %s, which is not one of "
                     "the eight shipped forms; the activity falls back to its "
                     "declared static equivalent" % (item, form or "''")))
+
+    # Authored text shown BEFORE a response exists, checked against the one
+    # gate that already decides what is keyed material (plan 16A-09 finding
+    # F3, resolved 2026-08-28).
+    #
+    # Phase 16A added three places an author can put prose a learner reads
+    # before answering: an [!EXCERPT] body, a ## MEDIA row's alt, and an
+    # activity's static_fallback. Each is a new mouth for the same old leak,
+    # and none of them is gated at render time, deliberately: a lesson page is
+    # authored reading material, and suppressing an author's own words at
+    # render would be inventing an enforcement this phase does not own.
+    #
+    # So the signal is delivered where it can be acted on, at authoring time.
+    # `runtime.glossable` is consulted rather than a second detector being
+    # written: it already answers "could this text disclose keyed answer
+    # material", its fragment set is the fields `public_item` withholds, and
+    # two gates that disagreed about what counts as keyed would be worse than
+    # one gate that is occasionally too strict. The import is function-local
+    # because `runtime` does not import `model` and this keeps it that way.
+    #
+    # A WARNING, not an error. An author may have a real reason to quote a
+    # rationale into an excerpt, and the finding names the surface and the
+    # text so they can judge it. What they must not do is not know.
+    if lesson_on and lesson and not lesson.get("error"):
+        from runtime import glossable as _glossable
+
+        authored = []
+        body_lines = (lesson.get("body") or "").split("\n")
+        for index, line in enumerate(body_lines):
+            # `[^\S\n]*` and not `\s*`: `\s` matches a newline, which would
+            # let the marker pattern swallow the first body line and quote it
+            # back with its own `>` prefix still attached.
+            marker = re.match(r"^>[^\S\n]*\[!EXCERPT!?\][^\S\n]*(.*)$", line)
+            if marker is None:
+                continue
+            block = []
+            trailing = marker.group(1).strip()
+            if trailing:
+                block.append(trailing)
+            for following in body_lines[index + 1:]:
+                if not following.startswith(">"):
+                    break
+                block.append(re.sub(r"^>\s?", "", following))
+            body_text = " ".join(part for part in block if part.strip())
+            if body_text.strip():
+                authored.append(("an [!EXCERPT] body", body_text))
+        if media_on and media:
+            for aid, asset in (media.get("assets") or {}).items():
+                alt = (asset.get("alt") or "").strip()
+                if alt:
+                    authored.append(("the ## MEDIA alt for %s" % aid, alt))
+        if activities_on and activities:
+            for item, row in (activities.get("activities") or {}).items():
+                fallback = (row.get("static_fallback") or "").strip()
+                if fallback:
+                    authored.append(
+                        ("the static fallback for %s" % item, fallback))
+
+        for where, text in authored:
+            if not _glossable(questions, {"def": text}):
+                warnings.append(LintError(
+                    "lesson.authored_key_disclosure", "semantics", "BANK",
+                    "%s reproduces keyed material the runtime withholds "
+                    "before a learner responds: %r. A learner reads this "
+                    "without answering anything" % (where, _truncate_text(text))))
 
     # Bank-level terms/key findings, in a deterministic order: collisions,
     # then the empty-block warning, then unknown refs, then duplicate [!KEY]

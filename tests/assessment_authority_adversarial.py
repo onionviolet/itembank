@@ -513,6 +513,27 @@ def attack_16a_excerpt_leak(sitting):
              "as safe to disclose, so the one gate that already exists does "
              "not see this leak")
 
+    # The signal now has a consumer. `lesson.authored_key_disclosure` warns
+    # the AUTHOR at lint time, which is where this can be acted on: a lesson
+    # page is reading material and suppressing an author's own words at
+    # render would be inventing an enforcement Phase 16A does not own.
+    errors, warnings = model.lint(
+        sitting["qs"], lesson=parsed, terms=model.parse_terms(sitting["bank"]),
+        media=model.parse_media(sitting["bank"]),
+        activities=model.parse_activities(sitting["bank"]))
+    disclosures = [str(f) for f in list(errors) + list(warnings)
+                   if f.code == "lesson.authored_key_disclosure"]
+    if not any("[!EXCERPT]" in f for f in disclosures):
+        fail("16A excerpt: lint reports no authored_key_disclosure for an "
+             "excerpt quoting the rationale verbatim, so the author is never "
+             "told")
+    if not any("## MEDIA alt" in f for f in disclosures):
+        fail("16A excerpt: lint reports no authored_key_disclosure for the "
+             "leaky media alternative")
+    if not any("static fallback" in f for f in disclosures):
+        fail("16A excerpt: lint reports no authored_key_disclosure for the "
+             "leaky activity fallback")
+
 
 def attack_16a_media_alt_leak(sitting):
     """A media alt attribute stating the correct option letter and text."""
