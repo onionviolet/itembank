@@ -935,6 +935,42 @@ def _digest(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def scenario_assessment_authority():
+    """ACTIVITY-03, recorded rather than duplicated.
+
+    The adversarial suite is the attacks' home; this scenario runs it and
+    records that it passed. Re-implementing the attacks here would create a
+    second place they could drift, and the tracer's job is to know the freeze
+    gate's legs are green, not to be a second suite.
+    """
+    result = _run(["tests/assessment_authority_adversarial.py"])
+    if result.returncode != 0:
+        fail("assessment authority: the adversarial suite exits %d:\n%s"
+             % (result.returncode, result.stdout + result.stderr))
+    lines = [line for line in result.stdout.strip().split("\n") if line]
+    if not lines:
+        fail("assessment authority: the adversarial suite printed nothing")
+    final = lines[-1]
+    m = re.fullmatch(
+        r"ADVERSARIAL: (\d+) attempted, (\d+) refused, (\d+) succeeded",
+        final)
+    if m is None:
+        fail("assessment authority: the final line is %r, which does not "
+             "match the suite's summary convention" % final)
+    attempted, refused, succeeded = (int(m.group(i)) for i in (1, 2, 3))
+    if succeeded != 0:
+        fail("assessment authority: %d attacks succeeded" % succeeded)
+    if attempted != refused:
+        fail("assessment authority: %d attempted but only %d refused, so an "
+             "attack was neither refused nor counted as a success"
+             % (attempted, refused))
+    if attempted < 18:
+        fail("assessment authority: only %d attacks ran; plan 16A-09 lands "
+             "eighteen, and a shrinking suite is a silently narrowed one"
+             % attempted)
+    print("scenario assessment_authority: pass")
+
+
 def _survives(page, value, label, where):
     """Assert `value` reached `page` unchanged.
 
@@ -1086,7 +1122,8 @@ SCENARIOS = (scenario_thin_slice, scenario_additivity_golden_parse,
              scenario_unavailable_renderer, scenario_media_metadata,
              scenario_activity_declarations,
              scenario_unsupported_response_form, scenario_output_modes,
-             scenario_backburner_catalog, scenario_localization)
+             scenario_backburner_catalog, scenario_localization,
+             scenario_assessment_authority)
 
 
 def main():

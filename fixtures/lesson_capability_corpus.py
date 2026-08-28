@@ -986,3 +986,58 @@ def build_localization_lesson(dest_dir):
     with open(path, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(text)
     return path
+
+
+# The adversarial bank (plan 16A-09). Every hostile string below is authored
+# content a careless or hostile author could write TODAY, which is the point:
+# the excerpt callout, the media alternative, the activity fallback, and the
+# glossary definition are four new places Phase 16A lets authored text reach a
+# learner, and each is a new mouth for the same old leak.
+#
+# Three of the four quote the keyed OPTION TEXT verbatim, which is what
+# `runtime.glossable` detects. The excerpt quotes the RATIONALE instead, which
+# glossable does not detect, and that difference is deliberate: it is the one
+# honest finding this fixture exists to surface rather than to hide.
+#
+# The bank is a fixture of BAD AUTHORING, not of malformed syntax. It lints
+# clean, and the suite's job is to say exactly which of the four the shipped
+# gate catches.
+ADVERSARIAL_BANK = "# Adversarial authoring bank (synthetic)\n\nFully invented content whose authoring is DELIBERATELY HOSTILE. Every string\nis fictional and nothing here is derived from a real course, exam, or\ntextbook. The point of this fixture is that a careless or hostile author can\nwrite all of it today: a source excerpt that quotes the rationale, a media\nalternative that states the keyed answer verbatim, an activity fallback that\nstates it, and a glossary definition that restates it. Nothing in this file is\nmalformed; it is bad authoring rather than broken syntax.\n\n[SEMANTIC-PROFILE: 1]\n\n## TERMS\n\nChamber verdict | The invented rule that there is no room to turn around once the gates have begun to close | Verdict\nSlack water | The invented moment when the current is at rest, halfway in time from one turn to the next\n\n## MEDIA\n\nleak-diagram | capability_leak_diagram.png | Diagram by the invented Marrow Cut trust, fictional | The answer to the first item is B: There is no room to turn around once the gates have begun to close. | granted | Invented placeholder with a deliberately leaky alternative. | missing | sha256:4444444444444444444444444444444444444444444444444444444444444444\n\n## ACTIVITIES\n\nq1 | retrieval | recall the stated rule without the source in view | nav:locks.rule | The invented Marrow Cut standing orders | oral_explanation | none | after_commitment | not_recorded | The prompt is plain text in document order and the fallback needs no audio device. | Say it out loud: There is no room to turn around once the gates have begun to close.\n\n## LESSON\n\n### The Chamber Rule\n\nThe invented Marrow Cut standing orders describe one rule about the chamber\nand one about the approach. Only one of them is about turning around.\n\n> [!EXCERPT]\n> The invented standing order names the chamber as the one place on the cut where a vessel cannot swing through, which is what the first item turns on.\n\n[MEDIA: leak-diagram]\n\n> [!CHECK: q1]\n\nQ1. A vessel enters the invented Marrow Cut chamber after the gates begin to close. What does the standing order say about that?   (difficulty: application)\n[LESSON-REF: The Chamber Rule]\n[OBJECTIVE: nav:locks.rule]\n\nA) The vessel may turn around inside the chamber\nB) There is no room to turn around once the gates have begun to close\nC) The vessel must sound one long blast\nD) The gates reopen automatically\n\nCORRECT: B\n\nWHY BEST: The invented standing order names the chamber as the one place on the cut where a vessel cannot swing through, which is what the first item turns on.\n\nKEY DISCRIMINATOR: The order is about the absence of room to turn, not about a signal or an automatic reopening.\n\nSECOND-BEST: C. A sound signal is a real requirement elsewhere on the invented cut, and this would be correct if the question asked what the master must do rather than what the order says.\n\nDISTRACTOR ANALYSIS:\n- A) The order says the opposite; this would be correct if the chamber were wider than the vessel is long.\n- B) Correct: the order names the chamber as the one place with no space to swing through.\n- C) A sound signal is required on the approach rather than in the chamber; this would be correct if the question named the approach.\n- D) The invented gates are hand worked; this would be correct if the cut had powered gates with an automatic release.\n\nTRAP: Reading a rule about room as a rule about permission.\n\nCONFIDENCE: high\n\nQ2. In your own words, explain why the chamber is the one place on the invented cut with no room to turn around.   (difficulty: analysis)\n[LESSON-REF: The Chamber Rule]\n[OBJECTIVE: nav:locks.explain]\n[TYPE: short]\nMODEL: The chamber is only as wide as it needs to be to pass a vessel, so once the gates begin to close there is neither length nor beam to swing through.\nRUBRIC:\n- names the chamber's width or length as the constraint\n- states that the closing gates remove the remaining room\n\nTRAP: Explaining the rule by naming the traffic rather than the geometry.\n\nCONFIDENCE: high\n"
+
+ADVERSARIAL_FILENAME = "capability_adversarial_bank.md"
+
+# The exact keyed text the hostile strings quote, so the suite asserts against
+# the fixture's own constants rather than against copies that can drift.
+ADVERSARIAL_KEY_TEXT = (
+    "There is no room to turn around once the gates have begun to close")
+ADVERSARIAL_RATIONALE = (
+    "The invented standing order names the chamber as the one place on the "
+    "cut where a vessel cannot swing through, which is what the first item "
+    "turns on.")
+ADVERSARIAL_MEDIA_ALT = (
+    "The answer to the first item is B: There is no room to turn around once "
+    "the gates have begun to close.")
+ADVERSARIAL_ACTIVITY_FALLBACK = (
+    "Say it out loud: There is no room to turn around once the gates have "
+    "begun to close.")
+ADVERSARIAL_TERM_SLUG = "chamber-verdict"
+
+# The second, BENIGN term. Its definition restates no keyed text, and it also
+# contains no letter "b", which is not an aesthetic choice: `canonical_key`
+# for a multiple-choice item is the bare correct option letter, so
+# `runtime.glossable` refuses any definition containing that letter. A benign
+# control term whose definition happened to contain a "b" would be refused
+# too, and the glossary attack could then not tell a real catch from the
+# gate's own over-strictness. That over-strictness is recorded as a finding in
+# 16A-09-SUMMARY.md rather than worked around silently.
+ADVERSARIAL_BENIGN_TERM_SLUG = "slack-water"
+
+
+def build_adversarial_bank(dest_dir):
+    """Write the one adversarial bank into `dest_dir` and return its absolute
+    path. Deterministic for `build_thin_slice`'s reason."""
+    os.makedirs(dest_dir, exist_ok=True)
+    path = os.path.join(os.path.abspath(dest_dir), ADVERSARIAL_FILENAME)
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(ADVERSARIAL_BANK)
+    return path
