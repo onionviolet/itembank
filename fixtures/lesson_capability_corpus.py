@@ -774,3 +774,22 @@ def build_activity_set(dest_dir):
     with open(path, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(ACTIVITY_SET_BANK)
     return path
+
+
+# The output-mode lesson (plan 16A-07 Task 2): four registered terms and
+# three headings, every one a distinct fictional string, so the derivation
+# assertion in `scenario_output_modes` has something to find rather than
+# matching by accident on a common word.
+OUTPUT_MODE_BANK = '# The invented Marrow Cut signalling primer (synthetic)\n\nFully invented teaching content for exercising the Phase 16A output-mode\ncomposers. Every term, station, and rule below is invented, and nothing here\nis derived from any real course, exam, textbook, or signalling publication.\n\n[SEMANTIC-PROFILE: 1]\n\n## TERMS\n\nAbsolute block | The invented rule that only one vessel occupies a marked reach of the cut at a time | Block\nFixed distant | The invented board that repeats what the next board will say, and never says anything itself\nOccupation key | The invented brass token a master carries while their vessel holds a reach\nRunning release | The invented signal that a reach has been given up without the token being returned\n\n## LESSON\n\n### The Absolute Block Rule\n\nThe invented Marrow Cut works on an [[absolute block]]: a reach belongs to one\nvessel from the moment it is entered until the moment it is given up. Nothing\nabout the rule depends on how fast a vessel moves, only on whether a reach is\nheld.\n\n### Reading The Fixed Distant\n\nA [[fixed distant]] board is a repeater. It carries no authority of its own,\nwhich is the single most misread thing on the cut, and a master who treats it\nas an instruction has read a copy as though it were the original.\n\n### Holding And Giving Up A Reach\n\nAn [[occupation key]] is the physical record that a reach is held. A\n[[running release]] gives the reach up without the key coming back, which is\nthe one case where the physical record and the state of the cut disagree.\n\nQ1. A fixed distant board on the invented cut shows a caution. What does that establish?   (difficulty: application)\n[LESSON-REF: Reading The Fixed Distant]\n[OBJECTIVE: rail:signals.distant]\n\nA) The next board will show a caution or worse\nB) The vessel must stop at this board\nC) The reach ahead is occupied by two vessels\nD) The board has failed and shows its default\n\nCORRECT: A\n\nWHY BEST: A fixed distant repeats what the next board will say and carries no\nauthority of its own, so a caution on it is a statement about the next board.\n\nKEY DISCRIMINATOR: The answer must be about the next board rather than about\nthis one.\n\nSECOND-BEST: B. A caution does require slowing, and this would be correct if\nthe board carried authority of its own rather than repeating.\n\nDISTRACTOR ANALYSIS:\n- A) Correct: the distant repeats the next board and says nothing itself.\n- B) A distant never commands a stop; this would be correct if it were the next board rather than its repeater.\n- C) The number of vessels in a reach is not on any board; this would be correct if the cut published occupancy counts.\n- D) A caution is a real indication and not a failure default; this would be correct if the board were dark.\n\nTRAP: Reading a repeater as an instruction, which turns a copy into an\noriginal.\n\nCONFIDENCE: high\n'
+
+OUTPUT_MODE_FILENAME = "capability_output_mode_bank.md"
+
+
+def build_output_mode_lesson(dest_dir):
+    """Write the one output-mode bank into `dest_dir` and return its absolute
+    path. Deterministic for `build_thin_slice`'s reason."""
+    os.makedirs(dest_dir, exist_ok=True)
+    path = os.path.join(os.path.abspath(dest_dir), OUTPUT_MODE_FILENAME)
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(OUTPUT_MODE_BANK)
+    return path

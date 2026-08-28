@@ -771,12 +771,172 @@ def scenario_unsupported_response_form():
     print("scenario unsupported_response_form: pass")
 
 
+def scenario_output_modes():
+    """CAP-03's composition claim and its derivation probe, over one lesson.
+
+    The derivation half is the one that matters. Asserting only that composing
+    twice is deterministic would pass for a function that INVENTED content
+    deterministically, and inventing content is exactly how a derived view
+    becomes the only understandable copy. So every string in both records is
+    required to appear in the canonical Markdown bytes.
+    """
+    workdir = tempfile.mkdtemp(prefix="cap-tracer-modes-")
+    path = lesson_capability_corpus.build_output_mode_lesson(workdir)
+    parsed = model.parse_lesson(path)
+    terms = model.parse_terms(path)
+    if parsed is None or terms is None:
+        fail("output modes, parse hop: the fixture lost its ## LESSON or "
+             "## TERMS section, so this scenario would prove nothing")
+
+    outline = capabilities.compose_outline(parsed)
+    glossary = capabilities.compose_glossary(terms, source=path)
+    want_keys = tuple(sorted(capabilities.OUTPUT_MODE_KEYS))
+    for record in (outline, glossary):
+        if tuple(sorted(record)) != want_keys:
+            fail("output modes, shape hop: the %r record carries the key set "
+                 "%s, expected exactly OUTPUT_MODE_KEYS"
+                 % (record.get("mode"), sorted(record)))
+        if not (record["provenance"] or "").strip():
+            fail("output modes, shape hop: the %r record carries an empty "
+                 "provenance, so a reader holding it cannot find its way "
+                 "back to the canonical file" % record.get("mode"))
+        if os.path.basename(path) not in record["provenance"]:
+            fail("output modes, shape hop: the %r record's provenance does "
+                 "not name the lesson source" % record.get("mode"))
+
+    if len(outline["entries"]) != len(parsed["headings"]):
+        fail("output modes, outline hop: %d entries for %d headings"
+             % (len(outline["entries"]), len(parsed["headings"])))
+    for entry, heading in zip(outline["entries"], parsed["headings"]):
+        if entry["text"] != heading["text"] \
+                or entry["slug"] != heading["slug"]:
+            fail("output modes, outline hop: entry %r does not match heading "
+                 "%r; the composer is not reading parse_lesson's own values"
+                 % (entry, heading))
+
+    if len(glossary["entries"]) != len(terms["terms"]):
+        fail("output modes, glossary hop: %d entries for %d registered terms"
+             % (len(glossary["entries"]), len(terms["terms"])))
+    slugs = [entry["slug"] for entry in glossary["entries"]]
+    if slugs != sorted(slugs):
+        fail("output modes, glossary hop: entries are not sorted by slug")
+    for entry in glossary["entries"]:
+        if entry["slug"] not in terms["terms"]:
+            fail("output modes, glossary hop: entry slug %r is not a "
+                 "parse_terms key, so the composer computed a second slug"
+                 % entry["slug"])
+
+    if capabilities.compose_outline(parsed) != outline \
+            or capabilities.compose_glossary(terms, source=path) != glossary:
+        fail("output modes, determinism hop: composing twice from the same "
+             "parsed lesson returned different records")
+
+    source_bytes = open(path, encoding="utf-8").read()
+    for entry in outline["entries"]:
+        if entry["text"] not in source_bytes:
+            fail("output modes, derivation hop: the outline carries the "
+                 "heading text %r, which is not in the canonical Markdown; "
+                 "a composed view that invents content becomes the only "
+                 "place that content exists" % entry["text"])
+    for entry in glossary["entries"]:
+        for field in ("term", "definition"):
+            value = (entry.get(field) or "").strip()
+            if value and value not in source_bytes:
+                fail("output modes, derivation hop: the glossary carries the "
+                     "%s %r, which is not in the canonical Markdown"
+                     % (field, value))
+
+    # PORT-01's rebuild clause, executed literally: delete every derived
+    # artifact, recompose from the canonical Markdown alone, and require the
+    # records to come back equal and the canonical file to be untouched.
+    before = hashlib.sha256(open(path, "rb").read()).hexdigest()
+    derived_dir = os.path.join(workdir, "derived")
+    os.makedirs(derived_dir, exist_ok=True)
+    rendered = os.path.join(derived_dir, "lesson.html")
+    with open(rendered, "w", encoding="utf-8") as fh:
+        fh.write(lesson.lesson_page(path, model.load(path), parsed))
+    with open(os.path.join(derived_dir, "outline.json"), "w",
+              encoding="utf-8") as fh:
+        json.dump(outline, fh)
+    for name in os.listdir(derived_dir):
+        os.remove(os.path.join(derived_dir, name))
+    os.rmdir(derived_dir)
+
+    rebuilt_outline = capabilities.compose_outline(model.parse_lesson(path))
+    rebuilt_glossary = capabilities.compose_glossary(
+        model.parse_terms(path), source=path)
+    if rebuilt_outline != outline or rebuilt_glossary != glossary:
+        fail("output modes, rebuild hop: recomposing after deleting every "
+             "derived artifact produced different records, so a derived view "
+             "was carrying something the canonical file does not")
+    after = hashlib.sha256(open(path, "rb").read()).hexdigest()
+    if after != before:
+        fail("output modes, rebuild hop: the canonical file changed during "
+             "a delete-and-rebuild cycle; composing is a read")
+
+    print("scenario output_modes: pass")
+
+
+def scenario_backburner_catalog():
+    """CAP-03's Degraded clause: the eight unregistered modes are parked with
+    a route back, not cut."""
+    catalog = capabilities.backburner_catalog()
+    if len(catalog) != 8:
+        fail("backburner, catalog hop: %d entries, expected 8" % len(catalog))
+    want_keys = tuple(sorted(capabilities.BACKBURNER_KEYS))
+    for entry in catalog:
+        if tuple(sorted(entry)) != want_keys:
+            fail("backburner, catalog hop: %r carries the key set %s"
+                 % (entry.get("mode"), sorted(entry)))
+        for field in capabilities.BACKBURNER_KEYS:
+            if not (entry.get(field) or "").strip():
+                fail("backburner, catalog hop: %r has an empty %s"
+                     % (entry.get("mode"), field))
+        if "when needed" in entry["trigger"].lower():
+            fail("backburner, catalog hop: %r's trigger is a vague phrase a "
+                 "reader cannot test, which is the same as no trigger"
+                 % entry["mode"])
+
+    modes = set(capabilities.OUTPUT_MODES) | {e["mode"] for e in catalog}
+    if len(modes) != 10:
+        fail("backburner, coverage hop: the registered and parked lists "
+             "cover %d modes, expected CAP-03's ten; a mode in neither list "
+             "would vanish with nothing noticing" % len(modes))
+
+    broken = dict(catalog[0], trigger="")
+    try:
+        capabilities.backburner_entry(broken)
+    except capabilities.CapabilityError as exc:
+        if "trigger" not in str(exc):
+            fail("backburner, refusal hop: the refusal does not name "
+                 "trigger: %s" % exc)
+    else:
+        fail("backburner, refusal hop: an entry with an empty trigger was "
+             "accepted; a parked capability with no revisit condition looks "
+             "documented and is functionally deleted")
+
+    # CAP-03's Fixture sentence executed on one named mode rather than in
+    # aggregate, so a reader can check the claim against a specific entry.
+    concept_map = [e for e in catalog if e["mode"] == "concept_map"]
+    if not concept_map:
+        fail("backburner, named hop: concept_map is not in the catalog")
+    entry = concept_map[0]
+    for field in ("shared_primitive", "dependency", "cost", "trigger"):
+        if len((entry.get(field) or "").split()) < 4:
+            fail("backburner, named hop: concept_map's %s is %r, which is "
+                 "too short to name anything a reader could act on"
+                 % (field, entry.get(field)))
+
+    print("scenario backburner_catalog: pass")
+
+
 SCENARIOS = (scenario_thin_slice, scenario_additivity_golden_parse,
              scenario_fourteen_roles, scenario_unknown_semantics,
              scenario_example_order, scenario_capability_profiles,
              scenario_unavailable_renderer, scenario_media_metadata,
              scenario_activity_declarations,
-             scenario_unsupported_response_form)
+             scenario_unsupported_response_form, scenario_output_modes,
+             scenario_backburner_catalog)
 
 
 def main():

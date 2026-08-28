@@ -26,6 +26,13 @@ fallback text applies to an activity whose response form this build does not
 have, and never decides whether a learner may respond, retry, or see a mark.
 That is the runtime's call and this module cannot reach it.
 
+An output-mode record is DERIVED and DISPOSABLE. The canonical Markdown stays
+complete with every composed outline, glossary, rendered page, index, and
+cache deleted, and every string in a composed record can be found in that
+file. That is PORT-01's clause, "derived HTML, index, or cache is never the
+sole understandable copy", and not a convention of this module: a composer
+that invented content would make the view the only place the content existed.
+
 **This module is pure.** It reads no file, writes no file, holds no session
 state, and imports neither `evidence` nor `runtime`. Every public function
 returns a value computed from its arguments and this module's own constants,
@@ -83,6 +90,40 @@ MEDIA_RIGHTS_STATES = identity.RIGHTS_STATES
 # `present` says nothing about whether the asset may be used, and `remote` is
 # not a denial.
 MEDIA_AVAILABILITY = ("present", "missing", "remote")
+
+
+# The two output modes registered in Phase 16A (CAP-03). Both are registered
+# because both already have a shared primitive that ships: the outline's spine
+# is `model.parse_lesson`'s headings list plus, where a course is in play,
+# `graph.outline_projection`; the glossary's spine is `model.parse_terms`,
+# which has shipped since Phase 3.1. Neither gets a private extractor.
+OUTPUT_MODES = ("outline", "glossary")
+
+# The other eight modes CAP-03 names. PARKED, NOT CUT.
+# `PLANNING-DIRECTIVES.md` section 3a: "A capability is not dropped merely
+# because it is optional, expensive, specialized, or absent from the next
+# wave. Simplicity alone is not a rejection reason." Each carries a shared
+# primitive, a dependency, a cost, and a revisit trigger in
+# `backburner_catalog()`, which is CAP-03's Degraded clause and is the route
+# back. An entry with an empty trigger is a deletion wearing a catalog entry's
+# clothes, which is why `backburner_entry` refuses one.
+#
+# Together with OUTPUT_MODES this must equal CAP-03's ten named modes exactly.
+# If a mode fell out of both lists it would vanish with nothing noticing.
+BACKBURNER_MODES = ("notebook_page", "cornell_notes", "concept_map",
+                    "formula_sheet", "timeline", "comparison_table",
+                    "study_guide", "source_extracted_notes")
+
+# The key set every composed output-mode record carries. `derived_from` is the
+# list of source identifiers the record was built from, and it is what makes
+# the record honest about being a view: a reader holding one can always find
+# its way back to the canonical file.
+OUTPUT_MODE_KEYS = ("mode", "title", "entries", "provenance", "derived_from")
+
+# The key set every backburner entry carries, from CAP-03's Degraded clause's
+# own four field names plus the mode.
+BACKBURNER_KEYS = ("mode", "shared_primitive", "dependency", "cost",
+                   "trigger")
 
 
 class CapabilityError(Exception):
@@ -748,3 +789,302 @@ def activity_fallback(activity):
     if form in model.RESPONSE_FORMS:
         return ""
     return (activity.get("static_fallback") or "").strip()
+
+
+def _outline_entry(text, slug, depth):
+    return {"text": text, "slug": slug, "depth": depth}
+
+
+def _graph_outline_entries(graph_doc):
+    """The objective spine `graph.outline_projection` produces, normalized
+    into outline entries.
+
+    `graph` and `model` are imported inside the function, so this module gains
+    no top-level dependency on a Phase 14B module and stays importable on its
+    own.
+
+    The landed `outline_projection(doc)` returns the course as a plain
+    Markdown STRING rather than a list of records, so the normalization here
+    is a read of its heading lines. It computes NO objective ordering of its
+    own: the order is whatever that projection emitted, which is the whole
+    reason this delegates instead of walking the graph. A second outline
+    generator here would be the duplicated-truth pattern CAP-03 rejects.
+    """
+    import re
+
+    import graph
+    import model
+
+    projected = graph.outline_projection(graph_doc)
+    entries = []
+    for line in (projected or "").split("\n"):
+        m = re.match(r"^(#{1,6})\s+(.*\S)\s*$", line)
+        if m is None:
+            continue
+        text = m.group(2)
+        entries.append(_outline_entry(text, model.lesson_slug(text),
+                                      len(m.group(1))))
+    return entries
+
+
+def compose_outline(lesson, graph_doc=None):
+    """The `outline` output mode, composed from one parsed lesson (CAP-03).
+
+    Pure: no file read, no write, no global. Two calls on the same lesson dict
+    return equal dicts.
+
+    `entries` is `lesson["headings"]` in DOCUMENT order, each carrying the
+    heading's own `text` and the `slug` `parse_lesson` already computed. The
+    slug is not recomputed: `parse_lesson` is the one place a heading becomes
+    a slug, and a composer that computed a second one would drift from every
+    anchor and every `[LESSON-REF:]` in the tree. `depth` is `1` for every
+    lesson heading because the shipped grammar has exactly one heading level
+    under `## LESSON`.
+
+    When `graph_doc` is supplied, the objective spine from
+    `graph.outline_projection` is prepended and this function computes no
+    objective ordering of its own.
+
+    Nothing here is authoritative. The record is a view of the canonical
+    Markdown, and `derived_from` names what it is a view of.
+    """
+    if not isinstance(lesson, dict):
+        lesson = {}
+    source = lesson.get("source") or ""
+    entries = []
+    if graph_doc is not None:
+        entries.extend(_graph_outline_entries(graph_doc))
+    for heading in lesson.get("headings") or []:
+        entries.append(_outline_entry(heading.get("text") or "",
+                                      heading.get("slug") or "", 1))
+    derived_from = [source] if source else []
+    if graph_doc is not None:
+        provenance = ("Composed from the lesson headings and the course graph "
+                      "outline projection of %s." % (source or "no source"))
+        course_id = ""
+        if isinstance(graph_doc, dict):
+            header = graph_doc.get("header") or {}
+            course_id = str(header.get("course_id")
+                            or header.get("title") or "")
+        if course_id:
+            derived_from.append(course_id)
+    else:
+        provenance = ("Composed from the lesson headings alone of %s."
+                      % (source or "no source"))
+    return {"mode": "outline",
+            "title": "Outline",
+            "entries": entries,
+            "provenance": provenance,
+            "derived_from": derived_from}
+
+
+def compose_glossary(terms, source=""):
+    """The `glossary` output mode, composed from one parsed `## TERMS`
+    registry (CAP-03).
+
+    Pure, for `compose_outline`'s reasons. `entries` are sorted by slug so the
+    glossary has one stable reading order regardless of authored row order.
+
+    A term is never re-extracted from the lesson body and a slug is never
+    recomputed: `model.parse_terms` is the one term extractor and has been
+    since Phase 3.1.
+
+    `terms` of `None` is a normal lesson with no glossary, not an error, so it
+    returns an empty record rather than raising.
+
+    `source` is optional and names the canonical file the terms came from.
+    `model.parse_terms` does not carry a path in its return, unlike
+    `parse_sources`, `parse_media`, and `parse_activities`, so a caller that
+    wants the provenance sentence to name the file passes it. Omitting it
+    yields a record that is still correct and simply less specific about what
+    it is a view of.
+    """
+    if not isinstance(terms, dict) or not (terms.get("terms") or {}):
+        return {"mode": "glossary",
+                "title": "Glossary",
+                "entries": [],
+                "provenance": ("No ## TERMS registry was present, so this "
+                               "glossary is empty."),
+                "derived_from": []}
+    source = source or terms.get("path") or ""
+    entries = []
+    for slug in sorted(terms["terms"]):
+        record = terms["terms"][slug]
+        entries.append({"term": record.get("canonical") or "",
+                        "slug": slug,
+                        "definition": record.get("def") or ""})
+    return {"mode": "glossary",
+            "title": "Glossary",
+            "entries": entries,
+            "provenance": ("Composed from the ## TERMS registry of %s."
+                           % (source or "the parsed bank")),
+            "derived_from": [source] if source else []}
+
+
+def backburner_entry(entry):
+    """One validated backburner catalog record, as a shallow copy.
+
+    Raises `CapabilityError` naming the offending field when the key set is
+    not exactly `BACKBURNER_KEYS` or when any value is empty after stripping.
+
+    The `trigger` field is the one that gets left empty, which is why all four
+    are refused rather than only the key set: a parked capability with a
+    primitive, a dependency, and a cost but no revisit condition looks
+    documented and is functionally deleted. That is the failure
+    `PLANNING-DIRECTIVES.md` section 3a's append-only rule exists to prevent.
+    """
+    if not isinstance(entry, dict):
+        raise CapabilityError(
+            "a backburner entry must be a dict, got %s"
+            % type(entry).__name__)
+    keys = tuple(sorted(entry))
+    if keys != tuple(sorted(BACKBURNER_KEYS)):
+        raise CapabilityError(
+            "a backburner entry carries exactly the keys %s; got %s"
+            % (", ".join(BACKBURNER_KEYS), ", ".join(keys)))
+    for field in BACKBURNER_KEYS:
+        value = entry[field]
+        if not isinstance(value, str) or not value.strip():
+            raise CapabilityError(
+                "backburner entry %r has an empty %s; a parked capability "
+                "with no %s is a deletion wearing a catalog entry's clothes"
+                % (entry.get("mode"), field, field))
+    return dict(entry)
+
+
+_BACKBURNER_CATALOG = (
+    {"mode": "notebook_page",
+     "shared_primitive": (
+         "The parsed lesson headings list plus the ## ACTIVITIES registry, "
+         "interleaved in document order."),
+     "dependency": (
+         "Phase 16B's reading position, because a notebook page is a place a "
+         "learner returns to and a page with no position is a second copy of "
+         "the reader."),
+     "cost": (
+         "Small once reading position exists: one composer over two schemas "
+         "that already parse, plus a decision about where a learner's own "
+         "note attaches without becoming source truth."),
+     "trigger": (
+         "Register it when Phase 16B has landed a durable reading position "
+         "and the learner-note object has a recorded source of truth.")},
+    {"mode": "cornell_notes",
+     "shared_primitive": (
+         "The lesson headings list for the cue column and the ## TERMS "
+         "registry for the recall column."),
+     "dependency": (
+         "The learner-note durable object, because the summary band is "
+         "learner-authored and must never become lesson truth."),
+     "cost": (
+         "Small as a composer, real as a contract: the layout is three "
+         "regions and the hard part is that one of them is the learner's and "
+         "two are the course's."),
+     "trigger": (
+         "Register it when a learner note has a source of truth and an "
+         "accepted-revision path, so the summary band cannot silently become "
+         "the lesson.")},
+    {"mode": "concept_map",
+     "shared_primitive": (
+         "The course graph's prerequisite and objective edges, "
+         "graph.outline_projection's spine, and the ## TERMS registry's "
+         "see-also links."),
+     "dependency": (
+         "A non-visual equivalent that is genuinely equivalent, not a "
+         "consolation: a map whose only readable form is a picture fails the "
+         "authored-output accessibility gate."),
+     "cost": (
+         "The largest of the eight. Layout, an accessible traversal order, "
+         "and a keyboard path through a graph are three problems, and none "
+         "of them is a composer over an existing schema."),
+     "trigger": (
+         "Register it when Phase 17A has a component foundation and an "
+         "accessible node-and-edge traversal has passed the authored-output "
+         "accessibility review.")},
+    {"mode": "formula_sheet",
+     "shared_primitive": (
+         "The lesson's fenced math blocks, which lesson_fence_languages "
+         "already enumerates, plus the ## TERMS registry for symbol "
+         "definitions."),
+     "dependency": (
+         "A symbol-to-meaning link the format does not currently carry: a "
+         "formula sheet whose symbols are undefined is a picture of "
+         "notation."),
+     "cost": (
+         "Small for the extraction, moderate for the symbol table, because "
+         "the symbol table is authored content that does not exist yet."),
+     "trigger": (
+         "Register it when a lesson can declare what a symbol means in a "
+         "form parse_terms or a successor can read.")},
+    {"mode": "timeline",
+     "shared_primitive": (
+         "The ## SOURCES registry's locators and the visual item type's "
+         "timeline interaction family, which shipped in Phase 999.1."),
+     "dependency": (
+         "A dated-claim field the format does not have. D-16A-7 deferred a "
+         "structured effective_date, so a timeline today would order prose "
+         "by guessing."),
+     "cost": (
+         "Moderate. The rendering primitive exists; the dated, cited claim "
+         "it would render does not."),
+     "trigger": (
+         "Register it when a structured date or effective-period field lands "
+         "with 15B's staleness machinery, which is the phase D-16A-7 names.")},
+    {"mode": "comparison_table",
+     "shared_primitive": (
+         "The shipped table and dnd item types' categories and rows, and the "
+         "## ACTIVITIES registry's comparison purpose."),
+     "dependency": (
+         "None that is missing. It is unregistered because two registered "
+         "modes were enough to prove the composition claim, not because it "
+         "is blocked."),
+     "cost": (
+         "The smallest of the eight: one composer over row and category data "
+         "that already parses, plus a decision about how a table with no "
+         "keyed answer differs from a table item."),
+     "trigger": (
+         "Register it the first time a real lesson needs a comparison a "
+         "reader reads rather than answers, which is the first thing to try "
+         "after Phase 16A freezes.")},
+    {"mode": "study_guide",
+     "shared_primitive": (
+         "Every other mode's output: the outline's spine, the glossary's "
+         "entries, the activity registry's purposes, and the evidence "
+         "store's per-objective record."),
+     "dependency": (
+         "The two registered modes and the retention and evidence readers, "
+         "because a study guide that does not know what the learner has "
+         "already shown is a table of contents with a longer name."),
+     "cost": (
+         "Moderate, and almost all of it is selection policy rather than "
+         "composition: deciding what to leave out is the whole feature."),
+     "trigger": (
+         "Register it when a per-objective evidence read is available to a "
+         "composer and Phase 15A's treatment policy can say what a learner "
+         "should study next.")},
+    {"mode": "source_extracted_notes",
+     "shared_primitive": (
+         "The ## SOURCES registry, the [SRC:] locator directives, and the "
+         "14C source adapter registry's normalized document."),
+     "dependency": (
+         "The quote and transform rights grants, because extracting a note "
+         "from a source is exactly the operation D-16A-8 says 16A declares "
+         "and does not enforce."),
+     "cost": (
+         "Moderate for the extraction, high for the rights path: this is the "
+         "one parked mode whose blocker is authority rather than code."),
+     "trigger": (
+         "Register it when the subphase that owns rights enforcement can "
+         "re-check a quote grant live at the moment of extraction, which is "
+         "the discipline D-16A-8 already names.")},
+)
+
+
+def backburner_catalog():
+    """The eight parked output modes, each validated (CAP-03's Degraded
+    clause).
+
+    Validated on the way out rather than trusted: a catalog entry that lost
+    its trigger in an edit would raise here instead of quietly reading as a
+    documented capability with no route back.
+    """
+    return tuple(backburner_entry(entry) for entry in _BACKBURNER_CATALOG)
