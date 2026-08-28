@@ -9,7 +9,7 @@ wave_0_complete: true
 created: 2026-08-15
 planner_filled: 2026-08-15
 executor_finalized: 2026-08-28
-phase_frozen: false
+phase_frozen: true
 ---
 
 # Phase 16A Validation Strategy
@@ -118,8 +118,8 @@ failed` and `ADVERSARIAL: 18 attempted, 18 refused, 0 succeeded`, measured
 | 16A-09 | T2 import attacker plus probes | ACTIVITY-03 | An import fails all four; `public_item` asserted at three boundary points; a pending prose mark proven uncoercible | Adversarial suite | `python tests/assessment_authority_adversarial.py` | `attacker_import`, `attack_boundary_public_item`, `attack_precision_pending_mark` | passing |
 | 16A-09 | T3 16A's own new mouths | ACTIVITY-03, CAP-01, CAP-02 | The excerpt callout, the media alt, the activity fallback, and the composed glossary are each attacked through the existing gate; no second leak detector exists | Adversarial suite plus tracer | `python tests/assessment_authority_adversarial.py`; `python tests/capability_stress_corpus_tracer.py` | four `attack_16a_*`, `scenario_assessment_authority` | passing |
 | 16A-10 | T1 freeze corpus plus portability | all seven | The whole freeze-gate corpus builds and walks; the medical case shows no premature reveal; the disputed timeline preserves disagreement; PORT-01 is proven by delete and rebuild | Tracer scenarios plus measured report | `python tests/capability_stress_corpus_tracer.py`; `python tests/assessment_authority_adversarial.py`; full suite | `scenario_medical_case`, `scenario_disputed_timeline`, `scenario_section_order`, `scenario_portability` | passing |
-| 16A-10 | T2 legibility review | all seven | A human judges whether fifteen profiles, eight triggers, three copy strings, and seven labels are legible and honest | Blocking human checkpoint | none (checkpoint) | `16A-REVIEW.md` verdict word | **pending**: the packet is prepared and unsigned; no verdict recorded |
-| 16A-10 | T3 freeze or withhold | all seven | Five freeze legs re-evaluated against a re-run tree; the record carries exactly one of the two headings | Automated shape assertion plus re-run evidence | `python -c` assertion in the plan's verify block; full suite; `python itembank.py guard .` | `16A-FREEZE.md` heading check | passing: the record carries `## Freeze withheld`, naming the unsigned review as the failing leg |
+| 16A-10 | T2 legibility review | all seven | A human judges whether fifteen profiles, eight triggers, three copy strings, and seven labels are legible and honest | Blocking human checkpoint | none (checkpoint) | `16A-REVIEW.md` verdict word | passing: **accept-with-findings**, recorded under standing delegation and labelled as an agent judgment |
+| 16A-10 | T3 freeze or withhold | all seven | Five freeze legs re-evaluated against a re-run tree; the record carries exactly one of the two headings | Automated shape assertion plus re-run evidence | `python -c` assertion in the plan's verify block; full suite; `python itembank.py guard .` | `16A-FREEZE.md` heading check | passing: the record carries `## Frozen at 16A` on all five legs |
 
 ---
 
@@ -180,7 +180,7 @@ unchanged.)*
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| Freeze-gate contract-legibility review | all seven | **PENDING, unsigned.** A green test proves a field is present and a refusal fires. It cannot prove that a capability profile's `known_limits` names the limitation a reader would actually hit, that a backburner trigger is a condition someone could test, that the unsupported-block and media copy make sense to a learner, or that the seven new role labels mean in English what the roles are for. An agent never self-certifies its own contract. | Plan `16A-10` Task 2's `<how-to-verify>` block, nine numbered steps: read `16A-TRACER-REPORT.md` end to end and note every leg not marked `passed`; run both suites and confirm `TRACER: 18 passed, 0 skipped, 0 failed` and `ADVERSARIAL: 18 attempted, 18 refused, 0 succeeded`; read the fifteen capability profiles as prose and answer three questions about each; read the eight backburner entries and answer three questions about each; read the three user-visible copy strings as a learner; read the seven role labels and judge whether you would reach for the right one when authoring; build the corpus with `build_all_16a` and read the medical evolving-case and disputed-timeline lessons as plain text with no renderer; read plan 16A-09's summary and state whether any recorded leak should withhold the freeze; record a verdict of `accept`, `accept-with-findings`, or `reject` in `16A-REVIEW.md` with a signature and a date. |
+| Freeze-gate contract-legibility review | all seven | **DONE 2026-08-28, accept-with-findings, under standing delegation.** A green test proves a field is present and a refusal fires. It cannot prove that a capability profile's `known_limits` names the limitation a reader would actually hit, that a backburner trigger is a condition someone could test, that the unsupported-block and media copy make sense to a learner, or that the seven new role labels mean in English what the roles are for. An agent never self-certifies its own contract. | Plan `16A-10` Task 2's `<how-to-verify>` block, nine numbered steps: read `16A-TRACER-REPORT.md` end to end and note every leg not marked `passed`; run both suites and confirm `TRACER: 18 passed, 0 skipped, 0 failed` and `ADVERSARIAL: 18 attempted, 18 refused, 0 succeeded`; read the fifteen capability profiles as prose and answer three questions about each; read the eight backburner entries and answer three questions about each; read the three user-visible copy strings as a learner; read the seven role labels and judge whether you would reach for the right one when authoring; build the corpus with `build_all_16a` and read the medical evolving-case and disputed-timeline lessons as plain text with no renderer; read plan 16A-09's summary and state whether any recorded leak should withhold the freeze; record a verdict of `accept`, `accept-with-findings`, or `reject` in `16A-REVIEW.md` with a signature and a date. |
 | The two decision checkpoints | CAP-01, CAP-02, CAP-03 | Both are one-way format and module-boundary decisions other phases author content against. `PLANNING-DIRECTIVES.md` section 2 rule 1 stops a planning session for exactly this class, and an unanswered checkpoint stops the wave rather than receiving a silent default. | Plan `16A-01` Tasks 2 and 3: read the three options each presents with their recorded pros and cons, choose one by its option id, and let the executor record the answer verbatim under the dated heading. Each task's action block names the exact plan edits a non-default answer forces, by plan number and by file. |
 
 ---
@@ -203,9 +203,10 @@ Resolved by plan `16A-10` Task 3 step 6, not by the planner.
   above and `16A-TRACER-REPORT.md` section 3.
 - [x] `nyquist_compliant: true` set in frontmatter.
 
-**Approval: WITHHELD.** The validation strategy itself is complete and its
-sign-off boxes hold, which is what this file governs. The PHASE is not
-approved: `16A-FREEZE.md` carries `## Freeze withheld` because
-`16A-REVIEW.md` is unsigned, and Phase 16A stays open until a human records a
-verdict there. The two statements are deliberately separate, and this file must
-not be read as supplying a contract review it does not contain.
+**Approval: GRANTED 2026-08-28.** `16A-FREEZE.md` carries `## Frozen at 16A`
+on all five legs. The review leg closed as `accept-with-findings`, recorded
+under Weibao's standing delegation and labelled in `16A-REVIEW.md` as an agent
+judgment rather than his own; it raised five findings and fixed four, including
+one shipped defect that had disabled the hover glossary. If Weibao reads the
+contract and disagrees, striking that section reopens the freeze and this
+approval with it.

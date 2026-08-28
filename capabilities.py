@@ -160,9 +160,10 @@ _CAPABILITY_PROFILES = {
             "key.no_front, an unminted card as key.missing_id, and two cards "
             "sharing an id as key.duplicate_id."),
         "known_limits": (
-            "The Key point label is not translated and carries the lesson's "
-            "document language. Cloze markers blank only in the drill print "
-            "sheet, never in the reader."),
+            "Cloze markers blank only in the drill print sheet, never in "
+            "the reader, so a learner reading on screen sees every answer "
+            "the card was written to hide. The Key point label is not "
+            "translated and carries the lesson's document language."),
     },
     "callout_warning": {
         "name": "callout_warning",
@@ -199,10 +200,11 @@ _CAPABILITY_PROFILES = {
             "model.lint reports an unknown callout kind as "
             "lesson.unknown_semantic."),
         "known_limits": (
-            "The label is not translated; the block carries the lesson's "
-            "document language. The block names a prerequisite in prose and "
-            "is not linked to the course graph's prerequisite edges, so "
-            "nothing checks that the two agree."),
+            "The block names a prerequisite in prose and is not linked to "
+            "the course graph's prerequisite edges, so a lesson can claim a "
+            "prerequisite the graph does not carry and nothing notices. The "
+            "label is not translated and carries the lesson's document "
+            "language."),
     },
     "callout_misconception": {
         "name": "callout_misconception",
@@ -219,10 +221,10 @@ _CAPABILITY_PROFILES = {
             "model.lint reports an unknown callout kind as "
             "lesson.unknown_semantic."),
         "known_limits": (
-            "The Common mistake label is not translated. Nothing links a "
-            "stated misconception to the distractor analysis of any item, so "
-            "a lesson and a bank can describe the same error in two "
-            "unrelated ways."),
+            "Nothing links a stated misconception to the distractor "
+            "analysis of any item, so a lesson and a bank can describe the "
+            "same error in two unrelated ways and drift apart as either is "
+            "edited. The Common mistake label is not translated."),
     },
     "callout_tip": {
         "name": "callout_tip",
@@ -239,9 +241,9 @@ _CAPABILITY_PROFILES = {
             "model.lint reports an unknown callout kind as "
             "lesson.unknown_semantic."),
         "known_limits": (
-            "The Expert tip label is not translated. Nothing distinguishes a "
-            "tip that is a shortcut from a tip that is a safety practice, so "
-            "a reader cannot tell which is optional."),
+            "Nothing distinguishes a tip that is a shortcut from a tip "
+            "that is a safety practice, so a reader cannot tell which one is "
+            "safe to skip. The Expert tip label is not translated."),
     },
     "callout_example": {
         "name": "callout_example",
@@ -279,9 +281,10 @@ _CAPABILITY_PROFILES = {
             "model.lint reports an unknown callout kind as "
             "lesson.unknown_semantic."),
         "known_limits": (
-            "The Counterexample label is not translated. Nothing pairs a "
-            "counterexample with the example it contrasts, so the "
-            "relationship lives only in the author's prose."),
+            "Nothing pairs a counterexample with the example it contrasts, "
+            "so the relationship lives only in the author's prose and an "
+            "edit to either can leave the pair incoherent. The "
+            "Counterexample label is not translated."),
     },
     "callout_excerpt": {
         "name": "callout_excerpt",
@@ -296,8 +299,9 @@ _CAPABILITY_PROFILES = {
         "version": 1,
         "validation": (
             "model.lint reports an unknown callout kind as "
-            "lesson.unknown_semantic; the provenance pass reports an "
-            "unresolvable [SRC:] as prov.src_unknown."),
+            "lesson.unknown_semantic, an unresolvable [SRC:] as "
+            "prov.src_unknown, and an excerpt body reproducing keyed "
+            "material as lesson.authored_key_disclosure."),
         "known_limits": (
             "The callout carries no structural link to a ## SOURCES row, so "
             "an excerpt can name its source in prose while citing nothing "
@@ -1034,17 +1038,19 @@ _BACKBURNER_CATALOG = (
          "The shipped table and dnd item types' categories and rows, and the "
          "## ACTIVITIES registry's comparison purpose."),
      "dependency": (
-         "None that is missing. It is unregistered because two registered "
-         "modes were enough to prove the composition claim, not because it "
-         "is blocked."),
+         "A surface that renders a composed output-mode record. No composed "
+         "mode reaches one today: compose_outline and compose_glossary "
+         "return dicts and nothing displays them, so a third composer would "
+         "have nowhere to appear either."),
      "cost": (
-         "The smallest of the eight: one composer over row and category data "
-         "that already parses, plus a decision about how a table with no "
-         "keyed answer differs from a table item."),
+         "The smallest of the eight to compose: one composer over row and "
+         "category data that already parses, plus a decision about how a "
+         "table with no keyed answer differs from a table item. The surface "
+         "it needs is not its cost and is shared with the other seven."),
      "trigger": (
-         "Register it the first time a real lesson needs a comparison a "
-         "reader reads rather than answers, which is the first thing to try "
-         "after Phase 16A freezes.")},
+         "Register it when Phase 16B lands a surface that renders a composed "
+         "output-mode record, which is the same condition the other seven "
+         "wait on and the first one that will actually be met.")},
     {"mode": "study_guide",
      "shared_primitive": (
          "Every other mode's output: the outline's spine, the glossary's "

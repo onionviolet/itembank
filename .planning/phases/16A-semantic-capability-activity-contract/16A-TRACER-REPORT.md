@@ -147,7 +147,12 @@ path it removes is asserted to be under that root before the removal.
 
 ## 5. Open findings
 
-### From plan 16A-09's adversarial suite
+### From plan 16A-09's adversarial suite: ALL THREE RESOLVED 2026-08-28
+
+The three findings below were recorded as open when this report was first
+written. They were resolved the same day, before the freeze, rather than
+carried into it. The original text is kept for trace; the resolution follows
+each.
 
 - **F1. `runtime.glossable` is extremely over-strict for multiple-choice
   items.** `runtime.canonical_key` for an `mc` item returns the bare correct
@@ -157,22 +162,33 @@ path it removes is asserted to be under that root before the removal.
   letter, documented in place. The fix is a runtime decision, not a patch:
   either `canonical_key`'s single-letter output should not be a substring
   fragment, or `glossable` should match option letters on a token boundary.
-  **Owner: whichever phase next touches disclosure.**
+  **RESOLVED.** Fixed in `runtime.glossable`: fragments match on word
+  boundaries, and a single-character fragment discloses only when it appears
+  as a capital naming a letter rather than as an article. This was a shipped
+  defect, not a 16A regression: it had turned the hover glossary off in any
+  bank with a multiple-choice item, killing the feature the 2026-08-20 vision
+  entry asks for by name. Regression assertions added, including the admit
+  cases, which are what was missing.
 - **F2. `glossable`'s verdict has no consumer for the three new mouths.** The
   media `alt`, the activity `static_fallback`, and the `[!EXCERPT]` body are
   all classified as keyed material by the gate, and nothing reads that
   classification before rendering them. Adding a consumer would be inventing
-  runtime enforcement Phase 16A is out of scope for. **Owner: whichever phase
-  first gates authored text inside a sitting.**
+  runtime enforcement Phase 16A is out of scope for. **RESOLVED, and the finding itself was partly wrong.** The excerpt rationale
+  was classified as keyed only by the F1 bug. `glossable`'s fragment set is
+  now derived from the fields `public_item` WITHHOLDS, which adds the authored
+  rationale block, so the two gates agree by construction.
 - **F3. An `[!EXCERPT]` publishes what it quotes.** A lesson page is authored
   reading material and is not gated on a response, so an author who quotes
   their own rationale into an excerpt has published it. Whether the linter
   should warn on an excerpt body matching an item's rationale is a real option,
-  recorded rather than built. **Owner: authoring guidance, or a later lint
-  plan.**
+  recorded rather than built. **RESOLVED.** `lesson.authored_key_disclosure` warns the author, naming the
+  surface and quoting the text, for an excerpt body, a media alt, or an
+  activity static fallback that reproduces keyed material. A warning at
+  authoring time, not a render-time suppression.
 
-**None of the three is an attack that succeeded.** All eighteen attacks were
-refused. These are things the suite learned by attacking honestly.
+**None of the three was an attack that succeeded.** All eighteen attacks were
+refused. These were things the suite learned by attacking honestly, and all
+three are now fixed rather than deferred.
 
 ### Deferred by decision
 
