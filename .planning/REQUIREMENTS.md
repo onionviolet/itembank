@@ -1303,10 +1303,10 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | LEARNUI-02 | Phase 16 | Superseded 2026-08-13 -> CAP-01, FLOW-02 |
 | LEARNUI-03 | Phase 16 | Superseded 2026-08-13 -> CAP-01, CAP-02 |
 | LEARNUI-04 | Phase 16 | Superseded 2026-08-13 -> FLOW-01, A11Y-01, VISUAL-01 |
-| GRAPH-01 | Phase 14B | Pending |
-| GRAPH-02 | Phase 14B | Pending |
+| GRAPH-01 | Phase 14B | Complete |
+| GRAPH-02 | Phase 14B | Complete |
 | GRAPH-03 | Phase 16C | Pending |
-| GRAPH-04 | Phase 14B | Pending |
+| GRAPH-04 | Phase 14B | Complete |
 | FILE-01 | Phase 14A | Complete |
 | FILE-02 | Phase 14A | Complete |
 | FILE-03 | Phase 14A | Complete |
@@ -1334,7 +1334,7 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | A11Y-02 | Phase 16A | Pending |
 | PORT-01 | Phase 16A | Pending |
 | PORT-02 | Phase 17B | Pending |
-| PORT-03 | Phase 14B | Pending |
+| PORT-03 | Phase 14B | Complete |
 | RELIABILITY-01 | Phase 14A | Complete |
 | RELIABILITY-02 | Phase 15A | Pending |
 | RELIABILITY-03 | Phase 15B | Pending |

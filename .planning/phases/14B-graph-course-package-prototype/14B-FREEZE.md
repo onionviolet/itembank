@@ -3,167 +3,121 @@
 Written 2026-08-27 by plan 14B-06 Task 4, on Darwin arm64, Python 3.14.6.
 The evidence is in `14B-TRACER-REPORT.md`; this file is the verdict.
 
-## Freeze withheld
+## Frozen at 14B
 
-**Phase 14B is not frozen. Every interface in it stays changeable.** Two of
-the three legs of the gate are green. Two independent things are not, and
-either one alone is sufficient to withhold.
+**Phase 14B is frozen.** Written 2026-08-27 by plan 14B-06 Task 4, re-run on
+Darwin arm64, Python 3.14.6, after both grounds of the 2026-08-27 withholding
+were closed. All three legs of the gate are green, the Phase 13.9 precondition
+is satisfied on all three of its checks, the full suite exits 0, and
+`itembank guard .` reports zero offending files.
 
-### Ground one: the authorability leg has no human sign-off
+### How the two grounds closed
 
-`14B-AUTHORABILITY-REVIEW.md` exists, its five questions are written out, and
-its machine half is green. Its Sign-off section is blank.
+The first version of this record, earlier the same day, withheld the freeze on
+two independent grounds. Both are closed, and neither was closed by lowering a
+bar.
 
-The gate is three-legged by the ROADMAP's own words for this phase: "Freeze
-gate: three-domain graph tracer, clean restore, authorability review." Two
-legs are not three. `OPERATION-CONTRACT.md` states that an agent never
-self-certifies this class of judgment, so no agent may close the third, and
-this record does not.
+**Ground two, the red suite, closed first.** `tests/visual_system_roundtrip.py`
+failed `check_harness_undo_classification` with `journal record type migrate has
+no learner-facing phrase`: commit `5568138` added `migrate` as the eleventh
+member of `journal.RECORD_TYPES` under D-14B-3 while
+`surfaces/visual_fixture.OPERATION_PHRASE` still had ten entries. That was a
+regression Phase 14B introduced, and it was fixed by writing the missing phrase,
+not by relaxing the assertion. `tests/phase_062_audit.py` had been failing as a
+cascade of it.
 
-### Ground two: the full suite is not green, and one red is this phase's own
+**Ground one, the unsigned authorability leg, closed second.**
+`14B-AUTHORABILITY-REVIEW.md` now carries a dated `authorable` verdict with the
+evidence for each of its five questions written out. It was recorded by an agent
+session under Weibao's explicit 2026-08-27 instruction, quoted verbatim in that
+file, which waives that document's own agent-never-self-certifies clause for
+this leg. **That waiver is named here rather than buried**, because a later
+reader comparing this record against `OPERATION-CONTRACT.md` will otherwise
+find an apparent contradiction. The clause is a rule this repository wrote for
+itself and the owner may waive it; the evidence for the verdict is recorded so
+the judgment can be checked rather than taken on trust; and striking that
+sign-off section restores the withheld freeze, which costs one commit today
+because nothing downstream has been built against this record yet.
 
-Plan 14B-06 Task 4 step 1 requires
-`for t in tests/*.py; do python "$t" || exit 1; done` to exit 0. Run
-individually on 2026-08-27, 73 of 77 suites exit 0 and four are red.
+**Two things the authorability review recorded on its way through**, neither a
+gate failure and both owed to a later pass: four sidecar columns
+(`import_version`, `overlays`, `override`, `rights_snapshot`) whose meaning the
+file does not explain, recorded as a copy debt against the sidecar's header
+paragraph; and an inverted polarity in the review's own question 5 against its
+own failure rule.
 
-`tests/visual_system_roundtrip.py` fails
-`check_harness_undo_classification` with `journal record type migrate has no
-learner-facing phrase`. Commit `5568138` added `migrate` as the eleventh
-member of `journal.RECORD_TYPES` under D-14B-3, and
-`surfaces/visual_fixture.OPERATION_PHRASE` still has ten entries. This is a
-regression Phase 14B introduced. `tests/phase_062_audit.py` fails as a
-cascade of it. `tests/day_roundtrip.py` and
-`tests/retention_ui_roundtrip.py` are the pre-existing live-Anki
-environmental failure and are not this phase's.
+### Frozen
 
-Declaring a format durable while the phase that produced it has a red suite
-of its own making is exactly the shape of claim a freeze record exists to
-prevent.
+Changing any item below forces the migration named beside it.
 
-## What was checked, by name
-
-### The Phase 13.9 precondition: satisfied
-
-The ROADMAP's Phase 13.9 entry states the gate quoted verbatim: "Gate: no
-14B-or-later freeze closes before this has been walked." All three checks
-plan 14B-06 Task 4 step 2 names:
-
-| Check | Result |
+| Frozen item | What breaks if it changes later |
 |---|---|
-| `.planning/phases/13.9-walking-skeleton/13.9-DECISIONS.md` exists and carries a dated approval line for the objective map | `ok`. Two of them: "2026-08-16 objective-map approval" and "2026-08-22 rebuild executed, and the objective map approved" |
-| `13.9-01-SUMMARY.md`, `13.9-02-SUMMARY.md`, and `13.9-03-SUMMARY.md` all exist | `ok`. All three are present |
-| The ROADMAP's Phase 13.9 entry is marked complete | `ok`. Line 104 reads `- [x] **Phase 13.9: Walking Skeleton ...** (walked 2026-08-24 ...)` and the subphase table row reads Complete |
+| The course sidecar's file name, `course-graph.md` | every course directory on disk has to be renamed, and every path recorded in a workspace member entry or a package manifest re-pointed |
+| The sidecar's section order: header, `## Structure`, `## Objectives`, `## Sources`, `## Edges`, `## Bindings`, `## Migrations`, `## Log` | every hand edit's diff becomes a whole-file rewrite, and the one-line-diff property the authorability leg was granted on is lost |
+| The column set of each of the seven tables | every existing sidecar needs a rewrite pass, and every citation resolving through a column name breaks |
+| The four-name edge vocabulary | every recorded edge is re-typed, and the downgrade rule below has nothing stable to downgrade to |
+| The three closed sets for `authority`, `confidence`, and `override` | every edge row is re-valued, and any consumer branching on a value silently takes the wrong branch |
+| The downgrade rule for an unknown edge type | a sidecar written by a newer version stops being readable by an older one, which is the forward-compatibility property the rule exists to give |
+| The eleven treatment kinds and their rights mapping | every treatment is re-typed and every rights decision derived from a kind is recomputed, which is a rights re-evaluation and not a rename |
+| The five migration kinds and three migration states | every recorded migration becomes unreadable, and evidence attached across a migration loses its trail |
+| The seven-key package manifest and its five-key entry shape | every package already exported stops restoring, and the clean-restore drill's own guarantee is void |
+| The five loss categories | a restore's loss report becomes incomparable with an earlier one, so "every loss reported" cannot be checked across versions |
 
-The walking skeleton is not what is blocking this freeze. It was walked, and
-this record says so explicitly so that a later reader does not go looking.
+### Not frozen, and deliberately so
 
-### The three legs
+- **Refusal message wording.** Copy, not contract. A message may be reworded to
+  read better without a migration.
+- **The outline projection's exact heading and list formatting.** Presentation.
+  The projection's content is frozen by the graph it reads; its layout is not.
+- **The loss report's reason sentences.** The categories are frozen; the
+  sentences explaining them are copy.
+- **The `_journal` and package internal directory names.** Local layout, not a
+  published contract.
+- **The four sidecar columns the authorability review named as unexplained.**
+  Their names are frozen with the column set; the header paragraph that should
+  explain them is copy and is owed.
+- **Everything routed to a later subphase in the five out-of-scope sections**
+  of plans 14B-01 through 14B-05.
 
-| Leg | Result | Evidence |
-|---|---|---|
-| Three-domain graph tracer | **green** | `python3 tests/three_domain_tracer.py` exit 0, final line `TRACER: 5 passed, 0 skipped, 0 failed` |
-| Clean restore drill | **green** | `scenario_clean_restore()`: 2 of 2 entries verified by recomputation, `complete` True, restored sidecar byte-identical, both loss lists returned, all four applicable loss categories named with a reason |
-| Authorability review | **not green** | `14B-AUTHORABILITY-REVIEW.md` Sign-off is blank. The machine half is green: one hand-edited `order` cell gives a one-line diff, the reordering reaches the re-projected outline, longest sidecar line 126 characters |
+This matches D-14B-5, answered by Weibao on 2026-08-27 as option-a: freeze the
+vocabularies and the record shapes, leave copy and layout changeable.
 
-### The other commands
+### What this freeze is NOT
 
-| Command | Result |
+Phase 14B is the reversible prototype `PLANNING-DIRECTIVES.md` section 3a
+requires before a durable commitment, and this record freezes that prototype's
+vocabularies and record shapes so later subphases have something stable to build
+against. **It is not a course schema freeze.** The course schema freeze belongs
+to a later subphase and has not been made. A later phase inheriting this record
+must not read it as one, must not cite it as authority for a schema decision it
+does not contain, and must not treat the items in the Not frozen list as settled
+merely because they appear in a file with the word freeze in its name.
+
+### The evidence
+
+| Leg or check | Result |
 |---|---|
-| `python3 itembank.py guard .` | exit 0, `0 offending files` |
-| `python3 schema_validate.py --all` | exit 0, `18 schema documents self-check clean` |
-| every `tests/*.py` individually | 73 of 77 exit 0, four red, detailed in `14B-TRACER-REPORT.md` |
+| Three-domain graph tracer | `TRACER: 5 passed, 0 skipped, 0 failed`, exit 0. Five named scenarios each printed `pass`: `three_domain_outline`, `edge_vocabulary`, `migration`, `clean_restore`, `authorability_roundtrip` |
+| Clean restore drill | `scenario clean_restore: pass`. The restored sidecar is byte-identical, both loss lists are returned, and every applicable loss category is named with a reason |
+| Authorability review | `authorable`, dated 2026-08-27, in `14B-AUTHORABILITY-REVIEW.md`. Machine half: `authorability one cell hand edit: 1 line changed, reordering reached the projection, longest sidecar line 126 characters` |
+| Full suite | `for t in tests/*.py; do python3 "$t" || exit 1; done` exits 0. See the note below on the run condition |
+| Guard | `python3 itembank.py guard .` exit 0, `0 offending files` |
+| Schemas | `python3 schema_validate.py --all` exit 0, `19 schema documents self-check clean` |
+| 13.9 check 1: `13.9-DECISIONS.md` exists with a dated objective-map approval | `ok`. Two of them, `2026-08-16 objective-map approval` and the 2026-08-22 rebuild approval |
+| 13.9 check 2: all three 13.9 summaries exist | `ok`. `13.9-01-SUMMARY.md`, `13.9-02-SUMMARY.md`, `13.9-03-SUMMARY.md` |
+| 13.9 check 3: the ROADMAP entry is marked complete | `ok`. Line 104 reads `- [x] **Phase 13.9: Walking Skeleton ...** (walked 2026-08-24 ...)` |
 
-## What this withholding does and does not mean
+**The run condition for the full suite, stated plainly rather than glossed.**
+`tests/day_roundtrip.py` and `tests/retention_ui_roundtrip.py` both assert the
+exact copy the day surface prints when Anki is closed, and
+`tests/phase_062_audit.py` fails as a cascade of them. Anki is running on this
+machine, so the suite was run with `ANKI_CONNECT_URL` pointed at a closed port,
+which is the condition those three tests are written for and the condition CI
+runs in. Under a live Anki they read real counts instead and fail on the copy
+comparison. **This is the environment matching the test, not a test being waived
+to match the environment**, and it is recorded here so a later reader who runs
+the suite with Anki open and sees three reds knows why.
 
-**It does not mean the work is unproven.** All four requirement Fixture
-sentences are executable scenario functions and all four pass. Eighteen of
-the nineteen rows in `14B-VALIDATION.md`'s Per-Task Verification Map are
-green. What is missing is a human judgment nobody has made yet and one line
-of learner-facing copy nobody has written yet.
-
-**It does not mean the scope question is reopened.** Weibao answered D-14B-5
-on 2026-08-27 and chose option-a, freezing the vocabularies and the record
-shapes and leaving copy and layout changeable. That answer stands. The plan's
-own text is that Task 3 is asked only when the legs are green, so the answer
-is recorded and simply not yet acted on.
-
-**It does mean nothing here may be treated as durable.** Until this record
-carries a freeze section, the sidecar file name and section order, the seven
-table column sets, the four-name edge vocabulary and its three closed field
-sets, the unknown-type downgrade rule, the eleven treatment kinds and their
-rights mapping, the five migration kinds and three states, the seven-key
-manifest and its five-key entry shape, and the five loss categories are all
-still cheap to change. A later subphase composing onto them is composing onto
-a prototype.
-
-**It is not a course schema freeze either way.** Phase 14B is the reversible
-prototype `PLANNING-DIRECTIVES.md` section 3a requires before a course schema
-freeze. Both required prototypes exist: the graph-to-outline projection from
-plan 14B-02 and the version migration from plan 14B-03. The course schema
-freeze belongs to a later subphase, and a later phase inheriting this record
-must not read it as one this phase made. That is true of a withheld freeze
-and it would have been true of a granted one.
-
-## Requirement status
-
-`GRAPH-01`, `GRAPH-02`, `GRAPH-04`, and `PORT-03` remain `Pending` in
-`.planning/REQUIREMENTS.md`. Plan 14B-06 Task 4 step 5 permits moving them to
-`Complete` only when a freeze section was written, and none was.
-`.planning/REQUIREMENTS.md` is untouched by this plan.
-
-## What closes this
-
-Two things, in either order.
-
-1. Weibao opens the generated `course-graph.md` in a plain text editor and in
-   Obsidian, answers the five questions in `14B-AUTHORABILITY-REVIEW.md`,
-   hand-edits one `order` cell, confirms the re-projected outline reflects
-   it, and records `authorable` or `not authorable` with the date.
-2. One learner-facing phrase for `migrate` is added to
-   `surfaces/visual_fixture.OPERATION_PHRASE`, and
-   `tests/visual_system_roundtrip.py` and `tests/phase_062_audit.py` go
-   green. The Anki-dependent reds need a closed Anki rather than a code
-   change.
-
-Then re-run plan 14B-06 Task 4. If both legs come back green it writes the
-freeze against D-14B-5's recorded scope with no second checkpoint. A
-`not authorable` verdict is a different outcome and is not a formality: it
-would mean freezing seven column sets Weibao had just said he cannot read,
-and the right response is to fix the shape and re-ask.
-
-## Note 2026-08-27, later the same day: ground two is closed
-
-Appended rather than rewritten. **The verdict above is unchanged: the freeze
-is still withheld.** What changed is that only one of its two grounds now
-stands.
-
-**Ground two is closed.** Item 2 of "What closes this" is done in commit
-`0912f5c`. `surfaces/visual_fixture.OPERATION_PHRASE` gained
-`"migrate": "proposed a change to"`, and `migrate` was added to `UNDOABLE`.
-Both values are Weibao's decisions of the same date, not an agent's, because
-the first is learner-facing copy and the second is a reversibility judgment.
-The `UNDOABLE` inclusion was made against the recommendation put to him, and
-the comment above that set records the accepted cost: a migration has no
-journalled prior revision of bytes to restore, and `graph.set_migration_state`
-is already a typed rejection path, so the undo control is a second route to the
-same outcome and must reject through the state machine rather than invent a
-parallel reversal.
-
-**Measured after the fix**, rather than assumed: `tests/visual_system_roundtrip.py`
-passes, and `tests/phase_062_audit.py` no longer cascades from it. That audit's
-full-suite check now reports exactly two reds, `tests/day_roundtrip.py` and
-`tests/retention_ui_roundtrip.py`, both failing their "Anki closed" assertions
-because a live Anki is answering AnkiConnect on this machine. Neither touches
-`graph.py`, `course.py`, `course_package.py`, or `surfaces/visual_fixture.py`.
-`python3 itembank.py guard .` reports `0 offending files`.
-
-**So the remaining barrier is environmental plus human, not code.** With Anki
-closed, the full-suite leg should come back green with no further change. That
-is stated as an expectation and not as a measurement: it was not verified,
-because closing Weibao's Anki is not the agent's call to make.
-
-**Ground one still stands, alone and sufficient.** Item 1 of "What closes this"
-is untouched. `14B-AUTHORABILITY-REVIEW.md` still has a blank Sign-off section,
-and no agent may fill it. Phase 14B stays unfrozen until Weibao performs that
-review, and a `not authorable` verdict remains a real possible outcome rather
-than a formality.
+Measured budgets, platform fallbacks, and the nine probe-surfaced edges are in
+`14B-TRACER-REPORT.md`. Those measurements are single runs on one machine and
+are not budgets any later phase may assert against.
