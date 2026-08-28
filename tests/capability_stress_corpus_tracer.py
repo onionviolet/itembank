@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.join(ROOT, "fixtures"))
 import capabilities                                          # noqa: E402
 import identity                                              # noqa: E402
 import model                                                 # noqa: E402
+import runtime                                               # noqa: E402
 import schema_validate                                       # noqa: E402
 import lesson_capability_corpus                              # noqa: E402
 from surfaces import lesson                                  # noqa: E402
@@ -615,10 +616,167 @@ def scenario_media_metadata():
     print("scenario media_metadata: pass")
 
 
+def scenario_activity_declarations():
+    """ACTIVITY-01's ten purposes over the eight shipped response forms, with
+    every one of the ten declared fields filled on every row."""
+    workdir = tempfile.mkdtemp(prefix="cap-tracer-activity-")
+    path = lesson_capability_corpus.build_activity_set(workdir)
+    parsed = model.parse_activities(path)
+
+    if parsed is None:
+        fail("activities, parse hop: parse_activities returned None for a "
+             "bank carrying a ## ACTIVITIES registry")
+    if len(parsed["activities"]) != 11 or len(parsed["order"]) != 11:
+        fail("activities, parse hop: %d activities and %d order entries, "
+             "expected 11 of each"
+             % (len(parsed["activities"]), len(parsed["order"])))
+    if parsed["duplicates"]:
+        fail("activities, parse hop: %r reported as duplicates"
+             % parsed["duplicates"])
+    if parsed["empty"]:
+        fail("activities, parse hop: a registry with eleven rows reported "
+             "empty")
+
+    if tuple(parsed["order"]) \
+            != lesson_capability_corpus.ACTIVITY_SET_ORDER:
+        fail("activities, ordering hop: order is %r but the fixture declares "
+             "%r; the registry is document order and is never sorted"
+             % (parsed["order"],
+                list(lesson_capability_corpus.ACTIVITY_SET_ORDER)))
+
+    for item, activity in parsed["activities"].items():
+        if tuple(sorted(activity)) != tuple(sorted(model.ACTIVITY_COLUMNS)):
+            fail("activities, parse hop: %r carries the key set %s, expected "
+                 "exactly ACTIVITY_COLUMNS" % (item, sorted(activity)))
+        for column in model.ACTIVITY_COLUMNS:
+            if not (activity.get(column) or "").strip():
+                fail("activities, completeness hop: %r declares nothing in "
+                     "the %s column; a declaration that says nothing is "
+                     "worse than none" % (item, column))
+
+    unsupported = lesson_capability_corpus.UNSUPPORTED_ACTIVITY_ITEM
+    purposes = [a["purpose"] for item, a in parsed["activities"].items()
+                if item != unsupported]
+    if sorted(purposes) != sorted(model.ACTIVITY_PURPOSES):
+        fail("activities, coverage hop: the ten supported rows declare %r, "
+             "expected each of the ten ACTIVITY_PURPOSES exactly once"
+             % sorted(purposes))
+
+    forms = {a["response_schema"] for item, a in parsed["activities"].items()
+             if item != unsupported}
+    if forms != set(model.RESPONSE_FORMS):
+        missing = sorted(set(model.RESPONSE_FORMS) - forms)
+        fail("activities, coverage hop: the supported rows use %r, so %r is "
+             "demonstrated by nothing; ACTIVITY-01's claim is that the "
+             "existing forms serve the purposes"
+             % (sorted(forms), missing))
+
+    errors, warnings = model.lint(model.load(path),
+                                  lesson=model.parse_lesson(path),
+                                  activities=parsed)
+    codes = [e.code for e in errors] + [w.code for w in warnings]
+    activity_codes = sorted(c for c in codes if c.startswith("activity."))
+    if activity_codes != ["activity.unsupported_response_form"]:
+        fail("activities, lint hop: activity findings are %r, expected "
+             "exactly one activity.unsupported_response_form"
+             % activity_codes)
+    if not any(lesson_capability_corpus.UNSUPPORTED_ACTIVITY_FORM in str(w)
+               for w in warnings):
+        fail("activities, lint hop: the unsupported-form warning does not "
+             "name the declared form")
+
+    if model.parse_activities(path) != parsed:
+        fail("activities, idempotency hop: two parse_activities calls on an "
+             "unchanged file returned different dicts")
+
+    print("scenario activity_declarations: pass")
+
+
+def scenario_unsupported_response_form():
+    """ACTIVITY-01's Degraded clause on a real surface, and the proof that a
+    declaration is a description and never an authority."""
+    workdir = tempfile.mkdtemp(prefix="cap-tracer-fallback-")
+    path = lesson_capability_corpus.build_activity_set(workdir)
+    parsed = model.parse_activities(path)
+    qs = model.load(path)
+    lesson_data = model.parse_lesson(path)
+    fallback = lesson_capability_corpus.UNSUPPORTED_ACTIVITY_FALLBACK
+
+    page = lesson.lesson_page(path, qs, lesson_data, activities=parsed)
+    if fallback not in page:
+        fail("unsupported form, render hop: the declared static equivalent "
+             "did not reach the page, so ACTIVITY-01's Degraded clause is "
+             "documented and not implemented")
+
+    bare = lesson.lesson_page(path, qs, lesson_data)
+    if fallback in bare:
+        fail("unsupported form, render hop: the fallback text appeared with "
+             "no activity registry supplied, so it is not sourced from the "
+             "declaration")
+
+    # No ninth type was minted. Every item in a bank that declares ten
+    # purposes is still one of the eight shipped forms.
+    types = {q["type"] for q in qs}
+    if not types <= set(model.RESPONSE_FORMS):
+        fail("unsupported form, type hop: the bank carries item types %r, "
+             "which are not all shipped response forms; a ninth type was "
+             "minted" % sorted(types - set(model.RESPONSE_FORMS)))
+
+    # The declaration-is-not-authority proof. Rewrite every feedback cell to
+    # withheld_until_submit and every evidence cell to not_recorded, and
+    # require both the rendered page and runtime.public_item to be unchanged.
+    # A declared policy that moved either would be a second authority, and
+    # this is the assertion that goes red the day one appears.
+    rewritten_dir = tempfile.mkdtemp(prefix="cap-tracer-fallback-rewritten-")
+    rewritten_path = os.path.join(rewritten_dir, os.path.basename(path))
+    source = open(path, encoding="utf-8").read()
+    lines = []
+    for line in source.split("\n"):
+        cells = line.split(" | ")
+        if len(cells) == len(model.ACTIVITY_COLUMNS):
+            cells[model.ACTIVITY_COLUMNS.index("feedback")] = \
+                "withheld_until_submit"
+            cells[model.ACTIVITY_COLUMNS.index("evidence")] = "not_recorded"
+            line = " | ".join(cells)
+        lines.append(line)
+    with open(rewritten_path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write("\n".join(lines))
+
+    rewritten = model.parse_activities(rewritten_path)
+    states = {a["feedback"] for a in rewritten["activities"].values()}
+    if states != {"withheld_until_submit"}:
+        fail("unsupported form, authority hop: the feedback rewrite did not "
+             "take, so the assertion below would prove nothing")
+
+    rewritten_qs = model.load(rewritten_path)
+    rewritten_page = lesson.lesson_page(
+        rewritten_path, rewritten_qs, model.parse_lesson(rewritten_path),
+        activities=rewritten)
+    if rewritten_page.replace(os.path.basename(rewritten_path),
+                              os.path.basename(path)) != page:
+        fail("unsupported form, authority hop: rewriting every feedback and "
+             "evidence cell changed the rendered page, so a declared policy "
+             "has become a second authority over what a learner sees")
+
+    for index, question in enumerate(qs):
+        before = runtime.public_item(question)
+        after = runtime.public_item(rewritten_qs[index])
+        if before != after:
+            fail("unsupported form, authority hop: runtime.public_item "
+                 "returned a different payload for item %s after the "
+                 "feedback and evidence columns were rewritten, so a "
+                 "declaration is deciding disclosure"
+                 % question.get("id"))
+
+    print("scenario unsupported_response_form: pass")
+
+
 SCENARIOS = (scenario_thin_slice, scenario_additivity_golden_parse,
              scenario_fourteen_roles, scenario_unknown_semantics,
              scenario_example_order, scenario_capability_profiles,
-             scenario_unavailable_renderer, scenario_media_metadata)
+             scenario_unavailable_renderer, scenario_media_metadata,
+             scenario_activity_declarations,
+             scenario_unsupported_response_form)
 
 
 def main():

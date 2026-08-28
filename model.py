@@ -1006,6 +1006,82 @@ def parse_media(bank_path):
             "path": bank_path}
 
 
+def parse_activities(bank_path):
+    """An independent read over the bank file for activities: the
+    `## ACTIVITIES` registry (ACTIVITY-01, plan 16A-06). Never called from
+    inside `load()` or `parse_bank()`, and it changes neither's return shape,
+    exactly as `parse_sources`, `parse_terms`, and `parse_media` are not.
+
+    The registry lives in the bank preamble, above the first question, under
+    the same boundary rule as `## LESSON`, `## TERMS`, `## SOURCES`, and
+    `## MEDIA`: this function calls `_preamble_section` and compiles no
+    section regex of its own.
+
+    One pipe row per activity, positional against `ACTIVITY_COLUMNS`: the
+    first cell is the item id and the remaining ten map onto ACTIVITY-01's ten
+    declared fields. A row with fewer cells fills the rest with the empty
+    string rather than raising, so a malformed row is lint's problem and never
+    a parse failure, and this function raises on no input at all.
+
+    Returns `None` when the bank carries no `## ACTIVITIES` section;
+    otherwise a dict with exactly:
+      `activities` -- item id -> a dict carrying exactly `ACTIVITY_COLUMNS`
+      `order`      -- item ids in DOCUMENT order. Never sorted: two
+          activities declaring the same purpose keep the order their author
+          wrote them in, because the order is authored information
+      `duplicates` -- item ids declared more than once, in first-seen order
+      `empty`      -- True when the section exists and carries no data row,
+          mirroring `parse_terms`'s own `empty` key
+      `path`       -- the bank path as given, so lint findings name the file
+
+    **A declaration is metadata beside an item and grants no scoring path.**
+    The `feedback`, `retry`, and `evidence` columns describe what the runtime
+    already does in a given mode; nothing in Phase 16A reads them to decide
+    anything. `runtime.score_response`, `runtime.public_item`, and
+    `evidence.append_event` remain the only things that decide.
+
+    Pure: it opens the file for reading only, holds no cache and no
+    module-level state, and writes nothing. Two calls on an unchanged file
+    return equal dicts.
+    """
+    text = open(bank_path, encoding="utf-8").read()
+    preamble = []
+    for ch in re.split(r"(?m)^(?=Q\d+\.)", text):
+        if re.match(r"Q\d+\.", ch.strip()) and parse_question(ch) is not None:
+            break
+        preamble.append(ch)
+    head = "".join(preamble)
+
+    block = _preamble_section(head, "ACTIVITIES")
+    if block is None:
+        return None
+
+    activities = {}
+    order = []
+    duplicates = []
+    for line in block.splitlines():
+        if not line.strip():
+            continue
+        cells, is_sep = _terms_row_cells(line)
+        if is_sep or not cells or not cells[0]:
+            continue
+        item = cells[0]
+        if item in activities:
+            duplicates.append(item)
+            continue
+        row = {"item": item}
+        for offset, column in enumerate(ACTIVITY_COLUMNS[1:]):
+            index = offset + 1
+            row[column] = (cells[index].strip()
+                           if index < len(cells) else "")
+        activities[item] = row
+        order.append(item)
+
+    return {"activities": activities, "order": order,
+            "duplicates": duplicates, "empty": not activities,
+            "path": bank_path}
+
+
 def coverage_map(bank_path):
     """The objective coverage map, computed on demand and never stored (D-12,
     plan 03.2-02): objective -> sorted item tags, built from every item's
@@ -2289,6 +2365,31 @@ VISUAL LINT CODES
                                       outside present|missing|remote
   media.ref_unknown         error     [MEDIA: <id>] names no id in the
                                       ## MEDIA registry
+  activity.duplicate_item   error     a ## ACTIVITIES item id is declared more
+                                      than once (ACTIVITY-01)
+  activity.empty_block      warning   ## ACTIVITIES carries a header row and no
+                                      declarations
+  activity.item_unknown     error     a ## ACTIVITIES row names no item in this
+                                      bank
+  activity.unknown_purpose  error     a purpose outside the ten declared
+                                      purposes
+  activity.demand_empty     error     the free-prose cognitive demand column is
+                                      empty
+  activity.unknown_retry    error     a retry value outside none|unlimited|
+                                      until_correct|mode_controlled
+  activity.unknown_feedback error     a feedback value outside the five
+                                      declared policies
+  activity.unknown_evidence_state
+                            error     an evidence state the store cannot
+                                      produce
+  activity.missing_static_fallback
+                            error     no static fallback, which an unsupported
+                                      response form falls back to
+  activity.missing_a11y_equivalent
+                            error     no accessibility equivalence
+  activity.unsupported_response_form
+                            warning   a response form outside the eight shipped
+                                      types; the activity falls back
 """)
 
 # The Phase 6.2 gate grammar (06.2-CONTEXT D-02): one [GATE:] directive in
@@ -2313,6 +2414,52 @@ GATE_VALUES = ("required", "recommended", "off")
 # exists to prevent.
 MEDIA_COLUMNS = ("id", "path", "credit", "alt", "rights", "derivation",
                  "availability", "integrity")
+
+
+# The `## ACTIVITIES` registry's fixed column order (ACTIVITY-01, plan
+# 16A-06). Eleven columns: `item` prepended as the key, then ACTIVITY-01's own
+# ten fields in the order its sentence names them. The order is this plan's
+# choice, recorded in `16A-06-SUMMARY.md`, and the rows are positional, so
+# reordering after a bank declares an activity is a content migration.
+ACTIVITY_COLUMNS = ("item", "purpose", "demand", "objective", "stimulus",
+                    "response_schema", "retry", "feedback", "evidence",
+                    "a11y_equivalent", "static_fallback")
+
+# The ten authoring purposes, transcribed from research stream 03 section
+# 4.1's summary matrix in that table's own row order.
+ACTIVITY_PURPOSES = ("prediction", "noticing", "retrieval", "explanation",
+                     "comparison", "diagnosis", "practice", "transfer",
+                     "reflection", "formal_assessment")
+
+# Cognitive demand gets NO closed tuple, deliberately. Research stream 03
+# section 4.1 gives a per-purpose "useful demand range" of verbs rather than an
+# enum, so fixing a five-member Bloom-shaped tuple here would be this phase
+# inventing a taxonomy the research left open on purpose. The `demand` column
+# is free prose, validated as non-empty and nothing more, which is what can
+# honestly be checked.
+
+ACTIVITY_RETRY = ("none", "unlimited", "until_correct", "mode_controlled")
+
+ACTIVITY_FEEDBACK = ("immediate", "after_commitment", "staged",
+                     "withheld_until_submit", "non_evaluative")
+
+# What `evidence.py` can ACTUALLY produce, and nothing else. Research stream
+# 03's evidence-status column carries phrases like "mixed" and "stronger
+# evidence, but claim limited to sampled contexts", which describe an
+# inference a reader draws rather than a state the store records; adopting
+# that phrasing would put members in a closed tuple that nothing can ever
+# reach, and a state nothing can reach is a lie.
+ACTIVITY_EVIDENCE_STATES = ("not_recorded", "activity_trace",
+                            "scored_by_runtime", "pending_human_mark")
+
+# The eight shipped item types. ACTIVITY-01 warrants a ninth only when scoring
+# semantics or response structure cannot be expressed safely, and none of the
+# ten purposes above needs one on its own: an activity declaration is metadata
+# beside a shipped form, never a new form. A response schema outside this
+# tuple is a WARNING with a declared static fallback, not a reason to add a
+# type.
+RESPONSE_FORMS = ("mc", "multi", "table", "dnd", "build", "short", "check",
+                  "visual")
 
 # The semantic profile a lesson document was authored against (D-16A-4,
 # PORT-01's "additive, versioned semantic profile"). A document declaring
@@ -2433,6 +2580,12 @@ PARAPHRASE_UNCHECKED = object()
 MEDIA_UNCHECKED = object()
 
 
+# The same additive sentinel once more, for the `## ACTIVITIES` pass (plan
+# 16A-06). A pre-16A caller that passes no activity data skips every activity
+# check and gets byte-for-byte the lint output it got before.
+ACTIVITIES_UNCHECKED = object()
+
+
 # The closed rule-kind catalogue (D-16, Pitfall 3): a style row may
 # parameterize exactly these kinds, and a row claiming anything else is
 # style.rule_unimplemented before the rule is ever applied. `house.mandate`
@@ -2510,6 +2663,11 @@ LINT_CODES = tuple(sorted({
     "lesson.definition_before_example", "lesson.example_order_no_reason",
     "media.duplicate_id", "media.missing_alt", "media.unknown_rights",
     "media.unknown_availability", "media.ref_unknown",
+    "activity.duplicate_item", "activity.empty_block", "activity.item_unknown",
+    "activity.unknown_purpose", "activity.demand_empty",
+    "activity.unknown_retry", "activity.unknown_feedback",
+    "activity.unknown_evidence_state", "activity.missing_static_fallback",
+    "activity.missing_a11y_equivalent", "activity.unsupported_response_form",
 }))
 
 
@@ -3190,7 +3348,8 @@ def structure_findings(q, tag):
 def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
          keys=KEYS_UNCHECKED, style=STYLE_UNCHECKED,
          sources=SOURCES_UNCHECKED, cases=CASES_UNCHECKED,
-         paraphrase=PARAPHRASE_UNCHECKED, media=MEDIA_UNCHECKED):
+         paraphrase=PARAPHRASE_UNCHECKED, media=MEDIA_UNCHECKED,
+         activities=ACTIVITIES_UNCHECKED):
     """Return (errors, warnings) as lists of LintError records.
 
     str(record) reproduces the historical 'Qn: message' text exactly; the code and
@@ -3267,6 +3426,7 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
     cases_on = cases is not CASES_UNCHECKED
     paraphrase_on = paraphrase is not PARAPHRASE_UNCHECKED
     media_on = media is not MEDIA_UNCHECKED
+    activities_on = activities is not ACTIVITIES_UNCHECKED
     if lesson_on:
         known_slugs = set()
         if lesson:
@@ -3757,6 +3917,90 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                     "media.ref_unknown", "media", "BANK",
                     "[MEDIA: %s] under heading %r names no id in the "
                     "## MEDIA registry" % (ref["id"], ref["heading"])))
+
+    # Bank-level activity findings (ACTIVITY-01, plan 16A-06), in a
+    # deterministic order: duplicates, then the empty-section warning, then
+    # per-row checks in DOCUMENT order, so two runs over one bank produce
+    # byte-identical output and the findings read down the registry the way
+    # the author wrote it.
+    #
+    # None of these findings gates anything. The `feedback`, `retry`, and
+    # `evidence` columns are validated for membership and read by nothing
+    # else: they describe what the runtime already does, and a declaration
+    # that changed what the runtime did would be a second authority.
+    if activities_on and activities:
+        known_items = {q.get("id") for q in questions}
+        known_items.update(q.get("item_id") for q in questions
+                           if q.get("item_id"))
+        known_items.discard(None)
+        for item in activities.get("duplicates") or []:
+            errors.append(LintError(
+                "activity.duplicate_item", "activities", "BANK",
+                "item %s is declared more than once in ## ACTIVITIES; the "
+                "first declaration is used" % item))
+        if activities.get("empty"):
+            warnings.append(LintError(
+                "activity.empty_block", "activities", "BANK",
+                "## ACTIVITIES carries a header row and no declarations"))
+        declared = activities.get("activities") or {}
+        for item in activities.get("order") or []:
+            row = declared.get(item) or {}
+            if item not in known_items:
+                errors.append(LintError(
+                    "activity.item_unknown", "activities", "BANK",
+                    "## ACTIVITIES declares item %s, which is not an item in "
+                    "this bank" % item))
+            purpose = (row.get("purpose") or "").strip()
+            if purpose not in ACTIVITY_PURPOSES:
+                errors.append(LintError(
+                    "activity.unknown_purpose", "activities", "BANK",
+                    "item %s declares purpose %s, which is not one of the "
+                    "ten declared purposes" % (item, purpose or "''")))
+            if not (row.get("demand") or "").strip():
+                errors.append(LintError(
+                    "activity.demand_empty", "activities", "BANK",
+                    "item %s declares no cognitive demand; the demand column "
+                    "is free prose and must say something" % item))
+            retry = (row.get("retry") or "").strip()
+            if retry not in ACTIVITY_RETRY:
+                errors.append(LintError(
+                    "activity.unknown_retry", "activities", "BANK",
+                    "item %s declares retry %s, which is not one of %s"
+                    % (item, retry or "''", ", ".join(ACTIVITY_RETRY))))
+            feedback = (row.get("feedback") or "").strip()
+            if feedback not in ACTIVITY_FEEDBACK:
+                errors.append(LintError(
+                    "activity.unknown_feedback", "activities", "BANK",
+                    "item %s declares feedback %s, which is not one of %s"
+                    % (item, feedback or "''", ", ".join(ACTIVITY_FEEDBACK))))
+            state = (row.get("evidence") or "").strip()
+            if state not in ACTIVITY_EVIDENCE_STATES:
+                errors.append(LintError(
+                    "activity.unknown_evidence_state", "activities", "BANK",
+                    "item %s declares evidence %s, which is not one of %s"
+                    % (item, state or "''",
+                       ", ".join(ACTIVITY_EVIDENCE_STATES))))
+            if not (row.get("static_fallback") or "").strip():
+                errors.append(LintError(
+                    "activity.missing_static_fallback", "activities", "BANK",
+                    "item %s declares no static fallback; ACTIVITY-01 "
+                    "requires one because an unsupported response form falls "
+                    "back to it" % item))
+            if not (row.get("a11y_equivalent") or "").strip():
+                errors.append(LintError(
+                    "activity.missing_a11y_equivalent", "activities", "BANK",
+                    "item %s declares no accessibility equivalence" % item))
+            form = (row.get("response_schema") or "").strip()
+            if form not in RESPONSE_FORMS:
+                # A WARNING, not an error. Falling back is the declared
+                # behavior ACTIVITY-01's Degraded clause names, so an
+                # unsupported form is a documented state and not a defect.
+                warnings.append(LintError(
+                    "activity.unsupported_response_form", "activities",
+                    "BANK",
+                    "item %s declares response form %s, which is not one of "
+                    "the eight shipped forms; the activity falls back to its "
+                    "declared static equivalent" % (item, form or "''")))
 
     # Bank-level terms/key findings, in a deterministic order: collisions,
     # then the empty-block warning, then unknown refs, then duplicate [!KEY]

@@ -25,7 +25,7 @@ SCHEMAS_DIR = os.path.join(ROOT, "schemas")
 # derived so a typo'd prefix fails by name instead of quietly founding a
 # ninth namespace nobody agreed to.
 LINT_PREFIXES = ("item", "bank", "lesson", "terms", "key", "style", "prov",
-                 "media")
+                 "media", "activity")
 
 
 def fail(msg):

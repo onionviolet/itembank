@@ -16,6 +16,17 @@
     "code": {
       "type": "string",
       "enum": [
+        "activity.demand_empty",
+        "activity.duplicate_item",
+        "activity.empty_block",
+        "activity.item_unknown",
+        "activity.missing_a11y_equivalent",
+        "activity.missing_static_fallback",
+        "activity.unknown_evidence_state",
+        "activity.unknown_feedback",
+        "activity.unknown_purpose",
+        "activity.unknown_retry",
+        "activity.unsupported_response_form",
         "bank.answer_position_skew",
         "item.check_lang_unknown",
         "item.check_too_few_cases",

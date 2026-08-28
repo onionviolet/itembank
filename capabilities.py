@@ -21,6 +21,11 @@ answers whether a learner may see an answer. `runtime.glossable`'s own
 docstring states the boundary this module stays behind: "the runtime, not the
 author and not a model, decides what reaches the learner".
 
+`activity_fallback` follows the same boundary: it reports WHICH declared
+fallback text applies to an activity whose response form this build does not
+have, and never decides whether a learner may respond, retry, or see a mark.
+That is the runtime's call and this module cannot reach it.
+
 **This module is pure.** It reads no file, writes no file, holds no session
 state, and imports neither `evidence` nor `runtime`. Every public function
 returns a value computed from its arguments and this module's own constants,
@@ -718,3 +723,28 @@ def validate_profile(entry):
                 "something, and an empty offline_fallback fails its "
                 "Degraded clause by construction" % field)
     return findings
+
+
+def activity_fallback(activity):
+    """The `static_fallback` text of an activity whose declared response form
+    is not one of the eight shipped ones, or the empty string.
+
+    ACTIVITY-01's Degraded clause verbatim: "an unsupported response form
+    falls back to its declared static equivalent". This function answers only
+    which text that is. It never decides whether a learner may respond, how
+    many attempts they get, or what a mark means: those belong to
+    `runtime.score_response` and `runtime.public_item`, and nothing here may
+    be read as widening them.
+
+    `model` is imported inside the function on purpose, so this module keeps
+    its no-top-level-dependency-on-the-parser property and stays importable
+    on its own. Pure: no file read, no global, no side effect.
+    """
+    import model
+
+    if not isinstance(activity, dict):
+        return ""
+    form = (activity.get("response_schema") or "").strip()
+    if form in model.RESPONSE_FORMS:
+        return ""
+    return (activity.get("static_fallback") or "").strip()

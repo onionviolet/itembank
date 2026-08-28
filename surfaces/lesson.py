@@ -12,8 +12,8 @@ import evidence
 import retention
 import subjects
 from model import (CHECK_UNRESOLVED_COPY, grab, lesson_slug, load, load_style,
-                   parse_key_blocks, parse_lesson, parse_media, parse_terms,
-                   resolve_style)
+                   parse_activities, parse_key_blocks, parse_lesson,
+                   parse_media, parse_terms, resolve_style)
 from runtime import glossable
 from surfaces.presentation import SHARED_CSS
 from surfaces import settings
@@ -1263,6 +1263,19 @@ def _callout_html(spec, body, ctx=None, required=False):
             # than shipping wrong copy quietly.
             inner = "<p>%s</p>" % html.escape(
                 capabilities.static_path("inline_check"))
+            # ACTIVITY-01's Degraded clause, on the surface a learner
+            # actually meets: when this check's item declares a response form
+            # this build does not have, the activity's own declared static
+            # equivalent is appended after the no-session copy. When no
+            # activity registry was threaded in, or the id does not resolve,
+            # or the form is one of the eight shipped ones, nothing is
+            # appended and these bytes are exactly what they were.
+            declared = (ctx or {}).get("activities") or {}
+            fallback = capabilities.activity_fallback(
+                declared.get(check_id) or {})
+            if fallback:
+                inner += ('<p class="capability-static">%s</p>'
+                          % html.escape(fallback))
             return ('<section class="callout callout-check">'
                     '<p class="callout-label">%s%s</p>'
                     '<div class="callout-body">%s</div></section>'
@@ -1963,6 +1976,11 @@ def _reader_context(bank_path, qs):
         "held_line": "",
         "suppressed": False,
         "key_links": {},
+        # The parsed `## ACTIVITIES` registry, item id -> declaration, or an
+        # empty dict. Read only to resolve a fallback TEXT for an unsupported
+        # response form; no feedback, retry, or evidence value is consulted
+        # here or anywhere else in Phase 16A.
+        "activities": {},
         # The parsed `## MEDIA` registry, or an empty dict. `lesson_page`
         # replaces this when a caller supplies one; a caller that supplies
         # none leaves it empty, and every [MEDIA:] reference then renders the
@@ -2121,7 +2139,7 @@ def _split_rendered_stages(rendered):
 def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
                 style_override=None, profile=None, gate=None, focus=None,
                 announce=None, session_id=None, lan_refused=False,
-                mode="continuous", media=None):
+                mode="continuous", media=None, activities=None):
     """The one render both surfaces call: the daemon route and `cmd_lesson`
     write the same document because there is only one `lesson_page`.
 
@@ -2141,6 +2159,14 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
     registry renders every `[MEDIA:]` reference as the unavailable figure
     carrying its own id, rather than dropping it: the renderer was given no
     registry, so it knows nothing about the asset and says so.
+
+    `activities` is whatever `model.parse_activities()` returned, or `None`.
+    It is read for one purpose only: an inline check whose item declares a
+    response form outside the eight shipped ones shows that activity's
+    declared static equivalent. No `feedback`, `retry`, or `evidence` value is
+    consulted, here or anywhere else in Phase 16A; those columns describe what
+    the runtime does and a renderer that obeyed them would be a second
+    authority.
 
     A non-empty `ref` narrows the document to the single heading whose slug
     matches the caller's text (D-11): the heading is resolved through
@@ -2255,6 +2281,8 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
         # with no media argument byte identical to a pre-16A-05 render.
         if isinstance(media, dict):
             ctx["media"] = media.get("assets") or {}
+        if isinstance(activities, dict):
+            ctx["activities"] = activities.get("activities") or {}
         ctx["key_answers"] = []
         # 09-05 runnable lesson code: the sequential data-code-block counter,
         # the profile's runnable languages, the session id to post against,
@@ -2649,7 +2677,8 @@ def cmd_lesson(a):
     except subjects.SubjectProfileError:
         profile = None
     page = lesson_page(a.bank, qs, lesson, ref=a.ref, profile=profile,
-                       media=parse_media(a.bank))
+                       media=parse_media(a.bank),
+                       activities=parse_activities(a.bank))
     if page is None:
         sys.exit("no lesson heading matching %r in %s" % (a.ref, a.bank))
     open(out, "w", encoding="utf-8").write(page)

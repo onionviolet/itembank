@@ -24,8 +24,8 @@ import selection
 import source_adapters
 import server
 import subjects
-from model import (lesson_slug, load, parse_bank, parse_key_blocks,
-                   parse_lesson, parse_media, parse_terms)
+from model import (lesson_slug, load, parse_activities, parse_bank,
+                   parse_key_blocks, parse_lesson, parse_media, parse_terms)
 from runtime import explain_payload, glossable, read_session, upgrade_session
 from surfaces import (day, home, launcher, lesson, presentation, quiz,
                       quiz_page, retention_view, seeding, session, settings,
@@ -1970,7 +1970,8 @@ def handle_lesson_get(handler, stem):
                               profile=profile,
                               session_id=_session_id_for(handler, stem),
                               lan_refused=_lan_refused(handler),
-                              media=parse_media(path))
+                              media=parse_media(path),
+                              activities=parse_activities(path))
     handler.send_html(page.encode("utf-8"))
 
 
@@ -2051,8 +2052,10 @@ def handle_lesson_skip(handler, stem):
             # A degraded sitting records no gate_skip (there is nothing to
             # skip); an unreachable runtime must not reveal without its
             # event. Re-render with the honest copy (section 12.1).
-            page = lesson.lesson_page(path, qs, les, runtime=True,
-                                       gate=gate, media=parse_media(path))
+            page = lesson.lesson_page(
+                path, qs, les, runtime=True, gate=gate,
+                media=parse_media(path),
+                activities=parse_activities(path))
             handler.send_html(page.encode("utf-8"))
             return
         sess = handler.sessions[stem]
