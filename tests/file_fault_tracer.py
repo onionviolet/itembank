@@ -15,10 +15,12 @@ Every scenario asserts, explicitly, that the on-disk state is either the old
 valid state or the new valid state; a state matching neither fails loudly
 with a message beginning `"mixed state"` (RELIABILITY-01).
 """
+import builtins
 import errno
 import hashlib
 import os
 import platform
+import shutil
 import statistics
 import subprocess
 import sys
@@ -35,6 +37,7 @@ import identity                                               # noqa: E402
 import journal                                                # noqa: E402
 import fixtures.corpus_14a as corpus_14a                      # noqa: E402
 import journal_roundtrip                                      # noqa: E402
+import source_adapters                                        # noqa: E402
 
 REPORT_PATH = os.path.join(
     ROOT, ".planning", "phases", "14A-identity-lifecycle-operation",
@@ -790,6 +793,192 @@ def write_report(scenario_results, shipped_results, reflow_result,
 # ---------------------------------------------------------------------------
 
 
+
+# ---------------------------------------------------------------------------
+# Plan 14C-02: the source pair. A source is TWO durable files, the derived
+# Markdown and its locator sidecar, written under one logical operation. The
+# eight scenarios above cover one file; this one covers the pair, and the
+# property it asserts is that an `applied` source object never exists on disk
+# without a valid sidecar beside it.
+
+
+class _PartialWriteFile:
+    """A file object that creates the temp file, writes a fragment, and then
+    fails the way a full disk fails: partway, with the fragment on disk."""
+
+    def __init__(self, real_open, path):
+        self._fh = real_open(path, "wb")
+        self._fh.write(b"{\"partial\":")
+
+    def write(self, raw):
+        raise OSError(errno.EIO, "injected partial sidecar write")
+
+    def flush(self):
+        self._fh.flush()
+
+    def fileno(self):
+        return self._fh.fileno()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        self._fh.close()
+        return False
+
+
+def _seed_source_pair(base, name, body):
+    rel = name + ".md"
+    with open(os.path.join(base, rel), "w", encoding="utf-8") as fh:
+        fh.write(body)
+    record = journal.op_link(base, "source", rel, "human", "tracer",
+                             rights={op: "granted"
+                                     for op in identity.RIGHTS_OPERATIONS})
+    return rel, record["object_id"]
+
+
+def _read(path):
+    with open(path, "rb") as fh:
+        return fh.read()
+
+
+def _sidecars(base):
+    return sorted(n for n in os.listdir(base) if n.endswith(".locator.json"))
+
+
+def _temps(base):
+    return sorted(n for n in os.listdir(base) if n.endswith(".tmp"))
+
+
+def check_two_file_pair_atomicity(base):
+    accepted_rel, accepted_id = _seed_source_pair(base, "accepted",
+                                                   "# Accepted\n\nOne line.\n")
+    first = source_adapters.import_source(base, "markdown", accepted_id,
+                                           "human", "tracer")
+    if first["status"] != "ok":
+        fail("two_file_pair: the seeded import failed: %r" % (first["error"],))
+    accepted_md = os.path.join(base, first["md_rel_path"])
+    accepted_sidecar = os.path.join(base, first["sidecar_rel_path"])
+    md_before = _read(accepted_md)
+    sidecar_before = _read(accepted_sidecar)
+    # --- 1. the sidecar write fails partway --------------------------------
+    # The counts are taken after seeding, not before: linking a raw file is
+    # itself a journalled operation, so a count taken earlier would charge
+    # this scenario for the link it needs to run at all.
+    _next_rel, next_id = _seed_source_pair(base, "one", "# One\n\nBody.\n")
+    applied_before = [e for e in journal.entries(base)
+                      if e.get("state") == "applied"]
+    real_open = builtins.open
+
+    def failing_open(path, mode="r", *args, **kwargs):
+        if isinstance(path, str) and path.endswith(".locator.json.tmp"):
+            return _PartialWriteFile(real_open, path)
+        return real_open(path, mode, *args, **kwargs)
+
+    builtins.open = failing_open
+    try:
+        result = source_adapters.import_source(base, "markdown", next_id,
+                                               "human", "tracer")
+    finally:
+        builtins.open = real_open
+    if result["status"] != "unsupported":
+        fail("two_file_pair: a failed sidecar write reported %r rather than a "
+             "typed refusal" % result["status"])
+    if _read(accepted_md) != md_before or \
+            _read(accepted_sidecar) != sidecar_before:
+        fail("mixed state: two_file_pair scenario 1 disturbed the previously "
+             "accepted pair")
+    if _sidecars(base) != [os.path.basename(accepted_sidecar)]:
+        fail("mixed state: two_file_pair scenario 1 left a sidecar for an "
+             "object that was never applied: %r" % _sidecars(base))
+    if _temps(base):
+        fail("two_file_pair scenario 1 left a temp file behind: %r"
+             % _temps(base))
+    if len([e for e in journal.entries(base)
+            if e.get("state") == "applied"]) != len(applied_before):
+        fail("two_file_pair scenario 1 added an applied journal entry")
+
+    # --- 2. the sidecar lands and the journal append then fails ------------
+    _two_rel, two_id = _seed_source_pair(base, "two", "# Two\n\nBody.\n")
+    registry_before = journal.read_registry(base)
+    real_commit = journal.commit_operation
+
+    def refusing_commit(*args, **kwargs):
+        raise journal.JournalError("journal.injected",
+                                    "injected append failure")
+
+    journal.commit_operation = refusing_commit
+    try:
+        source_adapters.import_source(base, "markdown", two_id, "human",
+                                       "tracer")
+        fail("two_file_pair scenario 2: a refused journal append did not "
+             "raise JournalError out of import_source")
+    except journal.JournalError as exc:
+        if exc.code != "journal.injected":
+            raise
+    finally:
+        journal.commit_operation = real_commit
+    if _read(accepted_md) != md_before:
+        fail("mixed state: two_file_pair scenario 2 disturbed the previously "
+             "accepted Markdown")
+    if _sidecars(base) != [os.path.basename(accepted_sidecar)]:
+        fail("mixed state: two_file_pair scenario 2 left an orphan sidecar "
+             "with no journal entry: %r" % _sidecars(base))
+    registry_after = journal.read_registry(base)
+    new_ids = set(registry_after) - set(registry_before)
+    if new_ids:
+        fail("two_file_pair scenario 2 registered a source object %r despite "
+             "the refused append" % sorted(new_ids))
+
+    # --- 3. the append succeeds and the process stops right after ----------
+    _three_rel, three_id = _seed_source_pair(base, "three",
+                                              "# Three\n\nBody.\n")
+    result = source_adapters.import_source(base, "markdown", three_id,
+                                           "human", "tracer")
+    if result["status"] != "ok":
+        fail("two_file_pair scenario 3: the import failed: %r"
+             % (result["error"],))
+    md_path = os.path.join(base, result["md_rel_path"])
+    sidecar_path = os.path.join(base, result["sidecar_rel_path"])
+    if not os.path.exists(md_path) or not os.path.exists(sidecar_path):
+        fail("mixed state: two_file_pair scenario 3 left half a pair")
+    import json as _json
+    sidecar = _json.loads(_read(sidecar_path).decode("utf-8"))
+    registry = journal.read_registry(base)
+    row = registry.get(sidecar["source_id"])
+    if row is None:
+        fail("two_file_pair scenario 3: the applied source is not in the "
+             "registry")
+    if row["fingerprint"] != sidecar["fingerprint"]:
+        fail("mixed state: two_file_pair scenario 3: the sidecar and the "
+             "registry disagree on the fingerprint")
+    # `replay` re-reads every target rather than trusting the log, so a clean
+    # verdict here means the applied pair on disk is the pair the journal says
+    # it is, which is the reproducibility this scenario is asserting.
+    replayed = journal.replay(base)["objects"]
+    if replayed.get(sidecar["source_id"]) != "clean":
+        fail("two_file_pair scenario 3: replay reports the applied source as "
+             "%r rather than clean" % replayed.get(sidecar["source_id"]))
+    if journal.read_registry(base) != registry:
+        fail("two_file_pair scenario 3: reading the registry twice did not "
+             "reproduce the same rows")
+
+    # The property, stated once over the whole base rather than per scenario:
+    # an applied IMPORT is the operation that writes a pair, so every applied
+    # import entry must have a sidecar beside its derived Markdown. A linked
+    # raw file is a source object too and has no sidecar by design, which is
+    # why the filter is on the operation and not on the file suffix.
+    for entry in journal.entries(base):
+        if entry.get("state") != "applied" or entry.get("operation") != "import":
+            continue
+        rel = entry["path"]
+        sidecar_name = source_adapters.sidecar_path_for(rel)
+        if not os.path.exists(os.path.join(base, sidecar_name)):
+            fail("mixed state: %s is an applied source object with no sidecar "
+                 "beside it" % rel)
+    return "pass"
+
+
 def main():
     scenario_results = []
     d = tempfile.mkdtemp()
@@ -811,6 +1000,13 @@ def main():
         scenario_results.append(("disk_full", scenario_disk_full(base)))
         scenario_results.append(
             ("root_missing", scenario_root_missing(base, corpus)))
+        pair_base = tempfile.mkdtemp(prefix="two-file-pair-")
+        try:
+            scenario_results.append(
+                ("check_two_file_pair_atomicity",
+                 check_two_file_pair_atomicity(pair_base)))
+        finally:
+            shutil.rmtree(pair_base, ignore_errors=True)
     finally:
         corpus_14a.teardown_corpus(d)
 

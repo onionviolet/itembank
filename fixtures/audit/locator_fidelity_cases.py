@@ -13,6 +13,21 @@ original bytes. The registry must return the SAME explicit unsupported/lossy
 result on repeated runs -- no spans, no locator, no AI call, unchanged
 source bytes/timestamps (T-11-27).
 
+Two expectation keys, and they mean different things (added 2026-08-28 by
+plan 14C-02). `expectation` records what `auditor.normalize_source` does
+with these bytes, which is refuse: it stays `unsupported_now` permanently,
+because the auditor normalizes decoded text and never sees a PDF or a DOCX,
+so the Phase 11 gate in tests/audit_coverage_roundtrip.py is untouched by
+any adapter work. `adapter_expectation` records what
+`source_adapters.import_source` does with them, which is what Phase 14C
+changed: `supported` means the adapter reproduces the recorded
+`reading_order`, `unsupported` means it returns a typed refusal carrying the
+recorded `unsupported[0]` message. The invariant tying them together is that
+`adapter_expectation` is `unsupported` exactly when `reading_order` is
+empty; a case with a non-empty `reading_order` and a non-empty `unsupported`
+list (a text box, an embedded OLE object) is a supported extraction that
+also reports a structure it could not address, not a refusal.
+
 Stdlib only (hashlib, io, zipfile) and repository-independent: the case
 table is immutable data, the builders are pure functions, and nothing here
 reads or writes the repository.
@@ -292,6 +307,30 @@ def docx_bytes(document_xml, extra_parts=None):
     return buf.getvalue()
 
 
+def docx_deflated_bytes(document_xml, extra_parts=None):
+    """`docx_bytes` with word/document.xml actually compressed.
+
+    `_entry` returns a bare `ZipInfo`, whose `compress_type` defaults to
+    ZIP_STORED, and a per-entry `ZipInfo` overrides the ZipFile-level
+    ZIP_DEFLATED. Every case above is therefore stored, which is fine for
+    them and useless for a compression bomb: the point of the bomb is that
+    the archive is small and the declared uncompressed size is not. This
+    builder exists rather than a fix to `_entry` because fixing `_entry`
+    would change the bytes, and therefore the recorded sha256, of every
+    pre-existing DOCX case.
+    """
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(*_zi(_CONTENT_TYPES))
+        zf.writestr(_entry("_rels/.rels"), _RELS)
+        info = _entry("word/document.xml")
+        info.compress_type = zipfile.ZIP_DEFLATED
+        zf.writestr(info, document_xml)
+        for name, payload in (extra_parts or {}).items():
+            zf.writestr(_entry(name), payload)
+    return buf.getvalue()
+
+
 def w(text, style=None):
     """One <w:p> paragraph with the given runs text."""
     if style:
@@ -339,6 +378,7 @@ CASE_TABLE = [
             "reading_order": ["p1.0", "p1.1"],
             "unsupported": [],
             "expectation": "unsupported_now",
+            "adapter_expectation": "supported",
         },
     },
     {
@@ -364,6 +404,7 @@ CASE_TABLE = [
             "reading_order": ["p1.c1.0", "p1.c1.1", "p1.c2.0", "p1.c2.1"],
             "unsupported": [],
             "expectation": "unsupported_now",
+            "adapter_expectation": "supported",
         },
     },
     {
@@ -395,6 +436,7 @@ CASE_TABLE = [
                               "t.r2c0", "t.r2c1"],
             "unsupported": [],
             "expectation": "unsupported_now",
+            "adapter_expectation": "supported",
         },
     },
     {
@@ -409,16 +451,29 @@ CASE_TABLE = [
         ]),
         "gold": {
             "sha256": "06feff9c8c5ba20304eb1b9ae7fc12afd756b0401306882676b742de11623e4b",
+            # Corrected 2026-08-28 (plan 14C-02 Task 3). The content stream
+            # draws THREE lines; this manifest recorded two, omitting the
+            # mid-page line "Footnote: the reference." under any kind. That
+            # line is a decoy, and a useful one: it names itself a footnote
+            # while sitting nowhere near the bottom of the page, so an
+            # adapter that detects footnotes by text prefix rather than by
+            # position mislabels it. The bytes and the recorded sha256 are
+            # untouched; only the manifest, which never described them
+            # completely, changed. The decoy is p1.1, an ordinary paragraph,
+            # and the real footnote is still the bottom-of-page line.
             "structures": [
                 {"kind": "page", "page": 1},
                 {"kind": "paragraph", "page": 1, "index": 0,
                  "text": "Main body text with a note."},
+                {"kind": "paragraph", "page": 1, "index": 1,
+                 "text": "Footnote: the reference."},
                 {"kind": "footnote", "page": 1, "index": 0,
                  "text": "1 See the appendix."},
             ],
-            "reading_order": ["p1.0", "fn1.0"],
+            "reading_order": ["p1.0", "p1.1", "fn1.0"],
             "unsupported": [],
             "expectation": "unsupported_now",
+            "adapter_expectation": "supported",
         },
     },
     {
@@ -456,6 +511,7 @@ CASE_TABLE = [
                               "ftr2"],
             "unsupported": [],
             "expectation": "unsupported_now",
+            "adapter_expectation": "supported",
         },
     },
     {
@@ -479,6 +535,7 @@ CASE_TABLE = [
             "reading_order": ["p1.0"],
             "unsupported": [],
             "expectation": "unsupported_now",
+            "adapter_expectation": "supported",
         },
     },
     {
@@ -498,6 +555,7 @@ CASE_TABLE = [
             "reading_order": [],
             "unsupported": ["image-only page: no text-bearing structure"],
             "expectation": "unsupported_now",
+            "adapter_expectation": "unsupported",
         },
     },
     {
@@ -515,6 +573,7 @@ CASE_TABLE = [
             "reading_order": [],
             "unsupported": ["encrypted PDF: no unauthenticated structure"],
             "expectation": "unsupported_now",
+            "adapter_expectation": "unsupported",
             # The user password is non-empty and is deliberately not supplied
             # to any adapter: an empty-user-password file decrypts silently in
             # most extractors, which would make this case indistinguishable
@@ -535,6 +594,7 @@ CASE_TABLE = [
             "reading_order": [],
             "unsupported": ["malformed/truncated PDF"],
             "expectation": "unsupported_now",
+            "adapter_expectation": "unsupported",
         },
     },
     # ---------------- DOCX ----------------
@@ -559,6 +619,7 @@ CASE_TABLE = [
             "reading_order": ["h1.0", "li.0", "li.1"],
             "unsupported": [],
             "expectation": "unsupported_now",
+            "adapter_expectation": "supported",
         },
     },
     {
@@ -583,6 +644,7 @@ CASE_TABLE = [
             "reading_order": ["t.r0c0", "t.r0c1", "t.r1c0", "t.r1c1"],
             "unsupported": [],
             "expectation": "unsupported_now",
+            "adapter_expectation": "supported",
         },
     },
     {
@@ -615,6 +677,7 @@ CASE_TABLE = [
             "reading_order": ["p.0", "fn.1", "en.1"],
             "unsupported": [],
             "expectation": "unsupported_now",
+            "adapter_expectation": "supported",
         },
     },
     {
@@ -645,6 +708,7 @@ CASE_TABLE = [
             "reading_order": ["hdr", "p.0", "ftr"],
             "unsupported": [],
             "expectation": "unsupported_now",
+            "adapter_expectation": "supported",
         },
     },
     {
@@ -666,6 +730,7 @@ CASE_TABLE = [
             "reading_order": ["p.0", "ins.1", "del.2"],
             "unsupported": [],
             "expectation": "unsupported_now",
+            "adapter_expectation": "supported",
         },
     },
     {
@@ -692,6 +757,7 @@ CASE_TABLE = [
             "reading_order": ["p.0", "cmt.1"],
             "unsupported": [],
             "expectation": "unsupported_now",
+            "adapter_expectation": "supported",
         },
     },
     {
@@ -713,6 +779,7 @@ CASE_TABLE = [
             "unsupported": ["drawing/text-box object (no text-bearing "
                             "structure without drawingml extraction)"],
             "expectation": "unsupported_now",
+            "adapter_expectation": "supported",
         },
     },
     {
@@ -734,6 +801,7 @@ CASE_TABLE = [
             "reading_order": ["p.0"],
             "unsupported": ["embedded OLE object: opaque binary"],
             "expectation": "unsupported_now",
+            "adapter_expectation": "supported",
         },
     },
     {
@@ -747,6 +815,57 @@ CASE_TABLE = [
             "reading_order": [],
             "unsupported": ["malformed package: not a readable zip"],
             "expectation": "unsupported_now",
+            "adapter_expectation": "unsupported",
+        },
+    },
+    # ---------------- adversarial container inputs (plan 14C-02) ----------
+    #
+    # These two are not lossy-extraction cases like the ones above: they are
+    # hostile inputs whose whole point is that the adapter refuses them
+    # before doing the expensive thing. The bomb is a real archive built by
+    # writing real bytes, never by forging a ZipInfo header, so a real reader
+    # would accept it and only the declared-size check stops it.
+    {
+        "id": "zip-bomb-oversized-part",
+        "kind": "docx",
+        "filename": "docx-zip-bomb.docx",
+        "build": lambda: docx_deflated_bytes(doc_xml(w("A" * 200000))),
+        "gold": {
+            "sha256": "6843afecb4d75c0a7312a79eefb13f98e5fd188f8eadfbe90c851dadad2f372b",
+            "structures": [],
+            "reading_order": [],
+            "unsupported": ["oversized zip part"],
+            "expectation": "unsupported_now",
+            "adapter_expectation": "unsupported",
+            # The cap the adapter must be given for this case to be over it.
+            # The archive itself is a few hundred bytes; only the declared
+            # uncompressed size of word/document.xml is large.
+            "max_input_bytes": 65536,
+        },
+    },
+    {
+        "id": "xml-entity-expansion",
+        "kind": "docx",
+        "filename": "docx-entity.docx",
+        "build": lambda: docx_bytes(
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<!DOCTYPE w:document ['
+            '<!ENTITY a "aaaaaaaaaa">'
+            '<!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">'
+            '<!ENTITY c "&b;&b;&b;&b;&b;&b;&b;&b;&b;&b;">'
+            '<!ENTITY d "&c;&c;&c;&c;&c;&c;&c;&c;&c;&c;">'
+            ']>'
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/'
+            'wordprocessingml/2006/main"><w:body>'
+            '<w:p><w:r><w:t>&d;</w:t></w:r></w:p>'
+            '</w:body></w:document>'),
+        "gold": {
+            "sha256": "7cd8d3a338ea1b37aa201ef0b3d8dcb63c935edd933aa6302b0e657735109a63",
+            "structures": [],
+            "reading_order": [],
+            "unsupported": ["entity declaration in an OOXML part"],
+            "expectation": "unsupported_now",
+            "adapter_expectation": "unsupported",
         },
     },
 ]

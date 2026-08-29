@@ -190,7 +190,7 @@ def case_normalize():
                      % case["id"])
         print("OK: normalize -- deterministic Markdown/text spans, "
               "heading/list/body objectives, invalid-UTF-8 and oversize "
-              "failures, 18-case PDF/DOCX gate with stable unsupported "
+              "failures, 20-case PDF/DOCX gate with stable unsupported "
               "results and unchanged bytes")
     finally:
         shutil.rmtree(workdir, ignore_errors=True)

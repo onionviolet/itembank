@@ -12,7 +12,7 @@ degrades to a named install command when its optional dependency is absent.
 Standard library only plus the optional pdfplumber stack, runnable as
 `python tests/source_adapters_roundtrip.py`.
 """
-import builtins, json, os, shutil, sys, tempfile
+import builtins, json, os, shutil, sys, tempfile, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -444,6 +444,217 @@ def check_cli_and_route_parity():
           "produce one sidecar")
 
 
+
+# ---------------------------------------------------------------------------
+# Plan 14C-02: the gold corpus, the container guards, and the two-file pair.
+
+def _extract_case(case):
+    """Run one gold case through its adapter's extraction function and return
+    `(reading_order, unsupported_messages)` or `("refused", code, message)`.
+    Both refusal shapes -- a `_Refusal` raised out of a nested loop and an
+    unsupported four-tuple returned from the top -- normalize here, because
+    the gold manifest records what the learner is told, not which internal
+    path produced it."""
+    options = {}
+    if "max_input_bytes" in case["gold"]:
+        options["max_input_bytes"] = case["gold"]["max_input_bytes"]
+    extract = source_adapters.ADAPTER_REGISTRY[case["kind"]]
+    try:
+        _md, locators, reading_order, unsupported = extract(case["build"](),
+                                                            options)
+    except source_adapters._Refusal as refusal:
+        return ("refused", refusal.code, refusal.message)
+    messages = [entry["message"] for entry in unsupported]
+    if unsupported and not locators:
+        return ("refused", unsupported[0]["code"], unsupported[0]["message"])
+    return (reading_order, messages)
+
+
+def _check_gold_kind(kind, label):
+    cases = [c for c in locator_fidelity_cases.CASE_TABLE
+             if c["kind"] == kind]
+    for case in cases:
+        gold = case["gold"]
+        outcome = _extract_case(case)
+        if gold["adapter_expectation"] == "unsupported":
+            if outcome[0] != "refused":
+                fail("%s: %s was expected to refuse, but produced the "
+                     "reading order %r" % (label, case["id"], outcome[0]))
+            if outcome[2] != gold["unsupported"][0] and \
+                    not outcome[2].startswith(gold["unsupported"][0]):
+                fail("%s: %s refused with %r, but the gold manifest records "
+                     "%r" % (label, case["id"], outcome[2],
+                             gold["unsupported"][0]))
+            continue
+        if outcome[0] == "refused":
+            fail("%s: %s was expected to extract, but refused with %s / %s"
+                 % (label, case["id"], outcome[1], outcome[2]))
+        if outcome[0] != gold["reading_order"]:
+            fail("%s: %s produced the reading order %r, but the gold "
+                 "manifest records %r"
+                 % (label, case["id"], outcome[0], gold["reading_order"]))
+        if outcome[1] != gold["unsupported"]:
+            fail("%s: %s reported the unsupported structures %r, but the "
+                 "gold manifest records %r"
+                 % (label, case["id"], outcome[1], gold["unsupported"]))
+    return len(cases)
+
+
+def check_pdf_gold_cases():
+    count = _check_gold_kind("pdf", "pdf gold")
+    print("ok: pdf gold cases -- all %d resolve as recorded, including the "
+          "two-column, table, and footnote orders and the three refusal "
+          "messages character for character" % count)
+
+
+def check_docx_gold_cases():
+    count = _check_gold_kind("docx", "docx gold")
+    print("ok: docx gold cases -- all %d resolve as recorded" % count)
+
+
+def check_docx_extra_parts():
+    """The assertion that goes red when an adapter is built on python-docx
+    alone: footnotes, endnotes, headers, footers, and comments live in package
+    parts the Document object model never surfaces."""
+    wanted = {"footnote", "endnote", "header", "footer", "comment"}
+    seen = set()
+    for case_id in ("docx-footnote-endnote", "docx-header-footer",
+                    "docx-tracked-changes", "docx-comments"):
+        case = gold_case(case_id)
+        _md, locators, _order, _unsupported = source_adapters._extract_docx(
+            case["build"](), {})
+        parts = set(loc["body"]["part"] for loc in locators)
+        if case_id != "docx-tracked-changes" and parts <= {"body"}:
+            fail("extra parts: %s produced only body locators, so the parts "
+                 "python-docx does not surface were never read" % case_id)
+        seen |= parts
+    if seen != wanted | {"body"}:
+        fail("extra parts: the four cases produced the parts %r, expected %r"
+             % (sorted(seen), sorted(wanted | {"body"})))
+    kinds = set()
+    case = gold_case("docx-tracked-changes")
+    _md, locators, _order, _unsupported = source_adapters._extract_docx(
+        case["build"](), {})
+    for loc in locators:
+        kinds.add(loc["kind"])
+    for kind in ("tracked_insert", "tracked_delete"):
+        if kind not in kinds:
+            fail("extra parts: a tracked change produced no %s locator" % kind)
+        for loc in locators:
+            if loc["kind"] == kind and loc["body"]["part"] != "body":
+                fail("extra parts: %s is part %r, but a tracked range lives "
+                     "in the body part" % (kind, loc["body"]["part"]))
+    print("ok: docx extra parts -- footnote, endnote, header, footer, and "
+          "comment parts are read directly, and tracked ranges stay in the "
+          "body part")
+
+
+def check_docx_end_to_end():
+    base = new_base()
+    try:
+        rel = seed_raw(base, "docx-headings-lists")
+        raw_id = link_with_rights(base, rel, all_granted())
+        result = source_adapters.import_source(base, "docx", raw_id, "human",
+                                                "tester")
+        if result["status"] != "ok":
+            fail("docx end to end: %r" % (result["error"],))
+        sidecar = json.loads(open(os.path.join(base,
+                                                result["sidecar_rel_path"]),
+                                   encoding="utf-8").read())
+        errs = schema_validate.validate(sidecar, SCHEMA)
+        if errs:
+            fail("docx end to end: sidecar failed its own schema: %s"
+                 % errs[0])
+        md_bytes = open(os.path.join(base, result["md_rel_path"]), "rb").read()
+        lines = [ln for ln in md_bytes.decode("utf-8").split("\n")[:-1]]
+        if len(lines) != len(sidecar["reading_order"]):
+            fail("docx end to end: %d derived lines against %d reading-order "
+                 "entries" % (len(lines), len(sidecar["reading_order"])))
+        applied = applied_entries(base)
+        if not applied or applied[-1]["after_fingerprint"] != \
+                sidecar["fingerprint"]:
+            fail("docx end to end: the journal entry and the sidecar disagree "
+                 "on the fingerprint")
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+    print("ok: docx end to end -- one DOCX imports with a schema-valid "
+          "sidecar, one applied entry, and one derived line per locator")
+
+
+def check_zip_bomb_guard():
+    case = gold_case("zip-bomb-oversized-part")
+    started = time.time()
+    try:
+        source_adapters._extract_docx(
+            case["build"](), {"max_input_bytes": case["gold"]["max_input_bytes"]})
+    except source_adapters._Refusal as refusal:
+        elapsed = time.time() - started
+        if refusal.code != "source.oversized":
+            fail("zip bomb: refused with %r, expected source.oversized"
+                 % refusal.code)
+        if elapsed > 5.0:
+            fail("zip bomb: the refusal took %.1fs, which means the member "
+                 "was decompressed before it was refused" % elapsed)
+    else:
+        fail("zip bomb: an oversized declared member was not refused")
+    print("ok: zip bomb guard -- an oversized declared member is refused "
+          "before it is decompressed")
+
+
+def check_xml_entity_guard():
+    case = gold_case("xml-entity-expansion")
+    started = time.time()
+    try:
+        source_adapters._extract_docx(case["build"](), {})
+    except source_adapters._Refusal as refusal:
+        elapsed = time.time() - started
+        if refusal.code != "source.malformed_input":
+            fail("entity guard: refused with %r, expected "
+                 "source.malformed_input" % refusal.code)
+        if elapsed > 5.0:
+            fail("entity guard: the refusal took %.1fs, which means the "
+                 "entities were expanded before the refusal" % elapsed)
+    else:
+        fail("entity guard: an entity declaration was not refused")
+    element, error = source_adapters._parse_xml_safely(b"<a><b/></a>", {})
+    if error is not None or element is None:
+        fail("entity guard: an ordinary part was refused: %r" % (error,))
+    print("ok: xml entity guard -- a DOCTYPE or entity declaration is "
+          "refused before the parser runs, and an ordinary part still parses")
+
+
+def check_gold_manifest_additive():
+    """PLANNING-DIRECTIVES section 4 non-negotiable 4: the format change is
+    additive, proven by byte-identical fixtures rather than promised."""
+    table = locator_fidelity_cases.CASE_TABLE
+    if len(table) != 20:
+        fail("gold manifest: expected 20 cases, found %d" % len(table))
+    for case in table:
+        gold = case["gold"]
+        raw = case["build"]()
+        if locator_fidelity_cases.sha256(raw) != gold["sha256"]:
+            fail("gold manifest: %s drifted from its recorded sha256"
+                 % case["id"])
+        for key in ("sha256", "structures", "reading_order", "unsupported",
+                    "expectation", "adapter_expectation"):
+            if key not in gold:
+                fail("gold manifest: %s is missing %s" % (case["id"], key))
+        if gold["expectation"] != "unsupported_now":
+            fail("gold manifest: %s changed the Phase 11 expectation"
+                 % case["id"])
+        if gold["adapter_expectation"] not in ("supported", "unsupported"):
+            fail("gold manifest: %s has adapter_expectation %r"
+                 % (case["id"], gold["adapter_expectation"]))
+        empty = not gold["reading_order"]
+        if empty != (gold["adapter_expectation"] == "unsupported"):
+            fail("gold manifest: %s says adapter_expectation %r with a "
+                 "reading order of %r; the two must agree"
+                 % (case["id"], gold["adapter_expectation"],
+                    gold["reading_order"]))
+    print("ok: gold manifest additive -- 20 cases, every recorded sha256 "
+          "unchanged, both expectation keys present and agreeing")
+
+
 if __name__ == "__main__":
     check_thin_slice()
     check_scanned_pdf_is_typed_unsupported()
@@ -455,6 +666,13 @@ if __name__ == "__main__":
     check_degrades_without_dependencies()
     check_write_containment()
     check_cli_and_route_parity()
+    check_gold_manifest_additive()
+    check_zip_bomb_guard()
+    check_xml_entity_guard()
+    check_pdf_gold_cases()
+    check_docx_gold_cases()
+    check_docx_extra_parts()
+    check_docx_end_to_end()
     print("ok: source adapters -- one typed import boundary, one parser's "
           "span ids, one fingerprint, typed refusals, and a degraded path "
           "that names its install command")
