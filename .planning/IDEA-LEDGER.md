@@ -1260,3 +1260,41 @@ Amendments to an existing entry are additive notes under the entry, dated.
 - **Open question:** whether this is genuinely a new type or a presentation of a
   `table` item, which already carries several rows each choosing from a set. If
   the latter, it costs no format surface at all.
+
+### IL-20260828-05: ebooklib, parked on an AGPL decision
+
+- **Proposal:** Adopt `ebooklib` 0.20 for EPUB import, which would supply a
+  maintained spine, manifest, and navigation-document API in place of roughly a
+  hundred lines of hand-written OPF and container parsing.
+- **Origin:** the Phase 14C research pass, 2026-08-21, which read `ebooklib`'s
+  own PyPI license metadata and found AGPL. `14C-CONTEXT.md`'s out-of-scope
+  list refuses PyMuPDF on exactly these grounds and does not mention
+  `ebooklib`, because the finding is newer than that document.
+- **Conflicting rule:** `SUPPLY-CHAIN-POLICY.md` section 2.4 routes copyleft and
+  no-license artifacts to an explicit Weibao decision before adoption.
+- **Evidence considered:** for personal use alone AGPL costs nothing, since its
+  obligations trigger on distribution and on network service use. For the
+  recorded product goal it is expensive and one-way: `ROADMAP.md` Phase 18 is a
+  packaged desktop app a friend installs, and the 2026-08-14 vision entry made
+  external installations a supported goal, so distribution would trigger the
+  copyleft source-offer obligation over the whole product rather than over the
+  one adapter.
+- **Retained alternative, and the one taken:** stdlib `zipfile` plus
+  `xml.etree`, read through the hardened `_read_zip_part` and
+  `_parse_xml_safely` seam plan 14C-02 built, so the zip-bomb and
+  entity-declaration guards cover EPUB with no new code and no new licence.
+- **Disposition:** Parked (needs an explicit Weibao AGPL decision), exactly as
+  PyMuPDF is parked by the 2026-08-17 note on `IL-20260815-07`. Parked, not
+  rejected.
+- **Decided:** 2026-08-27 by Weibao, recorded in full as `D-14C-2` in
+  `.planning/phases/14C-source-adapter-registry/14C-DECISIONS.md`, which carries
+  his answer, his verbatim rider, and the reasoning. This entry is the ledger's
+  durable pointer to that record, appended 2026-08-28 by plan 14C-07 Task 1,
+  which owed it and had not been written.
+- **Revisit trigger:** a real EPUB proves unreadable by the stdlib path; or the
+  product's licensing posture changes, for example a decision that itembank
+  ships as AGPL open source, at which point `ebooklib` costs nothing; or the
+  stdlib path's extraction fidelity or reading presentation is visibly worse
+  than what a library would give, and the gap matters to a learner rather than
+  only to a test. The third trigger is Weibao's own, from the rider quoted in
+  `D-14C-2`.

@@ -529,6 +529,10 @@ def _extract_confidence(adapter, locators):
     field is for, and leaving a heuristic result at `high` would be a claim
     the adapter cannot support. Media whose structure is declared rather than
     inferred record no confidence at all."""
+    if adapter == "epub":
+        # The reading order is declared by the package document rather than
+        # inferred, a stronger guarantee than the PDF geometry heuristics.
+        return "high"
     if adapter == "ocr":
         # A vision model transcribing a photograph is the least reliable
         # extraction in the registry, and a citation into it should say so.
@@ -1746,6 +1750,242 @@ def _extract_ocr(raw_bytes, options):
     return "\n".join(lines_out) + "\n", locators, reading_order, []
 
 
+# ---------------------------------------------------------------------------
+# Roster item 7: EPUB import (plan 14C-07). No third-party dependency at all,
+# and therefore no lazy-import guard and no `source.dependency_missing` path.
+# That is a recorded decision, not an omission: D-14C-2 parks `ebooklib` on an
+# explicit Weibao AGPL decision, so the container is read with stdlib zipfile
+# and xml.etree through the same hardened seam DOCX and PPTX read through.
+
+EPUB_CONTAINER_PATH = "META-INF/container.xml"
+EPUB_ENCRYPTION_PATH = "META-INF/encryption.xml"
+
+EPUB_BLOCK_TAGS = ("h1", "h2", "h3", "h4", "h5", "h6", "p", "li",
+                   "blockquote", "pre")
+
+EPUB_HEADING_TAGS = ("h1", "h2", "h3", "h4", "h5", "h6")
+
+# Tags carrying text this adapter knowingly does not emit. Each distinct one
+# encountered becomes a line in the sidecar's unsupported list, which is the
+# import direction's semantic loss report that PORT-02 asks every interchange
+# adapter to carry.
+EPUB_SKIPPED_TAGS = ("table", "figure", "figcaption", "aside")
+
+
+def _local_tag(element):
+    tag = element.tag
+    if not isinstance(tag, str):
+        return ""
+    return tag.rsplit("}", 1)[-1].lower()
+
+
+def _epub_container_root(zf, options):
+    """The package document's archive path and its containing directory.
+
+    `META-INF/container.xml` names the OPF with a `rootfile` `full-path`
+    attribute. Hard-coding `OEBPS/content.opf` works on most books and fails
+    on the rest silently, with a file-not-found that reads like a malformed
+    EPUB. The directory is returned beside the path because every manifest
+    `href` is relative to the OPF's own directory, and joining them against
+    the archive root instead is the second most likely silent failure here.
+    """
+    if EPUB_CONTAINER_PATH not in zf.namelist():
+        raise _Refusal("source.malformed_input",
+                       "malformed EPUB: no META-INF/container.xml")
+    raw, error = _read_zip_part(zf, EPUB_CONTAINER_PATH, options)
+    if error is not None:
+        raise _Refusal(error["code"], error["message"])
+    container, error = _parse_xml_safely(raw, options)
+    if error is not None:
+        raise _Refusal(error["code"], error["message"])
+    for node in container.iter():
+        if _local_tag(node) != "rootfile":
+            continue
+        full_path = node.get("full-path")
+        if full_path:
+            return full_path, posixpath.dirname(full_path)
+    raise _Refusal("source.malformed_input",
+                   "malformed EPUB: container names no package document")
+
+
+def _epub_spine_order(package, opf_dir, unsupported):
+    """`(spine_idref, resolved_href)` pairs in spine order.
+
+    Spine order is the order of `itemref` children of the `spine` element,
+    each naming a manifest item by `idref`. Filename order and manifest order
+    both look plausible on a tidy book and are both wrong, which is exactly
+    what `epub-spine-out-of-order` exists to catch.
+    """
+    hrefs = {}
+    for node in package.iter():
+        if _local_tag(node) != "item":
+            continue
+        item_id = node.get("id")
+        href = node.get("href")
+        if item_id and href:
+            hrefs[item_id] = posixpath.normpath(
+                posixpath.join(opf_dir, href)) if opf_dir else href
+    ordered = []
+    for node in package.iter():
+        if _local_tag(node) != "itemref":
+            continue
+        idref = node.get("idref")
+        if not idref:
+            continue
+        href = hrefs.get(idref)
+        if href is None:
+            unsupported.append({
+                "code": "source.unsupported",
+                "message": "spine item %s: no manifest entry" % idref})
+            continue
+        ordered.append((idref, href))
+    return ordered
+
+
+def _epub_blocks(document):
+    """`(element, text, fragment)` for every block-level element carrying
+    text, plus the set of skipped tags that carried text."""
+    parents = {}
+    for parent in document.iter():
+        for child in parent:
+            parents[child] = parent
+
+    def fragment_for(element):
+        node = element
+        while node is not None:
+            node_id = node.get("id")
+            if node_id:
+                return node_id
+            node = parents.get(node)
+        return None
+
+    blocks = []
+    skipped = []
+    for element in document.iter():
+        tag = _local_tag(element)
+        text = " ".join("".join(element.itertext()).split())
+        if not text:
+            continue
+        if tag in EPUB_SKIPPED_TAGS:
+            if tag not in skipped:
+                skipped.append(tag)
+            continue
+        if tag not in EPUB_BLOCK_TAGS:
+            continue
+        # A block nested inside another block is emitted once, by its
+        # innermost owner, exactly as the web adapter does.
+        outer = parents.get(element)
+        nested = False
+        while outer is not None:
+            if _local_tag(outer) in EPUB_BLOCK_TAGS:
+                nested = True
+                break
+            outer = parents.get(outer)
+        if nested:
+            continue
+        blocks.append((element, text, fragment_for(element)))
+    return blocks, skipped
+
+
+def _extract_epub(raw_bytes, options):
+    """An EPUB, read in spine order with resolvable fragment anchors.
+
+    XHTML is XML, so `_parse_xml_safely` is the correct parser for a content
+    document and no HTML parser is needed. That is the reason this adapter
+    needs no third-party library while the web adapter does, and it is what
+    makes the D-14C-2 stdlib path cheap rather than merely principled.
+    """
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(raw_bytes))
+    except zipfile.BadZipFile:
+        raise _Refusal("source.malformed_input", "malformed/truncated EPUB")
+
+    unsupported = []
+    lines_out = []
+    locators = []
+    reading_order = []
+
+    with archive as zf:
+        # FIRST, before anything else is read. A DRM-locked book's container,
+        # spine, and manifest all parse perfectly well and only its content is
+        # unreadable, so checking later would build a book-shaped source with
+        # garbage in it.
+        if EPUB_ENCRYPTION_PATH in zf.namelist():
+            raise _Refusal("source.encrypted",
+                           "encrypted EPUB: no unauthenticated content")
+
+        for name in zf.namelist():
+            error = _zip_member_error(zf, name, options)
+            if error is not None:
+                raise _Refusal(error["code"], error["message"])
+
+        opf_path, opf_dir = _epub_container_root(zf, options)
+        raw_opf, error = _read_zip_part(zf, opf_path, options)
+        if error is not None:
+            raise _Refusal(error["code"], error["message"])
+        package, error = _parse_xml_safely(raw_opf, options)
+        if error is not None:
+            raise _Refusal(error["code"], error["message"])
+
+        spine = _epub_spine_order(package, opf_dir, unsupported)
+        if not spine:
+            raise _Refusal("source.unsupported",
+                           "no spine item: the package lists no reading order")
+
+        skipped_tags = []
+        for spine_index, (idref, href) in enumerate(spine):
+            raw_doc, error = _read_zip_part(zf, href, options)
+            if error is not None:
+                unsupported.append({
+                    "code": error["code"],
+                    "message": "spine item %s: %s" % (idref, error["message"])})
+                continue
+            document, error = _parse_xml_safely(raw_doc, options)
+            if error is not None:
+                unsupported.append({
+                    "code": error["code"],
+                    "message": "spine item %s: %s" % (idref, error["message"])})
+                continue
+            blocks, skipped = _epub_blocks(document)
+            for tag in skipped:
+                if tag not in skipped_tags:
+                    skipped_tags.append(tag)
+            for element_index, (element, text, fragment) in enumerate(blocks):
+                lines_out.append(text)
+                locator_id = "sp%d.%d" % (spine_index, element_index)
+                locators.append({
+                    "id": locator_id,
+                    "kind": ("spine_item"
+                             if _local_tag(element) in EPUB_HEADING_TAGS
+                             else "block"),
+                    "body": {
+                        "medium": "epub",
+                        "spine_index": spine_index,
+                        "spine_idref": idref,
+                        "element_index": element_index,
+                        "fragment": fragment,
+                    },
+                    "_line": len(lines_out),
+                })
+                reading_order.append(locator_id)
+
+    if not locators:
+        raise _Refusal("source.unsupported",
+                       "no readable content document in the spine")
+
+    # PORT-02's semantic loss report for the import direction. These entries
+    # do not fail the extraction; they are what makes the sidecar honest about
+    # being a prototype-grade interchange adapter rather than a complete one.
+    unsupported.append({
+        "code": "source.unsupported",
+        "message": "navigation document not read: no hierarchical table of "
+                   "contents"})
+    for tag in skipped_tags:
+        unsupported.append({"code": "source.unsupported",
+                            "message": "skipped a %s element" % tag})
+    return "\n".join(lines_out) + "\n", locators, reading_order, unsupported
+
+
 ADAPTER_REGISTRY = {
     "markdown": _extract_markdown,
     "text": _extract_text,
@@ -1755,6 +1995,7 @@ ADAPTER_REGISTRY = {
     "web": _extract_web,
     "transcript": _extract_transcript,
     "ocr": _extract_ocr,
+    "epub": _extract_epub,
 }
 
 ADAPTER_VERSIONS = {name: "1.0.0" for name in ADAPTER_REGISTRY}

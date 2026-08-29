@@ -29,6 +29,7 @@ import locator_fidelity_cases                                # noqa: E402
 import pptx_fidelity_cases                                   # noqa: E402
 import web_capture_fidelity_cases                            # noqa: E402
 import transcript_fidelity_cases                             # noqa: E402
+import epub_fidelity_cases                                   # noqa: E402
 
 
 def fail(msg):
@@ -358,6 +359,15 @@ def check_degrades_without_dependencies():
                 if needle not in degraded["error"]["message"]:
                     fail("degrade: the %s refusal does not name its install "
                          "command: %r" % (adapter, degraded["error"]["message"]))
+            epub_rel = "book.epub"
+            with open(os.path.join(base, epub_rel), "wb") as fh:
+                fh.write(epub_fidelity_cases.CASE_TABLE[0]["build"]())
+            epub_id = link_with_rights(base, epub_rel, all_granted())
+            still_works = source_adapters.import_source(
+                base, "epub", epub_id, "human", "tester")
+            if still_works["status"] != "ok":
+                fail("degrade: epub has no third-party dependency and should "
+                     "still import: %r" % (still_works["error"],))
             ok = source_adapters.import_source(
                 base, "markdown", md_id, "human", "tester")
         finally:
@@ -1897,6 +1907,260 @@ def check_ocr_single_implementation():
           "wrapped and not rebuilt")
 
 
+# ---------------------------------------------------------------------------
+# Plan 14C-07: EPUB import, stdlib only, because D-14C-2 parks ebooklib on an
+# explicit Weibao AGPL decision.
+
+def epub_case(case_id):
+    for case in epub_fidelity_cases.CASE_TABLE:
+        if case["id"] == case_id:
+            return case
+    fail("epub gold case %s is not in the case table" % case_id)
+
+
+def _extract_epub_case(case):
+    try:
+        md, locators, order, unsupported = source_adapters._extract_epub(
+            case["build"](), {})
+    except source_adapters._Refusal as refusal:
+        return ("refused", refusal.code, refusal.message, None, None)
+    return (order, [e["message"] for e in unsupported], locators, md, None)
+
+
+def check_epub_fixture_determinism():
+    table = epub_fidelity_cases.CASE_TABLE
+    if len(table) != 7:
+        fail("epub fixtures: expected 7 cases, found %d" % len(table))
+    if hasattr(epub_fidelity_cases, "ebooklib"):
+        fail("epub fixtures: the fixture module imported ebooklib, which is "
+             "parked under D-14C-2")
+    for case in table:
+        first = case["build"]()
+        if first != case["build"]():
+            fail("epub fixtures: %s is not deterministic" % case["id"])
+        if epub_fidelity_cases.sha256(first) != case["gold"]["sha256"]:
+            fail("epub fixtures: %s drifted from its recorded sha256"
+                 % case["id"])
+        empty = not case["gold"]["reading_order"]
+        if empty != (case["gold"]["adapter_expectation"] == "unsupported"):
+            fail("epub fixtures: %s disagrees with the reading-order "
+                 "invariant" % case["id"])
+    workdir = tempfile.mkdtemp(prefix="epubfix-")
+    try:
+        records = epub_fidelity_cases.materialize(
+            os.path.join(workdir, "out"))
+        for _case_id, path, digest in records:
+            if not path.startswith(workdir):
+                fail("epub fixtures: materialize wrote outside its directory")
+            with open(path, "rb") as fh:
+                if epub_fidelity_cases.sha256(fh.read()) != digest:
+                    fail("epub fixtures: a materialized file does not match "
+                         "its digest")
+        import zipfile as _zipfile
+        with _zipfile.ZipFile(os.path.join(workdir, "out",
+                                            "book.epub")) as zf:
+            if zf.namelist()[0] != "mimetype":
+                fail("epub fixtures: mimetype is not the first member")
+            if zf.read("mimetype") != b"application/epub+zip":
+                fail("epub fixtures: the mimetype member is wrong")
+            if zf.getinfo("mimetype").compress_type != _zipfile.ZIP_STORED:
+                fail("epub fixtures: the mimetype member is compressed")
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+    print("ok: epub fixture determinism -- 7 hand-assembled cases, a correct "
+          "uncompressed mimetype member first, and no ebooklib anywhere")
+
+
+def check_epub_gold_cases():
+    for case in epub_fidelity_cases.CASE_TABLE:
+        gold = case["gold"]
+        outcome = _extract_epub_case(case)
+        if gold["adapter_expectation"] == "unsupported":
+            if outcome[0] != "refused":
+                fail("epub gold: %s was expected to refuse but produced %r"
+                     % (case["id"], outcome[0]))
+            if outcome[2] != gold["unsupported"][0]:
+                fail("epub gold: %s refused with %r, recorded %r"
+                     % (case["id"], outcome[2], gold["unsupported"][0]))
+            continue
+        if outcome[0] == "refused":
+            fail("epub gold: %s was expected to extract, but refused with "
+                 "%s / %s" % (case["id"], outcome[1], outcome[2]))
+        if outcome[0] != gold["reading_order"]:
+            fail("epub gold: %s produced %r, recorded %r"
+                 % (case["id"], outcome[0], gold["reading_order"]))
+        if outcome[1] != gold["unsupported"]:
+            fail("epub gold: %s reported %r, recorded %r"
+                 % (case["id"], outcome[1], gold["unsupported"]))
+    print("ok: epub gold cases -- all 7 resolve as recorded")
+
+
+def check_epub_spine_order():
+    case = epub_case("epub-spine-out-of-order")
+    order, _unsupported, locators, md, _extra = _extract_epub_case(case)
+    if order != case["gold"]["reading_order"]:
+        fail("epub spine: %r against the recorded %r"
+             % (order, case["gold"]["reading_order"]))
+    # Assert on the TEXT, not only on the ids: right-looking ids produced from
+    # the wrong documents would pass an id-only assertion.
+    if md.split("\n")[0] != case["gold"]["first_text"]:
+        fail("epub spine: the first emitted text is %r, so the adapter read "
+             "the documents in filename order rather than spine order"
+             % md.split("\n")[0])
+    seen = []
+    for locator in locators:
+        idref = locator["body"]["spine_idref"]
+        if idref not in seen:
+            seen.append(idref)
+    if seen != case["gold"]["spine_idrefs"]:
+        fail("epub spine: the idrefs appear in the order %r, expected %r"
+             % (seen, case["gold"]["spine_idrefs"]))
+    print("ok: epub spine order -- reading order comes from the package "
+          "document's spine, not from filenames and not from the manifest")
+
+
+def check_epub_container_indirection():
+    case = epub_case("epub-nonstandard-opf-path")
+    order, _unsupported, _locators, _md, _extra = _extract_epub_case(case)
+    if order == "refused":
+        fail("epub container: a book whose OPF is not at OEBPS/content.opf "
+             "failed, so the path is hard-coded rather than read from "
+             "META-INF/container.xml")
+    if order != case["gold"]["reading_order"]:
+        fail("epub container: %r against the recorded %r"
+             % (order, case["gold"]["reading_order"]))
+    print("ok: epub container indirection -- the OPF path comes from the "
+          "container's rootfile, not from a hard-coded constant")
+
+
+def check_epub_fragment_anchor():
+    base = new_base()
+    try:
+        case = epub_case("epub-fragment-anchors")
+        _order, _unsupported, locators, _md, _extra = _extract_epub_case(case)
+        fragments = [loc["body"]["fragment"] for loc in locators]
+        if fragments != case["gold"]["fragments"]:
+            fail("epub fragments: %r against the recorded %r"
+                 % (fragments, case["gold"]["fragments"]))
+        if not any(f is None for f in fragments):
+            fail("epub fragments: no locator carries a null fragment, so the "
+                 "unanchored case proves nothing")
+
+        rel = case["filename"]
+        with open(os.path.join(base, rel), "wb") as fh:
+            fh.write(case["build"]())
+        raw_id = link_with_rights(base, rel, all_granted())
+        result = source_adapters.import_source(base, "epub", raw_id, "human",
+                                                "tester")
+        if result["status"] != "ok":
+            fail("epub fragments: the import failed: %r" % (result["error"],))
+        sidecar = json.loads(open(os.path.join(base,
+                                                result["sidecar_rel_path"]),
+                                   encoding="utf-8").read())
+        errs = schema_validate.validate(sidecar, SCHEMA)
+        if errs:
+            fail("epub fragments: sidecar failed its own schema: %s" % errs[0])
+        if sidecar["confidence"] != "high":
+            fail("epub fragments: a declared reading order should be high "
+                 "confidence, got %r" % sidecar["confidence"])
+
+        anchored = [loc for loc in sidecar["locators"]
+                    if loc["body"]["fragment"] and loc["span_id"]]
+        if not anchored:
+            fail("epub fragments: no anchored locator joined to a span")
+        target = anchored[0]
+        record = auditor.citation(sidecar["source_id"],
+                                   sidecar["fingerprint"], target["span_id"])
+        # Resolve the citation back through the sidecar to the triple that
+        # names the element it came from.
+        resolved = [loc for loc in sidecar["locators"]
+                    if loc["span_id"] == record["span_id"]]
+        if not resolved:
+            fail("epub fragments: the citation did not resolve back through "
+                 "the sidecar")
+        body = resolved[0]["body"]
+        triple = (body["spine_idref"], body["element_index"],
+                  body["fragment"])
+        if triple != (target["body"]["spine_idref"],
+                      target["body"]["element_index"],
+                      target["body"]["fragment"]):
+            fail("epub fragments: the resolved triple %r does not name the "
+                 "element the text came from" % (triple,))
+        md_lines = open(os.path.join(base, result["md_rel_path"]),
+                        encoding="utf-8").read().split("\n")[:-1]
+        if len(md_lines) != len(sidecar["reading_order"]):
+            fail("epub fragments: %d derived lines against %d reading-order "
+                 "entries" % (len(md_lines), len(sidecar["reading_order"])))
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+    print("ok: epub fragment anchor -- a citation resolves back to the exact "
+          "spine item, element index, and fragment it came from")
+
+
+def check_epub_drm_refused():
+    base = new_base()
+    try:
+        case = epub_case("epub-drm-encrypted")
+        rel = case["filename"]
+        with open(os.path.join(base, rel), "wb") as fh:
+            fh.write(case["build"]())
+        raw_id = link_with_rights(base, rel, all_granted())
+        result = source_adapters.import_source(base, "epub", raw_id, "human",
+                                                "tester")
+        if result["error"] is None or \
+                result["error"]["code"] != "source.encrypted":
+            fail("epub drm: a DRM-locked book produced %r" % (result,))
+        if result["error"]["message"] != \
+                "encrypted EPUB: no unauthenticated content":
+            fail("epub drm: the message is %r" % result["error"]["message"])
+        for name in os.listdir(base):
+            if name.endswith(".md") or name.endswith(".locator.json"):
+                fail("epub drm: a refused import wrote %s" % name)
+        imports = [e for e in applied_entries(base)
+                   if e.get("operation") == "import"]
+        if imports:
+            fail("epub drm: a refused import journaled an entry")
+        # The refusal comes before any content document is read: the same
+        # fixture with a deliberately broken content document still refuses
+        # with source.encrypted rather than with a parse error.
+        broken = epub_fidelity_cases.epub_bytes(
+            "OEBPS/content.opf",
+            [("c1", "chap1.xhtml")], ["c1"],
+            {"OEBPS/chap1.xhtml": "<not-xml at all"},
+            extra_parts={
+                "META-INF/encryption.xml":
+                    epub_fidelity_cases._ENCRYPTION_XML})
+        try:
+            source_adapters._extract_epub(broken, {})
+            fail("epub drm: a broken encrypted book did not refuse")
+        except source_adapters._Refusal as refusal:
+            if refusal.code != "source.encrypted":
+                fail("epub drm: the encryption check does not come first; a "
+                     "broken content document produced %r" % refusal.code)
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+    print("ok: epub drm refused -- an encrypted book is refused before any "
+          "content document is read, writing and journaling nothing")
+
+
+def check_epub_uses_shared_seam():
+    import inspect
+    src = (inspect.getsource(source_adapters._extract_epub)
+           + inspect.getsource(source_adapters._epub_container_root)
+           + inspect.getsource(source_adapters._epub_spine_order))
+    if "_read_zip_part" not in src or "_parse_xml_safely" not in src:
+        fail("epub seam: the adapter does not read through the shared seam")
+    for line in src.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            continue
+        if "zf.read(" in stripped or "archive.read(" in stripped:
+            fail("epub seam: a direct ZipFile read bypasses the size cap: %r"
+                 % stripped)
+    print("ok: epub shared seam -- every archive member and every XML part "
+          "goes through the one hardened reader")
+
+
 if __name__ == "__main__":
     check_thin_slice()
     check_scanned_pdf_is_typed_unsupported()
@@ -1947,6 +2211,13 @@ if __name__ == "__main__":
     check_ocr_no_text_sentinel()
     check_ocr_temp_file_removed()
     check_ocr_single_implementation()
+    check_epub_fixture_determinism()
+    check_epub_gold_cases()
+    check_epub_spine_order()
+    check_epub_container_indirection()
+    check_epub_fragment_anchor()
+    check_epub_drm_refused()
+    check_epub_uses_shared_seam()
     print("ok: source adapters -- one typed import boundary, one parser's "
           "span ids, one fingerprint, typed refusals, and a degraded path "
           "that names its install command")
