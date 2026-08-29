@@ -86,6 +86,12 @@ W_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 DOCX_EXTRA_PARTS = ("word/footnotes.xml", "word/endnotes.xml",
                     "word/comments.xml")
 
+# PresentationML and the package relationships namespace, spelled as
+# ElementTree prefixes for the same reason W_NS is.
+P_NS = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
+R_NS = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+PKG_REL_NS = "{http://schemas.openxmlformats.org/package/2006/relationships}"
+
 # Bounded structure, so a hostile part cannot cost unbounded work.
 MAX_XML_DEPTH = 100
 MAX_ZIP_MEMBERS = 4096
@@ -775,11 +781,162 @@ def _extract_docx(raw_bytes, options):
     return "\n".join(lines) + "\n", locators, reading_order, unsupported
 
 
+_PYTHON_PPTX_INSTALL = "run: pip install python-pptx==1.0.2"
+
+
+def _pptx_slide_order(zf, options):
+    """The slide part names in reading order, or `(None, error)`.
+
+    Reading order is the order of `p:sldId` children in `p:sldIdLst` inside
+    `ppt/presentation.xml`, resolved through
+    `ppt/_rels/presentation.xml.rels`. It is NOT the numeric order of the
+    `slideN.xml` filenames: PowerPoint keeps a slide's original part name when
+    a deck is reordered, so sorting filenames produces the wrong reading order
+    with no visible symptom at all. The `pptx-reordered-slides` gold case is
+    the one that goes red if that is ever done.
+    """
+    raw, error = _read_zip_part(zf, "ppt/presentation.xml", options)
+    if error is not None:
+        return None, error
+    presentation, error = _parse_xml_safely(raw, options)
+    if error is not None:
+        return None, error
+    raw_rels, error = _read_zip_part(zf, "ppt/_rels/presentation.xml.rels",
+                                     options)
+    if error is not None:
+        return None, error
+    rels, error = _parse_xml_safely(raw_rels, options)
+    if error is not None:
+        return None, error
+
+    targets = {}
+    for node in rels.iter(PKG_REL_NS + "Relationship"):
+        targets[node.get("Id")] = node.get("Target")
+
+    ordered = []
+    for slide_id in presentation.iter(P_NS + "sldId"):
+        target = targets.get(slide_id.get(R_NS + "id"))
+        if target is None:
+            continue
+        ordered.append(posixpath.normpath(posixpath.join("ppt", target)))
+    return ordered, None
+
+
+def _extract_pptx(raw_bytes, options):
+    """PresentationML: on-slide text and speaker notes, slide by slide.
+
+    Two things about this adapter are worth stating where they cannot be
+    missed. Slide order comes from the presentation part, never from sorted
+    filenames, for the reason `_pptx_slide_order` gives. And
+    `slide.part.partname` on a loaded deck reports the slide's POSITION, not
+    the archive member it was read from, so it cannot be used to join the
+    resolved order back to python-pptx's slides; the join is positional, and
+    the resolved order is used to fix the count and to prove the ordering
+    contract holds.
+
+    The derived Markdown carries one `## Slide N` heading per slide, then one
+    line per on-slide shape, then one `> ` quoted line per speaker note. The
+    heading is presentation, not content: it has no locator and no span, and
+    it should stay that way, because a citation into a deck names a shape or a
+    note and never the divider a reader was given to see where a slide began.
+    """
+    try:
+        import pptx
+    except ImportError:
+        raise _Refusal("source.dependency_missing",
+                       "the pptx adapter needs python-pptx, which is not "
+                       "installed. It is optional and every other command is "
+                       "unaffected. To enable pptx import, %s"
+                       % _PYTHON_PPTX_INSTALL)
+
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(raw_bytes))
+    except zipfile.BadZipFile:
+        raise _Refusal("source.malformed_input", "malformed/truncated PPTX")
+
+    with archive as zf:
+        for name in zf.namelist():
+            error = _zip_member_error(zf, name, options)
+            if error is not None:
+                raise _Refusal(error["code"], error["message"])
+        ordered, error = _pptx_slide_order(zf, options)
+        if error is not None:
+            raise _Refusal(error["code"], error["message"])
+
+    try:
+        presentation = pptx.Presentation(io.BytesIO(raw_bytes))
+        slides = list(presentation.slides)
+    except _Refusal:
+        raise
+    except Exception:
+        raise _Refusal("source.malformed_input", "malformed/truncated PPTX")
+
+    if len(ordered) != len(slides):
+        raise _Refusal("source.malformed_input",
+                       "the presentation part lists %d slides but the package "
+                       "carries %d; the deck is inconsistent"
+                       % (len(ordered), len(slides)))
+
+    lines = []
+    locators = []
+    reading_order = []
+    unsupported = []
+
+    for slide_number, slide in enumerate(slides, start=1):
+        lines.append("## Slide %d" % slide_number)
+        emitted = 0
+        for shape_index, shape in enumerate(slide.shapes):
+            if not shape.has_text_frame:
+                continue
+            text = shape.text_frame.text
+            if not text.strip():
+                continue
+            lines.append(text)
+            locator_id = "s%d.%d" % (slide_number, shape_index)
+            locators.append({
+                "id": locator_id,
+                "kind": "slide",
+                "body": {"medium": "pptx", "slide": slide_number,
+                         "shape_index": shape_index, "notes": False},
+                "_line": len(lines),
+            })
+            reading_order.append(locator_id)
+            emitted += 1
+        # `has_notes_slide` is the guard, not a try/except: a deck saved with
+        # no notes carries no notesSlide part at all, and touching
+        # `notes_slide` on one raises rather than returning empty.
+        if slide.has_notes_slide:
+            note_text = slide.notes_slide.notes_text_frame.text
+            if note_text.strip():
+                lines.append("> " + note_text)
+                locator_id = "s%d.n0" % slide_number
+                locators.append({
+                    "id": locator_id,
+                    "kind": "notes",
+                    "body": {"medium": "pptx", "slide": slide_number,
+                             "shape_index": 0, "notes": True},
+                    "_line": len(lines),
+                })
+                reading_order.append(locator_id)
+                emitted += 1
+        if not emitted:
+            unsupported.append({
+                "code": "source.unsupported",
+                "message": "slide %d: media-only slide, no text-bearing shape"
+                           % slide_number})
+
+    if not locators:
+        raise _Refusal("source.unsupported",
+                       "media-only deck: no text-bearing shape")
+    return "\n".join(lines) + "\n", locators, reading_order, unsupported
+
+
 ADAPTER_REGISTRY = {
     "markdown": _extract_markdown,
     "text": _extract_text,
     "pdf": _extract_pdf,
     "docx": _extract_docx,
+    "pptx": _extract_pptx,
 }
 
 ADAPTER_VERSIONS = {name: "1.0.0" for name in ADAPTER_REGISTRY}

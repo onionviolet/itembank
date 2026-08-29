@@ -26,6 +26,7 @@ import resources                                             # noqa: E402
 import schema_validate                                       # noqa: E402
 import source_adapters                                       # noqa: E402
 import locator_fidelity_cases                                # noqa: E402
+import pptx_fidelity_cases                                   # noqa: E402
 
 
 def fail(msg):
@@ -308,7 +309,7 @@ def check_degrades_without_dependencies():
     real_import = builtins.__import__
 
     def blocked(name, *args, **kwargs):
-        if name == "pdfplumber":
+        if name in ("pdfplumber", "docx", "pptx"):
             raise ImportError("blocked for this test")
         return real_import(name, *args, **kwargs)
 
@@ -331,6 +332,26 @@ def check_degrades_without_dependencies():
             if needle not in result["error"]["message"]:
                 fail("degrade: the refusal message does not name the install "
                      "command: %r" % result["error"]["message"])
+            for adapter, needle, case_id in (
+                    ("docx", "pip install python-docx==1.2.0",
+                     "docx-headings-lists"),
+                    ("pptx", "pip install python-pptx==1.0.2", None)):
+                if case_id is None:
+                    other_rel = "deck.pptx"
+                    with open(os.path.join(base, other_rel), "wb") as fh:
+                        fh.write(pptx_fidelity_cases.CASE_TABLE[0]["build"]())
+                else:
+                    other_rel = seed_raw(base, case_id)
+                other_id = link_with_rights(base, other_rel, all_granted())
+                degraded = source_adapters.import_source(
+                    base, adapter, other_id, "human", "tester")
+                if degraded["error"]["code"] != "source.dependency_missing":
+                    fail("degrade: %s gave %r rather than "
+                         "source.dependency_missing"
+                         % (adapter, degraded["error"]["code"]))
+                if needle not in degraded["error"]["message"]:
+                    fail("degrade: the %s refusal does not name its install "
+                         "command: %r" % (adapter, degraded["error"]["message"]))
             ok = source_adapters.import_source(
                 base, "markdown", md_id, "human", "tester")
         finally:
@@ -655,6 +676,161 @@ def check_gold_manifest_additive():
           "unchanged, both expectation keys present and agreeing")
 
 
+
+# ---------------------------------------------------------------------------
+# Plan 14C-03: the PPTX corpus.
+
+def pptx_case(case_id):
+    for case in pptx_fidelity_cases.CASE_TABLE:
+        if case["id"] == case_id:
+            return case
+    fail("pptx gold case %s is not in the case table" % case_id)
+
+
+def _extract_pptx_case(case):
+    try:
+        md, locators, reading_order, unsupported = \
+            source_adapters._extract_pptx(case["build"](), {})
+    except source_adapters._Refusal as refusal:
+        return ("refused", refusal.code, refusal.message, None)
+    return (reading_order, [e["message"] for e in unsupported], locators, md)
+
+
+def check_pptx_fixture_determinism():
+    table = pptx_fidelity_cases.CASE_TABLE
+    if len(table) != 6:
+        fail("pptx fixtures: expected 6 cases, found %d" % len(table))
+    if hasattr(pptx_fidelity_cases, "pptx"):
+        fail("pptx fixtures: the fixture module imported python-pptx, so it "
+             "would only prove the library round-trips its own output")
+    for case in table:
+        first = case["build"]()
+        second = case["build"]()
+        if first != second:
+            fail("pptx fixtures: %s is not deterministic within one process"
+                 % case["id"])
+        if pptx_fidelity_cases.sha256(first) != case["gold"]["sha256"]:
+            fail("pptx fixtures: %s drifted from its recorded sha256"
+                 % case["id"])
+        for key in ("sha256", "structures", "reading_order", "unsupported",
+                    "adapter_expectation"):
+            if key not in case["gold"]:
+                fail("pptx fixtures: %s is missing %s" % (case["id"], key))
+        empty = not case["gold"]["reading_order"]
+        if empty != (case["gold"]["adapter_expectation"] == "unsupported"):
+            fail("pptx fixtures: %s disagrees with the reading-order "
+                 "invariant" % case["id"])
+    workdir = tempfile.mkdtemp(prefix="pptxfix-")
+    try:
+        records = pptx_fidelity_cases.materialize(
+            os.path.join(workdir, "out"))
+        if len(records) != len(table):
+            fail("pptx fixtures: materialize returned %d records for %d cases"
+                 % (len(records), len(table)))
+        for _case_id, path, digest in records:
+            if not path.startswith(workdir):
+                fail("pptx fixtures: materialize wrote outside its directory")
+            with open(path, "rb") as fh:
+                if pptx_fidelity_cases.sha256(fh.read()) != digest:
+                    fail("pptx fixtures: a materialized file does not match "
+                         "its reported digest")
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+    print("ok: pptx fixture determinism -- 6 hand-assembled cases, every "
+          "recorded sha256 stable, and no python-pptx in the builder")
+
+
+def check_pptx_gold_cases():
+    for case in pptx_fidelity_cases.CASE_TABLE:
+        gold = case["gold"]
+        outcome = _extract_pptx_case(case)
+        if gold["adapter_expectation"] == "unsupported":
+            if outcome[0] != "refused":
+                fail("pptx gold: %s was expected to refuse, but produced %r"
+                     % (case["id"], outcome[0]))
+            if outcome[2] != gold["unsupported"][0]:
+                fail("pptx gold: %s refused with %r, but the gold manifest "
+                     "records %r"
+                     % (case["id"], outcome[2], gold["unsupported"][0]))
+            continue
+        if outcome[0] == "refused":
+            fail("pptx gold: %s was expected to extract, but refused with "
+                 "%s / %s" % (case["id"], outcome[1], outcome[2]))
+        if outcome[0] != gold["reading_order"]:
+            fail("pptx gold: %s produced the reading order %r, but the gold "
+                 "manifest records %r"
+                 % (case["id"], outcome[0], gold["reading_order"]))
+        if outcome[1] != gold["unsupported"]:
+            fail("pptx gold: %s reported %r, but the gold manifest records %r"
+                 % (case["id"], outcome[1], gold["unsupported"]))
+    print("ok: pptx gold cases -- all 6 resolve as recorded")
+
+
+def check_pptx_notes_flag():
+    case = pptx_case("pptx-speaker-notes")
+    _order, _unsupported, locators, md = _extract_pptx_case(case)
+    flagged = [loc for loc in locators if loc["body"]["notes"] is True]
+    plain = [loc for loc in locators if loc["body"]["notes"] is False]
+    if len(flagged) != 1 or len(plain) != 1:
+        fail("pptx notes: expected one flagged and one plain locator, got "
+             "%d and %d" % (len(flagged), len(plain)))
+    if flagged[0]["body"]["slide"] != plain[0]["body"]["slide"]:
+        fail("pptx notes: the note is numbered on slide %r while its slide is "
+             "%r" % (flagged[0]["body"]["slide"], plain[0]["body"]["slide"]))
+    if "Mention the Venturi mask flow rates." not in md:
+        fail("pptx notes: the speaker note is absent from the derived "
+             "Markdown")
+    print("ok: pptx notes flag -- a speaker note is distinguishable by a real "
+          "boolean on its locator body, not by a naming convention")
+
+
+def check_pptx_slide_order():
+    case = pptx_case("pptx-reordered-slides")
+    order, _unsupported, _locators, md = _extract_pptx_case(case)
+    if order != case["gold"]["reading_order"]:
+        fail("pptx order: %r against the recorded %r"
+             % (order, case["gold"]["reading_order"]))
+    content = [line for line in md.split("\n")
+               if line and not line.startswith("## ")]
+    if content[0] != case["gold"]["first_text"]:
+        fail("pptx order: the first emitted text is %r, so slide order came "
+             "from sorted filenames rather than from the sldId list"
+             % content[0])
+    print("ok: pptx slide order -- reading order comes from the presentation "
+          "part's sldId list, not from sorted slide filenames")
+
+
+def check_pptx_partial_refusal():
+    base = new_base()
+    try:
+        case = pptx_case("pptx-video-only-slide")
+        rel = case["filename"]
+        with open(os.path.join(base, rel), "wb") as fh:
+            fh.write(case["build"]())
+        raw_id = link_with_rights(base, rel, all_granted())
+        result = source_adapters.import_source(base, "pptx", raw_id, "human",
+                                                "tester")
+        if result["status"] != "ok":
+            fail("pptx partial: a deck with one media-only slide was "
+                 "discarded: %r" % (result["error"],))
+        sidecar = json.loads(open(os.path.join(base,
+                                                result["sidecar_rel_path"]),
+                                   encoding="utf-8").read())
+        errs = schema_validate.validate(sidecar, SCHEMA)
+        if errs:
+            fail("pptx partial: sidecar failed its own schema: %s" % errs[0])
+        if not sidecar["locators"]:
+            fail("pptx partial: the deck extracted no locators at all")
+        messages = [e["message"] for e in sidecar["unsupported"]]
+        if messages != case["gold"]["unsupported"]:
+            fail("pptx partial: the sidecar records %r, expected %r"
+                 % (messages, case["gold"]["unsupported"]))
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+    print("ok: pptx partial refusal -- a media-only slide is named in the "
+          "sidecar while the rest of the deck still imports")
+
+
 if __name__ == "__main__":
     check_thin_slice()
     check_scanned_pdf_is_typed_unsupported()
@@ -673,6 +849,11 @@ if __name__ == "__main__":
     check_docx_gold_cases()
     check_docx_extra_parts()
     check_docx_end_to_end()
+    check_pptx_fixture_determinism()
+    check_pptx_gold_cases()
+    check_pptx_notes_flag()
+    check_pptx_slide_order()
+    check_pptx_partial_refusal()
     print("ok: source adapters -- one typed import boundary, one parser's "
           "span ids, one fingerprint, typed refusals, and a degraded path "
           "that names its install command")
