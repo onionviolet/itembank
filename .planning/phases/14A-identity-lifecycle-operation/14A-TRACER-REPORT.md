@@ -29,13 +29,13 @@ These are measurements taken on this machine, on this run. They are not promises
 
 | Quantity | Corpus | Measured | Unit | Runs | D-12.6-10 starting budget |
 |---|---|---|---|---|---|
-| first useful discovery result | 1k | 0.14 | ms | 3 | < 2000 ms on 10k |
+| first useful discovery result | 1k | 0.12 | ms | 3 | < 2000 ms on 10k |
 | full inventory | 1k | 0.02 | s | 3 | < 60 s on 100k (measured here on 1k/10k only; see The 100k corpus section) |
-| cancel response | 1k | 0.08 | ms | 3 | < 500 ms |
+| cancel response | 1k | 0.07 | ms | 3 | < 500 ms |
 | peak traced Python memory (not process RSS) | 1k | 0.59 | MB | 3 | bounded by streaming (no fixed number) |
-| first useful discovery result | 10k | 0.31 | ms | 3 | < 2000 ms on 10k |
-| full inventory | 10k | 0.23 | s | 3 | < 60 s on 100k (measured here on 1k/10k only; see The 100k corpus section) |
-| cancel response | 10k | 0.02 | ms | 3 | < 500 ms |
+| first useful discovery result | 10k | 0.27 | ms | 3 | < 2000 ms on 10k |
+| full inventory | 10k | 0.19 | s | 3 | < 60 s on 100k (measured here on 1k/10k only; see The 100k corpus section) |
+| cancel response | 10k | 0.03 | ms | 3 | < 500 ms |
 | peak traced Python memory (not process RSS) | 10k | 4.78 | MB | 3 | bounded by streaming (no fixed number) |
 
 ## The 100k corpus
