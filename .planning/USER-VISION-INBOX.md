@@ -222,6 +222,39 @@ Weibao, daily", which is what this clause appears to mean. Promote it if it
 turns out to be a third, learner-facing bar; mark it Duplicate against A10 if
 it is not.
 
+### 2026-08-28: be more like the specimen, and a slideshow-with-quiz style
+
+> for stuff like the course,, we should also be more like https://navigate2.jblearning.com/
+
+> maybe slideshow with quiz style as one of the options and more, check out https://navigate2.jblearning.com/pluginfile.php/57822603/mod_scorm/content/7/Shell/main.html if needed
+
+> scrape and odnwload as needed
+
+**Disposition:** Split (2026-08-28).
+
+- **Duplicate half.** "Be more like Navigate2 for the course" restates the
+  2026-08-26 statement that produced the teardown and `IL-20260826-01`. It adds
+  no new intent on its own, and the existing reading stands: take the treatment
+  template and the three level navigation, do not take the plumbing. See
+  `.planning/research/2026-08-26-navigate2-teardown.md` sections 3 and 4.
+- **New half, and it is product intent.** "Slideshow with quiz style as one of
+  the options" names a treatment itembank does not have. Today `teach` is a
+  lesson document, a continuous reading surface. A paced, narrated sequence of
+  steps with checkpoint questions inside it is a different treatment with a
+  different failure mode, and it is the specimen's only evidence bearing rung.
+  The word "options" is the load bearing one: it is an addition to the treatment
+  set, not a replacement for the lesson.
+- **Routed.** The URL was inspected on the same day, with the learner's
+  authorization to scrape and download.
+  `.planning/research/2026-08-28-navigate2-interactive-lecture-shell.md` records
+  what the player is and what a paced mode would owe. Raw structural capture
+  stayed out of the repository. Registered as `IL-20260828-01`, with the
+  specimen's timed slide lock rejected as `IL-20260828-02`.
+- **Promote if:** the paced mode turns out to change what Weibao means by a
+  course rather than only how a lesson is presented. It is held here rather than
+  promoted because on the current reading it is a presentation of an existing
+  durable object, which is a design decision and not a vision statement.
+
 ## Disposition vocabulary
 
 - **Promote:** add the verbatim statement and interpretation to `USER-VISION`.

@@ -1130,3 +1130,119 @@ Amendments to an existing entry are additive notes under the entry, dated.
 - **Reconsideration condition:** a target examination that genuinely weights its
   domains equally, in which case flat pools are correct for that blueprint and
   wrong as a default.
+
+### IL-20260828-01: A paced lesson presentation, slideshow with checkpoint items
+
+- **Proposal:** A `paced` presentation mode over an already authored lesson: the
+  same Markdown reads as a continuous document in Obsidian and projects as an
+  ordered sequence of steps, with optional narration (captions and speed
+  control), a table of contents that jumps rather than gates, and checkpoint
+  items drawn from the bank and scored by the one scorer inside the flow.
+- **Origin:** Weibao 2026-08-28, "maybe slideshow with quiz style as one of the
+  options and more". Specimen was the Navigate2 Interactive Lecture SCORM
+  player, inspected the same day with his authorization.
+- **Evidence considered:**
+  `.planning/research/2026-08-28-navigate2-interactive-lecture-shell.md`. The
+  specimen's player is module, chapter, page, with one named template per page,
+  a page completed event, and exactly one assessment hook. It is also the only
+  activity of the observed 435 that carries a grade item, so questions inside
+  the deck are the vendor's whole answer to how teaching produces evidence.
+- **Fit:** additive, and deliberately not a new durable object. The lesson stays
+  the artifact; pacing is a projection of it, which keeps the dual-form rule and
+  avoids a second authored file competing for the same content. Checkpoints are
+  ordinary bank items through the runtime, so there is no second scorer and no
+  second evidence store.
+- **Boundary:** position in the deck is presentation state. It is resumable and
+  it never counts as coverage, mastery or progress. A step that emits no
+  evidence says so, per `IL-20260826-02`.
+- **Disposition:** Registered.
+- **Revisit trigger:** the first phase that touches the lesson renderer or the
+  treatment set, or the resolution of the recorded open question on whether a
+  style is a semantic transformation or a cosmetic theme.
+- **Open questions:** carried in section 4 of the research file, chiefly whether
+  a checkpoint attempt is the same session object as a sitting.
+- **Note 2026-08-28, boundary source left open.** Asked where step boundaries
+  should come from, Weibao answered that there are several possibilities and
+  likely more than were listed, so nothing was narrowed. Eight candidates and
+  their consequences are preserved in section 4a of the research file, marked
+  non-exhaustive. Two things were established without deciding: computed
+  boundaries have unstable identity across edits, which breaks resume and step
+  citation and is a correctness property rather than a preference; and the real
+  fork is whether pacing is an authored property of the lesson or a view
+  preference of the reader, which should be settled before any syntax is. The
+  candidates are mostly composable as a precedence ladder, not rivals.
+
+### IL-20260828-02: The timed slide lock
+
+- **Proposal considered:** Adopt the specimen's `slidelock`, a configured timer
+  (observed at 5000 ms) that holds the learner on a step before advancing is
+  permitted, as a way to make a paced lesson produce a defensible engagement
+  signal.
+- **Origin:** `Shell/config.xml` in the Navigate2 Interactive Lecture package,
+  observed 2026-08-28.
+- **Evidence considered:** the same package sets media to remote with override,
+  so the treatment cannot run unplugged; the two settings sit side by side and
+  fail the same way, by putting the vendor rather than the learner in control of
+  whether study can proceed.
+- **Exact reason:** it counts elapsed seconds as learning. It is the same
+  category error as `IL-20260826-11`, presentation state standing in for
+  attainment, made worse because the learner does not even assert it. A reader
+  who is faster than the timer is punished and a reader who walks away is
+  credited.
+- **Conflicting rule:** "Presentation state never grants authorization" in
+  CLAUDE.md, and the degrade-never-block rule for the remote media half.
+- **Retained alternatives:** if a step genuinely must be attempted before moving
+  on, that is a checkpoint item under `IL-20260828-01` and the verdict is the
+  runtime's. Dwell time may still be recorded as a labelled non-scored signal
+  under `IL-20260826-08`, where it can never aggregate into mastery.
+- **Date:** 2026-08-28.
+- **Reconsideration condition:** none foreseen for gating navigation. Recording
+  dwell as evidence is already retained separately, so nothing here is left
+  pending.
+
+### IL-20260828-03: Gating a step on an attempted checkpoint
+
+- **Proposal:** A step in a paced lesson may be marked as a gate, so forward
+  navigation waits until the learner has attempted the checkpoint on it. Jumping
+  backward, and the table of contents, stay unrestricted.
+- **Origin:** Navigate2 Interactive Lecture, observed 2026-08-28. In the observed
+  39 page deck exactly four pages carry `locked="true"` (12, 22, 32, 38) and page
+  12 is a Knowledge Check, so the attribute marks checkpoints and gates them.
+- **Evidence considered:**
+  `.planning/research/2026-08-28-navigate2-interactive-lecture-shell.md` sections
+  1a and 2.
+- **Fit:** distinct from `IL-20260828-02`, which is rejected, and the two must not
+  be decided together. A timer counts clock time as learning and the learner does
+  not even assert it. A gate on an attempt counts an attempt, which is evidence,
+  and the verdict is the runtime's under the existing invariant.
+- **Boundary:** gate on *attempted*, never on *correct*. Gating on correctness
+  turns a teaching checkpoint into a mastery gate, strands a learner who cannot
+  pass, and gives the checkpoint an authority a teaching-pool item should not
+  have. Backward navigation and the table of contents are never gated, since
+  presentation state grants no authorization.
+- **Disposition:** Registered, constrained as above.
+- **Revisit trigger:** the first plan that implements `IL-20260828-01`.
+
+### IL-20260828-04: An inline-select cloze as a teaching checkpoint form
+
+- **Proposal:** A checkpoint form where the learner completes a sentence by
+  choosing a term from a dropdown embedded in the sentence, several stems to a
+  step, submitted together and disclosed per stem.
+- **Origin:** the Knowledge Check on page 12 of the observed deck, 2026-08-28.
+- **Evidence considered:** same research file. The specimen submits four stems at
+  once and then opens a per stem feedback panel, so batching the submit does not
+  force a single verdict. The panels observed restate each stem rather than
+  teaching the distinction, which is the part not worth copying.
+- **Fit:** it is neither one of the seven shipped types nor one of the five NREMT
+  types the 2026-08-24 vision entry pinned practice to. It is a teaching form, so
+  it belongs in the teaching pool of `IL-20260826-10` and must never enter a
+  blueprint denominator or an exam-fidelity mix.
+- **Boundary:** if it ships, it ships as an additive extension inside the one
+  scorer, per the 2026-08-15 clarification `IL-20260815-05`. Not a second parser
+  and not a second scorer.
+- **Disposition:** Registered. Sequenced behind `IL-20260828-01`, since a
+  checkpoint form with nothing to sit inside is premature.
+- **Revisit trigger:** the paced-mode plan, or any phase adding an item type.
+- **Open question:** whether this is genuinely a new type or a presentation of a
+  `table` item, which already carries several rows each choosing from a set. If
+  the latter, it costs no format surface at all.
