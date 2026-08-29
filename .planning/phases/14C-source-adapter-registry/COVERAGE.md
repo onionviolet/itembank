@@ -25,7 +25,7 @@ vendor's method list. Owner: `source_adapters.py`, plan `14C-04`.
 | ETag capture at fetch time | INTEGRATE | stored in the sidecar `origin.http_etag`, read back by `source recheck` |
 | Last-Modified capture at fetch time | INTEGRATE | stored in the sidecar `origin.http_last_modified` |
 | Conditional GET (`If-None-Match`, `If-Modified-Since`) | INTEGRATE | the `source recheck` staleness path, plan `14C-04` |
-| HEAD request for a cheap reachability probe | INTEGRATE | `source recheck` falls back to it when no validator was captured |
+| HEAD request for a cheap reachability probe | OPT-OUT | Moved from INTEGRATE on 2026-08-28 by plan `14C-04`, which built the recheck. A HEAD answers only "is it reachable", and the no-validator fallback has to answer "did it change", which needs the body: `recheck_origin` fetches, re-extracts, and compares the derived fingerprint. Adding a HEAD first would be a second round trip that answers a question the GET already answers. Revisit if a reachability-only probe is ever wanted on its own. |
 | Private, loopback, and link-local destination refusal | INTEGRATE | default deny, liftable by the `source.allow_private_origins` setting |
 | HTTP error status to a typed refusal | INTEGRATE | `source.fetch_failed` carrying the status code |
 | Proxy configuration | OPT-OUT | stdlib `urllib` already honors the environment proxy variables; itembank adds no proxy settings surface and no proxy authentication of its own. |

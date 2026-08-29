@@ -28,12 +28,19 @@ distinct: the first is an input file or archive member exceeding the intake
 cap, the second is the derived text exceeding `auditor.MAX_SOURCE_BYTES`.
 """
 import io
+import ipaddress
 import json
 import os
 import posixpath
 import re
+import socket
+import urllib.error
+import urllib.parse
+import urllib.request
 import zipfile
 from xml.etree import ElementTree
+
+import discovery
 
 import auditor
 import identity
@@ -108,6 +115,16 @@ def _load_schema():
 
 
 _LOCATOR_SCHEMA = _load_schema()
+
+
+def _options(options):
+    """Caller options merged over the restrictive defaults. A caller that
+    passes nothing gets `approve_before_bind`, private origins denied, and
+    the shipped caps, which is the same thing a surface reading
+    `itembank.json` would get from an untouched install."""
+    merged = dict(SOURCE_OPTION_DEFAULTS)
+    merged.update(options or {})
+    return merged
 
 
 class _Refusal(Exception):
@@ -511,6 +528,12 @@ def _extract_confidence(adapter, locators):
     field is for, and leaving a heuristic result at `high` would be a claim
     the adapter cannot support. Media whose structure is declared rather than
     inferred record no confidence at all."""
+    if adapter == "web":
+        # A capture whose bytes had to be decoded by a replacing fallback is
+        # text the adapter is not certain it read correctly.
+        if any(loc.get("_exact_decode") is False for loc in locators):
+            return "medium"
+        return "high"
     if adapter != "pdf":
         return None
     if any(loc.get("kind") == "footnote" for loc in locators):
@@ -931,18 +954,433 @@ def _extract_pptx(raw_bytes, options):
     return "\n".join(lines) + "\n", locators, reading_order, unsupported
 
 
+# ---------------------------------------------------------------------------
+# Roster item 3: remote capture (plan 14C-04).
+#
+# D-04: a remote source binds as a captured snapshot, never as a URL. The
+# whole binding model runs on fingerprints and a URL has no stable bytes, so
+# the capture is what is fingerprinted and the URL plus the capture timestamp
+# are recorded beside it as provenance. That is what keeps a citation stable
+# when a page is edited, keeps bound material readable with the network
+# unplugged, and makes a changed origin a detectable state rather than a
+# silently broken citation.
+#
+# Text fetched from a remote origin is DATA. Nothing in this module builds a
+# prompt, a tool call, or a shell command from it, and a later phase that
+# hands this text to a model does so knowing it is third-party authored
+# (T-14C-25).
+
+MAX_REDIRECTS = 5
+
+USER_AGENT = "itembank-source-adapter/1.0 (+local, no telemetry)"
+
+SNAPSHOT_DIRNAME = REMOTE_DIRNAME
+SNAPSHOT_CACHE_DIRNAME = "cache"
+
+# Advisory report states for `recheck_origin`. These are NOT journal entry
+# states and NOT members of `SOURCE_ADAPTER_CODES`; the two vocabularies must
+# never be confused, because a `source.*` code names a refusal and one of
+# these names a fact about a remote origin that changed nothing.
+RECHECK_STATES = ("origin_unchanged", "origin_changed", "origin_unreachable")
+
+# Mirrors the `source` group's defaults in `schemas/settings.schema.json`,
+# which is the source of truth; `check_option_defaults_match_schema` fails if
+# the two ever drift. They are duplicated here so a direct call with no
+# options is governed by the same restrictive defaults a surface would load.
+SOURCE_OPTION_DEFAULTS = {
+    "bind_policy": "approve_before_bind",
+    "snapshot_storage": "auto",
+    "snapshot_inline_max_bytes": 8388608,
+    "allow_private_origins": False,
+    "fetch_timeout_seconds": 15,
+    "max_input_bytes": MAX_INPUT_BYTES_DEFAULT,
+}
+
+WEB_BLOCK_TAGS = ("h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "blockquote",
+                  "pre", "figcaption", "dt", "dd", "td", "th")
+
+# Chrome that a reader skips and a citation should never land in. readability
+# strips most of it; a navigation bar sometimes survives its summary, so the
+# skip list is applied here as well rather than trusted to the library.
+WEB_SKIP_TAGS = ("nav", "footer", "aside", "script", "style", "noscript",
+                 "form")
+
+_READABILITY_INSTALL = "run: pip install readability-lxml==0.8.4.1"
+
+_META_CHARSET = re.compile(rb"""charset\s*=\s*["']?([A-Za-z0-9_.:-]+)""")
+
+
+def _origin_of(url):
+    """Scheme, host, and port, the triple that decides whether a redirect
+    left the origin it started on.
+
+    A deliberate duplicate of `surfaces/update.py`'s function of the same
+    name, and it must stay in step with it. It is copied rather than imported
+    because `source_adapters` is a model-tier module that no surface-tier
+    import should reach up into: `surfaces/update.py` pulls in the whole
+    updater, its settings, and its manifest schema, none of which a source
+    adapter has any business loading to compare three strings.
+    """
+    parts = urllib.parse.urlsplit(url)
+    return (parts.scheme, (parts.hostname or "").lower(), parts.port)
+
+
+class SchemeLockedRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """`AuthStrippingRedirectHandler` plus a scheme lock.
+
+    Two hardenings, both against a header a remote server controls. The
+    scheme lock refuses a redirect to anything that is not http or https, so
+    a `file:` or `ftp:` Location cannot turn a page fetch into a local file
+    read. The Authorization strip is copied from `surfaces/update.py`, which
+    carries it because the defect already happened once (CR-01, a token
+    leaked onto GitHub's separately-hosted CDN origin); the strip is sticky,
+    because each hop's Request is built from the previous hop's headers.
+
+    `super()` still decides whether a redirect is legal at all. This subclass
+    only narrows, including the hop cap: stdlib's own `max_redirections` is
+    10, and `MAX_REDIRECTS` lowers it rather than leaving the constant
+    declared and unenforced.
+    """
+
+    max_redirections = MAX_REDIRECTS
+
+    def _refuse_foreign_scheme(self, req, headers):
+        """stdlib checks the redirect scheme itself, in `http_error_302`,
+        before `redirect_request` is ever called, and its allowed set is
+        http, https, AND ftp. So the scheme lock has to sit here rather than
+        in `redirect_request`: by the time `redirect_request` runs, a
+        refusable target has either already been refused by stdlib with its
+        own message or is an ftp URL stdlib was content to follow. Measured,
+        not assumed: an unpatched run against the fixture's `file:` redirect
+        came back as stdlib's HTTPError 302 and never entered the subclass.
+        """
+        target = headers.get("location") or headers.get("uri") or ""
+        resolved = urllib.parse.urljoin(req.full_url, target)
+        scheme = urllib.parse.urlsplit(resolved).scheme.lower()
+        if scheme and scheme not in ("http", "https"):
+            raise urllib.error.URLError(
+                "redirect refused: the origin redirected to a %s: URL, and "
+                "only http and https are followed" % scheme)
+
+    def http_error_302(self, req, fp, code, msg, headers):
+        self._refuse_foreign_scheme(req, headers)
+        return urllib.request.HTTPRedirectHandler.http_error_302(
+            self, req, fp, code, msg, headers)
+
+    # stdlib binds 301, 303, 307, and 308 as aliases of its own function on
+    # the base class, so overriding 302 alone would leave four unlocked.
+    http_error_301 = http_error_302
+    http_error_303 = http_error_302
+    http_error_307 = http_error_302
+    http_error_308 = http_error_302
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        new = urllib.request.HTTPRedirectHandler.redirect_request(
+            self, req, fp, code, msg, headers, newurl)
+        if new is None:
+            return None
+        if _origin_of(req.full_url) != _origin_of(newurl):
+            for key in list(new.headers):
+                if key.lower() == "authorization":
+                    del new.headers[key]
+            for key in list(new.unredirected_hdrs):
+                if key.lower() == "authorization":
+                    del new.unredirected_hdrs[key]
+        return new
+
+
+def _host_is_private(host):
+    """True when `host` resolves to any address a fetch should not reach:
+    loopback, private, link-local, reserved, multicast, or unspecified. An
+    unresolvable host is also True, because an unresolvable name is refused
+    rather than attempted.
+
+    Best effort, and deliberately not called a security boundary. It resolves
+    once and does not pin the resolved address for the connection, so DNS
+    rebinding is open; `14C-RESEARCH.md` judges closing that gap
+    disproportionate for a single-user local product whose recorded threat
+    model has no attacker on the machine. The check exists because it is
+    cheap and correct for the real case, which is an agent handed a URL that
+    happens to point at the learner's own network.
+    """
+    if not host:
+        return True
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except (socket.gaierror, socket.error, UnicodeError):
+        return True
+    for info in infos:
+        address = info[4][0]
+        try:
+            parsed = ipaddress.ip_address(address.split("%")[0])
+        except ValueError:
+            return True
+        if (parsed.is_loopback or parsed.is_private or parsed.is_link_local
+                or parsed.is_reserved or parsed.is_multicast
+                or parsed.is_unspecified):
+            return True
+    return False
+
+
+def _fetch_url(url, options, conditional=None):
+    """One hardened GET. Returns
+    `(raw_bytes, content_type, etag, last_modified, status)` and never
+    raises: every transport failure becomes a typed `_Refusal`.
+
+    `conditional` is an optional `(header_name, value)` pair for the
+    `source recheck` path; a 304 comes back with `status` 304 and empty
+    bytes.
+
+    Every `INTEGRATE` row of `COVERAGE.md` surface 1 is here and every
+    `OPT-OUT` row is deliberately absent. No cookie jar, no credential, no
+    client certificate, no non-GET method, no range request.
+    """
+    options = _options(options)
+    parts = urllib.parse.urlsplit(url)
+    scheme = (parts.scheme or "").lower()
+    if scheme not in ("http", "https"):
+        raise _Refusal("source.redirect_refused",
+                       "%s: is not a fetchable scheme; only http and https "
+                       "are fetched" % (scheme or "(none)"))
+    if not options["allow_private_origins"] and _host_is_private(parts.hostname):
+        raise _Refusal("source.origin_refused",
+                       "the host %s resolves to a private, loopback, or "
+                       "link-local address, which is refused by default. Set "
+                       "source.allow_private_origins to true in itembank.json "
+                       "to allow it." % (parts.hostname or url))
+
+    cap = options["max_input_bytes"]
+    opener = urllib.request.build_opener(SchemeLockedRedirectHandler())
+    request = urllib.request.Request(url, method="GET")
+    request.add_header("User-Agent", USER_AGENT)
+    if conditional:
+        request.add_header(conditional[0], conditional[1])
+    try:
+        with opener.open(request,
+                          timeout=options["fetch_timeout_seconds"]) as response:
+            declared = response.headers.get("Content-Length")
+            if declared is not None and declared.isdigit() and \
+                    int(declared) > cap:
+                raise _Refusal("source.oversized",
+                               "the origin declares %s bytes, over the "
+                               "%d-byte intake cap; nothing was fetched"
+                               % (declared, cap))
+            # A chunked response declares no length, so the read itself is
+            # bounded: one byte over the cap is enough to know it is over.
+            raw = response.read(cap + 1)
+            if len(raw) > cap:
+                raise _Refusal("source.oversized",
+                               "the origin returned more than the %d-byte "
+                               "intake cap; nothing was captured" % cap)
+            return (raw, response.headers.get("Content-Type"),
+                    response.headers.get("ETag"),
+                    response.headers.get("Last-Modified"),
+                    getattr(response, "status", 200))
+    except _Refusal:
+        raise
+    except urllib.error.HTTPError as exc:
+        if exc.code == 304:
+            return b"", None, None, None, 304
+        raise _Refusal("source.fetch_failed",
+                       "the origin returned HTTP %d for %s" % (exc.code, url))
+    except urllib.error.URLError as exc:
+        reason = getattr(exc, "reason", exc)
+        if isinstance(reason, socket.timeout) or \
+                "timed out" in str(reason).lower():
+            raise _Refusal("source.fetch_failed",
+                           "the fetch of %s timed out after %s seconds"
+                           % (url, options["fetch_timeout_seconds"]))
+        if "redirect refused" in str(reason):
+            raise _Refusal("source.redirect_refused", str(reason))
+        raise _Refusal("source.fetch_failed",
+                       "the fetch of %s failed: %s" % (url, reason))
+    except (socket.timeout, TimeoutError):
+        raise _Refusal("source.fetch_failed",
+                       "the fetch of %s timed out after %s seconds"
+                       % (url, options["fetch_timeout_seconds"]))
+    except OSError as exc:
+        raise _Refusal("source.fetch_failed",
+                       "the fetch of %s failed: %s" % (url, exc))
+
+
+def _decode_html(raw, content_type):
+    """Return `(text, exact)`. `exact` is False when the bytes were decoded
+    by a replacing fallback, which is what makes the sidecar record
+    `confidence` `medium` rather than `high` for that capture."""
+    charset = None
+    if content_type:
+        match = re.search(r"charset=([A-Za-z0-9_.:-]+)", content_type)
+        if match:
+            charset = match.group(1)
+    if charset is None:
+        match = _META_CHARSET.search(raw[:4096])
+        if match:
+            charset = match.group(1).decode("ascii", "replace")
+    for candidate in ([charset] if charset else []) + ["utf-8"]:
+        try:
+            return raw.decode(candidate), True
+        except (UnicodeDecodeError, LookupError):
+            continue
+    return raw.decode("utf-8", errors="replace"), False
+
+
+def _css_selector(element, root):
+    """A CSS selector from the readable fragment's root to `element`, built
+    from tag names, ids, and nth-of-type positions. An index-free path would
+    not identify a repeated block, and an XPath index alone breaks on any
+    shifted sibling; this is the middle ground the `body_web` row asks for."""
+    steps = []
+    node = element
+    while node is not None and node is not root:
+        parent = node.getparent()
+        tag = str(node.tag)
+        step = tag
+        node_id = node.get("id")
+        if node_id:
+            step = "%s#%s" % (tag, node_id)
+        elif parent is not None:
+            same = [child for child in parent if str(child.tag) == tag]
+            if len(same) > 1:
+                step = "%s:nth-of-type(%d)" % (tag, same.index(node) + 1)
+        steps.append(step)
+        node = parent
+    steps.reverse()
+    return " > ".join(steps) if steps else str(element.tag)
+
+
+def _readable_html(raw, content_type, options):
+    """Readable text from an HTML document, one record per block-level
+    element, each with a CSS selector and a quote carrying prefix and
+    suffix.
+
+    Returns `(records, exact_decode)`. A record is
+    `{"text", "css_selector", "prefix", "suffix"}`.
+    """
+    try:
+        from readability import Document
+        from lxml import html as lxml_html
+    except ImportError:
+        raise _Refusal("source.dependency_missing",
+                       "the web adapter needs readability-lxml, which is not "
+                       "installed. It is optional and every other command is "
+                       "unaffected. To enable web capture, %s"
+                       % _READABILITY_INSTALL)
+
+    text, exact = _decode_html(raw, content_type)
+    try:
+        summary = Document(text).summary()
+        root = lxml_html.fromstring(summary)
+    except Exception:
+        raise _Refusal("source.malformed_input",
+                       "the fetched document could not be parsed as HTML")
+
+    blocks = []
+    for element in root.iter():
+        tag = str(element.tag).lower() if isinstance(element.tag, str) else ""
+        if tag not in WEB_BLOCK_TAGS:
+            continue
+        skip = False
+        ancestor = element.getparent()
+        while ancestor is not None:
+            ancestor_tag = str(ancestor.tag).lower() \
+                if isinstance(ancestor.tag, str) else ""
+            if ancestor_tag in WEB_SKIP_TAGS or ancestor_tag in WEB_BLOCK_TAGS:
+                skip = True
+                break
+            ancestor = ancestor.getparent()
+        if skip:
+            continue
+        block_text = " ".join(element.text_content().split())
+        if not block_text:
+            continue
+        blocks.append((element, block_text))
+
+    if not blocks:
+        if "<script" in text.lower():
+            raise _Refusal("source.unsupported",
+                           "no readable text: the page renders its content "
+                           "with JavaScript")
+        raise _Refusal("source.unsupported",
+                       "no readable text: malformed document")
+
+    texts = [block_text for _element, block_text in blocks]
+    records = []
+    for index, (element, block_text) in enumerate(blocks):
+        before = " ".join(texts[:index])
+        after = " ".join(texts[index + 1:])
+        records.append({
+            "text": block_text,
+            "css_selector": _css_selector(element, root),
+            "prefix": before[-32:],
+            "suffix": after[:32],
+        })
+    return records, exact
+
+
+def _extract_web(raw_bytes, options):
+    """A fetched HTML page, one locator per readable block.
+
+    The locator carries a CSS selector to its containing block plus a text
+    quote with prefix and suffix, so a citation survives a minor DOM change
+    rather than breaking on a shifted index, and so two identical sentences
+    on one page stay distinguishable.
+    """
+    options = _options(options)
+    records, exact = _readable_html(raw_bytes, options.get("content_type"),
+                                    options)
+    lines = []
+    locators = []
+    reading_order = []
+    for index, record in enumerate(records):
+        lines.append(record["text"])
+        locator_id = "w.%d" % index
+        locators.append({
+            "id": locator_id,
+            "kind": "block",
+            "body": {
+                "medium": "web",
+                "css_selector": record["css_selector"],
+                "text_quote": {"exact": record["text"],
+                               "prefix": record["prefix"],
+                               "suffix": record["suffix"]},
+            },
+            "_line": len(lines),
+            "_exact_decode": exact,
+        })
+        reading_order.append(locator_id)
+    return "\n".join(lines) + "\n", locators, reading_order, []
+
+
 ADAPTER_REGISTRY = {
     "markdown": _extract_markdown,
     "text": _extract_text,
     "pdf": _extract_pdf,
     "docx": _extract_docx,
     "pptx": _extract_pptx,
+    "web": _extract_web,
 }
 
 ADAPTER_VERSIONS = {name: "1.0.0" for name in ADAPTER_REGISTRY}
 
 
 # ---------------------------------------------------------------------------
+def _last_entry_id(base, object_id):
+    """The id of the newest applied journal entry for `object_id`.
+
+    `journal.commit_operation` returns a registry-row-shaped record that
+    carries no entry id at all, so `ok_result`'s `journal_entry_id` was
+    always null. Found 2026-08-28 while driving a real capture through the
+    CLI (plan 14C-04), fixed here rather than in `journal.py`, which this
+    phase does not modify.
+    """
+    found = None
+    for entry in journal.entries(base):
+        if entry.get("object_id") == object_id and \
+                entry.get("state") == "applied":
+            found = entry.get("entry_id")
+    return found
+
+
 def unsupported_result(code, message, source_id):
     """The typed envelope every failure converts into, shaped like
     `model_adapter.unavailable_result`. `source_id` may be None when the
@@ -1097,7 +1535,10 @@ def _extract(base, adapter, raw_object_id, options):
 
 
 def _import_source(base, adapter, raw_object_id, actor_kind, actor_name,
-                   rights_grant, options):
+                   rights_grant, options, confirm=False):
+    refused = _bind_gate(actor_kind, confirm, options)
+    if refused is not None:
+        return refused
     row, _raw, md_text, locators, reading_order, unsupported = \
         _extract(base, adapter, raw_object_id, options)
 
@@ -1132,7 +1573,7 @@ def _import_source(base, adapter, raw_object_id, actor_kind, actor_name,
 
     sidecar = build_sidecar(source_id, adapter, md_bytes, origin, rights,
                             joined, reading_order, unsupported,
-                            confidence=_extract_confidence(adapter, joined))
+                            confidence=_extract_confidence(adapter, locators))
     errors = schema_validate.validate(sidecar, _LOCATOR_SCHEMA)
     if errors:
         return unsupported_result("source.internal_error", errors[0],
@@ -1146,7 +1587,7 @@ def _import_source(base, adapter, raw_object_id, actor_kind, actor_name,
         # reason: `op_import` mints the object_id itself, and the sidecar must
         # already carry that id when it is written. The RIGHTS-01 transform
         # gate lives inside `_commit_impl` and fires identically either way.
-        record = journal.commit_operation(
+        journal.commit_operation(
             base, source_id, "source", md_rel_path, "import", md_bytes,
             expected_fingerprint=None, actor_kind=actor_kind,
             actor_name=actor_name, create_if_missing=True,
@@ -1159,17 +1600,17 @@ def _import_source(base, adapter, raw_object_id, actor_kind, actor_name,
         raise
 
     return ok_result(source_id, adapter, md_rel_path, sidecar_rel_path,
-                      record.get("last_entry_id"))
+                      _last_entry_id(base, source_id))
 
 
 def import_source(base, adapter, raw_object_id, actor_kind, actor_name,
-                  rights_grant=None, options=None):
+                  rights_grant=None, options=None, confirm=False):
     """The one public write boundary. Returns a typed result; the only
     exception that escapes is `journal.JournalError`, deliberately, because a
     rights refusal is the journal's to report by name."""
     try:
         return _import_source(base, adapter, raw_object_id, actor_kind,
-                              actor_name, rights_grant, options)
+                              actor_name, rights_grant, options, confirm)
     except journal.JournalError:
         raise
     except _Refusal as refusal:
@@ -1179,11 +1620,306 @@ def import_source(base, adapter, raw_object_id, actor_kind, actor_name,
                                    "unexpected source-adapter failure", None)
 
 
+def _write_bytes_atomic_under(path, raw):
+    """The same same-directory temp, write, flush, fsync, replace shape
+    `write_sidecar_atomic` uses, for a snapshot's raw bytes."""
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "wb") as fh:
+            fh.write(raw)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _snapshot_extension(content_type):
+    if content_type and "html" in content_type.lower():
+        return ".html"
+    if content_type and "text/plain" in content_type.lower():
+        return ".txt"
+    return ".bin"
+
+
+def _store_snapshot(base, source_id, raw, content_type, options):
+    """Both snapshot storage paths, which is `PLANNING-DIRECTIVES.md`
+    section 3's "build both" answer to `14C-CONTEXT.md`'s snapshot question.
+
+    `inline` writes the captured bytes beside the course as an owned file and
+    returns its relative path for `origin.snapshot_rel_path`. `reference`
+    writes them under `_sources/cache`, which is disposable derived state a
+    future cleanup may evict, and returns `None`, so the sidecar records that
+    the capture is cached rather than owned. `auto` picks inline when the
+    capture is at or under `snapshot_inline_max_bytes`.
+
+    The derived Markdown fingerprint is computed from the extraction and
+    never from the snapshot bytes, which is why both modes produce the
+    identical fingerprint and a citation cannot tell which was used.
+
+    Returns `(snapshot_rel_path_or_None, stored_rel_path)`.
+    """
+    options = _options(options)
+    mode = options["snapshot_storage"]
+    if mode == "auto":
+        mode = ("inline" if len(raw) <= options["snapshot_inline_max_bytes"]
+                else "reference")
+    extension = _snapshot_extension(content_type)
+    if mode == "inline":
+        rel = posixpath.join(SNAPSHOT_DIRNAME,
+                             "%s.snapshot%s" % (source_id, extension))
+    else:
+        rel = posixpath.join(SNAPSHOT_DIRNAME, SNAPSHOT_CACHE_DIRNAME,
+                             "%s.snapshot%s" % (source_id, extension))
+    target = os.path.join(os.path.abspath(base), rel)
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    if not discovery.inside_any_root(target, [os.path.abspath(base)]):
+        raise _Refusal("source.malformed_input",
+                       "the snapshot path resolves outside the approved "
+                       "root; nothing was written")
+    _write_bytes_atomic_under(target, raw)
+    return (rel if mode == "inline" else None), rel
+
+
+def _bind_gate(actor_kind, confirm, options):
+    """The approve-before-bind gate, `PLANNING-DIRECTIVES.md` section 3's
+    answer to `14C-CONTEXT.md`'s auto-fetch question. Both paths ship and the
+    learner chooses. Searching and reading stay free under either, because
+    `preview_source` never consults this function; only the write is gated."""
+    options = _options(options)
+    if options["bind_policy"] != "approve_before_bind":
+        return None
+    if actor_kind != "agent" or confirm:
+        return None
+    return unsupported_result(
+        "source.approval_required",
+        "an agent bind requires explicit approval under the "
+        "approve_before_bind policy; pass confirm to proceed, or set "
+        "source.bind_policy to auto_fetch", None)
+
+
+def capture_url(base, url, actor_kind, actor_name, options=None,
+                confirm=False):
+    """The remote sibling of `import_source`: fetch a page, snapshot it,
+    extract it, fingerprint the extraction, and journal one applied source.
+
+    Three differences from `import_source`, each deliberate:
+
+    1. The bytes come from `_fetch_url` rather than from a registry row,
+       because there is no local file to link.
+    2. Every path is derived from the minted object id and never from any
+       part of the URL. A URL is attacker-shaped input; a path built from one
+       is a directory traversal waiting to be written.
+    3. `journal.commit_operation` is called with `source_object_id=None`, so
+       the RIGHTS-01 transform gate does not fire and the new `kind="source"`
+       object is minted with `identity.rights_default()`, all seven rights
+       unknown. That default is the point rather than an oversight: a
+       captured page carries no rights record until the learner records one,
+       and any later import derived from it is refused by name until they do.
+    """
+    try:
+        return _capture_url(base, url, actor_kind, actor_name, options,
+                            confirm)
+    except journal.JournalError:
+        raise
+    except _Refusal as refusal:
+        return unsupported_result(refusal.code, refusal.message, None)
+    except Exception:
+        return unsupported_result("source.internal_error",
+                                   "unexpected source-adapter failure", None)
+
+
+def _capture_url(base, url, actor_kind, actor_name, options, confirm):
+    options = _options(options)
+    refused = _bind_gate(actor_kind, confirm, options)
+    if refused is not None:
+        return refused
+
+    raw, content_type, etag, last_modified, _status = _fetch_url(url, options)
+    fetched_at = identity.utc_now()
+
+    extract_options = dict(options)
+    extract_options["content_type"] = content_type
+    md_text, locators, reading_order, unsupported = \
+        _extract_web(raw, extract_options)
+
+    md_bytes = md_text.encode("utf-8")
+    source_id = identity.new_object_id()
+    spans = auditor.normalize_source(md_bytes, source_id,
+                                      kind="markdown")["spans"]
+    joined = _join_span_ids(locators, spans)
+
+    snapshot_rel, _stored_rel = _store_snapshot(base, source_id, raw,
+                                                content_type, options)
+
+    md_rel_path = posixpath.join(SNAPSHOT_DIRNAME, "%s.md" % source_id)
+    sidecar_rel_path = sidecar_path_for(md_rel_path)
+
+    origin = {
+        "kind": "remote_url",
+        "value": url,
+        "fetched_at": fetched_at,
+        "http_etag": etag,
+        "http_last_modified": last_modified,
+        "snapshot_rel_path": snapshot_rel,
+    }
+    rights = dict(identity.rights_default())
+
+    sidecar = build_sidecar(source_id, "web", md_bytes, origin, rights,
+                            joined, reading_order, unsupported,
+                            confidence=_extract_confidence("web", locators))
+    errors = schema_validate.validate(sidecar, _LOCATOR_SCHEMA)
+    if errors:
+        return unsupported_result("source.internal_error", errors[0],
+                                   source_id)
+
+    sidecar_abs = os.path.join(os.path.abspath(base), sidecar_rel_path)
+    write_sidecar_atomic(sidecar_abs, sidecar)
+    try:
+        journal.commit_operation(
+            base, source_id, "source", md_rel_path, "import", md_bytes,
+            expected_fingerprint=None, actor_kind=actor_kind,
+            actor_name=actor_name, create_if_missing=True,
+            source_object_id=None)
+    except journal.JournalError:
+        try:
+            os.remove(sidecar_abs)
+        except OSError:
+            pass
+        raise
+    return ok_result(source_id, "web", md_rel_path, sidecar_rel_path,
+                      _last_entry_id(base, source_id))
+
+
+_RECHECK_NOTES = {
+    "origin_unchanged":
+        "The remote origin still matches the captured snapshot. Nothing "
+        "needs to change.",
+    "origin_changed":
+        "The remote origin has changed since it was captured. The captured "
+        "snapshot and every citation into it are still valid; re-capture "
+        "only if you want the newer version.",
+    "origin_unreachable":
+        "The remote origin could not be reached. The captured snapshot is "
+        "still readable offline and every citation into it is unaffected.",
+}
+
+
+def _recheck_report(source_id, state, origin, note=None):
+    return {
+        "schema_version": SOURCE_LOCATOR_VERSION,
+        "source_id": source_id,
+        "state": state,
+        "checked_at": identity.utc_now(),
+        "origin": origin,
+        "note": note or _RECHECK_NOTES[state],
+    }
+
+
+def recheck_origin(base, source_object_id, options=None):
+    """Report whether a captured remote origin still matches, and change
+    nothing at all.
+
+    This function is a READ. It calls none of the journal's commit or append
+    operations, neither of the two atomic writers in this module, and nothing
+    that stores a snapshot, and it must stay that way. The acceptance check
+    for that is a grep over this function's own source for those four names,
+    which is why they are spelled around rather than quoted here: a docstring
+    that names them would satisfy the grep without the code satisfying the
+    property. Wiring remote staleness into the journal would
+    make a citation's validity depend on network reachability, which breaks
+    D-04 and the degrade-never-block rule in one move. A changed origin is a
+    fact about the world, not a defect in an accepted revision, and every
+    citation issued against the captured revision stays exactly as valid as
+    it was when it was made (OQ-4).
+
+    A learner who wants the newer version re-captures explicitly, through
+    the journal's edit-in-place operation, which keeps the same object id and
+    leaves the
+    previous bytes recoverable as a before-image. No plan in Phase 14C builds
+    that command; naming the operation here is what stops a later plan from
+    inventing a different mechanism for it.
+
+    An unreachable network is `origin_unreachable`, a named state, never a
+    traceback and never a failure.
+    """
+    options = _options(options)
+    registry = journal.read_registry(base)
+    row = registry.get(source_object_id)
+    if row is None:
+        return unsupported_result(
+            "source.malformed_input",
+            "no object %s is recorded in this root's registry"
+            % source_object_id, None)
+    sidecar_abs = os.path.join(os.path.abspath(base),
+                               sidecar_path_for(row["path"]))
+    try:
+        with open(sidecar_abs, encoding="utf-8") as fh:
+            sidecar = json.load(fh)
+    except (OSError, ValueError):
+        return unsupported_result(
+            "source.malformed_input",
+            "no readable locator sidecar beside %s; a recheck needs the "
+            "captured origin block" % row["path"], source_object_id)
+
+    origin = sidecar.get("origin") or {}
+    if origin.get("kind") != "remote_url":
+        return _recheck_report(
+            sidecar.get("source_id"), "origin_unchanged", origin,
+            note="This source came from a local file. Drift in a local file "
+                 "is reported by the journal's own external-edit detection, "
+                 "not by a remote recheck.")
+
+    conditional = None
+    if origin.get("http_etag"):
+        conditional = ("If-None-Match", origin["http_etag"])
+    elif origin.get("http_last_modified"):
+        conditional = ("If-Modified-Since", origin["http_last_modified"])
+
+    try:
+        raw, content_type, _etag, _last_modified, status = _fetch_url(
+            origin["value"], options, conditional=conditional)
+    except _Refusal as refusal:
+        if refusal.code in ("source.fetch_failed", "source.origin_refused",
+                            "source.redirect_refused"):
+            return _recheck_report(sidecar.get("source_id"),
+                                   "origin_unreachable", origin)
+        return unsupported_result(refusal.code, refusal.message,
+                                   sidecar.get("source_id"))
+
+    if status == 304:
+        return _recheck_report(sidecar.get("source_id"), "origin_unchanged",
+                               origin)
+
+    try:
+        extract_options = dict(options)
+        extract_options["content_type"] = content_type
+        md_text, _locators, _order, _unsupported = _extract_web(
+            raw, extract_options)
+    except _Refusal:
+        return _recheck_report(sidecar.get("source_id"), "origin_changed",
+                               origin)
+
+    fresh = identity.object_fingerprint(md_text.encode("utf-8"), "source")
+    state = ("origin_unchanged" if fresh == sidecar.get("fingerprint")
+             else "origin_changed")
+    return _recheck_report(sidecar.get("source_id"), state, origin)
+
+
 def preview_source(base, adapter, raw_object_id, options=None):
     """The free half of the auto-fetch versus approve-before-bind pair: the
     same path an import takes, up to and including the span join, returning
-    the would-be sidecar and writing nothing at all. Search and read stay
-    free under either binding policy; the bind step is the gated one."""
+    the would-be sidecar and writing nothing at all.
+
+    This function never consults `_bind_gate`, under either policy and for
+    either actor kind, because searching and reading a source are free in
+    both and only the bind step is gated. An agent that may not write may
+    still look."""
     try:
         row, _raw, md_text, locators, reading_order, unsupported = \
             _extract(base, adapter, raw_object_id, options)
@@ -1207,7 +1943,7 @@ def preview_source(base, adapter, raw_object_id, options=None):
         sidecar = build_sidecar(
             source_id, adapter, md_bytes, origin, rights, joined,
             reading_order, unsupported,
-            confidence=_extract_confidence(adapter, joined))
+            confidence=_extract_confidence(adapter, locators))
         result = ok_result(source_id, adapter,
                             row["path"] + DERIVED_MD_SUFFIX,
                             sidecar_path_for(row["path"] + DERIVED_MD_SUFFIX),

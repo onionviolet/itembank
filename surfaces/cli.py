@@ -127,6 +127,69 @@ STYLE FILES (styles/<id>.md)
 """
 
 
+def _source_options(a, base):
+    """The `source` settings group, with any per-invocation override applied
+    over it. Settings are read here, in the surface, rather than inside
+    `source_adapters`: the adapter is a model-tier module and reaching up
+    into `surfaces.settings` for a policy would invert the layering."""
+    from surfaces.settings import load_settings
+    options = dict((load_settings(base) or {}).get("source") or {})
+    if getattr(a, "snapshot_storage", None):
+        options["snapshot_storage"] = a.snapshot_storage
+    return options
+
+
+def _cmd_source_capture(a, base):
+    """`itembank source import --url` -- capture a remote page as a source.
+
+    D-04: what is bound is the capture, not the URL. The fingerprint is
+    taken over the derived Markdown, the URL and the capture timestamp are
+    recorded as provenance, and the captured page reads back from disk with
+    the network unplugged.
+    """
+    result = source_adapters.capture_url(
+        base, a.url, "human", "cli", options=_source_options(a, base),
+        confirm=getattr(a, "confirm", False))
+    if result["status"] != "ok":
+        if a.json:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        else:
+            print("%s: %s" % (result["error"]["code"],
+                              result["error"]["message"]))
+        sys.exit(1)
+    if a.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    print("%s -> %s" % (a.url, result["md_rel_path"]))
+    print("   sidecar: %s" % result["sidecar_rel_path"])
+    print("   source id: %s" % result["source_id"])
+    print("   note: the capture is minted with all seven rights unknown; "
+          "record a grant before deriving anything from it")
+
+
+def cmd_source_recheck(a):
+    """`itembank source recheck` -- report whether a captured remote origin
+    still matches. It writes nothing and journals nothing, and it exits 0 for
+    all three states, `origin_unreachable` included, because an unreachable
+    network is a reported state and not a command failure. That is the
+    degrade-never-block rule applied to this command.
+    """
+    base = os.path.abspath(a.base)
+    result = source_adapters.recheck_origin(
+        base, a.object_id, options=_source_options(a, base))
+    if a.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0 if result.get("state") else 1
+    if not result.get("state"):
+        print("%s: %s" % (result["error"]["code"],
+                          result["error"]["message"]))
+        return 1
+    print(result["state"])
+    print("   origin: %s" % (result["origin"].get("value") or "(none)"))
+    print("   %s" % result["note"])
+    return 0
+
+
 def cmd_source(a):
     """`itembank source import` -- the CLI half of the one source-import
     boundary (plan 14C-01). It reaches exactly the same
@@ -140,6 +203,12 @@ def cmd_source(a):
     own decision rather than a side effect of importing again.
     """
     base = os.path.abspath(a.base)
+    if getattr(a, "url", None):
+        return _cmd_source_capture(a, base)
+    if not getattr(a, "file", None):
+        sys.exit("source import needs one of --file or --url")
+    if not a.adapter:
+        sys.exit("source import --file needs --adapter")
     rel_path = os.path.relpath(os.path.abspath(
         os.path.join(base, a.file)), base)
     grant = None
@@ -175,7 +244,8 @@ def cmd_source(a):
         try:
             result = source_adapters.import_source(
                 base, a.adapter, raw_object_id, "human", "cli",
-                rights_grant=grant)
+                rights_grant=grant, options=_source_options(a, base),
+                confirm=getattr(a, "confirm", False))
         except journal.JournalError as exc:
             sys.exit("%s: %s" % (exc.code, exc))
 
@@ -1220,14 +1290,21 @@ def main():
     si.add_argument("--base", default=".",
                     help="approved root holding the file and its journal "
                          "(default: current directory)")
-    si.add_argument("--file", required=True,
-                    help="path to the raw file, relative to --base. A path is "
-                         "accepted here because the CLI is not a network "
-                         "boundary; the daemon route takes an opaque id "
-                         "instead")
-    si.add_argument("--adapter", required=True,
+    what = si.add_mutually_exclusive_group(required=True)
+    what.add_argument("--file",
+                      help="path to the raw file, relative to --base. A path "
+                           "is accepted here because the CLI is not a network "
+                           "boundary; the daemon route takes an opaque id "
+                           "instead")
+    what.add_argument("--url",
+                      help="a remote page to capture. What is bound is the "
+                           "capture, never the URL (D-04): the snapshot is "
+                           "fingerprinted and reads back offline")
+    si.add_argument("--adapter", default=None,
                     choices=sorted(source_adapters.ADAPTER_REGISTRY),
-                    help="which registered adapter extracts this medium")
+                    help="which registered adapter extracts this medium. "
+                         "Required with --file; ignored with --url, which "
+                         "always captures through the web adapter")
     si.add_argument("--grant", default="",
                     help="comma-separated rights to record when this file is "
                          "linked for the first time, from: %s. Omitted rights "
@@ -1235,9 +1312,31 @@ def main():
                          % ", ".join(identity.RIGHTS_OPERATIONS))
     si.add_argument("--preview", action="store_true",
                     help="extract and print without writing anything")
+    si.add_argument("--snapshot-storage", dest="snapshot_storage",
+                    choices=("auto", "inline", "reference"), default=None,
+                    help="how a captured remote snapshot is stored, "
+                         "overriding source.snapshot_storage for this run. "
+                         "inline keeps the bytes beside the course; reference "
+                         "caches them as disposable derived state")
+    si.add_argument("--confirm", action="store_true",
+                    help="approve this bind under the approve_before_bind "
+                         "policy. Only an agent actor needs it; a human at "
+                         "this terminal is the approval")
     si.add_argument("--json", action="store_true",
                     help="emit the result dict as JSON")
     si.set_defaults(fn=cmd_source)
+
+    sr = t.add_parser("recheck", help="report whether a captured remote "
+                      "origin still matches (a read: writes nothing, exits 0 "
+                      "for all three states including origin_unreachable)")
+    sr.add_argument("--base", default=".",
+                    help="approved root holding the source and its journal "
+                         "(default: current directory)")
+    sr.add_argument("object_id",
+                    help="the opaque id of the captured source object")
+    sr.add_argument("--json", action="store_true",
+                    help="emit the report dict as JSON")
+    sr.set_defaults(fn=cmd_source_recheck)
 
     s = sub.add_parser("theme", help="preview, set, reset, or pick the source accent")
     t = s.add_subparsers(dest="action", required=True)

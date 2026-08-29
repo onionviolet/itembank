@@ -1222,11 +1222,12 @@ def check_api_route_scope():
     and in SURFACE_PARITY with its reserved MCP tool name (Extensibility
     Rule 9(a)).
     """
-    if len(daemon.API_ROUTES) != 14:
+    if len(daemon.API_ROUTES) != 15:
         fail("D-04 + Phase 6 + 06.1-02 + 08-05 + 10-04/10-05 + 09.1 + 09 + 14 "
-             "+ 14C scope /api/* to exactly fourteen routes, the thirteenth "
-             "being POST /api/source/import plus 16B-09's POST /api/shelf; "
-             "API_ROUTES has %d" % len(daemon.API_ROUTES))
+             "+ 14C scope /api/* to exactly fifteen routes: POST "
+             "/api/source/import and POST /api/source/recheck from 14C, plus "
+             "16B-09's POST /api/shelf; API_ROUTES has %d"
+             % len(daemon.API_ROUTES))
     if daemon.ROUTE_CLI.get(("POST", "/api/shelf")) != "shelf":
         fail("POST /api/shelf must map to the shelf CLI twin")
     if not {"start", "next", "submit", "hint", "teach", "interact", "report",
@@ -1246,6 +1247,11 @@ def check_api_route_scope():
             daemon.ROUTE_CLI[("POST", "/api/source/import")] != "source":
         fail("POST /api/source/import must map to the source CLI twin "
              "(`itembank source import`)")
+    if ("POST", "/api/source/recheck") not in daemon.ROUTE_CLI or \
+            daemon.ROUTE_CLI[("POST", "/api/source/recheck")] != "source":
+        fail("POST /api/source/recheck must map to the source CLI twin "
+             "(`itembank source recheck`); both source routes share the one "
+             "source parser, as the three day routes share day")
 
 
 def check_surface_parity():
@@ -1317,6 +1323,40 @@ def namespaced_response_event(session_id, objective, ts, score=True,
         "dedupe_key": evidence.dedupe_key(session_id, item_ref, 1, "B"),
         "source_ref": None,
     }
+
+
+def check_api_source_recheck_route():
+    """14C-04: `POST /api/source/recheck` is a read, gated and shaped. A
+    cross-origin POST is 403; an unlisted body field is a 400 naming it; and
+    an unknown source_object_id is a 404 rather than a 200 carrying an empty
+    report."""
+    workdir = temp_dir_with(bank=True)
+    proc, url, lines = start_daemon(workdir)
+    try:
+        endpoint = url + "api/source/recheck"
+        body = {"source_object_id": "0" * 16}
+
+        status, _ = json_request(endpoint, body,
+                                 headers={"Origin": "http://evil.example"})
+        if status != 403:
+            fail("a cross-origin source recheck returned %d, expected 403"
+                 % status)
+
+        extra = dict(body)
+        extra["nope"] = 1
+        status, _ = json_request(endpoint, extra)
+        if status != 400:
+            fail("an unlisted recheck field returned %d, expected 400"
+                 % status)
+
+        status, _ = json_request(endpoint, body)
+        if status != 404:
+            fail("an unknown source_object_id returned %d, expected 404"
+                 % status)
+    finally:
+        proc.terminate()
+    print("ok: /api/source/recheck is authority-gated, field-limited, and "
+          "404s an unknown source")
 
 
 def check_api_override_route():
@@ -3038,6 +3078,8 @@ def check_cross_origin_gate_on_mutating_routes():
             (url + "api/next", {"session_id": "nope"}),
             (url + "api/submit", {"session_id": "nope", "answer": "B"}),
             (url + "api/report", {"session_id": "nope"}),
+            (url + "api/source/recheck",
+             {"source_object_id": "0" * 16}),
             (url + "api/source/import",
              {"adapter": "markdown", "source_object_id": "0" * 16}),
         )
@@ -3675,6 +3717,7 @@ def main():
         check_disclosure_route,
         check_api_route_scope,
         check_api_source_import_route,
+        check_api_source_recheck_route,
         check_api_override_route,
         check_api_export_audio,
         check_surface_parity,

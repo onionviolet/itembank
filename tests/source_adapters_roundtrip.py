@@ -27,6 +27,7 @@ import schema_validate                                       # noqa: E402
 import source_adapters                                       # noqa: E402
 import locator_fidelity_cases                                # noqa: E402
 import pptx_fidelity_cases                                   # noqa: E402
+import web_capture_fidelity_cases                            # noqa: E402
 
 
 def fail(msg):
@@ -140,6 +141,10 @@ def check_thin_slice():
                      % (loc["id"], loc["span_id"]))
         if not any(loc["span_id"] is not None for loc in sidecar["locators"]):
             fail("thin slice: no locator joined to a span at all")
+        if result["journal_entry_id"] != entry["entry_id"]:
+            fail("thin slice: the result reports journal_entry_id %r but the "
+                 "applied entry is %r"
+                 % (result["journal_entry_id"], entry["entry_id"]))
     finally:
         shutil.rmtree(base, ignore_errors=True)
     print("ok: thin slice -- one PDF imports as a cited source, one "
@@ -429,9 +434,11 @@ def check_cli_and_route_parity():
                   encoding="utf-8") as fh:
             fh.write(body)
         raw_id = link_with_rights(base, "parity.md", all_granted())
-        # The route's own body-shaped call, with the daemon's actor identity.
+        # The route's own body-shaped call, with the daemon's actor identity
+        # and the confirm the route requires of an agent under the
+        # approve_before_bind default (plan 14C-04).
         result = source_adapters.import_source(
-            base, "markdown", raw_id, "agent", "daemon")
+            base, "markdown", raw_id, "agent", "daemon", confirm=True)
         if result["status"] != "ok":
             fail("parity: the route-shaped import failed: %r" % (result["error"],))
         return json.loads(open(os.path.join(base, result["sidecar_rel_path"]),
@@ -831,6 +838,627 @@ def check_pptx_partial_refusal():
           "sidecar while the rest of the deck still imports")
 
 
+# ---------------------------------------------------------------------------
+# Plan 14C-04: remote capture. Every fetch in this section runs against a
+# loopback http.server bound on port 0. No check makes a real network
+# request, and the fixture's own routes are proven correct before any
+# adapter is pointed at them.
+
+LOOPBACK_OPTIONS = {"allow_private_origins": True}
+
+
+def web_case(case_id):
+    for case in web_capture_fidelity_cases.CASE_TABLE:
+        if case["id"] == case_id:
+            return case
+    fail("web gold case %s is not in the case table" % case_id)
+
+
+def capture_options(**overrides):
+    """Loopback fetching needs the private-origin refusal lifted, which is
+    itself the proof that the default is deny: without this the whole
+    section refuses."""
+    options = dict(LOOPBACK_OPTIONS)
+    options.update(overrides)
+    return options
+
+
+def check_option_defaults_match_schema():
+    """`source_adapters.SOURCE_OPTION_DEFAULTS` duplicates the `source`
+    group's defaults so a direct call with no options is governed by the same
+    restrictive policy a surface would load. The duplication is only safe
+    while the two agree."""
+    schema = json.loads(resources.read_text("schemas/settings.schema.json"))
+    shipped = schema["properties"]["source"]["default"]
+    if source_adapters.SOURCE_OPTION_DEFAULTS != shipped:
+        fail("option defaults: source_adapters.SOURCE_OPTION_DEFAULTS is %r "
+             "but the settings schema default is %r"
+             % (source_adapters.SOURCE_OPTION_DEFAULTS, shipped))
+    if source_adapters._options({})["bind_policy"] != "approve_before_bind":
+        fail("option defaults: an options-less call is not governed by "
+             "approve_before_bind")
+    if source_adapters._options({})["allow_private_origins"] is not False:
+        fail("option defaults: private origins are not denied by default")
+    print("ok: option defaults -- the adapter's own defaults equal the "
+          "shipped settings defaults, and both are restrictive")
+
+
+def check_web_fixture_determinism():
+    table = web_capture_fidelity_cases.CASE_TABLE
+    if len(table) != 6:
+        fail("web fixtures: expected 6 cases, found %d" % len(table))
+    for case in table:
+        first = case["build"]()
+        if first != case["build"]():
+            fail("web fixtures: %s is not deterministic" % case["id"])
+        if web_capture_fidelity_cases.sha256(first) != case["gold"]["sha256"]:
+            fail("web fixtures: %s drifted from its recorded sha256"
+                 % case["id"])
+        empty = not case["gold"]["reading_order"]
+        if empty != (case["gold"]["adapter_expectation"] == "unsupported"):
+            fail("web fixtures: %s disagrees with the reading-order "
+                 "invariant" % case["id"])
+    workdir = tempfile.mkdtemp(prefix="webfix-")
+    try:
+        records = web_capture_fidelity_cases.materialize(
+            os.path.join(workdir, "out"))
+        for _case_id, path, digest in records:
+            if not path.startswith(workdir):
+                fail("web fixtures: materialize wrote outside its directory")
+            with open(path, "rb") as fh:
+                if web_capture_fidelity_cases.sha256(fh.read()) != digest:
+                    fail("web fixtures: a materialized file does not match "
+                         "its digest")
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+    print("ok: web fixture determinism -- 6 static cases, every recorded "
+          "sha256 stable, materialize contained")
+
+
+def check_loopback_fixture_serves():
+    """The fixture is proven correct before any adapter is pointed at it, so
+    a later adapter failure is unambiguous."""
+    import urllib.error
+    import urllib.request
+    server = web_capture_fidelity_cases.LoopbackServer().start()
+    try:
+        with urllib.request.urlopen(server.url("/article"), timeout=5) as r:
+            body = r.read()
+            if body != web_capture_fidelity_cases.article_html():
+                fail("loopback: /article did not serve the article bytes")
+            if r.headers.get("ETag") != web_capture_fidelity_cases.ARTICLE_ETAG:
+                fail("loopback: /article served no ETag")
+        request = urllib.request.Request(
+            server.url("/article"),
+            headers={"If-None-Match": web_capture_fidelity_cases.ARTICLE_ETAG})
+        try:
+            urllib.request.urlopen(request, timeout=5)
+            fail("loopback: a matching If-None-Match did not return 304")
+        except urllib.error.HTTPError as exc:
+            if exc.code != 304:
+                fail("loopback: conditional GET returned %d" % exc.code)
+        for path, wanted in (("/redirect-to-article", 302),
+                             ("/redirect-to-file", 302),
+                             ("/redirect-loop", 302),
+                             ("/notfound", 404)):
+            opener = urllib.request.build_opener(_NoRedirect())
+            try:
+                with opener.open(server.url(path), timeout=5) as r:
+                    code = r.status
+            except urllib.error.HTTPError as exc:
+                code = exc.code
+            if code != wanted:
+                fail("loopback: %s returned %d, expected %d"
+                     % (path, code, wanted))
+    finally:
+        server.stop()
+    print("ok: loopback fixture -- every route serves the status, body, and "
+          "headers the adapter checks are about to rely on")
+
+
+class _NoRedirect(__import__("urllib.request", fromlist=["x"]).HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def check_web_gold_cases():
+    for case in web_capture_fidelity_cases.CASE_TABLE:
+        gold = case["gold"]
+        try:
+            _md, _locators, order, unsupported = source_adapters._extract_web(
+                case["build"](), {})
+            messages = [e["message"] for e in unsupported]
+        except source_adapters._Refusal as refusal:
+            if gold["adapter_expectation"] != "unsupported":
+                fail("web gold: %s refused with %s / %s"
+                     % (case["id"], refusal.code, refusal.message))
+            if refusal.message != gold["unsupported"][0]:
+                fail("web gold: %s refused with %r, recorded %r"
+                     % (case["id"], refusal.message, gold["unsupported"][0]))
+            continue
+        if gold["adapter_expectation"] == "unsupported":
+            fail("web gold: %s was expected to refuse but produced %r"
+                 % (case["id"], order))
+        if order != gold["reading_order"]:
+            fail("web gold: %s produced %r, recorded %r"
+                 % (case["id"], order, gold["reading_order"]))
+        if messages != gold["unsupported"]:
+            fail("web gold: %s reported %r, recorded %r"
+                 % (case["id"], messages, gold["unsupported"]))
+    print("ok: web gold cases -- all 6 resolve as recorded, chrome dropped "
+          "and a client-rendered page refused by name")
+
+
+def check_web_locator_anchors():
+    case = web_case("web-duplicate-text")
+    _md, locators, _order, _unsupported = source_adapters._extract_web(
+        case["build"](), {})
+    by_id = {loc["id"]: loc for loc in locators}
+    left, right = [by_id[i] for i in case["gold"]["duplicate_pair"]]
+    if left["body"]["text_quote"]["exact"] != \
+            right["body"]["text_quote"]["exact"]:
+        fail("web anchors: the duplicate-text case no longer carries two "
+             "identical quotes, so it proves nothing")
+    if left["body"]["text_quote"]["prefix"] == \
+            right["body"]["text_quote"]["prefix"]:
+        fail("web anchors: two identical quotes share a prefix, so a "
+             "citation into either is ambiguous")
+    if left["body"]["css_selector"] == right["body"]["css_selector"]:
+        fail("web anchors: two identical quotes share a CSS selector")
+    print("ok: web locator anchors -- two identical sentences on one page "
+          "stay distinguishable by prefix and by selector")
+
+
+def check_private_origin_refused():
+    server = web_capture_fidelity_cases.LoopbackServer().start()
+    base = new_base()
+    try:
+        result = source_adapters.capture_url(
+            base, server.url("/article"), "human", "cli",
+            options={"allow_private_origins": False})
+        if result["status"] != "unsupported" or \
+                result["error"]["code"] != "source.origin_refused":
+            fail("private origin: a loopback capture was not refused: %r"
+                 % (result,))
+        ok = source_adapters.capture_url(
+            base, server.url("/article"), "human", "cli",
+            options=capture_options())
+        if ok["status"] != "ok":
+            fail("private origin: lifting the setting did not allow the "
+                 "capture: %r" % (ok["error"],))
+    finally:
+        server.stop()
+        shutil.rmtree(base, ignore_errors=True)
+    print("ok: private origin -- loopback is refused by default and only the "
+          "setting lifts it, which is why this whole section must lift it")
+
+
+def check_redirect_hardening():
+    import urllib.request
+    server = web_capture_fidelity_cases.LoopbackServer().start()
+    second = web_capture_fidelity_cases.LoopbackServer(
+        web_capture_fidelity_cases.serve_cases()).start()
+    base = new_base()
+    try:
+        server.handler.cross_origin_url = second.url("/article")
+
+        followed = source_adapters.capture_url(
+            base, server.url("/redirect-to-article"), "human", "cli",
+            options=capture_options())
+        if followed["status"] != "ok":
+            fail("redirect: an ordinary redirect was not followed: %r"
+                 % (followed["error"],))
+
+        to_file = source_adapters.capture_url(
+            base, server.url("/redirect-to-file"), "human", "cli",
+            options=capture_options())
+        if to_file["error"] is None or \
+                to_file["error"]["code"] != "source.redirect_refused":
+            fail("redirect: a file: redirect was not refused by name: %r"
+                 % (to_file,))
+        if "file" not in to_file["error"]["message"]:
+            fail("redirect: the refusal does not name the rejected scheme: %r"
+                 % to_file["error"]["message"])
+
+        loop = source_adapters.capture_url(
+            base, server.url("/redirect-loop"), "human", "cli",
+            options=capture_options())
+        if loop["error"] is None or \
+                loop["error"]["code"] != "source.fetch_failed":
+            fail("redirect: a redirect loop was not capped: %r" % (loop,))
+
+        del second.handler.received_headers[:]
+        crossed = source_adapters.capture_url(
+            base, server.url("/redirect-cross-origin"), "human", "cli",
+            options=capture_options())
+        if crossed["status"] != "ok":
+            fail("redirect: the cross-origin redirect did not arrive: %r"
+                 % (crossed["error"],))
+        for headers in second.handler.received_headers:
+            for key in headers:
+                if key.lower() == "authorization":
+                    fail("redirect: an Authorization header survived a "
+                         "cross-origin redirect")
+
+        # The strip itself, unit level, because this adapter sends no
+        # Authorization header of its own and the integration case above can
+        # only prove the absence of one that was never added.
+        handler = source_adapters.SchemeLockedRedirectHandler()
+        request = urllib.request.Request(
+            "http://a.example/one", headers={"Authorization": "Bearer x"})
+        stripped = handler.redirect_request(
+            request, None, 302, "Found", {}, "http://b.example/two")
+        if any(k.lower() == "authorization" for k in stripped.headers):
+            fail("redirect: the handler kept Authorization across origins")
+        same = handler.redirect_request(
+            request, None, 302, "Found", {}, "http://a.example/three")
+        if not any(k.lower() == "authorization" for k in same.headers):
+            fail("redirect: the handler stripped Authorization on a "
+                 "same-origin redirect, which it must not")
+    finally:
+        server.stop()
+        second.stop()
+        shutil.rmtree(base, ignore_errors=True)
+    print("ok: redirect hardening -- scheme-locked, loop-capped, and "
+          "Authorization stripped the moment the origin changes")
+
+
+def check_fetch_limits():
+    server = web_capture_fidelity_cases.LoopbackServer().start()
+    base = new_base()
+    try:
+        slow = source_adapters.capture_url(
+            base, server.url("/slow"), "human", "cli",
+            options=capture_options(fetch_timeout_seconds=1))
+        if slow["error"] is None or \
+                slow["error"]["code"] != "source.fetch_failed":
+            fail("fetch limits: a slow origin was not refused: %r" % (slow,))
+        if "timed out" not in slow["error"]["message"]:
+            fail("fetch limits: the timeout refusal does not name a timeout: "
+                 "%r" % slow["error"]["message"])
+
+        huge = source_adapters.capture_url(
+            base, server.url("/huge"), "human", "cli",
+            options=capture_options(max_input_bytes=4096))
+        if huge["error"] is None or \
+                huge["error"]["code"] != "source.oversized":
+            fail("fetch limits: an oversize response was not refused: %r"
+                 % (huge,))
+
+        missing = source_adapters.capture_url(
+            base, server.url("/notfound"), "human", "cli",
+            options=capture_options())
+        if missing["error"] is None or \
+                missing["error"]["code"] != "source.fetch_failed":
+            fail("fetch limits: a 404 was not refused: %r" % (missing,))
+        if "404" not in missing["error"]["message"]:
+            fail("fetch limits: the refusal does not carry the status code: "
+                 "%r" % missing["error"]["message"])
+    finally:
+        server.stop()
+        shutil.rmtree(base, ignore_errors=True)
+    print("ok: fetch limits -- a timeout, an oversize body, and a 404 each "
+          "return a typed code rather than raising")
+
+
+def check_snapshot_both_ways():
+    server = web_capture_fidelity_cases.LoopbackServer().start()
+    inline_base = new_base()
+    reference_base = new_base()
+    try:
+        inline = source_adapters.capture_url(
+            inline_base, server.url("/article"), "human", "cli",
+            options=capture_options(snapshot_storage="inline"))
+        reference = source_adapters.capture_url(
+            reference_base, server.url("/article"), "human", "cli",
+            options=capture_options(snapshot_storage="reference"))
+        for name, result in (("inline", inline), ("reference", reference)):
+            if result["status"] != "ok":
+                fail("snapshot: the %s capture failed: %r"
+                     % (name, result["error"]))
+        left = json.loads(open(os.path.join(inline_base,
+                                             inline["sidecar_rel_path"]),
+                                encoding="utf-8").read())
+        right = json.loads(open(os.path.join(reference_base,
+                                              reference["sidecar_rel_path"]),
+                                 encoding="utf-8").read())
+        if left["fingerprint"] != right["fingerprint"]:
+            fail("snapshot: the two storage modes produced different "
+                 "fingerprints, so a citation could tell which was used")
+        if not left["origin"]["snapshot_rel_path"]:
+            fail("snapshot: inline mode recorded no snapshot path")
+        if right["origin"]["snapshot_rel_path"] is not None:
+            fail("snapshot: reference mode recorded an owned snapshot path")
+        inline_snapshot = os.path.join(inline_base,
+                                        left["origin"]["snapshot_rel_path"])
+        if not os.path.exists(inline_snapshot):
+            fail("snapshot: the inline snapshot was not written")
+        cache_dir = os.path.join(reference_base,
+                                  source_adapters.SNAPSHOT_DIRNAME,
+                                  source_adapters.SNAPSHOT_CACHE_DIRNAME)
+        if not os.path.isdir(cache_dir) or not os.listdir(cache_dir):
+            fail("snapshot: reference mode wrote nothing into the cache")
+    finally:
+        server.stop()
+    try:
+        # The server is stopped: the whole point of binding a snapshot is
+        # that the capture reads back with the origin gone.
+        for base, result in ((inline_base, inline),
+                             (reference_base, reference)):
+            text = open(os.path.join(base, result["md_rel_path"]),
+                        encoding="utf-8").read()
+            if "Airway Management" not in text:
+                fail("snapshot: a captured page did not read back offline")
+    finally:
+        shutil.rmtree(inline_base, ignore_errors=True)
+        shutil.rmtree(reference_base, ignore_errors=True)
+    print("ok: snapshot both ways -- one fingerprint, two storage paths, and "
+          "both read back with the origin unreachable")
+
+
+def check_snapshot_containment():
+    base = new_base()
+    try:
+        try:
+            source_adapters._store_snapshot(
+                base, os.path.join("..", "..", "escape"), b"<html></html>",
+                "text/html", {})
+            fail("containment: a crafted source id placed a snapshot outside "
+                 "the root")
+        except source_adapters._Refusal as refusal:
+            if refusal.code != "source.malformed_input":
+                fail("containment: the escape was refused with %r"
+                     % refusal.code)
+        except OSError:
+            pass  # the filesystem refused first, which is also containment
+        outside = os.path.abspath(os.path.join(base, "..", "escape.snapshot"))
+        if os.path.exists(outside):
+            fail("containment: a snapshot was written outside the root")
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+    print("ok: snapshot containment -- a crafted id cannot place a snapshot "
+          "outside the approved root")
+
+
+def check_bind_policy_gate():
+    server = web_capture_fidelity_cases.LoopbackServer().start()
+    base = new_base()
+    try:
+        approve = capture_options(bind_policy="approve_before_bind")
+        auto = capture_options(bind_policy="auto_fetch")
+
+        refused = source_adapters.capture_url(
+            base, server.url("/article"), "agent", "daemon", options=approve)
+        if refused["error"] is None or \
+                refused["error"]["code"] != "source.approval_required":
+            fail("bind policy: an unconfirmed agent bind was not refused: %r"
+                 % (refused,))
+        for name in os.listdir(base):
+            if name == source_adapters.SNAPSHOT_DIRNAME:
+                fail("bind policy: a refused agent bind wrote a snapshot")
+
+        confirmed = source_adapters.capture_url(
+            base, server.url("/article"), "agent", "daemon", options=approve,
+            confirm=True)
+        if confirmed["status"] != "ok":
+            fail("bind policy: a confirmed agent bind was refused: %r"
+                 % (confirmed["error"],))
+
+        human = source_adapters.capture_url(
+            base, server.url("/article"), "human", "cli", options=approve)
+        if human["status"] != "ok":
+            fail("bind policy: a human bind needed confirmation: %r"
+                 % (human["error"],))
+
+        agent_auto = source_adapters.capture_url(
+            base, server.url("/article"), "agent", "daemon", options=auto)
+        if agent_auto["status"] != "ok":
+            fail("bind policy: auto_fetch still gated an agent bind: %r"
+                 % (agent_auto["error"],))
+
+        # Preview never consults the gate, under either policy, for either
+        # actor. Searching and reading stay free; only the write is gated.
+        local = new_base()
+        try:
+            with open(os.path.join(local, "notes.md"), "w",
+                      encoding="utf-8") as fh:
+                fh.write("# Free\n\nA readable line.\n")
+            raw_id = link_with_rights(local, "notes.md", all_granted())
+            for policy in (approve, auto):
+                preview = source_adapters.preview_source(
+                    local, "markdown", raw_id, options=policy)
+                if preview["status"] != "ok":
+                    fail("bind policy: preview was gated under %r"
+                         % policy["bind_policy"])
+            for name in os.listdir(local):
+                if name.endswith(".locator.json"):
+                    fail("bind policy: preview wrote %s" % name)
+        finally:
+            shutil.rmtree(local, ignore_errors=True)
+    finally:
+        server.stop()
+        shutil.rmtree(base, ignore_errors=True)
+    print("ok: bind policy -- both policies ship, an unconfirmed agent bind "
+          "is refused by name, and preview stays free under both")
+
+
+def check_remote_capture_rights():
+    server = web_capture_fidelity_cases.LoopbackServer().start()
+    base = new_base()
+    try:
+        result = source_adapters.capture_url(
+            base, server.url("/article"), "human", "cli",
+            options=capture_options())
+        if result["status"] != "ok":
+            fail("capture rights: the capture failed: %r" % (result["error"],))
+        sidecar = json.loads(open(os.path.join(base,
+                                                result["sidecar_rel_path"]),
+                                   encoding="utf-8").read())
+        for operation in identity.RIGHTS_OPERATIONS:
+            if sidecar["rights"].get(operation) != "unknown":
+                fail("capture rights: %s is %r on a fresh capture, expected "
+                     "unknown" % (operation, sidecar["rights"].get(operation)))
+        try:
+            source_adapters.import_source(
+                base, "markdown", result["source_id"], "human", "cli",
+                options=capture_options())
+        except journal.JournalError as exc:
+            if exc.code != "journal.rights_unknown":
+                fail("capture rights: deriving from an unknown-rights capture "
+                     "refused with %r" % (exc.code,))
+        else:
+            fail("capture rights: a derivation from an unknown-rights capture "
+                 "was allowed")
+    finally:
+        server.stop()
+        shutil.rmtree(base, ignore_errors=True)
+    print("ok: remote capture rights -- a fresh capture is all seven unknown, "
+          "and deriving from it is refused by name until a grant is recorded")
+
+
+def _capture_for_recheck(base, server, path="/article"):
+    result = source_adapters.capture_url(
+        base, server.url(path), "human", "cli", options=capture_options())
+    if result["status"] != "ok":
+        fail("recheck: the seed capture failed: %r" % (result["error"],))
+    return result
+
+
+def check_recheck_states():
+    server = web_capture_fidelity_cases.LoopbackServer().start()
+    base = new_base()
+    try:
+        captured = _capture_for_recheck(base, server)
+        sidecar_path = os.path.join(base, captured["sidecar_rel_path"])
+        before_entries = len(list(journal.entries(base)))
+        before_sidecar = open(sidecar_path, "rb").read()
+        before_row = dict(journal.read_registry(base)[captured["source_id"]])
+
+        def assert_untouched(label):
+            if len(list(journal.entries(base))) != before_entries:
+                fail("recheck: %s appended a journal entry" % label)
+            if open(sidecar_path, "rb").read() != before_sidecar:
+                fail("recheck: %s rewrote the sidecar" % label)
+            row = journal.read_registry(base)[captured["source_id"]]
+            if row["fingerprint"] != before_row["fingerprint"]:
+                fail("recheck: %s changed the accepted fingerprint" % label)
+
+        report = source_adapters.recheck_origin(
+            base, captured["source_id"], options=capture_options())
+        if report.get("state") != "origin_unchanged":
+            fail("recheck: an unchanged origin reported %r" % (report,))
+        assert_untouched("an unchanged recheck")
+
+        server.handler.article = (
+            web_capture_fidelity_cases.article_changed_html(),
+            web_capture_fidelity_cases.CHANGED_ETAG)
+        report = source_adapters.recheck_origin(
+            base, captured["source_id"], options=capture_options())
+        if report.get("state") != "origin_changed":
+            fail("recheck: a changed origin reported %r" % (report,))
+        if "still valid" not in report["note"]:
+            fail("recheck: the changed note does not say the citation is "
+                 "still valid: %r" % report["note"])
+        assert_untouched("a changed recheck")
+
+        server.stop()
+        report = source_adapters.recheck_origin(
+            base, captured["source_id"], options=capture_options())
+        if report.get("state") != "origin_unreachable":
+            fail("recheck: a stopped origin reported %r" % (report,))
+        if "readable offline" not in report["note"]:
+            fail("recheck: the unreachable note does not say the snapshot is "
+                 "still readable: %r" % report["note"])
+        assert_untouched("an unreachable recheck")
+        text = open(os.path.join(base, captured["md_rel_path"]),
+                    encoding="utf-8").read()
+        if "Airway Management" not in text:
+            fail("recheck: the capture stopped reading back once its origin "
+                 "was unreachable")
+    finally:
+        try:
+            server.stop()
+        except Exception:
+            pass
+        shutil.rmtree(base, ignore_errors=True)
+    print("ok: recheck states -- unchanged, changed, and unreachable, each a "
+          "read that appends nothing and changes no fingerprint")
+
+
+def check_recheck_preserves_citation():
+    server = web_capture_fidelity_cases.LoopbackServer().start()
+    base = new_base()
+    try:
+        captured = _capture_for_recheck(base, server)
+        sidecar = json.loads(open(os.path.join(base,
+                                                captured["sidecar_rel_path"]),
+                                   encoding="utf-8").read())
+        span_id = None
+        for locator in sidecar["locators"]:
+            if locator["span_id"]:
+                span_id = locator["span_id"]
+                break
+        if span_id is None:
+            fail("citation: the capture joined no span at all")
+        record = auditor.citation(sidecar["source_id"], sidecar["fingerprint"],
+                                   span_id)
+
+        server.handler.article = (
+            web_capture_fidelity_cases.article_changed_html(),
+            web_capture_fidelity_cases.CHANGED_ETAG)
+        report = source_adapters.recheck_origin(
+            base, captured["source_id"], options=capture_options())
+        if report.get("state") != "origin_changed":
+            fail("citation: the origin did not report as changed")
+
+        after = json.loads(open(os.path.join(base,
+                                              captured["sidecar_rel_path"]),
+                                 encoding="utf-8").read())
+        again = auditor.citation(after["source_id"], after["fingerprint"],
+                                  span_id)
+        if again != record:
+            fail("citation: a changed remote origin invalidated a citation "
+                 "already issued: %r against %r" % (again, record))
+    finally:
+        try:
+            server.stop()
+        except Exception:
+            pass
+        shutil.rmtree(base, ignore_errors=True)
+    print("ok: recheck preserves citation -- a changed origin leaves an "
+          "issued citation exactly as valid as it was")
+
+
+def check_recheck_no_validator_falls_back():
+    server = web_capture_fidelity_cases.LoopbackServer().start()
+    base = new_base()
+    try:
+        captured = _capture_for_recheck(base, server,
+                                        path="/article-no-validator")
+        sidecar = json.loads(open(os.path.join(base,
+                                                captured["sidecar_rel_path"]),
+                                   encoding="utf-8").read())
+        if sidecar["origin"]["http_etag"] or \
+                sidecar["origin"]["http_last_modified"]:
+            fail("recheck fallback: the no-validator route served a validator")
+        report = source_adapters.recheck_origin(
+            base, captured["source_id"], options=capture_options())
+        if report.get("state") not in source_adapters.RECHECK_STATES:
+            fail("recheck fallback: a capture with no validator reported %r"
+                 % (report,))
+        if report["state"] != "origin_unchanged":
+            fail("recheck fallback: identical bytes with no validator "
+                 "reported %r" % report["state"])
+    finally:
+        try:
+            server.stop()
+        except Exception:
+            pass
+        shutil.rmtree(base, ignore_errors=True)
+    print("ok: recheck fallback -- a capture with no ETag and no "
+          "Last-Modified rechecks by comparing the derived fingerprint")
+
+
 if __name__ == "__main__":
     check_thin_slice()
     check_scanned_pdf_is_typed_unsupported()
@@ -854,6 +1482,21 @@ if __name__ == "__main__":
     check_pptx_notes_flag()
     check_pptx_slide_order()
     check_pptx_partial_refusal()
+    check_option_defaults_match_schema()
+    check_web_fixture_determinism()
+    check_loopback_fixture_serves()
+    check_web_gold_cases()
+    check_web_locator_anchors()
+    check_private_origin_refused()
+    check_redirect_hardening()
+    check_fetch_limits()
+    check_snapshot_both_ways()
+    check_snapshot_containment()
+    check_bind_policy_gate()
+    check_remote_capture_rights()
+    check_recheck_states()
+    check_recheck_preserves_citation()
+    check_recheck_no_validator_falls_back()
     print("ok: source adapters -- one typed import boundary, one parser's "
           "span ids, one fingerprint, typed refusals, and a degraded path "
           "that names its install command")

@@ -234,6 +234,9 @@ SHELF_ALLOWED_FIELDS = ("action",)
 # adapter name and an opaque object id, never a filesystem path: `path` and
 # `out` are refused here for the same reason `API_FORBIDDEN_FIELDS` refuses
 # them everywhere else, and this route accepts no path field at all.
+# The only body field `POST /api/source/recheck` reads (plan 14C-04).
+SOURCE_RECHECK_ALLOWED_FIELDS = ("source_object_id",)
+
 SOURCE_IMPORT_ALLOWED_FIELDS = ("adapter", "source_object_id", "url",
                                 "rights_grant", "snapshot_storage",
                                 "preview", "confirm")
@@ -251,8 +254,11 @@ SOURCE_IMPORT_ALLOWED_FIELDS = ("adapter", "source_object_id", "url",
 # patterns at all. Phase 14C's `/api/source/import` is the thirteenth: it
 # turns one linked book, document, page, or transcript into derived Markdown
 # plus a locator sidecar, addressed by an opaque `source_object_id` resolved
-# server-side against the daemon's own journal registry. The thirteen-entry
-# length is asserted by
+# server-side against the daemon's own journal registry. Plan 14C-04 adds
+# `/api/source/recheck` beside it: a READ that reports whether a captured
+# remote origin still matches and changes nothing, which is why it is gated
+# by the read-side cross-origin check rather than the write-side one. The
+# fifteen-entry length is asserted by
 # `check_api_route_scope` in `tests/daemon_roundtrip.py`, and every entry
 # is mirrored in ROUTE_CLI and SURFACE_PARITY (Extensibility Rule 9(a)).
 API_ROUTES = (
@@ -269,6 +275,7 @@ API_ROUTES = (
     ("POST", "/api/export_audio", "handle_api_export_audio"),
     ("POST", "/api/lesson/run", "handle_api_lesson_run"),
     ("POST", "/api/source/import", "handle_api_source_import"),
+    ("POST", "/api/source/recheck", "handle_api_source_recheck"),
     ("POST", "/api/shelf", "handle_api_shelf"),
 )
 
@@ -343,6 +350,9 @@ ROUTE_CLI = {
     ("POST", "/api/export_audio"): "export",
     ("POST", "/api/lesson/run"): "lesson",
     ("POST", "/api/source/import"): "source",
+    # Both source routes map to the one `source` CLI parser, exactly as the
+    # three day routes map to `day`.
+    ("POST", "/api/source/recheck"): "source",
     ("POST", "/api/shelf"): "shelf",
     ("GET", QUIZ_GET_RE): "serve",
     ("POST", QUIZ_ANSWER_RE): "serve",
@@ -384,6 +394,7 @@ SURFACE_PARITY = (
     (("POST", "/api/export_audio"), "export", "export_audio"),
     (("POST", "/api/lesson/run"), "lesson", "lesson_run"),
     (("POST", "/api/source/import"), "source", "source_import"),
+    (("POST", "/api/source/recheck"), "source", "source_recheck"),
     (("POST", "/api/shelf"), "shelf", "shelf"),
 )
 
@@ -815,11 +826,70 @@ def handle_api_source_import(handler):
         # An HTTP client is not a human at a terminal, so the recorded actor
         # is the agent kind under this daemon's name. The journal entry says
         # who wrote, and nothing in the body can claim otherwise.
+        # The daemon is an agent actor, so under the approve_before_bind
+        # default this write needs `confirm: true` in the body. That is the
+        # gate working, not a defect: a human at the CLI is their own
+        # approval and an HTTP client is not.
+        options = dict((settings.load_settings(base) or {}).get("source") or {})
+        if isinstance(data.get("snapshot_storage"), str):
+            options["snapshot_storage"] = data["snapshot_storage"]
         result = source_adapters.import_source(
             base, adapter, source_object_id, "agent", "daemon",
-            rights_grant=data.get("rights_grant"))
+            rights_grant=data.get("rights_grant"), options=options,
+            confirm=data.get("confirm") is True)
     except Exception as exc:              # never let a bad POST kill the daemon
         handler.send_server_error(exc)
+        return
+    handler.send_json(result)
+
+
+def handle_api_source_recheck(handler):
+    """`POST /api/source/recheck` -- report whether a captured remote origin
+    still matches the snapshot that was bound (plan 14C-04, OQ-4).
+
+    This is a READ, so it is gated by `_reject_cross_origin` rather than by
+    `_reject_cross_origin_write`, matching how the other read routes are
+    gated. That difference is a recorded choice and not an omission: the
+    handler appends no journal entry, writes no file, and changes no
+    fingerprint, so there is no mutation for the stricter gate to protect.
+
+    The three states are advisory. `origin_changed` never invalidates a
+    citation already issued against the captured revision, and
+    `origin_unreachable` is a state rather than a failure, because a source
+    that was captured stays readable with the network unplugged.
+
+    Text fetched from a remote origin is data returned to the caller. It is
+    never instructions this daemon, or any downstream agent reading the
+    response, acts on.
+    """
+    if _reject_cross_origin(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    extra = sorted(k for k in data if k not in SOURCE_RECHECK_ALLOWED_FIELDS)
+    if extra:
+        handler.send_error(
+            400, "field %r is not accepted by /api/source/recheck; only "
+            "source_object_id is read" % extra[0])
+        return
+    source_object_id = data.get("source_object_id")
+    if not isinstance(source_object_id, str) or not source_object_id:
+        handler.send_error(
+            400, "source_object_id must be the opaque id of a captured "
+            "source object")
+        return
+    base = getattr(handler, "root", None) or os.getcwd()
+    try:
+        options = dict((settings.load_settings(base) or {}).get("source") or {})
+        result = source_adapters.recheck_origin(base, source_object_id,
+                                                 options=options)
+    except Exception as exc:              # never let a bad POST kill the daemon
+        handler.send_server_error(exc)
+        return
+    if result.get("state") is None:
+        handler.send_not_found(
+            "no captured source %s is recorded in this root" % source_object_id)
         return
     handler.send_json(result)
 
