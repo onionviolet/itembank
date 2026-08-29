@@ -528,6 +528,13 @@ def _extract_confidence(adapter, locators):
     field is for, and leaving a heuristic result at `high` would be a claim
     the adapter cannot support. Media whose structure is declared rather than
     inferred record no confidence at all."""
+    if adapter == "transcript":
+        # An SRT or WebVTT file declares both timings. The bracketed shape's
+        # ends are inferred from the following cue, which is exactly the
+        # distinction this field exists for.
+        if any(loc.get("_inferred_ends") for loc in locators):
+            return "medium"
+        return "high"
     if adapter == "web":
         # A capture whose bytes had to be decoded by a replacing fallback is
         # text the adapter is not certain it read correctly.
@@ -1351,6 +1358,239 @@ def _extract_web(raw_bytes, options):
     return "\n".join(lines) + "\n", locators, reading_order, []
 
 
+# ---------------------------------------------------------------------------
+# Roster item 4: transcript intake (plan 14C-05). This adapter imports nothing
+# outside the standard library, so it has no lazy-import guard and no
+# `source.dependency_missing` path. Do not add one for symmetry with the
+# others: its absence is the phase's cleanest proof that the core loop
+# degrades and never blocks.
+
+CUE_ARROW = "-->"
+
+VTT_SKIP_BLOCKS = ("NOTE", "STYLE", "REGION")
+
+# One regex for SRT and WebVTT, because exported caption files are routinely
+# renamed between the two extensions without being reformatted, and a parser
+# that accepts only its own separator silently rejects half of a learner's
+# real files. The hour group is optional: a WebVTT timestamp may be plain
+# MM:SS.mmm, and requiring HH: is the single most likely way this adapter
+# would fail on real material rather than on fixtures. Every quantifier is
+# bounded except the hour's, and there is no nested quantifier and no
+# alternation inside a repeated group, so it cannot backtrack catastrophically
+# (T-14C-31).
+TIMESTAMP_RE = re.compile(r"(?:(\d+):)?(\d{1,2}):(\d{2})[.,](\d{1,3})")
+
+_BRACKETED_RE = re.compile(r"^\[\s*((?:\d+:)?\d{1,2}:\d{2}(?:[.,]\d{1,3})?)"
+                           r"\s*\]\s*(.*)$")
+
+
+def _timestamp_to_ms(text):
+    """Integer milliseconds, or None when `text` carries no timestamp.
+
+    The fractional part is padded to three digits rather than read as written:
+    `1:02.5` is a half second, which is 500 milliseconds and not 5. Getting
+    that wrong is a silent hundred-fold error in every cue of the file.
+    """
+    if not text:
+        return None
+    match = TIMESTAMP_RE.search(text)
+    if not match:
+        return None
+    hours = int(match.group(1) or 0)
+    minutes = int(match.group(2))
+    seconds = int(match.group(3))
+    fraction = (match.group(4) + "00")[:3]
+    return ((hours * 3600 + minutes * 60 + seconds) * 1000) + int(fraction)
+
+
+def _ms_to_stamp(total_ms):
+    seconds, _remainder = divmod(int(total_ms), 1000)
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    return "[%02d:%02d:%02d]" % (hours, minutes, seconds)
+
+
+def _cue_from_block(lines, block_number, unsupported):
+    """One cue dict from one blank-line-separated block, or None with a named
+    entry appended to `unsupported`."""
+    timing_index = None
+    for index, line in enumerate(lines):
+        if CUE_ARROW in line:
+            timing_index = index
+            break
+    if timing_index is None:
+        unsupported.append({
+            "code": "source.unsupported",
+            "message": "cue %d: no timestamp line" % block_number})
+        return None
+    left, _arrow, right = lines[timing_index].partition(CUE_ARROW)
+    start_ms = _timestamp_to_ms(left)
+    # Only up to the second timestamp: a WebVTT timing line's trailing cue
+    # settings are presentation, not content, and `search` stops at the first
+    # match in the remainder anyway.
+    end_ms = _timestamp_to_ms(right)
+    if start_ms is None or end_ms is None:
+        unsupported.append({
+            "code": "source.unsupported",
+            "message": "cue %d: no timestamp line" % block_number})
+        return None
+    if end_ms < start_ms:
+        unsupported.append({
+            "code": "source.unsupported",
+            "message": "cue %d: end timestamp precedes start timestamp"
+                       % block_number})
+        return None
+    text = " ".join(line.strip() for line in lines[timing_index + 1:]
+                    if line.strip())
+    return {"start_ms": start_ms, "end_ms": end_ms, "text": text}
+
+
+def _blocks(text):
+    blocks = []
+    current = []
+    for line in text.split("\n"):
+        if line.strip():
+            current.append(line)
+        elif current:
+            blocks.append(current)
+            current = []
+    if current:
+        blocks.append(current)
+    return blocks
+
+
+def _parse_srt(text):
+    """SRT cues. A leading numeric index line is tolerated and its absence is
+    tolerated too, because half the files that carry SRT timing lines were
+    written by something that did not number them."""
+    cues = []
+    unsupported = []
+    for block_number, lines in enumerate(_blocks(text), start=1):
+        if lines and lines[0].strip().isdigit() and \
+                len(lines) > 1 and CUE_ARROW in lines[1]:
+            lines = lines[1:]
+        cue = _cue_from_block(lines, block_number, unsupported)
+        if cue is not None:
+            cues.append(cue)
+    return cues, unsupported
+
+
+def _parse_vtt(text):
+    """WebVTT cues. NOTE, STYLE, and REGION blocks are recognized and skipped
+    without breaking the cue stream, and each one is recorded in `unsupported`
+    so the loss is reported rather than silent."""
+    cues = []
+    unsupported = []
+    block_number = 0
+    for lines in _blocks(text):
+        first = lines[0].strip()
+        if first.upper().startswith("WEBVTT"):
+            continue
+        keyword = first.split()[0].upper() if first.split() else ""
+        if keyword in VTT_SKIP_BLOCKS:
+            unsupported.append({
+                "code": "source.unsupported",
+                "message": "skipped a %s block" % keyword})
+            continue
+        block_number += 1
+        if len(lines) > 1 and CUE_ARROW not in first and CUE_ARROW in lines[1]:
+            # A cue identifier line before the timing line.
+            lines = lines[1:]
+        cue = _cue_from_block(lines, block_number, unsupported)
+        if cue is not None:
+            cues.append(cue)
+    return cues, unsupported
+
+
+def _parse_plain_timestamps(text):
+    """Hand-typed lines that begin `[HH:MM:SS]`.
+
+    A cue's `end_ms` is the next cue's `start_ms`, and the last cue's `end_ms`
+    equals its own `start_ms`. A final line has no known duration, and
+    inventing one would put a wrong number into a citation; an end equal to
+    the start is the honest zero-length answer. The sidecar records
+    `confidence` `medium` for this shape for the same reason, because these
+    ends are inferred rather than declared.
+
+    A line with no bracketed timestamp joins the preceding cue's text, so a
+    wrapped paragraph does not become a lost line.
+    """
+    cues = []
+    unsupported = []
+    for line in text.split("\n"):
+        match = _BRACKETED_RE.match(line)
+        if match is None:
+            if line.strip() and cues:
+                cues[-1]["text"] = (cues[-1]["text"] + " " + line.strip()).strip()
+            continue
+        start_ms = _timestamp_to_ms(match.group(1) if "." in match.group(1)
+                                    or "," in match.group(1)
+                                    else match.group(1) + ".000")
+        if start_ms is None:
+            continue
+        cues.append({"start_ms": start_ms, "end_ms": start_ms,
+                     "text": match.group(2).strip()})
+    for index in range(len(cues) - 1):
+        cues[index]["end_ms"] = cues[index + 1]["start_ms"]
+    return cues, unsupported
+
+
+def _extract_transcript(raw_bytes, options):
+    """A learner-supplied SRT, WebVTT, or bracketed-timestamp transcript.
+
+    The shape is detected from the content and never from a filename, because
+    a caption file renamed between `.srt` and `.vtt` is the ordinary case
+    rather than the exotic one.
+
+    Every locator carries integer `start_ms` and `end_ms`, so a citation names
+    a moment rather than a line number. That is the whole reason roster item 4
+    is sequenced ahead of ASR: when a speech backend eventually arrives it
+    produces cues, not a new locator shape and not a new sidecar field.
+    """
+    try:
+        text = raw_bytes.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise _Refusal("source.malformed_input",
+                       "the transcript is not valid UTF-8 at byte offset %d; "
+                       "no derived source was produced" % exc.start)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+
+    stripped = [line for line in text.split("\n") if line.strip()]
+    first = stripped[0].strip().upper() if stripped else ""
+    if first.startswith("WEBVTT"):
+        cues, unsupported = _parse_vtt(text)
+        inferred_ends = False
+    elif CUE_ARROW in text:
+        cues, unsupported = _parse_srt(text)
+        inferred_ends = False
+    elif any(_BRACKETED_RE.match(line) for line in text.split("\n")):
+        cues, unsupported = _parse_plain_timestamps(text)
+        inferred_ends = True
+    else:
+        raise _Refusal("source.unsupported", "no timestamped cue found")
+
+    if not cues:
+        raise _Refusal("source.unsupported", "no timestamped cue found")
+
+    lines_out = []
+    locators = []
+    reading_order = []
+    for cue_index, cue in enumerate(cues):
+        lines_out.append("%s %s" % (_ms_to_stamp(cue["start_ms"]),
+                                    cue["text"]))
+        locator_id = "c.%d" % cue_index
+        locators.append({
+            "id": locator_id,
+            "kind": "cue",
+            "body": {"medium": "transcript", "cue_index": cue_index,
+                     "start_ms": cue["start_ms"], "end_ms": cue["end_ms"]},
+            "_line": len(lines_out),
+            "_inferred_ends": inferred_ends,
+        })
+        reading_order.append(locator_id)
+    return "\n".join(lines_out) + "\n", locators, reading_order, unsupported
+
+
 ADAPTER_REGISTRY = {
     "markdown": _extract_markdown,
     "text": _extract_text,
@@ -1358,6 +1598,7 @@ ADAPTER_REGISTRY = {
     "docx": _extract_docx,
     "pptx": _extract_pptx,
     "web": _extract_web,
+    "transcript": _extract_transcript,
 }
 
 ADAPTER_VERSIONS = {name: "1.0.0" for name in ADAPTER_REGISTRY}

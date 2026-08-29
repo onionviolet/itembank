@@ -28,6 +28,7 @@ import source_adapters                                       # noqa: E402
 import locator_fidelity_cases                                # noqa: E402
 import pptx_fidelity_cases                                   # noqa: E402
 import web_capture_fidelity_cases                            # noqa: E402
+import transcript_fidelity_cases                             # noqa: E402
 
 
 def fail(msg):
@@ -1459,6 +1460,229 @@ def check_recheck_no_validator_falls_back():
           "Last-Modified rechecks by comparing the derived fingerprint")
 
 
+# ---------------------------------------------------------------------------
+# Plan 14C-05: transcript intake. The one adapter in the phase with no
+# third-party dependency at all, which makes it the honest test of the
+# degrade-never-block claim.
+
+def transcript_case(case_id):
+    for case in transcript_fidelity_cases.CASE_TABLE:
+        if case["id"] == case_id:
+            return case
+    fail("transcript gold case %s is not in the case table" % case_id)
+
+
+def check_transcript_fixture_determinism():
+    table = transcript_fidelity_cases.CASE_TABLE
+    if len(table) != 8:
+        fail("transcript fixtures: expected 8 cases, found %d" % len(table))
+    if hasattr(transcript_fidelity_cases, "webvtt"):
+        fail("transcript fixtures: the fixture module imported a caption "
+             "library, so it would prove only that the library round-trips "
+             "its own output")
+    for case in table:
+        first = case["build"]()
+        if first != case["build"]():
+            fail("transcript fixtures: %s is not deterministic" % case["id"])
+        if transcript_fidelity_cases.sha256(first) != case["gold"]["sha256"]:
+            fail("transcript fixtures: %s drifted from its recorded sha256"
+                 % case["id"])
+        empty = not case["gold"]["reading_order"]
+        if empty != (case["gold"]["adapter_expectation"] == "unsupported"):
+            fail("transcript fixtures: %s disagrees with the reading-order "
+                 "invariant" % case["id"])
+    workdir = tempfile.mkdtemp(prefix="transfix-")
+    try:
+        records = transcript_fidelity_cases.materialize(
+            os.path.join(workdir, "out"))
+        for _case_id, path, digest in records:
+            if not path.startswith(workdir):
+                fail("transcript fixtures: materialize wrote outside its "
+                     "directory")
+            with open(path, "rb") as fh:
+                if transcript_fidelity_cases.sha256(fh.read()) != digest:
+                    fail("transcript fixtures: a materialized file does not "
+                         "match its digest")
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+    print("ok: transcript fixture determinism -- 8 hand-built cases, every "
+          "recorded sha256 stable, materialize contained")
+
+
+def check_transcript_gold_cases():
+    started = time.time()
+    for case in transcript_fidelity_cases.CASE_TABLE:
+        gold = case["gold"]
+        try:
+            _md, _locators, order, unsupported = \
+                source_adapters._extract_transcript(case["build"](), {})
+            messages = [entry["message"] for entry in unsupported]
+        except source_adapters._Refusal as refusal:
+            if gold["adapter_expectation"] != "unsupported":
+                fail("transcript gold: %s refused with %s / %s"
+                     % (case["id"], refusal.code, refusal.message))
+            if refusal.message != gold["unsupported"][0]:
+                fail("transcript gold: %s refused with %r, recorded %r"
+                     % (case["id"], refusal.message, gold["unsupported"][0]))
+            continue
+        if gold["adapter_expectation"] == "unsupported":
+            fail("transcript gold: %s was expected to refuse but produced %r"
+                 % (case["id"], order))
+        if order != gold["reading_order"]:
+            fail("transcript gold: %s produced %r, recorded %r"
+                 % (case["id"], order, gold["reading_order"]))
+        if messages != gold["unsupported"]:
+            fail("transcript gold: %s reported %r, recorded %r"
+                 % (case["id"], messages, gold["unsupported"]))
+    elapsed = time.time() - started
+    # T-14C-31: a bounded-quantifier regex parses this corpus in milliseconds.
+    # A future edit that introduces a nested quantifier fails here rather than
+    # hanging the suite.
+    if elapsed > 5.0:
+        fail("transcript gold: parsing eight small fixtures took %.1fs, which "
+             "means the timestamp regex is backtracking" % elapsed)
+    print("ok: transcript gold cases -- all 8 resolve as recorded in %.3fs, "
+          "including the BOM, the hour-less WebVTT, the skipped blocks, and "
+          "the inverted cue" % elapsed)
+
+
+def check_transcript_timestamp_locators():
+    for case_id in ("srt-three-cues", "vtt-hour-omitted",
+                    "plain-bracketed-timestamps"):
+        case = transcript_case(case_id)
+        _md, locators, _order, _unsupported = \
+            source_adapters._extract_transcript(case["build"](), {})
+        starts = [loc["body"]["start_ms"] for loc in locators]
+        ends = [loc["body"]["end_ms"] for loc in locators]
+        indexes = [loc["body"]["cue_index"] for loc in locators]
+        if indexes != list(range(len(locators))):
+            fail("transcript locators: %s cue_index values are %r"
+                 % (case_id, indexes))
+        for value in starts + ends:
+            if not isinstance(value, int) or value < 0:
+                fail("transcript locators: %s carries a non-integer or "
+                     "negative millisecond value %r" % (case_id, value))
+        for start, end in zip(starts, ends):
+            if end < start:
+                fail("transcript locators: %s emitted a negative duration "
+                     "(%d to %d)" % (case_id, start, end))
+        if "start_ms" in case["gold"]:
+            if starts != case["gold"]["start_ms"] or \
+                    ends != case["gold"]["end_ms"]:
+                fail("transcript locators: %s produced %r / %r, recorded "
+                     "%r / %r" % (case_id, starts, ends,
+                                  case["gold"]["start_ms"],
+                                  case["gold"]["end_ms"]))
+    print("ok: transcript timestamp locators -- integer milliseconds, "
+          "monotonic cue indexes, no negative duration, and the hour field "
+          "genuinely optional")
+
+
+def check_transcript_separator_tolerance():
+    """Format detection reads the content and never the filename, because a
+    caption file renamed between .srt and .vtt is the ordinary case."""
+    srt_bytes = transcript_case("srt-three-cues")["build"]()
+    vtt_bytes = transcript_case("vtt-hour-omitted")["build"]()
+    for label, raw in (("an SRT renamed .vtt", srt_bytes),
+                       ("a WebVTT renamed .srt", vtt_bytes)):
+        _md, _locators, order, _unsupported = \
+            source_adapters._extract_transcript(raw, {})
+        if order != ["c.0", "c.1", "c.2"]:
+            fail("transcript separators: %s produced %r" % (label, order))
+    print("ok: transcript separator tolerance -- one grammar reads both "
+          "separators and both extensions, detected from content")
+
+
+def check_transcript_no_dependency():
+    """With every third-party adapter library forced unimportable, a
+    transcript still imports end to end. This is the phase's cleanest proof
+    of degrade-never-block."""
+    base = new_base()
+    real_import = builtins.__import__
+    blocked_names = ("pdfplumber", "pdfminer", "docx", "pptx", "readability",
+                     "lxml")
+
+    def blocked(name, *args, **kwargs):
+        if name.split(".")[0] in blocked_names:
+            raise ImportError("blocked for this test")
+        return real_import(name, *args, **kwargs)
+
+    try:
+        case = transcript_case("srt-three-cues")
+        rel = case["filename"]
+        with open(os.path.join(base, rel), "wb") as fh:
+            fh.write(case["build"]())
+        raw_id = link_with_rights(base, rel, all_granted())
+        builtins.__import__ = blocked
+        try:
+            result = source_adapters.import_source(
+                base, "transcript", raw_id, "human", "tester")
+        finally:
+            builtins.__import__ = real_import
+        if result["status"] != "ok":
+            fail("transcript no dependency: the import failed with every "
+                 "third-party package blocked: %r" % (result["error"],))
+        sidecar = json.loads(open(os.path.join(base,
+                                                result["sidecar_rel_path"]),
+                                   encoding="utf-8").read())
+        errs = schema_validate.validate(sidecar, SCHEMA)
+        if errs:
+            fail("transcript no dependency: sidecar failed its schema: %s"
+                 % errs[0])
+        if sidecar["confidence"] != "high":
+            fail("transcript no dependency: an SRT's declared timings should "
+                 "be high confidence, got %r" % sidecar["confidence"])
+        imports = [e for e in applied_entries(base)
+                   if e.get("operation") == "import"]
+        if len(imports) != 1:
+            fail("transcript no dependency: expected exactly one applied "
+                 "import entry, got %d" % len(imports))
+    finally:
+        builtins.__import__ = real_import
+        shutil.rmtree(base, ignore_errors=True)
+    print("ok: transcript no dependency -- a transcript imports end to end "
+          "with every one of the six pinned packages unimportable")
+
+
+def check_transcript_end_to_end():
+    base = new_base()
+    try:
+        case = transcript_case("plain-bracketed-timestamps")
+        rel = case["filename"]
+        with open(os.path.join(base, rel), "wb") as fh:
+            fh.write(case["build"]())
+        raw_id = link_with_rights(base, rel, all_granted())
+        result = source_adapters.import_source(
+            base, "transcript", raw_id, "human", "tester")
+        if result["status"] != "ok":
+            fail("transcript end to end: %r" % (result["error"],))
+        sidecar = json.loads(open(os.path.join(base,
+                                                result["sidecar_rel_path"]),
+                                   encoding="utf-8").read())
+        md_bytes = open(os.path.join(base, result["md_rel_path"]), "rb").read()
+        lines = md_bytes.decode("utf-8").split("\n")[:-1]
+        if len(lines) != len(sidecar["reading_order"]):
+            fail("transcript end to end: %d derived lines against %d "
+                 "reading-order entries"
+                 % (len(lines), len(sidecar["reading_order"])))
+        if not lines[0].startswith("[00:00:05]"):
+            fail("transcript end to end: the derived Markdown does not carry "
+                 "the cue's moment: %r" % lines[0])
+        if sidecar["confidence"] != "medium":
+            fail("transcript end to end: inferred end times should record "
+                 "medium confidence, got %r" % sidecar["confidence"])
+        imports = [e for e in applied_entries(base)
+                   if e.get("operation") == "import"]
+        if len(imports) != 1:
+            fail("transcript end to end: expected exactly one applied import "
+                 "entry, got %d" % len(imports))
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+    print("ok: transcript end to end -- one derived line per cue, the moment "
+          "readable without the sidecar, and inferred ends recorded as "
+          "medium confidence")
+
+
 if __name__ == "__main__":
     check_thin_slice()
     check_scanned_pdf_is_typed_unsupported()
@@ -1497,6 +1721,12 @@ if __name__ == "__main__":
     check_recheck_states()
     check_recheck_preserves_citation()
     check_recheck_no_validator_falls_back()
+    check_transcript_fixture_determinism()
+    check_transcript_gold_cases()
+    check_transcript_timestamp_locators()
+    check_transcript_separator_tolerance()
+    check_transcript_no_dependency()
+    check_transcript_end_to_end()
     print("ok: source adapters -- one typed import boundary, one parser's "
           "span ids, one fingerprint, typed refusals, and a degraded path "
           "that names its install command")
