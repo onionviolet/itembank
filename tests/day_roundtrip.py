@@ -22,6 +22,14 @@ PLAN = os.path.join(ROOT, "fixtures", "sample_plan.md")
 sys.path.insert(0, ROOT)
 import itembank
 
+# The "Anki closed" cases below assert exact copy, so they must not depend on
+# whether the developer happens to have Anki open. Port 9 is the discard
+# service and is never listening, so `anki_read` degrades deterministically;
+# child processes inherit this. Same pin as tests/due_roundtrip.py. Set
+# unconditionally rather than with setdefault: an ambient ANKI_CONNECT_URL
+# pointing at a live instance is exactly the case this is defending against.
+os.environ["ANKI_CONNECT_URL"] = "http://127.0.0.1:9"
+
 
 def fail(msg):
     print("FAIL: " + msg)
