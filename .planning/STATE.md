@@ -3,20 +3,77 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase_name: 14C-source-adapter-registry
-status: Phase 14B EXECUTED and FROZEN (2026-08-27): all six waves ran, all four decisions answered, and 14B-FREEZE.md carries a real freeze on three green legs. GRAPH-01, GRAPH-02, GRAPH-04 and PORT-03 are Complete. Phase 14C plan 01 EXECUTED: source_adapters.py, the frozen locator sidecar schema, the source route, the source CLI command, the source settings group, and VENDORED.md all ship; plans 02 to 08 remain. Phase 16A precondition PASSED with no deviations, so 16A may proceed. Phase 16B still HALTS, correctly, on 16A not having executed. FILE-04 (the workspace) is accepted, shape C, unscheduled. 17A-04 still waits on the browser-driver supply-chain decision.
-stopped_at: Mid Phase 14C. Plan 14C-01 is complete and committed; 14C-02 (docx plus the remaining PDF gold cases) is the next executable plan and overlaps a running background task on the pdf-encrypted gold fixture. 16A-01 Task 1 is done and its decision records are in flight.
-last_updated: "2026-08-27T00:00:00.000Z"
-last_activity: 2026-08-27
-last_activity_desc: "Closed the 14B freeze after both grounds of its withholding fell, executed Phase 14C plan 01 end to end, accepted FILE-04 as the workspace object, and ran the 16A precondition check green. The authorability leg was signed by an agent under Weibao's explicit waiver, which is named in the freeze record rather than buried. Three defects were found by verifying rather than assuming: unreadable PDF gold fixtures, a build.py staging allowlist that never held the 14A or 14B modules, and an inverted question polarity in the authorability review itself."
+status: Phase 14C EXECUTED and FROZEN (2026-08-28): all eight plans ran, 14C-FREEZE.md carries a 61-row multi-source coverage audit with one flagged-unverified row (RESEARCH A6, sdist build-script inspection, which no plan promised), and 88 of 88 suites pass. Ten source adapters ship: markdown, text, pdf, docx, pptx, web, transcript, ocr, epub, and asr as a named registered refusal. The source-binding half of 14B is unblocked. One manual checkpoint is recorded UNRUN and not passed: the OCR adapter against a live Ollama vision model on a real photographed page. Phase 14B EXECUTED and FROZEN (2026-08-27). Phase 16A precondition PASSED with no deviations, so 16A may proceed; 16B still HALTS, correctly, on 16A not having executed. FILE-04 (the workspace) is accepted, shape C, unscheduled. 17A-04 still waits on the browser-driver supply-chain decision.
+stopped_at: End of Phase 14C. Nothing in 14C is left executable. The next executable work is Phase 16A, whose precondition passed. Two things owed by 14C but not blocking it: the OCR live-model checkpoint (needs Ollama running and one photographed page, steps in 14C-06-SUMMARY.md), and the pypdf pin inconsistency between D-14C-3 and deps/source-adapter-pins.txt, which needs a wheel fetch rather than a text edit.
+last_updated: "2026-08-28T00:00:00.000Z"
+last_activity: 2026-08-28
+last_activity_desc: "Executed plans 14C-02 through 14C-08 end to end and froze the phase. Seven adapters landed (docx, pptx, web, transcript, ocr, epub, and asr as a registered refusal) plus the finished PDF locators, the one hardened zip and XML seam every container format reads through, both snapshot storage paths, both bind policies, and the read-time staleness advisory with its route and command. Five defects were found by verifying rather than assuming: a gold manifest that described two of the three lines its own fixture drew; stdlib refusing a redirect scheme before the subclass ever runs, and allowing ftp; ok_result.journal_entry_id null on every import since 14C-01; a half-written sidecar temp file surviving a fault; and a CI step with no local preflight mirror. The OCR live-model checkpoint is recorded UNRUN with its date and reason, never as passed."
 progress:
   total_phases: 28
   completed_phases: 19
   total_plans: 175
-  completed_plans: 123
+  completed_plans: 130
 current_phase: 14C
 ---
 
 # Project State
+
+## 2026-08-28: Phase 14C, all eight plans, executed and frozen
+
+**What landed.** Seven commits, seven plan summaries, and a freeze file. Ten
+source adapters exist behind one `import_source` boundary, one frozen locator
+sidecar, two routes, and two CLI commands. `itembank source import` takes a
+PDF, a DOCX, a PPTX, an EPUB, a transcript, a photographed page, or a URL;
+`itembank source recheck` reports whether a captured origin still matches and
+changes nothing at all.
+
+- **14C-02** (`80a0e00`): DOCX including the five package parts python-docx
+  never surfaces, the one hardened zip and XML seam every container format
+  reads through, and the finished PDF locators (columns, tables, positional
+  footnotes and running heads). The two-file source pair is proven atomic by
+  three injected faults.
+- **14C-03** (`4d59ceb`): PPTX, with slide order read from the presentation
+  part's `sldIdLst` rather than from sorted filenames.
+- **14C-04** (`9590eb4`): web capture. Both snapshot storage paths and both
+  bind policies ship, the fetch is scheme-locked and header-stripping and
+  size-capped and timeout-bounded against a real loopback socket, and the
+  staleness advisory is a read that appends nothing.
+- **14C-05** (`04e32de`): transcript intake through one timestamp grammar,
+  with no third-party dependency at all, which makes it the cleanest proof of
+  degrade-never-block in the repository.
+- **14C-06** (`d2804f0`): OCR, wrapping the one bridge that exists and saying
+  how little it knows. Every locator records null geometry and the schema
+  refuses a fabricated one.
+- **14C-07** (`6bd7fa0`): EPUB on stdlib zipfile and xml.etree, with the
+  `ebooklib` AGPL parking finally recorded in the idea ledger as well as in
+  the decisions file.
+- **14C-08** (`9f26686`): ASR registered as a named refusal with a frozen
+  locator shape, `VENDORED.md` completed with a CI checksum gate that was
+  watched failing three ways, and the phase freeze.
+
+**Five defects found by verifying rather than assuming.** A gold manifest that
+recorded two of the three lines its own fixture drew. stdlib checking a
+redirect's scheme before the subclass ever runs, and allowing `ftp`.
+`ok_result`'s `journal_entry_id` null on every successful import since
+14C-01. A half-written sidecar temp file surviving a fault. And a CI step
+with no local preflight mirror, which the preflight drift test caught.
+
+**One checkpoint is recorded UNRUN, not passed.** The OCR adapter against a
+live Ollama vision model on a real photographed page. No Ollama server was
+reachable on this machine, and the one-sentence transcription-quality
+judgement is the actual output of that checkpoint, so inventing it would
+defeat the reason it exists. The four eye checks and the degraded-run step
+still owed are written out in `14C-06-SUMMARY.md`.
+
+**One inconsistency recorded rather than quietly fixed.** `D-14C-3` records an
+agent choice to pin `pypdf` at 6.16.2; the pins file and `VENDORED.md` both
+still read 6.16.1. Moving it needs a wheel fetch and a new hash, which is a
+supply-chain action rather than a text edit.
+
+**`runtime.py`, `model.py`, and `auditor.py` are untouched by all eight 14C
+commits**, measured per commit rather than as a range diff that would
+attribute other phases' work to this one. `journal.py` changed in exactly one
+commit, by one additive parameter. 88 of 88 suites pass.
 
 ## 2026-08-26: Phase 14B waves 1 to 3, executed overnight; the wave stops at the first checkpoint
 
