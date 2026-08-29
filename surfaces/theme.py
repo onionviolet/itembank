@@ -431,7 +431,7 @@ def _settings_preview_card(mode, pair):
         % (mode, label, mode, mode, pair["accent"], mode, pair["accent_soft"]))
 
 
-def theme_page(config):
+def theme_page(config, sections=""):
     """The `/settings` page (plan 04-04 Task 1): one quiet Theme section with
     the labeled browser color input, current source text, Choose with system
     picker / Save accent / Reset actions, side-by-side light/dark preview
@@ -442,6 +442,11 @@ def theme_page(config):
 
     Every token comes from `theme_css(config)` for this settings document --
     no second palette and no literal color in the page.
+
+    `sections` is additive extra markup appended after the Theme section and
+    inserted nowhere else. It defaults to the empty string, so every existing
+    caller renders byte-identically. It is HTML the caller has already
+    escaped; this function performs no escaping on it.
     """
     src = DEFAULT_ACCENT
     if isinstance(config, dict):
@@ -465,7 +470,7 @@ def theme_page(config):
         "__PREVIEW_CARDS__", cards).replace(
         "__RESET_DISABLED__", reset_disabled)
     return presentation.surface_shell(
-        "Settings", body,
+        "Settings", body + sections,
         theme_css=theme_css(config) + "\n" + SETTINGS_CSS,
         back={"href": "/", "label": "itembank"},
         noscript=SETTINGS_NOSCRIPT)

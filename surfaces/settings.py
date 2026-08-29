@@ -50,6 +50,49 @@ SETTINGS_CODES = tuple(sorted({
 STYLE_SETTINGS_DEFAULTS = {"imperative_cap": 7, "warn_fp_threshold": 0.20}
 
 
+# The Phase 16B (16.2) network-egress group defaults. The schema remains the
+# source of truth -- defaults_from_schema() mirrors it into itembank.json and
+# into a missing key's effective value -- and this accessor exists so callers
+# and the roundtrip tests can read the shipped defaults without a settings
+# load.
+NETWORK_EGRESS_SETTINGS_DEFAULTS = {"hosted_operations": "off",
+                                    "last_disclosure": ""}
+
+# The Phase 16B (16.2) accessibility group defaults, same contract as above:
+# the schema is the source of truth and this mirrors it for callers and tests.
+ACCESSIBILITY_SETTINGS_DEFAULTS = {"reduced_motion": "system",
+                                   "high_contrast": "system"}
+
+# The Phase 16B (16.2) storage group defaults, same contract as above. Backups
+# are off and neither directory names a real path, which is the restrictive
+# default the group's schema description states.
+STORAGE_SETTINGS_DEFAULTS = {"data_dir": "", "backups_enabled": False,
+                             "backup_dir": ""}
+
+# The Chrome-voice panel label for each settings group the 16B UI-SPEC's
+# Settings Expansion Contract names. One file owns the label text so a later
+# surface reads it rather than restating it. `model_backend` and
+# `update_policy` are listed for label completeness only: neither key's
+# schema, default, nor behavior changes in this phase.
+SETTINGS_GROUP_LABELS = {
+    "approved_roots": "Approved roots",
+    "network_egress": "Network & sharing",
+    "accessibility": "Accessibility",
+    "storage": "Storage & backups",
+    "model_backend": "Model backends",
+    "update_policy": "Updates",
+}
+
+# Printed once beside any top-level group the runtime does not act on yet, so
+# a preference says so on the same screen it is offered rather than implying
+# an effect. Driven by the group's own x-itembank-phase against THIS_PHASE,
+# never by a hard-coded key list, so the line disappears by itself when a
+# later phase raises THIS_PHASE.
+SETTINGS_DECLARED_NOT_ENFORCED_NOTE = ("Declared for a later release. itembank "
+                                       "records this preference and nothing "
+                                       "acts on it yet.")
+
+
 # The plan 03.2-04 paraphrase lint settings group defaults (D-13). The
 # schema remains the source of truth -- defaults_from_schema() mirrors it
 # into itembank.json -- and this accessor exists so the linter and the
@@ -377,6 +420,11 @@ def print_table(schema, data):
           ("KEY", "TYPE", "ALLOWED / RANGE", "DEFAULT", "CURRENT", "STATUS"))
     for name, sub in schema["properties"].items():
         print_row(name, sub, defaults.get(name), data.get(name))
+        phase = sub.get("x-itembank-phase")
+        if phase is not None and phase > THIS_PHASE:
+            label = SETTINGS_GROUP_LABELS.get(name)
+            print("  %-26s %s%s" % ("", (label + ": ") if label else "",
+                                    SETTINGS_DECLARED_NOT_ENFORCED_NOTE))
         if sub.get("type") == "object" and "properties" in sub:
             nested_default = defaults.get(name) or {}
             nested_current = data.get(name) if isinstance(data.get(name), dict) else {}

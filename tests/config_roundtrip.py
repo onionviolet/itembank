@@ -11,7 +11,7 @@ output -- never on the English prose after it.
 
 Standard library only, runnable as `python tests/config_roundtrip.py`.
 """
-import hashlib, json, os, shutil, subprocess, sys, tempfile
+import hashlib, io, json, os, shutil, subprocess, sys, tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -120,7 +120,11 @@ def test_schema_names_every_project_key():
                 "home",
                 # plan 14C-01: the source-adapter group (bind policy,
                 # snapshot storage, fetch and intake caps).
-                "source"}
+                "source",
+                # plan 16B-06: the four APP-03 settings groups, all declared
+                # at phase 16.2 and gated on by nothing yet.
+                "approved_roots", "network_egress", "accessibility",
+                "storage"}
     if keys != expected:
         fail("schema properties %r do not equal the expected key set %r" % (keys, expected))
     for name, sub in schema["properties"].items():
@@ -783,6 +787,202 @@ def test_all_codes_reachable():
         fail("SETTINGS_CODES has codes no test input reaches: %r" % sorted(missing))
 
 
+# ---- Phase 16B (16.2): the four additive settings groups --------------------
+
+NEW_16B_KEYS = ("approved_roots", "network_egress", "accessibility", "storage")
+
+PRECONDITION = os.path.join(
+    ROOT, ".planning", "phases", "16B-ia-modes-recovery-contract",
+    "16B-PRECONDITION.md")
+
+
+def _read_additivity_baseline():
+    """The recorded count and hash of the pre-16B effective settings document.
+
+    Read out of `16B-PRECONDITION.md`'s Additivity baseline section, which was
+    written before any 16B change existed. A baseline computed after a 16B
+    edit would make this assertion pass for the wrong reason, so the file is
+    required rather than optional.
+    """
+    if not os.path.exists(PRECONDITION):
+        fail("16B-PRECONDITION.md's Additivity baseline section is missing; "
+             "the additivity claim cannot be proven")
+    text = io.open(PRECONDITION, encoding="utf-8").read()
+    marker = "## Additivity baseline"
+    start = text.find(marker)
+    if start < 0:
+        fail("16B-PRECONDITION.md's Additivity baseline section is missing; "
+             "the additivity claim cannot be proven")
+    section = text[start:text.find("\n## ", start + len(marker))]
+    lines = [ln.strip() for ln in section.split("\n") if ln.strip()]
+    count, digest = None, None
+    for line in lines:
+        if line.isdigit():
+            count = int(line)
+        elif len(line) == 64 and all(c in "0123456789abcdef" for c in line):
+            digest = line
+    if count is None or digest is None:
+        fail("16B-PRECONDITION.md's Additivity baseline section is missing; "
+             "the additivity claim cannot be proven")
+    return count, digest
+
+
+def test_16b_groups_additive():
+    """Every pre-existing settings key is byte-identical to the baseline taken
+    before this phase, and a pre-phase file still loads."""
+    count, digest = _read_additivity_baseline()
+    document = settings.load_settings(ROOT)
+    preserved = {k: v for k, v in document.items() if k not in NEW_16B_KEYS}
+    if len(preserved) != count:
+        fail("the pre-existing settings document has %d keys, baseline "
+             "recorded %d; the change was not additive"
+             % (len(preserved), count))
+    now = hashlib.sha256(
+        json.dumps(preserved, sort_keys=True).encode()).hexdigest()
+    if now != digest:
+        fail("a pre-existing settings key's effective value moved: %s, "
+             "baseline %s" % (now, digest))
+
+    base = tempfile.mkdtemp()
+    try:
+        with io.open(settings_file(base), "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({"theme": "dark"}))
+        loaded = settings.load_settings(base)
+        if loaded["theme"] != "dark":
+            fail("a pre-phase settings file lost its theme")
+        if loaded["approved_roots"] != []:
+            fail("a pre-phase file did not default approved_roots")
+        for key in NEW_16B_KEYS:
+            if key not in loaded:
+                fail("a pre-phase file did not gain the default for %s" % key)
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+    base = tempfile.mkdtemp()
+    try:
+        with io.open(settings_file(base), "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({"theme": "dark", "not_a_real_group": 1}))
+        loaded = settings.load_settings(base)
+        if loaded.get("not_a_real_group") != 1:
+            fail("this phase's additions broke the unknown-key contract")
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+
+def test_16b_defaults_are_restrictive():
+    """Every one of the four defaults is the closed, unset, off value."""
+    base = tempfile.mkdtemp()
+    try:
+        loaded = settings.load_settings(base)
+        if loaded["approved_roots"] != []:
+            fail("approved_roots defaulted to %r" % loaded["approved_roots"])
+        pairs = (("network_egress", settings.NETWORK_EGRESS_SETTINGS_DEFAULTS),
+                 ("accessibility", settings.ACCESSIBILITY_SETTINGS_DEFAULTS),
+                 ("storage", settings.STORAGE_SETTINGS_DEFAULTS))
+        for key, expected in pairs:
+            if loaded[key] != expected:
+                fail("%s defaulted to %r, expected %r"
+                     % (key, loaded[key], expected))
+        for key in NEW_16B_KEYS:
+            value = loaded[key]
+            values = value.values() if isinstance(value, dict) else value
+            for item in values:
+                if isinstance(item, str) and os.sep in item:
+                    fail("%s's default named a real path: %r" % (key, item))
+        backups = loaded["storage"]["backups_enabled"]
+        if not isinstance(backups, bool) or backups is not False:
+            fail("storage.backups_enabled defaulted to %r" % (backups,))
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+
+def test_16b_invalid_values_are_coded():
+    """A bad value in any new group gets one of the six existing codes."""
+    documents = (
+        {"approved_roots": "not-a-list"},
+        {"approved_roots": [""]},
+        {"network_egress": {"hosted_operations": "maybe",
+                            "last_disclosure": ""}},
+        {"accessibility": {"reduced_motion": True, "high_contrast": "system"}},
+        {"storage": {"data_dir": "", "backups_enabled": "yes",
+                     "backup_dir": ""}},
+        {"storage": {"data_dir": "", "backups_enabled": False,
+                     "backup_dir": "", "extra": 1}},
+    )
+    produced = []
+    for document in documents:
+        base = tempfile.mkdtemp()
+        try:
+            with io.open(settings_file(base), "w", encoding="utf-8") as fh:
+                fh.write(json.dumps(document))
+            r = run([], base)
+            if r.returncode == 0:
+                fail("a malformed document loaded cleanly: %r" % document)
+            produced.append(code_in(r.stdout + r.stderr))
+        finally:
+            shutil.rmtree(base, ignore_errors=True)
+    print("    16B malformed documents produced: %s" % ", ".join(produced))
+    if len(settings.SETTINGS_CODES) != 6:
+        fail("SETTINGS_CODES grew to %d" % len(settings.SETTINGS_CODES))
+
+    # A group missing one nested member is NOT malformed: merge_over_defaults
+    # fills it from the group's own complete schema default, which is the
+    # shipped contract test_missing_schema_key_reads_as_default asserts. This
+    # is asserted rather than assumed, because a group whose schema default
+    # were incomplete would fail validation here instead.
+    base = tempfile.mkdtemp()
+    try:
+        with io.open(settings_file(base), "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({"network_egress": {"hosted_operations": "on"}}))
+        loaded = settings.load_settings(base)
+        if loaded["network_egress"]["hosted_operations"] != "on":
+            fail("a partial group lost the member it did carry")
+        if loaded["network_egress"]["last_disclosure"] != "":
+            fail("a partial group did not fill its missing member from the "
+                 "schema default")
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+
+def test_16b_groups_labelled_and_flagged():
+    """The four groups appear with their labels, and each says it is not
+    enforced yet."""
+    base = fresh_base()
+    try:
+        r = run([], base)
+        if r.returncode != 0:
+            fail("itembank config exited %d" % r.returncode)
+        out = r.stdout + r.stderr
+        for key in NEW_16B_KEYS:
+            if key not in out:
+                fail("itembank config did not list %s" % key)
+            if settings.SETTINGS_GROUP_LABELS[key] not in out:
+                fail("itembank config did not label %s" % key)
+
+        note = settings.SETTINGS_DECLARED_NOT_ENFORCED_NOTE
+        for key in NEW_16B_KEYS:
+            label = settings.SETTINGS_GROUP_LABELS[key]
+            if ("%s: %s" % (label, note)) not in out:
+                fail("%s carried no declared-not-enforced note" % key)
+
+        # The note is driven by x-itembank-phase against THIS_PHASE, so a key
+        # the runtime does act on must never carry it.
+        for line in out.split("\n"):
+            if note in line:
+                for enforced in ("theme", "model_backend", "update_policy"):
+                    if line.strip().startswith(enforced):
+                        fail("%s carried the declared-not-enforced note"
+                             % enforced)
+
+        schema = json.load(io.open(SCHEMA_PATH, encoding="utf-8"))
+        stray = set(settings.SETTINGS_GROUP_LABELS) - set(schema["properties"])
+        if stray:
+            fail("a settings label names a key that does not exist: %r"
+                 % sorted(stray))
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+
 def main():
     test_schema_names_every_project_key()
     test_theme_schema_additive_accent()
@@ -810,6 +1010,10 @@ def main():
     test_source_group_contract()
     test_teaching_group_contract()
     test_settings_codes_declared()
+    test_16b_groups_additive()
+    test_16b_defaults_are_restrictive()
+    test_16b_invalid_values_are_coded()
+    test_16b_groups_labelled_and_flagged()
     # Reachability is checked last, after every other test has had a chance
     # to record the codes its own inputs triggered via assert_rejected/code_in.
     test_all_codes_reachable()

@@ -1602,6 +1602,110 @@
           "description": "The largest single input file or archive member an adapter will read before refusing with source.oversized. This is an intake cap and is distinct from auditor.MAX_SOURCE_BYTES, which caps the derived text."
         }
       }
+    },
+    "approved_roots": {
+      "type": "array",
+      "description": "Source, vault, bank, and note directory roots this install may read (the declare-read-roots step of Loop A). Declared by this phase (16.2); no code path gates on it yet. The default is the empty list, so no root is approved until one is named.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true,
+      "default": [],
+      "x-itembank-phase": 16.2
+    },
+    "network_egress": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Whether hosted operations are permitted, and a read-only record of what was last sent. Declared by this phase (16.2); no code path gates on it yet. Every default here is the restrictive value: hosted operations are off and nothing was disclosed.",
+      "required": [
+        "hosted_operations",
+        "last_disclosure"
+      ],
+      "properties": {
+        "hosted_operations": {
+          "type": "string",
+          "enum": [
+            "off",
+            "ask",
+            "on"
+          ],
+          "default": "off"
+        },
+        "last_disclosure": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "default": {
+        "hosted_operations": "off",
+        "last_disclosure": ""
+      },
+      "x-itembank-phase": 16.2
+    },
+    "accessibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Learner-controlled accommodation preferences (the accommodation-override layer of the mode-layer contract). Declared by this phase (16.2); no code path gates on it yet. Both defaults follow the system rather than forcing a value, which is the restrictive choice.",
+      "required": [
+        "reduced_motion",
+        "high_contrast"
+      ],
+      "properties": {
+        "reduced_motion": {
+          "type": "string",
+          "enum": [
+            "system",
+            "on",
+            "off"
+          ],
+          "default": "system"
+        },
+        "high_contrast": {
+          "type": "string",
+          "enum": [
+            "system",
+            "on",
+            "off"
+          ],
+          "default": "system"
+        }
+      },
+      "default": {
+        "reduced_motion": "system",
+        "high_contrast": "system"
+      },
+      "x-itembank-phase": 16.2
+    },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Where evidence and course data live on disk, and the backup and export controls of Loop G. Declared by this phase (16.2); no code path gates on it yet. Every default is the restrictive value: backups are off and neither directory names a real path.",
+      "required": [
+        "data_dir",
+        "backups_enabled",
+        "backup_dir"
+      ],
+      "properties": {
+        "data_dir": {
+          "type": "string",
+          "default": ""
+        },
+        "backups_enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "backup_dir": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "default": {
+        "data_dir": "",
+        "backups_enabled": false,
+        "backup_dir": ""
+      },
+      "x-itembank-phase": 16.2
     }
   }
 }

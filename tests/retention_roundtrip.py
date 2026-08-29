@@ -185,13 +185,21 @@ def check_states():
         # weak + due: three settled, one correct, all recent (so at-risk's
         # 28-day silence rule does not fire first -- D-14 precedence). Own
         # log so the raw accuracy is exactly 1/3.
+        #
+        # The cutoff is passed explicitly, like every other case below. Without
+        # it this call read the wall clock while the events stayed pinned to
+        # August 2026, so the fixture expired on its own: once the last
+        # confirmed success passed `at_risk_after_days` of real elapsed time,
+        # at-risk won the D-14 precedence order and the assertion below failed
+        # on a tree nobody had changed. A fixed clock is what the rest of this
+        # file already uses and it cannot age out.
         base2, log2 = fresh_log()
         append_all(log2, [
             resp("s1", "emt:airway", "q1", "A", True, "2026-08-01T10:00:00.000Z"),
             resp("s2", "emt:airway", "q1", "D", False, "2026-08-02T10:00:00.000Z"),
             resp("s3", "emt:airway", "q1", "E", False, "2026-08-03T10:00:00.000Z"),
         ])
-        p = report(base2)
+        p = report(base2, cutoff="2026-08-10T12:00:00.000Z")
         row = p["objectives"]["emt:airway"]
         if row["state"] != "weak":
             fail("3 settled with 1 correct must be weak, got %r" % row["state"])
@@ -209,7 +217,10 @@ def check_states():
             resp("s3", "emt:airway", "q1", "B", True, "2026-07-30T10:00:00.000Z"),
             resp("s4", "emt:airway", "q1", "B", True, "2026-08-02T10:00:00.000Z"),
         ])
-        p = report(base3)
+        # Same fixed clock, for the same reason as base2 above: this case
+        # asserts "recent high accuracy", and read against the wall clock its
+        # August 2026 events stop being recent and at-risk takes precedence.
+        p = report(base3, cutoff="2026-08-10T12:00:00.000Z")
         row = p["objectives"]["emt:airway"]
         if row["state"] != "mastered":
             fail("recent high accuracy + 3 distinct success days must be "

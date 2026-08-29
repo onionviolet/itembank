@@ -493,7 +493,13 @@ def check_file_list_stays_reachable_at_banks():
 def check_daemon_empty_case_keeps_its_copy():
     """A daemon serving nothing still says exactly what it said before."""
     from surfaces import daemon as daemon_mod
+    from surfaces import ia as ia_mod
     r = _Root(banks=())
+    # Plan 16B-09 (APP-03): a genuinely fresh root materializes the bundled
+    # sample course on first launch. The documented empty copy still governs
+    # the no-course case, so the sample is recorded as removed and this check
+    # keeps asserting exactly what it always asserted.
+    ia_mod.write_ia_state(r.root, "sample_course", {"removed": True})
     try:
         handler = _FakeHandler(r.root)
         daemon_mod.handle_index(handler)

@@ -550,6 +550,11 @@ def test_index_and_report_state_copy():
     numbers, and visible evidence/provenance.
     """
     workdir = tempfile.mkdtemp()
+    # Plan 16B-09 (APP-03): a fresh root materializes the bundled sample
+    # course on first launch, so the sample is recorded as removed here and
+    # this check keeps asserting the documented no-course copy.
+    from surfaces import ia as _ia
+    _ia.write_ia_state(workdir, "sample_course", {"removed": True})
     proc, url, lines = start_theme_daemon(workdir)
     try:
         status, body = theme_get(url)

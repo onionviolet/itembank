@@ -23,6 +23,8 @@ from surfaces.daemon import (cmd_cli_twin, cmd_daemon, cmd_disclosure,
 from surfaces.day import cmd_day
 from surfaces.evidence_cli import (cmd_evidence, cmd_id_assign, cmd_mark, cmd_marks,
                                    cmd_render, cmd_retract, cmd_trends)
+from surfaces.ia import (SHELF_ACTIONS, cmd_activity, cmd_help_code,
+                         cmd_shelf)
 from surfaces.import_anki import cmd_import_anki
 from surfaces.lesson import cmd_gloss, cmd_key_review, cmd_lesson, cmd_render_style
 from surfaces.lti import (PRIVACY_STATEMENT, cmd_lti_doctor, cmd_lti_serve,
@@ -444,11 +446,14 @@ def cmd_guard(a):
         # trees are authored repo content, not committed corpus data --
         # everything else outside fixtures/ is fair game. `_tmp*` dirs are
         # uncommitted scratch debris (e.g. `_tmp_lesson_trial/`), the same
-        # transient class `.gitignore` already keeps out of CI.
+        # transient class `.gitignore` already keeps out of CI. `_sample_course`
+        # and `_ia` are plan 16B-09's gitignored runtime state, materialized
+        # per install and never committed, so nothing in them can reach a
+        # commit, which is the only thing guard exists to prevent.
         dirs[:] = [d for d in dirs
                    if d not in (".git", "fixtures", ".github", ".agents",
                                 ".claude", ".cursor", ".reasonix",
-                                ".planning")
+                                ".planning", "_sample_course", "_ia")
                    and not d.startswith("_tmp")]
         for f in files:
             if not f.lower().endswith(".md"):
@@ -1190,6 +1195,22 @@ def main():
     s.add_argument("--base", default=".",
                    help="directory holding itembank.json (default: current directory)")
     s.set_defaults(fn=cmd_config)
+
+    s = sub.add_parser("activity", help="list durable agent and maintenance "
+                       "jobs (the Activity view's CLI twin)")
+    s.add_argument("dir", nargs="?", default=".")
+    s.set_defaults(fn=cmd_activity)
+
+    s = sub.add_parser("help-code", help="print the offline help entry for one "
+                       "named error code")
+    s.add_argument("code")
+    s.set_defaults(fn=cmd_help_code)
+
+    s = sub.add_parser("shelf", help="apply one course-shelf or first-run "
+                       "action (the POST /api/shelf CLI twin)")
+    s.add_argument("action", choices=list(SHELF_ACTIONS))
+    s.add_argument("dir", nargs="?", default=".")
+    s.set_defaults(fn=cmd_shelf)
 
     s = sub.add_parser("source", help="import a book, document, page, or "
                        "transcript as a cited source")

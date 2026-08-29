@@ -49,3 +49,8 @@ prototypes/17a/render/
 
 # Unattended run logs (tool output, not product state)
 .planning/_ox-logs/
+
+# Plan 16B-09 runtime-materialized per-install state, never committed:
+# the bundled sample course's bytes and the first-run/shelf records.
+_sample_course/
+_ia/

@@ -54,6 +54,13 @@ STAGE_FILES = (
     # of gap the 14A and 14B entry above records; it is caught by
     # tests/packaging_roundtrip.py and tests/math_offline_roundtrip.py.
     "capabilities.py",
+    # Phase 16B, added 2026-08-28 by plan 16B-09 Task 1. `surfaces/daemon.py`
+    # and `surfaces/ia.py` both import `sample_course` at module scope so the
+    # bundled sample course's bytes have one home. Omitting it here is the
+    # same hard ImportError inside the built .pyz that the 14A/14B and 16A
+    # entries above record, caught by tests/packaging_roundtrip.py and
+    # tests/math_offline_roundtrip.py.
+    "sample_course.py",
 )
 STAGE_DIRS = ("surfaces", "schemas", "styles", "fonts", "vendor")
 

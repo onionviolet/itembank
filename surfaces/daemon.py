@@ -18,6 +18,7 @@ import urllib.parse, urllib.request, uuid
 
 import evidence
 import resources
+import sample_course
 import retention
 import runner
 import selection
@@ -27,7 +28,7 @@ import subjects
 from model import (lesson_slug, load, parse_activities, parse_bank,
                    parse_key_blocks, parse_lesson, parse_media, parse_terms)
 from runtime import explain_payload, glossable, read_session, upgrade_session
-from surfaces import (day, home, launcher, lesson, presentation, quiz,
+from surfaces import (day, home, ia, launcher, lesson, presentation, quiz,
                       quiz_page, retention_view, seeding, session, settings,
                       study, update)
 from surfaces import audio as audio_surface
@@ -194,6 +195,19 @@ DAY_GET_RE = re.compile(r"^/day/(?P<stem>[^/]+)$")
 DAY_SAVE_RE = re.compile(r"^/day/(?P<stem>[^/]+)/save$")
 DAY_OPEN_RE = re.compile(r"^/day/(?P<stem>[^/]+)/open$")
 DAY_EDIT_RE = re.compile(r"^/day/(?P<stem>[^/]+)/edit$")
+# The bounded character class is the path-traversal refusal, not a
+# convenience: a code cannot contain a separator, a percent escape, or an
+# unbounded run, so a traversal attempt is refused by the dispatcher
+# before `handle_help_get` runs and before any lookup key is built.
+HELP_GET_RE = re.compile(r"^/help/(?P<code>[a-z0-9_.]{1,64})$")
+# The same bounded-character-class refusal as HELP_GET_RE: a course id and a
+# lesson id cannot contain a path separator, a percent escape, or an unbounded
+# run, so a traversal attempt is refused at dispatch before any handler runs.
+# The area alternation is a closed vocabulary mirroring `ia.COURSE_AREAS` minus
+# `overview`, which COURSE_GET_RE serves at the bare course path.
+COURSE_GET_RE = re.compile(r"^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})$")
+COURSE_AREA_RE = re.compile(r"^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/(?P<area>learn|practice|test|map|sources|build|evidence)$")
+COURSE_LESSON_RE = re.compile(r"^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/learn/(?P<lesson_id>[A-Za-z0-9_.-]{1,64})$")
 
 # Fields a browser may send on `POST /day/<stem>/edit`. Everything else is
 # refused before any helper runs (T-04-21): the client addresses the plan by
@@ -208,6 +222,13 @@ DAY_EDIT_ALLOWED_FIELDS = ("revision", "edits", "force_token", "confirmation",
 # draft item dict for the accept action. Everything else is refused by name,
 # the same authority-shaped-field discipline every mutating route here takes.
 SEED_ACCEPT_ALLOWED_FIELDS = ("bank", "action", "draft")
+
+# Plan 16B-09's one mutating route accepts exactly one field. A raw filesystem
+# path, an object id, and a full-document replacement are all refused by name:
+# the only path `ia.apply_shelf_action` ever deletes is the daemon root joined
+# with `sample_course.SAMPLE_COURSE_DIRNAME`, so a body carrying a path would
+# be a field nothing reads and an invitation to try.
+SHELF_ALLOWED_FIELDS = ("action",)
 
 # The only body fields `POST /api/source/import` reads (plan 14C-01). An
 # adapter name and an opaque object id, never a filesystem path: `path` and
@@ -248,6 +269,7 @@ API_ROUTES = (
     ("POST", "/api/export_audio", "handle_api_export_audio"),
     ("POST", "/api/lesson/run", "handle_api_lesson_run"),
     ("POST", "/api/source/import", "handle_api_source_import"),
+    ("POST", "/api/shelf", "handle_api_shelf"),
 )
 
 # Order is load-bearing: every fixed literal route comes before every
@@ -265,6 +287,7 @@ ROUTES = (
     ("GET", "/report", "handle_report_get"),
     ("GET", "/settings", "handle_settings_get"),
     ("GET", "/disclosure", "handle_disclosure"),
+    ("GET", "/activity", "handle_activity_get"),
     ("POST", "/api/theme", "handle_theme_post"),
     ("POST", "/cli-twin", "handle_cli_twin"),
     ("POST", "/seed/accept", "handle_seed_accept"),
@@ -283,6 +306,10 @@ ROUTES = (
     ("POST", DAY_SAVE_RE, "handle_day_save"),
     ("POST", DAY_OPEN_RE, "handle_day_open"),
     ("POST", DAY_EDIT_RE, "handle_day_edit"),
+    ("GET", HELP_GET_RE, "handle_help_get"),
+    ("GET", COURSE_GET_RE, "handle_course_get"),
+    ("GET", COURSE_AREA_RE, "handle_course_area_get"),
+    ("GET", COURSE_LESSON_RE, "handle_course_lesson_get"),
 )
 
 # Every route in ROUTES has a CLI command that reaches the same runtime
@@ -297,6 +324,7 @@ ROUTE_CLI = {
     ("GET", "/report"): "report",
     ("GET", "/settings"): "theme",
     ("GET", "/disclosure"): "disclosure",
+    ("GET", "/activity"): "activity",
     ("POST", "/api/theme"): "theme",
     ("POST", "/cli-twin"): "cli-twin",
     ("POST", "/seed/accept"): "seed",
@@ -315,6 +343,7 @@ ROUTE_CLI = {
     ("POST", "/api/export_audio"): "export",
     ("POST", "/api/lesson/run"): "lesson",
     ("POST", "/api/source/import"): "source",
+    ("POST", "/api/shelf"): "shelf",
     ("GET", QUIZ_GET_RE): "serve",
     ("POST", QUIZ_ANSWER_RE): "serve",
     ("GET", STUDY_GET_RE): "study",
@@ -328,6 +357,10 @@ ROUTE_CLI = {
     ("POST", DAY_SAVE_RE): "day",
     ("POST", DAY_OPEN_RE): "day",
     ("POST", DAY_EDIT_RE): "day",
+    ("GET", HELP_GET_RE): "help-code",
+    ("GET", COURSE_GET_RE): "daemon",
+    ("GET", COURSE_AREA_RE): "daemon",
+    ("GET", COURSE_LESSON_RE): "daemon",
 }
 
 # Extensibility Rule 9(a) (ROADMAP.md): every /api/* route reserves its
@@ -351,6 +384,7 @@ SURFACE_PARITY = (
     (("POST", "/api/export_audio"), "export", "export_audio"),
     (("POST", "/api/lesson/run"), "lesson", "lesson_run"),
     (("POST", "/api/source/import"), "source", "source_import"),
+    (("POST", "/api/shelf"), "shelf", "shelf"),
 )
 
 
@@ -413,6 +447,249 @@ def handle_disclosure(handler):
     """
     handler.send_bytes(
         json.dumps(update.disclosure_state(handler.root)).encode("utf-8"),
+        "application/json")
+
+
+def handle_activity_get(handler):
+    """`GET /activity` -- the Activity view: durable agent and maintenance
+    jobs, read from the journal and rendered read-only.
+
+    This is a read model. The handler writes nothing, offers no resolve
+    control, and reaches no journal write path, because Phase 16B ships no
+    Activity write authority at all (D-16B-8). Every string it renders comes
+    from `ia.ACTIVITY_COPY`.
+
+    The Activity area here means durable agent and maintenance jobs. It is a
+    different object from `REQUIREMENTS.md`'s `ACTIVITY-01/02/03` family of
+    purpose-first learner questions (D6).
+    """
+    state = ia.activity_view_state(handler.root)
+    if not state["available"]:
+        body = (presentation.state_panel(
+                    {"kind": "unknown", "status": state["notice"]})
+                + '<p><a href="/help/ia.activity_unavailable">'
+                  'Read more about this</a></p>'
+                + banner_markup(ia.degraded_banner("agent_unavailable")))
+    else:
+        parts = []
+        if state["needs_input"]:
+            parts.append("<h2>%s</h2>"
+                         % presentation.esc(ia.ACTIVITY_COPY["needs_input"]))
+        for job in state["jobs"]:
+            parts.append(
+                '<article class="job" data-ia-state="%s" data-ia-token="%s">'
+                "<h3>%s</h3><p>%s</p></article>"
+                % (presentation.esc(job["state"]),
+                   presentation.esc(job["token"]),
+                   presentation.esc(job["label"]),
+                   presentation.esc(job["intent"])))
+        body = "".join(parts)
+    handler.send_html(presentation.surface_shell(
+        "Activity", body,
+        theme_css=theme.theme_css(settings.load_settings(handler.root)),
+        back={"href": "/", "label": "Back to courses"}).encode("utf-8"))
+
+
+def handle_help_get(handler, code):
+    """`GET /help/<code>` -- the offline help page for one named error code.
+
+    The whole lookup is local and in memory: no file is opened and no socket
+    is used, so help resolves exactly when connectivity, a hosted model, or a
+    configured agent is the thing that broke (APP-03). An unrecognized code is
+    a 200 carrying the fallback sentence, never a 404 and never a broken link;
+    a malformed one never reaches here, because `HELP_GET_RE`'s bounded
+    character class refuses it at dispatch.
+    """
+    entry = ia.help_entry(code)
+    body = '<p class="help-cause">%s</p>' % presentation.esc(entry["cause"])
+    if entry["next_action"]:
+        body += ('<p class="help-next">%s</p>'
+                 % presentation.esc(entry["next_action"]))
+    body += ('<p class="help-code">Error code: %s</p>'
+             % presentation.esc(entry["code"]))
+    handler.send_html(presentation.surface_shell(
+        entry["title"], body,
+        theme_css=theme.theme_css(settings.load_settings(handler.root)),
+        back={"href": "/", "label": "Back to courses"}).encode("utf-8"))
+
+
+# Progressive enhancement only, emitted by the three course-level handlers.
+# It restores an anchor's focus and scroll position and remembers where the
+# reader was; every route, every anchor target, and every back control works
+# with it disabled, which is what the `noscript` sentence beside it states.
+# It adds no library, no framework, no polyfill, and no network request, and
+# it never changes page content beyond revealing the already-rendered
+# `data-anchor-missing` region.
+RESTORE_SCRIPT = """<script>
+(function () {
+  var KEY = "itembank.ia.restore";
+  function contextOffset() {
+    var bar = document.querySelector("[data-surface-context]");
+    return bar ? bar.offsetHeight : 0;
+  }
+  function fullyInView(el) {
+    var r = el.getBoundingClientRect();
+    return r.top >= 0 && r.bottom <= (window.innerHeight ||
+      document.documentElement.clientHeight);
+  }
+  function focusHeading() {
+    var h1 = document.querySelector("h1");
+    if (h1) { h1.tabIndex = -1; h1.focus({preventScroll: true}); }
+  }
+  function revealMissing() {
+    var note = document.querySelector("[data-anchor-missing]");
+    if (note) { note.removeAttribute("hidden"); }
+  }
+  function restoreStored() {
+    var raw = null;
+    try { raw = window.sessionStorage.getItem(KEY); } catch (e) { return; }
+    if (!raw) { return; }
+    var saved = null;
+    try { saved = JSON.parse(raw); } catch (e) { return; }
+    if (!saved || saved.path !== location.pathname) { return; }
+    window.scrollTo(0, saved.scrollY || 0);
+    var prior = saved.activeId && document.getElementById(saved.activeId);
+    if (prior) { prior.tabIndex = -1; prior.focus({preventScroll: true}); }
+    else { focusHeading(); }
+  }
+  function onLoad() {
+    var hash = location.hash;
+    if (!hash) { restoreStored(); return; }
+    var target = document.getElementById(hash.slice(1));
+    if (!target) { focusHeading(); revealMissing(); return; }
+    if (!fullyInView(target)) {
+      target.scrollIntoView({block: "start"});
+      window.scrollBy(0, -contextOffset());
+    }
+    target.tabIndex = -1;
+    target.focus({preventScroll: true});
+  }
+  window.addEventListener("pagehide", function () {
+    var active = document.activeElement;
+    try {
+      window.sessionStorage.setItem(KEY, JSON.stringify({
+        path: location.pathname, hash: location.hash,
+        scrollY: window.scrollY,
+        activeId: active && active.id ? active.id : ""
+      }));
+    } catch (e) { /* a browser refusing storage loses only the cue */ }
+  });
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", onLoad);
+  } else { onLoad(); }
+})();
+</script>"""
+
+COURSE_NOSCRIPT = ("Links to a specific part of this page still work. Your "
+                   "browser jumps to it without the extra focus handling.")
+
+
+def _course_frame(handler, state, back):
+    """One course-level page: the eight-area nav, the area's own stated state,
+    a real anchor target on the heading, and the hidden anchor-missing region
+    the restoration script reveals. No pagination control, no page-number link,
+    and no item cap, so reading scrolls."""
+    nav = []
+    for entry in state["nav"]:
+        nav.append('<li><a href="%s"%s>%s</a></li>'
+                   % (presentation.esc(entry["href"]),
+                      ' aria-current="page"' if entry["current"] else "",
+                      presentation.esc(entry["label"])))
+    heading_id = ia.anchor_slug(state["area_label"]) or "area"
+    body = ('<nav class="course-areas" aria-label="Course areas"><ul>%s</ul>'
+            "</nav>"
+            '<div class="state" data-anchor-missing hidden role="status">'
+            "<p>%s</p></div>"
+            '<h2 id="%s">%s</h2><p class="area-state">%s</p>'
+            % ("".join(nav),
+               presentation.esc(ia.ANCHOR_NOT_FOUND_NOTICE),
+               presentation.esc(heading_id),
+               presentation.esc(state["area_label"]),
+               presentation.esc(state["notice"])))
+    return presentation.surface_shell(
+        state["course_name"], body,
+        theme_css=theme.theme_css(settings.load_settings(handler.root)),
+        back=back, noscript=COURSE_NOSCRIPT, tail=RESTORE_SCRIPT)
+
+
+def _course_not_found(handler):
+    """A 404 that carries no filesystem path and links the one page that
+    explains the state."""
+    body = ('<p>%s</p><p><a href="/help/ia.route_not_found">'
+            "Read more about this</a></p>"
+            % presentation.esc(ia.AREA_NOT_FOUND_NOTICE))
+    handler.send_html(presentation.surface_shell(
+        "That link does not resolve", body,
+        theme_css=theme.theme_css(settings.load_settings(handler.root)),
+        back={"href": "/", "label": "Back to courses"}).encode("utf-8"), 404)
+
+
+def handle_course_get(handler, course_id):
+    """`GET /course/<course_id>` -- the course Overview frame."""
+    state = ia.course_area_state(handler.root, course_id, "overview")
+    if not state["found"]:
+        _course_not_found(handler)
+        return
+    handler.send_html(_course_frame(
+        handler, state,
+        {"href": "/", "label": "Back to courses"}).encode("utf-8"))
+
+
+def handle_course_area_get(handler, course_id, area):
+    """`GET /course/<course_id>/<area>` -- one named course area.
+
+    Layout width is a rendering decision inside this handler and never a
+    second URL for the same object, so both widths are served by this one
+    route and the nav lists all eight areas at either width.
+    """
+    state = ia.course_area_state(handler.root, course_id, area)
+    if not state["found"]:
+        _course_not_found(handler)
+        return
+    handler.send_html(_course_frame(
+        handler, state,
+        {"href": "/course/" + course_id,
+         "label": "Back to " + state["course_name"]}).encode("utf-8"))
+
+
+def handle_course_lesson_get(handler, course_id, lesson_id):
+    """`GET /course/<course_id>/learn/<lesson_id>` -- one lesson inside Learn."""
+    state = ia.course_area_state(handler.root, course_id, "learn")
+    if not state["found"]:
+        _course_not_found(handler)
+        return
+    handler.send_html(_course_frame(
+        handler, state,
+        {"href": "/course/" + course_id,
+         "label": "Back to " + state["course_name"]}).encode("utf-8"))
+
+
+def handle_api_shelf(handler):
+    """`POST /api/shelf` -- the one mutating route Phase 16B adds.
+
+    Four small first-run and shelf actions behind one route, so the parity
+    tables gain one row for one capability rather than four rows. The body may
+    carry exactly one field, `action`, and its value must be a member of
+    `ia.SHELF_ACTIONS`; anything else is refused with 400 before any helper
+    runs. Loopback-only and same-origin, like every other mutating route.
+    """
+    if _reject_cross_origin_write(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    extra = sorted(k for k in data if k not in SHELF_ALLOWED_FIELDS)
+    if extra:
+        handler.send_error(400, "body may carry only: %s"
+                                % ", ".join(SHELF_ALLOWED_FIELDS))
+        return
+    action = data.get("action")
+    if action not in ia.SHELF_ACTIONS:
+        handler.send_error(400, "action must be one of %s"
+                                % "|".join(ia.SHELF_ACTIONS))
+        return
+    handler.send_bytes(
+        json.dumps(ia.apply_shelf_action(handler.root, action)).encode("utf-8"),
         "application/json")
 
 
@@ -1030,12 +1307,146 @@ def sessions_by_bank(root, banks):
     return result
 
 
+def banner_markup(banner):
+    """One degraded-state banner rendered through the shared polite status
+    region. Adds no styling and no new element, and returns the empty string
+    for `None`.
+
+    Only two 16B routes can actually produce a degraded state today, and only
+    those two are wired. A crash banner, a disk-full banner, an offline banner,
+    a permission-denied banner, and a future-schema banner each need a producer
+    this phase does not build. They exist as data with their own tests, and
+    plans 16B-09 and 16B-10 exercise the ones their fixtures can genuinely
+    cause. Wiring a banner into a route that cannot produce its state would be
+    a state nothing can reach, asserted as if it could.
+    """
+    if not banner:
+        return ""
+    return presentation.state_panel({"kind": banner["token"],
+                                     "status": banner["text"],
+                                     "actions": banner["actions"]})
+
+
+SHELF_NOSCRIPT = ("The walkthrough and the sample-course controls submit as "
+                  "ordinary forms. Every one of them also has a CLI twin: "
+                  "itembank shelf <action> .")
+
+
+def _walkthrough_offer(walkthrough):
+    """The first-run offer as an in-page dismissible region, never a modal and
+    never anything that hides the shelf: the card list renders in the same
+    response, above or below it, and is reachable without answering.
+
+    The replay control renders at every status, so skipping is never a lost
+    opportunity.
+    """
+    parts = []
+    if walkthrough["status"] == "unseen":
+        parts.append(
+            '<section class="walkthrough-offer" data-walkthrough-offer>'
+            "<p>%s</p>"
+            '<form method="post" action="/api/shelf" data-shelf-form>'
+            '<button name="action" value="advance_walkthrough">%s</button>'
+            '<button name="action" value="skip_walkthrough">%s</button>'
+            "</form></section>"
+            % (presentation.esc(walkthrough["offer_copy"]),
+               presentation.esc(walkthrough["start_copy"]),
+               presentation.esc(walkthrough["skip_copy"])))
+    if walkthrough["status"] == "in_progress":
+        step = walkthrough["current"]
+        parts.append(
+            '<section class="walkthrough-step" data-walkthrough-step>'
+            "<h2>%s</h2><p>%s</p>"
+            '<p><a href="%s">Open this</a></p></section>'
+            % (presentation.esc(step["title"]),
+               presentation.esc(step["body"]),
+               presentation.esc(step["href"])))
+    parts.append(
+        '<form method="post" action="/api/shelf" data-shelf-form '
+        'class="walkthrough-replay">'
+        '<button name="action" value="replay_walkthrough">%s</button>'
+        "</form>" % presentation.esc(walkthrough["replay_copy"]))
+    return "".join(parts)
+
+
+def _sample_course_controls(sample):
+    """The sample course's note and its removal control, with the destructive
+    confirmation stated on the control rather than only in a dialog."""
+    return ('<p class="sample-note">%s</p>'
+            '<form method="post" action="/api/shelf" data-shelf-form>'
+            '<button name="action" value="remove_sample_course" '
+            'data-confirm="%s">%s</button>'
+            '<span class="confirm-copy">%s</span></form>'
+            % (presentation.esc(sample["note"]),
+               presentation.esc(sample["confirm_copy"]),
+               presentation.esc(sample["remove_label"]),
+               presentation.esc(sample["confirm_copy"])))
+
+
+def _course_shelf_body(shelf, walkthrough=None, sample=None):
+    """One article per course card. No pagination control, no page-number
+    link, and no item cap, so a many-course shelf scrolls rather than
+    paginating. The two `data-*` attributes and the two class names are stable
+    hooks for tests and for Phase 17A, not styling; this plan adds no CSS rule
+    and no inline style."""
+    cards = []
+    for card in shelf["cards"]:
+        links = ['<a class="go" href="%s">%s</a>'
+                 % (presentation.esc(card["cta_href"]),
+                    presentation.esc(card["cta_label"]))]
+        for action in card["actions"]:
+            links.append('<a class="go secondary" href="%s">%s</a>'
+                         % (presentation.esc(action["href"]),
+                            presentation.esc(action["label"])))
+        cards.append(
+            '<article class="course-card" data-course-id="%s" '
+            'data-attention="%s" data-ia-token="%s">'
+            "<h2>%s</h2>"
+            '<span class="chip">%s</span>'
+            '<p class="resume-cue">%s</p>'
+            '<p class="actions">%s</p>%s</article>'
+            % (presentation.esc(card["course_id"]),
+               presentation.esc(card["attention"]),
+               presentation.esc(card["token"]),
+               presentation.esc(card["name"]),
+               presentation.esc(card["chip"]),
+               presentation.esc(card["resume_cue"]),
+               "".join(links),
+               (_sample_course_controls(sample)
+                if sample and card["course_id"] == sample["course_id"]
+                else "")))
+    degraded = [card for card in shelf["cards"] if card["degraded"]]
+    banner = ""
+    if degraded:
+        # Precedence is the declared DEGRADED_STATES order (D-16B-9), not the
+        # first card encountered, which is why this goes through
+        # degraded_banner_for even though one state is fired today.
+        banner = banner_markup(ia.degraded_banner_for(
+            ["course_corrupted"], course_id=degraded[0]["course_id"]))
+    offer = _walkthrough_offer(walkthrough) if walkthrough else ""
+    return ('%s%s<div class="course-shelf">%s</div>'
+            % (banner, offer, "".join(cards)))
+
+
 def handle_index(handler):
-    """`GET /` -- the configured home (plan 17A-08). One data function
-    (`home.home_state`) feeds every mode; the setting picks the shape and
-    an unknown value falls back to the shelf saying so. The empty case
-    keeps its documented copy, and the old stem list stays reachable at
-    `/banks`, which is also where a stem collision is reported."""
+    """`GET /` -- the configured home (plan 17A-08), now gated on course
+    existence (Decision D1). The course shelf lives here rather than at a new
+    `/home` or `/courses` route, so the app keeps one entry point and the
+    literal `"/"` and its `ROUTE_CLI` value `daemon` do not change.
+
+    The gate is two-way, and the second half is deliberately a fall-through
+    rather than a branch. When at least one course exists, the shelf renders.
+    When no course exists, for any reason (the course module absent, no course
+    bound yet, a fresh install), the entire existing body below runs unchanged:
+    the shipped bank and plan listing when banks or plans exist, and the
+    shipped `EMPTY_STATE` copy when they do not. That is D1 verbatim, and it is
+    why the shelf's own `empty_heading` and `empty_body` are carried in
+    `ia.course_shelf_state`'s returned state for a caller that wants them
+    rather than substituted for a shipped page here. One data function
+    (`home.home_state`) still feeds every mode; the setting picks the shape and
+    an unknown value falls back to the shelf saying so. The old stem list stays
+    reachable at `/banks`, which is also where a stem collision is reported.
+    """
     try:
         cfg = settings.load_settings(handler.root)
     except SystemExit as exc:
@@ -1043,6 +1454,31 @@ def handle_index(handler):
         return
     banks, plans = handler.banks, handler.plans
     theme_block = theme.theme_css(cfg)
+    sample = ia.sample_course_state(handler.root)
+    # Only a genuinely fresh root gets the sample course: no bank, no day
+    # plan, and no course already bound. A root that already serves something
+    # is not a first launch, and materializing into it would replace a working
+    # home with a sample the learner never asked for.
+    fresh = not banks and not plans and not ia.course_shelf_state(
+        handler.root)["cards"]
+    if fresh and not sample["present"] and not sample["removed"]:
+        try:
+            sample_course.write_sample_course(
+                os.path.join(handler.root,
+                             sample_course.SAMPLE_COURSE_DIRNAME))
+        except OSError:
+            # A read-only root or a full disk must not block first launch.
+            # The shelf renders without the sample rather than erroring.
+            pass
+    shelf = ia.course_shelf_state(handler.root)
+    if shelf["available"] and shelf["cards"]:
+        handler.send_html(presentation.surface_shell(
+            "Courses",
+            _course_shelf_body(shelf, ia.walkthrough_state(handler.root),
+                               sample),
+            theme_css=theme_block,
+            noscript=SHELF_NOSCRIPT).encode("utf-8"))
+        return
     if not banks and not plans:
         served_dir = html.escape(os.path.abspath(handler.root))
         body = EMPTY_STATE.replace("__DIR__", served_dir)
@@ -1250,6 +1686,35 @@ THEME_ACTIONS = ("preview", "pick", "save", "reset")
 THEME_ALLOWED_FIELDS = ("action", "source", "confirm")
 
 
+def _mode_layer_section():
+    """All seven mode layers as read-only text inside one native disclosure.
+
+    The two fixed layers are rendered as text and never as a toggle: a fixed
+    layer rendered as a control would be an affordance that cannot take
+    effect, which is worse than no control at all. The five configurable
+    layers are listed too, as informational text naming who decides, so a
+    reader sees seven layers rather than two. This section links to no control
+    and contains no `input`, `select`, `button`, `textarea`, `contenteditable`,
+    or form of any kind; the actual controls for the learner-preference and
+    accommodation layers are the settings groups plan 16B-06 added and the
+    shipped theme control above.
+    """
+    rows = []
+    for row in ia.mode_layer_rows():
+        classes = "fixed-layer" if row["fixed"] else "configurable-layer"
+        rows.append('<div class="%s"><p class="layer-label">%s</p>'
+                    '<p class="layer-controller">%s</p>'
+                    '<p class="layer-example">%s</p></div>'
+                    % (classes, presentation.esc(row["label"]),
+                       presentation.esc(row["controller"]),
+                       presentation.esc(row["example"])))
+    body = ("<h2>%s</h2>%s"
+            % (presentation.esc(ia.MODE_LAYER_FIXED_HEADING), "".join(rows)))
+    return presentation.details_section(
+        ia.MODE_LAYER_FIXED_HEADING, body,
+        data={"mode-layers": "read-only"})
+
+
 def handle_settings_get(handler):
     """`GET /settings` -- the browser half of D-05 through D-07: one quiet
     Theme section where the learner previews, natively picks or browser-picks,
@@ -1263,7 +1728,8 @@ def handle_settings_get(handler):
     except SystemExit as exc:
         handler.send_server_error(RuntimeError(str(exc.code)))
         return
-    handler.send_html(theme.theme_page(cfg).encode("utf-8"))
+    handler.send_html(
+        theme.theme_page(cfg, sections=_mode_layer_section()).encode("utf-8"))
 
 
 def handle_theme_post(handler):

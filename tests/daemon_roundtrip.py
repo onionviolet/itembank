@@ -385,6 +385,13 @@ def check_index_order():
 
 def check_index_empty():
     workdir = tempfile.mkdtemp()
+    # Plan 16B-09 (APP-03): a genuinely fresh root materializes the bundled
+    # sample course on first launch, so an empty directory is no longer empty
+    # by the time the page renders. The documented empty-state copy still
+    # governs the no-course case, so the sample is recorded as removed first
+    # and this check keeps asserting exactly what it always asserted.
+    from surfaces import ia as _ia
+    _ia.write_ia_state(workdir, "sample_course", {"removed": True})
     proc, url, lines = start_daemon(workdir)
     try:
         status, body = get(url)
@@ -1092,6 +1099,8 @@ def check_route_cli_inventory():
         if ('add_parser("%s"' % name) not in src and ("add_parser('%s'" % name) not in src:
             fail("CLI command %r named in ROUTE_CLI has no add_parser registration in "
                  "surfaces/cli.py" % name)
+    if daemon.ROUTE_CLI.get(("GET", "/activity")) != "activity":
+        fail("GET /activity must map to the activity CLI twin")
 
 
 def check_api_source_import_route():
@@ -1213,11 +1222,13 @@ def check_api_route_scope():
     and in SURFACE_PARITY with its reserved MCP tool name (Extensibility
     Rule 9(a)).
     """
-    if len(daemon.API_ROUTES) != 13:
+    if len(daemon.API_ROUTES) != 14:
         fail("D-04 + Phase 6 + 06.1-02 + 08-05 + 10-04/10-05 + 09.1 + 09 + 14 "
-             "+ 14C scope /api/* to exactly thirteen routes, the thirteenth "
-             "being POST /api/source/import; API_ROUTES has %d"
-             % len(daemon.API_ROUTES))
+             "+ 14C scope /api/* to exactly fourteen routes, the thirteenth "
+             "being POST /api/source/import plus 16B-09's POST /api/shelf; "
+             "API_ROUTES has %d" % len(daemon.API_ROUTES))
+    if daemon.ROUTE_CLI.get(("POST", "/api/shelf")) != "shelf":
+        fail("POST /api/shelf must map to the shelf CLI twin")
     if not {"start", "next", "submit", "hint", "teach", "interact", "report",
             "override", "rubric-review", "export"} <= \
             set(daemon.ROUTE_CLI.values()):
