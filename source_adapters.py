@@ -33,6 +33,7 @@ import json
 import os
 import posixpath
 import re
+import shutil
 import socket
 import urllib.error
 import urllib.parse
@@ -528,6 +529,10 @@ def _extract_confidence(adapter, locators):
     field is for, and leaving a heuristic result at `high` would be a claim
     the adapter cannot support. Media whose structure is declared rather than
     inferred record no confidence at all."""
+    if adapter == "ocr":
+        # A vision model transcribing a photograph is the least reliable
+        # extraction in the registry, and a citation into it should say so.
+        return "low"
     if adapter == "transcript":
         # An SRT or WebVTT file declares both timings. The bracketed shape's
         # ends are inferred from the following cue, which is exactly the
@@ -1591,6 +1596,156 @@ def _extract_transcript(raw_bytes, options):
     return "\n".join(lines_out) + "\n", locators, reading_order, unsupported
 
 
+# ---------------------------------------------------------------------------
+# Roster item 6: OCR (plan 14C-06). CONTEXT.md's instruction is exact: wrap the
+# existing `ocr` skill, do not write a second OCR path. This adapter therefore
+# names no endpoint, encodes nothing, and carries no transcription prompt; all
+# three live in `scripts/ocr_lib.py` and stay there.
+
+OCR_NO_TEXT_SENTINEL = "[no text]"
+
+# Magic signature to filename suffix. The suffix matters because the bridge
+# takes a path and a vision model may key on the extension; the signature
+# matters because a caller-supplied extension is not evidence of anything.
+OCR_IMAGE_SUFFIXES = (
+    (b"\x89PNG\r\n\x1a\n", ".png"),
+    (b"\xff\xd8\xff", ".jpg"),
+    (b"RIFF", ".webp"),
+    (b"GIF87a", ".gif"),
+    (b"GIF89a", ".gif"),
+    (b"BM", ".bmp"),
+    (b"II*\x00", ".tif"),
+    (b"MM\x00*", ".tif"),
+)
+
+
+def _ocr_bridge():
+    """The one OCR implementation in this repository, imported lazily.
+
+    `scripts/` carries no `__init__.py`, so the working import form is a
+    `sys.path` entry plus a flat `import ocr_lib`. Verified on this tree
+    rather than assumed. Returning the module object rather than the function
+    is deliberate: a test stubs `ocr_lib.ocr_image` on the module, and a
+    function captured at import time would not see the stub.
+    """
+    import sys as _sys
+    scripts_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "scripts")
+    if scripts_dir not in _sys.path:
+        _sys.path.insert(0, scripts_dir)
+    import ocr_lib
+    return ocr_lib
+
+
+def _image_suffix(raw_bytes):
+    for signature, suffix in OCR_IMAGE_SUFFIXES:
+        if raw_bytes.startswith(signature):
+            return suffix
+    return None
+
+
+def _extract_ocr(raw_bytes, options):
+    """A photographed or scanned page, transcribed by the learner's own local
+    vision model through the `ocr` skill's bridge.
+
+    `bbox` and `confidence` are None on every locator because
+    `scripts/ocr_lib.py` measures neither: it returns flat transcribed text
+    with no coordinates and no per-line score. The frozen schema types both
+    fields as null and nothing else, so a later change cannot quietly start
+    inventing geometry; a structured-output OCR mode that really measures
+    where a line sat is a `schema_version` bump with a recorded migration,
+    never a loosened type. A citation into an OCR source names the page.
+
+    The sidecar envelope confidence is `low` for every OCR source. A vision
+    model transcribing a photograph is the least reliable extraction in the
+    registry and a citation into it should say so.
+    """
+    import tempfile
+
+    try:
+        ocr_lib = _ocr_bridge()
+    except ImportError:
+        raise _Refusal("source.backend_unconfigured",
+                       "the OCR bridge scripts/ocr_lib.py could not be "
+                       "imported, so no page can be transcribed. Every other "
+                       "source adapter is unaffected.")
+
+    suffix = _image_suffix(raw_bytes)
+    if suffix is None:
+        raise _Refusal("source.malformed_input",
+                       "the file is not a recognized image; the accepted "
+                       "formats are PNG, JPEG, WebP, GIF, BMP, and TIFF. "
+                       "Nothing was sent to the vision model.")
+
+    workdir = tempfile.mkdtemp(prefix="itembank-ocr-")
+    try:
+        image_path = os.path.join(workdir, "page" + suffix)
+        with open(image_path, "wb") as fh:
+            fh.write(raw_bytes)
+        try:
+            text = ocr_lib.ocr_image(image_path)
+        except RuntimeError as exc:
+            message = str(exc)
+            if message.startswith("no Ollama server reachable"):
+                raise _Refusal(
+                    "source.backend_unconfigured",
+                    "the local OCR bridge could not reach an Ollama server. "
+                    "Start Ollama, or set OLLAMA_HOST, then run the import "
+                    "again. Every other source adapter is unaffected.")
+            if "not found on" in message:
+                raise _Refusal(
+                    "source.backend_unconfigured",
+                    "the local OCR bridge reached Ollama but the vision model "
+                    "is not installed. Pull the model named in the error, "
+                    "then run the import again.")
+            raise _Refusal("source.fetch_failed", message)
+        except _Refusal:
+            raise
+        except Exception:
+            # A future change to the bridge that raises a different class
+            # still cannot propagate out of an adapter.
+            raise _Refusal("source.internal_error",
+                           "the OCR bridge failed in an unexpected way; "
+                           "nothing was written")
+    finally:
+        # A decoded image left in a temp directory is an untracked copy of
+        # learner material. This runs on every path, including every refusal.
+        try:
+            shutil.rmtree(workdir, ignore_errors=True)
+        except Exception:
+            pass
+
+    if text.strip() == OCR_NO_TEXT_SENTINEL:
+        # The bridge's own prompt promises this exact string for an image with
+        # no text. Emitting it as content would put the literal "[no text]"
+        # into a learner's source Markdown as if a human had written it.
+        raise _Refusal("source.unsupported", "no text found in the image")
+
+    lines_out = []
+    locators = []
+    reading_order = []
+    for line in text.split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        lines_out.append(stripped)
+        locator_id = "o1.%d" % (len(lines_out) - 1)
+        locators.append({
+            "id": locator_id,
+            "kind": "image_region",
+            # One image is one page. A multi-page scan is imported one image
+            # at a time; joining them is a later phase's concern.
+            "body": {"medium": "ocr", "page": 1, "bbox": None,
+                     "confidence": None},
+            "_line": len(lines_out),
+        })
+        reading_order.append(locator_id)
+
+    if not locators:
+        raise _Refusal("source.unsupported", "no text found in the image")
+    return "\n".join(lines_out) + "\n", locators, reading_order, []
+
+
 ADAPTER_REGISTRY = {
     "markdown": _extract_markdown,
     "text": _extract_text,
@@ -1599,6 +1754,7 @@ ADAPTER_REGISTRY = {
     "pptx": _extract_pptx,
     "web": _extract_web,
     "transcript": _extract_transcript,
+    "ocr": _extract_ocr,
 }
 
 ADAPTER_VERSIONS = {name: "1.0.0" for name in ADAPTER_REGISTRY}

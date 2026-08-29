@@ -1683,6 +1683,220 @@ def check_transcript_end_to_end():
           "medium confidence")
 
 
+# ---------------------------------------------------------------------------
+# Plan 14C-06: OCR. Every automated assertion here injects a stub in place of
+# ocr_lib.ocr_image, so the whole suite passes on a machine that has never
+# installed Ollama. The one thing a stub cannot prove, that a real vision
+# model transcribes a real page well enough to cite, is a human checkpoint.
+
+_PNG_BYTES = (b"\x89PNG\r\n\x1a\n" + b"\x00" * 64)
+
+
+def _with_ocr_stub(stub):
+    """Swap `ocr_lib.ocr_image` for `stub` and return a restore callable. The
+    module object is swapped, not a captured function, because the adapter
+    looks the attribute up at call time for exactly this reason."""
+    bridge = source_adapters._ocr_bridge()
+    original = bridge.ocr_image
+    bridge.ocr_image = stub
+
+    def restore():
+        bridge.ocr_image = original
+    return restore
+
+
+def _seed_image(base, name="page.png"):
+    with open(os.path.join(base, name), "wb") as fh:
+        fh.write(_PNG_BYTES)
+    return name
+
+
+def _import_stubbed_ocr(base, stub):
+    rel = _seed_image(base)
+    raw_id = link_with_rights(base, rel, all_granted())
+    restore = _with_ocr_stub(stub)
+    try:
+        return source_adapters.import_source(base, "ocr", raw_id, "human",
+                                              "tester")
+    finally:
+        restore()
+
+
+def check_ocr_stubbed_extraction():
+    base = new_base()
+    try:
+        result = _import_stubbed_ocr(
+            base, lambda path, *a, **k: "Airway Management\n"
+                                        "The airway is the first priority.\n"
+                                        "Reassess after every intervention.")
+        if result["status"] != "ok":
+            fail("ocr stub: the import failed: %r" % (result["error"],))
+        sidecar = json.loads(open(os.path.join(base,
+                                                result["sidecar_rel_path"]),
+                                   encoding="utf-8").read())
+        errs = schema_validate.validate(sidecar, SCHEMA)
+        if errs:
+            fail("ocr stub: sidecar failed its own schema: %s" % errs[0])
+        if sidecar["reading_order"] != ["o1.0", "o1.1", "o1.2"]:
+            fail("ocr stub: reading_order is %r" % sidecar["reading_order"])
+        text = open(os.path.join(base, result["md_rel_path"]),
+                    encoding="utf-8").read()
+        for needle in ("Airway Management", "the first priority",
+                       "Reassess after every intervention."):
+            if needle not in text:
+                fail("ocr stub: the derived Markdown is missing %r" % needle)
+        imports = [e for e in applied_entries(base)
+                   if e.get("operation") == "import"]
+        if len(imports) != 1:
+            fail("ocr stub: expected one applied import entry, got %d"
+                 % len(imports))
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+    print("ok: ocr stubbed extraction -- a photographed page imports through "
+          "the one path with a schema-valid sidecar")
+
+
+def check_ocr_honest_degradation():
+    base = new_base()
+    try:
+        result = _import_stubbed_ocr(base, lambda path, *a, **k: "One\nTwo")
+        sidecar = json.loads(open(os.path.join(base,
+                                                result["sidecar_rel_path"]),
+                                   encoding="utf-8").read())
+        if sidecar["confidence"] != "low":
+            fail("ocr honesty: the envelope confidence is %r, expected low"
+                 % sidecar["confidence"])
+        for locator in sidecar["locators"]:
+            body = locator["body"]
+            if body["bbox"] is not None or body["confidence"] is not None:
+                fail("ocr honesty: a locator invented geometry or a score: %r"
+                     % body)
+            if body["page"] != 1:
+                fail("ocr honesty: page is %r, expected 1" % body["page"])
+        # The half that matters: the SCHEMA refuses fabricated geometry, so a
+        # later adapter change cannot start inventing it quietly.
+        fabricated = json.loads(json.dumps(sidecar))
+        fabricated["locators"][0]["body"]["bbox"] = [0, 0, 10, 10]
+        errs = schema_validate.validate(fabricated, SCHEMA)
+        if not errs:
+            fail("ocr honesty: the schema accepted a fabricated bbox, so the "
+                 "null typing is not enforcing anything")
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+    print("ok: ocr honest degradation -- null bbox and null confidence on "
+          "every locator, low envelope confidence, and a schema that refuses "
+          "invented geometry")
+
+
+def check_ocr_backend_failures():
+    scenarios = (
+        ("no Ollama server reachable (tried: http://localhost:11434). Start "
+         "Ollama, or set OLLAMA_HOST.", "source.backend_unconfigured",
+         "could not reach an Ollama server"),
+        ("model 'qwen2.5vl:7b' not found on http://localhost:11434; pull it "
+         "first", "source.backend_unconfigured", "is not installed"),
+        ("ollama error 500: internal", "source.fetch_failed",
+         "ollama error 500"),
+    )
+    for message, code, needle in scenarios:
+        base = new_base()
+        try:
+            def raising(path, *args, **kwargs):
+                raise RuntimeError(message)
+
+            result = _import_stubbed_ocr(base, raising)
+            if result["status"] != "unsupported":
+                fail("ocr failures: %r produced %r" % (message, result))
+            if result["error"]["code"] != code:
+                fail("ocr failures: %r gave %r, expected %r"
+                     % (message, result["error"]["code"], code))
+            if needle not in result["error"]["message"]:
+                fail("ocr failures: the copy for %r does not say %r: %r"
+                     % (code, needle, result["error"]["message"]))
+            for name in os.listdir(base):
+                if name.endswith(".md") or name.endswith(".locator.json"):
+                    fail("ocr failures: a refused OCR import wrote %s" % name)
+            imports = [e for e in applied_entries(base)
+                       if e.get("operation") == "import"]
+            if imports:
+                fail("ocr failures: a refused OCR import journaled an entry")
+        finally:
+            shutil.rmtree(base, ignore_errors=True)
+    print("ok: ocr backend failures -- an unreachable server, a missing "
+          "model, and an HTTP error each become typed results with copy that "
+          "says what to do")
+
+
+def check_ocr_no_text_sentinel():
+    base = new_base()
+    try:
+        result = _import_stubbed_ocr(base, lambda path, *a, **k: "[no text]")
+        if result["error"] is None or \
+                result["error"]["code"] != "source.unsupported":
+            fail("ocr sentinel: an empty page produced %r" % (result,))
+        if result["error"]["message"] != "no text found in the image":
+            fail("ocr sentinel: the message is %r"
+                 % result["error"]["message"])
+        for name in os.listdir(base):
+            path = os.path.join(base, name)
+            if not os.path.isfile(path):
+                continue
+            with open(path, "rb") as fh:
+                if b"[no text]" in fh.read():
+                    fail("ocr sentinel: the sentinel reached disk in %s" % name)
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+    print("ok: ocr no-text sentinel -- an image with no text is a named "
+          "refusal and the sentinel never reaches disk")
+
+
+def check_ocr_temp_file_removed():
+    """A decoded image left in a temp directory is an untracked copy of
+    learner material. Asserted on the success path and on a failure path."""
+    seen = []
+
+    def capture(path, *args, **kwargs):
+        seen.append(path)
+        return "One line."
+
+    def capture_then_raise(path, *args, **kwargs):
+        seen.append(path)
+        raise RuntimeError("ollama error 500: internal")
+
+    for stub in (capture, capture_then_raise):
+        base = new_base()
+        try:
+            _import_stubbed_ocr(base, stub)
+        finally:
+            shutil.rmtree(base, ignore_errors=True)
+    if not seen:
+        fail("ocr temp file: the adapter never called the bridge")
+    for path in seen:
+        if os.path.exists(path):
+            fail("ocr temp file: %s survived the import" % path)
+        if os.path.exists(os.path.dirname(path)):
+            fail("ocr temp file: the temp directory %s survived"
+                 % os.path.dirname(path))
+    print("ok: ocr temp file removed -- the decoded image is gone on the "
+          "success path and on the failure path")
+
+
+def check_ocr_single_implementation():
+    """Roster item 6's instruction, mechanically: wrap the skill, do not
+    write a second OCR path."""
+    import inspect
+    whole = inspect.getsource(source_adapters)
+    for forbidden in ("base64", "11434", "/api/chat", "OCR engine"):
+        if forbidden in whole:
+            fail("ocr single implementation: source_adapters.py contains %r, "
+                 "which belongs to scripts/ocr_lib.py" % forbidden)
+    if "ocr_image" not in inspect.getsource(source_adapters._extract_ocr):
+        fail("ocr single implementation: _extract_ocr does not call the "
+             "skill's ocr_image")
+    print("ok: ocr single implementation -- one OCR path in the repository, "
+          "wrapped and not rebuilt")
+
+
 if __name__ == "__main__":
     check_thin_slice()
     check_scanned_pdf_is_typed_unsupported()
@@ -1727,6 +1941,12 @@ if __name__ == "__main__":
     check_transcript_separator_tolerance()
     check_transcript_no_dependency()
     check_transcript_end_to_end()
+    check_ocr_stubbed_extraction()
+    check_ocr_honest_degradation()
+    check_ocr_backend_failures()
+    check_ocr_no_text_sentinel()
+    check_ocr_temp_file_removed()
+    check_ocr_single_implementation()
     print("ok: source adapters -- one typed import boundary, one parser's "
           "span ids, one fingerprint, typed refusals, and a degraded path "
           "that names its install command")
