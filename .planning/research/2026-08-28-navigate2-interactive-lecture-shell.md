@@ -104,6 +104,13 @@ Only the all-correct path was observed. What a wrong stem shows, whether a retry
 offered, and whether the key is revealed on failure are all unknown. No vendor item
 text is reproduced here.
 
+**An ordinary content page, for contrast (third screenshot).** Not every page is a
+checkpoint. A content page observed later in the same deck is a collapsible panel:
+a coloured header bar carrying one short concept name, a chevron that collapses it,
+and inside it three or four top-level bullets, one of which nests a sub-list of
+three items. That is the whole page. Roughly forty words of body text, one concept,
+one level of nesting, and the panel can be closed.
+
 ## 2. Interpretation
 
 **The good part is the page contract, and it is smaller than it looks.** Strip the

@@ -255,6 +255,45 @@ it is not.
   promoted because on the current reading it is a presentation of an existing
   durable object, which is a design decision and not a vision statement.
 
+### 2026-08-28: readability, for notes and lesson writing
+
+> for notes and lesson writing, consider readibiltiy and more in the future and more
+
+**Disposition:** Route (2026-08-28), forward-looking, nothing to decide now.
+
+Sent with a screenshot of an ordinary content page from the same specimen deck:
+a collapsible panel, one concept in the header, three or four bullets inside,
+one level of nesting, about forty words. Recorded in section 1a of
+`.planning/research/2026-08-28-navigate2-interactive-lecture-shell.md`.
+
+- **The observation this supports.** The specimen's teaching pages are small and
+  chunked, and the checkpoint pages sit at 12, 22, 32 and 38 of 39. Read
+  together, the unit of the deck is one concept per screen with a check every
+  ten or so. Whatever itembank's paced mode turns out to be
+  (`IL-20260828-01`), a lesson written as long continuous prose will project
+  into it badly. That is an argument about how lessons are *written*, not only
+  about how they are rendered, which is what makes it a note-and-lesson
+  question rather than a renderer one.
+- **Where it already has an owner.** Adaptive disclosure is named in the
+  `CLAUDE.md` course artifact workflow step 6, alongside hover and focus
+  definitions. Lesson styles are catalogued in
+  `research/2026-08-10-lesson-style-catalogue.md` and
+  `research/phase-16/06-feature-style-atlas.md`. The accessibility gates in
+  `UI-SPEC.md` already bind anything collapsible: a panel that hides content
+  must be keyboard reachable and its state announced, and the plain Markdown
+  form has to stay readable with nothing collapsed, per the dual-form rule.
+- **What has no owner yet, and is the real content of this entry.** No recorded
+  bar says what makes an authored lesson *readable*: chunk size, nesting depth,
+  words per step, when a wall of prose should have been a list, when a list
+  should have been prose. The linter checks format compliance and item quality,
+  not prose readability. Note that a naive readability metric would be worse
+  than nothing here, since EMT and Math text is legitimately dense with terms;
+  any bar has to survive that.
+- **Promote if:** readability turns out to be a quality bar Weibao wants the
+  product to enforce or report on, rather than a style preference for whoever
+  is authoring. Held short of promotion because the statement is explicitly
+  about the future and names no requirement yet.
+
 ## Disposition vocabulary
 
 - **Promote:** add the verbatim statement and interpretation to `USER-VISION`.
