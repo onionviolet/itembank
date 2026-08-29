@@ -85,10 +85,29 @@ them, in the style of `.planning/DECISIONS-14B-DRIVER-2026-08-27.md`. An
 unanswered checkpoint stops the wave; do not proceed on a silent default.
 
 Check first whether this belongs inside an existing planned phase rather than a
-new one. Phase 16A is planned and unexecuted, 16B halts on its precondition, and
-14B waves 4 to 6 and all of 14C are blocked on eight decisions Weibao has not
-made. Adding a ninth open front may be the wrong move, and saying so is a valid
-outcome of this session.
+new one.
+
+**Corrected 2026-08-28, the same day, before this file was acted on.** This
+paragraph originally said 16A was unexecuted, 16B halted on its precondition,
+and 14B and 14C were blocked on eight decisions Weibao had not made. Every
+clause was already false when it was written; it was copied from
+`NEXT-2026-08-27.md` instead of checked against the tree. 16A froze in
+`ba553aa`, 16B executed and froze on 2026-08-28, 14B is frozen, 14C-01 has
+executed, and all eight decisions are answered with `VENDORED.md` now at the
+repository root. See section 1 of
+`.planning/DECISIONS-PACED-LESSON-2026-08-28.md` for the row-by-row evidence.
+
+**The three questions above are also already answered**, in section 2 of that
+same file, as D-PACED-1, D-PACED-2 and D-PACED-3, under a quoted same-day
+delegation from Weibao. They are agent judgments made under that delegation
+rather than his own words, each with a reconsideration condition, and its
+Provenance section says striking it reopens all three. Read that file before
+this one: your job is no longer to put the fork in front of him, it is to plan
+against the answers or to challenge them on evidence.
+
+So the argument that this would be a ninth open front no longer holds either.
+Sequencing is still worth checking, but check it against the tree, not against
+`NEXT-2026-08-27.md`.
 
 ## On the specimen
 

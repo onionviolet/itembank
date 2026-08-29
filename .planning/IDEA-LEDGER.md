@@ -1171,6 +1171,20 @@ Amendments to an existing entry are additive notes under the entry, dated.
   fork is whether pacing is an authored property of the lesson or a view
   preference of the reader, which should be settled before any syntax is. The
   candidates are mostly composable as a precedence ladder, not rivals.
+- **Note 2026-08-28, the three open questions are answered.** Under a quoted
+  same-day delegation from Weibao ("just decide for each accordingly to
+  uservision of modularity and improvability and achiving the end goal"), the
+  fork, the evidence contract, and the wrong-answer disclosure are decided in
+  `.planning/DECISIONS-PACED-LESSON-2026-08-28.md` as D-PACED-1, D-PACED-2 and
+  D-PACED-3. They are labelled there as agent judgments made under that
+  delegation, not as his own words, and each carries a reconsideration
+  condition. In short: pacing is authored, read through a precedence ladder
+  (explicit id-carrying marker, else configured heading level, else the whole
+  document, which is today's behaviour), with a reader control that may only
+  coarsen; a checkpoint attempt is an ordinary attempt in the one evidence
+  store inside a distinct lesson-run session, labelled so it never reaches a
+  blueprint denominator by default; and a wrong checkpoint rules out and
+  confirms in tiers the runtime releases, with the key held to tier 3.
 
 ### IL-20260828-02: The timed slide lock
 
