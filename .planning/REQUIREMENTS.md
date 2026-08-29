@@ -1307,14 +1307,14 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | GRAPH-02 | Phase 14B | Complete |
 | GRAPH-03 | Phase 16C | Pending |
 | GRAPH-04 | Phase 14B | Complete |
-| FILE-01 | Phase 14A | Complete |
+| FILE-01 | Phase 14A | Complete; advanced 2026-08-28 by Phase 14C, which made ten media addressable objects through one import boundary |
 | FILE-02 | Phase 14A | Complete |
-| FILE-03 | Phase 14A | Complete |
+| FILE-03 | Phase 14A | Complete; advanced 2026-08-28 by Phase 14C, whose two-file source pair is proven atomic by three injected faults (check_two_file_pair_atomicity) |
 | FILE-04 | Unscheduled (phase chosen after the 14B freeze) | Pending |
 | ID-01 | Phase 14A | Complete |
 | ID-02 | Phase 14A | Complete |
 | TREAT-01 | Phase 15A | Pending |
-| TREAT-02 | Phase 15A | Pending |
+| TREAT-02 | Phase 15A | Pending; advanced 2026-08-28 by Phase 14C, which gives every medium a place-level locator (page, part, slide, CSS and quote anchor, millisecond, spine fragment) |
 | FLOW-01 | Phase 16B | Pending |
 | FLOW-02 | Phase 16B | Pending |
 | CAP-01 | Phase 16A | Pending |
@@ -1328,12 +1328,12 @@ Populated during roadmap creation. See `.planning/ROADMAP.md` for phase goals an
 | NOTE-03 | Phase 16C | Pending |
 | STRATEGY-01 | Phase 16C | Pending |
 | STRATEGY-02 | Phase 16C | Pending |
-| RIGHTS-01 | Phase 14A | Complete |
+| RIGHTS-01 | Phase 14A | Complete; advanced 2026-08-28 by Phase 14C, where a remote capture mints all seven rights unknown and deriving from it refuses by name |
 | RIGHTS-02 | Phase 15A | Pending |
 | A11Y-01 | Phase 17A | Pending |
 | A11Y-02 | Phase 16A | Pending |
 | PORT-01 | Phase 16A | Pending |
-| PORT-02 | Phase 17B | Pending |
+| PORT-02 | Phase 17B | Pending, unchanged. Phase 14C added the EPUB import direction to a prototype-level interchange adapter and carries its semantic loss report in the sidecar; the requirement is not completed by that |
 | PORT-03 | Phase 14B | Complete |
 | RELIABILITY-01 | Phase 14A | Complete |
 | RELIABILITY-02 | Phase 15A | Pending |

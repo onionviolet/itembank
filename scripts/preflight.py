@@ -165,6 +165,11 @@ def gate_schemas():
     return code == 0, out
 
 
+def gate_vendored():
+    code, out = run([PY, "scripts/check_vendored.py"])
+    return code == 0, out
+
+
 def gate_paths():
     leaks = []
     for target in PATH_LEAK_TARGETS:
@@ -197,6 +202,8 @@ GATES = [
     ("readme", "README command index names only shipped subcommands",
      gate_readme_commands, False),
     ("schemas", "Every published schema self-checks", gate_schemas, False),
+    ("vendored", "Vendored artifacts match their recorded checksums",
+     gate_vendored, False),
     ("paths", "No machine-specific path in agent docs or config", gate_paths, False),
     ("tests", "Test suite", gate_tests, True),
     ("js", "JS editor test runner", gate_js_tests, True),

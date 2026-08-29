@@ -152,6 +152,17 @@ jobs:
       - name: Every published schema self-checks
         run: python schema_validate.py --all schemas
 
+      # SUPPLY-CHAIN-POLICY.md section 2.3 requires CI to recompute and
+      # compare every checksum VENDORED.md records, and section 5 says a
+      # threat table may no longer accept supply-chain risk on the grounds
+      # that no dependency is installed. This step is the mitigation that
+      # replaces that stale one: a tampered or accidentally edited vendored
+      # artifact fails the build instead of being recorded and unenforced.
+      # It also fails on a row naming a package parked on an AGPL decision,
+      # so the parking cannot be bypassed by quietly adding a table row.
+      - name: Vendored artifacts match their recorded checksums
+        run: python scripts/check_vendored.py
+
       # Machine-specific paths (this machine's checkout, username, AppData)
       # leak into agent docs/config and break external users' clones.
       - name: No machine-specific path in agent docs or config

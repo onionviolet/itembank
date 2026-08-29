@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://itembank.local/schemas/source_locator.schema.json",
   "title": "itembank source locator sidecar",
-  "description": "The frozen locator sidecar contract (Phase 14C, D-14C-1). A sidecar sits beside the derived Markdown a source adapter produced and records where every derived line came from in the original medium, so a citation naming a source_id, a fingerprint, and a span_id resolves back to a page, a slide, a cue, or a spine item without the citation shape changing. locators[].span_id joins to the span ids auditor.normalize_source assigns to the derived Markdown, which is what keeps exactly one parser true across every medium.",
+  "description": "The frozen locator sidecar contract (Phase 14C, D-14C-1). A sidecar sits beside the derived Markdown a source adapter produced and records where every derived line came from in the original medium, so a citation naming a source_id, a fingerprint, and a span_id resolves back to a page, a slide, a cue, or a spine item without the citation shape changing. locators[].span_id joins to the span ids auditor.normalize_source assigns to the derived Markdown, which is what keeps exactly one parser true across every medium. Version note (plan 14C-08): adding a oneOf branch to $defs.locator.body invalidates no document that already validates, so it is an additive change under PLANNING-DIRECTIVES.md section 4 non-negotiable 4 and x-itembank-version stays 1. Every existing gold-case end-to-end check was re-run against the amended schema to prove it rather than assert it. Removing or retyping a field inside an existing branch would not be additive and would need a schema_version bump plus an explicit migrate operation.",
   "x-itembank-version": 1,
   "type": "object",
   "additionalProperties": false,
@@ -329,6 +329,9 @@
         "body": {
           "oneOf": [
             {
+              "$ref": "#/$defs/body_asr"
+            },
+            {
               "$ref": "#/$defs/body_docx"
             },
             {
@@ -354,6 +357,39 @@
             }
           ],
           "description": "The per-medium locator body, discriminated by its required medium const."
+        }
+      }
+    },
+    "body_asr": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A locator into an ASR segment. Deliberately the transcript body's shape with a different index field name, because ASR produces segments rather than authored cues: any future speech backend produces into this shape rather than inventing a second timing locator, which is why roster item 5 is registered and frozen here before any backend exists.",
+      "required": [
+        "medium",
+        "segment_index",
+        "start_ms",
+        "end_ms"
+      ],
+      "properties": {
+        "medium": {
+          "type": "string",
+          "const": "asr",
+          "description": "Discriminator for the oneOf branch."
+        },
+        "segment_index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Zero-based segment index in the recognized audio."
+        },
+        "start_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Segment start time in milliseconds."
+        },
+        "end_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Segment end time in milliseconds."
         }
       }
     },

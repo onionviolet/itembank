@@ -1986,6 +1986,38 @@ def _extract_epub(raw_bytes, options):
     return "\n".join(lines_out) + "\n", locators, reading_order, unsupported
 
 
+# ---------------------------------------------------------------------------
+# Roster item 5: ASR (plan 14C-08). Registered, not built.
+#
+# Empty on purpose. `14C-CONTEXT.md` roster item 5 registers ASR and plans it
+# last, because it needs whisper.cpp or a hosted call and the 7900 XTX build
+# does not exist. The plan that adds the first backend adds a member here and
+# a resolution function beside it; until then the emptiness is what
+# `_extract_asr` refuses on, so the refusal cannot rot into a stale hard-coded
+# message that outlives the condition it describes.
+ASR_BACKENDS = ()
+
+
+def _extract_asr(raw_bytes, options):
+    """Speech recognition, registered and not yet built.
+
+    The `body_asr` locator shape is frozen in
+    `schemas/source_locator.schema.json` and tested before any backend exists,
+    which is the whole point of registering now: when a real backend lands it
+    produces cues into an already-frozen, already-tested locator rather than
+    inventing a second timing shape beside the transcript adapter's.
+    """
+    if not ASR_BACKENDS:
+        raise _Refusal(
+            "source.backend_unconfigured",
+            "no speech recognition backend is configured. Roster item 5 is "
+            "registered and not yet built (14C-CONTEXT.md). Supply a "
+            "transcript file and use the transcript adapter instead, which "
+            "needs no backend.")
+    raise _Refusal("source.internal_error",
+                   "an ASR backend is registered but no plan has wired it")
+
+
 ADAPTER_REGISTRY = {
     "markdown": _extract_markdown,
     "text": _extract_text,
@@ -1996,9 +2028,14 @@ ADAPTER_REGISTRY = {
     "transcript": _extract_transcript,
     "ocr": _extract_ocr,
     "epub": _extract_epub,
+    "asr": _extract_asr,
 }
 
+# Every adapter is 1.0.0 except `asr`, which is 0.0.0 deliberately: no backend
+# produces anything, so claiming 1.0.0 would put a version into a sidecar that
+# nothing ever wrote.
 ADAPTER_VERSIONS = {name: "1.0.0" for name in ADAPTER_REGISTRY}
+ADAPTER_VERSIONS["asr"] = "0.0.0"
 
 
 # ---------------------------------------------------------------------------

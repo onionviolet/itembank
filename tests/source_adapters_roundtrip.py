@@ -2161,6 +2161,219 @@ def check_epub_uses_shared_seam():
           "goes through the one hardened reader")
 
 
+# ---------------------------------------------------------------------------
+# Plan 14C-08: roster item 5 registered as a named refusal with a frozen
+# locator shape, and the vendoring gate.
+
+def check_asr_registered_not_built():
+    base = new_base()
+    try:
+        rel = "lecture.wav"
+        with open(os.path.join(base, rel), "wb") as fh:
+            fh.write(b"RIFF" + b"\x00" * 64)
+        raw_id = link_with_rights(base, rel, all_granted())
+        result = source_adapters.import_source(base, "asr", raw_id, "human",
+                                                "tester")
+        if result["status"] != "unsupported":
+            fail("asr: expected a typed refusal, got %r" % (result,))
+        if result["error"]["code"] != "source.backend_unconfigured":
+            fail("asr: expected source.backend_unconfigured, got %r"
+                 % result["error"]["code"])
+        if "no speech recognition backend is configured" not in \
+                result["error"]["message"]:
+            fail("asr: the refusal does not name the missing backend: %r"
+                 % result["error"]["message"])
+        if "transcript adapter" not in result["error"]["message"]:
+            fail("asr: the refusal does not point at the adapter that works")
+        # The point of registering: a named refusal, not adapter_unknown.
+        if "asr" not in source_adapters.ADAPTER_REGISTRY:
+            fail("asr: the key is absent, so a caller gets "
+                 "source.adapter_unknown instead of a reason")
+        for name in os.listdir(base):
+            if name.endswith(".md") or name.endswith(".locator.json"):
+                fail("asr: a refused import wrote %s" % name)
+        imports = [e for e in applied_entries(base)
+                   if e.get("operation") == "import"]
+        if imports:
+            fail("asr: a refused import journaled an entry")
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+    print("ok: asr registered not built -- a named, actionable refusal that "
+          "points at the transcript adapter and writes nothing")
+
+
+def _asr_sidecar(body):
+    return {
+        "schema_version": 1,
+        "source_id": "0" * 16,
+        "adapter": "asr",
+        "adapter_version": "0.0.0",
+        "fingerprint": "sha256:" + "f" * 64,
+        "captured_at": "2026-08-28T00:00:00.000Z",
+        "origin": {"kind": "local_file", "value": "lecture.wav",
+                   "fetched_at": None, "http_etag": None,
+                   "http_last_modified": None, "snapshot_rel_path": None},
+        "rights": {op: "unknown" for op in identity.RIGHTS_OPERATIONS},
+        "confidence": None,
+        "reading_order": ["a.0"],
+        "locators": [{"id": "a.0", "span_id": None, "kind": "segment",
+                      "body": body}],
+        "unsupported": [],
+    }
+
+
+def check_asr_locator_shape_frozen():
+    good = _asr_sidecar({"medium": "asr", "segment_index": 0,
+                         "start_ms": 0, "end_ms": 1500})
+    errs = schema_validate.validate(good, SCHEMA)
+    if errs:
+        fail("asr shape: a well-formed body_asr locator was rejected: %s"
+             % errs[0])
+    wrong = _asr_sidecar({"medium": "asr", "cue_index": 0,
+                          "start_ms": 0, "end_ms": 1500})
+    errs = schema_validate.validate(wrong, SCHEMA)
+    if not errs:
+        fail("asr shape: a body carrying cue_index instead of segment_index "
+             "validated, so the frozen shape is not enforced")
+    print("ok: asr locator shape frozen -- the segment body validates and a "
+          "transcript-shaped one does not, tested before any backend exists")
+
+
+def check_asr_body_matches_transcript_body():
+    """Structural comparison, not a reading: the two bodies must agree apart
+    from the index field's name, so a future backend produces into a shape the
+    transcript adapter already proved."""
+    schema = json.loads(resources.read_text("schemas/source_locator.schema.json"))
+    asr = schema["$defs"]["body_asr"]
+    transcript = schema["$defs"]["body_transcript"]
+    asr_required = set(asr["required"]) - {"segment_index"}
+    transcript_required = set(transcript["required"]) - {"cue_index"}
+    if asr_required != transcript_required:
+        fail("asr body: required fields differ beyond the index name: %r "
+             "against %r" % (sorted(asr_required), sorted(transcript_required)))
+    for field in ("start_ms", "end_ms"):
+        if asr["properties"][field]["type"] != \
+                transcript["properties"][field]["type"]:
+            fail("asr body: %s types differ" % field)
+        if asr["properties"][field].get("minimum") != \
+                transcript["properties"][field].get("minimum"):
+            fail("asr body: %s minimums differ" % field)
+    if asr["properties"]["segment_index"]["type"] != \
+            transcript["properties"]["cue_index"]["type"] or \
+            asr["properties"]["segment_index"].get("minimum") != \
+            transcript["properties"]["cue_index"].get("minimum"):
+        fail("asr body: the index field types or minimums differ")
+    if asr.get("additionalProperties") is not False:
+        fail("asr body: additionalProperties is not false")
+    print("ok: asr body matches transcript body -- identical apart from the "
+          "index field's name, compared structurally")
+
+
+def check_schema_addition_is_additive():
+    """The additive-format rule applied to a JSON schema, proven by re-running
+    the end-to-end checks against the amended document rather than by
+    inspection."""
+    schema = json.loads(resources.read_text("schemas/source_locator.schema.json"))
+    if schema["x-itembank-version"] != 1 or \
+            schema["properties"]["schema_version"]["const"] != 1:
+        fail("schema additive: the version moved for a oneOf branch addition")
+    check_thin_slice()
+    check_docx_end_to_end()
+    check_transcript_end_to_end()
+    check_epub_fragment_anchor()
+    print("ok: schema addition is additive -- every existing adapter's "
+          "sidecar still validates and schema_version is still 1")
+
+
+def check_vendored_manifest():
+    """A checksum gate that has never been observed to fail is a comment, not
+    a gate. This runs it clean, then breaks the tree three ways."""
+    import subprocess
+
+    def run(root):
+        # The copy's OWN script, not this tree's: check_vendored.py resolves
+        # the repository root from its own location, so running the original
+        # against a mutated copy would silently check the original.
+        return subprocess.run(
+            [sys.executable, os.path.join(root, "scripts",
+                                          "check_vendored.py")],
+            cwd=root, capture_output=True, text=True)
+
+    clean = run(ROOT)
+    if clean.returncode != 0:
+        fail("vendored: the gate fails against the committed tree: %s"
+             % (clean.stdout + clean.stderr))
+
+    manifest = open(os.path.join(ROOT, "VENDORED.md"), encoding="utf-8").read()
+    hashed = []
+    for line in manifest.splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if len(cells) < 2:
+            continue
+        candidate = os.path.join(ROOT, cells[0].strip("`"))
+        if os.path.isfile(candidate) and len(cells) > 4 and \
+                len(cells[4].strip("`")) == 64:
+            hashed.append(cells[0].strip("`"))
+    if not hashed:
+        fail("vendored: no row names a file with a recorded hash, so the "
+             "tamper scenarios below would prove nothing")
+    victim = hashed[0]
+
+    def copy_tree():
+        target = tempfile.mkdtemp(prefix="vendored-")
+        inner = os.path.join(target, "repo")
+        shutil.copytree(ROOT, inner, symlinks=True,
+                        ignore=shutil.ignore_patterns(".git", "__pycache__"))
+        return target, inner
+
+    # 1. tamper
+    target, inner = copy_tree()
+    try:
+        with open(os.path.join(inner, victim), "ab") as fh:
+            fh.write(b"\n")
+        result = run(inner)
+        if result.returncode == 0:
+            fail("vendored: a tampered artifact did not fail the gate")
+        if victim not in result.stdout + result.stderr:
+            fail("vendored: the tamper failure does not name %s" % victim)
+    finally:
+        shutil.rmtree(target, ignore_errors=True)
+
+    # 2. delete
+    target, inner = copy_tree()
+    try:
+        os.remove(os.path.join(inner, victim))
+        result = run(inner)
+        if result.returncode == 0:
+            fail("vendored: a missing artifact did not fail the gate")
+        if victim not in result.stdout + result.stderr:
+            fail("vendored: the missing-file failure does not name %s" % victim)
+    finally:
+        shutil.rmtree(target, ignore_errors=True)
+
+    # 3. a row for a parked package
+    target, inner = copy_tree()
+    try:
+        path = os.path.join(inner, "VENDORED.md")
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write("\n| `ebooklib-0.20-py3-none-any.whl` | 0.20 | "
+                     "https://example.invalid | https://example.invalid | "
+                     "%s | AGPL-3.0 | nobody | 2026-08-28 |\n" % ("0" * 64))
+        result = run(inner)
+        if result.returncode == 0:
+            fail("vendored: a row naming a parked package did not fail the "
+                 "gate, so the AGPL parking can be bypassed by adding a row")
+        if "ebooklib" not in result.stdout + result.stderr:
+            fail("vendored: the parked-package failure does not name it")
+    finally:
+        shutil.rmtree(target, ignore_errors=True)
+    print("ok: vendored manifest -- the gate passes clean and was observed "
+          "failing on a tampered artifact, a missing one, and a row naming a "
+          "parked package")
+
+
 if __name__ == "__main__":
     check_thin_slice()
     check_scanned_pdf_is_typed_unsupported()
@@ -2218,6 +2431,11 @@ if __name__ == "__main__":
     check_epub_fragment_anchor()
     check_epub_drm_refused()
     check_epub_uses_shared_seam()
+    check_asr_registered_not_built()
+    check_asr_locator_shape_frozen()
+    check_asr_body_matches_transcript_body()
+    check_schema_addition_is_additive()
+    check_vendored_manifest()
     print("ok: source adapters -- one typed import boundary, one parser's "
           "span ids, one fingerprint, typed refusals, and a degraded path "
           "that names its install command")

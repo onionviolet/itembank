@@ -417,6 +417,41 @@ The runtime owns answer keys, scoring, session position, and attempt recording.
 An agent owns explanation and remediation choices. This separation prevents a
 tutor from silently changing the test or grading its own explanation.
 
+## Bringing a source in
+
+A book, a lecture deck, a captured page, or a set of captions becomes a cited
+source through one boundary, whichever surface you use:
+
+```bash
+itembank source import --base <course-root> --file lecture.pptx --adapter pptx --grant read,quote,transform
+itembank source import --base <course-root> --url https://example.org/article --snapshot-storage inline
+itembank source recheck --base <course-root> <source-id>
+```
+
+`--file` and `--url` are mutually exclusive and one of them is required.
+`--adapter` names one of the ten registered adapters (`markdown`, `text`,
+`pdf`, `docx`, `pptx`, `web`, `transcript`, `ocr`, `epub`, `asr`) and is
+required with `--file`; a `--url` capture always goes through the web adapter.
+`--grant` records the rights you hold over a file the first time it is linked,
+and a right you do not name stays unknown, which is restrictive. `--preview`
+extracts and prints without writing anything. `--snapshot-storage` chooses
+whether a captured page is stored beside the course or cached as disposable
+derived state; the derived text is fingerprinted either way, so a citation
+cannot tell which was used. `--confirm` approves a bind under the
+`approve_before_bind` policy, which only an agent actor needs.
+
+What is bound is the capture, never the URL: a captured page is fingerprinted
+and reads back with the network unplugged. `itembank source recheck` reports
+`origin_unchanged`, `origin_changed`, or `origin_unreachable`, writes nothing,
+and exits 0 for all three, because an unreachable network is a state rather
+than a failure. A changed origin never invalidates a citation already issued.
+
+The adapter dependencies are optional and pinned in
+`deps/source-adapter-pins.txt`. An adapter whose library is missing refuses by
+name and prints its install command while every other command keeps working,
+and the `markdown`, `text`, `transcript`, and `epub` adapters need no
+third-party package at all.
+
 ## Using itembank with an AI coding agent
 
 The same loops work whether the agent is you, a coding agent you pointed at
