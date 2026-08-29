@@ -31,10 +31,12 @@ def sha256(raw):
 # PDF assembly
 # ---------------------------------------------------------------------------
 
-def _assemble_pdf(objects):
+def _assemble_pdf(objects, trailer_extra=b""):
     """Assemble indirect objects into a minimal PDF with a correct xref
     table. `objects` are raw body bytes (without the 'N 0 obj' wrapper).
-    Deterministic: offsets derive only from the bodies."""
+    Deterministic: offsets derive only from the bodies. `trailer_extra` is
+    appended verbatim inside the trailer dictionary, for the /Encrypt and
+    /ID entries the encrypted fixture needs."""
     out = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
     offsets = []
     for i, body in enumerate(objects, start=1):
@@ -47,8 +49,8 @@ def _assemble_pdf(objects):
     out += b"0000000000 65535 f \n"
     for off in offsets:
         out += ("%010d 00000 n \n" % off).encode("ascii")
-    out += (b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%EOF\n"
-            % (len(objects) + 1, xref_pos))
+    out += (b"trailer\n<< /Size %d /Root 1 0 R%s >>\nstartxref\n%d\n%%EOF\n"
+            % (len(objects) + 1, trailer_extra, xref_pos))
     return bytes(out)
 
 
@@ -119,6 +121,117 @@ def pdf_text_page(lines, font_size=12, y_start=720):
                      % (y_start - dy, hexed.encode("ascii")))
     parts.append(b"ET")
     return b"\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Standard security handler (RC4 40-bit, V=1 R=2)
+# ---------------------------------------------------------------------------
+#
+# Added 2026-08-27 (flagged by plan 14C-01 Task 3, owned by plan 14C-02).
+# `pdf-encrypted-unsupported` previously built an ordinary unencrypted page
+# through `pdf_pages` and merely asserted `expectation: unsupported_now`,
+# which held only because auditor.REGISTERED_ADAPTERS refused every PDF:
+# pdfplumber read "Secret" out of it cleanly. Plan 14C-02 asserts
+# `source.encrypted` against this case, so the bytes now carry a real
+# /Encrypt dictionary and a non-empty user password, and any conforming
+# extractor must refuse them without that password rather than return text.
+#
+# V=1 R=2 (40-bit RC4) is the weakest handler in the PDF specification and
+# is chosen deliberately: it is fully implementable in the stdlib (hashlib
+# for MD5, RC4 below in twenty lines), it is what every extractor still
+# recognises, and the fixture's purpose is to be *refused*, not to be
+# secure. Do not read this as a recommendation for real documents.
+
+_PAD = bytes([
+    0x28, 0xBF, 0x4E, 0x5E, 0x4E, 0x75, 0x8A, 0x41,
+    0x64, 0x00, 0x4E, 0x56, 0xFF, 0xFA, 0x01, 0x08,
+    0x2E, 0x2E, 0x00, 0xB6, 0xD0, 0x68, 0x3E, 0x80,
+    0x2F, 0x0C, 0xA9, 0xFE, 0x64, 0x53, 0x69, 0x7A,
+])
+
+
+def _rc4(key, data):
+    s = list(range(256))
+    j = 0
+    for i in range(256):
+        j = (j + s[i] + key[i % len(key)]) & 0xFF
+        s[i], s[j] = s[j], s[i]
+    out = bytearray()
+    i = j = 0
+    for byte in data:
+        i = (i + 1) & 0xFF
+        j = (j + s[i]) & 0xFF
+        s[i], s[j] = s[j], s[i]
+        out.append(byte ^ s[(s[i] + s[j]) & 0xFF])
+    return bytes(out)
+
+
+def _padded_password(password):
+    """Algorithm 2 step (a): the password truncated to 32 bytes, then
+    filled from the standard padding string."""
+    raw = password.encode("latin-1")[:32]
+    return raw + _PAD[:32 - len(raw)]
+
+
+def _encryption_key(user_password, o_value, permissions, file_id):
+    """Algorithm 2 for R=2: MD5 over the padded user password, /O, /P as a
+    little-endian signed int, and the first file identifier; the key is the
+    first 5 bytes (40 bits)."""
+    digest = hashlib.md5()
+    digest.update(_padded_password(user_password))
+    digest.update(o_value)
+    digest.update((permissions & 0xFFFFFFFF).to_bytes(4, "little"))
+    digest.update(file_id)
+    return digest.digest()[:5]
+
+
+def _object_key(key, obj_num):
+    """Algorithm 1: the per-object RC4 key for generation 0."""
+    digest = hashlib.md5()
+    digest.update(key)
+    digest.update(obj_num.to_bytes(3, "little"))
+    digest.update((0).to_bytes(2, "little"))
+    return digest.digest()[:min(len(key) + 5, 16)]
+
+
+def pdf_encrypted_page(content_stream, user_password, owner_password,
+                       file_id, permissions=-1):
+    """A one-page PDF sealed by the standard security handler with a
+    non-empty user password.
+
+    Deterministic: the file identifier is supplied by the caller rather
+    than generated, the standard handler takes no salt, and RC4 is a pure
+    function of key and plaintext, so the bytes (and therefore the gold
+    sha256) are stable across runs and machines.
+
+    The content stream is encrypted under its own object key, per Algorithm
+    1. The /O and /U strings inside the /Encrypt dictionary are written in
+    the clear, as the specification requires, and as hex strings so that
+    arbitrary bytes need no literal-string escaping.
+    """
+    o_key = hashlib.md5(
+        _padded_password(owner_password or user_password)).digest()[:5]
+    o_value = _rc4(o_key, _padded_password(user_password))
+    key = _encryption_key(user_password, o_value, permissions, file_id)
+    u_value = _rc4(key, _PAD)
+
+    # object 4 is the content stream in the fixed layout below
+    sealed = _rc4(_object_key(key, 4), content_stream)
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+        b"/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+        b"<< /Length %d >>\nstream\n%s\nendstream" % (len(sealed), sealed),
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        b"<< /Filter /Standard /V 1 /R 2 /Length 40 /O <%s> /U <%s> /P %d >>"
+        % (o_value.hex().upper().encode("ascii"),
+           u_value.hex().upper().encode("ascii"),
+           permissions),
+    ]
+    id_hex = file_id.hex().upper().encode("ascii")
+    return _assemble_pdf(objects, trailer_extra=(
+        b" /Encrypt 6 0 R /ID [<%s> <%s>]" % (id_hex, id_hex)))
 
 
 # ---------------------------------------------------------------------------
@@ -391,17 +504,22 @@ CASE_TABLE = [
         "id": "pdf-encrypted-unsupported",
         "kind": "pdf",
         "filename": "pdf-encrypted.pdf",
-        "build": lambda: pdf_pages([
+        "build": lambda: pdf_encrypted_page(
             b"BT /F1 12 Tf 1 0 0 1 72 720 Tm (Secret) Tj ET",
-        ], extra_objects={
-            6: b"<< /Type /XObject /Subtype /Image /Width 1 /Height 1 >>",
-        }),
+            user_password="itembank-fixture",
+            owner_password="itembank-fixture-owner",
+            file_id=bytes.fromhex("0123456789abcdef0123456789abcdef")),
         "gold": {
-            "sha256": "623b5864891dd7e019a7c5456be260ed322a34b34156fbd91140b34b8d1593fd",
+            "sha256": "c79642cb28a90dd7a3181e17e5a06253bebe09b7fbac4b0d086f25b0df91eff7",
             "structures": [],
             "reading_order": [],
             "unsupported": ["encrypted PDF: no unauthenticated structure"],
             "expectation": "unsupported_now",
+            # The user password is non-empty and is deliberately not supplied
+            # to any adapter: an empty-user-password file decrypts silently in
+            # most extractors, which would make this case indistinguishable
+            # from an ordinary PDF. Plan 14C-02 asserts source.encrypted here.
+            "user_password": "itembank-fixture",
         },
     },
     {

@@ -158,6 +158,11 @@ either a real `/Encrypt` fixture or a recorded decision that this case tests
 something else. Not fixed here because this plan's Task 3 does not use it and
 widening the fixture edit further is not this task's call.
 
+*Resolved 2026-08-27, after this summary was written: the fixture now carries a
+real `/Encrypt` dictionary. See D-14C-4 in `14C-DECISIONS.md`, which also
+records the unreachable `is_encrypted` check the new bytes exposed in
+`source_adapters.py`.*
+
 **2. The six packages installed to user site-packages.** Homebrew's Python 3.14
 is PEP 668 externally managed, so the plan's bare
 `python3 -m pip install ...` is refused. Installed with

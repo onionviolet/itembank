@@ -334,3 +334,58 @@ and it enlarges the six-package list approved in D-14C-3. Deferring EPUB leaves
 
 **Effect on sequencing.** Plans 14C-01 through 14C-06 and 14C-08 do not depend
 on this answer. Plan 14C-07 does and is stopped.
+
+## D-14C-4. The `pdf-encrypted-unsupported` gold case now carries a real /Encrypt dictionary
+
+**Date:** 2026-08-27. **Decided by the agent, in the fixture.** Rated
+reversible: the change is a fixture builder and one recomputed gold sha256,
+with no contract, schema, or dependency consequence.
+
+**What was wrong.** Plan 14C-01 Task 3 flagged that `pdf-encrypted-unsupported`
+in `fixtures/audit/locator_fidelity_cases.py` was not encrypted. It was built
+by `pdf_pages` like every other PDF case, carried no `/Encrypt` dictionary, and
+`pdfplumber` read `Secret` out of it cleanly. Its
+`expectation: "unsupported_now"` held only because `auditor.REGISTERED_ADAPTERS`
+refused every PDF, so the case proved nothing its neighbours did not already
+prove. Plan 14C-02 asserts `source.encrypted` against it, and would have been
+asserting against an ordinary PDF.
+
+**What was done.** The fixture is encrypted for real, rather than being
+redefined as testing something else. `pdf_encrypted_page` implements the
+standard security handler at V=1 R=2 (40-bit RC4) in the stdlib: `hashlib` for
+MD5, twenty lines of RC4, Algorithms 1 through 4 of the PDF specification. The
+weakest handler in the specification is chosen deliberately, because the
+fixture's purpose is to be refused rather than to be secure, and because every
+extractor still recognises it. The user password is non-empty
+(`itembank-fixture`, recorded in the gold entry): an empty user password
+decrypts silently in most extractors, which would leave the case as
+indistinguishable from an ordinary PDF as it was before. The file identifier is
+supplied by the caller rather than generated, and the handler takes no salt, so
+the bytes are deterministic and the recomputed gold sha256
+(`c79642cb...`) is stable across runs and machines.
+
+**Verified rather than assumed**, following the pattern the sibling
+`pdf_text_page` defect set in commit `99dd2ba`. Against the new bytes,
+`pdfplumber` refuses with no password and with a wrong password, and returns
+exactly `Secret` with the correct one. The last of those three matters most: it
+proves the file is well-formed encryption rather than merely broken bytes that
+happen to fail parsing.
+
+**A finding for plan 14C-02, which owns the fix.** The new fixture immediately
+showed that the `is_encrypted` check shipped at `source_adapters.py:177` is
+unreachable. `pdfplumber.open()` raises `PdfminerException` (wrapping pdfminer's
+`PDFPasswordIncorrect`) before it returns a pdf object, so
+`getattr(pdf, "is_encrypted", False)` is never evaluated, and
+`_extract_pdf` refuses the encrypted fixture as `source.malformed_input` rather
+than as `source.encrypted`. That is a real misclassification: an encrypted file
+is intact and openable with a credential, a malformed one is not, and the two
+deserve different next actions from the learner. Plan 14C-02 must detect
+encryption before or around the `open()` call, not after it. Left unfixed here
+because 14C-02 owns the encrypted path and this session owns the fixture.
+
+**Not done, and why.** `pypdf` cannot read any PDF this module builds, encrypted
+or not: `_assemble_pdf` emits a trailer that `pypdf`'s EOF scan rejects
+("Stream has ended unexpectedly"), on the existing born-digital cases as much as
+on this one. That is a pre-existing property of the assembler, unrelated to
+encryption, and no shipped code path uses `pypdf`. Recorded so it is not
+rediscovered as a regression from this change.
