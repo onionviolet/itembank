@@ -502,3 +502,82 @@ def revise_lesson(dest_dir, subject):
     # The slug is computed the one way the parser computes it.
     import model
     return model.lesson_slug(old_title)
+
+
+def broken_trio_fixtures(dest_dir):
+    """One good content instance and three deliberately broken ones, for
+    plan 16C-07's validator proof.
+
+    Each break is the smallest one that makes exactly one mode unable to
+    render honestly, so a validator that fires on the wrong fixture is
+    caught rather than credited:
+
+    - `cornell`: a heading nothing is anchored to, which is a cue with no
+      matching notes.
+    - `concept_map`: one edge carrying the relation type `related`, which is
+      outside the closed vocabulary.
+    - `notebook`: a note anchored to a heading whose title and body were
+      then replaced, so the anchor points at a block that moved.
+
+    Returns `{"bank": path, "good": {...}, "cornell": {...},
+    "concept_map": {...}, "notebook": {...}}` where each inner dict carries
+    the `notes`, `relations`, and `headings` a caller composes into a
+    content instance. Building the instance itself is the caller's job,
+    because this module imports no projection.
+    """
+    import model
+    import notes as notes_mod
+
+    subject = "emt_respiratory"
+    path = build_subject_bank(subject, dest_dir)
+    lesson = model.parse_lesson(path)
+    headings = lesson["headings"]
+
+    def anchored_note(heading, role, wording):
+        digest = notes_mod.hash_quoted_context(heading["body"])
+        target = notes_mod.target_record(
+            "lesson_step", heading["slug"], digest,
+            "heading:%s" % heading["slug"], digest)
+        return notes_mod.note_record(
+            "course-%s" % subject, ["%s.obj.1" % subject], role, wording,
+            [target])
+
+    good_notes = [
+        anchored_note(headings[0], "learner_question",
+                      "Why is the count taken before speaking?"),
+        anchored_note(headings[1], "learner_claim",
+                      "Effort decides the plan more than the number does."),
+        anchored_note(headings[2], "quote",
+                      "The invented text calls the whistle an upper-airway "
+                      "sign."),
+        anchored_note(headings[3], "learner_example",
+                      "My own case: a fast rate with easy effort."),
+    ]
+    relations = typed_relations(subject)
+
+    good = {"notes": good_notes, "relations": relations,
+            "headings": headings}
+
+    # Cornell: drop the note anchored to the last heading, leaving that
+    # heading a cue with nothing beneath it.
+    cornell = {"notes": good_notes[:-1], "relations": relations,
+               "headings": headings}
+
+    # Concept map: one untyped edge.
+    concept_map = {"notes": good_notes,
+                   "relations": relations + [(headings[0]["slug"], "related",
+                                              headings[3]["slug"])],
+                   "headings": headings}
+
+    # Notebook: the anchored heading is replaced under the note's feet.
+    moved_dir = os.path.join(dest_dir, "moved")
+    os.makedirs(moved_dir, exist_ok=True)
+    build_subject_bank(subject, moved_dir)
+    revise_lesson(moved_dir, subject)
+    moved_headings = model.parse_lesson(
+        os.path.join(moved_dir, "%s_bank.md" % subject))["headings"]
+    notebook = {"notes": good_notes, "relations": relations,
+                "headings": moved_headings}
+
+    return {"bank": path, "good": good, "cornell": cornell,
+            "concept_map": concept_map, "notebook": notebook}
