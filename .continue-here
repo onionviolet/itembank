@@ -1,9 +1,26 @@
-# .continue-here — Phase 09 (subject-invariant-loop-emt-math-cs-integration)
+# .continue-here
 
-**Status: PARTIALLY EXECUTED — held on two external gates. Continue here.**
+**Status: Phase 16C is EXECUTED through plan 16C-09 Task 1 and HELD at its one
+blocking human checkpoint. Continue there.**
 
-- Branch `gsd/phase-09-subject-loop`, worktree `.phase09-wt`, 5 commits ahead of main tip `eadf958` (0c2ec94, a6fdba6, 238782f + docs). Not merged, not pushed.
-- DONE: 09-01 (subject-profile seam + v3 session + EMT tracer), 09-02 (subject_profiles settings registry + fourth-profile proof), 09-03 research (KaTeX 0.18.4 candidate — approval PENDING).
-- GATE 1 (blocks 09-04): human approval of `katex=0.18.4` — reply the resume signal; see `.planning/phases/09-.../09-03-SUMMARY.md`.
-- GATE 2 (blocks 09-05): Phase 5 (`gsd/phase-05-check`) — last polled 2026-08-11 03:10 CDT: ALIVE, 3/7 summaries (05-01..03), mid-05-04. Re-check the strong set (05-01..07 SUMMARIES + VERIFICATION + UAT on the branch); then merge/cherry-pick Phase 5 into this branch and execute 09-05 (contracts captured in HANDOFF-PHASE09.md §3).
-- Full detail: `HANDOFF-PHASE09.md`.
+- Branch `main`, tree clean, 96 of 96 test files green.
+- **The stop is 16C-09 Task 2**, a `checkpoint:human-verify` rated blocking.
+  Weibao reads `16C-TRACER-REPORT.md` and the copy constants as prose, answers
+  the eleven review steps in `16C-09-PLAN.md` Task 2, and writes
+  `16C-REVIEW.md` with one of accept, accept-with-findings, or reject plus a
+  signature and a date. No agent may write it: an agent must not sign its own
+  contract. Task 3, the freeze record, may not be written until that review
+  carries accept or accept-with-findings.
+- Frozen: 14A, 14B, 14C, 16A, 16B.
+- Open and unexecuted: 15A (6 plans), 15B (7), 17A-04, all of 17B, and the
+  paced-lesson subphase whose decisions are recorded and whose plan is
+  unwritten.
+- Full detail is `.planning/STATE.md`; read its current-phase section, not the
+  whole file.
+
+**This file used to point at Phase 09**, at branch `gsd/phase-09-subject-loop`,
+worktree `.phase09-wt`, and main tip `eadf958`. None of the three exist any
+more: Phase 09 landed, its KaTeX gate resolved (the pin is vendored under
+`vendor/katex`), and the marker outlived the work by months. Rewritten
+2026-08-30. A pointer that names a branch and a worktree is worth checking
+against `git branch` and `git worktree list` before trusting it.
