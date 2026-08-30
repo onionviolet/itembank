@@ -285,8 +285,8 @@ Detail: `.planning/codebase/ARCHITECTURE.md`, `STRUCTURE.md`, `CONCERNS.md`.
 `.claude/skills/` and `.agents/skills/` are byte-identical mirrors, enforced
 by CI (`diff -rq`), and share `OPERATION-CONTRACT.md`. Shipped: `absorb-book`,
 `author-bank`, `build-course`, `curriculum-design`, `guiding-questions`,
-`ocr`. Stubs whose command surface has not shipped: `discovery-and-binding`,
-`legacy-upgrade`, `lesson-authoring`, `media-intake`.
+`legacy-upgrade`, `ocr`. Stubs whose command surface has not shipped:
+`discovery-and-binding`, `lesson-authoring`, `media-intake`.
 <!-- GSD:skills-end -->
 
 <!-- GSD:workflow-start source:GSD defaults -->

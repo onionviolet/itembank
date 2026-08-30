@@ -523,11 +523,17 @@ def check_agent_tab_lists_the_real_skills():
             fail("live_skills missed %r (found %r)" % (expected, ids))
             return
     by_id = dict((r["id"], r) for r in rows)
-    if not by_id["author-bank"]["runnable"]:
-        fail("author-bank is shipped and must render runnable")
-        return
-    for stub in ("discovery-and-binding", "legacy-upgrade",
-                 "lesson-authoring", "media-intake"):
+    # `legacy-upgrade` moved from the stub list to the shipped list on
+    # 2026-08-29 (plan 16C-08): upgrade_audit.py exists, so its SKILL.md no
+    # longer opens its description with "Stub:" and the row is correctly
+    # runnable. A skill leaves this list by shipping a command surface, and
+    # the row below is what proves it did.
+    for shipped in ("author-bank", "legacy-upgrade"):
+        if not by_id[shipped]["runnable"]:
+            fail("%r is shipped and must render runnable" % shipped)
+            return
+    for stub in ("discovery-and-binding", "lesson-authoring",
+                 "media-intake"):
         row = by_id.get(stub)
         if row is None:
             continue
