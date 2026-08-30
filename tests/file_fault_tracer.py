@@ -668,8 +668,11 @@ def _fmt(value, suffix=""):
     return "%.2f%s" % (value, suffix)
 
 
-def write_report(scenario_results, shipped_results, reflow_result,
+def report_lines(scenario_results, shipped_results, reflow_result,
                   budgets):
+    """Build the report as a list of lines. Building is separated from writing
+    because an ordinary run compares and a re-record run writes, and both need
+    the same text."""
     lines = []
     lines.append("# 14A tracer report")
     lines.append("")
@@ -785,9 +788,120 @@ def write_report(scenario_results, shipped_results, reflow_result,
                   "by 14B/15A.")
     lines.append("")
 
+    lines.append("## How this report is kept")
+    lines.append("")
+    lines.append("This file is a durable 14A record, not a derived "
+                  "artifact. `tests/file_fault_tracer.py` rebuilds it on "
+                  "every run and compares, but writes only when asked with "
+                  "`--write` (or `ITEMBANK_TRACER_WRITE=1`), so an ordinary "
+                  "suite run leaves the committed bytes alone. The "
+                  "comparison covers the scenario rows, the reflow counts, "
+                  "the shipped-suite exit codes, the budget text, and the "
+                  "routed-forward items. It excludes the Platform and "
+                  "Python lines and the Measured column, because those are "
+                  "facts about a machine and the section above already says "
+                  "they are not promises. The numbers recorded here are "
+                  "14A's own, restored in `53d5231` after two later runs "
+                  "overwrote them by accident.")
+    lines.append("")
+
+    return lines
+
+
+# ---------------------------------------------------------------------------
+# Recording versus checking.
+#
+# This report is a durable phase record, not a derived artifact: 14A is frozen
+# and the numbers in it were reviewed. Rewriting it on every run made it both,
+# which is the distinction the project refuses to collapse. Three commits paid
+# for that: `9590eb4` and `4d59ceb` carried a later run's timings into 14C's
+# work without meaning to, and `53d5231` had to put 14A's own numbers back and
+# left the question of who owns the tracer open.
+#
+# So an ordinary run measures everything and writes nothing. It compares what
+# it built against what is committed, on the part of the report that carries
+# meaning: which scenarios ran and how they ended, the reflow counts (seeded,
+# so they are reproducible), the shipped-suite exit codes, the budget text, and
+# the routed-forward items. Machine facts are excluded by name, because the
+# report's own sentence says the measurements are "taken on this machine, on
+# this run" and "not promises". A number that is explicitly not a promise
+# cannot also be a regression.
+#
+# Re-record deliberately with `--write`, or `ITEMBANK_TRACER_WRITE=1`.
+
+MACHINE_LINE_PREFIXES = ("- Platform:", "- Python:")
+
+
+def report_signature(lines):
+    """The part of the report a later run must still reproduce.
+
+    Drops the two machine-identity lines and blanks the Measured column of the
+    measured-quantities table, keeping the quantity, corpus, unit, run count,
+    and budget text. Everything else compares verbatim, so a renamed section, a
+    dropped scenario, a changed reflow count, or a non-zero suite exit code
+    still fails loudly.
+    """
+    signature = []
+    for line in lines:
+        if line.startswith(MACHINE_LINE_PREFIXES):
+            signature.append(line.split(":", 1)[0] + ": (machine)")
+            continue
+        cells = line.split("|")
+        # A measured row is `| quantity | corpus | value | unit | runs |
+        # budget |`, which splits into eight cells with empty ends.
+        if len(cells) == 8 and cells[4].strip() in ("ms", "s", "MB"):
+            cells[3] = " (measured) "
+            signature.append("|".join(cells))
+            continue
+        signature.append(line)
+    return signature
+
+
+def _trimmed(lines):
+    trimmed = list(lines)
+    while trimmed and not trimmed[-1].strip():
+        trimmed.pop()
+    return trimmed
+
+
+def write_report(lines):
     os.makedirs(os.path.dirname(REPORT_PATH), exist_ok=True)
     with open(REPORT_PATH, "w", encoding="utf-8") as fh:
         fh.write("\n".join(lines) + "\n")
+
+
+def check_report(lines):
+    """Compare against the committed record and leave it untouched.
+
+    Fails with the first differing line rather than a diff, because one named
+    line is what a reader needs to know which part of the contract moved.
+    """
+    if not os.path.exists(REPORT_PATH):
+        fail("the tracer report is missing at %s; re-record it deliberately "
+             "with `python3 tests/file_fault_tracer.py --write`"
+             % os.path.relpath(REPORT_PATH, ROOT))
+    with open(REPORT_PATH, encoding="utf-8") as fh:
+        committed = fh.read().split("\n")
+    # Both sides lose their trailing blank lines before comparing: the writer
+    # ends the report with a blank line and then a newline, so a file read back
+    # carries one more empty string than the list that produced it, and that
+    # difference is about newlines rather than about the contract.
+    built = _trimmed(report_signature(lines))
+    recorded = _trimmed(report_signature(committed))
+    if built == recorded:
+        return
+    for index, (a, b) in enumerate(zip(recorded, built)):
+        if a != b:
+            fail("the tracer report no longer describes this run at line %d:\n"
+                 "  recorded: %s\n  this run: %s\n"
+                 "Machine timings are excluded from this comparison, so this "
+                 "is a contract change. Re-record it deliberately with "
+                 "`python3 tests/file_fault_tracer.py --write` once you have "
+                 "decided the change is right." % (index + 1, a, b))
+    fail("the tracer report has %d lines and this run produced %d; re-record "
+         "it deliberately with `python3 tests/file_fault_tracer.py --write` "
+         "once you have decided the change is right."
+         % (len(recorded), len(built)))
 
 
 # ---------------------------------------------------------------------------
@@ -1017,7 +1131,15 @@ def main():
     reflow_result = reflow_corpus_check()
     budgets = measure_budgets()
 
-    write_report(scenario_results, shipped_results, reflow_result, budgets)
+    lines = report_lines(scenario_results, shipped_results, reflow_result,
+                         budgets)
+    if "--write" in sys.argv[1:] or os.environ.get("ITEMBANK_TRACER_WRITE"):
+        write_report(lines)
+        print("report: re-recorded %s" % os.path.relpath(REPORT_PATH, ROOT))
+    else:
+        check_report(lines)
+        print("report: matches the committed record (timings excluded); "
+              "re-record with --write")
 
     passed = sum(1 for _, status in scenario_results if status == "pass")
     skipped = sum(1 for _, status in scenario_results if status == "skip")
