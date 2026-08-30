@@ -54,3 +54,16 @@ prototypes/17a/render/
 # the bundled sample course's bytes and the first-run/shelf records.
 _sample_course/
 _ia/
+
+# GSD framework installs written by the client tooling (`.codex/`, and the
+# same layout under `.claude/` when installed there): agents, hooks, and the
+# gsd-* skill set belong to the tool, not to this project. The project's own
+# skills live in `.claude/skills` and `.agents/skills`, which CI keeps
+# byte-identical and which stay committed. Machine-local, like reasonix.toml.
+.codex/
+.claude/get-shit-done/
+.claude/agents/
+.claude/hooks/
+.claude/hooks.json
+.claude/gsd-file-manifest.json
+.claude/gsd-install-state.json
