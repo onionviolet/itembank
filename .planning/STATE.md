@@ -7,7 +7,7 @@ status: "Phase 16C EXECUTED through plan 16C-09 Task 1 and HELD at its one block
 stopped_at: "16C-09 Task 2, a blocking checkpoint:human-verify. Weibao reads 16C-TRACER-REPORT.md and the copy constants as prose, answers the eleven steps in 16C-09-PLAN.md Task 2, and writes 16C-REVIEW.md with one of accept, accept-with-findings, or reject plus a signature and date. Task 3 then re-runs the evidence, weighs six named legs, and writes 16C-FREEZE.md or withholds it by name."
 last_updated: "2026-08-30T00:00:00.000Z"
 last_activity: 2026-08-30
-last_activity_desc: "Executed 16C-01 through 16C-09 Task 1. Five new root modules (notes, strategies, progress_claims, note_outputs, upgrade_audit), one published schema, two additive evidence event types proven additive against pre-change baselines, eight new test suites, and the legacy-upgrade skill un-stubbed. Four defects were found by running rather than by reading: the two new event types failed the project's own published event schema and would have shipped into an append-only log; the .agents and .claude skill mirrors had been divergent since 13.9 and 14C-06 so CI's mirror step was red on main; a TERMS header row parsed as a glossary entry; and two records still called legacy-upgrade a stub after it shipped. One pre-existing red test, selection_retention_roundtrip, was bisected to its own introducing commit and recorded rather than absorbed. On 2026-08-30 that test was diagnosed and made green: its CLI leg dated a fixture near a fixed CUTOFF but is captured against the wall clock, so the weak and mastered objectives decayed to an equal weight of 1.0 and Phase 7 ordering settled the sitting. The leg now re-dates its fixture by one identical offset and asserts the invariant rather than a date; no runtime file changed. The GSD client install under .codex/ is gitignored as tool state, like reasonix.toml."
+last_activity_desc: "Executed 16C-01 through 16C-09 Task 1. Five new root modules (notes, strategies, progress_claims, note_outputs, upgrade_audit), one published schema, two additive evidence event types proven additive against pre-change baselines, eight new test suites, and the legacy-upgrade skill un-stubbed. Four defects were found by running rather than by reading: the two new event types failed the project's own published event schema and would have shipped into an append-only log; the .agents and .claude skill mirrors had been divergent since 13.9 and 14C-06 so CI's mirror step was red on main; a TERMS header row parsed as a glossary entry; and two records still called legacy-upgrade a stub after it shipped. One pre-existing red test, selection_retention_roundtrip, was bisected to its own introducing commit and recorded rather than absorbed. On 2026-08-30 that test was diagnosed and made green: its CLI leg dated a fixture near a fixed CUTOFF but is captured against the wall clock, so the weak and mastered objectives decayed to an equal weight of 1.0 and Phase 7 ordering settled the sitting. The leg now re-dates its fixture by one identical offset and asserts the invariant rather than a date; no runtime file changed. Also on 2026-08-30: tests/file_fault_tracer.py no longer rewrites 14A-TRACER-REPORT.md on every run, which had made a durable phase record derived and had already cost three commits; it now compares everything that carries meaning and writes only under --write, and a new CI step asserts the suite leaves the working tree clean. The GSD client install under .codex/ is gitignored as tool state, like reasonix.toml."
 progress:
   total_phases: 28
   completed_phases: 19
@@ -17,6 +17,64 @@ current_phase: 16C
 ---
 
 # Project State
+
+## 2026-08-30: two tests that were lying about the tree, and a CI guard so a third cannot
+
+Phase 16C is still held at 16C-09 Task 2, its blocking human review. Nothing
+below touches that. These are the two open items that had no phase owner.
+
+**The red selection test was failing on the calendar.**
+`tests/selection_retention_roundtrip.py` had been red on main with `the weak
+objective must fill the sitting: ['q3', 'q1']`, and the 16C tracer bisected it
+over about 45 commits to find it failing at every one including `66322ff`, the
+commit that introduced it. That result was the diagnosis, not a mystery: a test
+failing at its own introducing commit is not describing a change in the code.
+The file's other legs pass `cutoff=CUTOFF` (`2026-08-10`) into
+`retention.capture`; the CLI leg cannot, because `do_start` captures against
+the wall clock. Measured: `emt:airway 1.1905` against `emt:math 0.8095` at the
+pinned cutoff, and `1.0 / 1.0` at the live one. Tied weights leave the
+retention context nothing to prefer, so Phase 7's ordering settled the sitting.
+The new `as_of_now` helper shifts that one leg's fixture by a single identical
+offset, so it asserts the invariant rather than a date. No runtime file
+changed. Suite: 96 of 96.
+
+**The 14A tracer was rewriting the record it was checking.**
+`tests/file_fault_tracer.py` rewrote `14A-TRACER-REPORT.md` on every run, which
+made a durable phase record derived, the one distinction the object model
+refuses to collapse. It had already cost three commits: `9590eb4` and `4d59ceb`
+carried a stray run's timings into 14C's work, and `53d5231` restored 14A's own
+numbers and left the ownership question open. The tracer now builds the report
+in `report_lines`, and an ordinary run compares instead of writing.
+`report_signature` drops the Platform and Python lines and blanks the Measured
+column, because the report's own sentence says those are taken on one machine
+and are not promises, and a number that is explicitly not a promise cannot also
+be a regression. Everything that carries meaning still compares verbatim: a
+renamed section, a dropped scenario, a changed reflow count (seeded at 1400, so
+reproducible), or a non-zero suite exit code fails by named line. Re-record
+deliberately with `--write` or `ITEMBANK_TRACER_WRITE=1`. Both paths were
+verified by perturbing the committed file: a scenario row flipped to `broken`
+fails at line 16, while a changed Python version, a changed platform, and a
+timing moved to `99.99` all pass. The report gains one additive section saying
+how it is kept; 14A's recorded numbers are untouched.
+
+**A CI guard so this class cannot return.** A new step asserts the working tree
+is clean after the Python suite, printing the offending paths and the diff. A
+test may write whatever it likes under a temp dir; it may not leave the tree
+dirty. This is also the first time CI has verified that report at all, since
+the old behavior overwrote it before anything could compare.
+
+**A sweep for the same two shapes found nothing else.** Every other
+`retention.capture` in the suite either pins a cutoff or asserts something
+structural (`retention_roundtrip.py` checks a strategy name,
+`protocol_roundtrip.py` a queue row count), so no other decay assertion is
+clock-coupled. And a full 96-file run leaves the tree clean, so no other test
+mutates tracked content.
+
+**`.codex/` is gitignored** as tool state, alongside the same GSD layout under
+`.claude/`, on the precedent this repository already sets for `reasonix.toml`.
+It held 68 agents, 67 `gsd-*` skills, hooks and a 43KB manifest, and no project
+skill at all. Reversible if it should ship for portability instead.
+
 
 ## 2026-08-29: Phase 16C, plans 01 through 09 Task 1, held at the human review
 
