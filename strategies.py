@@ -10,21 +10,32 @@ is never replaced by settings data (the D-03 precedent): a settings file that
 could redefine what happens when everything else is unavailable is a settings
 file that can break the degraded path.
 
-This module is deliberately surface-free and runtime-free. A strategy
-influences selection and presentation. It never touches scoring, keyed
-disclosure, or evidence settlement, and the import list is the structural
-proof: standard library and nothing else.
+This module is runtime-free. A strategy influences selection and
+presentation. It never touches scoring, keyed disclosure, or evidence
+settlement, and the import list is the structural proof: the standard library
+plus exactly one surface, `surfaces.ia`, imported by plan 16C-05 so that
+`composed_resolve` can call the one 16B precedence function rather than
+reimplement it. That import is a call site, never a second implementation:
+this module reads no layer ordering and builds no conflict sentence.
 
 Naming, per D-16C-6 and D15: the per-action states this registry's contracts
 reference are strategy-action states, which are learner task states
 (lowercase activity). The Activity view (capitalized) is the 16B IA area for
 durable agent and maintenance jobs and is not this module's subject.
 
-What this module does NOT do, by plan: no precedence resolution (16C-05 adds
-`composed_resolve` here and owns every use of `ia.mode_layer_resolve`), no
-evidence events (16C-06), no sitting logic, and no rendering.
+What this module does NOT do: no evidence events (16C-06 owns the two
+lifecycle types the contracts name) and no rendering (17A owns pixels). Its
+sitting logic is exactly one rule, STRATEGY-02's floor, and it is stated in
+`composed_resolve`.
 """
 import copy
+
+# The one surface import, added by plan 16C-05. `surfaces.ia` holds the
+# frozen 16B precedence contract, and this module imports it to CALL it,
+# never to read its ordering. The 16C-01 precondition verified its seven
+# layers, its two fixed layers, and its conflict sentence against the landed
+# source before `composed_resolve` was written.
+from surfaces import ia
 
 
 STRATEGY_SCHEMA_VERSION = 1
@@ -270,3 +281,61 @@ def picker_rows(available, allowed, locked_copy_by_id=None):
                 row["preselected"] = True
                 break
     return rows
+
+
+
+def composed_resolve(layers_state, sitting_active=False):
+    """Gather every layer's supplied state and let 16B decide.
+
+    This is the collector half of 16B D8 and D-16B-12. The precedence rule
+    lives in `surfaces/ia.py` and nowhere else: this function compares no
+    layer names, reads no ordering, and builds no sentence. Adding any of
+    those here would create a second implementation of one contract, which is
+    the drift D-16C-5 forbids by name and 16C-RESEARCH Pitfall 10 predicts.
+
+    `layers_state` maps a setting's display name to the requests dict
+    `ia.mode_layer_resolve` takes, which is 16C-RESEARCH Open Question 3's
+    recommended explicit-input contract: synthetic layer states test it
+    today, and 14B course records wire into it later without a signature
+    change.
+
+    `sitting_active` is STRATEGY-02's floor. Runtime assessment behavior is
+    never user-configurable during a sitting, so during one a learner
+    preference does not lose the conflict, it never reaches the resolver at
+    all. The difference matters: a refused request that was considered would
+    still render as a conflict the learner might argue with, and the honest
+    statement is that the control is paused.
+
+    Returns `{"effective": {setting: value}, "conflicts": [...],
+    "locks": [...]}`. An unknown layer key propagates
+    `ia.mode_layer_resolve`'s own `ValueError`, neither caught nor re-worded.
+    """
+    effective, conflicts, locks = {}, [], []
+    for setting in sorted(layers_state):
+        requests = dict(layers_state[setting])
+        if sitting_active and "learner_preference" in requests \
+                and len(requests) > 1:
+            del requests["learner_preference"]
+            locks.append({"setting": setting,
+                          "copy": MID_SITTING_LOCK_COPY})
+        result = ia.mode_layer_resolve(setting, requests)
+        effective[setting] = result["value"]
+        if result["conflict"]:
+            conflicts.append({"setting": setting,
+                              "winning_layer": result["winning_layer"],
+                              "value": result["value"],
+                              "copy": result["copy"]})
+    return {"effective": effective, "conflicts": conflicts, "locks": locks}
+
+
+def locked_picker_copy(conflicts):
+    """The `locked_copy_by_id` mapping `picker_rows` takes, built from the
+    resolver's own conflict entries.
+
+    This closes the empty-copy interim state plan 16C-03 recorded: a locked
+    row's sentence is the resolver's sentence, which is
+    `ia.mode_layer_conflict_copy`'s output, and there is no other source it
+    could come from.
+    """
+    return dict((c["value"], c["copy"]) for c in conflicts
+                if c["value"] in STRATEGY_IDS and c["copy"])

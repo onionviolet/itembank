@@ -61,6 +61,19 @@ CONFLICT_CASES = [
     ("Read outside the approved roots",
      {"learner_preference": "yes", "system_safety": "no"},
      "system_safety", "no"),
+    # Phase 16C strategy rows (plan 16C-05): STRATEGY-02 conflict matrix.
+    ("Learning strategy",
+     {"learner_preference": "retrieval_first",
+      "accommodation_override": "continuous_reading"},
+     "accommodation_override", "continuous_reading"),
+    ("Learning strategy",
+     {"learner_preference": "retrieval_first",
+      "instructor_policy": "guided_note_spine"},
+     "instructor_policy", "guided_note_spine"),
+    ("Change strategy during a test sitting",
+     {"learner_preference": "guided_note_spine",
+      "runtime_authority": "locked"},
+     "runtime_authority", "locked"),
 ]
 
 # The three cases above in which a learner preference loses to a layer the

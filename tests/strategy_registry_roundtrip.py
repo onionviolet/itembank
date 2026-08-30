@@ -86,21 +86,36 @@ def check_registry_shape():
 
     # The tier rule, asserted over the source rather than over what happens
     # to be imported. A strategy influences presentation, never settlement.
+    #
+    # Plan 16C-05 adds exactly one surface import, `from surfaces import ia`,
+    # so that `composed_resolve` calls the one frozen 16B precedence function
+    # instead of reimplementing it. That single name is allowed here by
+    # exception and by name; any other surface import, and any import of
+    # runtime, evidence, or notes, still fails. Allowing `surfaces` as a
+    # whole would have let the exception cover imports nobody decided on.
     tree = ast.parse(open(os.path.join(ROOT, "strategies.py"),
                          encoding="utf-8").read())
     forbidden = ("runtime", "evidence", "notes")
+    surface_imports = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             names = [a.name for a in node.names]
         elif isinstance(node, ast.ImportFrom):
-            names = [node.module or ""]
+            names = [(node.module or "") + "." + a.name
+                     for a in node.names] or [node.module or ""]
         else:
             continue
         for name in names:
             head = name.split(".")[0]
-            if head in forbidden or head == "surfaces":
+            if head in forbidden:
                 fail("strategies.py imports %s; the tier rule forbids it"
                      % name)
+            if head == "surfaces":
+                surface_imports.append(name)
+    if surface_imports != ["surfaces.ia"]:
+        fail("strategies.py imports %r; only surfaces.ia is allowed, and "
+             "only to call the one 16B precedence function (D8, D-16C-5)"
+             % (surface_imports,))
 
 
 def check_fallback():
