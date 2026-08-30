@@ -25,6 +25,7 @@ What matters here, and why each case is tested rather than trusted:
 
 Standard library only, runnable as `python tests/selection_retention_roundtrip.py`.
 """
+import datetime
 import inspect
 import json
 import math
@@ -179,6 +180,33 @@ def resp(session_id, objective, item_ref, score, ts):
 def append_all(log, events):
     for ev in events:
         evidence.append_event(log, ev)
+
+
+TS_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
+
+
+def as_of_now(events):
+    """Re-date a fixture so its recency is measured from the live clock.
+
+    The legs that call `context()` pin the snapshot cutoff to CUTOFF, so an
+    absolute fixture timestamp is deterministic there. The CLI leg cannot pin
+    anything: `do_start` captures against the wall clock, so a fixture dated
+    around CUTOFF decays one more real day every real day, until the weak
+    objective and the mastered one both bottom out at weight 1.0, the tie
+    hands the ordering back to Phase 7, and the leg fails on the calendar
+    rather than on a defect. Shifting every event by one identical offset
+    preserves the fixture's relative shape exactly, which is the only thing
+    the weights read.
+    """
+    delta = (datetime.datetime.strptime(evidence.utc_now(), TS_FORMAT)
+             - datetime.datetime.strptime(CUTOFF, TS_FORMAT))
+    shifted = []
+    for ev in events:
+        moved = dict(ev)
+        moved["ts"] = (datetime.datetime.strptime(ev["ts"], TS_FORMAT)
+                       + delta).strftime(TS_FORMAT)[:-4] + "Z"
+        shifted.append(moved)
+    return shifted
 
 
 def weak_airway_evidence():
@@ -468,7 +496,8 @@ def check_session_and_selection_event_provenance():
         bank = os.path.join(tmp, "bank.md")
         open(bank, "w", encoding="utf-8").write(BANK_TEXT)
         append_all(evidence.log_path(tmp),
-                   weak_airway_evidence() + mastered_math_evidence())
+                   as_of_now(weak_airway_evidence()
+                             + mastered_math_evidence()))
         r = run_cli(["start", bank, "--count", "2", "--seed", "0",
                      "--mode", "practice", "--selection-mode", "practice",
                      "--out", os.path.join(tmp, "s.json")], tmp)

@@ -47,6 +47,24 @@ one of them was this phase's:
    3.13 and from a different working directory. Recorded here as an open
    finding with an owner rather than fixed inside a freeze gate.
 
+   **Diagnosed and closed 2026-08-30**, after this report was written and
+   outside the freeze gate. The cause is the calendar, not a regression, and
+   the bisect result was the evidence for it rather than against it: a test
+   that fails at every commit including its own introducing one is not
+   describing a change in the code. The file's other legs pin the snapshot
+   cutoff to its `CUTOFF` constant of `2026-08-10T12:00:00.000Z`, so they read
+   the fixture's recency exactly as authored. The CLI leg cannot pin anything,
+   because `do_start` captures against the wall clock. Every real day moved the
+   fixture one day further into the past, and by 2026-08-30 the weak objective
+   and the mastered one had both decayed to weight `1.0`. With the weights tied
+   there is nothing for the retention context to prefer, Phase 7's own ordering
+   settles the sitting, and it returns `['q3', 'q1']`. Measured:
+   `emt:airway 1.1905 / emt:math 0.8095` at the pinned cutoff, `1.0 / 1.0` at
+   the live one. The fix re-dates the CLI leg's fixture by one identical offset
+   through a new `as_of_now` helper, so the leg asserts the invariant (a weak
+   objective outranks a mastered one) instead of asserting a date. No runtime
+   file changed; `retention.py` and `selection.py` were correct throughout.
+
 ## The freeze-gate fixtures
 
 Nine rows, one per ROADMAP fixture, each naming the scenario that covers it.
@@ -238,7 +256,7 @@ recorded resolution:
 | The remaining seven output modes and the on-demand genre styles | post-trio runway, one validator and one fixture each |
 | Cross-course global Notes destination and route | backburner, synthesis 12.2 |
 | A consent-gated combined save-and-submit control | unassigned future phase |
-| `tests/selection_retention_roundtrip.py`, red on main since its own introducing commit | its own task; diagnosis recorded above |
+| `tests/selection_retention_roundtrip.py`, red on main since its own introducing commit | **Closed 2026-08-30.** Clock-dependent fixture, not a regression; diagnosis and fix recorded above |
 
 **Closed during this phase**, recorded so a reader does not go looking:
 

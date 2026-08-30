@@ -5,9 +5,9 @@ milestone_name: milestone
 current_phase_name: 16C-strategies-notes-prototype-convergence
 status: "Phase 16C EXECUTED through plan 16C-09 Task 1 and HELD at its one blocking human checkpoint (2026-08-29). Plans 16C-01 through 16C-08 are complete and committed; 16C-09's cross-subject tracer runs nine scenarios over four synthetic subjects in 0.261s with 9 passed, 0 failed, and 16C-TRACER-REPORT.md carries only measured figures. What remains is Task 2: the contract-legibility review that a HUMAN signs, and Task 3, the freeze record, which may not be written until that review carries accept or accept-with-findings. An agent must not sign its own contract, so no agent wrote 16C-REVIEW.md. Phases 14A, 14B, 14C, 16A, 16B are frozen. Open and unexecuted: 15A (6 plans), 15B (7), 17A-04, all of 17B, and the paced-lesson subphase whose decisions are recorded and whose plan is unwritten."
 stopped_at: "16C-09 Task 2, a blocking checkpoint:human-verify. Weibao reads 16C-TRACER-REPORT.md and the copy constants as prose, answers the eleven steps in 16C-09-PLAN.md Task 2, and writes 16C-REVIEW.md with one of accept, accept-with-findings, or reject plus a signature and date. Task 3 then re-runs the evidence, weighs six named legs, and writes 16C-FREEZE.md or withholds it by name."
-last_updated: "2026-08-29T00:00:00.000Z"
-last_activity: 2026-08-29
-last_activity_desc: "Executed 16C-01 through 16C-09 Task 1. Five new root modules (notes, strategies, progress_claims, note_outputs, upgrade_audit), one published schema, two additive evidence event types proven additive against pre-change baselines, eight new test suites, and the legacy-upgrade skill un-stubbed. Four defects were found by running rather than by reading: the two new event types failed the project's own published event schema and would have shipped into an append-only log; the .agents and .claude skill mirrors had been divergent since 13.9 and 14C-06 so CI's mirror step was red on main; a TERMS header row parsed as a glossary entry; and two records still called legacy-upgrade a stub after it shipped. One pre-existing red test, selection_retention_roundtrip, was bisected to its own introducing commit and recorded rather than absorbed."
+last_updated: "2026-08-30T00:00:00.000Z"
+last_activity: 2026-08-30
+last_activity_desc: "Executed 16C-01 through 16C-09 Task 1. Five new root modules (notes, strategies, progress_claims, note_outputs, upgrade_audit), one published schema, two additive evidence event types proven additive against pre-change baselines, eight new test suites, and the legacy-upgrade skill un-stubbed. Four defects were found by running rather than by reading: the two new event types failed the project's own published event schema and would have shipped into an append-only log; the .agents and .claude skill mirrors had been divergent since 13.9 and 14C-06 so CI's mirror step was red on main; a TERMS header row parsed as a glossary entry; and two records still called legacy-upgrade a stub after it shipped. One pre-existing red test, selection_retention_roundtrip, was bisected to its own introducing commit and recorded rather than absorbed. On 2026-08-30 that test was diagnosed and made green: its CLI leg dated a fixture near a fixed CUTOFF but is captured against the wall clock, so the weak and mastered objectives decayed to an equal weight of 1.0 and Phase 7 ordering settled the sitting. The leg now re-dates its fixture by one identical offset and asserts the invariant rather than a date; no runtime file changed. The GSD client install under .codex/ is gitignored as tool state, like reasonix.toml."
 progress:
   total_phases: 28
   completed_phases: 19
@@ -76,6 +76,22 @@ fill the sitting: ['q3', 'q1']`. Confirmed not this phase's by stashing every
 `66322ff`, the commit that introduced it. It also fails on Python 3.13 and
 from a different working directory. It has its own task and is named in the
 tracer report's open findings with an owner.
+
+**Update 2026-08-30: that red test is diagnosed and green.** The cause was the
+calendar, not a regression, and the bisect was the evidence for that rather
+than against it: a test failing at every commit including its own introducing
+one is not describing a change in the code. The file's other legs pin the
+snapshot cutoff to `CUTOFF = 2026-08-10T12:00:00.000Z`; the CLI leg cannot,
+because `do_start` captures against the wall clock. Each real day aged the
+fixture one more day, and by 2026-08-30 both objectives had decayed to weight
+`1.0` (measured: `1.1905 / 0.8095` at the pinned cutoff, `1.0 / 1.0` at the
+live one). A tie leaves nothing for the retention context to prefer, so Phase
+7's ordering settled the sitting and returned `['q3', 'q1']`. The fix re-dates
+that one leg's fixture by a single identical offset (`as_of_now`), so it
+asserts the invariant rather than a date. No runtime file changed;
+`retention.py` and `selection.py` were correct throughout. The tracer report's
+deferral row is marked closed in place, and the report's own account of the
+failure is preserved with the diagnosis appended underneath it.
 
 **Where it stops, and why.** 16C-09 Task 2 is a `checkpoint:human-verify`
 rated blocking, and its prohibition is explicit: an agent must not sign its
