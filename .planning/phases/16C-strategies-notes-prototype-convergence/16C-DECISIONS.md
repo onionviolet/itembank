@@ -289,3 +289,56 @@ and raises its authority.
 placement-agnostic schema (anchors plus objective relation). Reversing it later
 changes `16C-UI-SPEC.md` D1's placement prose, the 16B D4 placement note, and
 17A's rendering. It never changes a 16C schema, fixture, or test.
+
+## D-16C-9. Freeze scope
+
+**Decided 2026-08-30, at the phase's own freeze gate**, and recorded here so a
+later phase reading only this file gets the same answer `16C-FREEZE.md` gives.
+
+**What the 16C freeze covers.** The note and learner-artifact schemas, the
+promotion and review contract, the finite strategy registry, the composed
+precedence resolver, the progress comprehension display, the note-output trio,
+and the legacy-upgrade contract. Concretely: `notes.note_record`'s sixteen-key
+field set and its seven closed vocabularies; `schemas/note.schema.json`; the
+`notes.md` plus `notes.md.json` pair and its temporary-file-then-`os.replace`
+write contract; the four relocation states with probable never auto-applied;
+the four promotion outcomes; the two additive event types and the closed
+nine-key lifecycle event; the four-strategy registry, its eleven contract keys,
+and its code-owned `continuous_reading` fallback; `composed_resolve`'s explicit
+layer-state signature; the nine-field claim tuple, the seven dimensions with no
+aggregate anywhere, and the both-ways fill-state contract with its four ARIA
+entries; the trio's three modes, five validator codes, and warn-not-block
+refusal shape; the eleven-item baseline audit order and the two-affordance
+keyed halt with no override; and every locked copy constant named by module in
+the freeze record. `16C-UI-SPEC.md` is frozen as a document for its Copywriting
+Contract, its semantic-token assignments, its voice assignments, and D1 through
+D16.
+
+**What it explicitly does not cover.** It is not a visual system or token
+freeze, which is Phase 17A's, so what a frozen copy constant renders as remains
+open. It is not an information architecture or navigation freeze, which is
+Phase 16B's. It is not a semantic lesson capability freeze, which is Phase
+16A's. It is not a course schema freeze, which is Phase 14B's, and
+`composed_resolve` and `claims_from_events` take layer and course state as
+explicit parameters precisely so 14B can supply the real thing without
+reopening this surface. Token assignments are frozen as assignments, not as
+values.
+
+**The runway this scope opens and the criterion that closes it.** The remaining
+seven output modes and the on-demand genre styles may register only after this
+freeze, one validator and one representative fixture each. A mode requiring a
+second parser, a second scorer, a second note truth, or a second UI state
+machine is killed rather than accommodated (report 12 section 10.4, via
+D-16C-4). This decision records the runway; it does not spend it.
+
+**Provenance.** The freeze's review leg closed on `16C-REVIEW.md`, verdict
+`accept-with-findings`, written by Claude under Weibao's explicit instruction
+of 2026-08-30 to bypass his review and labelled there as an agent judgment
+rather than his signature. Plan 16C-09's prohibition against an agent signing
+its own contract is waived by the learner who owns the gate, not met. Anything
+relying on this scope should read that file's Provenance section first.
+
+**Reconsideration condition.** Reopened by any change to a frozen vocabulary's
+membership, to the claim tuple's field set, to the trio's refusal shape, or to
+the keyed-halt affordance count. Adding an output mode within the runway, or
+changing what a frozen copy constant renders as, does not reopen it.
