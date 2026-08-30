@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 current_phase_name: 16C-strategies-notes-prototype-convergence
 status: "Phase 16C EXECUTED through plan 16C-09 Task 1 and HELD at its one blocking human checkpoint (2026-08-29). Plans 16C-01 through 16C-08 are complete and committed; 16C-09's cross-subject tracer runs nine scenarios over four synthetic subjects in 0.261s with 9 passed, 0 failed, and 16C-TRACER-REPORT.md carries only measured figures. What remains is Task 2: the contract-legibility review that a HUMAN signs, and Task 3, the freeze record, which may not be written until that review carries accept or accept-with-findings. An agent must not sign its own contract, so no agent wrote 16C-REVIEW.md. Phases 14A, 14B, 14C, 16A, 16B are frozen. Open and unexecuted: 15A (6 plans), 15B (7), 17A-04, all of 17B, and the paced-lesson subphase whose decisions are recorded and whose plan is unwritten."
-stopped_at: "16C-09 Task 2, a blocking checkpoint:human-verify. Weibao reads 16C-TRACER-REPORT.md and the copy constants as prose, answers the eleven steps in 16C-09-PLAN.md Task 2, and writes 16C-REVIEW.md with one of accept, accept-with-findings, or reject plus a signature and date. Task 3 then re-runs the evidence, weighs six named legs, and writes 16C-FREEZE.md or withholds it by name."
+stopped_at: "Two blocking stops, both needing Weibao. (1) 16C-09 Task 2, a blocking checkpoint:human-verify. (2) 15A is halted at 15A-01 Task 1: the precondition passed steps 1, 3, 4 and 5 and diverged on len(journal.ENTRY_KEYS), landed 23 and plan text 22, because 15A was planned against 14A plan text rather than 14A-FREEZE.md. It needs a planning pass over 15A-01..06 against the two freeze records, not an executor. 17A-04 needs the LGPL browser-driver supply-chain decision; 15B needs a 15A-FREEZE.md that does not exist. Detail on 16C-09 Task 2: Weibao reads 16C-TRACER-REPORT.md and the copy constants as prose, answers the eleven steps in 16C-09-PLAN.md Task 2, and writes 16C-REVIEW.md with one of accept, accept-with-findings, or reject plus a signature and date. Task 3 then re-runs the evidence, weighs six named legs, and writes 16C-FREEZE.md or withholds it by name."
 last_updated: "2026-08-30T00:00:00.000Z"
 last_activity: 2026-08-30
 last_activity_desc: "Executed 16C-01 through 16C-09 Task 1. Five new root modules (notes, strategies, progress_claims, note_outputs, upgrade_audit), one published schema, two additive evidence event types proven additive against pre-change baselines, eight new test suites, and the legacy-upgrade skill un-stubbed. Four defects were found by running rather than by reading: the two new event types failed the project's own published event schema and would have shipped into an append-only log; the .agents and .claude skill mirrors had been divergent since 13.9 and 14C-06 so CI's mirror step was red on main; a TERMS header row parsed as a glossary entry; and two records still called legacy-upgrade a stub after it shipped. One pre-existing red test, selection_retention_roundtrip, was bisected to its own introducing commit and recorded rather than absorbed. On 2026-08-30 that test was diagnosed and made green: its CLI leg dated a fixture near a fixed CUTOFF but is captured against the wall clock, so the weak and mastered objectives decayed to an equal weight of 1.0 and Phase 7 ordering settled the sitting. The leg now re-dates its fixture by one identical offset and asserts the invariant rather than a date; no runtime file changed. Also on 2026-08-30: tests/file_fault_tracer.py no longer rewrites 14A-TRACER-REPORT.md on every run, which had made a durable phase record derived and had already cost three commits; it now compares everything that carries meaning and writes only under --write, and a new CI step asserts the suite leaves the working tree clean, verified by a full 96-file run that left git status empty. That open finding is now closed and was not one bug but three. Reproduced at twelve concurrent requests under load, 20 rounds of 20 failing: runtime.write_session used a shared <target>.tmp, so the first os.replace consumed the temp file and the second raised FileNotFoundError, which reached the learner as the 400; _ensure_quiz_session checked and created outside any lock, so six concurrent first hits left six sittings for one bank and kept whichever finished last; and Daemon inherited the stdlib listen backlog of 5, measured as ConnectionResetError past twelve connections and not at six. All three fixed, 0 of 20 rounds failing after, with one session where there were six. Also closed: fake_hosted_unused.py, a test artifact committed as source in 46f0f50 because hosted_profile("") wrote its fake script into the process cwd; the root .continue-here, which had pointed for months at a Phase 09 branch, worktree, and main tip that no longer exist; and two orphaned test processes from 2026-08-28, one of them a fake AnkiConnect squatting on 127.0.0.1:8765, the real AnkiConnect port, so day's Anki lane on this machine had been answering to a stub. The GSD client install under .codex/ is gitignored as tool state, like reasonix.toml."
@@ -17,6 +17,84 @@ current_phase: 16C
 ---
 
 # Project State
+
+## 2026-08-30 (third entry): 15A-01 ran its precondition and halted, correctly
+
+With the loose ends closed, the open phase work was checked for what an agent
+may actually execute. Three of the four items are not agent work, and the
+fourth halted by design.
+
+**17A-04 is not executable.** Task 1 needs a supply-chain decision no agent may
+make: no approved browser driver exists, `17A-RESEARCH.md` recommends a pinned
+Playwright harness, and its ffmpeg component is LGPL, which
+`SUPPLY-CHAIN-POLICY.md` section 2.4 routes to Weibao. The packet with both
+options argued is `.planning/DECISIONS-17A04-DRIVER-2026-08-25.md`. Task 2 is
+his A11Y-01 review either way. Unchanged, restated here because it was checked
+rather than assumed.
+
+**15B cannot start before 15A.** `15B-01`'s precondition halts by name until a
+`15A-FREEZE.md` exists. There is none.
+
+**15A-01 Task 1 was executed. It halts.** This is the only piece of open phase
+work an agent could legitimately advance, and its first task is an `auto`
+precondition check whose whole purpose is to refuse the phase if 14A and 14B
+did not land with the surface 15A was planned against.
+
+Steps 1, 3, 4 and 5 pass: the six modules import; the whole 14B surface matches
+including `course.COURSE_SIDECAR_FILENAME == "course-graph.md"` under the
+confirmed D-14B-1 option-a; `model_adapter` reports exactly
+`14 ['hosted_cli', 'openai_compatible']`; and both freeze records carry their
+headings.
+
+Step 2 diverges on one item, checked to completion rather than stopped at the
+first failure so the record is whole:
+
+```
+HALT 15A-01 precondition: Phase 14A or Phase 14B has not landed, or its frozen
+surface differs from what Phase 15A was planned against. Re-verify every 15A
+plan against .planning/phases/14A-identity-lifecycle-operation/14A-FREEZE.md
+and .planning/phases/14B-graph-course-package-prototype/14B-FREEZE.md before
+writing any code. Divergent or missing: len(journal.ENTRY_KEYS): landed 23,
+plan text 22
+```
+
+**What the divergence is, and why the halt is right rather than pedantic.**
+`journal.ENTRY_KEYS` has twenty-three members and ends in `rights`. It has held
+twenty-three since the only commit that ever touched it, `77b27e9`, so this is
+not a regression and nothing drifted. The two numbers come from two records:
+`14A-02-PLAN.md` lists twenty-two keys ending in `message`, and
+`14A-FREEZE.md` lists twenty-three ending in `rights`. 15A-01 step 2 was
+written from the plan text, exactly as its own `read_first` block instructs,
+and the plan text is the pre-freeze number.
+
+That is the Critical Caveat in `15A-RESEARCH.md` arriving on schedule: every
+14A and 14B signature in 15A's research and pattern map was read from plan
+text, because the modules did not exist when 15A was planned. The precondition
+exists to catch that, and it caught it on its first real assertion.
+
+The consequence is not bookkeeping. 15A-01's own acceptance says
+`journal.ENTRY_KEYS` must have "exactly 23 members, its last member `agent`,
+and its first twenty-two members unchanged", and its must_have says the whole
+phase's `journal.py` diff is exactly two lines. Against a landed
+twenty-three-key tuple, an executor working literally could satisfy that count
+only by deleting `rights`, silently removing the rights field from every
+journal entry 14A-03 records. A halt that prevents that is worth more than a
+phase started a day earlier.
+
+**What is needed, and from whom.** Not an executor: a planning pass that
+re-reads 15A-01 through 15A-06 against `14A-FREEZE.md` and `14B-FREEZE.md`
+rather than against 14A and 14B plan text, and restates the ENTRY_KEYS
+assertions, the acceptance count, and the two-line diff claim in terms of what
+is frozen. Whether `rights` stays and how the "exactly two lines" claim is
+re-derived is a planning call, not an executor's, so nothing was amended here.
+
+**Nothing was written.** Per step 6, no module, no `15A-PRECONDITION.md`, and
+no reduced check set. `director.py` does not exist. The plan's own instruction
+is quoted rather than paraphrased: "A halt here is the correct outcome; it is
+what this task is for."
+
+Suite: 96 of 96 on the committed tree, which the suite leaves clean.
+
 
 ## 2026-08-30 (second entry): the flake was three defects, and the daemon was serving a stub
 
