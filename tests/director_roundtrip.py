@@ -251,6 +251,7 @@ def check_thin_slice():
         read = course.read_course(base)
         doc = read["doc"]
         objective_id = lantern["objectives"][0]
+        objective_ids_for_egress = objective_id
         spans = [{"source_object_id": lantern["source_object_id"],
                   "locator": "chapter 1"}]
         request = director.recommendation_request(
@@ -341,20 +342,61 @@ def check_thin_slice():
             fail("the sidecar revision went %r -> %r"
                  % (revision_before, read_after["revision"]))
 
-        # The egress record.
-        egress_entries = [e for e in journal.entries(base)
-                          if (e.get("agent") or {}).get("egress")]
-        if len(egress_entries) != 1:
-            fail("%d entries carry an egress dict" % len(egress_entries))
-        else:
-            egress = egress_entries[0]["agent"]["egress"]
+        # The egress record. Every recorded phase carries one, including the
+        # phases that sent nothing: an absent key would leave a reader unable
+        # to tell "nothing was sent" from "nobody recorded". So the assertion
+        # is about the one phase that DID reach a backend, not about there
+        # being exactly one egress dict in the journal.
+        #
+        # Plan 15A-01's behavior block asked for "exactly one journal entry
+        # carries a non-null agent.egress whose destination is hosted". It was
+        # written assuming the bind carried the send. The bind sends nothing,
+        # so plan 15A-04 Task 3 makes every phase disclose, and this assertion
+        # is narrowed to the claim that survives: exactly one HOSTED egress,
+        # and it names real spans.
+        # Assembling spans for a recommendation consumes `read`, and the
+        # lantern source grants only `transform`. Without this the run is still
+        # correct and still hosted, but it discloses zero spans, which would
+        # make the assertion below pass for the wrong reason.
+        corpus_14b.grant_right(base, lantern["source_object_id"], "read")
+        # build_three_domains records sources and edges but no ## Bindings
+        # rows, so there is nothing for approved_spans to approve until one
+        # exists. Bound through the gated path, which is why the grant above
+        # has to come first.
+        course.bind_source(base, objective_ids_for_egress,
+                           lantern["source_object_id"],
+                           locator="chapter 1", state="unknown",
+                           confidence="high", actor_kind="agent",
+                           actor_name="director-roundtrip")
+        settings = make_settings("hosted", [mock_profile()])
+        result = director.recommend_once(
+            base, base, objective_ids_for_egress, settings, "hosted",
+            "agent", "director-roundtrip", "course-builder", "propose")
+        if result["status"] != "ok":
+            fail("the hosted recommendation returned %r" % (result,))
+
+        all_egress = [(e.get("agent") or {}).get("egress")
+                      for e in journal.entries(base)]
+        all_egress = [e for e in all_egress if e]
+        for egress in all_egress:
             if set(egress) != set(director.EGRESS_KEYS):
-                fail("the egress dict's keys are %r" % (sorted(egress),))
-            if egress.get("destination") != "hosted":
-                fail("the egress destination is %r"
-                     % (egress.get("destination"),))
-            if not egress.get("spans"):
-                fail("the egress spans list is empty")
+                fail("an egress dict's keys are %r" % (sorted(egress),))
+                break
+            if egress.get("evidence_included") is not False:
+                fail("an egress dict claims evidence_included %r"
+                     % (egress.get("evidence_included"),))
+        hosted = [e for e in all_egress if e.get("destination") == "hosted"]
+        if len(hosted) != 1:
+            fail("%d entries carry a hosted egress record" % len(hosted))
+        elif not hosted[0].get("spans"):
+            fail("the hosted egress spans list is empty")
+        local = [e for e in all_egress if e.get("destination") == "local"]
+        for egress in local:
+            if egress.get("payload_bytes") != 0:
+                fail("a local egress claims %r payload bytes"
+                     % (egress.get("payload_bytes"),))
+            if egress.get("spans"):
+                fail("a local egress names spans: %r" % (egress["spans"],))
 
         # A refused bind: meridian grants no rights at all.
         m_base = meridian["root"]
@@ -1216,6 +1258,433 @@ def check_coverage_states():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def check_approved_spans():
+    """An agent receives spans only from sources whose right reads granted in
+    the live registry, and every exclusion is named."""
+    import director
+    import corpus_14b
+    import inspect
+
+    if [p for p in inspect.signature(director.approved_spans).parameters
+            if "rights" in p]:
+        fail("approved_spans takes a rights parameter; a rights value passed "
+             "in is a rights value that can be stale")
+
+    tmp = tempfile.mkdtemp(prefix="director-rights-")
+    try:
+        built = corpus_14b.build_rights_matrix_fixture(
+            os.path.join(tmp, "corpus"))
+        base = built["course_root"]
+        doc = course.read_course(base)["doc"]
+        objective_id = built["objective_id"]
+        texts = built["source_texts"]
+        all_granted, read_only, transform_only, nothing = built["source_ids"]
+
+        def sources_for(kind, source_texts=None):
+            spans, omissions = director.approved_spans(
+                base, doc, objective_id, kind,
+                texts if source_texts is None else source_texts)
+            return ([s["source_object_id"] for s in spans],
+                    omissions)
+
+        # guided-lesson consumes transform.
+        got, omissions = sources_for("guided-lesson")
+        if set(got) != {all_granted, transform_only}:
+            fail("guided-lesson approved %r" % (sorted(set(got)),))
+        refused = {o["source_object_id"] for o in omissions
+                   if o["reason"] == "rights-not-granted"}
+        if not {read_only, nothing} <= refused:
+            fail("a refused source is not disclosed: %r" % (sorted(refused),))
+        for omission in omissions:
+            if omission["reason"] not in director.OMISSION_REASONS:
+                fail("an omission reason is %r" % (omission["reason"],))
+            if omission["reason"] == "rights-not-granted" and \
+                    "transform" not in json.dumps(omission):
+                fail("a rights omission does not name the right: %r"
+                     % (omission,))
+
+        # direct-reading consumes read.
+        got, _ = sources_for("direct-reading")
+        if set(got) != {all_granted, read_only}:
+            fail("direct-reading approved %r" % (sorted(set(got)),))
+
+        # excerpt consumes quote.
+        got, _ = sources_for("excerpt")
+        if set(got) != {all_granted}:
+            fail("excerpt approved %r" % (sorted(set(got)),))
+
+        # No source is in both lists.
+        spans, omissions = director.approved_spans(
+            base, doc, objective_id, "guided-lesson", texts)
+        span_ids = {s["source_object_id"] for s in spans}
+        omitted_ids = {o["source_object_id"] for o in omissions}
+        if span_ids & omitted_ids:
+            fail("a source is both approved and omitted: %r"
+                 % (sorted(span_ids & omitted_ids),))
+
+        # Sorted and stable.
+        key = lambda s: (s["source_object_id"],
+                         director.locator_key(s["locator"]))
+        if [key(s) for s in spans] != sorted(key(s) for s in spans):
+            fail("the spans list is not sorted")
+        again, _ = director.approved_spans(
+            base, doc, objective_id, "guided-lesson", texts)
+        if again != spans:
+            fail("two approved_spans calls differ")
+
+        # The read is live. A snapshot of granted does not authorize.
+        snapshots = [r.get("rights_snapshot") for r in doc["bindings"]
+                     if r.get("source_object_id") == all_granted]
+        corpus_14b.revoke_right(base, all_granted, "transform")
+        after, omissions = director.approved_spans(
+            base, doc, objective_id, "guided-lesson", texts)
+        if any(s["source_object_id"] == all_granted for s in after):
+            fail("a revoked right still contributed spans; the binding row's "
+                 "rights_snapshot is %r and a prior read said granted"
+                 % (snapshots,))
+        if not any(o["source_object_id"] == all_granted
+                   and o["reason"] == "rights-not-granted" for o in omissions):
+            fail("the revoked source is not disclosed as an omission")
+
+        # Case matters: only the exact lowercase token grants.
+        corpus_14b._set_right(base, all_granted, "transform", "Granted")
+        cased, _ = director.approved_spans(
+            base, doc, objective_id, "guided-lesson", texts)
+        if any(s["source_object_id"] == all_granted for s in cased):
+            fail("the exact string 'Granted' authorized a span")
+        corpus_14b.grant_right(base, all_granted, "transform")
+
+        # An unreadable source is disclosed, not a crash.
+        _, omissions = director.approved_spans(
+            base, doc, objective_id, "guided-lesson", {})
+        if not omissions:
+            fail("an empty source_texts produced no omissions")
+        for omission in omissions:
+            if omission["reason"] not in ("source-unreadable",
+                                          "rights-not-granted"):
+                fail("an unreadable source gave reason %r"
+                     % (omission["reason"],))
+
+        # The caps.
+        capped = built["capped_objective_id"]
+        spans, omissions = director.approved_spans(
+            base, doc, capped, "guided-lesson", texts)
+        if len(spans) != director.MAX_EGRESS_SPANS:
+            fail("twelve eligible spans produced %d, expected the cap of %d"
+                 % (len(spans), director.MAX_EGRESS_SPANS))
+        capped_out = [o for o in omissions if o["reason"] == "span-cap"]
+        if len(capped_out) != 4:
+            fail("the span cap omitted %d spans, expected 4" % len(capped_out))
+        for span in spans:
+            if span["bytes"] != len(span["text"].encode("utf-8")):
+                fail("a span's byte count is not its full text length; a span "
+                     "must never be included partially")
+
+        # Dedupe by normalized locator, but not by case.
+        deduped = built["dedupe_objective_id"]
+        spans, _ = director.approved_spans(
+            base, doc, deduped, "guided-lesson", texts)
+        locators = [s["locator"] for s in spans]
+        keys = [director.locator_key(l) for l in locators]
+        if len(keys) != len(set(keys)):
+            fail("approved_spans returned duplicate normalized locators: %r"
+                 % (locators,))
+
+        # An objective with no source bindings.
+        spans, omissions = director.approved_spans(
+            base, doc, built["unbound_objective_id"], "guided-lesson", texts)
+        if spans != [] or omissions != []:
+            fail("an unbound objective returned %r / %r" % (spans, omissions))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def check_autonomy_policy():
+    """Authority is settings-side, checked not self-reported, and an
+    over-declaration is refused rather than narrowed."""
+    import director
+    import corpus_14b
+
+    if director.AUTONOMY_LEVELS != ("recommend-only", "draft-and-review",
+                                    "approved-bounded-write"):
+        fail("AUTONOMY_LEVELS is %r" % (director.AUTONOMY_LEVELS,))
+
+    def policy(level, cap=0):
+        return {"agent_policy": {"autonomy_level": level,
+                                 "max_bindings_per_operation": cap}}
+
+    if director.autonomy_level({}) != "recommend-only":
+        fail("an absent agent_policy read as %r"
+             % (director.autonomy_level({}),))
+    if director.autonomy_level({"agent_policy": {}}) != "recommend-only":
+        fail("an empty agent_policy read as %r"
+             % (director.autonomy_level({"agent_policy": {}}),))
+    if director.autonomy_level(policy("draft-and-review")) != "draft-and-review":
+        fail("autonomy_level did not read the configured value")
+
+    # Within policy returns None, and specifically None.
+    got = director.authorize_write(policy("approved-bounded-write", 5),
+                                   "approved-bounded-write", 3)
+    if got is not None:
+        fail("authorize_write returned %r on the success path; returning a "
+             "level would give a caller something to mistake for a grant"
+             % (got,))
+    if director.authorize_write(policy("approved-bounded-write", 5),
+                                "recommend-only", 0) is not None:
+        fail("declaring less than the policy allows was refused")
+
+    # Over-declaration is refused, never narrowed.
+    try:
+        director.authorize_write(policy("recommend-only"),
+                                 "approved-bounded-write", 0)
+    except director.DirectorError as exc:
+        if exc.code != "director.autonomy_exceeded":
+            fail("an over-declaration raised %r" % (exc.code,))
+        for needed in ("recommend-only", "approved-bounded-write", "refused"):
+            if needed not in exc.message:
+                fail("the over-declaration message lacks %r: %r"
+                     % (needed, exc.message))
+    else:
+        fail("an over-declaring operation was permitted")
+
+    # The binding cap.
+    try:
+        director.authorize_write(policy("approved-bounded-write", 2),
+                                 "approved-bounded-write", 3)
+    except director.DirectorError as exc:
+        if exc.code != "director.bind_cap_exceeded":
+            fail("an over-cap request raised %r" % (exc.code,))
+        elif "3" not in exc.message or "2" not in exc.message:
+            fail("the cap message names neither number: %r" % (exc.message,))
+    else:
+        fail("a request over the binding cap was permitted")
+
+    # An unknown level is refused, never treated as the lowest.
+    try:
+        director.authorize_write(policy("approved-bounded-write", 5),
+                                 "god-mode", 0)
+    except director.DirectorError as exc:
+        if exc.code != "director.autonomy_exceeded":
+            fail("an unknown declared level raised %r" % (exc.code,))
+        elif "god-mode" not in exc.message:
+            fail("the unknown-level message does not name it: %r"
+                 % (exc.message,))
+    else:
+        fail("an unknown autonomy level was permitted")
+
+    # Wiring: a recommend-only policy writes nothing over a whole pass.
+    tmp = tempfile.mkdtemp(prefix="director-autonomy-")
+    try:
+        built = corpus_14b.build_recommendation_fixture(
+            os.path.join(tmp, "corpus"))
+        base = built["course_root"]
+        objective_ids = built["objective_ids"]
+        settings = make_settings("hosted", [mock_profile()])
+        settings.update(policy("recommend-only"))
+
+        rows_before = len(course.read_course(base)["doc"]["bindings"])
+        entries = director.recommend_treatments(
+            base, base, objective_ids, settings, "hosted",
+            "agent", "director-roundtrip", "course-builder",
+            "approved-bounded-write")
+        if len(entries) != len(objective_ids):
+            fail("a refused pass returned %d entries" % len(entries))
+        for entry in entries:
+            if entry["outcome"] != "untreated":
+                fail("a refused pass gave outcome %r" % (entry["outcome"],))
+            if entry["code"] != "director.autonomy_exceeded":
+                fail("a refused pass recorded code %r" % (entry["code"],))
+        rows_after = len(course.read_course(base)["doc"]["bindings"])
+        if rows_after != rows_before:
+            fail("a recommend-only policy wrote %d bindings"
+                 % (rows_after - rows_before))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def check_egress_record():
+    """What left this machine is disclosed exactly: every span named, every
+    omission named, and the byte count measured on the real request."""
+    import director
+    import corpus_14b
+    import socket
+
+    tmp = tempfile.mkdtemp(prefix="director-egress-")
+    try:
+        built = corpus_14b.build_rights_matrix_fixture(
+            os.path.join(tmp, "corpus"))
+        base = built["course_root"]
+        objective_id = built["objective_id"]
+        settings = make_settings("hosted", [mock_profile()])
+
+        result = director.recommend_once(
+            base, base, objective_id, settings, "hosted",
+            "agent", "director-roundtrip", "course-builder", "propose")
+        if result["status"] != "ok":
+            fail("the hosted run returned %r" % (result["status"],))
+
+        entry = list(journal.entries(base))[-1]
+        egress = (entry.get("agent") or {}).get("egress")
+        if not egress:
+            fail("the hosted phase recorded no egress")
+            return
+        if set(egress) != set(director.EGRESS_KEYS):
+            fail("the egress key set is %r" % (sorted(egress),))
+
+        # Exactness against the request that was actually built.
+        doc = course.read_course(base)["doc"]
+        texts = director.source_texts_for(base, doc)
+        spans, omissions = director.approved_spans(
+            base, doc, objective_id, director.RECOMMENDATION_SPAN_TREATMENT,
+            texts)
+        request = director.recommendation_request(
+            doc, objective_id, spans, "hosted", "interaction-egress")
+        expected_bytes = len(json.dumps(
+            request, ensure_ascii=False, sort_keys=True).encode("utf-8"))
+
+        sent = {(s["source_object_id"], s["locator"]) for s in egress["spans"]}
+        built_pairs = {(s["source_object_id"], s["locator"]) for s in spans}
+        if sent != built_pairs:
+            fail("the disclosed spans are not exactly the sent spans: %r vs %r"
+                 % (sorted(sent), sorted(built_pairs)))
+        for span in egress["spans"]:
+            if "text" in span:
+                fail("an egress span carries the text; the record names what "
+                     "was sent, it does not copy it")
+            if set(span) != {"source_object_id", "locator", "bytes"}:
+                fail("an egress span's keys are %r" % (sorted(span),))
+                break
+        for span, original in zip(
+                sorted(egress["spans"], key=lambda s: s["locator"]),
+                sorted(spans, key=lambda s: s["locator"])):
+            if span["bytes"] != len(original["text"].encode("utf-8")):
+                fail("a disclosed byte count is %r, the text is %d bytes"
+                     % (span["bytes"], len(original["text"].encode("utf-8"))))
+
+        # payload_bytes is measured, not estimated. The interaction id differs
+        # between the recorded run and the rebuilt one, so compare the lengths
+        # of two requests built the same way rather than the exact figure.
+        if abs(egress["payload_bytes"] - expected_bytes) > 64:
+            fail("payload_bytes is %r, a request measures %r"
+                 % (egress["payload_bytes"], expected_bytes))
+        if egress["payload_bytes"] <= 0:
+            fail("a hosted run disclosed %r payload bytes"
+                 % (egress["payload_bytes"],))
+
+        # Omissions: named, reasoned, and disjoint from spans.
+        omitted_pairs = {(o["source_object_id"], o["locator"])
+                         for o in egress["omitted"]}
+        if sent & omitted_pairs:
+            fail("a span is both sent and omitted: %r" % (sent & omitted_pairs,))
+        if not egress["omitted"]:
+            fail("the rights matrix refused sources but disclosed no omissions")
+        for omission in egress["omitted"]:
+            if omission["reason"] not in director.OMISSION_REASONS:
+                fail("an omission reason is %r" % (omission["reason"],))
+
+        # Destination and secrets.
+        if egress["destination"] != "hosted":
+            fail("a hosted_cli profile disclosed destination %r"
+                 % (egress["destination"],))
+        if egress["profile"] != "hosted":
+            fail("the disclosed profile is %r, not the name" % (egress["profile"],))
+        blob = json.dumps(egress)
+        for secret in (sys.executable, "mock_backends.py", "--cli"):
+            if secret in blob:
+                fail("the egress record leaks %r; it names the profile only"
+                     % (secret,))
+        if egress["evidence_included"] is not False:
+            fail("evidence_included is %r" % (egress["evidence_included"],))
+
+        # Sorted, and stable across two runs.
+        key = lambda e: (e["source_object_id"], director.locator_key(e["locator"]))
+        for name in ("spans", "omitted"):
+            got = [key(e) for e in egress[name]]
+            if got != sorted(got):
+                fail("the egress %s list is not sorted" % name)
+        director.recommend_once(
+            base, base, objective_id, settings, "hosted",
+            "agent", "director-roundtrip", "course-builder", "propose")
+        second = (list(journal.entries(base))[-1].get("agent") or {})["egress"]
+        if director.parity_view(egress) != director.parity_view(second):
+            fail("two runs of one operation disclosed different egress")
+
+        # An openai_compatible profile discloses registered-local.
+        import mock_backends
+        import threading
+        httpd, port = mock_backends.serve("127.0.0.1", 0)
+        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        thread.start()
+        try:
+            local_settings = make_settings("local", [{
+                "name": "local", "transport": "openai_compatible",
+                "endpoint": "http://127.0.0.1:%d/" % port, "model": "mock",
+                "timeout_seconds": 10, "max_output_bytes": 65536,
+                "context_window": 4096}])
+            director.recommend_once(
+                base, base, objective_id, local_settings, "local",
+                "agent", "director-roundtrip", "course-builder", "propose")
+            entry = list(journal.entries(base))[-1]
+            local_egress = (entry.get("agent") or {})["egress"]
+            if local_egress["destination"] != "registered-local":
+                fail("an openai_compatible profile disclosed %r"
+                     % (local_egress["destination"],))
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+
+        # No reachable backend: local, zero bytes, no socket touched.
+        probe = socket.socket()
+        probe.bind(("127.0.0.1", 0))
+        free_port = probe.getsockname()[1]
+        probe.close()
+        gone = make_settings("gone", [{
+            "name": "gone", "transport": "hosted_cli",
+            "command": ["/nonexistent/itembank-hosted-bin"],
+            "model": "gone", "timeout_seconds": 5,
+            "max_output_bytes": 1024, "context_window": 1024}])
+        rows_before = len(course.read_course(base)["doc"]["bindings"])
+        entries = director.recommend_treatments(
+            base, base, [objective_id], gone, "gone",
+            "agent", "director-roundtrip", "course-builder", "propose")
+        if any(e["outcome"] != "untreated" for e in entries):
+            fail("an unreachable backend produced %r"
+                 % ([e["outcome"] for e in entries],))
+        entry = list(journal.entries(base))[-1]
+        down = (entry.get("agent") or {})["egress"]
+        if down["destination"] != "local":
+            fail("an unreachable backend disclosed destination %r"
+                 % (down["destination"],))
+        if down["payload_bytes"] != 0:
+            fail("an unreachable backend disclosed %r payload bytes"
+                 % (down["payload_bytes"],))
+        if down["spans"]:
+            fail("an unreachable backend disclosed spans: %r" % (down["spans"],))
+        if len(course.read_course(base)["doc"]["bindings"]) != rows_before:
+            fail("an unreachable backend wrote a binding")
+        # The port the fixture server would have used is still free.
+        check = socket.socket()
+        try:
+            check.bind(("127.0.0.1", free_port))
+        except OSError:
+            fail("a port was bound by an operation that sent nothing")
+        finally:
+            check.close()
+
+        # An egress record refuses learner evidence in a span.
+        try:
+            director.egress_record("local", "local", "p",
+                                   [{"source_object_id": "s", "locator": "l",
+                                     "score": 1}], [], 0)
+        except director.DirectorError as exc:
+            if exc.code != "director.evidence_forbidden":
+                fail("an evidence-bearing span raised %r" % (exc.code,))
+        else:
+            fail("an egress record accepted a span carrying a score")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     checks = [check_adapter_is_additive,
               check_journal_extension_is_two_lines,
@@ -1228,7 +1697,10 @@ def main():
               check_generation_is_never_automatic,
               check_recommendation_edges,
               check_coverage_classifier,
-              check_coverage_states]
+              check_coverage_states,
+              check_approved_spans,
+              check_autonomy_policy,
+              check_egress_record]
     for check in checks:
         check()
     if FAILURES:

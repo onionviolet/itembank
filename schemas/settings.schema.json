@@ -25,7 +25,8 @@
     "lti",
     "retention",
     "subject_profiles",
-    "source"
+    "source",
+    "agent_policy"
   ],
   "properties": {
     "theme": {
@@ -1706,6 +1707,41 @@
         "backup_dir": ""
       },
       "x-itembank-phase": 16.2
+    },
+    "agent_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "What an agent client is permitted to do without a human accepting each step (Phase 15A, RIGHTS-02 and AGENT-02). The level lives here, in settings, and never on the operation: an agent that could report its own authority could raise it, which is the self-expansion AGENT-02 forbids by name. An operation declaring more than this level is refused rather than narrowed, so the over-declaration surfaces instead of passing quietly at the permitted level. Both defaults grant nothing, the same restrictive posture unknown rights already take. Read by this phase (15).",
+      "required": [
+        "autonomy_level",
+        "max_bindings_per_operation"
+      ],
+      "properties": {
+        "autonomy_level": {
+          "type": "string",
+          "enum": [
+            "recommend-only",
+            "draft-and-review",
+            "approved-bounded-write"
+          ],
+          "default": "recommend-only",
+          "description": "The highest authority an agent operation may declare, in ascending order. recommend-only proposes and writes nothing; draft-and-review may draft an artifact a reviewer accepts; approved-bounded-write may write within the binding cap below.",
+          "x-itembank-phase": 15
+        },
+        "max_bindings_per_operation": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 50,
+          "default": 0,
+          "description": "How many bindings one approved-bounded-write operation may write. Zero by default, so raising autonomy_level alone still writes nothing and the two settings must both be changed deliberately.",
+          "x-itembank-phase": 15
+        }
+      },
+      "default": {
+        "autonomy_level": "recommend-only",
+        "max_bindings_per_operation": 0
+      },
+      "x-itembank-phase": 15
     }
   }
 }

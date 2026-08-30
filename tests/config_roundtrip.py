@@ -124,7 +124,10 @@ def test_schema_names_every_project_key():
                 # plan 16B-06: the four APP-03 settings groups, all declared
                 # at phase 16.2 and gated on by nothing yet.
                 "approved_roots", "network_egress", "accessibility",
-                "storage"}
+                "storage",
+                # plan 15A-04: the agent autonomy policy (level plus binding
+                # cap), enforced policy-side so an agent cannot raise its own.
+                "agent_policy"}
     if keys != expected:
         fail("schema properties %r do not equal the expected key set %r" % (keys, expected))
     for name, sub in schema["properties"].items():
@@ -791,6 +794,19 @@ def test_all_codes_reachable():
 
 NEW_16B_KEYS = ("approved_roots", "network_egress", "accessibility", "storage")
 
+# Keys added AFTER the 16B additivity baseline was recorded. They are excluded
+# from the pre-existing set for the same reason the 16B keys are: the baseline
+# describes the settings document as it stood before 16B, and a key that did
+# not exist then is not a pre-existing key whose value could have moved.
+# Without this, every later additive settings key fails an additivity test by
+# being additive, which is the opposite of what the test is for.
+POST_BASELINE_KEYS = (
+    # plan 15A-04: the agent autonomy policy.
+    "agent_policy",
+)
+
+BASELINE_EXCLUDED_KEYS = NEW_16B_KEYS + POST_BASELINE_KEYS
+
 PRECONDITION = os.path.join(
     ROOT, ".planning", "phases", "16B-ia-modes-recovery-contract",
     "16B-PRECONDITION.md")
@@ -832,7 +848,8 @@ def test_16b_groups_additive():
     before this phase, and a pre-phase file still loads."""
     count, digest = _read_additivity_baseline()
     document = settings.load_settings(ROOT)
-    preserved = {k: v for k, v in document.items() if k not in NEW_16B_KEYS}
+    preserved = {k: v for k, v in document.items()
+                 if k not in BASELINE_EXCLUDED_KEYS}
     if len(preserved) != count:
         fail("the pre-existing settings document has %d keys, baseline "
              "recorded %d; the change was not additive"
@@ -983,6 +1000,85 @@ def test_16b_groups_labelled_and_flagged():
         shutil.rmtree(base, ignore_errors=True)
 
 
+
+def test_agent_policy_enum_and_default():
+    """The Phase 15A agent autonomy policy: typed, bounded, restrictive by
+    default, and refused rather than defaulted on a bad value."""
+    schema = settings.load_schema()
+    block = schema["properties"]["agent_policy"]
+
+    for annotation in ("default", "x-itembank-phase", "description"):
+        if annotation not in block:
+            fail("agent_policy has no %s annotation" % annotation)
+    if block.get("additionalProperties") is not False:
+        fail("agent_policy permits additional properties")
+    if block.get("required") != ["autonomy_level", "max_bindings_per_operation"]:
+        fail("agent_policy's required list is %r" % (block.get("required"),))
+    if "agent_policy" not in schema["required"]:
+        fail("agent_policy is not in the schema's top-level required array")
+
+    level = block["properties"]["autonomy_level"]
+    if level.get("enum") != ["recommend-only", "draft-and-review",
+                             "approved-bounded-write"]:
+        fail("autonomy_level's enum is %r" % (level.get("enum"),))
+    if level.get("default") != "recommend-only":
+        fail("autonomy_level defaults to %r, not the restrictive value"
+             % (level.get("default"),))
+
+    cap = block["properties"]["max_bindings_per_operation"]
+    if cap.get("type") != "integer":
+        fail("max_bindings_per_operation's type is %r" % (cap.get("type"),))
+    if cap.get("minimum") != 0 or cap.get("maximum") != 50:
+        fail("max_bindings_per_operation's bounds are %r..%r"
+             % (cap.get("minimum"), cap.get("maximum")))
+    if cap.get("default") != 0:
+        fail("max_bindings_per_operation defaults to %r; raising the level "
+             "alone must still write nothing" % (cap.get("default"),))
+
+    # A fresh install grants nothing.
+    base = tempfile.mkdtemp()
+    try:
+        loaded = settings.load_settings(base)
+        if loaded["agent_policy"] != {"autonomy_level": "recommend-only",
+                                      "max_bindings_per_operation": 0}:
+            fail("a fresh install's agent_policy is %r"
+                 % (loaded["agent_policy"],))
+        # A file that omits the block entirely still reads the defaults.
+        with io.open(settings_file(base), "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({"theme": "dark"}))
+        loaded = settings.load_settings(base)
+        if loaded["agent_policy"]["autonomy_level"] != "recommend-only":
+            fail("a pre-15A file did not default agent_policy")
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+    # A bad value is refused, not silently defaulted.
+    base = tempfile.mkdtemp()
+    try:
+        with io.open(settings_file(base), "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({"agent_policy": {
+                "autonomy_level": "anything",
+                "max_bindings_per_operation": 0}}))
+        r = run([], base)
+        if r.returncode == 0:
+            fail("a bad autonomy_level loaded cleanly")
+        output = r.stdout + r.stderr
+        code = code_in(output)
+        if not code.startswith("settings."):
+            fail("a bad autonomy_level gave code %r" % (code,))
+        if "autonomy_level" not in output and "agent_policy" not in output:
+            fail("the refusal names neither key: %r" % (output,))
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+    # The repository's own itembank.json carries a valid block.
+    own = settings.load_settings(ROOT)["agent_policy"]
+    if own.get("autonomy_level") not in level["enum"]:
+        fail("this repository's agent_policy.autonomy_level is %r"
+             % (own.get("autonomy_level"),))
+    print("ok: agent_policy -- typed, bounded, restrictive by default, and "
+          "refused rather than defaulted on a bad value")
+
 def main():
     test_schema_names_every_project_key()
     test_theme_schema_additive_accent()
@@ -1010,6 +1106,7 @@ def main():
     test_source_group_contract()
     test_teaching_group_contract()
     test_settings_codes_declared()
+    test_agent_policy_enum_and_default()
     test_16b_groups_additive()
     test_16b_defaults_are_restrictive()
     test_16b_invalid_values_are_coded()

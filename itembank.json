@@ -53,7 +53,7 @@
     "winnow_threshold": 8,
     "jaccard_threshold": 0.25
   },
-    "retention": {
+  "retention": {
     "min_settled_attempts": 3,
     "weak_accuracy": 0.6,
     "mastery_accuracy": 0.85,
@@ -109,25 +109,67 @@
       "emt": {
         "id": "emt",
         "version": 1,
-        "lesson": {"markdown": true, "tables": true, "math": false,
-                   "runnable_languages": [], "lesson_layout": "separate"},
-        "allowed_item_types": ["mc", "multi", "table", "dnd", "build", "short", "visual"],
+        "lesson": {
+          "markdown": true,
+          "tables": true,
+          "math": false,
+          "runnable_languages": [],
+          "lesson_layout": "separate"
+        },
+        "allowed_item_types": [
+          "mc",
+          "multi",
+          "table",
+          "dnd",
+          "build",
+          "short",
+          "visual"
+        ],
         "verifier": "runtime"
       },
       "math": {
         "id": "math",
         "version": 1,
-        "lesson": {"markdown": true, "tables": true, "math": true,
-                   "runnable_languages": [], "lesson_layout": "separate"},
-        "allowed_item_types": ["mc", "multi", "table", "dnd", "build", "short", "visual"],
+        "lesson": {
+          "markdown": true,
+          "tables": true,
+          "math": true,
+          "runnable_languages": [],
+          "lesson_layout": "separate"
+        },
+        "allowed_item_types": [
+          "mc",
+          "multi",
+          "table",
+          "dnd",
+          "build",
+          "short",
+          "visual"
+        ],
         "verifier": "runtime"
       },
       "cs": {
         "id": "cs",
         "version": 1,
-        "lesson": {"markdown": true, "tables": true, "math": false,
-                   "runnable_languages": ["python"], "lesson_layout": "inline"},
-        "allowed_item_types": ["check", "mc", "multi", "table", "dnd", "build", "short", "visual"],
+        "lesson": {
+          "markdown": true,
+          "tables": true,
+          "math": false,
+          "runnable_languages": [
+            "python"
+          ],
+          "lesson_layout": "inline"
+        },
+        "allowed_item_types": [
+          "check",
+          "mc",
+          "multi",
+          "table",
+          "dnd",
+          "build",
+          "short",
+          "visual"
+        ],
         "verifier": "check"
       }
     }
@@ -136,7 +178,11 @@
     "timeout_seconds": 5,
     "max_output_bytes": 65536,
     "languages": {
-      "python": ["{interpreter}", "-I", "{source}"]
+      "python": [
+        "{interpreter}",
+        "-I",
+        "{source}"
+      ]
     },
     "allow_lan": false
   },
@@ -147,5 +193,9 @@
     "allow_private_origins": false,
     "fetch_timeout_seconds": 15,
     "max_input_bytes": 209715200
+  },
+  "agent_policy": {
+    "autonomy_level": "recommend-only",
+    "max_bindings_per_operation": 0
   }
 }

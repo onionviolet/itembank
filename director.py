@@ -41,6 +41,7 @@ future edit that reached for one would have to add an import a test asserts
 against.
 """
 import json
+import os
 import unicodedata
 
 import graph
@@ -73,6 +74,21 @@ AGENT_ENTRY_KEYS = ("operation_id", "intent", "actor_role", "autonomy",
 # disclosure a learner is owed differs between them.
 EGRESS_DESTINATIONS = ("local", "hosted", "registered-local")
 
+# Minimization needs a number to be checkable. A cap that drops a span names
+# it in the operation's `omitted` list with the reason, so what did not go is
+# disclosed just as exactly as what did; no span is ever truncated mid-text,
+# because half a passage is a disclosure nobody can verify. Raising either
+# number widens what leaves this machine, which makes it a decision about
+# egress rather than a tuning knob.
+MAX_EGRESS_SPANS = 8
+MAX_EGRESS_BYTES = 16384
+
+# Why a span did not go. Every one is a fact a reviewer can act on: a missing
+# right is fixed by recording one, a cap by splitting the operation, an
+# unreadable source by finding the file.
+OMISSION_REASONS = ("rights-not-granted", "span-cap", "byte-cap",
+                    "source-unreadable")
+
 # What exactly left, recorded per operation (RIGHTS-02). `spans` is the exact
 # list that was sent, `omitted` is what was available and deliberately not
 # sent, and `evidence_included` is always False by construction: no code path
@@ -80,6 +96,21 @@ EGRESS_DESTINATIONS = ("local", "hosted", "registered-local")
 # anyway is what makes that claim auditable rather than merely true.
 EGRESS_KEYS = ("destination", "backend_class", "profile", "spans", "omitted",
                "payload_bytes", "evidence_included")
+
+# The three autonomy levels in ASCENDING authority order, so a comparison is
+# an index comparison and the order is the vocabulary rather than a lookup
+# table beside it. Mirrors settings.agent_policy.autonomy_level exactly; if the
+# two ever disagree the settings schema wins, because that is where a human
+# sets the value.
+AUTONOMY_LEVELS = ("recommend-only", "draft-and-review",
+                   "approved-bounded-write")
+
+# What a settings document with no agent_policy block means. Both values grant
+# nothing: unknown authority is restrictive for the same reason unknown rights
+# are, and a fresh install that granted write authority by omission would be a
+# fresh install that writes without anyone having said it could.
+AGENT_POLICY_DEFAULTS = {"autonomy_level": "recommend-only",
+                         "max_bindings_per_operation": 0}
 
 RECOMMENDATION_KEYS = ("schema_version", "objective_id", "treatment_kind",
                        "rationale", "synthesis", "confidence", "coverage",
@@ -133,10 +164,13 @@ PARITY_VOLATILE_KEYS = ("elapsed_ms", "entry_id", "interaction_id",
 # The typed failures this module can raise. Built from a set-then-sorted tuple
 # so sortedness is structural, following ADAPTER_CODES's construction.
 DIRECTOR_CODES = tuple(sorted({
+    "director.autonomy_exceeded",
     "director.backend_unavailable",
+    "director.bind_cap_exceeded",
     "director.evidence_forbidden",
     "director.recommendation_invalid",
     "director.duplicate_coverage_claim",
+    "director.egress_unapproved",
     "director.empty_treatment_bind",
     "director.rights_not_granted",
     "director.unknown_match_kind",
@@ -727,13 +761,14 @@ def untreated_objectives(doc):
 def _autonomy_permits_write(autonomy):
     """Whether this autonomy level may write without a further review.
 
-    A placeholder, deliberately narrow: only the one literal level permits a
-    write, so the default for every other value is to propose and stop. Plan
-    15A-04 replaces this with the settings-side autonomy policy and its
-    over-declaration refusal; until then, a level this function does not
-    recognize is a level that may not write.
+    Only the highest of the three levels writes. `recommend-only` proposes and
+    `draft-and-review` drafts for a reviewer; neither writes a binding. This
+    reads the declared level, and it is safe to do so only because
+    `authorize_write` has already refused a declaration the policy does not
+    grant, so by this point the declared level is at or below the configured
+    one.
     """
-    return autonomy == "approved-bounded-write"
+    return autonomy == AUTONOMY_LEVELS[-1]
 
 
 def recommend_treatments(base, course_root, objective_ids, settings,
@@ -756,7 +791,23 @@ def recommend_treatments(base, course_root, objective_ids, settings,
     import course
 
     entries = []
-    for objective_id in objective_ids or ():
+    objective_ids = list(objective_ids or ())
+    # Checked once, before the first objective, and not once per objective. An
+    # over-declaring operation is refused before any binding is written rather
+    # than after the first one has already landed.
+    write_permitted = True
+    refusal = None
+    if objective_ids:
+        try:
+            authorize_write(settings, autonomy, len(objective_ids))
+        except DirectorError as exc:
+            if exc.code not in ("director.autonomy_exceeded",
+                                "director.bind_cap_exceeded"):
+                raise
+            write_permitted = False
+            refusal = exc
+
+    for objective_id in objective_ids:
         result = recommend_once(base, course_root, objective_id, settings,
                                 profile_name, actor_kind, actor_name,
                                 actor_role, autonomy, scopes=scopes)
@@ -774,13 +825,13 @@ def recommend_treatments(base, course_root, objective_ids, settings,
         chosen = ranked[0]["treatment_kind"] if ranked else ""
         record = dict(record, treatment_kind=chosen)
 
-        if not _autonomy_permits_write(autonomy):
+        if not write_permitted or not _autonomy_permits_write(autonomy):
             entries.append({"objective_id": objective_id,
                             "outcome": "untreated",
                             "reason": "no-recommendation" if not chosen
                             else "reviewer-rejected",
                             "treatment_kind": chosen,
-                            "code": "",
+                            "code": refusal.code if refusal else "",
                             "record": record})
             continue
 
@@ -828,41 +879,265 @@ def recommend_treatments(base, course_root, objective_ids, settings,
     return entries
 
 
-def _spans_for_objective(doc, objective_id):
-    """The approved source spans for one objective, from its existing source
-    bindings.
+def autonomy_level(settings):
+    """The autonomy level this installation grants, from settings.
 
-    An objective with no source bindings yields an empty list, and that is a
-    legitimate request: a provider asked about an objective with nothing behind
-    it should answer `missing` coverage, which is more useful than a refusal.
+    Never from the operation. An agent that could report its own authority
+    could raise it, which is the self-expansion AGENT-02 forbids by name, so
+    the declared level is an input to be checked and this is the value checked
+    against. A missing block or a missing key reads as `recommend-only`: the
+    absence of a grant is not a grant.
     """
+    block = (settings or {}).get("agent_policy") or {}
+    return block.get("autonomy_level") or AGENT_POLICY_DEFAULTS["autonomy_level"]
+
+
+def max_bindings_per_operation(settings):
+    """How many bindings one operation may write, from settings. Zero when
+    absent, so raising the level alone still writes nothing."""
+    block = (settings or {}).get("agent_policy") or {}
+    value = block.get("max_bindings_per_operation")
+    if not isinstance(value, int):
+        return AGENT_POLICY_DEFAULTS["max_bindings_per_operation"]
+    return value
+
+
+def authorize_write(settings, declared_level, bindings_requested=0):
+    """Refuse unless the declared authority is within policy. Returns None.
+
+    Returns None on success, deliberately and not a level. There is no value a
+    caller could mistake for a granted authority, and nothing to accidentally
+    pass along as though it were permission.
+
+    An over-declaration is REFUSED, never narrowed to the permitted level.
+    Narrowing would let an agent that asked for more than it may have proceed
+    quietly at what it may have, and the attempt, which is the thing worth
+    seeing, would never surface. An unrecognized level is refused for the same
+    reason rather than treated as the lowest: an authority nobody recognizes is
+    not a small authority.
+    """
+    granted = autonomy_level(settings)
+    if declared_level not in AUTONOMY_LEVELS:
+        raise DirectorError(
+            "director.autonomy_exceeded",
+            "%s is not one of the three autonomy levels (%s); an unrecognized "
+            "authority is refused rather than treated as the lowest level"
+            % (declared_level, ", ".join(AUTONOMY_LEVELS)))
+    if granted not in AUTONOMY_LEVELS:
+        raise DirectorError(
+            "director.autonomy_exceeded",
+            "the configured autonomy level %s is not one of the three levels "
+            "(%s); the operation is refused rather than run at a guessed level"
+            % (granted, ", ".join(AUTONOMY_LEVELS)))
+    if AUTONOMY_LEVELS.index(declared_level) > AUTONOMY_LEVELS.index(granted):
+        raise DirectorError(
+            "director.autonomy_exceeded",
+            "this operation declares the autonomy level %s but the configured "
+            "policy grants %s, so it is refused rather than narrowed; next "
+            "safe action: raise agent_policy.autonomy_level deliberately, or "
+            "run the operation at %s"
+            % (declared_level, granted, granted))
+    cap = max_bindings_per_operation(settings)
+    if bindings_requested > cap:
+        raise DirectorError(
+            "director.bind_cap_exceeded",
+            "this operation requests %d bindings but the configured policy "
+            "permits %d per operation, so it is refused; next safe action: "
+            "raise agent_policy.max_bindings_per_operation, or split the "
+            "operation" % (bindings_requested, cap))
+    return None
+
+
+def approved_spans(base, doc, objective_id, treatment_kind, source_texts):
+    """The spans an agent may receive for this objective, and what was held
+    back and why. Returns `(spans, omissions)`.
+
+    Takes no rights parameter, deliberately, and caches no registry read. The
+    current registry is read through `course.rights_for_binding` on every call
+    for every source, so a right revoked a second ago takes effect now. A
+    rights value observed earlier in this same process is history, and so is a
+    binding row's `rights_snapshot` column: neither authorizes anything. That
+    is the difference between a permission and a memory of one.
+
+    Every excluded source is disclosed rather than silently absent. A span that
+    does not go is as much a fact about the operation as a span that does, and
+    a reviewer who cannot see what was held back cannot tell minimization from
+    a bug.
+    """
+    import course
+
+    right = graph.treatment_right(treatment_kind)
     spans = []
+    omissions = []
     for row in doc.get("bindings") or ():
         if row.get("binding_kind") != "source":
             continue
         if row.get("objective") != objective_id:
             continue
-        spans.append({"source_object_id": row.get("source_object_id") or "",
-                      "locator": row.get("locator") or ""})
-    return spans
+        source_object_id = row.get("source_object_id") or ""
+        state = course.rights_for_binding(base, source_object_id, right)
+        registry = journal.read_registry(base)
+        current = (registry.get(source_object_id) or {}).get("rights")
+        if not identity.rights_granted(current, right):
+            omissions.append({"source_object_id": source_object_id,
+                              "locator": row.get("locator") or "",
+                              "reason": "rights-not-granted",
+                              "detail": "the %s right reads %s"
+                                        % (right, state)})
+            continue
+        source_text = source_texts.get(source_object_id)
+        if source_text is None:
+            omissions.append({"source_object_id": source_object_id,
+                              "locator": row.get("locator") or "",
+                              "reason": "source-unreadable",
+                              "detail": "no text was supplied for this source"})
+            continue
+        locator = row.get("locator") or ""
+        spans.append({"source_object_id": source_object_id,
+                      "locator": locator,
+                      "text": locator,
+                      "bytes": len(locator.encode("utf-8"))})
+
+    # Dedupe on the same key the coverage classifier uses, so a span and a
+    # coverage claim can never disagree about whether two locators are one.
+    seen = set()
+    unique = []
+    for span in spans:
+        key = (span["source_object_id"], locator_key(span["locator"]))
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(span)
+
+    sort_key = lambda s: (s["source_object_id"], locator_key(s["locator"]))
+    unique.sort(key=sort_key)
+
+    kept = []
+    budget = MAX_EGRESS_BYTES
+    for span in unique:
+        if len(kept) >= MAX_EGRESS_SPANS:
+            omissions.append({"source_object_id": span["source_object_id"],
+                              "locator": span["locator"],
+                              "reason": "span-cap",
+                              "detail": "the operation already carries %d spans"
+                                        % MAX_EGRESS_SPANS})
+            continue
+        if span["bytes"] > budget:
+            omissions.append({"source_object_id": span["source_object_id"],
+                              "locator": span["locator"],
+                              "reason": "byte-cap",
+                              "detail": "%d bytes would exceed the %d byte cap"
+                                        % (span["bytes"], MAX_EGRESS_BYTES)})
+            continue
+        budget -= span["bytes"]
+        kept.append(span)
+
+    omissions.sort(key=sort_key)
+    return kept, omissions
 
 
-def _egress_record(request, profile_name, backend_class, spans, omitted=()):
-    """What exactly left this machine, for one operation.
+# Assembling spans for a recommendation request consumes `read`: the operation
+# reads a passage in order to describe it, and reproduces nothing. This names
+# the treatment kind whose right IS `read` rather than passing a bare right
+# string around, so there stays one vocabulary and `graph.TREATMENT_RIGHTS`
+# stays the single place a right is resolved from a treatment.
+RECOMMENDATION_SPAN_TREATMENT = "direct-reading"
 
-    `payload_bytes` is measured on the same serialization the transport sends,
-    so the figure is the real one rather than an estimate of it.
+
+def source_texts_for(base, doc, right=graph.SOURCE_BINDING_RIGHT):
+    """The text of every bound source whose `right` reads granted right now.
+
+    Reads the registry live, per source, and reads a file only after that
+    source's right has been checked. `approved_spans` checks the same right
+    again over the result, which is deliberate: this function decides what may
+    be opened, that one decides what may be sent, and a bug in either is
+    caught by the other rather than by a reviewer.
+
+    A source whose file is missing or undecodable is simply absent from the
+    mapping, which `approved_spans` reports as `source-unreadable`. A course
+    whose file moved is a course with a gap, not a crash.
     """
-    return {
-        "destination": "hosted" if backend_class == "hosted" else "local",
-        "backend_class": backend_class,
-        "profile": profile_name,
-        "spans": [dict(s) for s in (spans or ())],
-        "omitted": list(omitted or ()),
-        "payload_bytes": len(json.dumps(request, ensure_ascii=False,
-                                        sort_keys=True).encode("utf-8")),
-        "evidence_included": False,
-    }
+    registry = journal.read_registry(base)
+    texts = {}
+    for row in doc.get("bindings") or ():
+        if row.get("binding_kind") != "source":
+            continue
+        source_object_id = row.get("source_object_id") or ""
+        if not source_object_id or source_object_id in texts:
+            continue
+        record = registry.get(source_object_id) or {}
+        if not identity.rights_granted(record.get("rights"), right):
+            continue
+        path = os.path.join(os.path.abspath(base), record.get("path") or "")
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                texts[source_object_id] = fh.read()
+        except (OSError, UnicodeDecodeError):
+            continue
+    return texts
+
+
+# Which destination a transport reaches. `hosted_cli` leaves for a third
+# party; `openai_compatible` reaches a separate process that is still the
+# learner's own machine or network. The two are disclosed differently because
+# the disclosure a learner is owed differs between them. There is no fourth
+# string: a transport this map does not name records `local`, which is the
+# claim that nothing left.
+TRANSPORT_DESTINATIONS = {"hosted_cli": "hosted",
+                          "openai_compatible": "registered-local"}
+
+
+def egress_record(destination, backend_class, profile_name, spans, omissions,
+                  payload_bytes):
+    """The exact disclosure of what left this machine, for one operation.
+
+    Names every span and every omission individually. It does not summarize,
+    round, or elide: a count, a phrase such as "the objective text", or a
+    truncated list in place of the identifiers and byte counts would be a
+    disclosure nobody can check, which is worse than none because it reads as
+    one.
+
+    The `text` of each span is deliberately stripped. This record says WHAT was
+    sent, by source and locator and byte count; it is not a second copy of the
+    content, and duplicating the passage here would put the same bytes in the
+    append-only journal that the learner may later want deleted.
+
+    `evidence_included` is `False` unconditionally, and it is recorded anyway.
+    No code path in this module can reach the evidence store, because
+    `director.py` does not import `evidence`. Writing the field regardless is
+    what makes the claim auditable rather than merely true: a reader of the
+    journal sees the assertion instead of having to know about an absent
+    import.
+    """
+    for entry in list(spans or ()) + list(omissions or ()):
+        for field in EVIDENCE_FIELDS:
+            if field in entry:
+                raise DirectorError(
+                    "director.evidence_forbidden",
+                    "a recommendation payload may not carry learner evidence, "
+                    "attempts, scores, marks, or session state; the field %s "
+                    "was refused" % field)
+
+    sort_key = lambda e: (e.get("source_object_id") or "",
+                          locator_key(e.get("locator") or ""))
+    clean_spans = sorted(
+        ({"source_object_id": s.get("source_object_id") or "",
+          "locator": s.get("locator") or "",
+          "bytes": s.get("bytes") or 0} for s in (spans or ())),
+        key=sort_key)
+    clean_omissions = sorted(
+        ({"source_object_id": o.get("source_object_id") or "",
+          "locator": o.get("locator") or "",
+          "reason": o.get("reason") or "",
+          "detail": o.get("detail") or ""} for o in (omissions or ())),
+        key=sort_key)
+    return {"destination": destination,
+            "backend_class": backend_class,
+            "profile": profile_name,
+            "spans": clean_spans,
+            "omitted": clean_omissions,
+            "payload_bytes": payload_bytes,
+            "evidence_included": False}
 
 
 def recommend_once(base, course_root, objective_id, settings, profile_name,
@@ -884,19 +1159,52 @@ def recommend_once(base, course_root, objective_id, settings, profile_name,
                                    autonomy, scopes)
     read = course.read_course(course_root)
     doc = read["doc"]
-    spans = _spans_for_objective(doc, objective_id)
+    texts = source_texts_for(base, doc)
+    spans, omissions = approved_spans(base, doc, objective_id,
+                                      RECOMMENDATION_SPAN_TREATMENT, texts)
     request = recommendation_request(
         doc, objective_id, spans, profile_name,
         interaction_id or new_operation_id())
+
+    # Measured on the same serialization model_adapter._invoke builds, so the
+    # disclosed figure is the one that actually crossed the boundary rather
+    # than an estimate of it. Computed here from the request director itself
+    # built, so the two cannot disagree without the request having changed.
+    request_bytes = len(json.dumps(request, ensure_ascii=False,
+                                   sort_keys=True).encode("utf-8"))
+
+    resolved, _reason = model_adapter.resolve_profile(
+        settings, profile_name or None)
+    transport = (resolved or {}).get("transport")
+    destination = TRANSPORT_DESTINATIONS.get(transport, "local")
+    if resolved is None:
+        # No profile resolved, so nothing was ever sent.
+        destination, request_bytes, spans = "local", 0, []
+
     result = model_adapter.invoke(request, settings)
 
     if result.get("status") != "ok":
         error = result.get("error") or {}
+        # An unavailable result may or may not have reached the wire. The
+        # honest disclosure for a failure that never sent anything is `local`
+        # with zero bytes; for one that did, it is what was sent. The adapter
+        # tells the two apart by its code: the four below fail before any byte
+        # leaves the process.
+        never_sent = error.get("code") in (
+            "adapter.executable_missing", "adapter.profile_disabled",
+            "adapter.profile_invalid", "adapter.profile_unknown",
+            "adapter.transport_unknown", "adapter.request_invalid")
         record_phase(
             base, operation_id, "plan-treatment", 1, "refused",
             actor_kind=actor_kind, actor_name=actor_name,
             intent="recommend a treatment", actor_role=actor_role,
             autonomy=autonomy, scopes=scopes,
+            egress=egress_record(
+                "local" if never_sent else destination,
+                "local" if never_sent else (transport or "local"),
+                profile_name,
+                [] if never_sent else spans, omissions,
+                0 if never_sent else request_bytes),
             code=error.get("code") or "director.backend_unavailable",
             message=error.get("message") or "")
         return {"status": "unavailable", "code": error.get("code") or "",
@@ -911,8 +1219,10 @@ def recommend_once(base, course_root, objective_id, settings, profile_name,
         autonomy=autonomy, scopes=scopes,
         proposal={"objective_id": objective_id,
                   "treatment_kind": record["treatment_kind"]},
-        egress=_egress_record(request, provider.get("profile") or profile_name,
-                              provider.get("backend_class") or "local", spans),
+        egress=egress_record(destination,
+                             provider.get("backend_class") or "local",
+                             provider.get("profile") or profile_name,
+                             spans, omissions, request_bytes),
         message="a recommendation was received and validated")
     return {"status": "ok", "code": "", "record": record,
             "operation_id": operation_id}
@@ -984,7 +1294,10 @@ def apply_recommendation(base, course_root, record, source_object_id,
         actor_kind=actor_kind, actor_name=actor_name,
         proposal={"objective_id": record["objective_id"],
                   "treatment_kind": treatment_kind},
-        egress=_egress_record({}, profile_name, backend_class,
-                              record.get("citations") or ()),
+        # The bind sends nothing. Recording an egress dict anyway, with an
+        # empty span list and zero bytes, is the disclosure that this phase of
+        # the operation reached no backend; an absent key would leave a reader
+        # unable to tell "nothing was sent" from "nobody recorded".
+        egress=egress_record("local", "local", profile_name, [], [], 0),
         message="the recommendation was bound")
     return result

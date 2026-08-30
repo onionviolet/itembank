@@ -891,3 +891,111 @@ def build_coverage_fixture(dest):
         "claims": claims,
         "decoy_claim": decoy_claim,
     }
+
+
+# The four rights profiles the RIGHTS-02 matrix needs, in this order: every
+# right granted, only read, only transform, and nothing at all. Four sources
+# rather than four test cases, because the point is that ONE call over ONE
+# objective sorts them, not that four calls each get the right answer.
+RIGHTS_MATRIX = (
+    ("rights-all", {"read": "granted", "quote": "granted",
+                    "transform": "granted", "remote_process": "granted",
+                    "package": "granted", "export": "granted",
+                    "share": "granted"}),
+    ("rights-read-only", {"read": "granted"}),
+    ("rights-transform-only", {"transform": "granted"}),
+    ("rights-none", {}),
+)
+
+
+def build_rights_matrix_fixture(dest):
+    """One objective bound to four sources with four different rights states,
+    plus a capped objective and a dedupe objective.
+
+    The capped objective carries twelve eligible spans so the span cap is
+    reachable; the dedupe objective carries locators that differ only by
+    trailing carriage returns and by letter case, so both halves of the
+    normalization rule are exercised by data.
+    """
+    import course
+    import graph
+    import identity
+    import journal
+
+    built = build_three_domains(dest)
+    root = built["domains"][0]["root"]
+    container = built["domains"][0]["containers"][0]
+
+    source_ids = []
+    source_texts = {}
+    for slug, grant in RIGHTS_MATRIX:
+        rel = "sources/%s.md" % slug
+        os.makedirs(os.path.join(root, "sources"), exist_ok=True)
+        body = RECOMMENDATION_SOURCE_BODY % slug
+        with open(os.path.join(root, rel), "w", encoding="utf-8") as fh:
+            fh.write(body)
+        rights = identity.rights_default()
+        rights.update(grant)
+        entry = journal.op_link(root, "source", rel, "agent", "corpus-15a",
+                                rights=rights)
+        source_ids.append(entry["object_id"])
+        source_texts[entry["object_id"]] = body
+
+    read = course.read_course(root)
+    doc = read["doc"]
+    objective_id = graph.add_objective(
+        doc, "Read the rights matrix across four sources.",
+        container=container)["id"]
+    capped_objective_id = graph.add_objective(
+        doc, "Read a source carrying twelve eligible spans.",
+        container=container)["id"]
+    dedupe_objective_id = graph.add_objective(
+        doc, "Read a source carrying near-duplicate locators.",
+        container=container)["id"]
+    unbound_objective_id = graph.add_objective(
+        doc, "Read nothing at all.", container=container)["id"]
+    for object_id, (slug, _) in zip(source_ids, RIGHTS_MATRIX):
+        doc["sources"].append(graph.new_record("Sources", {
+            "source_object_id": object_id, "title": slug,
+            "note": "rights are recorded on the source object, never here"}))
+    course.write_course(root, doc, read["fingerprint"], "agent", "corpus-15a")
+
+    # The matrix objective: one binding per source. bind_source consumes the
+    # `read` right, so only the two sources granting read can be bound through
+    # the gated path; the other two are appended directly to the document,
+    # which is what a course that recorded a binding before a right was
+    # revoked looks like.
+    for object_id in source_ids:
+        read = course.read_course(root)
+        doc = read["doc"]
+        graph.add_binding(doc, "source", objective_id, object_id,
+                          locator="matrix span for %s" % object_id,
+                          state="unknown", confidence="high",
+                          rights_snapshot="granted")
+        course.write_course(root, doc, read["fingerprint"], "agent",
+                            "corpus-15a")
+
+    # Twelve eligible spans on the all-granted source.
+    read = course.read_course(root)
+    doc = read["doc"]
+    for n in range(12):
+        graph.add_binding(doc, "source", capped_objective_id, source_ids[0],
+                          locator="capped span %02d" % n, state="unknown",
+                          confidence="high", rights_snapshot="granted")
+    # Near-duplicates: the first two normalize to one key, the third does not.
+    for locator in ("dedupe span", "dedupe span\r", "Dedupe Span"):
+        graph.add_binding(doc, "source", dedupe_objective_id, source_ids[0],
+                          locator=locator, state="unknown", confidence="high",
+                          rights_snapshot="granted")
+    course.write_course(root, doc, read["fingerprint"], "agent", "corpus-15a")
+
+    return {
+        "dest": dest,
+        "course_root": root,
+        "objective_id": objective_id,
+        "capped_objective_id": capped_objective_id,
+        "dedupe_objective_id": dedupe_objective_id,
+        "unbound_objective_id": unbound_objective_id,
+        "source_ids": source_ids,
+        "source_texts": source_texts,
+    }

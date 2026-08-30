@@ -174,6 +174,19 @@ def _recorded_baseline():
     return hashes, counts, view_hash
 
 
+# Schema keys added AFTER 16C recorded its additivity baseline. Stripping
+# these reconstructs the document the baseline describes, so 16C's proof stays
+# checkable instead of being retired the first time a later phase extends one
+# of the baselined files. A key is added here only when the phase that added
+# it is additive by construction; a key that CHANGED an existing property
+# would not come back to the baseline digest and would still fail, which is
+# the case the check exists for.
+POST_BASELINE_SCHEMA_KEYS = {
+    # plan 15A-04: the agent autonomy policy.
+    "schemas/settings.schema.json": ("agent_policy",),
+}
+
+
 def check_additivity():
     """The pre-16C world is byte-identical, and the degrade path still
     degrades."""
@@ -183,10 +196,31 @@ def check_additivity():
              % (hashes, counts, view_hash))
         return
     for path, expected in hashes.items():
-        actual = hashlib.sha256(open(os.path.join(ROOT, path),
-                                     "rb").read()).hexdigest()
-        if actual != expected:
-            fail("%s changed: %s, baseline %s" % (path, actual, expected))
+        raw = open(os.path.join(ROOT, path), "rb").read()
+        actual = hashlib.sha256(raw).hexdigest()
+        if actual == expected:
+            continue
+        # A later phase may legitimately EXTEND a baselined schema. 16C's
+        # claim is that 16C did not change the pre-16C world, and that claim
+        # is still checkable after an additive change: strip the keys added
+        # after the baseline was taken and the digest must come back.
+        #
+        # The baseline itself is never re-recorded. Re-recording it would make
+        # the additivity proof circular, which is exactly what
+        # `_recorded_baseline`'s docstring warns about, so the recovery is to
+        # reconstruct the baselined document rather than to update the number.
+        if path in POST_BASELINE_SCHEMA_KEYS:
+            document = json.loads(raw.decode("utf-8"))
+            for key in POST_BASELINE_SCHEMA_KEYS[path]:
+                document.get("properties", {}).pop(key, None)
+                if key in document.get("required", []):
+                    document["required"].remove(key)
+            stripped = json.dumps(document, indent=2,
+                                  ensure_ascii=False) + "\n"
+            actual = hashlib.sha256(stripped.encode("utf-8")).hexdigest()
+            if actual == expected:
+                continue
+        fail("%s changed: %s, baseline %s" % (path, actual, expected))
     caps = [list(evidence.capture_events(os.path.join(ROOT, p)))
             for p in ("fixtures/selection_evidence.jsonl",
                       "fixtures/lesson_retention_events.jsonl")]
