@@ -1428,13 +1428,38 @@ def read_session(path):
 
 
 def write_session(path, data):
+    """Write one session atomically, through a temp name no other writer can
+    claim.
+
+    The temp name carries a per-write nonce because the daemon is threaded and
+    two requests can write one session file at the same moment. A shared
+    `<target>.tmp` made that collide rather than serialize: the first
+    `os.replace` consumed the temp file, and the second raised
+    `FileNotFoundError` on a path it had just written. That surfaced as an
+    intermittent `400 Bad Request` out of `handle_quiz_get`, reproduced on
+    2026-08-30 at twelve concurrent requests. Last-writer-wins on the content
+    is unchanged and still the caller's problem to avoid; what is fixed is one
+    writer destroying another's in-flight temp file.
+
+    The suffix stays `.tmp` so every leftover sweep that looks for
+    `endswith(".tmp")` still sees these.
+    """
     target = session_path(path)
     os.makedirs(os.path.dirname(target), exist_ok=True)
-    tmp = target + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(data, fh, ensure_ascii=False, indent=2)
-        fh.write("\n")
-    os.replace(tmp, target)
+    tmp = "%s.%s.tmp" % (target, os.urandom(4).hex())
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, ensure_ascii=False, indent=2)
+            fh.write("\n")
+        os.replace(tmp, target)
+    except BaseException:
+        # A failed write leaves the old session valid; it may not also leave
+        # a half-written temp file behind for a leftover sweep to find.
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def session_view(data, qs):

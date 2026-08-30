@@ -616,10 +616,21 @@ def check_unknown_stem():
 
 
 def check_concurrency():
-    """Two overlapping requests must both complete -- `Daemon` mixes in
-    `socketserver.ThreadingMixIn`, checked here both structurally (the
-    import-time assertion) and behaviourally (several concurrent requests
-    that must all resolve rather than serialize behind one another).
+    """Overlapping requests must all complete, and they must agree on one
+    session -- `Daemon` mixes in `socketserver.ThreadingMixIn`, checked here
+    structurally (the import-time assertion) and behaviourally.
+
+    The session count is the half that had no assertion until 2026-08-30.
+    `_ensure_quiz_session` read `api_session_id`, found it unset, and created
+    a sitting, all outside the lock, so N concurrent first hits on a fresh
+    daemon left N sittings under `_attempts/` for one bank and kept whichever
+    finished last. Concurrency that returns six 200s and six sessions is not
+    a daemon serving one learner.
+
+    Twelve, not six: the stdlib listen backlog of 5 was reached at twelve and
+    not at six, so six could not have seen it. `Daemon.request_queue_size`
+    now sets that explicitly and this is the check that would notice its
+    removal.
     """
     if not issubclass(daemon.Daemon, socketserver.ThreadingMixIn):
         fail("daemon.Daemon does not mix in socketserver.ThreadingMixIn")
@@ -634,10 +645,16 @@ def check_concurrency():
             try:
                 status, _ = get(url + "quiz/sample_bank")
                 results[key] = status
+            except urllib.error.HTTPError as exc:
+                # Read the body. Discarding it is why an intermittent 400 out
+                # of this check was recorded for a day as "cause unknown"
+                # when the body named the failing path outright.
+                results[key] = "HTTP %d: %s" % (
+                    exc.code, exc.read()[:400].decode("utf-8", "replace"))
             except Exception as exc:                # noqa: BLE001 -- recorded, not raised
                 results[key] = exc
 
-        threads = [threading.Thread(target=hit, args=(i,)) for i in range(6)]
+        threads = [threading.Thread(target=hit, args=(i,)) for i in range(12)]
         for t in threads:
             t.start()
         for t in threads:
@@ -647,8 +664,71 @@ def check_concurrency():
         for key, value in results.items():
             if value != 200:
                 fail("concurrent request %s did not return 200: %r" % (key, value))
+        attempts = os.path.join(workdir, "_attempts")
+        sessions = sorted(n for n in os.listdir(attempts)
+                          if n.startswith("session_") and n.endswith(".json"))
+        if len(sessions) != 1:
+            fail("%d concurrent first hits on one bank created %d sessions, "
+                 "expected 1: %s" % (len(threads), len(sessions), sessions))
+        strays = [n for n in os.listdir(attempts) if n.endswith(".tmp")]
+        if strays:
+            fail("concurrent session writes left temp files behind: %s" % strays)
     finally:
         proc.terminate()
+
+
+def check_session_write_concurrency():
+    """`runtime.write_session` must survive concurrent writers to one path.
+
+    This lives with the daemon checks because the daemon is what makes it
+    matter: `ThreadingMixIn` means two requests can write one session file at
+    the same moment. The temp name was a shared `<target>.tmp` until
+    2026-08-30, so the first `os.replace` consumed it and the second raised
+    `FileNotFoundError` on the file it had just written, which reached the
+    learner as an intermittent `400 Bad Request` from `GET /quiz/<stem>`.
+
+    Asserted directly rather than through the route, because the route now
+    serializes session creation under `QUIZ_SESSION_LOCK` and would pass with
+    the collision still in place.
+    """
+    tmp = tempfile.mkdtemp()
+    try:
+        target = os.path.join(tmp, "_attempts", "session_concurrent.json")
+        base = {"schema_version": itembank.SESSION_VERSION,
+                "session_id": "sess-concurrent", "status": "live",
+                "mode": "practice", "bank": "sample_bank.md", "objective": "",
+                "items": [0], "cursor": 0, "responses": {}}
+        errors = []
+
+        def writer(n):
+            try:
+                data = dict(base)
+                data["cursor"] = n
+                for _ in range(20):
+                    itembank.write_session(target, data)
+            except Exception as exc:                # noqa: BLE001 -- recorded
+                errors.append("writer %d: %r" % (n, exc))
+
+        threads = [threading.Thread(target=writer, args=(i,)) for i in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=30)
+        if any(t.is_alive() for t in threads):
+            fail("a concurrent session writer never finished")
+        if errors:
+            fail("concurrent session writes raised: %s" % errors[0])
+        strays = [n for n in os.listdir(os.path.dirname(target))
+                  if n.endswith(".tmp")]
+        if strays:
+            fail("concurrent session writes left temp files behind: %s" % strays)
+        # Last writer wins on content, which is unchanged; what may not happen
+        # is a torn or absent file.
+        landed = json.load(open(target, encoding="utf-8"))
+        if landed.get("session_id") != "sess-concurrent":
+            fail("the session that landed is not the one written: %r" % landed)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def check_study_route():
@@ -3703,6 +3783,7 @@ def main():
         check_fixed_routes_not_shadowed,
         check_unknown_stem,
         check_concurrency,
+        check_session_write_concurrency,
         check_study_route,
         check_study_cmd_matches_study_page,
         check_day_route,

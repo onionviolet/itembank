@@ -1956,31 +1956,59 @@ QUIZ_TOKEN_TTL = 4 * 60 * 60
 QUIZ_TOKEN_CAP = 2048
 
 
+# Module-level, not a `DaemonHandler` attribute, and deliberately not
+# `quiz_state_lock`. Module-level because one process serves one daemon, and
+# because `_ensure_quiz_session` is called directly with a stand-in handler by
+# `tests/serve_roundtrip.py` and `tests/model_phase_roundtrip.py`, which should
+# not have to know that a lock lives on the handler class. Separate from
+# `quiz_state_lock` because that one guards short in-memory critical sections
+# over the token and flash stores, while this one spans `session.do_start`,
+# which does file I/O: sharing them would make every token mint wait on a
+# sitting being created.
+QUIZ_SESSION_LOCK = threading.Lock()
+
+
 def _ensure_quiz_session(handler, stem, path, qs):
-    cfg = handler.sessions[stem]
-    api_id = cfg.get("api_session_id")
-    found = api_session_path(handler, api_id) if api_id else None
-    if found:
-        return found
-    # The seed was hardcoded to 0 until 2026-08-24, so a scoped `serve` had no
-    # way to influence item order. That is not cosmetic: a sitting parks on a
-    # constructed response until a marker rules on it, so a bank whose short
-    # item lands first under seed 0 ends at item one. `itembank serve --seed`
-    # is the way out, and 0 stays the default so every existing caller and
-    # every recorded sitting order is unchanged.
-    spec = {"objective": "", "count": len(qs), "seed": int(cfg.get("seed", 0) or 0),
-            "selection_mode": cfg.get("selection_mode", "practice")}
-    out = os.path.join(os.path.abspath(handler.root), "_attempts",
-                       "session_%s.json" % uuid.uuid4().hex[:12])
-    # A scoped `itembank serve` has already run its full bank plus lesson
-    # lint gate before constructing the handler configuration (`progress` is
-    # its existing marker). Do not make that validated surface fail a second,
-    # narrower lint pass when the daemon creates its public baseline.
-    created = session.do_start(path, spec, cfg.get("mode", "practice"), out,
-                               bool(cfg.get("progress")),
-                               preset_session_id=cfg.get("session_id"))
-    cfg["api_session_id"] = created["session_id"]
-    return out
+    """The one session `GET /quiz/<stem>` reads, created once per bank.
+
+    Held under `QUIZ_SESSION_LOCK` because the check and the create are one
+    decision, not two. Unlocked, six concurrent first hits on a fresh daemon
+    each read `api_session_id` as None and each ran `do_start`: measured on
+    2026-08-30 as six session files under `_attempts/` for one bank, with
+    `cfg["api_session_id"]` left pointing at whichever thread finished last
+    and the other five sittings orphaned with their evidence attached.
+
+    The lock covers `do_start` rather than only the dictionary write. A lock
+    released before the create would still let two threads both decide to
+    create.
+    """
+    with QUIZ_SESSION_LOCK:
+        cfg = handler.sessions[stem]
+        api_id = cfg.get("api_session_id")
+        found = api_session_path(handler, api_id) if api_id else None
+        if found:
+            return found
+        # The seed was hardcoded to 0 until 2026-08-24, so a scoped `serve` had
+        # no way to influence item order. That is not cosmetic: a sitting parks
+        # on a constructed response until a marker rules on it, so a bank whose
+        # short item lands first under seed 0 ends at item one. `itembank serve
+        # --seed` is the way out, and 0 stays the default so every existing
+        # caller and every recorded sitting order is unchanged.
+        spec = {"objective": "", "count": len(qs),
+                "seed": int(cfg.get("seed", 0) or 0),
+                "selection_mode": cfg.get("selection_mode", "practice")}
+        out = os.path.join(os.path.abspath(handler.root), "_attempts",
+                           "session_%s.json" % uuid.uuid4().hex[:12])
+        # A scoped `itembank serve` has already run its full bank plus lesson
+        # lint gate before constructing the handler configuration (`progress`
+        # is its existing marker). Do not make that validated surface fail a
+        # second, narrower lint pass when the daemon creates its public
+        # baseline.
+        created = session.do_start(path, spec, cfg.get("mode", "practice"), out,
+                                   bool(cfg.get("progress")),
+                                   preset_session_id=cfg.get("session_id"))
+        cfg["api_session_id"] = created["session_id"]
+        return out
 
 
 def _prune_quiz_store(store):
@@ -4120,8 +4148,18 @@ class Daemon(socketserver.ThreadingMixIn, socketserver.TCPServer):
     detect-and-attach path, which this attribute otherwise defeats outright
     on this project's own target platform) is exactly the bug D-02 exists to
     prevent, so it stays off.
+
+    `request_queue_size` is set, unlike `allow_reuse_address`, because the
+    stdlib default of 5 is a measured limit rather than a safe one: on
+    2026-08-30, twelve concurrent connections against one daemon produced
+    `ConnectionResetError(54)` on the connections past the backlog, while six
+    did not. One page load already opens several connections, so 5 is inside
+    the range a single learner reaches. This is a queue depth for connections
+    already accepted by the kernel, not a thread cap -- `daemon_threads`
+    still governs what serves them.
     """
     daemon_threads = True
+    request_queue_size = 64
 
 
 def _bind(port, host="127.0.0.1"):
