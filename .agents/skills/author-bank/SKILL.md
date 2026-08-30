@@ -117,6 +117,14 @@ Rules that matter (all enforced; write to them, do not fight them):
 - For standardized-test preparation, match only documented item conventions,
   construct distribution, difficulty, timing assumptions, and permitted
   tools.
+- **Structural conformance is subject-scoped and enforced for EMT.** An item
+  whose objective is namespaced `emt:` is checked against NREMT's published
+  examination specifications: multiple choice is 1 correct of exactly 4
+  options, and multiple response is 2 of 5 or 3 of 6, in both cases with
+  exactly 3 incorrect options. A divergence is a hard error. No other subject
+  is checked, because NREMT governs no other subject. Verified citations, and
+  the authorities that say nothing about item writing, are in
+  `.planning/research/2026-08-24-item-writing-standards.md`.
 
 Iterate until the `error` count is zero. Then run the statistical review:
 `stats` for mix, difficulty spread, and position skew; `coverage` for the

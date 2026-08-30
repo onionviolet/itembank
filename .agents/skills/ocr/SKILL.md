@@ -16,6 +16,34 @@ not pretend to read it. Run the local OCR bridge and use the text it returns.
 - A task needs text from a screenshot, scan, or photo (e.g. a textbook page to
   turn into an itembank question bank).
 
+## Binding a page as a cited source
+
+Reading an image for your own use is what the rest of this skill covers, and
+it is unchanged.
+
+Turning a photographed or scanned page into a durable, citable course source
+is a different operation, and it now exists:
+
+```bash
+python itembank.py source import --base <course-root> --file <image> --adapter ocr
+```
+
+or `POST /api/source/import` with `adapter` set to `ocr`. That path runs this
+same bridge, writes derived Markdown plus a locator sidecar, records one
+operation journal entry, and produces a source an objective can cite. Do not
+build a second way to do it.
+
+The sidecar honestly records `bbox` and `confidence` as null, because this
+bridge transcribes text and does not measure where on the page it sat. A
+citation into an OCR source names the page, not a region. If you need
+region-level citation, that is a change to this skill's output contract and a
+locator schema version bump, not something to work around by guessing
+coordinates.
+
+The envelope confidence for an OCR source is `low` by design. Treat an OCR
+transcription as the least reliable source in the course, and prefer a
+text-bearing original whenever one exists.
+
 ## How to run it
 
 ```bash
