@@ -48,11 +48,17 @@ INDEX_FILENAME = "evidence_index.sqlite3"
 # build wrote before 01-07. events() skips and warns on anything outside
 # this set (D-09), so a log written by a later build's event type degrades
 # instead of crashing.
+# "activity_completed" / "activity_skipped" by plan 16C-06: strategy
+# lifecycle facts carrying at most a note ID, never note content. The
+# content-bearing half of a strategy's record stays in the learner-owned,
+# deletable note store, because deletable content inside an append-only log
+# is a contradiction (D-16C-1). EVENT_SCHEMA_VERSION stays 2: no existing
+# event's shape changes.
 KNOWN_EVENT_TYPES = ("response", "retraction", "mark", "day_tick",
                      "term_lookup", "key_review", "hint", "selection",
                      "lesson_complete", "cap_override",
                      "model_interaction", "mark_proposal", "visual_action",
-                     "gate_skip")
+                     "gate_skip", "activity_completed", "activity_skipped")
 
 # The record of what a sitting asked for (D-03): one event per session, so a
 # deleted session file never destroys the ability to reproduce the sitting.

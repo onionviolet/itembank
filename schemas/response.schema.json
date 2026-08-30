@@ -409,8 +409,9 @@
           "type": "string",
           "enum": ["mark", "retraction", "day_tick", "term_lookup",
                    "key_review", "model_interaction", "mark_proposal",
-                   "visual_action"],
-          "description": "lesson_complete, cap_override and selection are deliberately absent: each has its own closed branch, so a malformed event of those types must FAIL validation rather than be accepted by this permissive branch. model_interaction and mark_proposal (plan 08-03) and visual_action (plan 06.1-02) are accepted here."
+                   "visual_action", "activity_completed",
+                   "activity_skipped"],
+          "description": "lesson_complete, cap_override and selection are deliberately absent: each has its own closed branch, so a malformed event of those types must FAIL validation rather than be accepted by this permissive branch. model_interaction and mark_proposal (plan 08-03) and visual_action (plan 06.1-02) are accepted here. activity_completed and activity_skipped (plan 16C-06) are the strategy lifecycle facts, registered here in the same commit as their builder per D-23. They are accepted by this permissive branch rather than given a closed one because their nine-key set is enforced in notes.strategy_lifecycle_event and asserted by tests/note_promotion_roundtrip.py; a closed branch would be a second place to keep that key set in step."
         }
       }
     },

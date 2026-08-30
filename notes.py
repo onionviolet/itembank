@@ -17,9 +17,13 @@ Naming, per D-16C-6 and D15: the per-action states in
 states (lowercase activity). The Activity view (capitalized) is the 16B IA
 area for durable agent and maintenance jobs and is not this module's subject.
 
-What this module does NOT do, by plan: no promotion, review, or deletion
-(16C-06 owns NOTE-02 and NOTE-03), no evidence event of any kind, no trio
-projection (16C-07), no rendering, route, or command.
+It imports `evidence` (plan 16C-06) to append strategy lifecycle facts
+through the one evidence writer, the `surfaces/migrate.py` precedent: the
+builder lives outside `evidence.py` and `evidence.append_event` stays the
+only door. It still imports no `runtime` and nothing from `surfaces/`.
+
+What this module does NOT do: no trio projection (16C-07 owns
+`note_outputs.py`), no rendering, no route, and no command.
 """
 import hashlib
 import json
@@ -27,6 +31,7 @@ import os
 import uuid
 from datetime import datetime, timezone
 
+import evidence
 import model
 
 
@@ -306,3 +311,290 @@ def read_note_document(dir_path, course_id=None):
     except (OSError, ValueError):
         return None
     return {"markdown": markdown, "sidecar": sidecar}
+
+
+# ---------------------------------------------------------------------------
+# Strategy lifecycle facts (plan 16C-06, D-16C-1)
+# ---------------------------------------------------------------------------
+
+STRATEGY_LIFECYCLE_EVENT_TYPES = ("activity_completed", "activity_skipped")
+
+# The four registry ids, validated here as a local constant so this module
+# does not import `strategies`. `strategies.STRATEGY_IDS` is the source of
+# truth and plan 16C-09's tracer asserts the two tuples equal; the local copy
+# exists to keep the note store free of a dependency on the strategy layer,
+# not to become a second registry.
+_REGISTERED_STRATEGY_IDS = ("continuous_reading", "guided_note_spine",
+                            "worked_reasoning", "retrieval_first")
+
+
+def strategy_lifecycle_event(log, event_type, session_id, strategy_id,
+                             action_state, note_ref=""):
+    """Append one strategy lifecycle fact, and nothing about its content.
+
+    The event's key set is closed and carries no content-bearing field: no
+    learner wording, no selected text, no note body, at most a note ID
+    reference (D-16C-1). That is not a privacy nicety, it is the only way the
+    two halves can both keep their contracts: the evidence log is append-only
+    and the note store is deletable, and deletable content inside an
+    append-only log is a contradiction. So the append-only half records that
+    something happened, and the deletable half holds what was said.
+
+    Written through `evidence.append_event` and never through
+    `append_line_checked`, the `surfaces/migrate.py` precedent: the builder
+    may live outside `evidence.py`, the writer may not be duplicated.
+    Returns that function's own answer, `recorded` or `already_recorded`,
+    unchanged, because those are different facts and a caller that collapses
+    them loses one.
+    """
+    if event_type not in STRATEGY_LIFECYCLE_EVENT_TYPES:
+        raise ValueError("unknown lifecycle event type: %r" % (event_type,))
+    if strategy_id not in _REGISTERED_STRATEGY_IDS:
+        raise ValueError("unknown strategy: %r" % (strategy_id,))
+    if action_state not in STRATEGY_ACTION_STATES:
+        raise ValueError("unknown strategy-action state: %r"
+                         % (action_state,))
+    raw = "%s|%s|%s|%s|%s" % (session_id, strategy_id, action_state,
+                              note_ref or "", event_type)
+    event = {
+        "schema_version": evidence.EVENT_SCHEMA_VERSION,
+        "event_id": evidence.new_event_id(),
+        "event_type": event_type,
+        "ts": evidence.utc_now(),
+        "session_id": session_id,
+        "strategy_id": strategy_id,
+        "action_state": action_state,
+        "note_ref": note_ref or "",
+        "dedupe_key": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+    }
+    return evidence.append_event(log, event)
+
+
+# ---------------------------------------------------------------------------
+# Promotion and review (plan 16C-06, NOTE-02)
+# ---------------------------------------------------------------------------
+
+PROMOTION_STATES = ("private", "review_requested", "accepted", "declined")
+
+PROMOTION_COPY = {
+    "private_badge": "Private note. Not part of the course.",
+    "requested_badge": "Review requested. Awaiting source-backed review.",
+    "request_control": "Request review for course use",
+    "flow_heading": "Review for course use",
+    "source_check": "Every keyed or factual claim needs an accepted source. {N} claims have no accepted source yet.",
+    "conflict_stop": "A source conflict was found. Promotion is stopped until the conflict is resolved.",
+    "accept_control": "Accept into course",
+    "accept_confirmation": "Accept this note into the course? The original note stays yours; the course gets a cited copy with its derivation recorded.",
+    "decline_control": "Decline",
+    "decline_reason_label": "Reason (recorded with the decision)",
+    "accepted_badge": "Accepted into the course on {date}.",
+    "declined_badge": "Not accepted: {reason}. Your note is unchanged.",
+}
+
+# accept and decline map onto the journal's applied and refused (D7), so 14A
+# journaling reconciles one review grammar rather than two.
+PROMOTION_OUTCOMES = ("blocked", "conflict_stop", "applied", "refused")
+
+
+def promotion_state(note):
+    """A note's promotion state, defaulting to private.
+
+    Absent means private. A note nobody has done anything about is not in an
+    unknown state; it is in the state every note starts in and most stay in.
+    """
+    state = note.get("promotion_state", "private")
+    return state if state in PROMOTION_STATES else "private"
+
+
+def request_review(note):
+    """A copy of `note` asking for source-backed review.
+
+    Changes the promotion state and nothing else: not the wording, not the
+    anchors, not the privacy scope. Asking for review is a request, not a
+    transfer of ownership, and the note stays the learner's until a reviewer
+    accepts a derived copy (NOTE-02, D3).
+    """
+    asked = dict(note)
+    asked["promotion_state"] = "review_requested"
+    return asked
+
+
+def review_promotion(note, claims, accepted_sources, conflicts, decision,
+                     reviewer, reason="", annotations=None):
+    """The one path from a learner note into course use, and its two gates.
+
+    There is no other. A note becomes course content only when a named human
+    reviewer accepts it, past both gates, and acceptance produces a NEW cited
+    record carrying a derivation edge back to the note's revision. The
+    learner's note is never mutated by acceptance: the course gets a copy,
+    the learner keeps the original, and the derivation says where it came
+    from.
+
+    Gate 1, unsupported claims. Every keyed or factual claim needs an
+    accepted source. When any lacks one the outcome is `blocked` and the
+    sentence states the count, because a silently disabled accept control
+    tells the reviewer nothing about what to fix (UI-SPEC gate 9).
+
+    Gate 2, source conflict. When sources disagree, promotion stops. It never
+    proceeds by preferring the note, the newest source, or a model's opinion.
+
+    `annotations` may carry labeled generated synthesis for the reviewer to
+    read. There is deliberately no code path from an annotation to an
+    outcome: a model may inform the human and settles nothing.
+    """
+    if decision not in ("accept", "decline"):
+        raise ValueError("unknown review decision: %r" % (decision,))
+    if not (reviewer or "").strip():
+        raise ValueError("review_promotion requires a named human reviewer")
+
+    unsupported = [c for c in claims
+                   if c.get("source_id") not in accepted_sources]
+    if unsupported:
+        return {"outcome": "blocked",
+                "note": note,
+                "copy": PROMOTION_COPY["source_check"].replace(
+                    "{N}", str(len(unsupported)))}
+    if conflicts:
+        return {"outcome": "conflict_stop",
+                "note": note,
+                "copy": PROMOTION_COPY["conflict_stop"]}
+
+    if decision == "decline":
+        if not (reason or "").strip():
+            raise ValueError("a declined promotion requires a recorded "
+                             "reason")
+        return {"outcome": "refused",
+                "note": note,
+                "badge": PROMOTION_COPY["declined_badge"].replace(
+                    "{reason}", reason)}
+
+    derived = note_record(
+        note["course_id"], note["objective_ids"], note["epistemic_role"],
+        note["learner_wording"], note["targets"],
+        strategy_id=note.get("strategy_id", ""),
+        authorship=note.get("authorship", "learner"),
+        owner=note.get("owner", "local"),
+        privacy_scope=note.get("privacy_scope", "private"),
+        status="learner_accepted")
+    derived["derivations"] = [{"from_note_revision": note["revision_id"],
+                               "from_note_id": note["note_id"],
+                               "accepted_by": reviewer}]
+    if annotations:
+        derived["annotations"] = list(annotations)
+    return {"outcome": "applied",
+            "note": note,
+            "derived": derived,
+            "badge": PROMOTION_COPY["accepted_badge"].replace(
+                "{date}", _now()[:10])}
+
+
+# ---------------------------------------------------------------------------
+# Learner artifacts and honest deletion (plan 16C-06, NOTE-03, D16)
+# ---------------------------------------------------------------------------
+
+ARTIFACT_KINDS = ("proof", "program", "diagram", "explanation", "project",
+                  "observation")
+
+ARTIFACT_COPY = {
+    "pending_badge": "Pending review",
+    "pending_explainer": "Recorded as pending by itembank. A reviewer settles this. A model never settles it.",
+    "proposal_line": "A model has proposed a mark. It settles nothing until a reviewer accepts it.",
+    "settled_line": "Reviewed by {reviewer} on {date}.",
+}
+
+DELETE_COPY = {
+    "confirmation": "Delete this note? This removes the note and its private index. Evidence the runtime is required to keep is not affected.",
+    "confirm_button": "Delete note",
+}
+
+
+def artifact_record(kind, course_id, objective_ids, rubric, content_path=""):
+    """One learner artifact's machine descriptor.
+
+    The artifact itself (the proof, the program, the diagram) is
+    learner-owned and lives in the note root. This record describes it.
+
+    An empty rubric is valid. An artifact submitted before anyone wrote
+    criteria is a real state, and refusing to record it would lose the
+    submission to protect a form.
+    """
+    if kind not in ARTIFACT_KINDS:
+        raise ValueError("unknown artifact kind: %r" % (kind,))
+    return {"artifact_id": new_note_id(),
+            "kind": kind,
+            "course_id": course_id,
+            "objective_ids": list(objective_ids),
+            "rubric": list(rubric or []),
+            "content_path": content_path,
+            "submitted_at": _now()}
+
+
+def artifact_evidence_view(artifact, response_event_id, log):
+    """How a learner artifact reads: pending until a human settles it.
+
+    Settlement is READ from mark events through `evidence.marks_by_event`.
+    This function computes no verdict, because a second thing that could
+    decide whether an artifact passed would be a second settlement
+    mechanism, and there is one.
+
+    A model proposal adds a line and changes nothing: the state stays
+    pending, which is the honest description of a suggestion nobody has
+    accepted.
+
+    Per-criterion states render as separate lines and are never summed into
+    a number or a grade. That is GRAPH-03's no-aggregate rule applied
+    locally: three passed criteria out of four is four facts, not a score.
+    """
+    marks = evidence.marks_by_event(log)
+    mark = marks.get(response_event_id)
+    proposals = [e for e in evidence.live_events(log)
+                 if e.get("event_type") == "mark_proposal"
+                 and e.get("response_event_id") == response_event_id]
+    if mark is None:
+        lines = [ARTIFACT_COPY["pending_explainer"]]
+        if proposals:
+            lines.append(ARTIFACT_COPY["proposal_line"])
+        return {"state": "pending",
+                "badge": ARTIFACT_COPY["pending_badge"],
+                "lines": lines}
+    lines = [ARTIFACT_COPY["settled_line"]
+             .replace("{reviewer}", mark.get("marker", "human"))
+             .replace("{date}", str(mark.get("ts", ""))[:10])]
+    for point in mark.get("rubric") or []:
+        lines.append("%s: %s" % (point.get("point", ""),
+                                 "met" if point.get("pass") else "not met"))
+    return {"state": "settled",
+            "badge": ARTIFACT_COPY["settled_line"]
+            .replace("{reviewer}", mark.get("marker", "human"))
+            .replace("{date}", str(mark.get("ts", ""))[:10]),
+            "lines": lines}
+
+
+def delete_note(sidecar, note_id):
+    """Remove one note from a document, and say honestly what that does not
+    reach.
+
+    Deletion covers the note and its private index. It does not claw back
+    lifecycle facts already in the append-only evidence store, and the
+    confirmation copy says so rather than implying total erasure (D16,
+    report 12 section 11.2). Copy that promised total erasure would be a
+    promise this architecture cannot keep, and a learner who later found the
+    lifecycle facts would be right to distrust everything else it said.
+
+    A tombstone carrying the `deleted` status is kept in place of the note,
+    so a document that referenced it reads a deletion rather than a gap.
+    """
+    kept, tombstones = [], []
+    for note in sidecar.get("notes") or []:
+        if note.get("note_id") == note_id:
+            tombstones.append({"note_id": note_id, "status": "deleted",
+                               "deleted_at": _now()})
+        else:
+            kept.append(note)
+    updated = dict(sidecar)
+    updated["notes"] = kept
+    updated["tombstones"] = list(sidecar.get("tombstones") or []) + tombstones
+    return {"sidecar": updated,
+            "deleted": len(tombstones),
+            "copy": DELETE_COPY["confirmation"],
+            "confirm_button": DELETE_COPY["confirm_button"]}
