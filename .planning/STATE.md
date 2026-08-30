@@ -2,21 +2,89 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase_name: 14C-source-adapter-registry
-status: Phase 14C EXECUTED and FROZEN (2026-08-28): all eight plans ran, 14C-FREEZE.md carries a 61-row multi-source coverage audit with one flagged-unverified row (RESEARCH A6, sdist build-script inspection, which no plan promised), and 88 of 88 suites pass. Ten source adapters ship: markdown, text, pdf, docx, pptx, web, transcript, ocr, epub, and asr as a named registered refusal. The source-binding half of 14B is unblocked. One manual checkpoint is recorded UNRUN and not passed: the OCR adapter against a live Ollama vision model on a real photographed page. Phase 14B EXECUTED and FROZEN (2026-08-27). Phases 16A and 16B are both EXECUTED and FROZEN (2026-08-28), which corrects a stale line this frontmatter carried forward on 2026-08-28: it still said 16A may proceed and 16B halts on it, and both had already frozen. FILE-04 (the workspace) is accepted, shape C, unscheduled. 17A-04 still waits on the browser-driver supply-chain decision.
-stopped_at: End of Phase 14C. Nothing in 14C is left executable. Two plan blocks are now unblocked and unexecuted: 15A (6 plans, 4 autonomous, depends on the frozen 14B, and gates 15B's 7 plans) and 16C (9 plans, 7 autonomous, depends on 14B, 16A, and 16B, all frozen). Two things owed by 14C but not blocking it: the OCR live-model checkpoint (needs Ollama running and one photographed page, steps in 14C-06-SUMMARY.md), and the pypdf pin inconsistency between D-14C-3 and deps/source-adapter-pins.txt, which needs a wheel fetch rather than a text edit.
-last_updated: "2026-08-28T00:00:00.000Z"
-last_activity: 2026-08-28
-last_activity_desc: "Executed plans 14C-02 through 14C-08 end to end and froze the phase. Seven adapters landed (docx, pptx, web, transcript, ocr, epub, and asr as a registered refusal) plus the finished PDF locators, the one hardened zip and XML seam every container format reads through, both snapshot storage paths, both bind policies, and the read-time staleness advisory with its route and command. Five defects were found by verifying rather than assuming: a gold manifest that described two of the three lines its own fixture drew; stdlib refusing a redirect scheme before the subclass ever runs, and allowing ftp; ok_result.journal_entry_id null on every import since 14C-01; a half-written sidecar temp file surviving a fault; and a CI step with no local preflight mirror. The OCR live-model checkpoint is recorded UNRUN with its date and reason, never as passed."
+current_phase_name: 16C-strategies-notes-prototype-convergence
+status: "Phase 16C EXECUTED through plan 16C-09 Task 1 and HELD at its one blocking human checkpoint (2026-08-29). Plans 16C-01 through 16C-08 are complete and committed; 16C-09's cross-subject tracer runs nine scenarios over four synthetic subjects in 0.261s with 9 passed, 0 failed, and 16C-TRACER-REPORT.md carries only measured figures. What remains is Task 2: the contract-legibility review that a HUMAN signs, and Task 3, the freeze record, which may not be written until that review carries accept or accept-with-findings. An agent must not sign its own contract, so no agent wrote 16C-REVIEW.md. Phases 14A, 14B, 14C, 16A, 16B are frozen. Open and unexecuted: 15A (6 plans), 15B (7), 17A-04, all of 17B, and the paced-lesson subphase whose decisions are recorded and whose plan is unwritten."
+stopped_at: "16C-09 Task 2, a blocking checkpoint:human-verify. Weibao reads 16C-TRACER-REPORT.md and the copy constants as prose, answers the eleven steps in 16C-09-PLAN.md Task 2, and writes 16C-REVIEW.md with one of accept, accept-with-findings, or reject plus a signature and date. Task 3 then re-runs the evidence, weighs six named legs, and writes 16C-FREEZE.md or withholds it by name."
+last_updated: "2026-08-29T00:00:00.000Z"
+last_activity: 2026-08-29
+last_activity_desc: "Executed 16C-01 through 16C-09 Task 1. Five new root modules (notes, strategies, progress_claims, note_outputs, upgrade_audit), one published schema, two additive evidence event types proven additive against pre-change baselines, eight new test suites, and the legacy-upgrade skill un-stubbed. Four defects were found by running rather than by reading: the two new event types failed the project's own published event schema and would have shipped into an append-only log; the .agents and .claude skill mirrors had been divergent since 13.9 and 14C-06 so CI's mirror step was red on main; a TERMS header row parsed as a glossary entry; and two records still called legacy-upgrade a stub after it shipped. One pre-existing red test, selection_retention_roundtrip, was bisected to its own introducing commit and recorded rather than absorbed."
 progress:
   total_phases: 28
   completed_phases: 19
   total_plans: 175
-  completed_plans: 130
-current_phase: 14C
+  completed_plans: 138
+current_phase: 16C
 ---
 
 # Project State
+
+## 2026-08-29: Phase 16C, plans 01 through 09 Task 1, held at the human review
+
+**What landed.** Twelve commits. Five new root-level modules, one published
+schema, two additive evidence event types, eight new test suites, one
+un-stubbed skill, and one measured tracer report.
+
+- **16C-01** (`46ed2c0`, `5816709`): the precondition check and the
+  twenty-four decisions. Nine of eleven legs clean. `model.parse_lesson` now
+  returns a sixteen-key superset where the plan asserted six, which is the
+  plan's own halt condition: the wave stopped, the choice was put to Weibao
+  with the halt costed, and he chose reconcile-and-proceed. D-12.6-5 was
+  answered directly (`option-c`, `primary`) and the answer corrected a stale
+  plan claim: the decision had been resolved by delegation on 2026-08-16 and
+  was never pending.
+- **16C-02** (`9165faf`): four fictional subjects, the NOTE-01 record with
+  seven closed vocabularies, four relocation states that never auto-apply,
+  and a guard that now recognizes a note document.
+- **16C-03** (`17413a7`): four strategies as versioned data with a
+  code-owned fallback that raises on nothing, and a picker that shows
+  disallowed strategies rather than hiding them.
+- **16C-04** (`0b6e854`): seven progress claims that never merge, three
+  degraded sentences, and a rendered display the test scans for the percent
+  character, aggregate words, and merged dimensions.
+- **16C-05** (`c3c784f`): the collector over 16B's one precedence function,
+  with three structural assertions that a second implementation does not
+  exist, and a sitting that pauses preference changes rather than overruling
+  them.
+- **16C-06** (`38ab376`): two content-free event types proven additive
+  against the baselines 16C-01 recorded before any change existed, promotion
+  that derives rather than mutates, and deletion honest about what it cannot
+  reach.
+- **16C-07** (`844680c`): three projections of one parse, counted; three
+  broken fixtures each refusing in the validator's own words; and prototype
+  gates A, B, and C.
+- **16C-08** (`5c14906`, `07ad027`) and the mirror repair (`55379fb`): the
+  eleven-item audit that runs first because no function can skip it, a
+  bounded diff that does not offer churn, and a keyed-meaning halt with two
+  affordances and no override.
+- **16C-09 Task 1** (`3f8d8c4`): nine scenarios over four subjects in one
+  0.261-second pass, and a report carrying only measured figures.
+
+**Four defects found by running rather than by reading.** The two new event
+types failed `schemas/response.schema.json`, whose `other_event` enum is
+closed, and would have shipped an event type the project's own published
+contract rejects into an append-only log. The `.agents` and `.claude` skill
+mirrors had been divergent since `2c34a65` and `d2804f0`, so CI's mirror step
+was red on main and the two agent audiences were being told different things.
+A Markdown header row in the fixture's TERMS block parsed as a glossary entry
+named "Term". And `tests/agent_operation_roundtrip.py` plus `CLAUDE.md` both
+still called `legacy-upgrade` a stub after 16C-08 shipped it.
+
+**One pre-existing red test, recorded rather than absorbed.**
+`tests/selection_retention_roundtrip.py` fails with `the weak objective must
+fill the sitting: ['q3', 'q1']`. Confirmed not this phase's by stashing every
+16C change, and bisected over about 45 commits to find it failing at
+`66322ff`, the commit that introduced it. It also fails on Python 3.13 and
+from a different working directory. It has its own task and is named in the
+tracer report's open findings with an owner.
+
+**Where it stops, and why.** 16C-09 Task 2 is a `checkpoint:human-verify`
+rated blocking, and its prohibition is explicit: an agent must not sign its
+own contract. Whether "Anchor probably moved: review needed" makes a learner
+review rather than shrug, and whether the promotion gates read as protection
+rather than bureaucracy, is not something a green suite can answer. No agent
+wrote `16C-REVIEW.md`. The eleven review steps are in `16C-09-PLAN.md` Task 2
+and the tracer report quotes a rendered progress block for step 8.
+
 
 ## 2026-08-28: Phase 14C, all eight plans, executed and frozen
 
