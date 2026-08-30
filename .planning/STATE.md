@@ -7,7 +7,7 @@ status: "Phase 16C EXECUTED through plan 16C-09 Task 1 and HELD at its one block
 stopped_at: "16C-09 Task 2, a blocking checkpoint:human-verify. Weibao reads 16C-TRACER-REPORT.md and the copy constants as prose, answers the eleven steps in 16C-09-PLAN.md Task 2, and writes 16C-REVIEW.md with one of accept, accept-with-findings, or reject plus a signature and date. Task 3 then re-runs the evidence, weighs six named legs, and writes 16C-FREEZE.md or withholds it by name."
 last_updated: "2026-08-30T00:00:00.000Z"
 last_activity: 2026-08-30
-last_activity_desc: "Executed 16C-01 through 16C-09 Task 1. Five new root modules (notes, strategies, progress_claims, note_outputs, upgrade_audit), one published schema, two additive evidence event types proven additive against pre-change baselines, eight new test suites, and the legacy-upgrade skill un-stubbed. Four defects were found by running rather than by reading: the two new event types failed the project's own published event schema and would have shipped into an append-only log; the .agents and .claude skill mirrors had been divergent since 13.9 and 14C-06 so CI's mirror step was red on main; a TERMS header row parsed as a glossary entry; and two records still called legacy-upgrade a stub after it shipped. One pre-existing red test, selection_retention_roundtrip, was bisected to its own introducing commit and recorded rather than absorbed. On 2026-08-30 that test was diagnosed and made green: its CLI leg dated a fixture near a fixed CUTOFF but is captured against the wall clock, so the weak and mastered objectives decayed to an equal weight of 1.0 and Phase 7 ordering settled the sitting. The leg now re-dates its fixture by one identical offset and asserts the invariant rather than a date; no runtime file changed. Also on 2026-08-30: tests/file_fault_tracer.py no longer rewrites 14A-TRACER-REPORT.md on every run, which had made a durable phase record derived and had already cost three commits; it now compares everything that carries meaning and writes only under --write, and a new CI step asserts the suite leaves the working tree clean. The GSD client install under .codex/ is gitignored as tool state, like reasonix.toml."
+last_activity_desc: "Executed 16C-01 through 16C-09 Task 1. Five new root modules (notes, strategies, progress_claims, note_outputs, upgrade_audit), one published schema, two additive evidence event types proven additive against pre-change baselines, eight new test suites, and the legacy-upgrade skill un-stubbed. Four defects were found by running rather than by reading: the two new event types failed the project's own published event schema and would have shipped into an append-only log; the .agents and .claude skill mirrors had been divergent since 13.9 and 14C-06 so CI's mirror step was red on main; a TERMS header row parsed as a glossary entry; and two records still called legacy-upgrade a stub after it shipped. One pre-existing red test, selection_retention_roundtrip, was bisected to its own introducing commit and recorded rather than absorbed. On 2026-08-30 that test was diagnosed and made green: its CLI leg dated a fixture near a fixed CUTOFF but is captured against the wall clock, so the weak and mastered objectives decayed to an equal weight of 1.0 and Phase 7 ordering settled the sitting. The leg now re-dates its fixture by one identical offset and asserts the invariant rather than a date; no runtime file changed. Also on 2026-08-30: tests/file_fault_tracer.py no longer rewrites 14A-TRACER-REPORT.md on every run, which had made a durable phase record derived and had already cost three commits; it now compares everything that carries meaning and writes only under --write, and a new CI step asserts the suite leaves the working tree clean, verified by a full 96-file run that left git status empty. One new open finding: daemon_roundtrip check_concurrency failed once under load with a 400 and passed idle, recorded with what is known rather than patched on a guess. The GSD client install under .codex/ is gitignored as tool state, like reasonix.toml."
 progress:
   total_phases: 28
   completed_phases: 19
@@ -74,6 +74,23 @@ mutates tracked content.
 `.claude/`, on the precedent this repository already sets for `reasonix.toml`.
 It held 68 agents, 67 `gsd-*` skills, hooks and a 43KB manifest, and no project
 skill at all. Reversible if it should ship for portability instead.
+
+**One new open finding, observed rather than diagnosed.**
+`tests/daemon_roundtrip.py`'s `check_concurrency` failed once, under the
+nested run inside `tests/model_phase_roundtrip.py`, with `concurrent request 0
+did not return 200: <HTTPError 400: 'Bad Request'>`. What is known: it fails
+only under load (three suites in flight on this machine), it passed standalone
+in the same run, it passed inside `model_phase_roundtrip` on an idle machine
+immediately after, and it passed in two earlier full runs the same day. What is
+not known: what produces the 400. `Daemon` does not set `request_queue_size`,
+so it inherits the stdlib's listen backlog of 5 while the test opens 6
+concurrent connections, which is a plausible lead and nothing more. Recorded
+rather than patched: Phase 2 daemon code is not this session's to change on a
+guess, and a one-line backlog bump that happens to make a flake rarer is the
+kind of fix that hides a race instead of settling it. An orphaned daemon from
+2026-08-28, still listening on 127.0.0.1:63657 and serving a deleted temp
+directory, was found on this machine while investigating; it is test debris
+from an interrupted run and was left running rather than killed unasked.
 
 
 ## 2026-08-29: Phase 16C, plans 01 through 09 Task 1, held at the human review
