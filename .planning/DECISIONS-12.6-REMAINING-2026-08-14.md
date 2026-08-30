@@ -95,6 +95,18 @@ prominent is the Evidence view in the default navigation?
   the course notes surface is the review home and the durable listing. The
   cross-course global destination stays backburner per synthesis 12.2.
 
+**Directly confirmed 2026-08-29.** Plan 16C-01 Task 2 put both halves to
+Weibao as a blocking checkpoint, with all three placement options and both
+Evidence-prominence options presented and the recommended default named. He
+chose `option-c` and `primary`, which is option for option what the 2026-08-16
+delegated resolution recorded. The resolution's basis is therefore no longer
+delegation alone: an agent judgment and the learner's own direct answer agree.
+Recorded in full at `## D-12.6-5` in
+`.planning/phases/16C-strategies-notes-prototype-convergence/16C-DECISIONS.md`.
+Note for a later reader: plan 16C-01's Task 2 text says this field reads
+`Resolved: pending`, which was true when that plan was written on 2026-08-15
+and stale by the following day.
+
 **Options for Evidence prominence:** primary navigation item beside
 Learn/Practice/Test, or one level down inside Review.
 

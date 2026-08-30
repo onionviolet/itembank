@@ -267,11 +267,23 @@ through 16C-09 are written against, so no plan edit, no module change, no
 schema change, no fixture change, and no test change follows from this answer.
 Phase 17A renders against the recorded choice rather than against a default.
 
-**One docs consequence, deliberately not executed here.**
-`.planning/DECISIONS-12.6-REMAINING-2026-08-14.md` D-12.6-5 still reads
-`Resolved: pending`. It may be updated to resolved by a later docs commit
-citing this heading. Plan 16C-01 owns no file outside this phase directory, so
-it is recorded rather than done.
+**Correction, same day: the record was not pending, and this answer changes
+its provenance rather than its content.** Plan 16C-01 Task 2 says
+`.planning/DECISIONS-12.6-REMAINING-2026-08-14.md` records D-12.6-5 as
+`Resolved: pending`. It does not, and has not since 2026-08-16. That file
+already reads "Resolved: 2026-08-16, option C for notes (margin capture,
+course review) and Evidence as a primary navigation item, by delegation",
+made by the planning agent under Weibao's standing delegation directive of
+that date and labelled there as such. The plan text was written from the
+2026-08-14 framing and went stale two days later.
+
+What today's checkpoint changes is therefore the provenance, not the answer.
+The 2026-08-16 resolution was an agent judgment under a standing delegation;
+the 2026-08-29 answer above is Weibao's own, given directly, choosing the same
+option id in each half. A delegated call and a direct call agreeing is the
+outcome the checkpoint exists to produce. No later plan should read this
+heading as reopening or superseding the 2026-08-16 record; it corroborates it
+and raises its authority.
 
 **Reconsideration condition.** A presentation decision over a
 placement-agnostic schema (anchors plus objective relation). Reversing it later

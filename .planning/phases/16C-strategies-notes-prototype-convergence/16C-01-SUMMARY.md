@@ -90,12 +90,24 @@ panel inside Evidence, cross-course global destination backburner, Evidence
 beside Learn, Practice, and Test in primary navigation.
 
 Both are the recommended default, so the consequence list is empty by design:
-no plan edit, no module, schema, fixture, or test change follows. One docs
-consequence is recorded and deliberately not executed, because this plan owns
-no file outside its phase directory:
-`.planning/DECISIONS-12.6-REMAINING-2026-08-14.md` D-12.6-5 still reads
-`Resolved: pending` and may be updated by a later docs commit citing the
-`## D-12.6-5` heading in `16C-DECISIONS.md`.
+no plan edit, no module, schema, fixture, or test change follows.
+
+**One plan-text error found by checking rather than trusting.** Plan 16C-01
+Task 2 states that `.planning/DECISIONS-12.6-REMAINING-2026-08-14.md` records
+D-12.6-5 as `Resolved: pending`, and directs the executor to record that it
+"may be updated from pending to resolved by a later docs commit". The file has
+not read `pending` since 2026-08-16: it records option C for notes and Evidence
+as a primary navigation item, resolved by the planning agent under Weibao's
+standing delegation directive. The plan text was written from the 2026-08-14
+framing and went stale.
+
+The checkpoint was still worth running, and its output is a provenance upgrade
+rather than a new answer: a delegated agent judgment of 2026-08-16 and
+Weibao's own direct answer of 2026-08-29 select the same option id in both
+halves. The correction is recorded in `16C-DECISIONS.md` under the D-12.6-5
+heading. The docs commit the plan anticipated is therefore not needed for the
+resolution itself; a separate commit appends the direct confirmation to the
+2026-08-16 record so its provenance line is accurate.
 
 ## Deviations from the plan itself
 
@@ -116,4 +128,7 @@ artifact, verified with the `chr(0x2014)` form the plan prescribes.
 3. `16C-PRECONDITION.md`'s Deviations found section is non-empty, so read it
    before execution.
 4. D-12.6-5 is answered; no plan needs editing for it, and 16C-09's freeze
-   record carries the answer forward for Phase 17A.
+   record carries the answer forward for Phase 17A. Read the correction under
+   its heading in `16C-DECISIONS.md`: the record was resolved on 2026-08-16 by
+   delegation, not pending, and today's answer raises its provenance to a
+   direct one rather than changing it.
