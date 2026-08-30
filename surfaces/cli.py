@@ -448,6 +448,14 @@ CORPUS_DIR_MARKERS = ("bank", "banks", "corpus", "corpora",
 CORPUS_SECTION_MARKERS = (r"(?m)^##\s+SOURCES\s*$",
                           r"(?m)^##\s+LESSON\s*$")
 
+# Plan 16C-02: a learner note document is corpus content too. Its markdown
+# half carries no `##` section marker at all, so the two patterns above miss
+# it entirely; what it always carries is the sidecar key `note_document_id`,
+# in the JSON sidecar and in any markdown that inlines the record. This is
+# one additive branch in the marker helper below, deliberately not a second
+# walker: two guards drift, and the one that drifts is always the newer one.
+NOTE_DOCUMENT_MARKER = r"(?m)^\s*\"?note_document_id\"?\s*:"
+
 
 def _under_corpus_dir(path):
     """True when `path` sits under a private-bank/corpus-named directory
@@ -460,8 +468,9 @@ def _under_corpus_dir(path):
 def _corpus_marker(path):
     """The first corpus-residency section marker `path` carries, or None
     (D-17). `## SOURCES` is the provenance registry every real corpus item
-    resolves through (D-11); `## LESSON` is lesson prose. A real corpus file
-    that does not parse as a question bank still carries one of these."""
+    resolves through (D-11); `## LESSON` is lesson prose; `note_document_id`
+    is the learner note document's own key (16C-02). A real corpus file that
+    does not parse as a question bank still carries one of these."""
     try:
         text = open(path, encoding="utf-8").read()
     except Exception:
@@ -469,6 +478,8 @@ def _corpus_marker(path):
     for marker in CORPUS_SECTION_MARKERS:
         if re.search(marker, text):
             return marker
+    if re.search(NOTE_DOCUMENT_MARKER, text):
+        return "note_document_id"
     return None
 
 

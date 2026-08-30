@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/note.schema.json",
+  "title": "Learner note document sidecar",
+  "description": "The machine truth beside notes.md: one document per course per learner surface, carrying the NOTE-01 records with their anchors, vocabularies, and states. The Markdown half is the human and export truth for wording and is not described here. Learner wording is data, never markup.",
+  "x-itembank-phase": "16C",
+  "x-itembank-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "note_document_id", "course_id", "notes"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "description": "notes.NOTE_SCHEMA_VERSION at write time.",
+      "minimum": 1
+    },
+    "note_document_id": {
+      "type": "string",
+      "description": "Stable identity of this document, independent of its path.",
+      "minLength": 1
+    },
+    "course_id": {
+      "type": "string",
+      "description": "The course this document belongs to. One document per course.",
+      "minLength": 1
+    },
+    "notes": {
+      "type": "array",
+      "description": "Every note in this document, in learner order.",
+      "items": {"$ref": "#/$defs/note"}
+    }
+  },
+  "$defs": {
+    "target": {
+      "type": "object",
+      "description": "One anchor target. Records nothing about which of the three equivalent capture paths produced it (D13).",
+      "additionalProperties": false,
+      "required": ["target_kind", "stable_id", "content_fingerprint", "locator", "quoted_context_hash"],
+      "properties": {
+        "target_kind": {
+          "type": "string",
+          "enum": ["source", "lesson_step", "media", "item_public", "concept"]
+        },
+        "stable_id": {
+          "type": "string",
+          "description": "Scheme-agnostic. A heading slug today; component IDs after D-14A-2, with no schema change."
+        },
+        "content_fingerprint": {"type": "string"},
+        "locator": {"type": "string"},
+        "quoted_context_hash": {
+          "type": "string",
+          "description": "notes.hash_quoted_context output. Change detection, never security.",
+          "pattern": "^sha256:[0-9a-f]{16}$"
+        }
+      }
+    },
+    "note": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["note_id", "note_document_id", "revision_id", "owner", "privacy_scope", "course_id", "objective_ids", "strategy_id", "epistemic_role", "learner_wording", "targets", "derivations", "status", "authorship", "created_at", "updated_at"],
+      "properties": {
+        "note_id": {"type": "string", "minLength": 1},
+        "note_document_id": {"type": "string", "minLength": 1},
+        "revision_id": {"type": "string", "minLength": 1},
+        "owner": {
+          "type": "string",
+          "description": "Empty only for authored material, which is orientation and carries no ownership (C107)."
+        },
+        "privacy_scope": {"type": "string", "minLength": 1},
+        "course_id": {"type": "string", "minLength": 1},
+        "objective_ids": {
+          "type": "array",
+          "description": "Survives a broken anchor. NOTE-01's degraded contract keeps the note attached here.",
+          "items": {"type": "string"}
+        },
+        "strategy_id": {"type": "string"},
+        "epistemic_role": {
+          "type": "string",
+          "enum": ["quote", "learner_claim", "learner_question", "learner_example", "calculation", "diagram", "accepted_reference_link"]
+        },
+        "learner_wording": {"type": "string"},
+        "targets": {"type": "array", "items": {"$ref": "#/$defs/target"}},
+        "derivations": {
+          "type": "array",
+          "description": "Derivation edges to accepted copies. A promotion adds one; it never replaces the origin.",
+          "items": {"type": "string"}
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "learner_accepted", "disputed", "superseded", "deleted"]
+        },
+        "authorship": {"type": "string", "enum": ["learner", "authored"]},
+        "created_at": {"type": "string", "minLength": 1},
+        "updated_at": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}
