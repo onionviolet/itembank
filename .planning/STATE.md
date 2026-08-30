@@ -7,7 +7,7 @@ status: "Phase 16C EXECUTED through plan 16C-09 Task 1 and HELD at its one block
 stopped_at: "16C-09 Task 2, a blocking checkpoint:human-verify. Weibao reads 16C-TRACER-REPORT.md and the copy constants as prose, answers the eleven steps in 16C-09-PLAN.md Task 2, and writes 16C-REVIEW.md with one of accept, accept-with-findings, or reject plus a signature and date. Task 3 then re-runs the evidence, weighs six named legs, and writes 16C-FREEZE.md or withholds it by name."
 last_updated: "2026-08-30T00:00:00.000Z"
 last_activity: 2026-08-30
-last_activity_desc: "Executed 16C-01 through 16C-09 Task 1. Five new root modules (notes, strategies, progress_claims, note_outputs, upgrade_audit), one published schema, two additive evidence event types proven additive against pre-change baselines, eight new test suites, and the legacy-upgrade skill un-stubbed. Four defects were found by running rather than by reading: the two new event types failed the project's own published event schema and would have shipped into an append-only log; the .agents and .claude skill mirrors had been divergent since 13.9 and 14C-06 so CI's mirror step was red on main; a TERMS header row parsed as a glossary entry; and two records still called legacy-upgrade a stub after it shipped. One pre-existing red test, selection_retention_roundtrip, was bisected to its own introducing commit and recorded rather than absorbed. On 2026-08-30 that test was diagnosed and made green: its CLI leg dated a fixture near a fixed CUTOFF but is captured against the wall clock, so the weak and mastered objectives decayed to an equal weight of 1.0 and Phase 7 ordering settled the sitting. The leg now re-dates its fixture by one identical offset and asserts the invariant rather than a date; no runtime file changed. Also on 2026-08-30: tests/file_fault_tracer.py no longer rewrites 14A-TRACER-REPORT.md on every run, which had made a durable phase record derived and had already cost three commits; it now compares everything that carries meaning and writes only under --write, and a new CI step asserts the suite leaves the working tree clean, verified by a full 96-file run that left git status empty. One new open finding: daemon_roundtrip check_concurrency failed once under load with a 400 and passed idle, recorded with what is known rather than patched on a guess. The GSD client install under .codex/ is gitignored as tool state, like reasonix.toml."
+last_activity_desc: "Executed 16C-01 through 16C-09 Task 1. Five new root modules (notes, strategies, progress_claims, note_outputs, upgrade_audit), one published schema, two additive evidence event types proven additive against pre-change baselines, eight new test suites, and the legacy-upgrade skill un-stubbed. Four defects were found by running rather than by reading: the two new event types failed the project's own published event schema and would have shipped into an append-only log; the .agents and .claude skill mirrors had been divergent since 13.9 and 14C-06 so CI's mirror step was red on main; a TERMS header row parsed as a glossary entry; and two records still called legacy-upgrade a stub after it shipped. One pre-existing red test, selection_retention_roundtrip, was bisected to its own introducing commit and recorded rather than absorbed. On 2026-08-30 that test was diagnosed and made green: its CLI leg dated a fixture near a fixed CUTOFF but is captured against the wall clock, so the weak and mastered objectives decayed to an equal weight of 1.0 and Phase 7 ordering settled the sitting. The leg now re-dates its fixture by one identical offset and asserts the invariant rather than a date; no runtime file changed. Also on 2026-08-30: tests/file_fault_tracer.py no longer rewrites 14A-TRACER-REPORT.md on every run, which had made a durable phase record derived and had already cost three commits; it now compares everything that carries meaning and writes only under --write, and a new CI step asserts the suite leaves the working tree clean, verified by a full 96-file run that left git status empty. That open finding is now closed and was not one bug but three. Reproduced at twelve concurrent requests under load, 20 rounds of 20 failing: runtime.write_session used a shared <target>.tmp, so the first os.replace consumed the temp file and the second raised FileNotFoundError, which reached the learner as the 400; _ensure_quiz_session checked and created outside any lock, so six concurrent first hits left six sittings for one bank and kept whichever finished last; and Daemon inherited the stdlib listen backlog of 5, measured as ConnectionResetError past twelve connections and not at six. All three fixed, 0 of 20 rounds failing after, with one session where there were six. Also closed: fake_hosted_unused.py, a test artifact committed as source in 46f0f50 because hosted_profile("") wrote its fake script into the process cwd; the root .continue-here, which had pointed for months at a Phase 09 branch, worktree, and main tip that no longer exist; and two orphaned test processes from 2026-08-28, one of them a fake AnkiConnect squatting on 127.0.0.1:8765, the real AnkiConnect port, so day's Anki lane on this machine had been answering to a stub. The GSD client install under .codex/ is gitignored as tool state, like reasonix.toml."
 progress:
   total_phases: 28
   completed_phases: 19
@@ -17,6 +17,97 @@ current_phase: 16C
 ---
 
 # Project State
+
+## 2026-08-30 (second entry): the flake was three defects, and the daemon was serving a stub
+
+The one open finding the earlier entry recorded rather than patched is closed.
+It was right not to guess: the guess in that entry was wrong.
+
+**Reproduced first, diagnosed second.** `check_concurrency` fires concurrent
+`GET /quiz/sample_bank` requests at one daemon. A repro harness that read the
+error body the test discards, run under six busy cores, failed 20 rounds of 20
+at twelve concurrent requests and 0 of 12 idle at six. The body named the
+failure outright, which is why a day of "cause unknown" was avoidable: the test
+threw the diagnosis away and kept the status code.
+
+**Defect one, and the 400 itself.** `runtime.write_session` wrote through a
+shared `target + ".tmp"`. The daemon mixes in `ThreadingMixIn`, so two requests
+can write one session file at once; the first `os.replace` consumed the temp
+file and the second raised `FileNotFoundError` on the path it had just written,
+which `handle_quiz_get` converted into `400 Bad Request`. The temp name now
+carries a per-write nonce and still ends in `.tmp`, so every leftover sweep that
+matches `endswith(".tmp")` still sees these, and a failed write removes its own
+temp file. Last-writer-wins on content is unchanged and is still the caller's
+problem; what is fixed is one writer destroying another's in-flight file.
+
+**Defect two, which no assertion had ever looked for.** `_ensure_quiz_session`
+read `api_session_id`, found it unset, and ran `session.do_start`, all outside
+any lock. Six concurrent first hits on a fresh daemon therefore produced six
+session files under `_attempts/` for one bank, with `cfg["api_session_id"]`
+left pointing at whichever thread finished last and five sittings orphaned with
+their evidence attached to them. Measured, not inferred: the repro printed
+`sessions=6` on every clean round before the fix and `sessions=1` on every round
+after. The check and the create are now one decision under a new module-level
+`QUIZ_SESSION_LOCK`, deliberately not `quiz_state_lock`: that one guards short
+in-memory critical sections over the token and flash stores, and sharing it
+would make every token mint wait on a sitting being created. Module-level
+rather than a handler attribute because `tests/serve_roundtrip.py` and
+`tests/model_phase_roundtrip.py` call this function with a stand-in handler,
+which should not have to know a lock lives on the handler class.
+
+**The backlog was real, and was not the bug.** The earlier entry's lead was that
+`Daemon` inherits the stdlib `request_queue_size` of 5 while the test opens 6
+connections. That is true and it is now set explicitly to 64, but it produces
+`ConnectionResetError(54)`, not a 400, and it was not reached at six. It only
+appeared at twelve. A backlog bump alone would have made the flake rarer and
+left both real defects in place, which is exactly what that entry declined to do.
+
+**The test now keeps what it needs.** `check_concurrency` reads the error body,
+runs twelve threads rather than six, asserts one bank yields one session, and
+asserts no temp files are left behind. A new `check_session_write_concurrency`
+hammers `runtime.write_session` from eight threads directly, because the route
+now serializes creation and would pass with the collision still in place; it was
+verified in both directions by restoring the shared temp name, which fails it
+with the original `FileNotFoundError`. The daemon suite is 78 checks, from 77.
+
+**`fake_hosted_unused.py` was the same shape as the 14A tracer, committed.**
+`tests/model_adapter_roundtrip.py` built one profile with `hosted_profile("")`,
+for a request that is rejected before dispatch and never invokes it, so the fake
+script was written to the process cwd, which is the repository root when the
+suite runs from there. It was committed as source in `46f0f50` and had been
+named as stray leftover in six planning records since Phase 8 without anyone
+tracing it to the line that writes it. `hosted_profile` now refuses a
+non-absolute directory by name, the caller passes a temp dir, and the file is
+deleted. The clean-tree gate added earlier the same day did not catch this one:
+the test rewrote the file with identical bytes every run, so the tree stayed
+clean while a test kept writing into the tree it was checking.
+
+**`.continue-here` had been dead for months.** It pointed at branch
+`gsd/phase-09-subject-loop`, worktree `.phase09-wt`, and main tip `eadf958`.
+None of the three exist; Phase 09 landed and its KaTeX gate resolved, the pin is
+vendored under `vendor/katex`. It now points at the actual stop, 16C-09 Task 2,
+and says what it used to say and why that was worth checking.
+
+**Two orphaned processes, and one of them mattered.** The daemon from
+2026-08-28 still listening on `127.0.0.1:63657` and serving a deleted temp
+directory was killed, as recorded. Found beside it: a `fake_anki.py` stub from
+an interrupted run two days earlier, listening on `127.0.0.1:8765`, which is
+AnkiConnect's own port. Any `itembank day` run on this machine since then had
+its Anki lane answered by a test stub rather than by Anki. Killed. Nothing in
+the repository changed for this; it is recorded because the symptom would have
+looked like an integration bug.
+
+**Not swept, and why.** The shared-temp-name shape also exists in
+`journal._write_bytes_atomic`, `evidence.rebuild_index`, and
+`notes.write_note_document`. None is on the threaded per-request path, and
+`journal`'s temp name is asserted verbatim by `tests/file_fault_tracer.py`
+(`endswith(".tmp")` for leftovers, and `.locator.json.tmp` by name), so changing
+it there is a change to a fault-injection contract rather than a rename. Left
+alone deliberately, recorded here rather than fixed on the strength of an
+analogy.
+
+Suite: 96 of 96 files, tree clean. 16C-09 Task 2 is untouched and still open.
+
 
 ## 2026-08-30: two tests that were lying about the tree, and a CI guard so a third cannot
 
