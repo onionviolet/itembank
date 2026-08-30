@@ -1,0 +1,1241 @@
+#!/usr/bin/env python3
+"""Phase 15A: one objective from declared intent to accepted binding, and the
+five ways that path refuses.
+
+This is the thin slice plan 15A-01 Task 4 names. It proves the agent-client
+tier exists as one path: `director.py` drafts and validates, every durable
+write reaches disk through `course.py` and therefore through
+`journal.commit_operation`, and every rights decision reads the live registry
+at the moment of the operation rather than a value carried on a record.
+
+The degraded states are the point, not the happy path. A missing backend
+executable, a provider refusal, a candidate that fails its schema, a candidate
+naming a twelfth treatment kind, and a right revoked between two operations
+each refuse by name, write no binding, and leave the sidecar bytes untouched.
+
+Standard library only, runnable as `python tests/director_roundtrip.py`.
+"""
+import json, os, shutil, sys, tempfile
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "fixtures"))
+import course                                              # noqa: E402
+import graph                                               # noqa: E402
+import identity                                            # noqa: E402
+import journal                                             # noqa: E402
+import model_adapter                                       # noqa: E402
+import schema_validate                                     # noqa: E402
+import resources                                           # noqa: E402
+
+FAILURES = []
+
+# The exact JSON a hint request serialized to before this plan touched
+# model_adapter.py. Recorded rather than recomputed: a golden string the test
+# carries is the only form of this assertion that can fail when the builder
+# changes, which is the whole point of it.
+GOLDEN_HINT_REQUEST = (
+    '{"interaction_id": "interaction-0001", "operation": "hint", "payload": '
+    '{"fact_manifest": ["f1"], "item_context": {"stem": "x"}, '
+    '"learner_response": {"raw": "a"}, "permitted_tier": 2}, '
+    '"profile": "hosted", "schema_version": 1, "version": "1"}')
+
+PRIOR_PAYLOAD_KEYS = ("item_context", "learner_response", "permitted_tier",
+                      "fact_manifest", "rubric_points", "author_request")
+
+PRIOR_ENTRY_KEYS = (
+    "schema_version", "entry_id", "timestamp", "operation", "state",
+    "resolves_entry", "object_id", "kind", "revision", "parent_revision",
+    "path", "expected_fingerprint", "before_fingerprint", "after_fingerprint",
+    "before_image", "undo", "source_object_id", "source_revision",
+    "restores_revision", "origin", "code", "message", "rights",
+)
+
+
+def fail(msg):
+    print("FAIL: " + msg)
+    FAILURES.append(msg)
+
+
+def mock_profile(name="hosted", extra_args=()):
+    """A hosted_cli profile whose command runs fixtures/mock_backends.py."""
+    script = os.path.join(ROOT, "fixtures", "mock_backends.py")
+    return {"name": name, "transport": "hosted_cli",
+            "command": [sys.executable, script, "--cli"] + list(extra_args),
+            "model": "mock", "timeout_seconds": 30,
+            "max_output_bytes": 65536, "context_window": 4096}
+
+
+def make_settings(active, profiles):
+    return {"model_backend": {"active": active, "profiles": profiles}}
+
+
+def check_adapter_is_additive():
+    """The fourth enum member breaks none of the three shipped operations."""
+    schema = json.loads(resources.read_text("schemas/model_adapter.schema.json"))
+    enum = schema["$defs"]["request"]["properties"]["operation"]["enum"]
+    if enum != ["hint", "rubric_review", "author", "treatment_recommend"]:
+        fail("the operation enum is %r" % (enum,))
+
+    if "recommendation_request" not in model_adapter._PAYLOAD_KEYS:
+        fail("_PAYLOAD_KEYS lacks recommendation_request: %r"
+             % (model_adapter._PAYLOAD_KEYS,))
+    if model_adapter._PAYLOAD_KEYS[:6] != PRIOR_PAYLOAD_KEYS:
+        fail("the six prior payload keys moved: %r"
+             % (model_adapter._PAYLOAD_KEYS,))
+
+    request = model_adapter.request_from_operation(
+        "hint", "interaction-0001", "hosted",
+        item_context={"stem": "x"}, learner_response={"raw": "a"},
+        permitted_tier=2, fact_manifest=["f1"])
+    serialized = json.dumps(request, ensure_ascii=False, sort_keys=True)
+    if serialized != GOLDEN_HINT_REQUEST:
+        fail("a hint request no longer serializes to its golden string:\n"
+             "  got %s\n  want %s" % (serialized, GOLDEN_HINT_REQUEST))
+
+    settings = make_settings("hosted", [mock_profile()])
+    request = model_adapter.request_from_operation(
+        "treatment_recommend", "interaction-0002", "hosted")
+    result = model_adapter.invoke(request, settings)
+    if result["status"] != "unavailable":
+        fail("a recommendation with no payload returned %r" % (result,))
+    elif result["error"]["code"] != "adapter.request_invalid":
+        fail("the empty-payload code is %r" % (result["error"],))
+    elif result["error"]["message"] != \
+            "treatment_recommend requires payload.recommendation_request":
+        fail("the empty-payload message is %r" % (result["error"],))
+
+    rec_schema = json.loads(
+        resources.read_text("schemas/treatment_recommendation.schema.json"))
+    try:
+        schema_validate.check_schema(rec_schema)
+    except Exception as exc:
+        fail("the recommendation schema uses an unsupported keyword: %s" % exc)
+
+
+def check_journal_extension_is_two_lines():
+    """One new record type and one new entry key. Nothing else moved."""
+    if "agent_operation" not in journal.RECORD_TYPES:
+        fail("agent_operation is not a journal record type")
+    if len(journal.ENTRY_KEYS) != 24:
+        fail("ENTRY_KEYS has %d members, expected 24"
+             % len(journal.ENTRY_KEYS))
+    if journal.ENTRY_KEYS[-1] != "agent":
+        fail("the last entry key is %r, expected agent"
+             % (journal.ENTRY_KEYS[-1],))
+    if journal.ENTRY_KEYS[:23] != PRIOR_ENTRY_KEYS:
+        fail("the twenty-three prior entry keys changed: %r"
+             % (journal.ENTRY_KEYS[:23],))
+    if len(journal.OPERATION_TYPES) != 6:
+        fail("OPERATION_TYPES has %d members, expected 6"
+             % len(journal.OPERATION_TYPES))
+    if "agent_operation" in journal.OPERATION_TYPES:
+        fail("agent_operation is a file-operation type; it is a record type")
+
+    import director
+    if director.AGENT_ENTRY_KEYS != (
+            "operation_id", "intent", "actor_role", "autonomy", "scopes",
+            "phase", "phase_index", "checkpoint", "proposal", "egress"):
+        fail("AGENT_ENTRY_KEYS is %r" % (director.AGENT_ENTRY_KEYS,))
+
+
+def check_mock_backend():
+    """One candidate builder, reachable three ways, deterministic."""
+    import mock_backends
+    import subprocess
+    import urllib.request
+
+    request = {"payload": {"recommendation_request": {
+        "schema_version": 1, "course_object_id": "c1", "objective_id": "o1",
+        "objective_statement": "Identify scene hazards on arrival",
+        "treatment_kinds": list(graph.TREATMENT_KINDS),
+        "binding_states": list(graph.BINDING_STATES),
+        "source_spans": [{"source_object_id": "s1", "locator": "section 1.2"}],
+        "attempt": 1}}}
+
+    candidate = mock_backends.candidate_for(request)
+    if candidate["treatment_kind"] not in graph.TREATMENT_KINDS:
+        fail("the mock treatment_kind is %r" % (candidate["treatment_kind"],))
+    if mock_backends.candidate_for(request) != candidate:
+        fail("candidate_for is not deterministic")
+
+    script = os.path.join(ROOT, "fixtures", "mock_backends.py")
+    completed = subprocess.run(
+        [sys.executable, script, "--cli"], input=json.dumps(request),
+        text=True, capture_output=True, timeout=30)
+    if completed.returncode != 0:
+        fail("--cli exited %d: %r" % (completed.returncode, completed.stderr))
+    elif json.loads(completed.stdout) != candidate:
+        fail("--cli output differs from candidate_for")
+
+    httpd, port = mock_backends.serve("127.0.0.1", 0)
+    import threading
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        body = json.dumps(request).encode("utf-8")
+        req = urllib.request.Request(
+            "http://127.0.0.1:%d/" % port, data=body, method="POST",
+            headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            served = json.loads(resp.read().decode("utf-8"))
+        if served != candidate:
+            fail("the served candidate differs from candidate_for")
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    completed = subprocess.run(
+        [sys.executable, script, "--refuse"], input="{}", text=True,
+        capture_output=True, timeout=30)
+    if completed.returncode == 0:
+        fail("--refuse exited 0")
+
+    settings = make_settings("refuser", [mock_profile("refuser", ["--refuse"])])
+    # --cli then --refuse: the __main__ block dispatches on --refuse first.
+    result = model_adapter.invoke(
+        model_adapter.request_from_operation(
+            "treatment_recommend", "interaction-0003", "refuser",
+            recommendation_request=request["payload"]["recommendation_request"]),
+        settings)
+    if result["status"] != "unavailable":
+        fail("a refusing provider returned %r" % (result["status"],))
+    elif result["error"]["code"] != "adapter.provider_refused":
+        fail("a refusing provider gave code %r" % (result["error"]["code"],))
+
+
+def check_thin_slice():
+    """One objective from declared intent to accepted binding, and back."""
+    import director
+    import corpus_14b
+    import mock_backends
+
+    tmp = tempfile.mkdtemp(prefix="director-")
+    try:
+        built = corpus_14b.build_three_domains(os.path.join(tmp, "corpus"))
+        # lantern-computing carries transform: granted, which is the right a
+        # guided lesson consumes. meridian-field-response grants nothing.
+        lantern = [d for d in built["domains"]
+                   if d["slug"] == "lantern-computing"][0]
+        meridian = [d for d in built["domains"]
+                    if d["slug"] == "meridian-field-response"][0]
+
+        if len(director.new_operation_id()) < 8:
+            fail("new_operation_id is shorter than eight characters")
+        if director.new_operation_id() == director.new_operation_id():
+            fail("new_operation_id repeated itself")
+
+        base = lantern["root"]
+        before = len(list(journal.entries(base)))
+        operation_id = director.begin_operation(
+            base, base, "recommend a treatment for one objective",
+            "agent", "director-roundtrip", "course-builder", "propose",
+            ("course:" + lantern["slug"],))
+        after = list(journal.entries(base))
+        if len(after) != before + 1:
+            fail("begin_operation appended %d entries" % (len(after) - before))
+        entry = after[-1]
+        if entry["operation"] != "agent_operation":
+            fail("the intent entry's operation is %r" % (entry["operation"],))
+        if entry["state"] != "applied":
+            fail("the intent entry's state is %r" % (entry["state"],))
+        agent = entry.get("agent") or {}
+        if set(agent) != set(director.AGENT_ENTRY_KEYS):
+            fail("the agent dict's keys are %r" % (sorted(agent),))
+        if agent.get("phase") != "declare-intent":
+            fail("the intent entry's phase is %r" % (agent.get("phase"),))
+        if agent.get("phase_index") != 0:
+            fail("the intent entry's phase_index is %r"
+                 % (agent.get("phase_index"),))
+
+        read = course.read_course(base)
+        doc = read["doc"]
+        objective_id = lantern["objectives"][0]
+        spans = [{"source_object_id": lantern["source_object_id"],
+                  "locator": "chapter 1"}]
+        request = director.recommendation_request(
+            doc, objective_id, spans, "hosted", "interaction-1000")
+        # Validated against the whole document, the way model_adapter._invoke
+        # does. Validating the $defs.request subschema alone would strand its
+        # $ref and fail for a reason that has nothing to do with the request.
+        errs = schema_validate.validate(request, model_adapter._SCHEMA)
+        if errs:
+            fail("the built request fails the adapter schema: %r" % (errs[:2],))
+        inner = request["payload"]["recommendation_request"]
+        if inner["treatment_kinds"] != list(graph.TREATMENT_KINDS):
+            fail("the request's treatment_kinds is %r"
+                 % (inner["treatment_kinds"],))
+        if inner["binding_states"] != list(graph.BINDING_STATES):
+            fail("the request's binding_states is %r"
+                 % (inner["binding_states"],))
+
+        # Learner evidence never reaches a backend.
+        for forbidden in ("score", "verdict", "attempt_number", "session_id",
+                          "mark", "response", "canonical", "note"):
+            try:
+                director.recommendation_request(
+                    doc, objective_id,
+                    [{"source_object_id": "s", "locator": "l",
+                      forbidden: "x"}],
+                    "hosted", "interaction-1001")
+            except director.DirectorError as exc:
+                if exc.code != "director.evidence_forbidden":
+                    fail("a %s span raised %r" % (forbidden, exc.code))
+                elif forbidden not in exc.message:
+                    fail("the %s refusal does not name the key: %r"
+                         % (forbidden, exc.message))
+            else:
+                fail("a span carrying %r was accepted" % (forbidden,))
+
+        candidate = mock_backends.candidate_for(request)
+        record = director.validate_recommendation(candidate)
+        if set(record) != set(director.RECOMMENDATION_KEYS):
+            fail("the normalized record's keys are %r" % (sorted(record),))
+
+        bad_kind = dict(candidate, treatment_kind="flashcards")
+        try:
+            director.validate_recommendation(bad_kind)
+        except director.DirectorError as exc:
+            if exc.code != "director.unknown_treatment_kind":
+                fail("a twelfth treatment kind raised %r" % (exc.code,))
+            elif "eleven" not in exc.message:
+                fail("the twelfth-kind message is %r" % (exc.message,))
+        else:
+            fail("a twelfth treatment kind was accepted")
+
+        missing = dict(candidate)
+        del missing["citations"]
+        try:
+            director.validate_recommendation(missing)
+        except director.DirectorError as exc:
+            if exc.code != "director.recommendation_invalid":
+                fail("a missing citations key raised %r" % (exc.code,))
+            elif "citations" not in exc.message:
+                fail("the missing-key message does not name it: %r"
+                     % (exc.message,))
+        else:
+            fail("a candidate missing citations was accepted")
+
+        # The bind. lantern grants transform, so a transform-consuming
+        # treatment is the one that can succeed here.
+        granted = dict(record, treatment_kind="guided-lesson")
+        bindings_before = len(course.read_course(base)["doc"]["bindings"])
+        revision_before = course.read_course(base)["revision"]
+        director.apply_recommendation(
+            base, base, granted, lantern["source_object_id"],
+            "agent", "director-roundtrip")
+        read_after = course.read_course(base)
+        bindings_after = read_after["doc"]["bindings"]
+        if len(bindings_after) != bindings_before + 1:
+            fail("the bind added %d rows"
+                 % (len(bindings_after) - bindings_before))
+        else:
+            row = bindings_after[-1]
+            if row.get("binding_kind") != "treatment":
+                fail("the new row's binding_kind is %r"
+                     % (row.get("binding_kind"),))
+            if row.get("treatment_kind") != "guided-lesson":
+                fail("the new row's treatment_kind is %r"
+                     % (row.get("treatment_kind"),))
+        if read_after["revision"] != (revision_before or 0) + 1:
+            fail("the sidecar revision went %r -> %r"
+                 % (revision_before, read_after["revision"]))
+
+        # The egress record.
+        egress_entries = [e for e in journal.entries(base)
+                          if (e.get("agent") or {}).get("egress")]
+        if len(egress_entries) != 1:
+            fail("%d entries carry an egress dict" % len(egress_entries))
+        else:
+            egress = egress_entries[0]["agent"]["egress"]
+            if set(egress) != set(director.EGRESS_KEYS):
+                fail("the egress dict's keys are %r" % (sorted(egress),))
+            if egress.get("destination") != "hosted":
+                fail("the egress destination is %r"
+                     % (egress.get("destination"),))
+            if not egress.get("spans"):
+                fail("the egress spans list is empty")
+
+        # A refused bind: meridian grants no rights at all.
+        m_base = meridian["root"]
+        m_read = course.read_course(m_base)
+        m_bytes_before = m_read["text"]
+        m_entries_before = len(list(journal.entries(m_base)))
+        m_record = dict(record, objective_id=meridian["objectives"][0],
+                        treatment_kind="guided-lesson")
+        try:
+            director.apply_recommendation(
+                m_base, m_base, m_record, meridian["source_object_id"],
+                "agent", "director-roundtrip")
+        except director.DirectorError as exc:
+            if exc.code != "director.rights_not_granted":
+                fail("an ungranted bind raised %r" % (exc.code,))
+            elif "transform" not in exc.message or "unknown" not in exc.message:
+                fail("the refusal names neither right nor state: %r"
+                     % (exc.message,))
+        else:
+            fail("a bind with no granted right succeeded")
+        if course.read_course(m_base)["text"] != m_bytes_before:
+            fail("a refused bind changed the sidecar bytes")
+        m_after = list(journal.entries(m_base))
+        if len(m_after) != m_entries_before + 1:
+            fail("a refused bind appended %d entries"
+                 % (len(m_after) - m_entries_before))
+        else:
+            refused = m_after[-1]
+            if refused["state"] != "refused":
+                fail("the refusal entry's state is %r" % (refused["state"],))
+            if (refused.get("agent") or {}).get("phase") != "review":
+                fail("the refusal entry's phase is %r"
+                     % ((refused.get("agent") or {}).get("phase"),))
+
+        # The rights check is live: revoke, then try a second objective with a
+        # record whose own rights field still reads granted.
+        corpus_14b.revoke_right(base, lantern["source_object_id"], "transform")
+        second = dict(record, objective_id=lantern["objectives"][1],
+                      treatment_kind="guided-lesson")
+        second["coverage"] = dict(second["coverage"], state="covered")
+        try:
+            director.apply_recommendation(
+                base, base, second, lantern["source_object_id"],
+                "agent", "director-roundtrip")
+        except director.DirectorError as exc:
+            if exc.code != "director.rights_not_granted":
+                fail("a revoked right raised %r" % (exc.code,))
+            elif "denied" not in exc.message:
+                fail("the revoked-right message does not name denied: %r"
+                     % (exc.message,))
+        else:
+            fail("a revoked right still permitted a bind")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def check_backend_unavailable_leaves_the_objective_untreated():
+    """A missing executable is a typed unavailable result, not an exception."""
+    import director
+    import corpus_14b
+
+    tmp = tempfile.mkdtemp(prefix="director-down-")
+    try:
+        built = corpus_14b.build_three_domains(os.path.join(tmp, "corpus"))
+        lantern = [d for d in built["domains"]
+                   if d["slug"] == "lantern-computing"][0]
+        base = lantern["root"]
+        objective_id = lantern["objectives"][2]
+
+        text_before = course.read_course(base)["text"]
+        settings = make_settings("gone", [{
+            "name": "gone", "transport": "hosted_cli",
+            "command": ["/nonexistent/itembank-hosted-bin"],
+            "model": "gone", "timeout_seconds": 5,
+            "max_output_bytes": 1024, "context_window": 1024}])
+
+        result = director.recommend_once(
+            base, base, objective_id, settings, "gone",
+            "agent", "director-roundtrip", "course-builder", "propose")
+        if result["status"] != "unavailable":
+            fail("a missing executable returned %r" % (result["status"],))
+        if result["code"] != "adapter.executable_missing":
+            fail("a missing executable gave code %r" % (result["code"],))
+        if result["record"] is not None:
+            fail("a missing executable returned a record")
+
+        entry = list(journal.entries(base))[-1]
+        if (entry.get("agent") or {}).get("phase") != "plan-treatment":
+            fail("the unavailable entry's phase is %r"
+                 % ((entry.get("agent") or {}).get("phase"),))
+        if entry["state"] != "refused":
+            fail("the unavailable entry's state is %r" % (entry["state"],))
+
+        read = course.read_course(base)
+        if read["text"] != text_before:
+            fail("an unavailable backend changed the sidecar")
+        treated = [r for r in read["doc"]["bindings"]
+                   if r.get("objective") == objective_id
+                   and r.get("binding_kind") == "treatment"]
+        if treated:
+            fail("the untreated objective gained %d treatment rows"
+                 % len(treated))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def check_boundaries_are_structural():
+    """director.py cannot reach the tier gate, evidence, the runtime, or the
+    parser, and the proof is the absence of the attribute rather than a
+    reviewer's care."""
+    import director
+    for forbidden in ("tier_gate", "evidence", "runtime", "model"):
+        if hasattr(director, forbidden):
+            fail("director imports %s" % forbidden)
+
+
+def valid_candidate(**overrides):
+    """One schema-valid candidate, overridable field by field."""
+    candidate = {
+        "schema_version": 1,
+        "objective_id": "o1",
+        "treatment_kind": "guided-lesson",
+        "rationale": "a stated reason",
+        "synthesis": True,
+        "confidence": "medium",
+        "coverage": {"state": "covered", "locator": "l1",
+                     "confidence": "medium", "source_object_id": "s1",
+                     "match_kind": "locator"},
+        "alternatives": [],
+        "citations": [{"source_object_id": "s1", "locator": "l1"}],
+    }
+    candidate.update(overrides)
+    return candidate
+
+
+def walk_floats(obj, path="$"):
+    """Every float anywhere in `obj`, with the path that reached it."""
+    found = []
+    if isinstance(obj, float):
+        found.append(path)
+    elif isinstance(obj, dict):
+        for key, value in obj.items():
+            found.extend(walk_floats(value, "%s.%s" % (path, key)))
+    elif isinstance(obj, (list, tuple)):
+        for n, value in enumerate(obj):
+            found.extend(walk_floats(value, "%s[%d]" % (path, n)))
+    return found
+
+
+def check_treatment_vocabulary():
+    """One closed vocabulary, read from one place, closed on both sides."""
+    import director
+    import corpus_14b
+
+    # There is one vocabulary and director reads it. Proven behaviorally:
+    # narrow graph.TREATMENT_KINDS and confirm the ranking narrows with it.
+    # A local copy in director.py would keep ranking against eleven.
+    real_kinds = graph.TREATMENT_KINDS
+    try:
+        graph.TREATMENT_KINDS = ("direct-reading", "excerpt")
+        ranked = director.rank_candidates(
+            [{"treatment_kind": "excerpt", "confidence": "medium"},
+             {"treatment_kind": "direct-reading", "confidence": "medium"}])
+        if [c["treatment_kind"] for c in ranked] != ["direct-reading", "excerpt"]:
+            fail("ranking against a narrowed vocabulary gave %r" % (ranked,))
+        try:
+            director.rank_candidates(
+                [{"treatment_kind": "practice", "confidence": "medium"}])
+        except director.DirectorError as exc:
+            if exc.code != "director.unknown_treatment_kind":
+                fail("a kind outside the narrowed vocabulary raised %r"
+                     % (exc.code,))
+        else:
+            fail("director ranked a kind the vocabulary no longer holds; it "
+                 "is reading its own copy of the eleven tokens")
+    finally:
+        graph.TREATMENT_KINDS = real_kinds
+
+    # Both sides of the boundary.
+    for kind in graph.TREATMENT_KINDS:
+        try:
+            record = director.validate_recommendation(
+                valid_candidate(treatment_kind=kind))
+        except director.DirectorError as exc:
+            fail("the vocabulary member %r was refused: %s" % (kind, exc.code))
+        else:
+            if record["treatment_kind"] != kind:
+                fail("validating %r yielded %r" % (kind, record["treatment_kind"]))
+    try:
+        director.validate_recommendation(
+            valid_candidate(treatment_kind="flashcards"))
+    except director.DirectorError as exc:
+        if exc.code != "director.unknown_treatment_kind":
+            fail("a twelfth kind raised %r" % (exc.code,))
+    else:
+        fail("a twelfth kind was accepted")
+
+    empty = director.validate_recommendation(valid_candidate(treatment_kind=""))
+    if empty["treatment_kind"] != "":
+        fail("the empty treatment kind became %r" % (empty["treatment_kind"],))
+
+    # Ranking and tie-break.
+    record = valid_candidate(
+        treatment_kind="practice", confidence="medium",
+        alternatives=[{"treatment_kind": "excerpt", "confidence": "medium"}])
+    candidates = director.treatment_candidates(record)
+    if candidates[0] != {"treatment_kind": "practice", "confidence": "medium"}:
+        fail("treatment_candidates put %r first" % (candidates[0],))
+    if len(candidates) != 2:
+        fail("treatment_candidates returned %d entries" % len(candidates))
+    if director.treatment_candidates(valid_candidate(treatment_kind="")) != []:
+        fail("an empty treatment kind produced a candidate entry")
+
+    pair = [{"treatment_kind": "practice", "confidence": "medium"},
+            {"treatment_kind": "excerpt", "confidence": "medium"}]
+    ranked = director.rank_candidates(pair)
+    if ranked[0]["treatment_kind"] != "excerpt":
+        fail("the tie went to %r, not excerpt" % (ranked[0]["treatment_kind"],))
+    if len(ranked) != 2:
+        fail("a tie dropped a candidate: %r" % (ranked,))
+    if director.rank_candidates(list(reversed(pair))) != ranked:
+        fail("input order decided the tie")
+
+    ordered = director.rank_candidates([
+        {"treatment_kind": "human-review", "confidence": "unknown"},
+        {"treatment_kind": "practice", "confidence": "high"},
+        {"treatment_kind": "excerpt", "confidence": "low"}])
+    if [c["treatment_kind"] for c in ordered] != \
+            ["practice", "excerpt", "human-review"]:
+        fail("confidence ranking gave %r" % (ordered,))
+
+    if director.rank_candidates([]) != []:
+        fail("rank_candidates([]) is not []")
+
+    duplicated = director.rank_candidates([
+        {"treatment_kind": "excerpt", "confidence": "medium"},
+        {"treatment_kind": "excerpt", "confidence": "medium"}])
+    if len(duplicated) != 1:
+        fail("a duplicate candidate stayed two entries: %r" % (duplicated,))
+
+    # Precision: closed tokens, never a number.
+    for value in director.rank_candidates(pair):
+        if value["confidence"] not in graph.EDGE_CONFIDENCES:
+            fail("a ranked confidence is %r" % (value["confidence"],))
+
+    numeric = valid_candidate(confidence=0.8, treatment_kind="flashcards")
+    try:
+        director.validate_recommendation(numeric)
+    except director.DirectorError as exc:
+        if exc.code != "director.recommendation_invalid":
+            fail("a numeric confidence with a bad kind raised %r" % (exc.code,))
+    else:
+        fail("a numeric confidence was accepted")
+
+    record = director.validate_recommendation(valid_candidate())
+    floats = walk_floats(record)
+    if floats:
+        fail("a validated record carries floats at %r" % (floats,))
+
+    if director.PARITY_VOLATILE_KEYS != tuple(
+            sorted(director.PARITY_VOLATILE_KEYS)):
+        fail("PARITY_VOLATILE_KEYS is unsorted: %r"
+             % (director.PARITY_VOLATILE_KEYS,))
+    view = director.parity_view(
+        {"a": 1, "entry_id": "x", "b": [{"timestamp": "t", "c": 2}]})
+    if view != {"a": 1, "b": [{"c": 2}]}:
+        fail("parity_view returned %r" % (view,))
+
+    # The empty kind refuses at bind time, before any rights lookup.
+    tmp = tempfile.mkdtemp(prefix="director-empty-")
+    try:
+        built = corpus_14b.build_recommendation_fixture(
+            os.path.join(tmp, "corpus"))
+        base = built["course_root"]
+        text_before = course.read_course(base)["text"]
+        entries_before = len(list(journal.entries(base)))
+        blank = director.validate_recommendation(
+            valid_candidate(treatment_kind="",
+                            objective_id=built["objective_ids"][0]))
+        try:
+            director.apply_recommendation(
+                base, base, blank, built["source_object_ids"][0],
+                "agent", "director-roundtrip")
+        except director.DirectorError as exc:
+            if exc.code != "director.empty_treatment_bind":
+                fail("an empty-kind bind raised %r" % (exc.code,))
+        else:
+            fail("an empty treatment kind was bound")
+        if course.read_course(base)["text"] != text_before:
+            fail("an empty-kind bind changed the sidecar")
+        after = list(journal.entries(base))
+        if len(after) != entries_before + 1:
+            fail("an empty-kind bind appended %d entries"
+                 % (len(after) - entries_before))
+        elif after[-1]["state"] != "refused":
+            fail("the empty-kind refusal state is %r" % (after[-1]["state"],))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def check_direct_reading_complete():
+    """Direct reading is a finished recommendation, and the gap report is
+    computed from what was bound rather than from what was proposed."""
+    import director
+    import corpus_14b
+
+    tmp = tempfile.mkdtemp(prefix="director-direct-")
+    try:
+        built = corpus_14b.build_recommendation_fixture(
+            os.path.join(tmp, "corpus"))
+        base = built["course_root"]
+        granted = built["granted_source_object_id"]
+        unknown = built["unknown_source_object_id"]
+        objective_ids = built["objective_ids"]
+
+        # The gap report before anything is bound.
+        doc = course.read_course(base)["doc"]
+        report = director.untreated_objectives(doc)
+        for row in report:
+            if set(row) != {"objective_id", "statement", "reason"}:
+                fail("an untreated row's keys are %r" % (sorted(row),))
+                break
+            if row["reason"] not in director.UNTREATED_REASONS:
+                fail("an untreated reason is %r" % (row["reason"],))
+                break
+        listed = [r["objective_id"] for r in report]
+        authored = [o["id"] for o in doc["objectives"]]
+        if listed != [o for o in authored if o in listed]:
+            fail("the untreated report is not in authored order")
+        for objective_id in objective_ids[:3]:
+            row = [r for r in report if r["objective_id"] == objective_id]
+            if not row:
+                fail("an unbound objective is missing from the report")
+            elif row[0]["reason"] != "no-recommendation":
+                fail("a source-bound untreated objective reads %r"
+                     % (row[0]["reason"],))
+        unbound = [r for r in report
+                   if r["objective_id"] == built["unbound_objective_id"]]
+        if not unbound:
+            fail("the objective with no source binding is not reported")
+        elif unbound[0]["reason"] != "no-source-bound":
+            fail("the no-source objective reads %r" % (unbound[0]["reason"],))
+
+        # Direct reading binds, against a granted read right.
+        record = director.validate_recommendation(valid_candidate(
+            objective_id=objective_ids[0], treatment_kind="direct-reading"))
+        rows_before = len(doc["bindings"])
+        director.apply_recommendation(base, base, record, granted,
+                                      "agent", "director-roundtrip")
+        doc = course.read_course(base)["doc"]
+        added = [r for r in doc["bindings"]
+                 if r.get("objective") == objective_ids[0]
+                 and r.get("binding_kind") == "treatment"]
+        if len(doc["bindings"]) != rows_before + 1:
+            fail("a direct-reading bind added %d rows"
+                 % (len(doc["bindings"]) - rows_before))
+        if len(added) != 1 or added[0]["treatment_kind"] != "direct-reading":
+            fail("the direct-reading row is %r" % (added,))
+        if any(r["objective_id"] == objective_ids[0]
+               for r in director.untreated_objectives(doc)):
+            fail("a direct-reading treated objective is still reported "
+                 "untreated; direct reading is not a complete result")
+
+        # Direct reading is not a free pass: an unknown read right refuses.
+        text_before = course.read_course(base)["text"]
+        second = director.validate_recommendation(valid_candidate(
+            objective_id=objective_ids[1], treatment_kind="direct-reading"))
+        try:
+            director.apply_recommendation(base, base, second, unknown,
+                                          "agent", "director-roundtrip")
+        except director.DirectorError as exc:
+            if exc.code != "director.rights_not_granted":
+                fail("direct reading on an unknown right raised %r"
+                     % (exc.code,))
+            elif "read" not in exc.message or "unknown" not in exc.message:
+                fail("the direct-reading refusal is %r" % (exc.message,))
+        else:
+            fail("direct reading bound against an unknown read right")
+        if course.read_course(base)["text"] != text_before:
+            fail("a refused direct-reading bind changed the sidecar")
+        doc = course.read_course(base)["doc"]
+        if not any(r["objective_id"] == objective_ids[1]
+                   for r in director.untreated_objectives(doc)):
+            fail("a refused objective left the untreated report")
+
+        # Drafting without applying changes the report by nothing.
+        settings = make_settings("hosted", [mock_profile()])
+        before = director.untreated_objectives(course.read_course(base)["doc"])
+        director.recommend_treatments(
+            base, base, objective_ids, settings, "hosted",
+            "agent", "director-roundtrip", "course-builder", "propose")
+        after = director.untreated_objectives(course.read_course(base)["doc"])
+        if before != after:
+            fail("a recommend-only pass changed the untreated report")
+
+        # A second pass does not re-propose the treated objective.
+        entries = director.recommend_treatments(
+            base, base, objective_ids, settings, "hosted",
+            "agent", "director-roundtrip", "course-builder", "propose")
+        if len(entries) != len(objective_ids):
+            fail("a pass over %d objectives returned %d entries"
+                 % (len(objective_ids), len(entries)))
+        counts = {}
+        for entry in entries:
+            if entry["outcome"] not in director.RECOMMENDATION_OUTCOMES:
+                fail("an outcome is %r" % (entry["outcome"],))
+            counts[entry["outcome"]] = counts.get(entry["outcome"], 0) + 1
+        if sum(counts.values()) != len(objective_ids):
+            fail("the outcome counts sum to %d" % sum(counts.values()))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def check_generation_is_never_automatic():
+    """No backend means no treatment. Not a local guess, not a default."""
+    import director
+    import corpus_14b
+
+    tmp = tempfile.mkdtemp(prefix="director-nogen-")
+    try:
+        built = corpus_14b.build_recommendation_fixture(
+            os.path.join(tmp, "corpus"))
+        base = built["course_root"]
+        objective_ids = built["objective_ids"]
+
+        rows_before = len(course.read_course(base)["doc"]["bindings"])
+        entries_before = len(list(journal.entries(base)))
+        settings = make_settings("gone", [{
+            "name": "gone", "transport": "hosted_cli",
+            "command": ["/nonexistent/itembank-hosted-bin"],
+            "model": "gone", "timeout_seconds": 5,
+            "max_output_bytes": 1024, "context_window": 1024}])
+
+        entries = director.recommend_treatments(
+            base, base, objective_ids, settings, "gone",
+            "agent", "director-roundtrip", "course-builder",
+            "approved-bounded-write")
+        if len(entries) != 4:
+            fail("an unavailable pass returned %d entries" % len(entries))
+        for entry in entries:
+            if entry["outcome"] != "untreated":
+                fail("an unavailable outcome is %r" % (entry["outcome"],))
+            if entry["reason"] != "backend-unavailable":
+                fail("an unavailable reason is %r" % (entry["reason"],))
+            if entry["treatment_kind"] != "":
+                fail("an unavailable entry invented the treatment %r; no code "
+                     "path may produce a kind that did not come from a "
+                     "validated candidate" % (entry["treatment_kind"],))
+
+        rows_after = len(course.read_course(base)["doc"]["bindings"])
+        if rows_after != rows_before:
+            fail("an unavailable pass wrote %d bindings"
+                 % (rows_after - rows_before))
+        grew = len(list(journal.entries(base))) - entries_before
+        if grew != 2 * len(objective_ids):
+            fail("an unavailable pass appended %d journal entries, expected "
+                 "one intent plus one refusal per objective" % grew)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+PROGRESS_KEY_NAMES = ("mastery", "completion", "readiness", "progress",
+                      "percent", "score")
+
+
+def walk_keys(obj, path="$"):
+    """Every mapping key anywhere in `obj`, with the path that reached it."""
+    found = []
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            found.append((key, "%s.%s" % (path, key)))
+            found.extend(walk_keys(value, "%s.%s" % (path, key)))
+    elif isinstance(obj, (list, tuple)):
+        for n, value in enumerate(obj):
+            found.extend(walk_keys(value, "%s[%d]" % (path, n)))
+    return found
+
+
+def check_recommendation_edges():
+    """Empty, single, ordering, and repeated-run edges, and no progress value
+    anywhere in a recommendation."""
+    import director
+    import corpus_14b
+
+    tmp = tempfile.mkdtemp(prefix="director-edges-")
+    try:
+        # parity_view recurses through lists as well as dicts.
+        nested = {"a": [{"timestamp": 1, "b": 2}], "operation_id": "x",
+                  "c": {"d": [{"entry_id": "e", "f": 3}]}}
+        view = director.parity_view(nested)
+        if view != {"a": [{"b": 2}], "c": {"d": [{"f": 3}]}}:
+            fail("parity_view over a nested list returned %r" % (view,))
+        for key in director.PARITY_VOLATILE_KEYS:
+            if key in json.dumps(director.parity_view(
+                    {"x": [{key: 1}], key: 2})):
+                fail("parity_view left %r behind" % (key,))
+
+        built = corpus_14b.build_recommendation_fixture(
+            os.path.join(tmp, "corpus"))
+        base = built["course_root"]
+        objective_ids = built["objective_ids"]
+        settings = make_settings("hosted", [mock_profile()])
+
+        # An empty pass opens no operation.
+        entries_before = len(list(journal.entries(base)))
+        empty = director.recommend_treatments(
+            base, base, [], settings, "hosted",
+            "agent", "director-roundtrip", "course-builder", "propose")
+        if empty != []:
+            fail("an empty pass returned %r" % (empty,))
+        if len(list(journal.entries(base))) != entries_before:
+            fail("an empty pass appended journal entries; an operation with "
+                 "no work opens no operation")
+
+        # A document with zero objectives.
+        bare = graph.new_course("Bare course", "c-bare")
+        if director.untreated_objectives(bare) != []:
+            fail("untreated_objectives on an empty course returned %r"
+                 % (director.untreated_objectives(bare),))
+
+        # A single-objective pass.
+        single = director.recommend_treatments(
+            base, base, [objective_ids[0]], settings, "hosted",
+            "agent", "director-roundtrip", "course-builder", "propose")
+        if len(single) != 1:
+            fail("a single-objective pass returned %d entries" % len(single))
+        elif single[0]["objective_id"] != objective_ids[0]:
+            fail("a single-objective pass returned %r"
+                 % (single[0]["objective_id"],))
+
+        # An objective with no source bound gets no generated treatment.
+        unbound = director.recommend_treatments(
+            base, base, [built["unbound_objective_id"]], settings, "hosted",
+            "agent", "director-roundtrip", "course-builder",
+            "approved-bounded-write")
+        if len(unbound) != 1:
+            fail("the unbound pass returned %d entries" % len(unbound))
+        else:
+            entry = unbound[0]
+            if entry["outcome"] != "untreated":
+                fail("the unbound objective's outcome is %r"
+                     % (entry["outcome"],))
+            record = entry.get("record") or {}
+            coverage = record.get("coverage") or {}
+            if coverage.get("state") != "missing":
+                fail("the unbound coverage state is %r"
+                     % (coverage.get("state"),))
+            if coverage.get("match_kind") != "none":
+                fail("the unbound match_kind is %r"
+                     % (coverage.get("match_kind"),))
+
+        # Ordering: the caller's order is preserved, not replaced.
+        forward = director.recommend_treatments(
+            base, base, objective_ids, settings, "hosted",
+            "agent", "director-roundtrip", "course-builder", "propose")
+        if [e["objective_id"] for e in forward] != list(objective_ids):
+            fail("a forward pass reordered its objectives")
+        backward = director.recommend_treatments(
+            base, base, list(reversed(objective_ids)), settings, "hosted",
+            "agent", "director-roundtrip", "course-builder", "propose")
+        if [e["objective_id"] for e in backward] != list(reversed(objective_ids)):
+            fail("a reversed pass did not preserve the caller's order")
+
+        # The gap report is always document order, whatever ran before it.
+        doc = course.read_course(base)["doc"]
+        report = director.untreated_objectives(doc)
+        authored = [o["id"] for o in doc["objectives"]]
+        listed = [r["objective_id"] for r in report]
+        if listed != [o for o in authored if o in listed]:
+            fail("the gap report is not in authored order after a "
+                 "reverse-order pass")
+
+        # Repeated runs are stable.
+        again = director.recommend_treatments(
+            base, base, objective_ids, settings, "hosted",
+            "agent", "director-roundtrip", "course-builder", "propose")
+        if director.parity_view(forward) != director.parity_view(again):
+            fail("two recommend-only passes over an unchanged document "
+                 "differ after parity_view")
+
+        # No progress value, no float, anywhere.
+        for entry in forward:
+            for key, path in walk_keys(entry):
+                if key in PROGRESS_KEY_NAMES:
+                    fail("a recommendation entry carries the key %r at %s"
+                         % (key, path))
+            floats = walk_floats(entry)
+            if floats:
+                fail("a recommendation entry carries floats at %r" % (floats,))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def coverage_claim_dict(**overrides):
+    """One coverage claim, overridable field by field."""
+    claim = {"objective_id": "o1", "source_object_id": "s1",
+             "locator": "Section 2.1", "match_kind": "locator",
+             "confidence": "high", "assertion": "",
+             "span_chars": 300, "proposed_state": "covered",
+             "state": "unknown"}
+    claim.update(overrides)
+    return claim
+
+
+def check_coverage_classifier():
+    """A coverage state is computed from a locator that either resolves or
+    does not, by six rules in a fixed order."""
+    import director
+
+    # Normalization: line endings and NFC yes, case folding and prefixes no.
+    if director.locator_key("Section  2.1\r\n") != \
+            director.locator_key("Section  2.1\n"):
+        fail("locator_key does not normalize line endings")
+    if director.locator_key("\u00e9") != director.locator_key("e\u0301"):
+        fail("locator_key does not apply NFC")
+    if director.locator_key("Section 2.1") == director.locator_key("section 2.1"):
+        fail("locator_key case folds; that reopens the similarity path")
+    if director.locator_key("Section 2.1") == director.locator_key("Section 2"):
+        fail("locator_key prefix matches")
+
+    source = "Intro.\n\n## Section 2.1\n\nThe intake sequence begins here.\n"
+    resolved = director.resolve_locator(source, "Section 2.1")
+    if set(resolved) != {"resolved", "span_chars"}:
+        fail("resolve_locator's keys are %r" % (sorted(resolved),))
+    if not resolved["resolved"]:
+        fail("an exact substring did not resolve")
+    if resolved["span_chars"] != len("Section 2.1"):
+        fail("the resolved span is %r" % (resolved["span_chars"],))
+    if director.resolve_locator(source, "Section 9.9")["resolved"]:
+        fail("an absent locator resolved")
+    if director.resolve_locator("", "anything") != \
+            {"resolved": False, "span_chars": 0}:
+        fail("an empty source text did not refuse")
+    if director.resolve_locator(source, "")["resolved"]:
+        fail("an empty locator resolved; everything contains the empty "
+             "string and a claim with no locator is not a claim")
+
+    # Rule 1: no source is missing, whatever else the claim says.
+    state = director.classify_coverage([coverage_claim_dict(
+        source_object_id="", match_kind="locator", confidence="high")])
+    if state != "missing":
+        fail("rule 1 gave %r" % (state,))
+    if director.classify_coverage([]) != "missing":
+        fail("an empty claim list is not missing")
+
+    # Rule 2: similarity alone can never be covered.
+    for match_kind in ("heading-similarity", "none"):
+        state = director.classify_coverage([coverage_claim_dict(
+            match_kind=match_kind, confidence="high", span_chars=5000)])
+        if state != "unknown":
+            fail("a %s claim classified %r" % (match_kind, state))
+
+    # Rule 3: two different assertions conflict; two equal ones do not.
+    conflicting = director.classify_coverage([
+        coverage_claim_dict(
+            assertion="The intake sequence begins with scene safety."),
+        coverage_claim_dict(
+            assertion="The intake sequence begins with airway assessment.")])
+    if conflicting != "conflicting":
+        fail("two differing assertions classified %r" % (conflicting,))
+    agreeing = director.classify_coverage([
+        coverage_claim_dict(assertion="The intake sequence begins here."),
+        coverage_claim_dict(assertion="The intake sequence begins here.")])
+    if agreeing == "conflicting":
+        fail("two identical assertions classified conflicting")
+
+    # Rule 4: an unknown confidence is unknown, however good the locator.
+    state = director.classify_coverage([coverage_claim_dict(
+        confidence="unknown", span_chars=5000)])
+    if state != "unknown":
+        fail("rule 4 gave %r" % (state,))
+
+    # Rule 5: the thin boundary, proven on both sides.
+    if director.classify_coverage([coverage_claim_dict(span_chars=239)]) != "thin":
+        fail("a 239-character span is not thin")
+    if director.classify_coverage([coverage_claim_dict(span_chars=240)]) != "covered":
+        fail("a 240-character span is not covered")
+    if director.classify_coverage([coverage_claim_dict(
+            confidence="low", span_chars=5000)]) != "thin":
+        fail("a low-confidence claim is not thin")
+
+    # Rule order is proven, not assumed: rules 2, 4 and 5 fire at once.
+    state = director.classify_coverage([coverage_claim_dict(
+        match_kind="heading-similarity", confidence="unknown",
+        span_chars=10)])
+    if state != "unknown":
+        fail("a claim triggering rules 2, 4 and 5 classified %r; rule 2 must "
+             "fire first" % (state,))
+
+    # An unrecognized match kind is refused, never treated as a locator.
+    try:
+        director.classify_coverage([coverage_claim_dict(match_kind="fuzzy")])
+    except director.DirectorError as exc:
+        if exc.code != "director.unknown_match_kind":
+            fail("an unknown match kind raised %r" % (exc.code,))
+        elif "fuzzy" not in exc.message:
+            fail("the unknown-match-kind message is %r" % (exc.message,))
+    else:
+        fail("an unknown match kind was classified rather than refused")
+
+    # The vocabulary firewall.
+    seen = set()
+    for claims in ([coverage_claim_dict(source_object_id="")],
+                   [coverage_claim_dict(match_kind="none")],
+                   [coverage_claim_dict(assertion="a"),
+                    coverage_claim_dict(assertion="b")],
+                   [coverage_claim_dict(confidence="unknown")],
+                   [coverage_claim_dict(span_chars=239)],
+                   [coverage_claim_dict(span_chars=240)]):
+        seen.add(director.classify_coverage(claims))
+    if not seen <= set(graph.BINDING_STATES):
+        fail("classify_coverage returned states outside BINDING_STATES: %r"
+             % (seen - set(graph.BINDING_STATES),))
+    if len(seen) != 5:
+        fail("the six rules produced %d distinct states, expected all five"
+             % len(seen))
+    if hasattr(director, "auditor"):
+        fail("director imports auditor; the auditor's coverage vocabulary is "
+             "a different, correctly-scoped one")
+    if len(director.MATCH_KINDS) != 3:
+        fail("MATCH_KINDS has %d members" % len(director.MATCH_KINDS))
+    if len(graph.BINDING_STATES) != 5:
+        fail("BINDING_STATES has %d members after importing director"
+             % len(graph.BINDING_STATES))
+
+
+def check_coverage_states():
+    """All five states produced by real fixture data, plus the decoy that must
+    not read as covered."""
+    import director
+    import corpus_14b
+
+    tmp = tempfile.mkdtemp(prefix="director-coverage-")
+    try:
+        built = corpus_14b.build_coverage_fixture(os.path.join(tmp, "corpus"))
+        if set(built) < {"course_root", "source_texts", "claims", "decoy_claim"}:
+            fail("build_coverage_fixture returned keys %r" % (sorted(built),))
+
+        claims = built["claims"]
+        if set(claims) != set(graph.BINDING_STATES):
+            fail("the fixture's claim groups are %r" % (sorted(claims),))
+
+        # All five states, produced by data rather than by naming the string.
+        for state in graph.BINDING_STATES:
+            group = claims[state]
+            got = director.classify_coverage(group)
+            if got != state:
+                fail("the %r fixture group classified %r" % (state, got))
+            for claim in group:
+                if set(claim) != set(director.COVERAGE_CLAIM_KEYS):
+                    fail("a %r claim's keys are %r" % (state, sorted(claim)))
+                    break
+                for field in ("state", "proposed_state"):
+                    value = claim.get(field)
+                    if value not in tuple(graph.BINDING_STATES) + ("",):
+                        fail("a claim's %s is %r" % (field, value))
+
+        # The heading-similarity decoy.
+        decoy = built["decoy_claim"]
+        if decoy["match_kind"] != "heading-similarity":
+            fail("the decoy's match_kind is %r" % (decoy["match_kind"],))
+        if decoy["confidence"] != "high":
+            fail("the decoy's confidence is %r" % (decoy["confidence"],))
+        if decoy["span_chars"] <= director.THIN_SPAN_CHARS:
+            fail("the decoy's span is %r, not longer than THIN_SPAN_CHARS"
+                 % (decoy["span_chars"],))
+        got = director.classify_coverage([decoy])
+        if got == "covered":
+            fail("the heading-similarity decoy classified covered; TREAT-02 "
+                 "says similarity alone can never produce covered")
+        if got != "unknown":
+            fail("the decoy classified %r, expected unknown" % (got,))
+
+        # The decoy is otherwise a well-formed covered claim: match_kind is the
+        # single field carrying the refusal.
+        promoted = dict(decoy, match_kind="locator")
+        if director.classify_coverage([promoted]) != "covered":
+            fail("the decoy with match_kind locator classified %r; the decoy "
+                 "is supposed to be covered in every respect but its match "
+                 "kind" % (director.classify_coverage([promoted]),))
+
+        # Duplicates and adjacency.
+        source_text = list(built["source_texts"].values())[0]
+        base_claims = director.coverage_claim(
+            [], "o1", "s1", "Section 2.1", "locator", "high", "", source_text)
+        if len(base_claims) != 1:
+            fail("one claim produced a list of %d" % len(base_claims))
+        try:
+            director.coverage_claim(base_claims, "o1", "s1", "Section 2.1",
+                                    "locator", "high", "", source_text)
+        except director.DirectorError as exc:
+            if exc.code != "director.duplicate_coverage_claim":
+                fail("a duplicate claim raised %r" % (exc.code,))
+            elif not all(v in exc.message for v in ("o1", "s1", "Section 2.1")):
+                fail("the duplicate message does not name all three: %r"
+                     % (exc.message,))
+        else:
+            fail("a duplicate claim was accepted")
+
+        two = director.coverage_claim(base_claims, "o1", "s1", "Section 2.2",
+                                      "locator", "high", "", source_text)
+        if len(two) != 2:
+            fail("a differing locator produced %d claims" % len(two))
+        if len(base_claims) != 1:
+            fail("coverage_claim mutated the list it was given")
+
+        # Trailing line endings collide; letter case does not.
+        try:
+            director.coverage_claim(base_claims, "o1", "s1", "Section 2.1\r\n",
+                                    "locator", "high", "", source_text)
+        except director.DirectorError as exc:
+            if exc.code != "director.duplicate_coverage_claim":
+                fail("a line-ending variant raised %r" % (exc.code,))
+        else:
+            # "Section 2.1\r\n" normalizes to "Section 2.1\n", which is not
+            # equal to "Section 2.1"; only the \r is removed. That is correct
+            # and not a duplicate.
+            pass
+        cased = director.coverage_claim(base_claims, "o1", "s1", "section 2.1",
+                                        "locator", "high", "", source_text)
+        if len(cased) != 2:
+            fail("a case variant was treated as a duplicate; locator_key must "
+                 "not case-fold")
+
+        # Ordering and stability over a real document.
+        doc = course.read_course(built["course_root"])["doc"]
+        first = director.coverage_claims_for(doc, built["source_texts"])
+        second = director.coverage_claims_for(doc, built["source_texts"])
+        if first != second:
+            fail("two classification passes over one document differ")
+        if json.dumps(first, sort_keys=True) != json.dumps(second, sort_keys=True):
+            fail("two passes do not serialize byte-identically")
+
+        authored = [o["id"] for o in doc["objectives"]]
+        seen_order = []
+        for claim in first:
+            if claim["objective_id"] not in seen_order:
+                seen_order.append(claim["objective_id"])
+        if seen_order != [o for o in authored if o in seen_order]:
+            fail("coverage claims are not in authored objective order")
+
+        for claim in first:
+            if claim["state"] not in graph.BINDING_STATES:
+                fail("a computed claim state is %r" % (claim["state"],))
+            if set(claim) != set(director.COVERAGE_CLAIM_KEYS):
+                fail("a computed claim's keys are %r" % (sorted(claim),))
+                break
+
+        # A source absent from the mapping is unknown, never a crash.
+        stripped = director.coverage_claims_for(doc, {})
+        for claim in stripped:
+            if claim["match_kind"] != "none":
+                fail("an unreadable source produced match_kind %r"
+                     % (claim["match_kind"],))
+            if claim["span_chars"] != 0:
+                fail("an unreadable source produced span_chars %r"
+                     % (claim["span_chars"],))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def main():
+    checks = [check_adapter_is_additive,
+              check_journal_extension_is_two_lines,
+              check_mock_backend,
+              check_thin_slice,
+              check_backend_unavailable_leaves_the_objective_untreated,
+              check_boundaries_are_structural,
+              check_treatment_vocabulary,
+              check_direct_reading_complete,
+              check_generation_is_never_automatic,
+              check_recommendation_edges,
+              check_coverage_classifier,
+              check_coverage_states]
+    for check in checks:
+        check()
+    if FAILURES:
+        print("director_roundtrip: %d failed" % len(FAILURES))
+        sys.exit(1)
+    print("OK director_roundtrip")
+
+
+if __name__ == "__main__":
+    main()

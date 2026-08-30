@@ -663,3 +663,231 @@ def build_all(dest):
         "built": built["built"],
         "declared": built["declared"],
     }
+
+
+# The four objectives plan 15A-02 recommends over, in authored order. The
+# fourth deliberately gets no source binding: an objective with nothing behind
+# it is the case TREAT-01's degraded clause is about, and a corpus that never
+# produces one cannot prove the untreated report works.
+RECOMMENDATION_OBJECTIVES = (
+    "Describe the meridian field response intake sequence.",
+    "Classify a lantern computing loop by its termination condition.",
+    "Solve an orrery algebra system by elimination.",
+    "Summarize the meridian field response handoff record.",
+)
+
+RECOMMENDATION_SOURCE_BODY = (
+    "# %s\n\nA synthetic passage for the Phase 15A recommendation fixture.\n"
+    "It names no real course, book, or learner, and its content is fixed so a\n"
+    "rebuild is byte-identical.\n"
+)
+
+
+def build_recommendation_fixture(dest):
+    """One course root with four objectives, two sources, and one real gap.
+
+    Built on the corpus's first domain rather than beside it, so the
+    recommendation pass runs over a course that already carries containers,
+    edges, and an authored objective order rather than a bare shell.
+
+    Two sources, deliberately unequal: the first grants `transform`, which is
+    what a guided lesson consumes, and the second grants nothing at all, so a
+    rights refusal is reachable without editing the fixture. The fourth
+    objective is bound to no source, so `no-source-bound` is reachable too.
+    """
+    import course
+    import graph
+    import identity
+    import journal
+
+    built = build_three_domains(dest)
+    domain = built["domains"][0]
+    root = domain["root"]
+
+    source_object_ids = []
+    for slug, rights_grant in (("recommendation-granted",
+                                {"transform": "granted", "read": "granted"}),
+                               ("recommendation-unknown", {})):
+        rel = "sources/%s.md" % slug
+        os.makedirs(os.path.join(root, "sources"), exist_ok=True)
+        with open(os.path.join(root, rel), "w", encoding="utf-8") as fh:
+            fh.write(RECOMMENDATION_SOURCE_BODY % slug)
+        rights = identity.rights_default()
+        rights.update(rights_grant)
+        entry = journal.op_link(root, "source", rel, "agent", "corpus-15a",
+                                rights=rights)
+        source_object_ids.append(entry["object_id"])
+
+    read = course.read_course(root)
+    doc = read["doc"]
+    container = domain["containers"][0]
+    objective_ids = [graph.add_objective(doc, statement, container=container)["id"]
+                     for statement in RECOMMENDATION_OBJECTIVES]
+    for object_id, title in zip(source_object_ids,
+                                ("Recommendation source, granted",
+                                 "Recommendation source, unknown rights")):
+        doc["sources"].append(graph.new_record("Sources", {
+            "source_object_id": object_id, "title": title,
+            "note": "rights are recorded on the source object, never here"}))
+    course.write_course(root, doc, read["fingerprint"], "agent", "corpus-15a")
+
+    # The first three objectives get a source binding; the fourth gets none.
+    # Bound through course.bind_source so the rights gate runs, which is why
+    # only the granted source can be bound.
+    for objective_id in objective_ids[:3]:
+        course.bind_source(root, objective_id, source_object_ids[0],
+                           locator="section 1", state="unknown",
+                           confidence="unknown", actor_kind="agent",
+                           actor_name="corpus-15a")
+
+    return {
+        "dest": dest,
+        "course_root": root,
+        "objective_ids": objective_ids,
+        "unbound_objective_id": objective_ids[3],
+        "source_object_ids": source_object_ids,
+        "granted_source_object_id": source_object_ids[0],
+        "unknown_source_object_id": source_object_ids[1],
+        "domain_objectives": domain["objectives"],
+    }
+
+
+# The five coverage objectives, in authored order. Fictional, fixed, and
+# chosen so each one lands on exactly one of the five TREAT-02 states.
+COVERAGE_OBJECTIVES = (
+    "State the meridian field response intake order.",
+    "Name the two checks that precede transport.",
+    "Recall the handoff record fields.",
+    "Decide when a second responder is called.",
+    "Describe the equipment check cadence.",
+)
+
+# The decoy's objective. Its statement is reproduced verbatim as a heading in
+# the source text, so a similarity matcher would call it a perfect match. It
+# must still classify unknown, because the match kind says heading-similarity.
+COVERAGE_DECOY_OBJECTIVE = "Summarize the equipment check cadence."
+
+
+def _passage(seed, length):
+    """A deterministic fictional passage of exactly `length` characters.
+
+    Built by repeating a fixed sentence and truncating, so the length is exact
+    and a rebuild is byte-identical. The exact length is what matters: the thin
+    boundary is asserted at 239 and 240 characters, and a fixture that could
+    not hit those two numbers could not prove the boundary.
+    """
+    sentence = ("The %s procedure is recorded here for the field response "
+                "fixture and names no real course, book, or learner. " % seed)
+    return (sentence * (length // len(sentence) + 1))[:length]
+
+
+def build_coverage_fixture(dest):
+    """One course root plus one claim group per TREAT-02 state, and a decoy.
+
+    Every state is produced by real claim data rather than by writing the state
+    string, so a classifier regression fails here instead of passing against a
+    hand-written expectation.
+    """
+    import course
+    import director
+    import graph
+    import identity
+    import journal
+
+    built = build_three_domains(dest)
+    root = built["domains"][0]["root"]
+
+    covered_locator = _passage("intake", 240)
+    thin_locator = _passage("transport", 239)
+    unknown_locator = _passage("handoff", 300)
+    conflict_locator_a = _passage("second-responder", 260)
+    conflict_locator_b = _passage("equipment", 260)
+    decoy_locator = COVERAGE_DECOY_OBJECTIVE + " " + _passage("cadence", 260)
+
+    source_body = "\n\n".join([
+        "# Field response coverage fixture",
+        covered_locator,
+        thin_locator,
+        unknown_locator,
+        conflict_locator_a,
+        conflict_locator_b,
+        "## " + COVERAGE_DECOY_OBJECTIVE,
+        decoy_locator,
+        "",
+    ])
+
+    rel = "sources/coverage-fixture.md"
+    os.makedirs(os.path.join(root, "sources"), exist_ok=True)
+    with open(os.path.join(root, rel), "w", encoding="utf-8") as fh:
+        fh.write(source_body)
+    rights = identity.rights_default()
+    rights.update({"read": "granted", "transform": "granted"})
+    entry = journal.op_link(root, "source", rel, "agent", "corpus-15a",
+                            rights=rights)
+    source_object_id = entry["object_id"]
+
+    read = course.read_course(root)
+    doc = read["doc"]
+    container = built["domains"][0]["containers"][0]
+    objective_ids = [
+        graph.add_objective(doc, statement, container=container)["id"]
+        for statement in COVERAGE_OBJECTIVES]
+    decoy_objective_id = graph.add_objective(
+        doc, COVERAGE_DECOY_OBJECTIVE, container=container)["id"]
+    doc["sources"].append(graph.new_record("Sources", {
+        "source_object_id": source_object_id,
+        "title": "Coverage fixture source",
+        "note": "rights are recorded on the source object, never here"}))
+    course.write_course(root, doc, read["fingerprint"], "agent", "corpus-15a")
+
+    for objective_id, locator in zip(objective_ids,
+                                     (covered_locator, thin_locator,
+                                      unknown_locator, conflict_locator_a,
+                                      conflict_locator_b)):
+        course.bind_source(root, objective_id, source_object_id,
+                           locator=locator, state="unknown",
+                           confidence="high", actor_kind="agent",
+                           actor_name="corpus-15a")
+
+    def claim(objective_id, source_id, locator, match_kind, confidence,
+              assertion=""):
+        return director.coverage_claim(
+            [], objective_id, source_id, locator, match_kind, confidence,
+            assertion, source_body)[0]
+
+    claims = {
+        # A resolving locator, a 240-character span, high confidence.
+        "covered": [claim(objective_ids[0], source_object_id, covered_locator,
+                          "locator", "high")],
+        # The same shape one character shorter. The boundary, from below.
+        "thin": [claim(objective_ids[1], source_object_id, thin_locator,
+                       "locator", "high")],
+        # No source at all. Nothing to be covered by.
+        "missing": [claim(objective_ids[2], "", "", "none", "high")],
+        # Two resolving claims that say different things about one objective.
+        "conflicting": [
+            claim(objective_ids[3], source_object_id, conflict_locator_a,
+                  "locator", "high",
+                  "The intake sequence begins with scene safety."),
+            claim(objective_ids[3], source_object_id, conflict_locator_b,
+                  "locator", "high",
+                  "The intake sequence begins with airway assessment.")],
+        # A resolving locator whose confidence is unknown. Unverifiable reads
+        # unknown, never covered.
+        "unknown": [claim(objective_ids[4], source_object_id, unknown_locator,
+                          "locator", "unknown")],
+    }
+
+    decoy_claim = claim(decoy_objective_id, source_object_id, decoy_locator,
+                        "heading-similarity", "high")
+
+    return {
+        "dest": dest,
+        "course_root": root,
+        "source_texts": {source_object_id: source_body},
+        "source_object_id": source_object_id,
+        "objective_ids": objective_ids,
+        "decoy_objective_id": decoy_objective_id,
+        "claims": claims,
+        "decoy_claim": decoy_claim,
+    }

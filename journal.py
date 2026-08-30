@@ -87,8 +87,11 @@ OPERATION_TYPES = ("link", "import", "copy", "move", "edit_in_place",
 # 14A-FREEZE.md names the six operation names in its Frozen list, so a
 # seventh member would be a one-way amendment to a freeze Phase 14B does not
 # own. This is the same additive path "reconcile" took in 14A-03.
+# "agent_operation" is Phase 15A's one additive record type (RELIABILITY-02):
+# an agent operation is a record of what an agent did, not a file operation, so
+# it joins RECORD_TYPES and deliberately never joins OPERATION_TYPES.
 RECORD_TYPES = OPERATION_TYPES + ("mint", "restore", "external_edit",
-                                  "reconcile", "migrate")
+                                  "reconcile", "migrate", "agent_operation")
 
 # The journal entry key order, fixed. Every entry this module writes carries
 # exactly this key set, in exactly this order, so `list(entry.keys())` is
@@ -99,6 +102,12 @@ ENTRY_KEYS = (
     "path", "expected_fingerprint", "before_fingerprint", "after_fingerprint",
     "before_image", "undo", "source_object_id", "source_revision",
     "restores_revision", "origin", "code", "message", "rights",
+    # Phase 15A's one additive key (RELIABILITY-02): `agent` holds a dict or
+    # null whose key set is owned by `director.AGENT_ENTRY_KEYS`, following the
+    # `undo` key's dict-valued precedent. One durable operation journal answers
+    # "what happened in this operation" completely, including exactly what left
+    # this machine, rather than splitting the answer across two files.
+    "agent",
 )
 
 # The per-object registry projection key order. Deliberately a superset of

@@ -51,8 +51,13 @@ _SCHEMA = _load_schema()
 # is how the contract stays closed: a caller cannot smuggle an unplanned
 # field into a request (MODEL-05). author_request is the Phase 11 additive
 # bounded-authoring payload (plan 11-05, operation author).
+# recommendation_request is the Phase 15A additive bounded course-scope
+# payload (plan 15A-01, operation treatment_recommend); it is appended last so
+# the six prior keys keep their positions and every request built before this
+# phase serializes to the byte-identical JSON it did before.
 _PAYLOAD_KEYS = ("item_context", "learner_response", "permitted_tier",
-                 "fact_manifest", "rubric_points", "author_request")
+                 "fact_manifest", "rubric_points", "author_request",
+                 "recommendation_request")
 
 
 def unavailable_result(code, message, interaction_id):
@@ -244,6 +249,12 @@ def _invoke(request, settings):
         return unavailable_result("adapter.request_invalid",
                                   "rubric_review requires payload.rubric_points",
                                   interaction_id)
+    if request.get("operation") == "treatment_recommend" and \
+            not (request.get("payload") or {}).get("recommendation_request"):
+        return unavailable_result(
+            "adapter.request_invalid",
+            "treatment_recommend requires payload.recommendation_request",
+            interaction_id)
     profile, reason = resolve_profile(settings, request.get("profile") or None)
     if reason is not None:
         code = reason["code"]

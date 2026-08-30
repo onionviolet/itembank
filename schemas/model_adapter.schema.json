@@ -25,8 +25,8 @@
         },
         "operation": {
           "type": "string",
-          "enum": ["hint", "rubric_review", "author"],
-          "description": "The bounded operation: hint generation, rubric point review, or bounded item authoring (Phase 11 additive author operation; the author request carries the public format contract, the bounded authoring request, the attempt number, and versioned structured findings -- never repository contents)."
+          "enum": ["hint", "rubric_review", "author", "treatment_recommend"],
+          "description": "The bounded operation: hint generation, rubric point review, or bounded item authoring (Phase 11 additive author operation; the author request carries the public format contract, the bounded authoring request, the attempt number, and versioned structured findings -- never repository contents). treatment_recommend carries a course-scope treatment and coverage proposal for one objective; it is the one operation that is never routed through the learner-facing tier gate, because it has no learner disclosure boundary and is gated on source rights instead."
         },
         "interaction_id": {
           "type": "string",
@@ -146,6 +146,56 @@
             }
           ],
           "description": "The Phase 11 bounded authoring payload for operation author. Provider output remains untrusted and is validated by the authoring pipeline, never accepted by the adapter."
+        },
+        "recommendation_request": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["schema_version", "course_object_id", "objective_id", "objective_statement", "treatment_kinds", "binding_states", "source_spans", "attempt"],
+              "properties": {
+                "schema_version": { "const": 1 },
+                "course_object_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The course object this objective belongs to; the recommendation is scoped to one course and never to a learner."
+                },
+                "objective_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The one objective a recommendation is asked for. One objective per request; there is no batch form."
+                },
+                "objective_statement": {
+                  "type": "string",
+                  "description": "The objective's own authored statement, so the provider reads the goal rather than an id."
+                },
+                "treatment_kinds": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "The closed eleven-member treatment vocabulary (TREAT-01), sent so the provider chooses from it rather than inventing a twelfth. A candidate naming anything outside this list is refused by director.validate_recommendation."
+                },
+                "binding_states": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "The closed five-member coverage vocabulary, sent for the same reason as treatment_kinds."
+                },
+                "source_spans": {
+                  "type": "array",
+                  "items": { "type": "object" },
+                  "description": "The approved source spans this operation may reason over, each a locator and its source object id. This array is the exact egress: nothing outside it leaves the machine, and director.recommendation_request refuses any span carrying learner evidence."
+                },
+                "attempt": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "The attempt number; retries stop at the configured cap."
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The Phase 15A bounded course-scope payload for operation treatment_recommend; required (non-null) at runtime for that operation. Provider output remains untrusted and is validated against treatment_recommendation.schema.json by director.py, never accepted by the adapter."
         }
       }
     },

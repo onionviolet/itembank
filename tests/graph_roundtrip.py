@@ -927,8 +927,19 @@ def check_migration():
        "OPERATION_TYPES stays at exactly six members")
     if "migrate" not in journal.RECORD_TYPES:
         fail("migrate must be a member of journal.RECORD_TYPES")
-    eq(len(journal.RECORD_TYPES), len(journal.OPERATION_TYPES) + 5,
-       "RECORD_TYPES adds mint, restore, external_edit, reconcile, migrate")
+    # The five 14A record types are named rather than counted. The bare count
+    # broke when Phase 15A added `agent_operation`, and it broke for the wrong
+    # reason: the thing 14B needs to hold is that the six FILE operations are
+    # unchanged and that its own five record types are all present, neither of
+    # which a later additive record type touches. A count assertion cannot tell
+    # an additive extension from a regression, so it is replaced by the
+    # assertion that was actually meant.
+    for added in ("mint", "restore", "external_edit", "reconcile", "migrate"):
+        if added not in journal.RECORD_TYPES:
+            fail("RECORD_TYPES lost the 14A record type %s" % added)
+    for file_operation in journal.OPERATION_TYPES:
+        if file_operation not in journal.RECORD_TYPES:
+            fail("RECORD_TYPES lost the file operation %s" % file_operation)
 
     # ------------------------------------------- the proposal
     eq(graph.MIGRATION_KINDS,

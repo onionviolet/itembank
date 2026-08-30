@@ -373,6 +373,10 @@ OPERATION_PHRASE = {
     "restore": "restored",
     "external_edit": "changed outside the app",
     "migrate": "proposed a change to",
+    # Phase 15A. An agent operation is a record of what an agent did, and the
+    # phrase says the agent acted rather than that something happened to the
+    # object, because who acted is the part a learner needs to see.
+    "agent_operation": "an agent worked on",
 }
 
 # A write can be reversed from its journalled prior revision; a read cannot,
@@ -386,6 +390,13 @@ OPERATION_PHRASE = {
 # the cost and accepted. Whatever wires this control must therefore reject
 # through the state machine rather than inventing a parallel reversal, or the
 # two paths will disagree about what a rejected migration is.
+#
+# `agent_operation` is deliberately absent. An agent operation writes no bytes
+# of its own: it records intent, phases, egress and outcomes, while every
+# durable write it causes goes through `course.py` and is journalled as its own
+# entry carrying its own undo. Marking the record undoable would offer to
+# reverse a record rather than a change, and the change it points at already
+# has a working reversal.
 UNDOABLE = {"mint", "link", "import", "copy", "move", "edit_in_place",
             "supersede", "reconcile", "restore", "migrate"}
 

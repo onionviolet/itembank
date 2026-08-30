@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/treatment_recommendation.schema.json",
+  "title": "itembank treatment recommendation contract",
+  "description": "The contract a provider candidate is validated against before any field of it is read. Provider output is untrusted input: director.validate_recommendation calls schema_validate.validate first and reads nothing until it returns clean, so a malformed candidate cannot reach a field access. A candidate failing this schema is refused with director.recommendation_invalid and is never partially applied; there is no path that accepts the fields that happened to validate. A candidate whose treatment_kind is outside the closed eleven-member vocabulary is refused with director.unknown_treatment_kind. Validating is not accepting: a candidate that passes this schema is a proposal, and it becomes durable course state only when a rights check against the live registry permits the bind.",
+  "x-itembank-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "objective_id", "treatment_kind", "rationale", "synthesis", "confidence", "coverage", "alternatives", "citations"],
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "description": "The recommendation contract version; const 1."
+    },
+    "objective_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The objective this recommendation is for. One objective per recommendation."
+    },
+    "treatment_kind": {
+      "type": "string",
+      "enum": ["direct-reading", "excerpt", "guided-lesson", "notes-or-terms", "worked-example", "visual-or-demonstration", "practice", "formal-test", "assessment-first-diagnostic", "learner-artifact", "human-review", ""],
+      "description": "One of the eleven treatment kinds in TREAT-01, or the empty string. The empty string is how a provider says it has no recommendation for this objective; it is not a twelfth treatment kind, and no code path treats it as one. direct-reading is a complete result: an objective the source already teaches well needs no generated artifact, and recommending direct-reading is a finished recommendation rather than a refusal to recommend."
+    },
+    "rationale": {
+      "type": "string",
+      "description": "Why this treatment, in the provider's own words. Always read as synthesis, never as a source passage; see synthesis below."
+    },
+    "synthesis": {
+      "const": true,
+      "description": "Always true, by construction. A rationale is always model synthesis and is never a source passage, and a const is what makes that label structural rather than a convention a reader has to remember. A provider cannot mark a rationale as quoted source text, because there is no value of this field that says so."
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low", "unknown"],
+      "description": "The provider's stated confidence in the treatment choice. Advisory only: it never gates a bind, and unknown is not an error."
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "locator", "confidence", "source_object_id", "match_kind"],
+      "description": "The objective-to-source coverage claim this recommendation rests on. Every claim carries a stable locator and a match_kind, so a reader can tell a located claim from a guessed one.",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["covered", "thin", "missing", "conflicting", "unknown"],
+          "description": "One of the five coverage states. unknown is restrictive and is never a lesser form of covered."
+        },
+        "locator": {
+          "type": "string",
+          "description": "Where in the source the claim points. A coverage claim points at a locator and reproduces nothing."
+        },
+        "confidence": {
+          "type": "string",
+          "enum": ["high", "medium", "low", "unknown"],
+          "description": "The provider's stated confidence in the coverage claim, separate from its confidence in the treatment choice."
+        },
+        "source_object_id": {
+          "type": "string",
+          "description": "The source object the locator resolves inside."
+        },
+        "match_kind": {
+          "type": "string",
+          "enum": ["locator", "heading-similarity", "none"],
+          "description": "How the claim was matched. heading-similarity is a weaker proof than locator and must never on its own produce a covered state; that rule is enforced in director.py, and this field is what makes the enforcement possible."
+        }
+      }
+    },
+    "alternatives": {
+      "type": "array",
+      "description": "Treatments the provider considered and did not choose. Recorded so a reviewer sees what was passed over rather than only what was picked.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["treatment_kind", "confidence"],
+        "properties": {
+          "treatment_kind": {
+            "type": "string",
+            "description": "The alternative treatment, from the same closed vocabulary."
+          },
+          "confidence": {
+            "type": "string",
+            "description": "The provider's stated confidence in the alternative."
+          }
+        }
+      }
+    },
+    "citations": {
+      "type": "array",
+      "description": "The source spans this recommendation was built from. A recommendation with no citations is a recommendation with nothing behind it, and the key is required so its absence is a refusal rather than an empty default.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source_object_id", "locator"],
+        "properties": {
+          "source_object_id": {
+            "type": "string",
+            "description": "The cited source object."
+          },
+          "locator": {
+            "type": "string",
+            "description": "Where in that source."
+          }
+        }
+      }
+    }
+  }
+}
