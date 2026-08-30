@@ -104,6 +104,26 @@ jobs:
             python "$t" || exit 1
           done
 
+      # A test that rewrites tracked content is a test quietly editing the
+      # record it is supposed to be checking, and CI is where that goes
+      # unnoticed longest. tests/file_fault_tracer.py rewrote
+      # 14A-TRACER-REPORT.md on every run for months: two commits (9590eb4,
+      # 4d59ceb) carried a stray run's timings into unrelated work, and
+      # 53d5231 had to put 14A's own numbers back. The suite may write
+      # whatever it likes under a temp dir. It may not leave this tree dirty.
+      - name: The test suite left the working tree clean
+        run: |
+          dirty="$(git status --porcelain)"
+          if [ -n "$dirty" ]; then
+            echo "The working tree is dirty after the suite:"
+            echo "$dirty"
+            echo
+            echo "Write to a temp dir instead, or gate the write behind an"
+            echo "explicit flag the way tests/file_fault_tracer.py does."
+            git diff
+            exit 1
+          fi
+
       # The check editor's interactive contract (ruling 16): the vendored
       # CodeMirror bundle + boot script executed against the pinned jsdom in
       # tests/js (npm ci reproduces the lockfile-committed 39-package closure).

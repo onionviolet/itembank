@@ -114,6 +114,27 @@ def gate_tests():
     return True, "%d test file(s) passed" % len(tests)
 
 
+def gate_clean_tree():
+    """A test that rewrites tracked content edits the record it is checking.
+
+    `tests/file_fault_tracer.py` rewrote `14A-TRACER-REPORT.md` on every run,
+    so two commits carried a stray run's timings into unrelated work and a
+    third had to put 14A's numbers back. Ordered after the suite gate, so what
+    it reports is what the suite just did.
+    """
+    code, out = run(["git", "status", "--porcelain"])
+    if code != 0:
+        return None, "git is not available here; CI still runs this gate"
+    dirty = [line for line in out.splitlines() if line.strip()]
+    if not dirty:
+        return True, "working tree clean"
+    _, diff = run(["git", "diff"])
+    return False, ("the suite left the working tree dirty:\n%s\n\n"
+                    "Write to a temp dir instead, or gate the write behind an "
+                    "explicit flag the way tests/file_fault_tracer.py does."
+                    "\n\n%s" % ("\n".join(dirty), diff.rstrip()))
+
+
 def gate_js_tests():
     if shutil.which("npm") is None or shutil.which("node") is None:
         return None, "node or npm is not on PATH; CI still runs this gate"
@@ -206,6 +227,8 @@ GATES = [
      gate_vendored, False),
     ("paths", "No machine-specific path in agent docs or config", gate_paths, False),
     ("tests", "Test suite", gate_tests, True),
+    ("clean", "The test suite left the working tree clean", gate_clean_tree,
+     True),
     ("js", "JS editor test runner", gate_js_tests, True),
 ]
 
