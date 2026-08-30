@@ -423,7 +423,7 @@ One journal, still:
   `option-c` for `D-15A-2`, in which case the egress file it named is the one
   permitted addition and the test names it explicitly.
 - `len(journal.OPERATION_TYPES)` is still `6` and `len(journal.ENTRY_KEYS)` is
-  still `23`.
+  still `24`.
   </behavior>
   <action>
 1. Add `check_resume_and_reverse()` to `tests/director_roundtrip.py` first,
@@ -520,7 +520,7 @@ The journal coupling check, in `tests/journal_roundtrip.py`:
 
 - `"agent_operation"` is a member of `journal.RECORD_TYPES`.
 - `"agent"` is the last member of `journal.ENTRY_KEYS`, and `ENTRY_KEYS` has
-  exactly twenty-three members.
+  exactly twenty-four members.
 - `journal.OPERATION_TYPES` still has exactly six members, and
   `"agent_operation"` is not one of them. An agent operation is a record type,
   not a file operation.

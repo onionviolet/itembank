@@ -227,8 +227,10 @@ python -c "import identity, journal, discovery, graph, course, course_package; p
    - `journal.OPERATION_TYPES` has exactly six members.
    - `"reconcile"` and `"migrate"` are both in `journal.RECORD_TYPES`, and
      `"agent_operation"` is not yet.
-   - `len(journal.ENTRY_KEYS)` equals `22`, and `"agent"` is not in
-     `journal.ENTRY_KEYS`.
+   - `len(journal.ENTRY_KEYS)` equals `23`, and `"agent"` is not in
+     `journal.ENTRY_KEYS`. The twenty-third key is `rights`; see the note
+     below on why this reads 23 and not the 22 this plan was first written
+     with.
    - Every one of these names is callable on its module:
      `identity.new_object_id`, `identity.object_fingerprint`,
      `identity.rights_state`, `identity.rights_granted`,
@@ -307,7 +309,7 @@ python -c "import model_adapter; print(len(model_adapter.ADAPTER_CODES), sorted(
    No em dash characters anywhere in the file.
   </action>
   <verify>
-  <automated>python -c "import identity, journal, graph, course; assert len(graph.TREATMENT_KINDS)==11 and len(graph.BINDING_STATES)==5 and len(journal.ENTRY_KEYS)==22 and 'agent_operation' not in journal.RECORD_TYPES; print('15A preconditions match')"</automated>
+  <automated>python -c "import identity, journal, graph, course; assert len(graph.TREATMENT_KINDS)==11 and len(graph.BINDING_STATES)==5 and len(journal.ENTRY_KEYS)==23 and 'agent_operation' not in journal.RECORD_TYPES; print('15A preconditions match')"</automated>
 Expected: prints `15A preconditions match` and exits 0. The degraded state this
 task must prove rather than paper over is the halt itself: if any assertion
 fails, the run exits non-zero with the named HALT line and no module file is
@@ -452,9 +454,11 @@ chosen option id and Weibao's answer recorded verbatim.
   recording, and Assumption A2, in full.
 - `REQUIREMENTS.md`, the RIGHTS-02 entry in full, including its Fixture
   sentence, and the RELIABILITY-02 entry in full.
-- `.planning/phases/14A-identity-lifecycle-operation/14A-02-PLAN.md`, the
-  "Artifacts this phase produces" section, for the twenty-two-member
-  `journal.ENTRY_KEYS` tuple and the `undo` key's dict-valued precedent.
+- `.planning/phases/14A-identity-lifecycle-operation/14A-FREEZE.md`, for the
+  **twenty-three-member** `journal.ENTRY_KEYS` tuple and the `undo` key's
+  dict-valued precedent. Read the freeze record, not `14A-02-PLAN.md`: that
+  plan text lists twenty-two keys ending in `message` and is the stale
+  record. See the note on the two records below.
 - `.planning/phases/15A-director-treatment-policy/15A-DECISIONS.md`, so the new
   section is appended below `## D-15A-1`.
   </read_first>
@@ -613,8 +617,9 @@ The adapter extension is additive and breaks nothing:
 The journal extension is exactly two lines:
 
 - `"agent_operation"` is in `journal.RECORD_TYPES`.
-- `journal.ENTRY_KEYS` has exactly `23` members, its last member is `"agent"`,
-  and its first twenty-two members are unchanged in value and order.
+- `journal.ENTRY_KEYS` has exactly `24` members, its last member is `"agent"`,
+  and its first twenty-three members are unchanged in value and order, ending
+  in `rights`.
 - `len(journal.OPERATION_TYPES)` is still `6`.
 - `director.AGENT_ENTRY_KEYS` equals, in this exact order, `("operation_id",
   "intent", "actor_role", "autonomy", "scopes", "phase", "phase_index",

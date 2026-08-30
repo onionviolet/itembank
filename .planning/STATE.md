@@ -2,21 +2,115 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase_name: 16C-strategies-notes-prototype-convergence
-status: "Phase 16C EXECUTED through plan 16C-09 Task 1 and HELD at its one blocking human checkpoint (2026-08-29). Plans 16C-01 through 16C-08 are complete and committed; 16C-09's cross-subject tracer runs nine scenarios over four synthetic subjects in 0.261s with 9 passed, 0 failed, and 16C-TRACER-REPORT.md carries only measured figures. What remains is Task 2: the contract-legibility review that a HUMAN signs, and Task 3, the freeze record, which may not be written until that review carries accept or accept-with-findings. An agent must not sign its own contract, so no agent wrote 16C-REVIEW.md. Phases 14A, 14B, 14C, 16A, 16B are frozen. Open and unexecuted: 15A (6 plans), 15B (7), 17A-04, all of 17B, and the paced-lesson subphase whose decisions are recorded and whose plan is unwritten."
-stopped_at: "Two blocking stops, both needing Weibao. (1) 16C-09 Task 2, a blocking checkpoint:human-verify. (2) 15A is halted at 15A-01 Task 1: the precondition passed steps 1, 3, 4 and 5 and diverged on len(journal.ENTRY_KEYS), landed 23 and plan text 22, because 15A was planned against 14A plan text rather than 14A-FREEZE.md. It needs a planning pass over 15A-01..06 against the two freeze records, not an executor. 17A-04 needs the LGPL browser-driver supply-chain decision; 15B needs a 15A-FREEZE.md that does not exist. Detail on 16C-09 Task 2: Weibao reads 16C-TRACER-REPORT.md and the copy constants as prose, answers the eleven steps in 16C-09-PLAN.md Task 2, and writes 16C-REVIEW.md with one of accept, accept-with-findings, or reject plus a signature and date. Task 3 then re-runs the evidence, weighs six named legs, and writes 16C-FREEZE.md or withholds it by name."
+current_phase_name: 15A-director-treatment-policy
+status: "Phase 16C is FROZEN (2026-08-30). All nine plans executed; `16C-FREEZE.md` opens `## Frozen at 16C` and all six freeze legs hold, against a tree re-run in the closure task: 96 test files in 284 seconds with 0 failures, the cross-subject tracer 9 passed 0 failed in 0.274s, guard 0 offending files, and all five additivity baselines byte-identical. The review leg closed on an AGENT-written `16C-REVIEW.md` carrying accept-with-findings, under Weibao's explicit instruction of 2026-08-30 to bypass his review; the plan's prohibition against an agent signing its own contract is WAIVED, not met, and every record says so. 15A is unblocked: its precondition halt was one stale number, corrected across three files, and `15A-PRECONDITION.md` now records the pass. Phases 14A, 14B, 14C, 16A, 16B, 16C are frozen. Open: 15A (6 plans, executable from 15A-01 Task 2), 15B (7, needs a 15A-FREEZE.md), 17A-04, all of 17B, and the paced-lesson subphase whose decisions are recorded and whose plan is unwritten."
+stopped_at: "Both 2026-08-30 stops are cleared. 16C is frozen and 15A is unblocked. The next executable work is 15A-01 Task 2 onward (six plans, building director.py). What still needs Weibao and cannot be agent-executed: 17A-04 Task 1, which needs the LGPL browser-driver supply-chain decision in DECISIONS-17A04-DRIVER-2026-08-25.md and an A11Y-01 review; and the standing question of whether the three consecutive agent-signed contract reviews (16A, 16B, 16C) are acceptable as a pattern or need a human pass. 15B-01 still halts until a 15A-FREEZE.md exists, which 15A-06 writes."
 last_updated: "2026-08-30T00:00:00.000Z"
 last_activity: 2026-08-30
 last_activity_desc: "Executed 16C-01 through 16C-09 Task 1. Five new root modules (notes, strategies, progress_claims, note_outputs, upgrade_audit), one published schema, two additive evidence event types proven additive against pre-change baselines, eight new test suites, and the legacy-upgrade skill un-stubbed. Four defects were found by running rather than by reading: the two new event types failed the project's own published event schema and would have shipped into an append-only log; the .agents and .claude skill mirrors had been divergent since 13.9 and 14C-06 so CI's mirror step was red on main; a TERMS header row parsed as a glossary entry; and two records still called legacy-upgrade a stub after it shipped. One pre-existing red test, selection_retention_roundtrip, was bisected to its own introducing commit and recorded rather than absorbed. On 2026-08-30 that test was diagnosed and made green: its CLI leg dated a fixture near a fixed CUTOFF but is captured against the wall clock, so the weak and mastered objectives decayed to an equal weight of 1.0 and Phase 7 ordering settled the sitting. The leg now re-dates its fixture by one identical offset and asserts the invariant rather than a date; no runtime file changed. Also on 2026-08-30: tests/file_fault_tracer.py no longer rewrites 14A-TRACER-REPORT.md on every run, which had made a durable phase record derived and had already cost three commits; it now compares everything that carries meaning and writes only under --write, and a new CI step asserts the suite leaves the working tree clean, verified by a full 96-file run that left git status empty. That open finding is now closed and was not one bug but three. Reproduced at twelve concurrent requests under load, 20 rounds of 20 failing: runtime.write_session used a shared <target>.tmp, so the first os.replace consumed the temp file and the second raised FileNotFoundError, which reached the learner as the 400; _ensure_quiz_session checked and created outside any lock, so six concurrent first hits left six sittings for one bank and kept whichever finished last; and Daemon inherited the stdlib listen backlog of 5, measured as ConnectionResetError past twelve connections and not at six. All three fixed, 0 of 20 rounds failing after, with one session where there were six. Also closed: fake_hosted_unused.py, a test artifact committed as source in 46f0f50 because hosted_profile("") wrote its fake script into the process cwd; the root .continue-here, which had pointed for months at a Phase 09 branch, worktree, and main tip that no longer exist; and two orphaned test processes from 2026-08-28, one of them a fake AnkiConnect squatting on 127.0.0.1:8765, the real AnkiConnect port, so day's Anki lane on this machine had been answering to a stub. The GSD client install under .codex/ is gitignored as tool state, like reasonix.toml."
 progress:
   total_phases: 28
-  completed_phases: 19
+  completed_phases: 20
   total_plans: 175
-  completed_plans: 138
-current_phase: 16C
+  completed_plans: 139
+current_phase: 15A
 ---
 
 # Project State
+
+## 2026-08-30 (fourth entry): both stops cleared, 16C frozen, 15A unblocked
+
+Weibao's instruction was to bypass his review and proceed toward the user
+vision. Both of the day's stops are now closed, and the two closures are
+different in kind: one was a judgment an agent made under an explicit waiver,
+the other was arithmetic an agent should always have been allowed to do.
+
+### 16C is frozen, and the review leg is waived rather than met
+
+`16C-REVIEW.md` records `accept-with-findings`. It was written by Claude, not
+by Weibao, under his explicit instruction of 2026-08-30. Plan 16C-09's first
+prohibition, "An agent must not sign its own contract", is **waived by the
+learner who owns the gate, not satisfied**, and the review, the freeze record,
+`16C-DECISIONS.md`'s D-16C-9, and `16C-VALIDATION.md` all say so in those
+words. This is the **third phase in a row** in that state: 16A and 16B closed
+the same leg the same way under a standing delegation of 2026-08-28. That is
+now a pattern rather than an exception, and it is recorded here so it is
+decided deliberately rather than by accumulation.
+
+`16C-VALIDATION.md`'s sign-off box for the human review is **left unticked on
+purpose**, and its Per-Task Verification Map marks `16C-09-T2` as a new
+`waived` status rather than forcing it into `green`. The freeze leg the plan
+actually states (a signed review whose verdict is accept or
+accept-with-findings) is satisfied; the box as worded, which says `human`, is
+not. Ticking it would have hidden the difference.
+
+**The review was not a rubber stamp.** It raised seven findings and withdrew an
+eighth. The withdrawal is the useful part: a first pass read
+`note_outputs.VALIDATOR_FAILURE_COPY` and `NOTE_OUTPUT_CHECKS` side by side and
+concluded the trio's refusals rendered dotted machine codes at learners.
+Rendering them through `render_mode` showed they do not, because
+`validate_mode` puts the plain phrase in the `check` key and the dotted code in
+`code`. The real sentence reads "The Cornell notes view can't be built from
+this content: a cue has no matching notes. Showing plain Markdown instead."
+Judging copy from a constant rather than from what a learner would see is
+exactly the error the checkpoint exists to catch, and it was caught in the
+right direction only because the sentences were actually rendered.
+
+**One finding generalizes past 16C.** Two findings in `16B-REVIEW.md` named
+Phase 16C as their owner, and 16C closed neither: `surfaces/ia.py:449` still
+reads `"needs_reconciliation": "Needs reconciliation"`, and Loop B's empty
+outcome at `surfaces/ia.py:1403` still uses "treatment" in the course-design
+register. Both are reassigned to 17A in the freeze record. **A finding whose
+owning phase freezes without closing it has no owner unless somebody reassigns
+it**, and this one was found only because this review read the previous review.
+17A's planning should read `16B-REVIEW.md` and 16C's findings table together.
+
+**The evidence was re-run rather than trusted**, per Task 3's own instruction,
+because the review sits between Task 1's run and the freeze:
+
+```
+CROSS-SUBJECT SUITE: 9 passed, 0 failed      elapsed: 0.274s
+python3 itembank.py guard .                  0 offending files
+full suite                                   96 files, 284 seconds, 0 failures
+```
+
+All five additivity baselines in `16C-PRECONDITION.md` recomputed identical.
+`tests/selection_retention_roundtrip.py`, red in Task 1's run, passes here: it
+was the clock-dependent fixture fixed earlier the same day. All nine
+freeze-gate fixture rows read `passed`; none reads `weaker proof` and none
+reads `not run`.
+
+### 15A was one stale number, and `rights` stays
+
+The halt was correct and the fix is arithmetic. `journal.ENTRY_KEYS` has held
+**twenty-three** members since `77b27e9`, the only commit that ever touched it,
+so there was never a moment when it had twenty-two. Two planning records
+disagree: `14A-02-PLAN.md` lists twenty-two ending in `message`,
+`14A-FREEZE.md` lists twenty-three ending in `rights`. 15A-01 step 2 was
+written from the plan text exactly as its own `read_first` block instructed.
+**The instruction was the defect**: a plan is a proposal, a freeze record is
+accepted truth, and where they disagree the freeze record wins. That pointer is
+now repointed at `14A-FREEZE.md`.
+
+`rights` stays. Every 15A number shifts by one and nothing else changes:
+`15A-01-PLAN.md` asserts a pre-state of 23 and an acceptance of 24 with `agent`
+last and the first twenty-three unchanged; `15A-05-PLAN.md`'s two checks read
+24; `15A-VALIDATION.md`'s row reads 23. Plans 02, 03, 04 and 06 were grepped
+and carry none of these numbers.
+
+**The two-line diff claim survives untouched.** 15A-01's `must_have` says
+`journal.py`'s whole-phase diff is one new `RECORD_TYPES` member and one new
+`ENTRY_KEYS` member. That was never a claim about the total count, so a
+pre-state of 23 does not touch it. Had an executor taken the plan literally
+instead of halting, the only way to satisfy "exactly twenty-three, `agent`
+last" against a landed twenty-three-key tuple would have been to **delete
+`rights`**, the key 14A-03 records the rights state of every journal entry
+through. The halt prevented deleting a frozen key to satisfy a stale count.
+
+All five precondition steps were then re-run in full and every one passes.
+`15A-PRECONDITION.md` records the check, the deviation, the resolution, and the
+root cause. `director.py` still does not exist; 15A proceeds from 15A-01
+Task 2.
 
 ## 2026-08-30 (third entry): 15A-01 ran its precondition and halted, correctly
 
