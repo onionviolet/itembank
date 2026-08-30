@@ -92,7 +92,19 @@ def hosted_profile(tmp, name="hosted", script_kind="ok", capture=None,
                    timeout=30, max_bytes=65536, secret_env=None,
                    model="fake-hosted"):
     """A model_backend profile record whose hosted_cli command runs a fake
-    executable script under tmp."""
+    executable script under tmp.
+
+    `tmp` must be an absolute directory. It was unchecked until 2026-08-30,
+    and one caller passed `""` for a profile that is never invoked, so the
+    script landed in the process cwd -- the repository root when the suite
+    runs from there -- and `fake_hosted_unused.py` was committed as source in
+    `46f0f50`. A test may write whatever it likes under a temp dir; it may
+    not write into the tree it is checking.
+    """
+    if not os.path.isabs(tmp):
+        raise ValueError(
+            "hosted_profile needs an absolute temp directory, not %r; a "
+            "relative path writes the fake script into the process cwd" % tmp)
     script = os.path.join(tmp, "fake_hosted_%s.py" % name)
     open(script, "w", encoding="utf-8").write(fake_cli_script(script_kind, secret_env))
     command = [sys.executable, script]
@@ -175,8 +187,12 @@ def test_request_envelope_and_unknown_field():
         fail("a bounded request does not validate: %s" % errs[0])
     bad = dict(request)
     bad["smuggled_field"] = "nope"
-    result = model_adapter.invoke(
-        bad, make_settings("", [hosted_profile("", name="unused")]))
+    tmp = tempfile.mkdtemp()
+    try:
+        result = model_adapter.invoke(
+            bad, make_settings("", [hosted_profile(tmp, name="unused")]))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
     if result["status"] != "unavailable" or \
             result["error"]["code"] != "adapter.request_invalid":
         fail("a request with an unknown field is not adapter.request_invalid: %r"
