@@ -11,7 +11,8 @@ import capabilities
 import evidence
 import retention
 import subjects
-from model import (CHECK_UNRESOLVED_COPY, grab, lesson_slug, load, load_style,
+from model import (CHECK_UNRESOLVED_COPY, grab, lesson_slug, lesson_steps,
+                   load, load_style,
                    parse_activities, parse_key_blocks, parse_lesson,
                    parse_media, parse_terms, resolve_style)
 from runtime import glossable
@@ -1183,13 +1184,23 @@ def _gate_band_html(check_id, ctx):
         skip_button = ('<button type="submit" name="action" '
                        'value="skip" class="go">%s</button>'
                        % esc(SKIP_COPY))
+    # Paced embedding only (plan 16D-03): the POST must come back to the
+    # same paced step, so the form carries the view and step as hidden
+    # fields. Structure and copy are otherwise untouched; a non-paced
+    # render emits the exact bytes it always did.
+    paced_fields = ""
+    if gate.get("paced_step"):
+        paced_fields = ('<input type="hidden" name="view" value="paced">'
+                        '<input type="hidden" name="step" value="%s">'
+                        % esc(gate["paced_step"]))
     form = ('<form method="post" action="/lesson/%s/check" class="gate-form">'
-            '<input type="hidden" name="check" value="%s">'
+            '<input type="hidden" name="check" value="%s">%s'
             "%s<div class=\"actions\">"
             '<button type="submit" name="action" value="check" '
             'class="go primary">%s</button>%s'
             "</div></form>"
-            % (esc(gate["stem"]), esc(check_id), _gate_check_answer(q),
+            % (esc(gate["stem"]), esc(check_id), paced_fields,
+               _gate_check_answer(q),
                esc(CHECK_ANSWER_COPY), skip_button))
     if gate.get("degraded") and not gate.get("unreachable"):
         # The item stays answerable in a degraded sitting (feedback is
@@ -2164,10 +2175,131 @@ def _split_rendered_stages(rendered):
     return pieces or [rendered]
 
 
+# ---- Phase 16D paced mode (D-16D-5, D-16D-6, D-16D-7) ---------------------
+#
+# The paced view is a projection of the same rendered headings, one ladder
+# step at a time, with a jump-only table of contents and a pager that gates
+# forward only on an unattempted declared gate. It renders what the reader
+# renders: intro prose before the first heading has never been part of this
+# page in any mode, so a marker step carrying only such prose is a durable
+# identity in `model.lesson_steps` but not a navigation stop here.
+
+PACED_GATED_CONTINUE = ("Attempt the checkpoint above to continue, or use "
+                        "the Steps list to jump ahead.")
+PACED_UNKNOWN_STEP = ("That step is not in this lesson any more. Showing "
+                      "the first step.")
+PACED_NO_EVIDENCE = "This step records nothing."
+PACED_STEPS_LABEL = "Steps"
+
+
+def paced_view_steps(lesson):
+    """The ladder's steps mapped onto the parsed headings this reader
+    renders, keeping only heading-bearing steps (see the section comment).
+    Returns `[{"id", "title", "idxs"}, ...]` in document order; a heading
+    whose line appears in no step content (which the grammar does not
+    produce) is appended to the nearest earlier step so no rendered heading
+    can silently vanish from the paced view."""
+    steps = lesson_steps(lesson)
+    headings = (lesson or {}).get("headings") or []
+    view = []
+    for s in steps:
+        idxs = [i for i, h in enumerate(headings)
+                if ("### %s" % h["text"]) in s["content"]]
+        if idxs:
+            view.append({"id": s["id"], "title": s["title"], "idxs": idxs})
+    claimed = set()
+    for v in view:
+        claimed.update(v["idxs"])
+    for i in range(len(headings)):
+        if i not in claimed and view:
+            target = view[0]
+            for v in view:
+                if min(v["idxs"]) <= i:
+                    target = v
+            target["idxs"] = sorted(set(target["idxs"]) | {i})
+    return view
+
+
+def _paced_toc_html(view, current_id):
+    items = []
+    for n, v in enumerate(view, start=1):
+        label = "%d. %s" % (n, v["title"])
+        if v["id"] == current_id:
+            items.append('<li><a href="?view=paced&amp;step=%s" '
+                         'aria-current="true">%s (current)</a></li>'
+                         % (html.escape(v["id"]), html.escape(label)))
+        else:
+            items.append('<li><a href="?view=paced&amp;step=%s">%s</a></li>'
+                         % (html.escape(v["id"]), html.escape(label)))
+    return ('<details class="details-section paced-steps" open>'
+            "<summary>%s</summary><ol>%s</ol></details>"
+            % (html.escape(PACED_STEPS_LABEL), "".join(items)))
+
+
+PACED_TOUCHED_HEADING = "About what you picked"
+PACED_SHOW_ANSWER = "Show the answer"
+
+
+def _paced_tier_html(payload, show_href=None):
+    """Render the runtime-settled checkpoint disclosure (D-PACED-3).
+
+    The surface renders exactly what `runtime.checkpoint_feedback` handed
+    it and decides nothing: which options appear, which rationale shows,
+    and whether the full reveal is present were all settled by the runtime.
+    Never colour alone: right and not-right are text chips.
+    """
+    if not payload or payload.get("error") or payload.get("tier", 0) == 0:
+        return ""
+    esc = html.escape
+    parts = ['<section class="paced-feedback">']
+    if payload["selection_marks"]:
+        rows = "".join(
+            '<li>%s) <span class="paced-mark">%s</span></li>'
+            % (esc(m["option"]),
+               "right" if m["state"] == "right" else "not right")
+            for m in payload["selection_marks"])
+        parts.append("<ul>%s</ul>" % rows)
+    if payload["touched_da"]:
+        das = "".join("<li>%s) %s</li>" % (esc(k), esc(v))
+                      for k, v in sorted(payload["touched_da"].items()))
+        parts.append("<h3>%s</h3><ul>%s</ul>"
+                     % (esc(PACED_TOUCHED_HEADING), das))
+    if payload.get("reveal"):
+        reveal = payload["reveal"]
+        answer = reveal.get("answer_text") or ", ".join(
+            reveal.get("correct") or ())
+        why = reveal.get("why") or ""
+        parts.append('<div class="paced-reveal"><p>Answer: %s</p><p>%s</p>'
+                     "</div>" % (esc(str(answer)), esc(why)))
+    elif show_href:
+        parts.append('<p><a class="go" href="%s">%s</a></p>'
+                     % (esc(show_href), esc(PACED_SHOW_ANSWER)))
+    parts.append("</section>")
+    return "".join(parts)
+
+
+def _paced_pager_html(view, index, gated):
+    parts = ['<nav class="paced-pager" aria-label="Paced navigation">']
+    if index > 0:
+        parts.append('<a class="go" href="?view=paced&amp;step=%s">Back</a>'
+                     % html.escape(view[index - 1]["id"]))
+    if index + 1 < len(view):
+        if gated:
+            parts.append('<p class="paced-gated">%s</p>'
+                         % html.escape(PACED_GATED_CONTINUE))
+        else:
+            parts.append('<a class="go" href="?view=paced&amp;step=%s">'
+                         "Continue</a>"
+                         % html.escape(view[index + 1]["id"]))
+    parts.append("</nav>")
+    return "".join(parts)
+
+
 def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
                 style_override=None, profile=None, gate=None, focus=None,
                 announce=None, session_id=None, lan_refused=False,
-                mode="continuous", media=None, activities=None):
+                mode="continuous", media=None, activities=None,
+                step_id=None, tier_payload=None, tier_show_url=None):
     """The one render both surfaces call: the daemon route and `cmd_lesson`
     write the same document because there is only one `lesson_page`.
 
@@ -2251,10 +2383,10 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
     document grew). `announce` is the composed status-region text
     (section 7.2), rendered inside the single `role=status` region.
     """
-    if mode not in ("continuous", "guided"):
+    if mode not in ("continuous", "guided", "paced"):
         raise ValueError(
-            'lesson_page: mode must be "continuous" or "guided" (got %r)'
-            % mode)
+            'lesson_page: mode must be "continuous", "guided", or "paced" '
+            "(got %r)" % mode)
     bank_text = open(bank_path, encoding="utf-8").read()
     title = (grab(r"(?m)^#\s+(.*?)\s*$", bank_text)
              or os.path.basename(bank_path))
@@ -2265,6 +2397,9 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
     gloss_script = ""
     status_html = ""
     ctx = None
+    paced_view = None
+    paced_index = 0
+    paced_fallback = False
     if announce:
         status_html = ('<div class="status" role="status">%s</div>'
                        % html.escape(announce))
@@ -2291,6 +2426,21 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
             if head_idx is None:
                 return None
             idxs = (head_idx,)
+        elif mode == "paced":
+            # One ladder step's headings (D-16D-5..7). An unknown step id
+            # falls back to the first step and says so; it never guesses a
+            # neighbouring step, because a resumed position that silently
+            # moved is the identity failure D-PACED-1 exists to prevent.
+            paced_view = paced_view_steps(lesson)
+            if paced_view:
+                match = next((n for n, v in enumerate(paced_view)
+                              if v["id"] == step_id), None)
+                if step_id is not None and match is None:
+                    paced_fallback = True
+                paced_index = match if match is not None else 0
+                idxs = tuple(paced_view[paced_index]["idxs"])
+            else:
+                idxs = range(len(lesson["headings"]))
         else:
             idxs = range(len(lesson["headings"]))
         # One section per heading, rendered from the heading's own text and
@@ -2423,6 +2573,54 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
                 for _kid, text in ctx["key_answers"])
             body += ('<section id="answers"><h2>%s</h2><ol>%s</ol></section>'
                      % (html.escape(ANSWERS_HEADING), answers))
+        if mode == "paced" and paced_view:
+            v = paced_view[paced_index]
+            header = ('<p class="paced-header">Step %d of %d: %s</p>'
+                      % (paced_index + 1, len(paced_view),
+                         html.escape(v["title"])))
+            # When the lesson carries any checkpoint at all, a step with
+            # none says in the Ledger voice that it records nothing, so a
+            # silent step is a stated fact rather than an implication.
+            all_checks = _check_ids(lesson)
+            step_has_check = any(
+                "[!CHECK:" in lesson["headings"][i]["body"]
+                for i in v["idxs"])
+            if all_checks and not step_has_check:
+                header += ('<p class="paced-ledger">%s</p>'
+                           % html.escape(PACED_NO_EVIDENCE))
+            # The pager gates forward on ATTEMPTED, never on correct
+            # (IL-20260828-03 via D-16D-5): a wrong answer opens it, a
+            # skip opens it, and only a declared required gate nobody has
+            # touched holds it. This is deliberately looser than the 6.2
+            # read-truncation above, which keeps withholding the step's
+            # tail until the check clears; the two compose.
+            gated = False
+            if gate is not None and gate.get("policy") == "required" \
+                    and not gate.get("degraded") \
+                    and not gate.get("unreachable"):
+                for i in v["idxs"]:
+                    for cid in re.findall(r"\[!CHECK:\s*([^\]]+)\]",
+                                          lesson["headings"][i]["body"]):
+                        cid = cid.strip()
+                        if not (gate.get("attempted", {}).get(cid)
+                                or gate.get("states", {}).get(cid)
+                                == "cleared"):
+                            gated = True
+            body = (header + _paced_toc_html(paced_view, v["id"]) + body
+                    + _paced_tier_html(tier_payload, tier_show_url)
+                    + _paced_pager_html(paced_view, paced_index, gated))
+            # The Steps disclosure is the paced view's navigation; the
+            # reader nav would be a second list of the same headings.
+            nav_html = ""
+            lines = []
+            if announce:
+                lines.append(announce)
+            if paced_fallback:
+                lines.append(PACED_UNKNOWN_STEP)
+            lines.append("Step %d of %d." % (paced_index + 1,
+                                             len(paced_view)))
+            status_html = ('<div class="status" role="status">%s</div>'
+                           % html.escape(" ".join(lines)))
     # The style footer and its degraded copy (03.1-UI-SPEC 9.6): one
     # Ledger-voice line names the style that produced the page. A resolved
     # named style reads `style: <id> · rendered by render_style`; the house

@@ -1136,7 +1136,9 @@ def test_lesson_parse_identity_phase3():
                          "dir": "auto", "dir_raw": "",
                          "dir_declared": False,
                          "example_order": "example-first",
-                         "example_order_reason": ""}
+                         "example_order_reason": "",
+                         # Plan 16D-01 (D-16D-2): the pacing pair.
+                         "pace": "none", "pace_raw": ""}
     for key, default in additive_defaults.items():
         if key not in now:
             fail("parse_lesson no longer returns the additive key %r; every "
@@ -2475,12 +2477,14 @@ def test_spec_names_every_lesson_lint_code():
     on purpose: a code added without a SPEC row should fail here, which is
     exactly what it did when those three were added and the SPEC table had
     not yet been written. Raised again to fourteen on 2026-08-28 by
-    lesson.authored_key_disclosure."""
+    lesson.authored_key_disclosure, and to seventeen on 2026-08-31 by plan
+    16D-01's pacing findings (lesson.invalid_step, lesson.duplicate_step,
+    lesson.invalid_pace), whose SPEC rows landed with the codes."""
     s = itembank.SPEC + "\n" + SPEC_03_1
     lesson_codes = [c for c in itembank.LINT_CODES
                     if c.startswith("lesson.") or c == "item.lesson_ref_unknown"]
-    if len(lesson_codes) != 14:
-        fail("expected exactly 14 lesson lint codes, got %d: %r"
+    if len(lesson_codes) != 17:
+        fail("expected exactly 17 lesson lint codes, got %d: %r"
              % (len(lesson_codes), lesson_codes))
     for c in lesson_codes:
         if c not in s:

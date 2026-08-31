@@ -57,12 +57,14 @@ def _resolve_check_item(qs, check_id):
 
 
 def record_gate_check(bank_path, check_id, answer, mode="practice",
-                      session_id="reader"):
+                      session_id="reader", context="lesson_gate"):
     """The one gate-check recording path shared by the daemon route and the
     CLI twin (SURF-04): resolves the check item, scores through
     `runtime.score_response()` (the one verdict path), and records ordinary
     response evidence with context="lesson_gate" (D-08) -- a lesson-gate
-    attempt is the same object as a quiz attempt to every consumer.
+    attempt is the same object as a quiz attempt to every consumer. A paced
+    lesson run passes context="lesson_run" instead (plan 16D-03, D-PACED-2);
+    everything else about the attempt is identical.
     Returns None when the check id names no item."""
     qs = load(bank_path)
     q = _resolve_check_item(qs, check_id)
@@ -79,7 +81,7 @@ def record_gate_check(bank_path, check_id, answer, mode="practice",
         answer=(json.dumps(answer, ensure_ascii=False)
                 if isinstance(answer, (dict, list)) else answer),
         score=score, mode=mode, attempt_num=attempt,
-        bank=os.path.basename(bank_path), context="lesson_gate")
+        bank=os.path.basename(bank_path), context=context)
     evidence.append_event(log, event)
     return score
 

@@ -1151,9 +1151,18 @@ def evidence_proposal(objective, rows, window, included_signals,
 
     window = _require_window(window)
     key = objective_key(objective)
+    # Lesson-run checkpoint attempts are excluded from the denominator by
+    # default (D-PACED-2, plan 16D-02): they are teaching-context attempts,
+    # fully recorded and fully visible in the one store, and whether a
+    # blueprint may consume them is a read-time policy. A blueprint that
+    # genuinely wants them changes this filter with a query, never a
+    # migration; a lesson-run attempt reaching a denominator WITHOUT such an
+    # explicit policy would mean this default is wrong and the exclusion
+    # belongs lower in the stack (the recorded reconsideration condition).
     counted = [r for r in (rows or ())
                if in_window(r.get("ts"), window)
-               and objective_key(r.get("objective") or "") == key]
+               and objective_key(r.get("objective") or "") == key
+               and r.get("context") != "lesson_run"]
     denominator = len(counted)
 
     claims = []

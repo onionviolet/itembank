@@ -140,7 +140,9 @@ def test_gate_grammar_additive():
                              "dir": "auto", "dir_raw": "",
                              "dir_declared": False,
                              "example_order": "example-first",
-                             "example_order_reason": ""}
+                             "example_order_reason": "",
+                             # Plan 16D-01 (D-16D-2): the pacing pair.
+                             "pace": "none", "pace_raw": ""}
         for key, default in additive_defaults.items():
             if key not in les:
                 fail("parse_lesson no longer returns the additive key %r"

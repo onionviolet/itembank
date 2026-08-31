@@ -87,6 +87,12 @@ GATE_MODES = ("required", "recommended")
 # one new call site this phase adds (CONTEXT D-08, 06.2-RESEARCH section 2).
 LESSON_GATE_CONTEXT = "lesson_gate"
 
+# The 16D lesson-run context (plan 16D-02, D-PACED-2): a checkpoint attempt
+# inside a paced lesson run. Same event shape, same store, same scorer; the
+# label is what lets a blueprint denominator exclude these by default as a
+# read-time policy instead of a hidden or separate record.
+LESSON_RUN_CONTEXT = "lesson_run"
+
 # Bounds the tail scan `append_line_checked` and `recent_dedupe_keys` run to
 # decide whether an event is a duplicate. A dedupe_key contains the
 # session_id, so a duplicate can only ever come from the same sitting, and a

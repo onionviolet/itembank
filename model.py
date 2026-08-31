@@ -556,8 +556,27 @@ def _lesson_example_order(head):
     return value, reason
 
 
-# The eight keys every `parse_lesson` return path carries for the four
-# directives above. Held in one function so an early return and the success
+def _lesson_pace(head):
+    """`[LESSON-PACE: <value>]`, defaulting to `"none"` (plan 16D-01,
+    D-16D-2). Copies the `[LESSON-DIR:]` shape: the value is validated at
+    lint time and never here, the reader falls back silently, and the
+    `_raw` companion holds what the author wrote when it was refused so
+    `lesson.invalid_pace` can name the offending text.
+    """
+    m = re.search(r"(?m)^\[LESSON-PACE:\s*(.*?)\s*\]", head)
+    if m is None:
+        return "none", ""
+    raw = m.group(1).strip()
+    if not raw:
+        return "none", "<empty>"
+    if raw in LESSON_PACE_VALUES:
+        return raw, ""
+    return "none", raw
+
+
+# The keys every `parse_lesson` return path carries for the directives
+# above (eight for the four 16A directives, plus 16D's pace pair). Held in
+# one function so an early return and the success
 # return cannot drift apart: every path out of `parse_lesson` returns the same
 # key set, which is the discipline the existing `error` and `detail` keys
 # already follow.
@@ -566,7 +585,8 @@ def _lesson_directive_defaults():
             "semantic_profile_raw": "",
             "lang": "en", "lang_raw": "",
             "dir": "auto", "dir_raw": "", "dir_declared": False,
-            "example_order": "example-first", "example_order_reason": ""}
+            "example_order": "example-first", "example_order_reason": "",
+            "pace": "none", "pace_raw": ""}
 
 
 def parse_lesson(bank_path):
@@ -662,6 +682,7 @@ def parse_lesson(bank_path):
     lang, lang_raw = _lesson_lang(head)
     direction, dir_raw, dir_declared = _lesson_direction(head)
     example_order, example_order_reason = _lesson_example_order(head)
+    pace, pace_raw = _lesson_pace(head)
 
     m = re.search(r"(?m)^##\s+LESSON\s*$", head)
     if m is None:
@@ -697,11 +718,74 @@ def parse_lesson(bank_path):
             "dir_declared": dir_declared,
             "example_order": example_order,
             "example_order_reason": example_order_reason,
+            "pace": pace,
+            "pace_raw": pace_raw,
             "body": lesson_text.strip(),
             "intro": "\n".join(intro).strip(),
             "headings": headings,
             "error": "",
             "detail": ""}
+
+
+def lesson_steps(lesson):
+    """Resolve the D-16D-1 pacing ladder over one parsed lesson.
+
+    Precedence, in order: an explicit authored `[STEP: <id>]` marker wins;
+    else the configured `[LESSON-PACE:]` heading level; else the whole
+    document as one step, which is exactly the pre-16D behaviour, so a
+    lesson that never asked for pacing is untouched.
+
+    Returns a list of `{"id", "title", "rung", "content"}` dicts in document
+    order. `content` is the step's slice of the effective lesson text with
+    marker lines removed: a marker is pacing metadata and is never rendered
+    as prose in any mode. Duplicate authored ids are returned exactly as
+    written: the parser reports what is written and the linter judges it
+    (`lesson.duplicate_step`), which is the same division `[GATE:]` follows.
+    """
+    if not lesson:
+        return []
+    body = lesson.get("body") or ""
+    headings = lesson.get("headings") or []
+    first_heading = headings[0]["text"] if headings else ""
+
+    def title_of(content, fallback):
+        hm = re.search(r"(?m)^###\s+(.+?)\s*$", content)
+        if hm:
+            return hm.group(1).strip()
+        for line in content.splitlines():
+            if line.strip():
+                return " ".join(line.strip().split()[:8])
+        return fallback
+
+    markers = list(STEP_RE.finditer(body))
+    if markers:
+        steps = []
+        lead = body[:markers[0].start()].strip()
+        if lead:
+            steps.append({"id": "intro", "rung": 1,
+                          "title": first_heading or "Introduction",
+                          "content": STEP_LINE_RE.sub("", lead).strip()})
+        for i, m in enumerate(markers):
+            end = markers[i + 1].start() if i + 1 < len(markers) else len(body)
+            content = STEP_LINE_RE.sub("", body[m.end():end]).strip()
+            steps.append({"id": m.group(1), "rung": 1,
+                          "title": title_of(content, m.group(1)),
+                          "content": content})
+        return steps
+    if lesson.get("pace") == "h3" and headings:
+        steps = []
+        intro = (lesson.get("intro") or "").strip()
+        if intro:
+            steps.append({"id": "intro", "rung": 2,
+                          "title": first_heading or "Introduction",
+                          "content": intro})
+        for h in headings:
+            steps.append({"id": h["slug"], "rung": 2, "title": h["text"],
+                          "content": ("### %s\n%s" % (h["text"], h["body"]))
+                          .strip()})
+        return steps
+    return [{"id": "document", "rung": 3,
+             "title": first_heading or "Lesson", "content": body}]
 
 
 _TERM_REF_RE = re.compile(r"\[\[([^\]]+)\]\]")
@@ -2354,6 +2438,14 @@ VISUAL LINT CODES
                                       language tag (A11Y-02)
   lesson.invalid_direction  error     [LESSON-DIR:] names a value outside
                                       ltr|rtl|auto (A11Y-02)
+  lesson.invalid_step       error     a [STEP:] line whose id is not 1-64
+                                      chars of a-z 0-9 hyphen starting
+                                      alphanumeric (D-16D-2)
+  lesson.duplicate_step     error     a step id authored twice, or the
+                                      reserved id intro (D-16D-2)
+  lesson.invalid_pace       warning   [LESSON-PACE:] names a value outside
+                                      none|h3; pacing falls back to none
+                                      (D-16D-2)
   lesson.unknown_semantic   warning   > [!KIND] names no known semantic role;
                                       it renders as a plain paragraph
                                       (D-16A-3)
@@ -2497,6 +2589,20 @@ LESSON_EXAMPLE_ORDERS = ("example-first", "definition-first")
 # need a table this project has no reason to carry, so a language tag is
 # checked for being non-empty and nothing more.
 LESSON_DIRECTIONS = ("ltr", "rtl", "auto")
+
+# Phase 16D pacing (D-16D-1, D-16D-2). The LESSON grammar's headings are
+# `###` only (the `##` level is the section marker itself), so the only
+# heading-derived rung is h3; a value naming a boundary that cannot occur
+# would be inert and is not offered.
+LESSON_PACE_VALUES = ("none", "h3")
+
+# The authored step marker: `[STEP: <id>]` alone on a line, id 1-64 chars of
+# a-z 0-9 hyphen starting alphanumeric. The id, never the ordinal, is what a
+# resume position and a checkpoint anchor record (D-PACED-1's identity
+# argument: an unidentified marker renumbers on insertion exactly the way a
+# renderer-computed boundary does).
+STEP_RE = re.compile(r"(?m)^\[STEP:\s*([a-z0-9][a-z0-9-]{0,63})\s*\]\s*$")
+STEP_LINE_RE = re.compile(r"(?m)^\[STEP:.*$")
 
 # The one source of truth for the unresolvable [!CHECK:] copy (06.2-UI-SPEC
 # section 15, LOCKED): the linter, the lesson renderer and the tests all
@@ -2685,6 +2791,7 @@ LINT_CODES = tuple(sorted({
     "lesson.invalid_gate", "lesson.check_ref_unknown",
     "lesson.invalid_semantic_profile", "lesson.lang_empty",
     "lesson.invalid_direction",
+    "lesson.invalid_step", "lesson.duplicate_step", "lesson.invalid_pace",
     "lesson.unknown_semantic", "lesson.unknown_required_semantic",
     "lesson.definition_before_example", "lesson.example_order_no_reason",
     "media.duplicate_id", "media.missing_alt", "media.unknown_rights",
@@ -3806,6 +3913,36 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                     "lesson.invalid_direction", "dir", "BANK",
                     "[LESSON-DIR: %s] is not one of ltr, rtl, auto; the "
                     "reader falls back to auto" % dir_raw))
+            # Phase 16D pacing findings (D-16D-1, D-16D-2). A step id is a
+            # resumable identity, so malformed and duplicated ids are
+            # errors; a bad pace value only coarsens pacing, so it is a
+            # warning. A bank with no [STEP:] line and no [LESSON-PACE:]
+            # tag emits none of these and the shipped output is byte
+            # identical.
+            pace_raw = lesson.get("pace_raw") or ""
+            if pace_raw:
+                warnings.append(LintError(
+                    "lesson.invalid_pace", "pace", "BANK",
+                    "[LESSON-PACE: %s] is not one of none, h3; pacing "
+                    "falls back to none" % pace_raw))
+            seen_steps = set()
+            for raw_line in (lesson.get("body") or "").split("\n"):
+                if not raw_line.lstrip().startswith("[STEP:"):
+                    continue
+                sm = STEP_RE.match(raw_line)
+                if sm is None:
+                    errors.append(LintError(
+                        "lesson.invalid_step", "step", "BANK",
+                        "[STEP:] id must be 1-64 chars of a-z 0-9 hyphen, "
+                        "starting alphanumeric: %s" % raw_line.strip()))
+                    continue
+                step_id = sm.group(1)
+                if step_id in seen_steps or step_id == "intro":
+                    errors.append(LintError(
+                        "lesson.duplicate_step", "step", "BANK",
+                        "[STEP: %s] appears more than once; a resumable "
+                        "step needs one identity" % step_id))
+                seen_steps.add(step_id)
             # Phase 16A unknown-semantic findings (D-16A-3, CAP-01's
             # Degraded clause). The marker shape and the required-marker
             # rule are read from `surfaces.lesson` through a function-local

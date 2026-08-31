@@ -27,7 +27,9 @@ import server
 import subjects
 from model import (lesson_slug, load, parse_activities, parse_bank,
                    parse_key_blocks, parse_lesson, parse_media, parse_terms)
-from runtime import explain_payload, glossable, read_session, upgrade_session
+from runtime import (checkpoint_feedback, explain_payload, glossable,
+                     lesson_run_advance, lesson_run_record, read_lesson_run,
+                     read_session, start_lesson_run, upgrade_session)
 from surfaces import (day, home, ia, launcher, lesson, presentation, quiz,
                       quiz_page, retention_view, seeding, session, settings,
                       study, update)
@@ -2480,6 +2482,79 @@ def _resolve_check_factory(qs):
     return lambda cid: by_id.get(cid)
 
 
+def _lesson_run_path(handler, stem, path):
+    """The one lesson-run file per bank stem, in the same `_attempts/`
+    directory every session lives in. One file rather than one per opening,
+    because a paced position is presentation state and the newest state is
+    the only state worth resuming."""
+    bank_dir = os.path.dirname(os.path.abspath(path)) or "."
+    return os.path.join(bank_dir, "_attempts", "lessonrun_%s.json" % stem)
+
+
+def _paced_context(handler, stem, path, les, params):
+    """Everything one paced GET needs (plan 16D-03): the run (created on
+    first entry, resumed after), the selected step, the tier disclosure to
+    re-render after a wrong checkpoint, and the composed announcements.
+    Degrades to None (the continuous document) when the lesson has no
+    renderable steps or the run store cannot be used; a paced view that
+    cannot record must not pretend it did."""
+    view_steps = lesson.paced_view_steps(les) if les else []
+    if not view_steps:
+        return None
+    step_ids = [v["id"] for v in view_steps]
+    run_path = _lesson_run_path(handler, stem, path)
+    run = read_lesson_run(run_path)
+    if run.get("error"):
+        try:
+            run = start_lesson_run(path, run_path, step_ids)
+        except OSError:
+            run = {"error": "lesson_run.unwritable"}
+    if run.get("error"):
+        return {"run": None, "run_path": None, "step_id": None,
+                "tier_payload": None, "tier_show_url": None,
+                "announce": None}
+    step_param = (params.get("step") or [""])[0] or None
+    announce = None
+    if step_param and step_param in step_ids:
+        run = lesson_run_advance(run_path, step_param) or run
+        step_id = step_param
+    elif step_param:
+        step_id = step_param   # lesson_page renders the fallback line
+    else:
+        step_id = run.get("step") or step_ids[0]
+        if step_id not in step_ids:
+            pass               # recorded step is gone; lesson_page renders
+                               # the fallback line and shows step 1
+        elif step_id != step_ids[0]:
+            announce = ("Resuming at step %d."
+                        % (step_ids.index(step_id) + 1))
+    tier_payload = None
+    tier_show_url = None
+    checked = (params.get("checked") or [""])[0] or None
+    show = (params.get("show") or [""])[0] or None
+    target = checked or show
+    if target:
+        qs_all = load(path)
+        q = _resolve_check(qs_all, target)
+        if q is not None:
+            attempts = [a for a in run.get("attempts", ())
+                        if a.get("item_id") == target]
+            wrong = sum(1 for a in attempts if a.get("state") == "held")
+            last = next((a.get("answer") for a in reversed(attempts)
+                         if "answer" in a), None)
+            if last is not None:
+                tier_payload = checkpoint_feedback(
+                    q, last, wrong, bool(show))
+                if wrong >= 1 and not show \
+                        and not (tier_payload or {}).get("reveal"):
+                    tier_show_url = ("/lesson/%s?view=paced&step=%s&show=%s"
+                                      % (stem, step_id or step_ids[0],
+                                         target))
+    return {"run": run, "run_path": run_path, "step_id": step_id,
+            "tier_payload": tier_payload, "tier_show_url": tier_show_url,
+            "announce": announce}
+
+
 def handle_lesson_get(handler, stem):
     """`GET /lesson/<stem>` -- the lesson reader for one bank, resolved
     through the startup allowlist and rendered by `lesson.lesson_page()`.
@@ -2529,13 +2604,36 @@ def handle_lesson_get(handler, stem):
         announce = lesson.SKIP_RECORDED_COPY
     elif reveal == "check":
         announce = lesson.REVEAL_CLAUSE_COPY
+    # Phase 16D: `?view=paced` renders one ladder step with the jump-only
+    # Steps list and the pager; everything else about the render is the one
+    # lesson path above. A lesson with no renderable steps, or a run store
+    # that cannot be used, degrades to the continuous document.
+    mode = "continuous"
+    step_id = None
+    tier_payload = None
+    tier_show_url = None
+    if (params.get("view") or [""])[0] == "paced" and not print_mode:
+        paced = _paced_context(handler, stem, path, les, params)
+        if paced is not None:
+            mode = "paced"
+            step_id = paced["step_id"]
+            tier_payload = paced["tier_payload"]
+            tier_show_url = paced["tier_show_url"]
+            if paced["announce"]:
+                announce = ((announce + " ") if announce else "") \
+                    + paced["announce"]
+            if gate is not None and step_id is not None:
+                gate = dict(gate, paced_step=step_id)
     page = lesson.lesson_page(path, qs, les, runtime=True, drill=drill,
                               gate=gate, focus=focus, announce=announce,
                               profile=profile,
                               session_id=_session_id_for(handler, stem),
                               lan_refused=_lan_refused(handler),
                               media=parse_media(path),
-                              activities=parse_activities(path))
+                              activities=parse_activities(path),
+                              mode=mode, step_id=step_id,
+                              tier_payload=tier_payload,
+                              tier_show_url=tier_show_url)
     handler.send_html(page.encode("utf-8"))
 
 
@@ -2569,11 +2667,44 @@ def handle_lesson_check(handler, stem):
         bank_dir = os.path.dirname(os.path.abspath(path)) or "."
         log = evidence.log_path(bank_dir)
         session_id = sess.get("session_id", "reader")
+        # Phase 16D: a check submitted from the paced view is a lesson-run
+        # checkpoint: same scorer, same store, context "lesson_run" and
+        # mode "paced" on the event (D-PACED-2), the attempt summarised
+        # into the run for gating and tier counts, and the redirect coming
+        # back to the same paced step.
+        paced_step = None
+        if (fields.get("view") or [""])[-1] == "paced":
+            paced_step = (fields.get("step") or [""])[-1] or None
         score = quiz.record_gate_check(
-            path, check_id, answer, mode=sess.get("mode", "practice"),
-            session_id=session_id)
+            path, check_id, answer,
+            mode=("paced" if paced_step else sess.get("mode", "practice")),
+            session_id=session_id,
+            context=("lesson_run" if paced_step else "lesson_gate"))
         if score is None:
             handler.send_error(404, "no item %r in this bank" % check_id)
+            return
+        if paced_step:
+            run_path = _lesson_run_path(handler, stem, path)
+            run = read_lesson_run(run_path)
+            prior = ([a for a in run.get("attempts", ())
+                      if a.get("item_id") == check_id]
+                     if not run.get("error") else [])
+            wrong_before = sum(1 for a in prior if a.get("state") == "held")
+            state = "correct" if score is True else "held"
+            tier = 0 if score is True else (1 if wrong_before == 0 else 3)
+            stored = (answer if isinstance(answer, str)
+                      else [str(x) for x in answer]
+                      if isinstance(answer, list) else str(answer))
+            lesson_run_record(run_path, check_id,
+                             {"state": state, "attempt": len(prior) + 1,
+                              "tier": tier, "answer": stored})
+            if score is True:
+                target = ("/lesson/%s?view=paced&step=%s&reveal=check"
+                          % (stem, paced_step))
+            else:
+                target = ("/lesson/%s?view=paced&step=%s&checked=%s"
+                          % (stem, paced_step, check_id))
+            handler.send_redirect(target)
             return
         gate = _lesson_gate_ctx(handler, stem, path, qs, les)
         next_slug = None
@@ -2632,6 +2763,24 @@ def handle_lesson_skip(handler, stem):
         if status == "off":
             handler.send_error(400, "an off lesson offers no skip")
             return
+        # Phase 16D: a paced skip opens the gate (gate on attempted; a skip
+        # is the ordinary control 6.2 already made it) and returns to the
+        # same step. The gate_skip event above is unchanged.
+        if (fields.get("view") or [""])[-1] == "paced":
+            paced_step = (fields.get("step") or [""])[-1] or None
+            if paced_step:
+                run_path = _lesson_run_path(handler, stem, path)
+                run = read_lesson_run(run_path)
+                prior = ([a for a in run.get("attempts", ())
+                          if a.get("item_id") == check_id]
+                         if not run.get("error") else [])
+                lesson_run_record(run_path, check_id,
+                                 {"state": "skipped",
+                                  "attempt": len(prior) + 1, "tier": 0})
+                handler.send_redirect(
+                    "/lesson/%s?view=paced&step=%s&reveal=skip"
+                    % (stem, paced_step))
+                return
         next_slug = _section_after_check(les, check_id)
         if next_slug:
             target = ("/lesson/%s?focus=%s&reveal=skip#%s"

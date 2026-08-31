@@ -41,8 +41,11 @@ projection, never a second file (dual-form rule).
   lesson body, following the existing `[SRC:]`/`[LESSON-REF:]` bracket-line
   convention, where `<id>` matches `[a-z0-9][a-z0-9-]{0,63}`. Duplicate ids
   and malformed ids are lint ERRORS. The rung-2 knob is a preamble tag
-  `[LESSON-PACE: <value>]` with values `h2`, `h3`, `none`; default `none`
-  (rung 3, whole document). A resume position and a checkpoint anchor
+  `[LESSON-PACE: <value>]` with values `h3`, `none`; default `none`
+  (rung 3, whole document). Corrected 2026-08-31 before execution: the
+  first draft listed `h2`, but the LESSON grammar's headings are `###`
+  only (the `##` level is the section marker itself), so `h2` named a
+  boundary that cannot occur and was removed rather than shipped inert. A resume position and a checkpoint anchor
   record the step id, never the ordinal. Basis: D-PACED-1's identity
   argument; the bracket-line convention keeps the document readable as
   plain Markdown in Obsidian, which the format already accepts for `[SRC:]`.

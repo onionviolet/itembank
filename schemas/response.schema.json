@@ -115,9 +115,10 @@
             "exam",
             "remediation",
             "drill",
-            "legacy"
+            "legacy",
+            "paced"
           ],
-          "description": "Captured live on every surface; this is what makes a drill-mode correct distinguishable from an exam-mode correct. 'legacy' is written only by itembank migrate (plan 01-11), for an imported record whose source (an attempt markdown file, which never recorded a mode) carries no mode of its own."
+          "description": "Captured live on every surface; this is what makes a drill-mode correct distinguishable from an exam-mode correct. 'legacy' is written only by itembank migrate (plan 01-11), for an imported record whose source (an attempt markdown file, which never recorded a mode) carries no mode of its own. 'paced' (plan 16D-02, D-PACED-3) is written only by a paced lesson run's checkpoint path and, like 'legacy', is never a sitting mode: session.schema.json's mode enum does not carry it."
         },
         "attempt_number": {
           "type": "integer",
@@ -180,8 +181,8 @@
         },
         "context": {
           "type": "string",
-          "enum": ["quiz", "lesson_gate"],
-          "description": "Which surface embedded this attempt (plan 06.2, D-08): \"quiz\" (the default, every pre-6.2 call site) or \"lesson_gate\" (the one call site that serves an inline check inside a lesson). Phase 10's scheduler treats both identically -- the context field is how it tells where an idea was cleared without branching on it."
+          "enum": ["quiz", "lesson_gate", "lesson_run"],
+          "description": "Which surface embedded this attempt (plan 06.2, D-08): \"quiz\" (the default, every pre-6.2 call site) or \"lesson_gate\" (the one call site that serves an inline check inside a lesson). Phase 10's scheduler treats both identically -- the context field is how it tells where an idea was cleared without branching on it. \"lesson_run\" marks a checkpoint attempt inside a paced lesson run (plan 16D-02, D-PACED-2); blueprint denominators exclude it by default."
         },
         "review_state": {
           "type": "string",

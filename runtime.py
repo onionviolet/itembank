@@ -1858,6 +1858,12 @@ FEEDBACK_POLICIES = {
     # teaching behavior for it rather than an unhandled mode.
     "remediation": {"wrong": "hold", "right": "advance",
                     "selection": "own_picks"},
+    # paced is the 16D lesson-run checkpoint context (D-PACED-3), reachable
+    # only through a paced lesson's checkpoint and never a sitting: the
+    # session mode enum does not carry it, exactly as with 'legacy'. Its
+    # held-retry shape is practice's; the tier ladder on top of it is
+    # checkpoint_feedback's, released by the runtime.
+    "paced": {"wrong": "hold", "right": "advance", "selection": "own_picks"},
     # 'legacy' appears only on events migrated from a pre-mode store; a
     # live session can never carry it, and a legacy mode must not pretend to
     # be a policy it never was.
@@ -2792,3 +2798,160 @@ def invoke_rubric_review(session_file):
             "suggestion_reveal": settings_data.get("suggestion_reveal",
                                                    "after-self-mark"),
             "evidence": write_result}
+
+
+# ---------------------------------------------------------------------------
+# Phase 16D: the lesson-run session and the paced checkpoint disclosure
+# (plans 16D-02; D-PACED-2, D-PACED-3 via 16D-CONTEXT D-16D-3, D-16D-4).
+#
+# A lesson run is a distinct session KIND, never a sitting: it carries no
+# blueprint, no form, and no cursor over selected items, and calling the two
+# the same object would mean either a sitting with no form or a blueprint
+# with a lesson in it. Checkpoint attempts inside it are ordinary attempts
+# through the one scorer into the one evidence store, labelled with context
+# "lesson_run" so a blueprint denominator can exclude them by default as a
+# read-time policy rather than a hidden or separate record.
+# ---------------------------------------------------------------------------
+
+LESSON_RUN_KIND = "lesson_run"
+LESSON_RUN_SCHEMA_VERSION = 1
+
+
+def start_lesson_run(bank_path, out_path, steps):
+    """Create one lesson-run session document, atomically.
+
+    `steps` is the id list `model.lesson_steps` resolved, in order. Position
+    (`step`) is presentation state: it is resumable and it never counts as
+    coverage, mastery, or progress, and nothing in this document may be read
+    as any of those.
+    """
+    # Function-local for the same reason every other evidence use in this
+    # module is: evidence imports runtime, so a top-level edge would cycle.
+    import evidence
+    steps = [str(s) for s in (steps or ())]
+    if not steps:
+        return {"error": "lesson_run.no_steps"}
+    data = {"schema_version": LESSON_RUN_SCHEMA_VERSION,
+            "kind": LESSON_RUN_KIND,
+            "bank": os.path.abspath(bank_path),
+            "created": evidence.utc_now(),
+            "step": steps[0],
+            "steps": steps,
+            "attempts": []}
+    write_session(out_path, data)
+    return data
+
+
+def read_lesson_run(path):
+    """Read one lesson-run document, refusing shapes that are not one.
+
+    Returns the dict, or `{"error": ...}` on an unreadable file or a
+    document of another kind; never raises, because a paced view must
+    degrade to the continuous document rather than block.
+    """
+    try:
+        data = json.load(open(session_path(path), encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"error": "lesson_run.unreadable"}
+    if data.get("kind") != LESSON_RUN_KIND:
+        return {"error": "lesson_run.wrong_kind"}
+    return data
+
+
+def lesson_run_advance(path, step_id):
+    """Record the learner's position. An id not in `steps` is refused with a
+    structured error, never written and never guessed at: a resumed position
+    must point at a step that exists or say that it cannot."""
+    data = read_lesson_run(path)
+    if data.get("error"):
+        return data
+    if step_id not in data.get("steps", ()):
+        return {"error": "lesson_run.unknown_step", "step": step_id}
+    data["step"] = step_id
+    write_session(path, data)
+    return data
+
+
+def lesson_run_record(path, item_id, attempt_summary):
+    """Append one attempt summary (item id, state, ordinal, tier released)
+    to the run. The summary is bookkeeping for gating and tier counts; the
+    durable attempt record is the response event in the one evidence store,
+    exactly as for every other attempt."""
+    data = read_lesson_run(path)
+    if data.get("error"):
+        return data
+    entry = dict(attempt_summary or {})
+    entry["item_id"] = item_id
+    data["attempts"].append(entry)
+    write_session(path, data)
+    return data
+
+
+def _selected_letters(q, answer):
+    """The option letters a learner actually touched, in option order."""
+    opts = q.get("opts") or {}
+    if q["type"] == "mc":
+        letter = _canonical_mc(q, normalize_answer(answer))
+        return [letter] if letter in opts else []
+    if q["type"] == "multi":
+        raw = normalize_answer(answer)
+        if not isinstance(raw, list):
+            raw = re.split(r"[,\s]+", str(raw or ""))
+        seen = []
+        for piece in raw:
+            letter = str(piece).strip().upper()
+            if letter in opts and letter not in seen:
+                seen.append(letter)
+        return sorted(seen)
+    return []
+
+
+def checkpoint_feedback(q, answer, wrong_attempts, reveal_requested,
+                        session_mode="paced"):
+    """The runtime-settled disclosure for one paced-lesson checkpoint
+    (D-PACED-3). The verdict comes from `score_response`, the one scorer;
+    this function never re-derives it and never changes it: `multi` stays
+    all-or-nothing at every tier.
+
+    Tiers, released by attempt count and explicit request, never by a model
+    or a surface: tier 1 on the first wrong attempt marks which of the
+    learner's OWN selections are right and which are not, never an
+    unselected correct option, so the item is not solved by elimination;
+    tier 2 rides with tier 1 and carries the authored DA rationale for
+    exactly the options the learner touched; tier 3, on a second wrong
+    attempt or an explicit learner request, is the full reveal. For item
+    types without discrete selections (short, table, dnd, build, check,
+    visual) tier 1 degrades to the held state with no per-part reveal,
+    which is the per-type seam D-PACED-3's reconsideration condition names.
+
+    A teaching context only: handed an exam or diagnostic mode this refuses
+    with a structured error, so an assessment sitting cannot be argued into
+    disclosing (the runtime invariant; those modes stay silent and
+    byte-identical).
+    """
+    if session_mode in ("exam", "diagnostic"):
+        return {"error": "checkpoint.assessment_mode",
+                "detail": "%s sittings disclose nothing mid-item; the "
+                          "paced tier ladder is a teaching behaviour"
+                          % session_mode}
+    verdict = score_response(q, answer)
+    correct = verdict is True
+    payload = {"tier": 0, "correct": correct,
+               "selection_marks": [], "touched_da": {}, "reveal": None}
+    if correct:
+        return payload
+    wrong_attempts = max(0, int(wrong_attempts))
+    if wrong_attempts >= 1:
+        payload["tier"] = 1
+        key_letters = set(q.get("correct") or ())
+        da = q.get("da") or {}
+        for letter in _selected_letters(q, answer):
+            payload["selection_marks"].append(
+                {"option": letter,
+                 "state": "right" if letter in key_letters else "not_right"})
+            if da.get(letter):
+                payload["touched_da"][letter] = da[letter]
+    if wrong_attempts >= 2 or reveal_requested:
+        payload["tier"] = 3
+        payload["reveal"] = explain_payload(q)
+    return payload

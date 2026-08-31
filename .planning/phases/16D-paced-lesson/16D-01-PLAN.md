@@ -39,11 +39,11 @@ re-litigates the ladder or the syntax.
   <files>model.py</files>
   <read_first>model.py parse_lesson (whole function) and the three 16A directive helpers it cites (lesson_lang, lesson_dir near lines 489-525); the [GATE:] fallback pattern at line 646</read_first>
   <action>
-  1. Add module constants: `STEP_RE = re.compile(r"(?m)^\[STEP:\s*([a-z0-9][a-z0-9-]{0,63})\s*\]\s*$")`, `LESSON_PACE_VALUES = ("none", "h2", "h3")`.
+  1. Add module constants: `STEP_RE = re.compile(r"(?m)^\[STEP:\s*([a-z0-9][a-z0-9-]{0,63})\s*\]\s*$")`, `LESSON_PACE_VALUES = ("none", "h3")` (corrected 2026-08-31: the LESSON grammar has `###` headings only, so an `h2` value would be inert).
   2. Add a preamble reader `lesson_pace(head)` copying the `[GATE:]` shape exactly: read `[LESSON-PACE: <value>]` from the effective preamble; a value outside `LESSON_PACE_VALUES` falls back to `"none"` and is reported at lint time, never here. `parse_lesson`'s returned dict gains the key `pace` alongside the 16A directive keys.
   3. Add `lesson_steps(lesson)`, taking `parse_lesson`'s return dict and resolving the ladder:
      - Rung 1: if `STEP_RE` matches anywhere in the effective lesson text (`intro` plus every heading `body`), split the document at the markers. Content before the first marker, when non-empty, is step id `intro` with title equal to the lesson's first heading text or `"Introduction"` when there is none. Each marker opens a step whose id is the captured id and whose title is the first heading text inside the step, else the first eight words of its first non-empty line.
-     - Rung 2: else if `pace` is `h2` or `h3`, one step per heading of that level, id = the heading's existing `slug`, title = the heading text; content before the first such heading is the `intro` step as above.
+     - Rung 2: else if `pace` is `h3`, one step per parsed `###` heading, id = the heading's existing `slug`, title = the heading text; content before the first such heading is the `intro` step as above.
      - Rung 3: else exactly one step, id `document`, title = the lesson's first heading text or `"Lesson"`.
      Return a list of dicts, each `{"id", "title", "rung", "content"}` where `content` is the step's slice of the effective lesson text with any `[STEP:]` marker lines removed, in document order. Marker lines are pacing metadata and are never rendered as prose in any mode; a bank written before this plan contains none, so nothing already rendering changes.
   4. Duplicate ids at rung 1 (including a literal `intro` colliding with the synthesized intro step) make `lesson_steps` keep the FIRST occurrence and mark later ones by appending nothing; do not de-duplicate silently: the function still returns them (ids as authored) and lint is the enforcement (Task 2). The docstring states this division: the parser reports what is written, the linter judges it (the house rule the [GATE:] comment already states).
@@ -58,7 +58,7 @@ re-litigates the ladder or the syntax.
   Add three findings, following `lesson.invalid_gate`'s exact shape and severity conventions, and add each to the lint-code table comment:
   1. `lesson.invalid_step` (error): a line matching `^\[STEP:` that does not match `STEP_RE`. Message: `"[STEP:] id must be 1-64 chars of a-z 0-9 hyphen, starting alphanumeric: <line>"`.
   2. `lesson.duplicate_step` (error): the same step id authored twice (or colliding with the synthesized `intro`). Message: `"[STEP: <id>] appears more than once; a resumable step needs one identity"`.
-  3. `lesson.invalid_pace` (warning): `[LESSON-PACE:]` value outside `LESSON_PACE_VALUES`, message `"[LESSON-PACE: <value>] is not one of none, h2, h3; pacing falls back to none"`.
+  3. `lesson.invalid_pace` (warning): `[LESSON-PACE:]` value outside `LESSON_PACE_VALUES`, message `"[LESSON-PACE: <value>] is not one of none, h3; pacing falls back to none"`.
   No em dash characters in any message.
   </action>
   <verify>`python itembank.py lint fixtures/paced_lesson_bank.md` reports zero errors on the good fixture; the test's broken variants (written to a temp dir, never committed) surface all three messages.</verify>
@@ -68,11 +68,11 @@ re-litigates the ladder or the syntax.
   <files>fixtures/paced_lesson_bank.md, tests/paced_steps_roundtrip.py</files>
   <read_first>fixtures/lesson_bank.md (shape of a lesson-carrying fixture); tests/lesson_roundtrip.py main() (house test style: fail()/ok(), stdlib only, no framework)</read_first>
   <action>
-  1. Author `fixtures/paced_lesson_bank.md`: a synthetic invented-subject lesson (never real course content; `itembank guard` must stay clean) with three `[STEP:]` markers (`orientation`, `mechanism`, `application`), prose before the first marker, two `##` headings, at least two `mc` items whose ids the 16D-03 checkpoint fixture will reuse, and a `[LESSON-PACE: h2]` tag that rung 1 must override (markers win).
+  1. Author `fixtures/paced_lesson_bank.md`: a synthetic invented-subject lesson (never real course content; `itembank guard` must stay clean) with three `[STEP:]` markers (`orientation`, `mechanism`, `application`), prose before the first marker, two `##` headings, at least two `mc` items whose ids the 16D-03 checkpoint fixture will reuse, and a `[LESSON-PACE: h3]` tag that rung 1 must override (markers win).
   2. Write `tests/paced_steps_roundtrip.py` asserting, in order:
      - rung 1: the fixture yields four steps (`intro`, `orientation`, `mechanism`, `application`), in document order, with no `[STEP:` text in any `content`;
-     - marker precedence: the fixture's `[LESSON-PACE: h2]` is present and rung is still 1;
-     - rung 2: the same lesson text with markers stripped (in memory) and pace `h2` yields one step per `##` heading, ids equal to the heading slugs;
+     - marker precedence: the fixture's `[LESSON-PACE: h3]` is present and rung is still 1;
+     - rung 2: the same lesson text with markers stripped (in memory) and pace `h3` yields one step per `###` heading, ids equal to the heading slugs;
      - rung 3 byte-identity: for `fixtures/lesson_bank.md` (no markers, no pace), `lesson_steps` returns exactly one step whose `content` equals the effective lesson text, and `parse_lesson`'s returned dict equals its pre-plan shape plus only the new `pace` key (assert the key set explicitly);
      - identity stability: inserting a new `[STEP: preface]` marker at the top of the fixture text (in memory) changes no other step's id;
      - lint: the three findings fire on deliberately broken in-memory variants written under `tempfile.mkdtemp()`, and the shipped fixture lints with zero errors.
