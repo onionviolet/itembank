@@ -2,21 +2,111 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase_name: 15B-quality-blueprint-acceptance
-status: "Phase 15A is FROZEN (2026-08-30). All six plans executed. `director.py` ships the agent-client tier: treatment recommendation over the closed eleven-kind vocabulary, the six-rule coverage classifier, the approved-span gate with exact egress disclosure, the settings-side autonomy policy, and the thirteen-step operation protocol replayable from the journal alone. `15A-FREEZE.md` opens `## Frozen at 15A` and all three legs hold: the four-subject tracer 8 passed 0 skipped 0 failed, the review accept-with-concerns, and Phase 13.9 walked. Full suite 98 files, 313 seconds, 0 failures; guard 0 offending files. BOTH of 15A's one-way checkpoint decisions and its blocking human review were made by an agent under Weibao's waiver, recorded in `15A-DECISIONS.md` and `15A-REVIEW.md`. Frozen: 14A, 14B, 14C, 15A, 16A, 16B, 16C. Open: 15B (7 plans, now unblocked), 17A-04, all of 17B, and the paced-lesson subphase whose plan is unwritten."
-stopped_at: "Phase 15A is closed. The next executable work is 15B, seven plans, whose 15B-01 precondition halts until a `15A-FREEZE.md` exists; it now does. What still needs Weibao and cannot be agent-executed: 17A-04 Task 1, which needs the LGPL browser-driver supply-chain decision and an A11Y-01 review (an agent never self-certifies accessibility, and that one is NOT waived). The standing question for Weibao: four consecutive phases (16A, 16B, 16C, 15A) have closed their review legs with an agent signature, and 15A additionally had an agent make two one-way checkpoint decisions, one of which changed a published schema. That is now a pattern rather than an exception."
+current_phase_name: 17B-production-vertical-tracer
+status: "Phase 15B is FROZEN (2026-08-30). All seven plans executed. `blueprint.py` ships ACTIVITY-02's five-gate architecture, RELIABILITY-03's staleness discipline, the cited course audit that mints no fourth coverage vocabulary, and AGENT-03's proposal record. `graph.accept_migration` and `graph.reject_migration` close the acceptance gap 14B left open and named 15B as owner of. `15B-FREEZE.md` opens `## Frozen at 15B` and all three legs hold: the acceptance tracer 7 passed 0 skipped 0 failed, the review accept-with-concerns, and Phase 13.9 walked. Full suite 100 files, 884 seconds, 0 failures; guard 0 offending files. FIVE consecutive phases (16A, 16B, 16C, 15A, 15B) have closed their review leg with an AGENT signature, and 15A plus 15B added six one-way agent-made decisions between them, one of which amended `14B-FREEZE.md`. Frozen: 14A, 14B, 14C, 15A, 15B, 16A, 16B, 16C. Open: 17A-04, all of 17B, 17C, 18, and the paced-lesson subphase whose plan is unwritten."
+stopped_at: "Phase 15B is closed and the 15A/15B chain is complete. What still needs Weibao and cannot be agent-executed: 17A-04 Task 1, which needs the LGPL browser-driver supply-chain decision and an A11Y-01 review (an agent never self-certifies accessibility, and that one was NOT waived). The standing question, now five phases old: 16A, 16B, 16C, 15A and 15B have all closed their human-review leg with an agent signature, and 15A plus 15B additionally had an agent answer six one-way design questions their plans reserved for Weibao, one of which changed a published schema and one of which amended another phase's frozen record. Every waiver is recorded with its reversal cost in the phase DECISIONS files, but the pattern deserves one decision rather than five inherited defaults. Next executable phase work: 17B, 17C, or 18; 17A-04 blocks the rest of 17A."
 last_updated: "2026-08-30T00:00:00.000Z"
 last_activity: 2026-08-30
 last_activity_desc: "Executed 16C-01 through 16C-09 Task 1. Five new root modules (notes, strategies, progress_claims, note_outputs, upgrade_audit), one published schema, two additive evidence event types proven additive against pre-change baselines, eight new test suites, and the legacy-upgrade skill un-stubbed. Four defects were found by running rather than by reading: the two new event types failed the project's own published event schema and would have shipped into an append-only log; the .agents and .claude skill mirrors had been divergent since 13.9 and 14C-06 so CI's mirror step was red on main; a TERMS header row parsed as a glossary entry; and two records still called legacy-upgrade a stub after it shipped. One pre-existing red test, selection_retention_roundtrip, was bisected to its own introducing commit and recorded rather than absorbed. On 2026-08-30 that test was diagnosed and made green: its CLI leg dated a fixture near a fixed CUTOFF but is captured against the wall clock, so the weak and mastered objectives decayed to an equal weight of 1.0 and Phase 7 ordering settled the sitting. The leg now re-dates its fixture by one identical offset and asserts the invariant rather than a date; no runtime file changed. Also on 2026-08-30: tests/file_fault_tracer.py no longer rewrites 14A-TRACER-REPORT.md on every run, which had made a durable phase record derived and had already cost three commits; it now compares everything that carries meaning and writes only under --write, and a new CI step asserts the suite leaves the working tree clean, verified by a full 96-file run that left git status empty. That open finding is now closed and was not one bug but three. Reproduced at twelve concurrent requests under load, 20 rounds of 20 failing: runtime.write_session used a shared <target>.tmp, so the first os.replace consumed the temp file and the second raised FileNotFoundError, which reached the learner as the 400; _ensure_quiz_session checked and created outside any lock, so six concurrent first hits left six sittings for one bank and kept whichever finished last; and Daemon inherited the stdlib listen backlog of 5, measured as ConnectionResetError past twelve connections and not at six. All three fixed, 0 of 20 rounds failing after, with one session where there were six. Also closed: fake_hosted_unused.py, a test artifact committed as source in 46f0f50 because hosted_profile("") wrote its fake script into the process cwd; the root .continue-here, which had pointed for months at a Phase 09 branch, worktree, and main tip that no longer exist; and two orphaned test processes from 2026-08-28, one of them a fake AnkiConnect squatting on 127.0.0.1:8765, the real AnkiConnect port, so day's Anki lane on this machine had been answering to a stub. The GSD client install under .codex/ is gitignored as tool state, like reasonix.toml."
 progress:
   total_phases: 28
-  completed_phases: 21
+  completed_phases: 22
   total_plans: 175
-  completed_plans: 145
-current_phase: 15B
+  completed_plans: 152
+current_phase: 17B
 ---
 
 # Project State
+
+## 2026-08-30 (sixth entry): Phase 15B executed and frozen, seven plans
+
+The 15A/15B chain is complete. What it cost in authority is recorded first,
+because it is the part a green suite does not show.
+
+### What an agent decided and signed that Weibao was meant to
+
+Phase 15B added **four one-way checkpoint decisions** answered by an agent
+(D-15B-1 through D-15B-4) and **one blocking human review** signed by an agent.
+Combined with 15A's two decisions and one review, that is six one-way decisions
+and two reviews across the two phases, on top of 16A, 16B and 16C's three
+reviews.
+
+**Five consecutive phases have now closed their human-review leg with an agent
+signature.** D-15B-2 additionally **amended a frozen record**: `14B-FREEZE.md`
+carries a dated amendment because `graph.SECTION_ORDER` gained `"Blueprint"`.
+Every one is recorded with its reversal cost, and every plan's own text said to
+ask Weibao. The pattern deserves one decision from him rather than five
+inherited defaults.
+
+### What shipped
+
+`blueprint.py`, a pure classifier importing only `model` and `runtime`, so
+`hasattr` is False for `journal`, `course`, `evidence`, `director`, `graph`,
+`auditor` and `authoring`. The absent imports ARE the contract: a module that
+imports `journal` cannot assert it never writes.
+
+ACTIVITY-02's five gates, with three of the eight blueprint dimensions
+checkable from a parsed bank and five supplied as facts; an unsupplied fact is
+`warn`, never a silent pass. RELIABILITY-03's staleness, where an absent
+fingerprint reads STALE and a disposition carries the fingerprint it was
+recorded against so reconciliation is per change. A cited course audit whose
+`COVERAGE_VOCABULARIES` holds vocabulary NAMES rather than states, which is the
+whole mechanism preventing a fourth. AGENT-03's proposal, where uncertainty is
+a band because a figure invites division and a division over sparse evidence is
+the mastery percentage the requirement forbids.
+
+`graph.accept_migration` and `graph.reject_migration` close the gap 14B left
+open, and `graph.set_migration_state` stays and still refuses, so the count of
+ways to settle a proposal went from zero to two rather than becoming unbounded.
+
+### Defects found by running rather than reading
+
+1. **`director.accept_revision` authorized the policy against itself.** It
+   called `authorize_write(settings, autonomy_level(settings), 1)`, comparing
+   the policy to itself, so the check could never refuse. It looked like a
+   check and was not one. It declares the WRITE level now.
+2. **The packaged `.pyz` was broken.** `authoring.py` imports `blueprint` at
+   module scope and `build.py` stages an explicit allowlist that omitted it, so
+   the artifact raised ModuleNotFoundError on startup. `build.py`'s own
+   comments record this class of gap twice before, each noting the omission
+   stayed invisible until a surface imported the module. Checking the rest
+   found `director.py` and 16C's five modules unstaged for the same reason and
+   not yet failing; all six are staged alongside.
+3. **Two fixture items failed shipped Phase 11 detectors.** Every distractor
+   lacked a would-be-correct clause, and one stem quoted its own answer
+   verbatim. Both were real defects, both caught by code this phase did not
+   write, and both are recorded in the tracer report as evidence about the
+   gate: the conforming set was written by the same agent that wrote the gate.
+4. **The freeze record's own shape check caught a hazard in the record.** The
+   Evidence section quoted the literal withholding heading in prose, and a
+   downstream precondition greps these files for exactly that string. Rewritten
+   to describe it rather than quote it.
+
+### Two claims weakened to what is true rather than asserted falsely
+
+- Adding two columns to the Migrations table changes that table's header, so a
+  pre-15B sidecar no longer round-trips byte-identically. The test asserts the
+  precise claim instead: exactly four diff lines, all in the Migrations header,
+  no data row and no other section touched.
+- An empty question set has no denominator, so every share check is skipped
+  rather than reporting "0 percent observed" as a measurement of something
+  never measured. The same reasoning GRAPH-03 applies to an indeterminate
+  claim.
+
+### One piece of bookkeeping that went wrong four times
+
+`BLUEPRINT_CODES` grew 13 to 14 to 19 to 21 to 24 across four plans, and **each
+plan's artifacts section counted from the thirteen it inherited rather than
+from what landed**. The code is right and the plan set is wrong in four places.
+`15B-FREEZE.md` is now the authority for that number.
+
+### Measured
+
+Acceptance tracer 31.9 s, 7 passed 0 skipped 0 failed. 28 journal entries, 6
+replayed from a fresh process, 5 of 5 gates passed, 4 of 4 dispositions cleared
+a block, 2 settlements, proposal denominator 2 reading `sparse`. Full suite 100
+files, 884 seconds, 0 failures. Guard 0 offending files. Darwin 27.0.0 arm64,
+Python 3.14.6.
 
 ## 2026-08-30 (fifth entry): Phase 15A executed and frozen, six plans in one session
 

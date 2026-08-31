@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/evidence_proposal.schema.json",
+  "title": "itembank evidence-based proposal",
+  "description": "One proposal derived from recorded evidence (Phase 15B, AGENT-03). The six namings AGENT-03 requires are required by THIS SCHEMA rather than by the producing function remembering to include them: window, denominator, included_signals, missing_signals, uncertainty, and competing_explanations. A record missing any one is refused before it is returned. Sparse evidence cannot produce a mastery percentage: no float appears anywhere in this contract, uncertainty is a band rather than a figure, and a claim carries a count and its denominator rather than the ratio of the two. The reader does the division or does not; nothing here does it for them.",
+  "x-itembank-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "objective_key",
+    "window",
+    "denominator",
+    "included_signals",
+    "missing_signals",
+    "uncertainty",
+    "competing_explanations",
+    "claims"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "status": {
+      "type": "string",
+      "const": "recommendation",
+      "description": "Always the literal recommendation, as a const. A proposal record has no way to assert that it acted, because there is no value of this field that says so. The learner, or the deterministic selection policy, is the only thing that acts."
+    },
+    "objective_key": {
+      "type": "string",
+      "description": "The objective this proposal is about, NFC and line-ending normalized with no case folding, the identical rule director.locator_key applies to a locator."
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end",
+        "boundary"
+      ],
+      "description": "The observation window the denominator was counted over. A denominator reported without its window is a number with no meaning.",
+      "properties": {
+        "start": {
+          "type": "string",
+          "description": "Inclusive."
+        },
+        "end": {
+          "type": "string",
+          "description": "Exclusive."
+        },
+        "boundary": {
+          "type": "string",
+          "const": "half-open",
+          "description": "Named in the record rather than left to a reader's assumption. Two adjacent windows sharing a boundary value partition a row set exactly only if both agree which side the boundary belongs to, so no record may claim a different convention."
+        }
+      }
+    },
+    "denominator": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "How many events were counted in the window. Always present, including when it is zero: we looked here, over this period, and found nothing is a finding."
+    },
+    "included_signals": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Which signals this proposal drew on."
+    },
+    "missing_signals": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Which signals were not available. Required, so a proposal states what it could not see rather than implying it saw everything."
+    },
+    "uncertainty": {
+      "type": "string",
+      "enum": [
+        "no-evidence",
+        "sparse",
+        "moderate",
+        "sufficient"
+      ],
+      "description": "A band, never a figure. A figure invites division, and a division over sparse evidence is the mastery percentage AGENT-03 forbids."
+    },
+    "competing_explanations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Other readings of the same evidence. A claim offered with no alternative reading is a confident causal claim by omission, so a record carrying claims and no competing explanation is refused."
+    },
+    "claims": {
+      "type": "array",
+      "description": "Sorted by objective, signal kind, and canonical evidence, so equal-comparing claims have a specified stable order.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "objective_key",
+          "signal_kind",
+          "observed_count",
+          "denominator",
+          "evidence"
+        ],
+        "properties": {
+          "objective_key": {
+            "type": "string"
+          },
+          "signal_kind": {
+            "type": "string"
+          },
+          "observed_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "A count, never a ratio."
+          },
+          "denominator": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Repeated on every claim, so a claim read on its own still carries the number it was counted against."
+          },
+          "evidence": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}

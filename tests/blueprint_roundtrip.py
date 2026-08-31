@@ -99,8 +99,12 @@ def check_module_surface():
     # added the five staleness codes, which its own artifacts section counts
     # from the thirteen it inherited rather than the fourteen that landed.
     # The divergence between the plans is recorded in blueprint.py above
-    # BLUEPRINT_CODES; the count here tracks the code rather than the plan text.
-    if len(blueprint.BLUEPRINT_CODES) != 19:
+    # BLUEPRINT_CODES; the count here tracks the code rather than the plan
+    # text. 15B-05 then added the two vocabulary codes, taking it to
+    # twenty-one, and 15B-06's three proposal codes to
+    # twenty-four. Each plan's artifacts section counted from the
+    # thirteen it inherited rather than from what landed.
+    if len(blueprint.BLUEPRINT_CODES) != 24:
         fail("BLUEPRINT_CODES has %d members" % len(blueprint.BLUEPRINT_CODES))
     if blueprint.BLUEPRINT_CODES != tuple(sorted(blueprint.BLUEPRINT_CODES)):
         fail("BLUEPRINT_CODES is not sorted")
@@ -1100,6 +1104,438 @@ def check_accept_revision():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def check_course_audit():
+    """A read-only aggregation that recomputes nothing and mints no fourth
+    coverage vocabulary."""
+    import corpus_15b
+    import graph as graph_module
+
+    # The vocabulary discipline, structurally.
+    if blueprint.COVERAGE_VOCABULARIES != (
+            "graph.BINDING_STATES", "auditor.coverage_report",
+            "audit_report.coverage_row"):
+        fail("COVERAGE_VOCABULARIES is %r"
+             % (blueprint.COVERAGE_VOCABULARIES,))
+    for state in ("covered", "gap", "partial", "thin", "missing",
+                  "conflicting", "unknown", "stale"):
+        if state in blueprint.COVERAGE_VOCABULARIES:
+            fail("COVERAGE_VOCABULARIES carries the STATE %r; it holds "
+                 "vocabulary names, and a tuple of states here would be a "
+                 "fourth vocabulary the moment it drifted" % (state,))
+
+    # blueprint.py holds no coverage-state tuple of its own.
+    for name in dir(blueprint):
+        value = getattr(blueprint, name)
+        if isinstance(value, (tuple, frozenset, list)) and \
+                "covered" in value and "conflicting" in value:
+            fail("blueprint.%s is a coverage-state vocabulary; this module "
+                 "must hold no copy of one" % name)
+
+    # It imports none of the modules that produce its signals.
+    for forbidden in ("graph", "auditor", "director", "authoring"):
+        if hasattr(blueprint, forbidden):
+            fail("blueprint imports %s; the audit takes its signals as "
+                 "arguments" % forbidden)
+
+    signals = corpus_15b.build_audit_signals()
+
+    def audit(**over):
+        kwargs = dict(course_object_id="c1",
+                      treatment_rows=signals["treatment_rows"],
+                      coverage_rows=signals["coverage_rows"],
+                      quality_findings=signals["quality_findings"],
+                      blueprint_findings=signals["blueprint_findings"],
+                      vocabulary_members=signals["vocabulary_members"],
+                      course_fingerprint="fp", tool_version="v1")
+        kwargs.update(over)
+        return blueprint.course_audit(**kwargs)
+
+    report = audit()
+    if set(report) != set(blueprint.AUDIT_REPORT_KEYS):
+        fail("the report's keys are %r" % (sorted(report),))
+    if report["status"] != "course_audit":
+        fail("the report status is %r" % (report["status"],))
+
+    # Provenance is required and checked.
+    row = blueprint.audit_row("o", "graph.BINDING_STATES", "covered")
+    if set(row) != set(blueprint.AUDIT_ROW_KEYS):
+        fail("an audit row's keys are %r" % (sorted(row),))
+    try:
+        blueprint.audit_row("o", "made.up", "covered")
+    except blueprint.BlueprintError as exc:
+        if exc.code != "blueprint.unknown_vocabulary":
+            fail("an unknown vocabulary raised %r" % (exc.code,))
+        for name in blueprint.COVERAGE_VOCABULARIES:
+            if name not in exc.message:
+                fail("the refusal does not name %r" % (name,))
+    else:
+        fail("an unknown vocabulary was accepted")
+
+    # A real cross-vocabulary confusion: `gap` is auditor's, not BINDING_STATES'.
+    if "gap" in graph_module.BINDING_STATES:
+        fail("the fixture assumption is wrong: gap IS a BINDING_STATES member")
+    confused = [dict(signals["coverage_rows"][0],
+                     vocabulary="graph.BINDING_STATES", state="gap")]
+    try:
+        audit(coverage_rows=confused)
+    except blueprint.BlueprintError as exc:
+        if exc.code != "blueprint.state_not_in_vocabulary":
+            fail("a cross-vocabulary state raised %r" % (exc.code,))
+        if "gap" not in exc.message or \
+                "graph.BINDING_STATES" not in exc.message:
+            fail("the refusal names neither the state nor the vocabulary: %r"
+                 % (exc.message,))
+    else:
+        fail("a state from another vocabulary was accepted")
+
+    # A missing vocabulary_members entry is a refusal, not a skipped check.
+    partial = dict(signals["vocabulary_members"])
+    del partial["auditor.coverage_report"]
+    try:
+        audit(vocabulary_members=partial)
+    except blueprint.BlueprintError as exc:
+        if exc.code != "blueprint.unknown_vocabulary":
+            fail("a missing vocabulary member list raised %r" % (exc.code,))
+    else:
+        fail("a missing vocabulary member list skipped the check; a skipped "
+             "check is not a passed check")
+
+    # Two rows sharing a state string stay distinguishable by provenance.
+    covered = [r for r in report["rows"] if r["state"] == "covered"]
+    if len(covered) != 2:
+        fail("the two covered rows collapsed to %d" % len(covered))
+    elif len({r["vocabulary"] for r in covered}) != 2:
+        fail("the two covered rows lost their provenance")
+
+    # Signals are copied, never recomputed.
+    by_objective = {r["objective_id"]: r for r in report["rows"]}
+    if by_objective["obj-1"]["treatment_kind"] != "guided-lesson":
+        fail("the treatment kind was not carried through")
+    if "quality.answer_skew" not in by_objective["obj-1"]["quality_codes"]:
+        fail("the quality code was not carried through")
+    if "blueprint.unverifiable" not in by_objective["obj-1"]["blueprint_codes"]:
+        fail("the blueprint code was not carried through")
+    if by_objective["obj-3"]["treatment_kind"] != "":
+        fail("an untreated objective invented a treatment")
+
+    # Counts are integers with denominators beside them, never proportions.
+    counts = report["counts"]
+    for key, value in counts.items():
+        if not isinstance(value, int) or isinstance(value, bool):
+            fail("the count %r is %r" % (key, value))
+    if counts["objectives_total"] != 3 or counts["rows_total"] != 4:
+        fail("the counts are %r" % (counts,))
+    if counts["objectives_with_treatment"] != 2:
+        fail("objectives_with_treatment is %r"
+             % (counts["objectives_with_treatment"],))
+    if counts["quality_findings_block"] != 1 or \
+            counts["quality_findings_warn"] != 1:
+        fail("the quality counts are %r" % (counts,))
+
+    blob = json.dumps(report)
+    for banned in ('"share"', '"rate"', '"ratio"', '"percent"', '"pct"'):
+        if banned in blob:
+            fail("the report carries a proportion key %s" % banned)
+    check_no_aggregate(report, "the course audit report")
+
+    if report["vocabularies_cited"] != sorted(
+            {r["vocabulary"] for r in report["rows"]}):
+        fail("vocabularies_cited is %r" % (report["vocabularies_cited"],))
+
+    # Staleness is derived, named, and per row.
+    if report["stale"] is not False or report["stale_inputs"] != []:
+        fail("a fresh report reads %r / %r"
+             % (report["stale"], report["stale_inputs"]))
+    stale_signals = corpus_15b.build_audit_signals(stale=True)
+    stale_report = audit(coverage_rows=stale_signals["coverage_rows"])
+    if stale_report["stale"] is not True:
+        fail("a stale input did not make the report stale")
+    if stale_report["stale_inputs"] != ["src-1"]:
+        fail("the stale inputs are %r" % (stale_report["stale_inputs"],))
+    if stale_report["stale"] != any(r["stale"] for r in stale_report["rows"]):
+        fail("the report's stale flag disagrees with its rows")
+    if not any(r["stale"] for r in stale_report["rows"]) or \
+            all(r["stale"] for r in stale_report["rows"]):
+        fail("the fixture does not produce a report that is stale in one row "
+             "and fresh in another")
+
+    # Determinism and ordering.
+    if blueprint.canonical_json(audit()) != blueprint.canonical_json(audit()):
+        fail("two audits over one input differ")
+    shuffled = audit(coverage_rows=list(reversed(signals["coverage_rows"])),
+                     treatment_rows=list(reversed(signals["treatment_rows"])))
+    if blueprint.canonical_json(shuffled) != blueprint.canonical_json(report):
+        fail("shuffling an input list changed the report")
+    keys = [(r["objective_id"], r["vocabulary"], r["source_object_id"])
+            for r in report["rows"]]
+    if keys != sorted(keys):
+        fail("rows are not sorted by (objective_id, vocabulary, source)")
+
+    # Empty, None, and single.
+    empty = blueprint.course_audit("c1", [], [], [], [], {}, "fp", "v1")
+    if empty["rows"] != [] or empty["vocabularies_cited"] != []:
+        fail("an empty course produced %r" % (empty,))
+    if any(v != 0 for v in empty["counts"].values()):
+        fail("an empty course's counts are %r" % (empty["counts"],))
+    if empty["stale"] is not False:
+        fail("an empty course reads stale")
+    if not empty["course_object_id"] or "course_fingerprint" not in empty:
+        fail("an empty report lost its course identity")
+    none_report = blueprint.course_audit("c1", None, None, None, None, {},
+                                         "fp", "v1")
+    if blueprint.canonical_json(none_report) != blueprint.canonical_json(empty):
+        fail("None is not treated as an empty signal list")
+    single = audit(coverage_rows=signals["coverage_rows"][:1])
+    if single["counts"]["objectives_total"] != 1:
+        fail("a single-row course counted %d objectives"
+             % single["counts"]["objectives_total"])
+
+    # The schema couples to the code.
+    schema = json.load(open(os.path.join(ROOT, "schemas",
+                                         "course_audit_report.schema.json")))
+    try:
+        schema_validate.check_schema(schema)
+    except Exception as exc:
+        fail("the course audit schema is invalid: %s" % exc)
+    if schema["required"] != list(blueprint.AUDIT_REPORT_KEYS):
+        fail("the schema's required array and AUDIT_REPORT_KEYS disagree: "
+             "%r vs %r" % (schema["required"],
+                           list(blueprint.AUDIT_REPORT_KEYS)))
+    row_schema = schema["properties"]["rows"]["items"]
+    if row_schema["required"] != list(blueprint.AUDIT_ROW_KEYS):
+        fail("the schema's row required array and AUDIT_ROW_KEYS disagree")
+    if row_schema["properties"]["vocabulary"]["enum"] != \
+            list(blueprint.COVERAGE_VOCABULARIES):
+        fail("the schema's vocabulary enum and COVERAGE_VOCABULARIES disagree")
+    raw = open(os.path.join(ROOT, "schemas",
+                            "course_audit_report.schema.json"),
+               encoding="utf-8").read()
+    if '"number"' in raw:
+        fail("the course audit schema carries a float type")
+    for candidate in (report, stale_report, empty, single):
+        errs = schema_validate.validate(candidate, schema)
+        if errs:
+            fail("a report fails its own schema: %r" % (errs[:2],))
+
+
+def check_evidence_proposal():
+    """A proposal names its window, its denominator, and its uncertainty, and
+    can never become a mastery percentage."""
+    import corpus_15b
+    import director
+    import inspect
+
+    schema_path = os.path.join(ROOT, "schemas",
+                               "evidence_proposal.schema.json")
+    schema = json.load(open(schema_path))
+    try:
+        schema_validate.check_schema(schema)
+    except Exception as exc:
+        fail("the proposal schema is invalid: %s" % exc)
+    if schema["required"] != list(blueprint.PROPOSAL_KEYS):
+        fail("the schema's required array and PROPOSAL_KEYS disagree: %r vs %r"
+             % (schema["required"], list(blueprint.PROPOSAL_KEYS)))
+    for needed in ("window", "denominator", "included_signals",
+                   "missing_signals", "uncertainty",
+                   "competing_explanations"):
+        if needed not in schema["required"]:
+            fail("AGENT-03's %r is not required by the schema" % needed)
+    if '"number"' in open(schema_path, encoding="utf-8").read():
+        fail("the proposal schema carries a float type")
+
+    window = corpus_15b.PROPOSAL_WINDOW
+    rows = corpus_15b.build_sparse_evidence()
+    record = blueprint.evidence_proposal(
+        corpus_15b.PROPOSAL_OBJECTIVE, rows, window, ["response"],
+        ["confidence"], ["the two attempts were minutes apart"])
+
+    # All six namings are proven required, one at a time.
+    for key in ("window", "denominator", "included_signals",
+                "missing_signals", "uncertainty", "competing_explanations"):
+        broken = dict(record)
+        del broken[key]
+        if not schema_validate.validate(broken, schema):
+            fail("a record with no %r still validates; the schema does not "
+                 "require it" % key)
+
+    # The window is half-open and says so.
+    if blueprint.WINDOW_KEYS != ("start", "end", "boundary"):
+        fail("WINDOW_KEYS is %r" % (blueprint.WINDOW_KEYS,))
+    if blueprint.WINDOW_BOUNDARY != "half-open":
+        fail("WINDOW_BOUNDARY is %r" % (blueprint.WINDOW_BOUNDARY,))
+    if schema["properties"]["window"]["properties"]["boundary"].get("const") \
+            != "half-open":
+        fail("the schema does not const the boundary convention")
+    if blueprint.in_window(window["start"], window) is not True:
+        fail("an event at the window start is outside it")
+    if blueprint.in_window(window["end"], window) is not False:
+        fail("an event at the window end is inside it")
+    if blueprint.in_window("2026-08-04T00:00:00.000Z", window) is not True:
+        fail("an event strictly inside the window is outside it")
+    if blueprint.in_window("2026-07-01T00:00:00.000Z", window) is not False:
+        fail("an event before the window is inside it")
+
+    # Two abutting windows partition a row set exactly.
+    dense = corpus_15b.build_dense_evidence(24)
+    first = blueprint.evidence_proposal(
+        corpus_15b.PROPOSAL_OBJECTIVE, dense, window, ["response"], [],
+        ["other readings exist"])
+    second = blueprint.evidence_proposal(
+        corpus_15b.PROPOSAL_OBJECTIVE, dense, corpus_15b.PROPOSAL_WINDOW_NEXT,
+        ["response"], [], ["other readings exist"])
+    if first["denominator"] + second["denominator"] != len(dense):
+        fail("two abutting windows counted %d of %d rows; a row was dropped "
+             "or double counted"
+             % (first["denominator"] + second["denominator"], len(dense)))
+    if second["denominator"] != 2:
+        fail("the two boundary rows landed in the %d-row second window; the "
+             "fixture proves nothing about the boundary"
+             % second["denominator"])
+
+    # An invalid window refuses before any row is examined.
+    for bad in ({"start": "b", "end": "a", "boundary": "half-open"},
+                {"start": "a", "boundary": "half-open"},
+                {"start": "a", "end": "b"},
+                {"start": "a", "end": "b", "boundary": "closed"}):
+        try:
+            blueprint.evidence_proposal("o", rows, bad, [], [], [])
+        except blueprint.BlueprintError as exc:
+            if exc.code != "blueprint.window_invalid":
+                fail("the window %r raised %r" % (bad, exc.code))
+        else:
+            fail("the window %r was accepted" % (bad,))
+
+    # The denominator is a count and is always present.
+    if record["denominator"] != 2:
+        fail("two rows produced the denominator %r" % (record["denominator"],))
+    if not isinstance(record["denominator"], int) or \
+            isinstance(record["denominator"], bool):
+        fail("the denominator is %r" % (record["denominator"],))
+    for claim in record["claims"]:
+        if claim["denominator"] != record["denominator"]:
+            fail("a claim's denominator is %r" % (claim["denominator"],))
+        if not isinstance(claim["observed_count"], int):
+            fail("an observed count is %r" % (claim["observed_count"],))
+
+    # The uncertainty is banded and derived.
+    if blueprint.UNCERTAINTY_LEVELS != ("no-evidence", "sparse", "moderate",
+                                        "sufficient"):
+        fail("UNCERTAINTY_LEVELS is %r" % (blueprint.UNCERTAINTY_LEVELS,))
+    if blueprint.SPARSE_MAX != 5 or blueprint.MODERATE_MAX != 19:
+        fail("the bands are %r/%r"
+             % (blueprint.SPARSE_MAX, blueprint.MODERATE_MAX))
+    for value, expected in ((0, "no-evidence"), (1, "sparse"), (5, "sparse"),
+                            (6, "moderate"), (19, "moderate"),
+                            (20, "sufficient"), (2000, "sufficient")):
+        if blueprint.uncertainty_for(value) != expected:
+            fail("uncertainty_for(%d) is %r, expected %r"
+                 % (value, blueprint.uncertainty_for(value), expected))
+    try:
+        blueprint.uncertainty_for(-1)
+    except ValueError:
+        pass
+    else:
+        fail("a negative denominator produced an uncertainty level")
+
+    # AGENT-03's own case: two attempts read sparse.
+    if record["uncertainty"] != "sparse":
+        fail("two attempts produced the uncertainty %r"
+             % (record["uncertainty"],))
+
+    # A claim always has an alternative reading.
+    try:
+        blueprint.evidence_proposal(corpus_15b.PROPOSAL_OBJECTIVE, rows,
+                                    window, ["response"], [], [])
+    except blueprint.BlueprintError as exc:
+        if exc.code != "blueprint.proposal_invalid":
+            fail("a claim with no competing explanation raised %r"
+                 % (exc.code,))
+        elif "omission" not in exc.message:
+            fail("the refusal does not name the omission: %r" % (exc.message,))
+    else:
+        fail("a claim with no competing explanation was accepted")
+    empty = blueprint.evidence_proposal(corpus_15b.PROPOSAL_OBJECTIVE, [],
+                                        window, ["response"], ["confidence"],
+                                        [])
+    if empty["denominator"] != 0 or empty["uncertainty"] != "no-evidence":
+        fail("a zero-row proposal reads %r / %r"
+             % (empty["denominator"], empty["uncertainty"]))
+    if empty["claims"] != []:
+        fail("a zero-row proposal made claims")
+    if not empty["window"] or not empty["included_signals"]:
+        fail("a zero-row proposal dropped its window or its signals; we "
+             "looked here and found nothing is a finding")
+
+    # A recommendation stays a recommendation.
+    if blueprint.PROPOSAL_STATUS != "recommendation":
+        fail("PROPOSAL_STATUS is %r" % (blueprint.PROPOSAL_STATUS,))
+    if schema["properties"]["status"].get("const") != "recommendation":
+        fail("the schema does not const the status")
+    for candidate in (record, empty, first):
+        if candidate["status"] != "recommendation":
+            fail("a record's status is %r" % (candidate["status"],))
+    for banned in ("acted", "acted_on", "applied", "taken", "executed"):
+        if banned in blueprint.PROPOSAL_KEYS:
+            fail("PROPOSAL_KEYS carries %r; the record must have no place to "
+                 "claim an action" % banned)
+
+    # No mastery percentage can be built, at any depth.
+    for candidate in (record, empty, first, second):
+        check_no_aggregate(candidate, "an evidence proposal")
+        errs = schema_validate.validate(candidate, schema)
+        if errs:
+            fail("a proposal fails its own schema: %r" % (errs[:2],))
+    try:
+        blueprint.evidence_proposal(
+            corpus_15b.PROPOSAL_OBJECTIVE, rows, window,
+            ["response"], ["confidence"], ["alt"], signal_kind="mastery_rate")
+    except blueprint.BlueprintError as exc:
+        if exc.code not in ("blueprint.forbidden_proposal_key",
+                            "blueprint.proposal_invalid"):
+            fail("a mastery-shaped signal kind raised %r" % (exc.code,))
+    else:
+        # A VALUE named mastery is not a KEY named mastery; the ban is on
+        # keys, and this records that the distinction is deliberate.
+        pass
+
+    # Objective identity: the same rule director applies, checked not trusted.
+    for text in ("a", "A b", "x\r\ny", "\u00e9", "e\u0301", " s ",
+                 corpus_15b.PROPOSAL_OBJECTIVE):
+        if blueprint.objective_key(text) != director.locator_key(text):
+            fail("objective_key and director.locator_key disagree on %r"
+                 % (text,))
+    if blueprint.objective_key("Obj") == blueprint.objective_key("obj"):
+        fail("objective_key case folds")
+
+    # The evidence store stays unreachable.
+    if hasattr(blueprint, "evidence"):
+        fail("blueprint imports evidence")
+    source = open(os.path.join(ROOT, "blueprint.py"), encoding="utf-8").read()
+    for line in source.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            continue
+        if stripped == "import evidence" or \
+                stripped.startswith("from evidence "):
+            fail("blueprint.py imports evidence at %r" % (line,))
+    params = list(inspect.signature(blueprint.evidence_proposal).parameters)
+    for banned in ("log", "log_path", "base", "path"):
+        if banned in params:
+            fail("evidence_proposal takes %r; it must not be handed a store "
+                 "to read" % banned)
+
+    # Determinism and ordering.
+    again = blueprint.evidence_proposal(
+        corpus_15b.PROPOSAL_OBJECTIVE, rows, window, ["response"],
+        ["confidence"], ["the two attempts were minutes apart"])
+    if blueprint.canonical_json(again) != blueprint.canonical_json(record):
+        fail("two proposals over one input differ")
+    keys = [(c["objective_key"], c["signal_kind"],
+             blueprint.canonical_json(c["evidence"])) for c in first["claims"]]
+    if keys != sorted(keys):
+        fail("claims are not sorted")
+
+
 def main():
     checks = [check_schema_is_closed,
               check_module_surface,
@@ -1115,7 +1551,9 @@ def main():
               check_claim_discipline_end_to_end,
               check_staleness_classifier,
               check_staleness_blocks,
-              check_accept_revision]
+              check_accept_revision,
+              check_course_audit,
+              check_evidence_proposal]
     for check in checks:
         check()
     if FAILURES:

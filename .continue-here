@@ -1,47 +1,57 @@
 # .continue-here
 
-**Status: Phase 15A is FROZEN. Phase 15B is unblocked and executable. Continue
-at 15B-01.**
+**Status: Phases 15A and 15B are both FROZEN. The 14A/14B/15A/15B chain is
+complete. Next executable work is 17B, 17C, or 18.**
 
-- Branch `main`, tree clean, 98 of 98 test files green (313 seconds, measured
+- Branch `main`, tree clean, 100 of 100 test files green (884 seconds, measured
   2026-08-30 on Darwin 27.0.0 arm64, Python 3.14.6).
-- Frozen: 14A, 14B, 14C, **15A**, 16A, 16B, 16C.
-- **The next executable work is Phase 15B**, seven plans. Its 15B-01
-  precondition halted until a `15A-FREEZE.md` existed; it now does.
+- Frozen: 14A, 14B, 14C, **15A**, **15B**, 16A, 16B, 16C.
 
-**What Weibao needs to look at, in order of consequence.**
+**The one thing to read first.**
 
-1. **Four consecutive phases have now closed their human-review leg with an
-   agent signature**: 16A and 16B under a 2026-08-28 standing delegation, then
-   16C and 15A under the 2026-08-30 instruction to proceed without him. That is
-   a pattern, not an exception, and it is worth deciding deliberately.
-2. **Phase 15A additionally had an agent make two one-way checkpoint
-   decisions**, D-15A-1 and D-15A-2, both recorded in `15A-DECISIONS.md` with
-   their reversal costs. D-15A-1 changed `schemas/model_adapter.schema.json`, a
-   published contract that Phase 15B and any external agent client will build
-   against. Reversing it after operations are journaled is a migration, not an
-   edit. Both took the plan's recommended default.
-3. **17A-04 still needs Weibao and is NOT waived.** It needs the LGPL
-   browser-driver supply-chain decision
-   (`.planning/DECISIONS-17A04-DRIVER-2026-08-25.md`) and an A11Y-01 review.
-   An agent never self-certifies accessibility; that rule is a project
-   non-negotiable rather than a plan-level gate, so it was not waived along
-   with the others.
+**Five consecutive phases have closed their blocking human-review leg with an
+AGENT signature**: 16A and 16B under a 2026-08-28 standing delegation, then
+16C, 15A and 15B under the 2026-08-30 instruction to proceed without you.
+**15A and 15B additionally had an agent answer six one-way design questions
+their own plans reserved for you**, and one of those (D-15B-2) amended
+`14B-FREEZE.md`, a frozen record.
 
-**Reading order for anything that builds on 15A:** `15A-FREEZE.md` first, and
-`15A-REVIEW.md`'s Provenance section before relying on the freeze. Striking
-that section reopens the review leg.
+Every waiver is recorded with its reversal cost in the phase `*-DECISIONS.md`
+files, and every affected `*-VALIDATION.md` leaves its human-review sign-off
+box deliberately unticked with the row marked `waived` rather than `pass`. But
+this is now a standing pattern rather than a run of exceptions, and it is worth
+one deliberate decision from you rather than five inherited defaults.
 
-**Open findings carried out of 15A**, all in `15A-FREEZE.md`'s open-items
-table: recommendation quality is untested by anything (the provider is a modulo
-rule, so the first run against a real model is an unproven step);
-`coverage_claims_for` cannot reach every coverage state because binding rows
-carry no assertion column; an untreated entry still displays a treatment kind;
-and `journal.undo` raises an untyped `FileNotFoundError` on a missing
-before-image, which 15A was forbidden from fixing.
+The heaviest of them, in order: **D-15B-2** amended another phase's freeze
+record; **D-15A-1** changed `schemas/model_adapter.schema.json`, a published
+contract; **15B-07 Task 2** and **15A-06 Task 2** are course-design and
+acceptance-quality judgments rather than copy reviews.
 
-**Also open:** all of 17B, and the paced-lesson subphase whose decisions are
-recorded and whose plan is unwritten.
+**Reading order for anything built on 15A or 15B:** the phase `*-FREEZE.md`
+first, and its `*-REVIEW.md` Provenance section before relying on the freeze.
+Striking that section reopens the review leg.
+
+**Still needs Weibao and was NOT waived:**
+
+- **17A-04** needs the LGPL browser-driver supply-chain decision
+  (`.planning/DECISIONS-17A04-DRIVER-2026-08-25.md`) and an A11Y-01 review. An
+  agent never self-certifies accessibility; that is a project non-negotiable
+  rather than a plan-level gate, so it was left alone. **17A-04 blocks the rest
+  of 17A.**
+
+**Also open:** all of 17B, 17C, 18, and the paced-lesson subphase whose
+decisions are recorded and whose plan is unwritten.
+
+**Open findings carried out of 15A and 15B**, all in their freeze records'
+open-items tables. The three worth knowing about:
+
+- A staleness refusal names its dependency by opaque id and lists four
+  dispositions with no basis for choosing between them. A wrong disposition is
+  a recorded reviewer decision that is hard to later see was wrong.
+- Recommendation quality is untested by anything: 15A's provider is a modulo
+  rule, so the first run against a real model is an unproven step.
+- The evidence-to-graph join is open. The evidence log keys events by objective
+  TEXT and the course graph keys objectives by opaque id; nothing closes it.
 
 Full detail is `.planning/STATE.md`; read its current-phase section, not the
 whole file.

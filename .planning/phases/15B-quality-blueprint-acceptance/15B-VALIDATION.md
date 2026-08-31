@@ -3,10 +3,11 @@ phase: 15B
 slug: quality-blueprint-acceptance
 # status lifecycle: draft (seeded by plan-phase) → validated (set by validate-phase §6)
 # audit-milestone §5.5 distinguishes NOT-VALIDATED (draft) from PARTIAL (validated + nyquist_compliant: false) (#2117)
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: validated
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-08-15
+closed: 2026-08-30
 ---
 
 # Phase 15B Validation Strategy
@@ -25,7 +26,7 @@ created: 2026-08-15
 | **Config file** | none. See the `tests/*_roundtrip.py` convention; every test file defines its own local `fail(msg)` helper |
 | **Quick run command** | `python tests/acceptance_tracer.py` (the freeze-gate tracer) plus whichever single new or extended test file the task adds |
 | **Full suite command** | `for t in tests/*.py; do python "$t" || exit 1; done` |
-| **Estimated runtime** | Unknown for the new 15B files. Do not record a figure until one has been measured on this machine. |
+| **Measured runtime** | **100 test files, 884 seconds**, 0 failures, measured 2026-08-30 on **Darwin 27.0.0 arm64, Python 3.14.6**. `tests/acceptance_tracer.py` alone: 31.9 seconds. `tests/blueprint_roundtrip.py` alone: 1 second. |
 
 ---
 
@@ -35,7 +36,13 @@ created: 2026-08-15
 - **After every plan wave:** the 15B subset plus the shipped-anchor spot check `python tests/scoring_roundtrip.py && python tests/evidence_roundtrip.py` (the anchor-check discipline 14A-01 Task 3 established), plus `python tests/authoring_roundtrip.py` if it exists, because 15B extends the shipped Phase 11 authoring gate composition.
 - **Before `/gsd-verify-work`:** full suite green, the lesson-plus-practice acceptance tracer green, and `python itembank.py guard .` reporting `0 offending files`.
 - **Freeze gate:** no 15B freeze record is written on a red acceptance tracer (mirrors 14A-04 Task 4, 14B-06, and 15A-06).
-- **Max feedback latency:** to be measured, not asserted.
+- **Max feedback latency:** **1 second**, measured 2026-08-30 on Darwin 27.0.0
+  arm64, Python 3.14.6: one `python3 tests/blueprint_roundtrip.py` run, which
+  is the quick-run command every 15B task except 15B-07 verifies with. It
+  stayed fast across five plans because the unit file drives pure functions and
+  builds its course roots in a temp directory; the freeze-gate tracer, which
+  spawns six shipped suites and a fresh-process replay, carries the cost
+  instead at 31.9 seconds. Recorded, not compared against a target.
 
 ---
 
@@ -58,6 +65,27 @@ Populated by the planner at plan time (2026-08-15). Plan 15B-07 Task 3 updates
 the Status column to `pass` or to the reason it is not, and replaces the
 Estimated runtime placeholder above with a measured figure.
 
+**Status filled 2026-08-30 by plan 15B-07 Task 3**, against a re-run tree
+rather than a remembered one. Every row reads `pass` except 15B-07 Task 2, the
+human review, which reads `waived`.
+
+`waived` is not one of the planner's values. It is added rather than forcing
+that row into `pass`, because the row's Behavior column reads "a HUMAN judges
+that refusals, findings, proposals, and audit rows are legible, and signs", and
+an agent judged it. `15B-REVIEW.md` exists, answers every question in review
+steps 3 through 7, records seven concerns, and carries the verdict `accept with
+concerns recorded` with a signature and a date, so the freeze's second leg is
+satisfied. What is not satisfied is the word `human`. Weibao waived the
+requirement on 2026-08-30; the waiver is recorded here, in `15B-REVIEW.md`'s
+Provenance section, in `15B-FREEZE.md`, and in `D-15B-4`, rather than absorbed
+into a green mark.
+
+**Two rows name assertion functions that do not exist under those names**, and
+the code is the authority: 15B-06 Task 2's `check_proposal_edges` and 15B-07
+Task 1's `scenario_course_audit_provenance` landed as `check_evidence_proposal`
+and `scenario_course_audit`. Every assertion the plan named is made; only the
+function names differ.
+
 `Status` values: `planned` means the row is authored and the task has not run
 yet. Every row below carries an automated command; the three
 `checkpoint:decision` rows and the one `checkpoint:human-verify` row are
@@ -67,23 +95,23 @@ table further down.
 
 | Plan | Task | Req ID | Behavior | Test Type | Automated Command | Assertion function | Status |
 |------|------|--------|----------|-----------|-------------------|--------------------|--------|
-| 15B-01 | 1 preconditions | all three | 14A, 14B, and 15A landed with the constants 15B was planned against and three real freeze records, or halt by name | precondition check | `python -c "import identity, journal, graph, course, director; assert len(graph.MIGRATION_STATES)==3 and len(graph.BINDING_STATES)==5 and len(director.PROTOCOL_STEPS)==13 and len(journal.ENTRY_KEYS)==24 and not hasattr(graph,'accept_migration'); print('15B preconditions match')"` | none, inline assertion | planned |
-| 15B-01 | 2 module-boundary decision | all three | D-15B-1 recorded with one option id | checkpoint, file check | `grep -c "## D-15B-1. Where the blueprint, staleness, audit, and acceptance code lives" .planning/phases/15B-quality-blueprint-acceptance/15B-DECISIONS.md` | none, file assertion | planned |
-| 15B-01 | 3 blueprint-home and write-path decision | ACTIVITY-02, RELIABILITY-03 | D-15B-2 recorded with one option id, a named blueprint home, a named write path, and a named journal record type | checkpoint, file check | `grep -c "## D-15B-2. Where a blueprint lives and which write path records an acceptance" .planning/phases/15B-quality-blueprint-acceptance/15B-DECISIONS.md` | none, file assertion | planned |
-| 15B-02 | 1 five-gate tracer | ACTIVITY-02 | one drafted set and one cited blueprint travel parse, lint, review, blueprint, and runtime to an accepted write; the claim is False before the fifth gate | tracer, integration | `python tests/blueprint_roundtrip.py` | `check_thin_slice` | planned |
-| 15B-02 | 1 shipped-loop additivity | ACTIVITY-02 | the new gate and the new gates array broke none of the shipped Phase 11 contracts | regression | `python tests/audit_authoring_roundtrip.py && python tests/audit_roundtrip.py && python schema_validate.py` | file `main` | planned |
-| 15B-02 | 2 eight blueprint fields and the claim | ACTIVITY-02 | all eight ACTIVITY-02 fields checked when supplied, reported unverifiable when not, tolerance boundary inclusive on both sides | unit, edge | `python tests/blueprint_roundtrip.py` | `check_blueprint_fields`, `check_gate_edges`, `check_no_aggregate` | planned |
-| 15B-03 | 1 fingerprint comparison and dispositions | RELIABILITY-03 | staleness derived from two supplied fingerprints, absent reads stale, four transcribed dispositions, report total and ordered | unit, edge | `python tests/blueprint_roundtrip.py` | `check_staleness_classifier` | planned |
-| 15B-03 | 2 the hard block | RELIABILITY-03 | a stale dependent is refused by name, a matching disposition clears only its own row, a second change supersedes the review, no rebuild path exists | unit, fault-style | `python tests/blueprint_roundtrip.py` | `check_staleness_blocks` | planned |
-| 15B-04 | 1 migration transitions | RELIABILITY-03 | exactly two paths may settle a migration, four named refusals, the 14B bypass guard still fires in the same run | unit, coupling | `python tests/graph_roundtrip.py && python schema_validate.py` | `check_migration_acceptance` | planned |
-| 15B-04 | 2 write, authority, journal | RELIABILITY-03, ACTIVITY-02 | acceptance writes through the one path with the live policy re-read at accept time, staleness blocks first, refusals are journaled, journal diff is one line | integration, coupling | `python tests/blueprint_roundtrip.py && python tests/journal_roundtrip.py` | `check_accept_revision` | planned |
-| 15B-05 | 1 audit-schema decision | ACTIVITY-02, RELIABILITY-03 | D-15B-3 recorded with one option id | checkpoint, file check | `grep -c "## D-15B-3. Where the course audit report shape lives" .planning/phases/15B-quality-blueprint-acceptance/15B-DECISIONS.md` | none, file assertion | planned |
-| 15B-05 | 2 cited course audit | ACTIVITY-02, RELIABILITY-03 | every row names its vocabulary, no fourth is minted, a cross-vocabulary state is refused, no proportion appears | unit, schema coupling | `python tests/blueprint_roundtrip.py && python schema_validate.py && python tests/audit_coverage_roundtrip.py` | `check_course_audit`, `check_no_aggregate` | planned |
-| 15B-06 | 1 proposal record | AGENT-03 | six required namings enforced by schema, half-open window, denominator always present, two attempts read sparse | unit, schema coupling | `python tests/blueprint_roundtrip.py && python schema_validate.py` | `check_evidence_proposal` | planned |
-| 15B-06 | 2 recursive ban and edges | AGENT-03 | forbidden key refused at three nesting depths, window partitions, empty and single honest, objective identity normalized not folded, order stable | unit, edge | `python tests/blueprint_roundtrip.py` | `check_proposal_edges`, `check_no_aggregate` | planned |
-| 15B-07 | 1 acceptance tracer | all three | all three Fixture sentences and every ROADMAP freeze-gate clause implemented by named scenario functions in one run | tracer, freeze gate | `python tests/acceptance_tracer.py` | `shipped_suite_check`, `scenario_five_gate_acceptance`, `scenario_fidelity_claim_ordering`, `scenario_staleness_blocks`, `scenario_migration_accept_and_reject`, `scenario_sparse_evidence_proposal`, `scenario_course_audit_provenance`, `scenario_journal_replay` | planned |
-| 15B-07 | 2 human review | ACTIVITY-02, RELIABILITY-03, AGENT-03 | a human judges that refusals, findings, proposals, and audit rows are legible, and signs | manual, blocking checkpoint | none, see Manual-Only Verifications | planned |
-| 15B-07 | 3 freeze or withhold | all three | three legs checked, freeze written or withheld by name, seven open items carried forward with owners | freeze gate | `python tests/acceptance_tracer.py && python itembank.py guard .` | none, file assertion | planned |
+| 15B-01 | 1 preconditions | all three | 14A, 14B, and 15A landed with the constants 15B was planned against and three real freeze records, or halt by name | precondition check | `python -c "import identity, journal, graph, course, director; assert len(graph.MIGRATION_STATES)==3 and len(graph.BINDING_STATES)==5 and len(director.PROTOCOL_STEPS)==13 and len(journal.ENTRY_KEYS)==24 and not hasattr(graph,'accept_migration'); print('15B preconditions match')"` | none, inline assertion | pass |
+| 15B-01 | 2 module-boundary decision | all three | D-15B-1 recorded with one option id | checkpoint, file check | `grep -c "## D-15B-1. Where the blueprint, staleness, audit, and acceptance code lives" .planning/phases/15B-quality-blueprint-acceptance/15B-DECISIONS.md` | none, file assertion | pass |
+| 15B-01 | 3 blueprint-home and write-path decision | ACTIVITY-02, RELIABILITY-03 | D-15B-2 recorded with one option id, a named blueprint home, a named write path, and a named journal record type | checkpoint, file check | `grep -c "## D-15B-2. Where a blueprint lives and which write path records an acceptance" .planning/phases/15B-quality-blueprint-acceptance/15B-DECISIONS.md` | none, file assertion | pass |
+| 15B-02 | 1 five-gate tracer | ACTIVITY-02 | one drafted set and one cited blueprint travel parse, lint, review, blueprint, and runtime to an accepted write; the claim is False before the fifth gate | tracer, integration | `python tests/blueprint_roundtrip.py` | `check_thin_slice` | pass |
+| 15B-02 | 1 shipped-loop additivity | ACTIVITY-02 | the new gate and the new gates array broke none of the shipped Phase 11 contracts | regression | `python tests/audit_authoring_roundtrip.py && python tests/audit_roundtrip.py && python schema_validate.py` | file `main` | pass |
+| 15B-02 | 2 eight blueprint fields and the claim | ACTIVITY-02 | all eight ACTIVITY-02 fields checked when supplied, reported unverifiable when not, tolerance boundary inclusive on both sides | unit, edge | `python tests/blueprint_roundtrip.py` | `check_blueprint_fields`, `check_gate_edges`, `check_no_aggregate` | pass |
+| 15B-03 | 1 fingerprint comparison and dispositions | RELIABILITY-03 | staleness derived from two supplied fingerprints, absent reads stale, four transcribed dispositions, report total and ordered | unit, edge | `python tests/blueprint_roundtrip.py` | `check_staleness_classifier` | pass |
+| 15B-03 | 2 the hard block | RELIABILITY-03 | a stale dependent is refused by name, a matching disposition clears only its own row, a second change supersedes the review, no rebuild path exists | unit, fault-style | `python tests/blueprint_roundtrip.py` | `check_staleness_blocks` | pass |
+| 15B-04 | 1 migration transitions | RELIABILITY-03 | exactly two paths may settle a migration, four named refusals, the 14B bypass guard still fires in the same run | unit, coupling | `python tests/graph_roundtrip.py && python schema_validate.py` | `check_migration_acceptance` | pass |
+| 15B-04 | 2 write, authority, journal | RELIABILITY-03, ACTIVITY-02 | acceptance writes through the one path with the live policy re-read at accept time, staleness blocks first, refusals are journaled, journal diff is one line | integration, coupling | `python tests/blueprint_roundtrip.py && python tests/journal_roundtrip.py` | `check_accept_revision` | pass |
+| 15B-05 | 1 audit-schema decision | ACTIVITY-02, RELIABILITY-03 | D-15B-3 recorded with one option id | checkpoint, file check | `grep -c "## D-15B-3. Where the course audit report shape lives" .planning/phases/15B-quality-blueprint-acceptance/15B-DECISIONS.md` | none, file assertion | pass |
+| 15B-05 | 2 cited course audit | ACTIVITY-02, RELIABILITY-03 | every row names its vocabulary, no fourth is minted, a cross-vocabulary state is refused, no proportion appears | unit, schema coupling | `python tests/blueprint_roundtrip.py && python schema_validate.py && python tests/audit_coverage_roundtrip.py` | `check_course_audit`, `check_no_aggregate` | pass |
+| 15B-06 | 1 proposal record | AGENT-03 | six required namings enforced by schema, half-open window, denominator always present, two attempts read sparse | unit, schema coupling | `python tests/blueprint_roundtrip.py && python schema_validate.py` | `check_evidence_proposal` | pass |
+| 15B-06 | 2 recursive ban and edges | AGENT-03 | forbidden key refused at three nesting depths, window partitions, empty and single honest, objective identity normalized not folded, order stable | unit, edge | `python tests/blueprint_roundtrip.py` | `check_proposal_edges`, `check_no_aggregate` | pass |
+| 15B-07 | 1 acceptance tracer | all three | all three Fixture sentences and every ROADMAP freeze-gate clause implemented by named scenario functions in one run | tracer, freeze gate | `python tests/acceptance_tracer.py` | `shipped_suite_check`, `scenario_five_gate_acceptance`, `scenario_fidelity_claim_ordering`, `scenario_staleness_blocks`, `scenario_migration_accept_and_reject`, `scenario_sparse_evidence_proposal`, `scenario_course_audit_provenance`, `scenario_journal_replay` | pass |
+| 15B-07 | 2 human review | ACTIVITY-02, RELIABILITY-03, AGENT-03 | a human judges that refusals, findings, proposals, and audit rows are legible, and signs | manual, blocking checkpoint | none, see Manual-Only Verifications | waived |
+| 15B-07 | 3 freeze or withhold | all three | three legs checked, freeze written or withheld by name, seven open items carried forward with owners | freeze gate | `python tests/acceptance_tracer.py && python itembank.py guard .` | none, file assertion | pass |
 
 ---
 
@@ -101,11 +129,11 @@ fourth phase appending to one file makes every later plan's `read_first` list
 grow without bound. `corpus_15b.py` may call into `corpus_14b.py` where a
 builder already exists.
 
-- [ ] `tests/blueprint_roundtrip.py`, created by plan 15B-02 Task 1 before
+- [x] `tests/blueprint_roundtrip.py`, created by plan 15B-02 Task 1 before
   `blueprint.py` exists, then extended by plans 15B-03 through 15B-06. This is
   the Wave 0 gap that unblocks plans 02 through 06; each of those tasks writes
   its own assertions before its own code.
-- [ ] `tests/acceptance_tracer.py`, created by plan 15B-07 Task 1, the
+- [x] `tests/acceptance_tracer.py`, created by plan 15B-07 Task 1, the
   freeze-gate tracer covering all three requirement Fixture sentences and every
   ROADMAP freeze-gate clause in one run, following
   `tests/four_subject_review.py`'s (15A) and `tests/three_domain_tracer.py`'s
@@ -143,11 +171,30 @@ all listed gaps are new.)*
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency measured, not asserted
-- [ ] `nyquist_compliant: true` set in frontmatter
+Resolved 2026-08-30 by plan 15B-07 Task 3.
 
-**Approval:** pending
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies. Fifteen of
+      the sixteen rows carry an automated command; the sixteenth is the manual
+      review, which has its own table.
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify.
+      Only one row in the whole map lacks one.
+- [x] Wave 0 covers all MISSING references. Both Wave 0 test files shipped,
+      and `fixtures/corpus_15b.py` shipped with every builder the plans named.
+- [x] No watch-mode flags. None was added; the suite is direct-execution
+      scripts as it was.
+- [x] Feedback latency measured, not asserted. 1 second, recorded above with
+      the machine and Python version, and deliberately not compared against a
+      target.
+- [x] `nyquist_compliant: true` set in frontmatter. Every task row carries an
+      automated command except one, so no three consecutive tasks lack one.
+- [ ] **Human sign-off on the acceptance-quality review.** Left unchecked.
+      This box is not one the planner wrote; it is added here because ticking
+      the six above without it would let the file read as though the phase
+      closed cleanly. `15B-REVIEW.md` was written by an agent under Weibao's
+      waiver, not by Weibao, and this is the fifth consecutive phase in that
+      state. See the `waived` row in the map above.
+
+**Approval:** the six automated legs pass and the freeze is written.
+`15B-FREEZE.md` opens `## Frozen at 15B`. The human review leg is waived, not
+met, and anything relying on this phase should read `15B-REVIEW.md`'s
+Provenance section first.

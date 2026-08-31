@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/course_audit_report.schema.json",
+  "title": "itembank course audit report",
+  "description": "One cited course audit (Phase 15B, ACTIVITY-02 and RELIABILITY-03). A read-only aggregation over four signals the caller already computed: treatment state, coverage state, quality findings, and blueprint compliance. The audit recomputes none of them, because re-deriving a signal produces a second answer that can silently disagree with the recorded one. Every coverage row names which of the three EXISTING vocabularies its state came from; this phase mints no fourth.",
+  "x-itembank-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "course_object_id",
+    "course_fingerprint",
+    "tool_version",
+    "stale",
+    "stale_inputs",
+    "vocabularies_cited",
+    "rows",
+    "counts"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "This document's own schema version; must equal x-itembank-version."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "course_audit"
+      ],
+      "description": "The one status this report carries. A sibling of audit_report.schema.json rather than a rename of it: that schema's coverage_row is additionalProperties false and encodes auditor.py's syllabus-objective-to-bank-item pairing, and a course-scope row pairs an objective with a source, a treatment, a blueprint, and a named vocabulary, which is a different pairing and not a longer one (D-15B-3)."
+    },
+    "course_object_id": {
+      "type": "string",
+      "description": "The course this audit is about."
+    },
+    "course_fingerprint": {
+      "type": "string",
+      "description": "The course sidecar's fingerprint when the audit was built."
+    },
+    "tool_version": {
+      "type": "string",
+      "description": "The tool version that produced the report."
+    },
+    "stale": {
+      "type": "boolean",
+      "description": "True when any row is stale. Derived at build time from the supplied fingerprint pairs, never stored as a verdict a later read trusts, and written as an or over the rows so the report and its rows cannot disagree. A stale report is never treated as current."
+    },
+    "stale_inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Every stale input's object id, sorted. A stale report NAMES what went stale rather than only setting a flag: a flag tells a reader something is wrong and not what to go fix."
+    },
+    "vocabularies_cited": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "graph.BINDING_STATES",
+          "auditor.coverage_report",
+          "audit_report.coverage_row"
+        ]
+      },
+      "description": "Which of the three existing coverage vocabularies this report drew on, sorted. The audit mints no fourth vocabulary; it carries a state forward with its provenance attached."
+    },
+    "rows": {
+      "type": "array",
+      "description": "One row per supplied coverage row.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "objective_id",
+          "vocabulary",
+          "state",
+          "source_object_id",
+          "treatment_kind",
+          "quality_codes",
+          "blueprint_codes",
+          "base_fingerprint",
+          "current_fingerprint",
+          "stale"
+        ],
+        "properties": {
+          "objective_id": {
+            "type": "string"
+          },
+          "vocabulary": {
+            "type": "string",
+            "enum": [
+              "graph.BINDING_STATES",
+              "auditor.coverage_report",
+              "audit_report.coverage_row"
+            ],
+            "description": "Which vocabulary this row's state came from. Required: a state that could plausibly have come from either graph.BINDING_STATES or auditor.coverage_report without the row saying which is a claim with no provenance, and the two genuinely share strings."
+          },
+          "state": {
+            "type": "string",
+            "description": "The state as recorded, copied and never recomputed. Checked for membership in the vocabulary the row names."
+          },
+          "source_object_id": {
+            "type": "string"
+          },
+          "treatment_kind": {
+            "type": "string",
+            "description": "Copied from the matching treatment row. Empty when the objective has no treatment."
+          },
+          "quality_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The codes of every quality finding for this objective, copied from the supplied findings and never re-derived."
+          },
+          "blueprint_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "base_fingerprint": {
+            "type": "string"
+          },
+          "current_fingerprint": {
+            "type": "string"
+          },
+          "stale": {
+            "type": "boolean",
+            "description": "This row's own staleness, so a report can be stale in one row and fresh in another."
+          }
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "objectives_total",
+        "objectives_with_treatment",
+        "rows_total",
+        "rows_stale",
+        "quality_findings_block",
+        "quality_findings_warn",
+        "blueprint_findings_block",
+        "blueprint_findings_warn"
+      ],
+      "description": "Integer counts with their denominators beside them, never divided into a proportion. No share, rate, ratio, percent, or score appears anywhere in this report: a single number would let a reader mistake a count for a mastery claim, and this report is read by exactly the people most likely to want one.",
+      "properties": {
+        "objectives_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "objectives_with_treatment": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rows_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rows_stale": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "quality_findings_block": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "quality_findings_warn": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blueprint_findings_block": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blueprint_findings_warn": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

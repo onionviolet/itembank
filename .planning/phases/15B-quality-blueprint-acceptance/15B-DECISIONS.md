@@ -177,3 +177,119 @@ unified history view across both bank content and course objects, which is
 option-c's real use case and the condition `15B-RESEARCH.md` already recorded
 for it. Also reopened if a blueprint ever needs to travel independently of its
 course, which is option-b's.
+
+## D-15B-3. Where the course audit report shape lives
+
+**Question.** Does the course audit report get its own schema file, extend the
+shipped `audit_report.schema.json` with an eighth `status` value, or carry no
+schema at all?
+
+**Answer: `option-a`**, a new `schemas/course_audit_report.schema.json`. This
+is the plan's recommended default.
+
+**Recorded by Claude under the waiver at the top of this file, not by Weibao.**
+Rated one-way: a schema is a published contract, and moving the report's home
+after an audit has been produced and stored means migrating stored documents.
+
+**Why, and why it is not a close call.** The obstacle is structural rather than
+stylistic. `audit_report.schema.json`'s `$defs.coverage_row` is
+`additionalProperties: false`, and its four required keys encode `auditor.py`'s
+syllabus-objective-to-bank-item pairing specifically. A course-scope audit row
+pairs an objective with a source, a treatment, a blueprint, and a named
+vocabulary, which is a different pairing and not a longer one.
+
+Pushing the new pairing through the shipped `$defs` would either violate that
+`additionalProperties: false` or require loosening it, and **the loosening
+lands on shipped Phase 11 fixtures that currently prove strictness**.
+`tests/audit_coverage_roundtrip.py` and `tests/audit_roundtrip.py` assert that
+strictness today. Trading a real, tested guarantee on shipped code for the
+convenience of one fewer file is the wrong direction, and it is the reason
+option-b is not close.
+
+Option-c, no schema at all, is excluded by the project's own practice: every
+other durable report shape in this repository carries a validated schema, and
+an unvalidated one is the only kind that can drift without anything noticing.
+
+**What this costs, stated rather than glossed.** Two report schemas now exist,
+so a reader asking what an itembank audit report looks like has to know which
+audit. The `stale` field is defined in both files with the same meaning, and
+the two descriptions can drift even though neither behavior can: `stale` is
+derived at build time from a supplied fingerprint pair in both, and neither
+file stores a verdict a later read trusts.
+
+**One thing this decision does NOT create.** No fourth coverage-state
+vocabulary. Three exist (`graph.BINDING_STATES`, `auditor.coverage_report`'s
+own, and the director's treatment states), and the audit names which of the
+three each row's state came from rather than reconciling them into a superset.
+`blueprint.COVERAGE_VOCABULARIES` is a tuple of vocabulary NAMES, not of
+states, so `blueprint.py` never holds a copy of any vocabulary's members. That
+is precisely how a fourth would get minted by accident.
+
+**Executor consequence.** Proceed as plans 05 through 07 are already written.
+No plan edit is needed.
+
+**Reversal cost if Weibao chooses otherwise.** Before 15B-05 Task 2 runs: a
+plan edit plus, for option-b, the `additionalProperties` loosening and its
+effect on the two shipped Phase 11 fixtures. After a course audit has been
+produced and stored: a migration of stored documents rather than an edit.
+
+**Reconsideration condition.** Reopened if a consumer genuinely needs one
+contract that validates every audit this tool produces, which is option-b's
+real use case. Also reopened if `auditor.py`'s coverage row ever changes shape
+for its own reasons, because at that moment the two pairings might turn out to
+be one after all.
+
+## D-15B-4. The Phase 15B freeze scope
+
+**Decided 2026-08-30, at the phase's own freeze gate**, and recorded here so a
+later phase reading only this file gets the same answer `15B-FREEZE.md` gives.
+
+**What the 15B freeze covers.** The blueprint, audit, acceptance, staleness,
+and proposal-discipline surfaces this phase built. Concretely: `blueprint.py`'s
+closed vocabularies and its twenty-four typed codes; `SPARSE_MAX` 5 and
+`MODERATE_MAX` 19; the half-open window convention and the `recommendation`
+status, both schema constants rather than conventions; the three published
+schemas `blueprint.schema.json`, `course_audit_report.schema.json` and
+`evidence_proposal.schema.json`, each at `x-itembank-version` 1; the additive
+`blueprint_findings` array and `blueprint_finding_ref` in
+`audit_report.schema.json` with its `gates.required` unchanged;
+`graph.SECTION_ORDER`'s `"Blueprint"` member and the two migration review
+columns; `graph.accept_migration` and `graph.reject_migration` as the only two
+paths that settle a proposal; `course.bind_blueprint`, `course.accept_migration`
+and `course.reject_migration`; `director.accept_revision` and its fixed
+staleness-then-authority-then-write order; and `journal.RECORD_TYPES`'s one new
+member `accept_revision`, with `OPERATION_TYPES` unchanged at six.
+
+Four behaviors are frozen because they are the phase's substance rather than
+its shape: the exam-fidelity claim is False until all five gates report; an
+absent blueprint or an unsupplied fact is `warn` and withholds the claim rather
+than the practice; a stale dependent is BLOCKED and never rebuilt; and an
+absent fingerprint reads stale, because an unprovable freshness is not
+freshness.
+
+**What it explicitly does not cover.** Transcribed from `ROADMAP.md`:
+
+> the 15B freeze covers the blueprint, audit, acceptance, staleness, and
+> proposal-discipline surfaces only. It is explicitly not the course schema
+> freeze, not a lesson-profile grammar freeze, not an agent job protocol
+> freeze, and not a learner-facing surface freeze, and its freeze record says
+> so.
+
+15B amended `14B-FREEZE.md` to add one sidecar section and did not otherwise
+touch it; that amendment is additive and does not make this the course schema
+freeze. The fixture corpora, the mock backend, and the synthetic Beacon
+blueprint are test data and are not frozen.
+
+**Provenance.** The freeze's review leg closed on `15B-REVIEW.md`, verdict
+`accept with concerns recorded`, written by Claude under Weibao's instruction
+of 2026-08-30 to finish without him. Plan 15B-07 Task 2's prohibition against
+an agent signing its own acceptance-quality review is waived, not met. This is
+the fifth consecutive phase to close a review leg that way. Anything relying on
+this scope should read that file's Provenance section first.
+
+**Reconsideration condition.** Reopened by any change to a frozen vocabulary's
+membership, to the five-gate order, to the half-open window convention, to the
+`recommendation` status constant, to `journal.ENTRY_KEYS`, or to the count of
+paths that may settle a migration. Adding a blueprint field reopens it through
+`BLUEPRINT_FIELDS`, which is ACTIVITY-02's list and not this module's. Changing
+a fixture does not reopen it.

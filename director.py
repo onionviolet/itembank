@@ -1619,9 +1619,12 @@ def apply_recommendation(base, course_root, record, source_object_id,
 ACCEPT_RECORD_TYPE = "accept_revision"
 
 
+ACCEPT_DECISIONS = ("accept", "reject")
+
+
 def accept_revision(base, course_root, migration_id, settings, reviewer_kind,
                     reviewer_name, rationale, staleness_rows=(),
-                    dispositions=(), operation_id=""):
+                    dispositions=(), operation_id="", decision="accept"):
     """Accept one recorded migration proposal, or refuse and record why.
 
     Takes `settings` and reads the autonomy policy from them AT CALL TIME. It
@@ -1682,11 +1685,20 @@ def accept_revision(base, course_root, migration_id, settings, reviewer_kind,
         _refuse(exc.code, exc.message)
         raise
 
-    # 3. The write, through the one path.
+    if decision not in ACCEPT_DECISIONS:
+        raise DirectorError(
+            "director.acceptance_blocked",
+            "%s is not one of the two settlement decisions (%s)"
+            % (decision, ", ".join(ACCEPT_DECISIONS)))
+
+    # 3. The write, through the one path. Both decisions are settlements and
+    # both are journaled: a rejection is a recorded reviewer decision, not an
+    # absence of one.
+    settle = (course.accept_migration if decision == "accept"
+              else course.reject_migration)
     try:
-        result = course.accept_migration(course_root, migration_id,
-                                         reviewer_kind, reviewer_name,
-                                         rationale)
+        result = settle(course_root, migration_id, reviewer_kind,
+                        reviewer_name, rationale)
     except Exception as exc:
         _refuse(getattr(exc, "code", "director.acceptance_blocked"),
                 getattr(exc, "message", str(exc)))
@@ -1694,6 +1706,7 @@ def accept_revision(base, course_root, migration_id, settings, reviewer_kind,
 
     record_phase(base, operation_id, "accept", 3, "applied",
                  actor_kind=reviewer_kind, actor_name=reviewer_name,
-                 proposal={"migration_id": migration_id},
-                 message="the migration proposal was accepted")
+                 proposal={"migration_id": migration_id,
+                           "decision": decision},
+                 message="the migration proposal was %sed" % decision)
     return result

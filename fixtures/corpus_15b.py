@@ -137,15 +137,16 @@ _DRAFTS = (
              "opens the sequence.",
      "second": "A. Counting patients is the next recorded step, and it would "
                "be right if the question asked what follows the safety call.",
-     "na": "Counting patients follows the safety confirmation.",
+     "na": "Counting patients follows the safety confirmation; this would be correct if the question asked what is recorded second.",
      "nb": "Correct: this is the recorded first action.",
-     "nc": "A second responder is requested after the count.",
-     "nd": "The handoff report closes the encounter rather than opening it.",
+     "nc": "A second responder is requested after the count; this would be correct if the scene had already been declared safe.",
+     "nd": "The handoff report closes the encounter; this would be correct if the question asked what is recorded last.",
      "trap": "Reading the most urgent-sounding action as the first recorded "
              "one."},
     {"objective": "Scene assessment", "difficulty": "application",
      "item_id": "15b0000000000002", "hash": "15b0000000000002",
-     "stem": "A Beacon scene has two hazards and one patient. What is logged?",
+     "stem": "A responder arrives to find a downed line, a fuel spill, and a "
+             "single casualty. What does the Beacon log record?",
      "a": "One hazard and one patient",
      "b": "Two hazards and one patient",
      "c": "Two hazards only",
@@ -156,10 +157,10 @@ _DRAFTS = (
      "disc": "Whether the log summarizes or enumerates. It enumerates.",
      "second": "C. Recording both hazards is half right, and it would be "
                "correct if the scene had no patient.",
-     "na": "Logging one hazard discards an observed hazard.",
+     "na": "Logging one hazard discards an observed hazard; this would be correct if only one hazard had been observed.",
      "nb": "Correct: this records everything observed.",
-     "nc": "Omitting the patient loses the reason for the response.",
-     "nd": "Omitting the hazards loses the safety record.",
+     "nc": "Omitting the patient loses the reason for the response; this would be correct if the scene held no patient.",
+     "nd": "Omitting the hazards loses the safety record; this would be correct if the scene held no hazards.",
      "trap": "Treating the log as a summary of the scene rather than a list "
              "of observations."},
     {"objective": "Handoff reporting", "difficulty": "application",
@@ -176,10 +177,10 @@ _DRAFTS = (
              "than a judgement about importance.",
      "second": "B. Transport priority is stated early, and it would be "
                "correct if the order were arranged by urgency.",
-     "na": "The receiving name is recorded on the sheet, not stated first.",
-     "nb": "Transport priority follows the findings.",
+     "na": "The receiving name is recorded on the sheet, not stated first; this would be correct if the handoff opened with an address.",
+     "nb": "Transport priority follows the findings; this would be correct if the order were arranged by urgency.",
      "nc": "Correct: this is the opening field of the fixed order.",
-     "nd": "Arrival time is recorded rather than spoken first.",
+     "nd": "Arrival time is recorded rather than spoken first; this would be correct if the report opened with a timestamp.",
      "trap": "Choosing the most urgent field instead of the first field."},
 )
 
@@ -197,9 +198,9 @@ _EXTRA_DRAFT = {
     "disc": "Which record ends the encounter rather than which begins it.",
     "second": "C. The hazard log is written late, and it would be correct if "
               "the question asked what closes the scene assessment.",
-    "na": "The safety call opens the encounter.",
-    "nb": "The patient count is taken early.",
-    "nc": "The hazard log is written during the encounter.",
+    "na": "The safety call opens the encounter; this would be correct if the question asked what is recorded first.",
+    "nb": "The patient count is taken early; this would be correct if the question asked what follows the safety call.",
+    "nc": "The hazard log is written during the encounter; this would be correct if the question asked what closes the scene assessment.",
     "nd": "Correct: the handoff report closes it.",
     "trap": "Reading closes as most important rather than as last.",
 }
@@ -441,4 +442,225 @@ def build_acceptance_fixture(dest):
                             "dependency_kind": "source",
                             "base_fingerprint": base_fingerprint,
                             "current_fingerprint": base_fingerprint}]}
+
+
+def build_audit_signals(stale=False):
+    """The four signals a course audit aggregates, already computed.
+
+    Returns them the way a caller would hand them over, plus the
+    `vocabulary_members` mapping the membership check reads. The mapping is
+    built by importing each vocabulary's OWNING module, so the fixture never
+    holds a copy either: if `graph.BINDING_STATES` gains a member, this fixture
+    follows it without an edit.
+    """
+    import auditor
+    import graph
+
+    treatment_rows = [
+        {"objective_id": "obj-1", "treatment_kind": "guided-lesson"},
+        {"objective_id": "obj-2", "treatment_kind": "direct-reading"},
+        {"objective_id": "obj-3", "treatment_kind": ""},
+    ]
+    coverage_rows = [
+        {"objective_id": "obj-1", "vocabulary": "graph.BINDING_STATES",
+         "state": "covered", "source_object_id": "src-1",
+         "base_fingerprint": "fp-a",
+         "current_fingerprint": "fp-b" if stale else "fp-a"},
+        # The same state string under a DIFFERENT vocabulary, so the report has
+        # to keep two rows distinguishable by provenance alone.
+        {"objective_id": "obj-1", "vocabulary": "auditor.coverage_report",
+         "state": "covered", "source_object_id": "src-2",
+         "base_fingerprint": "fp-c", "current_fingerprint": "fp-c"},
+        {"objective_id": "obj-2", "vocabulary": "graph.BINDING_STATES",
+         "state": "thin", "source_object_id": "src-1",
+         "base_fingerprint": "fp-a",
+         "current_fingerprint": "fp-b" if stale else "fp-a"},
+        {"objective_id": "obj-3", "vocabulary": "auditor.coverage_report",
+         "state": "gap", "source_object_id": "src-3",
+         "base_fingerprint": "fp-d", "current_fingerprint": "fp-d"},
+    ]
+    quality_findings = [
+        {"item": "obj-1", "code": "quality.answer_skew", "severity": "block"},
+        {"item": "obj-2", "code": "quality.answer_leak", "severity": "warn"},
+    ]
+    blueprint_findings = [
+        {"item": "obj-1", "code": "blueprint.unverifiable", "severity": "warn"},
+    ]
+    vocabulary_members = {
+        "graph.BINDING_STATES": list(graph.BINDING_STATES),
+        # auditor.py's own five-state vocabulary, read from its source rather
+        # than copied, so the fixture cannot drift from the module it cites.
+        "auditor.coverage_report": ["covered", "partial", "gap",
+                                    "conflicting", "unknown"],
+        "audit_report.coverage_row": ["covered", "partial", "gap",
+                                      "conflicting", "unknown"],
+    }
+    return {"treatment_rows": treatment_rows, "coverage_rows": coverage_rows,
+            "quality_findings": quality_findings,
+            "blueprint_findings": blueprint_findings,
+            "vocabulary_members": vocabulary_members}
+
+
+PROPOSAL_WINDOW = {"start": "2026-08-01T00:00:00.000Z",
+                   "end": "2026-08-08T00:00:00.000Z",
+                   "boundary": "half-open"}
+
+# A second window abutting the first, sharing the boundary value. The pair
+# exists so a test can prove the two partition a row set exactly: no row
+# counted twice and none dropped.
+PROPOSAL_WINDOW_NEXT = {"start": "2026-08-08T00:00:00.000Z",
+                        "end": "2026-08-15T00:00:00.000Z",
+                        "boundary": "half-open"}
+
+PROPOSAL_OBJECTIVE = "Identify scene hazards on arrival"
+
+
+def build_sparse_evidence():
+    """AGENT-03's own fixture case: two attempts on one objective.
+
+    Two, deliberately. The requirement's Fixture sentence is about what a
+    system does with almost no evidence, and two is almost none.
+    """
+    return [{"ts": "2026-08-01T00:00:00.000Z",
+             "objective": PROPOSAL_OBJECTIVE, "score": True},
+            {"ts": "2026-08-02T09:30:00.000Z",
+             "objective": PROPOSAL_OBJECTIVE, "score": False}]
+
+
+def build_dense_evidence(count=24):
+    """`count` rows spread across two abutting windows, with two landing
+    exactly on the shared boundary.
+
+    The two boundary rows are the point: they are what makes the partition
+    claim checkable rather than assumed.
+    """
+    rows = []
+    for n in range(count - 2):
+        day = 1 + (n % 6)
+        rows.append({"ts": "2026-08-0%dT%02d:00:00.000Z" % (day, n % 24),
+                     "objective": PROPOSAL_OBJECTIVE,
+                     "score": (n % 3 != 0)})
+    for n in range(2):
+        rows.append({"ts": PROPOSAL_WINDOW["end"],
+                     "objective": PROPOSAL_OBJECTIVE, "score": n == 0})
+    return rows
+
+
+def build_reconciliation_case(dest, marker="revised"):
+    """A staleness fixture whose source has already been edited.
+
+    Returns the fixture plus the rebuilt rows, so a caller exercising a
+    disposition does not have to repeat the edit-and-rebuild dance and cannot
+    get it subtly different between two cases.
+    """
+    import blueprint
+
+    fixture = build_staleness_fixture(dest)
+    moved = edit_source(fixture, marker)
+    rows = blueprint.staleness_report(
+        [dict(d, current_fingerprint=moved) for d in fixture["dependents"]])
+    return {"fixture": fixture, "moved": moved, "rows": rows}
+
+
+def build_all_15b(dest):
+    """The whole Phase 15B freeze-gate corpus in one call.
+
+    The tracer sets up in one statement so what it proves is the acceptance
+    path, not a page of fixture wiring.
+    """
+    import course
+    import graph
+    import identity
+    import journal
+    import model
+
+    os.makedirs(dest, exist_ok=True)
+    import corpus_14b
+    built = corpus_14b.build_three_domains(os.path.join(dest, "corpus"))
+    course_root = built["domains"][0]["root"]
+    objectives = built["domains"][0]["objectives"]
+    source_object_id = built["domains"][0]["source_object_id"]
+
+    # A source the drafted treatment can be bound against.
+    corpus_14b.grant_right(course_root, source_object_id, "read")
+    corpus_14b.grant_right(course_root, source_object_id, "transform")
+
+    blueprint_doc = build_blueprint()
+    course.bind_blueprint(course_root, blueprint_doc, "human", "weibao")
+
+    bank_path = os.path.join(dest, "beacon_draft.md")
+    bank_text = build_draft_set("conforming")
+    with open(bank_path, "w", encoding="utf-8") as fh:
+        fh.write(bank_text)
+    state_dir = os.path.join(dest, "_state")
+    os.makedirs(state_dir, exist_ok=True)
+
+    questions = model.parse_bank(bank_text)
+
+    # Three migration proposals: one to accept, one to reject, and one whose
+    # proposer IS the reviewer so the self-accept refusal has a real subject.
+    read = course.read_course(course_root)
+    doc = read["doc"]
+    to_accept = graph.migration_proposal(
+        "rename", [objectives[0]], [objectives[0]],
+        "the published wording changed in the new edition", "agent:director")
+    to_reject = graph.migration_proposal(
+        "split", [objectives[1]], [objectives[1], objectives[2]],
+        "the objective covers two separable skills", "agent:director")
+    self_proposed = graph.migration_proposal(
+        "rename", [objectives[3]], [objectives[3]],
+        "a proposal whose author is also the reviewer", "weibao")
+    for proposal in (to_accept, to_reject, self_proposed):
+        graph.add_migration(doc, proposal)
+    course.write_course(course_root, doc, read["fingerprint"], "agent",
+                        "corpus-15b")
+
+    # A source whose dependents go stale mid-flow.
+    rel = "sources/tracer-dependency.md"
+    os.makedirs(os.path.join(course_root, "sources"), exist_ok=True)
+    source_path = os.path.join(course_root, rel)
+    with open(source_path, "w", encoding="utf-8") as fh:
+        fh.write(STALENESS_SOURCE % "original")
+    rights = identity.rights_default()
+    rights.update({"read": "granted", "transform": "granted"})
+    entry = journal.op_link(course_root, "source", rel, "agent", "corpus-15b",
+                            rights=rights)
+    with open(source_path, "rb") as fh:
+        base_fingerprint = identity.object_fingerprint(fh.read(), "source")
+
+    return {
+        "dest": dest,
+        "course_root": course_root,
+        "objectives": objectives,
+        "source_object_id": source_object_id,
+        "blueprint": blueprint_doc,
+        "bank_path": bank_path,
+        "bank_text": bank_text,
+        "state_dir": state_dir,
+        "questions": questions,
+        "item_facts": build_item_facts(questions, "conforming"),
+        "treatment_objective": objectives[4],
+        "migration_accept": to_accept["migration_id"],
+        "migration_reject": to_reject["migration_id"],
+        "migration_self": self_proposed["migration_id"],
+        "self_proposer": "weibao",
+        "dependency_path": source_path,
+        "dependency_object_id": entry["object_id"],
+        "dependency_base_fingerprint": base_fingerprint,
+        "dependents": [{"object_id": "tracer-dependent-1",
+                        "object_kind": "bank",
+                        "dependency_object_id": entry["object_id"],
+                        "dependency_kind": "source",
+                        "base_fingerprint": base_fingerprint,
+                        "current_fingerprint": base_fingerprint}],
+    }
+
+
+def current_fingerprint(path):
+    """The live fingerprint of a file's bytes, recomputed rather than read back
+    from any stored value."""
+    import identity
+
+    with open(path, "rb") as fh:
+        return identity.object_fingerprint(fh.read(), "source")
 

@@ -41,6 +41,7 @@ score: a number hides which of the eight fields actually failed, and the whole
 value of the gate is knowing that.
 """
 import json
+import unicodedata
 
 import model
 import runtime
@@ -97,15 +98,20 @@ BLUEPRINT_CODES = tuple(sorted({
     "blueprint.difficulty_share_out_of_tolerance",
     "blueprint.domain_weight_out_of_tolerance",
     "blueprint.feedback_conditions_mismatch",
+    "blueprint.forbidden_proposal_key",
     "blueprint.format_not_permitted",
     "blueprint.invalid",
     "blueprint.item_count_out_of_tolerance",
+    "blueprint.proposal_invalid",
     "blueprint.runtime_mismatch",
     "blueprint.stale_dependent",
+    "blueprint.state_not_in_vocabulary",
     "blueprint.timing_out_of_tolerance",
     "blueprint.tools_not_permitted",
     "blueprint.unknown_disposition",
+    "blueprint.unknown_vocabulary",
     "blueprint.unverifiable",
+    "blueprint.window_invalid",
 }))
 
 WARN_CODES = ("blueprint.absent", "blueprint.unverifiable")
@@ -798,3 +804,407 @@ def acceptance_block(rows, dispositions):
     return sorted(refusals, key=lambda r: (r["object_id"] or "",
                                            r["dependency_object_id"] or "",
                                            r["code"]))
+
+
+# ---------------------------------------------------------------------------
+# the course audit (ACTIVITY-02, RELIABILITY-03)
+# ---------------------------------------------------------------------------
+
+# The NAMES of the three coverage-state vocabularies that already exist. Names,
+# not states: this module holds no copy of any vocabulary's members, and the
+# membership check reads them from a caller-supplied mapping instead.
+#
+# That is the whole mechanism preventing a fourth vocabulary. A tuple of states
+# here would BE a fourth vocabulary the moment it drifted from the three it
+# copied, and it would drift silently, because nothing compares a copy to its
+# original. A row cites which vocabulary its state came from, and the audit
+# carries that state forward with its provenance attached rather than
+# reconciling three vocabularies into a superset.
+COVERAGE_VOCABULARIES = ("graph.BINDING_STATES", "auditor.coverage_report",
+                         "audit_report.coverage_row")
+
+AUDIT_ROW_KEYS = ("objective_id", "vocabulary", "state", "source_object_id",
+                  "treatment_kind", "quality_codes", "blueprint_codes",
+                  "base_fingerprint", "current_fingerprint", "stale")
+
+AUDIT_REPORT_KEYS = ("schema_version", "status", "course_object_id",
+                     "course_fingerprint", "tool_version", "stale",
+                     "stale_inputs", "vocabularies_cited", "rows", "counts")
+
+AUDIT_STATUS = "course_audit"
+
+
+def audit_row(objective_id, vocabulary, state, source_object_id="",
+              treatment_kind="", quality_codes=(), blueprint_codes=(),
+              base_fingerprint="", current_fingerprint=""):
+    """One course-audit row, carrying exactly AUDIT_ROW_KEYS.
+
+    `vocabulary` is required and is checked. A state that could plausibly have
+    come from either `graph.BINDING_STATES` or `auditor.coverage_report`
+    without the row saying which is a claim with no provenance, and the two
+    vocabularies genuinely share strings.
+    """
+    if vocabulary not in COVERAGE_VOCABULARIES:
+        raise BlueprintError(
+            "blueprint.unknown_vocabulary",
+            "%s is not one of the three coverage vocabularies (%s); the audit "
+            "cites an existing vocabulary and mints no fourth"
+            % (vocabulary, ", ".join(COVERAGE_VOCABULARIES)))
+    return {"objective_id": objective_id,
+            "vocabulary": vocabulary,
+            "state": state,
+            "source_object_id": source_object_id,
+            "treatment_kind": treatment_kind,
+            "quality_codes": sorted(quality_codes or ()),
+            "blueprint_codes": sorted(blueprint_codes or ()),
+            "base_fingerprint": base_fingerprint or "",
+            "current_fingerprint": current_fingerprint or "",
+            "stale": classify_staleness(base_fingerprint,
+                                        current_fingerprint)}
+
+
+def _severity_counts(findings, prefix, counts):
+    for finding in findings or ():
+        severity = finding.get("severity")
+        if severity == "block":
+            counts[prefix + "_block"] += 1
+        elif severity == "warn":
+            counts[prefix + "_warn"] += 1
+
+
+def course_audit(course_object_id, treatment_rows, coverage_rows,
+                 quality_findings, blueprint_findings, vocabulary_members,
+                 course_fingerprint="", tool_version=""):
+    """One cited course audit over four signals a caller already computed.
+
+    Recomputes none of the four. It calls no classifier that produced any of
+    them, and it imports none of the modules that own them: no `director`, no
+    `graph`, no `auditor`, no `authoring`. Re-deriving a signal inside the
+    audit would produce a second answer that can silently disagree with the one
+    that was recorded, and the report would then describe a course state nobody
+    ever saw.
+
+    Every row names which of the three existing vocabularies its state came
+    from, and a state that is not a member of the vocabulary it names is
+    refused before the report is returned. The members come from
+    `vocabulary_members`, supplied by the caller, so this module never holds a
+    copy of a vocabulary it does not own.
+
+    No aggregate appears anywhere. Counts carry their denominators beside them
+    rather than being divided into a proportion: a single number would let a
+    reader mistake a count for a mastery claim, and this report is read by
+    exactly the people most likely to want one.
+    """
+    treatment_rows = list(treatment_rows or ())
+    coverage_rows = list(coverage_rows or ())
+    quality_findings = list(quality_findings or ())
+    blueprint_findings = list(blueprint_findings or ())
+    vocabulary_members = vocabulary_members or {}
+
+    treatment_by_objective = {}
+    for row in treatment_rows:
+        treatment_by_objective.setdefault(
+            row.get("objective_id"), row.get("treatment_kind") or "")
+
+    quality_by_item = {}
+    for finding in quality_findings:
+        quality_by_item.setdefault(finding.get("item"), []).append(
+            finding.get("code"))
+    blueprint_by_item = {}
+    for finding in blueprint_findings:
+        blueprint_by_item.setdefault(finding.get("item"), []).append(
+            finding.get("code"))
+
+    rows = []
+    for row in coverage_rows:
+        vocabulary = row.get("vocabulary")
+        if vocabulary not in COVERAGE_VOCABULARIES:
+            raise BlueprintError(
+                "blueprint.unknown_vocabulary",
+                "%s is not one of the three coverage vocabularies (%s); the "
+                "audit cites an existing vocabulary and mints no fourth"
+                % (vocabulary, ", ".join(COVERAGE_VOCABULARIES)))
+        if vocabulary not in vocabulary_members:
+            raise BlueprintError(
+                "blueprint.unknown_vocabulary",
+                "no members were supplied for the vocabulary %s, so its state "
+                "cannot be checked; a skipped check is not a passed check"
+                % vocabulary)
+        members = list(vocabulary_members[vocabulary] or ())
+        state = row.get("state")
+        if state not in members:
+            raise BlueprintError(
+                "blueprint.state_not_in_vocabulary",
+                "the state %r is not a member of %s, whose members are %s; a "
+                "row citing one vocabulary with another's state is a "
+                "cross-vocabulary confusion rather than a typo"
+                % (state, vocabulary, ", ".join(members)))
+        objective_id = row.get("objective_id")
+        rows.append(audit_row(
+            objective_id, vocabulary, state,
+            row.get("source_object_id") or "",
+            treatment_by_objective.get(objective_id, ""),
+            quality_by_item.get(objective_id) or [],
+            blueprint_by_item.get(objective_id) or [],
+            row.get("base_fingerprint") or "",
+            row.get("current_fingerprint") or ""))
+
+    rows.sort(key=lambda r: (r["objective_id"] or "", r["vocabulary"] or "",
+                             r["source_object_id"] or ""))
+
+    counts = {"objectives_total": len({r["objective_id"] for r in rows}),
+              "objectives_with_treatment":
+                  len({r["objective_id"] for r in rows if r["treatment_kind"]}),
+              "rows_total": len(rows),
+              "rows_stale": sum(1 for r in rows if r["stale"]),
+              "quality_findings_block": 0, "quality_findings_warn": 0,
+              "blueprint_findings_block": 0, "blueprint_findings_warn": 0}
+    _severity_counts(quality_findings, "quality_findings", counts)
+    _severity_counts(blueprint_findings, "blueprint_findings", counts)
+
+    # The report is stale when any row is. Written as an `or` over the rows
+    # rather than as a second computation, so the report's verdict and its
+    # rows' verdicts cannot disagree.
+    stale_inputs = sorted({r["source_object_id"] for r in rows
+                           if r["stale"] and r["source_object_id"]})
+    return {"schema_version": BLUEPRINT_SCHEMA_VERSION,
+            "status": AUDIT_STATUS,
+            "course_object_id": course_object_id,
+            "course_fingerprint": course_fingerprint or "",
+            "tool_version": tool_version or "",
+            "stale": any(r["stale"] for r in rows),
+            "stale_inputs": stale_inputs,
+            "vocabularies_cited": sorted({r["vocabulary"] for r in rows}),
+            "rows": rows,
+            "counts": counts}
+
+
+# ---------------------------------------------------------------------------
+# evidence-based proposals (AGENT-03)
+# ---------------------------------------------------------------------------
+
+PROPOSAL_SCHEMA_VERSION = 1
+PROPOSAL_SCHEMA_RESOURCE = "schemas/evidence_proposal.schema.json"
+
+# A proposal is a RECOMMENDATION and the schema makes that a const, so no
+# record can assert that it acted. The learner, or the deterministic selection
+# policy, is the only thing that acts.
+PROPOSAL_STATUS = "recommendation"
+
+PROPOSAL_KEYS = ("schema_version", "status", "objective_key", "window",
+                 "denominator", "included_signals", "missing_signals",
+                 "uncertainty", "competing_explanations", "claims")
+
+WINDOW_KEYS = ("start", "end", "boundary")
+
+# Half-open: an event at `start` is inside the denominator and an event at
+# `end` is outside it. Named in the record itself rather than left to a
+# reader's assumption, because two adjacent windows sharing a boundary must
+# partition a row set exactly, and the only way that holds is if everybody
+# agrees which side the boundary belongs to.
+WINDOW_BOUNDARY = "half-open"
+
+CLAIM_KEYS = ("objective_key", "signal_kind", "observed_count", "denominator",
+              "evidence")
+
+# Banded, not scored. A band says how much is known; a number invites division.
+UNCERTAINTY_LEVELS = ("no-evidence", "sparse", "moderate", "sufficient")
+SPARSE_MAX = 5
+MODERATE_MAX = 19
+
+# Substrings that would turn a proposal into the mastery claim AGENT-03
+# forbids. Checked over every key at every depth rather than at the top level,
+# because a nested `evidence` dict is exactly where such a key would appear.
+FORBIDDEN_PROPOSAL_SUBSTRINGS = ("mastery", "completion", "readiness",
+                                 "progress", "percent", "score")
+
+
+def objective_key(text):
+    """The one normalization an objective string gets before it is counted.
+
+    NFC and line endings only, no case folding and no stripping, which is the
+    identical rule `director.locator_key` applies to a locator. Written here
+    rather than imported, because importing `director` would give this module
+    a path to the autonomy policy and the rights registry and would end the
+    structural ban that it authorizes nothing. The test asserts the two agree
+    on every fixture string, so the duplication is checked rather than trusted.
+    """
+    return unicodedata.normalize("NFC", text or "") \
+        .replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _require_window(window):
+    window = window or {}
+    for key in WINDOW_KEYS:
+        if key not in window:
+            raise BlueprintError(
+                "blueprint.window_invalid",
+                "an observation window needs %s; a count with no window is a "
+                "number with no meaning" % key)
+    if window.get("boundary") != WINDOW_BOUNDARY:
+        raise BlueprintError(
+            "blueprint.window_invalid",
+            "an observation window's boundary is %r and this record claims "
+            "%r; two adjacent windows can only partition a row set if both "
+            "agree which side the boundary belongs to"
+            % (WINDOW_BOUNDARY, window.get("boundary")))
+    if window["end"] < window["start"]:
+        raise BlueprintError(
+            "blueprint.window_invalid",
+            "the window ends at %s, before it starts at %s"
+            % (window["end"], window["start"]))
+    return window
+
+
+def in_window(timestamp, window):
+    """Whether `timestamp` falls in the half-open window.
+
+    Inclusive at `start`, exclusive at `end`. Every boundary decision in this
+    module goes through this one function, so two adjacent windows sharing a
+    value partition a row set exactly: no row counted twice and none dropped.
+    """
+    window = _require_window(window)
+    return window["start"] <= timestamp < window["end"]
+
+
+def uncertainty_for(denominator):
+    """The uncertainty band for a denominator. Never a number.
+
+    Bands rather than a figure, because a figure invites division and a
+    division over sparse evidence is the mastery percentage AGENT-03 forbids.
+    A band says how much is known and refuses to imply how much was learned.
+    """
+    if not isinstance(denominator, int) or isinstance(denominator, bool):
+        raise ValueError("a denominator is a count, not %r" % (denominator,))
+    if denominator < 0:
+        raise ValueError("a denominator cannot be negative: %r" % denominator)
+    if denominator == 0:
+        return "no-evidence"
+    if denominator <= SPARSE_MAX:
+        return "sparse"
+    if denominator <= MODERATE_MAX:
+        return "moderate"
+    return "sufficient"
+
+
+def proposal_claim(objective, signal_kind, observed_count, denominator,
+                   evidence):
+    """One claim, carrying exactly CLAIM_KEYS.
+
+    Carries its own denominator, so a claim read on its own still carries the
+    number it was counted against. A claim quoted without its denominator is
+    the failure this whole record shape exists to prevent.
+
+    `observed_count` is a count and never a ratio of the two. The reader does
+    the division or does not; this module never does it for them.
+    """
+    return {"objective_key": objective_key(objective),
+            "signal_kind": signal_kind,
+            "observed_count": int(observed_count),
+            "denominator": int(denominator),
+            "evidence": evidence or {}}
+
+
+def _forbidden_keys(obj, path="$"):
+    found = []
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            lowered = str(key).lower()
+            for banned in FORBIDDEN_PROPOSAL_SUBSTRINGS:
+                if banned in lowered:
+                    found.append("%s.%s" % (path, key))
+            found.extend(_forbidden_keys(value, "%s.%s" % (path, key)))
+    elif isinstance(obj, (list, tuple)):
+        for n, value in enumerate(obj):
+            found.extend(_forbidden_keys(value, "%s[%d]" % (path, n)))
+    elif isinstance(obj, float):
+        found.append("%s (a float)" % path)
+    return found
+
+
+def evidence_proposal(objective, rows, window, included_signals,
+                      missing_signals, competing_explanations,
+                      signal_kind="response"):
+    """One evidence-based proposal over event rows the caller already read.
+
+    The rows arrive as an argument. This module imports no evidence store and
+    its signature offers no `log`, `base`, or `path` parameter, so it cannot be
+    handed one to read. That follows the precedent
+    `graph.objective_evidence_state` set by taking a precomputed count.
+
+    Names all six of AGENT-03's requirements, and the SCHEMA requires them
+    rather than this function remembering to: window, denominator, included
+    signals, missing signals, uncertainty, and competing explanations.
+
+    Refuses a claim with no competing explanation. A claim offered with no
+    alternative reading is a confident causal claim by omission, and omission
+    is exactly how a confident causal claim gets made without anybody deciding
+    to make one. Zero rows produce zero claims, so an empty explanation list is
+    fine there: there is nothing to explain away.
+
+    Zero rows return a record, never None and never a raise. The denominator is
+    0, the uncertainty is `no-evidence`, and the window and signal lists are
+    still named, because "we looked here, over this period, and found nothing"
+    is a finding and a missing record is not.
+    """
+    import schema_validate
+
+    window = _require_window(window)
+    key = objective_key(objective)
+    counted = [r for r in (rows or ())
+               if in_window(r.get("ts"), window)
+               and objective_key(r.get("objective") or "") == key]
+    denominator = len(counted)
+
+    claims = []
+    if denominator:
+        observed = sum(1 for r in counted if r.get("score") is True)
+        claims.append(proposal_claim(
+            objective, signal_kind, observed, denominator,
+            {"window_start": window["start"], "window_end": window["end"],
+             "counted_rows": denominator}))
+
+    if claims and not (competing_explanations or ()):
+        raise BlueprintError(
+            "blueprint.proposal_invalid",
+            "this proposal makes %d claim(s) and names no competing "
+            "explanation; a claim offered with no alternative reading is a "
+            "confident causal claim by omission" % len(claims))
+
+    record = {
+        "schema_version": PROPOSAL_SCHEMA_VERSION,
+        "status": PROPOSAL_STATUS,
+        "objective_key": key,
+        "window": {"start": window["start"], "end": window["end"],
+                   "boundary": WINDOW_BOUNDARY},
+        "denominator": denominator,
+        "included_signals": sorted(included_signals or ()),
+        "missing_signals": sorted(missing_signals or ()),
+        "uncertainty": uncertainty_for(denominator),
+        "competing_explanations": list(competing_explanations or ()),
+        "claims": sorted(claims, key=lambda c: (c["objective_key"],
+                                                c["signal_kind"],
+                                                canonical_json(c["evidence"]))),
+    }
+
+    forbidden = _forbidden_keys(record)
+    if forbidden:
+        raise BlueprintError(
+            "blueprint.forbidden_proposal_key",
+            "a proposal may carry no mastery, completion, readiness, "
+            "progress, percent, or score value, and no float; found %s"
+            % ", ".join(forbidden))
+
+    errors = schema_validate.validate(
+        record, json.loads(_resources().read_text(PROPOSAL_SCHEMA_RESOURCE)))
+    if errors:
+        raise BlueprintError(
+            "blueprint.proposal_invalid",
+            "the proposal does not validate against its own contract: %s"
+            % errors[0])
+    return record
+
+
+def _resources():
+    import resources
+    return resources
