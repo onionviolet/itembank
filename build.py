@@ -61,6 +61,27 @@ STAGE_FILES = (
     # entries above record, caught by tests/packaging_roundtrip.py and
     # tests/math_offline_roundtrip.py.
     "sample_course.py",
+    # Phase 15B, added 2026-08-30 by plan 15B-02 Task 1. `authoring.py` now
+    # imports `blueprint` at module scope for ACTIVITY-02's gate 4, so
+    # omitting it is a hard ImportError inside the built .pyz. Caught by
+    # tests/packaging_roundtrip.py and tests/math_offline_roundtrip.py, which
+    # is the third time the entries above record this same class of gap.
+    "blueprint.py",
+    # Staged with it, and NOT because anything imports them at module scope
+    # today. These are shipped root modules that the 14A/14B entry's own
+    # reasoning covers: `course`, `graph` and `course_package` were staged
+    # proactively "so the same class of gap does not reappear the first time a
+    # surface reaches for a course", and these are in exactly that position.
+    # Each has been shipped and frozen without ever entering the artifact, so
+    # the omission is invisible until the first surface imports one, which is
+    # how it went unnoticed twice before.
+    #
+    # Phase 15A: the agent-client tier.
+    "director.py",
+    # Phase 16C: notes, strategies, progress claims, the note-output trio, and
+    # the legacy-upgrade contract.
+    "notes.py", "strategies.py", "progress_claims.py", "note_outputs.py",
+    "upgrade_audit.py",
 )
 STAGE_DIRS = ("surfaces", "schemas", "styles", "fonts", "vendor")
 

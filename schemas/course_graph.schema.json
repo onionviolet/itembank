@@ -54,6 +54,38 @@
         "$ref": "#/$defs/migration"
       },
       "description": "Recorded migration proposals and their dispositions."
+    },
+    "blueprint": {
+      "type": "array",
+      "description": "The accepted blueprint versions bound to this course (Phase 15B, ACTIVITY-02). Optional and NOT in the document's required array, so a sidecar written before Phase 15B validates exactly as it did before. Each row's `document` column carries the whole blueprint as canonical JSON validated against blueprint.schema.json; the other four columns are a human-readable projection for a reader looking at a diff, and nothing reads them back for a decision.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "blueprint_id",
+          "version",
+          "construct",
+          "citation",
+          "document"
+        ],
+        "properties": {
+          "blueprint_id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "construct": {
+            "type": "string"
+          },
+          "citation": {
+            "type": "string"
+          },
+          "document": {
+            "type": "string"
+          }
+        }
+      }
     }
   },
   "$defs": {

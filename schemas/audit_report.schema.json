@@ -256,10 +256,31 @@
             "quality_findings": {
               "type": "array",
               "items": { "$ref": "#/$defs/quality_finding_ref" }
+            },
+            "blueprint_findings": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/blueprint_finding_ref" },
+              "description": "ACTIVITY-02 gate 4's findings (Phase 15B). Optional and NOT in this object's required array, so a proposal built before Phase 15B validates exactly as it did before. An absent array means the gate did not run; an empty array means it ran and found nothing."
             }
           }
         },
         "item_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "blueprint_finding_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One blueprint-fidelity finding (Phase 15B, ACTIVITY-02 gate 4). The same record shape as a quality finding, with its own detector name and its own closed code set, so a blueprint finding slots into the existing gates object as one more named array rather than needing a second report envelope.",
+      "required": ["schema_version", "detector", "detector_version", "severity", "code", "item", "evidence", "remediation"],
+      "properties": {
+        "schema_version": { "type": "integer", "const": 1 },
+        "detector": { "type": "string", "enum": ["blueprint_fidelity"] },
+        "detector_version": { "type": "integer", "minimum": 1 },
+        "severity": { "type": "string", "enum": ["block", "warn"] },
+        "code": { "type": "string", "enum": ["blueprint.absent", "blueprint.construct_mismatch", "blueprint.demand_out_of_tolerance", "blueprint.difficulty_out_of_band", "blueprint.difficulty_share_out_of_tolerance", "blueprint.disposition_rationale_required", "blueprint.disposition_reviewer_required", "blueprint.disposition_superseded", "blueprint.domain_weight_out_of_tolerance", "blueprint.feedback_conditions_mismatch", "blueprint.format_not_permitted", "blueprint.invalid", "blueprint.item_count_out_of_tolerance", "blueprint.runtime_mismatch", "blueprint.stale_dependent", "blueprint.timing_out_of_tolerance", "blueprint.tools_not_permitted", "blueprint.unknown_disposition", "blueprint.unverifiable"] },
+        "item": { "type": "string", "minLength": 1 },
+        "evidence": { "type": "object", "description": "The measured values behind the finding, per field and per item. Never an aggregate compliance number: one score hides which of the eight declared blueprint fields actually failed, and knowing that is the whole value of the gate." },
+        "remediation": { "type": "string", "minLength": 1 }
       }
     },
     "quality_finding_ref": {

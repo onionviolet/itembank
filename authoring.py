@@ -36,6 +36,7 @@ import json
 import os
 import re
 
+import blueprint
 import model
 
 # The schema version of the authoring_request payload family, published by
@@ -604,9 +605,15 @@ def make_diff(before_text, after_text):
         fromfile="bank-before", tofile="bank-after"))
 
 
+def _blueprint_findings_payload(findings):
+    """One retry-findings payload for the blueprint gate, the same shape
+    `_quality_findings_payload` produces for the quality gate."""
+    return {"kind": "blueprint", "findings": list(findings or ())}
+
+
 def build_proposal(request, bank_text, candidate_text, source_fingerprints,
                    config, lint_errors, lint_warnings, quality_findings,
-                   changes, run_id):
+                   changes, run_id, blueprint_findings=None):
     """The immutable preflighted proposal: everything the writer needs plus
     every provenance field D-17 requires. Built only after all gates pass.
     Units are the requested new items (the candidate questions beyond the
@@ -640,6 +647,12 @@ def build_proposal(request, bank_text, candidate_text, source_fingerprints,
             "lint_errors": [e._asdict() for e in lint_errors],
             "lint_warnings": [w._asdict() for w in lint_warnings],
             "quality_findings": quality_findings,
+            # ACTIVITY-02 gate 4. Appended last with a default of None so a
+            # caller written before Phase 15B still builds a valid proposal,
+            # and absent from the schema's `gates.required` array for the same
+            # reason. An absent array means the gate did not run; an empty one
+            # means it ran and found nothing.
+            "blueprint_findings": list(blueprint_findings or ()),
         },
         "item_count": len(questions),
     }
@@ -753,6 +766,17 @@ def run_authoring(request, author_callable, bank_text, writer, config=None):
             findings_chain.append(_quality_findings_payload(quality_findings))
             continue
 
+        # ACTIVITY-02 gate 4, after gate 3 on purpose: quality findings are an
+        # input a blueprint finding may cite, and running blueprint first would
+        # make it the first thing a bad draft hits, so its findings would
+        # describe a set lint and quality were going to reject anyway.
+        blueprint_findings = blueprint.blueprint_gate(
+            questions, config.get("blueprint"), config.get("item_facts"))
+        if any(f["severity"] == "block" for f in blueprint_findings):
+            findings_chain.append(
+                _blueprint_findings_payload(blueprint_findings))
+            continue
+
         final_response = response
         break
 
@@ -773,13 +797,16 @@ def run_authoring(request, author_callable, bank_text, writer, config=None):
     questions = model.parse_bank(candidate_text)
     lint_errors, lint_warnings = model.lint(questions)
     quality_findings = quality_gate(questions)
+    blueprint_findings = blueprint.blueprint_gate(
+        questions, config.get("blueprint"), config.get("item_facts"))
     # Recheck immediately before the writer boundary (AUTH-02 stateful
     # review): the compose step is deterministic, so this can only pass if
     # the earlier gates passed; the recheck exists so a future code change
     # cannot bypass scope/lint/quality.
     scope_findings = validate_response_scope(request, final_response)
     if scope_findings or lint_errors or any(
-            f["severity"] == "block" for f in quality_findings):
+            f["severity"] == "block" for f in quality_findings) or any(
+            f["severity"] == "block" for f in blueprint_findings):
         rejected = _rejected_units(final_response)
         return _report(
             request, status="failed", run_id=run_id, mode=mode,
@@ -793,7 +820,7 @@ def run_authoring(request, author_callable, bank_text, writer, config=None):
     proposal = build_proposal(request, bank_text, candidate_text,
                               source_fingerprints, config, lint_errors,
                               lint_warnings, quality_findings, changes,
-                              run_id)
+                              run_id, blueprint_findings)
     return _finalize(request, proposal, writer, config, run_id, mode,
                      attempts, findings_chain)
 

@@ -156,8 +156,10 @@ function on it; `schemas/blueprint.schema.json`;
   "Artifacts this phase produces" section, for the `identity.py` constant list.
 - `.planning/phases/14A-identity-lifecycle-operation/14A-02-PLAN.md`, the
   "Artifacts this phase produces" section, for `journal.ENTRY_KEYS`,
-  `journal.RECORD_TYPES`, `journal.OPERATION_TYPES`, and the twenty-two-key
-  fixed-order entry tuple.
+  `journal.RECORD_TYPES`, `journal.OPERATION_TYPES`, and the fixed-order
+  entry tuple. Read `14A-FREEZE.md` for that tuple, not `14A-02-PLAN.md`:
+  the plan text lists twenty-two keys ending in `message` and is the stale
+  record; the freeze record lists twenty-three ending in `rights`.
 - `.planning/phases/14B-graph-course-package-prototype/14B-01-PLAN.md`, the
   "Artifacts this phase produces" section, for `graph.SECTION_ORDER`,
   `course.COURSE_SIDECAR_FILENAME`, and `course.write_course`'s signature.
@@ -207,9 +209,9 @@ python -c "import identity, journal, discovery, graph, course, course_package, d
      `journal.commit_operation`, `journal.append_entry`, `journal.entries`,
      `journal.read_registry`, `journal.undo`, `journal.object_state`.
    - `journal.OPERATION_TYPES` has exactly six members.
-   - `journal.ENTRY_KEYS` has exactly `23` members and its last member is
-     `"agent"` (twenty-two from plan 14A-02 plus the one member plan 15A-01
-     appended).
+   - `journal.ENTRY_KEYS` has exactly `24` members and its last member is
+     `"agent"` (twenty-three frozen in `14A-FREEZE.md` plus the one member
+     plan 15A-01 appended). (Corrected by the 2026-08-30 planning pass: the landed pre-15A tuple has twenty-three keys ending in `rights`, per `14A-FREEZE.md`, not the twenty-two `14A-02-PLAN.md` lists. See `15A-PRECONDITION.md`.)
    - `"reconcile"`, `"migrate"`, and `"agent_operation"` are all in
      `journal.RECORD_TYPES`.
 
@@ -324,7 +326,7 @@ python -c "import authoring, model, json; s=json.load(open('schemas/audit_report
    No em dash characters anywhere in the file.
   </action>
   <verify>
-  <automated>python -c "import identity, journal, graph, course, director; assert len(graph.MIGRATION_STATES)==3 and len(graph.BINDING_STATES)==5 and len(director.PROTOCOL_STEPS)==13 and len(journal.ENTRY_KEYS)==23 and not hasattr(graph,'accept_migration'); print('15B preconditions match')"</automated>
+  <automated>python -c "import identity, journal, graph, course, director; assert len(graph.MIGRATION_STATES)==3 and len(graph.BINDING_STATES)==5 and len(director.PROTOCOL_STEPS)==13 and len(journal.ENTRY_KEYS)==24 and not hasattr(graph,'accept_migration'); print('15B preconditions match')"</automated>
 Expected: prints `15B preconditions match` and exits 0. The degraded state this
 task must prove rather than paper over is the halt itself: if any assertion
 fails, the run exits non-zero with the named HALT line and no module file is
@@ -523,7 +525,8 @@ chosen option id and Weibao's answer recorded verbatim.
   for bank content.
 - `.planning/phases/14A-identity-lifecycle-operation/14A-02-PLAN.md`, the
   "Artifacts this phase produces" section, for `journal.RECORD_TYPES`,
-  `journal.OPERATION_TYPES`, and the twenty-two-key entry tuple.
+  `journal.OPERATION_TYPES`, and the twenty-three-key entry tuple frozen in
+  `14A-FREEZE.md`.
 - `.planning/phases/14B-graph-course-package-prototype/14B-04-PLAN.md` Task 1,
   the recorded `D-14B-3` checkpoint that already answered the same shape of
   question for `migrate`, and its options list.

@@ -1,0 +1,329 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/blueprint.schema.json",
+  "title": "itembank exam blueprint",
+  "description": "One cited, versioned exam blueprint (ACTIVITY-02). A drafted question set may carry an exam-fidelity claim only against an accepted blueprint, and only after all five of the parser, lint, review, blueprint, and runtime gates have passed. Every share and tolerance is an integer percentage point, never a float: floats reintroduce the comparison ambiguity the equality-passes tolerance rule exists to settle, and this validator has no float-safe comparison. Absent a blueprint the course presents practice without an exam-fidelity claim, which is a withheld claim and not a withheld activity.",
+  "x-itembank-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "blueprint_id",
+    "version",
+    "construct",
+    "domain_weight",
+    "demand",
+    "format",
+    "difficulty",
+    "timing",
+    "tools",
+    "feedback_conditions",
+    "citations"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "This document's own schema version; must equal x-itembank-version."
+    },
+    "blueprint_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The stable identity of this blueprint across its versions."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The blueprint's own version, counting from one. A drafted set records which blueprint version it was checked against, so a later blueprint revision makes the earlier claim stale rather than silently wrong."
+    },
+    "construct": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "statement",
+        "citation"
+      ],
+      "description": "What the exam claims to measure, in the blueprint's own words, with the citation that says so.",
+      "properties": {
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "citation": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "domain_weight": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shares",
+        "tolerance"
+      ],
+      "description": "How the form is divided across domains, as integer percentage points that a checker compares against an observed share.",
+      "properties": {
+        "shares": {
+          "type": "array",
+          "description": "One entry per domain. The shares are declared, not derived, and a set whose observed share differs by more than the tolerance fails rather than being rounded toward the declaration.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "domain",
+              "objective_prefix",
+              "share"
+            ],
+            "properties": {
+              "domain": {
+                "type": "string",
+                "minLength": 1
+              },
+              "share": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "objective_prefix": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The prefix a question's OBJECTIVE line must start with to count toward this domain. A prefix rather than an exact match, because a bank's objective strings are authored at a finer grain than a blueprint's domains and forcing them equal would make the blueprint dictate the bank's wording."
+              }
+            }
+          }
+        },
+        "tolerance": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Permitted deviation in percentage points. The boundary is INCLUSIVE: a share differing by exactly this many points passes, matching the shipped precedent where authoring.SKEW_BLOCK_ABOVE blocks only above its threshold."
+        }
+      }
+    },
+    "demand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "permitted",
+        "shares",
+        "tolerance",
+        "citation"
+      ],
+      "description": "The cognitive demands the form permits and how it is divided across them. Not carried by the bank format, so both the permitted list and the shares are checked only against supplied facts; with no fact supplied the field is unverifiable rather than passed.",
+      "properties": {
+        "permitted": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "shares": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "level",
+              "share"
+            ],
+            "properties": {
+              "level": {
+                "type": "string",
+                "minLength": 1
+              },
+              "share": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              }
+            }
+          }
+        },
+        "tolerance": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "citation": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "format": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "permitted_types",
+        "item_count",
+        "count_tolerance"
+      ],
+      "description": "The item types the form permits and how many items it carries. This is the one blueprint dimension fully checkable from a parsed bank alone.",
+      "properties": {
+        "permitted_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Item type tokens from the shipped seven-type vocabulary. A drafted question of any other type is a blocking finding."
+        },
+        "item_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "count_tolerance": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Permitted deviation in item count. Inclusive, for the same reason domain_weight.tolerance is."
+        }
+      }
+    },
+    "difficulty": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "permitted_bands",
+        "shares",
+        "tolerance"
+      ],
+      "description": "How the form is divided across difficulty bands, in the same integer-share shape as domain_weight.",
+      "properties": {
+        "shares": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "band",
+              "share"
+            ],
+            "properties": {
+              "band": {
+                "type": "string",
+                "minLength": 1
+              },
+              "share": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              }
+            }
+          }
+        },
+        "tolerance": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "permitted_bands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The difficulty bands the form permits. A question in any other band is a blocking finding, separately from whether the band shares are on target: a band that should not appear at all is a different defect from a band that appears too often."
+        }
+      }
+    },
+    "timing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_seconds",
+        "per_item_seconds",
+        "tolerance_seconds",
+        "citation"
+      ],
+      "description": "How long the form runs and how long one item is expected to take. Per-item timing is not carried by the bank format, so it is a supplied fact.",
+      "properties": {
+        "total_seconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "per_item_seconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "citation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tolerance_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Permitted deviation in seconds, for the summed total and for one item. Inclusive, for the same reason every other tolerance here is."
+        }
+      }
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "permitted",
+        "citation"
+      ],
+      "description": "What a candidate may use during the form. A supplied fact.",
+      "properties": {
+        "permitted": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "citation": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "feedback_conditions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "disclosure",
+        "retry",
+        "citation"
+      ],
+      "description": "What feedback the form gives and whether a retry is permitted. Two named keys rather than one prose sentence, because a checker can compare keys and cannot compare prose without guessing what counts as the same meaning.",
+      "properties": {
+        "disclosure": {
+          "type": "string",
+          "minLength": 1,
+          "description": "When results are disclosed, as a closed token the supplied fact must match exactly."
+        },
+        "retry": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Whether and how a retry is permitted."
+        },
+        "citation": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "citations": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Where this blueprint came from. Required and non-empty: a blueprint with nothing behind it is an assertion, and ACTIVITY-02 says no surface claims exam fidelity without a cited, versioned blueprint.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "locator"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "locator": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

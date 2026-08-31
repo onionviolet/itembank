@@ -121,3 +121,62 @@ the suite with Anki open and sees three reds knows why.
 Measured budgets, platform fallbacks, and the nine probe-surfaced edges are in
 `14B-TRACER-REPORT.md`. Those measurements are single runs on one machine and
 are not budgets any later phase may assert against.
+
+---
+
+## Amendment, 2026-08-30: the sidecar gains a `## Blueprint` section
+
+**Amended by Phase 15B, plan 15B-02 Task 1, under the recorded decision
+`D-15B-2` option-a in `15B-DECISIONS.md`.**
+
+`graph.SECTION_ORDER` gained one member, `"Blueprint"`. The frozen order named
+in the table above reads:
+
+> header, `## Structure`, `## Objectives`, `## Sources`, `## Edges`,
+> `## Bindings`, `## Migrations`, `## Log`
+
+and now reads header, `## Structure`, `## Objectives`, `## Sources`,
+`## Edges`, `## Bindings`, `## Migrations`, **`## Blueprint`**, `## Log`.
+
+**Why.** ACTIVITY-02 requires a cited, versioned blueprint as a durable object,
+and no surface may claim exam fidelity without one. `D-15B-2` put that object
+inside this sidecar rather than in a file of its own, because a blueprint
+stored here is written by `course.write_course` reaching
+`journal.commit_operation` **by construction**, so the project does not grow a
+third compare-and-swap write path. The alternative needed a seventh member in
+`identity.OBJECT_KINDS`, which would have been a 14A amendment rather than this
+one, and would have split one course's durable state across two files with no
+transactional relationship.
+
+**What did not change, and how that is proven rather than promised.**
+
+- **No existing member changed position.** `"Blueprint"` was inserted before
+  `"Log"`, and the seven members before it are in their frozen order.
+- **A sidecar written before this amendment serializes byte-identically.**
+  `graph.serialize_course` now skips a member of the new
+  `graph.OPTIONAL_SECTIONS` tuple when it carries no rows, so a document with
+  no blueprint emits no `## Blueprint` heading. The proof is a stored fixture,
+  `fixtures/golden_sidecar_pre_15b.md`, captured from a course root **before**
+  this change and compared byte for byte in
+  `tests/blueprint_roundtrip.py::check_the_report_and_sidecar_grew_additively`.
+  A fixture generated after the change would have proven nothing, because it
+  would carry whatever the new code emits.
+- **The 14B sections stay non-optional.** They emit their heading and column
+  row even when empty, exactly as they did at the freeze. Making them optional
+  would have broken the additivity guarantee in the other direction.
+- **`schemas/course_graph.schema.json`'s `required` array is unchanged** at
+  `["header"]`. The new `blueprint` property is optional.
+
+**One consequence, recorded rather than left to be discovered.** A sidecar
+carrying an **empty** `## Blueprint` section round-trips without it. No data is
+lost, since an empty section carries none, but the bytes differ. Emitting an
+empty optional section would break the pre-15B additivity proof above, and that
+proof is the one non-negotiable 4 actually asks for.
+
+**`graph.py`'s public surface also gained `add_blueprint` and `blueprints`**,
+recorded in `tests/graph_roundtrip.py`'s `EXPECTED_PUBLIC_API` guard, which
+exists so the surface cannot grow without a plan edit. 15B-02 is that plan
+edit.
+
+This amendment is additive. Nothing frozen in 14B was removed, reordered, or
+given a new meaning.

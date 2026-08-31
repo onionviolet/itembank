@@ -90,8 +90,15 @@ OPERATION_TYPES = ("link", "import", "copy", "move", "edit_in_place",
 # "agent_operation" is Phase 15A's one additive record type (RELIABILITY-02):
 # an agent operation is a record of what an agent did, not a file operation, so
 # it joins RECORD_TYPES and deliberately never joins OPERATION_TYPES.
+# "accept_revision" is Phase 15B's one additive record type (RELIABILITY-03,
+# ACTIVITY-02, D-15B-2 option-a): a reviewer settling a proposal is a record of
+# a decision, not a file operation, so it joins RECORD_TYPES and deliberately
+# never joins OPERATION_TYPES. That tuple stays at exactly six, which
+# 14A-FREEZE.md names as frozen and which 14A-03, 14B-04 and 15A-01 each
+# already refused to grow.
 RECORD_TYPES = OPERATION_TYPES + ("mint", "restore", "external_edit",
-                                  "reconcile", "migrate", "agent_operation")
+                                  "reconcile", "migrate", "agent_operation",
+                                  "accept_revision")
 
 # The journal entry key order, fixed. Every entry this module writes carries
 # exactly this key set, in exactly this order, so `list(entry.keys())` is

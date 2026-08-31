@@ -308,6 +308,66 @@ def bind_source(base, objective, source_object_id, locator="",
                  actor_kind, actor_name)
 
 
+def accept_migration(course_root, migration_id, reviewer_kind, reviewer_name,
+                     rationale, expected_fingerprint=None):
+    """Settle one proposal as accepted and write the sidecar.
+
+    The transition itself lives in `graph.accept_migration`, pure and with no
+    course root, and this function is only the write. That is the split 14B
+    already built for `migration_proposal` and `record_migration`: if the
+    transition lived here, the self-accept and already-settled refusals would
+    fire after a file read and a fingerprint check rather than before, and a
+    caller with no course root could not test them.
+    """
+    read = read_course(course_root)
+    graph.accept_migration(read["doc"], migration_id, reviewer_name, rationale)
+    return write_course(course_root, read["doc"],
+                        expected_fingerprint
+                        if expected_fingerprint is not None
+                        else read["fingerprint"],
+                        reviewer_kind, reviewer_name)
+
+
+def reject_migration(course_root, migration_id, reviewer_kind, reviewer_name,
+                     rationale, expected_fingerprint=None):
+    """Settle one proposal as rejected and write the sidecar.
+
+    A rejection is written, not dropped. A deleted proposal and a proposal that
+    was never made look identical in the file, and they are not the same fact.
+    """
+    read = read_course(course_root)
+    graph.reject_migration(read["doc"], migration_id, reviewer_name, rationale)
+    return write_course(course_root, read["doc"],
+                        expected_fingerprint
+                        if expected_fingerprint is not None
+                        else read["fingerprint"],
+                        reviewer_kind, reviewer_name)
+
+
+def bind_blueprint(course_root, blueprint, actor_kind, actor_name,
+                   expected_fingerprint=None):
+    """Record an accepted blueprint version in the course sidecar.
+
+    Goes through `write_course` and therefore through
+    `journal.commit_operation`, which is the whole reason D-15B-2 put the
+    blueprint inside the sidecar: a blueprint stored here is written by the
+    existing compare-and-swap path by construction, and this project does not
+    grow a third one.
+
+    A blueprint is not rights-gated. It is a statement about the exam a course
+    is aligned to, authored by the course builder rather than derived from a
+    third party's source, so there is no source right to consume. That is why
+    this function has no rights lookup while `bind_treatment` has one.
+    """
+    read = read_course(course_root)
+    graph.add_blueprint(read["doc"], blueprint)
+    return write_course(course_root, read["doc"],
+                        expected_fingerprint
+                        if expected_fingerprint is not None
+                        else read["fingerprint"],
+                        actor_kind, actor_name)
+
+
 def bind_treatment(base, objective, source_object_id, treatment_kind,
                    locator="", state="unknown", confidence="unknown",
                    actor_kind="human", actor_name=""):

@@ -377,6 +377,9 @@ OPERATION_PHRASE = {
     # phrase says the agent acted rather than that something happened to the
     # object, because who acted is the part a learner needs to see.
     "agent_operation": "an agent worked on",
+    # Phase 15B. A reviewer settling a proposal, in the words a learner would
+    # use for it: the decision is the event, not the file change it causes.
+    "accept_revision": "accepted a change to",
 }
 
 # A write can be reversed from its journalled prior revision; a read cannot,
@@ -397,6 +400,13 @@ OPERATION_PHRASE = {
 # entry carrying its own undo. Marking the record undoable would offer to
 # reverse a record rather than a change, and the change it points at already
 # has a working reversal.
+#
+# `accept_revision` is deliberately absent for the same reason
+# `agent_operation` is: it records a decision, and the sidecar write it causes
+# is journalled as its own entry carrying its own undo. Offering to reverse
+# the decision record rather than the change would be a second reversal path
+# beside the working one, and `graph.reject_migration` is already the typed
+# way to decline a proposal.
 UNDOABLE = {"mint", "link", "import", "copy", "move", "edit_in_place",
             "supersede", "reconcile", "restore", "migrate"}
 

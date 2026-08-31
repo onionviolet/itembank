@@ -165,10 +165,12 @@ PARITY_VOLATILE_KEYS = ("elapsed_ms", "entry_id", "interaction_id",
 # so sortedness is structural, following ADAPTER_CODES's construction.
 DIRECTOR_CODES = tuple(sorted({
     "director.already_recorded",
+    "director.acceptance_blocked",
     "director.autonomy_exceeded",
     "director.backend_unavailable",
     "director.bind_cap_exceeded",
     "director.evidence_forbidden",
+    "director.proposal_self_accept",
     "director.recommendation_invalid",
     "director.duplicate_coverage_claim",
     "director.duplicate_phase",
@@ -1607,4 +1609,91 @@ def apply_recommendation(base, course_root, record, source_object_id,
         # unable to tell "nothing was sent" from "nobody recorded".
         egress=egress_record("local", "local", profile_name, [], [], 0),
         message="the recommendation was bound")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# accepted revisions (15B-04, RELIABILITY-03 and ACTIVITY-02)
+# ---------------------------------------------------------------------------
+
+ACCEPT_RECORD_TYPE = "accept_revision"
+
+
+def accept_revision(base, course_root, migration_id, settings, reviewer_kind,
+                    reviewer_name, rationale, staleness_rows=(),
+                    dispositions=(), operation_id=""):
+    """Accept one recorded migration proposal, or refuse and record why.
+
+    Takes `settings` and reads the autonomy policy from them AT CALL TIME. It
+    takes no autonomy argument and reads none off the proposal, which is the
+    same discipline `authorize_write` was built with: a snapshot that
+    authorizes is a revoked permission that stays effective forever.
+
+    The three checks run in a fixed order, and the order carries meaning:
+
+    1. **Staleness first.** A dependent whose dependency changed is blocked
+       before the policy question is even asked, so a blocked acceptance never
+       reaches the authorization step.
+    2. **Authority second.** A policy-refused acceptance never reaches the
+       disk.
+    3. **The write last**, through `course.accept_migration` and therefore
+       through `journal.commit_operation`.
+
+    Reordering them would let an authorization failure mask a staleness failure
+    or the reverse, and the journal would then record the wrong reason for the
+    refusal, which is worse than recording none.
+
+    Every outcome is journaled, refusals included. A refusal that was not
+    recorded is indistinguishable from a revision nobody ever proposed.
+    """
+    import blueprint
+    import course
+
+    operation_id = operation_id or new_operation_id()
+
+    def _refuse(code, message, phase="review", index=2):
+        record_phase(base, operation_id, phase, index, "refused",
+                     actor_kind=reviewer_kind, actor_name=reviewer_name,
+                     proposal={"migration_id": migration_id},
+                     code=code, message=message)
+
+    # 1. Staleness, before anything else.
+    refusals = blueprint.acceptance_block(staleness_rows, dispositions)
+    if refusals:
+        message = "; ".join(r["message"] for r in refusals)
+        _refuse("director.acceptance_blocked", message)
+        raise DirectorError(
+            "director.acceptance_blocked",
+            "this acceptance is blocked by %d stale dependency check(s): %s; "
+            "next safe action: record a rebind, migrate, supersede, or retain "
+            "review for each, then accept again"
+            % (len(refusals), message))
+
+    # 2. Authority, read live.
+    #
+    # The DECLARED level is the write level, not whatever the policy happens
+    # to grant. Passing `autonomy_level(settings)` here would compare the
+    # policy against itself and could never refuse, which is a check that
+    # looks like a check and is not one. An acceptance writes, so it declares
+    # the level a write needs and the policy either grants it or does not.
+    try:
+        authorize_write(settings, AUTONOMY_LEVELS[-1], 1)
+    except DirectorError as exc:
+        _refuse(exc.code, exc.message)
+        raise
+
+    # 3. The write, through the one path.
+    try:
+        result = course.accept_migration(course_root, migration_id,
+                                         reviewer_kind, reviewer_name,
+                                         rationale)
+    except Exception as exc:
+        _refuse(getattr(exc, "code", "director.acceptance_blocked"),
+                getattr(exc, "message", str(exc)))
+        raise
+
+    record_phase(base, operation_id, "accept", 3, "applied",
+                 actor_kind=reviewer_kind, actor_name=reviewer_name,
+                 proposal={"migration_id": migration_id},
+                 message="the migration proposal was accepted")
     return result

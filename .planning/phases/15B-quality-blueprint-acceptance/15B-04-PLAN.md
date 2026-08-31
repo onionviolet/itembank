@@ -93,7 +93,8 @@ Decisions already made, cited, and never re-derived here:
   for every other path.
 - **14A-02-PLAN.md** "Artifacts this phase produces", for
   `journal.commit_operation`, `journal.RECORD_TYPES`,
-  `journal.OPERATION_TYPES` at exactly six, and the twenty-two-key entry tuple
+  `journal.OPERATION_TYPES` at exactly six, and the twenty-three-key entry
+  tuple frozen in `14A-FREEZE.md`
   that plan 15A-01 grew to twenty-three.
 - **15A-04-PLAN.md** `<behavior>` lines 378 to 400, for
   `director.autonomy_level(settings)`, `director.AUTONOMY_LEVELS`, and

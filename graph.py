@@ -143,8 +143,13 @@ MIGRATION_PROPOSED = "proposed"
 EVIDENCE_CLAIM_STATES = ("unknown", "present")
 
 
+# "Blueprint" is Phase 15B's one additive member (ACTIVITY-02's durable
+# blueprint object, D-15B-2 option-a). It sits before "Log", so no existing
+# member changes position and a sidecar carrying no ## Blueprint section
+# serializes byte-identically to what it did before. `14B-FREEZE.md` carries a
+# dated amendment recording the addition.
 SECTION_ORDER = ("Course", "Structure", "Objectives", "Sources", "Edges",
-                 "Bindings", "Migrations", "Log")
+                 "Bindings", "Migrations", "Blueprint", "Log")
 
 HEADER_FIELDS = ("graph_schema_version", "course_object_id", "title")
 
@@ -161,8 +166,23 @@ SECTION_COLUMNS = {
     "Bindings": ("binding_kind", "objective", "source_object_id",
                  "treatment_kind", "locator", "state", "confidence",
                  "rights_snapshot"),
+    # `reviewer` and `rationale_review` are Phase 15B's two additive columns
+    # (RELIABILITY-03). A row written before 15B carries them as empty
+    # strings, exactly as every other unfilled column reads, so a pre-15B
+    # sidecar round-trips unchanged. The review rationale is a SEPARATE column
+    # from the proposal's own `rationale`: the reason a change was proposed and
+    # the reason it was granted are two different statements, and one column
+    # would let the second overwrite the first.
     "Migrations": ("migration_id", "kind", "from", "to", "rationale",
-                   "state", "actor", "timestamp"),
+                   "state", "actor", "timestamp", "reviewer",
+                   "rationale_review"),
+    # One row per accepted blueprint version. The blueprint's own eight
+    # declared fields live in the document `blueprint.py` validates, not in
+    # these columns: the sidecar records WHICH blueprint is bound and where it
+    # came from, and duplicating its contents here would create a second copy
+    # that could disagree with the first.
+    "Blueprint": ("blueprint_id", "version", "construct", "citation",
+                  "document"),
     "Log": ("timestamp", "note"),
 }
 
@@ -174,8 +194,25 @@ SECTION_KEYS = {
     "Edges": "edges",
     "Bindings": "bindings",
     "Migrations": "migrations",
+    "Blueprint": "blueprint",
     "Log": "log",
 }
+
+# Sections emitted only when they carry rows. Every section added AFTER the
+# 14B freeze belongs here, because non-negotiable 4 requires a sidecar written
+# before the addition to serialize byte-identically afterwards, and a section
+# header emitted into a document that never had one is not byte-identical.
+#
+# The 14B sections are deliberately NOT optional: they emit their header and
+# column row even when empty, exactly as they did at the freeze, and changing
+# that would break the additivity guarantee in the other direction.
+#
+# One consequence, recorded rather than discovered later: a sidecar carrying an
+# EMPTY `## Blueprint` section round-trips without it. No data is lost, because
+# an empty section carries none, but the bytes differ. Emitting an empty
+# optional section would break the pre-15B additivity proof, and that proof is
+# the one non-negotiable 4 actually asks for.
+OPTIONAL_SECTIONS = ("Blueprint",)
 
 TITLE_LINE = "# Course graph"
 
@@ -401,10 +438,13 @@ def serialize_course(doc):
             out.append("| %s | %s |" % (field, value))
 
     for section in SECTION_ORDER[1:]:
+        rows = doc[SECTION_KEYS[section]]
+        if section in OPTIONAL_SECTIONS and not rows:
+            continue
         out.append("")
         out.append("## " + section)
         out.append("")
-        out.extend(_emit_table(section, doc[SECTION_KEYS[section]]))
+        out.extend(_emit_table(section, rows))
 
     for unknown in doc["unknown_sections"]:
         out.append("")
@@ -798,6 +838,47 @@ def add_binding(doc, binding_kind, objective, source_object_id,
     return record
 
 
+def add_blueprint(doc, blueprint):
+    """Record one accepted blueprint version in the sidecar.
+
+    The whole blueprint document is stored in the row's `document` column as
+    canonical JSON, and the four other columns are a human-readable projection
+    of it. The document is the record; the columns are for a person reading
+    the file in a diff, and nothing reads them back for a decision.
+
+    Refuses a document that fails `schemas/blueprint.schema.json`. A sidecar
+    row naming a blueprint that is not a blueprint would be a durable claim
+    with nothing behind it.
+    """
+    import json as _json
+
+    import blueprint as blueprint_module
+
+    try:
+        blueprint_module.validate_blueprint(blueprint)
+    except blueprint_module.BlueprintError as exc:
+        raise GraphError(
+            "graph.blueprint_invalid",
+            "the blueprint does not validate against the blueprint contract, "
+            "so it is not recorded: %s" % exc.message)
+
+    record = new_record("Blueprint", {
+        "blueprint_id": blueprint["blueprint_id"],
+        "version": str(blueprint["version"]),
+        "construct": (blueprint.get("construct") or {}).get("statement", ""),
+        "citation": (blueprint.get("citations") or [{}])[0].get("locator", ""),
+        "document": _json.dumps(blueprint, ensure_ascii=False, sort_keys=True,
+                                separators=(",", ":")),
+    })
+    doc.setdefault("blueprint", []).append(record)
+    return record
+
+
+def blueprints(doc):
+    """Every recorded blueprint row, in authored order."""
+    return list(doc.get("blueprint") or ())
+
+
 def validate_binding(record):
     """The effective reading of one binding row, as a NEW dict.
 
@@ -922,6 +1003,89 @@ def add_migration(doc, proposal):
     return record
 
 
+def _migration_row(doc, migration_id):
+    for record in doc.get("migrations") or ():
+        if record.get("migration_id") == migration_id:
+            return record
+    raise GraphError(
+        "graph.migration_unknown",
+        "%s is not a recorded migration proposal in this course graph"
+        % migration_id)
+
+
+def _settle_migration(doc, migration_id, state, reviewer, rationale):
+    """The one transition both acceptance paths go through.
+
+    Every refusal fires BEFORE any field is written, so a refused settlement
+    leaves the row byte-identical. That ordering is the whole reason this is
+    one function rather than two: two copies of five checks is two chances to
+    get the order wrong in one of them.
+    """
+    row = _migration_row(doc, migration_id)
+
+    if row.get("state") != "proposed":
+        raise GraphError(
+            "graph.migration_already_settled",
+            "migration %s is already %s; a settled proposal is settled in "
+            "either direction and is not settled again"
+            % (migration_id, row.get("state")))
+
+    # Exact ASCII, no case folding. An actor that could grant its own proposal
+    # by changing one letter's case would not be a check.
+    if reviewer == row.get("actor"):
+        raise GraphError(
+            "graph.migration_self_accept",
+            "%s proposed this migration, so it may not settle it; the actor "
+            "that proposed a revision is never the actor that grants it, and "
+            "no autonomy setting makes it so" % reviewer)
+
+    if not str(rationale or "").strip():
+        raise GraphError(
+            "graph.empty_rationale",
+            "a migration proposal needs a rationale a reviewer can evaluate; "
+            "an empty one records a decision nobody can review")
+
+    row["state"] = state
+    row["reviewer"] = reviewer
+    row["rationale_review"] = rationale
+    return doc
+
+
+def accept_migration(doc, migration_id, reviewer, rationale):
+    """Move one recorded proposal from proposed to accepted.
+
+    One of exactly two paths permitted to settle a migration; the 14B
+    `set_migration_state` refusal stays in place and still refuses, so the
+    number of ways to settle a proposal went from zero to two rather than
+    becoming unbounded.
+
+    Not idempotent, deliberately. Accepting an already-accepted proposal
+    raises, because an acceptance is an EVENT and not a desired state: a second
+    accept means two reviewers each believe they granted it, and quietly
+    succeeding would hide that.
+
+    Mutates and returns the doc, the convention `add_binding` and
+    `add_migration` already use in this module.
+    """
+    return _settle_migration(doc, migration_id, "accepted", reviewer,
+                             rationale)
+
+
+def reject_migration(doc, migration_id, reviewer, rationale):
+    """Move one recorded proposal from proposed to rejected.
+
+    The row is recorded as rejected rather than removed, so a later reader can
+    see that a revision was proposed and declined instead of finding no record
+    at all. A deleted proposal and a proposal that was never made look the
+    same, and they are not the same.
+
+    The self-accept refusal fires here too, so an agent cannot quietly withdraw
+    its own proposal through the reviewer path either.
+    """
+    return _settle_migration(doc, migration_id, "rejected", reviewer,
+                             rationale)
+
+
 def set_migration_state(doc, migration_id, state):
     """Refuse, by name, every attempt to settle a proposal in this phase.
 
@@ -932,9 +1096,10 @@ def set_migration_state(doc, migration_id, state):
     """
     raise GraphError(
         "graph.migration_state_not_settable",
-        "a migration state is set by a reviewer at acceptance time, and "
-        "Phase 14B implements no acceptance path; a proposal is recorded as "
-        "proposed and stays proposed")
+        "a migration state is set by a reviewer at acceptance time, through "
+        "graph.accept_migration or graph.reject_migration and through no "
+        "other path; this function refuses so a caller reaching for a way to "
+        "settle a proposal finds the two that exist rather than adding a third")
 
 
 def _require_objective(doc, objective_id):

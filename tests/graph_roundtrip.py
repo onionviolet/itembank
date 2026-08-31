@@ -319,6 +319,16 @@ EXPECTED_PUBLIC_API = [
     "add_migration", "migration_proposal", "set_migration_state",
     "split_objective", "rename_objective", "merge_objectives",
     "objective_evidence_state",
+    # 15B-02: the durable blueprint object (ACTIVITY-02, D-15B-2 option-a).
+    # This guard exists so the surface cannot grow WITHOUT a plan edit; the
+    # plan that authorizes these two is 15B-02, and `14B-FREEZE.md` carries the
+    # dated amendment for the SECTION_ORDER member they write into.
+    "add_blueprint", "blueprints",
+    # 15B-04: the two paths permitted to settle a migration proposal, closing
+    # the acceptance gap 14B deliberately left open and named 15B as owner of.
+    # `set_migration_state` stays and still refuses, so the count of ways to
+    # settle a proposal went from zero to two rather than becoming unbounded.
+    "accept_migration", "reject_migration",
 ]
 EXPECTED_PUBLIC_API = sorted(EXPECTED_PUBLIC_API)
 
@@ -1155,6 +1165,102 @@ def check_migration():
         fail("graph.py must not import evidence")
 
 
+
+def check_migration_acceptance():
+    """Phase 15B: exactly two paths may settle a proposal, and the 14B refusal
+    still refuses."""
+    cid = identity.new_object_id()
+    doc = graph.new_course("Acceptance", cid)
+    c1 = graph.add_container(doc, "module", "M1")
+    o1 = graph.add_objective(doc, "First objective", container=c1["id"])
+    o2 = graph.add_objective(doc, "Second objective", container=c1["id"])
+
+    first = graph.migration_proposal("rename", [o1["id"]], [o1["id"]],
+                                     "the published wording changed",
+                                     "agent:director")
+    second = graph.migration_proposal("split", [o2["id"]],
+                                      [o2["id"], o1["id"]],
+                                      "two separable skills", "agent:director")
+    graph.add_migration(doc, first)
+    graph.add_migration(doc, second)
+    mid, mid2 = first["migration_id"], second["migration_id"]
+
+    eq(graph.MIGRATION_STATES, ("proposed", "accepted", "rejected"),
+       "15B adds no fourth migration state")
+    eq(len(graph.MIGRATION_KINDS), 5, "the five migration kinds are unchanged")
+
+    # The 14B bypass still refuses, in the same run as the two new paths work.
+    raises(lambda: graph.set_migration_state(doc, mid, "accepted"),
+           graph.GraphError, "graph.migration_state_not_settable",
+           "the direct state setter still refuses")
+
+    before = graph.serialize_course(doc)
+
+    # Refusals fire before any field is written.
+    err = raises(lambda: graph.accept_migration(doc, "no-such-id", "weibao",
+                                                "r"),
+                 graph.GraphError, "graph.migration_unknown",
+                 "an unknown migration id")
+    if "no-such-id" not in err.message:
+        fail("the unknown-migration message does not name the id")
+    raises(lambda: graph.accept_migration(doc, mid, "agent:director", "r"),
+           graph.GraphError, "graph.migration_self_accept",
+           "the proposer accepting its own proposal")
+    raises(lambda: graph.reject_migration(doc, mid, "agent:director", "r"),
+           graph.GraphError, "graph.migration_self_accept",
+           "the proposer rejecting its own proposal")
+    raises(lambda: graph.accept_migration(doc, mid, "weibao", "   "),
+           graph.GraphError, "graph.empty_rationale",
+           "a whitespace-only rationale")
+    eq(graph.serialize_course(doc), before,
+       "every refusal leaves the document byte-identical")
+
+    # The happy transitions.
+    graph.accept_migration(doc, mid, "weibao", "reviewed against the new edition")
+    row = [r for r in doc["migrations"] if r["migration_id"] == mid][0]
+    eq(row["state"], "accepted", "an accepted proposal reads accepted")
+    eq(row["reviewer"], "weibao", "the reviewer is recorded")
+    eq(row["rationale_review"], "reviewed against the new edition",
+       "the review rationale is recorded")
+    eq(row["rationale"], "the published wording changed",
+       "the proposal's own rationale is not overwritten by the review's")
+    eq(row["actor"], "agent:director", "the proposer is unchanged")
+
+    other = [r for r in doc["migrations"] if r["migration_id"] == mid2][0]
+    eq(other["state"], "proposed",
+       "settling one proposal leaves the other proposed")
+
+    graph.reject_migration(doc, mid2, "weibao", "the split loses an edge")
+    other = [r for r in doc["migrations"] if r["migration_id"] == mid2][0]
+    eq(other["state"], "rejected", "a rejected proposal reads rejected")
+    if not any(r["migration_id"] == mid2 for r in doc["migrations"]):
+        fail("a rejected proposal was removed rather than recorded")
+
+    # A settled proposal is settled in either direction, and not idempotent.
+    settled = graph.serialize_course(doc)
+    raises(lambda: graph.accept_migration(doc, mid, "weibao", "again"),
+           graph.GraphError, "graph.migration_already_settled",
+           "accepting an already-accepted proposal")
+    raises(lambda: graph.reject_migration(doc, mid2, "weibao", "again"),
+           graph.GraphError, "graph.migration_already_settled",
+           "rejecting an already-rejected proposal")
+    raises(lambda: graph.accept_migration(doc, mid2, "weibao", "again"),
+           graph.GraphError, "graph.migration_already_settled",
+           "accepting an already-rejected proposal")
+    eq(graph.serialize_course(doc), settled,
+       "a refused re-settlement leaves the document byte-identical")
+
+    # The new fields round-trip.
+    eq(graph.parse_course(graph.serialize_course(doc)), doc,
+       "the reviewer and review rationale round-trip")
+
+    # A document with no migration section at all.
+    bare = graph.new_course("Bare", cid)
+    raises(lambda: graph.accept_migration(bare, "any", "weibao", "r"),
+           graph.GraphError, "graph.migration_unknown",
+           "a document with no migrations")
+
+
 def main():
     started = time.time()
     check_thin_slice()
@@ -1166,6 +1272,7 @@ def main():
     check_overlays()
     check_version_migration()
     check_migration()
+    check_migration_acceptance()
     elapsed = time.time() - started
     print("OK graph_roundtrip (%.2fs)" % elapsed)
 
