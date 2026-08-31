@@ -1,56 +1,47 @@
 # .continue-here
 
-**Status: Phase 16C is FROZEN. Phase 15A is unblocked and executable. Continue
-at 15A-01 Task 2.**
+**Status: Phase 15A is FROZEN. Phase 15B is unblocked and executable. Continue
+at 15B-01.**
 
-- Branch `main`, tree clean, 96 of 96 test files green (284 seconds, measured
+- Branch `main`, tree clean, 98 of 98 test files green (313 seconds, measured
   2026-08-30 on Darwin 27.0.0 arm64, Python 3.14.6).
-- Frozen: 14A, 14B, 14C, 16A, 16B, **16C**.
-- **The next executable work is Phase 15A**, six plans, building `director.py`.
-  `15A-PRECONDITION.md` records the passing check; `director.py` does not exist
-  yet. Start at 15A-01 Task 2.
+- Frozen: 14A, 14B, 14C, **15A**, 16A, 16B, 16C.
+- **The next executable work is Phase 15B**, seven plans. Its 15B-01
+  precondition halted until a `15A-FREEZE.md` existed; it now does.
 
-**What changed on 2026-08-30, and what it costs.**
+**What Weibao needs to look at, in order of consequence.**
 
-Weibao instructed an agent to bypass his review and proceed. Two stops closed,
-and they are not the same kind of thing:
+1. **Four consecutive phases have now closed their human-review leg with an
+   agent signature**: 16A and 16B under a 2026-08-28 standing delegation, then
+   16C and 15A under the 2026-08-30 instruction to proceed without him. That is
+   a pattern, not an exception, and it is worth deciding deliberately.
+2. **Phase 15A additionally had an agent make two one-way checkpoint
+   decisions**, D-15A-1 and D-15A-2, both recorded in `15A-DECISIONS.md` with
+   their reversal costs. D-15A-1 changed `schemas/model_adapter.schema.json`, a
+   published contract that Phase 15B and any external agent client will build
+   against. Reversing it after operations are journaled is a migration, not an
+   edit. Both took the plan's recommended default.
+3. **17A-04 still needs Weibao and is NOT waived.** It needs the LGPL
+   browser-driver supply-chain decision
+   (`.planning/DECISIONS-17A04-DRIVER-2026-08-25.md`) and an A11Y-01 review.
+   An agent never self-certifies accessibility; that rule is a project
+   non-negotiable rather than a plan-level gate, so it was not waived along
+   with the others.
 
-1. **16C's freeze leg was waived, not met.** `16C-REVIEW.md` carries
-   `accept-with-findings` and is signed "Claude, as an agent". Plan 16C-09's
-   prohibition against an agent signing its own contract is waived by the
-   learner who owns the gate. **Anything relying on `16C-FREEZE.md` should read
-   `16C-REVIEW.md`'s Provenance section first**; striking that section reopens
-   the leg. `16C-VALIDATION.md`'s human-review sign-off box is deliberately
-   unticked and its `16C-09-T2` row reads `waived`, not `green`.
-   **This is the third phase in a row to close this leg with an agent
-   signature** (16A and 16B did the same on a 2026-08-28 standing delegation).
-   Whether that is acceptable as a standing pattern is a live question for
-   Weibao, not a settled one.
+**Reading order for anything that builds on 15A:** `15A-FREEZE.md` first, and
+`15A-REVIEW.md`'s Provenance section before relying on the freeze. Striking
+that section reopens the review leg.
 
-2. **15A's halt was arithmetic and is fully resolved.** One stale number:
-   `journal.ENTRY_KEYS` landed at 23 keys ending in `rights`, and 15A was
-   planned from `14A-02-PLAN.md`, which lists 22 ending in `message`. The
-   freeze record wins, `rights` stays, every 15A number shifts by one, and the
-   two-line `journal.py` diff claim is untouched. Corrected in
-   `15A-01-PLAN.md`, `15A-05-PLAN.md`, and `15A-VALIDATION.md`, and the
-   `read_first` pointer now names `14A-FREEZE.md` instead of the plan text.
-
-**Still needing Weibao, and not agent-executable:**
-
-- **17A-04** needs the LGPL browser-driver supply-chain decision
-  (`.planning/DECISIONS-17A04-DRIVER-2026-08-25.md`) and an A11Y-01 review. An
-  agent never self-certifies accessibility, and that one is not waived.
-- **15B-01** halts until `15A-FREEZE.md` exists, which plan 15A-06 writes.
+**Open findings carried out of 15A**, all in `15A-FREEZE.md`'s open-items
+table: recommendation quality is untested by anything (the provider is a modulo
+rule, so the first run against a real model is an unproven step);
+`coverage_claims_for` cannot reach every coverage state because binding rows
+carry no assertion column; an untreated entry still displays a treatment kind;
+and `journal.undo` raises an untyped `FileNotFoundError` on a missing
+before-image, which 15A was forbidden from fixing.
 
 **Also open:** all of 17B, and the paced-lesson subphase whose decisions are
 recorded and whose plan is unwritten.
-
-**One process finding worth acting on.** Two findings in `16B-REVIEW.md` named
-Phase 16C as owner and 16C closed neither; they were caught only because 16C's
-review read 16B's. A finding whose owning phase freezes without closing it has
-no owner unless somebody reassigns it. Both are reassigned to 17A in
-`16C-FREEZE.md`'s findings table. 17A planning should read that table and
-`16B-REVIEW.md` together.
 
 Full detail is `.planning/STATE.md`; read its current-phase section, not the
 whole file.

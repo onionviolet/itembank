@@ -1117,7 +1117,9 @@ def recommend_treatments(base, course_root, objective_ids, settings,
         try:
             apply_recommendation(base, course_root, record, source_object_id,
                                  actor_kind, actor_name,
-                                 operation_id=result.get("operation_id") or "")
+                                 operation_id=result.get("operation_id") or "",
+                                 source_texts=source_texts_for(base,
+                                                               read["doc"]))
         except DirectorError as exc:
             if exc.code == "director.rights_not_granted":
                 entries.append({"objective_id": objective_id,
@@ -1506,8 +1508,17 @@ def recommend_once(base, course_root, objective_id, settings, profile_name,
 
 def apply_recommendation(base, course_root, record, source_object_id,
                          actor_kind, actor_name, operation_id="",
-                         profile_name="", backend_class="hosted"):
+                         profile_name="", backend_class="hosted",
+                         source_texts=None):
     """Bind an accepted recommendation, or refuse it against the live rights.
+
+    The coverage state written to the binding is computed by
+    `classify_coverage`, never copied from the record. The provider's own
+    `coverage.state` is a proposal and is kept as `proposed_state` on the
+    claim; adopting it would let a model certify its own coverage, which is
+    what AGENT-02 forbids and what 15A-03 decided against by name. Supplying
+    `source_texts` lets the locator actually resolve; omitting them means the
+    claim is unverifiable and can never reach `covered`.
 
     The rights read happens here and against the current registry, not against
     anything on `record`. That is why this function takes no rights argument:
@@ -1559,10 +1570,30 @@ def apply_recommendation(base, course_root, record, source_object_id,
             "right" % (right, source_object_id, state, right))
 
     coverage = record.get("coverage") or {}
+
+    # The state written to the binding is computed here, never adopted from
+    # the provider. A model asserting its own coverage is the self-certification
+    # AGENT-02 forbids, and 15A-03 recorded the decision in as many words: the
+    # provider's `coverage.state` is a proposal, and `classify_coverage` is
+    # what decides.
+    #
+    # Without the source text the locator cannot be resolved, so the claim is
+    # unverifiable, and TREAT-02 says an unverifiable claim reads as unknown
+    # rather than covered. Passing `source_texts` is what lets a caller earn a
+    # stronger state; not passing it can never earn `covered`, which is the
+    # conservative direction.
+    text = (source_texts or {}).get(source_object_id, "")
+    claim = coverage_claim(
+        [], record["objective_id"], source_object_id,
+        coverage.get("locator") or "", coverage.get("match_kind") or "none",
+        coverage.get("confidence") or "unknown", "", text,
+        proposed_state=coverage.get("state") or "")[0]
+    computed_state = classify_coverage([claim])
+
     result = course.bind_treatment(
         base, record["objective_id"], source_object_id, treatment_kind,
         locator=coverage.get("locator") or "",
-        state=coverage.get("state") or "unknown",
+        state=computed_state,
         confidence=coverage.get("confidence") or "unknown",
         actor_kind=actor_kind, actor_name=actor_name)
     record_phase(

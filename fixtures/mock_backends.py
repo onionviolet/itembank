@@ -36,6 +36,16 @@ def candidate_for(request):
 
     index = len(statement) % 11 if kinds else 0
     treatment_kind = kinds[index] if kinds else ""
+
+    # One deterministic per-subject branch. A blueprint objective's best
+    # treatment is reading the blueprint, so this provider recommends
+    # direct-reading for the blueprint course and the index rule for every
+    # other. Keyed on the objective statement rather than a course id, because
+    # course ids are minted per build and a fixture that keyed on one could
+    # never be deterministic across two builds.
+    if "Beacon" in statement and "direct-reading" in kinds:
+        treatment_kind = "direct-reading"
+        index = kinds.index("direct-reading")
     alternatives = [
         {"treatment_kind": kinds[(index + n) % len(kinds)],
          "confidence": "low"}

@@ -157,3 +157,52 @@ standalone egress file it can hand to someone without handing over the whole
 operation journal. That is option-c's real use case and it is a rights and
 disclosure question, not an architecture one, so it belongs to Weibao whenever
 it arises.
+
+## D-15A-3. The Phase 15A freeze scope
+
+**Decided 2026-08-30, at the phase's own freeze gate**, and recorded here so a
+later phase reading only this file gets the same answer `15A-FREEZE.md` gives.
+
+**What the 15A freeze covers.** The recommendation, coverage, egress, autonomy,
+and protocol surfaces this phase built. Concretely: `director.py`'s sixteen
+closed vocabularies and its fifteen typed codes; its numeric constants
+`MAX_EGRESS_SPANS` 8, `MAX_EGRESS_BYTES` 16384 and `THIN_SPAN_CHARS` 240; its
+twenty-eight public functions at their landed signatures;
+`schemas/treatment_recommendation.schema.json` at version 1 with `synthesis` as
+a `const true`; the fourth `model_adapter` operation `treatment_recommend` and
+its seventh payload key `recommendation_request`; the two `journal.py`
+additions, `agent_operation` in `RECORD_TYPES` and `agent` as the
+twenty-fourth `ENTRY_KEYS` member; and the `settings.agent_policy` block whose
+two defaults grant nothing.
+
+Three behaviors are frozen because they are the phase's substance rather than
+its shape: `replay_operation` takes exactly a root and an operation id, so a
+passing replay proves the journal is the durable job record;
+`apply_recommendation` takes no rights argument and computes its coverage state
+locally rather than adopting the provider's; and `authorize_write` returns
+`None` on success, so there is no value a caller could mistake for a grant.
+
+**What it explicitly does not cover.** **It is not the course schema freeze**,
+which is Phase 14B's, and 14B's own record says it is not that freeze either.
+It is not a lesson-profile freeze. It is not an agent job protocol freeze: the
+thirteen steps are frozen as a vocabulary, and how a long-running job is
+scheduled, retried, or surfaced is unowned here. It is not a learner-facing
+surface freeze, which is why the `preview` protocol step records
+`not-applicable` and why an agent never self-certifies accessibility. The mock
+profiles and the four synthetic subjects are test data and are not frozen.
+
+**Provenance.** The freeze's review leg closed on `15A-REVIEW.md`, verdict
+`accept with concerns recorded`, written by Claude under Weibao's instruction
+of 2026-08-30 to finish Phase 15A without him and labelled there as an agent
+judgment rather than his signature. Plan 15A-06 Task 2's requirement that a
+human sign the recommendation review is waived, not met, and it is the heaviest
+of the four consecutive review waivers because it judges a course-design call
+rather than shipped copy. Anything relying on this scope should read that
+file's Provenance section first.
+
+**Reconsideration condition.** Reopened by any change to a frozen vocabulary's
+membership, to the recommendation schema's required set or its `synthesis`
+constant, to the adapter's operation enum, to `journal.ENTRY_KEYS`, or to the
+`agent_policy` defaults. Adding a treatment kind reopens it through
+`graph.TREATMENT_KINDS`, which is 14B's to change. Changing a mock profile or a
+fixture subject does not reopen it.

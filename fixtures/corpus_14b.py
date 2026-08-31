@@ -1058,6 +1058,177 @@ def build_interrupted_operation(dest, kill_after_phase, root=None):
             "returncode": completed.returncode, "stderr": completed.stderr}
 
 
+
+# The fourth synthetic subject: a standardized-exam blueprint stand-in. Its
+# only relationship to any real exam is its SHAPE, a blueprint with weighted
+# domains. Every string is invented. A blueprint objective whose best treatment
+# is reading the blueprint itself is the clearest case where generating a
+# lesson would be the wrong answer, which is why this subject carries the
+# direct-reading binding the freeze gate asks for.
+BEACON_DOMAIN = {
+    "slug": "beacon-standards-blueprint",
+    "title": "Beacon Standards Blueprint",
+    "label": "domain",
+    "objectives": (
+        "Read the Beacon blueprint domain weights as published.",
+        "Convert a domain weight into an item count for a fixed form.",
+        "Identify which Beacon domain an unclassified item belongs to.",
+    ),
+    "source_title": "Beacon standards blueprint, published weights",
+    # read granted, transform unknown: the blueprint may be read and cited,
+    # and generating a lesson from it is not authorized. That is what makes
+    # direct-reading the only treatment its rights permit.
+    "source_rights": {"read": "granted"},
+}
+
+BEACON_SOURCE_BODY = (
+    "# Beacon standards blueprint, published weights\n\n"
+    "## Read the Beacon blueprint domain weights as published.\n\n"
+    "Domain one carries thirty percent of a fixed form, domain two carries\n"
+    "forty five percent, and domain three carries the remainder. These\n"
+    "weights are fictional and describe no real examination.\n\n"
+    "## Converting a weight to an item count\n\n"
+    "Multiply the domain weight by the fixed form length and round to the\n"
+    "nearest whole item. A fixed form of sixty items therefore carries\n"
+    "eighteen items in domain one.\n"
+)
+
+
+def build_four_subjects(dest):
+    """The three 14B domains plus the blueprint stand-in, in one call.
+
+    Extends the existing generator rather than adding a second fixture module,
+    which is the additive path 15A-RESEARCH Assumption A4 names. The three
+    existing domains keep their content byte for byte, so every 14B test that
+    reads them is unaffected.
+    """
+    import course
+    import graph
+    import identity
+    import journal
+
+    built = build_three_domains(dest)
+    root = os.path.join(dest, BEACON_DOMAIN["slug"])
+    os.makedirs(os.path.join(root, "sources"), exist_ok=True)
+
+    rel = "sources/%s.md" % BEACON_DOMAIN["slug"]
+    with open(os.path.join(root, rel), "w", encoding="utf-8") as fh:
+        fh.write(BEACON_SOURCE_BODY)
+    rights = identity.rights_default()
+    rights.update(BEACON_DOMAIN["source_rights"])
+    entry = journal.op_link(root, "source", rel, "agent", "corpus-15a",
+                            rights=rights)
+    source_object_id = entry["object_id"]
+
+    course.create_course(root, BEACON_DOMAIN["title"], "agent", "corpus-15a")
+    read = course.read_course(root)
+    doc = read["doc"]
+    container = graph.add_container(doc, BEACON_DOMAIN["label"],
+                                    "Published Weights")
+    objective_ids = [
+        graph.add_objective(doc, statement, container=container["id"])["id"]
+        for statement in BEACON_DOMAIN["objectives"]]
+    doc["sources"].append(graph.new_record("Sources", {
+        "source_object_id": source_object_id,
+        "title": BEACON_DOMAIN["source_title"],
+        "note": "rights are recorded on the source object, never here"}))
+    course.write_course(root, doc, read["fingerprint"], "agent", "corpus-15a")
+
+    # The first objective's locator is a passage that occurs verbatim in the
+    # source, so it can resolve. The third objective's locator is its own
+    # statement reproduced as a heading, which is the heading-similarity decoy:
+    # a similarity matcher would call it a perfect match, and it must still
+    # classify unknown.
+    for objective_id, locator in (
+            (objective_ids[0],
+             "Domain one carries thirty percent of a fixed form, domain two "
+             "carries"),
+            (objective_ids[1],
+             "Multiply the domain weight by the fixed form length and round "
+             "to the"),
+            (objective_ids[2], BEACON_DOMAIN["objectives"][2])):
+        course.bind_source(root, objective_id, source_object_id,
+                           locator=locator, state="unknown",
+                           confidence="high", actor_kind="agent",
+                           actor_name="corpus-15a")
+
+    beacon = {"slug": BEACON_DOMAIN["slug"], "root": root,
+              "title": BEACON_DOMAIN["title"], "label": BEACON_DOMAIN["label"],
+              "objectives": objective_ids,
+              "source_object_id": source_object_id, "source_rel": rel,
+              "source_text": BEACON_SOURCE_BODY,
+              "decoy_objective_id": objective_ids[2]}
+    return {"dest": dest, "domains": list(built["domains"]) + [beacon],
+            "beacon": beacon, "built": built["built"] + 1,
+            "declared": built["declared"] + 1}
+
+
+def build_all_15a(dest):
+    """The whole Phase 15A freeze-gate corpus in one call.
+
+    The tracer sets up in one statement so that what it proves is the
+    recommendation surface, not a page of fixture wiring.
+
+    Two rights states are deliberate and are the cause of two named outcomes:
+    the blueprint source grants `read` and not `transform`, so direct reading
+    is the only treatment its rights permit; and the lantern source is stripped
+    to all-unknown, so its objective is left untreated by a real policy state
+    rather than by the fixture declining to call a backend.
+    """
+    import course
+    import graph
+    import identity
+    import journal
+
+    built = build_four_subjects(dest)
+    domains = {d["slug"]: d for d in built["domains"]}
+    beacon = domains["beacon-standards-blueprint"]
+    lantern = domains["lantern-computing"]
+
+    # Every domain needs at least one bound source for a recommendation to
+    # have spans to reason over. build_three_domains records sources but no
+    # ## Bindings rows.
+    source_texts = {beacon["source_object_id"]: beacon["source_text"]}
+    for slug in ("meridian-field-response", "orrery-algebra",
+                 "lantern-computing"):
+        domain = domains[slug]
+        root = domain["root"]
+        body = SOURCE_BODY % domain["title"]
+        source_texts[domain["source_object_id"]] = body
+        grant_right(root, domain["source_object_id"], "read")
+        grant_right(root, domain["source_object_id"], "transform")
+        for objective_id in domain["objectives"][:3]:
+            course.bind_source(root, objective_id, domain["source_object_id"],
+                               locator=body.split("\n")[2][:80],
+                               state="unknown", confidence="high",
+                               actor_kind="agent", actor_name="corpus-15a")
+
+    # The untreated objective: strip its source back to all-unknown AFTER the
+    # bindings exist, so the row is there and the right is not. That is a real
+    # revocation, which is what a course looks like when a licence lapses.
+    untreated_objective_id = lantern["objectives"][2]
+    for operation in identity.RIGHTS_OPERATIONS:
+        _set_right(lantern["root"], lantern["source_object_id"], operation,
+                   "unknown")
+
+    return {
+        "dest": dest,
+        "domains": built["domains"],
+        "roots": {d["slug"]: d["root"] for d in built["domains"]},
+        "objectives": {d["slug"]: list(d["objectives"])
+                       for d in built["domains"]},
+        "source_object_ids": {d["slug"]: d["source_object_id"]
+                              for d in built["domains"]},
+        "source_texts": source_texts,
+        "beacon_root": beacon["root"],
+        "direct_reading_objective_id": beacon["objectives"][0],
+        "decoy_objective_id": beacon["decoy_objective_id"],
+        "lantern_root": lantern["root"],
+        "untreated_objective_id": untreated_objective_id,
+        "built": built["built"],
+        "declared": built["declared"],
+    }
+
 if __name__ == "__main__":
     import sys
 
