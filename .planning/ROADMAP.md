@@ -1257,6 +1257,27 @@ token freeze (17A), not an information architecture or navigation freeze
 (16B), not a semantic lesson capability freeze (16A), and not a course schema
 freeze (14B), and its freeze record says so.
 
+### Phase 16D: Paced Lesson Projection & Checkpoints (added 2026-08-31)
+
+Inserted after 16C and before 17A/17B per the decision packet
+`.planning/DECISIONS-PACED-LESSON-2026-08-28.md` section 3: the treatment is a
+lesson-renderer presentation plus a feedback-disclosure tier, belongs to no
+existing subphase, and depends only on 16A, 16B (both frozen) and the shipped
+Phase 6 / 6.2 machinery. Binding decisions D-PACED-1/2/3 are transcribed as
+D-16D-1 through D-16D-7 in
+`.planning/phases/16D-paced-lesson/16D-CONTEXT.md`; the experience contract is
+`16D-UI-SPEC.md`. Four plans: 01 the authored `[STEP: id]` marker, the
+`[LESSON-PACE:]` knob, and the ladder resolver in `model.py`; 02 the
+lesson-run session kind, the additive `lesson_run` context and `paced` mode
+labels, the default denominator exclusion, and the three-tier
+wrong-checkpoint disclosure inside the runtime; 03 the paced view over the
+existing lesson mode seam and gate bands; 04 the end-to-end tracer plus
+Weibao's sat-through review as the freeze gate. Refusals carried forward: no
+timed lock ever (IL-20260828-02), gates on attempted never correct
+(IL-20260828-03), position is presentation state and never progress.
+Executed: 01, 02, 03 on 2026-08-31 (summaries in the phase directory);
+04's tracer runs the same day and its Task 2 review is Weibao's.
+
 ### Phase 17A: Visual System & Component Foundation
 
 **Goal**: Freeze the learner-facing visual foundation on served bytes: one

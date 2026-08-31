@@ -4,19 +4,53 @@ milestone: v1.0
 milestone_name: milestone
 current_phase_name: 17B-production-vertical-tracer
 status: "Phase 15B is FROZEN (2026-08-30). All seven plans executed. `blueprint.py` ships ACTIVITY-02's five-gate architecture, RELIABILITY-03's staleness discipline, the cited course audit that mints no fourth coverage vocabulary, and AGENT-03's proposal record. `graph.accept_migration` and `graph.reject_migration` close the acceptance gap 14B left open and named 15B as owner of. `15B-FREEZE.md` opens `## Frozen at 15B` and all three legs hold: the acceptance tracer 7 passed 0 skipped 0 failed, the review accept-with-concerns, and Phase 13.9 walked. Full suite 100 files, 884 seconds, 0 failures; guard 0 offending files. FIVE consecutive phases (16A, 16B, 16C, 15A, 15B) have closed their review leg with an AGENT signature, and 15A plus 15B added six one-way agent-made decisions between them, one of which amended `14B-FREEZE.md`. Frozen: 14A, 14B, 14C, 15A, 15B, 16A, 16B, 16C. Open: 17A-04 Task 2 only (Task 1 executed 2026-08-31; the human A11Y-01 review and freeze decision remain), all of 17B, 17C, 18, and the paced-lesson subphase whose plan is unwritten."
-stopped_at: "17A-04 Task 1 is executed (2026-08-31): the pinned Playwright harness, the 13-gate layout matrix all green, the hover-only negative failing as required, five layout defects found and fixed, supply-chain rows recorded. The previous claim that Task 1 waited on the LGPL supply-chain decision was stale; Weibao answered it 2026-08-27 (D-17A-04-1). What still needs Weibao and cannot be agent-executed: 17A-04 Task 2, the scripted human A11Y-01 review in 17A-QA.md and the 17A-FREEZE.md decision. That review was deliberately never waived, and the standing five-phase agent-signature question makes it exactly the wrong one to sign as the sixth. 17B-01 halts on 17A-FREEZE.md by design, so this one review gates the milestone exit tracer. Also still open: the 17B/17C/18 execution chain behind it, and the paced-lesson subphase whose plan is unwritten."
+stopped_at: "Two human gates, everything else done or correctly halted. (1) 17A-04 Task 2: the scripted A11Y-01 review in 17A-QA.md and the 17A-FREEZE.md decision; Task 1 executed 2026-08-31 (the pinned Playwright harness, 13 layout gates green, the hover-only negative failing as required, five layout defects found and fixed). (2) 16D-04 Task 2: the sat-through paced-lesson review and 16D-FREEZE.md; Phase 16D was planned AND executed 2026-08-31 (plans 01-03 plus the 8-scenario tracer, all green). The packet for both reviews and the standing five-phase agent-signature question is NEXT-2026-08-31.md. Behind the 17A freeze: the 17B/17C/18 chain. 18-01 additionally waits on Weibao's Windows machine (build_shell.ps1) and his signing-cost checkpoint."
 last_updated: "2026-08-31T00:00:00.000Z"
 last_activity: 2026-08-31
 last_activity_desc: "Executed 16C-01 through 16C-09 Task 1. Five new root modules (notes, strategies, progress_claims, note_outputs, upgrade_audit), one published schema, two additive evidence event types proven additive against pre-change baselines, eight new test suites, and the legacy-upgrade skill un-stubbed. Four defects were found by running rather than by reading: the two new event types failed the project's own published event schema and would have shipped into an append-only log; the .agents and .claude skill mirrors had been divergent since 13.9 and 14C-06 so CI's mirror step was red on main; a TERMS header row parsed as a glossary entry; and two records still called legacy-upgrade a stub after it shipped. One pre-existing red test, selection_retention_roundtrip, was bisected to its own introducing commit and recorded rather than absorbed. On 2026-08-30 that test was diagnosed and made green: its CLI leg dated a fixture near a fixed CUTOFF but is captured against the wall clock, so the weak and mastered objectives decayed to an equal weight of 1.0 and Phase 7 ordering settled the sitting. The leg now re-dates its fixture by one identical offset and asserts the invariant rather than a date; no runtime file changed. Also on 2026-08-30: tests/file_fault_tracer.py no longer rewrites 14A-TRACER-REPORT.md on every run, which had made a durable phase record derived and had already cost three commits; it now compares everything that carries meaning and writes only under --write, and a new CI step asserts the suite leaves the working tree clean, verified by a full 96-file run that left git status empty. That open finding is now closed and was not one bug but three. Reproduced at twelve concurrent requests under load, 20 rounds of 20 failing: runtime.write_session used a shared <target>.tmp, so the first os.replace consumed the temp file and the second raised FileNotFoundError, which reached the learner as the 400; _ensure_quiz_session checked and created outside any lock, so six concurrent first hits left six sittings for one bank and kept whichever finished last; and Daemon inherited the stdlib listen backlog of 5, measured as ConnectionResetError past twelve connections and not at six. All three fixed, 0 of 20 rounds failing after, with one session where there were six. Also closed: fake_hosted_unused.py, a test artifact committed as source in 46f0f50 because hosted_profile("") wrote its fake script into the process cwd; the root .continue-here, which had pointed for months at a Phase 09 branch, worktree, and main tip that no longer exist; and two orphaned test processes from 2026-08-28, one of them a fake AnkiConnect squatting on 127.0.0.1:8765, the real AnkiConnect port, so day's Anki lane on this machine had been answering to a stub. The GSD client install under .codex/ is gitignored as tool state, like reasonix.toml."
 progress:
-  total_phases: 28
+  total_phases: 29
   completed_phases: 22
-  total_plans: 175
-  completed_plans: 152
+  total_plans: 179
+  completed_plans: 155
 current_phase: 17B
 ---
 
 # Project State
+
+## 2026-08-31 (third entry): Phase 16D is executed to its human gate
+
+Planned in the second entry below, executed the same day. Plans 16D-01
+through 16D-03 shipped the pacing ladder (`[STEP: id]` wins, else
+`[LESSON-PACE: h3]`, else the whole document, byte-identical to before),
+the lesson-run session kind with the additive `lesson_run` context and
+`paced` mode labels (40 pre-change baseline events still validate), the
+default AGENT-03 denominator exclusion, the runtime-released three-tier
+wrong-checkpoint disclosure, and the paced view as `lesson_page`'s third
+mode over the shipped 6.2 gate bands: jump-only Steps list, a pager that
+gates on attempted never correct, honest fallback on a deleted resume id,
+and a chrome-free static build. 16D-04's tracer composes it end to end:
+8 scenarios green in about 3 seconds, including the resume-across-edit
+identity proof, the exam-silence contrast, and the reconsideration probes
+(tier 1 leaves 3 of 4 mc options unresolved, so the ladder does not
+trivialise a retry). The tracer and the 16D-03 summary were written by
+lesser-model subagent executors against the plans and verified by the
+orchestrating session, which is the PLANNING-DIRECTIVES section 5 split
+running inside one session.
+
+Two guards earned their keep in passing: the no-second-selection-mechanism
+guard greps the lesson route handler for "ref=" and caught it inside
+"tier_show_href=" (renamed tier_show_url), and the lesson lint-code count
+assertion caught the three new pacing codes before their SPEC rows would
+have been forgotten.
+
+What remains of 16D: Task 2 of 16D-04 only, Weibao's sat-through review
+and the freeze or withholding in `16D-FREEZE.md`. Two human gates now
+stand between the tree and the 17B exit runway: the 17A-04 A11Y-01 review
+and this one, and both are listed in `NEXT-2026-08-31.md`.
+
+Measured: paced tracer 8 of 8 scenarios, about 3 seconds. Full suite 104
+files, 0 failures, working tree clean after. Guard 0 offending files.
 
 ## 2026-08-31 (second entry): the paced-lesson subphase is planned as 16D
 

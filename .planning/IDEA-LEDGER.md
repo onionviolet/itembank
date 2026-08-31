@@ -1185,6 +1185,17 @@ Amendments to an existing entry are additive notes under the entry, dated.
   store inside a distinct lesson-run session, labelled so it never reaches a
   blueprint denominator by default; and a wrong checkpoint rules out and
   confirms in tiers the runtime releases, with the key held to tier 3.
+- **Note 2026-08-31, implemented as Phase 16D.** The revisit trigger fired
+  (the first phase touching the lesson renderer) and the registration is
+  built: plans 16D-01 through 16D-03 executed 2026-08-31
+  (`.planning/phases/16D-paced-lesson/`), with `[STEP: <id>]` and
+  `[LESSON-PACE:]` as the authored surface, the lesson-run session kind and
+  the `lesson_run` context label in the one store, the runtime-released
+  tier ladder, and the paced view over the existing lesson mode seam and
+  6.2 gate bands. IL-20260828-02's refusal held (no timer anywhere) and
+  IL-20260828-03's constraint held (the pager gates on attempted, never
+  correct; the TOC never gates). The freeze waits on the 16D-04 tracer and
+  Weibao's sat-through review.
 
 ### IL-20260828-02: The timed slide lock
 
