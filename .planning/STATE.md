@@ -18,6 +18,23 @@ current_phase: 17B
 
 # Project State
 
+## 2026-08-31 (second entry): the paced-lesson subphase is planned as 16D
+
+The one piece of milestone work that waited on no one is no longer
+unwritten. Phase 16D (Paced Lesson Projection & Checkpoints) is planned:
+`16D-CONTEXT.md` binds D-PACED-1/2/3 and the ledger refusals, `16D-UI-SPEC.md`
+is the experience contract, and plans 16D-01 through 16D-04 are written to
+the executor bar. The marker syntax D-PACED-1 left open is resolved as
+`[STEP: <id>]` plus `[LESSON-PACE:]` (D-16D-2, following the bracket-line
+convention). Three discoveries made planning cheap: `context` already exists
+on response events (quiz, lesson_gate) so the denominator label is one
+additive enum value; `lesson_page` already carries a mode seam
+(continuous, guided) so paced is a third value, not a fourth surface; and
+FEEDBACK_POLICIES already implements own-picks selection feedback, so tier 1
+is a policy application, not new scoring. 16D-01 through 16D-03 are
+agent-executable now; 16D-04 Task 2 is Weibao's sat-through review.
+ROADMAP.md carries the 16D entry between 16C and 17A.
+
 ## 2026-08-31: 17A-04 Task 1 executed; the freeze now waits on exactly one human review
 
 The stale claim first: this file's previous stopped_at said 17A-04 needed
