@@ -292,6 +292,54 @@ def check_served_page():
     ok("served page: asVisual + commit boundary + SVG + status region, no canvas")
 
 
+# ---- 4. the driven-browser layout matrix (17A-04 Task 1, D-09) --------------
+
+def check_driven_browser_matrix():
+    """Run tools/visual_qa.py when the pinned dev-only Playwright harness is
+    installed: every positive gate (widths, 200 percent zoom reflow, keyboard
+    order with visible focus, 44px targets, light/dark/oled contrast, reduced
+    motion, touch disclosure, static fallback) must pass, and the deliberately
+    hover-only fixture must FAIL equivalence review, because an audit that
+    cannot fail on the one rejected pattern proves nothing (A11Y-01;
+    synthesis 12.4). Where the harness is absent (CI today) this is an
+    honest, printed skip, never a silent pass: jsdom does no layout, and the
+    matrix falls back to the scripted human QA pass. This automated evidence
+    is input to the human A11Y-01 review, not a substitute for it."""
+    r = subprocess.run(
+        [sys.executable, os.path.join(ROOT, "tools", "visual_qa.py"),
+         "--json", "-"],
+        capture_output=True, text=True, encoding="utf-8", timeout=600)
+    if r.returncode == 3:
+        ok("driven-browser matrix SKIPPED: Playwright is not installed; "
+           "layout gates fall back to the scripted human QA pass")
+        return
+    if r.returncode != 0:
+        fail("visual_qa.py reported an unexpected matrix:\n"
+             + (r.stdout + r.stderr)[-2000:])
+    start = r.stdout.find("{\n")
+    if start < 0:
+        fail("visual_qa.py --json - produced no JSON evidence")
+    evidence = json.JSONDecoder().raw_decode(r.stdout[start:])[0]
+    if not evidence.get("matrix_as_expected"):
+        fail("visual_qa evidence does not claim matrix_as_expected")
+    rows = {row["gate"]: row for row in evidence["results"]}
+    negative = rows.get("hover-only-negative")
+    if negative is None or negative["state"] != "fail":
+        fail("the deliberately hover-only fixture did not fail "
+             "equivalence review")
+    reason = (negative.get("detail") or {}).get("reason", "")
+    if "equivalen" not in reason:
+        fail("the hover-only failure does not name equivalence as the "
+             "reason: %r" % reason)
+    positives = [g for g in rows if g != "hover-only-negative"]
+    bad = [g for g in positives if rows[g]["state"] != "pass"]
+    if bad:
+        fail("positive visual_qa gates not green: %s" % ", ".join(bad))
+    ok("driven-browser matrix: %d positive gates green in a real layout "
+       "engine; the hover-only negative failed for the equivalence reason"
+       % len(positives))
+
+
 def main():
     check_single_serializer()
     check_commit_boundary()
@@ -302,6 +350,7 @@ def main():
     check_offline_build_page()
     check_served_page()
     check_draft_is_served_only_and_presentation_only()
+    check_driven_browser_matrix()
     print("PASS visual_accessibility_roundtrip.py")
     return 0
 

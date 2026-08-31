@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase_name: 17B-production-vertical-tracer
-status: "Phase 15B is FROZEN (2026-08-30). All seven plans executed. `blueprint.py` ships ACTIVITY-02's five-gate architecture, RELIABILITY-03's staleness discipline, the cited course audit that mints no fourth coverage vocabulary, and AGENT-03's proposal record. `graph.accept_migration` and `graph.reject_migration` close the acceptance gap 14B left open and named 15B as owner of. `15B-FREEZE.md` opens `## Frozen at 15B` and all three legs hold: the acceptance tracer 7 passed 0 skipped 0 failed, the review accept-with-concerns, and Phase 13.9 walked. Full suite 100 files, 884 seconds, 0 failures; guard 0 offending files. FIVE consecutive phases (16A, 16B, 16C, 15A, 15B) have closed their review leg with an AGENT signature, and 15A plus 15B added six one-way agent-made decisions between them, one of which amended `14B-FREEZE.md`. Frozen: 14A, 14B, 14C, 15A, 15B, 16A, 16B, 16C. Open: 17A-04, all of 17B, 17C, 18, and the paced-lesson subphase whose plan is unwritten."
-stopped_at: "Phase 15B is closed and the 15A/15B chain is complete. What still needs Weibao and cannot be agent-executed: 17A-04 Task 1, which needs the LGPL browser-driver supply-chain decision and an A11Y-01 review (an agent never self-certifies accessibility, and that one was NOT waived). The standing question, now five phases old: 16A, 16B, 16C, 15A and 15B have all closed their human-review leg with an agent signature, and 15A plus 15B additionally had an agent answer six one-way design questions their plans reserved for Weibao, one of which changed a published schema and one of which amended another phase's frozen record. Every waiver is recorded with its reversal cost in the phase DECISIONS files, but the pattern deserves one decision rather than five inherited defaults. Next executable phase work: 17B, 17C, or 18; 17A-04 blocks the rest of 17A."
-last_updated: "2026-08-30T00:00:00.000Z"
-last_activity: 2026-08-30
+status: "Phase 15B is FROZEN (2026-08-30). All seven plans executed. `blueprint.py` ships ACTIVITY-02's five-gate architecture, RELIABILITY-03's staleness discipline, the cited course audit that mints no fourth coverage vocabulary, and AGENT-03's proposal record. `graph.accept_migration` and `graph.reject_migration` close the acceptance gap 14B left open and named 15B as owner of. `15B-FREEZE.md` opens `## Frozen at 15B` and all three legs hold: the acceptance tracer 7 passed 0 skipped 0 failed, the review accept-with-concerns, and Phase 13.9 walked. Full suite 100 files, 884 seconds, 0 failures; guard 0 offending files. FIVE consecutive phases (16A, 16B, 16C, 15A, 15B) have closed their review leg with an AGENT signature, and 15A plus 15B added six one-way agent-made decisions between them, one of which amended `14B-FREEZE.md`. Frozen: 14A, 14B, 14C, 15A, 15B, 16A, 16B, 16C. Open: 17A-04 Task 2 only (Task 1 executed 2026-08-31; the human A11Y-01 review and freeze decision remain), all of 17B, 17C, 18, and the paced-lesson subphase whose plan is unwritten."
+stopped_at: "17A-04 Task 1 is executed (2026-08-31): the pinned Playwright harness, the 13-gate layout matrix all green, the hover-only negative failing as required, five layout defects found and fixed, supply-chain rows recorded. The previous claim that Task 1 waited on the LGPL supply-chain decision was stale; Weibao answered it 2026-08-27 (D-17A-04-1). What still needs Weibao and cannot be agent-executed: 17A-04 Task 2, the scripted human A11Y-01 review in 17A-QA.md and the 17A-FREEZE.md decision. That review was deliberately never waived, and the standing five-phase agent-signature question makes it exactly the wrong one to sign as the sixth. 17B-01 halts on 17A-FREEZE.md by design, so this one review gates the milestone exit tracer. Also still open: the 17B/17C/18 execution chain behind it, and the paced-lesson subphase whose plan is unwritten."
+last_updated: "2026-08-31T00:00:00.000Z"
+last_activity: 2026-08-31
 last_activity_desc: "Executed 16C-01 through 16C-09 Task 1. Five new root modules (notes, strategies, progress_claims, note_outputs, upgrade_audit), one published schema, two additive evidence event types proven additive against pre-change baselines, eight new test suites, and the legacy-upgrade skill un-stubbed. Four defects were found by running rather than by reading: the two new event types failed the project's own published event schema and would have shipped into an append-only log; the .agents and .claude skill mirrors had been divergent since 13.9 and 14C-06 so CI's mirror step was red on main; a TERMS header row parsed as a glossary entry; and two records still called legacy-upgrade a stub after it shipped. One pre-existing red test, selection_retention_roundtrip, was bisected to its own introducing commit and recorded rather than absorbed. On 2026-08-30 that test was diagnosed and made green: its CLI leg dated a fixture near a fixed CUTOFF but is captured against the wall clock, so the weak and mastered objectives decayed to an equal weight of 1.0 and Phase 7 ordering settled the sitting. The leg now re-dates its fixture by one identical offset and asserts the invariant rather than a date; no runtime file changed. Also on 2026-08-30: tests/file_fault_tracer.py no longer rewrites 14A-TRACER-REPORT.md on every run, which had made a durable phase record derived and had already cost three commits; it now compares everything that carries meaning and writes only under --write, and a new CI step asserts the suite leaves the working tree clean, verified by a full 96-file run that left git status empty. That open finding is now closed and was not one bug but three. Reproduced at twelve concurrent requests under load, 20 rounds of 20 failing: runtime.write_session used a shared <target>.tmp, so the first os.replace consumed the temp file and the second raised FileNotFoundError, which reached the learner as the 400; _ensure_quiz_session checked and created outside any lock, so six concurrent first hits left six sittings for one bank and kept whichever finished last; and Daemon inherited the stdlib listen backlog of 5, measured as ConnectionResetError past twelve connections and not at six. All three fixed, 0 of 20 rounds failing after, with one session where there were six. Also closed: fake_hosted_unused.py, a test artifact committed as source in 46f0f50 because hosted_profile("") wrote its fake script into the process cwd; the root .continue-here, which had pointed for months at a Phase 09 branch, worktree, and main tip that no longer exist; and two orphaned test processes from 2026-08-28, one of them a fake AnkiConnect squatting on 127.0.0.1:8765, the real AnkiConnect port, so day's Anki lane on this machine had been answering to a stub. The GSD client install under .codex/ is gitignored as tool state, like reasonix.toml."
 progress:
   total_phases: 28
@@ -17,6 +17,61 @@ current_phase: 17B
 ---
 
 # Project State
+
+## 2026-08-31: 17A-04 Task 1 executed; the freeze now waits on exactly one human review
+
+The stale claim first: this file's previous stopped_at said 17A-04 needed
+"the LGPL browser-driver supply-chain decision". It did not. Weibao answered
+that decision on 2026-08-27 (`17A-04-DECISIONS.md` D-17A-04-1, approved,
+option A on ffmpeg), so Task 1 was executable all along and is now executed.
+
+### What shipped
+
+`tools/visual_qa.py`, the pinned dev-only Playwright harness (1.62.0,
+Chromium 151, `VENDORED.md` row, `deps/visual-qa-pins.txt`), driving the
+one-file synthetic fixture through the full layout matrix: three widths, 200
+percent zoom reflow, keyboard order with visible focus, 44px targets,
+rendered light/dark/oled contrast, reduced motion, touch disclosure, static
+fallback, and a disclosure equivalence audit whose deliberately hover-only
+fixture MUST fail. All 13 positive gates are green and the negative fails
+for the equivalence reason; `tests/visual_accessibility_roundtrip.py`
+asserts exactly that when the harness is installed and prints an honest skip
+when it is not (CI). Evidence: `17A-QA.md` and `17A-QA-EVIDENCE.json`.
+
+### Five defects found by a layout engine that no byte check could see
+
+The fixture's dark/oled accent skipped contrast correction entirely
+(`token_css` re-declared one raw `--accent` after the dark override; the
+primary action measured 2.77:1). Every scoped accent palette in the one-file
+export was inert (`_scope_css` emitted `body:has(...) :root`, which matches
+nothing, ever). Switch-radio keyboard focus drew its outline on a 1px
+clipped input, which is no indicator. Twenty-one controls measured under
+44px, including the shipped `details summary` in `SHARED_CSS` at 32px, now
+44 (the one learner-visible change). And the one-file export embedded the
+live agent-console iframe, always dead in the sandbox that export exists
+for, and carrying a Tab focus stop that no CSS can mark in Chromium; it is a
+static labeled placeholder there now, and the served route keeps the live
+frame behind a `:focus-within` indicator.
+
+### What still needs Weibao, precisely
+
+One thing: 17A-04 Task 2, the scripted human A11Y-01 review in `17A-QA.md`,
+then `17A-FREEZE.md` (freeze or withholding). The A11Y-01 waiver was
+deliberately never given, the standing five-phase agent-signature question
+makes this exactly the wrong review to be the sixth, and the plan marks the
+checkpoint blocking. 17B-01's precondition halts on `17A-FREEZE.md` by
+design, so the review is also the one gate between here and the milestone's
+exit tracer.
+
+### Measured
+
+Harness matrix 13 of 13 positive gates green, negative failing as required.
+Affected suites green: visual_accessibility, visual_system,
+component_primitives, stylesheet, daemon, lesson, gate, serve, home
+roundtrips; `scripts/check_vendored.py` 12 artifacts verified; guard 0
+offending files. Full suite 100 files, 0 failures (one baseline re-taken
+with a dated cause: `THEME_PAGE_BASELINE`, moved by the summary 44px rule).
+Darwin arm64, Python 3.14.6, playwright 1.62.0.
 
 ## 2026-08-30 (sixth entry): Phase 15B executed and frozen, seven plans
 

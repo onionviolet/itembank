@@ -1,0 +1,146 @@
+{
+  "harness": {
+    "playwright": "1.62.0",
+    "browser": "151.0.7922.34",
+    "direction": "structured-studio"
+  },
+  "results": [
+    {
+      "gate": "width-1280",
+      "state": "pass",
+      "detail": {
+        "viewport": 1280,
+        "screens": 8,
+        "overflowing_screens": [],
+        "screenshot_sha256": "5a144c975b89f40cec27e938e659888975994731fa7fb12af5935c38beffb858"
+      }
+    },
+    {
+      "gate": "width-768",
+      "state": "pass",
+      "detail": {
+        "viewport": 768,
+        "screens": 8,
+        "overflowing_screens": [],
+        "screenshot_sha256": "5a7da1fbb5781f8ba10bf48ef50ce946357cad1e27d875776dd630b66552ca9a"
+      }
+    },
+    {
+      "gate": "width-375",
+      "state": "pass",
+      "detail": {
+        "viewport": 375,
+        "screens": 8,
+        "overflowing_screens": [],
+        "screenshot_sha256": "bd474475999d14ce9879ba6e6df4774b1673a8443aa740bf12a3109d317263ae"
+      }
+    },
+    {
+      "gate": "zoom-200-reflow",
+      "state": "pass",
+      "detail": {
+        "viewport": 640,
+        "screens": 8,
+        "overflowing_screens": [],
+        "screenshot_sha256": "6e9479e242ad1b935c0a39f5eec280752f0393b97394c554c1eb93c102fa2118"
+      }
+    },
+    {
+      "gate": "keyboard-order-and-focus",
+      "state": "pass",
+      "detail": {
+        "stops": 52,
+        "without_visible_focus": []
+      }
+    },
+    {
+      "gate": "targets-44px",
+      "state": "pass",
+      "detail": {
+        "measured": 259,
+        "inline_exempt_under_44": 6,
+        "under_44": []
+      }
+    },
+    {
+      "gate": "contrast-light",
+      "state": "pass",
+      "detail": {
+        "sampled": 786,
+        "min_ratio": 4.79,
+        "below_aa": []
+      }
+    },
+    {
+      "gate": "contrast-dark",
+      "state": "pass",
+      "detail": {
+        "sampled": 786,
+        "min_ratio": 4.54,
+        "below_aa": []
+      }
+    },
+    {
+      "gate": "contrast-oled",
+      "state": "pass",
+      "detail": {
+        "sampled": 786,
+        "min_ratio": 4.79,
+        "below_aa": []
+      }
+    },
+    {
+      "gate": "reduced-motion",
+      "state": "pass",
+      "detail": {
+        "running_animations": 0
+      }
+    },
+    {
+      "gate": "touch-disclosure",
+      "state": "pass",
+      "detail": {
+        "trigger": "inspiration",
+        "target": "gloss-inspiration"
+      }
+    },
+    {
+      "gate": "static-fallback",
+      "state": "pass",
+      "detail": {
+        "script_elements": 0,
+        "text_chars_across_screens": 15888,
+        "headings": 31,
+        "screens_with_under_300_chars": []
+      }
+    },
+    {
+      "gate": "fixture-disclosure-equivalence",
+      "state": "pass",
+      "detail": {
+        "hover_reveal_triggers": 0,
+        "without_equivalent": []
+      }
+    },
+    {
+      "gate": "hover-only-negative",
+      "state": "fail",
+      "detail": {
+        "hover_reveal_triggers": 1,
+        "without_equivalent": [
+          {
+            "trigger": ".term",
+            "tag": "span",
+            "text": "osmotic gradientAn invented definition, ",
+            "nativelyActivatable": false,
+            "focusable": false,
+            "focusEquivalent": false,
+            "equivalent": false
+          }
+        ],
+        "reason": "hover-only disclosure has no keyboard or touch equivalent; fails equivalence review as required"
+      }
+    }
+  ],
+  "matrix_as_expected": true
+}

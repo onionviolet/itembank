@@ -213,11 +213,12 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{
   margin:12px 0 0}
 .step details{margin:12px 0 0;border-top:1px solid var(--line);
   padding-top:8px}
-.step details summary{cursor:pointer;font-size:16px;font-weight:600}
+.step details summary{cursor:pointer;font-size:16px;font-weight:600;
+  min-height:44px;box-sizing:border-box;padding:10px 0}
 details.details-section{border:1px solid var(--line);border-radius:8px;
   padding:8px 12px;margin:12px 0 16px;background:var(--card)}
 details.details-section summary{cursor:pointer;font-size:16px;
-  font-weight:600;padding:4px 0}
+  font-weight:600;min-height:44px;box-sizing:border-box;padding:10px 0}
 .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}
 button.go,a.go{display:inline-flex;align-items:center;justify-content:center;
   min-height:44px;font:inherit;font-size:16px;font-weight:600;

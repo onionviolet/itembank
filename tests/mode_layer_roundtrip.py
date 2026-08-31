@@ -36,8 +36,14 @@ BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
 #       settings.load_settings('.')).encode('utf-8')).hexdigest())"
 # If this value changes for an unrelated reason, the test names the drift
 # instead of hiding it.
+# Re-taken 2026-08-31 with the same command, after plan 17A-04's driven
+# browser measured the shared `details summary` disclosure at 32px and
+# SHARED_CSS gave both summary rules min-height:44px (the button.go
+# precedent). theme_page embeds SHARED_CSS through surface_shell, so its
+# bytes moved with it. The pre-change value was
+# f198e3d7d15f7033d0fa028df13c3d7449eadce5ae77a0220dc43114925f799b.
 THEME_PAGE_BASELINE = \
-    "f198e3d7d15f7033d0fa028df13c3d7449eadce5ae77a0220dc43114925f799b"
+    "8f9678185b188b63a04df95302c2d0823efc0f33c1901d7853a87c3fc866ece9"
 
 # Phase 16C appends rows here rather than creating a second fixture. Each row
 # is (setting_name, requests, expected_winning_layer, expected_value).

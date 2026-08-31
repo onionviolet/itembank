@@ -23,6 +23,7 @@ absent.
 | `pypdf` | 6.16.1 | https://github.com/py-pdf/pypdf | `pypdf-6.16.1-py3-none-any.whl` | `63fec31c4092ae50b6729beedcb469055b60d20c834bde1c402df241f371f644` | BSD-3-Clause | Weibao | 2026-08-27 |
 | `python-pptx` | 1.0.2 | https://github.com/scanny/python-pptx | `python_pptx-1.0.2-py3-none-any.whl` | `160838e0b8565a8b1f67947675886e9fea18aa5e795db7ae531606d68e785cba` | MIT | Weibao | 2026-08-27 |
 | `readability-lxml` | 0.8.4.1 | https://github.com/buriy/python-readability | `readability_lxml-0.8.4.1-py3-none-any.whl` | `874c0cea22c3bf2b78c7f8df831bfaad3c0a89b7301d45a188db581652b4b465` | Apache-2.0 | Weibao | 2026-08-27 |
+| `playwright` | 1.62.0 | https://github.com/microsoft/playwright-python | `playwright-1.62.0-py3-none-macosx_11_0_arm64.whl` | `db755ab27db21a04186f1fe8169888e42356086e439b1059b923ef417f0b6034` | Apache-2.0 | Weibao (D-17A-04-1) | 2026-08-27 |
 | `vendor/katex/katex.min.js` | 0.18.4 | https://github.com/KaTeX/KaTeX | https://github.com/KaTeX/KaTeX/releases/tag/v0.18.4 | `2ec5916941ef4383e0314eaabcc712301b06001d9fb68e08d751d2bae5a27a1a` | MIT | Weibao | 2026-08-28 |
 | `vendor/katex/katex.min.css` | 0.18.4 | https://github.com/KaTeX/KaTeX | https://github.com/KaTeX/KaTeX/releases/tag/v0.18.4 | `180c2d77d434d7da51d6625c50a964d4fd6fdbdb9bc8796a0a016c30c49931fb` | MIT | Weibao | 2026-08-28 |
 | `assets/vendor/codemirror/codemirror.bundle.js` | state 6.7.1, view 6.43.8, commands 6.10.4 | https://github.com/codemirror/dev | npm packages, bundled locally; see `assets/vendor/codemirror/VENDOR.md` | `58de2c136ca4bbfd92a08e50d64884708109fd3d18843fc1c47dce6e657be588` | MIT | Weibao | 2026-08-28 |
@@ -34,7 +35,17 @@ Release URLs are the PyPI project pages of the same names
 names the exact wheel each hash was computed over. All six wheels are
 `py3-none-any`, so the hashes are not platform specific.
 
-The pin lines these six rows correspond to live in `deps/source-adapter-pins.txt`,
+The `playwright` row is the 17A-04 dev-only browser QA harness (decision
+`D-17A-04-1`, approved by Weibao 2026-08-27; the executor resolved the pin to
+the latest stable release on 2026-08-31 as the decision instructed). Its pin
+line lives in `deps/visual-qa-pins.txt`, which also records the LGPL ffmpeg
+sub-decision (option A), the dev-only isolation story, and the note that the
+wheel is platform-specific, so its hash is of the macOS arm64 wheel actually
+installed. Nothing in the shipped runtime imports it; with it absent,
+`tools/visual_qa.py` refuses with one line and the QA matrix falls back to
+scripted human review.
+
+The pin lines the six adapter rows correspond to live in `deps/source-adapter-pins.txt`,
 which also carries the CVE disposition, the transitive-dependency note, and the
 four packages refused by name (PyMuPDF and `ebooklib` parked on AGPL,
 `trafilatura` refused on dependency weight, `webvtt-py` refused on cost). The

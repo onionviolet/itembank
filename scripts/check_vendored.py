@@ -32,7 +32,10 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MANIFEST = os.path.join(ROOT, "VENDORED.md")
-PINS = os.path.join(ROOT, "deps", "source-adapter-pins.txt")
+# Every pins file under deps/ is searched for a package row's pin line.
+# Hardcoding one file broke the first time a second surface adopted a pinned
+# package (17A-04's dev-only Playwright harness beside 14C's adapters).
+PINS_DIR = os.path.join(ROOT, "deps")
 
 PARKED = ("pymupdf", "fitz", "ebooklib")
 
@@ -107,16 +110,20 @@ def check_pointer(artifact, pointer, verified):
 
 
 def check_pin(artifact, pin, verified):
-    if not os.path.isfile(PINS):
-        fail("%s: deps/source-adapter-pins.txt is missing, so no package row "
-             "can be verified" % artifact)
-    with open(PINS, encoding="utf-8") as fh:
-        pins = fh.read()
+    pin_files = sorted(
+        name for name in os.listdir(PINS_DIR)
+        if name.endswith("-pins.txt")) if os.path.isdir(PINS_DIR) else []
+    if not pin_files:
+        fail("%s: no deps/*-pins.txt exists, so no package row can be "
+             "verified" % artifact)
     wanted = "%s==%s" % (artifact, pin)
-    if wanted not in pins:
-        fail("%s: no pin line reading %r in deps/source-adapter-pins.txt"
-             % (artifact, wanted))
-    verified.append("%s (pin %s)" % (artifact, pin))
+    for name in pin_files:
+        with open(os.path.join(PINS_DIR, name), encoding="utf-8") as fh:
+            if wanted in fh.read():
+                verified.append("%s (pin %s, deps/%s)" % (artifact, pin, name))
+                return
+    fail("%s: no pin line reading %r in any deps/*-pins.txt"
+         % (artifact, wanted))
 
 
 def main():

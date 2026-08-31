@@ -103,6 +103,17 @@ CHROME_CSS = """
 .vf-console-head p { margin: 0; }
 .vf-console iframe { display: block; width: 100%; height: 70vh; min-height: 22rem;
      border: 0; background: var(--card); }
+/* An iframe takes keyboard focus but neither :focus nor :focus-visible
+   matches the frame element in Chromium once focus delegates into the inner
+   document, so the console wrapper carries the indicator via :focus-within
+   (17A-04 QA finding). The one-file export replaces the frame with the
+   static block below instead, because no CSS can mark Tab focus inside a
+   cross-origin frame. */
+.vf-console:focus-within { outline: 3px solid var(--accent);
+     outline-offset: 2px; }
+.vf-console-static { padding: var(--space-4) var(--space-3);
+     min-height: 8rem; display: flex; align-items: center;
+     background: var(--card); }
 .vf-console-foot { padding: var(--space-2) var(--space-3);
      border-top: 1px dashed var(--line); }
 .vf-console-foot p { margin: 0; }
@@ -150,7 +161,9 @@ h1 { font-size: var(--vf-h1); line-height: 1.15; letter-spacing: -0.02em;
 .vf-next, .vf-prev, .of-bar label, .vf-appnav a, .vf-appnav label,
 .vf-appnav .vf-area-entry, button { overflow-wrap: normal; word-break: keep-all;
      hyphens: none; }
-.vf-prev, .vf-next { display: inline-block; text-decoration: none;
+.vf-prev, .vf-next { display: inline-flex; align-items: center;
+     justify-content: center; text-decoration: none;
+     min-height: 44px; box-sizing: border-box;
      font-size: var(--vf-body); padding: var(--space-2) var(--space-4);
      border-radius: var(--r-2); border: 1px solid var(--line);
      color: var(--ink); text-align: center; }
@@ -196,7 +209,9 @@ h1 { font-size: var(--vf-h1); line-height: 1.15; letter-spacing: -0.02em;
      border-radius: var(--r-2); background: var(--bad-bg); }
 .vf-feedback p { margin: 0; }
 .vf-answer { margin: 0 0 var(--space-3); }
-button[type="button"]:not(.term) { display: inline-block; font: inherit;
+button[type="button"]:not(.term) { display: inline-flex; align-items: center;
+     justify-content: center; font: inherit;
+     min-height: 44px; box-sizing: border-box;
      font-size: var(--vf-body);
      padding: var(--space-2) var(--space-4); border-radius: var(--r-2);
      border: 1px solid var(--line); background: var(--card); color: var(--ink);
@@ -634,7 +649,7 @@ DSH_START = "dsh web --port 3080"
 DSH_FRAME_LANG = "en"
 
 
-def _console(url=DSH_URL):
+def _console(url=DSH_URL, live=True):
     """The Agent tab's console: the `dsh` web UI, framed.
 
     itembank does not build an agent console. The reasoning is recorded in
@@ -651,16 +666,32 @@ def _console(url=DSH_URL):
     There is no JavaScript on this page, so it cannot probe whether the
     console is running. It states the condition and the command instead,
     which is what a learner can act on anyway.
+
+    `live=False` renders the same panel with a static placeholder instead of
+    the iframe. The one-file export exists to be reviewed from a folder or a
+    sandbox where the console endpoint can never be reachable, so embedding
+    it there guarantees a dead frame that reads as broken. It also leaves a
+    focus stop no CSS can mark: Chromium matches neither `:focus` on the
+    frame nor `:focus-within` on its ancestor once Tab moves into a
+    cross-origin frame's document, which the 17A-04 driven browser measured.
+    The served route keeps the live frame.
     """
+    if live:
+        frame = ('<iframe src="%s" lang="%s" title="DeepSeek Harness agent '
+                 'console, an embedded separate application" loading="lazy">'
+                 "</iframe>" % (_esc(url), DSH_FRAME_LANG))
+    else:
+        frame = ('<div class="vf-console-static"><p class="vf-status">The '
+                 "live console embeds here when this screen is served by the "
+                 "daemon. This one-file export never embeds it, so nothing "
+                 "on this screen can silently dial out.</p></div>")
     return (
         '<section class="vf-console">'
         '<div class="vf-console-head">'
         "<h3>Agent console</h3>"
         '<p class="vf-status">%s %s, expected at %s</p>'
         "</div>"
-        '<iframe src="%s" lang="%s" title="DeepSeek Harness agent console, '
-        'an embedded separate application" loading="lazy">'
-        "</iframe>"
+        "%s"
         '<div class="vf-console-foot">'
         '<p class="vf-status">Blank? The console is a separate program and '
         "itembank does not start it. Run <code>%s</code> in a terminal, then "
@@ -671,8 +702,8 @@ def _console(url=DSH_URL):
         "Where its text goes is set by its configuration and not by "
         "itembank, so this panel does not claim.</p>"
         "</div></section>"
-        % (_esc(DSH_PACKAGE), _esc(DSH_VERSION), _esc(url), _esc(url),
-           DSH_FRAME_LANG, _esc(DSH_START)))
+        % (_esc(DSH_PACKAGE), _esc(DSH_VERSION), _esc(url), frame,
+           _esc(DSH_START)))
 
 
 def _harness(stage):
@@ -1168,17 +1199,27 @@ def render_body(data, stage_id=None, direction=DEFAULT_DIRECTION,
 
 
 def token_css(tokens):
+    """The configurable-token block. The accent is emitted per mode through
+    `theme.derive_theme`, never as one raw value: a single `--accent` after
+    the theme's dark override silently replaced the dark-corrected accent
+    with the light one, which the 17A-04 driven browser measured as 2.77:1
+    text on the primary action in dark mode. The theme layer owns contrast
+    correction; this block routes through it rather than around it."""
     safe = clamp_tokens(tokens)
     tight = safe["density"] == "compact"
+    derived = theme.derive_theme(safe["accent"])
     return (":root{--vf-density:%s;--vf-measure:%s;--vf-leading:%s;"
             "--vf-text-xs:0.8125rem;--vf-micro:0.75rem;--vf-meta:0.8125rem;"
             "--vf-body:%s;--vf-h3:1.125rem;--vf-h2:%s;--vf-h1:%s;"
-            "--accent:%s;}"
+            "--accent:%s;--accent-soft:%s;}\n"
+            "@media (prefers-color-scheme:dark){:root{"
+            "--accent:%s;--accent-soft:%s;}}"
             % (safe["density"], safe["measure"], safe["leading"],
                "1rem" if tight else "1.0625rem",
                "1.375rem" if tight else "1.5rem",
                "1.75rem" if tight else "2rem",
-               safe["accent"]))
+               derived["light"]["accent"], derived["light"]["accent_soft"],
+               derived["dark"]["accent"], derived["dark"]["accent_soft"]))
 
 
 def page(data, direction=DEFAULT_DIRECTION, tokens=None, stage_id=None,
@@ -1253,21 +1294,26 @@ ONEFILE_CSS = """
   margin-inline-end: var(--space-1); font-family: var(--font-ledger); }
 .of-bar label, .vf-appnav label, .vf-pager label, .vf-resume label {
   cursor: pointer; }
-.of-bar label { display: inline-block; padding: 3px var(--space-3);
+.of-bar label { display: inline-flex; align-items: center;
+  min-height: 44px; box-sizing: border-box; padding: 3px var(--space-3);
   border-radius: var(--r-1); border: 1px solid transparent;
   font-size: var(--vf-micro); color: var(--mut); }
 .of-bar label:hover { color: var(--ink); background: var(--card); }
 .of-screen { display: none; }
 .of-swatch { display: inline-block; width: 1.15rem; height: 1.15rem;
   border-radius: 50%; border: 2px solid var(--line); vertical-align: -3px; }
-.of-bar label:has(.of-swatch) { padding: 3px; }
+.of-bar label:has(.of-swatch) { padding: 3px; min-width: 44px;
+  justify-content: center; }
 .of-note { font-size: var(--vf-meta); color: var(--mut); margin: 0 0 var(--space-4);
   font-family: var(--font-ledger); }
 /* Nav and pager entries are labels here, not links, so they need the link look. */
-.vf-appnav label { display: block; padding: var(--space-2) var(--space-3);
+.vf-appnav label { display: flex; align-items: center; min-height: 44px;
+  box-sizing: border-box; padding: var(--space-2) var(--space-3);
   border-radius: var(--r-2); color: var(--mut); }
 .vf-appnav label:hover { color: var(--ink); background: var(--chip); }
-.vf-pager label, .vf-resume label { display: inline-block; text-decoration: none;
+.vf-pager label, .vf-resume label { display: inline-flex; align-items: center;
+  justify-content: center; text-decoration: none;
+  min-height: 44px; box-sizing: border-box;
   font-size: var(--vf-body); padding: var(--space-2) var(--space-4);
   border-radius: var(--r-2); border: 1px solid var(--line); color: var(--ink); }
 .vf-pager label.vf-next, .vf-resume label.vf-next { background: var(--accent);
@@ -1295,8 +1341,16 @@ def _scope_css(css, guard):
                 out.append(selector + "{")
                 depth += 1
             else:
+                # `:root` is the html element and is never a descendant of
+                # `body`, so `guard + " :root"` matches nothing, ever. Found
+                # by the 17A-04 driven browser: every scoped accent palette
+                # was inert. Custom properties declared on the guard itself
+                # cascade to everything under it, which is what a scoped
+                # palette means.
                 scoped = ", ".join(
-                    ("%s %s" % (guard, part.strip())) if part.strip() else ""
+                    (guard if part.strip() == ":root"
+                     else "%s %s" % (guard, part.strip())) if part.strip()
+                    else ""
                     for part in selector.split(","))
                 out.append(scoped + "{")
                 depth += 1
@@ -1398,6 +1452,8 @@ def single_file(data=None, base=None):
     screens = []
     for index, sid in enumerate(ids):
         inner = render_stage(data, sid, base)
+        # The one-file export never embeds the live console; see _console.
+        inner = inner.replace(_console(), _console(live=False))
         # Turn the resume link into a real switch rather than a dead anchor.
         for target in ids:
             inner = inner.replace(
@@ -1448,6 +1504,10 @@ def single_file(data=None, base=None):
         parts.append('body:has(#screen-%s:checked) label[for="screen-%s"]'
                      "{color:var(--ink);background:var(--card);"
                      "border-color:var(--line);font-weight:600}" % (sid, sid))
+        parts.append('body:has(#screen-%s:focus-visible) '
+                     'label[for="screen-%s"]'
+                     "{outline:3px solid var(--accent);outline-offset:2px}"
+                     % (sid, sid))
     for name, hexcode in ACCENTS:
         palette = theme.theme_css({"theme": "system", "accent": {"source": hexcode}})
         parts.append(_scope_css(palette, "body:has(#accent-%s:checked)" % name))
@@ -1457,6 +1517,15 @@ def single_file(data=None, base=None):
             parts.append('body:has(#%s-%s:checked) label[for="%s-%s"]'
                          "{color:var(--ink);background:var(--card);"
                          "border-color:var(--line);font-weight:600}"
+                         % (group, value, group, value))
+            # The switch radios are visually hidden, so a keyboard user's
+            # focus indicator must land on the visible label. Without this
+            # the global :focus-visible outline draws on a 1px clipped
+            # input, which is no indicator at all (17A-04 QA finding).
+            parts.append('body:has(#%s-%s:focus-visible) '
+                         'label[for="%s-%s"]'
+                         "{outline:3px solid var(--accent);"
+                         "outline-offset:2px}"
                          % (group, value, group, value))
 
     note = ('<p class="of-note">Every screen, look and navigation shape is in '

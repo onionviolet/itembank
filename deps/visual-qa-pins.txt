@@ -1,0 +1,36 @@
+# Visual QA harness dependency (phase 17A-04, D-17A-04-1)
+# ------------------------------------------------------
+# One dev-only, pinned, checksummed, license-reviewed package: the Playwright
+# browser harness that `tools/visual_qa.py` drives for the 17A layout QA
+# matrix (widths, zoom and reflow, keyboard focus visibility, 44px targets,
+# rendered contrast in light, dark and oled, reduced motion, touch
+# disclosure, and the deliberately failing hover-only fixture). jsdom is
+# already pinned and in CI and does no layout, which is the recorded reason
+# decision D-09 exists.
+#
+# NEVER a runtime dependency: nothing in the shipped product imports
+# playwright, `tools/` is not staged into the packaged artifact, and when the
+# package is absent `tools/visual_qa.py` refuses with one line and
+# `tests/visual_accessibility_roundtrip.py` records an honest skip. The QA
+# matrix then falls back to the scripted human review. Degrade, never block.
+#
+# Adopted under `.planning/SUPPLY-CHAIN-POLICY.md` section 2.5 (a build/CI
+# tool, fetched at install time rather than vendored, pinned exactly).
+# Approved by Weibao 2026-08-27 as D-17A-04-1 in
+# `.planning/phases/17A-visual-system-component-foundation/17A-04-DECISIONS.md`,
+# option A on the LGPL sub-call: the harness installs with its ffmpeg
+# component, with the recorded note that dev-only, non-shipped LGPL tools are
+# acceptable. The decision left the exact version to the executor: the latest
+# stable release at execution time (2026-08-31) is pinned below.
+#
+# License review: playwright is Apache-2.0 (Microsoft). The browser builds
+# `python -m playwright install chromium` fetches are Chromium (BSD-style
+# plus bundled licenses) and ffmpeg (LGPL), cached outside this tree under
+# the user cache directory, never committed and never shipped.
+#
+# The wheel is platform-specific (it bundles the driver), so unlike the
+# 14C `py3-none-any` rows the SHA-256 in VENDORED.md is the hash of the
+# wheel actually installed on the recording machine (macOS arm64). Another
+# platform adopting the harness records its own wheel hash beside this one.
+
+playwright==1.62.0
