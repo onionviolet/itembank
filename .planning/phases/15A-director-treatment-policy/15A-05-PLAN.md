@@ -479,7 +479,9 @@ leaves either the old or the new bytes and never a third value.
 - `python -c "import director,inspect; print(list(inspect.signature(director.resume_point).parameters), list(inspect.signature(director.reverse_operation).parameters))"`
   prints `['base', 'operation_id'] ['base', 'operation_id', 'actor_kind', 'actor_name']`.
 - `python -c "import journal; print(len(journal.OPERATION_TYPES), len(journal.ENTRY_KEYS))"`
-  prints `6 23`.
+  prints `6 24`. (Corrected from `6 23` by the 2026-08-30 planning pass: the
+  landed pre-15A tuple has twenty-three keys ending in `rights`, so adding
+  `agent` makes twenty-four. See `15A-PRECONDITION.md`.)
 - `director.py` contains `def resume_point(` and `def reverse_operation(`.
 - `fixtures/corpus_14b.py` contains `def build_interrupted_operation(`.
 - `git diff --name-only` after this task does not list `journal.py`,
@@ -621,7 +623,8 @@ still pass, so an unavailable agent leaves the core loop fully operable.
 - `tests/journal_roundtrip.py` contains `def check_agent_operation_record(`.
 - `tests/director_roundtrip.py` contains `def check_protocol_edges(`.
 - `python -c "import journal; print('agent_operation' in journal.RECORD_TYPES, 'agent_operation' in journal.OPERATION_TYPES, journal.ENTRY_KEYS[-1], len(journal.ENTRY_KEYS))"`
-  prints `True False agent 23`.
+  prints `True False agent 24`. (Corrected from `23` by the 2026-08-30
+  planning pass; see `15A-PRECONDITION.md`.)
 - `git diff --name-only` after this task does not list `journal.py`,
   `identity.py`, `graph.py`, `course.py`, `model_adapter.py`, or any path under
   `surfaces/` or `schemas/`.

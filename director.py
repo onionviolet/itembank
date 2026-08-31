@@ -164,16 +164,20 @@ PARITY_VOLATILE_KEYS = ("elapsed_ms", "entry_id", "interaction_id",
 # The typed failures this module can raise. Built from a set-then-sorted tuple
 # so sortedness is structural, following ADAPTER_CODES's construction.
 DIRECTOR_CODES = tuple(sorted({
+    "director.already_recorded",
     "director.autonomy_exceeded",
     "director.backend_unavailable",
     "director.bind_cap_exceeded",
     "director.evidence_forbidden",
     "director.recommendation_invalid",
     "director.duplicate_coverage_claim",
+    "director.duplicate_phase",
+    "director.operation_unknown",
     "director.egress_unapproved",
     "director.empty_treatment_bind",
     "director.rights_not_granted",
     "director.unknown_match_kind",
+    "director.unknown_phase",
     "director.unknown_treatment_kind",
 }))
 
@@ -184,10 +188,39 @@ DIRECTOR_CODES = tuple(sorted({
 EVIDENCE_FIELDS = ("score", "verdict", "attempt_number", "session_id", "mark",
                    "response", "canonical", "note")
 
-# The operation phases, in order. `phase_index` is the position, so a reader
-# of the journal can tell how far an interrupted operation got without knowing
-# the vocabulary.
-OPERATION_PHASES = ("declare-intent", "plan-treatment", "review", "accept")
+# One token per numbered step of the one operation protocol in
+# `.agents/skills/OPERATION-CONTRACT.md`. The tuple is frozen and closed, and
+# comparison against it is exact ASCII: no case folding, no prefix matching, no
+# separator normalization, and no synonym table. A vocabulary that accepts
+# near-misses is a checklist that cannot fail, because every misspelling
+# quietly becomes a pass.
+#
+# A fourteenth step is a change to the shared contract that Claude, Codex and
+# every other client reads, not a change to this module. Adding one here
+# without adding it there would make this module's checklist disagree with the
+# contract it exists to check.
+PROTOCOL_STEPS = ("declare-intent", "declare-authority", "inventory",
+                  "plan-treatment", "checkpoint", "draft", "cite", "validate",
+                  "preview", "diff", "review", "accept", "report")
+
+# `not-applicable` counts as present, and requires a stated reason. Recording
+# `recorded` for a surface that does not ship would be a false claim; recording
+# `missing` would make every operation permanently incomplete for a step
+# nothing can satisfy yet. A named exemption is the honest third option, and it
+# is reviewable in a way that a silent pass is not.
+PHASE_OUTCOMES = ("recorded", "not-applicable", "missing")
+
+PROTOCOL_VERDICTS = ("complete", "incomplete")
+
+PROTOCOL_REPORT_KEYS = ("operation_id", "steps", "out_of_order", "verdict",
+                        "resumable", "reason")
+
+# The step that ships no surface in this phase, and the reason it does not.
+# AGENT-02 forbids an agent self-certifying accessibility, and Phase 15A ships
+# no learner-facing surface at all, so `recorded` here would be a claim about
+# something that does not exist.
+PREVIEW_NOT_APPLICABLE = ("no learner-facing preview surface ships before 16B; "
+                          "accessibility is never self-certified")
 
 
 class DirectorError(Exception):
@@ -261,7 +294,7 @@ def _origin(actor_kind, actor_name):
 
 
 def begin_operation(base, course_root, intent, actor_kind, actor_name,
-                    actor_role, autonomy, scopes=()):
+                    actor_role, autonomy, scopes=(), operation_id=""):
     """Declare an operation's intent and scope before it does anything.
 
     The first phase of the operation protocol is a durable record that says
@@ -272,7 +305,7 @@ def begin_operation(base, course_root, intent, actor_kind, actor_name,
 
     Returns the operation id, which every later phase entry carries.
     """
-    operation_id = new_operation_id()
+    operation_id = operation_id or new_operation_id()
     _append(base, {
         "schema_version": None, "entry_id": None, "timestamp": None,
         "operation": AGENT_RECORD_TYPE, "state": "applied",
@@ -285,26 +318,118 @@ def begin_operation(base, course_root, intent, actor_kind, actor_name,
         "origin": _origin(actor_kind, actor_name),
         "code": "", "message": intent, "rights": None,
         "agent": _agent_dict(operation_id, intent, actor_role, autonomy,
-                             scopes, "declare-intent", 0),
+                             scopes, PROTOCOL_STEPS[0], 0,
+                             _checkpoint_with_outcome(None, "recorded", "")),
     })
     return operation_id
+
+
+# `AGENT_ENTRY_KEYS` is frozen at ten members by plan 15A-01, and its test
+# asserts the exact tuple. A step's outcome and reason therefore ride inside
+# the existing `checkpoint` slot rather than as two new top-level keys: the
+# checkpoint is the free-form durable state a different client resumes from,
+# and "which protocol step this was, and whether it applied" is exactly that.
+# Widening a frozen key set to avoid one level of nesting would be the wrong
+# trade.
+CHECKPOINT_OUTCOME_KEYS = ("outcome", "reason")
+
+
+def _checkpoint_with_outcome(checkpoint, outcome, reason):
+    """The checkpoint dict carrying this step's outcome and its reason."""
+    merged = dict(checkpoint or {})
+    merged["outcome"] = outcome
+    merged["reason"] = reason
+    return merged
+
+
+def _step_outcome(entry):
+    """One entry's recorded outcome and reason, defaulting to `recorded`.
+
+    An entry written before this plan carried no outcome, and reads as
+    `recorded`, which is what it was.
+    """
+    checkpoint = ((entry.get("agent") or {}).get("checkpoint")) or {}
+    outcome = checkpoint.get("outcome") or "recorded"
+    if outcome not in PHASE_OUTCOMES:
+        outcome = "recorded"
+    return outcome, checkpoint.get("reason") or ""
+
+
+def operation_entries(base, operation_id):
+    """Every journal entry belonging to one operation, in append order.
+
+    Never sorted. Append order is the operation's real history, and sorting by
+    timestamp would hide the out-of-order case the replay report exists to
+    name, as well as merging two phases written inside one clock tick.
+    """
+    found = []
+    for entry in journal.entries(base):
+        if entry.get("operation") != AGENT_RECORD_TYPE:
+            continue
+        agent = entry.get("agent") or {}
+        if agent.get("operation_id") == operation_id:
+            found.append(entry)
+    return found
 
 
 def record_phase(base, operation_id, phase, phase_index, state,
                  actor_kind="agent", actor_name="", intent="", actor_role="",
                  autonomy="", scopes=(), checkpoint=None, proposal=None,
-                 egress=None, code="", message=""):
+                 egress=None, code="", message="", outcome="recorded",
+                 reason=""):
     """Append one further entry for an operation already begun.
 
     Every phase of an operation is its own append. A phase is never recorded by
     editing the entry that declared the intent, because the journal is
     append-only and an operation's history is the sequence, not a mutable row.
+
+    Three outcomes for a repeated call, and the difference between them
+    matters. The same phase at the same index is an idempotent replay: it
+    returns `already_recorded` and appends nothing, the discipline
+    `evidence.py` already applies to a replayed response. The same phase at a
+    DIFFERENT index is a real conflict and is refused, because it means two
+    callers disagree about where in the protocol this operation is. A phase
+    name outside the frozen thirteen is refused before either check.
+
+    Each case is decided by reading `journal.entries` afresh, never a cached
+    list: a cache would let a phase recorded by another process in the meantime
+    go unseen, which is the one thing the duplicate check exists to catch.
     """
+    if phase not in PROTOCOL_STEPS:
+        raise DirectorError(
+            "director.unknown_phase",
+            "%s is not one of the thirteen operation protocol steps; the "
+            "vocabulary is frozen and comparison is exact, with no case "
+            "folding and no synonyms" % phase)
     if state not in journal.ENTRY_STATES:
         raise DirectorError(
             "director.recommendation_invalid",
             "%s is not a journal entry state; known states are: %s"
             % (state, ", ".join(journal.ENTRY_STATES)))
+    if outcome not in PHASE_OUTCOMES:
+        raise DirectorError(
+            "director.recommendation_invalid",
+            "%s is not one of the three phase outcomes: %s"
+            % (outcome, ", ".join(PHASE_OUTCOMES)))
+    if outcome == "not-applicable" and not reason:
+        raise DirectorError(
+            "director.recommendation_invalid",
+            "a not-applicable phase must state why; an unexplained exemption "
+            "is indistinguishable from a skipped step")
+
+    for entry in operation_entries(base, operation_id):
+        agent = entry.get("agent") or {}
+        if agent.get("phase") != phase:
+            continue
+        if agent.get("phase_index") == phase_index:
+            return "already_recorded"
+        raise DirectorError(
+            "director.duplicate_phase",
+            "the phase %s is already recorded for operation %s at a different "
+            "index; a protocol step is recorded once per operation and a "
+            "second recording is refused rather than appended"
+            % (phase, operation_id))
+
     return _append(base, {
         "schema_version": None, "entry_id": None, "timestamp": None,
         "operation": AGENT_RECORD_TYPE, "state": state,
@@ -317,9 +442,147 @@ def record_phase(base, operation_id, phase, phase_index, state,
         "origin": _origin(actor_kind, actor_name),
         "code": code, "message": message, "rights": None,
         "agent": _agent_dict(operation_id, intent, actor_role, autonomy,
-                             scopes, phase, phase_index, checkpoint, proposal,
-                             egress),
+                             scopes, phase, phase_index,
+                             _checkpoint_with_outcome(checkpoint, outcome,
+                                                      reason),
+                             proposal, egress),
     })
+
+
+def protocol_report(entries):
+    """The thirteen-step report over one operation's entries. Pure.
+
+    Walks `PROTOCOL_STEPS` in index order and matches by exact phase-name
+    equality. It sorts nothing: a step whose recorded `phase_index` disagrees
+    with its position in the contract is named in `out_of_order` rather than
+    quietly moved, because sorting would hide the defect the report exists to
+    find.
+
+    `verdict` is `complete` only when no step is `missing`. An empty entry list
+    yields thirteen missing steps and `incomplete`, never an empty report that
+    a reader could mistake for success.
+    """
+    recorded = {}
+    for entry in entries or ():
+        agent = entry.get("agent") or {}
+        phase = agent.get("phase")
+        if phase in PROTOCOL_STEPS and phase not in recorded:
+            recorded[phase] = entry
+
+    steps = []
+    out_of_order = []
+    for index, step in enumerate(PROTOCOL_STEPS):
+        entry = recorded.get(step)
+        if entry is None:
+            steps.append({"step": step, "index": index, "outcome": "missing",
+                          "reason": "", "entry_id": ""})
+            continue
+        outcome, reason = _step_outcome(entry)
+        steps.append({"step": step, "index": index, "outcome": outcome,
+                      "reason": reason, "entry_id": entry.get("entry_id") or ""})
+        if (entry.get("agent") or {}).get("phase_index") != index:
+            out_of_order.append(step)
+
+    missing = [s["step"] for s in steps if s["outcome"] == "missing"]
+    operation_id = ""
+    for entry in entries or ():
+        operation_id = (entry.get("agent") or {}).get("operation_id") or ""
+        break
+    return {"operation_id": operation_id,
+            "steps": steps,
+            "out_of_order": out_of_order,
+            "verdict": "incomplete" if missing else "complete",
+            "resumable": bool(entries) and bool(missing),
+            "reason": "" if not missing
+                      else "%d of thirteen protocol steps are unrecorded: %s"
+                           % (len(missing), ", ".join(missing))}
+
+
+def replay_operation(base, operation_id):
+    """One recorded operation, replayed step by step against the contract.
+
+    This function reads the journal and nothing else. It takes a root and an
+    operation id, and there is no parameter through which an in-memory
+    operation object could be handed to it. That is the whole point: if it
+    accepted one, a passing test would prove that a process can remember its
+    own work, rather than that the journal is the durable job record, which is
+    the claim RELIABILITY-02 actually makes.
+    """
+    entries = operation_entries(base, operation_id)
+    if not entries:
+        raise DirectorError(
+            "director.operation_unknown",
+            "no journal entry carries operation id %s; the journal is the "
+            "durable job record and there is nothing to replay" % operation_id)
+    return protocol_report(entries)
+
+
+def resume_point(base, operation_id):
+    """Where an interrupted operation stopped, and what comes next.
+
+    Reads the journal and nothing else. An operation resumes because its
+    history is on disk, not because a conversation is still open: that is the
+    whole of RELIABILITY-02's claim that the journal is the durable job record
+    rather than a chat transcript.
+    """
+    entries = operation_entries(base, operation_id)
+    if not entries:
+        raise DirectorError(
+            "director.operation_unknown",
+            "no journal entry carries operation id %s; the journal is the "
+            "durable job record and there is nothing to replay" % operation_id)
+
+    last_phase = ""
+    for entry in entries:
+        phase = (entry.get("agent") or {}).get("phase")
+        if phase in PROTOCOL_STEPS:
+            last_phase = phase
+
+    if not last_phase:
+        return {"last_phase": "", "next_phase": "", "resumable": False,
+                "reason": "no-checkpoint-recorded"}
+    index = PROTOCOL_STEPS.index(last_phase)
+    if index == len(PROTOCOL_STEPS) - 1:
+        return {"last_phase": last_phase, "next_phase": "", "resumable": False,
+                "reason": "operation-complete"}
+    return {"last_phase": last_phase,
+            "next_phase": PROTOCOL_STEPS[index + 1],
+            "resumable": True, "reason": ""}
+
+
+def reverse_operation(base, operation_id, actor_kind, actor_name):
+    """Undo an operation's durable writes, newest first, through journal.undo.
+
+    Calls `journal.undo` and adds no restore path of its own. A second way to
+    put bytes back would make the guarantee that any fault leaves the old or
+    the new valid state depend on two implementations agreeing about what the
+    old state was, and the moment they disagreed there would be no way to tell
+    which one was right.
+
+    Catches no `JournalError`. A missing before-image is a real failure and
+    surfaces as one; swallowing it and reconstructing the content some other
+    way is exactly the second path this function refuses to have.
+    """
+    entries = operation_entries(base, operation_id)
+    if not entries:
+        raise DirectorError(
+            "director.operation_unknown",
+            "no journal entry carries operation id %s; the journal is the "
+            "durable job record and there is nothing to replay" % operation_id)
+
+    reversed_entries = []
+    restored_revisions = []
+    for entry in reversed(entries):
+        undo_record = entry.get("undo") or {}
+        if undo_record.get("kind") != "restore_before_image":
+            continue
+        result = journal.undo(base, entry["entry_id"], actor_kind, actor_name)
+        reversed_entries.append(entry["entry_id"])
+        restored_revisions.append((result or {}).get("revision"))
+
+    return {"reversed_entries": reversed_entries,
+            "restored_revisions": restored_revisions,
+            "complete": True}
 
 
 def _objective_statement(doc, objective_id):
@@ -1224,6 +1487,19 @@ def recommend_once(base, course_root, objective_id, settings, profile_name,
                              provider.get("profile") or profile_name,
                              spans, omissions, request_bytes),
         message="a recommendation was received and validated")
+
+    # Protocol step 9 is preview, and this phase ships no learner-facing
+    # surface to preview. Recorded as not-applicable with its reason rather
+    # than left missing, because a step nothing can satisfy yet would make
+    # every operation permanently incomplete, and rather than recorded,
+    # because claiming a preview that does not exist would be a false claim
+    # about the one step AGENT-02 forbids an agent to self-certify.
+    record_phase(
+        base, operation_id, "preview", PROTOCOL_STEPS.index("preview"),
+        "applied", actor_kind=actor_kind, actor_name=actor_name,
+        outcome="not-applicable", reason=PREVIEW_NOT_APPLICABLE,
+        message="no preview surface ships in this phase")
+
     return {"status": "ok", "code": "", "record": record,
             "operation_id": operation_id}
 

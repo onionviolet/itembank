@@ -737,11 +737,84 @@ def _check_concurrency():
         shutil.rmtree(d, ignore_errors=True)
 
 
+
+def check_agent_operation_record():
+    """The Phase 15A agent_operation record type, checked beside the journal
+    it extends rather than only in the phase that added it.
+
+    `director` is imported inside this function on purpose: the rest of this
+    file must still run when director.py is absent, and a module-scope import
+    would couple the whole journal suite to a later phase's module.
+    """
+    if "agent_operation" not in journal.RECORD_TYPES:
+        fail("agent_operation is not a journal record type")
+    if journal.ENTRY_KEYS[-1] != "agent":
+        fail("the last entry key is %r, expected agent"
+             % (journal.ENTRY_KEYS[-1],))
+    if len(journal.ENTRY_KEYS) != 24:
+        fail("ENTRY_KEYS has %d members, expected 24"
+             % len(journal.ENTRY_KEYS))
+    if len(journal.OPERATION_TYPES) != 6:
+        fail("OPERATION_TYPES has %d members, expected 6"
+             % len(journal.OPERATION_TYPES))
+    if "agent_operation" in journal.OPERATION_TYPES:
+        fail("agent_operation is a file-operation type; an agent operation is "
+             "a record of what an agent did, not an operation on a file")
+
+    try:
+        import director
+    except ImportError:
+        print("    check_agent_operation_record (director absent, skipped)")
+        return
+
+    base = tempfile.mkdtemp()
+    try:
+        agent = {key: None for key in director.AGENT_ENTRY_KEYS}
+        agent.update({"operation_id": "op-1", "intent": "a stated intent",
+                      "actor_role": "course-builder", "autonomy":
+                      "recommend-only", "scopes": ["course:x"],
+                      "phase": "declare-intent", "phase_index": 0,
+                      "checkpoint": {"outcome": "recorded", "reason": ""},
+                      "proposal": None, "egress": None})
+        with journal._journal_lock(base):
+            journal.append_entry(base, {"operation": "agent_operation",
+                                        "state": "applied", "agent": agent})
+            journal.append_entry(base, {"operation": "agent_operation",
+                                        "state": "applied", "agent": None})
+        rows = list(journal.entries(base))
+        if len(rows) != 2:
+            fail("two appended agent entries read back as %d" % len(rows))
+        else:
+            if rows[0]["agent"] != agent:
+                fail("the agent dict did not round-trip: %r" % (rows[0]["agent"],))
+            if set(rows[0]["agent"]) != set(director.AGENT_ENTRY_KEYS):
+                fail("the round-tripped agent keys are %r; journal.py and "
+                     "director.AGENT_ENTRY_KEYS have drifted"
+                     % (sorted(rows[0]["agent"]),))
+            if rows[1]["agent"] is not None:
+                fail("a null agent value read back as %r" % (rows[1]["agent"],))
+
+        # An unknown record type is refused exactly as it was before 15A.
+        try:
+            with journal._journal_lock(base):
+                journal.append_entry(base, {"operation": "not_a_record_type",
+                                            "state": "applied"})
+        except journal.JournalError as exc:
+            if exc.code != "journal.unknown_operation":
+                fail("an unknown record type raised %r" % (exc.code,))
+        else:
+            fail("an unknown record type was appended")
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+    print("    check_agent_operation_record")
+
+
 def main():
     check_commit()
     check_lock_busy()
     check_walking_skeleton_slice()
     check_faults()
+    check_agent_operation_record()
     print("OK journal_roundtrip")
 
 

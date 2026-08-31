@@ -1502,6 +1502,21 @@ def check_autonomy_policy():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def last_egress(base, phase="plan-treatment"):
+    """The egress dict from the most recent entry recording `phase`.
+
+    Not simply the last entry: an operation records phases after the one that
+    reached a backend, so "the last entry" is whichever step happened to be
+    recorded last rather than the step that sent something.
+    """
+    found = None
+    for entry in journal.entries(base):
+        agent = entry.get("agent") or {}
+        if agent.get("phase") == phase and agent.get("egress"):
+            found = agent["egress"]
+    return found
+
+
 def check_egress_record():
     """What left this machine is disclosed exactly: every span named, every
     omission named, and the byte count measured on the real request."""
@@ -1523,8 +1538,7 @@ def check_egress_record():
         if result["status"] != "ok":
             fail("the hosted run returned %r" % (result["status"],))
 
-        entry = list(journal.entries(base))[-1]
-        egress = (entry.get("agent") or {}).get("egress")
+        egress = last_egress(base)
         if not egress:
             fail("the hosted phase recorded no egress")
             return
@@ -1605,7 +1619,7 @@ def check_egress_record():
         director.recommend_once(
             base, base, objective_id, settings, "hosted",
             "agent", "director-roundtrip", "course-builder", "propose")
-        second = (list(journal.entries(base))[-1].get("agent") or {})["egress"]
+        second = last_egress(base)
         if director.parity_view(egress) != director.parity_view(second):
             fail("two runs of one operation disclosed different egress")
 
@@ -1624,8 +1638,7 @@ def check_egress_record():
             director.recommend_once(
                 base, base, objective_id, local_settings, "local",
                 "agent", "director-roundtrip", "course-builder", "propose")
-            entry = list(journal.entries(base))[-1]
-            local_egress = (entry.get("agent") or {})["egress"]
+            local_egress = last_egress(base)
             if local_egress["destination"] != "registered-local":
                 fail("an openai_compatible profile disclosed %r"
                      % (local_egress["destination"],))
@@ -1650,8 +1663,7 @@ def check_egress_record():
         if any(e["outcome"] != "untreated" for e in entries):
             fail("an unreachable backend produced %r"
                  % ([e["outcome"] for e in entries],))
-        entry = list(journal.entries(base))[-1]
-        down = (entry.get("agent") or {})["egress"]
+        down = last_egress(base)
         if down["destination"] != "local":
             fail("an unreachable backend disclosed destination %r"
                  % (down["destination"],))
@@ -1685,6 +1697,547 @@ def check_egress_record():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+PREVIEW_REASON = ("no learner-facing preview surface ships before 16B; "
+                  "accessibility is never self-certified")
+
+
+def check_protocol_replay():
+    """One operation replays from the journal alone against the thirteen-step
+    contract, into a report that can fail."""
+    import director
+    import corpus_14b
+    import inspect
+
+    if director.PROTOCOL_STEPS != (
+            "declare-intent", "declare-authority", "inventory",
+            "plan-treatment", "checkpoint", "draft", "cite", "validate",
+            "preview", "diff", "review", "accept", "report"):
+        fail("PROTOCOL_STEPS is %r" % (director.PROTOCOL_STEPS,))
+    if len(director.PROTOCOL_STEPS) != 13:
+        fail("PROTOCOL_STEPS has %d members" % len(director.PROTOCOL_STEPS))
+    if director.PHASE_OUTCOMES != ("recorded", "not-applicable", "missing"):
+        fail("PHASE_OUTCOMES is %r" % (director.PHASE_OUTCOMES,))
+    if director.PROTOCOL_VERDICTS != ("complete", "incomplete"):
+        fail("PROTOCOL_VERDICTS is %r" % (director.PROTOCOL_VERDICTS,))
+
+    params = list(inspect.signature(director.replay_operation).parameters)
+    if params != ["base", "operation_id"]:
+        fail("replay_operation takes %r; an in-memory operation object must "
+             "not be passable to it" % (params,))
+    if "reads the journal and nothing else" not in \
+            (director.replay_operation.__doc__ or ""):
+        fail("replay_operation's docstring does not state that it reads the "
+             "journal and nothing else")
+
+    # An empty journal never reads as success.
+    empty = director.protocol_report([])
+    if set(empty) != set(director.PROTOCOL_REPORT_KEYS):
+        fail("the report's keys are %r" % (sorted(empty),))
+    if empty["verdict"] != "incomplete":
+        fail("an empty journal replayed to verdict %r" % (empty["verdict"],))
+    if len(empty["steps"]) != 13:
+        fail("an empty report has %d steps" % len(empty["steps"]))
+    if any(s["outcome"] != "missing" for s in empty["steps"]):
+        fail("an empty report has a non-missing step")
+    if empty["out_of_order"] != []:
+        fail("an empty report has out_of_order %r" % (empty["out_of_order"],))
+
+    tmp = tempfile.mkdtemp(prefix="director-replay-")
+    try:
+        built = corpus_14b.build_recommendation_fixture(
+            os.path.join(tmp, "corpus"))
+        base = built["course_root"]
+
+        operation_id = director.begin_operation(
+            base, base, "replay the whole contract", "agent",
+            "director-roundtrip", "course-builder", "recommend-only",
+            ("course:replay",))
+
+        # Exact ASCII comparison: no case folding, no prefixes, no synonyms.
+        for bad in ("Declare-Intent", "declare", "declare_intent", "DRAFT"):
+            try:
+                director.record_phase(base, operation_id, bad, 1, "applied")
+            except director.DirectorError as exc:
+                if exc.code != "director.unknown_phase":
+                    fail("the phase name %r raised %r" % (bad, exc.code))
+                elif bad not in exc.message:
+                    fail("the unknown-phase message omits %r: %r"
+                         % (bad, exc.message))
+            else:
+                fail("the phase name %r was accepted" % (bad,))
+
+        # Record the remaining twelve steps, preview as not-applicable.
+        for index, step in enumerate(director.PROTOCOL_STEPS):
+            if step == "declare-intent":
+                continue
+            if step == "preview":
+                director.record_phase(base, operation_id, step, index,
+                                      "applied", outcome="not-applicable",
+                                      reason=PREVIEW_REASON)
+                continue
+            director.record_phase(base, operation_id, step, index, "applied")
+
+        report = director.replay_operation(base, operation_id)
+        if set(report) != set(director.PROTOCOL_REPORT_KEYS):
+            fail("the report's keys are %r" % (sorted(report),))
+        if len(report["steps"]) != 13:
+            fail("the report has %d steps" % len(report["steps"]))
+        if [s["step"] for s in report["steps"]] != list(director.PROTOCOL_STEPS):
+            fail("the report is not in PROTOCOL_STEPS order")
+
+        entry_ids = {e["entry_id"] for e in journal.entries(base)}
+        for step in report["steps"]:
+            if set(step) != {"step", "index", "outcome", "reason", "entry_id"}:
+                fail("a step's keys are %r" % (sorted(step),))
+                break
+            if step["outcome"] not in director.PHASE_OUTCOMES:
+                fail("a step outcome is %r" % (step["outcome"],))
+            if step["outcome"] == "not-applicable" and not step["reason"]:
+                fail("a not-applicable step has no reason: %r" % (step,))
+            if step["outcome"] == "recorded":
+                if not step["entry_id"]:
+                    fail("a recorded step has no entry_id: %r" % (step,))
+                elif step["entry_id"] not in entry_ids:
+                    fail("a recorded step names an entry that does not exist")
+
+        preview = [s for s in report["steps"] if s["step"] == "preview"][0]
+        if preview["outcome"] != "not-applicable":
+            fail("the preview step's outcome is %r" % (preview["outcome"],))
+        if preview["reason"] != PREVIEW_REASON:
+            fail("the preview step's reason is %r" % (preview["reason"],))
+
+        if report["verdict"] != "complete":
+            missing = [s["step"] for s in report["steps"]
+                       if s["outcome"] == "missing"]
+            fail("a full operation replayed to %r, missing %r"
+                 % (report["verdict"], missing))
+
+        # Idempotency versus duplication.
+        before = len(list(journal.entries(base)))
+        again = director.record_phase(base, operation_id, "draft", 5, "applied")
+        if again != "already_recorded":
+            fail("an identical replay returned %r" % (again,))
+        if len(list(journal.entries(base))) != before:
+            fail("an identical replay appended an entry")
+        try:
+            director.record_phase(base, operation_id, "draft", 11, "applied")
+        except director.DirectorError as exc:
+            if exc.code != "director.duplicate_phase":
+                fail("the same phase at a new index raised %r" % (exc.code,))
+            elif "draft" not in exc.message or operation_id not in exc.message:
+                fail("the duplicate message names neither: %r" % (exc.message,))
+        else:
+            fail("the same phase at a different index was appended")
+        if len(list(journal.entries(base))) != before:
+            fail("a refused duplicate appended an entry")
+
+        # Two operations never interfere.
+        other = director.begin_operation(
+            base, base, "a second operation", "agent", "director-roundtrip",
+            "course-builder", "recommend-only")
+        director.record_phase(base, other, "draft", 5, "applied")
+
+        # Out of order is named, never sorted.
+        third = director.begin_operation(
+            base, base, "an out-of-order operation", "agent",
+            "director-roundtrip", "course-builder", "recommend-only")
+        director.record_phase(base, third, "cite", 5, "applied")
+        director.record_phase(base, third, "draft", 6, "applied")
+        out = director.replay_operation(base, third)
+        if [s["step"] for s in out["steps"]] != list(director.PROTOCOL_STEPS):
+            fail("an out-of-order operation reordered the report")
+        if set(out["out_of_order"]) != {"cite", "draft"}:
+            fail("out_of_order is %r, expected cite and draft"
+                 % (out["out_of_order"],))
+        if out["verdict"] != "incomplete":
+            fail("a partial operation replayed to %r" % (out["verdict"],))
+
+        # A deleted journal raises rather than remembering.
+        os.remove(journal.log_path(base))
+        try:
+            director.replay_operation(base, operation_id)
+        except director.DirectorError as exc:
+            if exc.code != "director.operation_unknown":
+                fail("a deleted journal raised %r" % (exc.code,))
+            elif operation_id not in exc.message:
+                fail("the unknown-operation message omits the id: %r"
+                     % (exc.message,))
+        else:
+            fail("a deleted journal still produced a report; the process "
+                 "remembered its own work")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def check_resume_and_reverse():
+    """An operation interrupted at any of the thirteen phases resumes or
+    reverses from the journal alone."""
+    import director
+    import corpus_14b
+    import subprocess
+
+    tmp = tempfile.mkdtemp(prefix="director-resume-")
+    try:
+        # Every one of the thirteen phases, each in its own killed child.
+        for index, phase in enumerate(director.PROTOCOL_STEPS):
+            built = corpus_14b.build_interrupted_operation(
+                os.path.join(tmp, "kill-%s" % phase), phase)
+            base = built["course_root"]
+            operation_id = built["operation_id"]
+
+            entries = director.operation_entries(base, operation_id)
+            if not entries:
+                fail("a child killed after %r left no entries" % (phase,))
+                continue
+            last = (entries[-1].get("agent") or {}).get("phase")
+            if last != phase:
+                fail("a child killed after %r left last phase %r"
+                     % (phase, last))
+
+            # Read back in a FRESH process that opens only the journal
+            # directory. Nothing in this process's memory can contribute.
+            probe = subprocess.run(
+                [sys.executable, "-c",
+                 "import sys, json; sys.path.insert(0, %r); "
+                 "import director; "
+                 "print(json.dumps(director.resume_point(%r, %r)))"
+                 % (ROOT, base, operation_id)],
+                capture_output=True, text=True, timeout=60)
+            if probe.returncode != 0:
+                fail("a fresh-process resume of %r failed: %s"
+                     % (phase, probe.stderr[-300:]))
+                continue
+            point = json.loads(probe.stdout)
+            if set(point) != {"last_phase", "next_phase", "resumable", "reason"}:
+                fail("resume_point's keys are %r" % (sorted(point),))
+            if point["last_phase"] != phase:
+                fail("resume_point after %r says last_phase %r"
+                     % (phase, point["last_phase"]))
+            if phase == director.PROTOCOL_STEPS[-1]:
+                if point["resumable"] is not False:
+                    fail("a completed operation reports resumable %r"
+                         % (point["resumable"],))
+                if point["reason"] != "operation-complete":
+                    fail("a completed operation's reason is %r"
+                         % (point["reason"],))
+                if point["next_phase"] != "":
+                    fail("a completed operation names next_phase %r"
+                         % (point["next_phase"],))
+            else:
+                if point["resumable"] is not True:
+                    fail("an operation killed after %r reports resumable %r"
+                         % (phase, point["resumable"]))
+                if point["next_phase"] != director.PROTOCOL_STEPS[index + 1]:
+                    fail("after %r the next phase is %r, expected %r"
+                         % (phase, point["next_phase"],
+                            director.PROTOCOL_STEPS[index + 1]))
+
+            # One journal, still: nothing new under _journal/.
+            jdir = journal.journal_dir(base)
+            allowed = {"journal.jsonl", "objects.json", "journal.lock",
+                       "before"}
+            extra = set(os.listdir(jdir)) - allowed
+            if extra:
+                fail("a second operation record appeared under _journal/: %r"
+                     % (sorted(extra),))
+
+        # An unknown operation id raises rather than reporting nothing.
+        built = corpus_14b.build_interrupted_operation(
+            os.path.join(tmp, "unknown"), "declare-intent")
+        try:
+            director.resume_point(built["course_root"], "no-such-operation")
+        except director.DirectorError as exc:
+            if exc.code != "director.operation_unknown":
+                fail("an unknown operation id raised %r" % (exc.code,))
+        else:
+            fail("an unknown operation id produced a resume point")
+
+        # An operation whose only entry is declare-intent.
+        base = built["course_root"]
+        point = director.resume_point(base, built["operation_id"])
+        if point["last_phase"] != "declare-intent" or \
+                point["next_phase"] != "declare-authority" or \
+                point["resumable"] is not True:
+            fail("a declare-intent-only operation reports %r" % (point,))
+
+        # Reversing it is a no-op: nothing durable was written.
+        text_before = course.read_course(base)["text"]
+        result = director.reverse_operation(base, built["operation_id"],
+                                            "agent", "director-roundtrip")
+        if set(result) != {"reversed_entries", "restored_revisions", "complete"}:
+            fail("reverse_operation's keys are %r" % (sorted(result),))
+        if result["reversed_entries"]:
+            fail("a no-op reversal reversed %r" % (result["reversed_entries"],))
+        if course.read_course(base)["text"] != text_before:
+            fail("a no-op reversal changed the sidecar")
+
+        # A real reversal: bind, then put the bytes back exactly.
+        built = corpus_14b.build_recommendation_fixture(
+            os.path.join(tmp, "reverse"))
+        base = built["course_root"]
+        before = course.read_course(base)["text"]
+        record = director.validate_recommendation(valid_candidate(
+            objective_id=built["objective_ids"][0],
+            treatment_kind="guided-lesson"))
+        operation_id = director.new_operation_id()
+        director.apply_recommendation(
+            base, base, record, built["granted_source_object_id"],
+            "agent", "director-roundtrip", operation_id=operation_id)
+        if course.read_course(base)["text"] == before:
+            fail("the bind did not change the sidecar, so the reversal proves "
+                 "nothing")
+
+        # The bind's own journal entry is the one carrying the before-image,
+        # and it belongs to course.py's commit rather than to the agent
+        # operation record, so reverse over the whole course root's tail.
+        bind_entry = None
+        for entry in journal.entries(base):
+            if entry.get("operation") == "edit_in_place" and \
+                    (entry.get("undo") or {}).get("kind") == \
+                    "restore_before_image":
+                bind_entry = entry
+        if bind_entry is None:
+            fail("the bind left no restorable journal entry")
+        else:
+            journal.undo(base, bind_entry["entry_id"], "agent",
+                         "director-roundtrip")
+            if course.read_course(base)["text"] != before:
+                fail("the reversal did not restore the sidecar byte for byte")
+
+        # No second restore path: a deleted before-image surfaces as a
+        # JournalError rather than being reconstructed some other way.
+        built = corpus_14b.build_recommendation_fixture(
+            os.path.join(tmp, "noimage"))
+        base = built["course_root"]
+        record = director.validate_recommendation(valid_candidate(
+            objective_id=built["objective_ids"][0],
+            treatment_kind="guided-lesson"))
+        director.apply_recommendation(
+            base, base, record, built["granted_source_object_id"],
+            "agent", "director-roundtrip")
+        target = None
+        for entry in journal.entries(base):
+            if (entry.get("undo") or {}).get("kind") == "restore_before_image":
+                target = entry
+        before_dir = os.path.join(journal.journal_dir(base), "before")
+        if os.path.isdir(before_dir):
+            for name in os.listdir(before_dir):
+                os.remove(os.path.join(before_dir, name))
+        # The substantive claim is that a missing before-image RAISES rather
+        # than being reconstructed some other way, which is what proves there
+        # is no second restore path in director.py.
+        #
+        # It raises, but as a bare FileNotFoundError rather than a typed
+        # JournalError. That is a defect in journal.undo, not in this phase:
+        # journal.py's whole discipline is that every failure carries a
+        # machine-readable code, and an untyped exception escaping it means a
+        # caller cannot tell a missing before-image from a bug. Phase 15A must
+        # not touch journal.py (plan 15A-05's own acceptance criteria forbid
+        # it), so the defect is asserted as it stands and carried as a finding
+        # rather than silently fixed inside another phase's freeze.
+        raised = None
+        try:
+            journal.undo(base, target["entry_id"], "agent", "director-roundtrip")
+        except Exception as exc:
+            raised = exc
+        if raised is None:
+            fail("a missing before-image was reconstructed; there is a second "
+                 "restore path")
+        elif not isinstance(raised, (journal.JournalError, OSError)):
+            fail("a missing before-image raised %r, neither a JournalError nor "
+                 "an OSError" % (raised,))
+
+        # The lock: a held journal lock refuses and writes nothing.
+        built = corpus_14b.build_recommendation_fixture(
+            os.path.join(tmp, "locked"))
+        base = built["course_root"]
+        text_before = course.read_course(base)["text"]
+        holder = subprocess.Popen(
+            [sys.executable, "-c",
+             "import sys, time; sys.path.insert(0, %r); import journal; "
+             "ctx = journal._journal_lock(%r); ctx.__enter__(); "
+             "print('held', flush=True); time.sleep(30)" % (ROOT, base)],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            if (holder.stdout.readline() or "").strip() != "held":
+                fail("the lock holder never reported holding the lock")
+            else:
+                try:
+                    director.begin_operation(
+                        base, base, "a blocked operation", "agent",
+                        "director-roundtrip", "course-builder",
+                        "recommend-only")
+                except journal.JournalError as exc:
+                    if exc.code != "journal.busy":
+                        fail("a held lock raised %r" % (exc.code,))
+                else:
+                    fail("an operation wrote while the journal lock was held")
+            if course.read_course(base)["text"] != text_before:
+                fail("a refused operation changed the sidecar")
+        finally:
+            holder.kill()
+            holder.wait(timeout=30)
+
+        if len(journal.OPERATION_TYPES) != 6:
+            fail("OPERATION_TYPES is %d" % len(journal.OPERATION_TYPES))
+        if len(journal.ENTRY_KEYS) != 24:
+            fail("ENTRY_KEYS is %d" % len(journal.ENTRY_KEYS))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def check_protocol_edges():
+    """The AGENT-01 edges, and the core loop with every backend removed."""
+    import director
+    import corpus_14b
+    import subprocess
+
+    tmp = tempfile.mkdtemp(prefix="director-edges2-")
+    try:
+        built = corpus_14b.build_recommendation_fixture(
+            os.path.join(tmp, "corpus"))
+        base = built["course_root"]
+
+        # Encoding: exact ASCII, and the regression fence from Task 1 plus two
+        # whitespace variants that a normalizing comparison would accept.
+        operation_id = director.begin_operation(
+            base, base, "edge fencing", "agent", "director-roundtrip",
+            "course-builder", "recommend-only")
+        for bad in ("Declare-Intent", "declare", "declare_intent",
+                    "draft ", " draft", "draft\u00a0"):
+            try:
+                director.record_phase(base, operation_id, bad, 5, "applied")
+            except director.DirectorError as exc:
+                if exc.code != "director.unknown_phase":
+                    fail("the phase name %r raised %r" % (bad, exc.code))
+            else:
+                fail("the phase name %r was accepted" % (bad,))
+
+        # Adjacency: same phase, two indices, one operation.
+        director.record_phase(base, operation_id, "draft", 5, "applied")
+        try:
+            director.record_phase(base, operation_id, "draft", 6, "applied")
+        except director.DirectorError as exc:
+            if exc.code != "director.duplicate_phase":
+                fail("a same-phase new-index call raised %r" % (exc.code,))
+        else:
+            fail("a same-phase new-index call was appended")
+
+        other = director.begin_operation(
+            base, base, "a second operation", "agent", "director-roundtrip",
+            "course-builder", "recommend-only")
+        director.record_phase(base, other, "draft", 5, "applied")
+        ids = {(e.get("agent") or {}).get("operation_id")
+               for e in journal.entries(base)
+               if (e.get("agent") or {}).get("phase") == "draft"}
+        if len(ids) != 2:
+            fail("the same phase under two operations produced %r" % (ids,))
+
+        # Ordering: report before accept is named, not reordered.
+        third = director.begin_operation(
+            base, base, "an inverted operation", "agent",
+            "director-roundtrip", "course-builder", "recommend-only")
+        director.record_phase(base, third, "report", 12, "applied")
+        director.record_phase(base, third, "accept", 11, "applied")
+        report = director.replay_operation(base, third)
+        steps = {s["step"]: s for s in report["steps"]}
+        if steps["report"]["index"] != 12 or steps["accept"]["index"] != 11:
+            fail("the inverted report indices are %r"
+                 % ([steps["report"]["index"], steps["accept"]["index"]],))
+        if [s["step"] for s in report["steps"]] != list(director.PROTOCOL_STEPS):
+            fail("the inverted operation reordered the report")
+
+        # Idempotency: thirteen identical replays append nothing.
+        full = director.begin_operation(
+            base, base, "a complete operation", "agent", "director-roundtrip",
+            "course-builder", "recommend-only")
+        for index, phase in enumerate(director.PROTOCOL_STEPS):
+            if index == 0:
+                continue
+            kwargs = {}
+            if phase == "preview":
+                kwargs = {"outcome": "not-applicable",
+                          "reason": director.PREVIEW_NOT_APPLICABLE}
+            director.record_phase(base, full, phase, index, "applied", **kwargs)
+        before = len(list(journal.entries(base)))
+        answers = []
+        for index, phase in enumerate(director.PROTOCOL_STEPS):
+            kwargs = {}
+            if phase == "preview":
+                kwargs = {"outcome": "not-applicable",
+                          "reason": director.PREVIEW_NOT_APPLICABLE}
+            answers.append(director.record_phase(base, full, phase, index,
+                                                 "applied", **kwargs))
+        if answers.count("already_recorded") != 13:
+            fail("thirteen identical replays returned %r" % (answers,))
+        if len(list(journal.entries(base))) != before:
+            fail("an idempotent replay appended entries")
+
+        # Empty: a journal with entries but none of type agent_operation.
+        bare = corpus_14b.build_three_domains(os.path.join(tmp, "bare"))
+        bare_root = bare["domains"][0]["root"]
+        try:
+            director.replay_operation(bare_root, "no-such-operation")
+        except director.DirectorError as exc:
+            if exc.code != "director.operation_unknown":
+                fail("a journal with no agent entries raised %r" % (exc.code,))
+        else:
+            fail("a journal with no agent entries produced a report")
+
+        # The core loop with every backend removed.
+        disabled = {"model_backend": {"active": "", "profiles": []}}
+        entries = director.recommend_treatments(
+            base, base, built["objective_ids"], disabled, "",
+            "agent", "director-roundtrip", "course-builder", "recommend-only")
+        if len(entries) != len(built["objective_ids"]):
+            fail("a disabled-agent pass returned %d entries" % len(entries))
+        for entry in entries:
+            if entry["outcome"] != "untreated":
+                fail("a disabled-agent outcome is %r" % (entry["outcome"],))
+            if entry["code"] != "adapter.profile_disabled":
+                fail("a disabled-agent code is %r" % (entry["code"],))
+
+        # Five named core operations, in a fresh process, with no backend.
+        probe = subprocess.run(
+            [sys.executable, "-c",
+             "import sys; sys.path.insert(0, %r); "
+             "import course, director, graph, journal; "
+             "read = course.read_course(%r); "
+             # A write of unchanged bytes is refused by the journal, and
+             # rightly: no revision happened. So the probe makes a real change,
+             # which is also a better proof that write_course still works.
+             "graph.add_objective(read['doc'], "
+             "'A human-authored objective, agent disabled.'); "
+             "course.write_course(%r, read['doc'], read['fingerprint'], "
+             "'human', 'weibao'); "
+             "course.bind_treatment(%r, %r, %r, 'guided-lesson', "
+             "actor_kind='human', actor_name='weibao'); "
+             "r = director.replay_operation(%r, %r); "
+             "director.reverse_operation(%r, %r, 'human', 'weibao'); "
+             "print(r['verdict'])"
+             % (ROOT, base, base, base, built["objective_ids"][0],
+                built["granted_source_object_id"], base, full, base, full)],
+            capture_output=True, text=True, timeout=120)
+        if probe.returncode != 0:
+            fail("the core loop failed with the agent disabled: %s"
+                 % (probe.stderr[-400:],))
+        elif probe.stdout.strip() != "complete":
+            fail("the replayed verdict with the agent disabled is %r"
+                 % (probe.stdout.strip(),))
+
+        # Three shipped suites, run as subprocesses.
+        for name in ("scoring_roundtrip.py", "evidence_roundtrip.py",
+                     "protocol_roundtrip.py"):
+            suite = subprocess.run(
+                [sys.executable, os.path.join(ROOT, "tests", name)],
+                capture_output=True, text=True, timeout=600)
+            if suite.returncode != 0:
+                fail("%s failed with the agent disabled: %s"
+                     % (name, suite.stderr[-300:]))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     checks = [check_adapter_is_additive,
               check_journal_extension_is_two_lines,
@@ -1700,7 +2253,10 @@ def main():
               check_coverage_states,
               check_approved_spans,
               check_autonomy_policy,
-              check_egress_record]
+              check_egress_record,
+              check_protocol_replay,
+              check_resume_and_reverse,
+              check_protocol_edges]
     for check in checks:
         check()
     if FAILURES:

@@ -71,7 +71,17 @@ def append_all(log, events):
         evidence.append_event(log, ev)
 
 
-def snap(base, cutoff="2026-08-10T12:00:00.000Z", zone="UTC", weeks=4,
+# The one pinned clock this file reads. Every fixture below writes events
+# dated to early August 2026, so any call that reads the wall clock instead
+# ages out on its own: once real elapsed time passes `at_risk_after_days`, a
+# `weak` objective becomes `at-risk` and an assertion fails on a tree nobody
+# changed. That has now happened twice, fixed at two different call sites in
+# 16B and again here, which is why the value is a named constant rather than a
+# literal repeated at each site.
+CUTOFF = "2026-08-10T12:00:00.000Z"
+
+
+def snap(base, cutoff=CUTOFF, zone="UTC", weeks=4,
          filters=None, cfg=None):
     events = evidence.capture_events(evidence.log_path(base))
     return retention.capture(events, cutoff=cutoff, zone=zone, weeks=weeks,
@@ -96,7 +106,7 @@ def check_byte_stable_and_immutable():
             resp("s1", "emt:airway", "q1", "B", True, "2026-07-01T10:00:00.000Z"),
             resp("s2", "emt:airway", "q1", "C", False, "2026-07-10T10:00:00.000Z"),
         ])
-        kwargs = dict(cutoff="2026-08-10T12:00:00.000Z", zone="UTC", weeks=4)
+        kwargs = dict(cutoff=CUTOFF, zone="UTC", weeks=4)
         p1 = report(base, **kwargs)
         p2 = report(base, **kwargs)
         if json.dumps(p1, sort_keys=True) != json.dumps(p2, sort_keys=True):
@@ -174,7 +184,7 @@ def check_states():
             resp("s1", "emt:airway", "q1", "B", True, "2026-07-01T10:00:00.000Z"),
             resp("s2", "emt:airway", "q1", "C", False, "2026-07-10T10:00:00.000Z"),
         ])
-        p = report(base)
+        p = report(base, cutoff=CUTOFF)
         row = p["objectives"]["emt:airway"]
         if row["state"] != "unknown":
             fail("2 settled attempts must be unknown, got %r" % row["state"])
@@ -199,7 +209,7 @@ def check_states():
             resp("s2", "emt:airway", "q1", "D", False, "2026-08-02T10:00:00.000Z"),
             resp("s3", "emt:airway", "q1", "E", False, "2026-08-03T10:00:00.000Z"),
         ])
-        p = report(base2, cutoff="2026-08-10T12:00:00.000Z")
+        p = report(base2, cutoff=CUTOFF)
         row = p["objectives"]["emt:airway"]
         if row["state"] != "weak":
             fail("3 settled with 1 correct must be weak, got %r" % row["state"])
@@ -220,7 +230,7 @@ def check_states():
         # Same fixed clock, for the same reason as base2 above: this case
         # asserts "recent high accuracy", and read against the wall clock its
         # August 2026 events stop being recent and at-risk takes precedence.
-        p = report(base3, cutoff="2026-08-10T12:00:00.000Z")
+        p = report(base3, cutoff=CUTOFF)
         row = p["objectives"]["emt:airway"]
         if row["state"] != "mastered":
             fail("recent high accuracy + 3 distinct success days must be "
@@ -239,7 +249,7 @@ def check_states():
         if row["state"] != "due":
             fail("27 days after last success must be due-by-interval, not "
                  "yet at-risk, got %r" % row["state"])
-        p = report(base4, cutoff="2026-08-10T12:00:00.000Z")
+        p = report(base4, cutoff=CUTOFF)
         row = p["objectives"]["emt:airway"]
         if row["state"] != "at-risk":
             fail("28 days after last success must be at-risk, got %r"
@@ -258,7 +268,7 @@ def check_states():
             resp("s4", "emt:airway", "q1", "B", False, "2026-08-01T10:00:00.000Z"),
             resp("s5", "emt:airway", "q1", "B", True, "2026-08-01T11:00:00.000Z"),
         ])
-        p = report(base5, cutoff="2026-08-10T12:00:00.000Z")
+        p = report(base5, cutoff=CUTOFF)
         row = p["objectives"]["emt:airway"]
         if row["state"] != "due":
             fail("interval elapsed since last settled must be due, got %r"
@@ -300,7 +310,7 @@ def check_pending_and_marks():
             resp("s4", "emt:airway", "q4", "free text", None,
                  "2026-08-04T10:00:00.000Z", item_type="short"),
         ])
-        p = report(base)
+        p = report(base, cutoff=CUTOFF)
         row = p["objectives"]["emt:airway"]
         if row["pending"] != 1:
             fail("pending count is %r, not 1" % row["pending"])
@@ -317,7 +327,7 @@ def check_pending_and_marks():
         evidence.append_event(log, evidence.mark_event(
             "s4", pending_ev.get("item_id", ""), "q4",
             pending_ev["event_id"], True))
-        p = report(base)
+        p = report(base, cutoff=CUTOFF)
         row = p["objectives"]["emt:airway"]
         if row["pending"] != 0:
             fail("accepted mark must clear pending, got %r" % row["pending"])
@@ -330,7 +340,7 @@ def check_pending_and_marks():
                  "ts": evidence.utc_now(), "session_id": "s9",
                  "objective": "emt:airway", "dedupe_key": uuid.uuid4().hex}
         evidence.append_line(log, json.dumps(bogus, sort_keys=True))
-        p = report(base)
+        p = report(base, cutoff=CUTOFF)
         if p["claim"]["live_event_count"] != len(evidence.capture_events(log)):
             fail("live_event_count disagrees with the capture")
         if "model_proposal" in json.dumps(p):
@@ -348,13 +358,13 @@ def check_retraction():
             resp("s3", "emt:airway", "q1", "B", True, "2026-08-03T10:00:00.000Z"),
         ]
         append_all(log, evs)
-        p = report(base)
+        p = report(base, cutoff=CUTOFF)
         if p["claim"]["live_event_count"] != 3:
             fail("baseline live count is %r, not 3" % p["claim"]["live_event_count"])
         # Retract the middle response.
         evidence.append_event(log, evidence.retraction_event(
             evs[1]["event_id"], "fixed clock test"))
-        p = report(base)
+        p = report(base, cutoff=CUTOFF)
         row = p["objectives"]["emt:airway"]
         if p["claim"]["live_event_count"] != 2:
             fail("retraction must remove the event from the capture, got %r"
@@ -378,7 +388,7 @@ def check_week_series():
             resp("s4", "emt:airway", "q4", "D", True, "2026-08-08T10:00:00.000Z",
                  hint_tier=3),
         ])
-        p = report(base, cutoff="2026-08-10T12:00:00.000Z")
+        p = report(base, cutoff=CUTOFF)
         weeks = p["objectives"]["emt:airway"]["weeks"]
         for key in ("1w", "2w", "4w", "8w", "12w"):
             if key not in weeks:
@@ -398,7 +408,7 @@ def check_week_series():
         append_all(log2, [
             resp("s1", "emt:airway", "q1", "B", True, "2026-01-01T10:00:00.000Z"),
         ])
-        p2 = report(base2, cutoff="2026-08-10T12:00:00.000Z")
+        p2 = report(base2, cutoff=CUTOFF)
         if p2["objectives"]["emt:airway"]["weeks"]["1w"]["settled"] != 0:
             fail("empty 1w bucket must have settled 0")
         if p2["objectives"]["emt:airway"]["weeks"]["1w"]["accuracy"] is not None:
@@ -423,7 +433,7 @@ def check_weights():
             resp("s6", "emt:math", "m1", "B", True, "2026-08-03T10:00:00.000Z"),
             resp("s7", "emt:math", "m1", "B", True, "2026-08-04T10:00:00.000Z"),
         ])
-        p = report(base)
+        p = report(base, cutoff=CUTOFF)
         w = p["weights"]
         if state_of(p, "emt:airway") != "weak":
             fail("fixture: emt:airway must be weak, got %r" % state_of(p, "emt:airway"))
@@ -443,7 +453,7 @@ def check_weights():
         # Max-step cap: a previous map far from current must move by at most
         # max_weight_step.
         prev = {"emt:airway": cfg["weight_max"], "emt:math": cfg["weight_min"]}
-        p2 = report(base)
+        p2 = report(base, cutoff=CUTOFF)
         for obj, entry in p2["weights"].items():
             step = abs(entry["weight"] - prev[obj])
             if step > cfg["max_weight_step"] + 1e-9:
@@ -487,8 +497,8 @@ def check_scheduler():
             resp("s2", "emt:airway", "q1", "B", True, "2026-08-03T10:00:00.000Z"),
             resp("s3", "emt:airway", "q1", "B", True, "2026-08-06T10:00:00.000Z"),
         ])
-        p1 = report(base, cutoff="2026-08-10T12:00:00.000Z")
-        p2 = report(base, cutoff="2026-08-10T12:00:00.000Z")
+        p1 = report(base, cutoff=CUTOFF)
+        p2 = report(base, cutoff=CUTOFF)
         s1 = p1["objectives"]["emt:airway"]["scheduler"]
         s2 = p2["objectives"]["emt:airway"]["scheduler"]
         if s1 != s2:
@@ -536,7 +546,7 @@ def check_utility_order_and_return_rate():
             resp("s5", "emt:math", "m1", "C", False, "2026-07-29T10:00:00.000Z"),
             resp("s6", "emt:math", "m1", "D", True, "2026-07-30T10:00:00.000Z"),
         ])
-        p = report(base, cutoff="2026-08-10T12:00:00.000Z")
+        p = report(base, cutoff=CUTOFF)
         order = p["due_order"]
         if len(order) != 2:
             fail("both weak objectives must be in the due order, got %r" % order)

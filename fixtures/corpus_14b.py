@@ -999,3 +999,77 @@ def build_rights_matrix_fixture(dest):
         "source_ids": source_ids,
         "source_texts": source_texts,
     }
+
+
+def run_interrupted_child(root, kill_after_phase, operation_id):
+    """Record protocol phases in order and exit abruptly after the named one.
+
+    Runs in a child process. `os._exit` rather than `sys.exit`, so no
+    `finally`, no atexit hook, and no buffered writer gets a chance to tidy up:
+    the point of the fixture is a process that stopped without cooperating, and
+    a clean shutdown would prove nothing about resuming from the journal.
+    """
+    import director
+
+    director.begin_operation(root, root, "an interrupted operation", "agent",
+                             "corpus-15a", "course-builder", "recommend-only",
+                             (), operation_id=operation_id)
+    if kill_after_phase == director.PROTOCOL_STEPS[0]:
+        os._exit(0)
+    for index, phase in enumerate(director.PROTOCOL_STEPS):
+        if index == 0:
+            continue
+        if phase == "preview":
+            director.record_phase(
+                root, operation_id, phase, index, "applied",
+                actor_kind="agent", actor_name="corpus-15a",
+                outcome="not-applicable",
+                reason=director.PREVIEW_NOT_APPLICABLE)
+        else:
+            director.record_phase(root, operation_id, phase, index, "applied",
+                                  actor_kind="agent", actor_name="corpus-15a")
+        if phase == kill_after_phase:
+            os._exit(0)
+    os._exit(0)
+
+
+def build_interrupted_operation(dest, kill_after_phase, root=None):
+    """Spawn a child that dies immediately after recording `kill_after_phase`.
+
+    Returns the course root and the operation id, so the parent can replay a
+    journal written by a process that no longer exists. Following the spawn
+    and kill harness `tests/journal_roundtrip.py` already uses rather than
+    inventing a second one.
+    """
+    import subprocess
+    import sys
+
+    import identity
+
+    if root is None:
+        built = build_three_domains(dest)
+        root = built["domains"][0]["root"]
+    operation_id = identity.new_object_id()
+    completed = subprocess.run(
+        [sys.executable, __file__, "--child", "interrupted_operation", root,
+         kill_after_phase, operation_id],
+        capture_output=True, text=True, timeout=60)
+    return {"course_root": root, "operation_id": operation_id,
+            "returncode": completed.returncode, "stderr": completed.stderr}
+
+
+if __name__ == "__main__":
+    import sys
+
+    # The `--child` harness, the same shape tests/journal_roundtrip.py and
+    # tests/durability_roundtrip.py already use: a mode name, then its
+    # positional arguments. A fixture module is a legitimate place for this,
+    # because the child has to import the same corpus the parent built.
+    if len(sys.argv) > 1 and sys.argv[1] == "--child":
+        sys.path.insert(0, os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))))
+        mode = sys.argv[2]
+        if mode == "interrupted_operation":
+            run_interrupted_child(sys.argv[3], sys.argv[4], sys.argv[5])
+        else:
+            sys.exit("unknown child mode: %s" % mode)
