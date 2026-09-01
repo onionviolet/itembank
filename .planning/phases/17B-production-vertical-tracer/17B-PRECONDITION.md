@@ -1,9 +1,50 @@
 # 17B precondition check
 
-## Result
+## Result, second run
 
-**Run 2026-09-01: HALT. Phase 17B may not proceed.** Check 2 (plan-summary
-pairing) halted with the exact artifact named:
+**Run 2026-09-01, after the 14B repair: HALT again. Phase 17B may not
+proceed.** The two owed 14B summaries were reconstructed retrospectively
+and committed (`e9da36e`, `14B-04-SUMMARY.md` and `14B-05-SUMMARY.md`),
+and the three checks were rerun verbatim (with `python3`). Checks 1 and 3
+are green. Check 2 halted with the next missing artifact named:
+
+```
+HALT 17B-01: plan without summary: .planning/phases/15A-director-treatment-policy/15A-01-PLAN.md
+```
+
+The full enumeration behind that first-named miss, from one sweep over the
+seven phase directories, is sixteen plans without summaries:
+
+- `15A-01-PLAN.md` through `15A-06-PLAN.md` (all six 15A plans)
+- `15B-01-PLAN.md` through `15B-07-PLAN.md` (all seven 15B plans)
+- `16A-01-PLAN.md` and `16A-10-PLAN.md`
+- `16C-09-PLAN.md`
+
+The shape of the gap differs from 14B's. Phases 15A and 15B recorded their
+execution phase-wide (`15A-REVIEW.md`, `15A-TRACER-REPORT.md`,
+`15A-FREEZE.md`, and the 15B equivalents plus `COVERAGE.md`) and wrote no
+per-plan summary at all; 16A and 16C wrote per-plan summaries for all but
+two and one plans respectively. Whether the phase-wide records satisfy the
+pairing rule's intent, or sixteen retrospective summaries are owed the way
+14B's two were, is a call for the orchestrator or Weibao, not for this
+executor: reconstructing sixteen execution records across four frozen
+phases is well past the single-artifact repair the first run's next safe
+action named, and forcing the check green by bulk reconstruction is the
+reduced-check-set outcome the plan forbids by name.
+
+**Next safe action.** Either (a) the sixteen owed summaries are written
+retrospectively by sessions scoped to their owning phases, from the commit
+record, as the 14B pair was; or (b) the pairing rule is amended by whoever
+owns 17B-01-PLAN.md to accept a phase-wide execution record (REVIEW plus
+TRACER-REPORT plus FREEZE) where per-plan summaries were never the phase's
+record shape, with that amendment recorded, not silently applied. Then
+this precondition is rerun.
+
+## Result, first run
+
+**Run 2026-09-01 (first run of the day): HALT. Phase 17B may not
+proceed.** Check 2 (plan-summary pairing) halted with the exact artifact
+named:
 
 ```
 HALT 17B-01: plan without summary: .planning/phases/14B-graph-course-package-prototype/14B-04-PLAN.md
