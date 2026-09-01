@@ -96,6 +96,13 @@ promise features listed as "being built" elsewhere in this README.
    from GitHub Releases and verify it against `SHA256SUMS.txt`. On macOS,
    expect the Gatekeeper quarantine block on launcher files and apply the fix
    documented in the Install section.
+
+   Windows SmartScreen note: this installer is not code signed, so the first
+   launch shows 'Windows protected your PC'. Click 'More info', confirm the
+   file name is the one you downloaded, then click 'Run anyway'. Before that,
+   verify the download: run Get-FileHash on the file in PowerShell and compare
+   the SHA-256 against SHA256SUMS.txt on the same release page. If the hashes
+   differ, delete the file and download it again.
 3. **Verify the runtime.** `python itembank.py --help` must print the command
    index. `python itembank.py spec` prints the full authoring format; read it
    before writing any items.
