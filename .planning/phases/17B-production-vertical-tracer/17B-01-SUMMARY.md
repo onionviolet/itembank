@@ -1,10 +1,68 @@
-# 17B-01 summary: precondition halt, twice
+# 17B-01 summary: two halts, a ruling, and a completed run
 
-**Executed 2026-09-01, two runs. Outcome of both: HALT at Task 1, check
-2.** Per 17B-CONTEXT D-01 and the plan's own instruction ("The halt is the
-correct outcome; do not stub, skip, or proceed with a reduced check set"),
-the halt is this plan's correct result, not a failure of execution. Tasks
-2 and 3 did not run in either attempt.
+**Executed 2026-09-01, three precondition runs. Final outcome: all three
+checks GREEN, Tasks 2 and 3 executed and verified.** The first two runs
+halted at Task 1 check 2, each halt the correct outcome of the check as
+it then stood (17B-CONTEXT D-01). The coordinator's hybrid ruling under
+Weibao's standing 2026-09-01 delegation closed the gap two ways: 15A and
+15B (phase-wide record shape) were exempted by a dated amendment to
+17B-01-PLAN.md Task 1 step 2 whose amended command checks their
+phase-wide records instead, and the three genuine per-plan gaps got
+retrospective summaries (`16A-01-SUMMARY.md`, `16A-10-SUMMARY.md`,
+`16C-09-SUMMARY.md`, commit `020de23`), following the 14B pair
+(`e9da36e`).
+
+## Third run: the precondition passes
+
+Verbatim results, run from the repository root with `python3` for
+`python` (the recorded deviation):
+
+- Check 1: `precondition artifacts present`, exit 0.
+- Check 2 (amended): `plan-summary pairing complete`, exit 0.
+- Check 3: `17A freeze confirmed`, exit 0.
+
+The amended check 2 command is recorded verbatim in
+`17B-PRECONDITION.md` under "Result, third run".
+
+## Task 2: the fixture course
+
+`course_fixture_17b/` created at the repository root, entirely synthetic
+(Aldrasse fen ecology, invented for the tracer), outside `fixtures/`
+deliberately. Files with word counts (`wc -w`):
+
+| file | words |
+|---|---|
+| `course_fixture_17b/README.md` | 173 |
+| `course_fixture_17b/scope.md` | 338 |
+| `course_fixture_17b/objectives.md` | 245 |
+| `course_fixture_17b/sources/fen_hydrology_field_notes.md` | 625 |
+| `course_fixture_17b/sources/lantern_moss_survey.md` | 567 |
+
+Both sources exceed the 400-word production-depth floor, carry headed
+sections whose heading slugs are the stable locator anchors, and the
+seven objectives in `objectives.md` each cite one source section with a
+`[SRC: <source file>#<anchor>]` locator. The scope tree follows D-03:
+open field "Fenland Systems" (never complete, scope version
+FS-2026-09-01.1 stated on every claim), bounded course "Aldrasse Fen
+Ecology 101" with named completion predicate `afe101-complete-v1`,
+containing "Unit 3: Peat Hydrology and the Lantern Moss Cycle".
+
+Verify outputs, verbatim: `python3 itembank.py guard .` printed
+`0 offending files`, exit 0; the em dash sweep over
+`course_fixture_17b/**/*.md` printed `no em dash`, exit 0.
+
+## Task 3: the gate scaffold
+
+`17B-GATES.md` written with the five columns exactly (gate, concrete
+check, proof command or fixture, evidence pointer, state), one row per
+gate G1 through G11 with the concrete check transcribed from the ROADMAP
+details block and proof, evidence, and state all `pending`, plus the
+mandatory-human-checkpoint note verbatim beneath the table.
+
+Verify outputs, verbatim: `grep -c "^| G"` printed `11`; the em dash
+check printed `no em dash`.
+
+## History of the two halts
 
 ## Second run, after the 14B repair
 
@@ -71,11 +129,7 @@ None. `17B-GATES.md` was not created; Task 3 did not run.
 
 ## Next safe action
 
-Superseded for the 14B half: the owed `14B-04-SUMMARY.md` and
-`14B-05-SUMMARY.md` were written and committed (`e9da36e`) before the
-second run. The standing next safe action after the second run's halt:
-either sixteen retrospective summaries are written by sessions scoped to
-their owning phases (15A, 15B, 16A, 16C), or the pairing rule in
-17B-01-PLAN.md is amended by its owner to accept a phase-wide execution
-record where per-plan summaries were never that phase's record shape.
-Then this plan is rerun from Task 1.
+Closed. Both halts' next safe actions were carried out on 2026-09-01
+(the 14B pair at `e9da36e`, the hybrid ruling at `020de23` plus the plan
+amendment), the precondition passed on the third run, and Tasks 2 and 3
+completed. The next action belongs to wave 2 (17B-02).

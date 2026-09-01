@@ -61,6 +61,27 @@ python -c "import glob,os,sys; dirs=['14A-identity-lifecycle-operation','14B-gra
 ```
    Expected stdout on success: `plan-summary pairing complete`, exit 0. On any
    miss: the HALT line with the exact plan path, nonzero exit.
+
+   **Amendment, 2026-09-01 (coordinator, under Weibao's standing 2026-09-01
+   delegation; original check text above preserved unchanged).** The
+   plan-summary pairing check exempts `15A-director-treatment-policy` and
+   `15B-quality-blueprint-acceptance`: those phases recorded execution
+   phase-wide (`15A-REVIEW.md`, `15A-TRACER-REPORT.md`, `15A-FREEZE.md`;
+   `15B-REVIEW.md`, `15B-TRACER-REPORT.md`, `15B-FREEZE.md`, `COVERAGE.md`)
+   and never adopted per-plan summaries, and the check's intent is "no plan
+   executed without a record", not "every phase used the per-plan record
+   shape". For those two phases the amended check verifies the named
+   phase-wide records exist on disk instead. The amended command, which
+   replaces the step 2 command above:
+```
+python -c "import glob,os,sys; dirs=['14A-identity-lifecycle-operation','14B-graph-course-package-prototype','16A-semantic-capability-activity-contract','16B-ia-modes-recovery-contract','16C-strategies-notes-prototype-convergence']; missing=[p for d in dirs for p in sorted(glob.glob('.planning/phases/'+d+'/*-PLAN.md')) if not os.path.exists(p.replace('-PLAN.md','-SUMMARY.md'))]; pw=[f for f in ['.planning/phases/15A-director-treatment-policy/15A-REVIEW.md','.planning/phases/15A-director-treatment-policy/15A-TRACER-REPORT.md','.planning/phases/15A-director-treatment-policy/15A-FREEZE.md','.planning/phases/15B-quality-blueprint-acceptance/15B-REVIEW.md','.planning/phases/15B-quality-blueprint-acceptance/15B-TRACER-REPORT.md','.planning/phases/15B-quality-blueprint-acceptance/15B-FREEZE.md','.planning/phases/15B-quality-blueprint-acceptance/COVERAGE.md'] if not os.path.exists(f)]; sys.exit('HALT 17B-01: plan without summary: '+missing[0]) if missing else (sys.exit('HALT 17B-01: missing phase-wide execution record: '+pw[0]) if pw else print('plan-summary pairing complete'))"
+```
+   Expected stdout on success: `plan-summary pairing complete`, exit 0. On
+   any miss: the HALT line naming the exact plan path or phase-wide record,
+   nonzero exit. The three per-plan gaps in phases whose record shape IS
+   per-plan summaries (16A-01, 16A-10, 16C-09) are not exempted; they were
+   closed by retrospective summaries dated 2026-09-01, the 14B-04 and
+   14B-05 precedent.
 3. Verify 17A-FREEZE.md records a freeze, not a withholding:
 ```
 python -c "t=open('.planning/phases/17A-visual-system-component-foundation/17A-FREEZE.md',encoding='utf-8').read(); import sys; sys.exit('HALT 17B-01: 17A-FREEZE.md is a withholding, not a freeze') if '## Freeze withheld' in t or '## Frozen at' not in t else print('17A freeze confirmed')"

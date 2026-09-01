@@ -1,5 +1,31 @@
 # 17B precondition check
 
+## Result, third run: GREEN. Phase 17B may proceed.
+
+**Run 2026-09-01, after the coordinator's hybrid ruling (given under
+Weibao's standing 2026-09-01 delegation).** The ruling: phases whose
+record shape is per-plan summaries got retrospectives (16A-01, 16A-10,
+16C-09, commit `020de23`, following the 14B-04 and 14B-05 precedent,
+commit `e9da36e`), and 15A and 15B, whose record shape was phase-wide,
+were exempted by a dated amendment appended to 17B-01-PLAN.md Task 1 step
+2 with the original check text preserved; the amended check verifies
+their phase-wide records exist instead. All three checks now pass, run
+from the repository root with `python3` substituted for `python`:
+
+- Check 1: `precondition artifacts present`, exit 0.
+- Check 2 (amended): `plan-summary pairing complete`, exit 0.
+- Check 3: `17A freeze confirmed`, exit 0.
+
+The amended check 2 command, verbatim as run (as `python3`):
+
+```
+python -c "import glob,os,sys; dirs=['14A-identity-lifecycle-operation','14B-graph-course-package-prototype','16A-semantic-capability-activity-contract','16B-ia-modes-recovery-contract','16C-strategies-notes-prototype-convergence']; missing=[p for d in dirs for p in sorted(glob.glob('.planning/phases/'+d+'/*-PLAN.md')) if not os.path.exists(p.replace('-PLAN.md','-SUMMARY.md'))]; pw=[f for f in ['.planning/phases/15A-director-treatment-policy/15A-REVIEW.md','.planning/phases/15A-director-treatment-policy/15A-TRACER-REPORT.md','.planning/phases/15A-director-treatment-policy/15A-FREEZE.md','.planning/phases/15B-quality-blueprint-acceptance/15B-REVIEW.md','.planning/phases/15B-quality-blueprint-acceptance/15B-TRACER-REPORT.md','.planning/phases/15B-quality-blueprint-acceptance/15B-FREEZE.md','.planning/phases/15B-quality-blueprint-acceptance/COVERAGE.md'] if not os.path.exists(f)]; sys.exit('HALT 17B-01: plan without summary: '+missing[0]) if missing else (sys.exit('HALT 17B-01: missing phase-wide execution record: '+pw[0]) if pw else print('plan-summary pairing complete'))"
+```
+
+The two earlier halted runs of the same day are preserved below as
+history; their halts were the correct outcomes of the checks as they
+stood at the time.
+
 ## Result, second run
 
 **Run 2026-09-01, after the 14B repair: HALT again. Phase 17B may not
