@@ -45,17 +45,41 @@ Here is the whole format:
 
 ```
 Q1. An operator notices a low chlorine residual at the far end of the
-     distribution network. What is the most likely explanation?
-     A) Dead-end stagnation  B) A leaking service line  C) Pump cavitation
-     CORRECT: A
+distribution network. What is the most likely explanation?
+A) Dead-end stagnation
+B) A leaking service line
+C) Pump cavitation
+CORRECT: A
+WHY BEST: Water sitting at a dead end has time for its residual to decay.
+TRAP: A leak feels urgent, but a leak lowers pressure, not residual.
 
-Q2. Name two lab checks before clearing a main for service.  [TYPE: short]
-     MODEL: turbidity, total chlorine
+Q2. Name two lab checks before clearing a main for service.
+[TYPE: short]
+MODEL: turbidity, total chlorine
+RUBRIC:
+- names turbidity
+- names a chlorine measurement
+TRAP: naming pressure tests, which are hydraulic, not lab checks
 ```
 
-That is the whole format. `itembank spec` prints the rest.
+That is the whole format: structural markers such as `A)`, `CORRECT:`, and
+`[TYPE:]` each start their own line at the left margin. This sample lints
+with zero errors as written. Expect advisory warnings on any first bank
+(missing `[ID:]` lines until `id-assign` runs, missing `SECOND-BEST`
+fields, objectives without a `subject:` prefix): errors block, warnings
+advise, and a wall of warnings on a fresh bank is the normal first-run
+experience, not a sign you misread the spec. `itembank spec` prints the
+rest.
 
 ## Quick start for someone brand new
+
+What you get today is the bank, lesson, and session loop: author a markdown
+question bank, lint it, sit it graded in your browser or through an AI tutor
+session, study it as flashcards, and keep every attempt on your own disk. The
+course workspace described elsewhere in this README (sources bound to cited
+objectives, per-objective treatments, evidence-driven next actions) is being
+built and is not something you can run yet. If a sentence describes the course
+workspace, read it as direction, not as a shipped feature.
 
 You have never seen this project before and want to study something with it.
 There are two paths. Both need **Python 3.11 or newer** on your machine and
@@ -76,8 +100,13 @@ material, and leave you with a running quiz in your browser.
 ```bash
 git clone https://github.com/onionviolet/itembank.git
 cd itembank
-python itembank.py --help
+python3 itembank.py --help
 ```
+
+One interpreter note for every command in this README: commands are written
+as `python itembank.py ...`, and on macOS and Linux the interpreter is
+usually named `python3`, so substitute `python3 itembank.py ...` there.
+Windows installs from python.org provide `python`.
 
 Then write a bank (the format sample above is a complete valid file), check it
 with `python itembank.py lint mybank.md`, and sit it with
@@ -279,9 +308,12 @@ python itembank.py --help
 
 A checkout run this way checks GitHub for a new version at most once per
 interval (24 hours by default) when the daemon starts, and nothing but that
-request leaves the machine. The first launch prints this notice once before
-it checks anything. To turn the check off, set `update_policy` to `opt_in`
-in `itembank.json`.
+request leaves the machine. The first daemon launch on a machine that has
+never seen it prints a one-time notice saying exactly that, before anything
+is checked; bank commands like `lint` and `serve` neither check nor print
+it. To turn the check off, set `update_policy` to `opt_in` in
+`itembank.json` (a downloaded release without that file is `opt_in`
+already and never checks unasked).
 
 There is nothing to install. If you want it on your PATH, copy `itembank.py`
 somewhere and make it executable.
@@ -432,6 +464,23 @@ For an agent, use the JSON session interface instead of scraping HTML:
 3. `submit` scores the response, records it locally, and returns the next item.
 4. `report` returns objective-level evidence and manually graded response count.
 
+Contract details an agent driver needs, learned the hard way so yours does
+not have to:
+
+- Every public item carries a `response_schema` field, and that field, not
+  the item type name, is the authoritative shape for the answer `submit`
+  expects (table rows answer by id, build steps answer by text).
+- In practice mode a wrong answer returns `action: "hold"` with
+  `accepted: false` and the session does not advance: `next` returns the
+  same item for another try. A driver that assumes submit always advances
+  will loop forever on its own repeated wrong answer.
+- When `submit` does advance, the following item arrives nested under the
+  `next` key of the submit response, not at the top level.
+- A session whose last unanswered item is a `short` item stays `active`
+  with the response recorded as pending: there is no `complete` signal
+  from `submit` in that case, so treat `report`'s pending-manual count as
+  the end-of-sitting signal.
+
 The runtime owns answer keys, scoring, session position, and attempt recording.
 An agent owns explanation and remediation choices. This separation prevents a
 tutor from silently changing the test or grading its own explanation.
@@ -478,8 +527,12 @@ this repo, or a tutor you spawned. Everything an agent needs to start cold is
 in `AGENTS.md` at the repository root (read by Codex, Cursor, Gemini CLI, and
 Claude Code), with the full project context in `.claude/CLAUDE.md`.
 
-**Repo skills.** This repository ships five playbooks that an agent can
-invoke by name. The two trees are byte-identical mirrors:
+**Repo skills.** This repository ships the playbooks below, which an agent
+can invoke by name; `capabilities.json` lists every skill directory,
+including three stubs (`discovery-and-binding`, `lesson-authoring`,
+`media-intake`) whose command surface has not shipped and which are not
+usable yet, plus the course-level `build-course` and `legacy-upgrade`
+playbooks. The two trees are byte-identical mirrors:
 
 | Skill | What it does |
 |---|---|
@@ -849,7 +902,7 @@ installers/               NSIS installer sources
 scripts/                  build/asset generators, the OCR helpers, and preflight.py
                           (preflight.py runs the CI gates locally before a push)
 src-tauri/                the desktop shell (Tauri over the Python sidecar)
-fixtures/sample_bank.md   synthetic, exercises six of the seven types, lints clean
+fixtures/sample_bank.md   synthetic, exercises six of the eight types, lints clean
 fixtures/broken_bank.md   deliberately defective; CI asserts lint catches each defect
 GRADING.md                how to mark an attempt file; hand this to your marker
 AGENTS.md                 agent on-ramp: layers, boundaries, authoring + tutoring loops
