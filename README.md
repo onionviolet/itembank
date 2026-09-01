@@ -88,6 +88,18 @@ with `python itembank.py lint mybank.md`, and sit it with
 Follow these steps in order. Do not skip the verification steps, and do not
 promise features listed as "being built" elsewhere in this README.
 
+0. Read capabilities.json at the repository root first. It is the
+   machine-readable index of this install: version, format contract version,
+   every CLI command with the version it appeared in, the served routes, and
+   a changed-for-agents changelog. It is a static local file; reading it is
+   not a network event. If your last visit was an older version, the
+   changed_for_agents list is the diff that matters to you.
+
+   Each release appends one changed_for_agents entry to capabilities.json
+   describing what an agent must know that release notes for humans would
+   bury. The planned MCP surface (Phase 999.3) will serve this same manifest
+   as its discover payload.
+
 1. **Verify Python.** Run `python3 --version` (or `python --version` on
    Windows). Require 3.11 or newer; if it is missing, direct the user to
    python.org and stop until that is done.
@@ -126,9 +138,9 @@ promise features listed as "being built" elsewhere in this README.
    The daemon also checks at most once per configured interval and disclosed
    that before its first request. Re-read this README and `itembank spec`
    after an update; the format only ever changes additively, but new
-   capabilities arrive with new versions. (A machine-readable "what changed
-   for agents" surface is a planned future capability; until it ships, the
-   release notes on GitHub are the changelog.)
+   capabilities arrive with new versions. (The machine-readable "what
+   changed for agents" surface is capabilities.json's changed_for_agents
+   list, per step 0; the release notes on GitHub are the human changelog.)
 8. **Set expectations honestly.** The shipped product is the bank, lesson, and
    session loop documented under [Use](#use). The course workspace described
    in "The source-to-course journey" is the next milestone, not something you

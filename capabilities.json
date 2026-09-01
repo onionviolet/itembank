@@ -1,0 +1,509 @@
+{
+  "changed_for_agents": [
+    {
+      "changes": [
+        "capabilities.json introduced: a static, local, machine-readable index of this install (version, format contract version, every CLI command with its since-version, served routes, skill index, and this changelog). Reading it is not a network event."
+      ],
+      "version": "0.3.0"
+    }
+  ],
+  "commands": [
+    {
+      "help": "print the format contract",
+      "name": "spec",
+      "since": "0.3.0"
+    },
+    {
+      "help": "validate a bank",
+      "name": "lint",
+      "since": "0.3.0"
+    },
+    {
+      "help": "render an interactive HTML quiz (nothing is saved)",
+      "name": "build",
+      "since": "0.3.0"
+    },
+    {
+      "help": "sit the quiz with every answer written to disk",
+      "name": "serve",
+      "since": "0.3.0"
+    },
+    {
+      "help": "one process on one port for every surface",
+      "name": "daemon",
+      "since": "0.3.0"
+    },
+    {
+      "help": "packaged-app launch (D-03/D-04): the daemon in sidecar mode, printing the fixed stdout handshake (itembank-port/token/version) after binding and gating every route except the marker with a per-launch token",
+      "name": "sidecar",
+      "since": "0.3.0"
+    },
+    {
+      "help": "print the CLI command that reaches the same runtime call as a served view path",
+      "name": "cli-twin",
+      "since": "0.3.0"
+    },
+    {
+      "help": "print the one-disclosure render-hook state (notified_at, locked copy, settings path)",
+      "name": "disclosure",
+      "since": "0.3.0"
+    },
+    {
+      "help": "item mix, coverage, answer-position skew, and empirical distractor usage when evidence exists",
+      "name": "stats",
+      "since": "0.3.0"
+    },
+    {
+      "help": "objective coverage map, computed on demand from the bank and its ## SOURCES registry, never stored",
+      "name": "coverage",
+      "since": "0.3.0"
+    },
+    {
+      "help": "start a resumable JSON assessment session",
+      "name": "start",
+      "since": "0.3.0"
+    },
+    {
+      "help": "start one additional sitting past today's cap after explicit confirmation",
+      "name": "override",
+      "since": "0.3.0"
+    },
+    {
+      "help": "preview a selection without starting a session",
+      "name": "select",
+      "since": "0.3.0"
+    },
+    {
+      "help": "return the next item in a JSON assessment session",
+      "name": "next",
+      "since": "0.3.0"
+    },
+    {
+      "help": "score and record the current session response",
+      "name": "submit",
+      "since": "0.3.0"
+    },
+    {
+      "help": "request one error-specific hint from the model backend; falls back to the authored tier offline and never accepts a caller-supplied tier (D-09)",
+      "name": "hint",
+      "since": "0.3.0"
+    },
+    {
+      "help": "read or open the next tier of the fixed six-tier AUTHORED hint ladder for the current item; the CLI twin of POST /api/teach, and never a caller-supplied tier (D-09)",
+      "name": "teach",
+      "since": "0.3.0"
+    },
+    {
+      "help": "request pending per-point rubric suggestions for the current short response; a model suggestion can never settle a mark (D-25)",
+      "name": "rubric-review",
+      "since": "0.3.0"
+    },
+    {
+      "help": "commit one semantic state-changing action on the current visual item (plan 06.1-02); the CLI twin of POST /api/interact",
+      "name": "interact",
+      "since": "0.3.0"
+    },
+    {
+      "help": "summarize a JSON assessment session",
+      "name": "report",
+      "since": "0.3.0"
+    },
+    {
+      "help": "read recorded response history across every session and subject",
+      "name": "evidence",
+      "since": "0.3.0"
+    },
+    {
+      "help": "longitudinal retention report: due objectives, week series, weights, and evidence claim from one captured snapshot (Phase 10)",
+      "name": "trends",
+      "since": "0.3.0"
+    },
+    {
+      "help": "undo a recorded evidence event by appending a reasoned compensating event; nothing is ever deleted (D-10)",
+      "name": "retract",
+      "since": "0.3.0"
+    },
+    {
+      "help": "regenerate the attempt markdown or session JSON for one session from the evidence log; editing the output changes nothing (D-11)",
+      "name": "render",
+      "since": "0.3.0"
+    },
+    {
+      "help": "record a batch of short-answer marks as timestamped events; the attempt file no longer accepts a hand-edited MARK: line (D-12)",
+      "name": "mark",
+      "since": "0.3.0"
+    },
+    {
+      "help": "list short answers awaiting a mark across every session under --base; read-only",
+      "name": "marks",
+      "since": "0.3.0"
+    },
+    {
+      "help": "assign opaque ids and content-hash fingerprints into a bank; the only command that writes into a bank -- lint stays read-only by design",
+      "name": "id-assign",
+      "since": "0.3.0"
+    },
+    {
+      "help": "render flashcards and a session-only Learn loop",
+      "name": "study",
+      "since": "0.3.0"
+    },
+    {
+      "help": "render the LESSON section as reading material",
+      "name": "lesson",
+      "since": "0.3.0"
+    },
+    {
+      "help": "render the lesson permuted into a named style (the five impossible transforms are refused by name)",
+      "name": "render-style",
+      "since": "0.3.0"
+    },
+    {
+      "help": "print one term's definition from the bank's ## TERMS block, gated by the runtime",
+      "name": "gloss",
+      "since": "0.3.0"
+    },
+    {
+      "help": "record a [!KEY] card as added to review (the CLI twin of POST /key/<id>/review)",
+      "name": "key-review",
+      "since": "0.3.0"
+    },
+    {
+      "help": "score and record one gate band check submission (the CLI twin of POST /lesson/<stem>/check)",
+      "name": "lesson-check",
+      "since": "0.3.0"
+    },
+    {
+      "help": "record one gate_skip event (the CLI twin of POST /lesson/<stem>/skip)",
+      "name": "lesson-skip",
+      "since": "0.3.0"
+    },
+    {
+      "help": "export a bank as Anki TSV or GIFT for LMS import, or one objective as an audio drill pack (stem, timed pause, key, why) plus a plain-text transcript",
+      "name": "export",
+      "since": "0.3.0"
+    },
+    {
+      "help": "today's work across every subject, ticked and logged",
+      "name": "day",
+      "since": "0.3.0"
+    },
+    {
+      "help": "print the published JSON contracts the way `spec` prints the format contract",
+      "name": "schema",
+      "since": "0.3.0"
+    },
+    {
+      "help": "print the machine-readable agent usage contract -- permissions, prohibitions, disclosure, retry, manual-grading rules, and forbidden inferences -- the bytes on disk verbatim (MODEL-04)",
+      "name": "usage",
+      "since": "0.3.0"
+    },
+    {
+      "help": "print the settings schema the way `spec` prints the format contract",
+      "name": "config",
+      "since": "0.3.0"
+    },
+    {
+      "help": "list durable agent and maintenance jobs (the Activity view's CLI twin)",
+      "name": "activity",
+      "since": "0.3.0"
+    },
+    {
+      "help": "print the offline help entry for one named error code",
+      "name": "help-code",
+      "since": "0.3.0"
+    },
+    {
+      "help": "apply one course-shelf or first-run action (the POST /api/shelf CLI twin)",
+      "name": "shelf",
+      "since": "0.3.0"
+    },
+    {
+      "help": "import a book, document, page, or transcript as a cited source",
+      "name": "source",
+      "since": "0.3.0"
+    },
+    {
+      "help": "preview, set, reset, or pick the source accent",
+      "name": "theme",
+      "since": "0.3.0"
+    },
+    {
+      "help": "one-time, re-runnable import of the three legacy stores (_attempts/*.md, session JSON, daily_log.md) into the evidence log; a dry run by default, pass --write to actually import",
+      "name": "migrate",
+      "since": "0.3.0"
+    },
+    {
+      "help": "check GitHub for a newer release, download and verify it, and prepare it beside the running artifact",
+      "name": "update",
+      "since": "0.3.0"
+    },
+    {
+      "help": "import external content into itembank candidates",
+      "name": "import",
+      "since": "0.3.0"
+    },
+    {
+      "help": "seed one bank through the six-stage accept loop one item at a time (needs a model backend; refuses by name without one)",
+      "name": "seed",
+      "since": "0.3.0"
+    },
+    {
+      "help": "fail if a real bank was committed",
+      "name": "guard",
+      "since": "0.3.0"
+    },
+    {
+      "help": "measure every Phase 3.1 style warning's false-positive rate over a corpus directory (D-18)",
+      "name": "calibrate",
+      "since": "0.3.0"
+    },
+    {
+      "help": "closed authoring loop and curriculum auditor (Phase 11)",
+      "name": "audit",
+      "since": "0.3.0"
+    },
+    {
+      "help": "Canvas LMS integration via LTI 1.3 (phase 999.4): registration status, doctor, and the opt-in bind. Privacy: item text travels to the learner's browser through the LMS, and the final score is copied to the course gradebook when the assignment is complete. itembank stores no gradebook, hosts nothing, and sends no telemetry and no learner evidence beyond the score.",
+      "name": "lti",
+      "since": "0.3.0"
+    }
+  ],
+  "format_contract_version": 1,
+  "itembank_version": "0.3.0",
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "/banks",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "/__itembank__",
+      "token_gated": false
+    },
+    {
+      "method": "GET",
+      "path": "/day",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "/report",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "/settings",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "/disclosure",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "/activity",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/theme",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/cli-twin",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/seed/accept",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/start",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/next",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/submit",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/hint",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/teach",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/interact",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/report",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/override",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/lesson-complete",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/rubric-review",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/export_audio",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/lesson/run",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/source/import",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/source/recheck",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/shelf",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "^/assets/katex/(?P<name>[A-Za-z0-9_./-]+)$",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "^/assets/fonts/(?P<name>[A-Za-z0-9_./-]+)$",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "^/quiz/(?P<stem>[^/]+)$",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "^/quiz/(?P<stem>[^/]+)/answer$",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "^/study/(?P<stem>[^/]+)$",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "^/lesson/(?P<stem>[^/]+)$",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "^/lesson/(?P<stem>[^/]+)/check$",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "^/lesson/(?P<stem>[^/]+)/skip$",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "^/gloss/(?P<stem>[^/]+)/(?P<slug>[^/]+)$",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "^/key/(?P<key_id>[^/]+)/review$",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "^/day/(?P<stem>[^/]+)$",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "^/day/(?P<stem>[^/]+)/save$",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "^/day/(?P<stem>[^/]+)/open$",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "^/day/(?P<stem>[^/]+)/edit$",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "^/help/(?P<code>[a-z0-9_.]{1,64})$",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})$",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/(?P<area>learn|practice|test|map|sources|build|evidence)$",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/learn/(?P<lesson_id>[A-Za-z0-9_.-]{1,64})$",
+      "token_gated": true
+    }
+  ],
+  "schema_version": 1,
+  "skills": [
+    "absorb-book",
+    "author-bank",
+    "build-course",
+    "curriculum-design",
+    "discovery-and-binding",
+    "guiding-questions",
+    "legacy-upgrade",
+    "lesson-authoring",
+    "media-intake",
+    "ocr"
+  ]
+}
