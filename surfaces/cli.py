@@ -531,10 +531,17 @@ def cmd_guard(a):
         # and `_ia` are plan 16B-09's gitignored runtime state, materialized
         # per install and never committed, so nothing in them can reach a
         # commit, which is the only thing guard exists to prevent.
+        # `course_fixture_17b` is the Phase 17B tracer's synthetic fixture
+        # course (17B-CONTEXT D-02): invented subject matter kept in this
+        # repository on purpose, like `fixtures/` but shaped as a real
+        # course root. It is not real corpus content, and D-02 requires it
+        # to be guard clean, so it is skipped by name rather than by
+        # weakening either refusal class.
         dirs[:] = [d for d in dirs
                    if d not in (".git", "fixtures", ".github", ".agents",
                                 ".claude", ".cursor", ".reasonix",
-                                ".planning", "_sample_course", "_ia")
+                                ".planning", "_sample_course", "_ia",
+                                "course_fixture_17b")
                    and not d.startswith("_tmp")]
         for f in files:
             if not f.lower().endswith(".md"):
