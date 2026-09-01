@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { python } from "./python_bin.mjs";
 import { JSDOM } from "jsdom";
 
-const python = process.env.PYTHON || "python";
 const payload = JSON.parse(execFileSync(python, ["-c",
   "import json; from surfaces.lesson import RUNNABLE_JS; " +
   "from surfaces.quiz_page import ASSIST_JS, SERVED_JS; " +

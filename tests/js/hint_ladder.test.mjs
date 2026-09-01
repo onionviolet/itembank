@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { python } from "./python_bin.mjs";
 
-const python = process.env.PYTHON || "python";
 const source = execFileSync(python, ["-c",
   "from surfaces.quiz_page import SERVED_JS; print(SERVED_JS)"],
   { cwd: new URL("../..", import.meta.url), encoding: "utf8" });
