@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase_name: 17B-production-vertical-tracer
-status: "Phase 15B is FROZEN (2026-08-30). All seven plans executed. `blueprint.py` ships ACTIVITY-02's five-gate architecture, RELIABILITY-03's staleness discipline, the cited course audit that mints no fourth coverage vocabulary, and AGENT-03's proposal record. `graph.accept_migration` and `graph.reject_migration` close the acceptance gap 14B left open and named 15B as owner of. `15B-FREEZE.md` opens `## Frozen at 15B` and all three legs hold: the acceptance tracer 7 passed 0 skipped 0 failed, the review accept-with-concerns, and Phase 13.9 walked. Full suite 100 files, 884 seconds, 0 failures; guard 0 offending files. FIVE consecutive phases (16A, 16B, 16C, 15A, 15B) have closed their review leg with an AGENT signature, and 15A plus 15B added six one-way agent-made decisions between them, one of which amended `14B-FREEZE.md`. Frozen: 14A, 14B, 14C, 15A, 15B, 16A, 16B, 16C. Open: 17A-04 Task 2 (Task 1 executed 2026-08-31; the human A11Y-01 review and freeze decision remain), all of 17B, 17C, 18, and 16D-04 Task 2 (Phase 16D was planned and executed 2026-08-31; the sat-through paced-lesson review and the 16D-FREEZE.md decision remain)."
+status: "Phases 16D and 17A are FROZEN (2026-09-01) with their human review legs DEFERRED per Weibao's 2026-09-01 directive (skip human tests for now, come back and adjust after): `17A-FREEZE.md` opens `## Frozen at 17A` and `16D-FREEZE.md` opens `## Frozen at 16D`, each recording the owed review first in its deferred items, certified by no agent. 17B is unblocked and in execution. Owed human reviews are listed in the 2026-09-01 STATE entry: the 17A A11Y-01 scripted pass, the 16D sit-through, and the standing agent-signature ruling (NEXT-2026-08-31.md item 2). Prior standing status: Phase 15B is FROZEN (2026-08-30). All seven plans executed. `blueprint.py` ships ACTIVITY-02's five-gate architecture, RELIABILITY-03's staleness discipline, the cited course audit that mints no fourth coverage vocabulary, and AGENT-03's proposal record. `graph.accept_migration` and `graph.reject_migration` close the acceptance gap 14B left open and named 15B as owner of. `15B-FREEZE.md` opens `## Frozen at 15B` and all three legs hold: the acceptance tracer 7 passed 0 skipped 0 failed, the review accept-with-concerns, and Phase 13.9 walked. Full suite 100 files, 884 seconds, 0 failures; guard 0 offending files. FIVE consecutive phases (16A, 16B, 16C, 15A, 15B) have closed their review leg with an AGENT signature, and 15A plus 15B added six one-way agent-made decisions between them, one of which amended `14B-FREEZE.md`. Frozen: 14A, 14B, 14C, 15A, 15B, 16A, 16B, 16C. Open: 17A-04 Task 2 (Task 1 executed 2026-08-31; the human A11Y-01 review and freeze decision remain), all of 17B, 17C, 18, and 16D-04 Task 2 (Phase 16D was planned and executed 2026-08-31; the sat-through paced-lesson review and the 16D-FREEZE.md decision remain)."
 stopped_at: "Two human gates, everything else done or correctly halted. (1) 17A-04 Task 2: the scripted A11Y-01 review in 17A-QA.md and the 17A-FREEZE.md decision; Task 1 executed 2026-08-31 (the pinned Playwright harness, 13 layout gates green, the hover-only negative failing as required, five layout defects found and fixed). (2) 16D-04 Task 2: the sat-through paced-lesson review and 16D-FREEZE.md; Phase 16D was planned AND executed 2026-08-31 (plans 01-03 plus the 8-scenario tracer, all green). The packet for both reviews and the standing five-phase agent-signature question is NEXT-2026-08-31.md. Behind the 17A freeze: the 17B/17C/18 chain. 18-01 additionally waits on Weibao's Windows machine (build_shell.ps1) and his signing-cost checkpoint."
 last_updated: "2026-08-31T00:00:00.000Z"
 last_activity: 2026-08-31
@@ -17,6 +17,46 @@ current_phase: 17B
 ---
 
 # Project State
+
+## 2026-09-01: 17A and 16D frozen with deferred human review legs; 17B unblocked
+
+Weibao's directive, 2026-09-01: "skip human tests for now, we will come
+back and adjust after; proceed toward the user vision." Under it the two
+phases standing at their human gates were frozen honestly rather than
+certified: `17A-FREEZE.md` opens `## Frozen at 17A` and `16D-FREEZE.md`
+opens `## Frozen at 16D`, both dated 2026-09-01, both recording their human
+review legs as DEFERRED, owed to Weibao personally, and signed by no agent.
+This mirrors the recorded-waiver pattern of 16A/16B/16C/15A/15B with one
+difference kept deliberate: accessibility is not waived, only postponed,
+and each freeze lists the owed review first in its deferred items.
+
+What the freezes rest on, re-run on the freeze date: the 17A driven-browser
+matrix (13 positive gates green across light, dark, and oled over all eight
+screens, the hover-only negative failing for the required equivalence
+reason), `visual_accessibility_roundtrip`, `component_primitives_roundtrip`
+(17 primitives), `stylesheet_roundtrip`, the 16D paced tracer (8 passed, 0
+failed), and `guard` at 0 offending files. Served-byte hashes were computed
+and recorded in both freezes (sha256 of `visual_fixture.single_file()`,
+`SHARED_CSS`, the three `theme_css` blocks, and the fresh-run paced view
+over HTTP). The 13.9 walking-skeleton summaries were verified present
+before either freeze was written. The 13.9 evidence, the automated matrix,
+and the tracer are evidence; none of it is accessibility certification and
+neither freeze claims otherwise.
+
+Owed human reviews, the come-back-and-adjust list:
+
+1. The 17A A11Y-01 scripted pass (keyboard, touch, VoiceOver, zoom, high
+   contrast, reduced motion, equivalent-task; script in `17A-QA.md`).
+   Until it lands, `theme.DEFAULT_ACCENT` stays teal.
+2. The 16D sit-through (keyboard once, pointer once, the wrong checkpoint
+   twice with the tier ladder observed, TOC jump, close-and-resume; script
+   in `16D-04-SUMMARY.md`).
+3. The standing agent-signature ruling, `NEXT-2026-08-31.md` item 2, which
+   remains open: one ruling on the five phases that closed review legs
+   with agent signatures, not five.
+
+17B is now unblocked: its precondition run halted on the missing
+`17A-FREEZE.md` and on nothing else.
 
 ## 2026-08-31 (third entry): Phase 16D is executed to its human gate
 

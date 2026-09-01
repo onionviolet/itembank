@@ -61,3 +61,15 @@ python itembank.py daemon . --no-open
 ```
 
 then open `/lesson/paced_lesson_bank?view=paced` on the printed URL.
+
+## Task 2 closure, 2026-09-01
+
+Weibao directed on 2026-09-01: "skip human tests for now, we will come back
+and adjust after; proceed toward the user vision." Under that directive
+`16D-FREEZE.md` was written opening `## Frozen at 16D`: the `[STEP:]`
+marker syntax frozen as of that date, the tracer re-run green (8 passed, 0
+failed), the served-byte hash of the paced view recorded with its method,
+the three per-plan reverts cited as the rollback boundary, and the
+16D-CONTEXT deferred list carried in. The sat-through review itself is
+recorded as DEFERRED, owed to Weibao personally, and not certified by any
+agent; the checkpoint's discipline holds, only its timing moved.

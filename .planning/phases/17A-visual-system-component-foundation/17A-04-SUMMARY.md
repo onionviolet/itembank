@@ -108,3 +108,15 @@ The scripted review in `17A-QA.md`, then either `## Frozen at 17A` in
 `17A-FREEZE.md` (with direction, token and component inventory, served-byte
 hashes, reviewer, date, commands, rollback boundary, deferred items, after
 verifying the 13.9 summaries) or `## Freeze withheld` with the exact gap.
+
+## Task 2 closure, 2026-09-01
+
+Weibao directed on 2026-09-01: "skip human tests for now, we will come back
+and adjust after; proceed toward the user vision." Under that directive
+`17A-FREEZE.md` was written opening `## Frozen at 17A` so 17B's
+precondition unblocks, with the human A11Y-01 scripted review recorded as
+DEFERRED: owed to Weibao personally, not certified by any agent, first in
+the freeze's deferred list. The 13.9 summaries were verified present, the
+four validation commands re-ran green on the freeze date, and served-byte
+hashes were computed and recorded. The shipped `theme.DEFAULT_ACCENT` stays
+teal until that review lands, per `17A-DIRECTION.md`.
