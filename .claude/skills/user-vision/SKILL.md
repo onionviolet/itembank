@@ -166,6 +166,12 @@ contract path above, the drift-audit placeholders, and the field names the
 project's own tooling greps for. The `references/` files stay in the skill and
 are read on demand.
 
+**Then regenerate whatever the host derives from its skill tree, and run the
+host's own checks.** Installing a skill is not always purely additive: a project
+may ship a generated manifest, index, or capability file that enumerates its
+skills, and adding a directory makes that artifact stale and its test fail. Look
+for a generator before assuming a copy is the whole install.
+
 ## Adapting per project
 
 This skill carries no product-specific rules. A project layers its own
@@ -189,6 +195,9 @@ same seven dispositions; an interpretation field named differently from the
 record it was extracted from, so a grep for it found nothing; a template entry
 heading whose comma separator the host's audit script could not parse; and a
 drift audit whose two project-specific slots shipped empty, making it weaker
-than the audit it replaced. All five are addressed above. **The pattern behind
+than the audit it replaced. Running the host's full preflight then found a sixth
+that no amount of reading would have shown: the host generates a capability
+manifest from its skill directories, so the install broke one of its tests until
+that manifest was regenerated. All six are addressed above. **The pattern behind
 them: a generic skill fails at the seams where it meets a project that already
 has a process, not in its own body text.**
