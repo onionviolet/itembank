@@ -64,6 +64,22 @@ no credit for a partially correct response, so itembank's existing all-or-nothin
 partial credit. If partial credit is ever wanted for Math or CS, where no such
 body binds, it is a per-subject policy and belongs with the subject profile.
 
+**Planning effect, extracted 2026-09-04.** This field was missing, which is why
+`scripts/vision_audit.py` reported the entry as having none. Nothing new is
+interpreted here; the effect is restated from the paragraphs above so the audit
+can see it. **The disclosure policy is an addition to the Phase 6 feedback
+policy, mode gated, and not a change to the scorer**, since the per-option
+rationale it needs already exists in `DA:` and is already carried by
+`explain_payload`. The format half changes nothing and confirms a standing
+commitment: keep all five item types and pin their structure to NREMT's
+published counts. The partial-credit question is settled as a non-change for
+EMT and left open as a per-subject policy elsewhere.
+
+**Relationship to prior entries.** Extends the 2026-08-21 practice-fidelity
+material rather than conflicting with it, and supersedes nothing. It corrects
+one factual premise inside its own quotation, that the real test is all
+multiple choice, without altering the quotation.
+
 ### 2026-08-13 — quality benchmark and visual ambition
 
 > what will it take for the lessons and more to be brilliant.com level? WHy cant we scrape site and more?
