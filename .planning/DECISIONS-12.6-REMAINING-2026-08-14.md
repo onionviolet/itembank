@@ -1,7 +1,7 @@
 # Remaining open decisions from synthesis 12.6
 
 **Status:** framed 2026-08-14. The three 14A-gating decisions are resolved in
-`DECISIONS-PRE-14A-2026-08-14.md`. The eight below are the rest of synthesis
+`archive/DECISIONS-PRE-14A-2026-08-14.md`. The eight below are the rest of synthesis
 section 12.6. None blocks the Phase 14A plan; each is framed here so it is
 decided deliberately at its owning subphase rather than rediscovered mid-plan.
 
@@ -279,4 +279,4 @@ Nothing in the bundle may require network or a model backend to be readable.
 When any decision above is resolved, fold it into the standing contract-delta
 patch, and mark the matching 12.6 bullet closed in the synthesis with a
 citation to this file, without deleting the open-decision record (same
-procedure as `DECISIONS-PRE-14A-2026-08-14.md`).
+procedure as `archive/DECISIONS-PRE-14A-2026-08-14.md`).

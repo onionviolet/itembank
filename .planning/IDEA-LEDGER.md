@@ -1175,7 +1175,7 @@ Amendments to an existing entry are additive notes under the entry, dated.
   same-day delegation from Weibao ("just decide for each accordingly to
   uservision of modularity and improvability and achiving the end goal"), the
   fork, the evidence contract, and the wrong-answer disclosure are decided in
-  `.planning/DECISIONS-PACED-LESSON-2026-08-28.md` as D-PACED-1, D-PACED-2 and
+  `.planning/archive/DECISIONS-PACED-LESSON-2026-08-28.md` as D-PACED-1, D-PACED-2 and
   D-PACED-3. They are labelled there as agent judgments made under that
   delegation, not as his own words, and each carries a reconsideration
   condition. In short: pacing is authored, read through a precedence ladder

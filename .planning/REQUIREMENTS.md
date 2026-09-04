@@ -3,6 +3,14 @@
 **Defined:** 2026-08-05
 **Core Value:** One runtime, one scorer, one evidence store — and the runtime, not the model, decides what reaches the learner.
 
+> **What this file is for (added 2026-09-03).** Requirement wording and IDs.
+> The `[x]` marks and the traceability table stopped being maintained around
+> 2026-08-13: 149 of 219 boxes read unchecked, most under phases the roadmap
+> records as complete or frozen, and 8 of 10 sampled IDs disagreed with the
+> phase record. Do not read status from here. Status of record is the phase
+> directory (`*-FREEZE.md`, `*-VERIFICATION.md`, `*-GATES.md`, plan summaries)
+> and the corrected checklist in `ROADMAP.md`.
+
 ## v1 Requirements
 
 ### Evidence

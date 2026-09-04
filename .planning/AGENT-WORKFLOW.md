@@ -110,7 +110,7 @@ proposal and origin, evidence considered, exact reason, conflicting rule,
 alternatives retained, date, and reconsideration condition. Never silently
 delete or omit a rejected idea. Simplicity alone is not a rejection reason.
 
-**Tiered record shape (adopted 2026-08-15, RULE-AUDIT-ROADMAP-DELTA
+**Tiered record shape (adopted 2026-08-15, archive/RULE-AUDIT-ROADMAP-DELTA
 proposal 1, approved by Weibao).** Record shape scales with consequence:
 
 1. Reversible, low-stakes work records intent, owner, next action, and undo
@@ -131,7 +131,7 @@ disagreement.
 Additionally, from the same audit: a rejection must quote the currently
 binding rule text it relies on. A rejection citing a retired preference or a
 rule number without its text is invalid (stale-authority drift, the measured
-failure mode in `RULE-AUDIT-2026-08-15.md`).
+failure mode in `archive/RULE-AUDIT-2026-08-15.md`).
 
 ## 6. Object and authority check
 

@@ -34,7 +34,7 @@ a real release rather than being written and tested last. GIFT export moved
 with it.
 
 **Revision 2026-08-10 — research absorbed.** The 2026-08-09 research pass
-(`.planning/RESEARCH-BRIEF-learning-platform-2026-08-09.md` §7, seven artifacts in
+(`.planning/archive/RESEARCH-BRIEF-learning-platform-2026-08-09.md` §7, seven artifacts in
 `.planning/research/`) changed four things about the shape above. First, content
 became a phase: the research named content and adherence, not features, as the
 real bottleneck, so **Phase 3.2 pulls seeding and import in front of Phase 5** and
@@ -58,7 +58,7 @@ Six rulings remain open for Weibao (brief §7.7); each is recorded on the phase 
 blocks, and none of them blocks starting.
 
 **Revision 2026-08-10 (round two) — lesson styles, tiered verdicts, file layout.**
-The second research pass (`.planning/RESEARCH-BRIEF-2-lesson-styles-2026-08-10.md`
+The second research pass (`.planning/archive/RESEARCH-BRIEF-2-lesson-styles-2026-08-10.md`
 §4, five artifacts in `.planning/research/2026-08-10-*.md`) is complete and folded in
 here additively, with no renumbering. Four things changed shape. First, **lesson
 style is plural and is a registry**: five styles ship, `expository` is the parent,
@@ -102,8 +102,8 @@ are recorded on the phases they block; none blocks starting.
 - [x] **Phase 13: Desktop Packaging — Tauri Shell over the Python Sidecar** - A signed, installable desktop app whose inside is still the same Python runtime, because porting it would temporarily create a second scorer. (completed 2026-08-10)
 - [ ] **Phase 13.5: Reading & Teaching Surface Quality Pass** - The reader and quiz surfaces shipped through Phase 13 meet a commercial quality bar. Planned 2026-08-12 as "Phase 14"; renumbered 2026-08-13 when the source-to-course reframe claimed that number. All 9 plans executed; verification recorded 2026-08-14 with status human_needed (see 13.5-VERIFICATION.md), so the human-verify gates are what keep this box unchecked.
 - [x] **Phase 13.9: Walking Skeleton — one real course, end to end (INSERTED 2026-08-14)** (walked 2026-08-24, session 13d56ab15efb4709821a6dd86357a5dc; A9 closed; sitting-fallout plans 13.9-04 and 13.9-05 executed 2026-08-25) - One real source from one live fall course, discovered read-only, bound to at least three cited objectives, one treatment decision per objective, and sat by Weibao through the shipped serve/teach/evidence loop. Ugly is acceptable; simulated is not. Runs beside or after 13.5 waves 3+; may stub course storage with the smallest 14A identity/journal slice; introduces no second parser, scorer, or evidence store. Gate: no 14B-or-later freeze closes before this has been walked. See READINESS-AUDIT-14A.md A9.
-- [ ] **Phase 14A: Identity, Lifecycle & Operation Prototype** - Stable IDs, revisions, fingerprints, operation journal, and link/import/move/edit/supersede semantics with atomic recovery. Depends on the shipped parser/runtime. Freeze gate: file-fault and external-edit tracer.
-- [ ] **Phase 14B: Graph & Course Package Prototype** - Typed graph kernel, outline projection, source/treatment bindings, versions, rights, and a minimal package. Depends on 14A. Freeze gate: three-domain graph tracer, clean restore, authorability review.
+- [x] **Phase 14A: Identity, Lifecycle & Operation Prototype** (frozen 2026-08-18) - Stable IDs, revisions, fingerprints, operation journal, and link/import/move/edit/supersede semantics with atomic recovery. Depends on the shipped parser/runtime. Freeze gate: file-fault and external-edit tracer.
+- [x] **Phase 14B: Graph & Course Package Prototype** (frozen 2026-08-27) - Typed graph kernel, outline projection, source/treatment bindings, versions, rights, and a minimal package. Depends on 14A. Freeze gate: three-domain graph tracer, clean restore, authorability review.
 - [x] **Phase 14C: Source Adapter Registry & Remote Intake (ADDED 2026-08-21, EXECUTED and FROZEN 2026-08-28)** - One adapter contract and one locator sidecar schema for every source medium: PDF, DOCX, PPTX, EPUB, web capture, transcript, audio and video, OCR. Closes IL-20260815-07, which researched PDF and DOCX on 2026-08-17 and deliberately left the sidecar schema open. Remote sources are in scope (USER-VISION-INBOX 2026-08-20 corrects the learner-owned-files reading as interpretation drift); binding fingerprints a captured local snapshot rather than a URL, so citations stay stable and bound material stays readable offline. Boundary is the existing token-gated daemon JSON API, so an external agent harness is an HTTP client rather than a rewrite. Depends on 14A; blocks the source-binding half of 14B. Context: `.planning/phases/14C-source-adapter-registry/14C-CONTEXT.md`. **Plans:** 8 plans, one wave each (the executor runs sequentially). All eight executed; frozen in `.planning/phases/14C-source-adapter-registry/14C-FREEZE.md`, whose coverage audit carries 61 rows with exactly one flagged-unverified (RESEARCH A6, sdist build-script inspection, never promised by any plan). One manual checkpoint is recorded UNRUN: the OCR adapter against a live vision model, which needs a running Ollama.
   Plans:
   - [x] 14C-01-PLAN.md - Freeze the locator sidecar schema, build the registry spine, and land the PDF tracer end to end through one route and one CLI command.
@@ -114,14 +114,16 @@ are recorded on the phases they block; none blocks starting.
   - [x] 14C-06-PLAN.md - The OCR adapter wrapping the existing local-Ollama skill, with an honestly degraded locator the schema enforces.
   - [x] 14C-07-PLAN.md - EPUB import on stdlib zipfile and xml.etree, with the ebooklib AGPL parking recorded in two durable places.
   - [x] 14C-08-PLAN.md - Register the ASR adapter as a named refusal, discharge the VENDORED.md obligation with a CI checksum gate, and freeze the phase with a multi-source coverage audit.
-- [ ] **Phase 15A: Director & Treatment Policy** - Treatment recommender, source scope, rights/egress, autonomy levels, and checkpoints. Depends on 14B. Freeze gate: four-subject recommendation review.
-- [ ] **Phase 15B: Quality, Blueprint & Acceptance** - Blueprint fidelity, course audit, accepted revision, and staleness/dependency impact. Depends on 15A. Freeze gate: lesson-plus-practice acceptance tracer.
-- [ ] **Phase 16A: Semantic Capability & Activity Contract** - Lesson roles, activity-purpose matrix, capability profiles, and media/citation policy. Depends on 14B and the assessment runtime. Freeze gate: portable rich-lesson stress corpus.
-- [ ] **Phase 16B: IA, Modes & Recovery Contract** - Core loops, routes, resume, jobs, approvals, and offline/help/error states. Depends on 14A and 16A. Freeze gate: full storyboard and interruption scenarios.
-- [ ] **Phase 16C: Strategies, Notes & Prototype Convergence** - Notes, learner artifacts, finite strategies, progress comprehension, and legacy upgrade. Depends on 14B, 16A, and 16B. Freeze gate: cross-subject missing-feature suite.
-- [ ] **Phase 16D: Paced Lesson Projection & Checkpoints (ADDED 2026-08-31)** - A `paced` presentation of an already authored lesson: authored step markers read through a precedence ladder (explicit `[STEP: id]`, else configured heading level, else the whole document, which is today's behaviour), a jump-only table of contents, gates on attempted never correct, checkpoint items scored by the one scorer into the one evidence store inside a distinct lesson-run session whose attempts blueprint denominators exclude by default, and tiered wrong-answer disclosure released by the runtime (rule out and confirm the learner's own picks, then touched rationale, then the full key). Decisions: `.planning/DECISIONS-PACED-LESSON-2026-08-28.md` D-PACED-1/2/3 (answered under Weibao's quoted 2026-08-28 delegation), IL-20260828-01/02/03. Depends on 16A and 16B (both frozen) plus the shipped Phase 6 feedback and 6.2 gate-band machinery; independent of 17A/17B. Plans: `.planning/phases/16D-paced-lesson/` (4 plans, planned 2026-08-31). Freeze gate: the paced-lesson tracer plus Weibao's sat-through review.
-- [ ] **Phase 17B: Production Vertical Tracer** - A polished unit from discovery through restore. Depends on all prior subphases. Freeze gate: end-to-end gates G1 through G11.
-- [ ] **Phase 18: External-User v1 — a friend can install and use this (ADDED 2026-08-14)** - The six-criterion bar in READINESS-AUDIT-14A.md A10: install without folklore, agent-guided onboarding from the public repo, first-run self-explanation, scope honesty, stranger-safe privacy defaults, and errors that name the next safe action. Criteria 1, 2, and 5 are largely shipped (Phase 2.1/13 packaging, the README onboarding section, the disclosure-gated updater) and get verified as they land; the phase closes after 17B with a real cold install by a second person. Fires V2-DEL-01's signing decision. Registered capability on this phase's runway (2026-08-14, vision inbox): **agent-facing update and capability disclosure**, where the app tells an agent the installed version is outdated and what features and contracts arrived, machine-readably, building on the shipped `update`/`usage`/`schema` surfaces, with a matching update path for the skill library. Future phase candidate; may land earlier as a cheap additive manifest. **Two-shell scope folded in (2026-08-16, IDEA-LEDGER IL-20260816-02):** the product ships as two shells over the one runtime: the installed app (this phase's packaging work, which resolves the IL-20260815-11 packaging conflict) and a web surface reached in a browser, meaning the learner's own runtime served to a browser, loopback today. Both shells are clients of the one runtime; this phase's cold-install verification covers whichever shells have shipped, and no second scoring authority may exist in either. A hosted multi-tenant web service stays out of scope under the no-accounts and evidence-on-disk rules. The shell question is closed (2026-08-17 correction of stale text): 17A-CONTEXT D-08 makes the browser-served UI the single canonical shell, and the packaged app wraps the same served pages, so this phase packages one shell rather than choosing between two. Details block added 2026-08-17 before the subphase-sequence section.
+- [x] **Phase 15A: Director & Treatment Policy** (frozen 2026-08-30) - Treatment recommender, source scope, rights/egress, autonomy levels, and checkpoints. Depends on 14B. Freeze gate: four-subject recommendation review.
+- [x] **Phase 15B: Quality, Blueprint & Acceptance** (frozen 2026-08-30) - Blueprint fidelity, course audit, accepted revision, and staleness/dependency impact. Depends on 15A. Freeze gate: lesson-plus-practice acceptance tracer.
+- [x] **Phase 16A: Semantic Capability & Activity Contract** (frozen 2026-08-28) - Lesson roles, activity-purpose matrix, capability profiles, and media/citation policy. Depends on 14B and the assessment runtime. Freeze gate: portable rich-lesson stress corpus.
+- [x] **Phase 16B: IA, Modes & Recovery Contract** (frozen 2026-08-28) - Core loops, routes, resume, jobs, approvals, and offline/help/error states. Depends on 14A and 16A. Freeze gate: full storyboard and interruption scenarios.
+- [x] **Phase 16C: Strategies, Notes & Prototype Convergence** (frozen 2026-08-30) - Notes, learner artifacts, finite strategies, progress comprehension, and legacy upgrade. Depends on 14B, 16A, and 16B. Freeze gate: cross-subject missing-feature suite.
+- [x] **Phase 16D: Paced Lesson Projection & Checkpoints (ADDED 2026-08-31, frozen 2026-09-01; the sat-through review is deferred to Weibao)** - A `paced` presentation of an already authored lesson: authored step markers read through a precedence ladder (explicit `[STEP: id]`, else configured heading level, else the whole document, which is today's behaviour), a jump-only table of contents, gates on attempted never correct, checkpoint items scored by the one scorer into the one evidence store inside a distinct lesson-run session whose attempts blueprint denominators exclude by default, and tiered wrong-answer disclosure released by the runtime (rule out and confirm the learner's own picks, then touched rationale, then the full key). Decisions: `.planning/archive/DECISIONS-PACED-LESSON-2026-08-28.md` D-PACED-1/2/3 (answered under Weibao's quoted 2026-08-28 delegation), IL-20260828-01/02/03. Depends on 16A and 16B (both frozen) plus the shipped Phase 6 feedback and 6.2 gate-band machinery; independent of 17A/17B. Plans: `.planning/phases/16D-paced-lesson/` (4 plans, planned 2026-08-31). Freeze gate: the paced-lesson tracer plus Weibao's sat-through review.
+- [x] **Phase 17A: Visual System & Component Foundation (frozen 2026-09-01; the A11Y-01 human pass is deferred to Weibao and `theme.DEFAULT_ACCENT` stays teal until it lands)** - Tokens, three themes, seventeen primitives, the shared shell, the agent tab, and the shelf home. Depends on 16B and 16C. Freeze gate: same-flow visual comparison and accessibility QA.
+- [ ] **Phase 17B: Production Vertical Tracer** - A polished unit from discovery through restore. Depends on all prior subphases. Freeze gate: end-to-end gates G1 through G11. **In execution (2026-09-03):** 17B-01 and 17B-02 executed 2026-09-01; 17B-03 in flight; 17B-04 unstarted. Gates G1, G2, G3, G7 pass; G4, G5, G6, G8 to G11 pending (`17B-GATES.md`). The milestone exits through this phase.
+- [ ] **Phase 17C: Maintenance and Restore Audit (registered 2026-08-17)** - Clean-machine restore sweep across every accepted item, loss-report completeness, maintenance-owner sweep. Depends on 17B. One plan written, unstarted. Its G10 drill is the one 17B-04 runs for the tracer unit; 17C widens it to all accepted items.
+- [ ] **Phase 18: External-User v1 — a friend can install and use this (ADDED 2026-08-14; plans 01 to 03 executed 2026-09-01 to the human gate, ahead of the stated 17B dependency; row 7, the second person's cold install, is deferred to Weibao and the close is conditional on it)** - The six-criterion bar in READINESS-AUDIT-14A.md A10: install without folklore, agent-guided onboarding from the public repo, first-run self-explanation, scope honesty, stranger-safe privacy defaults, and errors that name the next safe action. Criteria 1, 2, and 5 are largely shipped (Phase 2.1/13 packaging, the README onboarding section, the disclosure-gated updater) and get verified as they land; the phase closes after 17B with a real cold install by a second person. Fires V2-DEL-01's signing decision. Registered capability on this phase's runway (2026-08-14, vision inbox): **agent-facing update and capability disclosure**, where the app tells an agent the installed version is outdated and what features and contracts arrived, machine-readably, building on the shipped `update`/`usage`/`schema` surfaces, with a matching update path for the skill library. Future phase candidate; may land earlier as a cheap additive manifest. **Two-shell scope folded in (2026-08-16, IDEA-LEDGER IL-20260816-02):** the product ships as two shells over the one runtime: the installed app (this phase's packaging work, which resolves the IL-20260815-11 packaging conflict) and a web surface reached in a browser, meaning the learner's own runtime served to a browser, loopback today. Both shells are clients of the one runtime; this phase's cold-install verification covers whichever shells have shipped, and no second scoring authority may exist in either. A hosted multi-tenant web service stays out of scope under the no-accounts and evidence-on-disk rules. The shell question is closed (2026-08-17 correction of stale text): 17A-CONTEXT D-08 makes the browser-served UI the single canonical shell, and the packaged app wraps the same served pages, so this phase packages one shell rather than choosing between two. Details block added 2026-08-17 before the subphase-sequence section.
 
 **Superseded 2026-08-13 - flat Phase 14 to 17 sequence (historical rationale).** The nine subphases above replace the four broad phases below, per `.planning/research/phase-16/14-synthesis.md` sections 14 and 15. The originals are preserved here as rationale, not deleted. The high-level order (durable course and file semantics, then AI course direction, then logical learning contracts, then visual productization) remains correct; the four phases were too coarse and placed some Phase 16 discoveries after Phase 14 format commitments. Full historical detail is preserved in the Phase Details section below under "Superseded flat sequence (historical rationale)."
 > - **Phase 14: Course Workspace & Source Binding** - Make the course the primary object; safely discover and bind sources, objectives, prerequisites, treatments, existing lessons/banks, and gaps through a course shelf/map/source workspace.
@@ -186,7 +188,7 @@ Per phase, in order: `/gsd-discuss-phase <n>` → `/gsd-ui-phase <n>` if it has 
 learner-facing surface → `/gsd-plan-phase <n>`.
 
 **Research status**: **both passes are complete.**
-`.planning/RESEARCH-BRIEF-2-lesson-styles-2026-08-10.md` (the lesson-style registry
+`.planning/archive/RESEARCH-BRIEF-2-lesson-styles-2026-08-10.md` (the lesson-style registry
 plus five threads round one left loose) finished 2026-08-10 and its §4 verdicts were
 folded into Phases 3.1, 3.2, 5, 6, 6.1, 6.2, 7, 8, 9, 10, 11 and Extensibility Rule 8
 on the same day, additively and with no renumbering. **Phase 3.1 is unblocked.**
@@ -656,7 +658,7 @@ explicit precondition rather than assumed.
 **Phase plan:** `.planning/phases/14B-graph-course-package-prototype/`
 (`14B-RESEARCH.md`, `14B-PATTERNS.md`, `14B-VALIDATION.md`; no CONTEXT.md, the
 same precedent Phase 14A set, with the binding decisions in
-`DECISIONS-PRE-14A-2026-08-14.md`, `REQUIREMENTS.md`, and
+`archive/DECISIONS-PRE-14A-2026-08-14.md`, `REQUIREMENTS.md`, and
 `PLANNING-DIRECTIVES.md`).
 **Plans:** 6 plans, written to the `PLANNING-DIRECTIVES.md` section 5 executor
 bar. Waves are strictly sequential (1 through 6) because each plan extends the
@@ -731,7 +733,7 @@ log listing exactly the approved synthetic source spans.
 **Phase plan:** `.planning/phases/15A-director-treatment-policy/`
 (`15A-RESEARCH.md`, `15A-PATTERNS.md`, `15A-VALIDATION.md`; no CONTEXT.md, the
 same precedent Phases 14A and 14B set, with the binding decisions in
-`REQUIREMENTS.md`, `PLANNING-DIRECTIVES.md`, `DECISIONS-PRE-14A-2026-08-14.md`,
+`REQUIREMENTS.md`, `PLANNING-DIRECTIVES.md`, `archive/DECISIONS-PRE-14A-2026-08-14.md`,
 and the phase-16 synthesis).
 **Plans:** 6 plans, written to the `PLANNING-DIRECTIVES.md` section 5 executor
 bar. Waves are strictly sequential (1 through 6) because each plan extends the
@@ -1260,7 +1262,7 @@ freeze (14B), and its freeze record says so.
 ### Phase 16D: Paced Lesson Projection & Checkpoints (added 2026-08-31)
 
 Inserted after 16C and before 17A/17B per the decision packet
-`.planning/DECISIONS-PACED-LESSON-2026-08-28.md` section 3: the treatment is a
+`.planning/archive/DECISIONS-PACED-LESSON-2026-08-28.md` section 3: the treatment is a
 lesson-renderer presentation plus a feedback-disclosure tier, belongs to no
 existing subphase, and depends only on 16A, 16B (both frozen) and the shipped
 Phase 6 / 6.2 machinery. Binding decisions D-PACED-1/2/3 are transcribed as
@@ -1509,6 +1511,8 @@ run in parallel; neither blocks the other.
 
 ### Next-milestone subphase sequence (14A through 17C)
 
+*Status of record for these subphases is the Status column below and the checklist under "Phases", both corrected 2026-09-03. The v1.0 Progress table does not cover them.*
+
 *Reframed 2026-08-13 from the four broad Phases 14 to 17, per
 `.planning/research/phase-16/14-synthesis.md` sections 14 and 15. The four
 original detailed blocks are preserved verbatim below under "Superseded flat
@@ -1577,18 +1581,20 @@ or expensive capabilities stay on the capability runway rather than being cut.
   that would revive a rejected idea must cite and satisfy its recorded
   reconsideration condition.
 
-| Subphase | Deliverable | Depends on | Freeze gate |
-|---|---|---|---|
-| 14A: identity, lifecycle, and operation prototype | Stable IDs, revisions, fingerprints, operation journal, link/import/move/edit/supersede semantics, atomic recovery | Shipped parser/runtime | File fault and external-edit tracer |
-| 14B: graph and course package prototype | Typed graph kernel, outline projection, source/treatment bindings, versions, rights, minimal package | 14A | Three-domain graph tracer, clean restore, authorability review |
-| 15A: director and treatment policy | Treatment recommender, source scope, rights/egress, autonomy levels, checkpoints | 14B | Four-subject recommendation review |
-| 15B: quality, blueprint, and acceptance | Blueprint fidelity, course audit, accepted revision, staleness/dependency impact | 15A | Lesson plus practice acceptance tracer |
-| 16A: semantic capability and activity contract | Lesson roles, activity-purpose matrix, capability profiles, media/citation policy | 14B, assessment runtime | Portable rich lesson stress corpus |
-| 16B: IA, modes, and recovery contract | Core loops, routes, resume, jobs, approvals, offline/help/error states | 14A, 16A | Full storyboard and interruption scenarios |
-| 16C: strategies, notes, and prototype convergence | Notes, learner artifacts, finite strategies, progress comprehension, legacy upgrade | 14B, 16A, 16B | Cross-subject missing-feature suite |
-| 17A: visual system and component foundation | Tokens, hierarchy, responsive shell, accessible primitives | 16B, 16C | Same-flow visual comparison and accessibility QA |
-| 17B: production vertical tracer | Polished unit from discovery through restore | All prior | End-to-end gates G1 through G11 |
-| 17C: maintenance and restore audit (added 2026-08-17) | Clean-machine restore sweep, loss-report completeness, maintenance-owner sweep, named audit triggers | 17B | Audit report accepted with zero unowned accepted items |
+| Subphase | Deliverable | Depends on | Freeze gate | Status (2026-09-03) |
+|---|---|---|---|---|
+| 14A: identity, lifecycle, and operation prototype | Stable IDs, revisions, fingerprints, operation journal, link/import/move/edit/supersede semantics, atomic recovery | Shipped parser/runtime | File fault and external-edit tracer | Frozen 2026-08-18 |
+| 14B: graph and course package prototype | Typed graph kernel, outline projection, source/treatment bindings, versions, rights, minimal package | 14A | Three-domain graph tracer, clean restore, authorability review | Frozen 2026-08-27 |
+| 14C: source adapter registry and remote intake (added 2026-08-21) | One adapter contract and locator sidecar per medium | 14A | Multi-source coverage audit | Frozen 2026-08-28 |
+| 15A: director and treatment policy | Treatment recommender, source scope, rights/egress, autonomy levels, checkpoints | 14B | Four-subject recommendation review | Frozen 2026-08-30 (review leg agent-signed) |
+| 15B: quality, blueprint, and acceptance | Blueprint fidelity, course audit, accepted revision, staleness/dependency impact | 15A | Lesson plus practice acceptance tracer | Frozen 2026-08-30 (review leg agent-signed) |
+| 16A: semantic capability and activity contract | Lesson roles, activity-purpose matrix, capability profiles, media/citation policy | 14B, assessment runtime | Portable rich lesson stress corpus | Frozen 2026-08-28 (review leg agent-signed) |
+| 16B: IA, modes, and recovery contract | Core loops, routes, resume, jobs, approvals, offline/help/error states | 14A, 16A | Full storyboard and interruption scenarios | Frozen 2026-08-28 (review leg agent-signed) |
+| 16C: strategies, notes, and prototype convergence | Notes, learner artifacts, finite strategies, progress comprehension, legacy upgrade | 14B, 16A, 16B | Cross-subject missing-feature suite | Frozen 2026-08-30 (review leg waived) |
+| 16D: paced lesson projection and checkpoints (added 2026-08-31) | Step ladder, lesson-run session, tiered checkpoint disclosure, paced view | 16A, 16B | Paced tracer plus sat-through review | Frozen 2026-09-01, sit-through deferred |
+| 17A: visual system and component foundation | Tokens, hierarchy, responsive shell, accessible primitives | 16B, 16C | Same-flow visual comparison and accessibility QA | Frozen 2026-09-01, A11Y-01 deferred |
+| 17B: production vertical tracer | Polished unit from discovery through restore | All prior | End-to-end gates G1 through G11 | In execution; 01 and 02 done, 03 in flight, 04 unstarted |
+| 17C: maintenance and restore audit (added 2026-08-17) | Clean-machine restore sweep, loss-report completeness, maintenance-owner sweep, named audit triggers | 17B | Audit report accepted with zero unowned accepted items | Unstarted, one plan |
 
 **Planning source:** `.planning/research/phase-16/14-synthesis.md` sections 15
 and 16.3, and `.planning/SOURCE-TO-COURSE.md`. Detailed discussion, UI

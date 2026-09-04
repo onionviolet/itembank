@@ -93,6 +93,14 @@ A plan whose `<summary_obligations>` block asks for a summary does not override
 this. If neither condition holds, satisfy the obligation in the commit body and
 move on. Ceremony that nobody reads is money spent on nothing.
 
+Enforced mechanically since 2026-09-03 by `scripts/summary_gate.py`, run in CI
+and by `scripts/preflight.py`. A summary not listed in
+`.planning/summary-baseline.txt` must open with the heading
+`## Why this summary exists`, stating which of the two conditions holds, and
+must stay under 3,000 bytes. Do not write summaries retrospectively for plans
+that already closed; the commit log is their record. Do not edit the baseline
+to pass a build.
+
 ## When you are stuck
 
 Write what you tried and what blocked you into the plan's `-SUMMARY.md`,

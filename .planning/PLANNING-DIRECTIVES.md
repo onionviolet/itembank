@@ -444,6 +444,9 @@ These rules bind every planner and executor, human or model.
 the plan was left incomplete, or when a measured fact contradicts the plan.
 Otherwise the commit messages are the record and a `<summary_obligations>`
 block is satisfied in the commit body. See `EXEC-CONTEXT.md`.
+Measured 2026-09-03: 61 summaries (478 KB) were written in the ten days after
+this rule landed, so it is now enforced by `scripts/summary_gate.py` (a heading
+naming the condition, and a 3,000-byte cap on any summary outside the baseline).
 
 **B2. Every plan names the evidence that would falsify it.** If no observation
 could show the plan is wrong, it is a description and not a plan. Say what

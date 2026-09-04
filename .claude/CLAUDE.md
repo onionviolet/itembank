@@ -90,9 +90,11 @@ These files are large. Read the section you need, not the file.
 | Object, authority, rights, acceptance, recovery detail | `AGENTS.md` §"Object and authority model" |
 | Weibao's verbatim goal | `.planning/USER-VISION.md` (85KB). Grep it. Never replace the record with an interpreted summary. |
 | Full authority synthesis | `.planning/research/phase-16/14-synthesis.md` §2, §3, §6, §10 (84KB total) |
-| Current phase and state | `.planning/STATE.md` (93KB). Read the current phase's section only. |
-| Roadmap | `.planning/ROADMAP.md` (115KB). Read the current and next phase only. |
+| Current phase and state | `.planning/STATE.md` (17KB). Read "Current position" only; the log through 2026-08-30 is archived. |
+| Roadmap | `.planning/ROADMAP.md` (120KB). Read the "Phases" checklist and the subphase table's Status column for status; read one phase's detail block only when planning it. |
 | Idea dispositions | `.planning/IDEA-LEDGER.md` (82KB). Grep by ID. |
+| Requirement wording by ID | `.planning/REQUIREMENTS.md` (97KB). Grep the ID. Its checkboxes are not status; see its header note. |
+| How a past decision was reached | `.planning/archive/` (index in its README). Never for current status. |
 | Stack, conventions, architecture detail | `.planning/codebase/*.md` |
 
 ### Object, authority, and operation summary

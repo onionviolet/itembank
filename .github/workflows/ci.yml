@@ -193,3 +193,10 @@ jobs:
             exit 1
           fi
           echo "agent docs are path-clean"
+
+      # PLANNING-DIRECTIVES B1: a plan summary is exceptional. Prose alone did
+      # not hold (61 new summaries, 478 KB, in the ten days after the rule), so
+      # the check is mechanical: a summary outside the baseline must open with
+      # "## Why this summary exists" and stay under 3,000 bytes.
+      - name: New plan summaries stay short and justified
+        run: python scripts/summary_gate.py

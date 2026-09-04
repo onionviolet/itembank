@@ -213,6 +213,11 @@ def gate_paths():
     return not leaks, "\n".join(leaks)
 
 
+def gate_summaries():
+    code, out = run([PY, "scripts/summary_gate.py"])
+    return code == 0, out
+
+
 # (gate id, CI step name it mirrors, function, slow?)
 GATES = [
     ("lint", "Sample fixture lints clean", gate_lint_clean, False),
@@ -226,6 +231,8 @@ GATES = [
     ("vendored", "Vendored artifacts match their recorded checksums",
      gate_vendored, False),
     ("paths", "No machine-specific path in agent docs or config", gate_paths, False),
+    ("summaries", "New plan summaries stay short and justified", gate_summaries,
+     False),
     ("tests", "Test suite", gate_tests, True),
     ("clean", "The test suite left the working tree clean", gate_clean_tree,
      True),

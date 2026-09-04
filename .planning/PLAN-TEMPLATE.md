@@ -59,9 +59,10 @@ Body sections, in order:
      before the work, plus the degraded-state behavior it must also prove.
 4. `<out_of_scope>` The adjacent temptations this plan refuses, by name, so
    scope is enforced by the plan rather than by executor judgment.
-5. `<summary_obligations>` What the SUMMARY file must record: deviations,
+5. `<summary_obligations>` What the commit body must record: deviations,
    decisions resolved at checkpoints, evidence pointers, and which truths were
-   verified by which command.
+   verified by which command. A `-SUMMARY.md` is written only under the two
+   conditions in `EXEC-CONTEXT.md`, and `scripts/summary_gate.py` holds that.
 
 ## Standing rules the template enforces
 

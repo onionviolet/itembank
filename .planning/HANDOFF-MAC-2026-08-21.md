@@ -86,8 +86,8 @@ so nothing reaches a model until you set it. That is deliberate.
 | 17A-04 | Blocked on 13.9. |
 
 Two execution prompts are ready to paste:
-`.planning/PROMPT-deepseek-17A-07-2026-08-21.md` and
-`.planning/PROMPT-ui-flow-agentic-lms-2026-08-21.md`.
+`.planning/archive/PROMPT-deepseek-17A-07-2026-08-21.md` and
+`.planning/archive/PROMPT-ui-flow-agentic-lms-2026-08-21.md`.
 
 ## What changed on 2026-08-21, and why it matters
 

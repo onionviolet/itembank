@@ -113,7 +113,7 @@ both compose onto these shapes and would otherwise build on sand.
 
 ## The fifth decision, unrelated and still waiting
 
-`.planning/DECISIONS-17A04-DRIVER-2026-08-25.md`, the Playwright browser-harness
+`.planning/archive/DECISIONS-17A04-DRIVER-2026-08-25.md`, the Playwright browser-harness
 supply-chain approval for `tools/visual_qa.py`. Independent of 14B, drafted two
 days ago, and blocking the last of 17A's eight plans. Worth answering in the
 same sitting since it is one yes or no.
@@ -122,7 +122,7 @@ same sitting since it is one yes or no.
 
 ## What happens after the answers
 
-`.planning/NEXT-2026-08-27.md` has the sequencing. In short: 14B waves 4 to 6
+`.planning/archive/NEXT-2026-08-27.md` has the sequencing. In short: 14B waves 4 to 6
 execute, 14B freezes, and 14C, 15A and 16A unblock. Phase 16B, and with it the
 course shelf that has been mocked up twice this week, sits behind 16A and does
 not move until then.
