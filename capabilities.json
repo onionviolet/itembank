@@ -504,6 +504,7 @@
     "legacy-upgrade",
     "lesson-authoring",
     "media-intake",
-    "ocr"
+    "ocr",
+    "user-vision"
   ]
 }
