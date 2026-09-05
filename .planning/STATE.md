@@ -128,9 +128,16 @@ what a settled mark means for the cursor. The browser on loopback is now a
 reviewer surface for the learner's own sitting. Recorded here because it
 reverses a decision, not because it was hard.
 
-**Open: the visual direction.** Five candidate directions were rendered
-against the real screens (editorial, console, neo, cash, soft). Weibao is
-choosing; nothing is applied to the shipped stylesheet yet.
+**The visual direction, answered by keeping all of them.** Five candidate
+directions were rendered against the real screens; asked to choose, Weibao
+said keep every one, switchable, and more. So the answer is an axis, not a
+restyle: `look` joins `theme` and `accent` as a third independent setting,
+seven looks ship (classic, editorial, neo, cash, console, soft, contrast),
+and `surfaces/theme.py` stays the only palette authority. A look moves the
+ground and the shape and never a semantic colour, which
+`tests/stylesheet_roundtrip.py` re-measures on every run at the same
+floors. Switchable from `/settings`, from `POST /api/theme`, and from
+`itembank theme look <id>`, all through one writer.
 
 ## 2026-09-05: 17C's maintenance and restore audit run
 
