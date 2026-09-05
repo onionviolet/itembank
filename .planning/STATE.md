@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: source-to-course
 milestone_name: source-to-course
-current_phase_name: 17B-production-vertical-tracer
-current_phase: 17B
-status: "17B in execution: 17B-01 to 17B-04 executed; G10 failed in wave 4, was repaired 2026-09-05, and now passes. The milestone acceptance signature and the G4/G8 human legs are owed to Weibao. Frozen: 14A, 14B, 14C, 15A, 15B, 16A, 16B, 16C, 16D, 17A (16D and 17A with their human review legs deferred to Weibao). Phase 18 plans 01 to 03 executed to the human gate. 17C unstarted. The owed human reviews are listed under Current position."
-stopped_at: "17B-04 complete; the milestone exit record is written and awaiting Weibao's acceptance."
+current_phase_name: 17C-maintenance-restore-audit
+current_phase: 17C
+status: "17B in execution: 17B-01 to 17B-04 executed; G10 failed in wave 4, was repaired 2026-09-05, and now passes. The milestone acceptance signature and the G4/G8 human legs are owed to Weibao. Frozen: 14A, 14B, 14C, 15A, 15B, 16A, 16B, 16C, 16D, 17A (16D and 17A with their human review legs deferred to Weibao). Phase 18 plans 01 to 03 executed to the human gate. 17C-01 run 2026-09-05 to its human gate. The owed human reviews are listed under Current position."
+stopped_at: "17C-01 tasks 1 to 3 complete; the audit report and the 17B exit record both await Weibao's acceptance."
 last_updated: "2026-09-05T00:00:00.000Z"
 last_activity: 2026-09-05
-last_activity_desc: "17B-04 executed and the milestone exit record written; gate G10's two routed defects repaired as an additive contract change and the clean-machine restore drill re-run to a pass (7 of 7 canonical objects, 40 of 40 evidence events)."
+last_activity_desc: "17B-04 executed and the milestone exit record written; G10's two routed defects repaired additively and the restore drill re-run to a pass; 17C-01's maintenance and restore audit run, finding five silent losses (F-LOSS-1 to F-LOSS-5) and a clean owner sweep."
 progress:
   total_phases: 36
   completed_phases: 32
   total_plans: 212
-  completed_plans: 211
-  counting_rule: "phase directories under .planning/phases; a phase counts complete when frozen or its summaries and verification exist; open are 13.5 (human tail), 17B (human acceptance), 17C, 18 (human gate). Plans count complete when a summary exists or the phase is frozen; open is 17C-01."
+  completed_plans: 212
+  counting_rule: "phase directories under .planning/phases; a phase counts complete when frozen or its summaries and verification exist; open are 13.5 (human tail), 17B (human acceptance), 17C (human acceptance), 18 (human gate). Plans count complete when a summary exists or the phase is frozen; none is open."
 ---
 # Project State
 
@@ -56,9 +56,17 @@ the stated dependency on 17B. Row 7 (a second person's cold install) is
 deferred to Weibao and the phase close is conditional on it. Also owed: the
 Windows rebuild and hash of the packaged artifact, and the signing decision.
 
-**Phase 17C:** one plan, unstarted. Its clean-machine restore drill is the
-same G10 drill 17B-04 runs; 17C sweeps every accepted item, 17B-04 proves the
-one unit.
+**Phase 17C, run to its human gate 2026-09-05.** `17C-AUDIT.md` records the
+drill rerun at commit `5286683` (pass), the sweep over all 18 canonical
+object classes, the owner sweep (49 of 49 next-milestone requirement blocks
+own an owner, zero unowned), and the recurring triggers. The drill passes
+and the loss report does not: five silent losses are routed, F-LOSS-1
+provenance and operation history, F-LOSS-2 rights state, F-LOSS-3
+`_attempts` session state, F-LOSS-4 unregistered files inside a course root,
+and F-LOSS-5 a restored bank citing `media/` that did not cross while `lint`
+still reports zero errors. Four are 14B's; F-LOSS-5 also touches the lint
+phase. Repair is out of the audit's scope by its own plan. Weibao's
+acceptance of the report is owed.
 
 **Phase 999.3 (MCP surface):** promoted 2026-08-17, zero plans.
 
@@ -81,6 +89,8 @@ course exists yet. Every other session in the record is a fixture or an agent.
 7. The 13.9 two-sentence post-sitting reaction.
 8. 14C's one unrun manual checkpoint: the OCR adapter against a live vision
    model.
+9. Acceptance of `17C-AUDIT.md`: accept as written, accept with owner
+   assignments for F-LOSS-1 to F-LOSS-5, or reject with reasons.
 
 **Housekeeping 2026-09-03.** Log entries dated 2026-08-30 and earlier, the
 twice-superseded "Current Position" block, the empty performance table, the
@@ -89,6 +99,22 @@ duplicated decisions list, the stale "Phase 14 progress" block, and the
 `.planning/archive/STATE-LOG-through-2026-08-30.md`. Dead operator files
 moved to `.planning/archive/` (index in its README). `scripts/summary_gate.py`
 now enforces the 2026-08-21 summary rule in CI and preflight.
+
+## 2026-09-05: 17C's maintenance and restore audit run
+
+`17C-AUDIT.md` written under the same directive, tasks 1 to 3 complete. The
+audit did not halt on 17B's two `deferred-human` gate rows; it recorded the
+deviation and the owed legs instead, which is the directive applied rather
+than bypassed.
+
+Its useful result is negative and worth keeping in view: a passing restore
+drill is not a complete loss report. Five losses cross no boundary and no
+report names them, and the sharpest is F-LOSS-5, where a restored bank
+cites a `media/` file the package never carried and `lint` still reports
+zero errors. That is the first finding in this project of a restored course
+that reads complete and is not, on a path a learner would actually walk.
+All five are routed to 14B (F-LOSS-5 also to the lint phase); repairing
+them is outside the audit's own scope, so they are owed work, not silent.
 
 ## 2026-09-05: 17B-03 and 17B-04 committed, G10 repaired, the milestone exit record written
 
