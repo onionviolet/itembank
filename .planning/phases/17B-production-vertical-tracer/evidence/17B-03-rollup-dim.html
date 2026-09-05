@@ -1,0 +1,274 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ROLLUP-DIM over the 17B scope tree</title><style>
+:root{
+  --bg:#f3f5f4; --card:#ffffff; --ink:#171d1c; --mut:#5f6d6a; --line:#dfe5e3; --accent:#0e6e62; --accent-soft:#cfe2e0; --ok:#1b7a3d; --ok-bg:#e8f4ec; --bad:#b4272b; --bad-bg:#fbebeb; --warn:#8a5900; --warn-bg:#f8f1e2; --unknown:#566067; --unknown-bg:#edf0f2; --pending:#5b4a9f; --pending-bg:#efecf7; --edge:#7f8b88; --chip:#eef2f1;
+}
+
+*{box-sizing:border-box}
+/* The document is the scroll container. If a shell introduces a nested
+   overflow canvas, this padding moves to that container in the same change. */
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--sticky-h,0px) + var(--space-2))}
+html:has([data-surface-context]){--sticky-h:56px}
+@media (max-width:767px){html:has([data-surface-context]){--sticky-h:88px}}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.5 var(--font-chrome)}
+/* Voice & measure tokens (03.1-UI-SPEC §2, §7.1): fonts resolve by token
+   only. --font-paper/--font-ledger prefer the vendored faces (Source Serif
+   4 / iA Writer Quattro -- landed in plan 03.1-01) and fall back to the
+   no-vendor stack Georgia / ui-monospace when no font file is present; the
+   @font-face rules for the vendored faces live in this same token layer
+   (plan 03.1-06 Task 2). A @font-face whose src cannot load (file absent)
+   makes its family unavailable, so the token stack degrades to the
+   fallback with no surface knowing a family name. --measure-prose/
+   --measure-wide are character measures, not pixel spacing;
+   --leading-lesson is the sustained-prose line height. */
+/* Vendored faces (03.1-06 Task 1): the last path segments match
+   fonts/MANIFEST.json file rows; weights are the reading surface's 400/600
+   pair for the paper voice and 400/700 for the ledger voice (UI-SPEC §7
+   "two weights per face"). The urls are root-absolute because a relative
+   one resolves against the page route and 404s; a file-scheme page
+   therefore resolves nothing here and degrades to the fallback stack by
+   design. Full rationale and rejected alternative: the module comment
+   above this constant. */
+@font-face{font-family:"Source Serif 4";font-style:normal;font-weight:400;
+  src:url("/assets/fonts/source-serif/SourceSerif4-Regular.ttf.woff2") format("woff2");
+  font-display:swap}
+@font-face{font-family:"Source Serif 4";font-style:normal;font-weight:600;
+  src:url("/assets/fonts/source-serif/SourceSerif4-Semibold.ttf.woff2") format("woff2");
+  font-display:swap}
+@font-face{font-family:"iA Writer Quattro";font-style:normal;font-weight:400;
+  src:url("/assets/fonts/ia-writer-quattro/iAWriterQuattroS-Regular.woff2") format("woff2");
+  font-display:swap}
+@font-face{font-family:"iA Writer Quattro";font-style:normal;font-weight:700;
+  src:url("/assets/fonts/ia-writer-quattro/iAWriterQuattroS-Bold.woff2") format("woff2");
+  font-display:swap}
+/* The spacing scale (14-UI-SPEC §3.1, fixing DEFECT D-A): exactly
+   .planning/UI-SPEC.md §7's 8-point scale with 03.1-UI-SPEC.md §3's
+   assignments. These seven names were referenced 64 times by LESSON_CSS and
+   defined nowhere, so every margin/padding/gap in the reader resolved to its
+   initial value -- no paragraph rhythm, no callout padding, no side gutter,
+   no section spacing, and no browser error to say so. There is no eighth step
+   and no second scale.
+   --font-chrome and --font-code complete the voice set that --font-paper and
+   --font-ledger began: the stacks are copied verbatim from the `body` and
+   `.mono`/`code,pre` declarations that spelled them out inline, so the
+   emitted stacks are unchanged. This is centralisation, not a new choice. */
+:root{
+  --font-paper:"Source Serif 4",Georgia,serif;
+  --font-ledger:"iA Writer Quattro",ui-monospace,monospace;
+  --font-chrome:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-code:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --space-1:4px;
+  --space-2:8px;
+  --space-3:16px;
+  --space-4:24px;
+  --space-5:32px;
+  --space-6:48px;
+  --space-7:64px;
+  --measure-prose:59ch;
+  --measure-wide:80ch;
+  --leading-lesson:1.65;
+  --r-1:6px;
+  --r-2:8px;
+  --r-3:12px;
+  /* The five frozen type tokens (17A-UI-SPEC Typography, plan 17A-02 Task 2).
+     These are a transcription of the sizes already rendering across
+     quiz_page.py, lesson.py, study.py and this file, not a new scale: there
+     is no sixth size, and a component that wants one routes the need through
+     these five rows first. Each token carries only the SIZE; the paired
+     weight and line height stay in the rule that uses it, because a weight
+     belongs to a heading rather than to a size. */
+  --text-xs:12px;
+  --text-body:16px;
+  --text-lesson:18px;
+  --text-heading:20px;
+  --text-display:32px;
+  /* Density aliases (17A-UI-SPEC Density tokens). Comfortable is the default
+     and is what every existing rule already spaces by, so adopting a token
+     changes nothing until a surface opts into compact. Every value on both
+     sides is an alias of the existing --space-* scale, never a new raw pixel,
+     which is what keeps compact bounded: --space-1 is the floor of the scale,
+     so density cannot express anything tighter than 4px. The 44px touch
+     target is fixed regardless of density and is not aliased here. */
+  --density-row-gap:var(--space-3);
+  --density-card-pad:var(--space-3);
+  --density-list-gap:var(--space-2)
+}
+/* Compact is one opt-in attribute on any ancestor, so a dense panel can sit
+   inside a comfortable page. The bound is the alias, not a clamp: there is no
+   third step below this one. */
+[data-density="compact"]{
+  --density-row-gap:var(--space-2);
+  --density-card-pad:var(--space-2);
+  --density-list-gap:var(--space-1)
+}
+.surface{max-width:720px;margin:0 auto;padding:24px 16px 64px;min-width:0}
+.surface.wide{max-width:800px}
+h1{font-size:32px;font-weight:600;line-height:1.2;margin:0 0 8px}
+h2{font-size:20px;font-weight:600;line-height:1.2;margin:32px 0 16px}
+h3{font-size:16px;font-weight:600;line-height:1.4;margin:24px 0 8px}
+p{font-size:16px;line-height:1.5;margin:0 0 16px;overflow-wrap:anywhere}
+a{color:var(--accent);text-decoration:none;font-weight:600}
+a:hover,a:focus-visible,button:focus-visible,summary:focus-visible,
+input:focus-visible,textarea:focus-visible,select:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--font-code);
+  font-variant-numeric:tabular-nums}
+.back{margin:0 0 24px;color:var(--mut);font-size:16px}
+.context-line{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;
+  gap:4px 18px;align-items:center;background:var(--bg);padding:8px 0 10px;
+  border-bottom:1px solid var(--line);margin-bottom:14px;font-size:12px;
+  color:var(--mut)}
+.context-line .cx{overflow-wrap:anywhere}
+.card,.step,.state,.empty{background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:16px;margin:0 0 16px}
+.step .step-label{font-size:20px;font-weight:600;margin:0 0 8px}
+.step .step-prompt{font-size:16px;font-weight:600;margin:0 0 12px}
+.step-body{font-size:16px;line-height:1.5;overflow-wrap:anywhere}
+.step-status{min-height:24px;font-size:12px;color:var(--mut);
+  margin:12px 0 0}
+.step details{margin:12px 0 0;border-top:1px solid var(--line);
+  padding-top:8px}
+.step details summary{cursor:pointer;font-size:16px;font-weight:600;
+  min-height:44px;box-sizing:border-box;padding:10px 0}
+details.details-section{border:1px solid var(--line);border-radius:8px;
+  padding:8px 12px;margin:12px 0 16px;background:var(--card)}
+details.details-section summary{cursor:pointer;font-size:16px;
+  font-weight:600;min-height:44px;box-sizing:border-box;padding:10px 0}
+.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}
+button.go,a.go{display:inline-flex;align-items:center;justify-content:center;
+  min-height:44px;font:inherit;font-size:16px;font-weight:600;
+  padding:10px 16px;border-radius:8px;border:1px solid var(--line);
+  background:var(--card);color:inherit;cursor:pointer;text-decoration:none;
+  transition:.12s}
+button.go.primary,a.go.primary{background:var(--accent-soft);
+  border-color:var(--accent);color:var(--accent)}
+button.go:disabled{opacity:.55;cursor:default}
+.state{padding:12px 16px;font-size:16px;color:var(--mut)}
+.state .state-text{margin:0}
+.state.state-ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok)}
+.state.state-bad{color:var(--bad);background:var(--bad-bg);border-color:var(--bad)}
+.state.state-warn{color:var(--warn);border-color:var(--warn)}
+.row{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:16px;margin:0 0 16px}
+.row .name{font-size:16px;font-weight:600;overflow-wrap:anywhere}
+.row .links{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:16px}
+.row a{color:var(--accent)}
+.empty h2{font-size:20px;font-weight:600;margin:0 0 16px}
+.empty p{color:var(--mut);font-size:16px}
+.headline{font-size:32px;font-weight:600;color:var(--accent);line-height:1.1}
+.headline-label{font-size:12px;color:var(--mut);margin:4px 0 0}
+.figures{display:flex;gap:32px;flex-wrap:wrap;margin-top:24px}
+.figure-value{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.figure-label{font-size:12px;color:var(--mut);margin-top:4px}
+/* Recovery copy, not a chip: LESSON_CSS defines no `.status` rule, so this
+   one declaration styles the reader's degraded-lesson and style-warning
+   notice. A learner who cannot read the failure sentence cannot recover from
+   it, so it takes the 16px floor alongside `.state` (14-UI-SPEC §4.2). A
+   genuinely compact status chip uses `.step-status`, which is 12px. */
+.status{font-size:16px;color:var(--mut);margin:16px 0 0}
+table{width:100%;border-collapse:collapse;margin:8px 0 16px}
+th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);
+  font-size:16px;overflow-wrap:anywhere;vertical-align:top}
+th{font-size:12px;color:var(--mut);font-weight:600}
+.table-wrap{overflow-x:auto;min-width:0}
+code,pre{font-family:var(--font-code);
+  overflow-wrap:anywhere}
+pre{background:var(--chip);border:1px solid var(--line);border-radius:8px;
+  padding:12px;overflow-x:auto;max-width:100%}
+@media (max-width:767px){
+  .surface{padding:16px 16px 56px}
+  h1{font-size:20px}
+  .actions button{width:100%}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important}
+  html{scroll-behavior:auto!important}
+}
+
+.ib-list{list-style:none;margin:0;padding:0;display:flex;
+  flex-direction:column;gap:var(--density-list-gap)}
+.ib-card{background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r-2);padding:var(--density-card-pad)}
+.ib-group{margin:0 0 var(--space-4)}
+.ib-group-head{font-size:var(--text-body);font-weight:600;line-height:1.4;
+  margin:0 0 var(--space-2)}
+.ib-name{font-family:var(--font-paper);font-size:var(--text-body);font-weight:600;
+  line-height:1.4;margin:0;overflow-wrap:anywhere}
+.ib-meta{font-family:var(--font-ledger);font-size:var(--text-xs);line-height:1.4;
+  color:var(--mut);margin:var(--space-1) 0 0;overflow-wrap:anywhere}
+.ib-body{font-size:var(--text-body);line-height:1.5;margin:var(--space-2) 0 0;
+  max-width:var(--measure-prose);overflow-wrap:anywhere}
+.ib-empty{font-size:var(--text-body);line-height:1.5;color:var(--mut);margin:0}
+.ib-slow{font-family:var(--font-ledger);font-size:var(--text-body);line-height:1.5;
+  color:var(--mut);margin:0}
+.ib-notice{border:1px solid var(--line);border-radius:var(--r-2);
+  padding:var(--space-2) var(--space-3);margin:0 0 var(--space-3);
+  font-family:var(--font-ledger);font-size:var(--text-body);line-height:1.5;
+  overflow-wrap:anywhere}
+.ib-notice-label{font-weight:600;margin-inline-end:var(--space-1)}
+.ib-notice-ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok)}
+.ib-notice-bad{color:var(--bad);background:var(--bad-bg);
+  border-color:var(--bad)}
+.ib-notice-warn{color:var(--warn);background:var(--warn-bg);
+  border-color:var(--warn)}
+.ib-notice-unknown{color:var(--unknown);background:var(--unknown-bg);
+  border-color:var(--unknown)}
+.ib-notice-pending{color:var(--pending);background:var(--pending-bg);
+  border-color:var(--pending)}
+.ib-chips{list-style:none;display:flex;flex-wrap:wrap;
+  gap:var(--density-list-gap);margin:var(--space-2) 0 0;padding:0}
+.ib-chip{display:inline-flex;align-items:center;gap:var(--space-1);
+  font-family:var(--font-ledger);font-size:var(--text-xs);line-height:1.4;
+  background:var(--chip);color:var(--ink);border:1px solid var(--line);
+  border-inline-start:3px solid var(--edge);border-radius:var(--r-1);
+  padding:var(--space-1) var(--space-2);overflow-wrap:anywhere}
+.ib-chip .ib-dot{width:8px;height:8px;border-radius:var(--r-1);
+  background:var(--edge);flex:none}
+.ib-chip-ok{border-inline-start-color:var(--ok)}
+.ib-chip-ok .ib-dot{background:var(--ok)}
+.ib-chip-bad{border-inline-start-color:var(--bad)}
+.ib-chip-bad .ib-dot{background:var(--bad)}
+.ib-chip-warn{border-inline-start-color:var(--warn)}
+.ib-chip-warn .ib-dot{background:var(--warn)}
+.ib-chip-unknown{border-inline-start-color:var(--unknown)}
+.ib-chip-unknown .ib-dot{background:var(--unknown)}
+.ib-chip-pending{border-inline-start-color:var(--pending)}
+.ib-chip-pending .ib-dot{background:var(--pending)}
+.ib-fill-row{display:flex;flex-wrap:wrap;align-items:center;
+  gap:var(--space-2);margin:var(--space-2) 0 0}
+.ib-fill{display:inline-flex;gap:var(--space-1);align-items:center}
+.ib-fill i{display:inline-block;width:12px;height:12px;
+  border-radius:var(--r-1);border:1px solid var(--edge);background:transparent}
+.ib-fill i.on{background:var(--ink);border-color:var(--ink)}
+.ib-fill-legend{font-family:var(--font-ledger);font-size:var(--text-xs);line-height:1.4;
+  color:var(--mut)}
+.ib-path{font-family:var(--font-code);font-size:var(--text-xs);line-height:1.5;
+  overflow-wrap:anywhere}
+.ib-setting-row{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-3);
+  padding:var(--space-2) 0}
+.ib-setting-label{font-size:var(--text-body);line-height:1.5}
+.ib-settings-group + .ib-settings-group{border-top:1px solid var(--line);
+  margin-top:var(--space-3);padding-top:var(--space-3)}
+.ib-walkthrough{border:1px solid var(--accent);border-radius:var(--r-3);
+  background:var(--card);padding:var(--density-card-pad);
+  margin:0 0 var(--space-3)}
+.ib-walkthrough p{max-width:var(--measure-prose)}
+.ib-capture textarea{display:block;width:100%;min-width:0;min-height:44px;
+  max-height:calc(var(--text-body) * 1.5 * 8 + var(--space-3));overflow-y:auto;
+  font-family:var(--font-paper);font-size:var(--text-body);line-height:1.5;
+  color:var(--ink);background:var(--bg);border:1px solid var(--edge);
+  border-radius:var(--r-1);padding:var(--space-2)}
+.ib-capture label{display:block;font-size:var(--text-body);font-weight:600;
+  line-height:1.4;margin:var(--space-2) 0 var(--space-1)}
+.ib-stage{border:1px solid var(--line);border-radius:var(--r-3);
+  padding:var(--density-card-pad);margin:0 0 var(--space-3)}
+.ib-nodes{display:flex;flex-wrap:wrap;gap:var(--density-list-gap);
+  margin:var(--space-2) 0 0;padding:0;list-style:none}
+.ib-node{border:1px solid var(--line);border-radius:var(--r-1);
+  padding:var(--space-1) var(--space-2);background:var(--chip);
+  font-family:var(--font-ledger);font-size:var(--text-xs);line-height:1.4}
+.ib-diff{margin:0 0 var(--space-3)}
+.ib-diff pre{margin:var(--space-2) 0 0}
+
+</style></head><body><div class="surface"><p class="back"><a href="/">&larr; Back to courses</a></p>
+<h1>ROLLUP-DIM over the 17B scope tree</h1><main><section class="ib-progress" aria-label="Fenland Systems (ROLLUP-DIM)"><ul class="ib-list" data-dimensions="7"><li class="ib-card"><h2 class="ib-group-head">Design coverage</h2><p class="ib-meta">7 of 7 required objectives with a cited source</p></li><li class="ib-card"><h2 class="ib-group-head">Participation</h2><p class="ib-meta">Indeterminate: Fenland Systems has no fixed denominator.</p></li><li class="ib-card"><h2 class="ib-group-head">Settled evidence</h2><p class="ib-meta">16 of 18 responses with a settled mark</p></li><li class="ib-card"><h2 class="ib-group-head">Current retention</h2><p class="ib-meta">7 of 7 objectives unknown</p></li><li class="ib-card"><h2 class="ib-group-head">Formal completion</h2><p class="ib-meta">7 of 7 required objectives formally complete</p></li><li class="ib-card"><h2 class="ib-group-head">Selected enrichment</h2><p class="ib-meta">Indeterminate: Fenland Systems has no fixed denominator.</p></li><li class="ib-card"><h2 class="ib-group-head">Open uncertainty</h2><p class="ib-meta">2 pending review; Unknown: not enough settled attempts yet</p></li></ul></section><p class="ib-notice ib-notice-neutral" data-state="neutral" role="status" aria-live="polite">Open scope. Never reports complete. Every claim above is as of scope version FS-2026-09-01.1.</p><section class="ib-progress" aria-label="Aldrasse Fen Ecology 101 (ROLLUP-DIM)"><ul class="ib-list" data-dimensions="7"><li class="ib-card"><h2 class="ib-group-head">Design coverage</h2><p class="ib-meta">7 of 7 required objectives with a cited source</p></li><li class="ib-card"><h2 class="ib-group-head">Participation</h2><p class="ib-meta">Indeterminate: Aldrasse Fen Ecology 101 has no fixed denominator.</p></li><li class="ib-card"><h2 class="ib-group-head">Settled evidence</h2><p class="ib-meta">16 of 18 responses with a settled mark</p></li><li class="ib-card"><h2 class="ib-group-head">Current retention</h2><p class="ib-meta">7 of 7 objectives unknown</p></li><li class="ib-card"><h2 class="ib-group-head">Formal completion</h2><p class="ib-meta">7 of 7 required objectives formally complete</p></li><li class="ib-card"><h2 class="ib-group-head">Selected enrichment</h2><p class="ib-meta">Indeterminate: Aldrasse Fen Ecology 101 has no fixed denominator.</p></li><li class="ib-card"><h2 class="ib-group-head">Open uncertainty</h2><p class="ib-meta">2 pending review; Unknown: not enough settled attempts yet</p></li></ul></section><p class="ib-notice ib-notice-neutral" data-state="neutral" role="status" aria-live="polite">Bounded scope, membership version AFE101-m1. Completion predicate afe101-complete-v1: complete.</p><section class="ib-progress" aria-label="Unit 3: Peat Hydrology and the Lantern Moss Cycle (ROLLUP-DIM)"><ul class="ib-list" data-dimensions="7"><li class="ib-card"><h2 class="ib-group-head">Design coverage</h2><p class="ib-meta">7 of 7 required objectives with a cited source</p></li><li class="ib-card"><h2 class="ib-group-head">Participation</h2><p class="ib-meta">Indeterminate: Unit 3: Peat Hydrology and the Lantern Moss Cycle has no fixed denominator.</p></li><li class="ib-card"><h2 class="ib-group-head">Settled evidence</h2><p class="ib-meta">16 of 18 responses with a settled mark</p></li><li class="ib-card"><h2 class="ib-group-head">Current retention</h2><p class="ib-meta">7 of 7 objectives unknown</p></li><li class="ib-card"><h2 class="ib-group-head">Formal completion</h2><p class="ib-meta">7 of 7 required objectives formally complete</p></li><li class="ib-card"><h2 class="ib-group-head">Selected enrichment</h2><p class="ib-meta">Indeterminate: Unit 3: Peat Hydrology and the Lantern Moss Cycle has no fixed denominator.</p></li><li class="ib-card"><h2 class="ib-group-head">Open uncertainty</h2><p class="ib-meta">2 pending review; Unknown: not enough settled attempts yet</p></li></ul><ul class="ib-list"><li class="ib-card"><h3 class="ib-name">afe:unit3.minerotrophy</h3><p class="ib-fill-row"><span class="ib-fill" role="img" aria-label="2 of 5" data-filled="2"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span><span class="ib-fill-legend">Filled blocks show current standing for this objective. They move up and down as evidence and retention change. This is not a permanent grade.</span></p></li><li class="ib-card"><h3 class="ib-name">afe:unit3.layers</h3><p class="ib-fill-row"><span class="ib-fill" role="img" aria-label="2 of 5" data-filled="2"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span><span class="ib-fill-legend">Filled blocks show current standing for this objective. They move up and down as evidence and retention change. This is not a permanent grade.</span></p></li><li class="ib-card"><h3 class="ib-name">afe:unit3.threshold</h3><p class="ib-fill-row"><span class="ib-fill" role="img" aria-label="3 of 5" data-filled="3"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span><span class="ib-fill-legend">Filled blocks show current standing for this objective. They move up and down as evidence and retention change. This is not a permanent grade.</span></p></li><li class="ib-card"><h3 class="ib-name">afe:unit3.peat</h3><p class="ib-fill-row"><span class="ib-fill" role="img" aria-label="2 of 5" data-filled="2"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span><span class="ib-fill-legend">Filled blocks show current standing for this objective. They move up and down as evidence and retention change. This is not a permanent grade.</span></p></li><li class="ib-card"><h3 class="ib-name">afe:unit3.lagg</h3><p class="ib-fill-row"><span class="ib-fill" role="img" aria-label="2 of 5" data-filled="2"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span><span class="ib-fill-legend">Filled blocks show current standing for this objective. They move up and down as evidence and retention change. This is not a permanent grade.</span></p></li><li class="ib-card"><h3 class="ib-name">afe:unit3.cycle</h3><p class="ib-fill-row"><span class="ib-fill" role="img" aria-label="3 of 5" data-filled="3"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span><span class="ib-fill-legend">Filled blocks show current standing for this objective. They move up and down as evidence and retention change. This is not a permanent grade.</span></p></li><li class="ib-card"><h3 class="ib-name">afe:unit3.instrument</h3><p class="ib-fill-row"><span class="ib-fill" role="img" aria-label="3 of 5" data-filled="3"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span><span class="ib-fill-legend">Filled blocks show current standing for this objective. They move up and down as evidence and retention change. This is not a permanent grade.</span></p></li></ul></section><p class="ib-notice ib-notice-neutral" data-state="neutral" role="status" aria-live="polite">Bounded scope, membership version AFE101-m1. Completion predicate afe101-complete-v1: complete.</p></main></div></body></html>

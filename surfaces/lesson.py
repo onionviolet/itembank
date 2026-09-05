@@ -1028,7 +1028,11 @@ def _parse_key_callout(raw_lines):
         stripped = re.sub(r"^>\s?", "", line).strip()
         if not stripped or re.match(r"^\[(ID|HASH):", stripped):
             continue
-        body.append(line)
+        # The de-prefixed line, matching model.parse_key_blocks(): the raw
+        # blockquote marker is transport, never body text, and appending the
+        # raw line rendered a literal "> " inside every multi-line KEY card
+        # (found by the 17B-03 learner pass; 17B-CONTEXT D-06 in-phase fix).
+        body.append(re.sub(r"^>\s?", "", line))
     body_text = "\n".join(body).strip()
     return {"id": kid, "title": title, "body": body_text,
             "cloze": "{{" in body_text}

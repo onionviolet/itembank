@@ -4,17 +4,17 @@ milestone: source-to-course
 milestone_name: source-to-course
 current_phase_name: 17B-production-vertical-tracer
 current_phase: 17B
-status: "17B in execution: 17B-01 and 17B-02 executed 2026-09-01, 17B-03 in flight, 17B-04 unstarted. Frozen: 14A, 14B, 14C, 15A, 15B, 16A, 16B, 16C, 16D, 17A (16D and 17A with their human review legs deferred to Weibao). Phase 18 plans 01 to 03 executed to the human gate. 17C unstarted. The owed human reviews are listed under Current position."
-stopped_at: "17B-03 (production vertical tracer, wave 3)."
-last_updated: "2026-09-03T00:00:00.000Z"
-last_activity: 2026-09-03
-last_activity_desc: "Planning record compacted: STATE log through 2026-08-30 archived, dead operator files archived, roadmap status corrected for 14A through 18, summary gate added."
+status: "17B in execution: 17B-01 to 17B-04 executed; G10 failed in wave 4, was repaired 2026-09-05, and now passes. The milestone acceptance signature and the G4/G8 human legs are owed to Weibao. Frozen: 14A, 14B, 14C, 15A, 15B, 16A, 16B, 16C, 16D, 17A (16D and 17A with their human review legs deferred to Weibao). Phase 18 plans 01 to 03 executed to the human gate. 17C unstarted. The owed human reviews are listed under Current position."
+stopped_at: "17B-04 complete; the milestone exit record is written and awaiting Weibao's acceptance."
+last_updated: "2026-09-05T00:00:00.000Z"
+last_activity: 2026-09-05
+last_activity_desc: "17B-04 executed and the milestone exit record written; gate G10's two routed defects repaired as an additive contract change and the clean-machine restore drill re-run to a pass (7 of 7 canonical objects, 40 of 40 evidence events)."
 progress:
   total_phases: 36
   completed_phases: 32
   total_plans: 212
-  completed_plans: 209
-  counting_rule: "phase directories under .planning/phases; a phase counts complete when frozen or its summaries and verification exist; open are 13.5 (human tail), 17B, 17C, 18 (human gate). Plans count complete when a summary exists or the phase is frozen; open are 17B-03, 17B-04, 17C-01."
+  completed_plans: 211
+  counting_rule: "phase directories under .planning/phases; a phase counts complete when frozen or its summaries and verification exist; open are 13.5 (human tail), 17B (human acceptance), 17C, 18 (human gate). Plans count complete when a summary exists or the phase is frozen; open is 17C-01."
 ---
 # Project State
 
@@ -23,12 +23,27 @@ progress:
 **Milestone:** source-to-course. Exit is Phase 17B's gate record
 (`.planning/phases/17B-production-vertical-tracer/17B-GATES.md`), G1 to G11.
 
-**Phase 17B, in execution.** 17B-01 and 17B-02 executed and committed
-2026-09-01. 17B-03 is in flight: its evidence files exist untracked and
-`surfaces/lesson.py` carries an uncommitted change. 17B-04 is unstarted.
-Gates G1, G2, G3, G7 pass; G4, G5, G6, G8, G9, G10, G11 are pending. G4
-(screen reader) and the final visual acceptance are human checkpoints an
-agent may not sign (17B-CONTEXT D-04).
+**Phase 17B, executed to its human gate.** 17B-01 to 17B-04 are done and
+committed; the milestone exit record is in `17B-GATES.md`. Final gate
+states: G1, G2, G3, G7, G9, G11 pass; G5 and G6 pass carrying routed
+defects with named owners; G10 failed in wave 4 and passes after the
+2026-09-05 repair; G4 and G8 carry `deferred-human` legs. G4 (screen
+reader), the G8 visual acceptance at 1280 and 375, the G5 default rollup
+choice, and the milestone acceptance signature are human checkpoints an
+agent may not sign (17B-CONTEXT D-04), and none of them was defaulted.
+
+**G10 repaired, 2026-09-05.** Wave 4's drill found that 6 of 7 canonical
+objects and 0 of 40 evidence events crossed a clean-machine restore, and
+routed both causes because they were contract changes in frozen surfaces.
+They were repaired rather than left owed (commit `247ffbe`), additively:
+`journal.op_grant_rights` records a rights decision without editing the
+artifact, `journal.op_adopt` records that a file bound by `link` is the
+course's own artifact, `course_package.evidence_scope` joins evidence by
+bank name and carries whole sessions, and the new `evidence-not-carried`
+loss category names anything a package cannot claim. `OPERATION_TYPES`
+stays at six. The drill re-run passes: 7 of 7 objects, 40 of 40 events.
+Evidence: `evidence/17B-04-restore-repair.md`. Consequence for 17C: its
+sweep now has a working restore path to sweep with.
 
 **Frozen:** 14A (2026-08-18), 14B (08-27), 14C (08-28), 16A (08-28),
 16B (08-28), 15A (08-30), 15B (08-30), 16C (08-30), 16D (09-01, sit-through
@@ -57,7 +72,9 @@ course exists yet. Every other session in the record is a fixture or an agent.
 2. The 16D sit-through (`16D-04-SUMMARY.md`).
 3. The standing agent-signature ruling (ratify, ratify with re-review, or
    tighten).
-4. 17B's two human checkpoints once 17B-04 reaches them.
+4. 17B's human legs, now reached: the G4 screen-reader walk, the G8 visual
+   acceptance at 1280 and 375, the G5 default rollup choice, and the
+   milestone acceptance signature at the end of `17B-GATES.md`.
 5. Phase 18 row 7, the friend's cold install, plus the Windows rebuild and
    the signing decision.
 6. The 13.5 five-item human tail (`13.5-GATES.md`).
@@ -72,6 +89,26 @@ duplicated decisions list, the stale "Phase 14 progress" block, and the
 `.planning/archive/STATE-LOG-through-2026-08-30.md`. Dead operator files
 moved to `.planning/archive/` (index in its README). `scripts/summary_gate.py`
 now enforces the 2026-08-21 summary rule in CI and preflight.
+
+## 2026-09-05: 17B-03 and 17B-04 committed, G10 repaired, the milestone exit record written
+
+Weibao's directive, 2026-09-05: "rather than making me check things I want
+to properly utilize the capabilities of my usage and just fulfil User
+vision." Read as a reaffirmation of 2026-09-01: carry the work to
+completion, do not route decisions back to him that an agent can defensibly
+make and record, and keep never self-certifying the human review legs.
+
+Under it, this session: committed wave 3's `surfaces/lesson.py` KEY-card fix
+and both waves' evidence; repaired gate G10's two routed defects as an
+additive contract change and re-ran the drill to a pass; brought
+`17B-04-SUMMARY.md` under the 2026-09-03 summary gate (the long-form record
+lives in the gate table and the evidence files, which is what the rule
+intends); and updated the gate record and this file.
+
+What was deliberately not done: no human review leg was signed. The G4
+screen-reader walk, the G8 visual acceptance, the G5 default rollup choice,
+and the milestone acceptance signature are still owed to Weibao and are
+listed above.
 
 ## 2026-09-01: 17A and 16D frozen with deferred human review legs; 17B unblocked
 
