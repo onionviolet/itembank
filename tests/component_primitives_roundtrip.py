@@ -371,6 +371,25 @@ def check_fill_state_is_discrete_and_never_a_probability():
         if 'aria-label="%d of %d"' % (filled, P.FILL_BLOCKS) not in markup:
             fail("the blocks are decorative, so the group needs the same "
                  "discrete count as its accessible name")
+        # `progress_claims.ARIA_CONTRACT["fill_state"]`, which this primitive
+        # did not honour until 2026-09-05 (`17B-03 D-06 item 8`): a standing
+        # is a progressbar carrying its words, and deliberately carries no
+        # `aria-valuenow`, because it is not a measured quantity on a scale.
+        if 'role="progressbar"' not in markup:
+            fail("a standing must be a progressbar, per ARIA_CONTRACT")
+        if 'aria-valuetext="%d of %d blocks filled"' % (filled, P.FILL_BLOCKS) \
+                not in markup:
+            fail("a standing must carry its count in words as aria-valuetext")
+        if "aria-valuenow" in markup:
+            fail("a standing must never carry aria-valuenow")
+    # The shared-legend form: the association survives, the duplication does
+    # not, and the legend is then the caller's to render once.
+    described = P.fill_state(2, "Filled blocks show current standing.",
+                             describedby="shared-legend")
+    if 'aria-describedby="shared-legend"' not in described:
+        fail("a described standing must point at the shared legend")
+    if "Filled blocks show current standing." in text_of(described):
+        fail("a described standing must not repeat the legend inline")
     if P.fill_state(99, "x").count('class="on"') != P.FILL_BLOCKS:
         fail("a standing past the block count clamps rather than overflowing")
     ok("fill state: 0 through 5 discrete, legend always adjacent, clamped")

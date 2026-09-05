@@ -145,9 +145,23 @@ h1.stem{font-size:32px;font-weight:600;line-height:1.2;margin:0 0 14px;
   border:1px solid var(--line);color:var(--mut)}
 .ord.set{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 /* Reserved feedback region: directly below the response control, before the
-   next action, with stable minimum height so the stem never shifts (D-02). */
+   next action, with stable minimum height so the layout never shifts once a
+   verdict is showing (D-02).
+
+   Amended 2026-09-05: the reservation now applies only once the region has
+   something in it. Empty, it reserved 96px (120px under 768) between the
+   choices and Submit on every unanswered item, which read as a hole in the
+   card rather than as a space waiting for something, and it could not have
+   been protecting the stem in the first place: the stem is ABOVE this
+   region, and content below never pushes content above. What the
+   reservation genuinely protects is the action row's position between one
+   verdict and the next, and that still holds, because the region only
+   collapses while it is empty. The order D-02 fixes (response control,
+   feedback, then the next action, so a screen reader meets the verdict
+   before the control that leaves it) is untouched. */
 .feedback{min-height:96px;margin-top:14px;padding-top:12px;
   border-top:1px solid var(--line);font-size:16px}
+.feedback:empty{min-height:0;margin-top:0;padding-top:0;border-top:0}
 .feedback .status{color:var(--mut);margin-bottom:8px}
 /* Own-selection feedback on a held multiple-response attempt: which of the
    learner's OWN picks were right and which were wrong. Never colour alone --
@@ -269,6 +283,7 @@ textarea.ans:disabled{opacity:.75}
   .context-line{gap:2px 12px}
   h1.stem{font-size:20px}
   .feedback{min-height:120px}
+  .feedback:empty{min-height:0}
   .context-line .objective,.context-line .mode,.context-line .lesson{display:none}
 }
 /* AgentAssist (plan 08-05): optional, subordinate, collapsed, opt-in

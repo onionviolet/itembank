@@ -763,35 +763,64 @@ def chip_row(chips, label="State"):
             % (esc(label), items))
 
 
-def fill_state(filled, legend, total=FILL_BLOCKS):
+def fill_state(filled, legend, total=FILL_BLOCKS, describedby=""):
     """Five discrete blocks, the filled count being the current standing.
 
     Never a continuous bar and never a probability: the discreteness is the
-    anti-precision signal. The blocks are decorative, so the group carries an
-    `img` role with the same discrete count as its accessible name, and the
-    fixed legend text sits beside them at every width.
+    anti-precision signal.
+
+    The role is `progressbar` with `aria-valuetext` and deliberately no
+    `aria-valuenow`, which is `progress_claims.ARIA_CONTRACT["fill_state"]`
+    verbatim: a standing is not a measured quantity on a scale, so a screen
+    reader is given the words rather than a number it would read as one.
+    Before 2026-09-05 this emitted `role="img"` with a bare `n of N` label,
+    which the 17B wave-3 pass recorded as `17B-03 D-06 item 8`.
+
+    `describedby` names an element that already carries the legend text, for
+    a list of standings that would otherwise repeat one fixed sentence under
+    every row (the ROLLUP screens repeated it seven times). The association
+    survives; only the duplication goes. Passing nothing keeps the legend
+    beside the blocks, which is what a single standing on its own needs.
     """
     total = max(1, int(total))
     filled = max(0, min(total, int(filled)))
     marks = "".join('<i%s></i>' % (' class="on"' if i < filled else "")
                     for i in range(total))
-    return ('<p class="ib-fill-row"><span class="ib-fill" role="img" '
-            'aria-label="%d of %d" data-filled="%d">%s</span>%s</p>'
-            % (filled, total, filled, marks,
-               _text("span", "ib-fill-legend", legend)))
+    described = (' aria-describedby="%s"' % esc(describedby)
+                 if describedby else "")
+    tail = "" if describedby else _text("span", "ib-fill-legend", legend)
+    return ('<p class="ib-fill-row"><span class="ib-fill" role="progressbar" '
+            'aria-valuetext="%d of %d blocks filled" aria-label="%d of %d"%s '
+            'data-filled="%d">%s</span>%s</p>'
+            % (filled, total, filled, total, described, filled, marks, tail))
 
 
-def course_shelf(courses, label="Courses", empty="", state=None):
+def course_shelf(courses, label="Courses", empty="", state=None,
+                 legend="", legend_id=""):
     """One vertically scrolling list of course cards at any count.
 
     No pagination control and no load-more: the page scrolls, which is the
     project's own long-content rule, and a locked card renders in its normal
     list position with its own unlock sentence rather than being summarised
     into a count of locked items.
+
+    A card may carry `fill`, an int standing, which renders through the one
+    `fill_state` primitive inside the card. That slot is why this signature
+    grew: the ROLLUP-MAP screen needed a card with a standing on it and no
+    primitive had one, so the 17B wave-3 pass composed the screen out of two
+    primitives by hand and recorded the gap as `17B-03 D-06 item 7`. One
+    `legend` is rendered once for the whole list and every standing points at
+    it, rather than each row repeating the same fixed sentence.
     """
     head = _fallback(state, label, empty, bool(courses))
     if head is not None:
         return head
+    shared_legend = ""
+    described = ""
+    if legend:
+        described = legend_id or "ib-shelf-fill-legend"
+        shared_legend = ('<p class="ib-fill-legend" id="%s">%s</p>'
+                         % (esc(described), esc(legend)))
     rows = []
     for course in courses:
         body = [_text("h2", "ib-name", course.get("name", ""))]
@@ -799,12 +828,16 @@ def course_shelf(courses, label="Courses", empty="", state=None):
             body.append(_text("p", "ib-meta", course["meta"]))
         if course.get("locked"):
             body.append(_text("p", "ib-body", course.get("unlock", "")))
+        if course.get("fill") is not None:
+            body.append(fill_state(course["fill"], legend,
+                                   describedby=described))
         body.append(chip_row(course.get("chips", ()), label="Course state"))
         body.append(_actions(course.get("actions", ()),
                              course.get("action")))
         rows.append('<li class="ib-card">%s</li>' % "".join(body))
     return _section("ib-shelf", label,
-                    '<ul class="ib-list">%s</ul>' % "".join(rows))
+                    '<ul class="ib-list">%s</ul>%s'
+                    % ("".join(rows), shared_legend))
 
 
 def _job_rows(jobs):
@@ -1007,21 +1040,53 @@ def progress_comprehension_display(dimensions, objectives=(),
     rows = []
     for dim in dimensions or ():
         body = [_text("h2", "ib-group-head", dim.get("label", ""))]
-        body.append(_text("p", "ib-meta", dim.get("text", "")))
+        # `progress_claims.ARIA_CONTRACT` says a claim is a progressbar: a
+        # determinate one carries valuemin/valuemax/valuenow and a valuetext
+        # holding the whole sentence, because the number alone is not
+        # meaningful; an indeterminate one carries the valuetext and no
+        # valuenow, and is never an unexplained spinner. Neither was emitted
+        # before 2026-09-05 (`17B-03 D-06 item 8`); the visible text is
+        # unchanged, so a sighted reader sees exactly what they saw.
+        text = dim.get("text", "")
+        numerator, denominator = dim.get("value"), dim.get("max")
+        determinate = (isinstance(numerator, int)
+                       and isinstance(denominator, int)
+                       and not isinstance(numerator, bool)
+                       and not isinstance(denominator, bool))
+        if determinate:
+            attrs = (' role="progressbar" aria-valuemin="0" aria-valuemax="%d"'
+                     ' aria-valuenow="%d" aria-valuetext="%s"'
+                     % (denominator, numerator, esc(text)))
+        else:
+            attrs = ' role="progressbar" aria-valuetext="%s"' % esc(text)
+        body.append('<p class="ib-meta"%s>%s</p>' % (attrs, esc(text)))
         rows.append('<li class="ib-card">%s</li>' % "".join(body))
     parts = ['<ul class="ib-list" data-dimensions="%d">%s</ul>'
              % (len(rows), "".join(rows))] if rows else []
     objectives = list(objectives)
     if objectives:
+        # One legend for the whole list, pointed at by every standing, rather
+        # than the same fixed sentence under each of seven rows.
+        legend_text = ""
+        for obj in objectives:
+            if obj.get("legend"):
+                legend_text = obj["legend"]
+                break
+        legend_id = "ib-objective-fill-legend" if legend_text else ""
+
         def block(items):
             out = []
             for obj in items:
                 out.append('<li class="ib-card">%s%s</li>'
                            % (_text("h3", "ib-name", obj.get("label", "")),
                               fill_state(obj.get("filled", 0),
-                                         obj.get("legend", ""))))
+                                         obj.get("legend", ""),
+                                         describedby=legend_id)))
             return '<ul class="ib-list">%s</ul>' % "".join(out)
         parts.append(block(objectives[:OBJECTIVE_FILL_SHOWN]))
+        if legend_id:
+            parts.append('<p class="ib-fill-legend" id="%s">%s</p>'
+                         % (legend_id, esc(legend_text)))
         if len(objectives) > OBJECTIVE_FILL_SHOWN:
             parts.append(details_section(
                 SHOW_ALL_OBJECTIVES % len(objectives),

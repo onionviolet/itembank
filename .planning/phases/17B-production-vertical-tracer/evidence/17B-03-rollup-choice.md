@@ -72,3 +72,59 @@ theme block.
 
 The real answer, from Weibao, from these two screens. Until it lands this
 record reads provisional and the G5 row in `17B-GATES.md` says so.
+
+## Addendum, 2026-09-05: both screens regenerated after the primitives were fixed
+
+Weibao asked for the two 17B-03 defects behind these screens to be fixed,
+not only recorded. Both were 17A primitive gaps, so both were fixed in the
+primitives rather than worked around in the screens, and the screens were
+then rebuilt from the same evidence through the fixed primitives.
+
+- **`17B-03 D-06 item 7`, the missing fill-state slot.** No card primitive
+  carried a standing, so the wave-3 pass composed ROLLUP-MAP out of
+  `course_shelf` and `fill_state` by hand. `presentation.course_shelf` now
+  takes a per-card `fill` and renders it through the one `fill_state`
+  primitive, with one `legend` rendered once for the whole list and every
+  standing pointing at it by `aria-describedby`. The legend used to repeat
+  verbatim under all seven objective rows.
+- **`17B-03 D-06 item 8`, the missing ARIA roles.**
+  `progress_claims.ARIA_CONTRACT` says a standing is a `progressbar`
+  carrying `aria-valuetext` and deliberately no `aria-valuenow`, and that a
+  determinate claim carries valuemin, valuemax, valuenow and the whole
+  sentence as valuetext. Neither was emitted. Both are now, in
+  `presentation.fill_state` and
+  `presentation.progress_comprehension_display`. The visible text is
+  unchanged, so a sighted reader sees exactly what they saw before.
+
+Two legibility repairs came with them, both found by looking at the
+rendered screens rather than at the markup:
+
+- Every scope now carries a **visible heading and its own note above its
+  own block**. `_section` puts a label in `aria-label` only, so DIM stacked
+  three blocks of identical row labels and a sighted reader had to reach
+  the note at the END of a block to learn which scope they had been
+  reading. On MAP the note fell after the NEXT scope's cards, so the open
+  field's "never reports complete" sentence read as if it described the
+  bounded course.
+- The scope names are read from `scope.md`'s own headings rather than
+  assumed, so the screens render a second course's tree without edits.
+
+The generator is now a committed tool, `tools/rollup_screens.py`, run as
+`PYTHONPATH=. python3 tools/rollup_screens.py course_fixture_17b <out>`.
+The wave-3 script was a scratch file that was never committed, which is why
+these screens could not be rebuilt until now. Regenerated artifacts, beside
+this file:
+
+| artifact | bytes | SHA-256 |
+|---|---|---|
+| `17B-03-rollup-dim.html` | 23655 | `a6feaafa8600038186cb59057e5dea09044a56610de3b207ce11f5ce7b9eac66` |
+| `17B-03-rollup-map.html` | 20869 | `b1599b4aff3be7afb5b75af0778097724fda18a6500f8c70405bb0135177c287` |
+| `17B-03-rollup-tuples.json` | 4863 | `cb3b79dad649d484fa46c567bfd73dea4c2f74f9e853dd7bafc453a60b701cfd` |
+
+Structural checks on the new bytes: visible percent signs 0 on both, the
+word `score` absent from both, 17 progressbar rows on DIM (three scopes of
+dimension claims plus seven objective standings) and 7 on MAP, and one
+legend per list rather than one per row.
+
+**The choice itself is still owed to Weibao.** Nothing here answers it; the
+screens are just now worth choosing from.
