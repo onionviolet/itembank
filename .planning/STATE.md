@@ -100,6 +100,38 @@ duplicated decisions list, the stale "Phase 14 progress" block, and the
 moved to `.planning/archive/` (index in its README). `scripts/summary_gate.py`
 now enforces the 2026-08-21 summary rule in CI and preflight.
 
+## 2026-09-05: the visual review, and a recorded reversal of D-14/D-25
+
+Weibao reviewed the rendered screens rather than the transcripts. Four
+things came out of it.
+
+**Fixed in the app.** The lesson's one diagram was a broken image on every
+served page: a bank-relative `media/x.svg` under `/lesson/<stem>` resolves
+to `/lesson/media/x.svg`. The renderer now takes a `media_base` and the
+daemon serves `/media/<stem>/<name>` from the bank's own directory,
+contained by resolution rather than by allowlist. The eight course areas,
+which said "Nothing has been added yet" for a course with a lesson, a bank,
+seven objectives and two sources, now read the course's own artifacts;
+16B's `content_available: False` was a deferral to 14A and 14B, and both
+have landed.
+
+**A recorded reversal, made deliberately.** D-14 and D-25 reserved settling
+a mark to the CLI: `verdict` is in `API_FORBIDDEN_FIELDS` so no client can
+put one on the wire. That made a practice sitting parked on a constructed
+response a dead end in the browser, telling the learner to open a terminal.
+Asked directly, Weibao chose the in-page self-mark. `POST /api/mark` admits
+`verdict` through the same `allowed_ids` hatch `/api/start` uses for
+`profile`, and nothing else moves: `marker` stays forbidden,
+`evidence.mark_event` still pins the marker to `human`, a model may still
+only propose through `/api/rubric-review`, and the runtime still decides
+what a settled mark means for the cursor. The browser on loopback is now a
+reviewer surface for the learner's own sitting. Recorded here because it
+reverses a decision, not because it was hard.
+
+**Open: the visual direction.** Five candidate directions were rendered
+against the real screens (editorial, console, neo, cash, soft). Weibao is
+choosing; nothing is applied to the shipped stylesheet yet.
+
 ## 2026-09-05: 17C's maintenance and restore audit run
 
 `17C-AUDIT.md` written under the same directive, tasks 1 to 3 complete. The

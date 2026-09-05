@@ -30,9 +30,9 @@ from model import (lesson_slug, load, parse_activities, parse_bank,
 from runtime import (checkpoint_feedback, explain_payload, glossable,
                      lesson_run_advance, lesson_run_record, read_lesson_run,
                      read_session, start_lesson_run, upgrade_session)
-from surfaces import (day, home, ia, launcher, lesson, presentation, quiz,
-                      quiz_page, retention_view, seeding, session, settings,
-                      study, update)
+from surfaces import (day, evidence_cli, home, ia, launcher, lesson,
+                      presentation, quiz, quiz_page, retention_view, seeding,
+                      session, settings, study, update)
 from surfaces import audio as audio_surface
 from surfaces import theme
 from surfaces.session import UNKNOWN_LANGUAGE_COPY
@@ -311,6 +311,7 @@ API_ROUTES = (
     ("POST", "/api/override", "handle_api_override"),
     ("POST", "/api/lesson-complete", "handle_api_lesson_complete"),
     ("POST", "/api/rubric-review", "handle_api_rubric_review"),
+    ("POST", "/api/mark", "handle_api_mark"),
     ("POST", "/api/export_audio", "handle_api_export_audio"),
     ("POST", "/api/lesson/run", "handle_api_lesson_run"),
     ("POST", "/api/source/import", "handle_api_source_import"),
@@ -385,6 +386,7 @@ ROUTE_CLI = {
     ("POST", "/api/override"): "override",
     ("POST", "/api/lesson-complete"): "lesson",
     ("POST", "/api/rubric-review"): "rubric-review",
+    ("POST", "/api/mark"): "mark",
     ("GET", KATEX_ASSET_RE): "daemon",
     ("GET", FONT_ASSET_RE): "daemon",
     ("GET", MEDIA_ASSET_RE): "daemon",
@@ -437,6 +439,7 @@ SURFACE_PARITY = (
     (("POST", "/api/source/import"), "source", "source_import"),
     (("POST", "/api/source/recheck"), "source", "source_recheck"),
     (("POST", "/api/shelf"), "shelf", "shelf"),
+    (("POST", "/api/mark"), "mark", "mark"),
 )
 
 
@@ -4291,6 +4294,97 @@ def handle_api_rubric_review(handler):
         handler.send_server_error(exc)
         return
     handler.send_json(result)
+
+
+def handle_api_mark(handler):
+    """`POST /api/mark` -- `{"session_id": "<id>", "item_ref": "<ref>",
+    "verdict": true|false, "notes": "<optional>"}`. The browser twin of
+    `itembank mark`, and the way out of a parked sitting.
+
+    A constructed response is scored by nobody: the runtime records it with
+    `score=None` and parks the sitting until a human marker rules, which is
+    deliberate and stays deliberate. Until now the only place that ruling
+    could be made was a terminal, so a learner sitting a bank whose short
+    item came up first reached a dead end in the app and was told to go and
+    type a command. This route is the same act on the surface they are
+    already using.
+
+    It composes no new authority. The verdict comes from the person at the
+    keyboard, never from a model: `evidence.mark_event` pins `marker` to
+    `"human"`, and a model may still only propose through
+    `/api/rubric-review`. The runtime, not this handler, decides what a
+    settled mark means for the cursor: the mark is appended to the same
+    evidence log the CLI writes, and the next `session.do_next` collects it
+    through `settled_mark_keys` and `runtime.marker_close` exactly as it
+    collects a mark made from a terminal.
+    """
+    if _reject_cross_origin(handler):
+        return
+    # `verdict` is in API_FORBIDDEN_FIELDS (D-09) and stays there for every
+    # other route: no client may smuggle a verdict onto a scoring path. This
+    # route is the one place a verdict is the whole point, so it is admitted
+    # by name through the same `allowed_ids` hatch `/api/start` uses for
+    # `profile`. What that changes, recorded rather than assumed: the browser
+    # on loopback is now a reviewer surface for the learner's own sitting,
+    # which D-14/D-25 previously reserved to the CLI. It is the learner's
+    # decision, taken 2026-09-05, because the alternative was a sitting that
+    # dead-ended in the app and told them to open a terminal. Nothing else
+    # moves: `marker` remains forbidden, `evidence.mark_event` still pins the
+    # marker to "human", a model still may only propose through
+    # `/api/rubric-review`, and the runtime still decides what a settled mark
+    # means for the cursor.
+    data, failed = api_read_json(handler, allowed_ids=("verdict",))
+    if failed:
+        return
+    for banned in ("score", "correct", "rubric_pass"):
+        if banned in data:
+            handler.send_error(400,
+                               "authority-shaped field %r refused" % banned)
+            return
+    session_id = data.get("session_id")
+    session_file = api_session_path(handler, session_id)
+    if session_file is None:
+        handler.send_not_found(session_id if isinstance(session_id, str) else "")
+        return
+    item_ref = data.get("item_ref")
+    if not isinstance(item_ref, str) or not item_ref:
+        handler.send_error(400, "a mark names the item it marks")
+        return
+    verdict = data.get("verdict")
+    if not isinstance(verdict, bool):
+        handler.send_error(400, "a verdict is true or false, and nothing else")
+        return
+    notes = data.get("notes") or ""
+    if not isinstance(notes, str):
+        handler.send_error(400, "notes are text")
+        return
+    try:
+        with open(session_file, encoding="utf-8") as fh:
+            recorded = json.load(fh)
+        log = evidence.log_path(os.path.dirname(recorded["bank"]))
+        target = evidence_cli.resolve_marks_event(
+            log, recorded["session_id"], item_ref)
+        if target is None:
+            handler.send_error(
+                404, "no response recorded for %s in this sitting; marking "
+                     "something that was never answered is not allowed"
+                     % item_ref)
+            return
+        event = evidence.mark_event(
+            recorded["session_id"], target.get("item_id", ""), item_ref,
+            target["event_id"], verdict, notes=notes)
+        written = evidence.append_event(log, event)
+        view = session.do_next(session_file)
+    except SystemExit as exc:
+        handler.send_error(400, str(exc.code))
+        return
+    except Exception as exc:
+        handler.send_server_error(exc)
+        return
+    handler.send_json({"schema_version": evidence.EVENT_SCHEMA_VERSION,
+                       "status": written.get("status"),
+                       "event_id": written.get("event_id"),
+                       "item_ref": item_ref, "view": view})
 
 
 def handle_api_interact(handler):

@@ -3143,12 +3143,47 @@ function close(q, card, act, v, revert){
          <div>A constructed response is not scored here. This sitting stays on
          this item until a human marker records a verdict, so nothing you wrote
          is graded by the machine and no model answer is shown to you now.</div>
-         <div>Mark it with <span class="mono">itembank mark --session
-         ${esc(sessionId || "")} --item ${esc(q.id || "")} --verdict pass|fail</span>,
-         then continue.</div></div>`
+         <div>You are the marker. Record the verdict below, or from a
+         terminal with <span class="mono">itembank mark --session
+         ${esc(sessionId || "")} --item ${esc(q.id || "")} --verdict pass|fail</span>.
+         Either way it is the same recorded mark.</div></div>`
       : `<div class="pend"><b>Recorded.</b>
          <div>This mode holds every verdict until the sitting is closed.</div></div>`;
     fb.innerHTML = waiting;
+    /* The way out of the desk, on the surface the learner is already on.
+       A constructed response is settled by a person, and the person is
+       here; before this the only exit was a terminal, so a sitting whose
+       short item came up first dead-ended in the app. The verdict is the
+       learner's own: the page sends it to `/api/mark`, which appends the
+       same mark event `itembank mark` appends, and the runtime decides
+       what that mark means for the cursor. No model has a vote here. */
+    if(q.type === "short"){
+      const settle = async (verdict)=>{
+        try {
+          const res = await api("/api/mark", {
+            session_id: sessionId, item_ref: q.id, verdict: verdict});
+          const view = (res && res.view) || null;
+          if(view && view.status === "complete"){ finish(view.summary || {}); return; }
+          if(view && view.item && view.item.id !== q.id){ renderItem(view); return; }
+          fb.innerHTML = waiting
+            + `<div class="pend">Mark recorded. The sitting did not move; check again.</div>`;
+        } catch(err){
+          fb.innerHTML = waiting
+            + `<div class="pend">Could not record the mark. Nothing was changed.</div>`;
+        }
+      };
+      const markRow = document.createElement("div");
+      markRow.className = "act mark-row";
+      for(const [label, verdict] of [["I got this right", true],
+                                     ["I did not", false]]){
+        const b = document.createElement("button");
+        b.className = "go" + (verdict ? "" : " ghost");
+        b.type = "button"; b.textContent = label;
+        b.onclick = ()=> settle(verdict);
+        markRow.appendChild(b);
+      }
+      act.appendChild(markRow);
+    }
     const dnext = document.createElement("button");
     dnext.className = "go ghost"; dnext.type = "button";
     dnext.textContent = "Check again";

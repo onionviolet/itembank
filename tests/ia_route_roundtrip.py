@@ -900,6 +900,80 @@ def check_course_areas_carry_content():
         shutil.rmtree(workdir, ignore_errors=True)
 
 
+def check_self_mark_route():
+    """`POST /api/mark`, the browser twin of `itembank mark`: the way out of
+    a sitting parked on a constructed response.
+
+    The runtime parks a short answer until a human marker rules, which is
+    deliberate. Until 2026-09-05 the only place that ruling could be made
+    was a terminal, so a sitting whose short item came up first dead-ended
+    in the app. This asserts the route settles a real mark and that its
+    refusals hold: `verdict` is admitted here and nowhere else, `score` and
+    `marker` stay refused by name, an unanswered item is a 404, and a
+    non-boolean verdict is a 400.
+    """
+    workdir = suppress_sample_course(tempfile.mkdtemp(prefix="ia_mark_"))
+    proc = None
+    try:
+        source = os.path.join(ROOT, "course_fixture_17b")
+        if not os.path.isdir(source):
+            print("ok   self-mark route (fixture absent, skipped)")
+            return
+        dest = os.path.join(workdir, "course_fixture_17b")
+        shutil.copytree(source, dest,
+                        ignore=shutil.ignore_patterns("_journal", "_evidence",
+                                                      "_attempts"))
+        attempts = os.path.join(workdir, "_attempts")
+        os.makedirs(attempts, exist_ok=True)
+        session_file = os.path.join(attempts, "session_selfmark.json")
+        started = json.loads(subprocess.run(
+            [sys.executable, os.path.join(ROOT, "itembank.py"), "start",
+             os.path.join(dest, "unit3_bank.md"), "--mode", "practice",
+             "--objective", "afe:unit3.instrument", "--count", "1",
+             "--out", session_file],
+            capture_output=True, text=True, check=True).stdout)
+        item_ref = started["item"]["id"]
+        if started["item"]["type"] != "short":
+            fail("the self-mark probe needs a constructed response, got %r"
+                 % started["item"]["type"])
+        subprocess.run(
+            [sys.executable, os.path.join(ROOT, "itembank.py"), "submit",
+             session_file, "--answer",
+             "A synthetic probe answer for the self-mark route."],
+            capture_output=True, text=True, check=True)
+        session_id = started["session_id"]
+
+        proc, url, lines = start_daemon(workdir)
+        base = {"session_id": session_id, "item_ref": item_ref,
+                "verdict": True}
+        for extra, want, why in (
+                ({"score": True}, 400, "a client-supplied score"),
+                ({"marker": "model"}, 400, "a client-supplied marker"),
+                ({"item_ref": "no-such-item"}, 404, "an unanswered item"),
+                ({"verdict": "pass"}, 400, "a non-boolean verdict")):
+            payload = dict(base); payload.update(extra)
+            status, _ = json_request(url + "api/mark", payload)
+            if status != want:
+                fail("%s returned %d from /api/mark, expected %d"
+                     % (why, status, want))
+
+        status, body = json_request(url + "api/mark", base)
+        if status != 200:
+            fail("a real mark returned %d from /api/mark" % status)
+        if body.get("status") != "recorded":
+            fail("the mark was not recorded: %r" % body.get("status"))
+        view = body.get("view") or {}
+        if view.get("status") != "complete":
+            fail("the settled mark did not release the parked sitting: %r"
+                 % view.get("status"))
+        print("ok   the browser can settle a parked constructed response")
+    finally:
+        if proc is not None:
+            proc.terminate()
+            proc.wait(timeout=5)
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
 def check_same_routes_both_widths():
     """One route per object at every width, and one back control."""
     workdir = suppress_sample_course(tempfile.mkdtemp(prefix="ia_widths_"))
@@ -1448,6 +1522,7 @@ CHECKS = (check_activity_route_end_to_end,
           check_shelf_falls_back_to_bank_index,
           check_course_areas_all_render,
           check_course_areas_carry_content,
+          check_self_mark_route,
           check_same_routes_both_widths,
           check_no_pagination_on_reading,
           check_deep_link_scenarios,

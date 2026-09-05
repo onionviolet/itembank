@@ -379,6 +379,11 @@
     },
     {
       "method": "POST",
+      "path": "/api/mark",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
       "path": "/api/export_audio",
       "token_gated": true
     },

@@ -1302,12 +1302,16 @@ def check_api_route_scope():
     and in SURFACE_PARITY with its reserved MCP tool name (Extensibility
     Rule 9(a)).
     """
-    if len(daemon.API_ROUTES) != 15:
+    if len(daemon.API_ROUTES) != 16:
         fail("D-04 + Phase 6 + 06.1-02 + 08-05 + 10-04/10-05 + 09.1 + 09 + 14 "
-             "+ 14C scope /api/* to exactly fifteen routes: POST "
-             "/api/source/import and POST /api/source/recheck from 14C, plus "
-             "16B-09's POST /api/shelf; API_ROUTES has %d"
-             % len(daemon.API_ROUTES))
+             "+ 14C scope /api/* to exactly sixteen routes: POST "
+             "/api/source/import and POST /api/source/recheck from 14C, "
+             "16B-09's POST /api/shelf, and POST /api/mark, the browser twin "
+             "of `itembank mark` added 2026-09-05 so a sitting parked on a "
+             "constructed response has an exit that is not a terminal; "
+             "API_ROUTES has %d" % len(daemon.API_ROUTES))
+    if daemon.ROUTE_CLI.get(("POST", "/api/mark")) != "mark":
+        fail("POST /api/mark must map to the mark CLI twin")
     if daemon.ROUTE_CLI.get(("POST", "/api/shelf")) != "shelf":
         fail("POST /api/shelf must map to the shelf CLI twin")
     if not {"start", "next", "submit", "hint", "teach", "interact", "report",

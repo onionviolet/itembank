@@ -177,6 +177,14 @@ def cmd_render(a):
     return 0
 
 
+def resolve_marks_event(log, session_id, item_ref):
+    """The public name for the resolution below, so a second surface can
+    reach the same target a mark must name without a second implementation
+    of "which response is being marked" (`/api/mark`, the browser twin of
+    `itembank mark`)."""
+    return _resolve_marks_event(log, session_id, item_ref)
+
+
 def _resolve_marks_event(log, session_id, item_ref):
     """The most recent LIVE response event for `session_id` and `item_ref`
     -- what a mark's `marks_event` field must name. Returns the response
