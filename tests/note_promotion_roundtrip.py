@@ -183,7 +183,11 @@ def _recorded_baseline():
 # the case the check exists for.
 POST_BASELINE_SCHEMA_KEYS = {
     # plan 15A-04: the agent autonomy policy.
-    "schemas/settings.schema.json": ("agent_policy",),
+    # 2026-09-05: the look axis (shape, type, density and control language).
+    # Stripping it reconstructs the baselined document exactly, which is the
+    # point: the baseline is never re-recorded, because a re-recorded
+    # baseline proves nothing.
+    "schemas/settings.schema.json": ("agent_policy", "look"),
 }
 
 

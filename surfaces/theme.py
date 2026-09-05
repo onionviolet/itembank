@@ -19,14 +19,15 @@ import json
 import re
 import sys
 
-from surfaces import presentation
+from surfaces import looks, presentation
 from surfaces.settings import load_settings, write_settings
 
 
 # The learner-facing persisted source accent, and the document the existing
 # `THEME_CSS` constant is computed from (the additive schema default).
 DEFAULT_ACCENT = "#0e6e62"
-DEFAULT_THEME_CONFIG = {"theme": "system", "accent": {"source": DEFAULT_ACCENT}}
+DEFAULT_THEME_CONFIG = {"theme": "system", "accent": {"source": DEFAULT_ACCENT},
+                        "look": looks.DEFAULT_LOOK}
 
 # The polished default palette (04-UI-SPEC Color table). Base tokens are the
 # 60/30/10 split; `mut` is the muted-text token every existing surface already
@@ -293,30 +294,59 @@ def _dark_media_block(tokens):
             % _tokens_css(tokens))
 
 
-def theme_css(config):
-    """The CSS custom-property block for one settings document.
+def _grounded(tokens, look, mode):
+    """`tokens` with the look's base-token overrides for `mode` applied.
 
-    `config` holds the existing `theme` mode plus the new `accent.source`.
-    `theme=system` emits the light block plus the matching dark media
-    override; forced modes emit only their selected token set.
+    Overrides land AFTER the derived accent and the fixed semantic set, and
+    they may only move base tokens (`surfaces/looks.py` owns which), so a
+    look can change the ground a verdict is read on but never the verdict
+    colour itself. Every one of these grounds is re-measured against every
+    semantic token by `tests/stylesheet_roundtrip.py` on each run.
+    """
+    override = looks.grounds_for(look, mode)
+    if not override:
+        return tokens
+    merged = dict(tokens)
+    merged.update(override)
+    return merged
+
+
+def theme_css(config):
+    """The CSS custom-property block for one settings document, plus the
+    selected look's shape block.
+
+    `config` holds the existing `theme` mode, the `accent.source` plan 04-03
+    added, and the `look` this axis added (2026-09-05). The three are
+    independent: a look states a ground and a shape, the mode states which
+    token set is emitted, and the accent is derived per mode with contrast
+    enforced exactly as before. `theme=system` emits the light block plus the
+    matching dark media override; forced modes emit only their selected token
+    set. The shipped look emits no shape block at all, so a default install
+    is byte-identical to what it was before looks existed.
     """
     mode = config.get("theme", "system") if isinstance(config, dict) else "system"
     accent = DEFAULT_ACCENT
+    look = looks.DEFAULT_LOOK
     if isinstance(config, dict):
         raw = config.get("accent")
         if isinstance(raw, dict):
             raw_source = raw.get("source")
             if normalize_source(raw_source) is not None:
                 accent = raw_source
+        look = looks.resolve(config.get("look"))
     derived = derive_theme(accent)
+    shape = looks.look_css(look)
+    tail = ("\n" + shape) if shape else ""
     if mode == "dark":
-        return _root_block(derived["dark"])
+        return _root_block(_grounded(derived["dark"], look, "dark")) + tail
     if mode == "oled":
-        return _root_block(derived["oled"])
-    light = _root_block(derived["light"])
+        return _root_block(_grounded(derived["oled"], look, "oled")) + tail
+    light = _root_block(_grounded(derived["light"], look, "light"))
     if mode == "light":
-        return light
-    return light + "\n" + _dark_media_block(derived["dark"])
+        return light + tail
+    return (light + "\n"
+            + _dark_media_block(_grounded(derived["dark"], look, "dark"))
+            + tail)
 
 
 # The one constant every existing surface substitutes for __THEME__; computed
@@ -352,6 +382,32 @@ def persist_source(base, source):
     source-only atomic writer, never a second one in a route handler.
     """
     _write_source(base, source)
+
+
+def persist_look(base, look_id):
+    """Persist the selected look, and with it the two defaults the look was
+    designed around: its accent source and its theme mode.
+
+    Both are written as ordinary settings the learner may change afterwards,
+    which is what keeps a look a default rather than a lock (looks module
+    rule 3). A look that names neither leaves both exactly as they were. An
+    unknown look id is refused by name rather than silently resolved to the
+    shipped one: a picker sending a typo should hear about it.
+    """
+    if not looks.known(look_id):
+        sys.exit("settings.invalid_value: %r is not a known look; known "
+                 "looks are: %s" % (look_id, ", ".join(looks.LOOK_IDS)))
+    data = load_settings(base)
+    data["look"] = look_id
+    accent = looks.accent_for(look_id)
+    if accent:
+        data["accent"]["source"] = accent
+    mode = looks.mode_for(look_id)
+    if mode:
+        data["theme"] = mode
+    write_settings(base, data)
+    return {"look": look_id, "accent": data["accent"]["source"],
+            "theme": data["theme"]}
 
 
 # Settings-page-only styles (plan 04-04). The document shell, base
@@ -400,6 +456,18 @@ details.accessibility p{font-size:14px;color:var(--mut)}
   border-bottom:1px solid var(--line)}
 .ratio:last-child{border-bottom:0}
 .status{min-height:24px;font-size:14px;color:var(--mut);margin:0}
+.looks{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:12px;margin:0 0 16px}
+.look-card{display:grid;gap:6px;text-align:left;min-height:44px;font:inherit;
+  padding:14px 16px;border-radius:12px;border:1px solid var(--line);
+  background:var(--card);color:inherit;cursor:pointer}
+.look-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.look-card[data-current]{border-color:var(--accent);
+  background:var(--accent-soft)}
+.look-name{font-size:16px;font-weight:650}
+.look-blurb{font-size:14px;color:var(--mut)}
+.look-detail{font-size:12px;color:var(--mut)}
+.look-now{font-size:12px;font-weight:650;color:var(--accent)}
 @media (max-width:767px){
   .previews{grid-template-columns:1fr}
   .actions button{width:100%}
@@ -463,6 +531,9 @@ def theme_page(config, sections=""):
     cards = "".join(_settings_preview_card(mode, preview[mode])
                     for mode in ("light", "dark"))
     reset_disabled = ' disabled' if src == DEFAULT_ACCENT else ""
+    selected_look = looks.resolve(config.get("look")
+                                  if isinstance(config, dict) else None)
+    look_body = LOOK_BODY.replace("__LOOK_CARDS__", _look_cards(selected_look))
     body = SETTINGS_BODY.replace(
         "__SOURCE__", src).replace(
         "__ADJUST_COPY__", adjust_copy).replace(
@@ -470,10 +541,80 @@ def theme_page(config, sections=""):
         "__PREVIEW_CARDS__", cards).replace(
         "__RESET_DISABLED__", reset_disabled)
     return presentation.surface_shell(
-        "Settings", body + sections,
+        "Settings", look_body + body + sections,
         theme_css=theme_css(config) + "\n" + SETTINGS_CSS,
         back={"href": "/", "label": "itembank"},
         noscript=SETTINGS_NOSCRIPT)
+
+
+def _look_cards(selected):
+    """One button per shipped look, in `looks.LOOK_IDS` order.
+
+    Each card states the look's own name and blurb and, when it has them,
+    the mode and accent picking it will write. Nothing is hidden behind the
+    click: a learner should know a look is going to move their theme mode
+    before it does.
+    """
+    cards = []
+    for row in looks.catalogue():
+        current = row["id"] == selected
+        detail = ""
+        if row["mode"] or row["accent"]:
+            detail = ('<span class="look-detail mono">%s%s</span>'
+                      % (html.escape(row["mode"] or "either mode"),
+                         (" &middot; " + html.escape(row["accent"]))
+                         if row["accent"] else ""))
+        cards.append(
+            '<button type="button" class="look-card" data-look="%s"%s>'
+            '<span class="look-name">%s</span>'
+            '<span class="look-blurb">%s</span>%s%s</button>'
+            % (html.escape(row["id"]),
+               ' aria-pressed="true" data-current="1"' if current
+               else ' aria-pressed="false"',
+               html.escape(row["name"]), html.escape(row["blurb"]), detail,
+               '<span class="look-now">In use</span>' if current else ""))
+    return "".join(cards)
+
+
+# The look section (2026-09-05). Rendered above Theme because the look
+# chooses the ground the theme's tokens sit on, so a learner reads them in
+# the order they take effect. The client posts through the same
+# `/api/theme` route the accent controls use; there is no second writer.
+LOOK_BODY = r"""<section data-section="look" aria-labelledby="look-heading">
+<h2 id="look-heading">Look</h2>
+<p>Shape, type and control language. A look is independent of light and dark
+and of your accent colour: picking one writes the mode and accent it was
+designed around, and you can change either afterwards.</p>
+<div class="looks" role="group" aria-labelledby="look-heading">
+__LOOK_CARDS__
+</div>
+<div class="status" id="look-status" role="status" aria-live="polite">The CLI twin is <span class="mono">itembank theme look &lt;id&gt;</span>.</div>
+</section>
+<script>
+(function () {
+  var status = document.getElementById("look-status");
+  var cards = document.querySelectorAll("[data-look]");
+  for (var i = 0; i < cards.length; i++) {
+    cards[i].addEventListener("click", function (event) {
+      var id = event.currentTarget.getAttribute("data-look");
+      status.textContent = "Applying " + id + "…";
+      fetch(window.location.origin + "/api/theme", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({action: "look", look: id})
+      }).then(function (res) {
+        if (!res.ok) { return res.text().then(function (t) { throw new Error(t); }); }
+        return res.json();
+      }).then(function () {
+        window.location.reload();
+      }).catch(function () {
+        status.textContent = "Could not apply that look. Nothing was changed.";
+      });
+    });
+  }
+})();
+</script>
+"""
 
 
 # The settings body (plan 04-04 Task 2): one quiet Theme section plus the
@@ -739,6 +880,26 @@ def cmd_theme(a):
         persist_source(a.base, DEFAULT_ACCENT)
         _print_preview(theme_preview(DEFAULT_ACCENT))
         print("reset accent.source = %r" % DEFAULT_ACCENT)
+        return 0
+    if a.action == "looks":
+        selected = looks.resolve(load_settings(a.base).get("look"))
+        rows = looks.catalogue()
+        if getattr(a, "json", False):
+            print(json.dumps({"selected": selected, "looks": rows},
+                             ensure_ascii=False, indent=2))
+            return 0
+        for row in rows:
+            mark = "*" if row["id"] == selected else " "
+            print("%s %-10s %s" % (mark, row["id"], row["name"]))
+            print("    %s" % row["blurb"])
+            if row["mode"] or row["accent"]:
+                print("    designed in %s, accent %s"
+                      % (row["mode"] or "either mode", row["accent"] or "unchanged"))
+        return 0
+    if a.action == "look":
+        written = persist_look(a.base, a.look)
+        print("look = %r, accent.source = %r, theme = %r"
+              % (written["look"], written["accent"], written["theme"]))
         return 0
     if a.action == "pick":
         result = pick_native_accent(initial=getattr(a, "initial", "") or None)

@@ -1378,6 +1378,22 @@ def main():
                     help="exact confirmation text RESET required to restore #0e6e62")
     tr.set_defaults(fn=cmd_theme)
 
+    tl = t.add_parser("looks", help="list the shipped looks (shape, type and "
+                      "control language) and which one is selected")
+    tl.add_argument("--base", default=".",
+                    help="directory holding itembank.json (default: current directory)")
+    tl.add_argument("--json", action="store_true",
+                    help="emit the catalogue as JSON instead of human lines")
+    tl.set_defaults(fn=cmd_theme)
+
+    tlk = t.add_parser("look", help="select a look; writes the look plus the "
+                       "accent and mode it was designed around, all of which "
+                       "stay changeable afterwards")
+    tlk.add_argument("look")
+    tlk.add_argument("--base", default=".",
+                     help="directory holding itembank.json (default: current directory)")
+    tlk.set_defaults(fn=cmd_theme)
+
     tk = t.add_parser("pick", help="open the native OS color picker "
                       "(preview-only until an explicit theme set)")
     tk.add_argument("--base", default=".",

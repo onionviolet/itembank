@@ -30,7 +30,7 @@ from model import (lesson_slug, load, parse_activities, parse_bank,
 from runtime import (checkpoint_feedback, explain_payload, glossable,
                      lesson_run_advance, lesson_run_record, read_lesson_run,
                      read_session, start_lesson_run, upgrade_session)
-from surfaces import (day, evidence_cli, home, ia, launcher, lesson,
+from surfaces import (day, evidence_cli, home, ia, launcher, lesson, looks,
                       presentation, quiz, quiz_page, retention_view, seeding,
                       session, settings, study, update)
 from surfaces import audio as audio_surface
@@ -1989,8 +1989,11 @@ def _lan_refused(handler):
     return not (cfg.get("check") or {}).get("allow_lan")
 
 
-THEME_ACTIONS = ("preview", "pick", "save", "reset")
-THEME_ALLOWED_FIELDS = ("action", "source", "confirm")
+# `look` joined the actions on 2026-09-05: the look axis is switchable from
+# the settings page, and it saves through `theme.persist_look`, the same
+# single writer `itembank theme look` uses.
+THEME_ACTIONS = ("preview", "pick", "save", "reset", "look")
+THEME_ALLOWED_FIELDS = ("action", "source", "confirm", "look")
 
 
 def _mode_layer_section():
@@ -2096,6 +2099,21 @@ def handle_theme_post(handler):
             theme.persist_source(handler.root, src)
             handler.send_json({"saved": True, "source": src,
                                "preview": theme.theme_preview(src)})
+            return
+        if action == "look":
+            look_id = data.get("look")
+            if not looks.known(look_id):
+                handler.send_error(
+                    400, "settings.invalid_value: %r is not a known look; "
+                    "known looks are: %s"
+                    % (look_id, ", ".join(looks.LOOK_IDS)))
+                return
+            written = theme.persist_look(handler.root, look_id)
+            handler.send_json({"saved": True, "look": written["look"],
+                               "source": written["accent"],
+                               "theme": written["theme"],
+                               "preview": theme.theme_preview(
+                                   written["accent"])})
             return
         if action == "reset":
             if data.get("confirm") != "RESET":

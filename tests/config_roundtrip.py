@@ -127,7 +127,12 @@ def test_schema_names_every_project_key():
                 "storage",
                 # plan 15A-04: the agent autonomy policy (level plus binding
                 # cap), enforced policy-side so an agent cannot raise its own.
-                "agent_policy"}
+                "agent_policy",
+                # 2026-09-05: the look axis (shape, type, density and control
+                # language), independent of `theme` and `accent`. Every look's
+                # ground is re-measured against every semantic token by
+                # tests/stylesheet_roundtrip.py.
+                "look"}
     if keys != expected:
         fail("schema properties %r do not equal the expected key set %r" % (keys, expected))
     for name, sub in schema["properties"].items():
@@ -803,6 +808,10 @@ NEW_16B_KEYS = ("approved_roots", "network_egress", "accessibility", "storage")
 POST_BASELINE_KEYS = (
     # plan 15A-04: the agent autonomy policy.
     "agent_policy",
+    # 2026-09-05: the look axis. Additive by the same argument: it did not
+    # exist when the baseline was taken, and `look: classic` renders the
+    # shipped shape, so an install that never sets it is unchanged.
+    "look",
 )
 
 BASELINE_EXCLUDED_KEYS = NEW_16B_KEYS + POST_BASELINE_KEYS

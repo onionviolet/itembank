@@ -8,6 +8,7 @@
   "additionalProperties": false,
   "required": [
     "theme",
+    "look",
     "accent",
     "daily_cap",
     "selection_weights",
@@ -40,6 +41,21 @@
       ],
       "default": "system",
       "x-itembank-phase": 4
+    },
+    "look": {
+      "type": "string",
+      "description": "The visual look: shape, type, density and control language. A third axis, independent of theme (which token set is emitted) and accent (the one source colour every mode derives from). A look may state the ground its palette sits on and the shape of its surfaces; it never states a semantic colour, never changes copy, order or state, and its accent and mode are written once as ordinary settings the learner may then change. The catalogue lives in surfaces/looks.py and every look's ground is re-measured against every semantic token by tests/stylesheet_roundtrip.py.",
+      "enum": [
+        "classic",
+        "editorial",
+        "neo",
+        "cash",
+        "console",
+        "soft",
+        "contrast"
+      ],
+      "default": "classic",
+      "x-itembank-phase": 17
     },
     "accent": {
       "type": "object",

@@ -427,6 +427,90 @@ def check_token_completeness(sheets):
 
 # ---- invariant 4: the semantic tokens meet their measured floors ------------
 
+def check_look_grounds_contrast():
+    """Every look's ground, measured against every semantic token.
+
+    A look may move the ground a verdict is read on (`surfaces/looks.py`),
+    which means the measured ratios in `check_semantic_token_contrast` are
+    only true for the shipped grounds unless this runs too. Same function,
+    same floors: a look whose paper makes `--warn` unreadable is a look that
+    fails the build rather than one a learner squints at.
+    """
+    from surfaces import looks, theme                          # noqa: PLC0415
+
+    problems = []
+    for look_id in looks.LOOK_IDS:
+        for mode in ("light", "dark", "oled"):
+            ground = looks.grounds_for(look_id, mode)
+            if not ground:
+                continue
+            base = dict(theme.BASE_TOKENS[mode])
+            base.update(ground)
+            semantic = theme.SEMANTIC_TOKENS[mode]
+            for fg in SEMANTIC_FOREGROUNDS:
+                for name in ("bg", "card"):
+                    ratio = theme.contrast_ratio(semantic[fg], base[name])
+                    if ratio < SEMANTIC_TEXT_FLOOR:
+                        problems.append(
+                            "look %s/%s: --%s %s on --%s %s measures %.2f:1, "
+                            "below the %.1f:1 text floor"
+                            % (look_id, mode, fg, semantic[fg], name,
+                               base[name], ratio, SEMANTIC_TEXT_FLOOR))
+            for name in EDGE_BACKGROUNDS:
+                ratio = theme.contrast_ratio(semantic["edge"], base[name])
+                if ratio < EDGE_FLOOR:
+                    problems.append(
+                        "look %s/%s: --edge %s on --%s %s measures %.2f:1, "
+                        "below the %.1f:1 non-text floor"
+                        % (look_id, mode, semantic["edge"], name, base[name],
+                           ratio, EDGE_FLOOR))
+            # The look's own reading pair, on its own surfaces: a ground is
+            # no use if the body text on it is unreadable.
+            for fg in ("ink", "mut"):
+                for name in ("bg", "card", "chip"):
+                    ratio = theme.contrast_ratio(base[fg], base[name])
+                    if ratio < SEMANTIC_TEXT_FLOOR:
+                        problems.append(
+                            "look %s/%s: --%s %s on --%s %s measures %.2f:1, "
+                            "below the %.1f:1 text floor"
+                            % (look_id, mode, fg, base[fg], name, base[name],
+                               ratio, SEMANTIC_TEXT_FLOOR))
+    if problems:
+        fail("look grounds below the measured floors:\n  "
+             + "\n  ".join(problems))
+    return True
+
+
+def check_look_axis_is_additive():
+    """The shipped look emits no shape block, so a default install renders
+    exactly the CSS it rendered before this axis existed, and an unknown look
+    resolves to the shipped one rather than to a half-applied page."""
+    from surfaces import looks, theme                          # noqa: PLC0415
+
+    if looks.look_css("classic") != "":
+        fail("the shipped look must emit no shape block")
+    if theme.theme_css(theme.DEFAULT_THEME_CONFIG) != theme.THEME_CSS:
+        fail("the default settings document no longer renders THEME_CSS")
+    if looks.resolve("no-such-look") != looks.DEFAULT_LOOK:
+        fail("an unknown look must resolve to the shipped one")
+    base = theme.theme_css({"theme": "light", "accent": {"source": "#0e6e62"},
+                            "look": "classic"})
+    for look_id in looks.LOOK_IDS:
+        css = theme.theme_css({"theme": "light",
+                               "accent": {"source": "#0e6e62"},
+                               "look": look_id})
+        if not css.startswith(":root{"):
+            fail("look %s does not emit its token block first" % look_id)
+        if look_id != "classic" and css == base:
+            fail("look %s emitted no shape of its own" % look_id)
+        for banned in ("--ok:", "--bad:", "--warn:"):
+            shape = css[len(base):] if css.startswith(base) else ""
+            if banned in shape:
+                fail("look %s redefines the semantic token %s; a look moves "
+                     "the ground, never the meaning" % (look_id, banned))
+    return True
+
+
 def check_semantic_token_contrast():
     """14-UI-SPEC §3.3 and §3.4, and the gate for requirement RTS-10.
 
@@ -1068,6 +1152,8 @@ def main():
         check_control_boundary_token(sheets)
         check_svg_attributes_stay_out_of_type_scale()
         check_semantic_token_contrast()
+        check_look_grounds_contrast()
+        check_look_axis_is_additive()
         check_font_urls_resolve(sheets)
         check_fonts_served(base, sheets)
         check_every_served_page_declares_fonts(sheets)
