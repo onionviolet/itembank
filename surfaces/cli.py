@@ -784,12 +784,21 @@ def _configured_author_callable(settings_data):
     return _author
 
 
-def main():
-    # Imported lazily and inside main(), not at module scope: itembank.py
-    # itself does `from surfaces.cli import main`, and the built .pyz's
-    # __main__.py does `from surfaces.cli import main` directly (bypassing
-    # itembank.py entirely) -- a module-scope `from itembank import
-    # __version__` here would circle back into a partially-initialized
+def build_parser():
+    """The whole CLI as an `argparse.ArgumentParser`, built and not run.
+
+    Split out of `main()` on 2026-09-05 so the command surface can be READ
+    as well as executed: the surface-coverage report enumerates every
+    command from this parser rather than from a hand-kept list, and the
+    command palette offers the same set. A list of commands maintained
+    beside the parser would drift from it the first time someone added a
+    command; a parser that can be built without being run cannot.
+    """
+    # Imported lazily and inside this function, not at module scope:
+    # itembank.py itself does `from surfaces.cli import main`, and the built
+    # .pyz's __main__.py does `from surfaces.cli import main` directly
+    # (bypassing itembank.py entirely) -- a module-scope `from itembank
+    # import __version__` here would circle back into a partially-initialized
     # surfaces.cli in that second case and break every command.
     import itembank
 
@@ -1591,7 +1600,38 @@ def main():
                          "a browser on its own)")
     lp.set_defaults(fn=cmd_lti_serve)
 
-    a = ap.parse_args()
+    return ap
+
+
+def command_names(parser=None):
+    """Every top-level command name, sorted. Read from the parser itself."""
+    parser = parser or build_parser()
+    for action in parser._subparsers._group_actions:
+        if hasattr(action, "choices"):
+            return sorted(action.choices)
+    return []
+
+
+def subcommand_names(parser=None):
+    """`{command: [subcommand, ...]}` for the commands that have them."""
+    parser = parser or build_parser()
+    found = {}
+    for action in parser._subparsers._group_actions:
+        if not hasattr(action, "choices"):
+            continue
+        for name, sub in sorted(action.choices.items()):
+            subs = []
+            if getattr(sub, "_subparsers", None):
+                for inner in sub._subparsers._group_actions:
+                    if hasattr(inner, "choices"):
+                        subs.extend(sorted(inner.choices))
+            if subs:
+                found[name] = subs
+    return found
+
+
+def main():
+    a = build_parser().parse_args()
     sys.exit(a.fn(a))
 
 

@@ -1,24 +1,57 @@
 ---
 gsd_state_version: 1.0
-milestone: source-to-course
-milestone_name: source-to-course
-current_phase_name: 17C-maintenance-restore-audit
-current_phase: 17C
-status: "17B in execution: 17B-01 to 17B-04 executed; G10 failed in wave 4, was repaired 2026-09-05, and now passes. The milestone acceptance signature and the G4/G8 human legs are owed to Weibao. Frozen: 14A, 14B, 14C, 15A, 15B, 16A, 16B, 16C, 16D, 17A (16D and 17A with their human review legs deferred to Weibao). Phase 18 plans 01 to 03 executed to the human gate. 17C-01 run 2026-09-05 to its human gate. The owed human reviews are listed under Current position."
-stopped_at: "17C-01 tasks 1 to 3 complete; the audit report and the 17B exit record both await Weibao's acceptance."
+milestone: reach
+milestone_name: reach
+current_phase_name: 19A-course-operating-surface
+current_phase: 19A
+status: "Reach milestone adopted 2026-09-05 and the freeze-before-start ordering waived by Weibao. Every phase is beginnable: 19A and 19C have no unmet dependency, 19B and 19E follow 19A, 19D is the exit. Source-to-course is code-complete; 13.5, 17B, 17C and 18 are executed with human legs owed, and those legs now block nothing except the word frozen. 19A has a written context and no plans yet; 19B, 19C, 19D and 19E need a context pass first."
+stopped_at: "Reach adopted and unblocked. Next action is 19A planning from 19A-CONTEXT.md, or 19C's settings change, whichever is picked up first."
 last_updated: "2026-09-05T00:00:00.000Z"
 last_activity: 2026-09-05
-last_activity_desc: "17B-04 executed and the milestone exit record written; G10's two routed defects repaired additively and the restore drill re-run to a pass; 17C-01's maintenance and restore audit run, finding five silent losses (F-LOSS-1 to F-LOSS-5) and a clean owner sweep."
+last_activity_desc: "Reach milestone adopted, freeze ordering waived, 19A to 19E entered on the roadmap; previously: 17B-04 executed and the milestone exit record written; G10's two routed defects repaired additively and the restore drill re-run to a pass; 17C-01's maintenance and restore audit run, finding five silent losses (F-LOSS-1 to F-LOSS-5) and a clean owner sweep."
 progress:
-  total_phases: 36
-  completed_phases: 32
+  total_phases: 41
+  completed_phases: 36
   total_plans: 212
   completed_plans: 212
-  counting_rule: "phase directories under .planning/phases; a phase counts complete when frozen or its summaries and verification exist; open are 13.5 (human tail), 17B (human acceptance), 17C (human acceptance), 18 (human gate). Plans count complete when a summary exists or the phase is frozen; none is open."
+  counting_rule: "phase directories under .planning/phases; a phase counts complete when frozen or when its summaries and verification exist, human legs owed being a label rather than an open state after the 2026-09-05 waiver. Open are the five reach phases 19A to 19E, none of them blocked. Plans count complete when a summary exists or the phase is frozen."
 ---
 # Project State
 
-## Current position (2026-09-03)
+## Current position (2026-09-05): reach, and nothing waiting
+
+**The freeze ordering is waived.** Weibao, 2026-09-05: "skip the freeze and
+make everything beginnable." A phase may now be planned, executed and closed
+without a human signature in front of it. A phase whose human legs are unsigned
+closes as **executed (human legs owed)** rather than `frozen`; the legs stay in
+the owed list below until signed. Two things the waiver does not touch, because
+they are correctness and not ceremony: deterministic gates still have to pass,
+and an agent still may not sign a leg reserved to a human (17B-CONTEXT D-04).
+Deferred is honest, self-certified is not.
+
+**The milestone is reach** (`.planning/REACH-MILESTONE.md`, adopted the same
+day). Source-to-course is code-complete: 212 of 212 plans have summaries, and
+what remained of it was signatures. The gap pass found the constraint is reach
+rather than capability, so this milestone adds no capability: it gives the
+built engine doors, turns the product's own model path on, and uses both on a
+real course.
+
+**What is beginnable right now**, which is everything:
+
+| Phase | Blocked on | State |
+|---|---|---|
+| 19C backend on | nothing | no context yet; cheapest start |
+| 19A operating surface | nothing | `19A-CONTEXT.md` written, ten plans to write |
+| 19B agent door | 19A's routes existing | no context yet |
+| 19E MCP tool table | 19A's routes existing | no context yet; closes 999.3 |
+| 19D Math 1400 | 19A, 19B, 19C | no context yet; the exit |
+| 13.5, 17B, 17C, 18 | nothing | executed, human legs owed |
+
+**Recommended order:** 19C beside 19A, then 19B and 19E in either order, then
+19D. 19A is the load-bearing one and the only one an executor can plan straight
+from today.
+
+## Current position (2026-09-03, superseded above)
 
 **Milestone:** source-to-course. Exit is Phase 17B's gate record
 (`.planning/phases/17B-production-vertical-tracer/17B-GATES.md`), G1 to G11.

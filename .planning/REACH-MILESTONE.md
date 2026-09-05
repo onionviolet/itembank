@@ -1,13 +1,28 @@
-# Milestone proposal: reach
+# Milestone: reach
 
-**Status:** proposed 2026-09-05, binding on nothing. It becomes the next
-milestone when Weibao accepts it. Written after the measured gap pass in
+**Status:** adopted 2026-09-05 by Weibao ("skip the freeze and make everything
+beginnable"). Proposed the same day after the measured gap pass in
 `.planning/research/2026-09-05-what-the-vision-still-needs.md`, whose findings
 are the whole argument for it.
 
 **Predecessor:** the source-to-course milestone, which exits through 17B's gate
-record. That exit and 17C's audit are owed Weibao's acceptance. Nothing here
-replaces or reopens them.
+record. That exit and 17C's audit remain owed Weibao's acceptance and are no
+longer sequencing blocks; see "Freeze policy" below. Nothing here replaces or
+reopens them.
+
+## Freeze policy for this milestone
+
+Weibao waived the freeze-before-start ordering on 2026-09-05. Every phase in
+this milestone is **beginnable now**, and a phase may execute its plans and
+record its gate results without waiting on any human signature. What changes is
+only the label: a phase whose human legs are unsigned closes as
+**`executed (human legs owed)`** rather than `frozen`, and the owed legs stay
+listed in `STATE.md` until Weibao signs them.
+
+Two things the waiver does not touch, because they are correctness rather than
+ceremony: the deterministic gates still have to pass (an executor may not
+record a red gate as green), and an agent still may not sign a leg reserved to
+a human (17B-CONTEXT D-04). Deferred is honest; self-certified is not.
 
 ## Why this milestone
 
@@ -51,8 +66,8 @@ a route with a CLI twin, under the existing `SURFACE_PARITY` discipline, with
 its request document published in `schemas/`.
 
 **Depends on:** 14A, 14B, 14C, 15A, 15B (all frozen). Not on 17B's acceptance,
-because it adds no durable object and changes no frozen contract. It may not
-freeze before that acceptance exists.
+because it adds no durable object and changes no frozen contract. Under the
+2026-09-05 waiver it may also close as executed before that acceptance exists.
 
 **Freeze gate.** A course is created, sources bound, objectives mapped,
 treatments chosen, audited, and packaged **entirely through routes and CLI
@@ -152,12 +167,22 @@ and both depend only on 19A. 19D is last by definition; it is the exit.
 A real Math 1400 course, built through the product's own doors, sat at least
 once, with its defects recorded and routed. Not a gate record over a fixture.
 
-## What is owed to Weibao before this starts
+## What is owed to Weibao, blocking nothing
 
-1. Acceptance of this milestone proposal, or a corrected version of it.
+1. ~~Acceptance of this milestone proposal.~~ Given 2026-09-05.
 2. The 17B milestone acceptance signature, the G4 screen-reader walk, the G8
    visual acceptance, and the G5 default rollup choice.
 3. Acceptance of 17C's audit report.
 4. The Phase 18 second-person cold install.
 
-None of 2 to 4 blocks 19A or 19C from starting. All of them block a freeze.
+Under the freeze policy above, none of 2 to 4 blocks any phase from starting or
+from closing as executed. They are carried in `STATE.md` as owed legs and are
+what convert an executed phase to a frozen one.
+
+## Starting points
+
+Every phase below is beginnable today. 19C and 19A have no unmet dependency at
+all; 19B and 19E need 19A's routes to exist; 19D needs all three. 19A is the
+only phase with a written context (`19A-CONTEXT.md`, ten decisions pinned,
+ten plans, one operation family each), so it is the one an executor can plan
+straight from. The other four need a context pass before their plans.
