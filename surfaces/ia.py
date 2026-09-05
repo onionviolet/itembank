@@ -716,6 +716,22 @@ def deep_link_target(course_id, area=None, lesson_id=None, anchor=None,
             "anchor": anchor_slug(anchor) if anchor else None}
 
 
+def course_dir_for(root, course_id, module=None):
+    """The directory this course lives in, or None.
+
+    The public name for the resolution `course_area_state` already does, so
+    a surface that wants to read the course's own artifacts resolves the
+    directory the same way the frame does rather than inventing a second
+    rule (`17B-03 D-06 item 3`, the empty course areas).
+    """
+    if module is None:
+        try:
+            import course as module
+        except ImportError:
+            return None
+    return _course_dir_for(root, course_id, module)
+
+
 def _course_dir_for(root, course_id, module):
     """The directory whose sidecar names `course_id`, or the directory whose
     basename is `course_id` when no sidecar claims it.

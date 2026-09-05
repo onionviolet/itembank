@@ -176,6 +176,43 @@ del _font, _ext, _mime
 # rows, so the manifest, the map, and presentation.SHARED_CSS's @font-face
 # urls cannot drift apart (tests/stylesheet_roundtrip.py cross-asserts all
 # three).
+# A course's own media, served from the directory the bank lives in
+# (`/media/<stem>/<name>`). Unlike KaTeX and the reading faces, this map
+# cannot be closed in advance: the files are the learner's, named by their
+# own bank's `## MEDIA` registry. So the containment is done by resolution
+# instead of by allowlist, exactly the way `journal.commit_operation` and
+# `course_package.safe_target` already do it: the name admits a narrow
+# character set, `..` is refused rather than clamped, the resolved real path
+# must sit inside the bank's own directory after link resolution, and the
+# extension must be one of a closed set of static media types. Anything else
+# is a plain 404, never a partial answer.
+#
+# The route exists because the served lesson had no way to reach its own
+# pictures: a bank-relative `media/x.svg` on a page at `/lesson/<stem>`
+# resolves to `/lesson/media/x.svg`, so the one diagram in the 17B tracer's
+# lesson was a broken image in the app while its alt text carried the
+# meaning alone.
+MEDIA_ASSET_RE = re.compile(
+    r"^/media/(?P<stem>[^/]+)/(?P<name>[A-Za-z0-9_][A-Za-z0-9_./-]*)$")
+
+MEDIA_ASSET_TYPES = {
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".avif": "image/avif",
+}
+
+
+def media_base(stem):
+    """The URL prefix `lesson.lesson_page` should resolve a bank-relative
+    media path against for this bank. One function, so the route pattern and
+    the rendered `src` cannot drift apart."""
+    return "/media/" + urllib.parse.quote(stem, safe="")
+
+
 FONT_ASSET_PREFIX = "/assets/fonts/"
 FONT_ASSET_RE = re.compile(r"^/assets/fonts/(?P<name>[A-Za-z0-9_./-]+)$")
 
@@ -303,6 +340,7 @@ ROUTES = (
 ) + API_ROUTES + (
     ("GET", KATEX_ASSET_RE, "handle_katex_asset"),
     ("GET", FONT_ASSET_RE, "handle_font_asset"),
+    ("GET", MEDIA_ASSET_RE, "handle_media_asset"),
     ("GET", QUIZ_GET_RE, "handle_quiz_get"),
     ("POST", QUIZ_ANSWER_RE, "handle_quiz_answer"),
     ("GET", STUDY_GET_RE, "handle_study_get"),
@@ -349,6 +387,7 @@ ROUTE_CLI = {
     ("POST", "/api/rubric-review"): "rubric-review",
     ("GET", KATEX_ASSET_RE): "daemon",
     ("GET", FONT_ASSET_RE): "daemon",
+    ("GET", MEDIA_ASSET_RE): "daemon",
     ("POST", "/api/export_audio"): "export",
     ("POST", "/api/lesson/run"): "lesson",
     ("POST", "/api/source/import"): "source",
@@ -597,7 +636,191 @@ COURSE_NOSCRIPT = ("Links to a specific part of this page still work. Your "
                    "browser jumps to it without the extra focus handling.")
 
 
-def _course_frame(handler, state, back):
+# --- course area content (`17B-03 D-06 item 3`) ------------------------------
+# Phase 16B shipped the eight course areas with `content_available: False` and
+# a stated notice, because the record shapes that fill them belonged to 14A
+# and 14B. Both have landed, so the areas read the course's own accepted
+# artifacts here: the banks and lessons inside the course directory, the
+# sidecar's objectives and sources, and the evidence log's own counts. The
+# resolution is read-only and composes no new authority: every row is a link
+# to a route that already exists, and an area with nothing to show still says
+# so in its own words rather than rendering an empty region.
+
+
+def _bank_title(path, stem):
+    """The bank's own `# ` heading, or its stem. The same rule
+    `surfaces/quiz.py` already uses for the page title, so the shelf, the
+    quiz and the course areas name a bank identically."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                if line.startswith("# "):
+                    return line[2:].strip() or stem
+                if line.startswith("Q1."):
+                    break
+    except OSError:
+        pass
+    return stem
+
+
+def _course_banks(handler, course_dir):
+    """The (stem, path) pairs of banks the startup scan admitted that live
+    inside this course's directory, path-sorted."""
+    root = os.path.realpath(course_dir)
+    found = []
+    for stem, path in (handler.banks or {}).items():
+        real = os.path.realpath(path)
+        try:
+            inside = os.path.commonpath([root, real]) == root
+        except ValueError:
+            inside = False
+        if inside:
+            found.append((stem, path))
+    return sorted(found, key=lambda pair: pair[1])
+
+
+def _course_evidence_counts(course_dir):
+    """Responses, marks and sittings recorded in this course's own log."""
+    log = evidence.log_path(course_dir)
+    counts = {"responses": 0, "marks": 0, "sessions": 0, "events": 0}
+    if not os.path.exists(log):
+        return counts
+    sessions = set()
+    try:
+        for event in evidence.events(log):
+            counts["events"] += 1
+            kind = event.get("event_type")
+            if kind == "response":
+                counts["responses"] += 1
+            elif kind == "mark":
+                counts["marks"] += 1
+            if event.get("session_id"):
+                sessions.add(event["session_id"])
+    except Exception:
+        return counts
+    counts["sessions"] = len(sessions)
+    return counts
+
+
+def _course_area_rows(handler, state, course_dir):
+    """`(lead, rows)` for one course area, read from the course's own
+    artifacts. `rows` empty means the area states itself as before."""
+    if course_dir is None:
+        return "", []
+    area = state.get("area")
+    banks = _course_banks(handler, course_dir)
+    lessons, quizzes = [], []
+    for stem, path in banks:
+        try:
+            qs = load(path)
+        except Exception:
+            continue
+        try:
+            les = parse_lesson(path)
+        except Exception:
+            les = None
+        title = _bank_title(path, stem)
+        headings = len((les or {}).get("headings") or [])
+        if headings:
+            lessons.append({
+                "href": "/lesson/%s" % urllib.parse.quote(stem, safe=""),
+                "title": title,
+                "meta": "%d section%s" % (headings, "" if headings == 1 else "s"),
+                "note": "Read the lesson, then sit its items."})
+        quizzes.append({
+            "href": "/quiz/%s" % urllib.parse.quote(stem, safe=""),
+            "title": title,
+            "meta": "%d item%s" % (len(qs), "" if len(qs) == 1 else "s"),
+            "note": "Practice keeps you on an item until it is right."})
+
+    record = None
+    try:
+        import course as course_module
+        record = course_module.read_course(course_dir)
+    except Exception:
+        record = None
+    doc = (record or {}).get("doc") or {}
+
+    if area == "learn":
+        return ("Every lesson this course holds, as a durable document you can "
+                "also read outside the app."), lessons
+    if area == "practice":
+        return ("A practice sitting scores as you go, unlocks one hint tier "
+                "per genuine wrong attempt, and never shows a key you have "
+                "not earned."), quizzes
+    if area == "map":
+        rows = []
+        containers = {c.get("id"): c.get("title") or c.get("label") or ""
+                      for c in (doc.get("structure") or [])}
+        for rec in (doc.get("objectives") or []):
+            rows.append({
+                "href": "", "title": rec.get("statement") or rec.get("id") or "",
+                "meta": containers.get(rec.get("container"), ""),
+                "note": ""})
+        return ("The objectives this course is accountable for, in the order "
+                "its scope records them."), rows
+    if area == "sources":
+        rows = []
+        for rec in (doc.get("sources") or []):
+            rows.append({
+                "href": "", "title": rec.get("title") or rec.get("source_object_id") or "",
+                "meta": "bound source", "note": rec.get("note") or ""})
+        return ("What this course is built from. A source is bound where it "
+                "lives; nothing here is a copy."), rows
+    if area == "evidence":
+        counts = _course_evidence_counts(course_dir)
+        if not counts["events"]:
+            return "", []
+        rows = [
+            {"href": "", "title": "%d response%s recorded"
+             % (counts["responses"], "" if counts["responses"] == 1 else "s"),
+             "meta": "", "note": ""},
+            {"href": "", "title": "%d mark%s settled"
+             % (counts["marks"], "" if counts["marks"] == 1 else "s"),
+             "meta": "", "note": ""},
+            {"href": "", "title": "%d sitting%s"
+             % (counts["sessions"], "" if counts["sessions"] == 1 else "s"),
+             "meta": "", "note": ""},
+        ]
+        return ("Your own record, in this course's own store. Nothing here "
+                "left this machine."), rows
+    if area == "overview":
+        rows = []
+        if lessons:
+            rows.append({"href": lessons[0]["href"], "title": "Start reading",
+                         "meta": lessons[0]["title"], "note": ""})
+        if quizzes:
+            rows.append({"href": quizzes[0]["href"], "title": "Sit the items",
+                         "meta": quizzes[0]["meta"], "note": ""})
+        objectives = len(doc.get("objectives") or [])
+        sources = len(doc.get("sources") or [])
+        counts = _course_evidence_counts(course_dir)
+        lead = ("%d objective%s, %d bound source%s, %d bank%s, %d recorded "
+                "response%s." % (objectives, "" if objectives == 1 else "s",
+                                 sources, "" if sources == 1 else "s",
+                                 len(quizzes), "" if len(quizzes) == 1 else "s",
+                                 counts["responses"],
+                                 "" if counts["responses"] == 1 else "s"))
+        return lead, rows
+    return "", []
+
+
+def _course_rows_html(rows):
+    out = []
+    for row in rows:
+        title = presentation.esc(row.get("title") or "")
+        meta = presentation.esc(row.get("meta") or "")
+        note = presentation.esc(row.get("note") or "")
+        head = ('<a href="%s">%s</a>' % (presentation.esc(row["href"]), title)
+                if row.get("href") else '<b>%s</b>' % title)
+        out.append('<li class="row"><div class="row-head">%s%s</div>%s</li>'
+                   % (head,
+                      '<span class="row-meta mono">%s</span>' % meta if meta else "",
+                      '<p class="row-note">%s</p>' % note if note else ""))
+    return '<ul class="course-rows">%s</ul>' % "".join(out)
+
+
+def _course_frame(handler, state, back, course_dir=None):
     """One course-level page: the eight-area nav, the area's own stated state,
     a real anchor target on the heading, and the hidden anchor-missing region
     the restoration script reveals. No pagination control, no page-number link,
@@ -609,16 +832,24 @@ def _course_frame(handler, state, back):
                       ' aria-current="page"' if entry["current"] else "",
                       presentation.esc(entry["label"])))
     heading_id = ia.anchor_slug(state["area_label"]) or "area"
+    lead, rows = _course_area_rows(handler, state, course_dir)
+    if rows:
+        content = ('<p class="area-lead">%s</p>%s'
+                   % (presentation.esc(lead), _course_rows_html(rows))
+                   if lead else _course_rows_html(rows))
+    else:
+        content = '<p class="area-state">%s</p>' % presentation.esc(
+            state["notice"])
     body = ('<nav class="course-areas" aria-label="Course areas"><ul>%s</ul>'
             "</nav>"
             '<div class="state" data-anchor-missing hidden role="status">'
             "<p>%s</p></div>"
-            '<h2 id="%s">%s</h2><p class="area-state">%s</p>'
+            '<h2 id="%s">%s</h2>%s'
             % ("".join(nav),
                presentation.esc(ia.ANCHOR_NOT_FOUND_NOTICE),
                presentation.esc(heading_id),
                presentation.esc(state["area_label"]),
-               presentation.esc(state["notice"])))
+               content))
     return presentation.surface_shell(
         state["course_name"], body,
         theme_css=theme.theme_css(settings.load_settings(handler.root)),
@@ -644,8 +875,8 @@ def handle_course_get(handler, course_id):
         _course_not_found(handler)
         return
     handler.send_html(_course_frame(
-        handler, state,
-        {"href": "/", "label": "Back to courses"}).encode("utf-8"))
+        handler, state, {"href": "/", "label": "Back to courses"},
+        course_dir=ia.course_dir_for(handler.root, course_id)).encode("utf-8"))
 
 
 def handle_course_area_get(handler, course_id, area):
@@ -662,7 +893,8 @@ def handle_course_area_get(handler, course_id, area):
     handler.send_html(_course_frame(
         handler, state,
         {"href": "/course/" + course_id,
-         "label": "Back to " + state["course_name"]}).encode("utf-8"))
+         "label": "Back to " + state["course_name"]},
+        course_dir=ia.course_dir_for(handler.root, course_id)).encode("utf-8"))
 
 
 def handle_course_lesson_get(handler, course_id, lesson_id):
@@ -2338,6 +2570,48 @@ def handle_font_asset(handler, name):
     handler.send_bytes(body, mime)
 
 
+def handle_media_asset(handler, stem, name):
+    """`GET /media/<stem>/<name>` -- one media file from the directory the
+    bank at `stem` lives in, so a lesson can show the picture its own
+    `## MEDIA` registry declares.
+
+    Contained by resolution rather than by allowlist, because the files are
+    the learner's and cannot be enumerated in advance: the stem must be one
+    the startup scan already admitted, `..` is refused rather than clamped,
+    the resolved real path must sit inside the bank's own directory after
+    link resolution, and the extension must be a known static image type.
+    Every refusal is the same plain 404, so a probe learns nothing about the
+    filesystem it did not already know.
+    """
+    path = handler.banks.get(stem)
+    if path is None:
+        handler.send_not_found(stem)
+        return
+    if os.path.pardir in name.replace("\\", "/").split("/"):
+        handler.send_not_found(name)
+        return
+    mime = MEDIA_ASSET_TYPES.get(os.path.splitext(name)[1].lower())
+    if mime is None:
+        handler.send_not_found(name)
+        return
+    root = os.path.realpath(os.path.dirname(os.path.abspath(path)))
+    target = os.path.realpath(os.path.join(root, name))
+    try:
+        contained = os.path.commonpath([root, target]) == root
+    except ValueError:
+        contained = False
+    if not contained or target == root or not os.path.isfile(target):
+        handler.send_not_found(name)
+        return
+    try:
+        with open(target, "rb") as fh:
+            body = fh.read()
+    except OSError:
+        handler.send_not_found(name)
+        return
+    handler.send_bytes(body, mime)
+
+
 def _resolve_check(qs, check_id):
     """The one check-item resolution: by positional id or opaque [ID:], the
     same set the linter's lesson.check_ref_unknown accepts (D-01)."""
@@ -2630,6 +2904,7 @@ def handle_lesson_get(handler, stem):
                               session_id=_session_id_for(handler, stem),
                               lan_refused=_lan_refused(handler),
                               media=parse_media(path),
+                              media_base=media_base(stem),
                               activities=parse_activities(path),
                               mode=mode, step_id=step_id,
                               tier_payload=tier_payload,
@@ -2749,7 +3024,7 @@ def handle_lesson_skip(handler, stem):
             # event. Re-render with the honest copy (section 12.1).
             page = lesson.lesson_page(
                 path, qs, les, runtime=True, gate=gate,
-                media=parse_media(path),
+                media=parse_media(path), media_base=media_base(stem),
                 activities=parse_activities(path))
             handler.send_html(page.encode("utf-8"))
             return

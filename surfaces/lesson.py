@@ -1327,6 +1327,23 @@ def _dir_attr(ctx):
     return ' dir="auto"' if (ctx or {}).get("auto_dir") else ""
 
 
+def _media_src(path, ctx):
+    """Where a `present` asset's declared path is fetched from.
+
+    A bank-relative path is prefixed with the context's `media_base`, which
+    a served surface sets to its own route and every other caller leaves
+    empty. An absolute path, a rooted path, or one already carrying a scheme
+    is returned untouched: it is not the renderer's business to rewrite a
+    location an author stated completely.
+    """
+    base = (ctx or {}).get("media_base") or ""
+    if not base or not path:
+        return path
+    if "://" in path or path.startswith("/") or path.startswith(".."):
+        return path
+    return base.rstrip("/") + "/" + path.lstrip("/")
+
+
 def _media_figure_html(asset, ref_id, ctx=None):
     """One media asset as a figure, in all four of its states (CAP-02,
     D-16A-7).
@@ -1385,8 +1402,8 @@ def _media_figure_html(asset, ref_id, ctx=None):
     if availability == "present":
         return ('<figure class="media" id="media-%s"><img src="%s" alt="%s">'
                 "%s</figure>"
-                % (html.escape(anchor), html.escape(path), html.escape(alt),
-                   caption))
+                % (html.escape(anchor), html.escape(_media_src(path, ctx)),
+                   html.escape(alt), caption))
     if availability == "remote":
         return ('<figure class="media media-remote" id="media-%s">'
                 '<p>%s</p><p>%s</p><a href="%s">%s</a>%s</figure>'
@@ -2031,6 +2048,15 @@ def _reader_context(bank_path, qs):
         # not read the bank's media registry itself, because the render
         # function takes parsed data and reads no file of its own.
         "media": {},
+        # The URL prefix a `present` asset's bank-relative path is served
+        # under, or "" for the durable document, where the path is already
+        # correct beside the file. A served page lives at `/lesson/<stem>`,
+        # so a bare `media/x.svg` resolves to `/lesson/media/x.svg` and
+        # 404s: the one image in the 17B tracer's lesson was broken in the
+        # app for exactly this reason, with only its alt text carrying the
+        # meaning. Empty by default, so the static build and `cmd_lesson`
+        # render byte-identically to before.
+        "media_base": "",
     }
     for key in parse_key_blocks(bank_path):
         if not key.get("id"):
@@ -2303,7 +2329,8 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
                 style_override=None, profile=None, gate=None, focus=None,
                 announce=None, session_id=None, lan_refused=False,
                 mode="continuous", media=None, activities=None,
-                step_id=None, tier_payload=None, tier_show_url=None):
+                step_id=None, tier_payload=None, tier_show_url=None,
+                media_base=""):
     """The one render both surfaces call: the daemon route and `cmd_lesson`
     write the same document because there is only one `lesson_page`.
 
@@ -2463,6 +2490,8 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
         # with no media argument byte identical to a pre-16A-05 render.
         if isinstance(media, dict):
             ctx["media"] = media.get("assets") or {}
+        if media_base:
+            ctx["media_base"] = media_base
         if isinstance(activities, dict):
             ctx["activities"] = activities.get("activities") or {}
         # The opt-in needs all three: the directive was present

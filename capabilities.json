@@ -414,6 +414,11 @@
     },
     {
       "method": "GET",
+      "path": "^/media/(?P<stem>[^/]+)/(?P<name>[A-Za-z0-9_][A-Za-z0-9_./-]*)$",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
       "path": "^/quiz/(?P<stem>[^/]+)$",
       "token_gated": true
     },

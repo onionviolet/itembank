@@ -42,8 +42,14 @@ BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
 # precedent). theme_page embeds SHARED_CSS through surface_shell, so its
 # bytes moved with it. The pre-change value was
 # f198e3d7d15f7033d0fa028df13c3d7449eadce5ae77a0220dc43114925f799b.
+# Re-taken 2026-09-05, same command, after SHARED_CSS gained the
+# course-area row rules the eight course areas needed once they began
+# carrying the course's own artifacts (`17B-03 D-06 item 3`). The rules add
+# no color, no spacing value and no type size: every value is an existing
+# token. The pre-change value was
+# 8f9678185b188b63a04df95302c2d0823efc0f33c1901d7853a87c3fc866ece9.
 THEME_PAGE_BASELINE = \
-    "8f9678185b188b63a04df95302c2d0823efc0f33c1901d7853a87c3fc866ece9"
+    "d16140c5c105b4956845c993ec46074d11e04e54f74439f66fccf77823ddb8ba"
 
 # Phase 16C appends rows here rather than creating a second fixture. Each row
 # is (setting_name, requests, expected_winning_layer, expected_value).

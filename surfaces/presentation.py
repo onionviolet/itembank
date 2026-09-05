@@ -233,6 +233,17 @@ button.go:disabled{opacity:.55;cursor:default}
 .state.state-ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok)}
 .state.state-bad{color:var(--bad);background:var(--bad-bg);border-color:var(--bad)}
 .state.state-warn{color:var(--warn);border-color:var(--warn)}
+/* Course-area rows (`17B-03 D-06 item 3`): the areas now carry the course's
+   own artifacts, so they need a list shape. One rule set, composed from the
+   existing tokens: no new color, no new spacing value, no new size. */
+.area-lead{color:var(--mut);margin:0 0 var(--space-3)}
+.course-rows{list-style:none;margin:0;padding:0;display:grid;
+  gap:var(--density-list-gap)}
+.course-rows .row{display:grid;gap:var(--space-1)}
+.row-head{display:flex;flex-wrap:wrap;gap:var(--space-2);
+  align-items:baseline;justify-content:space-between}
+.row-meta{color:var(--mut);font-size:var(--text-xs)}
+.row-note{margin:0;color:var(--mut);font-size:var(--text-xs)}
 .row{background:var(--card);border:1px solid var(--line);border-radius:12px;
   padding:16px;margin:0 0 16px}
 .row .name{font-size:16px;font-weight:600;overflow-wrap:anywhere}

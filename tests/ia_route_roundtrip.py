@@ -821,6 +821,85 @@ def check_course_areas_all_render():
         shutil.rmtree(workdir, ignore_errors=True)
 
 
+def check_course_areas_carry_content():
+    """`17B-03 D-06 item 3` and the broken lesson image, both asserted on
+    bytes that crossed a socket.
+
+    Phase 16B shipped the eight areas stating that nothing had been added
+    yet, because the record shapes belonged to 14A and 14B. Both landed, so
+    Learn and Practice must name the course's own artifacts and link the
+    routes that already serve them, and an area with nothing to show must
+    still say so in its own words rather than render an empty region.
+
+    The served lesson must also be able to reach its own pictures: a
+    bank-relative `media/x.svg` on a page at `/lesson/<stem>` resolves to
+    `/lesson/media/x.svg` and 404s, which is why the one diagram in the 17B
+    tracer's lesson was a broken image in the app while its alt text carried
+    the meaning alone.
+    """
+    workdir = suppress_sample_course(tempfile.mkdtemp(prefix="ia_content_"))
+    proc = None
+    try:
+        source = os.path.join(ROOT, "course_fixture_17b")
+        if not os.path.isdir(source):
+            print("ok   course areas carry content (fixture absent, skipped)")
+            return
+        dest = os.path.join(workdir, "course_fixture_17b")
+        shutil.copytree(source, dest,
+                        ignore=shutil.ignore_patterns("_journal", "_evidence",
+                                                      "_attempts"))
+        course_id = _shelf_course_ids(workdir)[0]
+        proc, url, lines = start_daemon(workdir)
+
+        status, body = get(url + "course/%s/learn" % course_id)
+        plain = html.unescape(body)
+        if status != 200:
+            fail("GET the Learn area returned %d" % status)
+        if "/lesson/unit3_bank" not in plain:
+            fail("Learn did not link the course's own lesson route")
+        if "Nothing has been added" in plain:
+            fail("Learn still states the 16B empty notice with a lesson "
+                 "in the course")
+
+        status, body = get(url + "course/%s/practice" % course_id)
+        if "/quiz/unit3_bank" not in html.unescape(body):
+            fail("Practice did not link the course's own quiz route")
+
+        status, body = get(url + "course/%s/build" % course_id)
+        if "Nothing has been added" not in html.unescape(body):
+            fail("an area with nothing to show must still say so")
+
+        status, body = get(url + "lesson/unit3_bank")
+        if status != 200:
+            fail("GET the lesson returned %d" % status)
+        if 'src="/media/unit3_bank/media/' not in body:
+            fail("the served lesson does not resolve its media through the "
+                 "media route; a bank-relative src 404s under /lesson/")
+
+        status, _ = get(url + "media/unit3_bank/media/lantern_moss_cycle.svg")
+        if status != 200:
+            fail("the media route did not serve the lesson's own diagram "
+                 "(%d)" % status)
+        for probe, why in (
+                ("media/unit3_bank/../../etc/passwd", "a traversal"),
+                ("media/unit3_bank/media/../../../itembank.py",
+                 "an escaping relative path"),
+                ("media/unit3_bank/unit3_lesson.md", "a non-media extension"),
+                ("media/no-such-bank/media/x.svg", "an unknown stem")):
+            # `json_request`, not `get`: a refusal is the expected answer
+            # here, and `get` raises on a non-2xx.
+            status, _ = json_request(url + probe, method="GET")
+            if status != 404:
+                fail("%s returned %d from the media route, expected 404"
+                     % (why, status))
+        print("ok   course areas carry content, and a lesson reaches its media")
+    finally:
+        if proc is not None:
+            proc.terminate()
+            proc.wait(timeout=5)
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
 def check_same_routes_both_widths():
     """One route per object at every width, and one back control."""
     workdir = suppress_sample_course(tempfile.mkdtemp(prefix="ia_widths_"))
@@ -1368,6 +1447,7 @@ CHECKS = (check_activity_route_end_to_end,
           check_shelf_end_to_end,
           check_shelf_falls_back_to_bank_index,
           check_course_areas_all_render,
+          check_course_areas_carry_content,
           check_same_routes_both_widths,
           check_no_pagination_on_reading,
           check_deep_link_scenarios,
