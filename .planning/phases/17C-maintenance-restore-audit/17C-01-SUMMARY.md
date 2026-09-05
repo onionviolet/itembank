@@ -41,6 +41,17 @@ Only what a reader of that file would not otherwise know is here.
   at the 2026-08-13 section so a later audit does not misread the earlier
   one-line requirements as unowned.
 
+## Addendum, same day
+
+The silence was closed outside the audit's scope and in its own commit
+(`dd99a3a`), recorded in the report's addendum rather than folded into the
+findings: two additive loss categories (`unregistered-file`,
+`provenance-not-carried`) and two additive lint warnings
+(`media.declared_present_missing`, `media.integrity_mismatch`). The loss
+report went from 1 row to 11 and the restored bank now warns about the
+media it cites. What each loss means, and whether any should be carried
+rather than named, stays 14B's question and Weibao's call.
+
 ## Truths verified, and by what
 
 Truth 1 by reading `17B-GATES.md`; truth 2 by the drill rerun plus the

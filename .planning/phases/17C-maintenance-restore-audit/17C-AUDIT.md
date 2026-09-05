@@ -219,13 +219,111 @@ maintainer or a hook should watch.
 | restored | 10 (8 by bytes, 2 by pointer), plus strategy contracts carried by the code |
 | not exercised | 4 (activity, learner note, learner artifact, accepted revision) |
 | NOT RESTORED | 3 journal-borne classes (agent operation, rights grant, operation journal) plus two payload gaps (`_attempts`, unregistered files including media) |
-| loss-report completeness | FAIL: 1 row printed, 5 silent losses found |
+| loss-report completeness | FAIL as audited: 1 row printed, 5 silent losses found. PASS after the addendum below: 11 rows, plus a lint warning on the restored bank |
 | owner sweep | 49 of 49 next-milestone requirement blocks own a named owner; zero unowned |
 | findings | F-LOSS-1 to F-LOSS-5, F-OWN-1 (observation) |
 | owed human legs, carried forward from 17B | the G4 screen-reader walk, the G8 visual acceptance at 1280 and 375, the G5 default rollup choice, and the 17B milestone acceptance signature |
 
 Every finding is routed, none is repaired here: repairing a finding is out
 of this plan's scope, and all five are contract changes in 14B's surface.
+
+## Addendum, 2026-09-05: the silence closed
+
+Written after the report above, same day, under Weibao's directive to carry
+work to completion rather than route it back. The audit's own scope forbids
+repairing a finding, so this addendum records a repair made deliberately
+outside it, in its own commit (`dd99a3a`), rather than smuggled into the
+report as if the audit had found nothing.
+
+What was repaired is the silence, not the absence. Every finding above
+stays true about what a package carries; none of them is silent any more.
+
+- Two additive loss categories in `course_package.py`. `unregistered-file`
+  walks the course root and names every file no operation bound (the
+  journal and the evidence store are skipped: each has its own row or its
+  own export). `provenance-not-carried` says once, with the count of
+  applied entries left behind, that the operation journal does not travel
+  and that a restored object therefore arrives at revision 1 with its
+  rights unknown.
+- Two additive lint findings in `model.py`, both warnings rather than
+  errors because a bank on a machine that does not hold its assets yet is
+  not malformed: `media.declared_present_missing` and
+  `media.integrity_mismatch`. Only rows declaring `present` are checked;
+  `missing` and `remote` are honest declarations and are left alone.
+
+Re-run of the same drill at commit `dd99a3a`: PASS, and the loss report
+grew from 1 row to 11, naming the provenance loss, the README, the
+treatments record, all six `_attempts` files, and
+`media/lantern_moss_cycle.svg`. `itembank.py lint` on the restored bank now
+reports `8 items, 0 errors, 1 warnings`, the warning being the media file
+that did not cross. Before the repair it reported zero findings, which is
+the exact sentence F-LOSS-5 was written about.
+
+Findings restated with their state after the addendum:
+
+| finding | named now | carried now | still owed |
+|---|---|---|---|
+| F-LOSS-1 provenance and history | yes | no | whether a package should carry a read-only provenance export |
+| F-LOSS-2 rights state | yes, inside the provenance row | no | whether restore should replay recorded rights through `op_grant_rights` |
+| F-LOSS-3 `_attempts` session state | yes | no | the axis decision: machine-local by design, or carried |
+| F-LOSS-4 unregistered files | yes | no | whether binding them at authoring time should be the default |
+| F-LOSS-5 cited media | yes, twice (loss row and lint warning) | no | binding media as objects so it can cross at all |
+| F-OWN-1 owner convention boundary | not a defect | n/a | nothing, unless Weibao wants owners on the v1 bullets |
+
+The summary table's `loss-report completeness` row therefore reads FAIL as
+of the audit and PASS as of this addendum. Both are recorded, in that
+order, because the audit's finding is what produced the repair and deleting
+it would hide the reason.
+
+### The drill after the repair, verbatim
+
+```
+restore drill: repository /Users/weiwei/Documents/Dev/itembank
+restore drill: commit dd99a3a7a3960452e3222854ef79727b9c8a12c6 (HEAD)
+restore drill: workdir $TMPDIR/17c_after
+restore drill: cloned at commit, HEAD dd99a3a7a3960452e3222854ef79727b9c8a12c6
+restore drill: source course copied from course_fixture_17b
+restore drill: fresh empty data directory $TMPDIR/17c_after/data
+restore drill: network made unavailable (proxies at http://127.0.0.1:9, sockets refused, ITEMBANK_NO_NETWORK=1)
+restore drill: network refused inside the worker = True
+manifest: state applied, keys course_object_id, created, entries, loss_report, package_id, schema_version, state
+manifest: 7 payload entr(y/ies) carried
+  carried: bank unit3_bank.md (1672ba231fd446ee)
+  carried: course course-graph.md (ba070378d35d44e7)
+  carried: course scope.md (d035bddef2d84eff)
+  carried: lesson unit3_lesson.md (36157b3e10cb46e5)
+  carried: objective objectives.md (95abc1ccd3e241f9)
+  carried: source sources/lantern_moss_survey.md (5c5bc6b17baa44c6)
+  carried: source sources/fen_hydrology_field_notes.md (8bd25c20ceaa4e20)
+manifest validation: 7 of 7 entries verified by recomputation, complete = True
+restore: 7 of 7 entries verified, complete = True, evidence events recorded = 40
+source registry: 7 canonical object(s); 0 did not reach the destination
+evidence: 40 event(s) in the source log, 40 carried by the package
+loss report: 11 row(s)
+  [export] machine-local: settings
+      not included by design; model backend configuration, update policy, and local paths belong to the machine, not to the course
+  [export] provenance-not-carried: journal.jsonl
+      the operation journal is not packaged: 82 applied entr(y/ies) of history, and the rights recorded on them, stay on the exporting machine. A restored object arrives at revision 1 with its rights unknown, and unknown stays restrictive
+  [export] unregistered-file: README.md
+      inside the course root and bound by no operation, so no object carries it; named here rather than left out in silence. Bind it (link, import, or copy) if it belongs to the course
+  [export] unregistered-file: _attempts/lessonrun_unit3_bank.json
+      inside the course root and bound by no operation, so no object carries it; named here rather than left out in silence. Bind it (link, import, or copy) if it belongs to the course
+  [export] unregistered-file: _attempts/session_46e90a278e08.json
+      inside the course root and bound by no operation, so no object carries it; named here rather than left out in silence. Bind it (link, import, or copy) if it belongs to the course
+  [export] unregistered-file: _attempts/unit3_bank_attempt_2026-09-01_0201.md
+      inside the course root and bound by no operation, so no object carries it; named here rather than left out in silence. Bind it (link, import, or copy) if it belongs to the course
+  [export] unregistered-file: _attempts/unit3_bank_attempt_2026-09-01_1431.md
+      inside the course root and bound by no operation, so no object carries it; named here rather than left out in silence. Bind it (link, import, or copy) if it belongs to the course
+  [export] unregistered-file: _attempts/unit3_bank_attempt_2026-09-01_1436.md
+      inside the course root and bound by no operation, so no object carries it; named here rather than left out in silence. Bind it (link, import, or copy) if it belongs to the course
+  [export] unregistered-file: _attempts/unit3_bank_attempt_2026-09-01_1437.md
+      inside the course root and bound by no operation, so no object carries it; named here rather than left out in silence. Bind it (link, import, or copy) if it belongs to the course
+  [export] unregistered-file: media/lantern_moss_cycle.svg
+      inside the course root and bound by no operation, so no object carries it; named here rather than left out in silence. Bind it (link, import, or copy) if it belongs to the course
+  [export] unregistered-file: treatments.md
+      inside the course root and bound by no operation, so no object carries it; named here rather than left out in silence. Bind it (link, import, or copy) if it belongs to the course
+restore drill: PASS
+```
 
 ## Acceptance (Task 4, blocking)
 

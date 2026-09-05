@@ -113,8 +113,15 @@ report names them, and the sharpest is F-LOSS-5, where a restored bank
 cites a `media/` file the package never carried and `lint` still reports
 zero errors. That is the first finding in this project of a restored course
 that reads complete and is not, on a path a learner would actually walk.
-All five are routed to 14B (F-LOSS-5 also to the lint phase); repairing
-them is outside the audit's own scope, so they are owed work, not silent.
+All five are routed to 14B (F-LOSS-5 also to the lint phase). The silence
+was then closed the same day in its own commit (`dd99a3a`), recorded as an
+addendum to the audit rather than folded into it: two additive loss
+categories (`unregistered-file`, `provenance-not-carried`) and two additive
+lint warnings (`media.declared_present_missing`,
+`media.integrity_mismatch`). The loss report went from 1 row to 11 and the
+restored bank warns about the media it cites. What the losses mean, and
+whether any should be carried rather than named, stays 14B's open question
+and Weibao's call.
 
 ## 2026-09-05: 17B-03 and 17B-04 committed, G10 repaired, the milestone exit record written
 
