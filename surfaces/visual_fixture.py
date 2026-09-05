@@ -395,6 +395,12 @@ OPERATION_PHRASE = {
     # Phase 15B. A reviewer settling a proposal, in the words a learner would
     # use for it: the decision is the event, not the file change it causes.
     "accept_revision": "accepted a change to",
+    # `17B-04 D-06 item 10`. Both are recorded decisions about an object, not
+    # edits of it, and the phrases say so: nothing about the file changed, and
+    # a learner reading the history should not be left looking for an edit
+    # that never happened.
+    "grant_rights": "recorded what may be done with",
+    "adopt": "claimed as this course's own",
 }
 
 # A write can be reversed from its journalled prior revision; a read cannot,

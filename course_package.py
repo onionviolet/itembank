@@ -61,7 +61,8 @@ LOSS_REPORT_FILENAME = "LOSS-REPORT.md"
 # dropped, because a restored course that looks complete and is not is worse
 # than one that says what is missing.
 LOSS_CATEGORIES = ("external-link", "rights-restricted", "machine-local",
-                   "unreachable-source", "unsupported-kind")
+                   "unreachable-source", "unsupported-kind",
+                   "evidence-not-carried")
 
 # The one operation-specific right that gates payload inclusion (RIGHTS-01).
 # `export` is handing a file to a person; `package` is writing it into a
@@ -95,6 +96,15 @@ LOSS_REASONS = {
     "unsupported-kind": "kind %s is not one of the packaged kinds course, "
                         "objective, source, lesson, bank; it is named here "
                         "rather than dropped",
+    # `17B-04 D-06 item 11`: before this category an unexportable event was
+    # simply absent, so a restored course read complete on the evidence axis
+    # while empty. An event this course cannot claim is named here with what
+    # it was scoped by, never dropped in silence.
+    "evidence-not-carried": "%d event(s) in the evidence log at this course "
+                            "root belong to no bank, objective, or session "
+                            "of this course (%s); they stay in the store "
+                            "they were recorded in rather than crossing "
+                            "into another course's package",
 }
 
 
@@ -174,14 +184,22 @@ def _payload_relpath(entry):
 
 
 def _externally_owned(base):
-    """The ids whose FIRST applied journal entry was a `link`.
+    """The ids whose FIRST applied journal entry was a `link` and which the
+    owner has not adopted.
 
     Read from the journal rather than from the registry's latest row on
     purpose: the registry projects the most recent operation, so recording a
     rights grant on a linked source would otherwise erase the fact that it
     was linked. What makes an object external is how it entered the course,
     which only the journal remembers.
+
+    An adopted object (`journal.op_adopt`) is the one exception, and it is
+    not an exception to the rule so much as an answer to it: the owner has
+    recorded that the bound file is the course's own artifact rather than
+    someone else's file kept where it lives, so packaging it copies nothing
+    out of anyone else's control (`17B-04 D-06 item 10`).
     """
+    adopted = journal.adopted_ids(base)
     seen, linked = set(), set()
     for entry in journal.entries(base):
         if entry.get("state") != "applied":
@@ -192,7 +210,7 @@ def _externally_owned(base):
         seen.add(object_id)
         if entry.get("operation") == "link":
             linked.add(object_id)
-    return linked
+    return linked - adopted
 
 
 def build_manifest(base, course_root):
@@ -265,6 +283,14 @@ def build_manifest(base, course_root):
             "fingerprint": row.get("fingerprint"),
         })
 
+    # The evidence axis is reported in the same loss report as the file
+    # axis: a package whose payloads all crossed and whose events all
+    # vanished is not a complete package, and before `17B-04 D-06 item 11`
+    # nothing said so.
+    _carried, evidence_losses = evidence_export_lines(
+        course_root, evidence_scope(base, course_root))
+    losses.extend(evidence_losses)
+
     entries.sort(key=lambda e: (e["kind"], e["object_id"]))
     losses.sort(key=lambda r: (r["category"], r["target"]))
     return {
@@ -306,24 +332,91 @@ def _course_objective_ids(course_root):
                if rec.get("id"))
 
 
-def _evidence_export_lines(course_root):
-    """The events this course's own objectives carry, one JSON object per
-    line, in log order.
+def evidence_scope(base, course_root):
+    """What this course can claim in an evidence log: its objective ids, the
+    bank names its own registry rows carry, and (filled in per log) the
+    sessions those two identify.
 
-    Filtered by objective id, so a shared evidence store never exports
-    another course's history into this package. An empty result is a
-    zero-byte file rather than an absent one: a restore has to be able to
-    tell "no evidence" from "evidence missing".
+    `17B-04 D-06 item 11`: the sidecar's `## Objectives` `id` column holds
+    graph object ids while an evidence event's `objective` field holds a bank
+    slug such as `afe:unit3.threshold`. The two vocabularies never intersect,
+    so an objective-id filter alone exported nothing. A bank name is the join
+    that actually exists on both sides today, and it is read from the registry
+    rather than guessed from a filename.
+    """
+    banks = set()
+    try:
+        registry = journal.read_registry(base)
+    except Exception:
+        registry = {}
+    for row in registry.values():
+        if row.get("kind") != "bank":
+            continue
+        path = row.get("path") or ""
+        if path:
+            banks.add(path)
+            banks.add(os.path.basename(path))
+    return {"objectives": _course_objective_ids(course_root), "banks": banks}
+
+
+def _event_claimed(event, scope, sessions):
+    bank = event.get("bank")
+    if bank and (bank in scope["banks"]
+                 or os.path.basename(bank) in scope["banks"]):
+        return True
+    if event.get("objective") in scope["objectives"]:
+        return True
+    session = event.get("session_id")
+    return bool(session) and session in sessions
+
+
+def evidence_export_lines(course_root, scope):
+    """The events this course can claim, one JSON object per line in log
+    order, plus one loss row per unclaimed group.
+
+    Two passes on purpose. The first identifies every session a claimed
+    event names; the second carries the whole of those sessions, because a
+    mark, a hint, and a selection are the same sitting as the response they
+    resolve and carry no bank or objective of their own. Anything still
+    unclaimed is named in the loss report rather than dropped, so a shared
+    evidence store still never exports another course's history and a
+    restore can tell "no evidence" from "evidence missing".
     """
     log = evidence.log_path(course_root)
     if not os.path.exists(log):
-        return []
-    wanted = _course_objective_ids(course_root)
-    out = []
-    for event in evidence.events(log):
-        if event.get("objective") in wanted:
+        return [], []
+    events = list(evidence.events(log))
+
+    sessions = set()
+    for event in events:
+        if _event_claimed(event, scope, sessions=set()):
+            session = event.get("session_id")
+            if session:
+                sessions.add(session)
+
+    out, unclaimed = [], []
+    for event in events:
+        if _event_claimed(event, scope, sessions):
             out.append(json.dumps(event, ensure_ascii=False, sort_keys=True))
-    return out
+        else:
+            unclaimed.append(event)
+
+    losses = []
+    if unclaimed:
+        scoped_by = sorted(set(
+            str(e.get("bank") or e.get("objective") or e.get("session_id")
+                or "no bank, objective, or session")
+            for e in unclaimed))
+        losses.append(_loss_row(
+            "evidence-not-carried", EVIDENCE_FILENAME,
+            LOSS_REASONS["evidence-not-carried"]
+            % (len(unclaimed), ", ".join(scoped_by))))
+    return out, losses
+
+
+def _evidence_export_lines(course_root, scope):
+    lines, _losses = evidence_export_lines(course_root, scope)
+    return lines
 
 
 def _check_duplicate_relpaths(entries):
@@ -377,7 +470,8 @@ def export_package(base, course_root, dest, archive=None, manifest=None):
             raw = fh.read()
         _write_bytes_atomic(os.path.join(dest, _payload_relpath(entry)), raw)
 
-    lines = _evidence_export_lines(course_root)
+    lines = _evidence_export_lines(
+        course_root, evidence_scope(base, course_root))
     body = ("\n".join(lines) + "\n") if lines else ""
     _write_bytes_atomic(
         os.path.join(dest, EVIDENCE_DIRNAME, EVIDENCE_FILENAME),

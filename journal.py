@@ -96,9 +96,28 @@ OPERATION_TYPES = ("link", "import", "copy", "move", "edit_in_place",
 # never joins OPERATION_TYPES. That tuple stays at exactly six, which
 # 14A-FREEZE.md names as frozen and which 14A-03, 14B-04 and 15A-01 each
 # already refused to grow.
+# "adopt" repairs the second half of `17B-04 D-06 item 10`. `link` means the
+# file keeps its own identity and location and is never copied out of its
+# owner's control, which is why a package refuses to carry a linked object.
+# But `link` is also the only way to bind a file that already exists on disk,
+# so a course's OWN authored lesson, bank, objective list, and scope file
+# entered the journal as links and were then correctly refused a place in
+# the course's own package. `adopt` is the owner's recorded decision that a
+# bound file is the course's own artifact rather than someone else's: the id,
+# the path, the history, and the bytes are all untouched, and only the
+# ownership claim changes. It is a decision about an object, not an edit of
+# it, so it joins RECORD_TYPES and never joins OPERATION_TYPES.
+# "grant_rights" repairs `17B-04 D-06 item 10`: rights live on a revision
+# record, and before this record type the only way to change one was to
+# commit new bytes, so granting the `package` right to an authored lesson or
+# bank meant editing the artifact, which audit-before-editing forbids (and a
+# no-op commit is refused `journal.no_change`). Recording a rights decision
+# is a decision about an object, not an edit of it, so it joins RECORD_TYPES
+# and deliberately never joins OPERATION_TYPES, exactly as "agent_operation"
+# and "accept_revision" did.
 RECORD_TYPES = OPERATION_TYPES + ("mint", "restore", "external_edit",
                                   "reconcile", "migrate", "agent_operation",
-                                  "accept_revision")
+                                  "accept_revision", "grant_rights", "adopt")
 
 # The journal entry key order, fixed. Every entry this module writes carries
 # exactly this key set, in exactly this order, so `list(entry.keys())` is
@@ -439,7 +458,15 @@ def _commit_impl(base, object_id, kind, rel_path, operation, new_bytes,
         compare_fingerprint = registry_fingerprint if moving_to_new_path \
             else before_fingerprint
 
+        # A rights record is carried forward by every later operation on the
+        # same object unless the caller states a new one. Before this, an
+        # `edit_in_place` or a `move` that named no rights silently dropped a
+        # recorded grant, which would have made `op_grant_rights` a grant
+        # that any subsequent edit erased. Only an explicit rights argument
+        # (today, `op_grant_rights`) changes a recorded right.
         effective_rights = rights
+        if effective_rights is None and prev is not None:
+            effective_rights = prev.get("rights")
         if kind == "source" and not effective_rights:
             effective_rights = identity.rights_default()
 
@@ -1002,6 +1029,118 @@ def op_supersede(base, superseding_object_id, superseded_object_id,
         base, superseding_object_id, prev["kind"], prev["path"], "supersede",
         None, expected_fingerprint, actor_kind, actor_name,
         source_object_id=superseded_object_id, write_target=False)
+
+
+def first_operation(base, object_id):
+    """The `operation` of the first applied entry for `object_id`, or None.
+
+    How an object entered the course is a fact only the journal remembers:
+    the registry projects the most recent operation, so a later grant or
+    adoption would otherwise erase it."""
+    for entry in entries(base):
+        if entry.get("state") != "applied":
+            continue
+        if entry.get("object_id") == object_id:
+            return entry.get("operation")
+    return None
+
+
+def adopted_ids(base):
+    """The ids carrying an applied `adopt` entry: the objects an owner has
+    declared the course's own, whatever operation first bound them."""
+    return set(entry.get("object_id") for entry in entries(base)
+               if entry.get("state") == "applied"
+               and entry.get("operation") == "adopt"
+               and entry.get("object_id"))
+
+
+def op_adopt(base, object_id, expected_fingerprint, actor_kind, actor_name,
+             note=None):
+    """Record that a file bound by `link` is the course's own artifact.
+
+    A course authored in place has no other way in: `link` is the only
+    operation that binds a file already on disk, so an authored lesson, bank,
+    objective list, or scope file enters the journal as a link and is then
+    refused a place in the course's own package, because a linked object is
+    someone else's file kept where it lives (`17B-04 D-06 item 10`). This
+    operation is the owner saying otherwise, once, on the record.
+
+    Nothing is copied, moved, or rewritten: `write_target=False`, the path
+    and the id are unchanged, the link entry stays in the log exactly as it
+    was, and the revision advances so the decision has a place in the
+    lineage. Refuses `journal.not_linked` for an object that entered any
+    other way, because adopting an imported or minted artifact would claim
+    something that was never in doubt, and refuses the usual
+    compare-and-swap way for a stale expected fingerprint.
+    """
+    prev = read_registry(base).get(object_id)
+    if prev is None:
+        raise JournalError("journal.unknown_object",
+                            "no such object %s" % object_id)
+    entered_as = first_operation(base, object_id)
+    if entered_as != "link":
+        raise JournalError(
+            "journal.not_linked",
+            "object %s entered this course as %s, not as a link, so it is "
+            "already the course's own artifact and there is nothing to "
+            "adopt" % (object_id, entered_as))
+    return commit_operation(
+        base, object_id, prev["kind"], prev["path"], "adopt", None,
+        expected_fingerprint, actor_kind, actor_name, write_target=False,
+        note=note)
+
+
+def op_grant_rights(base, object_id, grants, expected_fingerprint,
+                    actor_kind, actor_name, note=None):
+    """Record a rights decision about an object the course already holds,
+    without touching its bytes.
+
+    Rights live on a revision record, so changing one advances the revision;
+    `write_target=False` means the file itself is never rewritten and its
+    `mtime_ns` is untouched, which is what lets a package right be granted to
+    an accepted lesson without editing the accepted lesson (`17B-04 D-06 item
+    10`). The compare-and-swap check still runs against
+    `expected_fingerprint`, so a grant recorded against a stale reading of the
+    object is refused like any other write.
+
+    `grants` maps `identity.RIGHTS_OPERATIONS` names to
+    `identity.RIGHTS_STATES` values and is MERGED onto the object's currently
+    recorded rights: naming one right never silently resets the others, and
+    revoking is the same operation with the value `"denied"`. A name or a
+    value outside those closed vocabularies is refused by name rather than
+    stored, because an unrecognized right reads as unknown later and unknown
+    is restrictive.
+
+    The learner or the rights holder owns this decision; this function only
+    records the decision it is given, and records who made it in `origin`.
+    """
+    if not isinstance(grants, dict) or not grants:
+        raise JournalError(
+            "journal.rights_empty",
+            "a rights grant names no right; nothing was recorded")
+    for name, value in sorted(grants.items()):
+        if name not in identity.RIGHTS_OPERATIONS:
+            raise JournalError(
+                "journal.unknown_right",
+                "%s is not a known right; known rights are: %s"
+                % (name, ", ".join(identity.RIGHTS_OPERATIONS)))
+        if value not in identity.RIGHTS_STATES:
+            raise JournalError(
+                "journal.unknown_rights_state",
+                "%s is not a known rights state for %s; known states are: %s"
+                % (value, name, ", ".join(identity.RIGHTS_STATES)))
+
+    prev = read_registry(base).get(object_id)
+    if prev is None:
+        raise JournalError("journal.unknown_object",
+                            "no such object %s" % object_id)
+    merged = dict(prev.get("rights") or identity.rights_default())
+    merged.update(grants)
+
+    return commit_operation(
+        base, object_id, prev["kind"], prev["path"], "grant_rights", None,
+        expected_fingerprint, actor_kind, actor_name, write_target=False,
+        note=note, rights=merged)
 
 
 # ---------------------------------------------------------------------------

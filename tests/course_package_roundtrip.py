@@ -136,7 +136,8 @@ def check_manifest_and_losses():
         # Every loss category, named.
         eq(course_package.LOSS_CATEGORIES,
            ("external-link", "rights-restricted", "machine-local",
-            "unreachable-source", "unsupported-kind"), "LOSS_CATEGORIES")
+            "unreachable-source", "unsupported-kind",
+            "evidence-not-carried"), "LOSS_CATEGORIES")
         link_row = only_row(manifest, "external-link", linked,
                             "the linked source")
         if "linked, not imported" not in link_row["reason"]:
@@ -577,10 +578,166 @@ def kill_export(root, pkg):
     return 0
 
 
+def check_adoption_rights_and_evidence():
+    """`17B-04 D-06 items 10 and 11`, asserted: an owner can grant a right
+    without editing the artifact, can adopt a file they authored in place so
+    their own package carries it, and every event the package cannot claim is
+    named in the loss report instead of vanishing.
+
+    Gate G10 failed on exactly these two mechanisms: six of seven canonical
+    objects and zero of forty evidence events crossed a clean-machine
+    restore, and only one of the losses had a name.
+    """
+    tmp = tempfile.mkdtemp(prefix="course_package_adopt_")
+    try:
+        built = corpus_14b.build_three_domains(tmp)
+        meridian = built["domains"][0]
+        root = meridian["root"]
+
+        # A right is granted without touching the artifact's bytes.
+        authored = corpus_14b.linked_source(root, "authored-in-place")
+        row = journal.read_registry(root)[authored]
+        target = os.path.join(root, row["path"])
+        before_raw = open(target, "rb").read()
+        before_mtime = os.stat(target).st_mtime_ns
+        granted = journal.op_grant_rights(
+            root, authored, {"package": "granted"}, row["fingerprint"],
+            "human", "weibao")
+        eq(open(target, "rb").read(), before_raw,
+           "a rights grant leaves the artifact's bytes untouched")
+        eq(os.stat(target).st_mtime_ns, before_mtime,
+           "a rights grant leaves the artifact's mtime untouched")
+        eq(granted["revision"], row["revision"] + 1,
+           "a rights grant advances the revision")
+        after = journal.read_registry(root)[authored]
+        eq(identity.rights_granted(after["rights"], "package"), True,
+           "the granted package right reaches the registry")
+        eq(after["fingerprint"], row["fingerprint"],
+           "a rights grant records no new fingerprint")
+
+        # Naming one right never resets the others, and the vocabularies are
+        # closed on both sides.
+        eq(identity.rights_state(after["rights"], "transform"), "unknown",
+           "granting one right leaves the others as they were")
+        raises(lambda: journal.op_grant_rights(
+            root, authored, {"telepathy": "granted"}, after["fingerprint"],
+            "human", "weibao"), journal.JournalError, "journal.unknown_right",
+            "a right outside the closed vocabulary")
+        raises(lambda: journal.op_grant_rights(
+            root, authored, {"package": "probably"}, after["fingerprint"],
+            "human", "weibao"), journal.JournalError,
+            "journal.unknown_rights_state", "a state outside RIGHTS_STATES")
+        raises(lambda: journal.op_grant_rights(
+            root, authored, {"package": "granted"}, "stale-fingerprint",
+            "human", "weibao"), journal.JournalError,
+            "journal.stale_preflight", "a grant against a stale base")
+
+        # Granted but not adopted: still someone else's file, still not
+        # copied, still named.
+        manifest = course_package.build_manifest(root, root)
+        if authored in [e["object_id"] for e in manifest["entries"]]:
+            fail("a linked source is never copied into a package")
+        only_row(manifest, "external-link", authored,
+                 "the granted but unadopted link")
+
+        # Adopted: the owner has said it is the course's own artifact.
+        current = journal.read_registry(root)[authored]
+        adopted = journal.op_adopt(root, authored, current["fingerprint"],
+                                   "human", "weibao")
+        eq(open(target, "rb").read(), before_raw,
+           "an adoption leaves the artifact's bytes untouched")
+        eq(os.stat(target).st_mtime_ns, before_mtime,
+           "an adoption leaves the artifact's mtime untouched")
+        eq(adopted["revision"], current["revision"] + 1,
+           "an adoption advances the revision")
+        eq(journal.first_operation(root, authored), "link",
+           "an adoption never rewrites how the object entered the course")
+        eq(identity.rights_granted(
+            journal.read_registry(root)[authored]["rights"], "package"), True,
+           "an adoption carries the recorded rights forward")
+
+        manifest = course_package.build_manifest(root, root)
+        if authored not in [e["object_id"] for e in manifest["entries"]]:
+            fail("an adopted, package-granted artifact must be packaged")
+        eq(rows_for(manifest, "external-link"), [],
+           "an adopted artifact is no longer reported as an external link")
+
+        # Adoption answers a link and nothing else.
+        minted = corpus_14b.register_source(root, "minted-here",
+                                            {"package": "granted"})
+        minted_row = journal.read_registry(root)[minted]
+        raises(lambda: journal.op_adopt(root, minted, minted_row["fingerprint"],
+                                        "human", "weibao"),
+               journal.JournalError, "journal.not_linked",
+               "adopting an object that was never linked")
+
+        # Evidence: claimed by objective id, by bank name, by session, and
+        # everything else named rather than dropped.
+        objective_id = meridian["objectives"][0]
+        corpus_14b.seed_objective_evidence(root, objective_id)
+        bank_relpath = "unit1_bank.md"
+        journal.commit_operation(
+            base=root, object_id=identity.new_object_id(), kind="bank",
+            rel_path=bank_relpath, operation="mint",
+            new_bytes=b"# Bank\n\nQ1. A fixture stem.\n",
+            expected_fingerprint=None, actor_kind="agent",
+            actor_name="corpus-14b", create_if_missing=True)
+        log = evidence.log_path(root)
+        session = "adopted-bank-session"
+        evidence.append_event(log, {
+            "schema_version": evidence.EVENT_SCHEMA_VERSION,
+            "event_id": identity.new_object_id(),
+            "event_type": "selection", "ts": evidence.utc_now(),
+            "session_id": session, "bank": bank_relpath,
+            "items": [], "selection_mode": "practice",
+            "dedupe_key": "adopted-bank-selection"})
+        evidence.append_event(log, {
+            "schema_version": evidence.EVENT_SCHEMA_VERSION,
+            "event_id": identity.new_object_id(),
+            "event_type": "mark", "ts": evidence.utc_now(),
+            "session_id": session, "verdict": True,
+            "dedupe_key": "adopted-bank-mark"})
+        evidence.append_event(log, {
+            "schema_version": evidence.EVENT_SCHEMA_VERSION,
+            "event_id": identity.new_object_id(),
+            "event_type": "response", "ts": evidence.utc_now(),
+            "session_id": "another-course-session",
+            "bank": "some-other-course-bank.md",
+            "objective": "other:course.objective",
+            "dedupe_key": "another-course-response"})
+
+        scope = course_package.evidence_scope(root, root)
+        lines, losses = course_package.evidence_export_lines(root, scope)
+        carried = [json.loads(line) for line in lines]
+        kinds = set(e["event_type"] for e in carried)
+        if "mark" not in kinds:
+            fail("a mark carrying no bank and no objective must ride with "
+                 "the session it belongs to")
+        eq(len(carried), 3,
+           "the objective event, the bank event, and its session's mark")
+        for event in carried:
+            if event.get("session_id") == "another-course-session":
+                fail("another course's history must never be exported")
+        eq(len(losses), 1, "one evidence loss row")
+        eq(losses[0]["category"], "evidence-not-carried",
+           "the evidence loss category")
+        if "1 event" not in losses[0]["reason"]:
+            fail("the evidence loss row must count what it did not carry")
+
+        manifest = course_package.build_manifest(root, root)
+        only_row(manifest, "evidence-not-carried",
+                 course_package.EVIDENCE_FILENAME,
+                 "the unclaimed evidence row")
+        print("ok  adoption, rights grants, and the evidence join")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--kill-export":
         return kill_export(sys.argv[2], sys.argv[3])
     check_manifest_and_losses()
+    check_adoption_rights_and_evidence()
     check_clean_restore()
     check_archive_containment()
     print("OK course_package_roundtrip")
