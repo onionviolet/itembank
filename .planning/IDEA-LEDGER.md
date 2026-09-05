@@ -1034,6 +1034,229 @@ Amendments to an existing entry are additive notes under the entry, dated.
   recommendation, and it is recorded so that a future agent does not re-argue
   the 2026-08-26 position as though it were still open.
 
+### IL-20260905-01: Read the confidence field itembank already writes
+
+- **Proposal:** Give the recorded per-attempt `confidence` its first consumer.
+  Cross confidence with correctness and surface confident-and-wrong as a
+  distinct error signal with its own stated denominator, readable by selection
+  and by the blueprint report. Collect the field on the quiz surface, which
+  currently hardcodes `confidence=None`.
+- **Origin:** Moodle's certainty-based marking question behaviour, read
+  2026-09-05 during the open-source absorption pass Weibao asked for in chat;
+  full reasoning in `.planning/research/2026-09-05-open-source-absorption.md`
+  section 2.
+- **Evidence considered:** `confidence` is already captured end to end and read
+  by nothing: `surfaces/cli.py:988`, `surfaces/daemon.py:3608`,
+  `evidence.py:448`, the SQLite column at `evidence.py:1150`, the migration
+  default at `surfaces/migrate.py:344`. EVID-07 asked for it and said outright
+  that nothing needed to read it yet. `surfaces/quiz.py:305` passes `None`, so
+  the offline sitting produces no signal at all. No consumer exists in
+  `retention.py`, `selection.py`, `blueprint.py`, `progress_claims.py`, or
+  `auditor.py`.
+- **Fit:** no new field, no new item type, no format surface, no second store.
+  `REQUIREMENTS.md:1116` already names the failure this exposes, a confident
+  wrong answer with the right nouns, as something the tool must not mistake
+  for knowledge.
+- **Boundary:** the diagnostic half only. Moodle also adjusts the *mark* by
+  certainty, and that half is refused here for now: a certainty-weighted score
+  hides its own derivation, against `REQUIREMENTS.md` lines 972 to 981 and the
+  no-aggregate rule at `IDEA-LEDGER.md:800`. If a weighted mark is ever wanted
+  it is an additive extension inside the one scorer per `IL-20260815-05` and
+  needs its own argument, not this entry.
+- **Cost driver:** collecting the field in the offline quiz page without adding
+  friction to a sitting, and choosing a denominator that stays honest when the
+  learner leaves confidence unset (`None` means not marked, per the conventions).
+- **Disposition:** Registered.
+- **Revisit trigger:** the first phase that touches selection weighting, the
+  blueprint report, or the quiz submit path.
+
+### IL-20260905-02: `n_mastery` as the one honest rollup form worth borrowing
+
+- **Proposal:** Adopt "N of the last M attempts at or above a threshold" as a
+  permitted leaf-level progress claim, stated with both numbers visible, in the
+  vocabulary `progress_claims` already uses.
+- **Origin:** the Canvas LMS outcomes API calculation methods, read 2026-09-05;
+  see the absorption pass section 3.
+- **Evidence considered:** Canvas offers `decaying_average`, `n_mastery`,
+  `highest`, and `latest` behind one switch. `n_mastery` is the only one whose
+  numerator and denominator survive into the claim. It degrades honestly at
+  small M, which `blueprint.py`'s `uncertainty_for()` already bands.
+- **Fit:** it is a countable claim, not a percentage, so it violates neither
+  the no-aggregate rule nor the stated-denominator rule.
+- **Boundary:** orthogonal to the owed G5 default rollup choice. ROLLUP-DIM and
+  ROLLUP-MAP decide the shape of the tree; this decides what a leaf may assert.
+  It is input to that decision, not a substitute for it, and the choice remains
+  Weibao's.
+- **Disposition:** Registered.
+- **Revisit trigger:** the G5 rollup decision, or the first phase that adds a
+  progress claim kind.
+
+### IL-20260905-04: Question as generator, at authoring time only
+
+- **Proposal:** Let an author write one parameterized form and expand it into N
+  concrete items, each minted with its own id and hash and written into the
+  bank through the existing `author-bank` write, lint, fix loop. Aimed at Math
+  1400, where practice value lies in many instances of one form.
+- **Origin:** PrairieLearn's core idea that a question is a generator producing
+  and grading its own variants, read 2026-09-05; see the absorption pass
+  section 4.
+- **Evidence considered:** PrairieLearn reports use across roughly 800 courses
+  at 20 universities, so the pedagogy is not speculative. `STATE.md` records
+  that no Math 1400 course exists yet, so nothing is disturbed by deciding this
+  before the course is built.
+- **Boundary, stated as part of the proposal and not as a caveat:** expansion
+  happens at authoring time and emits ordinary items. Runtime variant
+  generation is refused, because it collides at once with stable item identity
+  and `content_fingerprint()`, with evidence keyed per item id, and with the
+  rule at `IDEA-LEDGER.md:843` that a shuffled variant is not a new item.
+  Authoring-time expansion adds no runtime concept, no second parser, and no
+  second scorer.
+- **Licence boundary, which generalizes past this entry:** nothing is vendored.
+  PrairieLearn CE is AGPLv3 (parts MIT, an Enterprise directory proprietary),
+  Canvas is AGPLv3, Moodle is GPLv3, and `ebooklib` was parked on exactly this
+  in `IL-20260828-05` and decided as `D-14C-2`. Since external installation
+  became a supported goal (2026-08-14) and Phase 18 packages a desktop app, the
+  practice `COURSE-SHELL-TEMPLATE.md` line 336 recorded for one Moodle specimen
+  is the general rule: absorb observed behaviour, format semantics, and
+  vocabulary; never the code; never assume a licence from a publisher's
+  reputation. PrairieLearn's 15 shared OER banks are also not a corpus that can
+  simply be taken: they sit behind an account and an instructor course space.
+- **Cost driver:** the parameter and constraint language, and keeping the
+  expansion reproducible so a re-expansion does not remint ids for unchanged
+  variants.
+- **Disposition:** Registered, sequenced behind the existence of a Math 1400
+  course.
+- **Revisit trigger:** the first phase that builds Math 1400, or any phase
+  proposing runtime item generation, which this entry refuses in advance.
+
+### IL-20260905-05: Bind an open-licensed algebra text as a Math 1400 source
+
+- **Proposal:** When Math 1400 is built, bind an OpenStax or LibreTexts algebra
+  title (College Algebra, Elementary Algebra) as a first-class source through
+  the ordinary discovery and binding path, with direct reading available as a
+  treatment.
+- **Origin:** the absorption pass section 5, 2026-09-05. This is the only
+  content finding in that pass and the only one that unblocks something.
+- **Evidence considered:** `STATE.md` records that no Math 1400 or CSCI 1100
+  course exists and that the single real sitting to date was EMT. An
+  open-licensed text is a bound source whose rights answer can actually be
+  recorded, unlike the AAOS-derivative EMT material whose exposure is already
+  an accepted risk.
+- **Boundary:** licensing is per title and not uniform. OpenStax's own
+  licensing article describes the library as CC BY-NC-SA while individual
+  titles and LibreTexts mirrors are commonly CC BY, so the licence is read from
+  the title at binding time and recorded in rights state, never inferred from
+  the publisher. NC constrains nothing for Weibao's own study and would
+  constrain a packaged redistribution, which is the same Phase 18 asymmetry as
+  the AGPL finding in `IL-20260905-04`. No bulk import; direct reading is
+  already a treatment the source-to-course path supports.
+- **Disposition:** Registered.
+- **Revisit trigger:** the first Math 1400 course build.
+
+### IL-20260905-06: The course engine needs an operating surface
+
+- **Proposal:** Give the shipped course operations a door. Extend
+  `surfaces/daemon.API_ROUTES` with the course operations (create, discover,
+  bind, objective and treatment, blueprint, accept, package) and mirror each
+  into `ROUTE_CLI` and `SURFACE_PARITY`, whose existing test already fails on a
+  route without a twin. No new durable object, no new format surface.
+- **Origin:** the measured gap pass of 2026-09-05,
+  `.planning/research/2026-09-05-what-the-vision-still-needs.md` section 2.2,
+  run at Weibao's request to find what the vision still needs.
+- **Evidence considered, all measured rather than read:** the JSON API is 15
+  routes and every one is assessment, lesson, source import, or a first-run
+  shelf action. Every `/course/` route is a GET, including the six areas and
+  the lesson view, so the Build and review area that
+  `SOURCE-TO-COURSE.md` defines as where proposals, diffs, approval, rejection
+  and undo live is read-only over HTTP. The CLI has 47 top-level commands and
+  none is course-shaped; `shelf` is four first-run walkthrough actions and
+  `source import` stops after extraction. Meanwhile 387 KB of course engine
+  across eleven modules is frozen and tested. The 17B tracer passed because it
+  drove the Python modules directly.
+- **Fit:** this is the 2026-08-21 defect at milestone scale. `/lesson/<stem>`
+  returned 200 with nothing linking to it, and no framework test could see it
+  because every test knew the URL. The same is now true of the course engine.
+- **Sequencing consequence, which is the part easy to miss:** Phase 999.3's
+  success criterion 1 exposes one MCP tool per `API_ROUTES` entry. Built today
+  it would expose fifteen assessment tools and no course tools. **999.3 is not
+  blocked on MCP work; it is blocked on there being routes worth exposing.**
+  This entry is its prerequisite, and the generated tool table is the natural
+  acceptance test for this entry: if it can build a course, the routes are
+  right. The MCP spec revision 999.3 was designed against, 2026-07-28, is still
+  current as of this date, and `scripts/ocr_mcp.py` is existing in-repo
+  precedent for the transport.
+- **Boundary:** dispatch, request schemas, and parity rows only. The handlers
+  exist. Nothing here adds a second parser, scorer, or evidence store, and
+  every mutation still goes through `journal.commit_operation` with its
+  expected-base fingerprint.
+- **Disposition:** Registered.
+- **Revisit trigger:** the next milestone's scoping, or any plan for Phase
+  999.3, which should not start before this lands.
+
+### IL-20260905-07: Plug the agent seam into a door
+
+- **Proposal:** Bind `surfaces/agent_operation.py` to one route and one CLI
+  twin, so an accepted agent proposal becomes exactly one
+  `journal.commit_operation` with a visible undo, reachable from the Agent tab
+  and from an agent client rather than only from a fixture.
+- **Origin:** the same measured pass, section 2.3.
+- **Evidence considered:** 17A-07 shipped the run, propose, accept state
+  machine in full: four states, one sentence of copy for each of the fourteen
+  `model_adapter.ADAPTER_CODES`, exactly one journal commit per accept, an undo
+  path, and a passing roundtrip suite. Its only importer outside itself is
+  `surfaces/visual_fixture.py`, the screenshot generator. It is bound to no
+  route and no command.
+- **Fit:** Weibao's 2026-08-21 entry named the gap precisely, that the Agent
+  tab and `journal.commit_operation` were "two programs in one window" and the
+  skill buttons "run nothing". 17A-07 built the machine that joins them. What
+  it did not do is give it an entrance, so the claim moved from unimplemented
+  to implemented-and-unreachable.
+- **Boundary:** reach, not authority, exactly as the 2026-08-21 interpretation
+  states. The agent may operate what the learner can operate and propose what
+  an author can propose. It may not settle a mark or release a key, and this
+  entry changes nothing about that.
+- **Dependency:** rides on `IL-20260905-06`, since the door it needs is one of
+  that entry's routes.
+- **Disposition:** Registered.
+- **Revisit trigger:** the next milestone's scoping, alongside
+  `IL-20260905-06`.
+
+### IL-20260905-08: Turn the in-product model backend on, locally first
+
+- **Proposal:** Make a local profile active in `model_backend`, so the
+  director, the treatment recommender, and the seeding loop run against real
+  material for the first time in this working copy.
+- **Origin:** the same measured pass, sections 2.4 and 4.
+- **Evidence considered:** `itembank.json` sets `model_backend.active` to `""`,
+  which `schemas/settings.schema.json` documents as disabling model calls
+  entirely, and the one registered profile names a placeholder model. So every
+  AI action in this project's history has been an external agent editing files
+  in a repository, which is not the operation protocol the product defines. The
+  product's own AI path has never been exercised here, and `seed` refuses by
+  name without a backend.
+- **Why local rather than hosted:** the work the in-product path actually does
+  is high-volume and mechanical (extract objectives, propose a treatment, draft
+  a bank, run lint and fix, propose a next action), which is a poor use of paid
+  tokens and is also the half that must degrade rather than block. The judgment
+  work is planning and review, which an external agent already does and which
+  does not need this path. Weibao's cost constraint is on the record twice.
+- **What changed externally:** ROCm 7.2 (March 2026) reached out-of-the-box
+  parity with CUDA for Ollama, LM Studio, llama.cpp, and vLLM on RDNA 3, so the
+  setup cost that made the 7900 XTX path a someday item is largely gone.
+  Reported 24 GB throughput at Q4 is roughly 40 tok/s for a 27B, 72 tok/s for a
+  26B mixture model, and 96 tok/s for an 8B; Qwen 3 32B is the quality pick
+  that still fits.
+- **Fit:** the adapter already normalizes transports behind one `invoke`, so
+  this is a settings change, not code, and a hosted profile stays registered
+  beside it so the comparison stays a settings change too. This is the seam
+  discipline of `IL-20260815-02` being used rather than described.
+- **Boundary:** the runtime still settles scoring, session state, keyed
+  disclosure, and evidence. A backend being on changes what can be drafted, not
+  who decides.
+- **Disposition:** Registered.
+- **Revisit trigger:** the first attempt to build a course through the
+  product's own director rather than through an external agent.
+
 ## Rejected
 
 ### IL-20260815-04: Plugin-first core (no privileged core; swappable scorer)
@@ -1309,3 +1532,35 @@ Amendments to an existing entry are additive notes under the entry, dated.
   than what a library would give, and the gap matters to a learner rather than
   only to a test. The third trigger is Weibao's own, from the rider quoted in
   `D-14C-2`.
+
+### IL-20260905-03: `decaying_average` and the other collapsing rollups
+
+- **Proposal considered:** adopt Canvas LMS's `decaying_average` outcome
+  calculation (and its `highest` / `latest` siblings) as a mastery rollup, so a
+  learner sees one moving number per objective.
+- **Origin:** the Canvas LMS outcomes API, read 2026-09-05 during the
+  open-source absorption pass; `.planning/research/2026-09-05-open-source-absorption.md`
+  section 3.
+- **Evidence considered:** Canvas puts four methods behind one configuration
+  switch. `decaying_average` weights recent attempts more heavily and emits a
+  single number from which the numerator and denominator cannot be recovered.
+  `highest` and `latest` discard the rest of the record entirely.
+- **Reason for rejection:** a number whose derivation is not visible is exactly
+  the collapse this project refuses. It cannot state what it counted, so it
+  cannot degrade honestly at small denominators, and it silently merges the
+  separate state axes (accepted content, workflow state, epistemic confidence)
+  that the separate-state-axes rule keeps apart.
+- **Conflicting rule:** the no-aggregate rule at `IDEA-LEDGER.md:800`; the
+  stated-denominator requirements at `REQUIREMENTS.md` lines 972 to 981, which
+  refuse a mastery percentage from sparse evidence; and `blueprint.py`'s
+  `uncertainty_for()`, which was written to band a denominator rather than
+  smooth it away.
+- **Retained alternative:** `IL-20260905-02`, N of the last M at or above a
+  threshold, which carries both numbers into the claim and is the one Canvas
+  method worth taking.
+- **Date:** 2026-09-05.
+- **Reconsideration condition:** an external consumer (an institution, a
+  transcript, an LTI grade passback) that requires a single scalar per
+  objective as a condition of interoperating. Even then it is a boundary
+  adapter's output, computed at the edge with its inputs recorded, and never a
+  progress claim itembank shows the learner as truth.
