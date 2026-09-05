@@ -513,9 +513,32 @@ def scenario_media_metadata():
         keys=model.parse_key_blocks(path), media=parsed)
     codes = [e.code for e in errors] + [w.code for w in warnings]
     media_codes = sorted(c for c in codes if c.startswith("media."))
-    if media_codes != ["media.missing_alt", "media.ref_unknown"]:
-        fail("media, lint hop: media findings are %r, expected exactly one "
-             "media.missing_alt and one media.ref_unknown" % media_codes)
+    # Four findings, not two, since `17C-AUDIT.md` F-LOSS-5: this corpus
+    # deliberately writes one of its two `present` assets to disk and gives
+    # every row a placeholder digest, so it now also exercises the two checks
+    # that compare a MEDIA declaration against the disk. `no-alt-asset`
+    # declares present and is not there; `tide-chart` is there and does not
+    # match its recorded sha256. The `missing` and `remote` rows are
+    # deliberately untouched by both checks, because only `present` is a
+    # claim about this disk.
+    if media_codes != ["media.declared_present_missing",
+                       "media.integrity_mismatch", "media.missing_alt",
+                       "media.ref_unknown"]:
+        fail("media, lint hop: media findings are %r, expected one each of "
+             "media.declared_present_missing, media.integrity_mismatch, "
+             "media.missing_alt, and media.ref_unknown" % media_codes)
+    disk_texts = [str(w) for w in warnings]
+    if not any("no-alt-asset" in t and "does not exist beside this bank" in t
+               for t in disk_texts):
+        fail("media, lint hop: the declared-present-missing finding does not "
+             "name no-alt-asset")
+    if not any("tide-chart" in t and "digests as" in t for t in disk_texts):
+        fail("media, lint hop: the integrity finding does not name "
+             "tide-chart")
+    for absent in ("harbour-photo", "remote-diagram"):
+        if any(absent in t for t in disk_texts):
+            fail("media, lint hop: %s declares availability missing or "
+                 "remote and must not be checked against this disk" % absent)
     texts = [str(e) for e in errors]
     if not any("no-alt-asset" in t and "media.missing_alt" not in t
                and "accessible alternative" in t for t in texts):

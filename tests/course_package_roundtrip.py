@@ -137,7 +137,8 @@ def check_manifest_and_losses():
         eq(course_package.LOSS_CATEGORIES,
            ("external-link", "rights-restricted", "machine-local",
             "unreachable-source", "unsupported-kind",
-            "evidence-not-carried"), "LOSS_CATEGORIES")
+            "evidence-not-carried", "unregistered-file",
+            "provenance-not-carried"), "LOSS_CATEGORIES")
         link_row = only_row(manifest, "external-link", linked,
                             "the linked source")
         if "linked, not imported" not in link_row["reason"]:
@@ -249,8 +250,16 @@ def check_empty_course(tmp):
     manifest = course_package.export_package(root, root, pkg)
     eq(len(manifest["entries"]), 1,
        "an empty course packages exactly its own sidecar")
-    eq(len(manifest["loss_report"]), 1,
-       "an empty course loses exactly the machine-local settings row")
+    # Two rows, not one: the machine-local settings row, and the
+    # `provenance-not-carried` row that every package carries because a
+    # restore mints the destination's own journal (`17C-AUDIT.md` F-LOSS-1).
+    # Even an empty course has a mint entry whose origin does not travel.
+    eq(len(manifest["loss_report"]), 2,
+       "an empty course loses the machine-local settings row and its "
+       "provenance")
+    eq(sorted(r["category"] for r in manifest["loss_report"]),
+       ["machine-local", "provenance-not-carried"],
+       "an empty course's loss categories")
     eq(manifest["loss_report"][0]["category"], "machine-local",
        "the one loss row of an empty course")
 
@@ -728,6 +737,34 @@ def check_adoption_rights_and_evidence():
         only_row(manifest, "evidence-not-carried",
                  course_package.EVIDENCE_FILENAME,
                  "the unclaimed evidence row")
+        # `17C-AUDIT.md` F-LOSS-1, F-LOSS-4, F-LOSS-5: a file the exporter
+        # cannot see and a history it cannot carry are both named, because
+        # "not carried" and "not mentioned" are different claims and only
+        # the second one lets a restored course read complete while it is
+        # not.
+        stray = os.path.join(root, "media", "diagram.svg")
+        os.makedirs(os.path.dirname(stray), exist_ok=True)
+        with open(stray, "w", encoding="utf-8") as fh:
+            fh.write("<svg xmlns='http://www.w3.org/2000/svg'></svg>\n")
+        manifest = course_package.build_manifest(root, root)
+        only_row(manifest, "unregistered-file", "media/diagram.svg",
+                 "the unregistered media file")
+        for entry in manifest["entries"]:
+            if entry["relpath"] == "media/diagram.svg":
+                fail("an unbound file must be named, not packaged")
+        provenance = rows_for(manifest, "provenance-not-carried")
+        if len(provenance) != 1:
+            fail("want exactly one provenance-not-carried row, got %d"
+                 % len(provenance))
+        if "revision 1" not in provenance[0]["reason"]:
+            fail("the provenance row must say what a restored object "
+                 "arrives as")
+        for row in manifest["loss_report"]:
+            if row["target"].startswith("_journal/") or \
+                    row["target"].startswith("_evidence/"):
+                fail("the journal and the evidence store have their own "
+                     "rows and are never walked as stray files")
+
         print("ok  adoption, rights grants, and the evidence join")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

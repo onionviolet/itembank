@@ -62,7 +62,8 @@ LOSS_REPORT_FILENAME = "LOSS-REPORT.md"
 # than one that says what is missing.
 LOSS_CATEGORIES = ("external-link", "rights-restricted", "machine-local",
                    "unreachable-source", "unsupported-kind",
-                   "evidence-not-carried")
+                   "evidence-not-carried", "unregistered-file",
+                   "provenance-not-carried")
 
 # The one operation-specific right that gates payload inclusion (RIGHTS-01).
 # `export` is handing a file to a person; `package` is writing it into a
@@ -100,6 +101,27 @@ LOSS_REASONS = {
     # simply absent, so a restored course read complete on the evidence axis
     # while empty. An event this course cannot claim is named here with what
     # it was scoped by, never dropped in silence.
+    # `17C-AUDIT.md` F-LOSS-3, F-LOSS-4, and F-LOSS-5. A package carries
+    # registry objects, so a file inside the course root that no operation
+    # ever bound is invisible to it: in the audited course that was a README,
+    # a treatments record, six session files, and the media a restored bank
+    # cites by name and digest. The file not crossing is defensible; the
+    # report not saying so is what made a restored course read complete and
+    # not be.
+    "unregistered-file": "inside the course root and bound by no operation, "
+                         "so no object carries it; named here rather than "
+                         "left out in silence. Bind it (link, import, or "
+                         "copy) if it belongs to the course",
+    # `17C-AUDIT.md` F-LOSS-1 and F-LOSS-2. A restore mints the destination's
+    # own journal, which is what makes a clean-machine restore clean. The
+    # cost is that provenance and recorded rights do not travel, and until
+    # this row nothing said so.
+    "provenance-not-carried": "the operation journal is not packaged: %d "
+                              "applied entr(y/ies) of history, and the "
+                              "rights recorded on them, stay on the "
+                              "exporting machine. A restored object arrives "
+                              "at revision 1 with its rights unknown, and "
+                              "unknown stays restrictive",
     "evidence-not-carried": "%d event(s) in the evidence log at this course "
                             "root belong to no bank, objective, or session "
                             "of this course (%s); they stay in the store "
@@ -290,6 +312,8 @@ def build_manifest(base, course_root):
     _carried, evidence_losses = evidence_export_lines(
         course_root, evidence_scope(base, course_root))
     losses.extend(evidence_losses)
+    losses.extend(unregistered_file_losses(base, course_root, registry))
+    losses.extend(provenance_losses(base))
 
     entries.sort(key=lambda e: (e["kind"], e["object_id"]))
     losses.sort(key=lambda r: (r["category"], r["target"]))
@@ -302,6 +326,64 @@ def build_manifest(base, course_root):
         "entries": entries,
         "loss_report": losses,
     }
+
+
+# Directories inside a course root this walk never reports: the journal has
+# its own loss row, the evidence store is exported beside the payload, and
+# neither is an unbound file a person put there.
+UNREGISTERED_SKIP_DIRS = ("_journal", "_evidence")
+
+
+def unregistered_file_losses(base, course_root, registry):
+    """One loss row per file inside `course_root` that no registry object
+    binds.
+
+    A package carries registry objects, so an unbound file is invisible to
+    it: the exporter cannot see it, which is a different claim from the
+    learner not needing it (`17C-AUDIT.md` F-LOSS-4). The row is the
+    difference between the two, and it is what stops a restored course
+    reading complete while a bank's cited media is missing (F-LOSS-5).
+    """
+    root = os.path.abspath(course_root)
+    if not os.path.isdir(root):
+        return []
+    bound = set()
+    for row in registry.values():
+        path = row.get("path")
+        if path:
+            bound.add(os.path.normpath(
+                os.path.join(os.path.abspath(base), path)))
+    rows = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames
+                             if d not in UNREGISTERED_SKIP_DIRS)
+        for name in sorted(filenames):
+            full = os.path.normpath(os.path.join(dirpath, name))
+            if full in bound:
+                continue
+            rows.append(_loss_row(
+                "unregistered-file",
+                os.path.relpath(full, root).replace(os.sep, "/"),
+                LOSS_REASONS["unregistered-file"]))
+    return rows
+
+
+def provenance_losses(base):
+    """The one row saying the operation journal does not travel.
+
+    Reported once, with the count of applied entries left behind, rather
+    than per object: it is one fact about the package, not a property of
+    any single artifact (`17C-AUDIT.md` F-LOSS-1 and F-LOSS-2).
+    """
+    try:
+        applied = sum(1 for entry in journal.entries(base)
+                      if entry.get("state") == "applied")
+    except Exception:
+        return []
+    if not applied:
+        return []
+    return [_loss_row("provenance-not-carried", journal.LOG_FILENAME,
+                      LOSS_REASONS["provenance-not-carried"] % applied)]
 
 
 def loss_report_text(manifest):

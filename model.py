@@ -2470,6 +2470,12 @@ VISUAL LINT CODES
                                       outside present|missing|remote
   media.ref_unknown         error     [MEDIA: <id>] names no id in the
                                       ## MEDIA registry
+  media.declared_present_missing
+                            warning   a ## MEDIA row declares availability
+                                      present and the file is not beside the
+                                      bank
+  media.integrity_mismatch  warning   a ## MEDIA row records a sha256 that
+                                      the file on disk does not match
   activity.duplicate_item   error     a ## ACTIVITIES item id is declared more
                                       than once (ACTIVITY-01)
   activity.empty_block      warning   ## ACTIVITIES carries a header row and no
@@ -2796,6 +2802,7 @@ LINT_CODES = tuple(sorted({
     "lesson.definition_before_example", "lesson.example_order_no_reason",
     "media.duplicate_id", "media.missing_alt", "media.unknown_rights",
     "media.unknown_availability", "media.ref_unknown",
+    "media.declared_present_missing", "media.integrity_mismatch",
     "activity.duplicate_item", "activity.empty_block", "activity.item_unknown",
     "activity.unknown_purpose", "activity.demand_empty",
     "activity.unknown_retry", "activity.unknown_feedback",
@@ -4075,6 +4082,42 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
                     "media id %s declares availability %s, which is not one "
                     "of %s" % (aid, availability or "''",
                                ", ".join(_capabilities.MEDIA_AVAILABILITY))))
+        # `17C-AUDIT.md` F-LOSS-5. A restored course carried its bank and not
+        # the file the bank's MEDIA row declares `present`, and lint reported
+        # zero findings, so the first person to meet the loss was the reader
+        # of a page with a missing diagram. These two check the declaration
+        # against the disk. They are warnings, not errors: a bank read on a
+        # machine that does not hold the asset yet (a fresh restore, a
+        # partial sync) is not malformed, and an availability of `missing` or
+        # `remote` is an honest declaration this must not punish. Only
+        # `present` is checked, because only `present` is a claim about this
+        # disk.
+        bank_dir = os.path.dirname(os.path.abspath(media.get("path") or ""))
+        for aid, asset in assets.items():
+            if (asset.get("availability") or "").strip() != "present":
+                continue
+            rel = (asset.get("path") or "").strip()
+            if not rel or "://" in rel:
+                continue
+            target = os.path.normpath(os.path.join(bank_dir, rel))
+            if not os.path.exists(target):
+                warnings.append(LintError(
+                    "media.declared_present_missing", "media", "BANK",
+                    "media id %s declares availability present, but %s does "
+                    "not exist beside this bank; the declaration and the "
+                    "disk disagree" % (aid, rel)))
+                continue
+            declared = (asset.get("integrity") or "").strip().lower()
+            if not declared.startswith("sha256:"):
+                continue
+            digest = hashlib.sha256(open(target, "rb").read()).hexdigest()
+            if digest != declared.split(":", 1)[1].strip():
+                warnings.append(LintError(
+                    "media.integrity_mismatch", "media", "BANK",
+                    "media id %s records %s, but %s on disk digests as "
+                    "sha256:%s; the file changed since it was recorded"
+                    % (aid, declared, rel, digest)))
+
         for ref in media.get("refs") or []:
             if ref["id"] not in assets:
                 errors.append(LintError(
