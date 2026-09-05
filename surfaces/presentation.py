@@ -460,7 +460,7 @@ def _action_markup(action, primary=False):
 
 def surface_shell(title, body, theme_css="", back=None, wide=False,
                   context=None, noscript=None, extra_css="", doc_title=None,
-                  tail="", classes=""):
+                  tail="", classes="", palette=False):
     """The one shared semantic document shell: doctype, generated theme
     block plus shared design-token CSS, an optional sticky context line,
     an optional back link, a single `h1`, a `main` landmark holding `body`,
@@ -471,6 +471,11 @@ def surface_shell(title, body, theme_css="", back=None, wide=False,
     instead of assembling a second one, which is the whole point of plan
     17A-02: a token freeze that a served route bypasses is not a freeze.
     Each defaults to today's behaviour, so no existing caller changes.
+
+    `palette=True` adds the command palette's own sheet and its overlay
+    after `main`. Off by default, because the palette reaches routes and a
+    document with no server behind it (the offline build, an exported page)
+    must not offer them.
 
     `extra_css` is emitted AFTER `SHARED_CSS`, so a surface's own sheet still
     wins the cascade it won when it owned the whole document. `doc_title`
@@ -491,6 +496,10 @@ def surface_shell(title, body, theme_css="", back=None, wide=False,
     if noscript is not None:
         ns = "<noscript><p>%s</p></noscript>" % esc(noscript)
     sheet = SHARED_CSS if not extra_css else (SHARED_CSS + "\n" + extra_css)
+    if palette:
+        from surfaces import palette as palette_surface
+        sheet = sheet + "\n" + palette_surface.PALETTE_CSS
+        tail = tail + palette_surface.palette_markup()
     style = "<style>\n%s\n%s\n</style>" % (theme_css, sheet)
     cls = "surface" + (" wide" if wide else "")
     if classes:

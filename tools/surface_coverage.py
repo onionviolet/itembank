@@ -83,6 +83,8 @@ NOT_A_CAPABILITY = {
     "GET /disclosure": "the same state as the CLI command",
     "POST /seed/accept": "accepts a seeded first-run corpus; first-run only",
     "GET /activity": "the durable-job view; see agent operation/inspect",
+    "GET /palette": "the command palette's index: it lists the routes and "
+                    "commands that already exist and reaches nothing new",
 }
 
 # (object, verb) -> {"cli": [...], "http": [...], "note": "..."}

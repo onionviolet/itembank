@@ -304,6 +304,11 @@
     },
     {
       "method": "GET",
+      "path": "/palette",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
       "path": "/disclosure",
       "token_gated": true
     },

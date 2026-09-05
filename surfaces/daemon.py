@@ -31,8 +31,8 @@ from runtime import (checkpoint_feedback, explain_payload, glossable,
                      lesson_run_advance, lesson_run_record, read_lesson_run,
                      read_session, start_lesson_run, upgrade_session)
 from surfaces import (day, evidence_cli, home, ia, launcher, lesson, looks,
-                      presentation, quiz, quiz_page, retention_view, seeding,
-                      session, settings, study, update)
+                      palette, presentation, quiz, quiz_page, retention_view,
+                      seeding, session, settings, study, update)
 from surfaces import audio as audio_surface
 from surfaces import theme
 from surfaces.session import UNKNOWN_LANGUAGE_COPY
@@ -333,6 +333,7 @@ ROUTES = (
     ("GET", "/day", "handle_day_index"),
     ("GET", "/report", "handle_report_get"),
     ("GET", "/settings", "handle_settings_get"),
+    ("GET", "/palette", "handle_palette"),
     ("GET", "/disclosure", "handle_disclosure"),
     ("GET", "/activity", "handle_activity_get"),
     ("POST", "/api/theme", "handle_theme_post"),
@@ -371,6 +372,9 @@ ROUTE_CLI = {
     ("GET", MARKER_PATH): "daemon",
     ("GET", "/report"): "report",
     ("GET", "/settings"): "theme",
+    # The palette's own CLI twin is `itembank help-code`, the other command
+    # whose whole job is telling a person what exists.
+    ("GET", "/palette"): "help-code",
     ("GET", "/disclosure"): "disclosure",
     ("GET", "/activity"): "activity",
     ("POST", "/api/theme"): "theme",
@@ -542,7 +546,8 @@ def handle_activity_get(handler):
     handler.send_html(presentation.surface_shell(
         "Activity", body,
         theme_css=theme.theme_css(settings.load_settings(handler.root)),
-        back={"href": "/", "label": "Back to courses"}).encode("utf-8"))
+        back={"href": "/", "label": "Back to courses"},
+        palette=True).encode("utf-8"))
 
 
 def handle_help_get(handler, code):
@@ -856,7 +861,8 @@ def _course_frame(handler, state, back, course_dir=None):
     return presentation.surface_shell(
         state["course_name"], body,
         theme_css=theme.theme_css(settings.load_settings(handler.root)),
-        back=back, noscript=COURSE_NOSCRIPT, tail=RESTORE_SCRIPT)
+        back=back, noscript=COURSE_NOSCRIPT, tail=RESTORE_SCRIPT,
+        palette=True)
 
 
 def _course_not_found(handler):
@@ -869,6 +875,23 @@ def _course_not_found(handler):
         "That link does not resolve", body,
         theme_css=theme.theme_css(settings.load_settings(handler.root)),
         back={"href": "/", "label": "Back to courses"}).encode("utf-8"), 404)
+
+
+def handle_palette(handler):
+    """`GET /palette` -- the command palette's index, as JSON.
+
+    Built from the shipped surfaces on every request rather than cached: the
+    bank scan, the course shelf and the parser are the same three sources the
+    rest of the daemon reads, and a palette that answered from a snapshot
+    would offer a course that had been removed. It performs no write and
+    reaches nothing a GET does not already reach.
+    """
+    cfg = settings.load_settings(handler.root)
+    handler.send_bytes(
+        palette.palette_json(handler.root, handler.banks,
+                             selected_look=looks.resolve(cfg.get("look")))
+        .encode("utf-8"),
+        "application/json; charset=utf-8")
 
 
 def handle_course_get(handler, course_id):
@@ -1484,7 +1507,7 @@ def handle_report_get(handler):
             title = "Subject report"
         page = presentation.surface_shell(
             title, body, theme_css=theme_block,
-            back={"href": "/", "label": "itembank"})
+            back={"href": "/", "label": "itembank"}, palette=True)
         handler.send_html(page.encode("utf-8"))
         return
     path = api_session_path(handler, session_id)
@@ -1784,7 +1807,7 @@ def handle_index(handler):
             _course_shelf_body(shelf, ia.walkthrough_state(handler.root),
                                sample),
             theme_css=theme_block,
-            noscript=SHELF_NOSCRIPT).encode("utf-8"))
+            noscript=SHELF_NOSCRIPT, palette=True).encode("utf-8"))
         return
     if not banks and not plans:
         served_dir = html.escape(os.path.abspath(handler.root))
@@ -1797,7 +1820,7 @@ def handle_index(handler):
         body = home.render_home(state, mode, note=note)
     page = presentation.surface_shell(
         "itembank", body,
-        theme_css=theme_block + home.HOME_CSS)
+        theme_css=theme_block + home.HOME_CSS, palette=True)
     handler.send_html(page.encode("utf-8"))
 
 
@@ -2039,7 +2062,8 @@ def handle_settings_get(handler):
         handler.send_server_error(RuntimeError(str(exc.code)))
         return
     handler.send_html(
-        theme.theme_page(cfg, sections=_mode_layer_section()).encode("utf-8"))
+        theme.theme_page(cfg, sections=_mode_layer_section(),
+                         palette=True).encode("utf-8"))
 
 
 def handle_theme_post(handler):
