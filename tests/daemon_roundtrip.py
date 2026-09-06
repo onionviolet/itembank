@@ -1302,12 +1302,15 @@ def check_api_route_scope():
     and in SURFACE_PARITY with its reserved MCP tool name (Extensibility
     Rule 9(a)).
     """
-    if len(daemon.API_ROUTES) != 20:
+    if len(daemon.API_ROUTES) != 30:
         fail("D-04 + Phase 6 + 06.1-02 + 08-05 + 10-04/10-05 + 09.1 + 09 + 14 "
-             "+ 14C + 16B-09 + 19A scope /api/* to exactly twenty routes: the "
-             "sixteen assessment, lesson, source and shelf routes, plus the "
-             "four under /api/course/ that Phase 19A opened (create, rename, "
-             "bind, rights). API_ROUTES has %d" % len(daemon.API_ROUTES))
+             "+ 14C + 16B-09 + 19A scope /api/* to exactly thirty routes: "
+             "the sixteen assessment, lesson, source and shelf routes, plus "
+             "the fourteen under /api/course/ that Phase 19A opened (create "
+             "and rename in 19A-01; add-source, bind, rights and bindings in "
+             "19A-02; add-container, add-objective, add-edge, structure and "
+             "the four objective identity moves in 19A-03). API_ROUTES has "
+             "%d" % len(daemon.API_ROUTES))
     # 19A-01, amending 19A-CONTEXT D-02: the source-binding door landed on
     # /api/bind and /api/rights before the namespace existed. Both were
     # re-homed under /api/course/ and both old paths keep serving as
@@ -1329,12 +1332,42 @@ def check_api_route_scope():
         if canonical != [handler_name]:
             fail("%s %s does not reach the same handler as its canonical "
                  "/api/course/ route" % (method, path))
-    for path, twin, tool in (("/api/course/create", "course", "course_create"),
-                             ("/api/course/rename", "course", "course_rename")):
+    for path, twin, tool in (
+            ("/api/course/create", "course", "course_create"),
+            ("/api/course/rename", "course", "course_rename"),
+            ("/api/course/add-source", "course", "course_add_source"),
+            ("/api/course/bind", "bind", "bind"),
+            ("/api/course/rights", "bind", "rights_record"),
+            ("/api/course/bindings", "bind", "course_bindings"),
+            ("/api/course/add-container", "course", "course_add_container"),
+            ("/api/course/add-objective", "course", "course_add_objective"),
+            ("/api/course/add-edge", "course", "course_add_edge"),
+            ("/api/course/structure", "course", "course_structure"),
+            ("/api/course/rename-objective", "course",
+             "course_rename_objective"),
+            ("/api/course/split-objective", "course",
+             "course_split_objective"),
+            ("/api/course/merge-objectives", "course",
+             "course_merge_objectives"),
+            ("/api/course/overlay-objective", "course",
+             "course_overlay_objective")):
         if daemon.ROUTE_CLI.get(("POST", path)) != twin:
             fail("POST %s must map to the %s CLI twin" % (path, twin))
         if (("POST", path), twin, tool) not in daemon.SURFACE_PARITY:
             fail("POST %s must reserve the MCP tool name %r" % (path, tool))
+    # 19A-02: every course operation the spine dispatches has a route, and
+    # every /api/course/ route names an operation the spine dispatches. A
+    # route without an operation would answer nothing; an operation without a
+    # route is an engine function with no door, which is the whole finding
+    # Phase 19A exists to close.
+    from surfaces import course_ops
+    routed = set(p.rsplit("/", 1)[-1].replace("-", "_")
+                 for _m, p, _h in daemon.API_ROUTES
+                 if p.startswith("/api/course/"))
+    if routed != set(course_ops.OPERATIONS):
+        fail("the /api/course/ routes and course_ops.OPERATIONS disagree: "
+             "routes %s, operations %s"
+             % (sorted(routed), sorted(course_ops.OPERATIONS)))
     if daemon.ROUTE_CLI.get(("POST", "/api/mark")) != "mark":
         fail("POST /api/mark must map to the mark CLI twin")
     if daemon.ROUTE_CLI.get(("POST", "/api/shelf")) != "shelf":

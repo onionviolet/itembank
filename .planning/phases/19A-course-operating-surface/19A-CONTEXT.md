@@ -170,6 +170,168 @@ door a person or an agent client can open.
   `28a6da7`. The count is now twenty and the assertion says what each entry
   is.
 
+- **19A-02, executed 2026-09-05**, on commit `5e9d4eb`
+  ("feat(course): the dispatch spine, and a course you can create from a
+  surface"). The source-binding family, D-07's second row, hung in the spine
+  19A-01 built.
+- **What landed.** Four `$defs` nodes in
+  `schemas/course_operation.schema.json` (`add_source`, `bind`, `rights`,
+  `bindings`) plus six shared ones, all six operations in the top-level
+  `oneOf`; `_op_add_source`, `_op_bind`, `_op_rights`, `_op_bindings` in
+  `surfaces/course_ops.py`; `POST /api/course/add-source` and `POST
+  /api/course/bindings` as new routes, with `POST /api/course/bind` and
+  `POST /api/course/rights` re-hung in the spine at their published paths
+  and with their published response envelopes intact; `itembank course
+  add-source` and an `itembank bind` that now dispatches through
+  `course_ops.run`; `ROUTE_CLI` and `SURFACE_PARITY` rows in the same
+  commit (`course_add_source`, `course_bindings`); the new checks in
+  `tests/course_ops_roundtrip.py` and the route-scope count in
+  `tests/daemon_roundtrip.py`.
+- **The gap the wave actually closed.** `graph.add_source` had no caller
+  outside two tests. A source could be imported (the journal registry held
+  the object) and bound (a binding row names an object id), and the course's
+  own Sources section stayed empty, so the Sources area, `itembank bind
+  list` and any package manifest that walks the sidecar could not see it.
+  `add_source` is that door. It refuses a source the registry does not hold,
+  because a row naming nothing is a durable claim with nothing behind it,
+  and refuses a second row for one source, because a Sources row is a
+  reference and not a claim about a place the way a binding row is.
+- **D-07's read functions got a reader.** `graph.validate_binding` and
+  `course.rights_for_binding` had no surface at all. The `bindings`
+  operation runs every row through the first and re-reads every right
+  through the second, and reports the recorded snapshot beside the current
+  state. That divergence, a snapshot still saying `granted` after the grant
+  was revoked, is the one thing a coverage claim cannot notice about itself,
+  and it fills `source binding / explain` on the grid.
+- **The grid moved 40 -> 41 of 82.** `source binding / explain` is filled.
+  `source / create` gained its second command, and `rights grant / explain`
+  stays empty with a narrower note: the right each binding consumes and its
+  current state are now visible, and what is still missing is why an export
+  or a package that already refused did so.
+- **One new rule in the spine, and it is about addressing.** `run` takes an
+  optional already-resolved `base`, because `itembank bind --base .`
+  addresses the course root a person is standing in while the route
+  addresses a course by id. The request document is unchanged by this: the
+  command reads the course's own `course_object_id` off the sidecar and
+  sends that, so no request on either surface carries a path.
+- **Deviation, stated rather than absorbed.** `_course_operation` gated
+  every course write with `_reject_cross_origin` only, which is the
+  read-side check. On a `--lan` daemon that let a phone on the same wifi
+  mint, rename and bind a course, while `/api/source/import`, every day
+  write and every theme save were already loopback-only. The spine now
+  chooses its gate by what the operation does, using
+  `course_ops.READ_OPERATIONS`. The shared refusal said "day write
+  requires a loopback client" while already gating
+  `/api/source/import`; it now says "this write", because a course
+  write refused with the word day in it is a refusal that
+  misdescribes itself. This is a hardening of 19A-01's own spine
+  rather than 19A-02 scope, and it is recorded here rather than left as a
+  silent behaviour change: a LAN client that was minting courses will now be
+  refused, which is the intended correction.
+- **D-09 read, and the deviation from it is the same one 19A-01 declared.**
+  No new UI screen, no assessment route touched, no format change, no new
+  module: the four operations went into `surfaces/course_ops.py` and the two
+  handlers into `surfaces/daemon.py`, beside their neighbours.
+  `_binding_course_dir` in `daemon.py` was deleted, not left dead, because
+  the spine's `resolve_course` is the same resolution.
+- **Defect found and fixed the next session, in 19A-02's own work.** The
+  `bind` node's `treatment` enum had been written out by hand and did not
+  match `graph.TREATMENT_KINDS`: it named seven treatments the engine does
+  not have (`quiz`, `exam`, `practice-set`, `flashcards`, `project`,
+  `discussion`, `tutoring`) and omitted seven it does (`notes-or-terms`,
+  `visual-or-demonstration`, `practice`, `formal-test`,
+  `assessment-first-diagnostic`, `learner-artifact`, `human-review`), so a
+  legitimate treatment binding for seven of the eleven kinds was refused by
+  the published document on both surfaces at once. It escaped the wave
+  because the existing treatment tests call `binding_cli.bind` directly and
+  the one HTTP binding test binds a source. The enum now equals the tuple,
+  and `tests/course_ops_roundtrip.py` asserts every closed vocabulary the
+  document publishes against the engine tuple it copies, which is the check
+  that would have caught it. A published enum is a copy, and a copy drifts;
+  the fix is the assertion, not more care.
+- **What 19A-02 deliberately did not do.** `source binding / change` and
+  `source binding / undo` stay empty. Re-pointing or removing a binding
+  needs an engine function `graph` does not have, and the reach milestone
+  adds no capability; the undo sentences those operations return say plainly
+  that the reversal today is restoring the sidecar's previous journalled
+  revision, rather than naming a command that does not exist. The treatment
+  half of the `bind` node is served because the route already served it
+  before the spine existed; 19A-04 gives the treatment family its own
+  operations and this node keeps working.
+
+- **19A-03, executed 2026-09-05.** The structure and objective-editing
+  families, D-07's third and fourth rows, in one wave because the plan table
+  pairs them and because an objective with no container to sit in and no edge
+  to relate it is only half a door.
+- **What landed.** Eight `$defs` nodes (`add_container`, `add_objective`,
+  `add_edge`, `structure`, `rename_objective`, `split_objective`,
+  `merge_objectives`, `overlay_objective`) plus six shared ones; eight
+  operations in `surfaces/course_ops.py` over one shared `_edit_sidecar`;
+  eight routes and eight handlers in `surfaces/daemon.py`; eight
+  `itembank course` subcommands; `ROUTE_CLI` and `SURFACE_PARITY` rows in the
+  same commit; new checks in `tests/course_ops_roundtrip.py` and the
+  route-scope count at thirty in `tests/daemon_roundtrip.py`.
+- **The grid moved 41 -> 43 of 82.** `objective / create` and
+  `objective / change` are filled, and `course / change` and
+  `objective / inspect` gained commands. `objective / undo` stays empty with
+  a truer note: an identity move is reversed by REJECTING its migration, and
+  the accept and reject doors are 19A-07's wave.
+- **One shared helper, and it is a correctness argument rather than
+  tidiness.** All eight writes are an `edit_in_place` on one file, so
+  `_edit_sidecar` reads, lets a closure edit the parsed document, and writes
+  back through the one compare-and-swap path. Eight separate read-and-write
+  bodies would have been eight chances to forget the expected fingerprint,
+  and a durable write without one is the silent overwrite the rule exists to
+  prevent. `journal.OPERATION_TYPES` is still six.
+- **What the wave refuses to do, which is most of what it is for.** A
+  container and an objective each add zero edges, so an outline never becomes
+  a prerequisite claim by accident (GRAPH-01). A prerequisite pointing
+  backwards through the authored order is RECORDED and returned as a warning,
+  never refused and never fixed: the authored sequence is the author's, and a
+  surface that silently reordered it would make every future diff unreadable.
+  A cycle is named and never broken. `propose_order` returns a sequence and
+  writes nothing. Rename, split and merge each add rows and delete none, and
+  record the migration as `proposed`, because the identity a learner's
+  evidence was recorded against has to stay in the file or that evidence
+  stops naming anything. An imported objective is never edited in place and
+  `overlay_objective` is the door that revises it.
+- **The `add_objective` node deliberately publishes no `origin` field.** An
+  imported scope binds as an immutable version, so a client that could claim
+  `imported` could make a hand-authored row un-editable for a reason that was
+  never true, and the only way back would be an overlay onto an import that
+  never happened. The test asserts the field's absence, not just the
+  behaviour.
+- **The CLI became schema-driven.** `cmd_course` fills each property the
+  operation's node declares from the argparse attribute of the same name, so
+  adding an operation is adding a node and a parser and nothing else. A test
+  asserts every published field of every operation has an argument on its
+  twin and every required field is required, which is the check that would
+  have caught a field reachable from the route and not from the command.
+- **Two structural test improvements, both prompted by this wave.** The
+  loopback-gate check now RUNS every operation the spine calls a read against
+  a real course and asserts the sidecar's fingerprint and revision are
+  unchanged, so a later wave that misclassifies a write as a read fails there
+  rather than serving that write to a phone on the same wifi. And every route
+  in the namespace is checked to name a handler that exists and is callable,
+  because `_dispatch` resolves a handler by name out of the module globals
+  and a name with a typo in it dispatches to nothing while both route tables
+  still look right.
+- **One test was written twice, and the second version is the honest one.**
+  The handler-wiring check first POSTed an empty body to all fourteen routes
+  and asserted a typed 400. It was flaky at one run in three, and raising the
+  timeout from five seconds to thirty did not fix it, so it was not latency.
+  A probe of 120 sequential POSTs across old and new routes showed zero
+  timeouts, so it is not the routes either, and the daemon's captured output
+  pipe is already drained on a background thread, so it is not a full pipe.
+  What remains is the same intermittent daemon hang
+  `check_concurrent_requests_share_one_session` has been failing on at HEAD
+  on this machine. Whether a handler name resolves is a static property, so
+  it is now asserted statically and the check is stable at six runs of six;
+  the routes' behaviour is covered by the request checks above. A test that
+  fails for a defect it is not measuring is a test nobody reads, and the
+  hang itself is tracked separately rather than absorbed here.
+
+
 ## Plan set
 
 Sequential waves; the executor runs one at a time.
@@ -177,8 +339,8 @@ Sequential waves; the executor runs one at a time.
 | Plan | What it lands |
 |---|---|
 | 19A-01 | Precondition halt, the dispatch spine, the first family (course lifecycle) end to end through route, twin, schema, and parity row, as the pattern every later plan copies |
-| 19A-02 | Source binding, with rights read at bind time |
-| 19A-03 | Structure and objective editing |
+| 19A-02 | Source binding, with rights read at bind time (executed 2026-09-05) |
+| 19A-03 | Structure and objective editing (executed 2026-09-05) |
 | 19A-04 | Treatment binding |
 | 19A-05 | Director operations, including autonomy level and the reverse and replay paths |
 | 19A-06 | Blueprint and audit |

@@ -163,16 +163,49 @@ def _emit(payload, as_json):
     return payload
 
 
+def _through_the_spine(a, operation, request):
+    """Send one `itembank bind` request through the course operating
+    surface's dispatch spine, so the command and the route validate against
+    the same published node (19A-02).
+
+    Two things are worth stating about the shape of this call. The import is
+    function-local because the spine imports THIS module for the binding
+    implementation: one direction at import time, the other at call time, so
+    there is no cycle and no third module holding two halves of one
+    operation. And the course id is read from the sidecar at `--base` rather
+    than asked for: the request that reaches the spine carries the course's
+    own object id and no path, exactly like the route's, while the person at
+    the terminal still addresses the course as the directory they are
+    standing in.
+    """
+    from surfaces import course_ops
+
+    base = _course_base(a.base)
+    request = dict(request)
+    request["course_id"] = course_module.read_course(base)["object_id"]
+    if getattr(a, "actor", ""):
+        request["actor"] = a.actor
+    return course_ops.run(os.path.dirname(base), operation, request,
+                          actor_kind="human",
+                          actor_name=getattr(a, "actor", "") or "", base=base)
+
+
 def cmd_bind(a):
     """`itembank bind` -- the first course-shaped command.
 
     Three actions, all of them one call into `course`: `source` and
     `treatment` record a binding, and `list` reads what a course holds so a
     caller can see the objective ids and source ids the other two need.
+
+    Since 19A-02 every action goes through `course_ops.run`, so the command
+    is refused by the same published request document the route is refused
+    by, and `list` prints the effective reading of each binding rather than
+    the raw row: what it claims, and whether the right it was made under
+    still reads the same way.
     """
     try:
         if a.action == "list":
-            payload = bindings(a.base)
+            payload = _through_the_spine(a, "bindings", {})
             if getattr(a, "json", False):
                 return _emit(payload, True) and 0
             print("course %s" % payload["course_object_id"])
@@ -186,11 +219,22 @@ def cmd_bind(a):
                       % ", ".join("%s=%s" % (k, v)
                                   for k, v in sorted(row["rights"].items())))
             print("\nBindings (%d)" % len(payload["bindings"]))
-            for row in payload["bindings"]:
+            for row in payload["readings"]:
                 print("  %-9s %s -> %s  %s"
-                      % (row.get("binding_kind", ""), row.get("objective", ""),
-                         row.get("source_object_id", ""),
-                         row.get("locator", "")))
+                      % (row["binding_kind"], row["objective"],
+                         row["source_object_id"], row["locator"]))
+                print("      %s %s, consumes %s (recorded %s, now %s)%s"
+                      % (row["state"], row["confidence"],
+                         row["right_consumed"] or "an unknown right",
+                         row["rights_snapshot"] or "nothing",
+                         row["rights_now"],
+                         "  <-- the right has changed"
+                         if row["rights_diverged"] else ""))
+            if payload["diverged"]:
+                print("\n%d binding(s) rest on a right that has changed "
+                      "since they were recorded. A snapshot is history, not "
+                      "permission: the next write against that source reads "
+                      "the registry again." % payload["diverged"])
             return 0
         if a.action == "rights":
             names = [n.strip() for n in (a.grant or "").split(",") if n.strip()]
@@ -202,20 +246,26 @@ def cmd_bind(a):
                 grants[name] = "granted"
             for name in denied:
                 grants[name] = "denied"
-            payload = rights_grant(a.base, a.source, grants,
-                                   actor_name=a.actor or "")
+            payload = _through_the_spine(a, "rights",
+                                         {"source": a.source,
+                                          "grants": grants})
             if getattr(a, "json", False):
                 return _emit(payload, True) and 0
             print("recorded on %s: %s"
                   % (payload["source_object_id"],
                      ", ".join("%s=%s" % (k, v) for k, v
                                in sorted((payload["rights"] or {}).items()))))
+            print("  undo: %s" % payload["undo"])
             return 0
-        payload = bind(a.base, a.objective, a.source,
-                       binding_kind=a.action,
-                       treatment_kind=getattr(a, "treatment", "") or "",
-                       locator=a.locator or "", state=a.state,
-                       confidence=a.confidence, actor_name=a.actor or "")
+        payload = _through_the_spine(
+            a, "bind",
+            dict({"objective": a.objective, "source": a.source,
+                  "binding_kind": a.action, "locator": a.locator or "",
+                  "state": a.state, "confidence": a.confidence},
+                 # Omitted rather than sent empty: the published node closes
+                 # `treatment` to the eleven kinds, and "" is not one of them.
+                 **({"treatment": a.treatment}
+                    if getattr(a, "treatment", "") else {})))
         if getattr(a, "json", False):
             return _emit(payload, True) and 0
         print("bound %s -> %s (%s binding, consumes %s, state %s, "
@@ -226,6 +276,7 @@ def cmd_bind(a):
         if payload["locator"]:
             print("  locator: %s" % payload["locator"])
         print("  sidecar revision %s" % payload["revision"])
+        print("  undo: %s" % payload["undo"])
         return 0
     except (course_module.CourseError, graph.GraphError,
             journal.JournalError) as err:

@@ -224,7 +224,7 @@
       "since": "0.3.0"
     },
     {
-      "help": "create, rename, or read a course, the CLI twin of POST /api/course/<operation>",
+      "help": "create, rename, read a course, or record a source in it, the CLI twin of POST /api/course/<operation>",
       "name": "course",
       "since": "0.3.0"
     },
@@ -409,12 +409,62 @@
     },
     {
       "method": "POST",
+      "path": "/api/course/add-source",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
       "path": "/api/course/bind",
       "token_gated": true
     },
     {
       "method": "POST",
       "path": "/api/course/rights",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/bindings",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/add-container",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/add-objective",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/add-edge",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/structure",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/rename-objective",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/split-objective",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/merge-objectives",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/overlay-objective",
       "token_gated": true
     },
     {

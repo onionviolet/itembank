@@ -106,9 +106,14 @@ CELLS = {
                 "anything is read.",
     },
     ("course", "change"): {
-        "cli": ["course rename"], "http": ["POST /api/course/rename"],
-        "note": "Renaming is reached; moving a unit and editing the scope "
-                "tree are 19A-03's wave and are still hand edits.",
+        "cli": ["course rename", "course add-container"],
+        "http": ["POST /api/course/rename",
+                 "POST /api/course/add-container"],
+        "note": "Renaming and adding a structural container are both "
+                "reached. A container adds zero edges, because where a unit "
+                "sits in the outline is structure and not a prerequisite "
+                "claim. Moving an existing container and editing the scope "
+                "tree are still hand edits.",
     },
     ("course", "explain"): {
         "cli": ["coverage"],
@@ -128,14 +133,39 @@ CELLS = {
                 "not routes.",
     },
     ("objective", "inspect"): {
-        "cli": ["coverage", "trends"],
-        "http": ["GET /course/<course_id>/<area>"],
+        "cli": ["coverage", "trends", "course structure"],
+        "http": ["GET /course/<course_id>/<area>",
+                 "POST /api/course/structure"],
+        "note": "`course structure` reads the containers, the objectives in "
+                "authored order, and each edge as this build reads it, with "
+                "the warnings the authored order earns. It reports and "
+                "never corrects.",
     },
     ("objective", "create"): {
-        "cli": [], "http": [],
-        "note": "Objectives are authored by hand into objectives.md and the "
-                "sidecar. No surface adds one, and no surface links one to "
-                "a source passage.",
+        "cli": ["course add-objective", "course add-edge"],
+        "http": ["POST /api/course/add-objective",
+                 "POST /api/course/add-edge"],
+        "note": "Filled 2026-09-05 by 19A-03. An objective is added with "
+                "origin `local` and zero edges; a prerequisite between two "
+                "objectives is a separate, explicit act, because a course "
+                "whose week 2 follows week 1 has said nothing about what "
+                "must be learned first.",
+    },
+    ("objective", "change"): {
+        "cli": ["course rename-objective", "course split-objective",
+                "course merge-objectives", "course overlay-objective"],
+        "http": ["POST /api/course/rename-objective",
+                 "POST /api/course/split-objective",
+                 "POST /api/course/merge-objectives",
+                 "POST /api/course/overlay-objective"],
+        "note": "Filled 2026-09-05 by 19A-03, and every one of the four adds "
+                "rows and deletes none. The identity a learner's evidence "
+                "was recorded against stays in the file, or that evidence "
+                "stops naming anything, so a rename is a new row plus a "
+                "migration recorded `proposed`. Settling that migration is "
+                "19A-07's wave, which is why `objective / undo` is still "
+                "empty: rejecting a proposal is the reversal and it has no "
+                "door yet.",
     },
     ("objective", "explain"): {
         "cli": ["coverage"], "http": [],
@@ -144,9 +174,17 @@ CELLS = {
                 "own history on it together.",
     },
     ("source", "create"): {
-        "cli": ["source import"], "http": ["POST /api/source/import"],
-        "note": "Import extracts one file to Markdown plus a locator "
-                "sidecar. That is step one of binding, and it stops there.",
+        "cli": ["source import", "course add-source"],
+        "http": ["POST /api/source/import",
+                 "POST /api/course/add-source"],
+        "note": "Two steps, and 19A-02 built the second. Import extracts "
+                "one file to Markdown plus a locator sidecar and registers "
+                "the object; `course add-source` records it in the course "
+                "that will use it, which is the row `graph.add_source` "
+                "writes and which nothing called until now. A source the "
+                "registry holds and the sidecar does not name is invisible "
+                "to the Sources area, to `bind list`, and to a package "
+                "manifest that walks the sidecar.",
     },
     ("source", "inspect"): {
         "cli": ["source recheck"], "http": ["POST /api/source/recheck",
@@ -156,7 +194,21 @@ CELLS = {
                 "objective cites.",
     },
     ("source binding", "inspect"): {
-        "cli": ["bind list"], "http": ["GET /course/<course_id>/<area>"],
+        "cli": ["bind list"],
+        "http": ["GET /course/<course_id>/<area>",
+                 "POST /api/course/bindings"],
+    },
+    ("source binding", "explain"): {
+        "cli": ["bind list"], "http": ["POST /api/course/bindings"],
+        "note": "Filled 2026-09-05 by 19A-02. Every row comes back through "
+                "`graph.validate_binding`, so a state this build cannot "
+                "read degrades to unknown and never to covered, and the "
+                "right the binding consumes is re-read through "
+                "`course.rights_for_binding` and reported beside the "
+                "snapshot the row stored. A snapshot saying granted after "
+                "the grant was revoked is history, not permission, and "
+                "that divergence is the one thing a coverage claim cannot "
+                "notice about itself.",
     },
     ("source binding", "create"): {
         "cli": ["bind source", "bind treatment"],
@@ -388,10 +440,11 @@ GAP_NOTES = {
                           "which is the sentence that governs whether it may "
                           "ever report complete.",
     ("scope", "undo"): "A scope edit is a text edit; git is the only undo.",
-    ("objective", "change"): "Rewording an objective, or moving it between "
-                             "containers, is a hand edit of two files that "
-                             "must stay in step.",
-    ("objective", "undo"): "No surface reverses an objective edit.",
+    ("objective", "undo"): "An identity move is reversed by REJECTING its "
+                           "migration, never by deleting a row, and the "
+                           "accept and reject doors are 19A-07's wave. "
+                           "Until then a proposal can be made from a "
+                           "surface and settled only from Python.",
     ("source", "change"): "Re-importing is the only way to refresh a source, "
                           "and it mints a new object rather than updating.",
     ("source", "explain"): "The Sources area now states each source's read "
@@ -401,8 +454,6 @@ GAP_NOTES = {
                         "surface.",
     ("source binding", "change"): "Re-pointing a binding at a different "
                                   "passage is a sidecar table edit.",
-    ("source binding", "explain"): "A binding carries confidence and a "
-                                   "rationale and no surface reads them out.",
     ("source binding", "undo"): "No surface removes a binding.",
     ("lesson", "undo"): "An authoring audit is reversible; a hand edit is "
                         "not.",
@@ -435,9 +486,13 @@ GAP_NOTES = {
                                  "has no surface.",
 
 
-    ("rights grant", "explain"): "Unknown stays restrictive, and nothing "
-                                 "says which right is unknown or why an "
-                                 "export refused.",
+    ("rights grant", "explain"): "Half answered by 19A-02: `bind list` "
+                                 "now names the right each binding consumes "
+                                 "and its state right now, so an unknown "
+                                 "right is visible before it refuses. What "
+                                 "is still missing is the refusal's own "
+                                 "history, which is why an export or a "
+                                 "package that already refused did so.",
     ("sitting", "explain"): "A finished sitting reports counts. Nothing "
                             "walks it back item by item with what was shown "
                             "and when.",

@@ -5,10 +5,10 @@ milestone_name: reach
 current_phase_name: 19A-course-operating-surface
 current_phase: 19A
 status: "Reach milestone adopted 2026-09-05 and the freeze-before-start ordering waived by Weibao. Every phase is beginnable: 19A and 19C have no unmet dependency, 19B and 19E follow 19A, 19D is the exit. Source-to-course is code-complete; 13.5, 17B, 17C and 18 are executed with human legs owed, and those legs now block nothing except the word frozen. 19A has a written context and no plans yet; 19B, 19C, 19D and 19E need a context pass first."
-stopped_at: "19A-01 executed: the dispatch spine and the course lifecycle family are landed, and the surface grid moved 38 to 40 of 82. Next action is 19A-02 (source binding, now re-homed under /api/course/), or 19C's settings change."
+stopped_at: "19A-03 executed: the structure and objective-editing families are in the spine, the surface grid moved 41 to 43 of 82, and a course can be outlined, given objectives, related by edges and have its objective identity moved as a reviewed proposal from both surfaces. Next action is 19A-04 (treatment binding), or 19C's settings change."
 last_updated: "2026-09-05T00:00:00.000Z"
 last_activity: 2026-09-05
-last_activity_desc: "19A-01 executed: POST /api/course/create and /rename with their `itembank course` twins, one validated request document, and the /api/bind and /api/rights re-homing recorded as 19A-CONTEXT D-02a; previously: reach milestone adopted, freeze ordering waived, 19A to 19E entered on the roadmap; previously: 17B-04 executed and the milestone exit record written; G10's two routed defects repaired additively and the restore drill re-run to a pass; 17C-01's maintenance and restore audit run, finding five silent losses (F-LOSS-1 to F-LOSS-5) and a clean owner sweep."
+last_activity_desc: "19A-03 executed: eight operations (add-container, add-objective, add-edge, structure, and the four objective identity moves) with their routes, `itembank course` twins and parity rows, a schema-driven CLI request builder, and a defect fix in 19A-02's own treatment enum; previously: 19A-02 executed: POST /api/course/add-source and /api/course/bindings with their `itembank course add-source` and `itembank bind list` twins, /api/course/bind and /api/course/rights re-hung in the validated spine at their published paths and envelopes, graph.add_source and graph.validate_binding and course.rights_for_binding given their first doors, and course writes made loopback-only; previously: 19A-01 executed: POST /api/course/create and /rename with their `itembank course` twins, one validated request document, and the /api/bind and /api/rights re-homing recorded as 19A-CONTEXT D-02a; previously: reach milestone adopted, freeze ordering waived, 19A to 19E entered on the roadmap; previously: 17B-04 executed and the milestone exit record written; G10's two routed defects repaired additively and the restore drill re-run to a pass; 17C-01's maintenance and restore audit run, finding five silent losses (F-LOSS-1 to F-LOSS-5) and a clean owner sweep."
 progress:
   total_phases: 41
   completed_phases: 36
@@ -41,7 +41,7 @@ real course.
 | Phase | Blocked on | State |
 |---|---|---|
 | 19C backend on | nothing | no context yet; cheapest start |
-| 19A operating surface | nothing | 19A-01 executed 2026-09-05; nine families to go |
+| 19A operating surface | nothing | 19A-01 to 19A-03 executed 2026-09-05; six families to go |
 | 19B agent door | 19A's routes existing | no context yet |
 | 19E MCP tool table | 19A's routes existing | no context yet; closes 999.3 |
 | 19D Math 1400 | 19A, 19B, 19C | no context yet; the exit |
@@ -50,6 +50,67 @@ real course.
 **Recommended order:** 19C beside 19A, then 19B and 19E in either order, then
 19D. 19A is the load-bearing one and the only one an executor can plan straight
 from today.
+
+**19A-02 landed, 2026-09-05.** The source-binding family is hung in the spine,
+and with it the whole path from a linked file to a coverage claim is walkable
+from a surface: `POST /api/course/add-source` records the sidecar row that
+`graph.add_source` writes and that nothing called, `/api/course/bind` and
+`/api/course/rights` were re-hung inside the validated spine at their
+published paths with their response envelopes untouched, and `POST
+/api/course/bindings` is the family's one read. That read is what fills
+`source binding / explain`: every row comes back through
+`graph.validate_binding`, so a state this build cannot read degrades to
+unknown and never to covered, and the right each binding consumes is re-read
+through `course.rights_for_binding` and reported beside the snapshot the row
+stored, so a claim resting on a grant that has since been revoked says so.
+The CLI twins are `itembank course add-source` and an `itembank bind` that
+now dispatches through `course_ops.run`, so the command is refused by the
+same published document the route is. The grid moved 40 to 41 of 82.
+
+One hardening travelled with it, recorded in `19A-CONTEXT.md` rather than
+absorbed: the spine gated every course write with the read-side cross-origin
+check only, so a `--lan` daemon let a phone on the same wifi mint, rename and
+bind a course while every day write and theme save was already loopback-only.
+The spine now chooses its gate by what the operation does.
+
+**19A-03 landed, 2026-09-05.** The structure and objective-editing families
+are in the spine: `add-container`, `add-objective` and `add-edge` write the
+outline and its relations, `structure` reads them back with each edge's
+effective reading and the warnings the authored order earns, and
+`rename-objective`, `split-objective`, `merge-objectives` and
+`overlay-objective` move objective identity as reviewed proposals. The grid
+moved 41 to 43 of 82: `objective / create` and `objective / change` are
+filled.
+
+Most of the wave is what it refuses. A container and an objective add zero
+edges, so an outline never becomes a prerequisite claim by accident. A
+prerequisite pointing backwards through the authored order is recorded and
+warned about, never refused and never fixed, and a cycle is named and never
+broken. The four identity moves add rows and delete none and record the
+migration as `proposed`, because the identity a learner's evidence was
+recorded against has to stay in the file. `objective / undo` therefore stays
+empty on the grid with a truer note: the reversal is rejecting the migration,
+and the accept and reject doors are 19A-07's wave.
+
+`cmd_course` now builds its request from the operation's published node, so
+adding an operation is adding a `$defs` node and a parser and nothing else,
+and a test asserts every published field has an argument on its CLI twin.
+
+**One defect in 19A-02's own work, found and fixed 2026-09-05.** The `bind`
+node's `treatment` enum had been typed out by hand and did not match
+`graph.TREATMENT_KINDS`: seven invented kinds, seven real ones missing, so a
+legitimate treatment binding for seven of the eleven was refused by the
+published document on both surfaces at once. The enum now equals the tuple,
+and the test asserts every closed vocabulary the document publishes against
+the engine tuple it copies. A published enum is a copy, and a copy drifts;
+the fix is the assertion, not more care.
+
+Known red on this machine and not caused by this work:
+`tests/daemon_roundtrip.py` fails its twelve-thread concurrency check on a
+clean checkout of `5e9d4eb`, three runs out of three, one request exceeding
+the five-second client timeout while the session-count assertion passes.
+`tests/model_phase_roundtrip.py` fails only because it runs that suite as an
+authority regression. Every other test in `tests/` is green.
 
 **19A-01 landed, 2026-09-05.** The spine exists and one family is hung in it:
 `POST /api/course/create` and `POST /api/course/rename`, their

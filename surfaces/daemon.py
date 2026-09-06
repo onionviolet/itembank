@@ -304,7 +304,14 @@ SOURCE_IMPORT_ALLOWED_FIELDS = ("adapter", "source_object_id", "url",
 # generic `/api/course` with a discriminator would collapse the whole course
 # engine into one untyped tool. `create` and `rename` are 19A-01's family;
 # `bind` and `rights` moved into the namespace in the same commit, with
-# their original paths kept serving in `LEGACY_API_ALIASES` below. The
+# their original paths kept serving in `LEGACY_API_ALIASES` below.
+# 19A-02 completes the source-binding family beside them: `add-source`
+# records the sidecar row that `bind` needs and that no surface wrote, and
+# `bindings` is the family's one READ, so it is the one route here gated by
+# the read-side check rather than the write-side one. 19A-03 adds the
+# structure and objective-editing families: three rows that add a container,
+# an objective or an edge, four that move objective identity as a reviewed
+# proposal, and `structure`, the second READ. The
 # length is asserted by `check_api_route_scope` in
 # `tests/daemon_roundtrip.py`, and every entry is mirrored in ROUTE_CLI and
 # SURFACE_PARITY (Extensibility Rule 9(a)).
@@ -322,8 +329,18 @@ API_ROUTES = (
     ("POST", "/api/mark", "handle_api_mark"),
     ("POST", "/api/course/create", "handle_api_course_create"),
     ("POST", "/api/course/rename", "handle_api_course_rename"),
+    ("POST", "/api/course/add-source", "handle_api_course_add_source"),
     ("POST", "/api/course/bind", "handle_api_bind"),
     ("POST", "/api/course/rights", "handle_api_rights"),
+    ("POST", "/api/course/bindings", "handle_api_course_bindings"),
+    ("POST", "/api/course/add-container", "handle_api_course_add_container"),
+    ("POST", "/api/course/add-objective", "handle_api_course_add_objective"),
+    ("POST", "/api/course/add-edge", "handle_api_course_add_edge"),
+    ("POST", "/api/course/structure", "handle_api_course_structure"),
+    ("POST", "/api/course/rename-objective", "handle_api_course_rename_objective"),
+    ("POST", "/api/course/split-objective", "handle_api_course_split_objective"),
+    ("POST", "/api/course/merge-objectives", "handle_api_course_merge_objectives"),
+    ("POST", "/api/course/overlay-objective", "handle_api_course_overlay_objective"),
     ("POST", "/api/export_audio", "handle_api_export_audio"),
     ("POST", "/api/lesson/run", "handle_api_lesson_run"),
     ("POST", "/api/source/import", "handle_api_source_import"),
@@ -421,8 +438,18 @@ ROUTE_CLI = {
     ("POST", "/api/mark"): "mark",
     ("POST", "/api/course/create"): "course",
     ("POST", "/api/course/rename"): "course",
+    ("POST", "/api/course/add-source"): "course",
     ("POST", "/api/course/bind"): "bind",
     ("POST", "/api/course/rights"): "bind",
+    ("POST", "/api/course/bindings"): "bind",
+    ("POST", "/api/course/add-container"): "course",
+    ("POST", "/api/course/add-objective"): "course",
+    ("POST", "/api/course/add-edge"): "course",
+    ("POST", "/api/course/structure"): "course",
+    ("POST", "/api/course/rename-objective"): "course",
+    ("POST", "/api/course/split-objective"): "course",
+    ("POST", "/api/course/merge-objectives"): "course",
+    ("POST", "/api/course/overlay-objective"): "course",
     # The two deprecated aliases. Same twin as the canonical route, because
     # they are the same call.
     ("POST", "/api/bind"): "bind",
@@ -482,8 +509,18 @@ SURFACE_PARITY = (
     (("POST", "/api/mark"), "mark", "mark"),
     (("POST", "/api/course/create"), "course", "course_create"),
     (("POST", "/api/course/rename"), "course", "course_rename"),
+    (("POST", "/api/course/add-source"), "course", "course_add_source"),
     (("POST", "/api/course/bind"), "bind", "bind"),
     (("POST", "/api/course/rights"), "bind", "rights_record"),
+    (("POST", "/api/course/bindings"), "bind", "course_bindings"),
+    (("POST", "/api/course/add-container"), "course", "course_add_container"),
+    (("POST", "/api/course/add-objective"), "course", "course_add_objective"),
+    (("POST", "/api/course/add-edge"), "course", "course_add_edge"),
+    (("POST", "/api/course/structure"), "course", "course_structure"),
+    (("POST", "/api/course/rename-objective"), "course", "course_rename_objective"),
+    (("POST", "/api/course/split-objective"), "course", "course_split_objective"),
+    (("POST", "/api/course/merge-objectives"), "course", "course_merge_objectives"),
+    (("POST", "/api/course/overlay-objective"), "course", "course_overlay_objective"),
 )
 
 
@@ -2161,11 +2198,15 @@ def _reject_cross_origin_write(handler):
     mutating day route to the network, so writes are loopback-only exactly
     like theme save/reset -- a phone may read the cockpit but never tick a
     lane, open a host-side editor, or rewrite a plan for another device.
+
+    Not only day routes any more: `/api/source/import` and, since 19A-02,
+    every course write are gated here too, so the refusal says "this write"
+    rather than naming the one family it was first written for.
     """
     if _reject_cross_origin(handler):
         return True
     if not _client_is_loopback(handler):
-        handler.send_error(403, "day write requires a loopback client")
+        handler.send_error(403, "this write requires a loopback client")
         return True
     return False
 
@@ -4638,23 +4679,12 @@ def handle_api_mark(handler):
                        "item_ref": item_ref, "view": view})
 
 
-def _binding_course_dir(handler, course_id):
-    """The course directory a binding request names, or None.
-
-    Resolved through `ia.course_dir_for`, the same resolution the course
-    frame uses, so a client addresses a course by the id it sees on the page
-    and never by a path.
-    """
-    if not isinstance(course_id, str) or not course_id:
-        return None
-    return ia.course_dir_for(handler.root, course_id)
-
-
 COURSE_OPERATION_ACTOR_FIELDS = ("actor_kind", "reviewer_kind", "rights",
-                                "fingerprint", "base", "path", "root")
+                                "rights_snapshot", "right", "fingerprint",
+                                "base", "path", "root")
 
 
-def _course_operation(handler, operation):
+def _course_operation(handler, operation, envelope=None):
     """The dispatch spine every `/api/course/<operation>` route shares.
 
     One route per operation and one handler per route (D-02), but exactly one
@@ -4671,8 +4701,25 @@ def _course_operation(handler, operation):
     (a browser client is a human), a fingerprint of anything but the course
     being written is not a request field, and a course is addressed by its id
     and resolved server-side, never by a path.
+
+    The gate is chosen by what the operation does, not by which route asked
+    (19A-02). A course write is loopback-only, exactly like a day write and a
+    theme save: a `--lan` daemon binds 0.0.0.0, and a phone on the same wifi
+    may read a course but may never mint, rename, or bind one. The family's
+    one read is gated by the same read-side check every other read here uses,
+    because it appends no journal entry, writes no file, and changes no
+    fingerprint.
+
+    `envelope` keeps a published response shape: the two routes that landed
+    before this spine existed answered `{"bound": ...}` and
+    `{"recorded": ...}`, and folding them into the spine is not a licence to
+    change what a client already parses. Non-negotiable 4 is about silent
+    breakage, and a renamed key is exactly that.
     """
-    if _reject_cross_origin(handler):
+    if operation in course_ops.READ_OPERATIONS:
+        if _reject_cross_origin(handler):
+            return
+    elif _reject_cross_origin_write(handler):
         return
     data, failed = api_read_json(handler)
     if failed:
@@ -4697,6 +4744,10 @@ def _course_operation(handler, operation):
                                % (code, getattr(exc, "message", str(exc))))
             return
         handler.send_server_error(exc)
+        return
+    if envelope is not None:
+        flag, key = envelope
+        handler.send_json({flag: True, key: result})
         return
     handler.send_json(result)
 
@@ -4725,6 +4776,129 @@ def handle_api_course_rename(handler):
     _course_operation(handler, "rename")
 
 
+def handle_api_course_add_source(handler):
+    """`POST /api/course/add-source` -- record a source in a course sidecar.
+
+    The step between importing a source and binding it, and the one function
+    in the source-binding family that had no door at all: the journal
+    registry held the object and the course's own Sources section was written
+    by `graph.add_source`, which nothing called. A source that a course
+    cannot name is a source its package manifest, its Sources area and its
+    `bind list` cannot see.
+
+    It consumes no right, because naming a file is not using it. The
+    response reports the source's seven rights anyway, so a client learns in
+    the same breath that the row exists and that binding it still refuses
+    until `read` is granted.
+    """
+    _course_operation(handler, "add_source")
+
+
+def handle_api_course_bindings(handler):
+    """`POST /api/course/bindings` -- read every binding, with its effective
+    reading.
+
+    The family's one read, and the answer to `source binding / explain` on
+    the surface grid: a binding carried a state, a confidence and a rights
+    snapshot, and no surface read any of them back. Each row comes back
+    through `graph.validate_binding`, so a state this build cannot read
+    degrades to unknown and never to covered, and the right the binding
+    consumes is re-read through `course.rights_for_binding` and reported
+    beside the snapshot the row stored.
+
+    That pair is the point. A snapshot saying `granted` after the grant was
+    revoked is history, and a coverage claim resting on it cannot notice by
+    itself. This route names the divergence; it never acts on it, because
+    the decision is the learner's and the enforcement is the next write's.
+    """
+    _course_operation(handler, "bindings")
+
+
+def handle_api_course_add_container(handler):
+    """`POST /api/course/add-container` -- add one structural container.
+
+    Adds zero edges. Where a container sits in the outline is structure, and
+    structure is not a prerequisite claim (GRAPH-01): a course whose week 2
+    follows week 1 has said nothing about what must be learned first, and a
+    surface that inferred otherwise would end up gating a learner on a guess.
+    """
+    _course_operation(handler, "add_container")
+
+
+def handle_api_course_add_objective(handler):
+    """`POST /api/course/add-objective` -- add one objective.
+
+    `objective / create` on the surface grid, which read "objectives are
+    authored by hand into objectives.md and the sidecar; no surface adds
+    one". Always recorded with origin `local`: the node carries no origin
+    field, so no client can claim `imported` and make a hand-authored row
+    un-editable for a reason that was never true.
+    """
+    _course_operation(handler, "add_objective")
+
+
+def handle_api_course_add_edge(handler):
+    """`POST /api/course/add-edge` -- record one relation.
+
+    The three refusals belong to `graph.add_edge`: a self edge, a duplicate
+    (source, edge_type, target) key, and an endpoint the graph does not hold.
+    A prerequisite that points backwards through the authored order is NOT a
+    refusal; it is recorded and returned as a warning, because the authored
+    order is the human's and this daemon does not reorder it.
+    """
+    _course_operation(handler, "add_edge")
+
+
+def handle_api_course_structure(handler):
+    """`POST /api/course/structure` -- read the outline, the edges, and the
+    warnings the authored order earns.
+
+    The second READ under this namespace, so it is gated by the read-side
+    check. `graph.validate_edge` gives each edge its effective reading, and
+    an edge type this build cannot read comes back downgraded to advisory
+    with the original kept beside it: a relation a human wrote down is
+    evidence about the course even when this build cannot act on it, and
+    nothing degraded can ever reach `hard-gate`.
+    """
+    _course_operation(handler, "structure")
+
+
+def handle_api_course_rename_objective(handler):
+    """`POST /api/course/rename-objective` -- restate an objective as a
+    reviewed proposal.
+
+    `objective / change` on the grid. A new row plus a migration relation,
+    never an edit to the original, because the identity the learner's
+    evidence was recorded against has to stay in the file or that evidence
+    stops naming anything. The migration is recorded `proposed`; settling it
+    is plan 19A-07's family.
+    """
+    _course_operation(handler, "rename_objective")
+
+
+def handle_api_course_split_objective(handler):
+    """`POST /api/course/split-objective` -- split one objective into
+    several, as a reviewed proposal. Adds rows and deletes none."""
+    _course_operation(handler, "split_objective")
+
+
+def handle_api_course_merge_objectives(handler):
+    """`POST /api/course/merge-objectives` -- merge several objectives into
+    one, as a reviewed proposal. Every merged-from row stays in the file."""
+    _course_operation(handler, "merge_objectives")
+
+
+def handle_api_course_overlay_objective(handler):
+    """`POST /api/course/overlay-objective` -- record a local revision of an
+    imported objective as a sibling row.
+
+    The way GRAPH-01's immutable imported scope stays immutable AND revisable
+    at once: no code path here opens the imported row for writing, and the
+    revision is joined to it by an `overlays` reference and a migration.
+    """
+    _course_operation(handler, "overlay_objective")
+
+
 def handle_api_bind(handler):
     """`POST /api/bind` -- bind a source or a treatment to an objective.
 
@@ -4743,41 +4917,14 @@ def handle_api_bind(handler):
     fingerprint. A refusal comes back as its code and its sentence, because
     "you may not build a course out of this file yet" is the answer, not an
     error to hide.
+
+    Since 19A-02 the body is validated against
+    `schemas/course_operation.schema.json#/$defs/bind` before a file is read,
+    so a state outside the vocabulary is refused by the published document
+    rather than by a hand-written check three calls later, and the response
+    envelope is unchanged.
     """
-    if _reject_cross_origin(handler):
-        return
-    data, failed = api_read_json(handler)
-    if failed:
-        return
-    for banned in ("rights", "rights_snapshot", "right", "base", "path"):
-        if banned in data:
-            handler.send_error(400, "field %r is not accepted here; a course "
-                                    "is addressed by its id and a right is "
-                                    "read from the registry, never sent"
-                               % banned)
-            return
-    base = _binding_course_dir(handler, data.get("course_id"))
-    if base is None:
-        handler.send_not_found(str(data.get("course_id") or ""))
-        return
-    try:
-        result = binding_cli.bind(
-            base, data.get("objective") or "", data.get("source") or "",
-            binding_kind=data.get("binding_kind") or "source",
-            treatment_kind=data.get("treatment") or "",
-            locator=data.get("locator") or "",
-            state=data.get("state") or "unknown",
-            confidence=data.get("confidence") or "unknown",
-            actor_kind="human", actor_name=data.get("actor") or "")
-    except Exception as exc:                       # typed course/graph errors
-        code = getattr(exc, "code", None)
-        if code:
-            handler.send_error(400, "%s: %s" % (code, getattr(exc, "message",
-                                                              str(exc))))
-            return
-        handler.send_server_error(exc)
-        return
-    handler.send_json({"bound": True, "binding": result})
+    _course_operation(handler, "bind", envelope=("bound", "binding"))
 
 
 def handle_api_rights(handler):
@@ -4793,33 +4940,13 @@ def handle_api_rights(handler):
 
     `denied` is recorded by the same call, because a decision not to use
     something is as much a decision as its opposite.
+
+    Since 19A-02 the seven right names and their three states are the
+    published `grants` node rather than a check in this handler, so an
+    unrecognised right is refused by the same document the CLI and the MCP
+    tool signature read, and the response envelope is unchanged.
     """
-    if _reject_cross_origin(handler):
-        return
-    data, failed = api_read_json(handler)
-    if failed:
-        return
-    base = _binding_course_dir(handler, data.get("course_id"))
-    if base is None:
-        handler.send_not_found(str(data.get("course_id") or ""))
-        return
-    grants = data.get("grants")
-    if not isinstance(grants, dict) or not grants:
-        handler.send_error(400, "a rights record names at least one right")
-        return
-    try:
-        result = binding_cli.rights_grant(
-            base, data.get("source") or "", grants,
-            actor_kind="human", actor_name=data.get("actor") or "")
-    except Exception as exc:
-        code = getattr(exc, "code", None)
-        if code:
-            handler.send_error(400, "%s: %s" % (code, getattr(exc, "message",
-                                                              str(exc))))
-            return
-        handler.send_server_error(exc)
-        return
-    handler.send_json({"recorded": True, "source": result})
+    _course_operation(handler, "rights", envelope=("recorded", "source"))
 
 
 def handle_api_interact(handler):

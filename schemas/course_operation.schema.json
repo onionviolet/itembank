@@ -2,11 +2,23 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://itembank.local/schemas/course_operation.schema.json",
   "title": "itembank course operation request",
-  "description": "The published request document for POST /api/course/<operation> and its CLI twin `itembank course <operation>`. One $defs node per operation, and the node IS the operation's signature: the Phase 999.3 MCP tool table generates one tool per API_ROUTES entry and reads its argument shape from here, so a schema edit changes the tool with no code edit. The top-level oneOf makes the whole file a single valid contract a reader can validate a captured request against; dispatch validates against the one named node the route's own path selects, so a refusal names the field rather than reporting that no branch matched. This document describes a REQUEST and never a durable object: course_graph.schema.json is the sidecar the operations write, write_manifest.schema.json is the writer's provenance record, and neither is reshaped to carry a request. No request field names a filesystem path, a fingerprint of another object, a right, or a score: a course is addressed by its id and resolved server-side, and every right is read from the operation journal at the moment of the write.",
+  "description": "The published request document for POST /api/course/<operation> and its CLI twin. One $defs node per operation, and the node IS the operation's signature: the Phase 999.3 MCP tool table generates one tool per API_ROUTES entry and reads its argument shape from here, so a schema edit changes the tool with no code edit. The top-level oneOf makes the whole file a single valid contract a reader can validate a captured request against; dispatch validates against the one named node the route's own path selects, so a refusal names the field rather than reporting that no branch matched. This document describes a REQUEST and never a durable object: course_graph.schema.json is the sidecar the operations write, write_manifest.schema.json is the writer's provenance record, and neither is reshaped to carry a request. No request field names a filesystem path, a fingerprint of another object, a right the caller claims to hold, or a score: a course is addressed by its id and resolved server-side, and every right a write consumes is read from the operation journal at the moment of that write. The one node that names rights is `rights`, and it records a decision rather than asserting a permission.",
   "x-itembank-version": 1,
   "oneOf": [
     {"$ref": "#/$defs/create"},
-    {"$ref": "#/$defs/rename"}
+    {"$ref": "#/$defs/rename"},
+    {"$ref": "#/$defs/add_source"},
+    {"$ref": "#/$defs/bind"},
+    {"$ref": "#/$defs/rights"},
+    {"$ref": "#/$defs/bindings"},
+    {"$ref": "#/$defs/add_container"},
+    {"$ref": "#/$defs/add_objective"},
+    {"$ref": "#/$defs/add_edge"},
+    {"$ref": "#/$defs/structure"},
+    {"$ref": "#/$defs/rename_objective"},
+    {"$ref": "#/$defs/split_objective"},
+    {"$ref": "#/$defs/merge_objectives"},
+    {"$ref": "#/$defs/overlay_objective"}
   ],
   "$defs": {
     "course_id": {
@@ -29,6 +41,90 @@
       "minLength": 1,
       "description": "The fingerprint the caller believes the sidecar currently carries. Passed straight to journal.commit_operation, which refuses a stale write by name with journal.stale_preflight. Omitted means the operation reads the current fingerprint itself, which is a last-writer-wins convenience for a single-surface caller and not a substitute for compare-and-swap when two clients can write."
     },
+    "source_object_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The opaque id of a source object this course root's journal registry already holds, as `itembank bind list` prints it. Opaque on purpose and matched by no pattern here: an id is minted by identity.py and a request that guessed at its shape would be asserting something only the registry knows."
+    },
+    "objective_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The id of an objective already recorded in this course's sidecar. Unrecognised ids are refused by graph.add_binding, not here, so the refusal can say which endpoints the course actually holds."
+    },
+    "locator": {
+      "type": "string",
+      "description": "Where in the source the claim points: a path, an anchor, a page, a timestamp. A coverage claim points and reproduces nothing, which is why binding a source consumes `read` and never `quote`."
+    },
+    "binding_state": {
+      "type": "string",
+      "enum": ["covered", "thin", "missing", "conflicting", "unknown"],
+      "description": "How well this binding claims the objective is covered. `unknown` is the default at every surface and `covered` is never a default: coverage is a claim someone makes, not a side effect of recording a row."
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low", "unknown"],
+      "description": "How sure the claim is. Defaults to `unknown`."
+    },
+    "grants": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The rights decision being recorded, one closed name to one closed state. Merged onto what the object already carries, so naming one right never resets the others, and `denied` is recorded by the same operation as `granted` because a decision not to use something is as much a decision as its opposite. A right absent from this object is left as it was, and a right that was never recorded reads as `unknown`, which refuses.",
+      "properties": {
+        "read": {"type": "string", "enum": ["granted", "denied", "unknown"]},
+        "quote": {"type": "string", "enum": ["granted", "denied", "unknown"]},
+        "transform": {
+          "type": "string",
+          "enum": ["granted", "denied", "unknown"]
+        },
+        "remote_process": {
+          "type": "string",
+          "enum": ["granted", "denied", "unknown"]
+        },
+        "package": {
+          "type": "string",
+          "enum": ["granted", "denied", "unknown"]
+        },
+        "export": {"type": "string", "enum": ["granted", "denied", "unknown"]},
+        "share": {"type": "string", "enum": ["granted", "denied", "unknown"]}
+      }
+    },
+    "statement": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What the learner will be able to do, in one sentence. An objective statement is authored text and never inferred from a heading."
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Why this change to objective identity is proposed, in the author's words. Required rather than optional: GRAPH-04 makes every identity move a reviewed proposal, and a proposal a reviewer cannot read the reason for is not reviewable."
+    },
+    "order": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The authored position of this row within its section. Omitted means the end. Authored order is primary and nothing reorders it silently, so this is the one place a position is decided."
+    },
+    "edge_type": {
+      "type": "string",
+      "enum": [
+        "prerequisite-of",
+        "covers-objective",
+        "source-supports",
+        "treatment-of"
+      ],
+      "description": "Which of D-14A-1's four frozen relations this edge asserts. A type outside this list is not accepted from a surface, though a row already carrying one is kept and read as `recommended-before`, because a relation a human wrote down is evidence about the course even when this build cannot act on it."
+    },
+    "edge_authority": {
+      "type": "string",
+      "enum": ["authored", "imported", "proposed"],
+      "default": "proposed",
+      "description": "Where the claim comes from. Defaults to `proposed`, the least-blocking value, so a surface that says nothing claims nothing."
+    },
+    "edge_override": {
+      "type": "string",
+      "enum": ["advisory", "recommended-before", "hard-gate"],
+      "default": "advisory",
+      "description": "How hard this edge blocks. `hard-gate` is the exceptional value GRAPH-02 names: it is never a default, a human has to write it explicitly, and no degraded reading can reach it. Blocking a learner is not something a typo may do."
+    },
     "create": {
       "type": "object",
       "additionalProperties": false,
@@ -50,6 +146,268 @@
         "operation": {"type": "string", "const": "rename"},
         "course_id": {"$ref": "#/$defs/course_id"},
         "title": {"$ref": "#/$defs/title"},
+        "expected_fingerprint": {"$ref": "#/$defs/expected_fingerprint"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "add_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "source_object_id", "title"],
+      "description": "Record a reference to a source object in the course sidecar's Sources section, through graph.add_source and one compare-and-swap course.write_course. This is the step between importing a source (the journal registry holds the object) and binding it (the sidecar has to name it), and it was the one function in the source-binding family with no door at all. It copies no bytes, claims no coverage, and grants no right: rights live on the source object in the operation journal and are read fresh at every write.",
+      "properties": {
+        "operation": {"type": "string", "const": "add_source"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "source_object_id": {"$ref": "#/$defs/source_object_id"},
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A derived, regenerable annotation for a human reading the sidecar. The source file owns its own title and nothing is ever validated against this copy."
+        },
+        "note": {
+          "type": "string",
+          "description": "Why this source is in this course, in the author's words. Never read back for a decision."
+        },
+        "expected_fingerprint": {"$ref": "#/$defs/expected_fingerprint"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "bind": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "objective", "source"],
+      "description": "Bind a source, or a treatment, to an objective as a coverage claim. Reaches course.bind_source (or course.bind_treatment when binding_kind is `treatment`), which refuses unless the right that kind consumes is exactly granted on the source at the moment of the write: unknown and denied both refuse, and neither is a lesser form of permission. The right consumed is never a request field; it is decided by the binding kind and read from the journal registry. The treatment half of this node is served here because the route already served it before the spine existed; plan 19A-04 gives the treatment family its own operations and this node keeps working.",
+      "properties": {
+        "operation": {"type": "string", "const": "bind"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "objective": {"$ref": "#/$defs/objective_id"},
+        "source": {"$ref": "#/$defs/source_object_id"},
+        "binding_kind": {
+          "type": "string",
+          "enum": ["source", "treatment"],
+          "default": "source",
+          "description": "Which of the two binding kinds this is. A source binding consumes `read`; a treatment binding consumes whatever right its treatment kind consumes."
+        },
+        "treatment": {
+          "type": "string",
+          "enum": [
+            "direct-reading",
+            "excerpt",
+            "guided-lesson",
+            "notes-or-terms",
+            "worked-example",
+            "visual-or-demonstration",
+            "practice",
+            "formal-test",
+            "assessment-first-diagnostic",
+            "learner-artifact",
+            "human-review"
+          ],
+          "description": "Which of the eleven treatments a treatment binding is, TREAT-01's closed vocabulary as `graph.TREATMENT_KINDS` spells it. Required when binding_kind is `treatment`, refused by name when it is missing. This list is asserted equal to that tuple by tests/course_ops_roundtrip.py, because a published request document that names a treatment the engine does not have, or omits one it does, refuses a legitimate binding on every surface at once."
+        },
+        "locator": {"$ref": "#/$defs/locator"},
+        "state": {"$ref": "#/$defs/binding_state"},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "rights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "source", "grants"],
+      "description": "Record what may be done with one source, through journal.op_grant_rights, which advances the object's revision and touches none of its bytes. This is the learner's own declaration about their own file, and it is the same act `source import --grant` performs at link time, available afterwards, because a decision about a file should not require re-importing it. It records a decision; it never asserts one on a caller's behalf, which is why no other node here accepts a rights field.",
+      "properties": {
+        "operation": {"type": "string", "const": "rights"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "source": {"$ref": "#/$defs/source_object_id"},
+        "grants": {"$ref": "#/$defs/grants"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id"],
+      "description": "Read every binding this course records, with its effective reading. A READ: it writes nothing, advances no revision, and is the only operation here a cross-origin page may reach. Each row is passed through graph.validate_binding, so a state this build cannot read degrades to `unknown` and never to `covered`, and the rights the binding consumed are read FRESH through course.rights_for_binding and reported beside the snapshot recorded at bind time. A snapshot that says granted and a registry that now says denied is the one divergence a coverage claim cannot see by itself, so this operation names it.",
+      "properties": {
+        "operation": {"type": "string", "const": "bindings"},
+        "course_id": {"$ref": "#/$defs/course_id"}
+      }
+    },
+    "add_container": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "label", "title"],
+      "description": "Add one structural container (a module, a week, a unit) to the course sidecar through graph.add_container. It adds zero edges: a container's position in the outline is structure, not a prerequisite claim (GRAPH-01). The label is deliberately open text and matched against no list, because a course that calls its unit a fortnight is not wrong and finding out would cost a release.",
+      "properties": {
+        "operation": {"type": "string", "const": "add_container"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What kind of container this is: program, semester, module, week, unit, chapter, or a word this course uses instead. Open vocabulary, checked against nothing."
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The container's human-readable title."
+        },
+        "parent": {
+          "type": "string",
+          "description": "The id of the container this one sits inside. Omitted means top level."
+        },
+        "order": {"$ref": "#/$defs/order"},
+        "expected_fingerprint": {"$ref": "#/$defs/expected_fingerprint"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "add_objective": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "statement"],
+      "description": "Add one objective through graph.add_objective. Like a container it adds zero edges. The objective is always recorded with origin `local`, and no request may claim `imported`: an imported scope binds as an immutable version under GRAPH-01, so claiming that origin from a surface would let a hand-authored row impersonate an import and become un-editable for a reason that was never true.",
+      "properties": {
+        "operation": {"type": "string", "const": "add_objective"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "statement": {"$ref": "#/$defs/statement"},
+        "container": {
+          "type": "string",
+          "description": "The id of the container this objective belongs to. Omitted means unplaced, which is a real state and not an error."
+        },
+        "order": {"$ref": "#/$defs/order"},
+        "expected_fingerprint": {"$ref": "#/$defs/expected_fingerprint"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "add_edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "source", "edge_type", "target"],
+      "description": "Add one edge between two things this course graph already knows, through graph.add_edge. An edge has no minted id: its identity is the tuple (source, edge_type, target), so editing its rationale edits that edge rather than creating a different one. A duplicate key, a self edge, and an endpoint the graph does not hold are all refused by name rather than absorbed, because a graph that quietly swallows a contradiction is a graph nobody can trust to answer a question. Note that `source` here is an edge endpoint, which may be an objective, a container, or a source object, and is not the `source` field the bind and rights nodes carry.",
+      "properties": {
+        "operation": {"type": "string", "const": "add_edge"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The endpoint the relation runs FROM: for a prerequisite-of edge, the objective that comes first."
+        },
+        "edge_type": {"$ref": "#/$defs/edge_type"},
+        "target": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The endpoint the relation runs TO."
+        },
+        "authority": {"$ref": "#/$defs/edge_authority"},
+        "rationale": {
+          "type": "string",
+          "description": "Why this relation holds. Optional on an edge, unlike on an identity migration, because an edge is a claim about the material and a migration is a claim about identity."
+        },
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "override": {"$ref": "#/$defs/edge_override"},
+        "expected_fingerprint": {"$ref": "#/$defs/expected_fingerprint"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "structure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id"],
+      "description": "Read the course's containers, objectives and edges, with the effective reading of each edge (graph.validate_edge) and the warnings the authored order earns (graph.validate_order). A READ: it writes nothing. It reports and never corrects, because the authored sequence is primary and a projection that silently reorders makes every future diff unreadable. Ask for `propose_order` to also get a sequence that would satisfy every prerequisite (graph.propose_order); it is returned as a proposal for a person to accept and is never written by this operation. The richer outline projection is plan 19A-09's read, not this one.",
+      "properties": {
+        "operation": {"type": "string", "const": "structure"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "propose_order": {
+          "type": "boolean",
+          "default": false,
+          "description": "Also compute an order satisfying every prerequisite edge. A prerequisite cycle is reported as a warning naming the objectives involved, never silently broken."
+        }
+      }
+    },
+    "rename_objective": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "course_id",
+        "objective",
+        "statement",
+        "rationale"
+      ],
+      "description": "Restate one objective, as a reviewed proposal. A rename is a NEW row plus a migration relation and never an edit to the original: the identity the learner's evidence was recorded against stays in the file, or that evidence stops naming anything. The migration is recorded `proposed`; accepting or rejecting it is plan 19A-07's family, and until then both rows are in the sidecar and the new one carries no evidence.",
+      "properties": {
+        "operation": {"type": "string", "const": "rename_objective"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "objective": {"$ref": "#/$defs/objective_id"},
+        "statement": {"$ref": "#/$defs/statement"},
+        "rationale": {"$ref": "#/$defs/rationale"},
+        "expected_fingerprint": {"$ref": "#/$defs/expected_fingerprint"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "split_objective": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "course_id",
+        "objective",
+        "statements",
+        "rationale"
+      ],
+      "description": "Split one objective into several, as a reviewed proposal. Adds rows and deletes none, for the reason rename gives. Each new identity reads `unknown` for evidence until real evidence is recorded against it: unmigrated evidence stays on the original identity, and `unknown` does not mean zero progress, it means nothing has been recorded here yet.",
+      "properties": {
+        "operation": {"type": "string", "const": "split_objective"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "objective": {"$ref": "#/$defs/objective_id"},
+        "statements": {
+          "type": "array",
+          "minItems": 2,
+          "items": {"$ref": "#/$defs/statement"},
+          "description": "The statements the objective splits into, in authored order. At least two, because a split into one is a rename and the two record different facts about identity."
+        },
+        "rationale": {"$ref": "#/$defs/rationale"},
+        "expected_fingerprint": {"$ref": "#/$defs/expected_fingerprint"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "merge_objectives": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "course_id",
+        "objectives",
+        "statement",
+        "rationale"
+      ],
+      "description": "Merge several objectives into one, as a reviewed proposal. Every merged-from row stays in the file, for the reason rename gives.",
+      "properties": {
+        "operation": {"type": "string", "const": "merge_objectives"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "objectives": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/objective_id"},
+          "description": "The objectives being merged, at least two and each named once. Naming one twice would record a merge that is not one."
+        },
+        "statement": {"$ref": "#/$defs/statement"},
+        "rationale": {"$ref": "#/$defs/rationale"},
+        "expected_fingerprint": {"$ref": "#/$defs/expected_fingerprint"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "overlay_objective": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "objective", "statement"],
+      "description": "Record a local revision of an IMPORTED objective as a sibling row. GRAPH-01 binds an imported scope as an immutable version, so an overlay is a new row with its own id joined to the import by an `overlays` reference and a recorded migration, and no code path targets the import's bytes at all. Nothing in an overlay chain is ever deleted; superseded rows stay in the file and stop being projected. This is the operation to reach for when a rename would be refused because the target was imported.",
+      "properties": {
+        "operation": {"type": "string", "const": "overlay_objective"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "objective": {"$ref": "#/$defs/objective_id"},
+        "statement": {"$ref": "#/$defs/statement"},
         "expected_fingerprint": {"$ref": "#/$defs/expected_fingerprint"},
         "actor": {"$ref": "#/$defs/actor"}
       }

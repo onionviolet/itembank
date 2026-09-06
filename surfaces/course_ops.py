@@ -30,6 +30,26 @@ a rule a later wave copies rather than re-decides:
 
 A refusal is typed and says what to do next, because "you may not do that
 yet" is an answer and not an error to hide.
+
+Plan 19A-02 hangs the source-binding family in the same frame and adds one
+rule to it, the only one binding needed that a lifecycle write did not:
+**a surface may say where a course lives, and a request may not.** `run`
+takes an optional already-resolved `base`, which is how `itembank bind
+--base .` addresses the course root a person is standing in, while the
+request it builds still carries the course's own object id and no path. The
+route passes no base and resolves the id server-side, exactly as before.
+
+The family is four operations and the whole path from a linked file to a
+coverage claim: `add_source` records the sidecar row (the one function in
+this family that had no door at all, so an imported source could never be
+named by the course that imported it), `rights` records what the learner
+declares may be done with it, `bind` makes the claim and is refused unless
+the right that binding kind consumes is granted at that moment, and
+`bindings` reads the result back with every state passed through
+`graph.validate_binding` and every right re-read through
+`course.rights_for_binding`. That last pair is the point of the read: a
+binding stores the rights snapshot it was made under, and a snapshot that
+still says granted after the grant was revoked is history, not permission.
 """
 import json
 import os
@@ -37,9 +57,11 @@ import sys
 
 import course as course_module
 import graph
+import identity
 import journal
 import resources
 import schema_validate
+from surfaces import binding_cli
 from surfaces import ia
 
 
@@ -56,7 +78,24 @@ REQUEST_SCHEMA_PATH = "schemas/course_operation.schema.json"
 OPERATION_ENGINE = {
     "create": "course.create_course",
     "rename": "course.write_course",
+    "add_source": "graph.add_source",
+    "bind": "course.bind_source",
+    "rights": "journal.op_grant_rights",
+    "bindings": "graph.validate_binding",
+    "add_container": "graph.add_container",
+    "add_objective": "graph.add_objective",
+    "add_edge": "graph.add_edge",
+    "structure": "graph.validate_order",
+    "rename_objective": "graph.rename_objective",
+    "split_objective": "graph.split_objective",
+    "merge_objectives": "graph.merge_objectives",
+    "overlay_objective": "graph.overlay_objective",
 }
+
+# The operations that only read. They reach no writer, advance no revision,
+# and are the only ones a surface may serve behind the read-side gate; every
+# other name in OPERATION_ENGINE writes.
+READ_OPERATIONS = ("bindings", "structure")
 
 
 def request_schema():
@@ -140,7 +179,7 @@ def resolve_course(root, course_id):
     return base
 
 
-def _op_create(root, body, actor_kind, actor_name):
+def _op_create(root, body, actor_kind, actor_name, base=None):
     """Mint a course sidecar under `root`.
 
     The directory is made when it is absent, because a course is a folder
@@ -153,7 +192,7 @@ def _op_create(root, body, actor_kind, actor_name):
     workspace as it was found.
     """
     course_id = body["course_id"]
-    base = os.path.join(os.path.abspath(root), course_id)
+    base = base or os.path.join(os.path.abspath(root), course_id)
     created = not os.path.isdir(base)
     if created:
         os.makedirs(base)
@@ -180,7 +219,7 @@ def _op_create(root, body, actor_kind, actor_name):
     }
 
 
-def _op_rename(root, body, actor_kind, actor_name):
+def _op_rename(root, body, actor_kind, actor_name, base=None):
     """Retitle a course through the one compare-and-swap write.
 
     The title is display and never identity: `course_object_id` is untouched,
@@ -189,7 +228,7 @@ def _op_rename(root, body, actor_kind, actor_name):
     through when the caller states one, so a stale write is refused by
     `journal.stale_preflight` by name rather than by a second guard here.
     """
-    base = resolve_course(root, body["course_id"])
+    base = base or resolve_course(root, body["course_id"])
     read = course_module.read_course(base)
     doc = read["doc"]
     previous = doc["header"].get("title", "")
@@ -211,13 +250,663 @@ def _op_rename(root, body, actor_kind, actor_name):
     }
 
 
+def _sources_by_id(doc):
+    """The sidecar's Sources rows, keyed by the object id they name. Built
+    fresh on each read: a row is a reference, and two rows naming one object
+    would be two answers to one question, which `_op_add_source` refuses."""
+    return dict((row.get("source_object_id") or "", row)
+                for row in doc.get("sources") or ())
+
+
+def _op_add_source(root, body, actor_kind, actor_name, base=None):
+    """Record a reference to a source object in the course sidecar.
+
+    The missing step, and the reason it was missing is worth stating: a
+    source is imported into the course root's journal registry, but the
+    course's own Sources section is written by `graph.add_source`, which no
+    surface called. So an imported source could be bound (a binding row
+    names an object id) and still never appear in the Sources area, in
+    `itembank bind list`, or in a package manifest that walks the sidecar.
+
+    Two refusals, both before any write. A source the registry does not hold
+    is refused, because a sidecar row naming an object nothing in this course
+    root has is a durable claim with nothing behind it, and it would go on to
+    fail the rights read at bind time anyway. A source already recorded is
+    refused rather than appended twice: a Sources row is a reference to one
+    object, unlike a binding row, where two rows for one pair are two claims
+    about two different places.
+
+    No right is consumed. Naming a file is not using it, and the rights this
+    row's object carries are reported here only so a caller sees, in the same
+    breath, that finding a source never granted permission to build a course
+    out of it.
+    """
+    base = base or resolve_course(root, body["course_id"])
+    source_id = body["source_object_id"]
+    registry = journal.read_registry(base)
+    record = registry.get(source_id)
+    if record is None:
+        raise course_module.CourseError(
+            "course.unknown_source",
+            "%s is not a registered object in this course root's journal "
+            "registry, so a Sources row naming it would point at nothing. "
+            "Next safe action: link or import it first with `itembank source "
+            "import`, then record the row." % source_id)
+    read = course_module.read_course(base)
+    doc = read["doc"]
+    if source_id in _sources_by_id(doc):
+        raise course_module.CourseError(
+            "course.source_already_recorded",
+            "%s is already a Sources row in this course, so nothing was "
+            "written; a source is referenced once and a second row would be "
+            "a second answer to one question. Next safe action: bind it to "
+            "an objective with `itembank bind source`, or read what the "
+            "course holds with `itembank bind list`." % source_id)
+    graph.add_source(doc, source_id, body["title"], body.get("note") or "")
+    revision = course_module.write_course(
+        base, doc, body.get("expected_fingerprint") or read["fingerprint"],
+        actor_kind, actor_name)
+    rights = dict((operation,
+                   identity.rights_state(record.get("rights"), operation))
+                  for operation in identity.RIGHTS_OPERATIONS)
+    return {
+        "operation": "add_source",
+        "engine": OPERATION_ENGINE["add_source"],
+        "course_id": body["course_id"],
+        "course_object_id": read["object_id"],
+        "source_object_id": source_id,
+        "title": body["title"],
+        "note": body.get("note") or "",
+        "rights": rights,
+        "bindable": rights.get(graph.SOURCE_BINDING_RIGHT) == "granted",
+        "fingerprint": revision.get("fingerprint"),
+        "revision": revision.get("revision"),
+        "undo": "the row is one edit_in_place on the sidecar at revision "
+                "%s; no surface removes a Sources row yet, so the reversal "
+                "is restoring the sidecar's previous revision from the "
+                "operation journal" % revision.get("revision"),
+    }
+
+
+def _op_bind(root, body, actor_kind, actor_name, base=None):
+    """Bind a source, or a treatment, to an objective.
+
+    Every decision here belongs to something else, which is the whole design:
+    the vocabularies are `graph`'s closed ones, the rights gate is
+    `course._require_right` reading the registry at the moment of the write,
+    and the write is `course.write_course`'s compare-and-swap. This function
+    validates nothing the schema already validated and grants nothing.
+
+    The right consumed is reported rather than accepted: a source binding
+    consumes `read` and a treatment binding consumes whatever its treatment
+    kind consumes, and neither is a field a caller may set. A request that
+    tried would have been refused by the node's closed property list before
+    reaching here.
+    """
+    base = base or resolve_course(root, body["course_id"])
+    binding_kind = body.get("binding_kind") or "source"
+    result = binding_cli.bind(
+        base, body["objective"], body["source"], binding_kind=binding_kind,
+        treatment_kind=body.get("treatment") or "",
+        locator=body.get("locator") or "",
+        state=body.get("state") or "unknown",
+        confidence=body.get("confidence") or "unknown",
+        actor_kind=actor_kind, actor_name=actor_name)
+    payload = dict(result)
+    payload.update({
+        "operation": "bind",
+        "engine": ("course.bind_treatment" if binding_kind == "treatment"
+                   else OPERATION_ENGINE["bind"]),
+        "course_id": body["course_id"],
+        # The write happened, so the right was exactly granted when it was
+        # read. Reported as a state rather than as a boolean, because the
+        # three states are what the rights model has and "true" would flatten
+        # denied and unknown into one word.
+        "rights_state_at_write": "granted",
+        "undo": "no surface removes a binding; this row is journalled at "
+                "revision %s, so the reversal is restoring the sidecar's "
+                "previous revision from the operation journal"
+                % result.get("revision"),
+    })
+    return payload
+
+
+def _op_rights(root, body, actor_kind, actor_name, base=None):
+    """Record what the learner declares may be done with one source.
+
+    The bytes are untouched: `journal.op_grant_rights` writes a revision
+    record, not the file, so a right can be granted on an accepted artifact
+    without editing the accepted artifact. The grant merges, so naming one
+    right never resets the others.
+
+    The previous state is read before the write and reported after it,
+    because this is the one operation in the family with an exact undo: a
+    rights decision is reversed by recording the previous decision, and the
+    result says the command that does it.
+    """
+    base = base or resolve_course(root, body["course_id"])
+    source_id = body["source"]
+    grants = body["grants"]
+    registry = journal.read_registry(base)
+    record = registry.get(source_id)
+    before = dict((name, identity.rights_state(
+        (record or {}).get("rights"), name)) for name in grants)
+    result = binding_cli.rights_grant(base, source_id, grants,
+                                      actor_kind=actor_kind,
+                                      actor_name=actor_name)
+    restore = " ".join("--%s %s" % ("grant" if state == "granted" else "deny",
+                                    name)
+                       for name, state in sorted(before.items())
+                       if state in ("granted", "denied"))
+    return {
+        "operation": "rights",
+        "engine": OPERATION_ENGINE["rights"],
+        "course_id": body["course_id"],
+        "source_object_id": result["source_object_id"],
+        "previous": before,
+        "recorded": dict(grants),
+        "rights": result.get("rights"),
+        "revision": result.get("revision"),
+        "bytes_touched": False,
+        "undo": ("record the previous decision with `itembank bind rights "
+                 "--source %s %s`" % (source_id, restore)) if restore else
+                ("every right named here was unrecorded before this call, "
+                 "and `unknown` cannot be re-recorded as a decision; the "
+                 "nearest reversal is `--deny`, which is a decision and not "
+                 "an absence"),
+    }
+
+
+def _op_bindings(root, body, actor_kind, actor_name, base=None):
+    """Read every binding this course records, with its effective reading.
+
+    A read, and the only operation in this family that writes nothing. It
+    answers the question a coverage claim cannot answer about itself: a
+    binding stores the rights snapshot it was made under, and that snapshot
+    is history the moment the grant behind it changes. So each row is
+    reported twice over, once as it was recorded and once as it reads now,
+    and a divergence is named rather than left for a person to notice.
+
+    States go through `graph.validate_binding`, so a value this build cannot
+    read degrades to `unknown` and never to `covered`. The original is kept
+    beside it: an unreadable value is a fact about the row, not a reason to
+    silently rewrite it.
+    """
+    base = base or resolve_course(root, body["course_id"])
+    payload = dict(binding_cli.bindings(base))
+    statements = dict((row.get("id") or "", row.get("statement") or "")
+                      for row in payload.get("objectives") or ())
+    titles = dict((row.get("source_object_id") or "", row.get("title") or "")
+                  for row in payload.get("sources") or ())
+    readings = []
+    diverged = 0
+    for index, row in enumerate(payload.get("bindings") or ()):
+        effective = graph.validate_binding(row)
+        source_id = row.get("source_object_id") or ""
+        treatment_kind = row.get("treatment_kind") or ""
+        if treatment_kind:
+            try:
+                right = graph.treatment_right(treatment_kind)
+            except graph.GraphError:
+                # A treatment kind this build does not know consumes a right
+                # this build cannot name. Reported as unknown, which is the
+                # restrictive reading, rather than guessed at.
+                right = ""
+        else:
+            right = graph.SOURCE_BINDING_RIGHT
+        try:
+            now = (course_module.rights_for_binding(base, source_id, right)
+                   if right else identity.RIGHTS_UNKNOWN)
+        except course_module.CourseError:
+            now = identity.RIGHTS_UNKNOWN
+        snapshot = row.get("rights_snapshot") or ""
+        drifted = bool(snapshot) and snapshot != now
+        if drifted:
+            diverged += 1
+        readings.append({
+            "index": index,
+            "binding_kind": row.get("binding_kind") or "",
+            "objective": row.get("objective") or "",
+            "objective_statement": statements.get(row.get("objective") or "",
+                                                  ""),
+            "source_object_id": source_id,
+            "source_title": titles.get(source_id, ""),
+            "treatment_kind": treatment_kind,
+            "locator": row.get("locator") or "",
+            "state": effective["state"],
+            "original_state": effective["original_state"],
+            "state_degraded": effective["state"] !=
+                              effective["original_state"],
+            "confidence": effective["confidence"],
+            "original_confidence": effective["original_confidence"],
+            "confidence_degraded": effective["confidence"] !=
+                                   effective["original_confidence"],
+            "right_consumed": right,
+            "rights_snapshot": snapshot,
+            "rights_now": now,
+            "rights_diverged": drifted,
+            "explanation": _binding_sentence(row, effective, right, snapshot,
+                                             now),
+        })
+    payload.update({
+        "operation": "bindings",
+        "engine": OPERATION_ENGINE["bindings"],
+        "course_id": body["course_id"],
+        "readings": readings,
+        "diverged": diverged,
+    })
+    return payload
+
+
+def _binding_sentence(row, effective, right, snapshot, now):
+    """One sentence saying what this binding claims and whether it still
+    stands, in the order a person asks it: what is claimed, how sure, on
+    what right, and whether that right still holds."""
+    kind = row.get("binding_kind") or "source"
+    what = ("%s treatment" % row.get("treatment_kind")) if kind == "treatment"         else "source"
+    parts = ["this %s binding claims coverage of the objective is %s, at %s "
+             "confidence" % (what, effective["state"], effective["confidence"])]
+    if effective["state"] != effective["original_state"]:
+        parts.append("the recorded state %r is not one this build reads, so "
+                     "it degrades to unknown rather than to covered"
+                     % effective["original_state"])
+    if not right:
+        parts.append("the right it consumes is not one this build names, so "
+                     "it reads as unknown, which refuses")
+    elif not snapshot:
+        parts.append("it recorded no rights snapshot, so what was granted "
+                     "when it was made is not known; the %s right is %s now"
+                     % (right, now))
+    elif snapshot != now:
+        parts.append("it was recorded when the %s right was %s, and that "
+                     "right is %s now, so the claim rests on a right that "
+                     "has since changed" % (right, snapshot, now))
+    else:
+        parts.append("the %s right was %s when it was made and is %s now"
+                     % (right, snapshot, now))
+    return "; ".join(parts) + "."
+
+
+def _edit_sidecar(root, body, base, actor_kind, actor_name, change):
+    """Read a course sidecar, let `change` edit the parsed document, and
+    write it back through the one compare-and-swap path.
+
+    Every 19A-03 operation is this shape, and factoring it out is not
+    tidiness: it is what keeps `journal.OPERATION_TYPES` at six. Each of the
+    eight is an `edit_in_place` on one file, so if each wrote its own read
+    and write there would be eight chances to forget the expected
+    fingerprint, and a durable write without one is the silent overwrite the
+    compare-and-swap rule exists to prevent.
+
+    `change` returns whatever it wants reported; this returns the revision
+    beside it and never inspects it.
+    """
+    base = base or resolve_course(root, body["course_id"])
+    read = course_module.read_course(base)
+    doc = read["doc"]
+    result = change(doc)
+    revision = course_module.write_course(
+        base, doc, body.get("expected_fingerprint") or read["fingerprint"],
+        actor_kind, actor_name)
+    return base, read, result, revision
+
+
+def _edit_result(operation, body, read, revision, extra):
+    """The shape every structural write answers with: what it did, which
+    engine function did it, where the sidecar now stands, and how to reverse
+    it."""
+    payload = {
+        "operation": operation,
+        "engine": OPERATION_ENGINE[operation],
+        "course_id": body["course_id"],
+        "course_object_id": read["object_id"],
+        "fingerprint": revision.get("fingerprint"),
+        "revision": revision.get("revision"),
+    }
+    payload.update(extra)
+    payload.setdefault(
+        "undo",
+        "this is one edit_in_place on the sidecar at revision %s; no surface "
+        "removes a structural row yet, so the reversal is restoring the "
+        "sidecar's previous revision from the operation journal"
+        % revision.get("revision"))
+    return payload
+
+
+def _op_add_container(root, body, actor_kind, actor_name, base=None):
+    """Add one structural container.
+
+    Zero edges, deliberately: where a container sits in the outline is
+    structure, and structure is not a prerequisite claim (GRAPH-01). A course
+    whose week 2 follows week 1 has said nothing about what must be learned
+    first, and inferring otherwise is the kind of guess that ends up gating a
+    learner.
+    """
+    def change(doc):
+        if body.get("parent"):
+            known = set(row.get("id") for row in doc.get("structure") or ())
+            if body["parent"] not in known:
+                raise course_module.CourseError(
+                    "course.unknown_container",
+                    "%s is not a container in this course, so nothing was "
+                    "written. Next safe action: read the course's structure "
+                    "with `itembank course structure %s`, or add the parent "
+                    "first." % (body["parent"], body["course_id"]))
+        return graph.add_container(doc, body["label"], body["title"],
+                                   parent=body.get("parent") or "",
+                                   order=body.get("order"))
+
+    base, read, record, revision = _edit_sidecar(
+        root, body, base, actor_kind, actor_name, change)
+    return _edit_result("add_container", body, read, revision, {
+        "container_id": record["id"],
+        "label": record["label"],
+        "title": record["title"],
+        "parent": record.get("parent", ""),
+        "order": record.get("order", ""),
+    })
+
+
+def _op_add_objective(root, body, actor_kind, actor_name, base=None):
+    """Add one objective, always with origin `local`.
+
+    A request cannot claim `imported`, and the node does not carry the field.
+    An imported scope binds as an immutable version under GRAPH-01, so a
+    hand-authored row that claimed that origin would become un-editable for a
+    reason that was never true, and the only way back would be an overlay
+    onto an import that never happened.
+    """
+    def change(doc):
+        if body.get("container"):
+            known = set(row.get("id") for row in doc.get("structure") or ())
+            if body["container"] not in known:
+                raise course_module.CourseError(
+                    "course.unknown_container",
+                    "%s is not a container in this course, so nothing was "
+                    "written. Next safe action: add it with `itembank course "
+                    "add-container`, or leave the objective unplaced, which "
+                    "is a real state and not an error." % body["container"])
+        return graph.add_objective(doc, body["statement"],
+                                   container=body.get("container") or "",
+                                   order=body.get("order"))
+
+    base, read, record, revision = _edit_sidecar(
+        root, body, base, actor_kind, actor_name, change)
+    return _edit_result("add_objective", body, read, revision, {
+        "objective_id": record["id"],
+        "statement": record["statement"],
+        "container": record.get("container", ""),
+        "order": record.get("order", ""),
+        "origin": record.get("origin", ""),
+    })
+
+
+def _op_add_edge(root, body, actor_kind, actor_name, base=None):
+    """Add one edge between two endpoints the graph already holds.
+
+    Three refusals belong to `graph.add_edge` and are left there: a self
+    edge, a duplicate key, and an unknown endpoint. This adds none of its
+    own, because a second copy of a rule is a second place for it to be
+    wrong.
+    """
+    def change(doc):
+        return graph.add_edge(
+            doc, body["source"], body["edge_type"], body["target"],
+            authority=body.get("authority") or
+            graph.EDGE_FIELD_DEFAULTS["authority"],
+            rationale=body.get("rationale") or "",
+            confidence=body.get("confidence") or
+            graph.EDGE_FIELD_DEFAULTS["confidence"],
+            override=body.get("override") or
+            graph.EDGE_FIELD_DEFAULTS["override"])
+
+    base, read, record, revision = _edit_sidecar(
+        root, body, base, actor_kind, actor_name, change)
+    effective = graph.validate_edge(record)
+    warnings = graph.validate_order(course_module.read_course(base)["doc"])
+    return _edit_result("add_edge", body, read, revision, {
+        "source": record["source"],
+        "edge_type": record["edge_type"],
+        "target": record["target"],
+        "authority": record["authority"],
+        "confidence": record["confidence"],
+        "override": record["override"],
+        "rationale": record.get("rationale", ""),
+        "effective_type": effective["effective_type"],
+        # The edge is recorded either way. A prerequisite that now points
+        # backwards through the authored order is a warning and never a
+        # refusal, because the authored order is the human's and reordering
+        # it silently is what this whole module refuses to do.
+        "order_warnings": warnings,
+        "undo": "an edge is identified by (source, edge_type, target) and no "
+                "surface removes one yet; the reversal is restoring the "
+                "sidecar's previous revision from the operation journal",
+    })
+
+
+def _op_structure(root, body, actor_kind, actor_name, base=None):
+    """Read the containers, objectives and edges, with each edge's effective
+    reading and the warnings the authored order earns.
+
+    Reports and never corrects. `graph.validate_order` returns one warning
+    per violated prerequisite plus one naming a cycle, and both are left as
+    warnings: the authored sequence is what a person wrote, and a projection
+    that silently reorders makes every future diff unreadable.
+
+    `propose_order` is opt in and returns a sequence rather than writing one,
+    which is the difference between offering a course a better order and
+    taking the ordering decision away from its author.
+    """
+    base = base or resolve_course(root, body["course_id"])
+    read = course_module.read_course(base)
+    doc = read["doc"]
+    containers = [{"id": row.get("id") or "", "label": row.get("label") or "",
+                   "title": row.get("title") or "",
+                   "parent": row.get("parent") or "",
+                   "order": row.get("order") or ""}
+                  for row in doc.get("structure") or ()]
+    objectives = [{"id": row.get("id") or "",
+                   "statement": row.get("statement") or "",
+                   "container": row.get("container") or "",
+                   "order": row.get("order") or "",
+                   "origin": row.get("origin") or "",
+                   "overlays": row.get("overlays") or ""}
+                  for row in doc.get("objectives") or ()]
+    edges = []
+    for row in doc.get("edges") or ():
+        effective = graph.validate_edge(row)
+        edges.append({
+            "source": effective["source"], "target": effective["target"],
+            "edge_type": effective["effective_type"],
+            "original_type": effective["original_type"],
+            "type_degraded": effective["effective_type"] !=
+                             effective["original_type"],
+            "authority": effective["authority"],
+            "confidence": effective["confidence"],
+            "override": effective["override"],
+            "rationale": effective["rationale"],
+        })
+    payload = {
+        "operation": "structure",
+        "engine": OPERATION_ENGINE["structure"],
+        "course_id": body["course_id"],
+        "course_object_id": read["object_id"],
+        "fingerprint": read["fingerprint"],
+        "containers": containers,
+        "objectives": objectives,
+        "edges": edges,
+        "order_warnings": graph.validate_order(doc),
+        "edge_types": list(graph.EDGE_TYPES),
+        "authorities": list(graph.EDGE_AUTHORITIES),
+        "overrides": list(graph.EDGE_OVERRIDES),
+        "proposed_order": None,
+        "proposed_order_refused": "",
+    }
+    if body.get("propose_order"):
+        pairs = [(e["source"], e["target"]) for e in edges
+                 if e["edge_type"] == "prerequisite-of"]
+        try:
+            payload["proposed_order"] = graph.propose_order(
+                [o["id"] for o in objectives], pairs)
+        except graph.GraphError as err:
+            # A cycle is reported and never broken. Returning the refusal as
+            # a sentence rather than raising keeps the rest of the reading
+            # available: a course with a cycle is exactly the course whose
+            # structure someone needs to look at.
+            payload["proposed_order_refused"] = err.message
+    return payload
+
+
+def _proposal_result(operation, body, read, revision, proposal, extra):
+    """The shape the four identity operations answer with.
+
+    Every one of them adds rows and deletes none, and every one records the
+    migration as `proposed`. Saying so in the result matters more than it
+    looks: a caller that read "renamed" and stopped would not know that the
+    old identity is still in the file, still carries the evidence, and is
+    still what a report counts until a reviewer settles the migration.
+    """
+    payload = _edit_result(operation, body, read, revision, extra)
+    payload.update({
+        "migration_id": proposal.get("migration_id"),
+        "migration_kind": proposal.get("kind"),
+        "migration_state": proposal.get("state"),
+        "rationale": proposal.get("rationale"),
+        "settled": False,
+        "note": "the original row is untouched and still carries whatever "
+                "evidence was recorded against it; this migration is "
+                "recorded %s and a reviewer settles it"
+                % proposal.get("state"),
+        "undo": "reject the migration rather than deleting a row: nothing in "
+                "an identity chain is ever removed, and accepting or "
+                "rejecting %s is the settlement"
+                % proposal.get("migration_id"),
+    })
+    return payload
+
+
+def _op_rename_objective(root, body, actor_kind, actor_name, base=None):
+    """Restate one objective as a reviewed proposal.
+
+    A new row plus a migration, never an edit to the original. An imported
+    objective refuses here by name, and the refusal says which operation to
+    use instead, because "you may not edit this" without "here is what you
+    may do" is half an answer.
+    """
+    holder = {}
+
+    def change(doc):
+        record, proposal = graph.rename_objective(
+            doc, body["objective"], body["statement"], body["rationale"],
+            actor_name or actor_kind)
+        holder["proposal"] = proposal
+        return record
+
+    base, read, record, revision = _edit_sidecar(
+        root, body, base, actor_kind, actor_name, change)
+    return _proposal_result("rename_objective", body, read, revision,
+                            holder["proposal"], {
+                                "objective": body["objective"],
+                                "successor_id": record["id"],
+                                "statement": record["statement"],
+                            })
+
+
+def _op_split_objective(root, body, actor_kind, actor_name, base=None):
+    """Split one objective into several as a reviewed proposal."""
+    holder = {}
+
+    def change(doc):
+        records, proposal = graph.split_objective(
+            doc, body["objective"], list(body["statements"]),
+            body["rationale"], actor_name or actor_kind)
+        holder["proposal"] = proposal
+        return records
+
+    base, read, records, revision = _edit_sidecar(
+        root, body, base, actor_kind, actor_name, change)
+    return _proposal_result("split_objective", body, read, revision,
+                            holder["proposal"], {
+                                "objective": body["objective"],
+                                "successor_ids": [r["id"] for r in records],
+                                "statements": [r["statement"]
+                                               for r in records],
+                                "evidence_note": "each new identity reads "
+                                                 "unknown for evidence until "
+                                                 "evidence is recorded "
+                                                 "against it; unknown is not "
+                                                 "zero progress",
+                            })
+
+
+def _op_merge_objectives(root, body, actor_kind, actor_name, base=None):
+    """Merge several objectives into one as a reviewed proposal."""
+    holder = {}
+
+    def change(doc):
+        record, proposal = graph.merge_objectives(
+            doc, list(body["objectives"]), body["statement"],
+            body["rationale"], actor_name or actor_kind)
+        holder["proposal"] = proposal
+        return record
+
+    base, read, record, revision = _edit_sidecar(
+        root, body, base, actor_kind, actor_name, change)
+    return _proposal_result("merge_objectives", body, read, revision,
+                            holder["proposal"], {
+                                "objectives": list(body["objectives"]),
+                                "successor_id": record["id"],
+                                "statement": record["statement"],
+                            })
+
+
+def _op_overlay_objective(root, body, actor_kind, actor_name, base=None):
+    """Record a local revision of an imported objective as a sibling row.
+
+    The operation to reach for when a rename refuses because its target was
+    imported. It is true by construction rather than by care that the import
+    is untouched: an overlay is a new row joined to the import by an
+    `overlays` reference, and no code path here opens the imported row for
+    writing.
+    """
+    def change(doc):
+        return graph.overlay_objective(doc, body["objective"],
+                                       body["statement"],
+                                       actor_name or actor_kind)
+
+    base, read, record, revision = _edit_sidecar(
+        root, body, base, actor_kind, actor_name, change)
+    migrations = course_module.read_course(base)["doc"].get("migrations") or ()
+    proposal = dict(migrations[-1]) if migrations else {}
+    return _proposal_result("overlay_objective", body, read, revision,
+                            proposal, {
+                                "objective": body["objective"],
+                                "overlay_id": record["id"],
+                                "statement": record["statement"],
+                                "overlays": record.get("overlays", ""),
+                            })
+
+
 OPERATIONS = {
     "create": _op_create,
     "rename": _op_rename,
+    "add_source": _op_add_source,
+    "bind": _op_bind,
+    "rights": _op_rights,
+    "bindings": _op_bindings,
+    "add_container": _op_add_container,
+    "add_objective": _op_add_objective,
+    "add_edge": _op_add_edge,
+    "structure": _op_structure,
+    "rename_objective": _op_rename_objective,
+    "split_objective": _op_split_objective,
+    "merge_objectives": _op_merge_objectives,
+    "overlay_objective": _op_overlay_objective,
 }
 
 
-def run(root, operation, request, actor_kind="human", actor_name=""):
+def run(root, operation, request, actor_kind="human", actor_name="",
+        base=None):
     """Validate one request against its published node and dispatch it.
 
     The route's path is the authority on which operation this is, not a
@@ -244,7 +933,8 @@ def run(root, operation, request, actor_kind="human", actor_name=""):
     body["operation"] = operation
     validate_request(operation, body)
     return OPERATIONS[operation](root, body, actor_kind,
-                                 actor_name or body.get("actor") or "")
+                                 actor_name or body.get("actor") or "",
+                                 base)
 
 
 def show(root, course_id):
@@ -271,11 +961,114 @@ def show(root, course_id):
     }
 
 
+def _print_structure(payload):
+    """`itembank course structure` in plain text: the outline as authored,
+    the edges as this build reads them, and the warnings the order earns."""
+    print("%s  %s" % (payload["course_object_id"], payload["course_id"]))
+    print("\nContainers (%d)" % len(payload["containers"]))
+    for row in payload["containers"]:
+        print("  %s  %-9s %s%s"
+              % (row["id"], row["label"], row["title"],
+                 "  in %s" % row["parent"] if row["parent"] else ""))
+    print("\nObjectives (%d)" % len(payload["objectives"]))
+    for row in payload["objectives"]:
+        print("  %s  %s" % (row["id"], row["statement"][:84]))
+        if row["overlays"]:
+            print("      overlays %s" % row["overlays"])
+    print("\nEdges (%d)" % len(payload["edges"]))
+    for row in payload["edges"]:
+        print("  %s %s %s  (%s, %s, %s)"
+              % (row["source"], row["edge_type"], row["target"],
+                 row["authority"], row["confidence"], row["override"]))
+        if row["type_degraded"]:
+            print("      recorded as %r, which this build does not read, so "
+                  "it is advisory and blocks nothing" % row["original_type"])
+        if row["rationale"]:
+            print("      %s" % row["rationale"])
+    if payload["order_warnings"]:
+        print("\nOrder warnings (%d). The authored order is unchanged; these "
+              "are for review." % len(payload["order_warnings"]))
+        for line in payload["order_warnings"]:
+            print("  - %s" % line)
+    if payload["proposed_order"]:
+        print("\nA proposed order satisfying every prerequisite (not "
+              "written):")
+        for oid in payload["proposed_order"]:
+            print("  %s" % oid)
+    if payload["proposed_order_refused"]:
+        print("\nNo order can be proposed: %s"
+              % payload["proposed_order_refused"])
+
+
+def _print_result(operation, payload):
+    """One human line per operation, then the two lines every write ends
+    with. A `--json` caller gets the whole payload instead."""
+    if operation == "create":
+        print("created %s (%s) at revision %s"
+              % (payload["title"], payload["course_object_id"],
+                 payload["revision"]))
+    elif operation == "rename":
+        print("renamed %s from %s to %s at revision %s"
+              % (payload["course_object_id"], payload["previous_title"],
+                 payload["title"], payload["revision"]))
+    elif operation == "add_source":
+        print("recorded source %s (%s) at revision %s"
+              % (payload["title"], payload["source_object_id"],
+                 payload["revision"]))
+        print("  rights: %s"
+              % ", ".join("%s=%s" % (k, v) for k, v
+                          in sorted((payload["rights"] or {}).items())))
+        if not payload["bindable"]:
+            print("  the %s right is not granted, so binding this source "
+                  "refuses until it is: itembank bind rights --source %s "
+                  "--grant %s"
+                  % (graph.SOURCE_BINDING_RIGHT, payload["source_object_id"],
+                     graph.SOURCE_BINDING_RIGHT))
+    elif operation == "add_container":
+        print("added container %s (%s %s) at revision %s"
+              % (payload["container_id"], payload["label"], payload["title"],
+                 payload["revision"]))
+    elif operation == "add_objective":
+        print("added objective %s at revision %s"
+              % (payload["objective_id"], payload["revision"]))
+        print("  %s" % payload["statement"])
+    elif operation == "add_edge":
+        print("recorded %s %s %s at revision %s"
+              % (payload["source"], payload["edge_type"], payload["target"],
+                 payload["revision"]))
+        for line in payload["order_warnings"]:
+            print("  warning: %s" % line)
+    elif operation in ("rename_objective", "split_objective",
+                       "merge_objectives", "overlay_objective"):
+        made = payload.get("successor_ids") or [payload.get("successor_id")
+                                                or payload.get("overlay_id")]
+        kind = payload["migration_kind"] or ""
+        print("proposed %s %s at revision %s: %s -> %s"
+              % ("an" if kind[:1] in "aeiou" else "a", kind,
+                 payload["revision"],
+                 payload.get("objective")
+                 or ", ".join(payload.get("objectives") or ()),
+                 ", ".join(m for m in made if m)))
+        print("  migration %s is %s"
+              % (payload["migration_id"], payload["migration_state"]))
+        print("  %s" % payload["note"])
+    print("  fingerprint %s" % payload["fingerprint"])
+    print("  undo: %s" % payload["undo"])
+
+
 def cmd_course(a):
     """`itembank course` -- the CLI twin of `POST /api/course/<operation>`.
 
     Every action reaches `run` or `show`, the same functions the routes call,
     so the twin is one call and not a similar print (D-03).
+
+    The request is built from the operation's own published node rather than
+    field by field: each property the node declares is filled from the
+    argparse attribute of the same name, so adding an operation is adding a
+    `$defs` node and a parser and nothing here. That is the same property
+    that makes the Phase 999.3 tool table mechanical, applied to the surface
+    that already exists, and it means a field the document publishes and the
+    parser forgot is a visible gap rather than a silently dropped argument.
     """
     try:
         if a.action == "show":
@@ -289,26 +1082,28 @@ def cmd_course(a):
             print("  " + ", ".join("%s %d" % (k, v) for k, v
                                    in sorted(payload["counts"].items())))
             return 0
-        request = {"course_id": a.course_id, "title": a.title}
-        if a.action == "rename" and getattr(a, "expect", ""):
-            request["expected_fingerprint"] = a.expect
-        if getattr(a, "actor", ""):
-            request["actor"] = a.actor
-        payload = run(a.root, a.action, request, actor_kind="human",
+        # The subcommand name is the operation name, with the one spelling
+        # difference a command line wants: a hyphen reads better in a shell
+        # and an underscore is what a JSON field is called.
+        operation = a.action.replace("-", "_")
+        node, _document = operation_schema(operation)
+        request = {"course_id": a.course_id}
+        for name in node.get("properties") or ():
+            if name in ("operation", "course_id"):
+                continue
+            value = getattr(a, name, None)
+            if value is None or value == "" or value == []:
+                continue
+            request[name] = value
+        payload = run(a.root, operation, request, actor_kind="human",
                       actor_name=getattr(a, "actor", "") or "")
         if getattr(a, "json", False):
             print(json.dumps(payload, ensure_ascii=False, indent=2))
             return 0
-        if a.action == "create":
-            print("created %s (%s) at revision %s"
-                  % (payload["title"], payload["course_object_id"],
-                     payload["revision"]))
-        else:
-            print("renamed %s from %s to %s at revision %s"
-                  % (payload["course_object_id"], payload["previous_title"],
-                     payload["title"], payload["revision"]))
-        print("  fingerprint %s" % payload["fingerprint"])
-        print("  undo: %s" % payload["undo"])
+        if operation == "structure":
+            _print_structure(payload)
+            return 0
+        _print_result(operation, payload)
         return 0
     except (course_module.CourseError, graph.GraphError,
             journal.JournalError) as err:

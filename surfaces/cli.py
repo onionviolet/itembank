@@ -1368,21 +1368,27 @@ def build_parser():
                     help="emit the report dict as JSON")
     sr.set_defaults(fn=cmd_source_recheck)
 
-    s = sub.add_parser("course", help="create, rename, or read a course, "
-                       "the CLI twin of POST /api/course/<operation>")
+    s = sub.add_parser("course", help="create, rename, read a course, or "
+                       "record a source in it, the CLI twin of POST "
+                       "/api/course/<operation>")
     ct = s.add_subparsers(dest="action", required=True)
     for name, blurb in (
             ("create", "mint a course: one course-graph.md sidecar written "
                        "through the compare-and-swap path, every section "
                        "empty"),
             ("rename", "retitle a course; identity, bindings and evidence "
-                       "are untouched")):
+                       "are untouched"),
+            ("add-source", "record an imported source in this course's "
+                           "Sources section, the step between importing a "
+                           "source and binding it")):
         cp = ct.add_parser(name, help=blurb)
         cp.add_argument("course_id",
                         help="the course id, as the shelf and /course/<id> "
                              "spell it")
         cp.add_argument("--title", required=True,
-                        help="the course's human-readable title")
+                        help="the source's title for a human reader"
+                             if name == "add-source"
+                             else "the course's human-readable title")
         cp.add_argument("--root", default=".",
                         help="the workspace holding course directories "
                              "(default: current directory)")
@@ -1390,11 +1396,145 @@ def build_parser():
                         help="who is recording this, for the operation journal")
         cp.add_argument("--json", action="store_true",
                         help="emit the operation result as JSON")
-        if name == "rename":
+        if name == "add-source":
+            cp.add_argument("--source", required=True,
+                            dest="source_object_id",
+                            help="the opaque id of a source object this "
+                                 "course root's journal registry already "
+                                 "holds, as `itembank bind list` prints it")
+            cp.add_argument("--note", default="",
+                            help="why this source is in this course; never "
+                                 "read back for a decision")
+        if name in ("rename", "add-source"):
             cp.add_argument("--expect", default="",
+                            dest="expected_fingerprint",
                             help="the fingerprint you believe the sidecar "
                                  "carries; a stale one is refused by name")
         cp.set_defaults(fn=course_ops.cmd_course)
+
+    def structural(name, blurb):
+        """One `itembank course <name>` parser with the four arguments every
+        structural write shares. The operation's own fields are added by the
+        caller, each named exactly as the published node names it."""
+        sp = ct.add_parser(name, help=blurb)
+        sp.add_argument("course_id", help="the course id")
+        sp.add_argument("--root", default=".",
+                        help="the workspace holding course directories "
+                             "(default: current directory)")
+        sp.add_argument("--actor", default="",
+                        help="who is recording this, for the operation journal")
+        sp.add_argument("--expect", default="", dest="expected_fingerprint",
+                        help="the fingerprint you believe the sidecar "
+                             "carries; a stale one is refused by name")
+        sp.add_argument("--json", action="store_true",
+                        help="emit the operation result as JSON")
+        sp.set_defaults(fn=course_ops.cmd_course)
+        return sp
+
+    cc = structural("add-container", "add one structural container (a "
+                    "module, a week, a unit); adds zero edges, because "
+                    "structure is not a prerequisite claim")
+    cc.add_argument("--label", required=True,
+                    help="what kind of container this is: module, week, "
+                         "unit, or the word this course uses instead")
+    cc.add_argument("--title", required=True,
+                    help="the container's human-readable title")
+    cc.add_argument("--parent", default="",
+                    help="the id of the container this one sits inside "
+                         "(default: top level)")
+    cc.add_argument("--order", type=int, default=None,
+                    help="the authored position within the section "
+                         "(default: the end)")
+
+    co = structural("add-objective", "add one objective; adds zero edges, "
+                    "and is always recorded with origin local")
+    co.add_argument("--statement", required=True,
+                    help="what the learner will be able to do, in one "
+                         "sentence")
+    co.add_argument("--container", default="",
+                    help="the id of the container it belongs to (default: "
+                         "unplaced, which is a real state)")
+    co.add_argument("--order", type=int, default=None,
+                    help="the authored position within the section "
+                         "(default: the end)")
+
+    ce = structural("add-edge", "record one relation between two things "
+                    "this course graph already holds")
+    ce.add_argument("--source", required=True,
+                    help="the endpoint the relation runs from; for a "
+                         "prerequisite-of edge, the objective that comes "
+                         "first")
+    ce.add_argument("--type", required=True, dest="edge_type",
+                    choices=list(graph.EDGE_TYPES),
+                    help="which of the four frozen relations this asserts")
+    ce.add_argument("--target", required=True,
+                    help="the endpoint the relation runs to")
+    ce.add_argument("--authority", default=graph.EDGE_FIELD_DEFAULTS["authority"],
+                    choices=list(graph.EDGE_AUTHORITIES),
+                    help="where the claim comes from (default: proposed, "
+                         "the least-blocking value)")
+    ce.add_argument("--rationale", default="", help="why this relation holds")
+    ce.add_argument("--confidence", default=graph.EDGE_FIELD_DEFAULTS["confidence"],
+                    choices=list(graph.EDGE_CONFIDENCES),
+                    help="how sure the claim is (default: unknown)")
+    ce.add_argument("--override", default=graph.EDGE_FIELD_DEFAULTS["override"],
+                    choices=list(graph.EDGE_OVERRIDES),
+                    help="how hard this edge blocks; hard-gate is never a "
+                         "default and has to be written explicitly")
+
+    cst = ct.add_parser("structure", help="print the containers, objectives "
+                        "and edges, each edge as this build reads it, and "
+                        "the warnings the authored order earns")
+    cst.add_argument("course_id", help="the course id")
+    cst.add_argument("--root", default=".",
+                     help="the workspace holding course directories "
+                          "(default: current directory)")
+    cst.add_argument("--propose-order", action="store_true",
+                     dest="propose_order",
+                     help="also compute an order satisfying every "
+                          "prerequisite; a proposal, never written")
+    cst.add_argument("--json", action="store_true",
+                     help="emit the whole reading as JSON")
+    cst.set_defaults(fn=course_ops.cmd_course)
+
+    cr = structural("rename-objective", "restate one objective as a "
+                    "reviewed proposal: a new row and a migration, never an "
+                    "edit to the original")
+    cr.add_argument("--objective", required=True,
+                    help="the id of the objective being restated")
+    cr.add_argument("--statement", required=True, help="the new statement")
+    cr.add_argument("--rationale", required=True,
+                    help="why the identity is moving; a reviewer reads this")
+
+    csp = structural("split-objective", "split one objective into several "
+                     "as a reviewed proposal; adds rows and deletes none")
+    csp.add_argument("--objective", required=True,
+                     help="the id of the objective being split")
+    csp.add_argument("--statement", required=True, nargs="+",
+                     dest="statements",
+                     help="the statements it splits into, at least two, in "
+                          "authored order")
+    csp.add_argument("--rationale", required=True,
+                     help="why the identity is moving; a reviewer reads this")
+
+    cm = structural("merge-objectives", "merge several objectives into one "
+                    "as a reviewed proposal; every merged-from row stays")
+    cm.add_argument("--objective", required=True, nargs="+",
+                    dest="objectives",
+                    help="the ids being merged, at least two, each named once")
+    cm.add_argument("--statement", required=True,
+                    help="the statement the merged objective carries")
+    cm.add_argument("--rationale", required=True,
+                    help="why the identity is moving; a reviewer reads this")
+
+    cov = structural("overlay-objective", "record a local revision of an "
+                     "imported objective as a sibling row, which is what to "
+                     "reach for when a rename refuses because the target "
+                     "was imported")
+    cov.add_argument("--objective", required=True,
+                     help="the id of the imported objective being revised")
+    cov.add_argument("--statement", required=True,
+                     help="the local revision's statement")
 
     cs = ct.add_parser("show", help="print a course's identity, title, "
                        "fingerprint and section counts")
@@ -1443,7 +1583,9 @@ def build_parser():
         bp.set_defaults(fn=binding_cli.cmd_bind)
 
     bl = bt.add_parser("list", help="print this course's objectives, sources "
-                       "with their recorded rights, and existing bindings")
+                       "with their recorded rights, and every binding's "
+                       "effective reading, including whether the right it "
+                       "was made under still reads the same way")
     bl.add_argument("--base", default=".",
                     help="the course root (default: current directory)")
     bl.add_argument("--json", action="store_true",
