@@ -73,6 +73,7 @@ import os
 import sys
 
 import course as course_module
+import director
 import graph
 import identity
 import journal
@@ -80,6 +81,7 @@ import resources
 import schema_validate
 from surfaces import binding_cli
 from surfaces import ia
+from surfaces import settings as settings_module
 
 
 # The published request document, read off disk on every dispatch. Not
@@ -99,6 +101,13 @@ OPERATION_ENGINE = {
     "bind": "course.bind_source",
     "bind_treatment": "course.bind_treatment",
     "treatments": "graph.treatment_right",
+    "autonomy": "director.autonomy_level",
+    "begin_operation": "director.begin_operation",
+    "replay": "director.replay_operation",
+    "reverse_operation": "director.reverse_operation",
+    "recommend": "director.recommend_once",
+    "recommend_pass": "director.recommend_treatments",
+    "apply_recommendation": "director.apply_recommendation",
     "rights": "journal.op_grant_rights",
     "bindings": "graph.validate_binding",
     "add_container": "graph.add_container",
@@ -114,7 +123,32 @@ OPERATION_ENGINE = {
 # The operations that only read. They reach no writer, advance no revision,
 # and are the only ones a surface may serve behind the read-side gate; every
 # other name in OPERATION_ENGINE writes.
-READ_OPERATIONS = ("bindings", "structure", "treatments")
+READ_OPERATIONS = ("bindings", "structure", "treatments", "autonomy",
+                   "replay")
+
+# The operations whose journal origin is an AGENT rather than the human at the
+# surface, because a model produced what they record. Everything absent from
+# this table is `human`, which is what a browser client and a terminal are.
+#
+# The kind is still the SURFACE's to decide and never the request's: it is
+# chosen by what the operation does, exactly as the loopback gate above is.
+# A recommendation's content comes from a model, so recording it as a human's
+# work would put a false origin in the durable record; a declaration, a
+# reversal and a settlement are a person's acts, and `accept_revision` in
+# particular has `director.proposal_self_accept` waiting for anything that
+# tried to be both proposer and reviewer.
+# The director writes that print as a block rather than a line. Derived from
+# the family rather than typed twice: a director operation that is neither a
+# read nor listed here would print nothing, and this is the list that fails
+# loudly instead.
+DIRECTOR_WRITES = ("begin_operation", "reverse_operation", "recommend",
+                   "recommend_pass", "apply_recommendation")
+
+OPERATION_ACTOR_KIND = {
+    "recommend": "agent",
+    "recommend_pass": "agent",
+    "apply_recommendation": "agent",
+}
 
 
 def request_schema():
@@ -554,6 +588,438 @@ def _treatment_sentence(kind, right, state, source_id):
     return ("%s, and %s is unrecorded on this source, so it refuses: unknown "
             "is restrictive, and finding a file never granted permission to "
             "use it" % (cost, right))
+
+
+# ---------------------------------------------------------------------------
+# the director family (19A-05)
+#
+# One rule governs all seven and it is the reason the family is worth a wave:
+# authority is READ FROM DISK AT CALL TIME and is never a request field. A
+# request declares a level; settings grant one; `director.authorize_write`
+# compares them and refuses an over-declaration rather than narrowing it. An
+# agent that could report its own authority could raise it, which is the
+# self-expansion AGENT-02 forbids by name, so there is deliberately no path
+# from this namespace to `agent_policy` at all: raising the level is a person
+# editing settings, and no route here can do it.
+# ---------------------------------------------------------------------------
+
+
+def _policy(root):
+    """The agent policy this installation grants, and where it was read from.
+
+    Reported beside every director answer rather than only consulted, because
+    the commonest confusing outcome in this family is a refusal at
+    `recommend-only` on a machine whose owner believes they configured
+    otherwise, and the useful thing to say is which file was actually read.
+    """
+    settings_root = os.path.abspath(root)
+    settings_data = settings_module.load_settings(settings_root)
+    return settings_data, {
+        "settings_root": settings_root,
+        "granted_level": director.autonomy_level(settings_data),
+        "max_bindings_per_operation":
+            director.max_bindings_per_operation(settings_data),
+    }
+
+
+def _would_authorize(settings_data, level, bindings):
+    """Whether `level` with `bindings` would be permitted, and why not.
+
+    A dry run: `authorize_write` returns None or raises, and it writes
+    nothing either way, so asking it is free and asking it beforehand is the
+    whole point of the `autonomy` read.
+    """
+    try:
+        director.authorize_write(settings_data, level, bindings)
+    except director.DirectorError as err:
+        return False, err.code, err.message
+    return True, "", ""
+
+
+def _op_autonomy(root, body, actor_kind, actor_name, base=None):
+    """What this installation permits an agent operation to do.
+
+    A read, and the family's answer to a question that previously had none.
+    `director.autonomy_level` and `authorize_write` had no reader on any
+    surface, so the only way to learn the configured authority was to declare
+    a level and be refused, and a refusal after the fact is a worse answer
+    than the same fact beforehand.
+
+    Every one of the three levels is dry-run, not just the one asked about,
+    so the answer is the whole shape of what is open rather than a yes or a
+    no. The binding cap is reported beside it because raising the level alone
+    still writes nothing: both settings have to be changed deliberately, and
+    a client that saw only the level would misread a cap of zero as a bug.
+    """
+    base = base or resolve_course(root, body["course_id"])
+    settings_data, policy = _policy(root)
+    requested = body.get("bindings_requested") or 0
+    levels = []
+    for level in director.AUTONOMY_LEVELS:
+        allowed, code, message = _would_authorize(settings_data, level,
+                                                  requested)
+        levels.append({"level": level, "authorized": allowed, "code": code,
+                       "refusal": message,
+                       "writes_bindings":
+                           level == director.AUTONOMY_LEVELS[-1]})
+    payload = {
+        "operation": "autonomy",
+        "engine": OPERATION_ENGINE["autonomy"],
+        "course_id": body["course_id"],
+        "bindings_requested": requested,
+        "levels": levels,
+        "declared_level": body.get("declared_level") or "",
+        "authorized": None,
+        "code": "",
+        "refusal": "",
+    }
+    payload.update(policy)
+    if body.get("declared_level"):
+        allowed, code, message = _would_authorize(
+            settings_data, body["declared_level"], requested)
+        payload.update({"authorized": allowed, "code": code,
+                        "refusal": message})
+    payload["explanation"] = _autonomy_sentence(payload)
+    return payload
+
+
+def _autonomy_sentence(payload):
+    """One sentence saying what is granted, what that permits, and what a
+    declaration would meet."""
+    parts = ["this installation grants %s and permits %d binding(s) per "
+             "operation, read from %s"
+             % (payload["granted_level"],
+                payload["max_bindings_per_operation"],
+                payload["settings_root"])]
+    if payload["max_bindings_per_operation"] == 0:
+        parts.append("the cap is zero, so raising the level alone would "
+                     "still write no binding; both settings are changed "
+                     "deliberately or neither takes effect")
+    if payload["declared_level"]:
+        if payload["authorized"]:
+            parts.append("a %s operation requesting %d binding(s) is within "
+                         "policy" % (payload["declared_level"],
+                                     payload["bindings_requested"]))
+        else:
+            parts.append("a %s operation requesting %d binding(s) would be "
+                         "refused (%s), and refused rather than narrowed, so "
+                         "the over-declaration surfaces"
+                         % (payload["declared_level"],
+                            payload["bindings_requested"], payload["code"]))
+    return "; ".join(parts) + "."
+
+
+def _op_begin_operation(root, body, actor_kind, actor_name, base=None):
+    """Declare an operation's intent, role, authority and scopes.
+
+    Step one of the thirteen, and the only record written before the attempt.
+    It writes one journal entry and no file, so it is a write by the spine's
+    gate (it appends durable state) while touching no course bytes.
+
+    The declared autonomy is NOT checked here. Declaring an intention is not
+    exercising it, and `authorize_write` runs in whichever write follows; a
+    check here would refuse a legitimate declaration of what an operation
+    hoped to do, and the declaration is exactly the thing worth having on
+    disk when the answer turns out to be no.
+    """
+    base = base or resolve_course(root, body["course_id"])
+    _settings_data, policy = _policy(root)
+    operation_id = director.begin_operation(
+        base, base, body["intent"], actor_kind, actor_name,
+        body["actor_role"], body["autonomy"],
+        scopes=tuple(body.get("scopes") or ()))
+    payload = {
+        "operation": "begin_operation",
+        "engine": OPERATION_ENGINE["begin_operation"],
+        "course_id": body["course_id"],
+        "operation_id": operation_id,
+        "intent": body["intent"],
+        "actor_role": body["actor_role"],
+        "declared_autonomy": body["autonomy"],
+        "scopes": list(body.get("scopes") or ()),
+        "undo": "a declaration wrote no file; `itembank course replay %s "
+                "--operation %s` reads what it recorded, and the operation "
+                "is abandoned by simply not continuing it, which the replay "
+                "then reports as incomplete"
+                % (body["course_id"], operation_id),
+    }
+    payload.update(policy)
+    return payload
+
+
+def _op_replay(root, body, actor_kind, actor_name, base=None):
+    """Replay one recorded operation against the thirteen-step protocol.
+
+    A read of the journal and nothing else, which is the assertion rather
+    than an implementation detail: an operation resumes because its history
+    is on disk, not because a conversation is still open (RELIABILITY-02),
+    so this takes an operation id and there is no parameter through which an
+    in-memory operation could be handed to it.
+
+    `resume_point` is reported beside the report because it answers the
+    question the report leaves open. The report says which steps are missing;
+    the resume point says which one comes NEXT, which is what an interrupted
+    client actually needs, and it reads the same entries, so serving it here
+    costs one call and cannot disagree with the report beside it.
+
+    The egress each phase disclosed is projected out, because it is the one
+    thing in this family a learner is owed and it was written to the journal
+    with no reader at all: what left this machine, to whom, and what was
+    held back and why.
+    """
+    base = base or resolve_course(root, body["course_id"])
+    operation_id = body["operation_id"]
+    report = director.replay_operation(base, operation_id)
+    entries = director.operation_entries(base, operation_id)
+    egress = []
+    for entry in entries:
+        agent = entry.get("agent") or {}
+        record = agent.get("egress")
+        if not record:
+            continue
+        egress.append({
+            "phase": agent.get("phase") or "",
+            "entry_id": entry.get("entry_id") or "",
+            "destination": record.get("destination") or "",
+            "backend_class": record.get("backend_class") or "",
+            "profile": record.get("profile") or "",
+            "spans": len(record.get("spans") or ()),
+            "omitted": list(record.get("omitted") or ()),
+            "payload_bytes": record.get("payload_bytes"),
+            "evidence_included": record.get("evidence_included"),
+        })
+    payload = dict(report)
+    payload.update({
+        "operation": "replay",
+        "engine": OPERATION_ENGINE["replay"],
+        "course_id": body["course_id"],
+        "entries": len(entries),
+        "resume": director.resume_point(base, operation_id),
+        "egress": egress,
+        "left_this_machine": [row for row in egress
+                              if row["destination"] != "local"],
+    })
+    return payload
+
+
+def _op_reverse_operation(root, body, actor_kind, actor_name, base=None):
+    """Undo one operation's durable writes, newest first.
+
+    Reaches `journal.undo` through `director.reverse_operation` and adds no
+    restore path of its own. That is the point rather than a convenience: a
+    second way to put bytes back would make the guarantee that any fault
+    leaves the old or the new valid state depend on two implementations
+    agreeing about what the old state was, and the moment they disagreed
+    nothing could say which was right.
+
+    Entries that wrote no bytes are skipped rather than failed, and reported
+    as skipped, so a reversal that restored nothing is legible as an
+    operation that had written nothing rather than as one that failed.
+    """
+    base = base or resolve_course(root, body["course_id"])
+    before = director.replay_operation(base, body["operation_id"])
+    result = director.reverse_operation(base, body["operation_id"],
+                                        actor_kind, actor_name)
+    reversed_ids = list(result.get("reversed_entries") or ())
+    payload = {
+        "operation": "reverse_operation",
+        "engine": OPERATION_ENGINE["reverse_operation"],
+        "course_id": body["course_id"],
+        "operation_id": body["operation_id"],
+        "reversed_entries": reversed_ids,
+        "restored_revisions": list(result.get("restored_revisions") or ()),
+        "complete": result.get("complete"),
+        "verdict_before": before.get("verdict"),
+        "explanation":
+            ("%d journal entry(s) carried a before-image and were restored, "
+             "newest first" % len(reversed_ids)) if reversed_ids else
+            ("no entry of this operation carried a before-image, so nothing "
+             "was restored: it declared and recorded phases without writing "
+             "bytes, which is a real state and not a failed reversal"),
+        "undo": "a reversal is itself journalled; restoring the state this "
+                "call replaced means reversing the restore entries it "
+                "wrote, which no surface does yet",
+    }
+    return payload
+
+
+def _director_run(root, body, base, actor_kind, actor_name, operation, call):
+    """The shape every recommendation answer takes: the policy that governed
+    it, what it produced, and what left the machine.
+
+    Factored out because the honest part of a recommendation is not the
+    recommendation. It is the authority it ran under and the egress it
+    caused, and two separate result bodies would be two chances to report
+    one and forget the other.
+    """
+    settings_data, policy = _policy(root)
+    result = call(settings_data)
+    payload = {
+        "operation": operation,
+        "engine": OPERATION_ENGINE[operation],
+        "course_id": body["course_id"],
+        "declared_autonomy": body["autonomy"],
+        "actor_role": body["actor_role"],
+        "profile": body.get("profile") or "",
+    }
+    payload.update(policy)
+    payload.update(result)
+    return payload
+
+
+def _op_recommend(root, body, actor_kind, actor_name, base=None):
+    """One objective, one recommendation attempt, end to end.
+
+    A backend that is absent, disabled, or times out comes back
+    `unavailable` with its typed adapter code, and this returns rather than
+    raises, because backend loss is an EXPECTED state: the objective stays
+    untreated, the core loop is unaffected, and the caller decides whether
+    to retry, hand-author, or move on. A candidate that arrives and fails
+    its contract does raise, because that is a broken provider rather than
+    an absent one, and the two are not the same fact.
+
+    Nothing is bound here. The recommendation comes back as a validated
+    record for a reviewer, and binding it is `apply_recommendation` with its
+    own live rights gate; a recommendation that could bind itself would be a
+    model choosing what its own output authorizes.
+    """
+    base = base or resolve_course(root, body["course_id"])
+
+    def call(settings_data):
+        result = director.recommend_once(
+            base, base, body["objective"], settings_data,
+            body.get("profile") or "", actor_kind, actor_name,
+            body["actor_role"], body["autonomy"],
+            scopes=tuple(body.get("scopes") or ()))
+        return {
+            "objective": body["objective"],
+            "status": result.get("status"),
+            "code": result.get("code") or "",
+            "record": result.get("record"),
+            "operation_id": result.get("operation_id") or "",
+            "bound": False,
+            "undo": "nothing was bound; this recorded journal entries only, "
+                    "and `itembank course reverse-operation` reverses the "
+                    "operation id above",
+        }
+
+    payload = _director_run(root, body, base, actor_kind, actor_name,
+                            "recommend", call)
+    if payload["status"] != "ok":
+        payload["explanation"] = (
+            "no recommendation was received (%s), so the objective stays "
+            "untreated with reason backend-unavailable; the core loop is "
+            "unaffected and studying, scoring and authored hints keep "
+            "working" % (payload["code"] or "the backend did not answer"))
+    else:
+        payload["explanation"] = (
+            "a recommendation was received and validated against the "
+            "recommendation contract, and nothing was bound: binding it is "
+            "a separate operation that reads the rights again")
+    return payload
+
+
+def _op_recommend_pass(root, body, actor_kind, actor_name, base=None):
+    """One pass over many objectives, one entry each.
+
+    Every objective gets exactly one of the three outcomes and none is
+    skipped, because a pass whose gaps were invisible is the failure this
+    surface exists to prevent. The counts are reported beside the entries so
+    a caller reads the shape of the pass without walking it.
+
+    The authority check runs once, before the first objective, inside the
+    engine: an over-declaring pass is refused before any binding lands
+    rather than after the first one already has. Below
+    `approved-bounded-write` nothing binds and every objective comes back
+    untreated with its reason, which is a result and not a failure.
+    """
+    base = base or resolve_course(root, body["course_id"])
+    objectives = list(body["objectives"])
+
+    def call(settings_data):
+        entries = director.recommend_treatments(
+            base, base, objectives, settings_data,
+            body.get("profile") or "", actor_kind, actor_name,
+            body["actor_role"], body["autonomy"],
+            scopes=tuple(body.get("scopes") or ()))
+        counts = dict((name, 0) for name in director.RECOMMENDATION_OUTCOMES)
+        reasons = {}
+        for entry in entries:
+            counts[entry["outcome"]] = counts.get(entry["outcome"], 0) + 1
+            if entry.get("reason"):
+                reasons[entry["reason"]] = reasons.get(entry["reason"], 0) + 1
+        return {
+            "objectives": objectives,
+            "entries": entries,
+            "counts": counts,
+            "reasons": reasons,
+            "undo": "each bound objective is one binding through the same "
+                    "gated path a hand binding takes; no surface removes a "
+                    "binding, and the reversal is restoring the sidecar's "
+                    "previous journalled revision",
+        }
+
+    payload = _director_run(root, body, base, actor_kind, actor_name,
+                            "recommend_pass", call)
+    payload["explanation"] = (
+        "%d objective(s) in, %d entry(s) out, one per objective and none "
+        "skipped: %s. The pass declared %s and the policy grants %s."
+        % (len(objectives), len(payload["entries"]),
+           ", ".join("%d %s" % (n, name)
+                     for name, n in sorted(payload["counts"].items()) if n)
+           or "nothing",
+           payload["declared_autonomy"], payload["granted_level"]))
+    return payload
+
+
+def _op_apply_recommendation(root, body, actor_kind, actor_name, base=None):
+    """Bind an accepted recommendation, or refuse it against the live rights.
+
+    The record's contract is `schemas/treatment_recommendation.schema.json`
+    and `director.validate_recommendation` is what enforces it, called here
+    before the engine so a malformed record is refused by name with nothing
+    read or written. This module restates none of that contract: one
+    published document owns the recommendation shape.
+
+    The coverage state written is `classify_coverage`'s, never the
+    provider's, and the source text is supplied so the locator can actually
+    resolve; without it the claim is unverifiable and TREAT-02 makes an
+    unverifiable claim read `unknown` rather than `covered`. The provider's
+    own state is kept beside the computed one as history, which is what lets
+    a reviewer see an overclaim that a single merged field would hide.
+    """
+    base = base or resolve_course(root, body["course_id"])
+    record = director.validate_recommendation(body["record"])
+    read = course_module.read_course(base)
+    revision = director.apply_recommendation(
+        base, base, record, body["source"], actor_kind, actor_name,
+        operation_id=body.get("operation_id") or "",
+        profile_name=body.get("profile") or "",
+        source_texts=director.source_texts_for(base, read["doc"]))
+    coverage = record.get("coverage") or {}
+    return {
+        "operation": "apply_recommendation",
+        "engine": OPERATION_ENGINE["apply_recommendation"],
+        "course_id": body["course_id"],
+        "objective": record["objective_id"],
+        "source_object_id": body["source"],
+        "treatment_kind": record["treatment_kind"],
+        "right_consumed": graph.treatment_right(record["treatment_kind"]),
+        "locator": coverage.get("locator") or "",
+        "proposed_state": coverage.get("state") or "",
+        "revision": revision.get("revision"),
+        "fingerprint": revision.get("fingerprint"),
+        "explanation":
+            "the provider proposed coverage %r and the runtime computed the "
+            "state that was written; the proposal is kept beside it as "
+            "history and no code path reads it back for a decision"
+            % (coverage.get("state") or "nothing"),
+        "undo": "no surface removes a binding; this row is journalled at "
+                "revision %s, so the reversal is restoring the sidecar's "
+                "previous revision, or reversing the whole operation with "
+                "`itembank course reverse-operation`"
+                % revision.get("revision"),
+    }
 
 
 def _op_rights(root, body, actor_kind, actor_name, base=None):
@@ -1079,6 +1545,13 @@ OPERATIONS = {
     "bind": _op_bind,
     "bind_treatment": _op_bind_treatment,
     "treatments": _op_treatments,
+    "autonomy": _op_autonomy,
+    "begin_operation": _op_begin_operation,
+    "replay": _op_replay,
+    "reverse_operation": _op_reverse_operation,
+    "recommend": _op_recommend,
+    "recommend_pass": _op_recommend_pass,
+    "apply_recommendation": _op_apply_recommendation,
     "rights": _op_rights,
     "bindings": _op_bindings,
     "add_container": _op_add_container,
@@ -1119,7 +1592,15 @@ def run(root, operation, request, actor_kind="human", actor_name="",
             % (declared, operation, declared))
     body["operation"] = operation
     validate_request(operation, body)
-    return OPERATIONS[operation](root, body, actor_kind,
+    # The actor KIND is the surface's to decide and never the request's, and
+    # for three operations the surface decides `agent` because a model
+    # produced what they record (19A-05). Chosen by what the operation does,
+    # the same way the loopback gate is, rather than by what a caller claims:
+    # recording a model's recommendation as a human's work would put a false
+    # origin in the durable record, and a request that could set this could
+    # launder one.
+    kind = OPERATION_ACTOR_KIND.get(operation, actor_kind)
+    return OPERATIONS[operation](root, body, kind,
                                  actor_name or body.get("actor") or "",
                                  base)
 
@@ -1185,6 +1666,105 @@ def _print_structure(payload):
     if payload["proposed_order_refused"]:
         print("\nNo order can be proposed: %s"
               % payload["proposed_order_refused"])
+
+
+def _print_autonomy(payload):
+    """`itembank course autonomy` in plain text: what is granted, what each
+    of the three levels would meet, and where the answer was read from."""
+    print("Agent policy read from %s" % payload["settings_root"])
+    print("  granted level: %s" % payload["granted_level"])
+    print("  bindings permitted per operation: %d"
+          % payload["max_bindings_per_operation"])
+    print("\nDeclaring each level, with %d binding(s) requested:"
+          % payload["bindings_requested"])
+    for row in payload["levels"]:
+        print("  %s %-24s %s"
+              % ("ok" if row["authorized"] else "no", row["level"],
+                 row["refusal"] or ("writes bindings"
+                                    if row["writes_bindings"]
+                                    else "proposes, writes no binding")))
+    print("\n%s" % payload["explanation"])
+
+
+def _print_replay(payload):
+    """`itembank course replay`: the thirteen steps as recorded, where an
+    interrupted operation resumes, and what left this machine."""
+    print("%s  %d journal entry(s), verdict %s"
+          % (payload["operation_id"] or "(no operation id)",
+             payload["entries"], payload["verdict"]))
+    print("\nProtocol steps")
+    for row in payload["steps"]:
+        print("  %2d %-24s %-15s %s"
+              % (row["index"], row["step"], row["outcome"],
+                 row["reason"] or ""))
+    if payload["out_of_order"]:
+        print("\nRecorded out of the contract's order (named, never "
+              "sorted): %s" % ", ".join(payload["out_of_order"]))
+    resume = payload["resume"]
+    print("\nResume: %s"
+          % ("stopped after %s, next is %s"
+             % (resume["last_phase"], resume["next_phase"])
+             if resume["resumable"]
+             else "not resumable (%s)" % (resume["reason"] or "unknown")))
+    print("\nEgress (%d phase(s) recorded one)" % len(payload["egress"]))
+    for row in payload["egress"]:
+        print("  %-15s %-16s %-12s %d span(s), %s byte(s), evidence %s"
+              % (row["phase"], row["destination"],
+                 row["profile"] or row["backend_class"], row["spans"],
+                 row["payload_bytes"], row["evidence_included"]))
+        for omission in row["omitted"]:
+            print("      held back: %s" % omission)
+    if not payload["left_this_machine"]:
+        print("  nothing left this machine.")
+    if payload["reason"]:
+        print("\n%s" % payload["reason"])
+
+
+def _print_director(operation, payload):
+    """One human block per director write. Each ends with the authority it
+    ran under, because that is the thing a reader most often needs and the
+    thing a result body most easily leaves out."""
+    if operation == "begin_operation":
+        print("declared %s" % payload["operation_id"])
+        print("  intent: %s" % payload["intent"])
+        print("  role %s, declaring %s, scopes %s"
+              % (payload["actor_role"], payload["declared_autonomy"],
+                 ", ".join(payload["scopes"]) or "(none declared)"))
+    elif operation == "reverse_operation":
+        print("reversed %s: %d entry(s) restored"
+              % (payload["operation_id"], len(payload["reversed_entries"])))
+        for entry_id, revision in zip(payload["reversed_entries"],
+                                      payload["restored_revisions"]):
+            print("  %s restored to revision %s" % (entry_id, revision))
+        print("  %s" % payload["explanation"])
+    elif operation == "recommend":
+        print("%s for %s" % (payload["status"], payload["objective"]))
+        record = payload["record"] or {}
+        if record:
+            print("  proposed treatment: %s (confidence %s)"
+                  % (record.get("treatment_kind") or "(none named)",
+                     record.get("confidence") or "unknown"))
+            print("  operation %s" % payload["operation_id"])
+        print("  %s" % payload["explanation"])
+    elif operation == "recommend_pass":
+        for entry in payload["entries"]:
+            print("  %-9s %-20s %s%s"
+                  % (entry["outcome"], entry["objective_id"],
+                     entry["treatment_kind"] or "(no treatment)",
+                     "  %s" % entry["reason"] if entry["reason"] else ""))
+        print("\n%s" % payload["explanation"])
+    elif operation == "apply_recommendation":
+        print("bound %s -> %s (%s, consumes %s) at revision %s"
+              % (payload["objective"], payload["source_object_id"],
+                 payload["treatment_kind"], payload["right_consumed"],
+                 payload["revision"]))
+        print("  %s" % payload["explanation"])
+    if operation in ("recommend", "recommend_pass"):
+        print("  policy: %s granted, %d binding(s) per operation, read from %s"
+              % (payload["granted_level"],
+                 payload["max_bindings_per_operation"],
+                 payload["settings_root"]))
+    print("  undo: %s" % payload["undo"])
 
 
 def _print_result(operation, payload):
@@ -1290,8 +1870,17 @@ def cmd_course(a):
         if operation == "structure":
             _print_structure(payload)
             return 0
+        if operation == "autonomy":
+            _print_autonomy(payload)
+            return 0
+        if operation == "replay":
+            _print_replay(payload)
+            return 0
+        if operation in DIRECTOR_WRITES:
+            _print_director(operation, payload)
+            return 0
         _print_result(operation, payload)
         return 0
     except (course_module.CourseError, graph.GraphError,
-            journal.JournalError) as err:
+            journal.JournalError, director.DirectorError) as err:
         sys.exit("%s: %s" % (err.code, err.message))

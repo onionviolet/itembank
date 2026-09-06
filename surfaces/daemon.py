@@ -333,6 +333,13 @@ API_ROUTES = (
     ("POST", "/api/course/bind", "handle_api_bind"),
     ("POST", "/api/course/bind-treatment", "handle_api_course_bind_treatment"),
     ("POST", "/api/course/treatments", "handle_api_course_treatments"),
+    ("POST", "/api/course/autonomy", "handle_api_course_autonomy"),
+    ("POST", "/api/course/begin-operation", "handle_api_course_begin_operation"),
+    ("POST", "/api/course/replay", "handle_api_course_replay"),
+    ("POST", "/api/course/reverse-operation", "handle_api_course_reverse_operation"),
+    ("POST", "/api/course/recommend", "handle_api_course_recommend"),
+    ("POST", "/api/course/recommend-pass", "handle_api_course_recommend_pass"),
+    ("POST", "/api/course/apply-recommendation", "handle_api_course_apply_recommendation"),
     ("POST", "/api/course/rights", "handle_api_rights"),
     ("POST", "/api/course/bindings", "handle_api_course_bindings"),
     ("POST", "/api/course/add-container", "handle_api_course_add_container"),
@@ -444,6 +451,13 @@ ROUTE_CLI = {
     ("POST", "/api/course/bind"): "bind",
     ("POST", "/api/course/bind-treatment"): "bind",
     ("POST", "/api/course/treatments"): "bind",
+    ("POST", "/api/course/autonomy"): "course",
+    ("POST", "/api/course/begin-operation"): "course",
+    ("POST", "/api/course/replay"): "course",
+    ("POST", "/api/course/reverse-operation"): "course",
+    ("POST", "/api/course/recommend"): "course",
+    ("POST", "/api/course/recommend-pass"): "course",
+    ("POST", "/api/course/apply-recommendation"): "course",
     ("POST", "/api/course/rights"): "bind",
     ("POST", "/api/course/bindings"): "bind",
     ("POST", "/api/course/add-container"): "course",
@@ -517,6 +531,13 @@ SURFACE_PARITY = (
     (("POST", "/api/course/bind"), "bind", "bind"),
     (("POST", "/api/course/bind-treatment"), "bind", "bind_treatment"),
     (("POST", "/api/course/treatments"), "bind", "course_treatments"),
+    (("POST", "/api/course/autonomy"), "course", "course_autonomy"),
+    (("POST", "/api/course/begin-operation"), "course", "course_begin_operation"),
+    (("POST", "/api/course/replay"), "course", "course_replay"),
+    (("POST", "/api/course/reverse-operation"), "course", "course_reverse_operation"),
+    (("POST", "/api/course/recommend"), "course", "course_recommend"),
+    (("POST", "/api/course/recommend-pass"), "course", "course_recommend_pass"),
+    (("POST", "/api/course/apply-recommendation"), "course", "course_apply_recommendation"),
     (("POST", "/api/course/rights"), "bind", "rights_record"),
     (("POST", "/api/course/bindings"), "bind", "course_bindings"),
     (("POST", "/api/course/add-container"), "course", "course_add_container"),
@@ -4687,7 +4708,16 @@ def handle_api_mark(handler):
 
 COURSE_OPERATION_ACTOR_FIELDS = ("actor_kind", "reviewer_kind", "rights",
                                 "rights_snapshot", "right", "fingerprint",
-                                "base", "path", "root")
+                                "base", "path", "root",
+                                # 19A-05: the agent policy is read from
+                                # settings on disk at the moment of the call
+                                # and is never sent. An agent that could
+                                # report its own authority could raise it,
+                                # which is the self-expansion AGENT-02
+                                # forbids; these four are the shapes a
+                                # request would use to try.
+                                "settings", "agent_policy", "autonomy_level",
+                                "granted_level", "max_bindings_per_operation")
 
 
 def _course_operation(handler, operation, envelope=None):
@@ -4840,6 +4870,120 @@ def handle_api_course_treatments(handler):
     behind it.
     """
     _course_operation(handler, "treatments")
+
+
+def handle_api_course_autonomy(handler):
+    """`POST /api/course/autonomy` -- what this installation permits an agent
+    operation to do.
+
+    A READ, gated by the read-side check. `director.autonomy_level` and
+    `director.authorize_write` had no reader on any surface, so the only way
+    to learn the configured authority was to declare a level and be refused.
+    All three levels are dry-run, so the answer is the shape of what is open
+    rather than a yes or a no, and the binding cap comes back beside the
+    level because raising the level alone still writes nothing.
+
+    It grants nothing, and there is deliberately no route in this namespace
+    that could: raising the authority is a person editing
+    `settings.agent_policy`, which is the whole of AGENT-02's protection
+    against an agent expanding its own authority.
+    """
+    _course_operation(handler, "autonomy")
+
+
+def handle_api_course_begin_operation(handler):
+    """`POST /api/course/begin-operation` -- declare intent before acting.
+
+    Step one of the thirteen-step operation protocol and the only record
+    written before the attempt, so an operation that crashes after this entry
+    and before any other is legible as one that declared and then stopped.
+    Writes one journal entry and no course file.
+
+    The declared autonomy is not checked here on purpose. Declaring an
+    intention is not exercising it; `authorize_write` runs in whichever write
+    follows, and the declaration is exactly the thing worth having on disk
+    when that answer turns out to be no.
+    """
+    _course_operation(handler, "begin_operation")
+
+
+def handle_api_course_replay(handler):
+    """`POST /api/course/replay` -- replay one operation against the protocol,
+    and say where an interrupted one resumes.
+
+    A READ. It reads the journal and nothing else, which is RELIABILITY-02's
+    claim made checkable: an operation resumes because its history is on
+    disk, not because a conversation is still open, so this takes an
+    operation id and no in-memory operation can be handed to it.
+
+    It is also the first reader the egress record has ever had. Every phase
+    that reached a backend wrote down what left this machine, to whom, how
+    many bytes, and what was deliberately held back and why, and no surface
+    showed any of it. `left_this_machine` is that list, narrowed to the
+    phases whose destination was not local.
+    """
+    _course_operation(handler, "replay")
+
+
+def handle_api_course_reverse_operation(handler):
+    """`POST /api/course/reverse-operation` -- undo an operation's writes.
+
+    Reaches `journal.undo` through `director.reverse_operation` and adds no
+    restore path of its own, because a second way to put bytes back would
+    make the old-or-new guarantee depend on two implementations agreeing
+    about what the old state was. Entries that wrote no bytes are skipped and
+    reported as skipped, so a reversal that restored nothing reads as an
+    operation that had written nothing.
+    """
+    _course_operation(handler, "reverse_operation")
+
+
+def handle_api_course_recommend(handler):
+    """`POST /api/course/recommend` -- ask a backend to recommend a treatment
+    for one objective.
+
+    Writes journal entries and no course file: the recommendation comes back
+    as a validated record for a reviewer, and binding it is a separate route
+    with its own live rights gate, because a recommendation that could bind
+    itself would be a model choosing what its own output authorizes.
+
+    A backend that is absent, disabled, or times out is an expected state and
+    comes back `unavailable` with its typed adapter code rather than as a
+    500: the objective stays untreated and the core loop is unaffected, which
+    is the degrade-never-block rule at this route. Only the spans the
+    objective's bound sources actually grant are sent, capped and disclosed
+    in the journal's egress record, and no code path here can put learner
+    evidence in a payload.
+    """
+    _course_operation(handler, "recommend")
+
+
+def handle_api_course_recommend_pass(handler):
+    """`POST /api/course/recommend-pass` -- one pass over many objectives.
+
+    One entry per objective, in the order given, each carrying one of three
+    outcomes, and no objective skipped: a pass whose gaps were invisible is
+    the failure this surface exists to prevent. The authority check runs once
+    before the first objective, so an over-declaring pass is refused before
+    any binding lands rather than after the first one already has.
+    """
+    _course_operation(handler, "recommend_pass")
+
+
+def handle_api_course_apply_recommendation(handler):
+    """`POST /api/course/apply-recommendation` -- bind an accepted
+    recommendation, or refuse it against the live rights.
+
+    The state written is `director.classify_coverage`'s and never the
+    provider's: a model asserting its own coverage is the self-certification
+    AGENT-02 forbids, so the provider's value is kept beside the computed one
+    as history. And no rights value travels in the request, so there is no
+    parameter through which a stale grant could authorize this write; the
+    right the treatment consumes is read from the registry at the moment of
+    the bind. A refusal is journaled like a success, because dropping it
+    would make the journal a log of successes.
+    """
+    _course_operation(handler, "apply_recommendation")
 
 
 def handle_api_course_bindings(handler):

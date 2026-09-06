@@ -11,6 +11,13 @@
     {"$ref": "#/$defs/bind"},
     {"$ref": "#/$defs/bind_treatment"},
     {"$ref": "#/$defs/treatments"},
+    {"$ref": "#/$defs/autonomy"},
+    {"$ref": "#/$defs/begin_operation"},
+    {"$ref": "#/$defs/replay"},
+    {"$ref": "#/$defs/reverse_operation"},
+    {"$ref": "#/$defs/recommend"},
+    {"$ref": "#/$defs/recommend_pass"},
+    {"$ref": "#/$defs/apply_recommendation"},
     {"$ref": "#/$defs/rights"},
     {"$ref": "#/$defs/bindings"},
     {"$ref": "#/$defs/add_container"},
@@ -73,6 +80,34 @@
         "human-review"
       ],
       "description": "Which of the eleven treatments this is, TREAT-01's closed vocabulary as `graph.TREATMENT_KINDS` spells it. The vocabulary is published ONCE, here, and every node that names a treatment refs this one: the enum is a copy of an engine tuple, a copy drifts, and two copies drift apart twice as fast. tests/course_ops_roundtrip.py asserts this list equals that tuple and asserts that no other node inlines its own, because a published document that names a treatment the engine does not have, or omits one it does, refuses a legitimate binding on every surface at once. Which right a treatment consumes is NOT published here and is not a request field: it is `graph.TREATMENT_RIGHTS`, read by the runtime at the moment of the write and reported by the `treatments` operation."
+    },
+    "autonomy_level": {
+      "type": "string",
+      "enum": [
+        "recommend-only",
+        "draft-and-review",
+        "approved-bounded-write"
+      ],
+      "description": "The authority an operation DECLARES, in ascending order, as `director.AUTONOMY_LEVELS` spells it. It is a declaration to be checked, never a grant: `director.authorize_write` compares it against `settings.agent_policy.autonomy_level`, read from disk at the moment of the call, and REFUSES an over-declaration rather than narrowing it to the permitted level, so the attempt surfaces instead of passing quietly. The granted level is never a request field, because an agent that could report its own authority could raise it, which is the self-expansion AGENT-02 forbids by name. The published list is closed here even though `begin_operation` records free text, because a declared authority the policy vocabulary does not contain can never be compared against policy: `authorize_write` already refuses one by name, and a surface that let a new one be written into the durable record would mint authority claims nobody can ever evaluate."
+    },
+    "actor_role": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What role this operation is acting in (`course-builder`, `reviewer`, and so on), recorded in the journal's agent dict. A role is a description of the work, not a permission: nothing is authorized by it, and the authority question is settled by `autonomy_level` against settings."
+    },
+    "scopes": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "description": "The approved roots this operation declares it will work within, recorded with the declaration. Declared before the work, so an operation that later reached outside them is visible in the record rather than inferred from its results."
+    },
+    "operation_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The id `begin_operation` minted, carried by every phase entry the operation writes. It is how the journal, and not a conversation, is the durable job record: an interrupted operation is replayed and resumed from this id alone (RELIABILITY-02)."
+    },
+    "profile": {
+      "type": "string",
+      "description": "Which model-backend profile from `settings.model.profiles` to use, by name. Omitted means the active profile. Never a transport, an endpoint, a command, or a credential: a request names a profile the install already configured and can no more introduce a backend than it can grant itself a right."
     },
     "binding_state": {
       "type": "string",
@@ -243,6 +278,119 @@
           "type": "string",
           "description": "The opaque id of a source object to resolve the table against. Omitted means report the mapping and this course's recorded usage only, with every rights state left empty, which is `unknown or not asked` and never `granted`."
         }
+      }
+    },
+    "autonomy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id"],
+      "description": "Read what this installation permits an agent operation to do, and, optionally, whether one particular declaration would be authorized. A READ: it writes nothing, journals nothing, and reaches no backend. Reports `director.autonomy_level` and `director.max_bindings_per_operation` from settings on disk, and runs `director.authorize_write` as a DRY RUN over each of the three levels so a client learns which are open to it before attempting one. Until this operation existed the only way to discover the configured authority was to declare a level and be refused, and a refusal after the fact is a worse answer than the same fact beforehand. It grants nothing: the way to change an answer here is for a person to edit settings.agent_policy, which is deliberately not reachable from this namespace at all.",
+      "properties": {
+        "operation": {"type": "string", "const": "autonomy"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "declared_level": {"$ref": "#/$defs/autonomy_level"},
+        "bindings_requested": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How many bindings the hypothetical operation would write, checked against `agent_policy.max_bindings_per_operation`. Zero, the default, asks only the level question."
+        }
+      }
+    },
+    "begin_operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "intent", "actor_role", "autonomy"],
+      "description": "Declare an operation's intent, role, authority and scopes BEFORE it does anything, through director.begin_operation, and get back the operation id every later phase entry carries. This is step one of the thirteen-step operation protocol and the only durable record written before the attempt: an operation that crashes after this entry and before any other is legible as one that declared and then stopped, which is the state the protocol is designed to leave behind. It writes one journal entry and no file. The declared autonomy is checked against policy by whichever write follows, not here, because declaring an intention is not yet exercising it.",
+      "properties": {
+        "operation": {"type": "string", "const": "begin_operation"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "intent": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What is about to be attempted, in one sentence, in the words of whoever is attempting it. Recorded verbatim; nothing reads it back for a decision."
+        },
+        "actor_role": {"$ref": "#/$defs/actor_role"},
+        "autonomy": {"$ref": "#/$defs/autonomy_level"},
+        "scopes": {"$ref": "#/$defs/scopes"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "replay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "operation_id"],
+      "description": "Replay one recorded operation step by step against the thirteen-step protocol, and say where an interrupted one stopped and what comes next. A READ: it reads the journal and nothing else. That is the whole of RELIABILITY-02's claim, made checkable: an operation resumes because its history is on disk, not because a conversation is still open, so this takes an operation id and there is no parameter through which an in-memory operation could be handed to it. The report names each step's outcome, the steps recorded out of the contract's order (named, never quietly sorted, because sorting hides the defect the report exists to find), the verdict, and the egress each phase disclosed: what left this machine, to whom, and what was deliberately held back.",
+      "properties": {
+        "operation": {"type": "string", "const": "replay"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "operation_id": {"$ref": "#/$defs/operation_id"}
+      }
+    },
+    "reverse_operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "operation_id"],
+      "description": "Undo one operation's durable writes, newest first, through director.reverse_operation and therefore through journal.undo. There is no second restore path: a second way to put bytes back would make the guarantee that any fault leaves the old or the new valid state depend on two implementations agreeing about what the old state was, and the moment they disagreed nothing could say which was right. A missing before-image surfaces as a failure rather than being reconstructed some other way. Entries with no before-image (a declaration, a phase record) are skipped rather than failed, because they wrote no bytes to put back.",
+      "properties": {
+        "operation": {"type": "string", "const": "reverse_operation"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "operation_id": {"$ref": "#/$defs/operation_id"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "recommend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "objective", "actor_role", "autonomy"],
+      "description": "Ask a model backend to recommend a treatment for one objective, through director.recommend_once, and record the whole attempt in the journal. Writes journal entries and no course file: the recommendation comes back as a validated record for a reviewer, and binding it is a separate operation with its own rights gate. A backend that is absent, disabled, or times out is an EXPECTED state, not an error: the result comes back `unavailable` with the typed adapter code, the objective stays untreated, and the core loop is unaffected. A candidate that arrives and fails its contract does raise, because that is a broken provider rather than an absent one. Only the spans that objective's bound sources actually grant are sent, capped and disclosed: the egress record on the journal entry names exactly what left the machine, to whom, and what was held back and why, and no code path here can put learner evidence in a payload.",
+      "properties": {
+        "operation": {"type": "string", "const": "recommend"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "objective": {"$ref": "#/$defs/objective_id"},
+        "actor_role": {"$ref": "#/$defs/actor_role"},
+        "autonomy": {"$ref": "#/$defs/autonomy_level"},
+        "profile": {"$ref": "#/$defs/profile"},
+        "scopes": {"$ref": "#/$defs/scopes"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "recommend_pass": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "objectives", "actor_role", "autonomy"],
+      "description": "One recommendation pass over many objectives, through director.recommend_treatments: one entry per objective, in the order given, each carrying one of the three outcomes bound, untreated or refused. No objective is ever skipped and there is no fourth outcome, because a pass whose gaps were invisible is the failure this whole surface exists to prevent. The authority check runs ONCE before the first objective, so an over-declaring pass is refused before any binding lands rather than after the first one already has. A pass only writes bindings at approved-bounded-write and within the configured per-operation cap; at every lower level each objective comes back untreated with its reason, which is a result and not a failure.",
+      "properties": {
+        "operation": {"type": "string", "const": "recommend_pass"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "objectives": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/objective_id"},
+          "description": "The objectives to pass over, in the order they should be attempted. The length is also the binding count checked against the per-operation cap."
+        },
+        "actor_role": {"$ref": "#/$defs/actor_role"},
+        "autonomy": {"$ref": "#/$defs/autonomy_level"},
+        "profile": {"$ref": "#/$defs/profile"},
+        "scopes": {"$ref": "#/$defs/scopes"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "apply_recommendation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "source", "record"],
+      "description": "Bind an accepted recommendation, through director.apply_recommendation, or refuse it against the live rights. Two things it deliberately does NOT do. It does not adopt the provider's own coverage state: that value is kept beside the computed one as `proposed_state` and `director.classify_coverage` decides what is written, because a model certifying its own coverage is the self-certification AGENT-02 forbids. And it takes no rights argument, so there is no parameter through which a stale value could authorize a write: the right the treatment consumes is read from the registry here and now. A refusal is journaled like a success, because an operation that was refused is a fact about what happened and dropping it would make the journal a log of successes.",
+      "properties": {
+        "operation": {"type": "string", "const": "apply_recommendation"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "source": {"$ref": "#/$defs/source_object_id"},
+        "record": {
+          "type": "object",
+          "description": "The recommendation record to bind, as director.recommend_once returned it. Its contract is schemas/treatment_recommendation.schema.json and it is enforced by director.validate_recommendation at dispatch, not restated here: one published document owns the recommendation shape, and copying it into this node would make two documents that drift. A record naming no treatment kind is refused by name before any rights lookup, because there is nothing to check a right against."
+        },
+        "operation_id": {"$ref": "#/$defs/operation_id"},
+        "profile": {"$ref": "#/$defs/profile"},
+        "actor": {"$ref": "#/$defs/actor"}
       }
     },
     "rights": {

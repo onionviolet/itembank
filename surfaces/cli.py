@@ -6,6 +6,7 @@ than an edit here and there.
 """
 import argparse, collections, json, os, re, sys
 
+import director
 import evidence
 import graph
 import identity
@@ -1535,6 +1536,119 @@ def build_parser():
                      help="the id of the imported objective being revised")
     cov.add_argument("--statement", required=True,
                      help="the local revision's statement")
+
+    # The director family (19A-05). One helper, because these six share the
+    # course id and root every course command takes and differ only in what
+    # they declare; `--expect` is deliberately absent, since none of them is
+    # an edit_in_place on the sidecar.
+    def director_cmd(name, blurb):
+        dp = ct.add_parser(name, help=blurb)
+        dp.add_argument("course_id", help="the course id")
+        dp.add_argument("--root", default=".",
+                        help="the workspace holding course directories and "
+                             "itembank.json, whose agent_policy grants this "
+                             "operation's authority (default: current "
+                             "directory)")
+        dp.add_argument("--actor", default="",
+                        help="who is recording this, for the operation journal")
+        dp.add_argument("--json", action="store_true",
+                        help="emit the operation result as JSON")
+        dp.set_defaults(fn=course_ops.cmd_course)
+        return dp
+
+    def declaring_cmd(name, blurb):
+        """A director command that declares an authority. The level is a
+        DECLARATION checked against settings, never a grant: an
+        over-declaration is refused rather than narrowed."""
+        dp = director_cmd(name, blurb)
+        dp.add_argument("--role", required=True, dest="actor_role",
+                        help="what role this operation acts in "
+                             "(course-builder, reviewer); a description of "
+                             "the work and never a permission")
+        dp.add_argument("--autonomy", required=True,
+                        choices=list(director.AUTONOMY_LEVELS),
+                        help="the authority this operation declares; it is "
+                             "checked against itembank.json's "
+                             "agent_policy.autonomy_level and an "
+                             "over-declaration is refused, not narrowed")
+        dp.add_argument("--scope", default=[], nargs="+", dest="scopes",
+                        help="the approved roots this operation declares it "
+                             "will work within")
+        return dp
+
+    ca = director_cmd("autonomy", "print what this installation permits an "
+                      "agent operation to do, and whether one declaration "
+                      "would be authorized; reads settings and writes "
+                      "nothing")
+    ca.add_argument("--declare", default="", dest="declared_level",
+                    choices=[""] + list(director.AUTONOMY_LEVELS),
+                    help="also dry-run this exact declaration")
+    ca.add_argument("--bindings", type=int, default=None,
+                    dest="bindings_requested",
+                    help="how many bindings the hypothetical operation would "
+                         "write, checked against the per-operation cap")
+
+    cb = declaring_cmd("begin-operation", "declare an operation's intent, "
+                       "role, authority and scopes before it does anything, "
+                       "and get the operation id every later phase carries")
+    cb.add_argument("--intent", required=True,
+                    help="what is about to be attempted, in one sentence")
+
+    crp = ct.add_parser("replay", help="replay one recorded operation "
+                        "against the thirteen-step protocol, say where an "
+                        "interrupted one resumes, and print what left this "
+                        "machine")
+    crp.add_argument("course_id", help="the course id")
+    crp.add_argument("--operation", required=True, dest="operation_id",
+                     help="the operation id `course begin-operation` minted")
+    crp.add_argument("--root", default=".",
+                     help="the workspace holding course directories "
+                          "(default: current directory)")
+    crp.add_argument("--json", action="store_true",
+                     help="emit the whole report as JSON")
+    crp.set_defaults(fn=course_ops.cmd_course)
+
+    cro = director_cmd("reverse-operation", "undo one operation's durable "
+                       "writes, newest first, through journal.undo; entries "
+                       "that wrote no bytes are skipped and reported")
+    cro.add_argument("--operation", required=True, dest="operation_id",
+                     help="the operation id to reverse")
+
+    crec = declaring_cmd("recommend", "ask the configured model backend to "
+                         "recommend a treatment for one objective; records "
+                         "the attempt and binds nothing")
+    crec.add_argument("--objective", required=True,
+                      help="the objective id to recommend a treatment for")
+    crec.add_argument("--profile", default="",
+                      help="which model profile from settings to use "
+                           "(default: the active one)")
+
+    cpass = declaring_cmd("recommend-pass", "one recommendation pass over "
+                          "many objectives: one entry each, none skipped, "
+                          "and bindings written only at "
+                          "approved-bounded-write within the cap")
+    cpass.add_argument("--objective", required=True, nargs="+",
+                       dest="objectives",
+                       help="the objective ids to pass over, in order")
+    cpass.add_argument("--profile", default="",
+                       help="which model profile from settings to use "
+                            "(default: the active one)")
+
+    cap = director_cmd("apply-recommendation", "bind an accepted "
+                       "recommendation, or refuse it against the rights as "
+                       "they read right now")
+    cap.add_argument("--source", required=True,
+                     help="the source object id the treatment is bound to")
+    cap.add_argument("--record", required=True, type=json.loads,
+                     help="the recommendation record as JSON, as `course "
+                          "recommend --json` returned it; its contract is "
+                          "schemas/treatment_recommendation.schema.json")
+    cap.add_argument("--operation", default="", dest="operation_id",
+                     help="the operation id this bind belongs to (default: "
+                          "a new one)")
+    cap.add_argument("--profile", default="",
+                     help="the profile name to record on the bind's egress "
+                          "disclosure")
 
     cs = ct.add_parser("show", help="print a course's identity, title, "
                        "fingerprint and section counts")

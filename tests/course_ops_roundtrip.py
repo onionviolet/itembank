@@ -987,13 +987,35 @@ def check_a_course_write_is_loopback_only():
         if name not in course_ops.OPERATION_ENGINE:
             fail("operation %r names no engine function" % name)
 
+    # What each read needs beyond a course id to be runnable. Declared, and
+    # asserted complete below, so a wave that adds a read with required
+    # fields cannot quietly drop it out of this check: an unexercised read is
+    # a write nobody noticed until a phone on the same wifi found it.
+    read_fields = {"bindings": {}, "structure": {}, "treatments": {},
+                   "autonomy": {"declared_level": "approved-bounded-write",
+                                "bindings_requested": 3},
+                   "replay": {"operation_id": "*declared*"}}
+    for name in course_ops.READ_OPERATIONS:
+        if name not in read_fields:
+            fail("the read %r has no entry in this check's field table, so "
+                 "it is never run and its read-ness is asserted by the "
+                 "READ_OPERATIONS tuple alone" % name)
+
     tmp = tempfile.mkdtemp(prefix="course_ops_gate_")
     try:
         course_ops.run(tmp, "create", {"course_id": "fen", "title": "Fen"})
         base = os.path.join(tmp, "fen")
+        declared = course_ops.run(
+            tmp, "begin_operation",
+            {"course_id": "fen", "intent": "exercise every read",
+             "actor_role": "course-builder",
+             "autonomy": "recommend-only"}, actor_name="tester")
         for name in course_ops.READ_OPERATIONS:
+            extra = dict(read_fields[name])
+            if extra.get("operation_id") == "*declared*":
+                extra["operation_id"] = declared["operation_id"]
             before = course_module.read_course(base)
-            course_ops.run(tmp, name, {"course_id": "fen"})
+            course_ops.run(tmp, name, dict(extra, course_id="fen"))
             after = course_module.read_course(base)
             if after["fingerprint"] != before["fingerprint"]:
                 fail("the %r operation is served behind the read-side gate "
