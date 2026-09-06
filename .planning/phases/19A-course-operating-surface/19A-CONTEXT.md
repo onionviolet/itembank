@@ -38,6 +38,31 @@ door a person or an agent client can open.
   so a generic route collapses the whole engine into a single untyped tool and
   defeats the phase.
 
+- **D-02a Route shape, amended at execution 2026-09-05 (plan 19A-01).** The
+  source-binding door landed on `POST /api/bind` and `POST /api/rights`
+  earlier the same day, before this namespace existed, which is 19A-02's cell
+  in the wrong route shape. Resolved by re-homing rather than by exception:
+  the canonical routes are now `POST /api/course/bind` and
+  `POST /api/course/rights`, both reaching the same handlers, and the two
+  original paths keep serving from a new `LEGACY_API_ALIASES` tuple in
+  `surfaces/daemon.py`, appended to `ROUTES` and deliberately **absent from
+  `API_ROUTES`**.
+
+  The absence is the whole point of the shape. 999.3 generates one MCP tool
+  per `API_ROUTES` entry, so an alias inside that tuple would mint a second
+  tool for one operation and reintroduce, as a duplicate, exactly the untyped
+  collapse D-02 refused. An alias outside it reserves no tool name and
+  appears in no `SURFACE_PARITY` row, so the tool table stays one tool per
+  operation while nothing that already calls the old paths breaks. The
+  aliases carry `ROUTE_CLI` entries (the same `bind` twin, because they are
+  the same call) and are classified in the surface grid. They are retired by
+  an explicit `migrate` once nothing calls them, which is the deprecation
+  path non-negotiable 4 allows; retiring them silently is what it forbids.
+  `tests/daemon_roundtrip.py:check_api_route_scope` now asserts all three
+  facts: the aliases still serve, they are not in `API_ROUTES`, and each
+  reaches the same handler as its canonical route. There is one route
+  convention, and one declared, tested exception to how it was reached.
+
 - **D-03 Parity is not optional.** Every new route gets a `ROUTE_CLI` entry and
   a `SURFACE_PARITY` row in the same commit. The existing parity test already
   fails on a route without a twin, so this is enforced rather than asked for.
@@ -99,6 +124,51 @@ door a person or an agent client can open.
   content and collides with nothing here, but it touches the same files.
   Plan 19A-01 rebases on whatever is committed at execution time and states the
   commit it built on.
+
+## Execution record
+
+- **19A-01, executed 2026-09-05**, on commit `28a6da7`
+  ("feat(course): bind a source to an objective, from a surface"). D-10's
+  uncommitted work was committed before this plan began, so the rebase D-10
+  asked for was a no-op.
+- **D-01 precondition halt: cleared.** All five freeze records are present:
+  `14A-FREEZE.md`, `14B-FREEZE.md`, `14C-FREEZE.md`, `15A-FREEZE.md`,
+  `15B-FREEZE.md`. Nothing halted.
+- **What landed.** `schemas/course_operation.schema.json` (one `$defs` node
+  per operation, the node being the operation's signature);
+  `surfaces/course_ops.py`, the spine: read the document off disk, validate
+  the request against the node the route's path names, dispatch, return a
+  result carrying its own undo sentence; `POST /api/course/create` and
+  `POST /api/course/rename` with `handle_api_course_create` /
+  `handle_api_course_rename` over one shared `_course_operation`;
+  `itembank course create|rename|show`; `ROUTE_CLI` and `SURFACE_PARITY`
+  rows in the same commit (`course_create`, `course_rename`); the D-02a
+  re-homing above; `tests/course_ops_roundtrip.py`.
+- **D-04 reuse, resolved.** Neither `course_graph` nor `write_manifest`
+  fits: the first describes the sidecar the operations write, the second the
+  writer's own provenance record, and neither is a request. One request
+  document was minted rather than reshaping either, and it is one file for
+  the whole namespace so `schemas/` does not grow a file per operation.
+- **D-05 held.** `journal.OPERATION_TYPES` is untouched at six. A create is
+  a `mint`, a rename is an `edit_in_place`, and no route opens a course file
+  for writing.
+- **The grid moved 38 -> 40 of 82.** `course / create` and `course / change`
+  are filled. `tools/surface_coverage.py` gained `course` to
+  `SUBCOMMAND_PARENTS` and the four new routes to their cells.
+- **D-09 read, and one deviation stated.** No new UI screen, no assessment
+  route touched, no format change. One new module was added:
+  `surfaces/course_ops.py`. D-09's "no new module" bars a second route table
+  and a second parser, and the routes are still in `surfaces/daemon.py` and
+  the twins still in `surfaces/cli.py`. The spine itself has to live
+  somewhere both import, which is the shape `surfaces/binding_cli.py`
+  already set on 2026-09-05: one implementation, two surfaces, so a twin is
+  the same call rather than a similar print. Putting it in `daemon.py` would
+  have made the CLI import the daemon to reach it.
+- **Pre-existing defect repaired in passing.**
+  `check_api_route_scope` still asserted sixteen `/api/*` routes while the
+  tree carried eighteen, so `tests/daemon_roundtrip.py` was already red on
+  `28a6da7`. The count is now twenty and the assertion says what each entry
+  is.
 
 ## Plan set
 

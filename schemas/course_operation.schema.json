@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/course_operation.schema.json",
+  "title": "itembank course operation request",
+  "description": "The published request document for POST /api/course/<operation> and its CLI twin `itembank course <operation>`. One $defs node per operation, and the node IS the operation's signature: the Phase 999.3 MCP tool table generates one tool per API_ROUTES entry and reads its argument shape from here, so a schema edit changes the tool with no code edit. The top-level oneOf makes the whole file a single valid contract a reader can validate a captured request against; dispatch validates against the one named node the route's own path selects, so a refusal names the field rather than reporting that no branch matched. This document describes a REQUEST and never a durable object: course_graph.schema.json is the sidecar the operations write, write_manifest.schema.json is the writer's provenance record, and neither is reshaped to carry a request. No request field names a filesystem path, a fingerprint of another object, a right, or a score: a course is addressed by its id and resolved server-side, and every right is read from the operation journal at the moment of the write.",
+  "x-itembank-version": 1,
+  "oneOf": [
+    {"$ref": "#/$defs/create"},
+    {"$ref": "#/$defs/rename"}
+  ],
+  "$defs": {
+    "course_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+      "description": "The course's opaque identity, as the shelf and the /course/<course_id> route already spell it: either the pinned course_object_id or, for a course being created, the directory name it is minted under. The pattern is the route's own, so no request can carry a path separator, a parent reference, or a name a URL could not hold."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The course's human-readable title, written into the sidecar header. Titles are display, never identity: renaming a course never changes its course_object_id and never touches its evidence."
+    },
+    "actor": {
+      "type": "string",
+      "description": "Who is recording this, as it appears in the operation journal. Optional and free text; the actor kind is decided by the surface, never by the request."
+    },
+    "expected_fingerprint": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The fingerprint the caller believes the sidecar currently carries. Passed straight to journal.commit_operation, which refuses a stale write by name with journal.stale_preflight. Omitted means the operation reads the current fingerprint itself, which is a last-writer-wins convenience for a single-surface caller and not a substitute for compare-and-swap when two clients can write."
+    },
+    "create": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "title"],
+      "description": "Mint a course: one course-graph.md sidecar written through journal.commit_operation as a mint, with every section empty. Reaches course.create_course and writes nothing else.",
+      "properties": {
+        "operation": {"type": "string", "const": "create"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "title": {"$ref": "#/$defs/title"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "rename": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "title"],
+      "description": "Retitle an existing course: one edit_in_place through course.write_course, changing the sidecar header's title and nothing else. Identity, objectives, sources, bindings and evidence are untouched.",
+      "properties": {
+        "operation": {"type": "string", "const": "rename"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "title": {"$ref": "#/$defs/title"},
+        "expected_fingerprint": {"$ref": "#/$defs/expected_fingerprint"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    }
+  }
+}

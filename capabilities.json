@@ -224,6 +224,11 @@
       "since": "0.3.0"
     },
     {
+      "help": "create, rename, or read a course, the CLI twin of POST /api/course/<operation>",
+      "name": "course",
+      "since": "0.3.0"
+    },
+    {
       "help": "bind a source or a treatment to an objective, list what a course holds, or record a source's rights",
       "name": "bind",
       "since": "0.3.0"
@@ -394,12 +399,22 @@
     },
     {
       "method": "POST",
-      "path": "/api/bind",
+      "path": "/api/course/create",
       "token_gated": true
     },
     {
       "method": "POST",
-      "path": "/api/rights",
+      "path": "/api/course/rename",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/bind",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/rights",
       "token_gated": true
     },
     {
@@ -425,6 +440,16 @@
     {
       "method": "POST",
       "path": "/api/shelf",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/bind",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/rights",
       "token_gated": true
     },
     {

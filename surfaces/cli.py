@@ -20,6 +20,7 @@ from surfaces.anki import cmd_export
 from surfaces.audio import cmd_export_audio
 from surfaces.audit_cli import cmd_audit
 from surfaces import binding_cli
+from surfaces import course_ops
 from surfaces.daemon import (cmd_cli_twin, cmd_daemon, cmd_disclosure,
                              cmd_sidecar)
 from surfaces.day import cmd_day
@@ -1366,6 +1367,44 @@ def build_parser():
     sr.add_argument("--json", action="store_true",
                     help="emit the report dict as JSON")
     sr.set_defaults(fn=cmd_source_recheck)
+
+    s = sub.add_parser("course", help="create, rename, or read a course, "
+                       "the CLI twin of POST /api/course/<operation>")
+    ct = s.add_subparsers(dest="action", required=True)
+    for name, blurb in (
+            ("create", "mint a course: one course-graph.md sidecar written "
+                       "through the compare-and-swap path, every section "
+                       "empty"),
+            ("rename", "retitle a course; identity, bindings and evidence "
+                       "are untouched")):
+        cp = ct.add_parser(name, help=blurb)
+        cp.add_argument("course_id",
+                        help="the course id, as the shelf and /course/<id> "
+                             "spell it")
+        cp.add_argument("--title", required=True,
+                        help="the course's human-readable title")
+        cp.add_argument("--root", default=".",
+                        help="the workspace holding course directories "
+                             "(default: current directory)")
+        cp.add_argument("--actor", default="",
+                        help="who is recording this, for the operation journal")
+        cp.add_argument("--json", action="store_true",
+                        help="emit the operation result as JSON")
+        if name == "rename":
+            cp.add_argument("--expect", default="",
+                            help="the fingerprint you believe the sidecar "
+                                 "carries; a stale one is refused by name")
+        cp.set_defaults(fn=course_ops.cmd_course)
+
+    cs = ct.add_parser("show", help="print a course's identity, title, "
+                       "fingerprint and section counts")
+    cs.add_argument("course_id", help="the course id")
+    cs.add_argument("--root", default=".",
+                    help="the workspace holding course directories "
+                         "(default: current directory)")
+    cs.add_argument("--json", action="store_true",
+                    help="emit the reading as JSON")
+    cs.set_defaults(fn=course_ops.cmd_course)
 
     s = sub.add_parser("bind", help="bind a source or a treatment to an "
                        "objective, list what a course holds, or record a "

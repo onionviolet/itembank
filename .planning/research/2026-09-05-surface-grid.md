@@ -8,6 +8,8 @@ measurement that moves, and `tests/surface_coverage_check.py` fails the
 build if a command or route is ever added without being classified, or if an
 empty cell is left without a sentence saying what it costs.
 
+The measured half below was regenerated 2026-09-05 after plan 19A-01; the prose above it is the reading of the shape, which has not changed.
+
 This is the measured form of the 2026-09-05 gap pass's sentence, "the engine
 is real and has almost no door"
 (`2026-09-05-what-the-vision-still-needs.md`). What that pass argued, this
@@ -31,29 +33,32 @@ counts.
 
 - **Sitting a quiz is finished work.** Every verb on `sitting`, `item`,
   `bank` and `evidence event` has a surface, most of them two.
-- **Building a course is nearly unreachable.** `course / create`,
-  `objective / create` and `lesson / create` are still empty, and those are
-  most of what `SOURCE-TO-COURSE.md` describes as the milestone.
-  `source binding / create` was the fourth until 2026-09-05, when it became
-  the first cell this grid caused to be built: `itembank bind source`,
-  `itembank bind treatment`, `POST /api/bind`, and a panel in the course's
-  Sources area, all reaching the one rights-gated path that already
-  existed.
+- **Building a course is nearly unreachable.** `objective / create` and
+  `lesson / create` are still empty, and those are most of what
+  `SOURCE-TO-COURSE.md` describes as the milestone. Two of the four have
+  been built since this was first measured. `source binding / create` was
+  the first cell this grid caused to be built, on 2026-09-05: `itembank bind
+  source`, `itembank bind treatment`, `POST /api/course/bind`, and a panel
+  in the course's Sources area, all reaching the one rights-gated path that
+  already existed. `course / create` and `course / change` followed the same
+  day with plan 19A-01's dispatch spine: `itembank course create` /
+  `rename`, `POST /api/course/create` / `rename`, one validated request
+  document, and `course.create_course` / `write_course` underneath.
 - **The things the project is proudest of are still the least reachable.**
   Provenance, notes, strategies and agent operations are implemented, tested
   and frozen, and a learner cannot see or touch any of them. Rights left
   that list on 2026-09-05, because a binding refused for a right nobody
   declared has to have its way out on the same surface.
 
-# Surface coverage: 38 of 82 meaningful (object, verb) cells reached
+# Surface coverage: 40 of 82 meaningful (object, verb) cells reached
 
-19 objects by 5 verbs is 95 cells; 13 do not apply and are named with a reason, leaving 82 that should have a surface. 44 of those have none.
+19 objects by 5 verbs is 95 cells; 13 do not apply and are named with a reason, leaving 82 that should have a surface. 42 of those have none.
 
-68 commands and 49 routes measured, every one of them classified.
+71 commands and 53 routes measured, every one of them classified.
 
 | object | create | inspect | change | explain | undo |
 |---|---|---|---|---|---|
-| course | -- | cli+http | -- | cli+http | cli |
+| course | cli+http | cli+http | cli+http | cli+http | cli |
 | scope | n/a | -- | -- | -- | -- |
 | objective | -- | cli+http | -- | cli | -- |
 | source | cli+http | cli+http | -- | -- | -- |
@@ -75,8 +80,6 @@ counts.
 
 ## Empty cells, and what each costs
 
-- **course / create.** A course is created by calling course.create_course from Python. Neither a person nor an agent client can start a course from a surface.
-- **course / change.** No surface renames a course, moves a unit, or edits the scope tree. The sidecar is hand-edited Markdown.
 - **scope / inspect.** scope.md is read by tools/rollup_screens.py and by nothing a learner can open. The rollup screens are evidence files, not routes.
 - **scope / change.** Boundedness, membership and the completion predicate are edited by hand in scope.md.
 - **scope / explain.** Nothing states why a scope is open or bounded, which is the sentence that governs whether it may ever report complete.

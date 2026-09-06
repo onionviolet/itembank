@@ -93,20 +93,22 @@ NOT_A_CAPABILITY = {
 # the only place in this file that argues.
 CELLS = {
     ("course", "inspect"): {
-        "cli": ["shelf"],
+        "cli": ["shelf", "course show"],
         "http": ["GET /", "GET /course/<course_id>", "GET /course/<course_id>/<area>",
                  "GET /course/<course_id>/learn/<lesson_id>", "POST /api/shelf"],
     },
     ("course", "create"): {
-        "cli": [], "http": [],
-        "note": "A course is created by calling course.create_course from "
-                "Python. Neither a person nor an agent client can start a "
-                "course from a surface.",
+        "cli": ["course create"], "http": ["POST /api/course/create"],
+        "note": "Filled 2026-09-05 by plan 19A-01, the phase's first cell. "
+                "Both surfaces reach `course.create_course` through "
+                "`surfaces/course_ops.py`, whose request is validated "
+                "against schemas/course_operation.schema.json before "
+                "anything is read.",
     },
     ("course", "change"): {
-        "cli": [], "http": [],
-        "note": "No surface renames a course, moves a unit, or edits the "
-                "scope tree. The sidecar is hand-edited Markdown.",
+        "cli": ["course rename"], "http": ["POST /api/course/rename"],
+        "note": "Renaming is reached; moving a unit and editing the scope "
+                "tree are 19A-03's wave and are still hand edits.",
     },
     ("course", "explain"): {
         "cli": ["coverage"],
@@ -158,10 +160,12 @@ CELLS = {
     },
     ("source binding", "create"): {
         "cli": ["bind source", "bind treatment"],
-        "http": ["POST /api/bind"],
+        "http": ["POST /api/course/bind", "POST /api/bind"],
         "note": "Filled 2026-09-05, the first cell this grid caused to be "
                 "built. Both surfaces reach `course.bind_source` and "
-                "`course.bind_treatment`; neither writes a row itself.",
+                "`course.bind_treatment`; neither writes a row itself. "
+                "Re-homed under /api/course/ by 19A-01; POST /api/bind is "
+                "the deprecated alias, still serving.",
     },
     ("lesson", "inspect"): {
         "cli": ["lesson", "study", "gloss", "lesson-check", "lesson-skip"],
@@ -276,13 +280,15 @@ CELLS = {
     },
     ("rights grant", "create"): {
         "cli": ["bind rights", "source import"],
-        "http": ["POST /api/rights", "POST /api/source/import"],
+        "http": ["POST /api/course/rights", "POST /api/rights",
+                 "POST /api/source/import"],
         "note": "One operation records a grant and a denial, so create and "
                 "change are the same call; both are listed because both are "
                 "true.",
     },
     ("rights grant", "change"): {
-        "cli": ["bind rights"], "http": ["POST /api/rights"],
+        "cli": ["bind rights"],
+        "http": ["POST /api/course/rights", "POST /api/rights"],
         "note": "Filled 2026-09-05 beside the binding it gates: a binding "
                 "refused for a right nobody declared has to have its way out "
                 "on the same surface.",
@@ -449,7 +455,8 @@ GAP_NOTES = {
 
 # Commands whose subcommands are classified individually, so the bare name
 # is expected to be absent from the cells.
-SUBCOMMAND_PARENTS = ("audit", "bind", "source", "theme", "import", "lti")
+SUBCOMMAND_PARENTS = ("audit", "bind", "course", "source", "theme",
+                      "import", "lti")
 
 
 def route_label(method, pattern):

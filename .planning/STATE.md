@@ -5,10 +5,10 @@ milestone_name: reach
 current_phase_name: 19A-course-operating-surface
 current_phase: 19A
 status: "Reach milestone adopted 2026-09-05 and the freeze-before-start ordering waived by Weibao. Every phase is beginnable: 19A and 19C have no unmet dependency, 19B and 19E follow 19A, 19D is the exit. Source-to-course is code-complete; 13.5, 17B, 17C and 18 are executed with human legs owed, and those legs now block nothing except the word frozen. 19A has a written context and no plans yet; 19B, 19C, 19D and 19E need a context pass first."
-stopped_at: "Reach adopted and unblocked. Next action is 19A planning from 19A-CONTEXT.md, or 19C's settings change, whichever is picked up first."
+stopped_at: "19A-01 executed: the dispatch spine and the course lifecycle family are landed, and the surface grid moved 38 to 40 of 82. Next action is 19A-02 (source binding, now re-homed under /api/course/), or 19C's settings change."
 last_updated: "2026-09-05T00:00:00.000Z"
 last_activity: 2026-09-05
-last_activity_desc: "Reach milestone adopted, freeze ordering waived, 19A to 19E entered on the roadmap; previously: 17B-04 executed and the milestone exit record written; G10's two routed defects repaired additively and the restore drill re-run to a pass; 17C-01's maintenance and restore audit run, finding five silent losses (F-LOSS-1 to F-LOSS-5) and a clean owner sweep."
+last_activity_desc: "19A-01 executed: POST /api/course/create and /rename with their `itembank course` twins, one validated request document, and the /api/bind and /api/rights re-homing recorded as 19A-CONTEXT D-02a; previously: reach milestone adopted, freeze ordering waived, 19A to 19E entered on the roadmap; previously: 17B-04 executed and the milestone exit record written; G10's two routed defects repaired additively and the restore drill re-run to a pass; 17C-01's maintenance and restore audit run, finding five silent losses (F-LOSS-1 to F-LOSS-5) and a clean owner sweep."
 progress:
   total_phases: 41
   completed_phases: 36
@@ -41,7 +41,7 @@ real course.
 | Phase | Blocked on | State |
 |---|---|---|
 | 19C backend on | nothing | no context yet; cheapest start |
-| 19A operating surface | nothing | `19A-CONTEXT.md` written, ten plans to write |
+| 19A operating surface | nothing | 19A-01 executed 2026-09-05; nine families to go |
 | 19B agent door | 19A's routes existing | no context yet |
 | 19E MCP tool table | 19A's routes existing | no context yet; closes 999.3 |
 | 19D Math 1400 | 19A, 19B, 19C | no context yet; the exit |
@@ -50,6 +50,21 @@ real course.
 **Recommended order:** 19C beside 19A, then 19B and 19E in either order, then
 19D. 19A is the load-bearing one and the only one an executor can plan straight
 from today.
+
+**19A-01 landed, 2026-09-05.** The spine exists and one family is hung in it:
+`POST /api/course/create` and `POST /api/course/rename`, their
+`itembank course create|rename|show` twins, one published request document
+(`schemas/course_operation.schema.json`) validated before dispatch, and both
+writes reaching `course.create_course` / `course.write_course`, which is
+`journal.commit_operation` with an expected base fingerprint.
+`journal.OPERATION_TYPES` is untouched at six. The surface grid moved from 38
+to 40 of 82 meaningful cells; `course / create` and `course / change` are no
+longer empty. The early source-binding routes were re-homed under
+`/api/course/` with their old paths kept serving as declared aliases, recorded
+as `19A-CONTEXT.md` D-02a, so there is one route convention and one tested
+exception rather than two undeclared ones. A stale assertion in
+`tests/daemon_roundtrip.py` that predated this plan (sixteen `/api/*` routes
+against a tree carrying eighteen) was repaired in the same pass.
 
 ## Current position (2026-09-03, superseded above)
 

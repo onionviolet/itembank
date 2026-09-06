@@ -30,7 +30,7 @@ from model import (lesson_slug, load, parse_activities, parse_bank,
 from runtime import (checkpoint_feedback, explain_payload, glossable,
                      lesson_run_advance, lesson_run_record, read_lesson_run,
                      read_session, start_lesson_run, upgrade_session)
-from surfaces import (binding_cli, day, evidence_cli, home, ia, launcher,
+from surfaces import (binding_cli, course_ops, day, evidence_cli, home, ia, launcher,
                       lesson, looks, palette, presentation, quiz, quiz_page,
                       retention_view, seeding, session, settings, study,
                       update)
@@ -297,10 +297,17 @@ SOURCE_IMPORT_ALLOWED_FIELDS = ("adapter", "source_object_id", "url",
 # server-side against the daemon's own journal registry. Plan 14C-04 adds
 # `/api/source/recheck` beside it: a READ that reports whether a captured
 # remote origin still matches and changes nothing, which is why it is gated
-# by the read-side cross-origin check rather than the write-side one. The
-# fifteen-entry length is asserted by
-# `check_api_route_scope` in `tests/daemon_roundtrip.py`, and every entry
-# is mirrored in ROUTE_CLI and SURFACE_PARITY (Extensibility Rule 9(a)).
+# by the read-side cross-origin check rather than the write-side one.
+# Phase 19A opens the `/api/course/<operation>` namespace beside them, one
+# fixed literal route per course operation (19A-CONTEXT D-02), because the
+# Phase 999.3 tool table generates one MCP tool per entry here and a single
+# generic `/api/course` with a discriminator would collapse the whole course
+# engine into one untyped tool. `create` and `rename` are 19A-01's family;
+# `bind` and `rights` moved into the namespace in the same commit, with
+# their original paths kept serving in `LEGACY_API_ALIASES` below. The
+# length is asserted by `check_api_route_scope` in
+# `tests/daemon_roundtrip.py`, and every entry is mirrored in ROUTE_CLI and
+# SURFACE_PARITY (Extensibility Rule 9(a)).
 API_ROUTES = (
     ("POST", "/api/start", "handle_api_start"),
     ("POST", "/api/next", "handle_api_next"),
@@ -313,14 +320,32 @@ API_ROUTES = (
     ("POST", "/api/lesson-complete", "handle_api_lesson_complete"),
     ("POST", "/api/rubric-review", "handle_api_rubric_review"),
     ("POST", "/api/mark", "handle_api_mark"),
-    ("POST", "/api/bind", "handle_api_bind"),
-    ("POST", "/api/rights", "handle_api_rights"),
+    ("POST", "/api/course/create", "handle_api_course_create"),
+    ("POST", "/api/course/rename", "handle_api_course_rename"),
+    ("POST", "/api/course/bind", "handle_api_bind"),
+    ("POST", "/api/course/rights", "handle_api_rights"),
     ("POST", "/api/export_audio", "handle_api_export_audio"),
     ("POST", "/api/lesson/run", "handle_api_lesson_run"),
     ("POST", "/api/source/import", "handle_api_source_import"),
     ("POST", "/api/source/recheck", "handle_api_source_recheck"),
     ("POST", "/api/shelf", "handle_api_shelf"),
 )
+
+# The two paths the source-binding door landed on before this namespace
+# existed (2026-09-05), kept serving so nothing that already calls them
+# breaks, and kept OUT of API_ROUTES on purpose (19A-01, amending 19A-CONTEXT
+# D-02). They are deprecated aliases of the canonical `/api/course/bind` and
+# `/api/course/rights`, not a second convention: an entry here reserves no MCP
+# tool name and appears in no SURFACE_PARITY row, so the Phase 999.3 tool
+# table generated from API_ROUTES gets exactly one tool per operation instead
+# of an operation and its alias. They are retired by an explicit `migrate`
+# once nothing calls them, which is the additive-then-deprecate path
+# non-negotiable 4 describes; retiring them silently is what is forbidden.
+LEGACY_API_ALIASES = (
+    ("POST", "/api/bind", "handle_api_bind"),
+    ("POST", "/api/rights", "handle_api_rights"),
+)
+
 
 # Order is load-bearing: every fixed literal route comes before every
 # stem-parameterised route, so a bank or plan whose stem happens to be
@@ -342,7 +367,7 @@ ROUTES = (
     ("POST", "/api/theme", "handle_theme_post"),
     ("POST", "/cli-twin", "handle_cli_twin"),
     ("POST", "/seed/accept", "handle_seed_accept"),
-) + API_ROUTES + (
+) + API_ROUTES + LEGACY_API_ALIASES + (
     ("GET", KATEX_ASSET_RE, "handle_katex_asset"),
     ("GET", FONT_ASSET_RE, "handle_font_asset"),
     ("GET", MEDIA_ASSET_RE, "handle_media_asset"),
@@ -394,6 +419,12 @@ ROUTE_CLI = {
     ("POST", "/api/lesson-complete"): "lesson",
     ("POST", "/api/rubric-review"): "rubric-review",
     ("POST", "/api/mark"): "mark",
+    ("POST", "/api/course/create"): "course",
+    ("POST", "/api/course/rename"): "course",
+    ("POST", "/api/course/bind"): "bind",
+    ("POST", "/api/course/rights"): "bind",
+    # The two deprecated aliases. Same twin as the canonical route, because
+    # they are the same call.
     ("POST", "/api/bind"): "bind",
     ("POST", "/api/rights"): "bind",
     ("GET", KATEX_ASSET_RE): "daemon",
@@ -449,8 +480,10 @@ SURFACE_PARITY = (
     (("POST", "/api/source/recheck"), "source", "source_recheck"),
     (("POST", "/api/shelf"), "shelf", "shelf"),
     (("POST", "/api/mark"), "mark", "mark"),
-    (("POST", "/api/bind"), "bind", "bind"),
-    (("POST", "/api/rights"), "bind", "rights_record"),
+    (("POST", "/api/course/create"), "course", "course_create"),
+    (("POST", "/api/course/rename"), "course", "course_rename"),
+    (("POST", "/api/course/bind"), "bind", "bind"),
+    (("POST", "/api/course/rights"), "bind", "rights_record"),
 )
 
 
@@ -895,7 +928,7 @@ __RIGHTS_ROWS__
   if (submit) {
     submit.addEventListener("click", function () {
       var treatment = document.querySelector("[data-bind-treatment]").value;
-      post("/api/bind", {
+      post("/api/course/bind", {
         course_id: course,
         objective: document.querySelector("[data-bind-objective]").value,
         source: document.querySelector("[data-bind-source]").value,
@@ -914,7 +947,7 @@ __RIGHTS_ROWS__
         var grants = {};
         grants[button.getAttribute("data-right")] =
           button.getAttribute("data-value");
-        post("/api/rights", {
+        post("/api/course/rights", {
           course_id: course,
           source: button.getAttribute("data-rights-set"),
           grants: grants
@@ -4615,6 +4648,81 @@ def _binding_course_dir(handler, course_id):
     if not isinstance(course_id, str) or not course_id:
         return None
     return ia.course_dir_for(handler.root, course_id)
+
+
+COURSE_OPERATION_ACTOR_FIELDS = ("actor_kind", "reviewer_kind", "rights",
+                                "fingerprint", "base", "path", "root")
+
+
+def _course_operation(handler, operation):
+    """The dispatch spine every `/api/course/<operation>` route shares.
+
+    One route per operation and one handler per route (D-02), but exactly one
+    body of dispatch: the request is validated against the published document
+    off disk before anything is read, the write is the frozen
+    compare-and-swap one, and a typed refusal comes back as its code and its
+    sentence so the client is told the next safe action rather than shown a
+    stack trace. A later 19A wave adds an operation by adding a route, a
+    ROUTE_CLI entry, a SURFACE_PARITY row and a `$defs` node, and copies
+    nothing of this.
+
+    Authority-shaped fields are refused by name, the same discipline every
+    other mutating route here takes: the actor KIND is decided by the surface
+    (a browser client is a human), a fingerprint of anything but the course
+    being written is not a request field, and a course is addressed by its id
+    and resolved server-side, never by a path.
+    """
+    if _reject_cross_origin(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    for banned in COURSE_OPERATION_ACTOR_FIELDS:
+        if banned in data:
+            handler.send_error(400, "field %r is not accepted here; a course "
+                                    "is addressed by its id, the actor kind "
+                                    "is the surface's to decide, and a right "
+                                    "is read from the journal, never sent"
+                               % banned)
+            return
+    try:
+        result = course_ops.run(handler.root, operation, data,
+                                actor_kind="human",
+                                actor_name=data.get("actor") or "")
+    except Exception as exc:                       # typed course/graph errors
+        code = getattr(exc, "code", None)
+        if code:
+            status = 404 if code == "course.unknown_course" else 400
+            handler.send_error(status, "%s: %s"
+                               % (code, getattr(exc, "message", str(exc))))
+            return
+        handler.send_server_error(exc)
+        return
+    handler.send_json(result)
+
+
+def handle_api_course_create(handler):
+    """`POST /api/course/create` -- mint a course.
+
+    The browser twin of `itembank course create`, and the cell the
+    2026-09-05 surface grid named first: "a course is created by calling
+    course.create_course from Python. Neither a person nor an agent client
+    can start a course from a surface." Reaches `course.create_course`,
+    which is `journal.commit_operation` as a mint, and writes nothing else.
+    """
+    _course_operation(handler, "create")
+
+
+def handle_api_course_rename(handler):
+    """`POST /api/course/rename` -- retitle a course.
+
+    `course / change` on the same grid. One `edit_in_place` through
+    `course.write_course`: the title is display, so identity, bindings and
+    evidence are untouched, and a caller that states an
+    `expected_fingerprint` gets the real compare-and-swap refusal by name
+    rather than a last-writer-wins overwrite.
+    """
+    _course_operation(handler, "rename")
 
 
 def handle_api_bind(handler):

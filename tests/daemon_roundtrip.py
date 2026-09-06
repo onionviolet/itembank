@@ -1302,14 +1302,39 @@ def check_api_route_scope():
     and in SURFACE_PARITY with its reserved MCP tool name (Extensibility
     Rule 9(a)).
     """
-    if len(daemon.API_ROUTES) != 16:
+    if len(daemon.API_ROUTES) != 20:
         fail("D-04 + Phase 6 + 06.1-02 + 08-05 + 10-04/10-05 + 09.1 + 09 + 14 "
-             "+ 14C scope /api/* to exactly sixteen routes: POST "
-             "/api/source/import and POST /api/source/recheck from 14C, "
-             "16B-09's POST /api/shelf, and POST /api/mark, the browser twin "
-             "of `itembank mark` added 2026-09-05 so a sitting parked on a "
-             "constructed response has an exit that is not a terminal; "
-             "API_ROUTES has %d" % len(daemon.API_ROUTES))
+             "+ 14C + 16B-09 + 19A scope /api/* to exactly twenty routes: the "
+             "sixteen assessment, lesson, source and shelf routes, plus the "
+             "four under /api/course/ that Phase 19A opened (create, rename, "
+             "bind, rights). API_ROUTES has %d" % len(daemon.API_ROUTES))
+    # 19A-01, amending 19A-CONTEXT D-02: the source-binding door landed on
+    # /api/bind and /api/rights before the namespace existed. Both were
+    # re-homed under /api/course/ and both old paths keep serving as
+    # deprecated aliases, declared in LEGACY_API_ALIASES and deliberately
+    # absent from API_ROUTES so the generated MCP tool table carries one tool
+    # per operation rather than an operation and its alias.
+    aliases = getattr(daemon, "LEGACY_API_ALIASES", ())
+    if set(e[:2] for e in aliases) != {("POST", "/api/bind"),
+                                       ("POST", "/api/rights")}:
+        fail("LEGACY_API_ALIASES must keep POST /api/bind and POST "
+             "/api/rights serving; retiring a path silently is what "
+             "non-negotiable 4 forbids")
+    if set(e[:2] for e in aliases) & set(e[:2] for e in daemon.API_ROUTES):
+        fail("a deprecated alias is also in API_ROUTES, which would reserve "
+             "a second MCP tool name for one operation")
+    for method, path, handler_name in aliases:
+        canonical = [h for m, p, h in daemon.API_ROUTES
+                     if p == path.replace("/api/", "/api/course/")]
+        if canonical != [handler_name]:
+            fail("%s %s does not reach the same handler as its canonical "
+                 "/api/course/ route" % (method, path))
+    for path, twin, tool in (("/api/course/create", "course", "course_create"),
+                             ("/api/course/rename", "course", "course_rename")):
+        if daemon.ROUTE_CLI.get(("POST", path)) != twin:
+            fail("POST %s must map to the %s CLI twin" % (path, twin))
+        if (("POST", path), twin, tool) not in daemon.SURFACE_PARITY:
+            fail("POST %s must reserve the MCP tool name %r" % (path, tool))
     if daemon.ROUTE_CLI.get(("POST", "/api/mark")) != "mark":
         fail("POST /api/mark must map to the mark CLI twin")
     if daemon.ROUTE_CLI.get(("POST", "/api/shelf")) != "shelf":

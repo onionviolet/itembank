@@ -60,6 +60,10 @@ SINCE = {
     # grid's `source binding / create` cell. Still 0.3.0: it lands inside the
     # same unreleased version every command above did.
     "bind": "0.3.0",
+    # Phase 19A's dispatch spine and its first operation family, added
+    # 2026-09-05: the CLI twin of POST /api/course/<operation>. Still 0.3.0,
+    # the same unreleased version every command above lands in.
+    "course": "0.3.0",
 }
 
 # The two byte-identical skill mirrors (CI enforces the diff); the index
