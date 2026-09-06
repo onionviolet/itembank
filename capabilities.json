@@ -419,6 +419,16 @@
     },
     {
       "method": "POST",
+      "path": "/api/course/bind-treatment",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/treatments",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
       "path": "/api/course/rights",
       "token_gated": true
     },

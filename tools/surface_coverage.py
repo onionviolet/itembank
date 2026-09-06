@@ -212,12 +212,15 @@ CELLS = {
     },
     ("source binding", "create"): {
         "cli": ["bind source", "bind treatment"],
-        "http": ["POST /api/course/bind", "POST /api/bind"],
+        "http": ["POST /api/course/bind", "POST /api/course/bind-treatment",
+                 "POST /api/bind"],
         "note": "Filled 2026-09-05, the first cell this grid caused to be "
                 "built. Both surfaces reach `course.bind_source` and "
                 "`course.bind_treatment`; neither writes a row itself. "
                 "Re-homed under /api/course/ by 19A-01; POST /api/bind is "
-                "the deprecated alias, still serving.",
+                "the deprecated alias, still serving. 19A-04 gave the "
+                "treatment write its own operation, because `treatment` is "
+                "required there and the bind node cannot say so.",
     },
     ("lesson", "inspect"): {
         "cli": ["lesson", "study", "gloss", "lesson-check", "lesson-skip"],
@@ -337,6 +340,22 @@ CELLS = {
         "note": "One operation records a grant and a denial, so create and "
                 "change are the same call; both are listed because both are "
                 "true.",
+    },
+    ("rights grant", "explain"): {
+        "cli": ["bind treatments", "bind list"],
+        "http": ["POST /api/course/treatments",
+                 "POST /api/course/bindings"],
+        "note": "Filled 2026-09-05 by 19A-04, which gave "
+                "`graph.TREATMENT_RIGHTS` its first reader. The eleven-kind "
+                "mapping decides which treatments a course may use for a "
+                "source, and until this it could only be discovered by "
+                "attempting a binding and being refused: a learner with "
+                "`read` and not `transform` could bind a direct reading and "
+                "not a guided lesson, and nothing said so beforehand. The "
+                "table now answers per source, with the right each kind "
+                "consumes and its state right now. What is still missing is "
+                "the refusal's own history: why an export or a package that "
+                "already refused did so, which is 19A-08's read.",
     },
     ("rights grant", "change"): {
         "cli": ["bind rights"],
@@ -486,13 +505,6 @@ GAP_NOTES = {
                                  "has no surface.",
 
 
-    ("rights grant", "explain"): "Half answered by 19A-02: `bind list` "
-                                 "now names the right each binding consumes "
-                                 "and its state right now, so an unknown "
-                                 "right is visible before it refuses. What "
-                                 "is still missing is the refusal's own "
-                                 "history, which is why an export or a "
-                                 "package that already refused did so.",
     ("sitting", "explain"): "A finished sitting reports counts. Nothing "
                             "walks it back item by item with what was shown "
                             "and when.",

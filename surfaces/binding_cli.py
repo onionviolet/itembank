@@ -193,15 +193,23 @@ def _through_the_spine(a, operation, request):
 def cmd_bind(a):
     """`itembank bind` -- the first course-shaped command.
 
-    Three actions, all of them one call into `course`: `source` and
-    `treatment` record a binding, and `list` reads what a course holds so a
-    caller can see the objective ids and source ids the other two need.
+    Five actions, all of them one call into `course`: `source` and
+    `treatment` record a binding, `rights` records what may be done with a
+    source, and `list` and `treatments` read what a course holds so a caller
+    can see the objective ids, source ids and treatment choices the writes
+    need.
 
     Since 19A-02 every action goes through `course_ops.run`, so the command
     is refused by the same published request document the route is refused
     by, and `list` prints the effective reading of each binding rather than
     the raw row: what it claims, and whether the right it was made under
     still reads the same way.
+
+    `treatments` (19A-04) is the read to run BEFORE `treatment`. The eleven
+    kinds each consume a different right, so which treatments a course may
+    use for a source is a fact about that source's recorded rights, and
+    until this action existed the only way to learn it was to attempt a
+    binding and be refused one kind at a time.
     """
     try:
         if a.action == "list":
@@ -257,15 +265,52 @@ def cmd_bind(a):
                                in sorted((payload["rights"] or {}).items()))))
             print("  undo: %s" % payload["undo"])
             return 0
-        payload = _through_the_spine(
-            a, "bind",
-            dict({"objective": a.objective, "source": a.source,
-                  "binding_kind": a.action, "locator": a.locator or "",
-                  "state": a.state, "confidence": a.confidence},
-                 # Omitted rather than sent empty: the published node closes
-                 # `treatment` to the eleven kinds, and "" is not one of them.
-                 **({"treatment": a.treatment}
-                    if getattr(a, "treatment", "") else {})))
+        if a.action == "treatments":
+            payload = _through_the_spine(
+                a, "treatments",
+                {"source": a.source} if getattr(a, "source", "") else {})
+            if getattr(a, "json", False):
+                return _emit(payload, True) and 0
+            if payload["rights_resolved"]:
+                print("Treatments for %s (%s)"
+                      % (payload["source_title"] or "this source",
+                         payload["source_object_id"]))
+            else:
+                print("Treatments, and the right each one consumes. No "
+                      "source named, so no right was resolved.")
+            for row in payload["treatments"]:
+                mark = ("  " if row["bindable"] is None
+                        else ("ok" if row["bindable"] else "no"))
+                print("  %s %-27s consumes %-9s %s%s"
+                      % (mark, row["treatment_kind"], row["right_consumed"],
+                         row["rights_state"] or "-",
+                         "   (%d bound here)" % row["bound_here"]
+                         if row["bound_here"] else ""))
+            if payload["rights_resolved"]:
+                print("\n%d of the %d bind on this source now; %d refuse."
+                      % (len(payload["bindable"]),
+                         len(payload["treatments"]),
+                         len(payload["refused"])))
+                if payload["refused"]:
+                    print("A refusal is a rights decision, not a missing "
+                          "feature: record the right with `itembank bind "
+                          "rights --source %s --grant <right>` and the "
+                          "treatments it gates bind."
+                          % payload["source_object_id"])
+            return 0
+        operation = "bind_treatment" if a.action == "treatment" else "bind"
+        request = {"objective": a.objective, "source": a.source,
+                   "locator": a.locator or "", "state": a.state,
+                   "confidence": a.confidence}
+        if a.action == "treatment":
+            # The canonical treatment door since 19A-04, which is the one
+            # node that can require the treatment. `bind` still accepts a
+            # treatment and writes the same row; the command stopped using
+            # that mode rather than keeping two callers of a deprecation.
+            request["treatment"] = a.treatment
+        else:
+            request["binding_kind"] = a.action
+        payload = _through_the_spine(a, operation, request)
         if getattr(a, "json", False):
             return _emit(payload, True) and 0
         print("bound %s -> %s (%s binding, consumes %s, state %s, "

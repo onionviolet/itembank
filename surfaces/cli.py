@@ -1554,7 +1554,9 @@ def build_parser():
             ("source", "bind a source to an objective as coverage; consumes "
                        "the source's read right"),
             ("treatment", "bind a treatment to an objective; the treatment "
-                          "decides which right it consumes")):
+                          "decides which right it consumes, so an excerpt "
+                          "refuses on quote and a guided lesson on "
+                          "transform")):
         bp = bt.add_parser(name, help=blurb)
         bp.add_argument("--base", default=".",
                         help="the course root holding course-graph.md "
@@ -1581,6 +1583,19 @@ def build_parser():
                             choices=list(graph.TREATMENT_KINDS),
                             help="which of the eleven treatments this is")
         bp.set_defaults(fn=binding_cli.cmd_bind)
+
+    btr = bt.add_parser("treatments", help="print the eleven treatments, the "
+                        "right each one consumes, and, for one source, "
+                        "whether that right is granted right now")
+    btr.add_argument("--base", default=".",
+                     help="the course root (default: current directory)")
+    btr.add_argument("--source", default="",
+                     help="the source object id to resolve the table "
+                          "against; omitted prints the mapping alone, with "
+                          "no right resolved")
+    btr.add_argument("--json", action="store_true",
+                     help="emit the whole reading as JSON")
+    btr.set_defaults(fn=binding_cli.cmd_bind)
 
     bl = bt.add_parser("list", help="print this course's objectives, sources "
                        "with their recorded rights, and every binding's "

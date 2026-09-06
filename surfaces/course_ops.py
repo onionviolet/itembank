@@ -50,6 +50,23 @@ the right that binding kind consumes is granted at that moment, and
 `course.rights_for_binding`. That last pair is the point of the read: a
 binding stores the rights snapshot it was made under, and a snapshot that
 still says granted after the grant was revoked is history, not permission.
+
+Plan 19A-04 adds the treatment family and one more rule, which is about what
+a published node can SAY rather than about what an operation does.
+`bind_treatment` writes exactly what `bind` with `binding_kind: "treatment"`
+already wrote, and exists anyway because this validator has no `if`/`then`:
+on a node serving both kinds `treatment` has to be optional while the runtime
+insists on it, so the tool generated from that node fails at call time rather
+than at type time. **An operation is worth its own node when the node can
+require something the shared one cannot.** The older mode keeps serving and
+says it is deprecated; a test asserts the two write byte-identical rows, so
+the deprecation is a deprecation and not a fork.
+
+The family's read, `treatments`, is the reason the wave is not just a
+renaming. `graph.TREATMENT_RIGHTS` decides which of the eleven treatments a
+course may use for a source, and it had no reader anywhere: the only way to
+learn that a guided lesson needs `transform` while a direct reading needs
+`read` was to attempt a binding and be refused, one kind at a time.
 """
 import json
 import os
@@ -80,6 +97,8 @@ OPERATION_ENGINE = {
     "rename": "course.write_course",
     "add_source": "graph.add_source",
     "bind": "course.bind_source",
+    "bind_treatment": "course.bind_treatment",
+    "treatments": "graph.treatment_right",
     "rights": "journal.op_grant_rights",
     "bindings": "graph.validate_binding",
     "add_container": "graph.add_container",
@@ -95,7 +114,7 @@ OPERATION_ENGINE = {
 # The operations that only read. They reach no writer, advance no revision,
 # and are the only ones a surface may serve behind the read-side gate; every
 # other name in OPERATION_ENGINE writes.
-READ_OPERATIONS = ("bindings", "structure")
+READ_OPERATIONS = ("bindings", "structure", "treatments")
 
 
 def request_schema():
@@ -368,7 +387,173 @@ def _op_bind(root, body, actor_kind, actor_name, base=None):
                 "previous revision from the operation journal"
                 % result.get("revision"),
     })
+    if binding_kind == "treatment":
+        # Deprecated in place by 19A-04, not retired: this route recorded
+        # treatment bindings before the spine existed and a client is
+        # entitled to keep calling it. The row is identical to the one
+        # `bind_treatment` writes, asserted by test, so the notice is a
+        # pointer and never a warning about the result.
+        payload["deprecated"] = (
+            "binding a treatment through the `bind` operation still works "
+            "and wrote the same row, but `bind_treatment` is the operation "
+            "for it: the treatment is required there, which this node "
+            "cannot express. Nothing is retired without an explicit "
+            "migrate.")
     return payload
+
+
+def _op_bind_treatment(root, body, actor_kind, actor_name, base=None):
+    """Bind a treatment to an objective: the decision about HOW it is taught.
+
+    The same row as a treatment binding through `bind`, deliberately: this is
+    a typing of that operation and not a second writer, so both reach
+    `binding_cli.bind` and through it `course.bind_treatment`, and a test
+    asserts the two produce an identical row. What this node has that the
+    other cannot is a REQUIRED treatment. The request document is the
+    generated tool signature, this validator has no `if`/`then`, and so on
+    the `bind` node `treatment` has to be optional while the runtime insists
+    on it. A tool that advertises an optional field the runtime requires
+    fails at call time instead of at type time, and an agent client has no
+    way to know which.
+
+    The right consumed is `graph.treatment_right`'s answer and is never a
+    request field: an excerpt refuses on `quote` and a guided lesson on
+    `transform`, read from the registry at the moment of the write. It is
+    reported back, because a binding that succeeded should say which right it
+    spent, and `treatments` is the operation that answers the same question
+    before the attempt rather than after it.
+    """
+    base = base or resolve_course(root, body["course_id"])
+    treatment = body["treatment"]
+    result = binding_cli.bind(
+        base, body["objective"], body["source"], binding_kind="treatment",
+        treatment_kind=treatment,
+        locator=body.get("locator") or "",
+        state=body.get("state") or "unknown",
+        confidence=body.get("confidence") or "unknown",
+        actor_kind=actor_kind, actor_name=actor_name)
+    payload = dict(result)
+    payload.update({
+        "operation": "bind_treatment",
+        "engine": OPERATION_ENGINE["bind_treatment"],
+        "course_id": body["course_id"],
+        "treatment_kind": treatment,
+        "right_consumed": graph.treatment_right(treatment),
+        # The write happened, so the right was exactly granted when it was
+        # read. A state and not a boolean, because the rights model has three
+        # values and "true" would flatten denied and unknown into one word.
+        "rights_state_at_write": "granted",
+        "undo": "no surface removes a binding; this row is journalled at "
+                "revision %s, so the reversal is restoring the sidecar's "
+                "previous revision from the operation journal"
+                % result.get("revision"),
+    })
+    return payload
+
+
+def _op_treatments(root, body, actor_kind, actor_name, base=None):
+    """Read the eleven treatments, the right each consumes, and whether that
+    right is granted on one source right now.
+
+    A read, and the first reader `graph.TREATMENT_RIGHTS` has ever had. The
+    mapping is not a detail: it decides which treatments a course may use for
+    a given source, and until this operation existed the only way to discover
+    it was to attempt a binding and be refused. A learner who had granted
+    `read` and not `transform` could bind a direct reading and not a guided
+    lesson, and no surface said so beforehand.
+
+    Two things make it an answer rather than a printed constant. The rights
+    state is re-read through `course.rights_for_binding`, the same fresh read
+    the write does, so what this reports and what the next write enforces
+    cannot disagree. And the count of treatment bindings this course already
+    records for each kind is reported beside it, so the table says what this
+    course does as well as what it may do.
+
+    It grants nothing and refuses nothing. A `transform` that reads
+    `unknown` is reported as refusing, and the way to change that answer is
+    to record the right, which is a different operation with a different
+    authority behind it.
+    """
+    base = base or resolve_course(root, body["course_id"])
+    read = course_module.read_course(base)
+    doc = read["doc"]
+    source_id = body.get("source") or ""
+    known = set(row.get("source_object_id") or ""
+                for row in doc.get("sources") or ())
+    if source_id and source_id not in known:
+        raise course_module.CourseError(
+            "course.unknown_source",
+            "%s is not a source this course names, so there are no rights to "
+            "resolve the treatment table against. Next safe action: record "
+            "it with `itembank course add-source %s --source %s --title ...`, "
+            "or ask without --source for the mapping alone."
+            % (source_id, body["course_id"], source_id))
+    used = {}
+    for row in doc.get("bindings") or ():
+        if (row.get("binding_kind") or "") != "treatment":
+            continue
+        kind = row.get("treatment_kind") or ""
+        if source_id and (row.get("source_object_id") or "") != source_id:
+            continue
+        used[kind] = used.get(kind, 0) + 1
+    rows, allowed, refused = [], [], []
+    for kind in graph.TREATMENT_KINDS:
+        right = graph.treatment_right(kind)
+        state = ""
+        bindable = None
+        if source_id:
+            try:
+                state = course_module.rights_for_binding(base, source_id,
+                                                         right)
+            except course_module.CourseError:
+                # The course names the source and the registry does not hold
+                # it, which is a real divergence and not a reason to guess.
+                # Unknown is the restrictive reading and it refuses.
+                state = identity.RIGHTS_UNKNOWN
+            bindable = state == "granted"
+            (allowed if bindable else refused).append(kind)
+        rows.append({
+            "treatment_kind": kind,
+            "right_consumed": right,
+            "rights_state": state,
+            "bindable": bindable,
+            "bound_here": used.get(kind, 0),
+            "explanation": _treatment_sentence(kind, right, state, source_id),
+        })
+    return {
+        "operation": "treatments",
+        "engine": OPERATION_ENGINE["treatments"],
+        "course_id": body["course_id"],
+        "course_object_id": read["object_id"],
+        "fingerprint": read["fingerprint"],
+        "source_object_id": source_id,
+        "source_title": dict(
+            (row.get("source_object_id") or "", row.get("title") or "")
+            for row in doc.get("sources") or ()).get(source_id, ""),
+        "treatments": rows,
+        "bindable": allowed,
+        "refused": refused,
+        "rights_resolved": bool(source_id),
+    }
+
+
+def _treatment_sentence(kind, right, state, source_id):
+    """One sentence per treatment: what it costs, and whether that cost is
+    currently payable on this source."""
+    cost = "a %s binding consumes the %s right" % (kind, right)
+    if not source_id:
+        return ("%s; no source was named, so whether that right is granted "
+                "is not asked here" % cost)
+    if state == "granted":
+        return "%s, and %s is granted on this source, so it binds" % (cost,
+                                                                      right)
+    if state == "denied":
+        return ("%s, and %s is denied on this source, so it refuses; a "
+                "denial is a decision and reversing it means recording a "
+                "new one" % (cost, right))
+    return ("%s, and %s is unrecorded on this source, so it refuses: unknown "
+            "is restrictive, and finding a file never granted permission to "
+            "use it" % (cost, right))
 
 
 def _op_rights(root, body, actor_kind, actor_name, base=None):
@@ -892,6 +1077,8 @@ OPERATIONS = {
     "rename": _op_rename,
     "add_source": _op_add_source,
     "bind": _op_bind,
+    "bind_treatment": _op_bind_treatment,
+    "treatments": _op_treatments,
     "rights": _op_rights,
     "bindings": _op_bindings,
     "add_container": _op_add_container,

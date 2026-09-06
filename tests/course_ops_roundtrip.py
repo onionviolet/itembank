@@ -143,7 +143,7 @@ def check_every_closed_vocabulary_matches_its_source_of_truth():
              list(graph.EDGE_CONFIDENCES)),
             ("binding_kind", defs["bind"]["properties"]["binding_kind"]["enum"],
              list(graph.BINDING_KINDS)),
-            ("treatment", defs["bind"]["properties"]["treatment"]["enum"],
+            ("treatment_kind", defs["treatment_kind"]["enum"],
              list(graph.TREATMENT_KINDS)),
             ("grants names", sorted(defs["grants"]["properties"]),
              sorted(identity.RIGHTS_OPERATIONS))):
@@ -153,6 +153,17 @@ def check_every_closed_vocabulary_matches_its_source_of_truth():
                  "%s that it does"
                  % (label, sorted(set(published) - set(actual)) or "nothing",
                     sorted(set(actual) - set(published)) or "nothing"))
+    # 19A-04: the treatment vocabulary is published ONCE and every node that
+    # names a treatment refs it. Two copies of an engine tuple drift apart
+    # twice as fast as one, and the one copy that existed drifted the day it
+    # was written.
+    for node_name in ("bind", "bind_treatment"):
+        field = defs[node_name]["properties"]["treatment"]
+        if field.get("$ref") != "#/$defs/treatment_kind":
+            fail("the %s node inlines its own treatment vocabulary instead "
+                 "of referencing the one published copy, which is how the "
+                 "first copy came to name seven treatments the engine does "
+                 "not have" % node_name)
     for name, node in defs["grants"]["properties"].items():
         if node["enum"] != list(identity.RIGHTS_STATES):
             fail("the published states for the %s right are %r, not the "
@@ -390,6 +401,31 @@ def check_the_route_is_the_cli_twin():
             fail("the bind route no longer refuses through the published "
                  "document: %r" % text)
 
+        # 19A-04 over HTTP: the table reads, and the write it describes
+        # requires the treatment the older route cannot require.
+        status, body = json_request(url + "api/course/treatments",
+                                    {"course_id": "csci",
+                                     "source": source_id})
+        if status != 200:
+            fail("POST /api/course/treatments returned %r: %r"
+                 % (status, body))
+        elif len(body["treatments"]) != len(graph.TREATMENT_KINDS):
+            fail("the treatments route reported %d of the eleven kinds"
+                 % len(body["treatments"]))
+        elif body["bindable"]:
+            fail("every right on this source is unrecorded and the route "
+                 "still called %r bindable" % body["bindable"])
+        status, body = json_request(url + "api/course/bind-treatment",
+                                    {"course_id": "csci", "objective": "o",
+                                     "source": source_id})
+        if status != 400:
+            fail("a treatment binding with no treatment returned %r from "
+                 "the route" % status)
+        text = body if isinstance(body, str) else json.dumps(body)
+        if "treatment" not in text:
+            fail("the bind-treatment refusal does not name the missing "
+                 "field: %r" % text)
+
         print("ok   the route reaches the same spine and refuses the same "
               "way, for both families")
 
@@ -438,6 +474,8 @@ def check_parity_and_the_declared_aliases():
             ("/api/course/rename", "course", "course_rename"),
             ("/api/course/add-source", "course", "course_add_source"),
             ("/api/course/bind", "bind", "bind"),
+            ("/api/course/bind-treatment", "bind", "bind_treatment"),
+            ("/api/course/treatments", "bind", "course_treatments"),
             ("/api/course/rights", "bind", "rights_record"),
             ("/api/course/bindings", "bind", "course_bindings")):
         if daemon.ROUTE_CLI.get(("POST", path)) != twin:
@@ -626,6 +664,223 @@ def check_a_rights_snapshot_is_history():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def check_the_treatment_table_has_a_reader():
+    """19A-04's real gap, and the reason this wave is not just a rename.
+
+    `graph.TREATMENT_RIGHTS` decides which of the eleven treatments a course
+    may use for a given source, and it had no reader on any surface. The only
+    way to learn that a guided lesson needs `transform` while a direct
+    reading needs `read` was to attempt a binding and be refused, one kind at
+    a time.
+
+    The assertion that matters is not that the table prints. It is that what
+    the read reports and what the next write enforces cannot disagree: every
+    kind the read calls bindable is bound here for real, and every kind it
+    calls refusing is refused for real, against the same course at the same
+    moment.
+    """
+    tmp = tempfile.mkdtemp(prefix="course_ops_treatments_")
+    try:
+        course_ops.run(tmp, "create", {"course_id": "fen", "title": "Fen"})
+        base = os.path.join(tmp, "fen")
+        source_id = _linked_source(base, "notes.md", "# Notes\n")
+        course_ops.run(tmp, "add_source",
+                       {"course_id": "fen", "source_object_id": source_id,
+                        "title": "Field notes"}, actor_name="tester")
+        container = course_ops.run(tmp, "add_container",
+                                   {"course_id": "fen", "label": "module",
+                                    "title": "M1"}, actor_name="tester")
+        objective = course_ops.run(
+            tmp, "add_objective",
+            {"course_id": "fen", "container": container["container_id"],
+             "statement": "O1 Read the notes."}, actor_name="tester")["objective_id"]
+
+        # With no source named the mapping is reported and no right is
+        # resolved, which is a different answer from "nothing is granted".
+        table = course_ops.run(tmp, "treatments", {"course_id": "fen"})
+        if len(table["treatments"]) != len(graph.TREATMENT_KINDS):
+            fail("the read reported %d treatments; the vocabulary is closed "
+                 "at %d" % (len(table["treatments"]),
+                            len(graph.TREATMENT_KINDS)))
+        for row in table["treatments"]:
+            if row["right_consumed"] != graph.TREATMENT_RIGHTS[
+                    row["treatment_kind"]]:
+                fail("the read says a %s consumes %r; the engine says %r"
+                     % (row["treatment_kind"], row["right_consumed"],
+                        graph.TREATMENT_RIGHTS[row["treatment_kind"]]))
+            if row["bindable"] is not None or row["rights_state"]:
+                fail("no source was named and the read still claimed a "
+                     "rights answer for %s" % row["treatment_kind"])
+        if table["rights_resolved"] or table["bindable"] or table["refused"]:
+            fail("a read with no source split the eleven into allowed and "
+                 "refused, which it cannot know")
+
+        # `read` granted and nothing else: the three read-consuming kinds
+        # bind and the eight quote/transform kinds refuse.
+        course_ops.run(tmp, "rights",
+                       {"course_id": "fen", "source": source_id,
+                        "grants": {"read": "granted"}}, actor_name="tester")
+        table = course_ops.run(tmp, "treatments",
+                               {"course_id": "fen", "source": source_id})
+        expected = [k for k in graph.TREATMENT_KINDS
+                    if graph.TREATMENT_RIGHTS[k] == "read"]
+        if table["bindable"] != expected:
+            fail("with only `read` granted the read calls %r bindable; the "
+                 "kinds that consume read are %r"
+                 % (table["bindable"], expected))
+        if len(table["refused"]) != len(graph.TREATMENT_KINDS) - len(expected):
+            fail("the read did not refuse every kind consuming a right that "
+                 "is unrecorded")
+        for row in table["treatments"]:
+            if not row["bindable"] and "refuses" not in row["explanation"]:
+                fail("a refusing treatment does not say it refuses: %r"
+                     % row["explanation"])
+
+        # The read and the write agree, checked by doing both.
+        for kind in table["bindable"]:
+            course_ops.run(tmp, "bind_treatment",
+                           {"course_id": "fen", "objective": objective,
+                            "source": source_id, "treatment": kind},
+                           actor_name="tester")
+        for kind in table["refused"]:
+            try:
+                course_ops.run(tmp, "bind_treatment",
+                               {"course_id": "fen", "objective": objective,
+                                "source": source_id, "treatment": kind},
+                               actor_name="tester")
+            except course_module.CourseError as err:
+                if err.code != "course.rights_not_granted":
+                    fail("a %s binding the read called refused was refused "
+                         "with %r instead" % (kind, err.code))
+            else:
+                fail("the read called a %s binding refused and it was "
+                     "accepted; the table and the gate disagree" % kind)
+
+        # Recording the right the read named is what changes the answer, and
+        # the read counts what the course now does as well as what it may do.
+        course_ops.run(tmp, "rights",
+                       {"course_id": "fen", "source": source_id,
+                        "grants": {"transform": "granted"}},
+                       actor_name="tester")
+        after = course_ops.run(tmp, "treatments",
+                               {"course_id": "fen", "source": source_id})
+        if "guided-lesson" not in after["bindable"]:
+            fail("granting transform did not make a guided lesson bindable; "
+                 "the read is not reading the registry fresh")
+        if "excerpt" in after["bindable"]:
+            fail("granting transform made an excerpt bindable; a right "
+                 "granted for one operation never implies another")
+        bound = dict((row["treatment_kind"], row["bound_here"])
+                     for row in after["treatments"])
+        if [k for k, n in bound.items() if n] != expected:
+            fail("the read counted this course's own treatment bindings as "
+                 "%r; %r were made" % (sorted(k for k, n in bound.items()
+                                              if n), expected))
+
+        # A read writes nothing.
+        before = course_module.read_course(base)
+        course_ops.run(tmp, "treatments",
+                       {"course_id": "fen", "source": source_id})
+        if course_module.read_course(base)["fingerprint"] != \
+                before["fingerprint"]:
+            fail("the treatments read advanced the sidecar")
+        try:
+            course_ops.run(tmp, "treatments",
+                           {"course_id": "fen", "source": "no-such-object"})
+        except course_module.CourseError as err:
+            if err.code != "course.unknown_source":
+                fail("a source this course does not name refused with %r"
+                     % err.code)
+        else:
+            fail("the read resolved a table against a source the course "
+                 "does not name")
+        print("ok   the eleven-kind treatment table has a reader, and every "
+              "kind it calls bindable binds while every kind it calls "
+              "refused refuses")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def check_the_deprecated_bind_mode_writes_the_same_row():
+    """`bind_treatment` is a TYPING of what `bind` already did, not a second
+    writer, and this is the assertion that keeps it one.
+
+    Non-negotiable 4 forbids silent breakage, so `POST /api/course/bind` with
+    `binding_kind: treatment` keeps working. What makes that a deprecation
+    rather than a fork is that both reach `course.bind_treatment` and leave
+    the identical sidecar row; if they ever diverge, this repository has two
+    writers for one durable object and the older one is the trap.
+    """
+    tmp = tempfile.mkdtemp(prefix="course_ops_deprecated_")
+    try:
+        course_ops.run(tmp, "create", {"course_id": "fen", "title": "Fen"})
+        base = os.path.join(tmp, "fen")
+        source_id = _linked_source(base, "notes.md", "# Notes\n")
+        course_ops.run(tmp, "add_source",
+                       {"course_id": "fen", "source_object_id": source_id,
+                        "title": "Field notes"}, actor_name="tester")
+        course_ops.run(tmp, "rights",
+                       {"course_id": "fen", "source": source_id,
+                        "grants": {"read": "granted"}}, actor_name="tester")
+        container = course_ops.run(tmp, "add_container",
+                                   {"course_id": "fen", "label": "module",
+                                    "title": "M1"}, actor_name="tester")
+        objective = course_ops.run(
+            tmp, "add_objective",
+            {"course_id": "fen", "container": container["container_id"],
+             "statement": "O1 Read the notes."}, actor_name="tester")["objective_id"]
+
+        shared = {"course_id": "fen", "objective": objective,
+                  "source": source_id, "locator": "p. 3",
+                  "state": "thin", "confidence": "low"}
+        old_way = course_ops.run(tmp, "bind",
+                                 dict(shared, binding_kind="treatment",
+                                      treatment="direct-reading"),
+                                 actor_name="tester")
+        new_way = course_ops.run(tmp, "bind_treatment",
+                                 dict(shared, treatment="direct-reading"),
+                                 actor_name="tester")
+        rows = course_module.read_course(base)["doc"]["bindings"]
+        if len(rows) != 2:
+            fail("two treatment bindings wrote %d rows" % len(rows))
+        elif rows[0] != rows[1]:
+            fail("the deprecated bind mode and bind_treatment wrote "
+                 "different rows, so they are two writers and not one: %r "
+                 "vs %r" % (rows[0], rows[1]))
+        if "deprecated" not in old_way:
+            fail("binding a treatment through `bind` did not say it is "
+                 "deprecated, so nothing tells a caller to move")
+        if "deprecated" in new_way:
+            fail("the canonical treatment operation reports itself "
+                 "deprecated")
+        if new_way["right_consumed"] != "read" or \
+                new_way["engine"] != "course.bind_treatment":
+            fail("bind_treatment reported %r through %r"
+                 % (new_way["right_consumed"], new_way["engine"]))
+
+        # The typing is the whole reason the operation exists: the treatment
+        # is required here and cannot be required on the node it replaces.
+        node, _ = course_ops.operation_schema("bind_treatment")
+        if "treatment" not in node["required"]:
+            fail("bind_treatment does not require the treatment, which is "
+                 "the only thing it has that `bind` cannot express")
+        try:
+            course_ops.run(tmp, "bind_treatment", dict(shared))
+        except course_module.CourseError as err:
+            if err.code != "course.invalid_request":
+                fail("a bind_treatment with no treatment refused with %r"
+                     % err.code)
+            elif "treatment" not in err.message:
+                fail("the refusal does not name the missing field: %r"
+                     % err.message)
+        else:
+            fail("a treatment binding with no treatment was accepted")
+        print("ok   the deprecated bind mode and bind_treatment write the "
+              "identical row, and only the new one can require a treatment")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def check_a_degraded_state_never_reads_as_covered():
     """A binding row carrying a state this build cannot read degrades to
     unknown. TREAT-02 forbids inferring coverage from resemblance, and this
@@ -683,8 +938,34 @@ def check_the_family_is_the_cli_twin():
             fail("a duplicate source row succeeded from the CLI")
         elif "course.source_already_recorded" not in proc.stderr:
             fail("the duplicate refusal is not typed: %s" % proc.stderr.strip())
-        print("ok   the CLI twin records a source, reads it back, and "
-              "refuses a second row for it")
+
+        # 19A-04's twins. `bind treatments` answers before the attempt and
+        # `bind treatment` makes it, and the answer has to hold: a kind the
+        # table calls refused is refused by the command, and recording the
+        # right the table named is what changes that.
+        proc = run("bind", "treatments", "--base", base, "--source",
+                   source_id, "--json")
+        if proc.returncode != 0:
+            fail("itembank bind treatments failed: %s" % proc.stderr.strip())
+            return
+        table = json.loads(proc.stdout)
+        if table["bindable"]:
+            fail("nothing is granted on this source and `bind treatments` "
+                 "called %r bindable" % table["bindable"])
+        proc = run("bind", "treatment", "--base", base, "--objective",
+                   "o", "--source", source_id, "--treatment",
+                   "guided-lesson")
+        if proc.returncode == 0:
+            fail("a treatment the table called refused was bound from the "
+                 "CLI")
+        elif "course.rights_not_granted" not in proc.stderr:
+            fail("the refusal is not typed: %s" % proc.stderr.strip())
+        elif "transform" not in proc.stderr:
+            fail("the refusal does not name the right a guided lesson "
+                 "consumes: %s" % proc.stderr.strip())
+        print("ok   the CLI twin records a source, reads it back, refuses a "
+              "second row for it, and answers which treatments its rights "
+              "allow before one is attempted")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -1001,6 +1282,63 @@ def check_the_command_builds_its_request_from_the_document():
           "argument on its CLI twin, and every required one is required")
 
 
+def check_the_bind_commands_reach_every_published_field():
+    """The same gap-finder `itembank course` gets, applied to the two twins
+    19A-04 hangs under `itembank bind`.
+
+    It is a separate check because the mapping is not one-to-one there: the
+    course commands are schema-driven and name every argument exactly as the
+    node names it, while `bind` predates the spine and spells two fields
+    differently (`--grant`/`--deny` build the `grants` object, and the course
+    id is read from the sidecar at `--base` rather than typed). So the
+    correspondence is declared rather than assumed, and the assertion is that
+    every published field is reachable from the command by SOME argument.
+    """
+    from surfaces import cli
+
+    parser = cli.build_parser()
+    binds = parser._subparsers._group_actions[0].choices["bind"] \
+        ._subparsers._group_actions[0].choices
+    # `course_id` is never an argument here: `--base` is the course root a
+    # person is standing in and the id is read off its sidecar (19A-02).
+    supplied = {"course_id", "operation"}
+    for action, operation, spelled in (
+            ("treatment", "bind_treatment", {}),
+            ("treatments", "treatments", {}),
+            # `bind`'s deprecated treatment mode is deliberately not
+            # reachable from the command: `bind treatment` sends
+            # `bind_treatment` instead, so the deprecation has one caller
+            # (a client that already used it) rather than two.
+            ("source", "bind", {"binding_kind": None, "treatment": None}),
+            ("list", "bindings", {}),
+            ("rights", "rights", {"grants": "grant"})):
+        sub = binds[action]
+        dests = set(a.dest for a in sub._actions)
+        node, _ = course_ops.operation_schema(operation)
+        for field in node.get("properties") or ():
+            if field in supplied:
+                continue
+            if field in spelled:
+                if spelled[field] and spelled[field] not in dests:
+                    fail("`itembank bind %s` declares %r for the published "
+                         "field %r and has no such argument"
+                         % (action, spelled[field], field))
+                continue
+            if field not in dests:
+                fail("`itembank bind %s` has no argument for the published "
+                     "field %r, so a caller can reach that field from POST "
+                     "/api/course/%s and not from the command"
+                     % (action, field, operation.replace("_", "-")))
+        for field in node.get("required") or ():
+            if field in supplied or field in spelled:
+                continue
+            if not [a for a in sub._actions if a.dest == field and a.required]:
+                fail("`itembank bind %s` does not require %r, which the "
+                     "published node does" % (action, field))
+    print("ok   every published field of the bind-family operations is "
+          "reachable from its CLI twin")
+
+
 def main():
     check_the_request_document_is_read_off_disk()
     check_every_closed_vocabulary_matches_its_source_of_truth()
@@ -1009,12 +1347,15 @@ def main():
     check_the_command_exists()
     check_a_degraded_state_never_reads_as_covered()
     check_a_rights_snapshot_is_history()
+    check_the_treatment_table_has_a_reader()
+    check_the_deprecated_bind_mode_writes_the_same_row()
     check_the_family_is_the_cli_twin()
     check_a_course_write_is_loopback_only()
     check_the_authored_order_is_reported_never_rewritten()
     check_an_identity_move_adds_rows_and_deletes_none()
     check_an_imported_objective_is_immutable_and_still_revisable()
     check_the_command_builds_its_request_from_the_document()
+    check_the_bind_commands_reach_every_published_field()
     check_parity_and_the_declared_aliases()
     check_the_route_is_the_cli_twin()
     check_every_course_route_dispatches_to_a_real_handler()

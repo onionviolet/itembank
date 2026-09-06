@@ -1302,15 +1302,16 @@ def check_api_route_scope():
     and in SURFACE_PARITY with its reserved MCP tool name (Extensibility
     Rule 9(a)).
     """
-    if len(daemon.API_ROUTES) != 30:
+    if len(daemon.API_ROUTES) != 32:
         fail("D-04 + Phase 6 + 06.1-02 + 08-05 + 10-04/10-05 + 09.1 + 09 + 14 "
-             "+ 14C + 16B-09 + 19A scope /api/* to exactly thirty routes: "
-             "the sixteen assessment, lesson, source and shelf routes, plus "
-             "the fourteen under /api/course/ that Phase 19A opened (create "
-             "and rename in 19A-01; add-source, bind, rights and bindings in "
-             "19A-02; add-container, add-objective, add-edge, structure and "
-             "the four objective identity moves in 19A-03). API_ROUTES has "
-             "%d" % len(daemon.API_ROUTES))
+             "+ 14C + 16B-09 + 19A scope /api/* to exactly thirty-two "
+             "routes: the sixteen assessment, lesson, source and shelf "
+             "routes, plus the sixteen under /api/course/ that Phase 19A "
+             "opened (create and rename in 19A-01; add-source, bind, rights "
+             "and bindings in 19A-02; add-container, add-objective, "
+             "add-edge, structure and the four objective identity moves in "
+             "19A-03; bind-treatment and treatments in 19A-04). API_ROUTES "
+             "has %d" % len(daemon.API_ROUTES))
     # 19A-01, amending 19A-CONTEXT D-02: the source-binding door landed on
     # /api/bind and /api/rights before the namespace existed. Both were
     # re-homed under /api/course/ and both old paths keep serving as
@@ -1337,6 +1338,8 @@ def check_api_route_scope():
             ("/api/course/rename", "course", "course_rename"),
             ("/api/course/add-source", "course", "course_add_source"),
             ("/api/course/bind", "bind", "bind"),
+            ("/api/course/bind-treatment", "bind", "bind_treatment"),
+            ("/api/course/treatments", "bind", "course_treatments"),
             ("/api/course/rights", "bind", "rights_record"),
             ("/api/course/bindings", "bind", "course_bindings"),
             ("/api/course/add-container", "course", "course_add_container"),

@@ -331,6 +331,8 @@ API_ROUTES = (
     ("POST", "/api/course/rename", "handle_api_course_rename"),
     ("POST", "/api/course/add-source", "handle_api_course_add_source"),
     ("POST", "/api/course/bind", "handle_api_bind"),
+    ("POST", "/api/course/bind-treatment", "handle_api_course_bind_treatment"),
+    ("POST", "/api/course/treatments", "handle_api_course_treatments"),
     ("POST", "/api/course/rights", "handle_api_rights"),
     ("POST", "/api/course/bindings", "handle_api_course_bindings"),
     ("POST", "/api/course/add-container", "handle_api_course_add_container"),
@@ -440,6 +442,8 @@ ROUTE_CLI = {
     ("POST", "/api/course/rename"): "course",
     ("POST", "/api/course/add-source"): "course",
     ("POST", "/api/course/bind"): "bind",
+    ("POST", "/api/course/bind-treatment"): "bind",
+    ("POST", "/api/course/treatments"): "bind",
     ("POST", "/api/course/rights"): "bind",
     ("POST", "/api/course/bindings"): "bind",
     ("POST", "/api/course/add-container"): "course",
@@ -511,6 +515,8 @@ SURFACE_PARITY = (
     (("POST", "/api/course/rename"), "course", "course_rename"),
     (("POST", "/api/course/add-source"), "course", "course_add_source"),
     (("POST", "/api/course/bind"), "bind", "bind"),
+    (("POST", "/api/course/bind-treatment"), "bind", "bind_treatment"),
+    (("POST", "/api/course/treatments"), "bind", "course_treatments"),
     (("POST", "/api/course/rights"), "bind", "rights_record"),
     (("POST", "/api/course/bindings"), "bind", "course_bindings"),
     (("POST", "/api/course/add-container"), "course", "course_add_container"),
@@ -4792,6 +4798,48 @@ def handle_api_course_add_source(handler):
     until `read` is granted.
     """
     _course_operation(handler, "add_source")
+
+
+def handle_api_course_bind_treatment(handler):
+    """`POST /api/course/bind-treatment` -- choose HOW an objective is taught.
+
+    The treatment family's own write, and a typing of what `POST
+    /api/course/bind` already did rather than a second writer: both reach
+    `course.bind_treatment` and write the identical row. What this route has
+    that the other cannot is a required `treatment`. The published node is
+    the generated MCP tool signature and `schema_validate` has no
+    `if`/`then`, so on the `bind` node `treatment` has to stay optional while
+    the runtime insists on it, and a tool that advertises an optional field
+    the runtime requires fails at call time rather than at type time.
+
+    The right consumed is the treatment's, not the caller's to name: an
+    excerpt refuses on `quote`, a guided lesson on `transform`, and a direct
+    reading needs only `read`. It is read from the journal registry at the
+    moment of the write, so a revoked grant takes effect on the next binding
+    rather than staying effective behind a stale snapshot.
+    """
+    _course_operation(handler, "bind_treatment")
+
+
+def handle_api_course_treatments(handler):
+    """`POST /api/course/treatments` -- which of the eleven treatments this
+    source's rights actually allow, and why.
+
+    A READ, so it is gated by the read-side check. It is the first reader
+    `graph.TREATMENT_RIGHTS` has ever had, which was the treatment family's
+    real gap: the eleven-kind mapping decides which treatments a course may
+    use for a given source, and until this route existed the only way to
+    learn it was to attempt a binding and be refused. A learner who had
+    granted `read` and not `transform` could bind a direct reading and not a
+    guided lesson, and no surface said so first.
+
+    It reports and never grants. A `transform` that reads `unknown` comes
+    back refusing, because unknown is restrictive and finding a file never
+    granted permission to use it; the way to change the answer is to record
+    the right, which is a different operation with a different authority
+    behind it.
+    """
+    _course_operation(handler, "treatments")
 
 
 def handle_api_course_bindings(handler):

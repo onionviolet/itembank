@@ -9,6 +9,8 @@
     {"$ref": "#/$defs/rename"},
     {"$ref": "#/$defs/add_source"},
     {"$ref": "#/$defs/bind"},
+    {"$ref": "#/$defs/bind_treatment"},
+    {"$ref": "#/$defs/treatments"},
     {"$ref": "#/$defs/rights"},
     {"$ref": "#/$defs/bindings"},
     {"$ref": "#/$defs/add_container"},
@@ -54,6 +56,23 @@
     "locator": {
       "type": "string",
       "description": "Where in the source the claim points: a path, an anchor, a page, a timestamp. A coverage claim points and reproduces nothing, which is why binding a source consumes `read` and never `quote`."
+    },
+    "treatment_kind": {
+      "type": "string",
+      "enum": [
+        "direct-reading",
+        "excerpt",
+        "guided-lesson",
+        "notes-or-terms",
+        "worked-example",
+        "visual-or-demonstration",
+        "practice",
+        "formal-test",
+        "assessment-first-diagnostic",
+        "learner-artifact",
+        "human-review"
+      ],
+      "description": "Which of the eleven treatments this is, TREAT-01's closed vocabulary as `graph.TREATMENT_KINDS` spells it. The vocabulary is published ONCE, here, and every node that names a treatment refs this one: the enum is a copy of an engine tuple, a copy drifts, and two copies drift apart twice as fast. tests/course_ops_roundtrip.py asserts this list equals that tuple and asserts that no other node inlines its own, because a published document that names a treatment the engine does not have, or omits one it does, refuses a legitimate binding on every surface at once. Which right a treatment consumes is NOT published here and is not a request field: it is `graph.TREATMENT_RIGHTS`, read by the runtime at the moment of the write and reported by the `treatments` operation."
     },
     "binding_state": {
       "type": "string",
@@ -176,7 +195,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["operation", "course_id", "objective", "source"],
-      "description": "Bind a source, or a treatment, to an objective as a coverage claim. Reaches course.bind_source (or course.bind_treatment when binding_kind is `treatment`), which refuses unless the right that kind consumes is exactly granted on the source at the moment of the write: unknown and denied both refuse, and neither is a lesser form of permission. The right consumed is never a request field; it is decided by the binding kind and read from the journal registry. The treatment half of this node is served here because the route already served it before the spine existed; plan 19A-04 gives the treatment family its own operations and this node keeps working.",
+      "description": "Bind a SOURCE to an objective as a coverage claim. Reaches course.bind_source, which refuses unless the source's `read` right is exactly granted at the moment of the write: unknown and denied both refuse, and neither is a lesser form of permission. The right consumed is never a request field; it is decided by the binding kind and read from the journal registry. DEPRECATED SECOND MODE: `binding_kind: \"treatment\"` with a `treatment` still records a treatment binding here, because this route served that before the spine existed and non-negotiable 4 forbids retiring it silently. It is deprecated in favour of `bind_treatment`, which requires the treatment the way this node cannot: this validator has no if/then, so `treatment` must be optional here and the requirement is enforced one call later in Python, which means the tool generated from this node advertises an optional field the runtime insists on. Both modes write the identical row through the identical gate, asserted by test; the deprecated one is retired by an explicit `migrate` once nothing calls it.",
       "properties": {
         "operation": {"type": "string", "const": "bind"},
         "course_id": {"$ref": "#/$defs/course_id"},
@@ -186,29 +205,44 @@
           "type": "string",
           "enum": ["source", "treatment"],
           "default": "source",
-          "description": "Which of the two binding kinds this is. A source binding consumes `read`; a treatment binding consumes whatever right its treatment kind consumes."
+          "description": "Which of the two binding kinds this is. A source binding consumes `read`; a treatment binding consumes whatever right its treatment kind consumes. `treatment` here is the deprecated second mode described above; new callers send `bind_treatment` instead."
         },
-        "treatment": {
-          "type": "string",
-          "enum": [
-            "direct-reading",
-            "excerpt",
-            "guided-lesson",
-            "notes-or-terms",
-            "worked-example",
-            "visual-or-demonstration",
-            "practice",
-            "formal-test",
-            "assessment-first-diagnostic",
-            "learner-artifact",
-            "human-review"
-          ],
-          "description": "Which of the eleven treatments a treatment binding is, TREAT-01's closed vocabulary as `graph.TREATMENT_KINDS` spells it. Required when binding_kind is `treatment`, refused by name when it is missing. This list is asserted equal to that tuple by tests/course_ops_roundtrip.py, because a published request document that names a treatment the engine does not have, or omits one it does, refuses a legitimate binding on every surface at once."
-        },
+        "treatment": {"$ref": "#/$defs/treatment_kind"},
         "locator": {"$ref": "#/$defs/locator"},
         "state": {"$ref": "#/$defs/binding_state"},
         "confidence": {"$ref": "#/$defs/confidence"},
         "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "bind_treatment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "objective", "source", "treatment"],
+      "description": "Bind a TREATMENT to an objective: the decision that this objective is taught by reading the source directly, or by an excerpt, a guided lesson, a worked example, a practice set, a formal test, and so on. Reaches course.bind_treatment, which looks the consumed right up through graph.treatment_right and refuses unless THAT right is exactly granted on the source at the moment of the write, so an excerpt refuses on `quote` and a guided lesson on `transform` while a direct reading needs only `read`. A right granted for one operation never implies another, and the row's rights_snapshot is history that is never read back for an authorization decision. This node exists rather than a `binding_kind` flag on `bind` because `treatment` is required here and cannot be made required there: the request document IS the generated tool signature, and a tool that advertises an optional field the runtime insists on is a tool that fails at call time instead of at type time. Ask the `treatments` operation first to see which of the eleven this source's recorded rights actually allow.",
+      "properties": {
+        "operation": {"type": "string", "const": "bind_treatment"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "objective": {"$ref": "#/$defs/objective_id"},
+        "source": {"$ref": "#/$defs/source_object_id"},
+        "treatment": {"$ref": "#/$defs/treatment_kind"},
+        "locator": {"$ref": "#/$defs/locator"},
+        "state": {"$ref": "#/$defs/binding_state"},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "treatments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id"],
+      "description": "Read the eleven treatments, the right each one consumes, and, when a source is named, whether that right is granted on that source right now. A READ: it writes nothing and advances no revision. This is the first reader graph.TREATMENT_RIGHTS has ever had. The mapping decides which of the eleven treatments a course may use for a given source, and until this operation existed it could only be discovered by attempting a binding and being refused: a learner who had granted `read` and not `transform` could bind a direct reading and not a guided lesson, and nothing on any surface said so beforehand. Naming a source turns the static table into an answer about that source, with the count of treatment bindings this course already records for each kind beside it. It reports and never grants: the way to change an answer here is to record the right, which is the `rights` operation.",
+      "properties": {
+        "operation": {"type": "string", "const": "treatments"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "source": {
+          "type": "string",
+          "description": "The opaque id of a source object to resolve the table against. Omitted means report the mapping and this course's recorded usage only, with every rights state left empty, which is `unknown or not asked` and never `granted`."
+        }
       }
     },
     "rights": {

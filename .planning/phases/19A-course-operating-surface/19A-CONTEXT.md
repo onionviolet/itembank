@@ -332,6 +332,102 @@ door a person or an agent client can open.
   hang itself is tracked separately rather than absorbed here.
 
 
+- **19A-04, executed 2026-09-05**, on commit `d89501b`
+  ("feat(course): the source-binding, structure and objective-editing
+  families"). The treatment family, D-07's fifth row.
+
+- **D-11, the choice the plan left open, decided and recorded: the treatment
+  family gets its own operations, and `bind`'s treatment half is deprecated
+  in place.** The `bind` node already served treatment bindings, so the
+  question was whether to formalise that or mint a door. What settled it is
+  not tidiness, it is typing. `schema_validate` implements no `if`/`then`
+  and no `dependentRequired`, so on a node that serves both binding kinds
+  `treatment` HAS to be optional, and the requirement is enforced one call
+  later in `binding_cli.bind`. The request document is the generated MCP
+  tool signature (999.3 success criterion 1), so that node produces a tool
+  advertising an optional field the runtime insists on: it fails at call
+  time instead of at type time, and an agent client has no way to know which
+  fields are really required. That is D-02's own argument, that an untyped
+  tool defeats the phase, one level down from the route shape.
+
+  So `bind_treatment` exists and requires `treatment`. It is a TYPING of the
+  older mode and not a second writer: both reach `course.bind_treatment`
+  through the same `binding_cli.bind`, and
+  `check_the_deprecated_bind_mode_writes_the_same_row` asserts the two leave
+  byte-identical sidecar rows. If they ever diverge this repository has two
+  writers for one durable object, which is the thing the assertion exists to
+  make impossible rather than merely unlikely.
+
+  `bind` keeps accepting `binding_kind: "treatment"`, unchanged, and its
+  result now carries a `deprecated` sentence pointing at the new operation.
+  This is D-02a's shape again and non-negotiable 4's deprecation path: the
+  old door keeps serving, the canonical door is typed, retirement is an
+  explicit `migrate` once nothing calls it. `itembank bind treatment` was
+  moved onto `bind_treatment`, so the deprecated mode has one caller (a
+  client that already used it) rather than two.
+
+- **The gap the wave actually closed, which was neither of those.**
+  `graph.treatment_right` and the eleven-kind `TREATMENT_RIGHTS` table had
+  no reader on any surface. That mapping decides which treatments a course
+  may use for a given source, and the only way to learn it was to attempt a
+  binding and be refused, one kind at a time. A learner who had granted
+  `read` and not `transform` could bind a direct reading and not a guided
+  lesson, and nothing anywhere said so beforehand. `treatments` is that
+  reader: the eleven kinds, the right each consumes, and, when a source is
+  named, that right's state read FRESH through `course.rights_for_binding`,
+  with the count of treatment bindings this course already records for each
+  kind beside it. It reports and never grants; the way to change an answer
+  is to record the right, which is a different operation with a different
+  authority behind it.
+
+  The test is not that the table prints. Every kind the read calls bindable
+  is bound for real and every kind it calls refused is refused for real,
+  against the same course at the same moment, so what the read reports and
+  what the next write enforces cannot disagree.
+
+- **What landed.** A shared `treatment_kind` `$defs` node plus the
+  `bind_treatment` and `treatments` operation nodes, all three in the
+  top-level `oneOf`; `_op_bind_treatment`, `_op_treatments` and
+  `_treatment_sentence` in `surfaces/course_ops.py`;
+  `POST /api/course/bind-treatment` and `POST /api/course/treatments` with
+  their handlers in `surfaces/daemon.py`; `itembank bind treatments` and an
+  `itembank bind treatment` re-pointed at the new operation; `ROUTE_CLI` and
+  `SURFACE_PARITY` rows in the same commit (`bind_treatment`,
+  `course_treatments`); four new or extended checks in
+  `tests/course_ops_roundtrip.py`; the route-scope count at thirty-two in
+  `tests/daemon_roundtrip.py`; the grid cells; `capabilities.json`
+  regenerated.
+
+- **The published treatment vocabulary now has exactly one copy.** The
+  `bind` node inlined its own enum and drifted the day it was written
+  (19A-02's recorded defect). Both nodes now `$ref` a single
+  `#/$defs/treatment_kind`, the drift assertion reads that one node, and a
+  second assertion fails if either node inlines an enum again. One copy of
+  an engine tuple drifts; two copies drift apart twice as fast, and the fix
+  for a copy is never more care.
+
+- **The grid moved 43 -> 44 of 82.** `rights grant / explain` is filled, and
+  `source binding / create` gained the typed route. The remaining half of
+  that cell is stated rather than absorbed: what is still missing is the
+  refusal's own history, why an export or a package that already refused did
+  so, which is 19A-08's read.
+
+- **D-05 held, D-09 read.** `journal.OPERATION_TYPES` is untouched at six; a
+  treatment binding is the same `edit_in_place` a source binding is. No new
+  UI screen, no assessment route touched, no format change, no new module.
+  `treatments` is in `READ_OPERATIONS`, so the loopback-gate check runs it
+  against a real course and asserts the sidecar is untouched.
+
+- **Test state, reported rather than rounded.** `tests/daemon_roundtrip.py`
+  fails identically in this tree and in a clean worktree at `d89501b`, on
+  `check_concurrent_requests_share_one_session` timing out: the intermittent
+  daemon hang 19A-03 already tracked, not this wave. The route-scope check
+  passes at thirty-two. `tests/course_ops_roundtrip.py` is green 24 runs of
+  24 when run alone; it failed twice early in the wave, both times in
+  `check_the_route_is_the_cli_twin` with an HTTP request returning no status
+  at all, under concurrent load and in the same shape as that hang.
+
+
 ## Plan set
 
 Sequential waves; the executor runs one at a time.
@@ -341,7 +437,7 @@ Sequential waves; the executor runs one at a time.
 | 19A-01 | Precondition halt, the dispatch spine, the first family (course lifecycle) end to end through route, twin, schema, and parity row, as the pattern every later plan copies |
 | 19A-02 | Source binding, with rights read at bind time (executed 2026-09-05) |
 | 19A-03 | Structure and objective editing (executed 2026-09-05) |
-| 19A-04 | Treatment binding |
+| 19A-04 | Treatment binding (executed 2026-09-05) |
 | 19A-05 | Director operations, including autonomy level and the reverse and replay paths |
 | 19A-06 | Blueprint and audit |
 | 19A-07 | Migration |
