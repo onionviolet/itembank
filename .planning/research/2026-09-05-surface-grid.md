@@ -31,19 +31,25 @@ counts.
 
 - **Sitting a quiz is finished work.** Every verb on `sitting`, `item`,
   `bank` and `evidence event` has a surface, most of them two.
-- **Building a course is not reachable at all.** `course / create`,
-  `objective / create`, `source binding / create` and `lesson / create` are
-  all empty, and those four are the whole of what
-  `SOURCE-TO-COURSE.md` describes as the milestone.
-- **The things the project is proudest of are the least reachable.** Rights,
-  provenance, notes, strategies and agent operations are implemented,
-  tested and frozen, and a learner cannot see or touch any of them.
+- **Building a course is nearly unreachable.** `course / create`,
+  `objective / create` and `lesson / create` are still empty, and those are
+  most of what `SOURCE-TO-COURSE.md` describes as the milestone.
+  `source binding / create` was the fourth until 2026-09-05, when it became
+  the first cell this grid caused to be built: `itembank bind source`,
+  `itembank bind treatment`, `POST /api/bind`, and a panel in the course's
+  Sources area, all reaching the one rights-gated path that already
+  existed.
+- **The things the project is proudest of are still the least reachable.**
+  Provenance, notes, strategies and agent operations are implemented, tested
+  and frozen, and a learner cannot see or touch any of them. Rights left
+  that list on 2026-09-05, because a binding refused for a right nobody
+  declared has to have its way out on the same surface.
 
-# Surface coverage: 34 of 82 meaningful (object, verb) cells reached
+# Surface coverage: 38 of 82 meaningful (object, verb) cells reached
 
-19 objects by 5 verbs is 95 cells; 13 do not apply and are named with a reason, leaving 82 that should have a surface. 48 of those have none.
+19 objects by 5 verbs is 95 cells; 13 do not apply and are named with a reason, leaving 82 that should have a surface. 44 of those have none.
 
-64 commands and 46 routes measured, every one of them classified.
+68 commands and 49 routes measured, every one of them classified.
 
 | object | create | inspect | change | explain | undo |
 |---|---|---|---|---|---|
@@ -51,7 +57,7 @@ counts.
 | scope | n/a | -- | -- | -- | -- |
 | objective | -- | cli+http | -- | cli | -- |
 | source | cli+http | cli+http | -- | -- | -- |
-| source binding | -- | http | -- | -- | -- |
+| source binding | cli+http | cli+http | -- | -- | -- |
 | lesson | -- | cli+http | cli | cli+http | -- |
 | bank | cli | cli+http | cli | cli | cli |
 | item | -- | cli+http | cli | cli+http | -- |
@@ -60,7 +66,7 @@ counts.
 | evidence event | cli+http | cli+http | n/a | cli | cli |
 | strategy | n/a | -- | -- | -- | -- |
 | agent operation | -- | http | -- | -- | -- |
-| rights grant | -- | -- | -- | -- | n/a |
+| rights grant | cli+http | cli+http | cli+http | -- | n/a |
 | accepted revision | n/a | -- | n/a | n/a | n/a |
 | sitting | cli+http | cli+http | cli+http | -- | cli |
 | package | cli+http | -- | -- | -- | -- |
@@ -79,9 +85,8 @@ counts.
 - **objective / change.** Rewording an objective, or moving it between containers, is a hand edit of two files that must stay in step.
 - **objective / undo.** No surface reverses an objective edit.
 - **source / change.** Re-importing is the only way to refresh a source, and it mints a new object rather than updating.
-- **source / explain.** Nothing shows what a source was used for: which objectives cite it and which items came from it.
+- **source / explain.** The Sources area now states each source's read right, but not what it was used FOR: which objectives cite it and which items came from it.
 - **source / undo.** An imported source cannot be unbound from a surface.
-- **source binding / create.** course.bind_source exists in Python. Binding a source to an objective is the central act of building a course and has no surface at all.
 - **source binding / change.** Re-pointing a binding at a different passage is a sidecar table edit.
 - **source binding / explain.** A binding carries confidence and a rationale and no surface reads them out.
 - **source binding / undo.** No surface removes a binding.
@@ -106,9 +111,6 @@ counts.
 - **agent operation / change.** No surface accepts or rejects a proposal.
 - **agent operation / explain.** The journal records exactly what left the machine for each agent call. No surface shows it.
 - **agent operation / undo.** Rejecting or reversing an agent operation has no surface.
-- **rights grant / create.** See rights grant / change: one operation records both, and neither is reachable.
-- **rights grant / inspect.** A learner cannot see what they may do with a source they bound, which is the question that decides whether a course can be exported at all.
-- **rights grant / change.** journal.op_grant_rights landed 2026-09-05 and has no surface: rights are granted from Python only.
 - **rights grant / explain.** Unknown stays restrictive, and nothing says which right is unknown or why an export refused.
 - **accepted revision / inspect.** 15B's accept_revision record has no reader.
 - **sitting / explain.** A finished sitting reports counts. Nothing walks it back item by item with what was shown and when.

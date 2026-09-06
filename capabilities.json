@@ -224,6 +224,11 @@
       "since": "0.3.0"
     },
     {
+      "help": "bind a source or a treatment to an objective, list what a course holds, or record a source's rights",
+      "name": "bind",
+      "since": "0.3.0"
+    },
+    {
       "help": "preview, set, reset, or pick the source accent",
       "name": "theme",
       "since": "0.3.0"
@@ -385,6 +390,16 @@
     {
       "method": "POST",
       "path": "/api/mark",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/bind",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/rights",
       "token_gated": true
     },
     {

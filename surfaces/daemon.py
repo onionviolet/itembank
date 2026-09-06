@@ -30,9 +30,10 @@ from model import (lesson_slug, load, parse_activities, parse_bank,
 from runtime import (checkpoint_feedback, explain_payload, glossable,
                      lesson_run_advance, lesson_run_record, read_lesson_run,
                      read_session, start_lesson_run, upgrade_session)
-from surfaces import (day, evidence_cli, home, ia, launcher, lesson, looks,
-                      palette, presentation, quiz, quiz_page, retention_view,
-                      seeding, session, settings, study, update)
+from surfaces import (binding_cli, day, evidence_cli, home, ia, launcher,
+                      lesson, looks, palette, presentation, quiz, quiz_page,
+                      retention_view, seeding, session, settings, study,
+                      update)
 from surfaces import audio as audio_surface
 from surfaces import theme
 from surfaces.session import UNKNOWN_LANGUAGE_COPY
@@ -312,6 +313,8 @@ API_ROUTES = (
     ("POST", "/api/lesson-complete", "handle_api_lesson_complete"),
     ("POST", "/api/rubric-review", "handle_api_rubric_review"),
     ("POST", "/api/mark", "handle_api_mark"),
+    ("POST", "/api/bind", "handle_api_bind"),
+    ("POST", "/api/rights", "handle_api_rights"),
     ("POST", "/api/export_audio", "handle_api_export_audio"),
     ("POST", "/api/lesson/run", "handle_api_lesson_run"),
     ("POST", "/api/source/import", "handle_api_source_import"),
@@ -391,6 +394,8 @@ ROUTE_CLI = {
     ("POST", "/api/lesson-complete"): "lesson",
     ("POST", "/api/rubric-review"): "rubric-review",
     ("POST", "/api/mark"): "mark",
+    ("POST", "/api/bind"): "bind",
+    ("POST", "/api/rights"): "bind",
     ("GET", KATEX_ASSET_RE): "daemon",
     ("GET", FONT_ASSET_RE): "daemon",
     ("GET", MEDIA_ASSET_RE): "daemon",
@@ -444,6 +449,8 @@ SURFACE_PARITY = (
     (("POST", "/api/source/recheck"), "source", "source_recheck"),
     (("POST", "/api/shelf"), "shelf", "shelf"),
     (("POST", "/api/mark"), "mark", "mark"),
+    (("POST", "/api/bind"), "bind", "bind"),
+    (("POST", "/api/rights"), "bind", "rights_record"),
 )
 
 
@@ -742,8 +749,10 @@ def _course_area_rows(handler, state, course_dir):
             "note": "Practice keeps you on an item until it is right."})
 
     record = None
+    course_module = graph_module = None
     try:
         import course as course_module
+        import graph as graph_module
         record = course_module.read_course(course_dir)
     except Exception:
         record = None
@@ -770,9 +779,18 @@ def _course_area_rows(handler, state, course_dir):
     if area == "sources":
         rows = []
         for rec in (doc.get("sources") or []):
+            oid = rec.get("source_object_id") or ""
+            state = "unknown"
+            if course_module is not None and graph_module is not None:
+                try:
+                    state = course_module.rights_for_binding(
+                        course_dir, oid, graph_module.SOURCE_BINDING_RIGHT)
+                except Exception:
+                    state = "unknown"
             rows.append({
-                "href": "", "title": rec.get("title") or rec.get("source_object_id") or "",
-                "meta": "bound source", "note": rec.get("note") or ""})
+                "href": "", "title": rec.get("title") or oid,
+                "meta": "read right: %s" % state,
+                "note": rec.get("note") or ""})
         return ("What this course is built from. A source is bound where it "
                 "lives; nothing here is a copy."), rows
     if area == "evidence":
@@ -811,6 +829,163 @@ def _course_area_rows(handler, state, course_dir):
                                  "" if counts["responses"] == 1 else "s"))
         return lead, rows
     return "", []
+
+
+# The bind panel (2026-09-05). The surface grid measured `source binding /
+# create` as the central act of building a course and as having no surface at
+# all; this is that surface, and it is deliberately plain: two selects, a
+# locator, the two vocabularies as selects rather than free text, and the
+# rights record beside it, because a binding refused for a right the learner
+# never declared is the most likely outcome on a fresh course and the way
+# out has to be on the same page.
+BIND_PANEL = """
+<section class="bind-panel" aria-labelledby="bind-heading">
+<h3 id="bind-heading">Bind a source to an objective</h3>
+<p class="area-lead">A binding is a claim that this passage covers this
+objective. It records what it consumes: a coverage binding needs the source's
+read right, and a treatment needs whichever right that treatment consumes.</p>
+<div class="bind-grid">
+  <label for="bind-objective">Objective</label>
+  <select id="bind-objective" data-bind-objective>__OBJECTIVES__</select>
+  <label for="bind-source">Source</label>
+  <select id="bind-source" data-bind-source>__SOURCES__</select>
+  <label for="bind-locator">Locator</label>
+  <input id="bind-locator" type="text" data-bind-locator
+    placeholder="sources/notes.md#a-heading, or a page range">
+  <label for="bind-treatment">Treatment</label>
+  <select id="bind-treatment" data-bind-treatment>__TREATMENTS__</select>
+  <label for="bind-state">Coverage state</label>
+  <select id="bind-state" data-bind-state>__STATES__</select>
+  <label for="bind-confidence">Confidence</label>
+  <select id="bind-confidence" data-bind-confidence>__CONFIDENCES__</select>
+</div>
+<p class="actions"><button type="button" class="go" data-bind-submit>Record
+this binding</button></p>
+<p class="status" role="status" aria-live="polite" data-bind-status>__TWIN__</p>
+</section>
+<section class="bind-panel" aria-labelledby="rights-heading">
+<h3 id="rights-heading">What may be done with each source</h3>
+<p class="area-lead">Your declaration about your own file. Unknown stays
+restrictive, so a source refuses a binding until you say otherwise. Recording
+a right changes no bytes.</p>
+__RIGHTS_ROWS__
+<p class="status" role="status" aria-live="polite" data-rights-status></p>
+</section>
+<script>
+(function () {
+  var course = "__COURSE_ID__";
+  function post(route, body, status, ok) {
+    status.textContent = "Recording…";
+    fetch(window.location.origin + route, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body)
+    }).then(function (res) {
+      if (!res.ok) { return res.text().then(function (t) { throw new Error(t); }); }
+      return res.json();
+    }).then(function () { window.location.reload(); })
+      .catch(function (err) {
+        var text = String(err.message || err);
+        var at = text.indexOf("<p>");
+        if (at >= 0) { text = text.slice(at + 3, text.indexOf("</p>", at)); }
+        status.textContent = text.replace(/&#x27;/g, "'") || "That was refused.";
+      });
+  }
+  var submit = document.querySelector("[data-bind-submit]");
+  var status = document.querySelector("[data-bind-status]");
+  if (submit) {
+    submit.addEventListener("click", function () {
+      var treatment = document.querySelector("[data-bind-treatment]").value;
+      post("/api/bind", {
+        course_id: course,
+        objective: document.querySelector("[data-bind-objective]").value,
+        source: document.querySelector("[data-bind-source]").value,
+        locator: document.querySelector("[data-bind-locator]").value,
+        state: document.querySelector("[data-bind-state]").value,
+        confidence: document.querySelector("[data-bind-confidence]").value,
+        binding_kind: treatment ? "treatment" : "source",
+        treatment: treatment
+      }, status);
+    });
+  }
+  var rstatus = document.querySelector("[data-rights-status]");
+  Array.prototype.forEach.call(
+    document.querySelectorAll("[data-rights-set]"), function (button) {
+      button.addEventListener("click", function () {
+        var grants = {};
+        grants[button.getAttribute("data-right")] =
+          button.getAttribute("data-value");
+        post("/api/rights", {
+          course_id: course,
+          source: button.getAttribute("data-rights-set"),
+          grants: grants
+        }, rstatus);
+      });
+    });
+})();
+</script>
+"""
+
+
+def _options(values, labels=None, blank=""):
+    out = []
+    if blank:
+        out.append('<option value="">%s</option>' % presentation.esc(blank))
+    for value in values:
+        label = (labels or {}).get(value, value)
+        out.append('<option value="%s">%s</option>'
+                   % (presentation.esc(value), presentation.esc(label)))
+    return "".join(out)
+
+
+def _course_area_extra(handler, state, course_dir):
+    """Markup an area carries beyond its rows. Today only Sources has any:
+    the bind panel and the rights records it depends on."""
+    if course_dir is None or state.get("area") != "sources":
+        return ""
+    try:
+        reading = binding_cli.bindings(course_dir)
+    except Exception:
+        return ""
+    objectives = {}
+    for row in reading["objectives"]:
+        text = row["statement"] or row["id"]
+        objectives[row["id"]] = text[:96]
+    sources = {}
+    for row in reading["sources"]:
+        sources[row["source_object_id"]] = row["title"]
+    treatments = dict(
+        (kind, "%s (consumes %s)" % (kind, reading["treatment_rights"][kind]))
+        for kind in reading["treatment_kinds"])
+    rights_rows = []
+    for row in reading["sources"]:
+        chips = []
+        for name in sorted(row["rights"]):
+            value = row["rights"][name]
+            want = "denied" if value == "granted" else "granted"
+            chips.append(
+                '<button type="button" class="go ghost" data-rights-set="%s" '
+                'data-right="%s" data-value="%s">%s: %s &rarr; %s</button>'
+                % (presentation.esc(row["source_object_id"]),
+                   presentation.esc(name), want, presentation.esc(name),
+                   presentation.esc(value), want))
+        rights_rows.append(
+            '<div class="row"><div class="row-head"><b>%s</b></div>'
+            '<p class="actions">%s</p></div>'
+            % (presentation.esc(row["title"]), "".join(chips)))
+    return (BIND_PANEL
+            .replace("__OBJECTIVES__",
+                     _options(sorted(objectives), objectives))
+            .replace("__SOURCES__", _options(sorted(sources), sources))
+            .replace("__TREATMENTS__",
+                     _options(reading["treatment_kinds"], treatments,
+                              blank="None: a coverage binding"))
+            .replace("__STATES__", _options(reading["states"]))
+            .replace("__CONFIDENCES__", _options(reading["confidences"]))
+            .replace("__RIGHTS_ROWS__", "".join(rights_rows))
+            .replace("__COURSE_ID__", presentation.esc(state["course_id"]))
+            .replace("__TWIN__", presentation.esc(
+                "The CLI twin is itembank bind source --objective <id> "
+                "--source <id> --locator <where>.")))
 
 
 def _course_rows_html(rows):
@@ -852,12 +1027,13 @@ def _course_frame(handler, state, back, course_dir=None):
             "</nav>"
             '<div class="state" data-anchor-missing hidden role="status">'
             "<p>%s</p></div>"
-            '<h2 id="%s">%s</h2>%s'
+            '<h2 id="%s">%s</h2>%s%s'
             % ("".join(nav),
                presentation.esc(ia.ANCHOR_NOT_FOUND_NOTICE),
                presentation.esc(heading_id),
                presentation.esc(state["area_label"]),
-               content))
+               content,
+               _course_area_extra(handler, state, course_dir)))
     return presentation.surface_shell(
         state["course_name"], body,
         theme_css=theme.theme_css(settings.load_settings(handler.root)),
@@ -4427,6 +4603,115 @@ def handle_api_mark(handler):
                        "status": written.get("status"),
                        "event_id": written.get("event_id"),
                        "item_ref": item_ref, "view": view})
+
+
+def _binding_course_dir(handler, course_id):
+    """The course directory a binding request names, or None.
+
+    Resolved through `ia.course_dir_for`, the same resolution the course
+    frame uses, so a client addresses a course by the id it sees on the page
+    and never by a path.
+    """
+    if not isinstance(course_id, str) or not course_id:
+        return None
+    return ia.course_dir_for(handler.root, course_id)
+
+
+def handle_api_bind(handler):
+    """`POST /api/bind` -- bind a source or a treatment to an objective.
+
+    The browser twin of `itembank bind source` and `itembank bind
+    treatment`, and the first write route under a course. The surface grid
+    measured this cell as empty and called it the central act of building a
+    course: `course.bind_source` has been implemented, rights-gated and
+    journaled since 14B, and until now the only way to call it was to import
+    Python.
+
+    This composes no authority of its own. The rights gate is
+    `course._require_right`, which refuses unless the right the treatment
+    consumes is exactly granted and names the one edit that fixes it; the
+    vocabularies are `graph`'s closed ones; the write is
+    `course.write_course`'s compare-and-swap against the sidecar's own
+    fingerprint. A refusal comes back as its code and its sentence, because
+    "you may not build a course out of this file yet" is the answer, not an
+    error to hide.
+    """
+    if _reject_cross_origin(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    for banned in ("rights", "rights_snapshot", "right", "base", "path"):
+        if banned in data:
+            handler.send_error(400, "field %r is not accepted here; a course "
+                                    "is addressed by its id and a right is "
+                                    "read from the registry, never sent"
+                               % banned)
+            return
+    base = _binding_course_dir(handler, data.get("course_id"))
+    if base is None:
+        handler.send_not_found(str(data.get("course_id") or ""))
+        return
+    try:
+        result = binding_cli.bind(
+            base, data.get("objective") or "", data.get("source") or "",
+            binding_kind=data.get("binding_kind") or "source",
+            treatment_kind=data.get("treatment") or "",
+            locator=data.get("locator") or "",
+            state=data.get("state") or "unknown",
+            confidence=data.get("confidence") or "unknown",
+            actor_kind="human", actor_name=data.get("actor") or "")
+    except Exception as exc:                       # typed course/graph errors
+        code = getattr(exc, "code", None)
+        if code:
+            handler.send_error(400, "%s: %s" % (code, getattr(exc, "message",
+                                                              str(exc))))
+            return
+        handler.send_server_error(exc)
+        return
+    handler.send_json({"bound": True, "binding": result})
+
+
+def handle_api_rights(handler):
+    """`POST /api/rights` -- record what may be done with one source.
+
+    The browser twin of `itembank bind rights`. A learner's declaration
+    about their own file, written through `journal.op_grant_rights`, which
+    touches no bytes and refuses a name or value outside the closed
+    vocabularies. It is the same act `source import --grant` performs at link
+    time; having it only at link time meant a source bound before the
+    decision was made could never be used, which is the dead end this route
+    removes.
+
+    `denied` is recorded by the same call, because a decision not to use
+    something is as much a decision as its opposite.
+    """
+    if _reject_cross_origin(handler):
+        return
+    data, failed = api_read_json(handler)
+    if failed:
+        return
+    base = _binding_course_dir(handler, data.get("course_id"))
+    if base is None:
+        handler.send_not_found(str(data.get("course_id") or ""))
+        return
+    grants = data.get("grants")
+    if not isinstance(grants, dict) or not grants:
+        handler.send_error(400, "a rights record names at least one right")
+        return
+    try:
+        result = binding_cli.rights_grant(
+            base, data.get("source") or "", grants,
+            actor_kind="human", actor_name=data.get("actor") or "")
+    except Exception as exc:
+        code = getattr(exc, "code", None)
+        if code:
+            handler.send_error(400, "%s: %s" % (code, getattr(exc, "message",
+                                                              str(exc))))
+            return
+        handler.send_server_error(exc)
+        return
+    handler.send_json({"recorded": True, "source": result})
 
 
 def handle_api_interact(handler):

@@ -7,6 +7,7 @@ than an edit here and there.
 import argparse, collections, json, os, re, sys
 
 import evidence
+import graph
 import identity
 import journal
 import selection
@@ -18,6 +19,7 @@ from model import (BANK_FILE_HINTS, SPEC, STYLE_CHECK_CATALOGUE, coverage_map,
 from surfaces.anki import cmd_export
 from surfaces.audio import cmd_export_audio
 from surfaces.audit_cli import cmd_audit
+from surfaces import binding_cli
 from surfaces.daemon import (cmd_cli_twin, cmd_daemon, cmd_disclosure,
                              cmd_sidecar)
 from surfaces.day import cmd_day
@@ -1364,6 +1366,65 @@ def build_parser():
     sr.add_argument("--json", action="store_true",
                     help="emit the report dict as JSON")
     sr.set_defaults(fn=cmd_source_recheck)
+
+    s = sub.add_parser("bind", help="bind a source or a treatment to an "
+                       "objective, list what a course holds, or record a "
+                       "source's rights")
+    bt = s.add_subparsers(dest="action", required=True)
+    for name, blurb in (
+            ("source", "bind a source to an objective as coverage; consumes "
+                       "the source's read right"),
+            ("treatment", "bind a treatment to an objective; the treatment "
+                          "decides which right it consumes")):
+        bp = bt.add_parser(name, help=blurb)
+        bp.add_argument("--base", default=".",
+                        help="the course root holding course-graph.md "
+                             "(default: current directory)")
+        bp.add_argument("--objective", required=True,
+                        help="the objective id, as `itembank bind list` prints it")
+        bp.add_argument("--source", required=True,
+                        help="the source object id, as `itembank bind list` prints it")
+        bp.add_argument("--locator", default="",
+                        help="where in the source: a path, an anchor, a page")
+        bp.add_argument("--state", default="unknown",
+                        choices=list(graph.BINDING_STATES),
+                        help="the coverage state this binding claims "
+                             "(default: unknown; covered is never a default)")
+        bp.add_argument("--confidence", default="unknown",
+                        choices=list(graph.EDGE_CONFIDENCES),
+                        help="how sure the claim is (default: unknown)")
+        bp.add_argument("--actor", default="",
+                        help="who is recording this, for the operation journal")
+        bp.add_argument("--json", action="store_true",
+                        help="emit the result as JSON")
+        if name == "treatment":
+            bp.add_argument("--treatment", required=True,
+                            choices=list(graph.TREATMENT_KINDS),
+                            help="which of the eleven treatments this is")
+        bp.set_defaults(fn=binding_cli.cmd_bind)
+
+    bl = bt.add_parser("list", help="print this course's objectives, sources "
+                       "with their recorded rights, and existing bindings")
+    bl.add_argument("--base", default=".",
+                    help="the course root (default: current directory)")
+    bl.add_argument("--json", action="store_true",
+                    help="emit the whole reading as JSON")
+    bl.set_defaults(fn=binding_cli.cmd_bind)
+
+    br = bt.add_parser("rights", help="record what may be done with one "
+                       "source, without touching its bytes")
+    br.add_argument("--base", default=".",
+                    help="the course root (default: current directory)")
+    br.add_argument("--source", required=True, help="the source object id")
+    br.add_argument("--grant", default="",
+                    help="comma-separated rights to record as granted")
+    br.add_argument("--deny", default="",
+                    help="comma-separated rights to record as denied")
+    br.add_argument("--actor", default="",
+                    help="who is recording this, for the operation journal")
+    br.add_argument("--json", action="store_true",
+                    help="emit the result as JSON")
+    br.set_defaults(fn=binding_cli.cmd_bind)
 
     s = sub.add_parser("theme", help="preview, set, reset, or pick the source accent")
     t = s.add_subparsers(dest="action", required=True)

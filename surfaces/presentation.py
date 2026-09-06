@@ -237,6 +237,19 @@ button.go:disabled{opacity:.55;cursor:default}
    own artifacts, so they need a list shape. One rule set, composed from the
    existing tokens: no new color, no new spacing value, no new size. */
 .area-lead{color:var(--mut);margin:0 0 var(--space-3)}
+/* The bind panel (`source binding / create`): a two-column label/field grid
+   that stacks under 768, composed from the existing tokens. */
+.bind-panel{margin:var(--space-5) 0 0;padding:var(--space-4) 0 0;
+  border-top:1px solid var(--line)}
+.bind-grid{display:grid;grid-template-columns:minmax(9rem,auto) 1fr;
+  gap:var(--space-2) var(--space-3);align-items:center;
+  margin:0 0 var(--space-3)}
+.bind-grid label{color:var(--mut);font-size:var(--text-xs)}
+.bind-grid select,.bind-grid input{font:inherit;font-size:var(--text-body);
+  padding:10px 12px;min-height:44px;border-radius:var(--r-2);
+  border:1px solid var(--edge);background:var(--card);color:var(--ink);
+  max-width:100%}
+@media (max-width:767px){.bind-grid{grid-template-columns:1fr}}
 .course-rows{list-style:none;margin:0;padding:0;display:grid;
   gap:var(--density-list-gap)}
 .course-rows .row{display:grid;gap:var(--space-1)}

@@ -56,6 +56,10 @@ SINCE = {
     "source": "0.3.0", "theme": "0.3.0", "migrate": "0.3.0",
     "update": "0.3.0", "import": "0.3.0", "seed": "0.3.0", "guard": "0.3.0",
     "calibrate": "0.3.0", "audit": "0.3.0", "lti": "0.3.0",
+    # The first course-shaped command, added 2026-09-05 to fill the surface
+    # grid's `source binding / create` cell. Still 0.3.0: it lands inside the
+    # same unreleased version every command above did.
+    "bind": "0.3.0",
 }
 
 # The two byte-identical skill mirrors (CI enforces the diff); the index

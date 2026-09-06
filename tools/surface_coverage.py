@@ -154,14 +154,14 @@ CELLS = {
                 "objective cites.",
     },
     ("source binding", "inspect"): {
-        "cli": [], "http": ["GET /course/<course_id>/<area>"],
-        "note": "Bindings render inside the sidecar table only.",
+        "cli": ["bind list"], "http": ["GET /course/<course_id>/<area>"],
     },
     ("source binding", "create"): {
-        "cli": [], "http": [],
-        "note": "course.bind_source exists in Python. Binding a source to "
-                "an objective is the central act of building a course and "
-                "has no surface at all.",
+        "cli": ["bind source", "bind treatment"],
+        "http": ["POST /api/bind"],
+        "note": "Filled 2026-09-05, the first cell this grid caused to be "
+                "built. Both surfaces reach `course.bind_source` and "
+                "`course.bind_treatment`; neither writes a row itself.",
     },
     ("lesson", "inspect"): {
         "cli": ["lesson", "study", "gloss", "lesson-check", "lesson-skip"],
@@ -268,10 +268,24 @@ CELLS = {
         "cli": [], "http": [],
         "note": "No surface accepts or rejects a proposal.",
     },
+    ("rights grant", "inspect"): {
+        "cli": ["bind list"], "http": ["GET /course/<course_id>/<area>"],
+        "note": "The Sources area states the read right each source carries, "
+                "and `bind list` prints all seven. Nothing yet explains a "
+                "refusal after the fact.",
+    },
+    ("rights grant", "create"): {
+        "cli": ["bind rights", "source import"],
+        "http": ["POST /api/rights", "POST /api/source/import"],
+        "note": "One operation records a grant and a denial, so create and "
+                "change are the same call; both are listed because both are "
+                "true.",
+    },
     ("rights grant", "change"): {
-        "cli": [], "http": [],
-        "note": "journal.op_grant_rights landed 2026-09-05 and has no "
-                "surface: rights are granted from Python only.",
+        "cli": ["bind rights"], "http": ["POST /api/rights"],
+        "note": "Filled 2026-09-05 beside the binding it gates: a binding "
+                "refused for a right nobody declared has to have its way out "
+                "on the same surface.",
     },
     ("accepted revision", "inspect"): {
         "cli": [], "http": [],
@@ -374,7 +388,8 @@ GAP_NOTES = {
     ("objective", "undo"): "No surface reverses an objective edit.",
     ("source", "change"): "Re-importing is the only way to refresh a source, "
                           "and it mints a new object rather than updating.",
-    ("source", "explain"): "Nothing shows what a source was used for: which "
+    ("source", "explain"): "The Sources area now states each source's read "
+                           "right, but not what it was used FOR: which "
                            "objectives cite it and which items came from it.",
     ("source", "undo"): "An imported source cannot be unbound from a "
                         "surface.",
@@ -412,12 +427,8 @@ GAP_NOTES = {
                                     "surface shows it.",
     ("agent operation", "undo"): "Rejecting or reversing an agent operation "
                                  "has no surface.",
-    ("rights grant", "create"): "See rights grant / change: one operation "
-                                "records both, and neither is reachable.",
-    ("rights grant", "inspect"): "A learner cannot see what they may do with "
-                                 "a source they bound, which is the question "
-                                 "that decides whether a course can be "
-                                 "exported at all.",
+
+
     ("rights grant", "explain"): "Unknown stays restrictive, and nothing "
                                  "says which right is unknown or why an "
                                  "export refused.",
@@ -438,7 +449,7 @@ GAP_NOTES = {
 
 # Commands whose subcommands are classified individually, so the bare name
 # is expected to be absent from the cells.
-SUBCOMMAND_PARENTS = ("audit", "source", "theme", "import", "lti")
+SUBCOMMAND_PARENTS = ("audit", "bind", "source", "theme", "import", "lti")
 
 
 def route_label(method, pattern):
