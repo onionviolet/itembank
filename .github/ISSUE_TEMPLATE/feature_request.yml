@@ -1,0 +1,36 @@
+name: Feature request
+description: Propose a bounded product or developer-experience improvement
+title: "feature: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or contributor problem should be solved?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe observable success without prescribing unnecessary implementation detail.
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Constraints and authority
+      description: Note privacy, rights, scoring, parser, compatibility, or recovery constraints.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence or references
+      description: Link relevant requirements, plans, examples, or research.
+  - type: checkboxes
+    id: search
+    attributes:
+      label: Existing work
+      options:
+        - label: I searched existing issues, plans, and artifacts before proposing a replacement.
+          required: true

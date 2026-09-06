@@ -1,45 +1,42 @@
+<!-- generated-by: gsd-doc-writer -->
 # itembank
 
-Turn learner-owned books, syllabi, notes, exam blueprints, and question banks
-into an inspectable course and learn through readings, rich lessons, targeted
-practice, and graded tests whose evidence stays on disk.
+Itembank turns your books, notes, syllabi, and exam plans into local learning
+materials. You can create question banks in plain Markdown, check them for
+quality, study them, and run graded tests. Your sources and learning evidence
+stay on your computer.
 
-itembank's shipped core authors, validates, and renders exam-style question
-banks in plain markdown. Its next milestone makes the **course** the primary
-unit: an AI-operable workspace that connects sources to objectives, decides
-whether an objective deserves direct reading, a guided lesson, terms/notes, a
-worked or visual explanation, practice, or a test, and uses recorded evidence
-to recommend what comes next. See
-[the source-to-course contract](.planning/SOURCE-TO-COURSE.md).
-The [living user vision](.planning/USER-VISION.md) preserves the goal in
-Weibao's own words and can be extended without rewriting the product contract.
-The [cross-agent workflow](.planning/AGENT-WORKFLOW.md) explains how Codex,
-Claude Code/Cowork, local agents, and other clients preserve that direction,
-run research and synthesis, mutate artifacts safely, record deferred or
-rejected ideas, and hand off work without relying on chat history.
+## What works today
 
-The **course** is the unit you will resume: it connects your approved sources to
-a cited objective map, decides per objective whether direct reading or a
-generated treatment is best, runs the learning and the graded testing, keeps the
-evidence on disk, and recommends the next justified action. The bank commands
-below are the shipped foundation the course is built on, not the whole product.
-See ["The source-to-course journey"](#the-source-to-course-journey) for the
-end-to-end story and where each capability stands today.
+- Write a bank in Markdown and get specific lint errors by item number.
+- Build an offline quiz or run a locally graded browser session.
+- Connect an AI tutor through deterministic JSON session commands.
+- Review work across subjects from the `day` view.
+- Keep scoring, answer disclosure, and evidence under the local runtime's control.
 
-Today, one command gets you from a markdown file to a graded sitting:
+The larger course workspace is in active development. It will connect approved
+sources to objectives, choose the right learning treatment for each objective,
+and recommend what to do next from recorded evidence. The bank and session tools
+described here are its shipped foundation.
 
-- author in markdown → `lint` with actionable errors by item number
-- offline quiz (`build`) or graded sitting (`serve`)
-- JSON sessions for AI tutors (`start` / `next` / `submit` / `report`)
-- `day` cockpit across every subject
+For the detailed direction, read the
+[source-to-course contract](.planning/SOURCE-TO-COURSE.md). The
+[user vision](.planning/USER-VISION.md) preserves the original goal. The
+[cross-agent workflow](.planning/AGENT-WORKFLOW.md) defines how humans and
+agents research, edit, review, and hand off work safely.
 
-The intended complete experience combines source-grounded course construction,
-interactive teaching, objective practice and exam preparation, and local
-inspectable artifacts. AI may drive discovery, curriculum mapping, drafting,
-quality review, metric interpretation, and remediation through a hosted
-coding-agent client or a registered local backend. The parser, scorer, and
-evidence authority stay deterministic, and the core loop degrades rather than
-blocks when no agent or network is available.
+## Contributing
+
+Human and agent contributors use the same review and verification standards.
+Start with [CONTRIBUTING.md](CONTRIBUTING.md), then use
+[the development guide](docs/DEVELOPMENT.md) and
+[the testing guide](docs/TESTING.md). Architecture and configuration references
+live under `docs/`.
+
+If you only want to try the project, continue with
+[Quick start for someone brand new](#quick-start-for-someone-brand-new).
+
+## Bank format at a glance
 
 Here is the whole format:
 
@@ -62,14 +59,13 @@ RUBRIC:
 TRAP: naming pressure tests, which are hydraulic, not lab checks
 ```
 
-That is the whole format: structural markers such as `A)`, `CORRECT:`, and
+Structural markers such as `A)`, `CORRECT:`, and
 `[TYPE:]` each start their own line at the left margin. This sample lints
 with zero errors as written. Expect advisory warnings on any first bank
 (missing `[ID:]` lines until `id-assign` runs, missing `SECOND-BEST`
 fields, objectives without a `subject:` prefix): errors block, warnings
 advise, and a wall of warnings on a fresh bank is the normal first-run
-experience, not a sign you misread the spec. `itembank spec` prints the
-rest.
+experience. `itembank spec` prints the complete contract.
 
 ## Quick start for someone brand new
 
