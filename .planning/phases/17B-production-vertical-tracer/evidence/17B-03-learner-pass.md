@@ -800,3 +800,66 @@ Observations recorded, not defects: term buttons measure 30 to 34 px
 `SKILL` stem collision on the two mirrored skill directories (harmless,
 deterministic, printed at startup); `vitality score` defined only in the
 bank registry (authoring nit).
+
+### 2026-09-06 normal-entry UX audit follow-up
+
+This bounded pass follows REACH-MILESTONE's Vision alignment refinement and
+the vision entries on home/navigation (2026-08-20), progressive files
+(2026-08-13), feedback (2026-08-24), and course first page (2026-08-26).
+It used an isolated copy of this synthetic course, starting at the daemon
+root and following visible controls. No learner files were changed.
+Implementation was delegated to three gpt-5.6-luna workers and reviewed by
+the coordinating agent. No measured cost savings are claimed. No commits.
+
+Ranked findings, with stable IDs for this follow-up:
+
+| ID / status | Reproduction, expectation and observed impact | Location, smallest improvement and acceptance |
+|---|---|---|
+| F4 / open, reach owners 19A/19B/19D | Shelf, course, Sources lists two readable sources without an open control. The lesson explicitly assigns a source section but its citation is literal text. Test and Build and review show only empty copy. No notes control was found in Learn or the reader, and palette search for note returned no results. Activity opens an empty main region. These stop the requested source-reading, notes, formal-test and proposal/review/accept/undo journeys. | `surfaces/daemon.py::_course_area_rows`, `_course_area_extra`, `handle_report_get`, and `surfaces/ia.py::_healthy_card`. Reuse existing engines one journey at a time, beginning with a rights-checked source-reading control and return path. Do not invent a new authoring system. Acceptance must start at the shelf and reach the assigned source, a saved note, a formal sitting and a reviewed reversible proposal through visible controls. These UI paths are unavailable, not evidence that their engines are broken. |
+| F6 / fixed and UI verified | Course, Sources, default coverage binding, Record this binding sent `treatment: ''`, rejected by the published schema. At 375 pixels the form widened the document to 777 pixels. Expected a valid default request and usable narrow controls. | `surfaces/daemon.py::BIND_PANEL` now omits treatment for coverage requests, constrains field width and wraps refusal text. UI-created coverage and direct-reading bindings reached the copied course journal and sidecar. The document now measures 375 pixels at a 375-pixel viewport. Regression: `tests/source_binding_surface_roundtrip.py`. |
+| F1 / fixed and UI verified | Course, Learn, lesson left no visible app return navigation. Browser Back was required to continue the audit, so that original journey failed. | `surfaces/daemon.py::_lesson_context_nav`, `handle_lesson_get`, `surfaces/lesson.py::lesson_page`. Uniquely resolved course ownership supplies Back to course, with Courses fallback. Keyboard activation returned to the owning course. Standalone output has no daemon links and print CSS hides navigation. Resolver, fallback and renderer checks are in `tests/lesson_roundtrip.py`. |
+| F2 / fixed and UI verified | In the lesson, focus minerotrophic and press Enter. Definition text was black on RGB(22,30,29), making the teaching aid unreadable. | Shared `.gloss` rule in `surfaces/lesson.py` now sets the theme ink color. Live text became RGB(228,235,233) on the same panel. Enter opens, Escape closes and the focus outline is visible. The lesson and open panel fit at 375 pixels. This is agent observation, not human accessibility approval. |
+| F3 / partially fixed | Practice, answer correctly, observe a new question still labeled Item 1 of 8. The prior verdict also appeared as Correct beside the new unanswered item. | `_send_quiz_page` now uses the public runtime position, and `quiz_page.baseline_for` labels prior-answer feedback. Live advance showed Item 2, a wrong retry stayed at Item 2, and prior-answer copy was explicit. `tests/serve_roundtrip.py` exercises this redirect. Remaining: submitting an empty radio response produced Not correct. Small next fix is surface validation that requests a choice without submitting an attempt, with an evidence-count regression. Runtime scoring must remain unchanged. |
+
+F4 also includes misleading resume and evidence context. The shelf continued
+to say Not started and Up to date after responses were recorded. Re-entering
+practice during one daemon run preserved the current question, but restarting
+the daemon started another sitting. Course Evidence showed 24 responses while
+the palette's global Report showed 0 live events. The counts refer to different
+stores, but the UI provides no scope explanation or course report handoff.
+Use existing runtime session and course evidence collectors for the next
+bounded fix. Verify re-entry and restart separately, retain old sittings, and
+name the report's scope. Do not treat absent attention metadata as evidence
+that the learner is up to date.
+
+The plain lesson was read directly in Markdown. Its explanations, worked
+calculation, uncertainty and cycle sequence remain useful without rendering.
+The standalone `[MEDIA: moss-cycle]` token does not display its diagram, and
+source citations are textual locators. The prediction promises ungraded
+participation, which the prior D-06 item 4 already identifies as unresolved.
+No replacement lesson was authored.
+
+Observed layouts were 1280 by 800 and 375 by 812. Course map and lesson reflow
+worked in the sampled screens. Keyboard term disclosure and course return
+worked. Source refusal and empty course-area states were inspected. Loading
+was too brief to assess. No full screen-reader, touch-device, high-contrast,
+reduced-motion, cross-subject, clean-machine restore, real learner efficacy,
+or human visual-acceptance pass was performed. Modules were read around the
+named symbols, not in full. Unreachable test and agent flows were not bypassed
+with guessed URLs or APIs.
+
+Validation: focused lesson, stylesheet, served-session and source-form suites
+passed. Full `python3 scripts/preflight.py` completed all 110 Python suites
+and the JS gate. Fast gates and JS passed. Five Python suites failed:
+capabilities manifest freshness, daemon route count (32 expected, 39 present),
+model-phase's nested daemon concurrent-request timeout, subject-loop's
+CLI/daemon lesson comparison, and surface coverage for
+`course apply-recommendation`. The subject-loop comparison requires the same
+daemon-only navigation exclusion as the lesson parity tests and was returned
+to the reader worker. The manifest, route table and command coverage were not
+changed by this audit. The timeout's cause was not established. The clean-tree
+gate also failed because the shared checkout is intentionally uncommitted,
+including unrelated planning changes. The worker corrected the subject-loop
+comparison and `python3 tests/subject_loop_roundtrip.py` then passed. Only that
+affected suite was rerun. Final `git diff --check` passed. No clean preflight
+pass is claimed.

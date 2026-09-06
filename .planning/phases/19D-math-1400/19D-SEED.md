@@ -17,3 +17,14 @@ recorded in rights state, never inferred from the publisher.
 
 **Before planning:** write `19D-CONTEXT.md`, choosing the source title and
 recording its licence read, and deciding what counts as a recorded defect.
+
+Apply `REACH-MILESTONE.md` "Vision alignment refinement, 2026-09-06".
+Its F1 to F3 walkthrough is the acceptance detail for this seed. Begin with
+one representative unit and reuse existing verification evidence. A sitting
+alone does not establish course quality or completion of the broader vision.
+
+**Audit condition, 2026-09-06 (VPA-04):** if the walkthrough exports or
+restores the course, attach the produced loss report and state whether each
+applicable `17C-AUDIT.md` F-LOSS finding remains. Do not describe recovery as
+clean until the relevant loss owners repair and rerun it. This preserves the
+existing export boundary and adds no package feature.

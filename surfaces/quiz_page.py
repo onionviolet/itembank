@@ -666,7 +666,8 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=N
             score = flash.get("score")
             feedback = '<div class="%s">%s</div>' % (
                 "pend" if score is None else "verdict " + ("y" if score else "n"),
-                "Recorded. Not marked here." if score is None else ("Correct" if score else "Not correct"))
+                "Recorded. Not marked here." if score is None else
+                ("Previous answer: correct" if score else "Previous answer: not correct"))
     ladder = ""
     if teaching.get("available"):
         cards = ''.join(_hint_card(x) for x in teaching.get("shown") or [])

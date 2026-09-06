@@ -9,7 +9,21 @@ turning provisional findings into product commitments.
 
 ## 1. Authority and reading order
 
-Read these before consequential work:
+Use the reading mode below before consequential work. The numbered list is an
+authority map, not a requirement to load every document in full:
+
+- Planning starts with `STATE.md` front matter and current-position table,
+  the active milestone, and the owning phase context or seed. Search the
+  documents below for the relevant vision entries, obligations, and decisions.
+  Read those sections and expand only when a dependency or conflict requires it.
+- Execution starts with `EXEC-CONTEXT.md` and the assigned plan. Read the
+  exact cited contract sections when the plan leaves a material question open.
+- A whole-vision audit reads every quotation and its applicable interpretation.
+  A bounded refinement states which entries and plans it sampled and does not
+  claim exhaustive coverage.
+
+This implements `PLANNING-DIRECTIVES.md` B4. User quotations and binding rules
+remain authoritative even when a compact entry point omits them.
 
 1. `USER-VISION.md` for the user's promoted words and intent.
 2. `USER-VISION-INBOX.md` for meaningful ideas awaiting promotion or routing.
@@ -202,6 +216,27 @@ A handoff records:
 Chat is not the durable record. Decisions land in the owning files during the
 same workflow. A future agent should be able to reconstruct why the project is
 moving in its current direction without reading old conversation transcripts.
+
+### Budget and continuation, refined 2026-09-06
+
+Keep one current next action in `STATE.md` and decisions in their owning phase.
+Link execution evidence instead of copying it into the state, roadmap, handoff,
+and a new summary. Follow the existing B1 summary exception.
+
+An executable plan names the smallest user-observable result, exact edit
+locations, settled decisions, required checks, and evidence that would falsify
+success. Detail the next ready plan only. Later phases keep seeds until their
+inputs exist. Do not repeat settled research without a changed assumption,
+observed defect, or named unanswered question.
+
+Run targeted checks while editing and the required preflight before handoff.
+If a required preflight already runs a named suite, reuse that result for the
+same revision. Repeat checks after relevant changes or failures, not to create
+a second verification transcript. Record failed and unrun gates honestly.
+
+Report cost only when measured. Reuse available elapsed time, tool usage, or
+token figures without adding a tracking system. Never claim estimated savings
+as measured savings. Preserve quality gates and viable feature dispositions.
 
 ## 10. Drift audit
 

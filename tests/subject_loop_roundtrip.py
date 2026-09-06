@@ -1281,7 +1281,11 @@ def test_profile_id_wired_through_clients(tmp):
         if status2 != 200:
             fail("/lesson?profile=emt returned %d" % status2)
         cli_html = open(cli_page, encoding="utf-8").read()
-        if cli_html != served:
+        # The daemon adds its contextual course navigation. Compare the
+        # shared lesson document after removing that daemon-only block.
+        served_core = re.sub(r'<nav class="lesson-context-nav".*?</nav>',
+                             "", served, flags=re.S)
+        if cli_html != served_core:
             fail("CLI lesson --subject-profile and /lesson?profile= must "
                  "render the same page byte-for-byte")
         status, body = _post(url + "/api/start",

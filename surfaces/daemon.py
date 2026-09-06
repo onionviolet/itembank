@@ -936,6 +936,12 @@ def _course_area_rows(handler, state, course_dir):
 # never declared is the most likely outcome on a fresh course and the way
 # out has to be on the same page.
 BIND_PANEL = """
+<style>
+.bind-panel .bind-grid{min-width:0}
+.bind-panel .bind-grid select,.bind-panel .bind-grid input{width:100%;
+  min-width:0;box-sizing:border-box}
+.bind-panel .area-lead,.bind-panel .status{overflow-wrap:anywhere}
+</style>
 <section class="bind-panel" aria-labelledby="bind-heading">
 <h3 id="bind-heading">Bind a source to an objective</h3>
 <p class="area-lead">A binding is a claim that this passage covers this
@@ -992,16 +998,17 @@ __RIGHTS_ROWS__
   if (submit) {
     submit.addEventListener("click", function () {
       var treatment = document.querySelector("[data-bind-treatment]").value;
-      post("/api/course/bind", {
+      var payload = {
         course_id: course,
         objective: document.querySelector("[data-bind-objective]").value,
         source: document.querySelector("[data-bind-source]").value,
         locator: document.querySelector("[data-bind-locator]").value,
         state: document.querySelector("[data-bind-state]").value,
         confidence: document.querySelector("[data-bind-confidence]").value,
-        binding_kind: treatment ? "treatment" : "source",
-        treatment: treatment
-      }, status);
+        binding_kind: treatment ? "treatment" : "source"
+      };
+      if (treatment) { payload.treatment = treatment; }
+      post("/api/course/bind", payload, status);
     });
   }
   var rstatus = document.querySelector("[data-rights-status]");
@@ -2486,6 +2493,16 @@ def _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs,
                             lesson_base="/lesson/%s" % stem,
                             lesson_slugs=lesson_slugs, theme_css=theme_block,
                             assist=True, home_href="/")
+    # The shared quiz shell starts with Item 1 for the client-started/offline
+    # path.  Served redirects render the current public runtime view again,
+    # so carry its cursor into the server-rendered context band as well.
+    if view is not None:
+        try:
+            position = int(view.get("position", 0) or 0) + 1
+        except (TypeError, ValueError):
+            position = 1
+        page = page.replace('<b id="pos">1</b>',
+                            '<b id="pos">%d</b>' % position, 1)
     if view is not None:
         baseline = quiz_page.baseline_for(view, teaching,
                                           "/quiz/%s/answer" % stem, tokens, flash,
@@ -3151,6 +3168,43 @@ def _paced_context(handler, stem, path, les, params):
             "announce": announce}
 
 
+def _lesson_context_nav(handler, bank_path):
+    """Build daemon-only lesson navigation from a uniquely owning course.
+
+    The bank location is compared with the resolved course directory and a
+    course is named only when exactly one shelf card owns the file. Every
+    daemon lesson still has the root Courses link when course metadata is
+    unavailable or ownership is ambiguous.
+    """
+    links = [{"href": "/", "label": "Courses"}]
+    try:
+        shelf = ia.course_shelf_state(handler.root)
+    except Exception:
+        return links
+    matches = []
+    bank_real = os.path.realpath(bank_path)
+    for card in shelf.get("cards", ()):
+        course_id = card.get("course_id")
+        if not isinstance(course_id, str) or not course_id:
+            continue
+        course_dir = ia.course_dir_for(handler.root, course_id)
+        if not course_dir:
+            continue
+        try:
+            inside = (os.path.commonpath(
+                [os.path.realpath(course_dir), bank_real])
+                      == os.path.realpath(course_dir))
+        except ValueError:
+            inside = False
+        if inside:
+            matches.append(course_id)
+    if len(matches) == 1:
+        links.insert(0, {"href": "/course/%s/learn" %
+                         urllib.parse.quote(matches[0], safe=""),
+                         "label": "Back to course"})
+    return links
+
+
 def handle_lesson_get(handler, stem):
     """`GET /lesson/<stem>` -- the lesson reader for one bank, resolved
     through the startup allowlist and rendered by `lesson.lesson_page()`.
@@ -3186,6 +3240,7 @@ def handle_lesson_get(handler, stem):
     except subjects.SubjectProfileError:
         profile = None
     print_mode = bool(params.get("print"))
+    context_nav = _lesson_context_nav(handler, path)
     gate = _lesson_gate_ctx(handler, stem, path, qs, les,
                             print_mode=print_mode)
     focus = (params.get("focus") or [""])[0] or None
@@ -3230,7 +3285,8 @@ def handle_lesson_get(handler, stem):
                               activities=parse_activities(path),
                               mode=mode, step_id=step_id,
                               tier_payload=tier_payload,
-                              tier_show_url=tier_show_url)
+                              tier_show_url=tier_show_url,
+                              context_nav=context_nav)
     handler.send_html(page.encode("utf-8"))
 
 

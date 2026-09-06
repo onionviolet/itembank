@@ -4,7 +4,7 @@ milestone: reach
 milestone_name: reach
 current_phase_name: 19A-course-operating-surface
 current_phase: 19A
-status: "Reach milestone adopted 2026-09-05 and the freeze-before-start ordering waived by Weibao. Every phase is beginnable: 19A and 19C have no unmet dependency, 19B and 19E follow 19A, 19D is the exit. Source-to-course is code-complete; 13.5, 17B, 17C and 18 are executed with human legs owed, and those legs now block nothing except the word frozen. 19A has a written context and no plans yet; 19B, 19C, 19D and 19E need a context pass first."
+status: "Reach is active with freeze ordering waived. 19A-01 to 19A-03 are recorded executed. Next is 19A-04 treatment binding or independent 19C preparation. 19B, 19C, 19D and 19E have seeds and need context before execution. Human legs remain owed. See REACH-MILESTONE.md for the 2026-09-06 acceptance refinement."
 stopped_at: "19A-03 executed: the structure and objective-editing families are in the spine, the surface grid moved 41 to 43 of 82, and a course can be outlined, given objectives, related by edges and have its objective identity moved as a reviewed proposal from both surfaces. Next action is 19A-04 (treatment binding), or 19C's settings change."
 last_updated: "2026-09-05T00:00:00.000Z"
 last_activity: 2026-09-05
@@ -48,8 +48,9 @@ real course.
 | 13.5, 17B, 17C, 18 | nothing | executed, human legs owed |
 
 **Recommended order:** 19C beside 19A, then 19B and 19E in either order, then
-19D. 19A is the load-bearing one and the only one an executor can plan straight
-from today.
+19D. Prepare the next 19A plan from its context and current implementation.
+The 2026-09-06 vision review refined acceptance in `REACH-MILESTONE.md` and
+reading and verification cost in `AGENT-WORKFLOW.md`. It changed no runtime code.
 
 **19A-02 landed, 2026-09-05.** The source-binding family is hung in the spine,
 and with it the whole path from a linked file to a coverage claim is walkable

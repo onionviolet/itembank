@@ -214,7 +214,8 @@ th{background:var(--chip);color:var(--mut);font-weight:600;font-size:12px}
   max-width:min(38ch,calc(100vw - var(--space-4)));max-height:min(60vh,24rem);
   overflow:auto;overscroll-behavior:contain;
   border:1px solid var(--line);border-radius:var(--r-3);
-  background:var(--card);padding:var(--space-3);box-shadow:0 1px 0 var(--line)}
+  background:var(--card);color:var(--ink);padding:var(--space-3);
+  box-shadow:0 1px 0 var(--line)}
 @media (max-width:767px) and (pointer:coarse){
   .gloss{position:fixed;inset:auto 0 0 0;margin:0;max-width:none;max-height:60vh;
     border-radius:var(--r-3) var(--r-3) 0 0;border-inline:0;
@@ -253,6 +254,10 @@ th{background:var(--chip);color:var(--mut);font-weight:600;font-size:12px}
   letter-spacing:.08em;text-transform:uppercase;color:var(--mut);
   margin:var(--space-4) 0 0;text-align:center}
 .reader-nav{margin:0 0 var(--space-4)}
+.lesson-context-nav{display:flex;gap:var(--space-3);flex-wrap:wrap;
+  margin:0 0 var(--space-4);font-size:16px}
+.lesson-context-nav a{color:var(--accent);text-decoration:none}
+.lesson-context-nav a:hover,.lesson-context-nav a:focus-visible{text-decoration:underline}
 .reader-nav summary{cursor:pointer;color:var(--mut);font-size:12px;
   font-family:var(--font-ledger);letter-spacing:.08em;
   text-transform:uppercase}
@@ -311,6 +316,7 @@ h2[id],h3[id],section[id],#glossary dt,.term[id],[id^="use-"],.gate:is(*){
   margin:var(--space-5) 0 0;padding:var(--space-2) 0 0}
 .gate-boundary .gate-note{margin:0}
 @media print{
+  .lesson-context-nav{display:none}
   .gate{box-shadow:none;border:0;border-top:1px solid var(--line);
     border-radius:0;background:none;padding:var(--space-2) 0 0}
   @page{margin:18mm}
@@ -350,6 +356,7 @@ __MATH_ASSETS__
   <div class="sub">__SUB__</div>
 </header>
 __STATUS__
+__CONTEXT_NAV__
 __READER_NAV__
 __GLOSS_SCRIPT__
 <div class="card" id="lesson-content"__RUN_SESSION_ATTR__>__STYLE_WARN____BODY__</div>
@@ -2330,7 +2337,7 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
                 announce=None, session_id=None, lan_refused=False,
                 mode="continuous", media=None, activities=None,
                 step_id=None, tier_payload=None, tier_show_url=None,
-                media_base=""):
+                media_base="", context_nav=None):
     """The one render both surfaces call: the daemon route and `cmd_lesson`
     write the same document because there is only one `lesson_page`.
 
@@ -2423,6 +2430,19 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
              or os.path.basename(bank_path))
     warn_css = ""
     nav_html = ""
+    context_nav_html = ""
+    if context_nav:
+        links = []
+        for entry in context_nav:
+            href = entry.get("href")
+            label = entry.get("label")
+            if href and label:
+                links.append('<a href="%s">%s</a>' % (
+                    html.escape(href, quote=True), html.escape(label)))
+        if links:
+            context_nav_html = ('<nav class="lesson-context-nav" '
+                                'aria-label="Lesson navigation">%s</nav>'
+                                % "".join(links))
     anchor_css = ""
     print_css = ""
     gloss_script = ""
@@ -2731,6 +2751,7 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
             .replace("__MATH_ASSETS__", math_assets)
             .replace("__MATH_SCRIPT__", math_script)
             .replace("__STATUS__", status_html)
+            .replace("__CONTEXT_NAV__", context_nav_html)
             .replace("__RUNNABLE_JS__", runnable_js)
             .replace("__RUN_SESSION_ATTR__", run_session_attr)
             .replace("__STYLE_WARN__", style_warn_html)

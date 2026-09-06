@@ -294,6 +294,36 @@ one level of nesting, about forty words. Recorded in section 1a of
   is authoring. Held short of promotion because the statement is explicitly
   about the future and names no requirement yet.
 
+### 2026-09-06: plans against vision and less future waste
+
+> will the current plans achieve uservision? refine and reduce waste of tokens and more for future
+
+**Status:** routed to `REACH-MILESTONE.md` "Vision alignment refinement,
+2026-09-06" and `AGENT-WORKFLOW.md` "Budget and continuation".
+The cost preference confirms the 2026-08-21 entry in `USER-VISION.md`.
+No duplicate authoritative vision entry is needed. The bounded review tightens
+existing acceptance evidence and reading scope without removing features.
+
+### 2026-09-06: feature opportunities and future additions
+
+> features worth considering and more?
+
+> write these down or put as issue, create a prompt to audit this and stuff, looking for stuff 'features worth considering and more'
+>
+> stuff planned for future, stuff to add on top and more
+
+**Disposition:** Route (2026-09-06) to
+`FEATURE-OPPORTUNITY-AUDIT-PROMPT.md` and `IDEA-LEDGER.md` entries
+IL-20260906-01 through IL-20260906-05.
+
+**Interpretation:** preserve the five assistant suggestions and prepare a
+reusable audit of existing capabilities, future plans, valuable extensions,
+and overlooked opportunities. Recording them does not approve implementation.
+This extends the existing feature-breadth and expected-omissions direction in
+the 2026-08-13 vision entries without duplicating authoritative quotations.
+The prompt requires evidence of actual learner flows and retains viable future
+ideas beyond the shortlist. Next action: run the saved audit when requested.
+
 ## Disposition vocabulary
 
 - **Promote:** add the verbatim statement and interpretation to `USER-VISION`.

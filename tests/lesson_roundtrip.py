@@ -2255,8 +2255,68 @@ def test_lesson_src_degraded_daemon_and_cli():
     if not re.search(r"0 lesson section\(s\) -> ", res.stdout):
         fail("CLI must print 0 sections for the degraded state: %r" % res.stdout)
     cli_page = open(cli_out, encoding="utf-8").read()
-    if cli_page != body:
+    daemon_core = re.sub(r'<nav class="lesson-context-nav".*?</nav>',
+                         "", body, flags=re.S)
+    if cli_page != daemon_core:
         fail("CLI twin and daemon route disagree on the degraded state")
+
+
+def test_daemon_context_nav_and_gloss_dark_text():
+    """Daemon navigation is opt-in to the shared renderer, and glossary
+    panels explicitly inherit the theme ink token for dark mode."""
+    page = lesson.lesson_page(
+        LES_BANK, itembank.load(LES_BANK), itembank.parse_lesson(LES_BANK),
+        context_nav=[{"href": "/course/course-1/learn",
+                      "label": "Back to course"},
+                     {"href": "/", "label": "Courses"}])
+    if 'href="/course/course-1/learn">Back to course</a>' not in page:
+        fail("context navigation must expose a keyboard-operable course link")
+    if 'href="/">Courses</a>' not in page:
+        fail("context navigation must retain the Courses fallback")
+    if ".gloss{--gloss-anchor:auto" not in page or \
+       "background:var(--card);color:var(--ink);" not in page:
+        fail("glossary panel must use the theme ink color")
+    plain = lesson.lesson_page(
+        LES_BANK, itembank.load(LES_BANK), itembank.parse_lesson(LES_BANK))
+    if '<nav class="lesson-context-nav"' in plain:
+        fail("standalone lesson output must not emit daemon navigation")
+    if ".lesson-context-nav{display:none}" not in page:
+        fail("daemon navigation must be hidden in print media")
+
+
+def test_daemon_context_nav_resolves_ownership():
+    """The daemon resolver names a course only for unique path ownership and
+    keeps the Courses fallback when ownership is ambiguous."""
+    class Handler(object):
+        root = tempfile.mkdtemp()
+
+    course_dir = os.path.join(Handler.root, "course-dir")
+    os.makedirs(course_dir)
+    bank = os.path.join(course_dir, "lesson_bank.md")
+    open(bank, "w", encoding="utf-8").close()
+    original_shelf = daemon.ia.course_shelf_state
+    original_dir = daemon.ia.course_dir_for
+    try:
+        daemon.ia.course_shelf_state = lambda root: {
+            "cards": [{"course_id": "course-1"}]}
+        daemon.ia.course_dir_for = lambda root, course_id: course_dir
+        links = daemon._lesson_context_nav(Handler(), bank)
+        if links != [{"href": "/course/course-1/learn",
+                      "label": "Back to course"},
+                     {"href": "/", "label": "Courses"}]:
+            fail("unique course ownership must resolve the course link: %r"
+                 % links)
+
+        daemon.ia.course_shelf_state = lambda root: {
+            "cards": [{"course_id": "course-1"},
+                      {"course_id": "course-2"}]}
+        links = daemon._lesson_context_nav(Handler(), bank)
+        if links != [{"href": "/", "label": "Courses"}]:
+            fail("ambiguous ownership must retain only Courses fallback: %r"
+                 % links)
+    finally:
+        daemon.ia.course_shelf_state = original_shelf
+        daemon.ia.course_dir_for = original_dir
 
 
 def test_lesson_plain_empty_state_has_no_warning():
@@ -2321,7 +2381,9 @@ def test_routes_and_cli_twin():
         if not re.search(r"[0-9]+ lesson section\(s\) -> ", res.stdout):
             fail("CLI success line missing: %r" % res.stdout)
         cli_page = open(cli_out, encoding="utf-8").read()
-        if cli_page != body:
+        daemon_core = re.sub(r'<nav class="lesson-context-nav".*?</nav>',
+                             "", body, flags=re.S)
+        if cli_page != daemon_core:
             fail("CLI twin and daemon route disagree byte-for-byte")
 
         # Quiz page: chip present under serve, absent on the static build.
@@ -3689,6 +3751,8 @@ test_lesson_cli_src_bank_reports_heading_count()
 test_lesson_cli_file_byte_identical_to_render()
 test_lesson_help_lists_ref_and_out()
 test_lesson_src_degraded_daemon_and_cli()
+test_daemon_context_nav_and_gloss_dark_text()
+test_daemon_context_nav_resolves_ownership()
 test_lesson_plain_empty_state_has_no_warning()
 test_routes_and_cli_twin()
 test_page_for_shapes_and_build()

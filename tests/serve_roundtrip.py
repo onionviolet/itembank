@@ -256,6 +256,62 @@ def check_form_submit_writes_the_attempt_file():
     print("  a script-free form submit refreshed the attempt view at %s" % out)
 
 
+def check_redirect_renders_current_position():
+    """A served form redirect renders the runtime cursor in its context band.
+
+    The first server-rendered page starts at item one. A wrong retry stays on
+    item one, while a correct retry advances and the redirected page must say
+    item two. This follows the browser's form and redirect path rather than
+    inspecting the template source.
+    """
+    qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
+    by_id = dict((q["id"], q) for q in qs)
+    seed = seed_serving_first(qs, "mc")
+    if seed is None:
+        fail("no seed in 0..39 serves a multiple-choice item first")
+    work_root = tempfile.mkdtemp(prefix="serve-position-")
+    bank = os.path.join(work_root, "sample_bank.md")
+    shutil.copyfile(BANK, bank)
+    out = os.path.join(tempfile.mkdtemp(), "attempt.md")
+    proc, base = start_serve(bank, out, ["--seed", str(seed)])
+    quiz_url = base + "quiz/sample_bank"
+    try:
+        page = urllib.request.urlopen(quiz_url, timeout=5).read().decode("utf-8")
+        if '<b id="pos">1</b>' not in page:
+            fail("the first served page did not render Item 1")
+        item_id = re.search(r'data-item-id="([^"]+)"', page).group(1)
+        q = by_id[item_id]
+        token = submit_token(page)
+        if not token:
+            fail("the served baseline minted no submit token")
+
+        def submit_and_read(answer, form_token):
+            fields = form_fields_for(q, answer)
+            fields.extend([("form_token", form_token), ("action", "submit")])
+            req = urllib.request.Request(
+                quiz_url + "/answer", data=urllib.parse.urlencode(fields).encode(),
+                method="POST", headers={"Content-Type": "application/x-www-form-urlencoded"})
+            with urllib.request.urlopen(req, timeout=5) as res:
+                return res.read().decode("utf-8")
+
+        held = submit_and_read(wrong_answer(q), token)
+        if '<b id="pos">1</b>' not in held:
+            fail("a wrong retry changed the rendered position")
+        if "Not correct" not in held:
+            fail("a wrong retry lost its verdict")
+        token = submit_token(held)
+        if not token:
+            fail("the held page minted no fresh submit token")
+        advanced = submit_and_read(correct_answer(q), token)
+        if '<b id="pos">2</b>' not in advanced:
+            fail("a correct advance did not render Item 2")
+        if "Previous answer: correct" not in advanced:
+            fail("the redirected page did not identify the prior correct answer")
+    finally:
+        proc.terminate()
+    print("  served redirects keep Item 1 on wrong retry and render Item 2 after correct advance")
+
+
 def check_banner_id_is_the_evidence_id():
     """The id `itembank serve` prints in its banner must be the id every
     evidence row of that sitting carries, and the id inside the session file
@@ -580,6 +636,7 @@ def check_serve_seed_reaches_the_session():
 def main():
     check_serve_seed_reaches_the_session()
     check_form_submit_writes_the_attempt_file()
+    check_redirect_renders_current_position()
     check_banner_id_is_the_evidence_id()
     check_a_failed_submit_keeps_the_answer()
     check_multi_hold_shows_which_of_my_picks_were_right()

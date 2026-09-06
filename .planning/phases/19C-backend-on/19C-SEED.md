@@ -20,3 +20,15 @@ a run nobody looked at does not.
 **Before planning:** write `19C-CONTEXT.md`, deciding which profile, which real
 material (the 17B fixture is not real material for this purpose), and what
 "judged plainly" is written into. Findings feed 19D.
+
+Record actual endpoint availability and profile limits on the executing
+machine before assuming this is only a settings change. The hardware claim
+above is historical planning input, not proof that this machine can run it.
+19C's diagnostic pass does not accept its output for learners. Follow the
+19D quality distinction in `REACH-MILESTONE.md` F3.
+
+**Audit condition, 2026-09-06 (VPA-03):** the context must declare the chosen
+profile and revision, endpoint and egress class, rights basis for every input,
+authority level, durable record location, validation, and manual fallback.
+This is the existing operation protocol applied to a settings-backed run. It
+does not authorize new backend capability or acceptance of diagnostic output.

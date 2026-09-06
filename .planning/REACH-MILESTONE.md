@@ -167,6 +167,49 @@ and both depend only on 19A. 19D is last by definition; it is the exit.
 A real Math 1400 course, built through the product's own doors, sat at least
 once, with its defects recorded and routed. Not a gate record over a fixture.
 
+### Vision alignment refinement, 2026-09-06
+
+**Verdict:** 19A to 19E address the access gap, but the original exit above
+proves a first use, not achievement of the whole user vision. This is a bounded
+review of the current context and four seeds against the source-to-course,
+rich UI, prior-file reuse, cost, and first-use vision entries. Historical
+implementation plans and runtime behavior were not re-audited.
+
+| Finding | Existing owner | Evidence needed before claiming the outcome |
+|---|---|---|
+| F1: API and CLI parity do not prove a discoverable learner journey | 19B and 19D, APP family | Start at the shelf and follow visible controls through Learn, Practice, Test, evidence, and back home. Record broken or missing controls without using a guessed URL to bypass them. |
+| F2: One sitting does not prove instructional quality | 19D, TREAT-01/02 and ACTIVITY-02 | Review a representative unit against its actual syllabus objectives and source locators. Include justified direct reading, a missing generated treatment, and changed-context application. Record gaps instead of claiming the whole course is covered. |
+| F3: Backend output can pass 19C while being unusable | 19C then 19D, AGENT-01/02/03 | Keep 19C as a diagnostic run. Only reviewed, accepted artifacts enter the 19D learner course. Use sitting evidence to propose one next activity with its denominator and uncertainty. |
+| F4: A new algebra course cannot prove every subject, file workflow, or external-user experience | 19D plus existing 14A/14B, 17B and 18 evidence | Link existing multi-root, plain-Markdown, restore, and subject tracers. State which real-use and human review legs remain unverified. |
+
+The 19D context must turn F1 to F3 into one continuous representative-unit
+walkthrough using the existing contracts. Include a learner note, a rich lesson
+with a useful plain-file fallback, resume after leaving, and an accepted agent
+change that can be undone. Reuse existing fixtures and verification evidence
+for lower-level invariants instead of rebuilding their suites.
+
+Correctness, lost-work, navigation, and unusable-content defects that prevent
+this walkthrough keep its affected outcome unmet until repaired and rerun.
+Other findings receive an owner and next action in the existing defect record.
+The freeze waiver remains in force. An agent records an unsigned human leg as
+owed and never treats it as visual, accessibility, or learning-quality approval.
+
+Start 19D's source and objective preparation as soon as its read inputs exist.
+Run the first unit when its required 19A/19B/19C operations exist, then repeat
+only affected steps as remaining operations land. Full phase closure retains
+the declared dependencies. 19E remains a milestone deliverable with its own
+gate and is not an extra prerequisite for the 19D learner walkthrough.
+
+This refinement implements the 2026-09-06 request to check plans against vision
+and reduce future waste. It extends the 2026-08-21 cost and useful-product
+direction. It creates no new capability or phase and retires no viable idea.
+
+**Review checks:** `python3 scripts/preflight.py --quick` passed on 2026-09-06.
+Runtime and JS suites were not run for this planning-only edit.
+`python3 scripts/vision_audit.py` found no missing paths, missing planning
+effects, or orphaned entries. Its ten existing missing-relationship notes
+remain open in the vision record and are not repaired by this bounded review.
+
 ## What is owed to Weibao, blocking nothing
 
 1. ~~Acceptance of this milestone proposal.~~ Given 2026-09-05.

@@ -1564,3 +1564,135 @@ Amendments to an existing entry are additive notes under the entry, dated.
   objective as a condition of interoperating. Even then it is a boundary
   adapter's output, computed at the edge with its inputs recorded, and never a
   progress claim itembank shows the learner as truth.
+
+### IL-20260906-01: contextual stuck detour (F1)
+
+- **Idea:** open passage-specific help or a prerequisite refresher and return to
+  the same reading location.
+- **Disposition:** Deferred pending the feature opportunity audit.
+- **Owner:** next feature opportunity audit agent.
+- **Evidence class:** recommendation, not a verified implementation gap.
+- **Origin:** assistant suggestion retained at the user's request on 2026-09-06.
+- **Dependency and cost driver:** existing lesson navigation, permitted help,
+  source grounding, and accessible return-state integration.
+- **Unblocking condition:** audit existing support and identify a learner-visible
+  gap with a bounded verification or prototype.
+- **Route:** `FEATURE-OPPORTUNITY-AUDIT-PROMPT.md`, F1.
+
+### IL-20260906-02: personal confusion notebook (F2)
+
+- **Idea:** retain recurring concept confusions with examples and links to
+  comparison practice in learner-owned notes.
+- **Disposition:** Deferred pending the feature opportunity audit.
+- **Owner:** next feature opportunity audit agent.
+- **Evidence class:** recommendation, not a verified implementation gap.
+- **Origin:** assistant suggestion retained at the user's request on 2026-09-06.
+- **Dependency and cost driver:** notes, objective links, and misconception
+  practice integration without treating notes as scoring authority.
+- **Unblocking condition:** map overlap with existing note and practice plans
+  and demonstrate the missing connection, if any.
+- **Route:** `FEATURE-OPPORTUNITY-AUDIT-PROMPT.md`, F2.
+
+### IL-20260906-03: learning produces editable notes (F3)
+
+- **Idea:** accumulate learner predictions, explanations, selected highlights,
+  and corrected reasoning into an editable study document.
+- **Disposition:** Deferred pending the feature opportunity audit.
+- **Owner:** next feature opportunity audit agent.
+- **Evidence class:** recommendation, not a verified implementation gap.
+- **Origin:** assistant suggestion retained at the user's request on 2026-09-06.
+- **Dependency and cost driver:** existing learner-note workflow, attribution,
+  citations, durable edits, and portable output.
+- **Unblocking condition:** reconcile with the existing active-annotation vision
+  and note capabilities before proposing any additive work.
+- **Route:** `FEATURE-OPPORTUNITY-AUDIT-PROMPT.md`, F3 and combined F1/F3 flow.
+
+### IL-20260906-04: changed-context transfer challenges (F4)
+
+- **Idea:** apply a concept in a changed situation, diagnose a broken example,
+  or explain the limits of a rule.
+- **Disposition:** Deferred pending the feature opportunity audit.
+- **Owner:** next feature opportunity audit agent.
+- **Evidence class:** recommendation for examining an existing contract theme.
+- **Origin:** assistant suggestion retained at the user's request on 2026-09-06.
+- **Dependency and cost driver:** transfer authoring, subject-specific quality
+  review, activity reachability, and runtime-owned assessment behavior.
+- **Unblocking condition:** verify whether current transfer requirements produce
+  usable activities and identify any authoring or delivery gap.
+- **Route:** `FEATURE-OPPORTUNITY-AUDIT-PROMPT.md`, F4.
+
+### IL-20260906-05: time-aware continuation (F5)
+
+- **Idea:** propose a ten-minute activity, full lesson, or review session with
+  an evidence-backed reason and an exact return point.
+- **Disposition:** Deferred pending the feature opportunity audit.
+- **Owner:** next feature opportunity audit agent.
+- **Evidence class:** recommendation, not a verified implementation gap.
+- **Origin:** assistant suggestion retained at the user's request on 2026-09-06.
+- **Dependency and cost driver:** current scheduling and resume behavior,
+  uncertain duration estimates, and sensible interruption boundaries.
+- **Unblocking condition:** inspect current continuation flows and establish
+  whether a time-budget extension adds measurable learner value.
+- **Route:** `FEATURE-OPPORTUNITY-AUDIT-PROMPT.md`, F5.
+
+## Feature opportunity audit follow-up, 2026-09-06
+
+This additive record follows the user's instruction to run the saved audit.
+The evidence and broader inventory are in
+[`research/2026-09-06-feature-opportunity-audit.md`](research/2026-09-06-feature-opportunity-audit.md).
+The report is a recommendation, not implementation approval or a milestone
+expansion. Earlier entries and unresolved questions above remain intact.
+
+| Existing ID | Audit evidence and remaining question | Proposed disposition and route, not yet approved |
+|---|---|---|
+| IL-20260906-01 (F1) | Glossary, prerequisite filters and deep-link helpers exist. Complete selected-passage help and exact return were not observed. | Prototype only if the report's P-A tracer finds a missing connection. First verify existing navigation in 19D. |
+| IL-20260906-02 (F2) | Learner-note roles and pair practice exist separately. Their learner-facing connection remains unverified. | Prototype after F3 capture is usable, owned by note/selection maintainers. Preserve incorrect notes as private claims. |
+| IL-20260906-03 (F3) | Note trio and promotion checks pass. Sampled surface searches found no consumers of note APIs. | Core reach defect under existing NOTE obligations, routed through 19D to the note owner. Do not create a second note format. |
+| IL-20260906-04 (F4) | Transfer is already an activity purpose and quality obligation. Metadata does not prove a changed-context learning task. | Core existing 19D representative-unit review, with 15B/16A owners and report P-B acceptance criteria. |
+| IL-20260906-05 (F5) | Due-work recommendations and resume helpers exist. A stateless resume helper proves neither durable passage return nor a duration planner. | Prototype for time-budget choice after exact resume verification. Reuse IL-20260826-07 and report P-C. |
+
+Existing dispositions remain the recorded decisions until these recommendations
+are adopted. The original audit-deferral questions now have evidence, with
+live UI and benefit validation still open as named in the report.
+
+The report also reuses IL-20260826-06 for source reading, IL-20260905-01 for
+confidence diagnostics, APP-04 for search, the 17C addendum for explicit restore
+losses, and the existing authoring/quality obligations. The September 5 restore
+addendum names all five losses but does not carry the omitted content. No new
+entry duplicates those capabilities. Synthesis sections 12.2, 12.3 and 12.5
+retain the broader registered, prototype and backburner portfolio.
+
+### IL-20260906-06: return briefing separates changes from due work
+
+- **Idea:** when returning to a course, distinguish the actual stopping point,
+  changes to accepted material, and evidence-backed review needs in one brief
+  explanation. Never imply that a source revision means the learner forgot it.
+- **Disposition:** Prototype candidate, not approved for implementation.
+- **Owner:** APP and evidence maintainers for any future prototype.
+- **Evidence class:** inference and recommendation from existing resume,
+  revision and retention primitives. No complete working flow was observed.
+- **Origin:** feature opportunity audit O11, an assistant proposal extending
+  existing return/recovery work rather than a new user quotation.
+- **Existing overlap:** `surfaces/ia.py::loop_resume_state`,
+  `retention.py::recommendation`, APP-01, accepted revisions and source
+  staleness. The new proposal composes their explanations without creating a
+  second history store.
+- **Dependency and cost driver:** saved position, available accepted-revision
+  comparison and evidence snapshot. Medium estimated maintenance cost from
+  missing baselines, objective renames and stale sources.
+- **Revisit trigger:** 19D establishes usable exact resume and a learner needs
+  orientation after absence or a content revision.
+- **Verification and falsifier:** compare a return after revision with a return
+  after absence only. The learner must distinguish changed material from due
+  review. Existing separate cues serving the same job equally well falsify the
+  need for a combined briefing.
+- **Authority and recovery:** canonical content/evidence remain unchanged.
+  The briefing is derived and disposable, uses approved local records, names
+  unavailable comparisons and stays useful as linear text offline.
+- **Route:** report O11 and A5, future optional prototype after Reach resume
+  evidence. No new phase or binding scope is created.
+
+Operation note: this audit creates one report and appends this ledger section.
+It changes no user quotation, runtime file or accepted product requirement.
+Undo removes the report and this section only, preserving prior and concurrent
+work. Verification results live in the report's validation section.

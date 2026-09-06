@@ -429,6 +429,41 @@
     },
     {
       "method": "POST",
+      "path": "/api/course/autonomy",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/begin-operation",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/replay",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/reverse-operation",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/recommend",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/recommend-pass",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/apply-recommendation",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
       "path": "/api/course/rights",
       "token_gated": true
     },
