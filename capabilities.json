@@ -1,4 +1,102 @@
 {
+  "capabilities": [
+    {
+      "available": null,
+      "configured": null,
+      "disabled": null,
+      "family": "source_adapter",
+      "name": "markdown",
+      "registered": true
+    },
+    {
+      "available": null,
+      "configured": null,
+      "disabled": null,
+      "family": "source_adapter",
+      "name": "text",
+      "registered": true
+    },
+    {
+      "available": null,
+      "configured": null,
+      "disabled": null,
+      "family": "source_adapter",
+      "name": "pdf",
+      "registered": true
+    },
+    {
+      "available": null,
+      "configured": null,
+      "disabled": null,
+      "family": "source_adapter",
+      "name": "docx",
+      "registered": true
+    },
+    {
+      "available": null,
+      "configured": null,
+      "disabled": null,
+      "family": "source_adapter",
+      "name": "pptx",
+      "registered": true
+    },
+    {
+      "available": null,
+      "configured": null,
+      "disabled": null,
+      "family": "source_adapter",
+      "name": "web",
+      "registered": true
+    },
+    {
+      "available": null,
+      "configured": null,
+      "disabled": null,
+      "family": "source_adapter",
+      "name": "transcript",
+      "registered": true
+    },
+    {
+      "available": null,
+      "configured": null,
+      "disabled": null,
+      "family": "source_adapter",
+      "name": "ocr",
+      "registered": true
+    },
+    {
+      "available": null,
+      "configured": null,
+      "disabled": null,
+      "family": "source_adapter",
+      "name": "epub",
+      "registered": true
+    },
+    {
+      "available": null,
+      "configured": null,
+      "disabled": null,
+      "family": "source_adapter",
+      "name": "asr",
+      "registered": true
+    },
+    {
+      "available": null,
+      "configured": null,
+      "disabled": null,
+      "family": "model_transport",
+      "name": "hosted_cli",
+      "registered": true
+    },
+    {
+      "available": null,
+      "configured": null,
+      "disabled": null,
+      "family": "model_transport",
+      "name": "openai_compatible",
+      "registered": true
+    }
+  ],
   "changed_for_agents": [
     {
       "changes": [
@@ -510,6 +608,56 @@
     {
       "method": "POST",
       "path": "/api/course/overlay-objective",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/accept-migration",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/reject-migration",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/bind-blueprint",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/blueprint-gate",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/audit",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/staleness",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/export-package",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/verify-package",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/restore-package",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/package-losses",
       "token_gated": true
     },
     {

@@ -28,6 +28,8 @@ sys.path.insert(0, ROOT)
 
 import itembank                                             # noqa: E402
 import model                                                # noqa: E402
+import model_adapter                                        # noqa: E402
+import source_adapters                                      # noqa: E402
 
 # Starts at 1; bumped only when the manifest's own shape changes, never
 # when a release merely adds commands or changelog entries.
@@ -168,6 +170,40 @@ def collect_skills():
     return sorted(names)
 
 
+def capability_diagnostics(registries, configured=None, available=None,
+                           disabled=None):
+    """Return an explicit status view over first-party registrations.
+
+    Registration comes from the live registry keys. The other states are
+    caller facts and are never inferred from metadata, package names, or
+    descriptor presence. Unknown state stays false in this compact view.
+    """
+    configured = None if configured is None else set(configured)
+    available = None if available is None else set(available)
+    disabled = None if disabled is None else set(disabled)
+    rows = []
+    for family, registry in registries:
+        for name in registry:
+            key = "%s:%s" % (family, name)
+            rows.append({
+                "name": name,
+                "family": family,
+                "registered": True,
+                "configured": None if configured is None else key in configured,
+                "available": None if available is None else key in available,
+                "disabled": None if disabled is None else key in disabled,
+            })
+    return rows
+
+
+def collect_capabilities():
+    """Disclose registrations without claiming installation or activation."""
+    return capability_diagnostics((
+        ("source_adapter", source_adapters.ADAPTER_REGISTRY),
+        ("model_transport", model_adapter.TRANSPORT_REGISTRY),
+    ))
+
+
 def generate():
     """Build the manifest dict with exactly the D-03 contents."""
     return {
@@ -184,6 +220,7 @@ def generate():
         "commands": collect_commands(),
         "routes": collect_routes(),
         "skills": collect_skills(),
+        "capabilities": collect_capabilities(),
         "changed_for_agents": CHANGED_FOR_AGENTS,
     }
 
