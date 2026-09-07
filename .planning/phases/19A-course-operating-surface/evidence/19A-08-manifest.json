@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "package_id": "83e8bd0772bc482d",
+  "created": "2026-09-07T02:24:00.196Z",
+  "course_object_id": "ba070378d35d44e7",
+  "state": "applied",
+  "entries": [
+    {
+      "object_id": "1672ba231fd446ee",
+      "kind": "bank",
+      "revision": 4,
+      "relpath": "unit3_bank.md",
+      "fingerprint": "sha256:127f4ce97cac350b2479b1a32df8f4c239a76331326d1ca28b35ba4087095032"
+    },
+    {
+      "object_id": "ba070378d35d44e7",
+      "kind": "course",
+      "revision": 24,
+      "relpath": "course-graph.md",
+      "fingerprint": "sha256:56aef979765633e0e4943eb88931009679d19d778bca0b3ddf6d17bd6cd4267d"
+    },
+    {
+      "object_id": "d035bddef2d84eff",
+      "kind": "course",
+      "revision": 3,
+      "relpath": "scope.md",
+      "fingerprint": "sha256:25120a05926ddf3fedc2bee5a4307e3ff098c03581c371af5afe9b0fa931112f"
+    },
+    {
+      "object_id": "36157b3e10cb46e5",
+      "kind": "lesson",
+      "revision": 5,
+      "relpath": "unit3_lesson.md",
+      "fingerprint": "sha256:07b5834a644c75d027676347f3507d2ae0aecb6b92acb87abf85f6272183f19d"
+    },
+    {
+      "object_id": "95abc1ccd3e241f9",
+      "kind": "objective",
+      "revision": 3,
+      "relpath": "objectives.md",
+      "fingerprint": "sha256:6f1d1de838a9e870a8d91a33fd5d2d6ea82d2f38f0437ba9aaec3458b192f96d"
+    },
+    {
+      "object_id": "5c5bc6b17baa44c6",
+      "kind": "source",
+      "revision": 3,
+      "relpath": "sources/lantern_moss_survey.md",
+      "fingerprint": "sha256:2d928408134c51dfa52e5d9c523847095bfb3dc225af67d98af7ce4a8db7d020"
+    },
+    {
+      "object_id": "8bd25c20ceaa4e20",
+      "kind": "source",
+      "revision": 3,
+      "relpath": "sources/fen_hydrology_field_notes.md",
+      "fingerprint": "sha256:1161d0819b7b756fb5fc6e9e758691569de1b1f408c0dbfbc0e734672944ae88"
+    }
+  ],
+  "loss_report": [
+    {
+      "category": "machine-local",
+      "target": "settings",
+      "reason": "not included by design; model backend configuration, update policy, and local paths belong to the machine, not to the course"
+    },
+    {
+      "category": "provenance-not-carried",
+      "target": "journal.jsonl",
+      "reason": "the operation journal is not packaged: 82 applied entr(y/ies) of history, and the rights recorded on them, stay on the exporting machine. A restored object arrives at revision 1 with its rights unknown, and unknown stays restrictive"
+    },
+    {
+      "category": "unregistered-file",
+      "target": "README.md",
+      "reason": "inside the course root and bound by no operation, so no object carries it; named here rather than left out in silence. Bind it (link, import, or copy) if it belongs to the course"
+    },
+    {
+      "category": "unregistered-file",
+      "target": "_attempts/lessonrun_unit3_bank.json",
+      "reason": "inside the course root and bound by no operation, so no object carries it; named here rather than left out in silence. Bind it (link, import, or copy) if it belongs to the course"
+    },
+    {
+      "category": "unregistered-file",
+      "target": "_attempts/session_46e90a278e08.json",
+      "reason": "inside the course root and bound by no operation, so no object carries it; named here rather than left out in silence. Bind it (link, import, or copy) if it belongs to the course"
+    },
+    {
+      "category": "unregistered-file",
+      "target": "_attempts/unit3_bank_attempt_2026-09-01_0201.md",
+      "reason": "inside the course root and bound by no operation, so no object carries it; named here rather than left out in silence. Bind it (link, import, or copy) if it belongs to the course"
+    },
+    {
+      "category": "unregistered-file",
+      "target": "_attempts/unit3_bank_attempt_2026-09-01_1431.md",
+      "reason": "inside the course root and bound by no operation, so no object carries it; named here rather than left out in silence. Bind it (link, import, or copy) if it belongs to the course"
+    },
+    {
+      "category": "unregistered-file",
+      "target": "_attempts/unit3_bank_attempt_2026-09-01_1436.md",
+      "reason": "inside the course root and bound by no operation, so no object carries it; named here rather than left out in silence. Bind it (link, import, or copy) if it belongs to the course"
+    },
+    {
+      "category": "unregistered-file",
+      "target": "_attempts/unit3_bank_attempt_2026-09-01_1437.md",
+      "reason": "inside the course root and bound by no operation, so no object carries it; named here rather than left out in silence. Bind it (link, import, or copy) if it belongs to the course"
+    },
+    {
+      "category": "unregistered-file",
+      "target": "_attempts/unit3_bank_attempt_2026-09-05_1159.md",
+      "reason": "inside the course root and bound by no operation, so no object carries it; named here rather than left out in silence. Bind it (link, import, or copy) if it belongs to the course"
+    },
+    {
+      "category": "unregistered-file",
+      "target": "media/lantern_moss_cycle.svg",
+      "reason": "inside the course root and bound by no operation, so no object carries it; named here rather than left out in silence. Bind it (link, import, or copy) if it belongs to the course"
+    },
+    {
+      "category": "unregistered-file",
+      "target": "treatments.md",
+      "reason": "inside the course root and bound by no operation, so no object carries it; named here rather than left out in silence. Bind it (link, import, or copy) if it belongs to the course"
+    }
+  ],
+  "evidence_fingerprint": "sha256:baa284bf2a2a686640495f820a127aeb26925ad3f7a919fca2a588b9f7b36805"
+}

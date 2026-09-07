@@ -80,6 +80,7 @@ import course as course_module                              # noqa: E402
 import course_package                                       # noqa: E402
 import corpus_15b                                           # noqa: E402
 import director                                             # noqa: E402
+import evidence                                             # noqa: E402
 import graph                                                # noqa: E402
 import identity                                             # noqa: E402
 import journal                                              # noqa: E402
@@ -1947,6 +1948,145 @@ def check_package_family_reaches_route_and_cli_with_clean_restore():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def check_17c_losses_are_classified_on_surface_restore():
+    """19A-08: classify F-LOSS-1 through F-LOSS-5 on the 17B package.
+
+    The export and lint use CLI twins. The loss read and clean restore use
+    the published routes. Assertions inspect the restored tree, not only the
+    manifest's claims.
+    """
+    with tempfile.TemporaryDirectory(prefix="course_ops_17c_losses_") as tmp:
+        source_root = os.path.join(tmp, "source")
+        restore_root = os.path.join(tmp, "clean_restore")
+        source_course = os.path.join(source_root, "course")
+        os.mkdir(source_root)
+        os.mkdir(restore_root)
+        shutil.copytree(os.path.join(ROOT, "course_fixture_17b"), source_course)
+
+        def cli(*args):
+            completed = subprocess.run(
+                [sys.executable, os.path.join(ROOT, "itembank.py")] + list(args),
+                capture_output=True, text=True)
+            if completed.returncode != 0:
+                fail("itembank %s failed: %s"
+                     % (" ".join(args), completed.stderr.strip()))
+                return {}
+            return json.loads(completed.stdout)
+
+        exported = cli("course", "export-package", "course", "--root",
+                       source_root, "--json")
+        package_id = exported.get("package_id")
+        if not package_id:
+            fail("the 17B surface export returned no package id")
+            return
+        losses = exported.get("losses") or []
+        by_category = {}
+        for row in losses:
+            by_category.setdefault(row.get("category"), []).append(row)
+
+        # F-LOSS-1 and F-LOSS-2 travel as one explicit provenance row. A
+        # clean restore owns a new journal and re-authorizes rights locally.
+        provenance = by_category.get("provenance-not-carried") or []
+        if len(provenance) != 1:
+            fail("F-LOSS-1 expected one provenance-not-carried row")
+        elif "rights" not in provenance[0].get("reason", "") or \
+                "unknown stays restrictive" not in provenance[0].get("reason", ""):
+            fail("F-LOSS-2 was not explicit in the provenance loss reason")
+
+        attempts = []
+        for dirpath, _dirnames, filenames in os.walk(
+                os.path.join(source_course, "_attempts")):
+            for name in filenames:
+                attempts.append(os.path.relpath(
+                    os.path.join(dirpath, name), source_course).replace(os.sep, "/"))
+        unregistered = {
+            row.get("target") for row in by_category.get("unregistered-file") or []
+        }
+        for target in attempts:
+            if target not in unregistered:
+                fail("F-LOSS-3 did not name attempt state %s" % target)
+        for target in ("README.md", "treatments.md"):
+            if target not in unregistered:
+                fail("F-LOSS-4 did not name unregistered file %s" % target)
+        media_target = "media/lantern_moss_cycle.svg"
+        if media_target not in unregistered:
+            fail("F-LOSS-5 did not name the cited media file")
+
+        source_registry = journal.read_registry(source_course)
+        if not any(identity.rights_state(row.get("rights"), "package") ==
+                   "granted" for row in source_registry.values()):
+            fail("the F-LOSS-2 drill source has no granted package right")
+
+        proc, url, _lines = start_daemon(source_root)
+        try:
+            status, surfaced = json_request(
+                url + "api/course/package-losses", {"package_id": package_id})
+            if status != 200 or surfaced.get("losses") != losses:
+                fail("the route changed or omitted the CLI export loss report")
+            if surfaced.get("loss_report_text") != exported.get("loss_report_text"):
+                fail("the route and CLI disagree on the plain loss report")
+        finally:
+            proc.terminate()
+            proc.wait(timeout=10)
+
+        package_relpath = os.path.join(course_package.PACKAGE_DIRNAME,
+                                       package_id)
+        os.mkdir(os.path.join(restore_root, course_package.PACKAGE_DIRNAME))
+        shutil.copytree(os.path.join(source_root, package_relpath),
+                        os.path.join(restore_root, package_relpath))
+        proc, url, _lines = start_daemon(restore_root)
+        try:
+            status, restored = json_request(
+                url + "api/course/restore-package", {"package_id": package_id})
+        finally:
+            proc.terminate()
+            proc.wait(timeout=10)
+        if status != 200 or not restored.get("complete"):
+            fail("the 17B clean route restore failed: %r" % restored)
+            return
+
+        restored_course = os.path.join(restore_root,
+                                       restored["course_object_id"])
+        restored_registry = journal.read_registry(restored_course)
+        if set(restored_registry) != set(source_registry):
+            fail("the clean restore did not carry every registered object")
+        if any(identity.rights_state(row.get("rights"), "package") !=
+               "unknown" for row in restored_registry.values()):
+            fail("F-LOSS-2 restored rights instead of keeping them restrictive")
+        source_events = list(evidence.events(evidence.log_path(source_course)))
+        restored_events = list(evidence.events(evidence.log_path(restored_course)))
+        if restored_events != source_events:
+            fail("the clean restore did not carry every course evidence event")
+
+        source_operations = {row.get("operation") for row in
+                             journal.entries(source_course)
+                             if row.get("state") == "applied"}
+        restored_operations = {row.get("operation") for row in
+                               journal.entries(restored_course)
+                               if row.get("state") == "applied"}
+        if source_operations <= {"restore"} or restored_operations != {"restore"}:
+            fail("F-LOSS-1 did not leave source history behind and mint a clean journal")
+        for target in attempts:
+            if os.path.exists(os.path.join(restored_course, target)):
+                fail("F-LOSS-3 attempt state crossed despite its disclosed exclusion")
+        if os.path.exists(os.path.join(restored_course, media_target)):
+            fail("F-LOSS-5 media crossed despite being unregistered")
+
+        linted = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "itembank.py"), "lint",
+             os.path.join(restored_course, "unit3_bank.md"), "--json"],
+            capture_output=True, text=True)
+        if linted.returncode != 0:
+            fail("the restored 17B bank did not lint: %s" % linted.stderr.strip())
+        lint_report = json.loads(linted.stdout)
+        if "media.declared_present_missing" not in {
+                row.get("code") for row in lint_report.get("warnings") or []}:
+            fail("F-LOSS-5 restored bank did not warn about its missing cited media")
+
+        print("ok   F-LOSS-1 through F-LOSS-5 are classified on the 17B "
+              "CLI export, route loss read, route clean restore, and CLI lint")
+
+
 def check_create_containment_route_cli_and_runtime():
     """F1: every door refuses dot paths, and runtime checks resolved roots."""
     with tempfile.TemporaryDirectory(prefix="course_create_containment_") as tmp:
@@ -2139,6 +2279,7 @@ def main():
     check_every_course_route_dispatches_to_a_real_handler()
     check_migration_settlement_surfaces()
     check_package_family_reaches_route_and_cli_with_clean_restore()
+    check_17c_losses_are_classified_on_surface_restore()
     check_create_containment_route_cli_and_runtime()
     check_package_publication_races()
     if FAILURES:

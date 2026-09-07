@@ -438,12 +438,46 @@ Sequential waves; the executor runs one at a time.
 | 19A-02 | Source binding, with rights read at bind time (executed 2026-09-05) |
 | 19A-03 | Structure and objective editing (executed 2026-09-05) |
 | 19A-04 | Treatment binding (executed 2026-09-05) |
-| 19A-05 | Director operations, including autonomy level and the reverse and replay paths |
+| 19A-05 | Director operations, including autonomy level and the reverse and replay paths (executed 2026-09-06) |
 | 19A-06 | Blueprint and audit |
 | 19A-07 | Migration |
-| 19A-08 | Package export, restore, and the loss report |
+| 19A-08 | Package export, restore, applicable F-LOSS repair, and the loss report (executed 2026-09-06). The exercised 17B package classifies F-LOSS-1 to F-LOSS-5 through the route and CLI twins. Every excluded item is disclosed. The clean restore carries 7 of 7 registered objects and 47 of 47 evidence events |
 | 19A-09 | The read routes, and the `/course/` GET pages rewired to call them rather than a parallel path |
 | 19A-10 | Freeze: rebuild the 17B fixture course through routes and twins only, diff it against the committed one, and record the coverage audit |
+
+### 19A-05 acceptance evidence, 2026-09-06
+
+All seven director operations now run through both the published HTTP route
+and CLI twin: autonomy, begin-operation, replay, reverse-operation, recommend,
+recommend-pass, and apply-recommendation. The acceptance gate uses temporary
+course roots and proves that an accepted recommendation adds exactly one
+operation-identified acceptance entry. That same applied CAS entry owns the
+`restore_before_image` record. Reversal reaches the existing `journal.undo`
+authority, restores the exact original sidecar bytes, and leaves the restored
+course readable and valid. `tests/surface_coverage_check.py` classifies all
+seven commands and routes across agent operation inspect, create, change,
+explain, and undo.
+
+### 19A-08 acceptance evidence, 2026-09-06
+
+The package operations already present in the spine were exercised as one
+recovery path. `itembank course export-package` exported the 17B course. The
+HTTP loss reader returned the identical structured and plain reports. A clean
+HTTP restore published the course under its object identity. The restored
+tree contains all seven registered objects and all 47 evidence events.
+
+The acceptance drill classifies every 17C finding. Provenance and rights are
+named by `provenance-not-carried`. Every `_attempts` file, each other
+unregistered file, and the cited media are named individually. The restored
+bank also emits `media.declared_present_missing`. The attached manifest and
+loss report are in this phase's `evidence/` directory.
+
+The drill exposed and repaired a validator regression. A manifest may carry
+more than one object whose kind is `course`, because a registered scope is a
+course-kind object. Exactly one entry must match the manifest's
+`course_object_id`. That identity rule now replaces the incorrect one-kind
+count. No package schema, package kind, rights rule, journal record type, or
+recovery authority changed.
 
 ## Freeze gate
 

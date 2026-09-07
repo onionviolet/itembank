@@ -439,7 +439,7 @@ def seed_objective_evidence(course_root, objective_id):
     }
     event = evidence.response_event(
         session_id="fixture-session-" + objective_id, q=q, answer="A",
-        score=True, mode="quiz", attempt_num=1,
+        score=True, mode="practice", attempt_num=1,
         bank="fixture-synthetic-bank")
     log = evidence.log_path(course_root)
     os.makedirs(os.path.dirname(log), exist_ok=True)

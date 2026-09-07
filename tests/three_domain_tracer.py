@@ -329,7 +329,8 @@ def scenario_clean_restore(tmp, built):
 
     pkg = os.path.join(tmp, "freeze_gate_package")
     manifest = course_package.export_package(root, root, pkg)
-    eq(sorted(manifest.keys()), sorted(course_package.MANIFEST_KEYS),
+    eq(sorted(manifest.keys()), sorted(course_package.MANIFEST_KEYS +
+                                       course_package.MANIFEST_OPTIONAL_KEYS),
        "the manifest key set")
     eq(manifest["state"], "applied", "the finished manifest state")
 

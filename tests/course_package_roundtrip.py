@@ -21,6 +21,7 @@ person is untrusted input the moment it crosses a machine boundary.
 Standard library only, runnable as `python tests/course_package_roundtrip.py`.
 """
 import json, os, shutil, subprocess, sys, tempfile, zipfile
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -770,6 +771,218 @@ def check_adoption_rights_and_evidence():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def check_untrusted_manifest_preflight_is_all_or_nothing():
+    """Malformed identity, shape, paths, and symlinks refuse before writes."""
+    tmp = tempfile.mkdtemp(prefix="course_package_preflight_")
+    try:
+        root = os.path.join(tmp, "course")
+        os.makedirs(root)
+        course.create_course(root, "Preflight", "human", "tester")
+        package = os.path.join(tmp, "package")
+        manifest = course_package.export_package(root, root, package)
+        manifest_path = os.path.join(package, course_package.MANIFEST_FILENAME)
+        original = open(manifest_path, "rb").read()
+
+        def rewrite(doc):
+            with open(manifest_path, "w", encoding="utf-8") as fh:
+                json.dump(doc, fh)
+
+        def refused(doc, code, label):
+            rewrite(doc)
+            dest = os.path.join(tmp, "restore_" + label)
+            raises(lambda: course_package.restore_package(
+                       package, dest, "human", "tester"),
+                   course_package.PackageError, code, label)
+            if os.path.exists(dest):
+                fail("%s wrote a restore destination before refusing" % label)
+
+        extra = dict(manifest, invented=True)
+        refused(extra, "package.invalid_manifest", "extra_manifest_key")
+
+        traversing = json.loads(original.decode("utf-8"))
+        traversing["entries"][0]["relpath"] = "../escape.md"
+        refused(traversing, "package.path_escape", "traversing_relpath")
+        if os.path.exists(os.path.join(tmp, "escape.md")):
+            fail("a traversing manifest wrote outside the restore destination")
+
+        drive_path = json.loads(original.decode("utf-8"))
+        drive_path["entries"][0]["relpath"] = "C:/escape.md"
+        refused(drive_path, "package.path_escape", "drive_relpath")
+
+        wrong_course = json.loads(original.decode("utf-8"))
+        wrong_course["course_object_id"] = identity.new_object_id()
+        refused(wrong_course, "package.invalid_manifest", "wrong_course_entry")
+
+        bad_loss = json.loads(original.decode("utf-8"))
+        bad_loss["loss_report"][0]["payload"] = "not allowed"
+        refused(bad_loss, "package.invalid_manifest", "extra_loss_key")
+
+        with open(manifest_path, "wb") as fh:
+            fh.write(original)
+        payload = os.path.join(
+            package, course_package._payload_relpath(manifest["entries"][0]))
+        saved_payload = payload + ".saved"
+        os.replace(payload, saved_payload)
+        try:
+            os.symlink(saved_payload, payload)
+        except (OSError, NotImplementedError):
+            os.replace(saved_payload, payload)
+            print("SKIP: package symlink preflight (unsupported platform)")
+        else:
+            dest = os.path.join(tmp, "restore_symlink")
+            raises(lambda: course_package.restore_package(
+                       package, dest, "human", "tester"),
+                   course_package.PackageError, "package.symlink_payload",
+                   "symlink payload")
+            if os.path.exists(dest):
+                fail("a symlink package wrote before refusing")
+            os.unlink(payload)
+            os.replace(saved_payload, payload)
+
+        raises(lambda: course_package.workspace_package_path(tmp, "../bad"),
+               course_package.PackageError, "package.invalid_id",
+               "path-shaped package id")
+        print("ok  untrusted manifest shape, identity, paths, and symlinks "
+              "refuse before restore writes")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def check_verified_snapshot_and_evidence_integrity():
+    """F2/F3: restore consumes verified bytes and schema-valid bound events."""
+    with tempfile.TemporaryDirectory(prefix="package_snapshot_") as tmp:
+        built = corpus_14b.build_three_domains(tmp)
+        domain = built["domains"][0]
+        root = domain["root"]
+        corpus_14b.seed_objective_evidence(root, domain["objectives"][0])
+        pkg = os.path.join(tmp, "package")
+        manifest = course_package.export_package(root, root, pkg)
+        manifest_path = os.path.join(pkg, course_package.MANIFEST_FILENAME)
+        evidence_path = os.path.join(pkg, course_package.EVIDENCE_DIRNAME,
+                                     course_package.EVIDENCE_FILENAME)
+        original_evidence = open(evidence_path, "rb").read()
+        entry = next(e for e in manifest["entries"] if e["kind"] == "course")
+        payload = os.path.join(pkg, course_package._payload_relpath(entry))
+        original_payload = open(payload, "rb").read()
+        dest = os.path.join(tmp, "restored")
+        os.mkdir(dest)
+        original_registry = journal.read_registry
+
+        def swap_after_capture(base):
+            if base == dest:
+                with open(payload, "wb") as fh:
+                    fh.write(original_payload + b"\nSwapped after verification.\n")
+                with open(evidence_path, "wb") as fh:
+                    fh.write(b'{"event_id":"forged"}\n')
+            return original_registry(base)
+
+        with mock.patch.object(journal, "read_registry", side_effect=swap_after_capture):
+            restored = course_package.restore_package(pkg, dest, "human", "fixture")
+        eq(restored["complete"], True, "the captured package restores completely")
+        eq(open(os.path.join(dest, entry["relpath"]), "rb").read(), original_payload,
+           "a post-verification swap cannot change restored bytes")
+        eq(list(evidence.events(evidence.log_path(dest))),
+           [json.loads(line) for line in original_evidence.splitlines()],
+           "a post-verification swap cannot inject evidence")
+        with open(payload, "wb") as fh:
+            fh.write(original_payload)
+
+        def refuse_evidence(raw, expected_code, label, rebind=False):
+            changed = dict(manifest)
+            if rebind:
+                changed["evidence_fingerprint"] = course_package._digest(raw)
+            course_package._write_json(manifest_path, changed)
+            with open(evidence_path, "wb") as fh:
+                fh.write(raw)
+            target = os.path.join(tmp, label)
+            raises(lambda: course_package.restore_package(pkg, target, "human", "fixture"),
+                   course_package.PackageError, expected_code, label)
+            eq(os.path.exists(target), False, label + " writes no destination")
+
+        event = json.loads(original_evidence.splitlines()[0])
+        event["score"] = not event["score"]
+        refuse_evidence((json.dumps(event) + "\n").encode(),
+                        "package.fingerprint_mismatch", "changed_score")
+        refuse_evidence(b"{}\n", "package.evidence_invalid", "invalid_event", rebind=True)
+        del event["item_id"]
+        refuse_evidence((json.dumps(event) + "\n").encode(),
+                        "package.evidence_invalid", "missing_field", rebind=True)
+        refuse_evidence(b"{torn", "package.evidence_unreadable", "torn_event", rebind=True)
+        legacy = dict(manifest)
+        legacy.pop("evidence_fingerprint")
+        course_package._write_json(manifest_path, legacy)
+        with open(evidence_path, "wb") as fh:
+            fh.write(original_evidence)
+        raises(lambda: course_package.restore_package(pkg, os.path.join(tmp, "legacy"),
+                                                       "human", "fixture"),
+               course_package.PackageError, "package.evidence_unbound", "legacy unbound evidence")
+        os.remove(evidence_path)
+        os.mkdir(os.path.join(tmp, "legacy_empty"))
+        eq(course_package.restore_package(pkg, os.path.join(tmp, "legacy_empty"),
+                                          "human", "fixture")["complete"], True,
+           "legacy evidence-free packages remain restorable")
+        course_package._write_json(manifest_path, manifest)
+        report = course_package.verify_manifest(pkg)
+        eq(report["complete"], False, "missing authenticated evidence is incomplete")
+        eq(report["missing"][0]["object_id"], "evidence", "missing evidence is named")
+        for reserved in ("_evidence/evidence.jsonl", "_journal/operations.jsonl",
+                         "_EVIDENCE./evidence.jsonl"):
+            attack = dict(manifest, entries=[dict(e) for e in manifest["entries"]])
+            attack["entries"][0]["relpath"] = reserved
+            course_package._write_json(manifest_path, attack)
+            target = os.path.join(tmp, "reserved-destination")
+            raises(lambda: course_package.restore_package(pkg, target, "human", "fixture"),
+                   course_package.PackageError, "package.reserved_path", "reserved runtime path")
+            eq(os.path.exists(target), False, "reserved paths refuse before any restore write")
+        print("ok  F2/F3 verified snapshots, evidence integrity, schema checks and legacy compatibility")
+
+
+def check_export_inputs_cannot_drift():
+    """F4: mutations during emission refuse publication and preserve losses."""
+    with tempfile.TemporaryDirectory(prefix="package_export_race_") as tmp:
+        domain = corpus_14b.build_three_domains(tmp)["domains"][0]
+        root = domain["root"]
+        corpus_14b.seed_objective_evidence(root, domain["objectives"][0])
+        source_id = corpus_14b.packaged_source(root, "rights-race")
+        original_write = course_package._write_bytes_atomic
+        original_registry = journal.read_registry
+
+        for mutation in ("rights", "evidence", "loss"):
+            changed = []
+            pkg = os.path.join(tmp, mutation)
+
+            def mutate(path, raw):
+                original_write(path, raw)
+                if changed:
+                    return
+                changed.append(True)
+                if mutation == "evidence":
+                    # Simulate an out-of-protocol writer that ignores the log lock.
+                    log = evidence.log_path(root)
+                    with open(log, "ab") as fh:
+                        row = json.loads(open(log, "rb").readline())
+                        row["event_id"] = evidence.new_event_id()
+                        row["dedupe_key"] = "race-" + row["event_id"]
+                        fh.write((json.dumps(row) + "\n").encode())
+                elif mutation == "loss":
+                    with open(os.path.join(root, "uncarried-during-export.txt"), "w") as fh:
+                        fh.write("a new uncarried file")
+
+            def registry(base):
+                rows = original_registry(base)
+                if mutation == "rights" and changed and source_id in rows:
+                    rows[source_id]["rights"]["package"] = "denied"
+                return rows
+
+            with mock.patch.object(course_package, "_write_bytes_atomic", side_effect=mutate), \
+                    mock.patch.object(journal, "read_registry", side_effect=registry):
+                raises(lambda: course_package.export_package(root, root, pkg),
+                       course_package.PackageError, "package.stale_course", mutation + " race")
+            eq(course_package.read_manifest(pkg)["state"], "prepared",
+               mutation + " never publishes an applied package")
+        print("ok  F4 rights, evidence and loss drift fail stale before applied publication")
+
+
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--kill-export":
         return kill_export(sys.argv[2], sys.argv[3])
@@ -777,6 +990,9 @@ def main():
     check_adoption_rights_and_evidence()
     check_clean_restore()
     check_archive_containment()
+    check_untrusted_manifest_preflight_is_all_or_nothing()
+    check_verified_snapshot_and_evidence_integrity()
+    check_export_inputs_cannot_drift()
     print("OK course_package_roundtrip")
     return 0
 
