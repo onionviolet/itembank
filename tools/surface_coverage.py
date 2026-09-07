@@ -162,10 +162,20 @@ CELLS = {
                 "rows and deletes none. The identity a learner's evidence "
                 "was recorded against stays in the file, or that evidence "
                 "stops naming anything, so a rename is a new row plus a "
-                "migration recorded `proposed`. Settling that migration is "
-                "19A-07's wave, which is why `objective / undo` is still "
-                "empty: rejecting a proposal is the reversal and it has no "
-                "door yet.",
+                "migration recorded `proposed`. 19A-07 adds the two reviewer "
+                "settlement doors without deleting either identity.",
+    },
+    ("objective", "undo"): {
+        "cli": ["course accept-migration", "course reject-migration",
+                "course reverse-operation"],
+        "http": ["POST /api/course/accept-migration",
+                 "POST /api/course/reject-migration",
+                 "POST /api/course/reverse-operation"],
+        "note": "A proposed identity move is declined by recording a "
+                "rejection. An accepted or rejected settlement carries one "
+                "operation id on its CAS journal entry, and reverse-operation "
+                "restores that entry's exact before-image without deleting "
+                "the proposal or rewriting evidence.",
     },
     ("objective", "explain"): {
         "cli": ["coverage"], "http": [],
@@ -500,11 +510,6 @@ GAP_NOTES = {
                           "which is the sentence that governs whether it may "
                           "ever report complete.",
     ("scope", "undo"): "A scope edit is a text edit; git is the only undo.",
-    ("objective", "undo"): "An identity move is reversed by REJECTING its "
-                           "migration, never by deleting a row, and the "
-                           "accept and reject doors are 19A-07's wave. "
-                           "Until then a proposal can be made from a "
-                           "surface and settled only from Python.",
     ("source", "change"): "Re-importing is the only way to refresh a source, "
                           "and it mints a new object rather than updating.",
     ("source", "explain"): "The Sources area now states each source's read "

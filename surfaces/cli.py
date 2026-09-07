@@ -1542,6 +1542,10 @@ def build_parser():
         mp = structural(name, blurb)
         mp.add_argument("--migration-id", required=True)
         mp.add_argument("--rationale", required=True)
+        mp.add_argument("--operation", dest="operation_id", default="",
+                        help="operation id to attach to the settlement; one is "
+                             "minted when omitted and may be passed to "
+                             "course reverse-operation for exact undo")
 
     def blueprint_cmd(name, blurb):
         bp = ct.add_parser(name, help=blurb)

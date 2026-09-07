@@ -617,6 +617,7 @@
         "course_id": {"$ref": "#/$defs/course_id"},
         "migration_id": {"type": "string", "minLength": 1},
         "rationale": {"$ref": "#/$defs/rationale"},
+        "operation_id": {"$ref": "#/$defs/operation_id"},
         "expected_fingerprint": {"$ref": "#/$defs/expected_fingerprint"},
         "actor": {"$ref": "#/$defs/actor"}
       }
@@ -629,6 +630,7 @@
         "course_id": {"$ref": "#/$defs/course_id"},
         "migration_id": {"type": "string", "minLength": 1},
         "rationale": {"$ref": "#/$defs/rationale"},
+        "operation_id": {"$ref": "#/$defs/operation_id"},
         "expected_fingerprint": {"$ref": "#/$defs/expected_fingerprint"},
         "actor": {"$ref": "#/$defs/actor"}
       }

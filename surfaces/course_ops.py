@@ -1782,24 +1782,48 @@ def _op_overlay_objective(root, body, actor_kind, actor_name, base=None):
 
 
 def _op_settle_migration(root, body, actor_kind, actor_name, base=None):
-    """Settle a proposed migration without changing either identity or evidence."""
-    read = course_module.read_course(resolve_course(base or root, body["course_id"]))
+    """Settle one proposal in one operation-identified CAS revision.
+
+    The operation marker rides on the applied file entry rather than being a
+    second journal row. That lets `reverse_operation` find exactly the write
+    whose before-image restores the proposal, while keeping settlement and
+    recovery on the existing course and journal authorities.
+    """
+    base = base or resolve_course(root, body["course_id"])
+    read = course_module.read_course(base)
+    operation_id = body.get("operation_id") or director.new_operation_id()
+    decision = ("accepted" if body["operation"] == "accept_migration"
+                else "rejected")
     fn = (course_module.accept_migration if body["operation"] == "accept_migration"
           else course_module.reject_migration)
-    revision = fn(resolve_course(base or root, body["course_id"]),
-                  body["migration_id"], actor_kind, actor_name,
-                  body["rationale"], body.get("expected_fingerprint"))
+    # Reuse the director's one frozen AGENT_ENTRY_KEYS builder. A local dict
+    # would be a second grammar for the operation marker and could drift from
+    # the reader that powers `reverse_operation`.
+    applied_agent = director._agent_dict(
+        operation_id,
+        "%s migration %s" % (decision, body["migration_id"]),
+        "reviewer", "human", ("course:%s" % body["course_id"],),
+        "accept", 3,
+        director._checkpoint_with_outcome(None, "recorded", ""),
+        {"migration_id": body["migration_id"], "decision": decision},
+        director.egress_record("local", "local", "", [], [], 0))
+    revision = fn(base, body["migration_id"], actor_kind, actor_name,
+                  body["rationale"], body.get("expected_fingerprint"),
+                  applied_agent=applied_agent)
     return {
         "operation": body["operation"],
         "engine": OPERATION_ENGINE[body["operation"]],
         "course_id": body["course_id"],
         "course_object_id": read["object_id"],
+        "operation_id": operation_id,
         "migration_id": body["migration_id"],
-        "migration_state": "accepted" if body["operation"] == "accept_migration" else "rejected",
+        "migration_state": decision,
         "fingerprint": revision.get("fingerprint"),
         "revision": revision.get("revision"),
         "settled": True,
-        "undo": "the settlement is recorded; the proposal and all evidence remain in the sidecar"
+        "undo": "reverse operation %s to restore the exact sidecar bytes "
+                "from before this settlement; the proposal and all evidence "
+                "remain recorded" % operation_id,
     }
 
 
@@ -2094,6 +2118,11 @@ def _print_result(operation, payload):
         print("  migration %s is %s"
               % (payload["migration_id"], payload["migration_state"]))
         print("  %s" % payload["note"])
+    elif operation in ("accept_migration", "reject_migration"):
+        print("%s migration %s at revision %s"
+              % (payload["migration_state"], payload["migration_id"],
+                 payload["revision"]))
+        print("  operation %s" % payload["operation_id"])
     print("  fingerprint %s" % payload["fingerprint"])
     print("  undo: %s" % payload["undo"])
 

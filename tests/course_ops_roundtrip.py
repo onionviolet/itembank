@@ -1682,13 +1682,15 @@ def check_migration_settlement_surfaces():
                  % label)
 
     def cli(root, operation, course_id, migration_id, rationale, actor,
-            expected=None):
+            expected=None, operation_id=None):
         command = [sys.executable, "itembank.py", "course", operation,
                    course_id, "--migration-id", migration_id,
                    "--rationale", rationale, "--actor", actor,
                    "--root", root, "--json"]
         if expected is not None:
             command.extend(["--expect", expected])
+        if operation_id is not None:
+            command.extend(["--operation", operation_id])
         return subprocess.run(command, text=True, capture_output=True)
 
     tmp = tempfile.mkdtemp(prefix="course_migration_surface_")
@@ -1715,9 +1717,15 @@ def check_migration_settlement_surfaces():
                             "review", "reviewer", "stale").stderr,
                 "journal.stale_preflight")
         objectives = snapshot(base)[1]
+        with open(os.path.join(base, course_module.COURSE_SIDECAR_FILENAME),
+                  "rb") as fh:
+            before_settlement = fh.read()
+        operation_id = "cli-migration-settlement"
         proc = cli(tmp, "accept-migration", "cli_course", mid, "reviewed",
-                   "reviewer")
-        if proc.returncode or json.loads(proc.stdout).get("migration_state") != "accepted":
+                   "reviewer", operation_id=operation_id)
+        payload = json.loads(proc.stdout) if not proc.returncode else {}
+        if (proc.returncode or payload.get("migration_state") != "accepted" or
+                payload.get("operation_id") != operation_id):
             fail("CLI migration acceptance failed: %s" % proc.stderr)
         accepted = course_module.read_course(base)
         row = [r for r in accepted["doc"]["migrations"]
@@ -1730,15 +1738,21 @@ def check_migration_settlement_surfaces():
                 lambda: cli(tmp, "reject-migration", "cli_course", mid,
                             "again", "reviewer").stderr,
                 "graph.migration_already_settled")
+        _assert_one_accepted_entry_and_restored(
+            base, operation_id, before_settlement, "CLI migration settlement")
+        if len(director.operation_entries(base, operation_id)) != 1:
+            fail("CLI settlement operation id names more than its one CAS entry")
 
         route, mid = proposed(tmp, "route_course")
         proc, url, _ = start_daemon(tmp)
         def route_request(operation, migration_id, rationale, actor="reviewer",
-                          expected=None):
+                          expected=None, operation_id=None):
             body = {"course_id": "route_course", "migration_id": migration_id,
                     "rationale": rationale, "actor": actor}
             if expected is not None:
                 body["expected_fingerprint"] = expected
+            if operation_id is not None:
+                body["operation_id"] = operation_id
             return json_request(url + "api/course/" + operation, body)
 
         refused("route proposer acceptance", route,
@@ -1758,8 +1772,14 @@ def check_migration_settlement_surfaces():
                                       expected="stale"),
                 "journal.stale_preflight")
         objectives = snapshot(route)[1]
-        status, body = route_request("reject-migration", mid, "not ready")
-        if status != 200 or body.get("migration_state") != "rejected":
+        with open(os.path.join(route, course_module.COURSE_SIDECAR_FILENAME),
+                  "rb") as fh:
+            before_settlement = fh.read()
+        operation_id = "route-migration-settlement"
+        status, body = route_request("reject-migration", mid, "not ready",
+                                     operation_id=operation_id)
+        if (status != 200 or body.get("migration_state") != "rejected" or
+                body.get("operation_id") != operation_id):
             fail("route migration rejection failed: %r" % body)
         read = course_module.read_course(route)
         row = [r for r in read["doc"]["migrations"] if r["migration_id"] == mid][0]
@@ -1770,6 +1790,11 @@ def check_migration_settlement_surfaces():
         refused("route already-settled migration", route,
                 lambda: route_request("accept-migration", mid, "again"),
                 "graph.migration_already_settled")
+        _assert_one_accepted_entry_and_restored(
+            route, operation_id, before_settlement,
+            "route migration settlement")
+        if len(director.operation_entries(route, operation_id)) != 1:
+            fail("route settlement operation id names more than its one CAS entry")
         print("ok   migration settlement refusals preserve rows on CLI and route")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

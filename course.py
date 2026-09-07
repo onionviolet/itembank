@@ -116,7 +116,7 @@ def read_course(course_root):
 
 
 def write_course(course_root, doc, expected_fingerprint, actor_kind,
-                 actor_name, operation="edit_in_place"):
+                 actor_name, operation="edit_in_place", applied_agent=None):
     """Write `doc` back to the sidecar through the one compare-and-swap path.
 
     `expected_fingerprint` is passed straight through to
@@ -129,7 +129,7 @@ def write_course(course_root, doc, expected_fingerprint, actor_kind,
         kind=COURSE_KIND, rel_path=COURSE_SIDECAR_FILENAME,
         operation=operation, new_bytes=raw,
         expected_fingerprint=expected_fingerprint, actor_kind=actor_kind,
-        actor_name=actor_name)
+        actor_name=actor_name, applied_agent=applied_agent)
 
 
 def _stub_tables(text):
@@ -281,7 +281,8 @@ def _require_right(base, source_object_id, operation):
 
 
 def _bind(base, objective, source_object_id, binding_kind, operation,
-          treatment_kind, locator, state, confidence, actor_kind, actor_name):
+          treatment_kind, locator, state, confidence, actor_kind, actor_name,
+          applied_agent=None):
     snapshot = _require_right(base, source_object_id, operation)
     read = read_course(base)
     doc = read["doc"]
@@ -289,7 +290,8 @@ def _bind(base, objective, source_object_id, binding_kind, operation,
                       treatment_kind=treatment_kind, locator=locator,
                       state=state, confidence=confidence,
                       rights_snapshot=snapshot)
-    return write_course(base, doc, read["fingerprint"], actor_kind, actor_name)
+    return write_course(base, doc, read["fingerprint"], actor_kind, actor_name,
+                        applied_agent=applied_agent)
 
 
 def bind_source(base, objective, source_object_id, locator="",
@@ -309,7 +311,8 @@ def bind_source(base, objective, source_object_id, locator="",
 
 
 def accept_migration(course_root, migration_id, reviewer_kind, reviewer_name,
-                     rationale, expected_fingerprint=None):
+                     rationale, expected_fingerprint=None,
+                     applied_agent=None):
     """Settle one proposal as accepted and write the sidecar.
 
     The transition itself lives in `graph.accept_migration`, pure and with no
@@ -325,11 +328,13 @@ def accept_migration(course_root, migration_id, reviewer_kind, reviewer_name,
                         expected_fingerprint
                         if expected_fingerprint is not None
                         else read["fingerprint"],
-                        reviewer_kind, reviewer_name)
+                        reviewer_kind, reviewer_name,
+                        applied_agent=applied_agent)
 
 
 def reject_migration(course_root, migration_id, reviewer_kind, reviewer_name,
-                     rationale, expected_fingerprint=None):
+                     rationale, expected_fingerprint=None,
+                     applied_agent=None):
     """Settle one proposal as rejected and write the sidecar.
 
     A rejection is written, not dropped. A deleted proposal and a proposal that
@@ -341,7 +346,8 @@ def reject_migration(course_root, migration_id, reviewer_kind, reviewer_name,
                         expected_fingerprint
                         if expected_fingerprint is not None
                         else read["fingerprint"],
-                        reviewer_kind, reviewer_name)
+                        reviewer_kind, reviewer_name,
+                        applied_agent=applied_agent)
 
 
 def bind_blueprint(course_root, blueprint, actor_kind, actor_name,
@@ -370,7 +376,7 @@ def bind_blueprint(course_root, blueprint, actor_kind, actor_name,
 
 def bind_treatment(base, objective, source_object_id, treatment_kind,
                    locator="", state="unknown", confidence="unknown",
-                   actor_kind="human", actor_name=""):
+                   actor_kind="human", actor_name="", applied_agent=None):
     """Bind a treatment to an objective, refusing unless the right that
     treatment consumes is granted.
 
@@ -385,4 +391,5 @@ def bind_treatment(base, objective, source_object_id, treatment_kind,
     """
     return _bind(base, objective, source_object_id, "treatment",
                  graph.treatment_right(treatment_kind), treatment_kind,
-                 locator, state, confidence, actor_kind, actor_name)
+                 locator, state, confidence, actor_kind, actor_name,
+                 applied_agent=applied_agent)
