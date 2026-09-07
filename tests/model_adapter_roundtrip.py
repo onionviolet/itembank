@@ -621,25 +621,22 @@ def test_stub_third_backend_registration():
 def test_secrets_from_env_never_inline():
     """Credentials are read from the environment by name (secret_env), never
     stored inline in itembank.json and never present in any request, result,
-    log, or evidence field (D-03/D-15); the shipped default config reaches no
-    model.
-
-    The guarantee is empty `active`, not an empty registry. Plan 17A-06 ships
-    a `local-qwen` profile record so the local path is exercised rather than
-    only documented, and an empty `active` still resolves to
-    adapter.profile_disabled, so a fresh install phones nobody. A shipped
-    profile carrying a `secret_env` would be a different matter and is
-    rejected below."""
+    log, or evidence field (D-03/D-15). Phase 19C activates the loopback-only
+    `local-qwen` profile. A shipped profile carrying a `secret_env` would be a
+    different matter and is rejected below."""
     shipped = settings_surface.load_settings(ROOT)
     mb = shipped.get("model_backend")
-    if not isinstance(mb, dict) or mb.get("active") != "":
-        fail("the shipped default model_backend is not disabled: %r" % mb)
+    if not isinstance(mb, dict) or mb.get("active") != "local-qwen":
+        fail("the shipped model_backend does not activate local-qwen: %r" % mb)
     else:
         profile, reason = model_adapter.resolve_profile(shipped)
-        if profile is not None or \
-                (reason or {}).get("code") != "adapter.profile_disabled":
-            fail("the shipped config resolved to %r / %r instead of "
-                 "adapter.profile_disabled" % (profile, reason))
+        if reason is not None or profile is None:
+            fail("the shipped config did not resolve local-qwen: %r / %r"
+                 % (profile, reason))
+        elif not profile.get("endpoint", "").startswith(
+                "http://127.0.0.1:"):
+            fail("the active shipped profile is not loopback-only: %r"
+                 % profile.get("endpoint"))
     for record in (mb or {}).get("profiles") or []:
         if record.get("secret_env"):
             fail("a shipped profile %r names a credential variable"

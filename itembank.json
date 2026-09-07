@@ -12,13 +12,13 @@
   "auditor_autonomy": "report_only",
   "home": "shelf",
   "model_backend": {
-    "active": "",
+    "active": "local-qwen",
     "profiles": [
       {
         "name": "local-qwen",
         "transport": "openai_compatible",
         "endpoint": "http://127.0.0.1:11434/v1/chat/completions",
-        "model": "qwen3.8-27b:latest",
+        "model": "qwen3.5:4b",
         "timeout_seconds": 120,
         "max_output_bytes": 262144,
         "context_window": 32768

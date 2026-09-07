@@ -137,17 +137,8 @@ def local_profile(port, timeout=5):
 
 
 def check_shipped_profile_resolves():
-    """The repo's own itembank.json carries local-qwen and it resolves once
-    it is the active profile, so the record is exercised rather than merely
-    documented.
-
-    Measured 2026-08-21: resolve_profile refuses every name, including an
-    explicitly passed one, while model_backend.active is empty. Switching a
-    local model on is therefore one settings edit and not two, and the
-    "fresh install phones nobody" guarantee does not depend on the registry
-    being empty. This suite activates the shipped record in memory; the file
-    on disk keeps active empty, which check_fresh_install_reaches_no_model
-    asserts."""
+    """The repo's own itembank.json carries active local-qwen, so the record
+    is exercised rather than merely documented."""
     data = shipped_settings()
     profiles = data.get("model_backend", {}).get("profiles") or []
     names = [p.get("name") for p in profiles]
@@ -155,8 +146,7 @@ def check_shipped_profile_resolves():
         fail("itembank.json ships no %r profile (found %r)"
              % (PROFILE_NAME, names))
         return
-    activated = make_settings(PROFILE_NAME, profiles)
-    profile, reason = resolve_profile(activated, PROFILE_NAME)
+    profile, reason = resolve_profile(data, PROFILE_NAME)
     if reason is not None:
         fail("shipped %r does not resolve once active: %r"
              % (PROFILE_NAME, reason))
@@ -173,22 +163,26 @@ def check_shipped_profile_resolves():
        % PROFILE_NAME)
 
 
-def check_fresh_install_reaches_no_model():
-    """Shipping a profile must not switch a model on. model_backend.active
-    stays empty, so an install that nobody configured still phones nobody."""
+def check_fresh_install_activates_only_loopback():
+    """Phase 19C turns the local profile on without granting remote egress."""
     data = shipped_settings()
     active = data.get("model_backend", {}).get("active")
-    if active:
-        fail("model_backend.active is %r; shipping a profile must not "
-             "activate it" % active)
+    if active != PROFILE_NAME:
+        fail("model_backend.active is %r, not %r" % (active, PROFILE_NAME))
         return
     profile, reason = resolve_profile(data)
-    if profile is not None or \
-            (reason or {}).get("code") != "adapter.profile_disabled":
-        fail("empty active resolved to %r / %r instead of "
-             "adapter.profile_disabled" % (profile, reason))
+    if reason is not None or profile is None:
+        fail("active local profile resolved to %r / %r" % (profile, reason))
         return
-    ok("empty active still resolves to adapter.profile_disabled")
+    endpoint = profile.get("endpoint") or ""
+    if not endpoint.startswith("http://127.0.0.1:"):
+        fail("active local profile is not loopback-only: %r" % endpoint)
+        return
+    if profile.get("model") != "qwen3.5:4b":
+        fail("active local profile names unexpected model %r"
+             % profile.get("model"))
+        return
+    ok("fresh install activates local-qwen on loopback only")
 
 
 def check_stubbed_endpoint_returns_a_result():
@@ -463,7 +457,7 @@ def check_every_code_is_declared():
 
 def main():
     check_shipped_profile_resolves()
-    check_fresh_install_reaches_no_model()
+    check_fresh_install_activates_only_loopback()
     check_stubbed_endpoint_returns_a_result()
     check_refused_connection()
     check_timeout()
