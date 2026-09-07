@@ -48,6 +48,7 @@ import identity
 import journal
 import resources
 import schema_validate
+from extension_registry import build_registry
 
 
 SCHEMA_RESOURCE = "schemas/source_locator.schema.json"
@@ -2018,24 +2019,16 @@ def _extract_asr(raw_bytes, options):
                    "an ASR backend is registered but no plan has wired it")
 
 
-ADAPTER_REGISTRY = {
-    "markdown": _extract_markdown,
-    "text": _extract_text,
-    "pdf": _extract_pdf,
-    "docx": _extract_docx,
-    "pptx": _extract_pptx,
-    "web": _extract_web,
-    "transcript": _extract_transcript,
-    "ocr": _extract_ocr,
-    "epub": _extract_epub,
-    "asr": _extract_asr,
-}
+SOURCE_ADAPTER_ENTRIES = [
+    {"name": n, "version": "0.0.0" if n == "asr" else "1.0.0", "handler": h,
+     "capability": "Registered source adapter.", "fallback": "Use the existing refusal behavior.",
+     "check": "python3 tests/source_adapters_roundtrip.py"}
+    for n, h in (("markdown", _extract_markdown), ("text", _extract_text),
+                 ("pdf", _extract_pdf), ("docx", _extract_docx), ("pptx", _extract_pptx),
+                 ("web", _extract_web), ("transcript", _extract_transcript),
+                 ("ocr", _extract_ocr), ("epub", _extract_epub), ("asr", _extract_asr))]
+ADAPTER_REGISTRY, ADAPTER_VERSIONS, SOURCE_ADAPTER_DESCRIPTIONS = build_registry(SOURCE_ADAPTER_ENTRIES)
 
-# Every adapter is 1.0.0 except `asr`, which is 0.0.0 deliberately: no backend
-# produces anything, so claiming 1.0.0 would put a version into a sidecar that
-# nothing ever wrote.
-ADAPTER_VERSIONS = {name: "1.0.0" for name in ADAPTER_REGISTRY}
-ADAPTER_VERSIONS["asr"] = "0.0.0"
 
 
 # ---------------------------------------------------------------------------

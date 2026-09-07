@@ -516,6 +516,14 @@ name and prints its install command while every other command keeps working,
 and the `markdown`, `text`, `transcript`, and `epub` adapters need no
 third-party package at all.
 
+To add a first-party source adapter, implement the existing extraction callable
+contract, add one row to `SOURCE_ADAPTER_ENTRIES`, and add fidelity and refusal
+coverage to `tests/source_adapters_roundtrip.py`. Inspect
+`schemas/source_locator.schema.json` before proposing a new medium, because a
+registered name is not automatically publishable. This is validated
+first-party registration only. There is no external adapter loader or drop-in
+package mechanism.
+
 ## Using itembank with an AI coding agent
 
 The same loops work whether the agent is you, a coding agent you pointed at
