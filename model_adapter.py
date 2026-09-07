@@ -23,6 +23,7 @@ import urllib.request
 
 import resources
 import schema_validate
+from extension_registry import build_registry
 from surfaces.settings import resolve_profile as _resolve_profile
 
 
@@ -229,10 +230,20 @@ def _transport_openai_compatible(request, request_json, profile, settings):
     return _ok_result(request, "local", profile, candidate, elapsed_ms)
 
 
-TRANSPORT_REGISTRY = {
-    "hosted_cli": _transport_hosted_cli,
-    "openai_compatible": _transport_openai_compatible,
-}
+TRANSPORT_ENTRIES = [
+    {"name": "hosted_cli", "version": "1.0.0",
+     "handler": _transport_hosted_cli,
+     "capability": "Invoke a configured hosted CLI through a bounded subprocess.",
+     "fallback": "Return typed unavailable so authored study content remains available.",
+     "check": "python3 tests/model_adapter_roundtrip.py"},
+    {"name": "openai_compatible", "version": "1.0.0",
+     "handler": _transport_openai_compatible,
+     "capability": "Invoke a local OpenAI-compatible endpoint through bounded HTTP.",
+     "fallback": "Return typed unavailable so authored study content remains available.",
+     "check": "python3 tests/model_adapter_roundtrip.py"},
+]
+TRANSPORT_REGISTRY, TRANSPORT_VERSIONS, TRANSPORT_DESCRIPTIONS = \
+    build_registry(TRANSPORT_ENTRIES)
 
 
 def _invoke(request, settings):

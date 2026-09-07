@@ -581,6 +581,31 @@ def test_load_settings_rejects_bad_registry():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_transport_descriptor_registration():
+    """The two shipped transport declarations use EXT-01's validated shape.
+    Their handler map stays mutable so the separate third-backend proof keeps
+    its mutation-based isolation and no transport is invoked at import time.
+    """
+    names = ("hosted_cli", "openai_compatible")
+    if tuple(model_adapter.TRANSPORT_REGISTRY) != names:
+        fail("transport declaration order changed: %r"
+             % tuple(model_adapter.TRANSPORT_REGISTRY))
+    if model_adapter.TRANSPORT_REGISTRY["hosted_cli"] is not \
+            model_adapter._transport_hosted_cli:
+        fail("hosted CLI handler identity changed")
+    if model_adapter.TRANSPORT_REGISTRY["openai_compatible"] is not \
+            model_adapter._transport_openai_compatible:
+        fail("OpenAI-compatible handler identity changed")
+    if tuple(model_adapter.TRANSPORT_VERSIONS.values()) != ("1.0.0", "1.0.0"):
+        fail("transport versions changed: %r" % model_adapter.TRANSPORT_VERSIONS)
+    for name in names:
+        description = model_adapter.TRANSPORT_DESCRIPTIONS.get(name)
+        if description is None or description.get("name") != name or \
+                not description.get("capability") or not description.get("fallback") or \
+                description.get("handler") is not None:
+            fail("transport description is incomplete: %r" % description)
+
+
 def test_stub_third_backend_registration():
     """A stub third backend registers through TRANSPORT_REGISTRY and invoke
     routes to it with zero edits to tier-gate, evidence, or prompt-assembly
@@ -726,6 +751,7 @@ def main():
     test_authored_fallback_after_unavailable()
     test_profile_registry_validation()
     test_load_settings_rejects_bad_registry()
+    test_transport_descriptor_registration()
     test_stub_third_backend_registration()
     test_secrets_from_env_never_inline()
     test_suggestion_reveal_enum_and_default()
