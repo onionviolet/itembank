@@ -1148,7 +1148,7 @@ WALKTHROUGH_STEPS = (
              "itembank always decides for itself."},
 )
 
-SHELF_ACTIONS = ("advance_walkthrough", "remove_sample_course",
+SHELF_ACTIONS = ("add_sample_course", "advance_walkthrough", "remove_sample_course",
                  "replay_walkthrough", "skip_walkthrough")
 
 
@@ -1194,6 +1194,15 @@ def apply_shelf_action(root, action):
     """
     if action not in SHELF_ACTIONS:
         raise ValueError("unknown shelf action: %r" % action)
+
+    if action == "add_sample_course":
+        directory = os.path.join(root, sample_course.SAMPLE_COURSE_DIRNAME)
+        written = sample_course.write_sample_course(directory)
+        state = {"removed": False}
+        write_ia_state(root, "sample_course", state)
+        return {"action": action, "ok": True,
+                "message": "The sample course is ready.",
+                "written": len(written), "state": state}
 
     if action == "skip_walkthrough":
         state = {"status": "skipped", "step": read_ia_state(

@@ -1137,6 +1137,17 @@ def _course_rows_html(rows):
     return '<ul class="course-rows">%s</ul>' % "".join(out)
 
 
+def _app_nav(current):
+    """The small, stable application frame shared by shelf and course pages."""
+    courses_current = ' aria-current="page"' if current == "courses" else ""
+    return ('<nav class="app-nav" aria-label="Application">'
+            '<a class="app-name" href="/">itembank</a><ul>'
+            '<li><a href="/"%s>Courses</a></li>'
+            '<li><a href="/activity">Activity</a></li>'
+            '<li><a href="/settings">Settings</a></li></ul></nav>'
+            % courses_current)
+
+
 def _course_frame(handler, state, back, course_dir=None):
     """One course-level page: the eight-area nav, the area's own stated state,
     a real anchor target on the heading, and the hidden anchor-missing region
@@ -1157,17 +1168,23 @@ def _course_frame(handler, state, back, course_dir=None):
     else:
         content = '<p class="area-state">%s</p>' % presentation.esc(
             state["notice"])
-    body = ('<nav class="course-areas" aria-label="Course areas"><ul>%s</ul>'
-            "</nav>"
-            '<div class="state" data-anchor-missing hidden role="status">'
-            "<p>%s</p></div>"
-            '<h2 id="%s">%s</h2>%s%s'
-            % ("".join(nav),
-               presentation.esc(ia.ANCHOR_NOT_FOUND_NOTICE),
-               presentation.esc(heading_id),
-               presentation.esc(state["area_label"]),
-               content,
-               _course_area_extra(handler, state, course_dir)))
+    desktop_nav = ('<nav class="course-areas course-nav-desktop" '
+                   'aria-label="Course areas"><ul>%s</ul></nav>' % "".join(nav))
+    mobile_nav = ('<details class="course-areas course-nav-mobile">'
+                  '<summary>Course area: %s</summary>'
+                  '<nav aria-label="Course areas"><ul>%s</ul></nav></details>'
+                  % (presentation.esc(state["area_label"]), "".join(nav)))
+    body = (_app_nav("course")
+            + ('<p class="current-area">Current area: %s</p>'
+               % presentation.esc(state["area_label"]))
+            + desktop_nav + mobile_nav
+            + ('<div class="state" data-anchor-missing hidden role="status">'
+               "<p>%s</p></div>"
+               '<h2 id="%s">%s</h2>%s%s'
+               % (presentation.esc(ia.ANCHOR_NOT_FOUND_NOTICE),
+                  presentation.esc(heading_id),
+                  presentation.esc(state["area_label"]), content,
+                  _course_area_extra(handler, state, course_dir))))
     return presentation.surface_shell(
         state["course_name"], body,
         theme_css=theme.theme_css(settings.load_settings(handler.root)),
@@ -1967,9 +1984,31 @@ def banner_markup(banner):
                                      "actions": banner["actions"]})
 
 
-SHELF_NOSCRIPT = ("The walkthrough and the sample-course controls submit as "
-                  "ordinary forms. Every one of them also has a CLI twin: "
-                  "itembank shelf <action> .")
+SHELF_NOSCRIPT = ("The walkthrough and sample-course controls need scripting. "
+                  "Their offline CLI twin is itembank shelf <action> .")
+
+SHELF_SCRIPT = """<script>
+(function () {
+  var status = document.querySelector("[data-shelf-status]");
+  document.querySelectorAll("form[data-shelf-form]").forEach(function (form) {
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var button = event.submitter || form.querySelector("button[name=action]");
+      if (!button) { return; }
+      if (status) { status.textContent = "Working..."; }
+      fetch("/api/shelf", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({action: button.value})
+      }).then(function (response) {
+        if (!response.ok) { throw new Error("That action was refused."); }
+        window.location.href = "/";
+      }).catch(function (error) {
+        if (status) { status.textContent = error.message; }
+      });
+    });
+  });
+})();
+</script>"""
 
 
 def _walkthrough_offer(walkthrough):
@@ -2067,8 +2106,20 @@ def _course_shelf_body(shelf, walkthrough=None, sample=None):
         banner = banner_markup(ia.degraded_banner_for(
             ["course_corrupted"], course_id=degraded[0]["course_id"]))
     offer = _walkthrough_offer(walkthrough) if walkthrough else ""
-    return ('%s%s<div class="course-shelf">%s</div>'
-            % (banner, offer, "".join(cards)))
+    if cards:
+        content = '<div class="course-shelf">%s</div>' % "".join(cards)
+    else:
+        content = ('<section class="empty shelf-empty">'
+                   '<h2>%s</h2><p>%s</p>'
+                   '<form class="actions" method="post" action="/api/shelf" '
+                   'data-shelf-form><button class="go primary" name="action" '
+                   'value="add_sample_course">Add the sample course</button>'
+                   '</form></section>'
+                   % (presentation.esc(shelf["empty_heading"]),
+                      presentation.esc(shelf["empty_body"])))
+    return ('%s%s%s%s<p class="status" data-shelf-status role="status" '
+            'aria-live="polite"></p>'
+            % (_app_nav("courses"), banner, offer, content))
 
 
 def handle_index(handler):
@@ -2120,7 +2171,8 @@ def handle_index(handler):
             _course_shelf_body(shelf, ia.walkthrough_state(handler.root),
                                sample),
             theme_css=theme_block,
-            noscript=SHELF_NOSCRIPT, palette=True).encode("utf-8"))
+            noscript=SHELF_NOSCRIPT, tail=SHELF_SCRIPT,
+            palette=True).encode("utf-8"))
         return
     if not banks and not plans:
         served_dir = html.escape(os.path.abspath(handler.root))
