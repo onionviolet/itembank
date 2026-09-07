@@ -1537,6 +1537,66 @@ def build_parser():
     cov.add_argument("--statement", required=True,
                      help="the local revision's statement")
 
+    for name, blurb in (("accept-migration", "accept a proposed migration"),
+                        ("reject-migration", "reject a proposed migration")):
+        mp = structural(name, blurb)
+        mp.add_argument("--migration-id", required=True)
+        mp.add_argument("--rationale", required=True)
+
+    def blueprint_cmd(name, blurb):
+        bp = ct.add_parser(name, help=blurb)
+        bp.add_argument("course_id", help="the course id")
+        bp.add_argument("--root", default=".")
+        bp.add_argument("--actor", default="")
+        bp.add_argument("--json", action="store_true")
+        bp.set_defaults(fn=course_ops.cmd_course)
+        return bp
+    bb = blueprint_cmd("bind-blueprint", "record an accepted blueprint")
+    bb.add_argument("--blueprint", required=True, type=json.loads)
+    bb.add_argument("--expect", default="", dest="expected_fingerprint")
+    bg = blueprint_cmd("blueprint-gate", "check questions against a blueprint")
+    bg.add_argument("--questions", required=True, type=json.loads)
+    bg.add_argument("--blueprint", type=json.loads, default=None)
+    bg.add_argument("--item-facts", type=json.loads, default=None, dest="item_facts")
+    au = blueprint_cmd("audit", "aggregate course audit signals")
+    for field in ("treatment_rows", "coverage_rows", "quality_findings", "blueprint_findings"):
+        au.add_argument("--" + field.replace("_", "-"), type=json.loads, default=None, dest=field)
+    au.add_argument("--vocabulary-members", type=json.loads, default=None, dest="vocabulary_members")
+    au.add_argument("--tool-version", default="", dest="tool_version")
+    st = blueprint_cmd("staleness", "report stale dependents")
+    st.add_argument("--dependents", required=True, type=json.loads)
+
+    pe = ct.add_parser("export-package", help="export one course to a local "
+                       "plain-directory package below _packages")
+    pe.add_argument("course_id", help="the course id")
+    pe.add_argument("--root", default=".",
+                    help="the workspace holding the course and _packages")
+    pe.add_argument("--expect", default="", dest="expected_fingerprint",
+                    help="the course fingerprint expected before export")
+    pe.add_argument("--actor", default="",
+                    help="who requested the local export")
+    pe.add_argument("--json", action="store_true",
+                    help="emit the complete package result as JSON")
+    pe.set_defaults(fn=course_ops.cmd_course)
+
+    for name, blurb in (
+            ("verify-package", "verify every payload fingerprint without "
+                               "writing"),
+            ("restore-package", "restore into a fresh course directory "
+                                "through fixed staging"),
+            ("package-losses", "read the structured and plain-text package "
+                               "loss report")):
+        pp = ct.add_parser(name, help=blurb)
+        pp.add_argument("package_id", help="the opaque package id")
+        pp.add_argument("--root", default=".",
+                        help="the workspace holding _packages")
+        if name == "restore-package":
+            pp.add_argument("--actor", default="",
+                            help="who requested the local restore")
+        pp.add_argument("--json", action="store_true",
+                        help="emit the complete package result as JSON")
+        pp.set_defaults(fn=course_ops.cmd_course)
+
     # The director family (19A-05). One helper, because these six share the
     # course id and root every course command takes and differ only in what
     # they declare; `--expect` is deliberately absent, since none of them is

@@ -27,14 +27,29 @@
     {"$ref": "#/$defs/rename_objective"},
     {"$ref": "#/$defs/split_objective"},
     {"$ref": "#/$defs/merge_objectives"},
-    {"$ref": "#/$defs/overlay_objective"}
+    {"$ref": "#/$defs/overlay_objective"},
+    {"$ref": "#/$defs/accept_migration"},
+    {"$ref": "#/$defs/reject_migration"},
+    {"$ref": "#/$defs/bind_blueprint"},
+    {"$ref": "#/$defs/blueprint_gate"},
+    {"$ref": "#/$defs/audit"},
+    {"$ref": "#/$defs/staleness"},
+    {"$ref": "#/$defs/export_package"},
+    {"$ref": "#/$defs/verify_package"},
+    {"$ref": "#/$defs/restore_package"},
+    {"$ref": "#/$defs/package_losses"}
   ],
   "$defs": {
     "course_id": {
       "type": "string",
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+      "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9_.-]{1,64}$",
       "description": "The course's opaque identity, as the shelf and the /course/<course_id> route already spell it: either the pinned course_object_id or, for a course being created, the directory name it is minted under. The pattern is the route's own, so no request can carry a path separator, a parent reference, or a name a URL could not hold."
+    },
+    "package_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}$",
+      "description": "The package's opaque 16-character lowercase hexadecimal identity. The runtime resolves it only below _packages in the approved workspace root. A request never supplies a package path, destination, archive, or manifest."
     },
     "title": {
       "type": "string",
@@ -593,6 +608,122 @@
         "expected_fingerprint": {"$ref": "#/$defs/expected_fingerprint"},
         "actor": {"$ref": "#/$defs/actor"}
       }
+    },
+    "accept_migration": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operation", "course_id", "migration_id", "rationale"],
+      "properties": {
+        "operation": {"const": "accept_migration"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "migration_id": {"type": "string", "minLength": 1},
+        "rationale": {"$ref": "#/$defs/rationale"},
+        "expected_fingerprint": {"$ref": "#/$defs/expected_fingerprint"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "reject_migration": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operation", "course_id", "migration_id", "rationale"],
+      "properties": {
+        "operation": {"const": "reject_migration"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "migration_id": {"type": "string", "minLength": 1},
+        "rationale": {"$ref": "#/$defs/rationale"},
+        "expected_fingerprint": {"$ref": "#/$defs/expected_fingerprint"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "bind_blueprint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "blueprint"],
+      "properties": {
+        "operation": {"const": "bind_blueprint"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "blueprint": {"type": "object"},
+        "expected_fingerprint": {"$ref": "#/$defs/expected_fingerprint"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "blueprint_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "questions"],
+      "properties": {
+        "operation": {"const": "blueprint_gate"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "questions": {"type": "array"},
+        "blueprint": {"type": ["object", "null"]},
+        "item_facts": {"type": "object"}
+      }
+    },
+    "audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id"],
+      "properties": {
+        "operation": {"const": "audit"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "treatment_rows": {"type": "array"},
+        "coverage_rows": {"type": "array"},
+        "quality_findings": {"type": "array"},
+        "blueprint_findings": {"type": "array"},
+        "vocabulary_members": {"type": "object"},
+        "tool_version": {"type": "string"}
+      }
+    },
+    "staleness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "dependents"],
+      "properties": {
+        "operation": {"const": "staleness"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "dependents": {"type": "array"}
+      }
+    },
+    "export_package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id"],
+      "description": "Export one course to a local plain-directory package. The package id is minted by the runtime, staging and final paths are fixed below _packages, remote egress is none, and the request cannot select a destination, archive, rights record, actor kind, or manifest.",
+      "properties": {
+        "operation": {"const": "export_package"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "expected_fingerprint": {"$ref": "#/$defs/expected_fingerprint"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "verify_package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "package_id"],
+      "description": "Recompute every payload fingerprint in one local plain-directory package. This is read-only and accepts an opaque package id, never a path.",
+      "properties": {
+        "operation": {"const": "verify_package"},
+        "package_id": {"$ref": "#/$defs/package_id"}
+      }
+    },
+    "restore_package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "package_id"],
+      "description": "Restore one verified local plain-directory package through fixed staging and publish it atomically as a fresh course directory named by course_object_id. Existing paths and duplicate course identities are refused.",
+      "properties": {
+        "operation": {"const": "restore_package"},
+        "package_id": {"$ref": "#/$defs/package_id"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "package_losses": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "package_id"],
+      "description": "Read the exact structured and plain-text loss report from one local package, alongside current completeness and restorable truth. This writes nothing.",
+      "properties": {
+        "operation": {"const": "package_losses"},
+        "package_id": {"$ref": "#/$defs/package_id"}
+      }
     }
-  }
+    }
 }

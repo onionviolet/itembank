@@ -93,9 +93,9 @@ NOT_A_CAPABILITY = {
 # the only place in this file that argues.
 CELLS = {
     ("course", "inspect"): {
-        "cli": ["shelf", "course show"],
+        "cli": ["shelf", "course show", "course blueprint-gate", "course audit", "course staleness"],
         "http": ["GET /", "GET /course/<course_id>", "GET /course/<course_id>/<area>",
-                 "GET /course/<course_id>/learn/<lesson_id>", "POST /api/shelf"],
+                 "GET /course/<course_id>/learn/<lesson_id>", "POST /api/shelf", "POST /api/course/blueprint-gate", "POST /api/course/audit", "POST /api/course/staleness"],
     },
     ("course", "create"): {
         "cli": ["course create"], "http": ["POST /api/course/create"],
@@ -106,9 +106,10 @@ CELLS = {
                 "anything is read.",
     },
     ("course", "change"): {
-        "cli": ["course rename", "course add-container"],
+        "cli": ["course rename", "course add-container", "course bind-blueprint", "course accept-migration", "course reject-migration"],
         "http": ["POST /api/course/rename",
-                 "POST /api/course/add-container"],
+                 "POST /api/course/add-container", "POST /api/course/bind-blueprint",
+                 "POST /api/course/accept-migration", "POST /api/course/reject-migration"],
         "note": "Renaming and adding a structural container are both "
                 "reached. A container adds zero edges, because where a unit "
                 "sits in the outline is structure and not a prerequisite "
@@ -123,8 +124,7 @@ CELLS = {
     },
     ("course", "undo"): {
         "cli": ["audit undo"], "http": [],
-        "note": "Only an authoring audit is reversible. A course-level "
-                "operation has journal.undo in Python and no surface.",
+        "note": "Only an authoring audit is reversible. Course migration settlement is a change operation.",
     },
     ("scope", "inspect"): {
         "cli": [], "http": [],
@@ -312,20 +312,40 @@ CELLS = {
                 "columns each. No surface lists them or offers a choice.",
     },
     ("agent operation", "inspect"): {
-        "cli": [], "http": ["GET /activity"],
+        "cli": ["course replay"],
+        "http": ["GET /activity", "POST /api/course/replay"],
         "note": "The Activity view renders durable jobs from the journal. "
-                "surfaces/agent_operation.py implements run, propose and "
-                "accept, and no route reaches it: the Build and review area "
-                "is a GET with nothing in it.",
+                "Plan 19A-05 added replay on both operating surfaces, "
+                "including the next resumable protocol step and egress.",
     },
     ("agent operation", "create"): {
-        "cli": [], "http": [],
-        "note": "No surface starts an agent operation. The whole "
-                "propose-and-accept seam is unplugged.",
+        "cli": ["course begin-operation"],
+        "http": ["POST /api/course/begin-operation"],
+        "note": "Plan 19A-05 declares intent, role, autonomy and scope "
+                "before work starts, through one journal-backed operation.",
     },
     ("agent operation", "change"): {
-        "cli": [], "http": [],
-        "note": "No surface accepts or rejects a proposal.",
+        "cli": ["course recommend", "course recommend-pass",
+                "course apply-recommendation"],
+        "http": ["POST /api/course/recommend",
+                 "POST /api/course/recommend-pass",
+                 "POST /api/course/apply-recommendation"],
+        "note": "Plan 19A-05 exposes single and pass recommendation, then "
+                "keeps acceptance separate and rights-gated. Acceptance's "
+                "CAS journal row also carries its operation identity.",
+    },
+    ("agent operation", "explain"): {
+        "cli": ["course autonomy"],
+        "http": ["POST /api/course/autonomy"],
+        "note": "Plan 19A-05 reads the granted policy from settings and "
+                "dry-runs a declaration without letting a request grant "
+                "itself authority.",
+    },
+    ("agent operation", "undo"): {
+        "cli": ["course reverse-operation"],
+        "http": ["POST /api/course/reverse-operation"],
+        "note": "Plan 19A-05 reverses the operation's accepted writes "
+                "through journal.undo and their recorded before-images.",
     },
     ("rights grant", "inspect"): {
         "cli": ["bind list"], "http": ["GET /course/<course_id>/<area>"],
@@ -386,10 +406,31 @@ CELLS = {
         "note": "Same gap as the evidence event it retracts.",
     },
     ("package", "create"): {
-        "cli": ["export"], "http": ["POST /api/export_audio"],
-        "note": "`export` writes Anki TSV and audio. course_package's "
-                "export, verify and restore have no surface, so the one "
-                "path that makes a course portable is Python-only.",
+        "cli": ["export", "course export-package"],
+        "http": ["POST /api/export_audio",
+                 "POST /api/course/export-package"],
+        "note": "`course export-package` writes one local plain-directory "
+                "package through fixed staging and publishes it below the "
+                "approved root's _packages directory.",
+    },
+    ("package", "inspect"): {
+        "cli": ["course verify-package", "course package-losses"],
+        "http": ["POST /api/course/verify-package",
+                 "POST /api/course/package-losses"],
+        "note": "Both reads expose the exact loss report and current "
+                "completeness and restorable truth.",
+    },
+    ("package", "change"): {
+        "cli": ["course restore-package"],
+        "http": ["POST /api/course/restore-package"],
+        "note": "Restore consumes a package without changing it, stages a "
+                "fresh course, and publishes under course identity.",
+    },
+    ("package", "explain"): {
+        "cli": ["course package-losses"],
+        "http": ["POST /api/course/package-losses"],
+        "note": "The loss surface explains every object or capability that "
+                "did not travel and why.",
     },
     ("settings", "inspect"): {
         "cli": ["config", "theme looks"], "http": ["GET /settings"],
@@ -498,22 +539,9 @@ GAP_NOTES = {
                              "including accommodation and evidence effect; "
                              "none is rendered.",
     ("strategy", "undo"): "Nothing to undo while nothing can be chosen.",
-    ("agent operation", "explain"): "The journal records exactly what left "
-                                    "the machine for each agent call. No "
-                                    "surface shows it.",
-    ("agent operation", "undo"): "Rejecting or reversing an agent operation "
-                                 "has no surface.",
-
-
     ("sitting", "explain"): "A finished sitting reports counts. Nothing "
                             "walks it back item by item with what was shown "
                             "and when.",
-    ("package", "inspect"): "A package's manifest and loss report are "
-                            "written to disk and read by nobody: the loss "
-                            "report is the honest half of an export and it "
-                            "has no reader.",
-    ("package", "change"): "No surface re-exports or repairs a package.",
-    ("package", "explain"): "Nothing explains why an object did not cross.",
     ("package", "undo"): "No surface deletes or supersedes a package.",
     ("day plan", "explain"): "The plan says what is due and not why this "
                              "rather than that.",

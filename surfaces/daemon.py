@@ -350,6 +350,16 @@ API_ROUTES = (
     ("POST", "/api/course/split-objective", "handle_api_course_split_objective"),
     ("POST", "/api/course/merge-objectives", "handle_api_course_merge_objectives"),
     ("POST", "/api/course/overlay-objective", "handle_api_course_overlay_objective"),
+    ("POST", "/api/course/accept-migration", "handle_api_course_accept_migration"),
+    ("POST", "/api/course/reject-migration", "handle_api_course_reject_migration"),
+    ("POST", "/api/course/bind-blueprint", "handle_api_course_bind_blueprint"),
+    ("POST", "/api/course/blueprint-gate", "handle_api_course_blueprint_gate"),
+    ("POST", "/api/course/audit", "handle_api_course_audit"),
+    ("POST", "/api/course/staleness", "handle_api_course_staleness"),
+    ("POST", "/api/course/export-package", "handle_api_course_export_package"),
+    ("POST", "/api/course/verify-package", "handle_api_course_verify_package"),
+    ("POST", "/api/course/restore-package", "handle_api_course_restore_package"),
+    ("POST", "/api/course/package-losses", "handle_api_course_package_losses"),
     ("POST", "/api/export_audio", "handle_api_export_audio"),
     ("POST", "/api/lesson/run", "handle_api_lesson_run"),
     ("POST", "/api/source/import", "handle_api_source_import"),
@@ -468,6 +478,16 @@ ROUTE_CLI = {
     ("POST", "/api/course/split-objective"): "course",
     ("POST", "/api/course/merge-objectives"): "course",
     ("POST", "/api/course/overlay-objective"): "course",
+    ("POST", "/api/course/accept-migration"): "course",
+    ("POST", "/api/course/reject-migration"): "course",
+    ("POST", "/api/course/bind-blueprint"): "course",
+    ("POST", "/api/course/blueprint-gate"): "course",
+    ("POST", "/api/course/audit"): "course",
+    ("POST", "/api/course/staleness"): "course",
+    ("POST", "/api/course/export-package"): "course",
+    ("POST", "/api/course/verify-package"): "course",
+    ("POST", "/api/course/restore-package"): "course",
+    ("POST", "/api/course/package-losses"): "course",
     # The two deprecated aliases. Same twin as the canonical route, because
     # they are the same call.
     ("POST", "/api/bind"): "bind",
@@ -548,6 +568,16 @@ SURFACE_PARITY = (
     (("POST", "/api/course/split-objective"), "course", "course_split_objective"),
     (("POST", "/api/course/merge-objectives"), "course", "course_merge_objectives"),
     (("POST", "/api/course/overlay-objective"), "course", "course_overlay_objective"),
+    (("POST", "/api/course/accept-migration"), "course", "course_accept_migration"),
+    (("POST", "/api/course/reject-migration"), "course", "course_reject_migration"),
+    (("POST", "/api/course/bind-blueprint"), "course", "course_bind_blueprint"),
+    (("POST", "/api/course/blueprint-gate"), "course", "course_blueprint_gate"),
+    (("POST", "/api/course/audit"), "course", "course_audit"),
+    (("POST", "/api/course/staleness"), "course", "course_staleness"),
+    (("POST", "/api/course/export-package"), "course", "course_export_package"),
+    (("POST", "/api/course/verify-package"), "course", "course_verify_package"),
+    (("POST", "/api/course/restore-package"), "course", "course_restore_package"),
+    (("POST", "/api/course/package-losses"), "course", "course_package_losses"),
 )
 
 
@@ -1956,8 +1986,10 @@ def _walkthrough_offer(walkthrough):
             '<section class="walkthrough-offer" data-walkthrough-offer>'
             "<p>%s</p>"
             '<form method="post" action="/api/shelf" data-shelf-form>'
-            '<button name="action" value="advance_walkthrough">%s</button>'
-            '<button name="action" value="skip_walkthrough">%s</button>'
+            '<button class="go" name="action" '
+            'value="advance_walkthrough">%s</button>'
+            '<button class="go ghost" name="action" '
+            'value="skip_walkthrough">%s</button>'
             "</form></section>"
             % (presentation.esc(walkthrough["offer_copy"]),
                presentation.esc(walkthrough["start_copy"]),
@@ -1974,7 +2006,8 @@ def _walkthrough_offer(walkthrough):
     parts.append(
         '<form method="post" action="/api/shelf" data-shelf-form '
         'class="walkthrough-replay">'
-        '<button name="action" value="replay_walkthrough">%s</button>'
+        '<button class="go ghost" name="action" '
+        'value="replay_walkthrough">%s</button>'
         "</form>" % presentation.esc(walkthrough["replay_copy"]))
     return "".join(parts)
 
@@ -4764,7 +4797,8 @@ def handle_api_mark(handler):
 
 COURSE_OPERATION_ACTOR_FIELDS = ("actor_kind", "reviewer_kind", "rights",
                                 "rights_snapshot", "right", "fingerprint",
-                                "base", "path", "root",
+                                "base", "path", "root", "dest",
+                                "destination", "archive", "manifest",
                                 # 19A-05: the agent policy is read from
                                 # settings on disk at the moment of the call
                                 # and is never sent. An agent that could
@@ -5145,6 +5179,33 @@ def handle_api_course_overlay_objective(handler):
     revision is joined to it by an `overlays` reference and a migration.
     """
     _course_operation(handler, "overlay_objective")
+
+def handle_api_course_accept_migration(handler):
+    _course_operation(handler, "accept_migration")
+
+def handle_api_course_reject_migration(handler):
+    _course_operation(handler, "reject_migration")
+
+def handle_api_course_bind_blueprint(handler):
+    _course_operation(handler, "bind_blueprint")
+def handle_api_course_blueprint_gate(handler):
+    _course_operation(handler, "blueprint_gate")
+def handle_api_course_audit(handler):
+    _course_operation(handler, "audit")
+def handle_api_course_staleness(handler):
+    _course_operation(handler, "staleness")
+
+def handle_api_course_export_package(handler):
+    _course_operation(handler, "export_package")
+
+def handle_api_course_verify_package(handler):
+    _course_operation(handler, "verify_package")
+
+def handle_api_course_restore_package(handler):
+    _course_operation(handler, "restore_package")
+
+def handle_api_course_package_losses(handler):
+    _course_operation(handler, "package_losses")
 
 
 def handle_api_bind(handler):

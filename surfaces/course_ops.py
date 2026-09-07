@@ -73,12 +73,14 @@ import os
 import sys
 
 import course as course_module
+import course_package
 import director
 import graph
 import identity
 import journal
 import resources
 import schema_validate
+import blueprint
 from surfaces import binding_cli
 from surfaces import ia
 from surfaces import settings as settings_module
@@ -118,13 +120,24 @@ OPERATION_ENGINE = {
     "split_objective": "graph.split_objective",
     "merge_objectives": "graph.merge_objectives",
     "overlay_objective": "graph.overlay_objective",
+    "accept_migration": "graph.accept_migration",
+    "reject_migration": "graph.reject_migration",
+    "bind_blueprint": "course.bind_blueprint",
+    "blueprint_gate": "blueprint.blueprint_gate",
+    "audit": "blueprint.course_audit",
+    "staleness": "blueprint.staleness_report",
+    "export_package": "course_package.export_package",
+    "verify_package": "course_package.verify_manifest",
+    "restore_package": "course_package.restore_package",
+    "package_losses": "course_package.loss_report_text",
 }
 
 # The operations that only read. They reach no writer, advance no revision,
 # and are the only ones a surface may serve behind the read-side gate; every
 # other name in OPERATION_ENGINE writes.
 READ_OPERATIONS = ("bindings", "structure", "treatments", "autonomy",
-                   "replay")
+                   "replay", "blueprint_gate", "audit", "staleness",
+                   "verify_package", "package_losses")
 
 # The operations whose journal origin is an AGENT rather than the human at the
 # surface, because a model produced what they record. Everything absent from
@@ -246,6 +259,14 @@ def _op_create(root, body, actor_kind, actor_name, base=None):
     """
     course_id = body["course_id"]
     base = base or os.path.join(os.path.abspath(root), course_id)
+    approved = os.path.realpath(root)
+    resolved = os.path.realpath(base)
+    if course_id in (".", "..") or resolved == approved or \
+            os.path.commonpath([approved, resolved]) != approved:
+        raise course_module.CourseError(
+            "course.path_outside_root",
+            "the course directory must resolve strictly below the approved "
+            "workspace root. Next safe action: choose a local course id.")
     created = not os.path.isdir(base)
     if created:
         os.makedirs(base)
@@ -1149,6 +1170,228 @@ def _op_bindings(root, body, actor_kind, actor_name, base=None):
     return payload
 
 
+def _op_bind_blueprint(root, body, actor_kind, actor_name, base=None):
+    base = base or resolve_course(root, body["course_id"])
+    revision = course_module.bind_blueprint(
+        base, body["blueprint"], actor_kind, actor_name,
+        body.get("expected_fingerprint"))
+    read = course_module.read_course(base)
+    return {"operation": "bind_blueprint", "engine": OPERATION_ENGINE["bind_blueprint"],
+            "course_id": body["course_id"], "course_object_id": read["object_id"],
+            "blueprint": body["blueprint"], "fingerprint": read["fingerprint"],
+            "revision": revision.get("revision"),
+            "undo": "restore the previous course sidecar revision"}
+
+
+def _op_blueprint_gate(root, body, actor_kind, actor_name, base=None):
+    return {"operation": "blueprint_gate", "engine": OPERATION_ENGINE["blueprint_gate"],
+            "course_id": body["course_id"],
+            "findings": blueprint.blueprint_gate(body.get("questions") or [],
+                                                   body.get("blueprint"),
+                                                   body.get("item_facts") or {})}
+
+
+def _op_audit(root, body, actor_kind, actor_name, base=None):
+    base = base or resolve_course(root, body["course_id"])
+    read = course_module.read_course(base)
+    args = {key: body.get(key) for key in (
+        "treatment_rows", "coverage_rows", "quality_findings",
+        "blueprint_findings", "vocabulary_members")}
+    return dict(blueprint.course_audit(read["object_id"],
+        course_fingerprint=read["fingerprint"], tool_version=body.get("tool_version") or "",
+        **args), operation="audit", engine=OPERATION_ENGINE["audit"], course_id=body["course_id"])
+
+
+def _op_staleness(root, body, actor_kind, actor_name, base=None):
+    return {"operation": "staleness", "engine": OPERATION_ENGINE["staleness"],
+            "course_id": body["course_id"],
+            "rows": blueprint.staleness_report(body.get("dependents") or [])}
+
+
+def _relative_package_path(root, package_root):
+    return os.path.relpath(package_root, os.path.realpath(root)).replace(
+        os.sep, "/")
+
+
+def _package_result(operation, root, package_root, manifest, verification):
+    complete = bool(verification.get("complete"))
+    restorable = manifest.get("state") == "applied" and complete
+    return {
+        "operation": operation,
+        "engine": OPERATION_ENGINE[operation],
+        "package_id": manifest["package_id"],
+        "course_object_id": manifest["course_object_id"],
+        "package_path": _relative_package_path(root, package_root),
+        "state": manifest["state"],
+        "entries_in_manifest": len(manifest["entries"]),
+        "entries_verified": verification.get("entries_verified", 0),
+        "mismatches": list(verification.get("mismatches") or ()),
+        "missing": list(verification.get("missing") or ()),
+        "losses": list(manifest["loss_report"]),
+        "loss_report_text": course_package.loss_report_text(manifest),
+        "rights_basis": "the course sidecar is course-owned; every other "
+                        "carried object had package exactly granted at "
+                        "export time",
+        "remote_egress": "none",
+        "complete": complete,
+        "restorable": restorable,
+        "undo": "remove this package directory only after confirming no "
+                "restore still depends on it",
+    }
+
+
+def _op_export_package(root, body, actor_kind, actor_name, base=None):
+    """Hold the source snapshot through protected, no-replace publication."""
+    base = base or resolve_course(root, body["course_id"])
+    with course_package.export_guard(base, base):
+        snapshot = course_package.capture_export(
+            base, base, expected_fingerprint=body.get("expected_fingerprint"))
+        # A separate workspace journal lock serializes identity publication.
+        # The source lock is already held if the course is the workspace root.
+        if os.path.realpath(base) == os.path.realpath(root):
+            return _publish_export(root, body, base, snapshot)
+        with journal._journal_lock(root):
+            return _publish_export(root, body, base, snapshot)
+
+
+def _publish_export(root, body, base, snapshot):
+    manifest = snapshot["manifest"]
+    package_id = manifest["package_id"]
+    package_root = course_package.workspace_package_path(root, package_id)
+    staging = course_package.workspace_package_path(root, package_id,
+                                                     "staging")
+    if os.path.lexists(package_root) or os.path.lexists(staging):
+        raise course_package.PackageError(
+            "package.export_collision",
+            "package %s already has a final or staged directory; no existing "
+            "package was overwritten" % package_id)
+    course_package.ensure_package_namespace(root)
+    with course_package.private_stage(root) as staging:
+        manifest = course_package.export_package(base, base, staging, _snapshot=snapshot)
+        verification = course_package.verify_manifest(staging)
+        if not verification["complete"]:
+            raise course_package.PackageError(
+                "package.export_incomplete", "the staged package did not verify completely")
+        course_package.recheck_export(base, base, snapshot)
+        course_package.publish_directory(root, staging, package_root)
+    result = _package_result("export_package", root, package_root, manifest,
+                             verification)
+    result["course_id"] = body["course_id"]
+    result["undo"] = ("remove %s only after confirming no restore still "
+                      "depends on it" % result["package_path"])
+    return result
+
+
+def _package_read(root, body, operation):
+    package_id = body["package_id"]
+    package_root = course_package.workspace_package_path(root, package_id)
+    snapshot = course_package.package_snapshot(
+        package_root, expected_package_id=package_id, workspace_root=root)
+    manifest = snapshot["manifest"]
+    verification = snapshot["verification"]
+    return _package_result(operation, root, package_root, manifest,
+                           verification)
+
+
+def _op_verify_package(root, body, actor_kind, actor_name, base=None):
+    result = _package_read(root, body, "verify_package")
+    result["undo"] = "verification is read-only; there is nothing to undo"
+    return result
+
+
+def _op_package_losses(root, body, actor_kind, actor_name, base=None):
+    result = _package_read(root, body, "package_losses")
+    result["undo"] = "reading a loss report changes nothing"
+    return result
+
+
+def _existing_course_identity(root, course_object_id):
+    return ia.course_dir_for(root, course_object_id, module=course_module)
+
+
+def _op_restore_package(root, body, actor_kind, actor_name, base=None):
+    """Restore into a fresh stage, then publish under course identity."""
+    package_root = course_package.workspace_package_path(root, body["package_id"])
+    snapshot = course_package.package_snapshot(
+        package_root, expected_package_id=body["package_id"], workspace_root=root)
+    if snapshot["manifest"]["state"] != "applied":
+        raise course_package.PackageError("package.not_applied", "the package is not applied")
+    if not snapshot["verification"]["complete"]:
+        raise course_package.PackageError("package.restore_incomplete",
+                                          "the package did not verify completely and was not published")
+    with journal._journal_lock(root):
+        return _restore_and_publish(root, body, actor_kind, actor_name, snapshot)
+
+
+def _restore_and_publish(root, body, actor_kind, actor_name, snapshot):
+    package_id = body["package_id"]
+    package_root = course_package.workspace_package_path(root, package_id)
+    manifest = snapshot["manifest"]
+    if manifest["state"] != "applied":
+        raise course_package.PackageError(
+            "package.not_applied",
+            "this package's manifest state is %s, not applied; it must not "
+            "be restored" % manifest["state"])
+    course_object_id = manifest["course_object_id"]
+    destination = os.path.join(os.path.realpath(root), course_object_id)
+    if os.path.lexists(destination):
+        raise course_package.PackageError(
+            "package.destination_exists",
+            "restore destination %s already exists; restore requires a fresh "
+            "course directory" % course_object_id)
+    duplicate = _existing_course_identity(root, course_object_id)
+    if duplicate is not None:
+        raise course_package.PackageError(
+            "package.duplicate_course",
+            "course identity %s already exists at %s; a restore never creates "
+            "a second copy of one identity"
+            % (course_object_id, os.path.basename(duplicate)))
+
+    digest = course_package._digest(snapshot["manifest_raw"]).split(":", 1)[1]
+    restore_leaf = package_id + "-" + digest
+    restore_base = course_package.workspace_package_path(root, package_id,
+                                                          "restore")
+    staging = restore_base + "-" + digest
+    if os.path.lexists(staging):
+        raise course_package.PackageError(
+            "package.restore_collision",
+            "restore staging directory %s already exists; no staged work was "
+            "overwritten" % restore_leaf)
+
+    if not snapshot["verification"]["complete"]:
+        raise course_package.PackageError("package.restore_incomplete",
+                                          "the package did not verify completely and was not published")
+    with course_package.private_stage(root) as staging:
+        restored = course_package.restore_package(package_root, staging,
+            actor_kind, actor_name, _snapshot=snapshot)
+        restored_course = course_module.read_course(staging)
+        if restored_course["object_id"] != course_object_id or not restored["complete"]:
+            raise course_package.PackageError(
+                "package.restore_incomplete", "the staged restore did not produce the declared course")
+        if os.path.lexists(destination) or _existing_course_identity(root, course_object_id) is not None:
+            raise course_package.PackageError(
+                "package.duplicate_course", "the course identity appeared while restore was staged")
+        course_package.publish_directory(root, staging, destination)
+
+    verification = snapshot["verification"]
+    result = _package_result("restore_package", root, package_root, manifest,
+                             verification)
+    result.update({
+        "course_path": course_object_id,
+        "entries_restored": restored["entries_verified"],
+        "restore_losses": list(restored["restore_losses"]),
+        "evidence_recorded": restored["evidence_recorded"],
+        "evidence_already_recorded": restored["evidence_already_recorded"],
+        "complete": bool(restored["complete"] and verification["complete"]),
+        "restorable": bool(restored["complete"] and verification["complete"]
+                            and manifest["state"] == "applied"),
+        "undo": "move the restored course directory %s to trash if no later "
+                "work depends on it; the package remains unchanged"
+                % course_object_id,
+    })
+    return result
+
+
 def _binding_sentence(row, effective, right, snapshot, now):
     """One sentence saying what this binding claims and whether it still
     stands, in the order a person asks it: what is claimed, how sure, on
@@ -1538,6 +1781,28 @@ def _op_overlay_objective(root, body, actor_kind, actor_name, base=None):
                             })
 
 
+def _op_settle_migration(root, body, actor_kind, actor_name, base=None):
+    """Settle a proposed migration without changing either identity or evidence."""
+    read = course_module.read_course(resolve_course(base or root, body["course_id"]))
+    fn = (course_module.accept_migration if body["operation"] == "accept_migration"
+          else course_module.reject_migration)
+    revision = fn(resolve_course(base or root, body["course_id"]),
+                  body["migration_id"], actor_kind, actor_name,
+                  body["rationale"], body.get("expected_fingerprint"))
+    return {
+        "operation": body["operation"],
+        "engine": OPERATION_ENGINE[body["operation"]],
+        "course_id": body["course_id"],
+        "course_object_id": read["object_id"],
+        "migration_id": body["migration_id"],
+        "migration_state": "accepted" if body["operation"] == "accept_migration" else "rejected",
+        "fingerprint": revision.get("fingerprint"),
+        "revision": revision.get("revision"),
+        "settled": True,
+        "undo": "the settlement is recorded; the proposal and all evidence remain in the sidecar"
+    }
+
+
 OPERATIONS = {
     "create": _op_create,
     "rename": _op_rename,
@@ -1562,6 +1827,16 @@ OPERATIONS = {
     "split_objective": _op_split_objective,
     "merge_objectives": _op_merge_objectives,
     "overlay_objective": _op_overlay_objective,
+    "accept_migration": _op_settle_migration,
+    "reject_migration": _op_settle_migration,
+    "bind_blueprint": _op_bind_blueprint,
+    "blueprint_gate": _op_blueprint_gate,
+    "audit": _op_audit,
+    "staleness": _op_staleness,
+    "export_package": _op_export_package,
+    "verify_package": _op_verify_package,
+    "restore_package": _op_restore_package,
+    "package_losses": _op_package_losses,
 }
 
 
@@ -1854,7 +2129,11 @@ def cmd_course(a):
         # and an underscore is what a JSON field is called.
         operation = a.action.replace("-", "_")
         node, _document = operation_schema(operation)
-        request = {"course_id": a.course_id}
+        request = {}
+        for identity_field in ("course_id", "package_id"):
+            value = getattr(a, identity_field, None)
+            if value:
+                request[identity_field] = value
         for name in node.get("properties") or ():
             if name in ("operation", "course_id"):
                 continue
@@ -1879,8 +2158,20 @@ def cmd_course(a):
         if operation in DIRECTOR_WRITES:
             _print_director(operation, payload)
             return 0
+        if operation in ("export_package", "verify_package",
+                         "restore_package", "package_losses"):
+            print("%s %s" % (operation.replace("_", " "),
+                             payload["package_id"]))
+            print("  package: %s" % payload["package_path"])
+            print("  complete: %s; restorable: %s; remote egress: %s"
+                  % (payload["complete"], payload["restorable"],
+                     payload["remote_egress"]))
+            print(payload["loss_report_text"].rstrip())
+            print("  undo: %s" % payload["undo"])
+            return 0
         _print_result(operation, payload)
         return 0
     except (course_module.CourseError, graph.GraphError,
-            journal.JournalError, director.DirectorError) as err:
+            journal.JournalError, director.DirectorError,
+            course_package.PackageError) as err:
         sys.exit("%s: %s" % (err.code, err.message))

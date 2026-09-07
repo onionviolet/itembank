@@ -69,15 +69,21 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "fixtures"))
 
 import course as course_module                              # noqa: E402
+import course_package                                       # noqa: E402
+import corpus_15b                                           # noqa: E402
+import director                                             # noqa: E402
 import graph                                                # noqa: E402
 import identity                                             # noqa: E402
 import journal                                              # noqa: E402
+import model                                                # noqa: E402
 from surfaces import course_ops, daemon                      # noqa: E402
 from daemon_roundtrip import start_daemon, json_request      # noqa: E402
 
@@ -179,6 +185,8 @@ def check_bad_requests_refuse_before_anything_is_read():
                 ({"course_id": "algebra"}, "a create with no title"),
                 ({"course_id": "algebra", "title": ""}, "an empty title"),
                 ({"course_id": "../etc", "title": "T"}, "a traversing id"),
+                ({"course_id": ".", "title": "T"}, "the workspace itself"),
+                ({"course_id": "..", "title": "T"}, "the workspace parent"),
                 ({"course_id": "algebra", "title": "T", "base": tmp},
                  "a filesystem path"),
                 ({"course_id": "algebra", "title": "T",
@@ -881,6 +889,272 @@ def check_the_deprecated_bind_mode_writes_the_same_row():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def _director_fixture(root, course_id):
+    course_ops.run(root, "create", {"course_id": course_id,
+                                    "title": "Director acceptance"})
+    base = os.path.join(root, course_id)
+    source_id = _linked_source(base, "director.md", "# Director source\n")
+    course_ops.run(root, "add_source",
+                   {"course_id": course_id, "source_object_id": source_id,
+                    "title": "Director source"}, actor_name="tester")
+    course_ops.run(root, "rights",
+                   {"course_id": course_id, "source": source_id,
+                    "grants": {"transform": "granted"}},
+                   actor_name="tester")
+    container = course_ops.run(
+        root, "add_container", {"course_id": course_id, "label": "module",
+                                "title": "Module 1"}, actor_name="tester")
+    objective = course_ops.run(
+        root, "add_objective",
+        {"course_id": course_id, "container": container["container_id"],
+         "statement": "Explain the director source."}, actor_name="tester")
+    objective_id = objective["objective_id"]
+    record = {
+        "schema_version": 1,
+        "objective_id": objective_id,
+        "treatment_kind": "guided-lesson",
+        "rationale": "A guided treatment makes the sequence explicit.",
+        "synthesis": True,
+        "confidence": "high",
+        "coverage": {"state": "thin", "locator": "director.md#top",
+                     "confidence": "high", "source_object_id": source_id,
+                     "match_kind": "locator"},
+        "alternatives": [],
+        "citations": [{"source_object_id": source_id,
+                       "locator": "director.md#top"}],
+    }
+    return base, source_id, objective_id, record
+
+
+def _assert_one_accepted_entry_and_restored(base, operation_id,
+                                             original_bytes, label):
+    matching = director.operation_entries(base, operation_id)
+    accepted = [entry for entry in matching
+                if (entry.get("agent") or {}).get("phase") == "accept"]
+    if len(accepted) != 1:
+        fail("%s acceptance produced %d operation journal entries, not one"
+             % (label, len(accepted)))
+        return
+    entry = accepted[0]
+    if entry.get("state") != "applied":
+        fail("%s acceptance entry is %r" % (label, entry.get("state")))
+    if (entry.get("undo") or {}).get("kind") != "restore_before_image":
+        fail("%s acceptance entry does not own its restore before-image"
+             % label)
+    if not entry.get("before_image"):
+        fail("%s acceptance entry names no before-image" % label)
+    restored = course_ops.run(
+        os.path.dirname(base), "reverse_operation",
+        {"course_id": os.path.basename(base), "operation_id": operation_id},
+        actor_name="tester")
+    if len(restored["reversed_entries"]) != 1:
+        fail("%s reversal restored %d entries, not one"
+             % (label, len(restored["reversed_entries"])))
+    with open(os.path.join(base, course_module.COURSE_SIDECAR_FILENAME),
+              "rb") as fh:
+        after = fh.read()
+    if after != original_bytes:
+        fail("%s reversal did not restore the sidecar's original bytes"
+             % label)
+    try:
+        course_module.read_course(base)
+    except Exception as err:
+        fail("%s reversal left an invalid course: %s" % (label, err))
+
+
+def check_director_family_reaches_route_and_cli_with_one_reversible_accept():
+    """19A-05: all seven doors, with accepted-write and undo evidence."""
+    route_root = tempfile.mkdtemp(prefix="course_ops_director_route_")
+    cli_root = tempfile.mkdtemp(prefix="course_ops_director_cli_")
+    proc = None
+    try:
+        base, source_id, objective_id, record = _director_fixture(
+            route_root, "route-course")
+        proc, url, _lines = start_daemon(route_root)
+
+        def post(name, body):
+            status, payload = json_request(url + "api/course/" + name, body)
+            if status != 200:
+                fail("POST /api/course/%s returned %r: %r"
+                     % (name, status, payload))
+                return {}
+            return payload
+
+        common = {"course_id": "route-course", "actor_role": "builder",
+                  "autonomy": "recommend-only"}
+        post("autonomy", {"course_id": "route-course",
+                          "declared_level": "recommend-only"})
+        declared = post("begin-operation", dict(
+            common, intent="accept one reviewed recommendation"))
+        operation_id = declared.get("operation_id")
+        post("replay", {"course_id": "route-course",
+                        "operation_id": operation_id})
+        post("recommend", dict(common, objective=objective_id))
+        post("recommend-pass", dict(common, objectives=[objective_id]))
+        before = open(os.path.join(base, course_module.COURSE_SIDECAR_FILENAME),
+                      "rb").read()
+        post("apply-recommendation",
+             {"course_id": "route-course", "source": source_id,
+              "record": record, "operation_id": operation_id})
+        _assert_one_accepted_entry_and_restored(
+            base, operation_id, before, "route")
+
+        base, source_id, objective_id, record = _director_fixture(
+            cli_root, "cli-course")
+
+        def run(*args):
+            completed = subprocess.run(
+                [sys.executable, os.path.join(ROOT, "itembank.py")] +
+                list(args), capture_output=True, text=True)
+            if completed.returncode != 0:
+                fail("itembank %s failed: %s"
+                     % (" ".join(args), completed.stderr.strip()))
+                return {}
+            return json.loads(completed.stdout)
+
+        root_args = ("--root", cli_root, "--json")
+        run("course", "autonomy", "cli-course", "--declare",
+            "recommend-only", *root_args)
+        declared = run("course", "begin-operation", "cli-course",
+                       "--intent", "accept one reviewed recommendation",
+                       "--role", "builder", "--autonomy", "recommend-only",
+                       *root_args)
+        operation_id = declared.get("operation_id")
+        run("course", "replay", "cli-course", "--operation", operation_id,
+            *root_args)
+        run("course", "recommend", "cli-course", "--objective", objective_id,
+            "--role", "builder", "--autonomy", "recommend-only", *root_args)
+        run("course", "recommend-pass", "cli-course", "--objective",
+            objective_id, "--role", "builder", "--autonomy",
+            "recommend-only", *root_args)
+        before = open(os.path.join(base, course_module.COURSE_SIDECAR_FILENAME),
+                      "rb").read()
+        run("course", "apply-recommendation", "cli-course", "--source",
+            source_id, "--record", json.dumps(record), "--operation",
+            operation_id, *root_args)
+        reversed_payload = run("course", "reverse-operation", "cli-course",
+                               "--operation", operation_id, *root_args)
+        accepted = [entry for entry in director.operation_entries(
+            base, operation_id)
+                    if (entry.get("agent") or {}).get("phase") == "accept"]
+        if len(accepted) != 1:
+            fail("CLI acceptance produced %d operation journal entries, not one"
+                 % len(accepted))
+        elif (accepted[0].get("undo") or {}).get("kind") != \
+                "restore_before_image":
+            fail("CLI acceptance entry does not own its restore before-image")
+        if len(reversed_payload.get("reversed_entries") or ()) != 1:
+            fail("CLI reversal did not report exactly one restored entry")
+        with open(os.path.join(base, course_module.COURSE_SIDECAR_FILENAME),
+                  "rb") as fh:
+            if fh.read() != before:
+                fail("CLI reversal did not restore the original bytes")
+        course_module.read_course(base)
+        print("ok   all seven director operations reach both route and CLI; "
+              "each accepted mutation is one operation entry whose one "
+              "before-image restores the original valid course bytes")
+    finally:
+        if proc is not None:
+            proc.terminate()
+            proc.wait(timeout=10)
+        shutil.rmtree(route_root, ignore_errors=True)
+        shutil.rmtree(cli_root, ignore_errors=True)
+
+
+def check_blueprint_operations_reach_route_and_cli_without_read_mutation():
+    """19A-06: bind advances the revision, the three reports do not."""
+    route_root = tempfile.mkdtemp(prefix="course_ops_blueprint_route_")
+    cli_root = tempfile.mkdtemp(prefix="course_ops_blueprint_cli_")
+    proc = None
+    blueprint_document = corpus_15b.build_blueprint()
+    questions = model.parse_bank(corpus_15b.build_draft_set())
+    item_facts = corpus_15b.build_item_facts(questions)
+    signals = corpus_15b.build_audit_signals()
+    dependents = [{"object_id": "bank-1", "object_kind": "bank",
+                   "dependency_object_id": "source-1",
+                   "dependency_kind": "source", "base_fingerprint": "a",
+                   "current_fingerprint": "b"}]
+    try:
+        course_ops.run(route_root, "create", {
+            "course_id": "route-blueprint", "title": "Route blueprint"})
+        route_base = os.path.join(route_root, "route-blueprint")
+        proc, url, _lines = start_daemon(route_root)
+
+        def route(operation, body):
+            status, payload = json_request(
+                url + "api/course/" + operation.replace("_", "-"), body)
+            if status != 200:
+                fail("POST /api/course/%s returned %r: %r"
+                     % (operation, status, payload))
+                return {}
+            return payload
+
+        def cli(operation, course_id, root, args):
+            completed = subprocess.run(
+                [sys.executable, os.path.join(ROOT, "itembank.py"), "course",
+                 operation.replace("_", "-"), course_id] + args +
+                ["--root", root, "--json"], capture_output=True, text=True)
+            if completed.returncode != 0:
+                fail("itembank course %s failed: %s"
+                     % (operation, completed.stderr.strip()))
+                return {}
+            return json.loads(completed.stdout)
+
+        def exercise(call, course_id, base, cli_style=False):
+            before = course_module.read_course(base)["fingerprint"]
+            if cli_style:
+                bound = call("bind_blueprint", course_id, os.path.dirname(base), [
+                    "--blueprint", json.dumps(blueprint_document),
+                    "--expect", before])
+            else:
+                bound = call("bind_blueprint", {
+                    "course_id": course_id, "blueprint": blueprint_document,
+                    "expected_fingerprint": before})
+            after_bind = course_module.read_course(base)["fingerprint"]
+            if (bound.get("operation") != "bind_blueprint" or
+                    bound.get("fingerprint") != after_bind or
+                    not bound.get("revision") or after_bind == before):
+                fail("%s bind-blueprint did not report its new fingerprint and revision"
+                     % ("CLI" if cli_style else "route"))
+            reads = (
+                ("blueprint_gate", {"questions": questions,
+                                     "blueprint": blueprint_document,
+                                     "item_facts": item_facts}, "findings"),
+                ("audit", dict(signals, tool_version="19A-06"), "rows"),
+                ("staleness", {"dependents": dependents}, "rows"),
+            )
+            for operation, fields, result_key in reads:
+                if cli_style:
+                    args = []
+                    for name, value in fields.items():
+                        args.extend(["--" + name.replace("_", "-"),
+                                     json.dumps(value)])
+                    payload = call(operation, course_id, os.path.dirname(base), args)
+                else:
+                    payload = call(operation, dict(fields, course_id=course_id))
+                if (payload.get("operation") != operation or
+                        not isinstance(payload.get(result_key), list)):
+                    fail("%s %s did not return its published result shape"
+                         % ("CLI" if cli_style else "route", operation))
+                if course_module.read_course(base)["fingerprint"] != after_bind:
+                    fail("%s changed the course fingerprint" % operation)
+
+        exercise(route, "route-blueprint", route_base)
+
+        course_ops.run(cli_root, "create", {
+            "course_id": "cli-blueprint", "title": "CLI blueprint"})
+        exercise(cli, "cli-blueprint", os.path.join(cli_root, "cli-blueprint"),
+                 cli_style=True)
+        print("ok   blueprint bind reaches route and CLI with a new revision; "
+              "gate, audit, and staleness keep the fingerprint unchanged")
+    finally:
+        if proc is not None:
+            proc.terminate()
+            proc.wait(timeout=10)
+        shutil.rmtree(route_root, ignore_errors=True)
+        shutil.rmtree(cli_root, ignore_errors=True)
+
+
 def check_a_degraded_state_never_reads_as_covered():
     """A binding row carrying a state this build cannot read degrades to
     unknown. TREAT-02 forbids inferring coverage from resemblance, and this
@@ -994,7 +1268,12 @@ def check_a_course_write_is_loopback_only():
     read_fields = {"bindings": {}, "structure": {}, "treatments": {},
                    "autonomy": {"declared_level": "approved-bounded-write",
                                 "bindings_requested": 3},
-                   "replay": {"operation_id": "*declared*"}}
+                   "replay": {"operation_id": "*declared*"},
+                   "blueprint_gate": {"questions": []},
+                   "audit": {"vocabulary_members": {}},
+                   "staleness": {"dependents": []},
+                   "verify_package": {"package_id": "*exported*"},
+                   "package_losses": {"package_id": "*exported*"}}
     for name in course_ops.READ_OPERATIONS:
         if name not in read_fields:
             fail("the read %r has no entry in this check's field table, so "
@@ -1010,12 +1289,19 @@ def check_a_course_write_is_loopback_only():
             {"course_id": "fen", "intent": "exercise every read",
              "actor_role": "course-builder",
              "autonomy": "recommend-only"}, actor_name="tester")
+        exported = course_ops.run(
+            tmp, "export_package", {"course_id": "fen"}, actor_name="tester")
         for name in course_ops.READ_OPERATIONS:
             extra = dict(read_fields[name])
             if extra.get("operation_id") == "*declared*":
                 extra["operation_id"] = declared["operation_id"]
+            if extra.get("package_id") == "*exported*":
+                extra["package_id"] = exported["package_id"]
             before = course_module.read_course(base)
-            course_ops.run(tmp, name, dict(extra, course_id="fen"))
+            request = dict(extra)
+            if "package_id" not in request:
+                request["course_id"] = "fen"
+            course_ops.run(tmp, name, request)
             after = course_module.read_course(base)
             if after["fingerprint"] != before["fingerprint"]:
                 fail("the %r operation is served behind the read-side gate "
@@ -1361,6 +1647,449 @@ def check_the_bind_commands_reach_every_published_field():
           "reachable from its CLI twin")
 
 
+def check_migration_settlement_surfaces():
+    def proposed(root, course_id):
+        base = os.path.join(root, course_id)
+        course_ops.run(root, "create", {"course_id": course_id,
+                                         "title": course_id},
+                       actor_name="proposer")
+        course_ops.run(root, "add_objective", {"course_id": course_id,
+                                                "statement": "learn"},
+                       actor_name="proposer")
+        oid = course_module.read_course(base)["doc"]["objectives"][0]["id"]
+        made = course_ops.run(
+            root, "rename_objective", {"course_id": course_id,
+                                         "objective": oid,
+                                         "statement": "learn more",
+                                         "rationale": "clarify"},
+            actor_name="proposer")
+        return base, made["migration_id"]
+
+    def snapshot(base):
+        read = course_module.read_course(base)
+        return (read["fingerprint"],
+                json.dumps(read["doc"]["objectives"], sort_keys=True),
+                json.dumps(read["doc"]["migrations"], sort_keys=True))
+
+    def refused(label, base, invoke, code):
+        before = snapshot(base)
+        result = invoke()
+        if code not in str(result):
+            fail("%s refused with %r, not %s" % (label, result, code))
+        after = snapshot(base)
+        if after != before:
+            fail("%s changed fingerprint, objective rows, or migration rows"
+                 % label)
+
+    def cli(root, operation, course_id, migration_id, rationale, actor,
+            expected=None):
+        command = [sys.executable, "itembank.py", "course", operation,
+                   course_id, "--migration-id", migration_id,
+                   "--rationale", rationale, "--actor", actor,
+                   "--root", root, "--json"]
+        if expected is not None:
+            command.extend(["--expect", expected])
+        return subprocess.run(command, text=True, capture_output=True)
+
+    tmp = tempfile.mkdtemp(prefix="course_migration_surface_")
+    try:
+        base, mid = proposed(tmp, "cli_course")
+        refused("CLI proposer acceptance", base,
+                lambda: cli(tmp, "accept-migration", "cli_course", mid,
+                            "review", "proposer").stderr,
+                "graph.migration_self_accept")
+        refused("CLI proposer rejection", base,
+                lambda: cli(tmp, "reject-migration", "cli_course", mid,
+                            "review", "proposer").stderr,
+                "graph.migration_self_accept")
+        refused("CLI empty rationale", base,
+                lambda: cli(tmp, "accept-migration", "cli_course", mid,
+                            "   ", "reviewer").stderr,
+                "graph.empty_rationale")
+        refused("CLI unknown migration", base,
+                lambda: cli(tmp, "accept-migration", "cli_course", "unknown",
+                            "review", "reviewer").stderr,
+                "graph.migration_unknown")
+        refused("CLI stale fingerprint", base,
+                lambda: cli(tmp, "accept-migration", "cli_course", mid,
+                            "review", "reviewer", "stale").stderr,
+                "journal.stale_preflight")
+        objectives = snapshot(base)[1]
+        proc = cli(tmp, "accept-migration", "cli_course", mid, "reviewed",
+                   "reviewer")
+        if proc.returncode or json.loads(proc.stdout).get("migration_state") != "accepted":
+            fail("CLI migration acceptance failed: %s" % proc.stderr)
+        accepted = course_module.read_course(base)
+        row = [r for r in accepted["doc"]["migrations"]
+               if r["migration_id"] == mid][0]
+        if (row.get("reviewer") != "reviewer" or
+                json.dumps(accepted["doc"]["objectives"], sort_keys=True) != objectives or
+                hasattr(course_module, "evidence")):
+            fail("CLI acceptance changed objective rows or transferred evidence")
+        refused("CLI already-settled migration", base,
+                lambda: cli(tmp, "reject-migration", "cli_course", mid,
+                            "again", "reviewer").stderr,
+                "graph.migration_already_settled")
+
+        route, mid = proposed(tmp, "route_course")
+        proc, url, _ = start_daemon(tmp)
+        def route_request(operation, migration_id, rationale, actor="reviewer",
+                          expected=None):
+            body = {"course_id": "route_course", "migration_id": migration_id,
+                    "rationale": rationale, "actor": actor}
+            if expected is not None:
+                body["expected_fingerprint"] = expected
+            return json_request(url + "api/course/" + operation, body)
+
+        refused("route proposer acceptance", route,
+                lambda: route_request("accept-migration", mid, "review", "proposer"),
+                "graph.migration_self_accept")
+        refused("route proposer rejection", route,
+                lambda: route_request("reject-migration", mid, "review", "proposer"),
+                "graph.migration_self_accept")
+        refused("route empty rationale", route,
+                lambda: route_request("reject-migration", mid, "   "),
+                "graph.empty_rationale")
+        refused("route unknown migration", route,
+                lambda: route_request("reject-migration", "unknown", "review"),
+                "graph.migration_unknown")
+        refused("route stale fingerprint", route,
+                lambda: route_request("reject-migration", mid, "review",
+                                      expected="stale"),
+                "journal.stale_preflight")
+        objectives = snapshot(route)[1]
+        status, body = route_request("reject-migration", mid, "not ready")
+        if status != 200 or body.get("migration_state") != "rejected":
+            fail("route migration rejection failed: %r" % body)
+        read = course_module.read_course(route)
+        row = [r for r in read["doc"]["migrations"] if r["migration_id"] == mid][0]
+        if (row.get("reviewer") != "reviewer" or
+                json.dumps(read["doc"]["objectives"], sort_keys=True) != objectives or
+                hasattr(course_module, "evidence")):
+            fail("route rejection changed objective rows or transferred evidence")
+        refused("route already-settled migration", route,
+                lambda: route_request("accept-migration", mid, "again"),
+                "graph.migration_already_settled")
+        print("ok   migration settlement refusals preserve rows on CLI and route")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def check_package_family_reaches_route_and_cli_with_clean_restore():
+    """19A-08: all four package doors use fixed local workspace paths."""
+    tmp = tempfile.mkdtemp(prefix="course_ops_package_")
+    route_source = os.path.join(tmp, "route_source")
+    route_dest = os.path.join(tmp, "route_dest")
+    cli_source = os.path.join(tmp, "cli_source")
+    cli_dest = os.path.join(tmp, "cli_dest")
+    for path in (route_source, route_dest, cli_source, cli_dest):
+        os.makedirs(path)
+    proc = None
+    try:
+        course_ops.run(route_source, "create",
+                       {"course_id": "route-course", "title": "Route package"})
+        route_course = os.path.join(route_source, "route-course")
+        with open(os.path.join(route_course, "not-bound.txt"), "w",
+                  encoding="utf-8") as fh:
+            fh.write("this file is named as a loss, not carried\n")
+        route_read = course_module.read_course(route_course)
+        proc, url, _lines = start_daemon(route_source)
+
+        status, _stale = json_request(
+            url + "api/course/export-package",
+            {"course_id": "route-course",
+             "expected_fingerprint": "sha256:" + "0" * 64})
+        if status != 400 or os.path.exists(os.path.join(
+                route_source, course_package.PACKAGE_DIRNAME)):
+            fail("a stale export preflight wrote into the package namespace")
+
+        status, exported = json_request(
+            url + "api/course/export-package",
+            {"course_id": "route-course",
+             "expected_fingerprint": route_read["fingerprint"]})
+        if status != 200:
+            fail("route package export returned %r: %r" % (status, exported))
+            return
+        package_id = exported.get("package_id")
+        expected_relpath = "_packages/" + str(package_id)
+        if exported.get("package_path") != expected_relpath:
+            fail("route package path was %r, not %r"
+                 % (exported.get("package_path"), expected_relpath))
+        for key in ("losses", "loss_report_text", "rights_basis",
+                    "remote_egress", "complete", "restorable", "undo"):
+            if key not in exported:
+                fail("route export response omitted %s" % key)
+        if exported.get("remote_egress") != "none" or \
+                not exported.get("complete") or not exported.get("restorable"):
+            fail("route export did not report local, complete, restorable: %r"
+                 % exported)
+        if not any(row.get("category") == "unregistered-file" and
+                   row.get("target") == "not-bound.txt"
+                   for row in exported.get("losses") or ()):
+            fail("the current F-LOSS unregistered row did not reach the surface")
+        if exported.get("loss_report_text") != course_package.loss_report_text(
+                course_package.read_manifest(os.path.join(
+                    route_source, expected_relpath))):
+            fail("the route did not expose the exact package loss report text")
+
+        for name in ("verify-package", "package-losses"):
+            status, payload = json_request(
+                url + "api/course/" + name, {"package_id": package_id})
+            if status != 200 or payload.get("package_id") != package_id:
+                fail("route %s returned %r: %r" % (name, status, payload))
+            elif payload.get("losses") != exported.get("losses") or \
+                    payload.get("loss_report_text") != \
+                    exported.get("loss_report_text"):
+                fail("route %s changed the package's loss report" % name)
+
+        status, _bad = json_request(
+            url + "api/course/export-package",
+            {"course_id": "route-course", "dest": "/tmp/not-allowed"})
+        if status != 400:
+            fail("a route request chose its package destination")
+        if os.path.exists(os.path.join(route_source, "tmp", "not-allowed")):
+            fail("a refused destination field wrote a directory")
+
+        proc.terminate()
+        proc.wait(timeout=10)
+        proc = None
+        os.makedirs(os.path.join(route_dest, course_package.PACKAGE_DIRNAME))
+        shutil.copytree(os.path.join(route_source, expected_relpath),
+                        os.path.join(route_dest, expected_relpath))
+        proc, url, _lines = start_daemon(route_dest)
+        status, restored = json_request(
+            url + "api/course/restore-package", {"package_id": package_id})
+        if status != 200:
+            fail("route package restore returned %r: %r" % (status, restored))
+        elif not os.path.isdir(os.path.join(
+                route_dest, restored.get("course_object_id", "missing"))):
+            fail("route restore did not publish under course object identity")
+        elif restored.get("course_path") != restored.get("course_object_id"):
+            fail("route restore exposed a path other than course identity")
+        if os.path.exists(os.path.join(
+                route_dest, course_package.PACKAGE_DIRNAME,
+                course_package.PACKAGE_RESTORE_DIRNAME)) and any(os.scandir(
+                    os.path.join(route_dest, course_package.PACKAGE_DIRNAME,
+                                 course_package.PACKAGE_RESTORE_DIRNAME))):
+            fail("successful route restore left its staging directory behind")
+        published = os.path.join(route_dest, restored["course_object_id"])
+        alias = os.path.join(route_dest, "same-course-different-folder")
+        os.rename(published, alias)
+        status, duplicate = json_request(
+            url + "api/course/restore-package", {"package_id": package_id})
+        if status != 400 or "package.duplicate_course" not in str(duplicate):
+            fail("restore did not refuse a duplicate identity at another path")
+
+        proc.terminate()
+        proc.wait(timeout=10)
+        proc = None
+        course_ops.run(cli_source, "create",
+                       {"course_id": "cli-course", "title": "CLI package"})
+
+        def cli(*args):
+            completed = subprocess.run(
+                [sys.executable, os.path.join(ROOT, "itembank.py")] + list(args),
+                capture_output=True, text=True)
+            if completed.returncode != 0:
+                fail("itembank %s failed: %s"
+                     % (" ".join(args), completed.stderr.strip()))
+                return {}
+            return json.loads(completed.stdout)
+
+        cli_export = cli("course", "export-package", "cli-course",
+                         "--root", cli_source, "--json")
+        cli_id = cli_export.get("package_id")
+        for action in ("verify-package", "package-losses"):
+            read = cli("course", action, cli_id, "--root", cli_source,
+                       "--json")
+            if read.get("loss_report_text") != cli_export.get("loss_report_text"):
+                fail("CLI %s changed the loss report" % action)
+        cli_relpath = os.path.join(course_package.PACKAGE_DIRNAME, cli_id)
+        os.makedirs(os.path.join(cli_dest, course_package.PACKAGE_DIRNAME))
+        shutil.copytree(os.path.join(cli_source, cli_relpath),
+                        os.path.join(cli_dest, cli_relpath))
+        cli_restore = cli("course", "restore-package", cli_id,
+                          "--root", cli_dest, "--actor", "tester", "--json")
+        if not cli_restore.get("complete") or not os.path.isdir(os.path.join(
+                cli_dest, cli_restore.get("course_object_id", "missing"))):
+            fail("CLI restore did not publish a complete course")
+        print("ok   package export, verify, losses, and fresh restore reach "
+              "route and CLI through fixed local workspace paths")
+    finally:
+        if proc is not None:
+            proc.terminate()
+            proc.wait(timeout=10)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def check_create_containment_route_cli_and_runtime():
+    """F1: every door refuses dot paths, and runtime checks resolved roots."""
+    with tempfile.TemporaryDirectory(prefix="course_create_containment_") as tmp:
+        root = os.path.join(tmp, "workspace")
+        outside = os.path.join(tmp, "outside")
+        os.mkdir(root)
+        os.mkdir(outside)
+        proc, url, _lines = start_daemon(root)
+        try:
+            for course_id in (".", ".."):
+                status, _ = json_request(url + "api/course/create",
+                    {"course_id": course_id, "title": "Invalid"})
+                if status != 400:
+                    fail("F1 route accepted the dot-directory id %r" % course_id)
+                result = subprocess.run([sys.executable, os.path.join(ROOT, "itembank.py"),
+                    "course", "create", course_id, "--title", "Invalid", "--root", root],
+                    capture_output=True, text=True)
+                if result.returncode == 0:
+                    fail("F1 CLI accepted the dot-directory id %r" % course_id)
+                try:
+                    course_ops._op_create(root, {"course_id": course_id, "title": "Invalid"},
+                                          "human", "fixture")
+                except course_module.CourseError as err:
+                    if err.code != "course.path_outside_root":
+                        fail("F1 runtime gave the wrong containment refusal")
+                else:
+                    fail("F1 direct runtime accepted %r" % course_id)
+            try:
+                os.symlink(outside, os.path.join(root, "linked-course"), target_is_directory=True)
+            except (OSError, NotImplementedError):
+                pass
+            else:
+                try:
+                    course_ops.run(root, "create", {"course_id": "linked-course", "title": "Invalid"})
+                except course_module.CourseError as err:
+                    if err.code != "course.path_outside_root":
+                        fail("F1 symlink escape gave the wrong refusal")
+                else:
+                    fail("F1 runtime followed a course directory outside the root")
+            for directory in (tmp, root, outside):
+                if os.path.exists(os.path.join(directory, course_module.COURSE_SIDECAR_FILENAME)):
+                    fail("F1 a rejected create wrote a sidecar")
+            if os.listdir(outside):
+                fail("F1 the outside directory was changed")
+        finally:
+            proc.terminate()
+            proc.wait(timeout=10)
+        print("ok   F1 schema, runtime, route and CLI reject dot paths and resolved escapes")
+
+
+def check_package_publication_races():
+    """F2/F4/F5: stale, incomplete and raced packages never publish."""
+    with tempfile.TemporaryDirectory(prefix="course_package_races_") as tmp:
+        root = os.path.join(tmp, "workspace")
+        os.mkdir(root)
+        course_ops.run(root, "create", {"course_id": "source", "title": "Synthetic"})
+        base = os.path.join(root, "source")
+        original_publish = course_package.publish_directory
+
+        def expect_refusal(fn, code):
+            try:
+                fn()
+            except course_package.PackageError as err:
+                if err.code != code:
+                    fail("package race expected %s, got %s" % (code, err.code))
+            else:
+                fail("package race was accepted instead of %s" % code)
+
+        collisions = []
+
+        def race_destination(workspace, staging, destination):
+            os.mkdir(destination)
+            collisions.append((destination, os.stat(destination)))
+            return original_publish(workspace, staging, destination)
+
+        with mock.patch.object(course_package, "publish_directory", side_effect=race_destination):
+            expect_refusal(lambda: course_ops.run(root, "export_package", {"course_id": "source"}),
+                           "package.destination_exists")
+        for path, before in collisions:
+            if not os.path.samestat(before, os.stat(path)) or os.listdir(path):
+                fail("F5 no-replace export did not preserve the raced empty destination")
+
+        exported = course_ops.run(root, "export_package", {"course_id": "source"})
+        package = os.path.join(root, exported["package_path"])
+        dest = os.path.join(tmp, "restore-workspace")
+        os.mkdir(dest)
+        os.mkdir(os.path.join(dest, course_package.PACKAGE_DIRNAME))
+        copied = os.path.join(dest, exported["package_path"])
+        shutil.copytree(package, copied)
+        with mock.patch.object(course_package, "publish_directory", side_effect=race_destination):
+            expect_refusal(lambda: course_ops.run(dest, "restore_package",
+                {"package_id": exported["package_id"]}), "package.destination_exists")
+        raced, before = collisions[-1]
+        if not os.path.samestat(before, os.stat(raced)) or os.listdir(raced):
+            fail("F5 no-replace restore did not preserve the raced empty destination")
+        os.rmdir(raced)
+
+        manifest = course_package.read_manifest(copied)
+        payload = os.path.join(copied, course_package._payload_relpath(manifest["entries"][0]))
+        with open(payload, "ab") as fh:
+            fh.write(b"\nTampered before restore.\n")
+        verified = course_ops.run(dest, "verify_package", {"package_id": exported["package_id"]})
+        if verified["complete"] or verified["restorable"]:
+            fail("F2 an incomplete package was reported restorable")
+        expect_refusal(lambda: course_ops.run(dest, "restore_package",
+            {"package_id": exported["package_id"]}), "package.restore_incomplete")
+        if os.path.exists(raced):
+            fail("F2 incomplete restore published a course")
+
+        original_write = course_package._write_bytes_atomic
+        sidecar = os.path.join(base, course_module.COURSE_SIDECAR_FILENAME)
+        sidecar_raw = open(sidecar, "rb").read()
+        expected = course_module.read_course(base)["fingerprint"]
+        changed = []
+
+        def change_course(path, raw):
+            original_write(path, raw)
+            if not changed:
+                changed.append(True)
+                with open(sidecar, "wb") as fh:
+                    fh.write(sidecar_raw.replace(b"Synthetic", b"Concurrent revision"))
+
+        with mock.patch.object(course_package, "_write_bytes_atomic", side_effect=change_course):
+            expect_refusal(lambda: course_ops.run(root, "export_package", {
+                "course_id": "source", "expected_fingerprint": expected}), "package.stale_course")
+        with open(sidecar, "wb") as fh:
+            fh.write(sidecar_raw)
+
+        outside = os.path.join(tmp, "outside")
+        os.mkdir(outside)
+        link_probe = os.path.join(tmp, "link-probe")
+        try:
+            os.symlink(outside, link_probe, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            print("skip F5 symlink races: directory symlinks unavailable")
+        else:
+            os.unlink(link_probe)
+            namespace = os.path.join(root, course_package.PACKAGE_DIRNAME)
+            saved_namespace = namespace + "-saved"
+            original_ensure = course_package.ensure_package_namespace
+
+            def swap_namespace(workspace):
+                original_ensure(workspace)
+                os.rename(namespace, saved_namespace)
+                os.symlink(outside, namespace, target_is_directory=True)
+
+            with mock.patch.object(course_package, "ensure_package_namespace", side_effect=swap_namespace):
+                expect_refusal(lambda: course_ops.run(root, "export_package", {"course_id": "source"}),
+                               "package.symlink_payload")
+            if os.listdir(outside):
+                fail("F5 namespace swap wrote outside the approved workspace")
+            os.unlink(namespace)
+            os.rename(saved_namespace, namespace)
+            original_check = course_package._reject_symlink_tree
+
+            def swap_after_check(path):
+                original_check(path)
+                os.rename(namespace, saved_namespace)
+                os.symlink(outside, namespace, target_is_directory=True)
+
+            with mock.patch.object(course_package, "_reject_symlink_tree", side_effect=swap_after_check):
+                expect_refusal(lambda: course_ops.run(root, "verify_package",
+                    {"package_id": exported["package_id"]}), "package.symlink_payload")
+            os.unlink(namespace)
+            os.rename(saved_namespace, namespace)
+        print("ok   F2/F4/F5 incomplete restore, stale export, namespace swaps and no-replace publication")
+
+
 def main():
     check_the_request_document_is_read_off_disk()
     check_every_closed_vocabulary_matches_its_source_of_truth()
@@ -1380,7 +2109,13 @@ def main():
     check_the_bind_commands_reach_every_published_field()
     check_parity_and_the_declared_aliases()
     check_the_route_is_the_cli_twin()
+    check_director_family_reaches_route_and_cli_with_one_reversible_accept()
+    check_blueprint_operations_reach_route_and_cli_without_read_mutation()
     check_every_course_route_dispatches_to_a_real_handler()
+    check_migration_settlement_surfaces()
+    check_package_family_reaches_route_and_cli_with_clean_restore()
+    check_create_containment_route_cli_and_runtime()
+    check_package_publication_races()
     if FAILURES:
         print("COURSE OPS: %d failure(s)" % len(FAILURES))
         return 1
