@@ -350,7 +350,8 @@ textarea.ans:disabled{opacity:.75}
 .activity-facts{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);margin:0}
 .activity-facts div{min-width:10rem}.activity-facts dt{font-size:12px;color:var(--mut)}
 .activity-facts dd{margin:2px 0 0;font-size:16px}
-</style></head><body><div class="wrap" data-presentation-profile="__PRESENTATION_PROFILE__">
+__PRODUCT_CSS__
+</style></head><body><div class="wrap" data-presentation-profile="__PRESENTATION_PROFILE__">__PRODUCT_NAV__
 <nav class="context-line" data-surface-context aria-label="Session context">
   <span class="cx" id="cx-bank">__CTX_BANK__</span>
   <span class="cx objective" id="cx-objective"></span>

@@ -460,6 +460,154 @@ PRIMITIVE_CSS = r"""
 # by name, and a named block is what a failure message can point at.
 SHARED_CSS = SHARED_CSS + PRIMITIVE_CSS
 
+# The accepted learner-facing product identity. This stays in the shared shell
+# so the normal shelf, course, reading, practice, evidence, review, and recovery
+# routes remain one application instead of becoming a detached theme demo.
+# It changes presentation only. Theme colors still come from theme.py, and all
+# behavior and authority remain with the existing route and runtime owners.
+PRODUCT_CSS = r"""
+body{margin:0;background:var(--paper);color:var(--product-ink)}
+.product-shell{min-height:100vh;display:grid;grid-template-columns:224px 1fr}
+.product-sidebar{position:sticky;top:0;height:100vh;border-right:1px solid var(--product-line);
+  padding:var(--space-5) var(--space-4);display:flex;flex-direction:column}
+.standalone-product-nav{position:fixed;left:0;z-index:20;width:224px;background:var(--paper)}
+.wrap:has(.standalone-product-nav){margin-left:max(224px,calc((100vw - 1040px) / 2 + 112px))}
+.product-brand{font-family:var(--font-chrome);font-size:var(--text-heading);font-weight:600;
+  color:var(--product-ink);display:flex;gap:var(--space-2);align-items:center}
+.product-brand:before{content:"";width:22px;height:26px;border-radius:4px 9px 4px 4px;
+  background:var(--product-ink)}
+.product-tag{font-size:var(--text-xs);letter-spacing:.14em;text-transform:uppercase;
+  color:var(--product-muted);margin:var(--space-2) 0 var(--space-6)}
+.product-nav{display:grid;gap:var(--space-2)}
+.product-nav a{min-height:44px;padding:10px 12px;border-radius:var(--r-1);
+  color:var(--product-muted);font-weight:400}
+.product-nav a:first-child{background:var(--product-active);color:var(--product-ink);font-weight:600}
+.product-local{margin-top:auto;border-top:1px solid var(--product-line);padding-top:var(--space-3);
+  color:var(--product-muted);font-size:var(--text-xs)}
+.product-local:before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--product-green);margin-right:var(--space-2)}
+.product-workspace{min-width:0}
+.product-topbar{height:82px;border-bottom:1px solid var(--product-line);padding:0 var(--space-6);
+  display:flex;align-items:center;justify-content:space-between;color:var(--product-muted);
+  font-size:var(--text-xs)}
+.product-topbar span:last-child{border:1px solid var(--product-line);border-radius:999px;
+  padding:var(--space-1) var(--space-2)}
+.surface,.surface.wide{max-width:1040px;margin:0 auto;padding:var(--space-6) var(--space-6) var(--space-7)}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0,0,0,0);border:0}
+.surface:has(.desk-heading)>h1{position:absolute;width:1px;height:1px;padding:0;
+  margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+h1,h2{font-family:var(--font-paper);font-weight:400;letter-spacing:-.02em}
+h1{font-size:var(--text-display)}h2{font-size:var(--text-display)}
+.app-nav{display:none}
+button.go,a.go{border-radius:var(--r-1);padding-inline:var(--space-4)}
+button.go.primary,a.go.primary{background:var(--product-ink);border-color:var(--product-ink);
+  color:var(--paper)}
+.desk-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-4);
+  margin-bottom:var(--space-5)}
+.desk-heading h2{margin:var(--space-2) 0}.desk-heading p{color:var(--product-muted)}
+.desk-eyebrow{font-family:var(--font-ledger);font-size:var(--text-xs);
+  letter-spacing:.14em;text-transform:uppercase;color:var(--product-muted)}
+.desk-hero{position:relative;overflow:hidden;min-height:350px;margin-bottom:var(--space-5);
+  border:1px solid var(--product-line);border-radius:var(--r-2);background:var(--product-wash);
+  display:grid;grid-template-columns:1.05fr .95fr;align-items:stretch}
+.desk-hero-copy{padding:var(--space-5);align-self:center;position:relative;z-index:1}
+.desk-hero h2{font-size:var(--text-display);margin:var(--space-3) 0 var(--space-2)}
+.desk-hero p{color:var(--product-muted)}
+.desk-hero .resume-cue{font-size:var(--text-xs);margin-top:var(--space-3)}
+.desk-plant{width:100%;height:100%;min-height:310px;color:var(--product-green)}
+.desk-below{display:grid;grid-template-columns:1.55fr 1fr;gap:var(--space-6)}
+.desk-section-title{display:flex;justify-content:space-between;border-bottom:1px solid var(--product-line);
+  padding-bottom:var(--space-3)}
+.desk-section-title h2{font-family:var(--font-chrome);font-size:var(--text-body);
+  font-weight:600;margin:0}.desk-section-title span{font-size:var(--text-xs);color:var(--product-muted)}
+.course-shelf{display:block}
+.course-card{display:grid;grid-template-columns:48px 1fr auto;gap:var(--space-3);
+  align-items:center;padding:var(--space-4) 0;border-bottom:1px solid var(--product-line)}
+.course-card:before{content:"";width:48px;height:64px;grid-row:1/5;border-radius:3px 7px 7px 3px;
+  background:var(--product-green);box-shadow:inset 6px 0 color-mix(in srgb,var(--paper) 18%,transparent)}
+.course-card h2{font-family:var(--font-chrome);font-size:var(--text-body);font-weight:600;
+  margin:0;grid-column:2}.course-card .chip{font-size:var(--text-xs);color:var(--product-muted);
+  grid-column:2}.course-card .resume-cue{font-size:var(--text-xs);color:var(--product-muted);
+  grid-column:2;margin:0}.course-card .actions{grid-column:3;grid-row:1/4;margin:0}
+.course-card .actions a.go{background:transparent;border:0;color:var(--product-ink);
+  padding:var(--space-2);min-width:44px}
+.course-card .actions .secondary{display:none}.course-card .sample-note,.course-card form{display:none}
+.desk-next{padding:var(--space-4) 0}.desk-next h3{font-size:var(--text-body);margin:var(--space-2) 0}
+.desk-next p{font-size:var(--text-xs);color:var(--product-muted)}
+.course-areas ul{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);
+  list-style:none;padding:0;margin:0}
+.course-areas{border-bottom:1px solid var(--product-line);padding-bottom:var(--space-3);
+  margin-bottom:var(--space-5)}
+.course-areas a[aria-current]{color:var(--product-ink);text-decoration:underline;
+  text-underline-offset:8px;text-decoration-thickness:2px}
+.course-rows{list-style:none;padding:0;margin:0}
+.course-rows .row{padding:var(--space-4) 0;border-bottom:1px solid var(--product-line)}
+.row-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--space-2)}
+.row-note,.area-lead{color:var(--product-muted)}
+.vf-diff,.ib-diff{border-radius:var(--r-2);overflow:auto}
+@media(max-width:767px){
+  .product-shell{display:block}.product-sidebar{position:fixed;z-index:20;top:auto;bottom:0;
+    width:100%;height:66px;padding:0 var(--space-2);border:0;border-top:1px solid var(--product-line);
+    background:var(--paper)}
+  .product-brand,.product-tag,.product-local{display:none}.product-nav{height:100%;display:flex;
+    justify-content:space-around}.product-nav a{display:grid;place-items:center;padding:var(--space-2);
+    font-size:var(--text-xs);background:transparent!important}
+  .product-topbar{height:64px;padding:0 var(--space-3)}
+  .wrap:has(.standalone-product-nav){margin-left:auto}
+  .ib-palette-open{display:none}
+  .surface,.surface.wide{padding:var(--space-4) var(--space-3) calc(var(--space-7) + 66px)}
+  .desk-heading{gap:var(--space-2)}
+  .desk-hero{min-height:0;grid-template-columns:1fr}
+  .desk-plant{height:180px;min-height:0;grid-row:1}
+  .desk-hero-copy{padding:var(--space-4);grid-row:2}
+  .desk-below{grid-template-columns:1fr;gap:var(--space-5)}
+  .course-card{grid-template-columns:48px 1fr auto}
+}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;
+  transition-duration:0s!important;animation-duration:0s!important}}
+"""
+
+
+def product_theme_css():
+    """The accepted fixed learner palette, separate from admin theme preview."""
+    return """
+:root{--paper:#f6f5f0;--product-ink:#243a44;--product-muted:#65716f;
+  --product-line:#dcded4;--product-green:#365e4c;--product-wash:#e9eddf;
+  --product-active:#e6eade;--bg:#f6f5f0;--card:#fffef9;--ink:#243a44;
+  --mut:#65716f;--line:#dcded4;--accent:#365e4c;--edge:#68805b;
+  --chip:#e6eade;--ok:#365e4c;--ok-bg:#e9eddf;--warn:#75531f;
+  --warn-bg:#f3ecdb;--bad:#7f3b32;--bad-bg:#f3e9e4;
+  --unknown:#58636a;--unknown-bg:#eceeea;--pending:#705b2d;
+  --pending-bg:#f3ecdb}
+"""
+
+
+def product_frame_open(title):
+    """Open the shared responsive learner frame for standalone activities."""
+    return ('<div class="product-shell"><aside class="product-sidebar">'
+            '<a class="product-brand" href="/">itembank</a>'
+            '<p class="product-tag">A place for understanding</p>'
+            '<nav class="product-nav" aria-label="Main navigation">'
+            '<a href="/">Your desk</a><a href="/">Courses</a>'
+            '<a href="/activity">Activity</a><a href="/settings">Settings</a>'
+            '</nav><p class="product-local">On this device</p></aside>'
+            '<div class="product-workspace"><header class="product-topbar">'
+            '<span>Your workspace / %s</span><span>Local</span></header>'
+            % esc(title))
+
+
+PRODUCT_FRAME_CLOSE = "</div></div>"
+
+
+def standalone_product_nav():
+    return ('<aside class="product-sidebar standalone-product-nav">'
+            '<a class="product-brand" href="/">itembank</a>'
+            '<p class="product-tag">A place for understanding</p>'
+            '<nav class="product-nav" aria-label="Main navigation">'
+            '<a href="/">Your desk</a><a href="/">Courses</a>'
+            '<a href="/activity">Activity</a><a href="/settings">Settings</a>'
+            '</nav><p class="product-local">On this device</p></aside>')
 
 def esc(value):
     """Escape one presentation value for HTML text."""
@@ -524,6 +672,15 @@ def surface_shell(title, body, theme_css="", back=None, wide=False,
     the noscript note, which is where a boot script belongs. `classes` adds
     to the shell wrapper, which is how a route opts into compact density.
     """
+    # Application pages supply their stable app navigation as the first body
+    # element. Promote it into the shell header so the product frame leads the
+    # page, while standalone exports and offline pages keep their old shape.
+    app_header = ""
+    if body.startswith('<nav class="app-nav"'):
+        nav_end = body.find("</nav>")
+        if nav_end >= 0:
+            nav_end += len("</nav>")
+            app_header, body = body[:nav_end], body[nav_end:]
     parts = []
     if context:
         parts.append(context_line(context))
@@ -535,25 +692,50 @@ def surface_shell(title, body, theme_css="", back=None, wide=False,
     ns = ""
     if noscript is not None:
         ns = "<noscript><p>%s</p></noscript>" % esc(noscript)
-    sheet = SHARED_CSS if not extra_css else (SHARED_CSS + "\n" + extra_css)
+    head_title = title if doc_title is None else doc_title
+    # Settings has a frozen compatibility baseline and its own preview sheet.
+    # The accepted migration targets the learner journey, so keep that admin
+    # page byte-stable while every learner-facing shared-shell page adopts the
+    # production identity.
+    product_css = "" if head_title == "Settings" else PRODUCT_CSS
+    sheet = SHARED_CSS + product_css
+    if extra_css:
+        sheet = sheet + "\n" + extra_css
     if palette:
         from surfaces import palette as palette_surface
         sheet = sheet + "\n" + palette_surface.PALETTE_CSS
         tail = tail + palette_surface.palette_markup()
-    style = "<style>\n%s\n%s\n</style>" % (theme_css, sheet)
+    product_theme = "" if head_title == "Settings" else product_theme_css()
+    style = "<style>\n%s\n%s\n%s\n</style>" % (theme_css, product_theme, sheet)
     cls = "surface" + (" wide" if wide else "")
     if classes:
         cls = cls + " " + classes
     if presentation_profile in PROFILE_RECIPES:
         cls += " ib-profile ib-profile-%s" % presentation_profile
-    head_title = title if doc_title is None else doc_title
     profile_attr = (' data-presentation-profile="%s"' % esc(presentation_profile)
                     if presentation_profile else "")
+    if head_title != "Settings":
+        product_sidebar = ('<aside class="product-sidebar"><a class="product-brand" href="/">itembank</a>'
+                           '<p class="product-tag">A place for understanding</p>'
+                           '<nav class="product-nav" aria-label="Main navigation">'
+                           '<a href="/">Your desk</a><a href="/">Courses</a>'
+                           '<a href="/activity">Activity</a><a href="/settings">Settings</a></nav>'
+                           '<p class="product-local">On this device</p></aside>')
+        return ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+                "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+                "<title>%s</title>%s</head><body><div class=\"product-shell\">%s"
+                '<div class="product-workspace"><header class="product-topbar">'
+                '<span>Your workspace / %s</span><span>Local</span></header>'
+                '<div class="%s"%s>%s%s<main>%s</main>%s%s'
+                '</div></div></div></body></html>'
+                % (esc(head_title), style, product_sidebar, esc(head_title), esc(cls),
+                   profile_attr, app_header, "\n".join(parts), body, ns, tail))
     return ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
             "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-            "<title>%s</title>%s</head><body><div class=\"%s\"%s>%s<main>%s"
+            "<title>%s</title>%s</head><body><div class=\"%s\"%s>%s%s<main>%s"
             "</main>%s%s</div></body></html>"
-            % (esc(head_title), style, esc(cls), profile_attr, "\n".join(parts), body, ns,
+            % (esc(head_title), style, esc(cls), profile_attr, app_header,
+               "\n".join(parts), body, ns,
                tail))
 
 

@@ -1258,6 +1258,50 @@ def _app_nav(current):
             % courses_current)
 
 
+DESK_ART = """
+<svg class="desk-plant" viewBox="0 0 420 355" role="img"
+  aria-label="A branching plant inside a circular feedback system">
+  <g fill="none" stroke="currentColor" stroke-width="1" opacity=".42">
+    <circle cx="214" cy="172" r="118" stroke-dasharray="3 5"/>
+    <path d="M110 207 A112 112 0 0 1 133 94 M306 109 A112 112 0 0 1 320 228"/>
+  </g>
+  <ellipse cx="213" cy="276" rx="78" ry="12" fill="currentColor" opacity=".12"/>
+  <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+    <path d="M210 275C216 229 208 191 216 143S223 99 229 78M213 226Q178 207 161 180M216 181Q251 166 265 139M214 153Q184 137 177 109M211 253Q247 239 259 219"/>
+  </g>
+  <g fill="currentColor" opacity=".82">
+    <path d="M212 216C174 222 143 198 145 159c34 3 62 24 67 57"/>
+    <path d="M217 179c0-35 23-59 59-60-1 34-24 58-59 60"/>
+    <path d="M215 149c-32 0-49-22-47-52 30 4 46 22 47 52"/>
+    <path d="M222 109c-5-28 7-51 30-65 12 29 1 56-30 65"/>
+    <path d="M212 254c13-29 37-40 66-33-13 27-37 37-66 33"/>
+  </g>
+</svg>
+"""
+
+
+def _desk_hero(card):
+    href = card["cta_href"] if card else "/"
+    label = card["cta_label"] if card else "Choose a course"
+    course = card["name"] if card else "Your next course"
+    cue = card["resume_cue"] if card else "No course is ready yet"
+    return """
+<section class="desk-hero" aria-labelledby="desk-heading">
+  <div class="desk-hero-copy">
+    <span class="chip">CONTINUE LEARNING</span>
+    <h2 id="desk-heading">See the systems<br>behind the everyday.</h2>
+    <p>Return to your real course, its sources, and the exact evidence saved
+    on this device.</p>
+    <p class="desk-eyebrow">%s</p>
+    <p><a class="go primary" href="%s">%s &nearr;</a></p>
+    <p class="resume-cue">%s</p>
+  </div>
+  %s
+</section>
+""" % (presentation.esc(course.upper()), presentation.esc(href),
+       presentation.esc(label), presentation.esc(cue), DESK_ART)
+
+
 def _course_frame(handler, state, back, course_dir=None):
     """One course-level page: the eight-area nav, the area's own stated state,
     a real anchor target on the heading, and the hidden anchor-missing region
@@ -2257,9 +2301,9 @@ def _course_shelf_body(shelf, walkthrough=None, sample=None):
     and no inline style."""
     cards = []
     for card in shelf["cards"]:
-        links = ['<a class="go" href="%s">%s</a>'
-                 % (presentation.esc(card["cta_href"]),
-                    presentation.esc(card["cta_label"]))]
+        links = ['<a class="go" aria-label="%s" href="%s">Open &nearr;</a>'
+                 % (presentation.esc(card["cta_label"]),
+                    presentation.esc(card["cta_href"]))]
         for action in card["actions"]:
             links.append('<a class="go secondary" href="%s">%s</a>'
                          % (presentation.esc(action["href"]),
@@ -2301,9 +2345,22 @@ def _course_shelf_body(shelf, walkthrough=None, sample=None):
                    '</form></section>'
                    % (presentation.esc(shelf["empty_heading"]),
                       presentation.esc(shelf["empty_body"])))
-    return ('%s%s%s%s<p class="status" data-shelf-status role="status" '
+    first = shelf["cards"][0] if shelf["cards"] else None
+    heading = ('<section class="desk-heading"><div><p class="desk-eyebrow">'
+               'MAKE ROOM FOR CURIOSITY</p><h2>A little further, today.</h2>'
+               '<p>Your place is saved. Pick up the thread.</p></div></section>')
+    course_section = ('<section><div class="desk-section-title"><h2>Your courses</h2>'
+                      '<span>%d local</span></div>%s</section>' % (len(cards), content))
+    next_section = ('<section><div class="desk-section-title"><h2>A thoughtful next step</h2>'
+                    '<span>Runtime grounded</span></div><div class="desk-next">'
+                    '<p class="desk-eyebrow">YOUR EVIDENCE, YOUR PACE</p>'
+                    '<h3>Keep the source close.</h3><p>Read, practice, and inspect what the '
+                    'record supports. Agent changes wait for your review.</p>'
+                    '<a href="/activity">Inspect activity &rarr;</a></div></section>')
+    desk = heading + _desk_hero(first) + '<div class="desk-below">' + course_section + next_section + '</div>'
+    return ('%s%s%s%s%s<p class="status" data-shelf-status role="status" '
             'aria-live="polite"></p>'
-            % (_app_nav("courses"), banner, offer, content))
+            % (_app_nav("courses"), desk, banner, offer, ""))
 
 
 def handle_index(handler):

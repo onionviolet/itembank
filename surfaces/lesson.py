@@ -16,7 +16,17 @@ from model import (CHECK_UNRESOLVED_COPY, grab, lesson_slug, lesson_steps,
                    parse_activities, parse_key_blocks, parse_lesson,
                    parse_media, parse_terms, resolve_style)
 from runtime import glossable
-from surfaces.presentation import SHARED_CSS
+from surfaces.presentation import (SHARED_CSS, PRODUCT_CSS,
+                                   product_theme_css, standalone_product_nav)
+
+
+def product_reader_css():
+    return product_theme_css() + PRODUCT_CSS + """
+.wrap{max-width:1040px;background:var(--paper);color:var(--product-ink)}
+.wrap>header,.wrap>.reader-nav,.wrap>.lesson-context,.wrap>#lesson-content{
+  max-width:var(--measure-prose);margin-inline:auto}
+@media(max-width:767px){.wrap{padding:var(--space-4) var(--space-3) 96px}}
+"""
 from surfaces import settings
 from surfaces.theme import THEME_CSS
 
@@ -348,9 +358,10 @@ __WARN_CSS__
 __GLOSS_ANCHOR_CSS__
 __GLOSS_PRINT_CSS__
 __RUNNABLE_CSS__
+__PRODUCT_CSS__
 </style>
 __MATH_ASSETS__
-</head><body><div class="wrap ib-profile ib-profile-__PRESENTATION_PROFILE__" data-presentation-profile="__PRESENTATION_PROFILE__">
+</head><body><div class="wrap ib-profile ib-profile-__PRESENTATION_PROFILE__" data-presentation-profile="__PRESENTATION_PROFILE__">__PRODUCT_NAV__
 <header>
   <p class="sub">Application: itembank</p>
   <h1>__TITLE__</h1>
@@ -2751,6 +2762,8 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
             .replace("__GLOSS_ANCHOR_CSS__", anchor_css)
             .replace("__GLOSS_PRINT_CSS__", print_css)
             .replace("__RUNNABLE_CSS__", runnable_css)
+            .replace("__PRODUCT_CSS__", product_reader_css())
+            .replace("__PRODUCT_NAV__", standalone_product_nav())
             .replace("__READER_NAV__", nav_html)
             .replace("__GLOSS_SCRIPT__", gloss_script)
             .replace("__MATH_ASSETS__", math_assets)

@@ -253,6 +253,10 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                  .replace("__THEME__", THEME_CSS if theme_css is None
                           else theme_css)
                  .replace("__SHARED__", presentation.SHARED_CSS)
+                 .replace("__PRODUCT_CSS__", presentation.product_theme_css()
+                          + presentation.PRODUCT_CSS
+                          + ".wrap{max-width:800px;background:var(--paper);color:var(--product-ink)}")
+                 .replace("__PRODUCT_NAV__", presentation.standalone_product_nav())
                  .replace("__SERVE__", "true" if serve else "false")
                  .replace("__CTX_TOTAL__", str(len(qs)))
                  .replace("__TITLE__", html.escape(title))

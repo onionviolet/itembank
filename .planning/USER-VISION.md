@@ -2018,6 +2018,37 @@ learner activation option. It also extends the 2026-08-14 editor and reader
 direction and the source-intake work without superseding portable Markdown,
 progressive enhancement, or restrictive unknown-rights behavior.
 
+### 2026-09-08: adopt the greenfield learner interface in the original app
+
+> okay with this, we bring this to the original itembank repo accordingly, scrapping old UI acordingly, open chat in right place accordingly
+
+#### Interpretation recorded 2026-09-08
+
+**Status:** accepted product direction.
+
+**Current interpretation:** the accepted greenfield prototype now defines the
+normal learner-facing visual identity in the original Itembank app. Its
+personal desk, course-led path, source reading, practice, evidence, exact
+resume, and proposal review belong on the existing production routes. The
+prototype's browser-local answer key, scores, progress, revisions, and model
+states remain synthetic and must not enter production authority.
+
+**Open questions:** human touch-device, screen-reader, 200 percent text, 400
+percent zoom, and aesthetic review remain acceptance gates. The deferred live
+local-model proposal and four-subject parity backend remain separate from this
+design adoption.
+
+**Planning effect:** replace the shared production shell and its superseded
+visual styling with this direction. Retain existing routes and canonical
+runtime, evidence, source, objective, permissions, journal, and recovery
+owners. Do not ship the prototype as a detached app, optional theme, or second
+state store.
+
+**Relationship to prior entries:** resolves the comparative UI exploration and
+selects one product identity. It preserves the earlier extensible semantic
+presentation seam as implementation infrastructure, not as a competing
+learner-facing design.
+
 ## Interpretation protocol
 
 An interpretation may appear immediately after a verbatim entry when it helps
