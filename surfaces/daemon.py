@@ -395,6 +395,7 @@ LEGACY_API_ALIASES = (
 # ordered ahead of them for the same reason.
 ROUTES = (
     ("GET", "/", "handle_index"),
+    ("GET", "/courses", "handle_courses_get"),
     ("GET", "/banks", "handle_banks"),
     ("GET", MARKER_PATH, "handle_marker"),
     ("GET", "/day", "handle_day_index"),
@@ -438,6 +439,7 @@ ROUTES = (
 # fails the build instead of shipping silently.
 ROUTE_CLI = {
     ("GET", "/"): "daemon",
+    ("GET", "/courses"): "daemon",
     ("GET", "/banks"): "daemon",
     ("GET", MARKER_PATH): "daemon",
     ("GET", "/report"): "report",
@@ -690,10 +692,16 @@ def handle_activity_get(handler):
                    presentation.esc(job["label"]),
                    presentation.esc(job["intent"])))
         body = "".join(parts)
+        if not body:
+            body = ('<section class="empty"><h2>No activity yet</h2>'
+                    '<p>Agent and maintenance work will appear here when it '
+                    'needs attention or finishes.</p>'
+                    '<p><a class="go" href="/courses">Browse courses</a></p>'
+                    '</section>')
     handler.send_html(presentation.surface_shell(
         "Activity", body,
         theme_css=theme.theme_css(settings.load_settings(handler.root)),
-        back={"href": "/", "label": "Back to courses"},
+        back={"href": "/courses", "label": "Back to courses"},
         palette=True).encode("utf-8"))
 
 
@@ -1252,7 +1260,7 @@ def _app_nav(current):
     courses_current = ' aria-current="page"' if current == "courses" else ""
     return ('<nav class="app-nav" aria-label="Application">'
             '<a class="app-name" href="/">itembank</a><ul>'
-            '<li><a href="/"%s>Courses</a></li>'
+            '<li><a href="/courses"%s>Courses</a></li>'
             '<li><a href="/activity">Activity</a></li>'
             '<li><a href="/settings">Settings</a></li></ul></nav>'
             % courses_current)
@@ -2409,7 +2417,7 @@ def handle_index(handler):
     if shelf["available"] and shelf["cards"]:
         profile, _notice = settings.resolve_presentation_profile(cfg)
         handler.send_html(presentation.surface_shell(
-            "Courses",
+            "Your desk",
             _course_shelf_body(shelf, ia.walkthrough_state(handler.root),
                                sample),
             theme_css=theme_block,
@@ -2433,6 +2441,30 @@ def handle_index(handler):
         theme_css=theme_block + home.HOME_CSS, palette=True,
         presentation_profile=profile)
     handler.send_html(page.encode("utf-8"))
+
+
+def handle_courses_get(handler):
+    """`GET /courses` renders the complete local shelf without desk coaching."""
+    cfg = settings.load_settings(handler.root)
+    shelf = ia.course_shelf_state(handler.root)
+    cards = []
+    for card in shelf.get("cards", ()):
+        cards.append({
+            "name": card["name"],
+            "meta": card["resume_cue"],
+            "chips": ({"label": card["chip"], "kind": "neutral"},),
+            "actions": ({"label": "Open course", "href": card["cta_href"]},),
+        })
+    state = None if shelf.get("available") else {
+        "kind": "unknown", "status": shelf.get("notice", "Courses unavailable")}
+    body = (_app_nav("courses")
+            + '<p class="area-lead">Every course stored on this device.</p>'
+            + presentation.course_shelf(
+                cards, empty="No courses are available yet.", state=state))
+    profile, _notice = settings.resolve_presentation_profile(cfg)
+    handler.send_html(presentation.surface_shell(
+        "Courses", body, theme_css=theme.theme_css(cfg), palette=True,
+        presentation_profile=profile).encode("utf-8"))
 
 
 def handle_banks(handler):
@@ -2680,7 +2712,7 @@ def handle_settings_get(handler):
         return
     handler.send_html(
         theme.theme_page(cfg, sections=_mode_layer_section(),
-                         palette=True).encode("utf-8"))
+                         palette=True, product=True).encode("utf-8"))
 
 
 def handle_theme_post(handler):

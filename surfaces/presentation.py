@@ -481,7 +481,7 @@ body{margin:0;background:var(--paper);color:var(--product-ink)}
 .product-nav{display:grid;gap:var(--space-2)}
 .product-nav a{min-height:44px;padding:10px 12px;border-radius:var(--r-1);
   color:var(--product-muted);font-weight:400}
-.product-nav a:first-child{background:var(--product-active);color:var(--product-ink);font-weight:600}
+.product-nav a[aria-current]{background:var(--product-active);color:var(--product-ink);font-weight:600}
 .product-local{margin-top:auto;border-top:1px solid var(--product-line);padding-top:var(--space-3);
   color:var(--product-muted);font-size:var(--text-xs)}
 .product-local:before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;
@@ -583,31 +583,37 @@ def product_theme_css():
 """
 
 
-def product_frame_open(title):
-    """Open the shared responsive learner frame for standalone activities."""
-    return ('<div class="product-shell"><aside class="product-sidebar">'
+def _product_sidebar(current="courses", standalone=False):
+    """One product navigation with an honest active destination."""
+    links = []
+    for key, href, label in (("desk", "/", "Your desk"),
+                             ("courses", "/courses", "Courses"),
+                             ("activity", "/activity", "Activity"),
+                             ("settings", "/settings", "Settings")):
+        active = ' aria-current="page"' if key == current else ""
+        links.append('<a href="%s"%s>%s</a>' % (href, active, label))
+    extra = " standalone-product-nav" if standalone else ""
+    return ('<aside class="product-sidebar%s">'
             '<a class="product-brand" href="/">itembank</a>'
             '<p class="product-tag">A place for understanding</p>'
-            '<nav class="product-nav" aria-label="Main navigation">'
-            '<a href="/">Your desk</a><a href="/">Courses</a>'
-            '<a href="/activity">Activity</a><a href="/settings">Settings</a>'
-            '</nav><p class="product-local">On this device</p></aside>'
+            '<nav class="product-nav" aria-label="Main navigation">%s</nav>'
+            '<p class="product-local">On this device</p></aside>'
+            % (extra, "".join(links)))
+
+
+def product_frame_open(title):
+    """Open the shared responsive learner frame for standalone activities."""
+    return ('<div class="product-shell">%s'
             '<div class="product-workspace"><header class="product-topbar">'
             '<span>Your workspace / %s</span><span>Local</span></header>'
-            % esc(title))
+            % (_product_sidebar(), esc(title)))
 
 
 PRODUCT_FRAME_CLOSE = "</div></div>"
 
 
 def standalone_product_nav():
-    return ('<aside class="product-sidebar standalone-product-nav">'
-            '<a class="product-brand" href="/">itembank</a>'
-            '<p class="product-tag">A place for understanding</p>'
-            '<nav class="product-nav" aria-label="Main navigation">'
-            '<a href="/">Your desk</a><a href="/">Courses</a>'
-            '<a href="/activity">Activity</a><a href="/settings">Settings</a>'
-            '</nav><p class="product-local">On this device</p></aside>')
+    return _product_sidebar(standalone=True)
 
 def esc(value):
     """Escape one presentation value for HTML text."""
@@ -648,7 +654,8 @@ def _action_markup(action, primary=False):
 
 def surface_shell(title, body, theme_css="", back=None, wide=False,
                   context=None, noscript=None, extra_css="", doc_title=None,
-                  tail="", classes="", palette=False, presentation_profile=""):
+                  tail="", classes="", palette=False, presentation_profile="",
+                  product=True):
     """The one shared semantic document shell: doctype, generated theme
     block plus shared design-token CSS, an optional sticky context line,
     an optional back link, a single `h1`, a `main` landmark holding `body`,
@@ -693,19 +700,14 @@ def surface_shell(title, body, theme_css="", back=None, wide=False,
     if noscript is not None:
         ns = "<noscript><p>%s</p></noscript>" % esc(noscript)
     head_title = title if doc_title is None else doc_title
-    # Settings has a frozen compatibility baseline and its own preview sheet.
-    # The accepted migration targets the learner journey, so keep that admin
-    # page byte-stable while every learner-facing shared-shell page adopts the
-    # production identity.
-    product_css = "" if head_title == "Settings" else PRODUCT_CSS
-    sheet = SHARED_CSS + product_css
+    sheet = SHARED_CSS + (PRODUCT_CSS if product else "")
     if extra_css:
         sheet = sheet + "\n" + extra_css
     if palette:
         from surfaces import palette as palette_surface
         sheet = sheet + "\n" + palette_surface.PALETTE_CSS
         tail = tail + palette_surface.palette_markup()
-    product_theme = "" if head_title == "Settings" else product_theme_css()
+    product_theme = product_theme_css() if product else ""
     style = "<style>\n%s\n%s\n%s\n</style>" % (theme_css, product_theme, sheet)
     cls = "surface" + (" wide" if wide else "")
     if classes:
@@ -714,13 +716,11 @@ def surface_shell(title, body, theme_css="", back=None, wide=False,
         cls += " ib-profile ib-profile-%s" % presentation_profile
     profile_attr = (' data-presentation-profile="%s"' % esc(presentation_profile)
                     if presentation_profile else "")
-    if head_title != "Settings":
-        product_sidebar = ('<aside class="product-sidebar"><a class="product-brand" href="/">itembank</a>'
-                           '<p class="product-tag">A place for understanding</p>'
-                           '<nav class="product-nav" aria-label="Main navigation">'
-                           '<a href="/">Your desk</a><a href="/">Courses</a>'
-                           '<a href="/activity">Activity</a><a href="/settings">Settings</a></nav>'
-                           '<p class="product-local">On this device</p></aside>')
+    if product:
+        current = ({"Your desk": "desk", "Courses": "courses",
+                    "Activity": "activity", "Settings": "settings"}
+                   .get(head_title, "courses"))
+        product_sidebar = _product_sidebar(current)
         return ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
                 "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
                 "<title>%s</title>%s</head><body><div class=\"product-shell\">%s"
@@ -735,8 +735,7 @@ def surface_shell(title, body, theme_css="", back=None, wide=False,
             "<title>%s</title>%s</head><body><div class=\"%s\"%s>%s%s<main>%s"
             "</main>%s%s</div></body></html>"
             % (esc(head_title), style, esc(cls), profile_attr, app_header,
-               "\n".join(parts), body, ns,
-               tail))
+               "\n".join(parts), body, ns, tail))
 
 
 def context_line(parts, label="Context"):

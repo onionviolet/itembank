@@ -514,7 +514,7 @@ def _settings_preview_card(mode, pair):
         % (mode, label, mode, mode, pair["accent"], mode, pair["accent_soft"]))
 
 
-def theme_page(config, sections="", palette=False):
+def theme_page(config, sections="", palette=False, product=False):
     """The `/settings` page (plan 04-04 Task 1): one quiet Theme section with
     the labeled browser color input, current source text, Choose with system
     picker / Save accent / Reset actions, side-by-side light/dark preview
@@ -562,7 +562,8 @@ def theme_page(config, sections="", palette=False):
         "Settings", profile_body + look_body + body + sections, palette=palette,
         theme_css=theme_css(config) + "\n" + SETTINGS_CSS,
         back={"href": "/", "label": "itembank"},
-        noscript=SETTINGS_NOSCRIPT, presentation_profile=active_profile)
+        noscript=SETTINGS_NOSCRIPT, presentation_profile=active_profile,
+        product=product)
 
 
 def _profile_section(config):
