@@ -5,7 +5,9 @@
   "description": "The published request document for POST /api/course/<operation> and its CLI twin. One $defs node per operation, and the node IS the operation's signature: the Phase 999.3 MCP tool table generates one tool per API_ROUTES entry and reads its argument shape from here, so a schema edit changes the tool with no code edit. The top-level oneOf makes the whole file a single valid contract a reader can validate a captured request against; dispatch validates against the one named node the route's own path selects, so a refusal names the field rather than reporting that no branch matched. This document describes a REQUEST and never a durable object: course_graph.schema.json is the sidecar the operations write, write_manifest.schema.json is the writer's provenance record, and neither is reshaped to carry a request. No request field names a filesystem path, a fingerprint of another object, a right the caller claims to hold, or a score: a course is addressed by its id and resolved server-side, and every right a write consumes is read from the operation journal at the moment of that write. The one node that names rights is `rights`, and it records a decision rather than asserting a permission.",
   "x-itembank-version": 1,
   "oneOf": [
+    {"$ref": "#/$defs/agent_operation"},
     {"$ref": "#/$defs/create"},
+    {"$ref": "#/$defs/register_source"},
     {"$ref": "#/$defs/rename"},
     {"$ref": "#/$defs/add_source"},
     {"$ref": "#/$defs/bind"},
@@ -37,7 +39,12 @@
     {"$ref": "#/$defs/export_package"},
     {"$ref": "#/$defs/verify_package"},
     {"$ref": "#/$defs/restore_package"},
-    {"$ref": "#/$defs/package_losses"}
+    {"$ref": "#/$defs/package_losses"},
+    {"$ref": "#/$defs/outline"},
+    {"$ref": "#/$defs/coverage"},
+    {"$ref": "#/$defs/untreated"},
+    {"$ref": "#/$defs/protocol"},
+    {"$ref": "#/$defs/parity"}
   ],
   "$defs": {
     "course_id": {
@@ -193,6 +200,43 @@
       "enum": ["advisory", "recommended-before", "hard-gate"],
       "default": "advisory",
       "description": "How hard this edge blocks. `hard-gate` is the exceptional value GRAPH-02 names: it is never a default, a human has to write it explicitly, and no degraded reading can reach it. Blocking a learner is not something a typo may do."
+    },
+    "agent_operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "action"],
+      "description": "Start, inspect, accept, reject, or undo one stored agent proposal. Draft bytes, paths, rights, scoring, marking, keys, and authority claims are never request fields.",
+      "properties": {
+        "operation": {"type": "string", "const": "agent_operation"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "action": {"type": "string", "enum": ["start", "status", "accept", "reject", "undo"]},
+        "skill": {"type": "string", "minLength": 1},
+        "proposal_id": {"type": "string", "pattern": "^p_[0-9a-f]{32}$"},
+        "reason": {"type": "string"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
+    },
+    "register_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id", "filename", "content"],
+      "description": "Register the first local text source inside a course through the canonical journal mint path. The bounded filename is resolved below the course sources directory, content is written atomically, and omitted rights remain unknown and restrictive.",
+      "properties": {
+        "operation": {"type": "string", "const": "register_source"},
+        "course_id": {"$ref": "#/$defs/course_id"},
+        "filename": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\\.(md|txt)$",
+          "description": "A bounded leaf filename below the course sources directory, never a path."
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "description": "UTF-8 source text supplied by the learner or a synthetic acceptance fixture."
+        },
+        "grants": {"$ref": "#/$defs/grants"},
+        "actor": {"$ref": "#/$defs/actor"}
+      }
     },
     "create": {
       "type": "object",
@@ -725,6 +769,56 @@
       "properties": {
         "operation": {"const": "package_losses"},
         "package_id": {"$ref": "#/$defs/package_id"}
+      }
+    },
+    "outline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id"],
+      "description": "Read the authored course outline through graph.outline_projection. This is a derived view and writes nothing.",
+      "properties": {
+        "operation": {"const": "outline"},
+        "course_id": {"$ref": "#/$defs/course_id"}
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id"],
+      "description": "Read objective coverage claims through director.coverage_claims_for. Missing source text remains an unknown claim and writes nothing.",
+      "properties": {
+        "operation": {"const": "coverage"},
+        "course_id": {"$ref": "#/$defs/course_id"}
+      }
+    },
+    "untreated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id"],
+      "description": "Read untreated objectives through director.untreated_objectives. This is a report, not a recommendation or write.",
+      "properties": {
+        "operation": {"const": "untreated"},
+        "course_id": {"$ref": "#/$defs/course_id"}
+      }
+    },
+    "protocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id"],
+      "description": "Read the thirteen-step protocol report recorded by this course. This is a local report and writes nothing.",
+      "properties": {
+        "operation": {"const": "protocol"},
+        "course_id": {"$ref": "#/$defs/course_id"}
+      }
+    },
+    "parity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "course_id"],
+      "description": "Read the course record with volatile values removed through director.parity_view. This is a derived comparison view and writes nothing.",
+      "properties": {
+        "operation": {"const": "parity"},
+        "course_id": {"$ref": "#/$defs/course_id"}
       }
     }
     }

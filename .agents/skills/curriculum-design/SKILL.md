@@ -1,6 +1,6 @@
 ---
 name: curriculum-design
-description: "Design a source-grounded course from a syllabus, standards, exam blueprint, or outline: extract objectives and prerequisites, align sources and existing artifacts, choose learning treatments, create an assessment blueprint, identify cited gaps, and propose what to build next."
+description: "Design a source-grounded course from a syllabus, standards, exam blueprint, grading policy, or outline: separate taught, tested, and prerequisite scope; extract objectives; align sources and artifacts; choose treatments; define assessment and grading maps; identify cited gaps; and propose what to build next."
 ---
 
 # Design a source-grounded curriculum
@@ -25,6 +25,10 @@ The shipped product has no graph, course, or binding command. The objective
 map today is a reviewable planning artifact (tables in a plan file) plus the
 `[OBJECTIVE:]` lines in real banks, measured by shipped commands. The graph
 kernel surface is pending (subphase 14B).
+
+When the course includes an exam, graded assignment, competency check, or
+completion threshold, read `../ASSESSMENT-INTAKE.md` and produce its assessment
+profile before finalizing objectives or an assessment blueprint.
 
 ## 1. Declare the operation
 
@@ -67,9 +71,18 @@ CSCI 1100 / loops / while
 - For standardized tests, record blueprint version, domain weights, item
   formats, timing, permitted tools, and tested depth. For knowledge courses,
   use the actual syllabus and instructor emphasis, not a generic exam.
+- For publicly documented exams, search the current exam owner, candidate
+  handbook, test plan, official samples, rules, and any question-pool authority
+  before using third-party summaries. Bind all claims to effective dates.
 
 Cite where each objective comes from. An objective without a source or
 authority is labeled as your synthesis.
+
+Separate three sets: taught objectives, assessed objectives, and prerequisite
+knowledge. Record their intersections and exclusions. An objective can be
+taught but untested, tested but assumed rather than taught, or required for
+course completion without contributing to an exam score. Do not collapse these
+states.
 
 ## 4. Establish prerequisites, pathways, and completion
 
@@ -85,6 +98,10 @@ Direct source reading, excerpt, guided lesson, notes or terms, worked
 example, visual or demonstration, practice, test, assessment-first
 diagnostic, learner artifact, or human review. Each treatment states its
 purpose. Direct reading is a successful outcome, not a fallback.
+
+Label each treatment `core`, `support`, or `enrichment`. Default sequencing and
+coverage targets include core plus only the support needed to make core work.
+Enrichment is opt-in unless the learner changes the target.
 
 ## 6. Map existing material and find the gaps
 
@@ -105,11 +122,24 @@ paper over them. Unknown stays unknown.
 
 ## 7. Build the assessment blueprint
 
-Map objective weights and cognitive demand to item counts, difficulty, item
-families, feedback mode, timing, and required changed-context transfer. Do
-not use recall questions as evidence for an application objective. Include
-diagnostic, formative, and summative assessment only where the course needs
-them.
+First complete the source-ranked assessment profile in
+`../ASSESSMENT-INTAKE.md`. Then map objective weights or published ranges and
+cognitive demand to item counts or ranges, difficulty, item families, feedback
+mode, timing, permitted tools, scoring authority, and required changed-context
+transfer. Preserve sampled versus guaranteed coverage. Do not use recall
+questions as evidence for an application objective. Include diagnostic,
+formative, and summative assessment only where the course needs them.
+
+Match mock and summative item families to the documented exam format. A format
+that the real exam does not use belongs only in explicitly justified teaching,
+diagnostic, course-completion, or opt-in enrichment work. Record capability or
+rights mismatches instead of quietly substituting a different test experience.
+
+Create a separate grading map for every graded component. It records the
+official weight, point and partial-credit model, rounding, pass or grade rule,
+minimum section rules, pending-response treatment, review and appeal path,
+retake effect, and reporting scale. Unknown policy stays pending. The grading
+map describes authority; it never grades a learner or invents a threshold.
 
 ## 8. Propose the work and validate the proposal
 
@@ -134,7 +164,7 @@ python itembank.py stats bank.md
 
 - This skill does not write banks or lessons; it proposes.
 - Never claim standardized-test fidelity without a cited, versioned
-  blueprint.
+  blueprint and completed assessment readiness gate.
 - Never commit real banks or learner data to this repository.
 - Report undo (which proposals were accepted and how to reverse them) and
   uncertainty (confidence per prerequisite and alignment claim) at close.

@@ -722,6 +722,22 @@ def test_voice_measure_leading_tokens_ship_in_shared_css():
             fail("SHARED_CSS must carry %r (03.1-UI-SPEC §2, §7.1)" % want)
 
 
+def test_quiz_native_selects_and_look_actions_keep_control_contract():
+    """Table/build responses and every look retain 44px/16px controls."""
+    sys.path.insert(0, ROOT)
+    from surfaces import looks, quiz_page
+    for want in (".rowline select", "min-height:44px", "font-size:16px",
+                 "min-width:0", "max-width:100%"):
+        if want not in quiz_page.TEMPLATE:
+            fail("quiz template native select treatment is missing %r" % want)
+    for look_id, look in looks.LOOKS.items():
+        css = looks.look_css(look_id)
+        action_rule = re.search(r"a\.go,button\.go.*?\{([^}]*)\}", css,
+                                re.S)
+        if action_rule and "font-size:16px" not in action_rule.group(1):
+            fail("look %r shrinks shelf actions below 16px" % look_id)
+
+
 def test_font_tokens_name_fallbacks_and_only_presentation_names_families():
     """Test 2: the fallback stacks name Georgia and ui-monospace, and the
     vendored face names exist only inside surfaces/presentation.py — every
@@ -1056,6 +1072,7 @@ def main():
     test_responsive_zoom_and_noscript_fallback()
     test_teaching_step_primary_action_contract()
     test_voice_measure_leading_tokens_ship_in_shared_css()
+    test_quiz_native_selects_and_look_actions_keep_control_contract()
     test_font_tokens_name_fallbacks_and_only_presentation_names_families()
     test_font_vendoring_records_and_staging()
     test_font_sha256_matches_bytes_or_defers_honestly()

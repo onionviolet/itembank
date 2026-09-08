@@ -13,11 +13,13 @@ OpenAI-compatible transport sends the wrong provider request shape, seeding is
 still disconnected from the shared adapter, and unavailable director responses
 drop their recorded operation id.
 
-The canonical EMT course was not changed. No diagnostic output was accepted.
-Verbatim records and their hashes are in `19C-VERIFICATION.md`. The Phase 19C
-diagnostic gate is complete, but Phase 19D must wait for the two backend-path
-repairs and a successful rerun. The shared `STATE.md` and roadmap checkbox were
-left untouched because a concurrent Phase 19A course-shell task owns that
-planning lane. The one plan commit is also deferred because that concurrent
-snapshot currently fails the required full preflight in
-`tests/binding_roundtrip.py`.
+The bounded repair now sends provider-native chat requests and parses assistant
+JSON through the shared adapter. Public seeding resolves the active settings
+profile through that boundary. Unavailable director results retain the journal
+operation id. Focused tests and guard pass.
+
+The real rerun produced one valid, unbound director recommendation. Its
+operation id is `70d3cdd7a1244833`. The disposable seeding run reached the
+configured backend and the six-stage flow, but its draft failed deterministic
+checks after the retry cap. Nothing was accepted and the canonical EMT course
+was not changed. Phase 19C no longer blocks Phase 19D on backend connectivity.

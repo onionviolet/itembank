@@ -1,6 +1,6 @@
 ---
 name: absorb-book
-description: Analyze a book, chapter, PDF, or notes for a course; outline and cite its objectives, decide when direct reading versus a lesson, terms, notes, examples, visuals, practice, or test is best, and create only the approved itembank artifacts one objective at a time.
+description: Analyze a book, chapter, PDF, syllabus, exam guide, grading policy, or notes for a course; extract source-grounded objectives or assessment rules, choose the best learning treatment, and create only approved itembank artifacts one objective at a time.
 ---
 
 # Absorb a source into a course
@@ -14,6 +14,16 @@ decisions for one source, with locators, rights, and lesson, note, and
 example proposals. If the work belongs to a whole course, use `build-course`
 to establish the target and objective map, then return here for source-level
 treatment.
+
+If the source is a syllabus, exam guide, blueprint, rubric, grading policy, or
+official sample form, also read `../ASSESSMENT-INTAKE.md`. Treat it as an
+assessment-policy source, not ordinary lesson material.
+
+This skill starts after an authorized source is available in an approved read
+root. It does not log into an LMS, scrape an authenticated course, download a
+course export, or infer that viewing a page authorizes copying linked material.
+Route source-set acquisition to its own approved operation. Do not import quiz
+keys, student submissions, grades, or feedback as assessment truth.
 
 Do not assume absorption means rewriting the source into lesson prose plus a
 bank. Clear, authoritative passages may be the best reading; diffuse
@@ -46,6 +56,11 @@ the chapter the user names) and outline it: the sections, and for each
 section the one to three concepts a reader must retain. Check for an
 existing lesson or bank covering this material before drafting; link or
 extend rather than duplicate.
+
+For an assessment-policy source, extract each policy claim with its locator,
+effective version, authority class, and conflicts. Populate only the fields the
+source actually supports. Record silence as unknown, not as permission to infer
+a weight, exclusion, item format, pass mark, or grading rule.
 
 ## 3. Recommend treatment before authoring
 
@@ -136,3 +151,5 @@ including any passage you were unsure how to read.
   and label synthesis.
 - Respect the declared rights: do not quote beyond the granted basis, and do
   not send source text to a hosted model outside the declared egress.
+- Do not turn the frequency or order of topics in one source into an exam
+  weight unless the governing assessment authority says it does.

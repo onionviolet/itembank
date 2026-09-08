@@ -295,6 +295,16 @@
       "default": "shelf",
       "x-itembank-phase": 17.1
     },
+    "presentation_profile": {
+      "type": "string",
+      "description": "The presentation composition for learner-facing surfaces. field-guide emphasizes source reading and course location. trajectory-deck emphasizes task movement and recovery. This axis is independent from home mode, look, theme, accent, density, contrast, and motion. Missing values retain the currently shipped composition. An unsupported persisted value renders with the visible field-guide fallback until the learner saves a supported value.",
+      "enum": [
+        "field-guide",
+        "trajectory-deck"
+      ],
+      "default": "field-guide",
+      "x-itembank-phase": 20
+    },
     "update_policy": {
       "type": "string",
       "description": "Whether the opt-in updater checks GitHub Releases automatically. check_on_launch checks once at daemon launch, silently and non-blockingly; opt_in only checks when the user runs itembank update. The declared default is opt_in, so a fresh installation with no settings file makes no automatic check; this repository's own checked-in itembank.json intentionally sets check_on_launch to dogfood the updater (D-13), so the two values are meant to differ. Read by this phase (2.1).",

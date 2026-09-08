@@ -16,8 +16,12 @@ stay on your computer.
 
 The larger course workspace is in active development. It will connect approved
 sources to objectives, choose the right learning treatment for each objective,
-and recommend what to do next from recorded evidence. The bank and session tools
-described here are its shipped foundation.
+and recommend what to do next from recorded evidence. It is designed to be
+agent-operable, not agent-dependent: Claude Code, Codex, another compatible
+agent, or a registered local backend may run the same bounded operations, while
+the local runtime remains the authority and the learner can still use the core
+course without a model. The bank and session tools described here are its
+shipped foundation.
 
 For the detailed direction, read the
 [source-to-course contract](.planning/SOURCE-TO-COURSE.md). The
@@ -245,8 +249,9 @@ The shipped bank and session commands are documented under [Use](#use).
   `itembank report`. Progress is reported as separate honest dimensions, never
   one aggregate mastery score.
 - **Upgrade legacy material.** Audit first, keep identity and assessment meaning,
-  present a bounded diff, validate after. The legacy-upgrade skill is planned;
-  the audit-before-editing rule already binds every agent (`AGENTS.md`).
+  present a bounded diff, validate after. The `legacy-upgrade` playbook ships
+  for compatible agents; the audit-before-editing rule also binds every agent
+  through `AGENTS.md`.
 - **Recover.** `itembank retract` undoes an event by appending a reasoned
   compensating event; `itembank render` rebuilds attempt markdown and session
   JSON from evidence. Clean-machine restore is a release gate for packaging.
@@ -531,6 +536,14 @@ this repo, or a tutor you spawned. Everything an agent needs to start cold is
 in `AGENTS.md` at the repository root (read by Codex, Cursor, Gemini CLI, and
 Claude Code), with the full project context in `.claude/CLAUDE.md`.
 
+Skills are portable operating guidance, not hidden product logic. They teach an
+agent how to choose treatments, create or revise artifacts, and pass the same
+validation and review gates a human uses. Product capabilities, permissions,
+accepted revisions, scoring, and recovery live in the local runtime and its
+published contracts. A client that does not auto-discover these skill folders
+can be pointed at them explicitly or can implement the same operation protocol;
+the canonical course never depends on one agent vendor's prompt system.
+
 **Repo skills.** This repository ships the playbooks below, which an agent
 can invoke by name; `capabilities.json` lists every skill directory,
 including three stubs (`discovery-and-binding`, `lesson-authoring`,
@@ -540,10 +553,13 @@ playbooks. The two trees are byte-identical mirrors:
 
 | Skill | What it does |
 |---|---|
+| `build-course` | Coordinate sources, objectives, treatments, artifacts, and evidence for a complete course |
 | `absorb-book` | Turn a textbook, chapter, or notes into lesson + bank content |
 | `curriculum-design` | Map a syllabus to objective coverage and find the gaps |
 | `guiding-questions` | Tutor a learner through the JSON session protocol, one diagnostic question at a time |
 | `author-bank` | Write or extend items and make them lint clean |
+| `legacy-upgrade` | Audit and propose bounded upgrades without silently changing identity or assessment meaning |
+| `problem-intake` | Preserve user-reported product problems with separate diagnosis, ownership, and closure evidence |
 | `ocr` | Read text out of images via a local Ollama vision model, the vision bridge for text-only models (optional; needs `ollama pull qwen2.5vl:7b`) |
 
 **Where each tool finds the skills** (the SKILL.md files carry the standard
@@ -796,9 +812,10 @@ one letter).
 which objectives are covered, and the difficulty spread. If one objective has
 nine items and another has none, that is visible in one command.
 
-**The only thing that needs an agent** is someone else marking your prose. That
-work queues: attempt files accumulate, and a marker can do six of them in one
-pass later. Nothing blocks on it, and nothing is lost while you wait.
+**Nothing requires an agent.** Short-answer marking does require a separate
+review action, which may come from a human or a human-approved model. That work
+queues: attempt files accumulate, and a marker can review several in one pass
+later. Nothing blocks on it, and nothing is lost while you wait.
 
 ## Design boundaries
 

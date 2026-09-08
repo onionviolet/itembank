@@ -2,21 +2,71 @@
 gsd_state_version: 1.0
 milestone: reach
 milestone_name: reach
-current_phase_name: 19A-course-operating-surface
-current_phase: 19A
-status: "Reach is active with freeze ordering waived. 19A-01 to 19A-03 are recorded executed. Next is 19A-04 treatment binding or independent 19C preparation. 19B, 19C, 19D and 19E have seeds and need context before execution. Human legs remain owed. See REACH-MILESTONE.md for the 2026-09-06 acceptance refinement."
-stopped_at: "19A-03 executed: the structure and objective-editing families are in the spine, the surface grid moved 41 to 43 of 82, and a course can be outlined, given objectives, related by edges and have its objective identity moved as a reviewed proposal from both surfaces. Next action is 19A-04 (treatment binding), or 19C's settings change."
-last_updated: "2026-09-05T00:00:00.000Z"
-last_activity: 2026-09-05
-last_activity_desc: "19A-03 executed: eight operations (add-container, add-objective, add-edge, structure, and the four objective identity moves) with their routes, `itembank course` twins and parity rows, a schema-driven CLI request builder, and a defect fix in 19A-02's own treatment enum; previously: 19A-02 executed: POST /api/course/add-source and /api/course/bindings with their `itembank course add-source` and `itembank bind list` twins, /api/course/bind and /api/course/rights re-hung in the validated spine at their published paths and envelopes, graph.add_source and graph.validate_binding and course.rights_for_binding given their first doors, and course writes made loopback-only; previously: 19A-01 executed: POST /api/course/create and /rename with their `itembank course` twins, one validated request document, and the /api/bind and /api/rights re-homing recorded as 19A-CONTEXT D-02a; previously: reach milestone adopted, freeze ordering waived, 19A to 19E entered on the roadmap; previously: 17B-04 executed and the milestone exit record written; G10's two routed defects repaired additively and the restore drill re-run to a pass; 17C-01's maintenance and restore audit run, finding five silent losses (F-LOSS-1 to F-LOSS-5) and a clean owner sweep."
+current_phase_name: 20-extensible-ui-foundation-and-interaction-clarity-pass
+current_phase: 20
+status: "Reach is closed under the 2026-09-08 scope waiver. Phase 20 is active. Plans 20-01 and 20-02 are complete for the deterministic showcase pass. The home projections share one canonical state. Human visual and screen-reader review was skipped by explicit user direction, not passed or certified."
+stopped_at: "Begin 20-03 Task 1 at the shared learning hierarchy for lesson, Study, practice, quiz, and exam. Keep synthetic fixtures, runtime-owned disclosure, and the no-real-sitting boundary."
+last_updated: "2026-09-08T00:00:00.000Z"
+last_activity: 2026-09-08
+last_activity_desc: "Plan 20-02 closed for the deterministic showcase pass after its projection-neutral home, presentation-profile, IA-route, and quick-preflight gates passed. Agenda and Path remain prototypes. Human visual and screen-reader review was skipped by user direction and remains uncertified."
 progress:
   total_phases: 41
-  completed_phases: 36
-  total_plans: 212
-  completed_plans: 212
-  counting_rule: "phase directories under .planning/phases; a phase counts complete when frozen or when its summaries and verification exist, human legs owed being a label rather than an open state after the 2026-09-05 waiver. Open are the five reach phases 19A to 19E, none of them blocked. Plans count complete when a summary exists or the phase is frozen."
+  completed_phases: 40
+  total_plans: 215
+  completed_plans: 214
+  counting_rule: "phase directories under .planning/phases; a phase counts complete when frozen or when its execution gate is complete, human legs owed being a label rather than an open state after the 2026-09-05 waiver. Open are 19B, 19D, and 19E. 19C's diagnostic gate is complete, with two repairs required before dependent 19D work. A plan is complete only when its required gate passes; a summary file alone does not close it."
 ---
 # Project State
+
+## Current position (2026-09-08): Phase 20 active after a bounded Reach waiver
+
+**Current answer:** Reach is closed for sequencing purposes under the user's
+2026-09-08 decision to defer local AI and skip the new Math 1400 sitting for
+now. The malformed `qwen3.5:4b` response remains an open deferred defect. No
+proposal, sitting, score, mastery result, recommendation, or dependent restore
+result is claimed. Phase 20 may proceed using deterministic fixtures and
+existing representative content while preserving runtime authority.
+
+The exact deferred legs, owners, and triggers are in `19D-DEFECTS.md`,
+`19D-VERIFICATION.md`, and `REACH-CLOSURE-INDEX.md`.
+
+## Superseded position (2026-09-07): 19D blocked at the live proposal gate
+
+**Current answer:** 19A, 19B, 19C, and 19E are complete. The external
+`math-1400-openstax` course was created from the verified OpenStax College
+Algebra 2e source, and its visible shelf, course, and Agent routes were
+exercised. The only installed backend, `qwen3.5:4b`, returned malformed
+proposal JSON after three bounded attempts. The runtime accepted no proposal,
+so 19D correctly did not claim accept and undo, a sitting, or restore. Resume
+from the Agent proposal step after the backend can produce a valid proposal.
+
+The exact evidence and remaining gates are in `19D-VERIFICATION.md`,
+`19D-WALKTHROUGH.md`, `19D-DEFECTS.md`, and `REACH-CLOSURE-INDEX.md`.
+
+## Superseded position (2026-09-07): 19A closed, three new plans remain
+
+**Current answer:** repair and rerun the two diagnosed 19C backend-path
+defects, then use one vertical plan each for 19B, 19E, and 19D.
+The remaining plan-file budget is three. GSD is configured for coarse planning
+and sequential execution so one agent keeps investigation, implementation, and
+the targeted gate in the same context.
+
+The 2026-09-07 extensible-UI direction does not expand the Reach critical path.
+Reach proves the Agent-tab and MCP EXT-04 compositions. The post-Reach UI owner
+then proves Measured Field Guide and Learning Trajectory Deck as registered
+presentation profiles over shared semantic roles, themes, primitives, and
+capability adapters. `PROMPT-EXTENSIBLE-UI-CONTINUATION-2026-09-07.md` carries
+that handoff without replacing this current execution order.
+
+19A-09's publication gate passed 26 of 26 checks and quick preflight passed, so
+Phase 19A is complete. Phase 19C's diagnostic gate is complete, but its retained
+transport and adapter-connection defects block the successful backend input
+that 19D requires. The authoritative
+execution ceiling and exceptions are in `REACH-MILESTONE.md` under "Execution
+budget, 2026-09-07."
+
+The 2026-09-05 position below is chronological history and is superseded for
+current routing.
 
 ## Current position (2026-09-05): reach, and nothing waiting
 
@@ -47,8 +97,13 @@ real course.
 | 19D Math 1400 | 19A, 19B, 19C | no context yet; the exit |
 | 13.5, 17B, 17C, 18 | nothing | executed, human legs owed |
 
-**Recommended order:** 19C beside 19A, then 19B and 19E in either order, then
-19D. Prepare the next 19A plan from its context and current implementation.
+**Recommended order:** execute the bounded R5 course-shell and first-use
+journey packet now. Resume 19A-06 after its UI and app evidence passes. Prepare
+19C beside implementation only when that does not idle the active writer.
+Continue the remaining 19A doors, then 19B, and run the thin 19D
+representative-unit walkthrough as soon as its required doors exist. Keep 19E
+and post-Reach breadth owned without allowing them to delay the visible product
+path. Expand only the next ready packet and repeat only failed observable steps.
 The 2026-09-06 vision review refined acceptance in `REACH-MILESTONE.md` and
 reading and verification cost in `AGENT-WORKFLOW.md`. It changed no runtime code.
 
@@ -491,6 +546,12 @@ recorded in 06.2-GATES.md. Six GATE-01..06 requirements delivered.
 | 260812-e2m | Four reader defects: leaked print CSS killing the glossary popover, `## TERMS` overrunning into lesson tables, relative `@font-face` urls 404ing on nested routes, authored-hint fallback printing a slug | 2026-08-12 | complete ✓ |
 | 260813-r5c | Merge the source-to-course reframe from `origin/main` and renumber the reading/teaching phase from 14 to 13.5, resolving the two-phases-one-number collision | 2026-08-13 | complete ✓ |
 | 260813-x3g | Reframe slice 1: replace the flat Phase 14-17 sequence in ROADMAP.md with the nine subphases (14A-17B) plus four governance clauses per synthesis section 15/16.3, and point SOURCE-TO-COURSE.md at them; originals preserved as historical rationale | 2026-08-13 | complete ✓ |
+
+## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 20 added: Extensible UI Foundation and Interaction Clarity Pass.
 
 Found by driving the running daemon in a browser, not by the test suite — the
 suite was green throughout. Fixes verified the same way after execution:

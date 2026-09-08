@@ -238,6 +238,75 @@ Report cost only when measured. Reuse available elapsed time, tool usage, or
 token figures without adding a tracking system. Never claim estimated savings
 as measured savings. Preserve quality gates and viable feature dispositions.
 
+### Proportional workflow, refined 2026-09-06
+
+GSD is an escalation ladder, not the default amount of process for every
+change. Choose the cheapest execution shape that preserves the task's actual
+acceptance gate:
+
+1. Use a direct edit or `gsd-fast` for a one-sentence, reversible change with
+   an immediate deterministic check. Do not create a plan, summary, research
+   pass, or subagent chain.
+2. Use one direct agent with a short evidence-gated packet for settled,
+   multi-step implementation. The same agent investigates, edits, and runs the
+   targeted gate when that keeps context local.
+3. Use `gsd-quick --validate` when a bounded task needs durable state, an atomic
+   plan commit, plan checking, and post-execution verification. Add discussion
+   or research only for a named unanswered question.
+4. Use the full discuss, research, plan, execute, review, and verify path for
+   consequential format, scoring, disclosure, rights, recovery, sandbox,
+   migration, or cross-system design decisions.
+
+Subagents are exceptional. Use them only for disjoint write lanes, a required
+independent review, protection of scarce coordinator context, or a specialized
+tool or separate allowance. Keep one writer per file and one integrator. A
+worker returns changed paths, exact gate results, assumptions, unresolved
+defects, and one next action. The integrator inspects the diff and evidence
+without repeating the worker's repository scan or broad test suite.
+
+A large first-pass prototype is legitimate when it is reversible and its
+purpose is to expose the learner experience quickly. Follow it with targeted
+validation against observed risks. Do not require complete planning before a
+prototype, and do not mistake generated breadth for accepted quality. Escalate
+only the parts whose failed gate reveals ambiguity or consequence.
+
+The 2026-09-06 structural baseline is evidence of process weight, not measured
+token consumption: 67 GSD skill files contained about 7,000 lines, the active
+planning tree contained about 219,000 lines and occupied 17 MB, and 638 commits
+touched `.planning`. At the same revision, STATE recorded 212 completed plans
+and only one real learner sitting. Use later measured tasks to determine
+whether this proportional route reduces tool calls and context while retaining
+correctness. Do not infer recurring behavioral failure from this one baseline.
+
+### Continuous execution rule, refined 2026-09-06
+
+Planning is preparation for the next observable run, not a queue that must be
+fully expanded before implementation starts. Apply these rules to active
+milestones:
+
+1. Put a thin, visible end-to-end slice in front of the user before expanding
+   breadth. Synthetic low-risk content is allowed when necessary. Never stub
+   scoring, disclosure, accepted writes, rights, or recovery authority.
+2. Bound planning for a settled packet to its observable result, exact symbols,
+   smallest gate, and stop condition. If those fit in the phase context, do not
+   create a separate research, plan, review, and summary chain.
+3. Keep one ready packet and one active writer. Prepare only the next packet
+   while a gate is running. Do not leave an executable packet idle while later
+   seeds are being elaborated.
+4. Run the cheapest representative check first. Add broader testing, another
+   agent, or a stronger model only when that check exposes a named risk or the
+   repository requires the independent gate.
+5. Measure elapsed time from packet start to visible evidence, plus retries,
+   tool calls, and defects found. Compare representative packets before
+   changing the workflow again. Planning-file volume is not a success measure.
+
+The `code_learner` comparison supports the first rule because one focused
+activity achieved coherent interaction and broad generated content quickly.
+Its missing runtime authority, durable evidence, dependency assurance, and
+objective graph show where targeted hardening is still required. Preserve its
+vertical-slice speed. Spend additional process only on the boundaries the slice
+actually exercises.
+
 ## 10. Drift audit
 
 Before closing a planning or product-direction pass, verify:

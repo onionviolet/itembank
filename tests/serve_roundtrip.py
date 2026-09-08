@@ -30,6 +30,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 import evidence                                            # noqa: E402
 import itembank                                            # noqa: E402
+from surfaces import session                               # noqa: E402
 
 BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
 
@@ -65,6 +66,48 @@ def wrong_answer(q):
     if q["type"] == "build":
         return list(reversed(q["steps"]))
     return None
+
+
+def check_lifecycle_transition_graph():
+    """The Phase 20 graph names every transition and recovery obligation."""
+    rows = session.lifecycle_transition_graph()
+    if len(rows) != len(set(row["family"] for row in rows)):
+        fail("lifecycle transition families are not unique")
+    for row in rows:
+        missing = [field for field in session.LIFECYCLE_FIELDS
+                   if not row.get(field)]
+        if missing:
+            fail("lifecycle family %r omits %s" %
+                 (row.get("family"), ", ".join(missing)))
+    events = set(event for row in rows for event in row["events"])
+    required = {
+        "start", "skip", "interrupt", "complete", "replay", "empty", "one",
+        "many", "archived", "corrupted", "stale", "conflicted", "exact resume",
+        "course switch", "Back", "Home", "deep link", "reload", "close", "crash",
+        "offline", "model unavailable", "source", "lesson", "note", "practice",
+        "passage return", "correct", "incorrect", "retry", "stop", "remediation",
+        "quiz", "exam", "active attempt", "accidental exit", "timeout", "submit",
+        "pending prose", "settled result", "allowed review", "locked review",
+        "evidence", "course continuation", "home", "satisfied objectives",
+        "incomplete requirements", "exhausted material", "changed revision",
+        "later return", "pending", "accept", "reject", "conflict", "undo",
+        "recover"}
+    if required - events:
+        fail("lifecycle graph omits events: %s" %
+             ", ".join(sorted(required - events)))
+    expected_failures = {"empty", "unknown", "unavailable", "interrupted",
+                         "conflict", "pending", "invalid", "recovery"}
+    if set(session.LIFECYCLE_FAILURE_ACTIONS) != expected_failures:
+        fail("lifecycle failures were merged or omitted")
+    for state, action in session.LIFECYCLE_FAILURE_ACTIONS.items():
+        if not action:
+            fail("failure %s has no next safe action" % state)
+    mutated = rows[0]
+    mutated["destination"] = "changed by caller"
+    if session.lifecycle_transition_graph()[0]["destination"] == "changed by caller":
+        fail("lifecycle graph callers can mutate the accepted contract")
+    print("ok: lifecycle transition graph covers %d families and distinct recovery actions"
+          % len(rows))
 
 
 def post(url, payload):
@@ -256,13 +299,14 @@ def check_form_submit_writes_the_attempt_file():
     print("  a script-free form submit refreshed the attempt view at %s" % out)
 
 
-def check_redirect_renders_current_position():
-    """A served form redirect renders the runtime cursor in its context band.
+def check_redirect_pauses_for_feedback_before_current_position():
+    """A served form redirect shows the verdict before it renders the next item.
 
     The first server-rendered page starts at item one. A wrong retry stays on
-    item one, while a correct retry advances and the redirected page must say
-    item two. This follows the browser's form and redirect path rather than
-    inspecting the template source.
+    item one. A correct retry records and advances once, then the receipt page
+    holds Item 1 with the runtime-issued verdict and an explicit Continue link.
+    Following that link renders Item 2. This follows the browser's form and
+    redirect path rather than inspecting the template source.
     """
     qs = itembank.parse_bank(open(BANK, encoding="utf-8").read())
     by_id = dict((q["id"], q) for q in qs)
@@ -279,7 +323,10 @@ def check_redirect_renders_current_position():
         page = urllib.request.urlopen(quiz_url, timeout=5).read().decode("utf-8")
         if '<b id="pos">1</b>' not in page:
             fail("the first served page did not render Item 1")
+        if page.count('class="hint-card locked"') != 1:
+            fail("the first served page exposed more than one locked hint tier")
         item_id = re.search(r'data-item-id="([^"]+)"', page).group(1)
+        session_id = re.search(r'data-session-id="([^"]+)"', page).group(1)
         q = by_id[item_id]
         token = submit_token(page)
         if not token:
@@ -299,17 +346,41 @@ def check_redirect_renders_current_position():
             fail("a wrong retry changed the rendered position")
         if "Not correct" not in held:
             fail("a wrong retry lost its verdict")
+        # A browser Back returns to a GET route. It must not replay the form
+        # POST, advance the cursor, or append a second response event.
+        log = evidence.log_path(work_root)
+        before_back = [ev for ev in evidence.live_events(log)
+                       if ev.get("event_type") == "response"]
+        back_page = urllib.request.urlopen(quiz_url, timeout=5).read().decode("utf-8")
+        after_back = [ev for ev in evidence.live_events(log)
+                      if ev.get("event_type") == "response"]
+        if len(after_back) != len(before_back):
+            fail("browser Back replayed a response event")
+        if '<b id="pos">1</b>' not in back_page:
+            fail("browser Back did not return to the held runtime cursor")
+        if ('data-session-id="%s"' % session_id) not in back_page:
+            fail("stopping and returning invented a second runtime session")
+        returned = urllib.request.urlopen(quiz_url, timeout=5).read().decode("utf-8")
+        if ('data-session-id="%s"' % session_id) not in returned or \
+                '<b id="pos">1</b>' not in returned:
+            fail("later return did not resume the same session at its exact cursor")
         token = submit_token(held)
         if not token:
             fail("the held page minted no fresh submit token")
-        advanced = submit_and_read(correct_answer(q), token)
+        feedback_pause = submit_and_read(correct_answer(q), token)
+        if '<b id="pos">1</b>' not in feedback_pause:
+            fail("a correct answer did not keep its own position during feedback")
+        if "Correct. Your answer was recorded." not in feedback_pause:
+            fail("the feedback pause did not identify the correct answer")
+        if ('data-feedback-continue href="/quiz/sample_bank"' not in feedback_pause or
+                "Continue to item 2" not in feedback_pause):
+            fail("the feedback pause did not provide an explicit next-item action")
+        advanced = urllib.request.urlopen(quiz_url, timeout=5).read().decode("utf-8")
         if '<b id="pos">2</b>' not in advanced:
-            fail("a correct advance did not render Item 2")
-        if "Previous answer: correct" not in advanced:
-            fail("the redirected page did not identify the prior correct answer")
+            fail("Continue did not render Item 2")
     finally:
         proc.terminate()
-    print("  served redirects keep Item 1 on wrong retry and render Item 2 after correct advance")
+    print("  served redirects keep Item 1 for feedback, then Continue renders Item 2")
 
 
 def check_banner_id_is_the_evidence_id():
@@ -634,9 +705,10 @@ def check_serve_seed_reaches_the_session():
 
 
 def main():
+    check_lifecycle_transition_graph()
     check_serve_seed_reaches_the_session()
     check_form_submit_writes_the_attempt_file()
-    check_redirect_renders_current_position()
+    check_redirect_pauses_for_feedback_before_current_position()
     check_banner_id_is_the_evidence_id()
     check_a_failed_submit_keeps_the_answer()
     check_multi_hold_shows_which_of_my_picks_were_right()

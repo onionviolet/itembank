@@ -482,8 +482,13 @@ def check_backend_unavailable_leaves_the_objective_untreated():
             fail("a missing executable gave code %r" % (result["code"],))
         if result["record"] is not None:
             fail("a missing executable returned a record")
+        if not result.get("operation_id"):
+            fail("an unavailable recommendation lost its operation id")
 
         entry = list(journal.entries(base))[-1]
+        if (entry.get("agent") or {}).get("operation_id") != \
+                result["operation_id"]:
+            fail("the unavailable result id does not address its journal row")
         if (entry.get("agent") or {}).get("phase") != "plan-treatment":
             fail("the unavailable entry's phase is %r"
                  % ((entry.get("agent") or {}).get("phase"),))

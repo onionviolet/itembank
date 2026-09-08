@@ -49,8 +49,10 @@ own directives.
 """
 import os
 import re
+import uuid
 
 import model
+import model_adapter
 from model import LintError, lint, parse_question, parse_sources
 
 from surfaces import presentation
@@ -140,6 +142,60 @@ class NoBackendAdapter(ModelAdapter):
 
     def available(self):
         return False
+
+
+class ConfiguredModelAdapter(ModelAdapter):
+    """Adapt the shared settings-backed model boundary to the seeding stages."""
+
+    name = "configured"
+
+    def __init__(self, settings_data):
+        self.settings = settings_data or {}
+
+    def available(self):
+        profile, reason = model_adapter.resolve_profile(self.settings)
+        return profile is not None and reason is None
+
+    def _call(self, stage, instruction, contract=None, **values):
+        payload = {
+            "schema_version": 1,
+            "contract": contract or model.SPEC,
+            "request": {"stage": stage, "instruction": instruction,
+                        **values},
+            "attempt": 1,
+            "findings": [],
+        }
+        request = model_adapter.request_from_operation(
+            "author", "seed-" + uuid.uuid4().hex[:16], "",
+            author_request=payload)
+        result = model_adapter.invoke(request, self.settings)
+        if result.get("status") != "ok" or not isinstance(
+                result.get("candidate"), dict):
+            return {}
+        return result["candidate"]
+
+    def draft_outline(self, objective, sources):
+        result = self._call(
+            "outline", "Return the three required seeding sections.",
+            contract="Outline sections: Stem, Options, Rationale.",
+            objective=objective, sources=sources)
+        sections = result.get("sections") or []
+        return "\n".join(sections) if isinstance(sections, list) else ""
+
+    def draft_section(self, outline, section):
+        result = self._call(
+            "drafting", "Draft only the requested question-bank section. "
+            "The Stem starts with the question text, not Qn. or Q1.",
+            outline=outline, section=section)
+        return result.get("text") or ""
+
+    def verify(self, draft_block, objective, sources):
+        result = self._call(
+            "verification", "Verify the draft independently. Return JSON "
+            "fields ok and notes.", draft=draft_block,
+            objective=objective, sources=sources)
+        return {"ok": result.get("ok") is True,
+                "notes": result.get("notes") or []}
 
 
 class FakeModelAdapter(ModelAdapter):
@@ -374,8 +430,9 @@ class SeedingRun:
         return "\n".join(lines)
 
 
-def run_seeding_run(bank_path, adapter=None, objective=None, retry_cap=DEFAULT_RETRY_CAP,
-                    extra_checks=None):
+def run_seeding_run(bank_path, adapter=None, objective=None,
+                    retry_cap=DEFAULT_RETRY_CAP, extra_checks=None,
+                    settings_data=None):
     """Run the six-stage pipeline (D-08) over `bank_path`.
 
     With no reachable backend (adapter None, or `adapter.available()` False)
@@ -385,7 +442,8 @@ def run_seeding_run(bank_path, adapter=None, objective=None, retry_cap=DEFAULT_R
     `run.accept` / `run.skip` / `run.cancel` -- nothing writes to the bank
     without an accept (D-06), and a cancelled run writes nothing (D-09).
     """
-    adapter = adapter or NoBackendAdapter()
+    adapter = adapter or (ConfiguredModelAdapter(settings_data)
+                          if settings_data is not None else NoBackendAdapter())
     run = SeedingRun(bank_path, adapter, objective, retry_cap, extra_checks)
     if not adapter.available():
         run.refused = True

@@ -22,6 +22,7 @@ from surfaces.audio import cmd_export_audio
 from surfaces.audit_cli import cmd_audit
 from surfaces import binding_cli
 from surfaces import course_ops
+from surfaces import mcp
 from surfaces.daemon import (cmd_cli_twin, cmd_daemon, cmd_disclosure,
                              cmd_sidecar)
 from surfaces.day import cmd_day
@@ -407,10 +408,14 @@ def cmd_seed(a):
     decision. With no model backend reachable it refuses by name (D-10) and
     starts no draft; import, lint, and coverage are unaffected.
     """
-    run = seeding.run_seeding_run(a.bank)
+    run = seeding.run_seeding_run(
+        a.bank, settings_data=_load_settings_for(
+            getattr(a, "base", None) or os.path.dirname(
+                os.path.abspath(a.bank))))
     if run.refused:
         print(run.refusal)
         return 1
+    print("Stages reached: " + " -> ".join(run.stages))
     decisions = (line.strip().lower() for line in sys.stdin)
     for i, draft in enumerate(run.drafts, 1):
         print(seeding.BATCH_FRAMING_LINE)
@@ -861,6 +866,11 @@ def build_parser():
                    help="do not launch a browser")
     s.add_argument("--force", action="store_true", help="serve despite lint errors")
     s.set_defaults(fn=cmd_daemon)
+
+    s = sub.add_parser("mcp", help="serve the generated MCP tool table over stdio")
+    s.add_argument("base", nargs="?", default=".",
+                   help="course and bank workspace root (default: current directory)")
+    s.set_defaults(fn=mcp.cmd_mcp)
 
     s = sub.add_parser("sidecar", help="packaged-app launch (D-03/D-04): the "
                        "daemon in sidecar mode, printing the fixed stdout "
@@ -1373,10 +1383,28 @@ def build_parser():
                        "record a source in it, the CLI twin of POST "
                        "/api/course/<operation>")
     ct = s.add_subparsers(dest="action", required=True)
+    agent = ct.add_parser(
+        "agent-operation",
+        help="start, inspect, accept, reject, or undo a stored agent proposal")
+    agent.add_argument("course_id", help="the course id")
+    agent.add_argument("action",
+                       choices=("start", "status", "accept", "reject", "undo"))
+    agent.add_argument("--skill", default="",
+                       help="configured skill id, required for start")
+    agent.add_argument("--proposal-id", default="",
+                       help="opaque proposal id, required after start")
+    agent.add_argument("--reason", default="",
+                       help="optional durable rejection reason")
+    agent.add_argument("--root", default=".", help="workspace root")
+    agent.add_argument("--actor", default="", help="reviewer name")
+    agent.add_argument("--json", action="store_true")
+    agent.set_defaults(fn=course_ops.cmd_course, operation="agent-operation")
     for name, blurb in (
             ("create", "mint a course: one course-graph.md sidecar written "
                        "through the compare-and-swap path, every section "
                        "empty"),
+            ("register-source", "register one bounded local text source "
+                                "through the course journal"),
             ("rename", "retitle a course; identity, bindings and evidence "
                        "are untouched"),
             ("add-source", "record an imported source in this course's "
@@ -1386,7 +1414,7 @@ def build_parser():
         cp.add_argument("course_id",
                         help="the course id, as the shelf and /course/<id> "
                              "spell it")
-        cp.add_argument("--title", required=True,
+        cp.add_argument("--title", required=name not in ("register-source",),
                         help="the source's title for a human reader"
                              if name == "add-source"
                              else "the course's human-readable title")
@@ -1397,6 +1425,13 @@ def build_parser():
                         help="who is recording this, for the operation journal")
         cp.add_argument("--json", action="store_true",
                         help="emit the operation result as JSON")
+        if name == "register-source":
+            cp.add_argument("--filename", required=True,
+                            help="leaf .md or .txt filename below sources")
+            cp.add_argument("--content", required=True,
+                            help="UTF-8 source text")
+            cp.add_argument("--grants", type=json.loads, default=None,
+                            help="JSON object of rights states; omitted stays unknown")
         if name == "add-source":
             cp.add_argument("--source", required=True,
                             dest="source_object_id",
@@ -1903,6 +1938,9 @@ def build_parser():
                                     "accept loop one item at a time (needs a "
                                     "model backend; refuses by name without one)")
     s.add_argument("bank")
+    s.add_argument("--base", default=None,
+                   help="directory whose itembank.json resolves the model "
+                        "backend (default: bank directory)")
     s.set_defaults(fn=cmd_seed)
 
     s = sub.add_parser("guard", help="fail if a real bank was committed")

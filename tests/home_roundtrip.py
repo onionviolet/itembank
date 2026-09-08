@@ -604,6 +604,185 @@ def check_agent_area_keeps_room_for_inline_affordances():
         r.close()
 
 
+def _phase20_state(kind="one"):
+    """Synthetic durable facts only. No sitting or learner evidence is read."""
+    course = {
+        "course_id": "course-synthetic-algebra",
+        "name": "Synthetic Algebra",
+        "route": "/course/course-synthetic-algebra",
+        "state": "available",
+        "resume": {"label": "Resume lesson 2",
+                   "href": "/course/course-synthetic-algebra/learn/lesson-2"},
+        "primary_action": {"label": "Resume lesson 2",
+                           "href": "/course/course-synthetic-algebra/learn/lesson-2"},
+        "facts": [
+            {"kind": "anki_due", "source": "Anki due", "label": "4 cards"},
+            {"kind": "itembank_due", "source": "itembank due", "label": "2 reviews"},
+            {"kind": "course_completion", "source": "Course completion",
+             "label": "3 of 8 objectives complete"},
+            {"kind": "evidence_standing", "source": "Evidence standing",
+             "label": "6 settled attempts"},
+        ],
+        "path": [
+            {"state": "complete", "label": "Read lesson 1",
+             "href": "/course/course-synthetic-algebra/learn/lesson-1"},
+            {"state": "current", "label": "Read lesson 2",
+             "href": "/course/course-synthetic-algebra/learn/lesson-2"},
+            {"state": "available", "label": "Practice set",
+             "href": "/course/course-synthetic-algebra/practice"},
+            {"state": "pending", "label": "Written response review"},
+            {"state": "locked", "label": "Formal assessment"},
+            {"state": "unavailable", "label": "Remote source"},
+        ],
+    }
+    agenda = [
+        {"group": "overdue", "kind": "itembank_due",
+         "course_id": course["course_id"], "href": course["route"],
+         "label": "Review objective A", "source": "itembank due"},
+        {"group": "today", "kind": "anki_due",
+         "course_id": course["course_id"], "href": course["route"],
+         "label": "Review 4 cards", "source": "Anki due"},
+        {"group": "upcoming", "kind": "itembank_due",
+         "course_id": course["course_id"], "href": course["route"],
+         "label": "Practice objective B", "source": "itembank due"},
+        {"group": "revision", "kind": "course_revision",
+         "course_id": course["course_id"], "href": course["route"],
+         "label": "Inspect course revision", "source": "Course revision"},
+        {"group": "recently-completed", "kind": "course_completion",
+         "course_id": course["course_id"], "href": course["route"],
+         "label": "Lesson 1 completed", "source": "Course completion"},
+    ]
+    axes = {"presentation_profile": "field-guide", "home": "shelf",
+            "look": "classic", "theme": "system", "accent": "blue",
+            "density": "comfortable", "contrast": "normal",
+            "motion": "full"}
+    if kind == "empty":
+        return {"courses": [], "agenda": [], "appearance": axes}
+    if kind == "many":
+        second = copy.deepcopy(course)
+        second.update({"course_id": "course-synthetic-history",
+                       "name": "Synthetic History",
+                       "route": "/course/course-synthetic-history"})
+        second["resume"] = {"label": "Start source reading",
+                            "href": "/course/course-synthetic-history/learn"}
+        second["primary_action"] = copy.deepcopy(second["resume"])
+        return {"courses": [course, second], "agenda": agenda,
+                "appearance": axes}
+    if kind in ("archived", "corrupted", "interrupted", "unavailable"):
+        labels = {
+            "archived": ("Archived course. Its files remain available.",
+                         "Open archived course", course["route"]),
+            "corrupted": ("Course record could not be read. Nothing was overwritten.",
+                          "Open last valid overview", course["route"]),
+            "interrupted": ("Interrupted at lesson 2. Resume the same locator.",
+                            "Resume lesson 2", course["resume"]["href"]),
+            "unavailable": ("Remote source unavailable. Local course remains available.",
+                            "Open local course", course["route"]),
+        }
+        blocker, label, href = labels[kind]
+        course["state"] = kind
+        course["blocker"] = blocker
+        course["primary_action"] = {"label": label, "href": href}
+    return {"courses": [course], "agenda": agenda, "appearance": axes}
+
+
+def check_phase20_projection_contract():
+    """Task 20-02-01: four learner jobs share one immutable state contract."""
+    if tuple(home.LEARNER_JOBS) != ("resume", "shelf", "agenda", "path"):
+        fail("learner jobs changed: %r" % (home.LEARNER_JOBS,))
+        return
+    if home.LEARNER_JOB_MODES != {"resume": "next-action", "shelf": "shelf"}:
+        fail("Resume and Shelf no longer refine the stable modes")
+        return
+    if "agenda" in home.MODES or "path" in home.MODES:
+        fail("prototype jobs were minted as stable setting values")
+        return
+    for kind in ("empty", "one", "many", "archived", "corrupted",
+                 "interrupted", "unavailable"):
+        state = _phase20_state(kind)
+        before = copy.deepcopy(state)
+        for job in home.LEARNER_JOBS:
+            body = home.render_projection(state, job, "field-guide")
+            if 'data-learner-job="%s"' % job not in body:
+                fail("%s fixture did not render %s" % (kind, job))
+                return
+            if state != before:
+                fail("%s projection mutated canonical state" % job)
+                return
+        if kind == "empty":
+            for job in home.LEARNER_JOBS:
+                body = home.render_projection(state, job)
+                if "data-state=\"empty\"" not in body:
+                    fail("%s has no meaningful empty state" % job)
+                    return
+    ok("empty, one, many, archived, corrupted, interrupted, and unavailable fixtures render from one state")
+
+
+def check_phase20_projection_labels_and_actions():
+    state = _phase20_state("many")
+    shelf = home.render_projection(state, "shelf")
+    if shelf.count("data-action-primary") != len(state["courses"]):
+        fail("Shelf does not render exactly one primary action per course")
+        return
+    path_actions = home.render_projection(state, "path").count(
+        "data-action-primary")
+    if path_actions != len(state["courses"]):
+        fail("Path does not render exactly one primary action per course")
+        return
+    if any(len(card["primary_action"]["label"]) > 40
+           for card in state["courses"]):
+        fail("a course primary action is not short")
+        return
+    for label in ("Anki due", "itembank due", "Course completion",
+                  "Evidence standing"):
+        if label not in shelf:
+            fail("Shelf merged or omitted %r" % label)
+            return
+    agenda = home.render_projection(state, "agenda")
+    for key, _label in home.AGENDA_GROUPS:
+        if 'data-agenda-group="%s"' % key not in agenda:
+            fail("Agenda omitted populated durable group %r" % key)
+            return
+    empty_agenda = home.render_projection({"courses": state["courses"],
+                                           "agenda": []}, "agenda")
+    if "data-agenda-group" in empty_agenda or "Use Shelf" not in empty_agenda:
+        fail("Agenda did not hide empty groups or name its supported fallback")
+        return
+    path = home.render_projection(state, "path")
+    for path_state in home.PATH_STATES:
+        if 'data-path-state="%s"' % path_state not in path:
+            fail("Path omitted state %r" % path_state)
+            return
+    if "master" in path.lower():
+        fail("Path equated movement with mastery")
+        return
+    ok("actions stay singular and due, completion, evidence, agenda, and path states stay separate")
+
+
+def check_phase20_profiles_preserve_behavior():
+    state = _phase20_state("many")
+    for job in home.LEARNER_JOBS:
+        guide = home.render_projection(state, job, "field-guide")
+        deck = home.render_projection(state, job, "trajectory-deck")
+        for token in ("course-synthetic-algebra", "/course/course-synthetic-algebra"):
+            if guide.count(token) != deck.count(token):
+                fail("%s profile switch changed behavior token %r" % (job, token))
+                return
+    root = _Root()
+    try:
+        legacy = home.home_state(root.root)
+        for mode in ("agent", "split"):
+            for profile in ("field-guide", "trajectory-deck"):
+                body = home.render_home(legacy, mode,
+                                        presentation_profile=profile)
+                if 'data-presentation-profile="%s"' % profile not in body:
+                    fail("%s did not render in %s" % (mode, profile))
+                    return
+    finally:
+        root.close()
+    ok("all learner jobs plus agent and split preserve behavior across both profiles")
+
+
 def main():
     check_empty_root_is_honest()
     check_bank_with_no_session_is_not_started()
@@ -621,6 +800,9 @@ def main():
     check_reading_stays_first_on_every_card()
     check_proposals_surface_on_the_object_only()
     check_agent_area_keeps_room_for_inline_affordances()
+    check_phase20_projection_contract()
+    check_phase20_projection_labels_and_actions()
+    check_phase20_profiles_preserve_behavior()
     if failures:
         print("\n%d failure(s)" % len(failures))
         return 1

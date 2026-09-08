@@ -26,6 +26,8 @@ def main():
     if build_registry([]) != ({},{},{}): fail("empty registry mismatch")
     expect([None],"entry 0"); x=row(); del x["fallback"]; expect([x],"fallback")
     x=row(); x["priority"]="x"; expect([x],"priority"); expect([row("a"),row("a")],"a")
+    x=row(); x[7]="heterogeneous"; expect([x],"entry 0 has extra field 7")
+    x=row(); x[("priority",)]="heterogeneous"; expect([x],"entry 0 has extra field ('priority',)")
     for bad in ("Alpha","two-words","2alpha",""): expect([row(bad)],"name")
     for bad in ("1","1.2","1.2.3.4","v1.2.3",123): x=row(); x["version"]=bad; expect([x],"version")
     x=row(); x["handler"]="x"; expect([x],"handler")
@@ -39,5 +41,7 @@ def main():
     if source_adapters.ADAPTER_REGISTRY["text"](raw,{}) != source_adapters._extract_text(raw,{}): fail("text adapter mismatch")
     names=("markdown","text","pdf","docx","pptx","web","transcript","ocr","epub","asr")
     if tuple(source_adapters.ADAPTER_REGISTRY) != names or tuple(source_adapters.ADAPTER_VERSIONS.values()) != ("1.0.0",)*9+("0.0.0",): fail("built-in compatibility mismatch")
+    asr=source_adapters.SOURCE_ADAPTER_DESCRIPTIONS["asr"]
+    if "unimplemented" not in asr["capability"] or "transcript adapter" not in asr["fallback"]: fail("ASR description is not actionable")
     print("ok: extension registry roundtrip")
 if __name__ == "__main__": main()

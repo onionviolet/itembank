@@ -88,6 +88,8 @@ STUDY_CSS = r"""
 .rows,.steps,.rubric{margin:0;padding-left:18px}
 .rows li,.steps li,.rubric li{margin:0 0 4px}
 .acts{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.acts[hidden]{display:none}
+.card[hidden]{display:none}
 .acts button{min-height:44px;border:1px solid var(--line);border-radius:9px;
   padding:10px 20px;font:inherit;font-weight:600;cursor:pointer;
   background:var(--card);color:var(--ink)}
@@ -281,7 +283,7 @@ function syncState(c){
     r.setAttribute("data-action-primary","");
     r.removeAttribute("aria-disabled");
   }
-  c.querySelector("[data-acts=front]").hidden=false;
+  c.querySelector("[data-acts=front]").hidden=revealed;
   c.querySelector("[data-acts=revealed]").hidden=!(revealed&&mode==="flash");
   c.querySelector("[data-acts=rating]").hidden=!(revealed&&mode==="learn");
 }
@@ -323,15 +325,14 @@ function wireRecall(c){
   });
 }
 function wireNav(c){
-  const prev=c.querySelector("[data-prev]"),next=c.querySelector("[data-next]");
-  prev.addEventListener("click",()=>{
+  c.querySelectorAll("[data-prev]").forEach(prev=>prev.addEventListener("click",()=>{
     if(mode==="flash"){if(i>0){i--;render()}}
     else if(queue.length>1){queue.unshift(queue.pop());render()}
-  });
-  next.addEventListener("click",()=>{
+  }));
+  c.querySelectorAll("[data-next]").forEach(next=>next.addEventListener("click",()=>{
     if(mode==="flash"){if(i<CARDS.length-1){i++;render()}else finish("Flashcards done.")}
     else{queue.push(queue.shift());render()}
-  });
+  }));
   c.querySelector("[data-got]").addEventListener("click",()=>{if(mode==="learn"){mastered++;queue.shift();render()}});
   c.querySelector("[data-miss]").addEventListener("click",()=>{if(mode==="learn"){queue.push(queue.shift());render()}});
   c.querySelector("[data-reveal]").addEventListener("click",()=>reveal(c));
@@ -380,6 +381,7 @@ def study_page(bank_path, qs):
     base = os.path.dirname(os.path.abspath(bank_path)) or "."
     cfg = settings.load_settings(base)
     css = theme_css(cfg)
+    profile, _notice = settings.resolve_presentation_profile(cfg)
     text = open(bank_path, encoding="utf-8").read()
     title = grab(r"(?m)^#\s+(.*?)\s*$", text) or os.path.basename(bank_path)
     page_title = "%s study set" % title
@@ -393,7 +395,8 @@ def study_page(bank_path, qs):
             "status": "No study cards match this bank.",
             "actions": [{"label": "Choose another bank", "href": "/"}]})
         return presentation.surface_shell(
-            page_title, body, theme_css=css, back=back, noscript=noscript)
+            page_title, body, theme_css=css, back=back, noscript=noscript,
+            presentation_profile=profile)
     cards = []
     for n, q in enumerate(qs):
         try:
@@ -406,19 +409,27 @@ def study_page(bank_path, qs):
                 "actions": [{"label": "Reload", "href": "#"},
                             {"label": "Choose another bank", "href": "/"}]})
             return presentation.surface_shell(
-                page_title, body, theme_css=css, back=back, noscript=noscript)
+                page_title, body, theme_css=css, back=back, noscript=noscript,
+                presentation_profile=profile)
     body = (
+        '<section class="ib-course-identity" aria-label="Course context">'
+        '<p>Application: itembank</p><h2>%s</h2><p>Study</p></section>'
+        '<section class="ib-activity-frame" aria-label="Learner study">'
+        '<dl class="ib-activity-facts"><div><dt>Purpose</dt>'
+        '<dd>Deliberate review</dd></div><div><dt>Response format</dt>'
+        '<dd>Recall and reveal</dd></div><div><dt>Disclosure</dt>'
+        '<dd>Explanation after you choose to reveal it</dd></div></dl>'
         '<div class="tabs">'
         '<button type="button" class="tab on" id="tFlash">Flashcards</button>'
         '<button type="button" class="tab" id="tLearn">Learn</button></div>'
         '<div class="status" id="status" role="status" aria-live="polite">'
         "</div>"
         '<div class="bar"><i id="prog"></i></div>'
-        '<div id="deck">%s</div>'
-        % "".join(cards))
+        '<div id="deck">%s</div></section>'
+        % (esc(title), "".join(cards)))
     page = presentation.surface_shell(
         page_title, body, theme_css=css + "\n" + STUDY_CSS,
-        back=back, noscript=noscript)
+        back=back, noscript=noscript, presentation_profile=profile)
     return (page.replace("</main>",
                          "<script>" + STUDY_JS.replace(
                              "__DATA__", script_safe_json(

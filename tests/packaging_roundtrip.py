@@ -92,6 +92,8 @@ def test_artifact_is_plain_python_inside(artifact):
                 model_text = text
         if model_text is None or "def parse_bank" not in model_text:
             fail("model.py inside the artifact does not contain 'def parse_bank'")
+        if "extension_registry.py" not in names:
+            fail("the .pyz is missing extension_registry.py, required by source adapters")
         bad = [n for n in names if n.endswith(".pyc") or "__pycache__" in n]
         if bad:
             fail("artifact carries compiled/cache members: %r" % bad)

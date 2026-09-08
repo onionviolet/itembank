@@ -1,9 +1,30 @@
 # Phase 19C verification
 
-**Status:** diagnostic gate passed, functional backend path failed. Phase 19C
-produced the required inspected record and routed its defects. It did not
-produce usable model output and is not evidence that Phase 19D can use the
-backend yet.
+**Status:** backend repair verified. The shared adapter now speaks the local
+provider protocol, the public seeding flow resolves the active profile, and
+unavailable director results retain their operation id. The real rerun accepted
+nothing and left the disposable bank unchanged.
+
+## 2026-09-07 repair rerun
+
+- The real public director command reached `qwen3.5:4b` and returned a candidate
+  that passed `director.validate_recommendation`. The result was intentionally
+  not bound. Its operation id is `70d3cdd7a1244833`.
+- The public seed command resolved `local-qwen` through
+  `model_adapter.invoke` and executed the locked pipeline against the disposable
+  EMT bank. The model draft failed deterministic checks after the retry cap, so
+  the result was `0 drafted, 0 accepted, 0 skipped, 1 failed deterministic
+  checks`. No write was offered or performed.
+- The disposable bank fingerprint remained
+  `7f9917e6e77d929be8829c34d685035bfd5282a4665b99004adf35daeac2ba09`.
+- Focused gates passed: `tests/model_adapter_roundtrip.py`,
+  `tests/director_roundtrip.py`, and `tests/seeding_roundtrip.py` (25 tests).
+  `itembank guard .` passed with zero offending files.
+
+The repaired CLI also prints the ordered stage path before presenting results,
+so a learner or reviewer can see where a seeding run progressed. Candidate
+quality remains model-dependent and the deterministic lint gate correctly
+prevented a weak real draft from reaching acceptance.
 
 ## Environment and retained record
 
@@ -108,12 +129,10 @@ prints an empty id beside undo instructions that refer to the id above.
 
 ## Gate verdict and next dependency
 
-Phase 19C's diagnostic gate passes because all required paths were invoked on
-real material, the verbatim records were retained and inspected, output was
-judged plainly, and every observed defect has an owner and a falsifiable repair
-gate. Functional backend use remains failed. Before Phase 19D can depend on
-19C, F19C-01 and F19C-02 need bounded repairs and the same real diagnostic must
-be rerun. F19C-03 should travel with the next 15A or 19A-05 repair packet.
+Phase 19C's diagnostic and repair gates pass. F19C-01, F19C-02, and F19C-03 are
+repaired and covered by focused tests. The same real diagnostic was rerun. The
+director produced a valid unbound recommendation, and seeding reached the
+shared backend while deterministic validation refused its weak draft.
 
 The plan commit is blocked until the concurrent 19A lane restores the full
 preflight. Committing before that would violate the repository rule that a plan

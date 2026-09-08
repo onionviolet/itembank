@@ -277,7 +277,8 @@ class _FakeServer:
                                "focus_span": "the wrong answer",
                                "fact_ids": ["tier2.trap"],
                                "move": "anchor_error"}
-                    data = json.dumps(payload).encode("utf-8")
+                    data = json.dumps({"choices": [{"message": {"content":
+                        json.dumps(payload)}}]}).encode("utf-8")
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
@@ -346,6 +347,18 @@ def test_openai_parity_and_config_switch():
         request = sample_request("local")
         rh = model_adapter.invoke(request, make_settings("local", [hosted]))
         rl = model_adapter.invoke(request, make_settings("local", [local]))
+        sent = json.loads(server.received[0])
+        if sorted(sent) != ["messages", "model", "reasoning_effort",
+                            "response_format", "stream", "think"] \
+                or sent["stream"] or sent["think"] is not False:
+            fail("local transport did not send OpenAI-compatible JSON: %r"
+                 % sent)
+        response_format = sent["response_format"]
+        if response_format.get("type") != "json_schema" or \
+                not response_format.get("json_schema", {}).get("strict"):
+            fail("local transport did not require a strict JSON response")
+        if json.loads(sent["messages"][1]["content"]) != request:
+            fail("provider user message does not contain the adapter request")
         for r in (rh, rl):
             if r["status"] != "ok":
                 fail("parity transport status is %r: %r" % (r["status"], r))

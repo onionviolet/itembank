@@ -162,10 +162,65 @@ transport.
 before everything else that matters. 19B and 19E are independent of each other
 and both depend only on 19A. 19D is last by definition; it is the exit.
 
+### Execution budget, 2026-09-07
+
+Finish Reach with one active writer and at most three new executable plans:
+
+1. Finish the existing 19A-09 packet and its blocked publication gate. Do not
+   create another 19A plan.
+2. Write one vertical plan for 19B and one vertical plan for 19E. Each plan
+   includes implementation, its route or transport acceptance run, undo where
+   applicable, and targeted verification.
+3. Repair the two diagnosed 19C backend-path defects as one bounded direct
+   packet, then rerun the recorded diagnostic. This is completion of observed
+   failed behavior, not a new research or planning phase.
+4. Write one vertical 19D plan only after the 19A, 19B, and repaired 19C doors
+   exist. That plan owns the representative Math 1400 build, sitting, defect
+   routing, and milestone-exit evidence.
+
+These are ceilings, not quotas. Do not create separate research, pattern,
+review, summary, or verification plans unless a targeted gate exposes a named
+unsettled decision or the repository requires an independent gate. Reuse the
+existing contracts and cited evidence. A normal successful packet records its
+result in its commit and gate output under the B1 summary exception.
+
 ## Exit criterion
 
 A real Math 1400 course, built through the product's own doors, sat at least
 once, with its defects recorded and routed. Not a gate record over a fixture.
+
+The completion label is **Reach achieved, broader vision and human legs open**.
+Do not label this milestone as full user-vision completion or all-audits-closed.
+An applicable correctness, lost-work, navigation, or unusable-content defect
+blocks the affected Reach outcome until it is repaired and the failed step is
+rerun. A deferred breadth item or unsigned human leg remains named and does not
+become an agent-certified pass.
+
+### Scope amendment, 2026-09-08
+
+The user deferred live local-AI proposal generation and said, "we can skip the
+sitting for now." For milestone sequencing, Reach closes under that explicit
+waiver and Phase 20 may begin. This revises the current exit criterion without
+rewriting the observed record: the Math 1400 source, objectives, direct
+reading, shelf, course route, and Agent entry are verified; the live proposal,
+accepted generated treatment, new sitting, learner evidence, recommendation,
+and dependent export and restore observation are deferred with owners and
+triggers in `REACH-CLOSURE-INDEX.md` and the 19D defect ledger.
+
+The completion label remains **Reach achieved, broader vision and human legs
+open**, now qualified by the waiver above. It does not claim the deferred legs
+passed. Runtime scoring, keyed disclosure, evidence, content acceptance,
+rights, and recovery authority remain unchanged. A later release that claims
+Math 1400 learning outcomes must reopen the representative sitting first.
+
+### Current product priority, 2026-09-06
+
+Visible UI and app coherence take the active writer before the next invisible
+course-operation family. Run the bounded R5 course-shell packet first: shelf to
+course and back, visible current area, mobile navigation disclosure, and an
+actionable empty state. Then resume 19A-06 and the dependency order below. This
+is a sequencing change inside Reach. It is not the comprehensive future visual
+redesign, and it does not waive any course-operation or recovery gate.
 
 ### Vision alignment refinement, 2026-09-06
 
@@ -181,8 +236,9 @@ implementation plans and runtime behavior were not re-audited.
 | F2: One sitting does not prove instructional quality | 19D, TREAT-01/02 and ACTIVITY-02 | Review a representative unit against its actual syllabus objectives and source locators. Include justified direct reading, a missing generated treatment, and changed-context application. Record gaps instead of claiming the whole course is covered. |
 | F3: Backend output can pass 19C while being unusable | 19C then 19D, AGENT-01/02/03 | Keep 19C as a diagnostic run. Only reviewed, accepted artifacts enter the 19D learner course. Use sitting evidence to propose one next activity with its denominator and uncertainty. |
 | F4: A new algebra course cannot prove every subject, file workflow, or external-user experience | 19D plus existing 14A/14B, 17B and 18 evidence | Link existing multi-root, plain-Markdown, restore, and subject tracers. State which real-use and human review legs remain unverified. |
+| F5: Working doors do not by themselves feel like one dependable desktop product | 19D, Phase 18, and the UI character audit | Enter through the packaged or canonical browser-served shell. Complete the visible first-use and return journey without a guessed URL or CLI repair. Verify clear operation state, recovery, consistent navigation, and actionable empty states. Keep the second-person cold install and human visual review visible when they remain owed. |
 
-The 19D context must turn F1 to F3 into one continuous representative-unit
+The 19D context must turn F1 to F5 into one continuous representative-unit
 walkthrough using the existing contracts. Include a learner note, a rich lesson
 with a useful plain-file fallback, resume after leaving, and an accepted agent
 change that can be undone. Reuse existing fixtures and verification evidence
@@ -204,6 +260,40 @@ This refinement implements the 2026-09-06 request to check plans against vision
 and reduce future waste. It extends the 2026-08-21 cost and useful-product
 direction. It creates no new capability or phase and retires no viable idea.
 
+### Post-Reach closure map
+
+Reach closes only the entrance and representative-use gap. The following work
+survives as one post-Reach decision surface rather than being mistaken for
+completion:
+
+| Open outcome | Evidence required | Existing owner or next route |
+|---|---|---|
+| Human accessibility, visual, and instructional acceptance | Signed representative screen-reader, visual, and learning-quality walks | 17A, 17B, and 19D human legs |
+| Clean portable recovery | Each applicable F-LOSS-1 to F-LOSS-5 repaired, packaged, restored on a clean machine, and rerun without silent loss | 14B and 17C loss owners, exercised by 19A-08 |
+| External first use and onboarding | Second-person cold install, removable sample, first-run guidance, and return journey | Phase 18 continuation |
+| Comprehensive visual character | Comparative prototypes across representative states, user selection, accessible implementation, and recoverable settings migration | Future visual phase under the UI character audit |
+| Broader course and capability evidence | More than one course and subject, plus triggered note, OCR, annotation, or executable-treatment prototypes | Registered roadmap items after 19D defects are routed |
+
+After 19D, classify every observed defect into one of these owners. Promote
+only defects that block the representative Reach journey into immediate repair.
+Keep the rest in the existing owner or disposition ledger. Do not create a new
+general audit phase merely to copy these rows.
+
+Before Reach closes, publish one compact audit closure index linking every
+current vision, UI, recovery, human-gate, and external-install finding to one
+of five states: verified closed, human owed, deferred with trigger, superseded
+with replacement evidence, or rejected with reconsideration condition. Open
+items may remain under the broader-vision label, but unowned or ambiguous
+“later” items may not. The index links to owning evidence and does not create a
+subplan for each finding.
+
+The 2026-09-06 SaaS-quality desktop direction sharpens F5 without changing the
+milestone architecture. Phase 13's Tauri shell remains the container. Phase 18
+owns install and first-run evidence. The UI character audit owns the bounded
+presentation proposal. Phase 19D proves that the connected experience works as
+one learner journey. Hosted accounts, storage, and billing remain outside this
+milestone.
+
 **Review checks:** `python3 scripts/preflight.py --quick` passed on 2026-09-06.
 Runtime and JS suites were not run for this planning-only edit.
 `python3 scripts/vision_audit.py` found no missing paths, missing planning
@@ -224,8 +314,10 @@ what convert an executed phase to a frozen one.
 
 ## Starting points
 
-Every phase below is beginnable today. 19C and 19A have no unmet dependency at
-all; 19B and 19E need 19A's routes to exist; 19D needs all three. 19A is the
-only phase with a written context (`19A-CONTEXT.md`, ten decisions pinned,
-ten plans, one operation family each), so it is the one an executor can plan
-straight from. The other four need a context pass before their plans.
+The only ready execution packet is the existing 19A-09 publication closure.
+19C's diagnostic gate ran and exposed two backend-path defects that must be
+repaired and rerun before 19D. After 19A closes, create one plan each for 19B
+and 19E from their settled milestone goals and gates. Do not run a separate
+context-expansion pass unless implementation finds a decision the milestone
+does not settle. Create the single 19D plan last, when its required doors
+exist. The remaining plan-file budget is three.

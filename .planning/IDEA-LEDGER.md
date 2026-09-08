@@ -350,6 +350,28 @@ Amendments to an existing entry are additive notes under the entry, dated.
   phase's plan set; failure condition: a second provider lands as an
   `if`-chain branch (Extensibility Rule 2 already fails that in review).
 
+- **Note 2026-09-06: bounded implementation route.** The user revisited DSH
+  and requested plans for a less capable executor if they improve the product.
+  The second-provider trigger is already present: source adapters have ten
+  registrations and model transports already prove a synthetic third provider.
+  `EXTENSION-DELIVERY-2026-09-06.md` owns the conditional benefit assessment and
+  follow-on seeds. `EXT-01-PLAN.md` owns a reversible source-declaration pilot.
+  The standing pattern remains Core. The pilot is Prototype until its gates
+  prove compatibility and useful metadata validation. The owner is the
+  extension maintainer. Evidence is code inspection and a recommendation,
+  not measured efficiency gains. Cost is one helper, metadata maintenance,
+  and regression checks. This adds no Reach capability or published schema.
+- **Future breadth 2026-09-06:** external installable packages are Deferred,
+  owned by supply-chain and runtime-maintenance maintainers. Unblock with a
+  concrete package need and accepted isolation, pinned acquisition,
+  compatibility, grants, atomic activation, rollback, and offline recovery.
+  Cost includes package review, isolation, dependency support, and updates.
+  Evidence class is a design possibility, not a shipped capability. Live
+  reload is Backburner, owned by the extension maintainer. Revisit only when
+  restart-based activation measurably obstructs a real workflow and session
+  pinning is proven. Cost is lifetime management and recovery under concurrent
+  operations. Neither idea is rejected or promised by the current packet.
+
 ### IL-20260816-02: One runtime, two shells (web and installed app)
 
 - **Proposal:** Deliver the product through two shells: a web-based surface
@@ -1696,3 +1718,339 @@ Operation note: this audit creates one report and appends this ledger section.
 It changes no user quotation, runtime file or accepted product requirement.
 Undo removes the report and this section only, preserving prior and concurrent
 work. Verification results live in the report's validation section.
+
+### IL-20260906-07: local-first desktop with a SaaS-quality experience
+
+- **Idea:** make itembank feel like one approachable and dependable product,
+  with guided first use, a clear course home, consistent navigation, durable
+  operation state, recovery, and understandable settings.
+- **Disposition:** Core product-experience direction. It changes the acceptance
+  lens for current work and creates no new architecture or phase.
+- **Owner:** `SOURCE-TO-COURSE.md` for the binding direction, Phase 18 for
+  installation and first use, the UI character audit for the bounded
+  presentation proposal, and Phase 19D for the continuous learner walkthrough.
+- **Evidence class:** direct user direction, supported by observed gaps in
+  `UI-CHARACTER-AUDIT-2026-09-06.md`, `VISION-PLAN-AUDIT-2026-09-06.md`, and
+  `research/2026-09-06-feature-opportunity-audit.md`.
+- **Origin:** the 2026-09-06 SaaS-entry-point conversation, promoted verbatim to
+  `USER-VISION.md`.
+- **Dependency and cost driver:** the shipped Tauri shell and shared local
+  runtime remain the delivery base. Costs come from connecting existing doors,
+  consistent UI behavior, packaging verification, and human usability review.
+- **Boundary:** SaaS-quality names the experience and not the hosting model.
+  Accounts, multi-tenancy, hosted storage, cloud gradebooks, billing, and cloud
+  synchronization are not implied. Electron is not required.
+- **Verification and falsifier:** a learner enters through the packaged or
+  canonical browser-served shell, creates or resumes a course, follows visible
+  controls through a representative learning loop, observes durable agent-job
+  state, recovers from an interruption, and returns home without a guessed URL
+  or CLI repair. If existing Phase 18 and 19D evidence already proves this with
+  the reviewed UI, no additional product-experience work is justified.
+- **Authority and recovery:** canonical learning records stay local and the one
+  runtime retains assessment authority. UI state is derived. Hosted model use
+  follows declared rights and egress. Existing application revisions and local
+  files remain the recovery base.
+- **Relationship:** extends the paid-subscription substitution entry without
+  recreating its business model. It confirms the Phase 13 shell decision and
+  coalesces existing APP, Phase 18, UI-audit, and Reach obligations.
+
+### IL-20260906-08: comprehensive future UI character
+
+- **Idea:** redesign the future learner interface comprehensively so it has a
+  distinctive, coherent learning-workspace identity. Do not preserve the
+  current visual appearance merely because it shipped first.
+- **Disposition:** Core visual-experience direction, sequenced after the
+  current Reach milestone's functional and journey evidence.
+- **Owner:** `UI-CHARACTER-AUDIT-2026-09-06.md` for the amended visual plan and
+  the future UI phase for prototypes, selection, implementation, and review.
+- **Evidence class:** direct user direction, informed by user comparison of the
+  running Syntax Lab interface with the current itembank UI. Syntax Lab is
+  comparative product evidence, not a selected design system.
+- **Origin:** the 2026-09-06 comprehensive future UI character statement,
+  promoted verbatim to `USER-VISION.md`.
+- **Dependency and cost driver:** first establish the representative course
+  journey through R5 and R6. Costs include comparative prototypes, shared
+  component implementation, all-surface migration, responsive and
+  accessibility verification, visual assets where chosen, theme preference
+  migration, and human review.
+- **Boundary:** the redesign may replace current colors, typography roles,
+  geometry, layout, component styling, theme catalogue, and default look. It
+  may not replace runtime scoring or disclosure authority, canonical local
+  files, learner evidence, accessible operation, responsive behavior, durable
+  preferences without migration, or recovery guarantees.
+- **Verification and falsifier:** compare materially different directions on
+  the same representative shelf, course, lesson, practice, assessment,
+  evidence, settings, empty, unavailable, and recovery states. The user selects
+  a direction that feels more distinctive and coherent. Keyboard, screen
+  reader, reflow, contrast, reduced motion, and task-completion checks pass. If
+  the redesigned states do not improve recognition, navigation, and task
+  clarity in review, visual novelty alone does not justify adoption.
+- **Migration and recovery:** retain the prior accepted application revision.
+  Map or explicitly retire saved looks and accents. Unknown or invalid saved
+  settings fall back visibly and recoverably. Reversal restores the prior
+  visual revision without changing course, assessment, or evidence data.
+- **Relationship:** strengthens IL-20260906-07 and the earlier structured-studio
+  direction. It partly supersedes preservation-first clauses in the UI
+  character audit while retaining their observed defects and quality gates.
+
+### IL-20260907-01: extensible presentation and capability composition
+
+- **Idea:** make the complete learner-facing presentation adaptable through
+  named extension seams. Presentation profiles arrange shared primitives.
+  Appearance themes provide semantic visual tokens. Capability adapters plug
+  readers, activities, editors, source views, agent panels, exporters, and
+  integrations into shared operations without requiring a frontend fork.
+- **Disposition:** Core for the semantic presentation and registration
+  contract. The two selected presentation profiles are Registered. New
+  capability adapters begin as Prototype until their representative behavior
+  and degradation gates pass.
+- **Owner:** `UI-CHARACTER-AUDIT-2026-09-06.md` owns presentation architecture.
+  `EXTENSION-DELIVERY-2026-09-06.md` owns the reusable registration shape.
+  Each capability phase owns its adapter and evidence.
+- **Evidence class:** direct user direction plus recommendation based on the
+  existing selected-profile architecture and the verified EXT-01 through
+  EXT-03 registration work.
+- **Dependency and cost driver:** prove the two profiles on one representative
+  shelf-to-lesson-to-practice slice. Cost comes from cross-profile state
+  coverage, accessibility, settings migration, compatibility, packaging, and
+  recovery rather than from registration metadata alone.
+- **Boundary:** canonical content, parser, scorer, assessment disclosure,
+  evidence, rights, route identity, and recovery authority are not plugins.
+  Registration metadata grants no authority. External code loading remains
+  Deferred under EXT-05 and the supply-chain policy.
+- **Verification and falsifier:** add a second real registration at a named
+  seam without duplicating state or authority. Render representative states in
+  both profiles across appearance modes, desktop, mobile, keyboard, screen
+  reader, unavailable behavior, migration, and recovery. If the shared shape
+  adds special cases or does not reduce duplication, keep the seam local and
+  do not generalize it.
+- **Origin and relationship:** direct 2026-09-07 statement in
+  `USER-VISION.md`. Extends IL-20260816-01 and IL-20260906-08. It does not
+  reopen IL-20260815-04.
+
+### IL-20260907-02: comparative home projections and transition-complete UI
+
+- **Idea:** compare resume-first, shelf-first, agenda-first, and within-course
+  path presentations over identical course data and routes. Treat the complete
+  transition graph, including Home, Back, exact resume, interruption, practice
+  completion, quiz and exam completion, pending review, remediation, later
+  return, and course completion, as part of the UI contract rather than gaps to
+  decide screen by screen. Keep the supporting platform and repository evidence
+  renewable through named re-research triggers.
+- **Disposition:** Core for the shared transition graph and state matrix.
+  Prototype for the four home presentations until comparable learner review.
+- **Owner:** `notes/2026-09-07-home-and-transition-ui-scope.md` owns the initial
+  synthesis. `PROMPT-UI-FLOW-AND-OPEN-SOURCE-ABSORPTION-2026-09-07.md` owns the
+  deeper research packet. `UI-CHARACTER-AUDIT-2026-09-06.md` remains the
+  implementation-direction owner after evidence is reconciled.
+- **Evidence class:** direct user direction plus observed screenshot evidence
+  and current official product documentation. Applying external patterns to
+  itembank remains a recommendation until prototype and learner review.
+- **Dependency and cost driver:** the active Reach milestone remains unchanged.
+  Later work depends on a populated representative course, the two registered
+  presentation profiles, stable route identity, and real assessment sessions.
+  Costs come from repository research, comparable prototypes, durable
+  navigation and resume state, cross-mode transition tests, responsive and
+  accessibility coverage, and user review.
+- **Boundary:** all projections use the same parser, scorer, assessment
+  disclosure, evidence, route identity, rights, and recovery authority. A home
+  view may project or arrange state. It may not invent progress, completion,
+  scores, recommendations, or a second session. External repositories are
+  prior-art evidence only and no code, markup, styles, assets, fixtures, or
+  wording are copied.
+- **Verification and falsifier:** walk every row in the scope note's transition
+  matrix through both presentation profiles and each retained home projection
+  at desktop and narrow widths. Verify Home, Back, reload, stop, finish, resume,
+  and profile switching preserve one session, exact location, focus or a
+  meaningful successor, unsaved-work handling, and assessment disclosure. A
+  home projection is superseded if it serves no distinct learner job or is less
+  clear than a simpler composition in user review.
+- **Re-research triggers:** reopen affected evidence when a named platform or
+  repository materially changes relevant behavior, a prototype or real sitting
+  falsifies a recommendation, a new itembank capability introduces uncovered
+  states, or a source becomes stale, contradicted, unavailable, or differently
+  licensed. Record access date and upstream version or commit when available.
+  Do not repeat the entire landscape without a changed assumption or named gap.
+- **Origin and relationship:** direct 2026-09-07 statements in
+  `USER-VISION.md`. Extends IL-20260906-06, IL-20260906-08, and IL-20260907-01.
+  It concretizes APP-01, APP-02, FLOW-01, and FLOW-02 without changing their
+  authority. It does not supersede Measured Field Guide or Learning Trajectory
+  Deck.
+
+### IL-20260907-03: agent-operable learning harness product identity
+
+- **Idea:** define itembank as a local-first learning harness for people whose
+  stable contracts let replaceable AI agents construct, operate, inspect, and
+  improve source-grounded courses without transferring assessment authority to
+  a model.
+- **Disposition:** Core product identity. AI training, reinforcement learning,
+  prompt optimization, and general model evaluation are not the primary product
+  identity. A specific learner-serving use of those techniques may be
+  Registered later under the same contracts.
+- **Owner:** `SOURCE-TO-COURSE.md` owns the binding product definition.
+  `AGENT-WORKFLOW.md` owns agent operation. The runtime owns scoring,
+  assessment disclosure, session state, and accepted evidence.
+- **Evidence class:** direct user question and approval on 2026-09-07, plus an
+  interpretation of the existing source-to-course and agent-operable workspace
+  contracts.
+- **Dependency and cost driver:** no new implementation dependency follows from
+  the identity clarification. Any adjacent AI-facing capability must name its
+  learner job, durable objects, evidence authority, rights and egress,
+  validation, degradation, maintenance, and recovery. Its cost comes from those
+  capability-specific gates rather than from the product framing.
+- **Boundary:** the learner is the beneficiary. Agents are replaceable
+  operators and collaborators. Parser, scorer, keyed disclosure, accepted
+  evidence, permissions, and recovery remain canonical authorities rather than
+  learned or swappable verdicts.
+- **Verification and falsifier:** future contracts, requirements, plans, and
+  product descriptions call it a learning harness only when the learner-facing
+  system remains primary. A proposal that makes model improvement the primary
+  user outcome must be treated as a separate product-direction decision, not
+  inferred from this entry.
+- **Origin and relationship:** direct 2026-09-07 statements in
+  `USER-VISION.md`. Confirms the 2026-08-13 source-to-course and course-generator
+  entries and clarifies the agent-operable workspace contract. It supersedes
+  no existing learner or agent capability.
+
+### IL-20260906-09: Syntax Lab-inspired CS Dojo
+
+- **Idea:** add a focused CS Dojo course surface inspired by Diego's Syntax
+  Lab, with concise coding prompts, a real editor, declared context,
+  deterministic checks, actionable feedback, retry, controlled reveal, and
+  support for additional programming languages through adapters.
+- **Disposition:** Prototype. Validate the learning, execution, authority, and
+  maintenance model before adding a durable activity or item format.
+- **Owner:** the future activity-capability owner for the learner experience,
+  the runtime owner for scoring and disclosure, and the security owner for
+  execution isolation. D3.1 of the consolidated audit remediation plan owns the
+  current prototype route.
+- **Evidence class:** direct user direction plus observed implementation
+  evidence from the locally reviewed Syntax Lab repository. The review verified
+  1,579 Python and JavaScript drills across 40 language/category groups and a
+  passing JavaScript worker regression suite. It also found missing durable
+  objective evidence, client-owned scoring and reveal, incomplete worker
+  coverage, and high-severity dependency audit findings.
+- **Dependency and cost driver:** R6 must establish the representative course
+  journey. Each language adds runtime distribution, sandbox, resource-limit,
+  package-policy, fixture, accessibility, offline, security-update, and
+  compatibility costs. Multi-file projects and compiled languages cost more
+  than single-file interpreted drills.
+- **Boundary:** the Dojo is an optional objective treatment, not a second course
+  system. Language adapters execute and normalize results. The existing runtime
+  settles scores, disclosure, session state, and evidence. Hidden tests cannot
+  require undeclared learner identifiers or context. Unavailable execution has
+  a useful non-executable fallback. Short function challenges are one drill
+  mode, not the curriculum or the complete CS coursework model. The Dojo must
+  distinguish code reading and prediction, tracing and explanation, typed
+  construction, debugging and test writing, tool or multi-file work, and
+  learner-owned labs or projects. Executable code is not assumed to be one new
+  universal item type before the activity contract separates practice,
+  assessment, and learner artifacts.
+- **Verification and falsifier:** a synthetic objective completes prompt,
+  execution, per-test feedback, retry, reveal, objective-linked evidence,
+  reload, timeout recovery, and offline use through at least two adapters.
+  The representative slice also includes one predict-run-explain activity, one
+  debugging or test-construction activity, and one bounded multi-file lab or
+  learner artifact with an explicit review state. Hostile-code and
+  keyed-disclosure tests pass. If the slice can demonstrate only isolated
+  function submissions, it remains a narrow drill capability and cannot claim
+  to represent the CS coursework extension. If executable practice does not
+  improve transfer beyond an existing static treatment for the chosen
+  objective, the Dojo is not justified for that treatment.
+- **Migration and recovery:** no current lesson or bank migrates automatically.
+  The prototype is removable without altering canonical course or evidence
+  files. Any accepted schema change requires spec, lint, schema, export,
+  roundtrip, threat, accessibility, and clean-restore coverage.
+- **Relationship:** extends IL-20260906-08 by applying the Syntax Lab reference
+  to a specific learning surface. The 2026-09-07 direction broadens the
+  prototype from Syntax Lab-style drills to CS coursework while keeping those
+  drills as one mode. It concretizes existing runnable-code and transfer goals
+  without making coding execution a universal requirement.
+
+### IL-20260908-01: authenticated source acquisition and transcript completion
+
+- **Idea:** add a source acquisition layer that discovers and downloads an
+  authorized Canvas course, preserves its hierarchy and per-object provenance,
+  sends each supported object through the existing source adapters, and
+  completes the media path with caption discovery and optional ASR.
+- **Disposition:** Prototype for Canvas course exports and local ASR. Registered
+  for live Canvas API acquisition. Backburner for browser-session capture.
+  Registered research targets include Moodle backup, IMS Common Cartridge,
+  SCORM, Blackboard, D2L Brightspace, Panopto, Kaltura, and YouTube captions.
+- **Owner:** the post-Reach source acquisition phase proposed in
+  `SOURCE-ACQUISITION-EXTENSION-AUDIT-2026-09-08.md`.
+- **Evidence class:** direct user direction plus verified codebase audit. Phase
+  14C already imports transcript files and one public web page. It registers
+  ASR as unavailable. Canvas LTI is delivery rather than acquisition.
+- **Dependency and cost driver:** reuse the Phase 14C adapter, locator, rights,
+  fingerprint, and journal contracts. Cost comes from authenticated discovery,
+  pagination, rate limits, batch recovery, credentials, per-resource rights,
+  loss reporting, incremental reconciliation, and real-course validation.
+- **Revisit and promotion gate:** start after Reach. Promote the export path
+  only after an authorized Canvas export completes preview, import, bind,
+  interruption and resume, recheck, undo, and offline restore with one outcome
+  per discovered object. Promote live API acquisition only after credential
+  isolation and a real learner-approved Canvas walkthrough pass.
+- **Boundary:** acquisition creates raw snapshots and manifests. Existing
+  adapters remain the only extraction path. The runtime remains the only scorer
+  and disclosure authority. Credentials never enter course artifacts or logs.
+  Unknown rights remain restrictive. Student submissions and grades are
+  excluded from the first slice.
+- **Relationship:** extends IL-20260815-07 and IL-20260907-01. It turns the
+  earlier Navigate2 scrape specimen into a general acquisition need without
+  authorizing unrestricted crawling or external package execution.
+
+### IL-20260908-02: defer local AI and the new Math 1400 sitting
+
+- **Idea:** allow the post-Reach UI phase to proceed without repairing live
+  local-model proposal generation or completing a new Math 1400 sitting now.
+- **Disposition:** Deferred for both validation legs.
+- **Owner:** the future local-AI compatibility owner for proposal generation;
+  Phase 19D for the representative sitting and dependent restore observation.
+- **Evidence class:** direct user direction on 2026-09-08 plus observed 19D
+  evidence that the provider returned malformed proposal output and no sitting
+  began.
+- **Dependency and cost driver:** local AI requires a provider-compatible
+  structured-output contract and regression fixture. The sitting requires
+  reviewed source-grounded content, runtime session execution, evidence review,
+  and dependent export and restore observation.
+- **Revisit trigger:** reopen local AI when the user prioritizes offline model
+  operation. Reopen the sitting when the user requests representative learner
+  validation or before a release claims Math 1400 learning outcomes.
+- **Boundary:** no deferred result is a pass. No agent may invent a proposal,
+  score, mastery result, recommendation, human acceptance, or restore result.
+  Parser, scorer, disclosure, evidence, rights, and recovery authority remain
+  unchanged.
+
+### IL-20260908-03: reader action menu and external-source workspace
+
+- **Idea:** let a learner double-click selected reader text to request a
+  definition or related help, and let the reader open and work alongside PDF,
+  EPUB, and slide sources with stable source locations and course bindings.
+- **Disposition:** Prototype for double-click and the contextual action menu.
+  Registered for a shared external-source reader over existing adapters.
+- **Owner:** the future reader and lesson-capability phase under
+  `SOURCE-TO-COURSE.md`; source-format support remains owned by the source
+  adapter registry.
+- **Evidence class:** direct user direction on 2026-09-08 plus existing shipped
+  glossary behavior and planned PDF, EPUB, and PPTX adapter coverage. The exact
+  double-click interaction has not been validated with learners.
+- **Dependency and cost driver:** reuse semantic term roles, stable locators,
+  source bindings, rights grants, and the shared operation protocol. Cost comes
+  from text-selection conflicts, cross-input accessibility, embedded renderer
+  security, locator fidelity, annotations, large-file performance, offline
+  packaging, and format-specific loss reporting.
+- **Revisit and promotion gate:** promote the interaction only after a learner
+  can select text, request a definition, use the additional actions, dismiss
+  and reopen the panel, and resume reading by pointer, keyboard, touch, and
+  screen reader. Promote each external format only after a representative file
+  passes navigation, citation and locator fidelity, binding, offline reopen,
+  unavailable-state, and clean-restore checks.
+- **Boundary:** double-click is optional, not the only activation path. The
+  source file remains separately identified and is not silently copied,
+  converted, edited, or superseded. Unknown rights remain restrictive. Reader
+  help does not reveal keyed content or create a second scoring authority.
+- **Relationship:** extends the 2026-08-13 and 2026-08-20 definition entries,
+  IL-20260815-07 source intake, and the Phase 14C EPUB decision. It composes
+  existing reader and adapter seams instead of introducing a parallel content
+  model.

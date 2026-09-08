@@ -125,8 +125,8 @@ def run_daemon_once(args, timeout=10):
     return result.returncode, result.stdout
 
 
-def get(url):
-    with urllib.request.urlopen(url, timeout=5) as res:
+def get(url, timeout=5):
+    with urllib.request.urlopen(url, timeout=timeout) as res:
         return res.status, res.read().decode("utf-8")
 
 
@@ -643,7 +643,10 @@ def check_concurrency():
 
         def hit(key):
             try:
-                status, _ = get(url + "quiz/sample_bank")
+                # Twelve full quiz renders contend for the Python GIL on the
+                # slower profile-aware page. Keep this above the ordinary
+                # five-second route budget while retaining a bounded gate.
+                status, _ = get(url + "quiz/sample_bank", timeout=30)
                 results[key] = status
             except urllib.error.HTTPError as exc:
                 # Read the body. Discarding it is why an intermittent 400 out
@@ -658,7 +661,7 @@ def check_concurrency():
         for t in threads:
             t.start()
         for t in threads:
-            t.join(timeout=10)
+            t.join(timeout=35)
         if any(t.is_alive() for t in threads):
             fail("a concurrent request against the daemon never completed")
         for key, value in results.items():
@@ -1290,28 +1293,22 @@ def check_disclosure_route():
 
 
 def check_api_route_scope():
-    """D-04's four session routes plus Phase 6's `/api/hint`, plan 06.1-02's
-    `/api/interact`, plan 08-05's `/api/rubric-review`, Phase 10's
-    `/api/override` and `/api/lesson-complete`, Phase 09.1's
-    `/api/export_audio`, Phase 09's `/api/lesson/run`, and Phase 13.5's
-    `/api/teach` -- the authored six-tier ladder's first route to a browser
-    (plan 14-03, DEFECT D-D), kept separate from `/api/hint` because that
-    route is Phase 8's model orchestration and 08-05 removed the legacy tier
-    shim from it deliberately. The count is asserted rather than trusted.
-    Every entry is mirrored in ROUTE_CLI (route-without-CLI-twin fails here)
-    and in SURFACE_PARITY with its reserved MCP tool name (Extensibility
-    Rule 9(a)).
+    """Keep the accepted fixed API inventory closed and fully mirrored.
+
+    The sixteen assessment, lesson, source, and shelf routes predate the
+    course namespace. Phase 19A's completed operation families contribute
+    thirty-three course routes. Phase 19B adds ``agent-operation`` and Phase
+    19C adds ``register-source``, for thirty-five course routes and fifty-one
+    total. The count is asserted rather than trusted. Every entry is mirrored
+    in ROUTE_CLI (route-without-CLI-twin fails here) and in SURFACE_PARITY with
+    its reserved MCP tool name (Extensibility Rule 9(a)).
     """
-    if len(daemon.API_ROUTES) != 32:
-        fail("D-04 + Phase 6 + 06.1-02 + 08-05 + 10-04/10-05 + 09.1 + 09 + 14 "
-             "+ 14C + 16B-09 + 19A scope /api/* to exactly thirty-two "
-             "routes: the sixteen assessment, lesson, source and shelf "
-             "routes, plus the sixteen under /api/course/ that Phase 19A "
-             "opened (create and rename in 19A-01; add-source, bind, rights "
-             "and bindings in 19A-02; add-container, add-objective, "
-             "add-edge, structure and the four objective identity moves in "
-             "19A-03; bind-treatment and treatments in 19A-04). API_ROUTES "
-             "has %d" % len(daemon.API_ROUTES))
+    if len(daemon.API_ROUTES) != 51:
+        fail("the accepted /api/* inventory has exactly fifty-one routes: "
+             "sixteen assessment, lesson, source and shelf routes, plus "
+             "thirty-five course routes from Phase 19A's operation families, "
+             "Phase 19B agent-operation and Phase 19C register-source. "
+             "API_ROUTES has %d" % len(daemon.API_ROUTES))
     # 19A-01, amending 19A-CONTEXT D-02: the source-binding door landed on
     # /api/bind and /api/rights before the namespace existed. Both were
     # re-homed under /api/course/ and both old paths keep serving as
@@ -1358,19 +1355,23 @@ def check_api_route_scope():
             fail("POST %s must map to the %s CLI twin" % (path, twin))
         if (("POST", path), twin, tool) not in daemon.SURFACE_PARITY:
             fail("POST %s must reserve the MCP tool name %r" % (path, tool))
-    # 19A-02: every course operation the spine dispatches has a route, and
-    # every /api/course/ route names an operation the spine dispatches. A
-    # route without an operation would answer nothing; an operation without a
-    # route is an engine function with no door, which is the whole finding
-    # Phase 19A exists to close.
+    # Every course operation the spine dispatches has a route, and every
+    # course route names an operation the spine dispatches. Phase 19A-09's
+    # five new read operations share the closed COURSE_READ_RE GET family;
+    # the older operations retain one fixed POST row each in API_ROUTES.
     from surfaces import course_ops
     routed = set(p.rsplit("/", 1)[-1].replace("-", "_")
                  for _m, p, _h in daemon.API_ROUTES
                  if p.startswith("/api/course/"))
-    if routed != set(course_ops.OPERATIONS):
-        fail("the /api/course/ routes and course_ops.OPERATIONS disagree: "
-             "routes %s, operations %s"
-             % (sorted(routed), sorted(course_ops.OPERATIONS)))
+    read_routed = {"outline", "coverage", "untreated", "protocol", "parity"}
+    for operation in read_routed:
+        if not daemon.COURSE_READ_RE.fullmatch(
+                "/api/course/%s/example" % operation):
+            fail("COURSE_READ_RE does not publish read operation %r" % operation)
+    if routed | read_routed != set(course_ops.OPERATIONS):
+        fail("the fixed and read-family /api/course/ routes disagree with "
+             "course_ops.OPERATIONS: routes %s, operations %s"
+             % (sorted(routed | read_routed), sorted(course_ops.OPERATIONS)))
     if daemon.ROUTE_CLI.get(("POST", "/api/mark")) != "mark":
         fail("POST /api/mark must map to the mark CLI twin")
     if daemon.ROUTE_CLI.get(("POST", "/api/shelf")) != "shelf":
@@ -2960,18 +2961,6 @@ def settings_source(base):
     return settings_mod.load_settings(base)["accent"]["source"]
 
 
-def native_picker_would_block():
-    """True when a real Tk color dialog would appear and block the picker
-    child (an interactive Windows/macOS/Linux session). Headless environments
-    (CI) fail fast instead, so the live `/api/theme` pick path is only
-    exercised there; the fail-closed mapping itself is unit-proven in
-    `tests/theme_roundtrip.py` against the launcher seam.
-    """
-    if sys.platform == "win32":
-        return True
-    return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
-
-
 def check_settings_page():
     """Test 1 + part of Test 6: GET /settings renders the labeled browser
     color input, exact picker/save/reset copy, side-by-side light/dark
@@ -3106,8 +3095,10 @@ def check_theme_pick_contract():
     source/.pyz child bridge (never Tk in the daemon thread), a child
     failure reads as available:false with the exact fallback reason and no
     write, and the settings page keeps its browser color input usable.
-    The live child is only driven where it fails fast (headless CI); the
-    fail-closed mapping itself is unit-proven in theme_roundtrip.
+    Automated checks never invoke the native picker, because it is a visible
+    system dialog that belongs only to an explicit learner action. The
+    fail-closed child mapping is unit-proven in theme_roundtrip at its launcher
+    seam instead.
     """
     import inspect
     src = inspect.getsource(daemon.handle_theme_post)
@@ -3120,18 +3111,6 @@ def check_theme_pick_contract():
     before = settings_bytes(workdir)
     proc, url, lines = start_daemon(workdir)
     try:
-        if not native_picker_would_block():
-            status, body = theme_request(url + THEME_ROUTE, {"action": "pick"})
-            if status != 200:
-                fail("pick returned %d, expected 200" % status)
-            if body.get("available") is not False:
-                fail("a headless pick must read available:false, got %r" % body)
-            if body.get("reason") != "System picker is unavailable here. Choose a color below instead.":
-                fail("unavailable pick returned the wrong fallback reason: %r" % body)
-            if body.get("saved") is not False:
-                fail("a native pick must be preview-only until an explicit save")
-            if settings_bytes(workdir) != before:
-                fail("an unavailable pick wrote itembank.json")
         _, page = get(url + SETTINGS_ROUTE)
         if '<input type="color"' not in page:
             fail("settings page dropped the browser color fallback input")

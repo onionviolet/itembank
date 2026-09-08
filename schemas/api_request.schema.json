@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itembank.local/schemas/api_request.schema.json",
+  "title": "itembank non-course API requests",
+  "description": "The request signatures for API_ROUTES entries outside the course-operation family. MCP projects these named nodes and the existing daemon handlers remain the runtime and authority checks.",
+  "x-itembank-version": 1,
+  "$defs": {
+    "session_id": {"type": "string", "minLength": 1},
+    "start": {"type": "object", "additionalProperties": false, "required": ["bank"], "properties": {"bank": {"type": "string", "minLength": 1}, "count": {"type": "integer", "minimum": 1}, "objective": {"type": "string"}, "mode": {"type": "string", "enum": ["diagnostic", "practice", "exam", "remediation", "drill"]}, "seed": {"type": "integer"}, "focus": {"type": "string"}, "selection_mode": {"type": "string", "enum": ["diagnostic", "practice", "remediation", "exam"]}, "preview": {"type": "boolean"}, "profile": {"type": "string"}, "snapshot": {"type": "object"}}},
+    "next": {"type": "object", "additionalProperties": false, "required": ["session_id"], "properties": {"session_id": {"$ref": "#/$defs/session_id"}}},
+    "submit": {"type": "object", "additionalProperties": false, "required": ["session_id"], "properties": {"session_id": {"$ref": "#/$defs/session_id"}, "answer": {}, "action": {"type": "object"}, "confidence": {"type": "string", "enum": ["high", "medium", "low"]}, "renderer_meta": {"type": "string"}}},
+    "hint": {"type": "object", "additionalProperties": false, "required": ["session_id"], "properties": {"session_id": {"$ref": "#/$defs/session_id"}, "retry": {"type": "boolean"}, "action": {"type": "object"}}},
+    "teach": {"type": "object", "additionalProperties": false, "required": ["session_id", "action"], "properties": {"session_id": {"$ref": "#/$defs/session_id"}, "action": {"type": "object"}}},
+    "interact": {"type": "object", "additionalProperties": false, "required": ["session_id", "interaction_version", "action_id", "action_type", "state"], "properties": {"session_id": {"$ref": "#/$defs/session_id"}, "interaction_version": {"type": "integer"}, "action_id": {"type": "string"}, "action_type": {"type": "string"}, "state": {"type": "object"}}},
+    "report": {"type": "object", "additionalProperties": false, "required": ["session_id"], "properties": {"session_id": {"$ref": "#/$defs/session_id"}}},
+    "override": {"type": "object", "additionalProperties": false, "required": ["token"], "properties": {"token": {"type": "string"}, "bank": {"type": "string"}, "count": {"type": "integer"}, "objective": {"type": "string"}, "mode": {"type": "string"}, "seed": {"type": "integer"}, "selection_mode": {"type": "string"}}},
+    "lesson_complete": {"type": "object", "additionalProperties": false, "required": ["bank", "lesson_slug"], "properties": {"bank": {"type": "string"}, "lesson_slug": {"type": "string"}, "objective": {"type": "string"}, "ref": {"type": "string"}, "zone": {"type": "string"}}},
+    "rubric_review": {"type": "object", "additionalProperties": false, "required": ["session_id"], "properties": {"session_id": {"$ref": "#/$defs/session_id"}}},
+    "mark": {"type": "object", "additionalProperties": false, "required": ["session_id", "event_id", "verdict"], "properties": {"session_id": {"$ref": "#/$defs/session_id"}, "event_id": {"type": "string"}, "verdict": {"type": "string"}, "notes": {"type": "string"}}},
+    "export_audio": {"type": "object", "additionalProperties": false, "required": ["bank"], "properties": {"bank": {"type": "string"}, "objective": {"type": "string"}, "engine": {"type": "string"}, "split": {"type": "boolean"}, "container": {"type": "string"}}},
+    "lesson_run": {"type": "object", "additionalProperties": false, "required": ["bank", "block_id", "language"], "properties": {"bank": {"type": "string"}, "block_id": {"type": "string"}, "language": {"type": "string"}, "session_id": {"type": "string"}, "check": {}, "source": {"type": "string"}}},
+    "source_import": {"type": "object", "additionalProperties": false, "required": ["adapter", "source_object_id"], "properties": {"adapter": {"type": "string"}, "source_object_id": {"type": "string"}, "rights_grant": {"type": "object"}, "snapshot_storage": {"type": "string"}, "preview": {"type": "boolean"}, "confirm": {"type": "boolean"}}},
+    "source_recheck": {"type": "object", "additionalProperties": false, "required": ["source_object_id"], "properties": {"source_object_id": {"type": "string"}}},
+    "shelf": {"type": "object", "additionalProperties": false, "required": ["action"], "properties": {"action": {"type": "string"}}}
+  }
+}

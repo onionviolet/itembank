@@ -410,6 +410,18 @@ def persist_look(base, look_id):
             "theme": data["theme"]}
 
 
+def persist_presentation_profile(base, profile):
+    """Persist only the selected Phase 20 composition axis."""
+    from surfaces import settings as settings_mod
+    if profile not in settings_mod.PRESENTATION_PROFILES:
+        sys.exit("settings.invalid_value: %r is not a supported presentation profile"
+                 % profile)
+    data = load_settings(base)
+    data["presentation_profile"] = profile
+    write_settings(base, data)
+    return profile
+
+
 # Settings-page-only styles (plan 04-04). The document shell, base
 # typography/spacing, focus rings, breakpoint, and reduced-motion rules now
 # come from `presentation.SHARED_CSS`; these rules cover only the theme
@@ -428,6 +440,9 @@ SETTINGS_CSS = r"""
 .actions button[data-primary]{background:var(--accent-soft);
   border-color:var(--accent);color:var(--accent)}
 .actions button:disabled{opacity:.55;cursor:default}
+.profile-preview{border:1px solid var(--line);padding:var(--space-3);margin:var(--space-3) 0}
+.profile-preview [data-profile-preview]{display:none}.profile-preview [data-profile-preview].active{display:block}
+.profile-choice[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
 .previews{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:0 0 24px}
 .preview-card{background:var(--card);border:1px solid var(--line);
   border-radius:12px;padding:16px}
@@ -534,17 +549,49 @@ def theme_page(config, sections="", palette=False):
     selected_look = looks.resolve(config.get("look")
                                   if isinstance(config, dict) else None)
     look_body = LOOK_BODY.replace("__LOOK_CARDS__", _look_cards(selected_look))
+    profile_body = _profile_section(config)
     body = SETTINGS_BODY.replace(
         "__SOURCE__", src).replace(
         "__ADJUST_COPY__", adjust_copy).replace(
         "__RATIO_ROWS__", ratio_rows).replace(
         "__PREVIEW_CARDS__", cards).replace(
         "__RESET_DISABLED__", reset_disabled)
+    from surfaces import settings as settings_mod
+    active_profile, _notice = settings_mod.resolve_presentation_profile(config or {})
     return presentation.surface_shell(
-        "Settings", look_body + body + sections, palette=palette,
+        "Settings", profile_body + look_body + body + sections, palette=palette,
         theme_css=theme_css(config) + "\n" + SETTINGS_CSS,
         back={"href": "/", "label": "itembank"},
-        noscript=SETTINGS_NOSCRIPT)
+        noscript=SETTINGS_NOSCRIPT, presentation_profile=active_profile)
+
+
+def _profile_section(config):
+    """Compact derived preview. It changes no setting until Save is pressed."""
+    from surfaces import settings as settings_mod
+    active, notice = settings_mod.resolve_presentation_profile(config)
+    choices = "".join('<button type="button" class="profile-choice" data-profile-choice="%s" aria-pressed="%s">%s</button>'
+                      % (p, "true" if p == active else "false",
+                         "Field Guide" if p == "field-guide" else "Trajectory Deck")
+                      for p in settings_mod.PRESENTATION_PROFILES)
+    preview_view = presentation.semantic_view(
+        application="itembank", course="Synthetic Algebra", location="Practice",
+        purpose="practice", response_type="mc", disclosure="now",
+        position="Item 2 of 5", content="<p>Choose one answer.</p>",
+        next_action={"label": "Continue practice", "href": "/quiz/synthetic"},
+        status={"label": "Recovery", "kind": "warn", "text": "Resume safely."},
+        source="Synthetic source")
+    previews = "".join('<div data-profile-preview="%s" class="%s">%s</div>'
+                       % (p, "active" if p == active else "",
+                          presentation.render_profile(preview_view, p))
+                       for p in settings_mod.PRESENTATION_PROFILES)
+    fallback = ('<p class="ib-notice ib-notice-warn" role="status">%s</p>'
+                % html.escape(notice)) if notice else ""
+    return (r'''<section data-section="presentation-profile" aria-labelledby="profile-heading">
+<h2 id="profile-heading">Presentation profile</h2><p>Composition and emphasis only. Theme, look, accent, density, contrast, and motion stay as they are.</p>%s
+<div class="actions" role="group" aria-label="Presentation profile">%s<button type="button" data-save-profile disabled>Save profile</button></div>
+<div class="profile-preview" aria-live="polite">%s</div></section>
+<script>(function(){var active=%s,draft=active,buttons=document.querySelectorAll('[data-profile-choice]'),save=document.querySelector('[data-save-profile]');function draw(){for(var i=0;i<buttons.length;i++){var yes=buttons[i].getAttribute('data-profile-choice')===draft;buttons[i].setAttribute('aria-pressed',yes?'true':'false')}var nodes=document.querySelectorAll('[data-profile-preview]');for(var j=0;j<nodes.length;j++){nodes[j].classList.toggle('active',nodes[j].getAttribute('data-profile-preview')===draft)}save.disabled=draft===active}for(var k=0;k<buttons.length;k++){buttons[k].addEventListener('click',function(e){draft=e.currentTarget.getAttribute('data-profile-choice');draw()})}save.addEventListener('click',function(){fetch('/api/theme',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'profile',profile:draft})}).then(function(r){if(!r.ok)throw Error();return r.json()}).then(function(){active=draft;draw()})});draw()})()</script>'''
+            % (fallback, choices, previews, json.dumps(active)))
 
 
 def _look_cards(selected):

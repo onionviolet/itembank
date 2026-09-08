@@ -501,6 +501,81 @@ def check_parity_and_the_declared_aliases():
           "name, and the two early paths are declared aliases")
 
 
+def check_read_operations_have_frozen_fields_and_engine_parity():
+    """19A-09: every added read has a closed signature and one engine.
+
+    The expected values are computed from the frozen authority functions,
+    rather than restated as sample output. A route can therefore only pass by
+    preserving the same shape and value the engine produces.
+    """
+    reads = ("outline", "coverage", "untreated", "protocol", "parity")
+    expected_engines = {
+        "outline": "graph.outline_projection",
+        "coverage": "director.coverage_claims_for",
+        "untreated": "director.untreated_objectives",
+        "protocol": "director.protocol_report",
+        "parity": "director.parity_view",
+    }
+    doc = course_ops.request_schema()
+    for name in reads:
+        node, _ = course_ops.operation_schema(name, doc)
+        if node.get("required") != ["operation", "course_id"]:
+            fail("%s does not freeze operation and course_id as its only required fields"
+                 % name)
+        if node.get("additionalProperties") is not False:
+            fail("%s accepts unlisted request fields" % name)
+        if course_ops.OPERATION_ENGINE.get(name) != expected_engines[name]:
+            fail("%s names %r instead of frozen engine %r"
+                 % (name, course_ops.OPERATION_ENGINE.get(name),
+                    expected_engines[name]))
+        if name not in course_ops.READ_OPERATIONS:
+            fail("%s is not classified as a read" % name)
+
+    tmp = tempfile.mkdtemp(prefix="course_ops_reads_")
+    try:
+        course_ops.run(tmp, "create", {"course_id": "fen", "title": "Fen"})
+        base = os.path.join(tmp, "fen")
+        record = course_module.read_course(base)
+        expected = {
+            "outline": graph.outline_projection(record["doc"]),
+            "coverage": director.coverage_claims_for(record["doc"], {}),
+            "untreated": director.untreated_objectives(record["doc"]),
+            "protocol": director.protocol_report(record["doc"].get("log") or []),
+            "parity": director.parity_view(record),
+        }
+        fields = {"outline": "outline", "coverage": "claims",
+                  "untreated": "objectives", "protocol": "report",
+                  "parity": "view"}
+        for name in reads:
+            before = course_module.read_course(base)
+            result = course_ops.run(tmp, name, {"course_id": "fen"})
+            if result.get(fields[name]) != expected[name]:
+                fail("%s does not return the frozen engine result" % name)
+            after = course_module.read_course(base)
+            if (after["fingerprint"], after["revision"]) != \
+                    (before["fingerprint"], before["revision"]):
+                fail("%s changed the course while claiming to be a read" % name)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    source = open(os.path.join(ROOT, "surfaces", "daemon.py"),
+                  encoding="utf-8").read()
+    page_dispatch = source.split("def _course_page_state(", 1)[1].split(
+        "\ndef ", 1)[0]
+    if 'course_ops.run(handler.root, "outline", {"course_id": course_id})' \
+            not in page_dispatch:
+        fail("course GET pages do not resolve through the canonical read operation")
+    for handler in ("handle_course_get", "handle_course_area_get",
+                    "handle_course_lesson_get"):
+        body = source.split("def %s" % handler, 1)[1].split("\ndef ", 1)[0]
+        if "_course_page_state(" not in body:
+            fail("%s bypasses the canonical course page dispatcher" % handler)
+    if daemon.ROUTE_CLI.get(("GET", daemon.COURSE_READ_RE)) != "course":
+        fail("the course read route has no course CLI twin")
+    print("ok   19A-09 reads have closed fields, frozen engine parity, and "
+          "course pages enter through the same read dispatcher")
+
+
 def _linked_source(base, name, text):
     """One source file linked into a course's journal registry, the way
     `source import` leaves it: the object exists and every right on it is
@@ -1274,7 +1349,9 @@ def check_a_course_write_is_loopback_only():
                    "audit": {"vocabulary_members": {}},
                    "staleness": {"dependents": []},
                    "verify_package": {"package_id": "*exported*"},
-                   "package_losses": {"package_id": "*exported*"}}
+                   "package_losses": {"package_id": "*exported*"},
+                   "outline": {}, "coverage": {}, "untreated": {},
+                   "protocol": {}, "parity": {}}
     for name in course_ops.READ_OPERATIONS:
         if name not in read_fields:
             fail("the read %r has no entry in this check's field table, so "
@@ -2273,6 +2350,7 @@ def main():
     check_the_command_builds_its_request_from_the_document()
     check_the_bind_commands_reach_every_published_field()
     check_parity_and_the_declared_aliases()
+    check_read_operations_have_frozen_fields_and_engine_parity()
     check_the_route_is_the_cli_twin()
     check_director_family_reaches_route_and_cli_with_one_reversible_accept()
     check_blueprint_operations_reach_route_and_cli_without_read_mutation()

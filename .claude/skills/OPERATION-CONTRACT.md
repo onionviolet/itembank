@@ -50,6 +50,11 @@ Every consequential operation follows the same sequence:
     dependent material stale, state the exact reversal step, and report what
     remains uncertain, including denominators and missing signals.
 
+Course operations with exams, graded work, competency checks, or completion
+thresholds also use `ASSESSMENT-INTAKE.md`. Assessment policy is source-bound
+authority, not an authoring convenience. Official grades, runtime scores,
+advisory marks, mastery inferences, and course completion remain separate.
+
 An agent may recommend, draft-and-review, or perform approved bounded writes.
 It cannot self-expand scope, self-certify accessibility, silently accept its
 own uncertain source claim, transfer evidence between objectives, or cross the

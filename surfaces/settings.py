@@ -116,6 +116,11 @@ GATE_SETTINGS_DEFAULTS = {"gate_skip": "always", "gate_policy": "as-authored"}
 TEACHING_SETTINGS_DEFAULTS = {"hint_display": "slot",
                               "hint_locked_preview": "full"}
 
+# Phase 20 presentation is a composition axis. These values are durable
+# settings names, unlike CSS classes or the current visual recipe.
+PRESENTATION_PROFILES = ("field-guide", "trajectory-deck")
+DEFAULT_PRESENTATION_PROFILE = "field-guide"
+
 
 def style_defaults():
     """The `style` settings group's shipped defaults: `imperative_cap`
@@ -230,10 +235,34 @@ def load_settings(base):
     errs = []
     for key, subschema in schema.get("properties", {}).items():
         if key in merged:
+            # A profile saved by a future or removed registration must not
+            # make Settings inaccessible. Preserve it for a visible fallback
+            # notice while validating its basic scalar shape here.
+            if key == "presentation_profile":
+                if not isinstance(merged[key], str):
+                    errs.append("presentation_profile is not a string")
+                continue
             errs.extend(schema_validate.validate(merged[key], subschema))
     if errs:
         sys.exit("%s: %s" % (classify_error(errs[0]), errs[0]))
     return merged
+
+
+def resolve_presentation_profile(settings_data):
+    """Return ``(active, notice)`` without mutating a saved preference.
+
+    A missing value is the additive migration path. An unknown value is kept
+    visible and falls back safely, so removing a recipe cannot affect course,
+    bank, session, or evidence files.
+    """
+    value = (settings_data or {}).get("presentation_profile")
+    if value in PRESENTATION_PROFILES:
+        return value, None
+    if value in (None, ""):
+        return DEFAULT_PRESENTATION_PROFILE, None
+    return DEFAULT_PRESENTATION_PROFILE, (
+        "Unsupported presentation profile '%s'. Showing Field Guide until you save a supported profile."
+        % value)
 
 
 def write_settings(base, data):

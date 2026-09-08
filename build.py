@@ -44,7 +44,8 @@ STAGE_FILES = (
     # found. discovery is journal's own dependency; course, graph, and
     # course_package are staged with them so the same class of gap does not
     # reappear the first time a surface reaches for a course.
-    "identity.py", "journal.py", "discovery.py", "source_adapters.py",
+    "identity.py", "journal.py", "discovery.py", "extension_registry.py",
+    "source_adapters.py",
     "course.py", "graph.py", "course_package.py",
     "model_adapter.py", "tier_gate.py",
     # Phase 16A, added 2026-08-28 by plan 16A-04 Task 3. `surfaces/lesson.py`

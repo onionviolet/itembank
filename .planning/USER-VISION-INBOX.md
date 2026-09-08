@@ -324,6 +324,324 @@ the 2026-08-13 vision entries without duplicating authoritative quotations.
 The prompt requires evidence of actual learner flows and retains viable future
 ideas beyond the shortlist. Next action: run the saved audit when requested.
 
+### 2026-09-06: SaaS-quality experience in the desktop product
+
+> Consdiering SAAS as an entry point, whatever that means?
+
+> I guess SAAS experience or wahatever thats fitting, I mean the goal will be a electron app or something so I am unsure
+
+> That makes more sense, how can that be combines with current plans and more?
+
+> adjust accordingly, look at the latest audits and more and stuff
+
+**Disposition:** Split and promote (2026-09-06).
+
+The product-intent clauses are promoted verbatim to `USER-VISION.md`. The
+request to adjust current plans is routed to `SOURCE-TO-COURSE.md`,
+`REACH-MILESTONE.md`, `UI-CHARACTER-AUDIT-2026-09-06.md`, and
+`IDEA-LEDGER.md` IL-20260906-07. Electron is treated as an uncertain example,
+not a stack decision. The shipped Tauri shell already supplies the desktop
+container. The accepted direction is a local-first desktop product with the
+coherence and convenience associated with SaaS software. It does not imply
+hosted accounts, multi-tenancy, hosted storage, or a subscription business.
+
+### 2026-09-06: comprehensive future UI character
+
+> that UI is alot more better and has more character than mines currently, did we have it in the books to adjust to have more character? we can forget how the ui was prior and improve it comprehensicely in the future accordingly
+
+**Disposition:** Promote and route (2026-09-06).
+
+The product direction is promoted verbatim to `USER-VISION.md`. The planning
+effect is routed to `UI-CHARACTER-AUDIT-2026-09-06.md`,
+`AUDIT-REMEDIATION-PLAN-2026-09-06.md`, and `IDEA-LEDGER.md`
+IL-20260906-08. The current visual appearance is no longer a compatibility
+constraint for future comprehensive UI design. Behavioral authority,
+accessibility, responsive operation, settings migration, and recovery remain
+binding. Syntax Lab is recorded as a useful comparison, not the selected
+design or an implementation dependency.
+
+### 2026-09-06: Syntax Lab inspiration and an expandable CS Dojo
+
+> we can even be inspired by 'syntax lab' from diego, incoporate that into a relevant subsection, or as a cs dojo and stuff, it can easily be expanded for other leanguages and more
+
+**Disposition:** Promote and route (2026-09-06).
+
+The product idea is promoted verbatim to `USER-VISION.md`. The bounded
+prototype is routed to `AUDIT-REMEDIATION-PLAN-2026-09-06.md` D3.1 and
+`IDEA-LEDGER.md` IL-20260906-09. Syntax Lab supplies comparative interaction
+evidence. It is not an implementation dependency or authority for scoring,
+disclosure, evidence, accessibility, or sandbox behavior.
+
+### 2026-09-06: preserve workflow-efficiency findings
+
+> save these findings for future optimization and workflow for this repo
+
+**Disposition:** Route (2026-09-06).
+
+This is workflow mechanics rather than a product outcome, so it is routed to
+`AGENT-WORKFLOW.md` "Proportional workflow" and
+`AUDIT-REMEDIATION-PLAN-2026-09-06.md` D0. The recorded conclusion is that GSD
+remains valuable for consequential authority, recovery, security, and format
+work, while direct execution and bounded evidence-gated packets become the
+default for reversible settled tasks. The structural counts are preserved as a
+baseline and are not described as measured token consumption.
+
+### 2026-09-06: shorten idle time and match focused prototype velocity
+
+> do that accordingly, also how can things be sped up, since we are wasting too much time in betwee n andd more? considering Code\_learner was able to achieve a subfeature so much faster and of higher quality than what we spent so long on prior
+
+**Disposition:** Route (2026-09-06).
+
+This is a request to change execution mechanics, not a new learner-facing
+feature. It confirms the earlier cost and useful-product direction and is
+routed to `AGENT-WORKFLOW.md`, `AUDIT-REMEDIATION-PLAN-2026-09-06.md`,
+`REACH-MILESTONE.md`, the active 19A context, and the 19D seed. The
+`code_learner` comparison is evidence that a focused, coherent vertical
+prototype can expose value faster than a long sequence of component plans. It
+does not adopt that repository's client-owned scoring, disclosure, evidence,
+dependency, or maintenance choices. The planning effect is to require an early
+visible slice, bounded planning time, one active writer, and escalation only
+after an observable gate fails or a named consequential decision appears.
+
+### 2026-09-06: prioritize UI and app-quality repairs
+
+> do that accordingly, prioritize important stuff like UI and app stuff fix and more,
+
+**Disposition:** Promote and route (2026-09-06).
+
+The request confirms that visible product coherence and app usability should
+come before more invisible breadth when both are ready. The product priority is
+promoted through the existing SaaS-quality desktop and comprehensive UI
+entries in `USER-VISION.md`, without duplicating their quotations. The current
+execution effect is routed to `AUDIT-REMEDIATION-PLAN-2026-09-06.md`,
+`REACH-MILESTONE.md`, and `STATE.md`: run the bounded R5 course-shell and
+first-use journey repair before 19A-06. This does not authorize the full future
+visual redesign inside Reach and does not weaken scoring, disclosure, recovery,
+accessibility, or accepted-write gates.
+
+### 2026-09-06: close every audit route and allow better UI replacements
+
+> keep in mind the audit findings and make sure everything will be addressed, making sure our future UI is modern and fitting and that anything old can be replaces if there are better/more fitting options and more
+
+**Disposition:** Promote and route (2026-09-06).
+
+The product direction is promoted verbatim to `USER-VISION.md`. The execution
+effect is routed to `UI-CHARACTER-AUDIT-2026-09-06.md`,
+`AUDIT-REMEDIATION-PLAN-2026-09-06.md`, and `REACH-MILESTONE.md`. Every audit
+finding must retain a disposition, owner, trigger, and acceptance evidence.
+Future UI work judges existing components by fitness for the accepted course
+experience rather than age or compatibility with the current appearance.
+Replacement remains subject to behavior, accessibility, migration, and
+recovery gates.
+
+### 2026-09-06: preserve design-language uncertainty for later comparison
+
+> save and adjust accordingly, we are unsure and we can establish better in the future
+
+**Disposition:** Promote and route (2026-09-06).
+
+The uncertainty is intentional product direction and is promoted verbatim to
+`USER-VISION.md`. The comparison and future selection gate are routed to
+`UI-CHARACTER-AUDIT-2026-09-06.md` and the consolidated remediation plan.
+Current Reach repairs may establish shared usability primitives, but they must
+not silently select the final visual language.
+
+### 2026-09-06: scope Monkeytype inspiration to coding
+
+> monkey type's ui design was the intended insiration for code sstuff, we just need good design language and more and stuff
+
+**Disposition:** Promote and route (2026-09-06).
+
+This corrects the prior interpretation. Monkeytype belongs to the CS Dojo and
+coding-practice reference set, not the app-wide design-language comparison.
+The correction is promoted verbatim to `USER-VISION.md` and applied to
+`UI-CHARACTER-AUDIT-2026-09-06.md` and the remediation plan. The broader design
+language remains open and must fit the complete learning product.
+
+### 2026-09-06: use Terra for the comparable UI prototypes
+
+> okay save accordingly, use terra to show the 3 to me
+
+**Disposition:** Route (2026-09-06).
+
+This selects execution mechanics rather than a product direction. Terra at
+medium owns the first comparable HTML and CSS prototype set for the editorial
+learning studio, modern learning workspace, and reading-and-doing workshop.
+The prototypes use identical content and states and remain throwaway review
+artifacts. User review, not the builder, selects or combines a direction.
+
+### 2026-09-06: strengthen the prototypes toward a technical instrument
+
+> all of them feels a little weak, I want a techy feel like monkey type or something else, update accordingly?
+
+**Disposition:** Promote and route (2026-09-06).
+
+The product-direction correction is promoted verbatim to `USER-VISION.md` and
+routed to the UI character audit and the next prototype pass. The desired
+app-wide quality is a deliberate technical-instrument feel, not a copy of
+Monkeytype's typing-test composition. Monkeytype remains the strongest direct
+reference for CS Dojo, while the shared system may borrow its restraint,
+precision, keyboard confidence, and visible state.
+
+### 2026-09-06: retain both finalists through one adaptable foundation
+
+> Okay [Measured field guide](/Users/weiwei/.codex/worktrees/d78d/itembank/prototypes/17c-finalists/field-guide.html)
+>
+> 1. [Learning trajectory deck](/Users/weiwei/.codex/worktrees/d78d/itembank/prototypes/17c-finalists/trajectory-deck.html)
+>
+> Those two are the most fitting, we can keep both? Make method to setup base stuff and make it easy to adapt or implement skills in the future? other stuff to consider?
+
+**Disposition:** Promote and route (2026-09-06).
+
+The selection is promoted verbatim to `USER-VISION.md`. Both finalists are
+retained as compositions over one semantic design foundation, not independent
+frontends. The method, extension contract, migration sequence, and verification
+gates are owned by `UI-CHARACTER-AUDIT-2026-09-06.md`. Stable copies of the
+selected prototypes live under `prototypes/17c-finalists/` in this checkout.
+
+### 2026-09-06: make both finalists switchable profiles
+
+> so both can be kept as a switchable theme or something, save and update things accordingly? more to consider
+
+**Disposition:** Promote and route (2026-09-06).
+
+The choice is promoted verbatim to `USER-VISION.md`. Both finalists become
+user-switchable presentation profiles over identical semantic content and
+state. They are distinct from color themes, contrast modes, and accents. The
+settings, migration, preview, fallback, and capability-extension contract is
+owned by `UI-CHARACTER-AUDIT-2026-09-06.md` and the binding product contract.
+
+### 2026-09-06: DSH extension comparison and bounded implementation plans
+
+> is current structure similar to DSH [https://github.com/deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) where we can add things or adjust things accordingly like plugins and more?
+
+> if that makes it more optimal create plans that a lesser agent can act upon to implement and more
+
+**Disposition:** Route (2026-09-06).
+
+This revisits the existing IL-20260816-01 named-seam plugin direction and asks
+for executable planning mechanics. It does not replace the product vision or
+authorize a swappable scorer. The conditional benefit assessment, one detailed
+packet, and follow-on seeds live in `EXTENSION-DELIVERY-2026-09-06.md` and
+`EXT-01-PLAN.md`. Implementation remains unrun. External packages retain their
+own supply-chain and isolation design gate.
+
+### 2026-09-07: make the complete UI adaptable through extensions and themes
+
+> for UI 2, we can have the UI designs be implemented extension/theme style, for everything and anything can be updated or adjusted as extension accordingly? thoughts? Plug other parts in accordingly and more, then create a prompt to continue work
+
+**Disposition:** Promote and route (2026-09-07).
+
+The product intent is promoted verbatim to `USER-VISION.md`. The implementation
+direction is routed to `SOURCE-TO-COURSE.md`, the UI character audit, the
+extension-delivery contract, and `IDEA-LEDGER.md`. Presentation profiles,
+appearance themes, capability adapters, and integration adapters become named
+extension seams over shared semantic contracts. This does not make canonical
+content, scoring, evidence, permissions, or recovery replaceable plugins. The
+continuation packet is `PROMPT-EXTENSIBLE-UI-CONTINUATION-2026-09-07.md`.
+
+### 2026-09-07: compare home presentations and complete the UI flow research
+
+> like right now its like this, and I assume it can be sectioned better somehow but Im not sure how, can we look accross existing learning platforms and LMS and more and scope improvements?
+
+> unsure, we can have multiple options and implement all of them and have the user decide what they like instead, look accross sites and more and scope accordingly
+
+> Save accordingly also need to consider UI flow, from returning to home/finishing exam/quiz and more,&#x20;
+>
+> Combine prior audits and new findings, make prompt to look further, also looking at githubs and repos and more, and then make sure we can absorb everything and more and address everything
+
+> re research in case of new info and more in the future
+
+**Disposition:** Promote and route (2026-09-07).
+
+The product intent is promoted verbatim to `USER-VISION.md`. The screenshot
+observation, current platform comparison, four reversible home projections,
+transition-complete matrix, repository leads, and re-research triggers are
+routed to `notes/2026-09-07-home-and-transition-ui-scope.md`. The reusable
+research packet is `PROMPT-UI-FLOW-AND-OPEN-SOURCE-ABSORPTION-2026-09-07.md`.
+The four home projections remain prototypes until comparative user review.
+Complete navigation, stop, finish, return-home, post-assessment, resume,
+interruption, and recovery behavior is Core and extends existing FLOW, APP, and
+UI-audit obligations. External repositories are evidence sources, not
+authorization to copy or vendor code.
+
+### 2026-09-07: a learning harness for people, operated by AI
+
+> should we consider itembank a learning based harness for ai in the future? or just keep it as is as something agentically driven?
+
+> okay write that down accordingly
+
+**Disposition:** Promote and route (2026-09-07).
+
+The product identity is promoted verbatim to `USER-VISION.md`. The binding
+interpretation is routed to the north star in `SOURCE-TO-COURSE.md`, and the
+capability disposition is recorded as IL-20260907-03 in `IDEA-LEDGER.md`.
+Itembank is a learning harness for people that AI can operate and extend. It is
+not primarily an AI-training or general model-evaluation harness. Adjacent
+AI-facing uses remain eligible as registered capabilities when they serve the
+learner-centered system and pass its existing authority, rights, validation,
+inspectability, and recovery gates.
+
+### 2026-09-08: acquire transcripts, Canvas course material, and other sources
+
+> extend itembank capability to scrape and download or absorb transcripts by providing tools like canvas stuff downloader and more, we can also audit other stuff to consider and more, and imprvoements for that repor or other lacking extention features
+
+**Disposition:** Promote and route (2026-09-08).
+
+The source-acquisition outcome is promoted verbatim to `USER-VISION.md`.
+Implementation choices and the gap audit are routed to
+`SOURCE-ACQUISITION-EXTENSION-AUDIT-2026-09-08.md`. The audit separates the
+existing transcript and single-page web adapters from the missing authenticated
+Canvas course acquisition layer. It registers a Canvas export prototype, a
+live Canvas API integration, local ASR, and later LMS targets without expanding
+the active Reach milestone.
+
+### 2026-09-08: defer local AI and skip the sitting for now
+
+> we can skip the sitting for now
+
+**Disposition:** Promote and route (2026-09-08).
+
+The scope decision is promoted verbatim to `USER-VISION.md`. Its execution
+effect is routed to `STATE.md`, `REACH-MILESTONE.md`, `REACH-CLOSURE-INDEX.md`,
+the Phase 19D records, and `IDEA-LEDGER.md`. The representative Math 1400
+sitting is deferred rather than treated as completed. Runtime scoring,
+disclosure, session, and evidence authority remain unchanged.
+
+### 2026-09-08: feedback must pause before the next item, and the UI needs reconciliation
+
+> it should show correct and should remain in the same page before moving onto the next, Im not going to lie the UI looks same, and right now it says item 3 of 2, there are many things to adjust accordingly? Save to problems list accordingly(makeing that a new skill too like uservision)
+
+> make a prompt to make sure UI gets looked trhough, audit of the piror audits got actually implemented and more, and also, the UI looks the same as before
+
+> we might need to make new profiles as defaults, consider purging old ones and more
+
+**Disposition:** Split and route (2026-09-08).
+
+The direct learner reports, separately labeled diagnoses, and closure evidence
+are recorded in `PROBLEM-LEDGER.md` as P-20260908-01 through P-20260908-03.
+The feedback repair remains presentation-only and preserves runtime scoring,
+disclosure, session, and evidence authority. The self-contained audit packet is
+`PROMPT-PHASE-20-UI-IMPLEMENTATION-AUDIT-2026-09-08.md`. Replacing, changing
+the default, or removing a profile remains an explicit Weibao decision after a
+comparative prototype and migration proposal.
+
+### 2026-09-08: reader definitions and external documents
+
+> future reader should have the option of double clicking for definition and more, be able to work with external slides/pdf/epub and more?
+
+**Disposition:** Promote and route (2026-09-08).
+
+The reader outcome is promoted verbatim to `USER-VISION.md`. The exact
+double-click behavior is routed to a reversible interaction prototype because
+it must coexist with text selection and have equivalent keyboard, touch, and
+screen-reader actions. External PDF, EPUB, and slide use routes through the
+existing source-adapter, binding, rights, citation, and recovery contracts.
+The first meaning of "work with" is open, navigate, cite, bind, annotate, and
+launch relevant course treatments alongside the source. Editing or round-trip
+export of each proprietary format remains an open question rather than an
+implied commitment.
+
 ## Disposition vocabulary
 
 - **Promote:** add the verbatim statement and interpretation to `USER-VISION`.

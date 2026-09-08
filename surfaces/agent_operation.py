@@ -24,8 +24,11 @@ file the configuration already named, so a stray answer cannot choose
 what gets overwritten.
 """
 import difflib
+import json
 import os
+import tempfile
 import uuid
+from datetime import datetime, timezone
 
 import identity
 import journal
@@ -34,6 +37,9 @@ import model_adapter
 
 # The whole machine. Anything else a caller sees is a bug.
 STATES = ("idle", "running", "proposed", "settled")
+RECORD_VERSION = 1
+STORE_DIR = ".itembank/agent-proposals"
+DISPOSITIONS = ("proposed", "accepted", "rejected", "conflicted", "undone")
 
 # A proposal shows at most this many unified-diff lines. The rest are
 # counted in ``diff.withheld`` so the cap is visible, never silent.
@@ -126,6 +132,87 @@ def idle():
     return {"state": "idle", "skill": None, "note": STATE_COPY["idle"]}
 
 
+def _now():
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _store(base):
+    return os.path.join(os.path.abspath(base), STORE_DIR)
+
+
+def _record_path(base, proposal_id):
+    if not isinstance(proposal_id, str) or not proposal_id.startswith("p_") \
+            or not proposal_id[2:].isalnum():
+        raise ValueError("agent.invalid_proposal_id")
+    return os.path.join(_store(base), proposal_id + ".json")
+
+
+def _write_record(base, record):
+    directory = _store(base)
+    os.makedirs(directory, exist_ok=True)
+    path = _record_path(base, record["proposal_id"])
+    raw = (json.dumps(record, ensure_ascii=False, indent=2,
+                      sort_keys=True) + "\n").encode("utf-8")
+    fd, temporary = tempfile.mkstemp(prefix=".proposal-", dir=directory)
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(raw)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+    return record
+
+
+def _unavailable(proposal_id, code, reason):
+    return {"schema_version": RECORD_VERSION, "state": "unavailable",
+            "disposition": "unavailable", "proposal_id": proposal_id,
+            "code": code, "reason": reason,
+            "next_action": "Start a new proposal. The unreadable record was preserved."}
+
+
+def status(base, proposal_id):
+    """Read one durable proposal without allowing a malformed record to
+    break the course surface."""
+    try:
+        path = _record_path(base, proposal_id)
+        with open(path, encoding="utf-8") as fh:
+            record = json.load(fh)
+    except FileNotFoundError:
+        return _unavailable(proposal_id, "agent.proposal_not_found",
+                            "No stored proposal has that identity.")
+    except (OSError, ValueError, json.JSONDecodeError):
+        return _unavailable(proposal_id, "agent.proposal_malformed",
+                            "The stored proposal could not be read.")
+    if not isinstance(record, dict) or record.get("schema_version") != RECORD_VERSION:
+        return _unavailable(proposal_id, "agent.proposal_version_unavailable",
+                            "This build cannot read the stored proposal version.")
+    if record.get("proposal_id") != proposal_id \
+            or record.get("disposition") not in DISPOSITIONS:
+        return _unavailable(proposal_id, "agent.proposal_malformed",
+                            "The stored proposal is missing required lifecycle fields.")
+    return record
+
+
+def proposals(base):
+    """Return every readable record plus typed unavailable rows, newest first."""
+    directory = _store(base)
+    try:
+        names = [n[:-5] for n in os.listdir(directory)
+                 if n.startswith("p_") and n.endswith(".json")]
+    except OSError:
+        return []
+    rows = [status(base, name) for name in names]
+    return sorted(rows, key=lambda row: row.get("updated_at") or "", reverse=True)
+
+
+def pending(base):
+    return [row for row in proposals(base)
+            if row.get("disposition") == "proposed"]
+
+
 def _settled(iid, skill, code, reason, **extra):
     state = {"state": "settled", "ok": False, "skill": skill,
              "interaction_id": iid, "code": code, "reason": reason,
@@ -144,7 +231,13 @@ def _run_spec(skill, settings):
     kind = spec.get("kind") or "bank"
     if kind not in identity.OBJECT_KINDS:
         return None
-    return {"target": str(spec["target"]), "kind": kind}
+    target = str(spec["target"])
+    if os.path.isabs(target) or ".." in target.replace("\\", "/").split("/"):
+        return None
+    request = spec.get("request") or "Draft the configured target."
+    citations = [str(value) for value in (spec.get("citations") or [])]
+    return {"target": target, "kind": kind,
+            "request": str(request), "citations": citations}
 
 
 def _bounded_diff(rel, before_raw, draft):
@@ -162,16 +255,26 @@ def _bounded_diff(rel, before_raw, draft):
             "withheld": max(0, len(full) - len(shown))}
 
 
-def _author_payload(skill, target):
+def _author_payload(skill, spec):
     """The bounded author request the adapter schema requires: the public
     format contract, the bounded request (here, which configured skill
     and file to draft for), the attempt number, and empty findings. No
     repository contents ride along."""
     import model
+    contract = model.SPEC
+    if spec["kind"] == "lesson":
+        contract = (
+            "A lesson is portable UTF-8 Markdown. It must remain coherent in "
+            "a plain Markdown reader, use ## LESSON and ### section headings, "
+            "retain source links and attribution, label generated synthesis, "
+            "and contain no answer key or scoring decision.")
     return {
         "schema_version": 1,
-        "contract": model.SPEC,
-        "request": {"skill": skill, "target": target},
+        "contract": contract,
+        "request": {"stage": "agent_proposal", "skill": skill,
+                    "target": spec["target"],
+                    "instruction": spec["request"],
+                    "citations": spec["citations"]},
         "attempt": 1,
         "findings": [],
     }
@@ -198,7 +301,7 @@ def start(skill, settings, base):
 
     request = model_adapter.request_from_operation(
         "author", iid, "",
-        author_request=_author_payload(skill, spec["target"]))
+        author_request=_author_payload(skill, spec))
     result = model_adapter.invoke(request, settings or {})
 
     if result.get("status") != "ok":
@@ -229,10 +332,16 @@ def start(skill, settings, base):
         with open(target_path, "rb") as fh:
             raw = fh.read()
 
-    return {
+    proposal_id = "p_" + uuid.uuid4().hex
+    operation_id = "op_" + uuid.uuid4().hex
+    created = _now()
+    record = {
+        "schema_version": RECORD_VERSION,
         "state": "proposed",
+        "disposition": "proposed",
+        "proposal_id": proposal_id,
+        "operation_id": operation_id,
         "skill": skill,
-        "base": base,
         "interaction_id": iid,
         "target": spec["target"],
         "kind": spec["kind"],
@@ -243,10 +352,19 @@ def start(skill, settings, base):
             if raw is not None else None,
         "diff": _bounded_diff(spec["target"], raw or b"", draft),
         "provider": result.get("provider"),
+        "validation": candidate.get("validation") or {"state": "not_run", "findings": []},
+        "egress": result.get("egress") or {"destination": "local", "spans": []},
+        "created_at": created,
+        "updated_at": created,
+        "next_action": "Review proposal",
     }
+    _write_record(base, record)
+    # Compatibility for direct Python callers. The persisted record and every
+    # transport response omit the course path.
+    return dict(record, base=base)
 
 
-def accept(state, settings):
+def accept(state, settings, base=None, reviewer=""):
     """Turn a proposal into exactly one journalled change, or refuse.
 
     - On an already-settled state (or any non-proposal) it returns the
@@ -261,7 +379,17 @@ def accept(state, settings):
     Exactly one journal operation per accepted proposal: prepared and
     applied entries for one change, never two changes.
     """
-    if not isinstance(state, dict) or state.get("state") != "proposed":
+    by_identity = isinstance(state, str)
+    if by_identity:
+        if base is None:
+            raise ValueError("base is required when accepting by proposal id")
+        state = status(base, state)
+    else:
+        base = base or (state or {}).get("base")
+    if not isinstance(state, dict) or state.get("disposition") in \
+            ("accepted", "rejected", "conflicted", "undone"):
+        return state
+    if state.get("state") != "proposed":
         return state
 
     skill = state.get("skill") or ""
@@ -269,15 +397,22 @@ def accept(state, settings):
     autonomy = (settings or {}).get("auditor_autonomy")
     if autonomy not in AUTONOMY_MAY_WRITE:
         shown = autonomy if autonomy else "unset, which reads as"
-        return _settled(
+        refused = _settled(
             iid, skill, "agent.report_only",
             "auditor_autonomy is %s 'report_only', so drafts are shown "
             "but never written. To let an accepted draft become a "
             "revision, set auditor_autonomy to 'draft_and_approve' in "
             "itembank.json." % shown,
             refusal="report_only")
+        if by_identity and state.get("proposal_id") and base:
+            state.update({"code": refused["code"], "reason": refused["reason"],
+                          "refusal": "report_only", "updated_at": _now(),
+                          "next_action": "Change Agent autonomy or reject this proposal"})
+            return _write_record(base, state)
+        return refused
 
-    base = state["base"]
+    if not base:
+        raise ValueError("base is required")
     rel = state["target"]
     kind = state["kind"]
 
@@ -308,6 +443,13 @@ def accept(state, settings):
             reason = ("Nothing was written: %s Next safe action: try the "
                       "skill again; if it keeps failing, check the course "
                       "directory is reachable." % exc.message)
+        if state.get("proposal_id"):
+            state.update({"state": "settled", "disposition": "conflicted",
+                          "code": exc.code, "reason": reason,
+                          "conflict": True, "updated_at": _now(),
+                          "reviewer": reviewer, "decided_at": _now(),
+                          "next_action": "Start a new proposal"})
+            return _write_record(base, state)
         return _settled(iid, skill, exc.code, reason, conflict=conflict)
 
     entry_id = None
@@ -317,8 +459,12 @@ def accept(state, settings):
                 and entry.get("revision") == record["revision"]:
             entry_id = entry.get("entry_id")
 
-    return {
+    settled = {
+        "schema_version": RECORD_VERSION,
         "state": "settled",
+        "disposition": "accepted",
+        "proposal_id": state.get("proposal_id"),
+        "operation_id": state.get("operation_id"),
         "ok": True,
         "skill": skill,
         "interaction_id": iid,
@@ -332,4 +478,60 @@ def accept(state, settings):
         "reason": "Draft accepted into %s as revision %s. Undo restores "
                   "the previous content from the journal."
                   % (rel, record["revision"]),
+        "reviewer": reviewer,
+        "decided_at": _now(),
+        "updated_at": _now(),
+        "expected_fingerprint": state.get("expected_fingerprint"),
+        "validation": state.get("validation"),
+        "citations": state.get("citations"),
+        "provider": state.get("provider"),
+        "draft": state.get("draft"),
+        "kind": kind,
+        "diff": state.get("diff"),
+        "next_action": "Undo accepted change",
     }
+    return _write_record(base, settled) if settled.get("proposal_id") else settled
+
+
+def reject(base, proposal_id, reviewer="", reason=""):
+    record = status(base, proposal_id)
+    if record.get("disposition") != "proposed":
+        return record
+    record.update({"state": "settled", "disposition": "rejected",
+                   "reviewer": reviewer, "review_reason": reason,
+                   "decided_at": _now(), "updated_at": _now(),
+                   "reason": "Proposal rejected. No accepted course content changed.",
+                   "next_action": "Start a new proposal"})
+    return _write_record(base, record)
+
+
+def undo(base, proposal_id, reviewer=""):
+    record = status(base, proposal_id)
+    if record.get("disposition") == "undone":
+        return record
+    if record.get("disposition") != "accepted" or not record.get("entry_id"):
+        return record
+    target = os.path.join(os.path.abspath(base), record["target"])
+    accepted = next((entry for entry in journal.entries(base)
+                     if entry.get("entry_id") == record["entry_id"]), None)
+    before = b""
+    if accepted and accepted.get("before_image"):
+        with open(os.path.join(journal.journal_dir(base),
+                               accepted["before_image"]), "rb") as fh:
+            before = fh.read()
+    revision = journal.undo(base, record["entry_id"], "human", reviewer)
+    with open(target, "rb") as fh:
+        restored = fh.read()
+    undo_entry = next((entry for entry in reversed(list(journal.entries(base)))
+                       if entry.get("state") == "applied"
+                       and entry.get("revision") == revision.get("revision")
+                       and entry.get("object_id") == accepted.get("object_id")), None)
+    record.update({"disposition": "undone", "state": "settled",
+                   "undo_entry_id": (undo_entry or {}).get("entry_id"),
+                   "restored_revision": revision.get("revision"),
+                   "restored_byte_identical": restored == before,
+                   "undone_at": _now(), "updated_at": _now(),
+                   "undo_reviewer": reviewer,
+                   "reason": "Accepted change undone. The previous valid bytes were restored and the reversal was recorded.",
+                   "next_action": "Start a new proposal"})
+    return _write_record(base, record)

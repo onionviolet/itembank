@@ -774,6 +774,14 @@ def check_study_one_primary_action_per_state():
             if "data-action-primary" in n["attrs"]):
         fail("the Learn-rating primary action is not Got it")
     js = page[page.find("<script>"):page.find("</script>")]
+    css = presentation_roundtrip.style_css(page)
+    if ".acts[hidden]{display:none}" not in css:
+        fail("hidden study action groups can still occupy rendered space")
+    if 'querySelector("[data-acts=front]").hidden=revealed' not in js:
+        fail("the front action group remains visible after reveal")
+    for selector in ("[data-prev]", "[data-next]"):
+        if 'querySelectorAll("%s")' % selector not in js:
+            fail("not every duplicate %s control is wired" % selector)
     for banned in ("setTimeout", "setInterval", "autoplay"):
         if banned in js:
             fail("study client adds an automatic pedagogy sequence: %r"

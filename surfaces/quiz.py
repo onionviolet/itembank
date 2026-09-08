@@ -144,7 +144,7 @@ def cmd_lesson_skip(a):
 def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
              lesson_base="", lesson_slugs=None, bank_stem=None, mode=None,
              theme_css=None, lti_framing="", boot_extra=None, assist=False,
-             home_href=""):
+             home_href="", presentation_profile=""):
     """Render one quiz page. `theme_css`, when given, is the per-render
     generated token block (the daemon passes
     `theme.theme_css(load_settings(root))` so quiz shares the one palette
@@ -256,6 +256,7 @@ def page_for(bank_path, qs, serve=False, reveal=False, post_path="/answer",
                  .replace("__SERVE__", "true" if serve else "false")
                  .replace("__CTX_TOTAL__", str(len(qs)))
                  .replace("__TITLE__", html.escape(title))
+                 .replace("__PRESENTATION_PROFILE__", html.escape(presentation_profile, quote=True))
                  .replace("__SUB__", sub)
                  .replace("__CTX_BANK__", ctx_bank)
                  .replace("__CTX_MODE__", ctx_mode)

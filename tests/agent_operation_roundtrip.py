@@ -57,7 +57,9 @@ def make_settings(active=None, profiles=None, autonomy=None, runs=True):
     if autonomy is not None:
         doc["auditor_autonomy"] = autonomy
     if runs:
-        doc["agent_runs"] = {SKILL: {"target": TARGET, "kind": KIND}}
+        doc["agent_runs"] = {SKILL: {"target": TARGET, "kind": KIND,
+                                      "request": "Draft only the lesson.",
+                                      "citations": CITATIONS}}
     return doc
 
 
@@ -86,19 +88,21 @@ class _Stub(object):
 
     def __init__(self, mode="author", candidate=None):
         outer = self
+        self.received = []
 
         class Handler(BaseHTTPRequestHandler):
             def do_POST(self):
                 length = int(self.headers.get("Content-Length") or 0)
-                self.rfile.read(length)
+                outer.received.append(json.loads(
+                    self.rfile.read(length).decode("utf-8")))
                 if outer.candidate is not None:
-                    body = json.dumps(outer.candidate).encode("utf-8")
+                    candidate = outer.candidate
                 elif outer.mode == "junk":
-                    body = json.dumps({"weather": "sunny"}).encode("utf-8")
+                    candidate = {"weather": "sunny"}
                 else:
-                    body = json.dumps({
-                        "draft": DRAFT,
-                        "citations": CITATIONS}).encode("utf-8")
+                    candidate = {"draft": DRAFT, "citations": CITATIONS}
+                body = json.dumps({"choices": [{"message": {"content":
+                    json.dumps(candidate)}}]}).encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(body)))
@@ -256,6 +260,19 @@ def check_ok_result_proposes_a_bounded_diff():
         fail("an ok candidate gave %r (%r)" % (state.get("state"),
                                                state.get("code")))
         return
+    author = json.loads(stub.received[0]["messages"][1]["content"])["payload"]["author_request"]
+    embedded = author["request"]
+    if embedded.get("stage") != "agent_proposal" or \
+            embedded.get("instruction") != "Draft only the lesson." or \
+            embedded.get("citations") != CITATIONS:
+        fail("the configured bounded instruction did not reach the backend: %r"
+             % embedded)
+        return
+    response_schema = stub.received[0]["response_format"]["json_schema"]["schema"]
+    if response_schema.get("required") != ["draft", "citations"] or \
+            response_schema.get("additionalProperties") is not False:
+        fail("the local provider did not receive the agent proposal schema")
+        return
     if state.get("draft") != DRAFT:
         fail("the proposal lost the draft text")
         return
@@ -283,6 +300,17 @@ def check_ok_result_proposes_a_bounded_diff():
         fail("proposing changed the target file")
         return
     ok("an ok result proposes draft, citations, target, bounded diff")
+
+
+def check_lesson_proposal_uses_the_lesson_contract():
+    payload = ao._author_payload("lesson-skill", {
+        "target": "lesson.md", "kind": "lesson",
+        "request": "Draft it.", "citations": []})
+    contract = payload.get("contract") or ""
+    if len(contract) > 1000 or "portable UTF-8 Markdown" not in contract:
+        fail("the lesson proposal did not use its bounded lesson contract")
+        return
+    ok("lesson proposals use the bounded lesson contract, not the bank spec")
 
 
 def check_diff_cap_says_what_it_withheld():
@@ -707,12 +735,68 @@ def check_full_loop_undo_restores_the_pre_run_bytes():
        "recorded, byte for byte")
 
 
+def check_durable_identity_settlement_and_undo():
+    """The 19B door settles by opaque id and survives fresh reads."""
+    course = _Course()
+    stub = _Stub(candidate={"draft": DRAFT, "citations": CITATIONS})
+    settings = make_settings(PROFILE_NAME, [local_profile(stub.port)],
+                             autonomy="draft_and_approve")
+    try:
+        proposed = ao.start(SKILL, settings, course.base)
+        pid = proposed.get("proposal_id")
+        loaded = ao.status(course.base, pid)
+        if loaded.get("draft") != DRAFT or loaded.get("base") is not None:
+            fail("the durable proposal did not reload without a filesystem path")
+            return
+        accepted = ao.accept(pid, settings, base=course.base,
+                             reviewer="learner")
+        lines = [e for e in course.journal_lines()
+                 if e.get("state") == "applied"
+                 and e.get("entry_id") == accepted.get("entry_id")]
+        if len(lines) != 1 or ao.accept(pid, settings, base=course.base) != accepted:
+            fail("identity acceptance was not one durable settlement")
+            return
+        undone = ao.undo(course.base, pid, "learner")
+        if not undone.get("restored_byte_identical") or course.bytes() != ORIGINAL.encode("utf-8"):
+            fail("durable undo did not prove byte-identical restoration")
+            return
+        if ao.undo(course.base, pid) != undone:
+            fail("repeated durable undo changed its settled result")
+            return
+        ok("opaque proposal reload, one acceptance, and durable byte-exact undo pass")
+    finally:
+        stub.close()
+        course.close()
+
+
+def check_reject_is_durable_and_no_write():
+    course = _Course()
+    stub = _Stub(candidate={"draft": DRAFT, "citations": CITATIONS})
+    try:
+        proposed = ao.start(SKILL, make_settings(PROFILE_NAME,
+                            [local_profile(stub.port)]), course.base)
+        before = course.bytes()
+        rejected = ao.reject(course.base, proposed["proposal_id"],
+                             "learner", "not suitable")
+        if rejected.get("disposition") != "rejected" or course.bytes() != before:
+            fail("rejection changed accepted bytes or was not durable")
+            return
+        if ao.reject(course.base, proposed["proposal_id"]) != rejected:
+            fail("repeated rejection changed its durable result")
+            return
+        ok("rejection persists its review facts and changes no accepted bytes")
+    finally:
+        stub.close()
+        course.close()
+
+
 def main():
     check_only_four_states_exist()
     check_next_actions_cover_every_adapter_code()
     check_no_active_profile_is_first_class()
     check_unreachable_endpoint_settles_typed()
     check_ok_result_proposes_a_bounded_diff()
+    check_lesson_proposal_uses_the_lesson_contract()
     check_diff_cap_says_what_it_withheld()
     check_accept_writes_once_through_the_journal()
     check_double_accept_records_nothing()
@@ -726,6 +810,8 @@ def main():
     check_two_paths_says_which_is_which()
     check_agent_tab_still_renders_without_a_root()
     check_full_loop_undo_restores_the_pre_run_bytes()
+    check_durable_identity_settlement_and_undo()
+    check_reject_is_durable_and_no_write()
     if failures:
         print("\n%d failure(s)" % len(failures))
         return 1

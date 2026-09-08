@@ -78,7 +78,7 @@ MODE_LAYERS_FIXED = ("runtime_authority", "system_safety")
 # Notes is deliberately absent: D4 gives Notes no dedicated route and renders
 # it only as a contextual panel inside Learn and Evidence.
 COURSE_AREAS = ("overview", "learn", "practice", "test", "map", "sources",
-                "build", "evidence")
+                "build", "agent", "evidence")
 
 # The locked Activity copy, verbatim from the 16B-UI-SPEC Activity Contract.
 ACTIVITY_COPY = {
@@ -664,12 +664,45 @@ COURSE_AREA_LABELS = {
     "map": "Course map",
     "sources": "Sources",
     "build": "Build and review",
+    "agent": "Agent",
     "evidence": "Evidence",
 }
 
 AREA_NOT_FOUND_NOTICE = "That address does not name anything itembank can open."
 ANCHOR_NOT_FOUND_NOTICE = ("The part of this page that link pointed at is no "
                            "longer here. The rest of the page is below.")
+
+# A course-area state is presentation-only. It gives every degraded branch a
+# distinct label and one existing, safe way forward without inventing progress,
+# changing the addressed course, or making a second session authority.
+COURSE_AREA_STATES = {
+    "empty": {"notice": "Nothing has been added to {area_label} for this course yet.", "action_label": "Return to course overview"},
+    "loading": {"notice": "Loading {area_label}. The last accepted course state remains available.", "action_label": "Return to course overview"},
+    "unavailable": {"notice": "{area_label} is unavailable right now. Local course material remains available.", "action_label": "Read offline help", "action_href": "/help/ia.offline"},
+    "conflict": {"notice": "This course changed while you were away. Nothing was overwritten.", "action_label": "Inspect current course"},
+    "interrupted": {"notice": "Your work was interrupted. Resume the same session from its saved position.", "action_label": "Resume this area"},
+    "pending": {"notice": "Your response is recorded and pending review. No mark is implied.", "action_label": "Continue course"},
+    "invalid": {"notice": "The saved presentation profile is unsupported. A safe fallback is active.", "action_label": "Save a supported profile", "action_href": "/settings"},
+    "recovery": {"notice": "The last accepted course state is still available. Retry from that state.", "action_label": "Retry from last accepted state"},
+}
+
+
+def course_area_notice(course_id, area, state="empty"):
+    """Return a visible course-area state and its one supported next action.
+
+    The caller supplies no mutable runtime data. This makes the transition and
+    degraded-state matrix fixtureable while leaving session cursor, evidence,
+    and disclosure decisions in their existing owners.
+    """
+    if area not in COURSE_AREAS:
+        raise ValueError("unknown course area: %s" % area)
+    spec = COURSE_AREA_STATES.get(state)
+    if spec is None:
+        raise ValueError("unknown course-area state: %s" % state)
+    return {"state": state,
+            "notice": spec["notice"].format(area_label=COURSE_AREA_LABELS[area]),
+            "action_label": spec["action_label"],
+            "action_href": spec.get("action_href") or "/course/" + course_id}
 
 
 def anchor_slug(text):
@@ -763,7 +796,8 @@ def _course_dir_for(root, course_id, module):
     return fallback
 
 
-def course_area_state(root, course_id, area, course=_UNSET):
+def course_area_state(root, course_id, area, course=_UNSET,
+                      display_state="empty"):
     """One course area's whole frame as a plain dict. Performs no write.
 
     `content_available` is False for every area in this phase: the record
@@ -810,10 +844,12 @@ def course_area_state(root, course_id, area, course=_UNSET):
                     "href": target["path"], "current": member == area})
 
     label = COURSE_AREA_LABELS[area]
+    display = course_area_notice(course_id, area, display_state)
     return {"found": True, "course_id": course_id, "course_name": name,
             "area": area, "area_label": label, "nav": nav,
-            "notice": ("Nothing has been added to {area_label} for this "
-                       "course yet.").replace("{area_label}", label),
+            "notice": display["notice"], "display_state": display["state"],
+            "next_action": {"label": display["action_label"],
+                            "href": display["action_href"]},
             "help_code": None, "content_available": False}
 
 

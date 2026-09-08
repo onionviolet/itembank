@@ -350,10 +350,11 @@ __GLOSS_PRINT_CSS__
 __RUNNABLE_CSS__
 </style>
 __MATH_ASSETS__
-</head><body><div class="wrap">
+</head><body><div class="wrap ib-profile ib-profile-__PRESENTATION_PROFILE__" data-presentation-profile="__PRESENTATION_PROFILE__">
 <header>
+  <p class="sub">Application: itembank</p>
   <h1>__TITLE__</h1>
-  <div class="sub">__SUB__</div>
+  <div class="sub">Reading · __SUB__</div>
 </header>
 __STATUS__
 __CONTEXT_NAV__
@@ -2736,9 +2737,13 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
     # this phase rendering the page it always rendered.
     doc_lang = html.escape((lesson or {}).get("lang") or "en")
     doc_dir = html.escape((lesson or {}).get("dir") or "auto")
+    presentation_profile, _profile_notice = settings.resolve_presentation_profile(
+        settings.load_settings(bank_dir))
     return (LESSON_TEMPLATE
             .replace("__LANG__", doc_lang)
             .replace("__DIR__", doc_dir)
+            .replace("__PRESENTATION_PROFILE__",
+                     html.escape(presentation_profile, quote=True))
             .replace("__THEME__", THEME_CSS)
             .replace("__SHARED_CSS__", SHARED_CSS)
             .replace("__LESSON_CSS__", LESSON_CSS)

@@ -34,12 +34,19 @@ HOME_UNIT = "bank"
 MODES = ("shelf", "next-action", "agent", "split")
 DEFAULT_MODE = "shelf"
 
+# Learner jobs are projection names, not additional saved settings. Resume and
+# Shelf refine the two existing modes. Agenda and Path remain reversible Phase
+# 20 prototypes until a human comparison gives either one a stable disposition.
+LEARNER_JOBS = ("resume", "shelf", "agenda", "path")
+LEARNER_JOB_MODES = {"resume": "next-action", "shelf": "shelf"}
+PROTOTYPE_JOBS = ("agenda", "path")
+
 ACTIVITY_MAX = 5
 
 # Where the Agent area lives today: the 17A tracer page, which is served
 # only behind the ITEMBANK_VISUAL_FIXTURE opt-in. When a production agent
 # route ships, this constant is the one place its URL changes.
-AGENT_AREA_HREF = "/_visual-fixture?stage=agent_harness"
+AGENT_AREA_HREF = "/course/{course_id}/agent"
 
 
 def resolve_mode(value):
@@ -65,7 +72,16 @@ def pending_proposals(root):
     function is the single source the badge reads; acceptance still
     happens only in the Agent area.
     """
-    return []
+    from surfaces import agent_operation
+    rows = []
+    for dirpath, dirnames, filenames in os.walk(os.path.abspath(root)):
+        dirnames[:] = [name for name in dirnames if not name.startswith(".")]
+        if "course-graph.md" not in filenames:
+            continue
+        count = len(agent_operation.pending(dirpath))
+        if count:
+            rows.append({"path": dirpath, "count": count})
+    return rows
 
 
 def _load_session(path):
@@ -367,6 +383,187 @@ def _collision_note(state):
             "files</a>.</p>" % len(state["collisions"]))
 
 
+# ---- Phase 20 projection-neutral course home -----------------------------
+#
+# These projections consume facts already settled by their durable owners.
+# They do not calculate due dates, completion, evidence standing, availability,
+# path position, course identity, routes, or resume targets.
+
+AGENDA_GROUPS = (
+    ("overdue", "Overdue"),
+    ("today", "Today"),
+    ("upcoming", "Upcoming"),
+    ("revision", "Revision"),
+    ("recently-completed", "Recently completed"),
+)
+PATH_STATES = ("available", "current", "complete", "pending", "locked",
+               "unavailable")
+
+
+def projection_identity(state):
+    """Return the authority-bearing values every projection must preserve."""
+    return tuple((card.get("course_id"), card.get("route"),
+                  (card.get("resume") or {}).get("href"),
+                  tuple((fact.get("kind"), fact.get("label"))
+                        for fact in card.get("facts") or ()))
+                 for card in state.get("courses") or ())
+
+
+def _projection_note(note):
+    if not note:
+        return ""
+    return '<p class="vf-status" data-state="warn">%s</p>' % _esc(note)
+
+
+def _fact_list(card):
+    rows = []
+    for fact in card.get("facts") or ():
+        kind = fact.get("kind") or "status"
+        rows.append('<li data-fact-kind="%s"><b>%s:</b> %s</li>' % (
+            _esc(kind), _esc(fact.get("source") or kind.replace("_", " ")),
+            _esc(fact.get("label") or "Unknown")))
+    return ('<ul class="home-facts">%s</ul>' % "".join(rows)) if rows else ""
+
+
+def _course_projection(card, include_facts=True):
+    action = card.get("primary_action") or card.get("resume") or {}
+    action_html = ""
+    if action.get("label") and action.get("href"):
+        action_html = ('<p><a class="go primary" data-action-primary '
+                       'href="%s">%s</a></p>' %
+                       (_esc(action["href"]), _esc(action["label"])))
+    state = card.get("state") or "available"
+    blocker = card.get("blocker") or ""
+    status = ('<p class="vf-status" data-state="%s">%s</p>' %
+              (_esc(state), _esc(blocker))) if blocker else ""
+    return ('<article class="home-course" data-course-id="%s" '
+            'data-course-state="%s"><h3><a href="%s">%s</a></h3>%s%s%s'
+            '</article>' %
+            (_esc(card.get("course_id") or "unknown"), _esc(state),
+             _esc(card.get("route") or "#"),
+             _esc(card.get("name") or "Unnamed course"), status,
+             _fact_list(card) if include_facts else "", action_html))
+
+
+def render_resume_projection(state, note=None):
+    courses = list(state.get("courses") or ())
+    current = next((card for card in courses
+                    if (card.get("resume") or {}).get("href")), None)
+    if current is None:
+        body = ('<p class="vf-status" data-state="empty">No exact resume '
+                'target is available. Open the course shelf to choose a '
+                'supported next action.</p>')
+    else:
+        body = _course_projection(current)
+    rest = [card for card in courses if card is not current]
+    quieter = ("<details><summary>Other courses</summary>%s</details>" %
+               "".join(_course_projection(card) for card in rest)) if rest else ""
+    return ('<section class="home home-job-resume" data-learner-job="resume">'
+            '<h2>Resume</h2>%s%s%s</section>' %
+            (_projection_note(note), body, quieter))
+
+
+def render_shelf_projection(state, note=None):
+    courses = list(state.get("courses") or ())
+    body = "".join(_course_projection(card) for card in courses)
+    if not body:
+        body = ('<p class="vf-status" data-state="empty">No courses are on '
+                'this shelf. Add or restore a course to begin.</p>')
+    return ('<section class="home home-job-shelf" data-learner-job="shelf">'
+            '<h2>Course shelf</h2>%s<div class="home-course-list">%s</div>'
+            '</section>' % (_projection_note(note), body))
+
+
+def render_agenda_projection(state, note=None):
+    entries = list(state.get("agenda") or ())
+    groups = []
+    for key, label in AGENDA_GROUPS:
+        rows = [entry for entry in entries if entry.get("group") == key]
+        if not rows:
+            continue
+        items = "".join(
+            '<li data-course-id="%s" data-agenda-kind="%s"><a href="%s">%s'
+            '</a> <span class="vf-status">%s</span></li>' %
+            (_esc(row.get("course_id") or "unknown"),
+             _esc(row.get("kind") or "itembank_due"),
+             _esc(row.get("href") or "#"), _esc(row.get("label") or label),
+             _esc(row.get("source") or "itembank")) for row in rows)
+        groups.append('<section data-agenda-group="%s"><h3>%s</h3><ul>%s</ul>'
+                      '</section>' % (_esc(key), _esc(label), items))
+    if not groups:
+        groups.append('<p class="vf-status" data-state="empty">No durable '
+                      'agenda facts are available. Use Shelf to choose a '
+                      'course.</p>')
+    return ('<section class="home home-job-agenda" data-learner-job="agenda" '
+            'data-prototype="true"><h2>Agenda prototype</h2>%s%s</section>' %
+            (_projection_note(note), "".join(groups)))
+
+
+def render_path_projection(state, note=None):
+    courses = list(state.get("courses") or ())
+    if not courses:
+        body = ('<p class="vf-status" data-state="empty">No course path is '
+                'available. Use Shelf after a course is added or restored.</p>')
+    else:
+        rendered = []
+        for card in courses:
+            nodes = []
+            for node in card.get("path") or ():
+                node_state = node.get("state") or "unavailable"
+                if node_state not in PATH_STATES:
+                    node_state = "unavailable"
+                label = _esc(node.get("label") or "Unnamed activity")
+                if node.get("href") and node_state not in ("locked", "unavailable"):
+                    label = '<a href="%s">%s</a>' % (_esc(node["href"]), label)
+                nodes.append('<li data-path-state="%s"><b>%s:</b> %s</li>' %
+                             (_esc(node_state), _esc(node_state), label))
+            path = ('<ol class="home-path">%s</ol>' % "".join(nodes)) if nodes else (
+                '<p class="vf-status" data-state="unavailable">No durable '
+                'path positions are available. Open the course overview.</p>')
+            action = card.get("primary_action") or card.get("resume") or {}
+            action_html = ""
+            if action.get("label") and action.get("href"):
+                action_html = ('<p><a class="go primary" data-action-primary '
+                               'href="%s">%s</a></p>' %
+                               (_esc(action["href"]), _esc(action["label"])))
+            rendered.append('<article class="home-course" data-course-id="%s">'
+                            '<h3><a href="%s">%s</a></h3>%s%s</article>' %
+                            (_esc(card.get("course_id") or "unknown"),
+                             _esc(card.get("route") or "#"),
+                             _esc(card.get("name") or "Unnamed course"), path,
+                             action_html))
+        body = "".join(rendered)
+    return ('<section class="home home-job-path" data-learner-job="path" '
+            'data-prototype="true"><h2>Path prototype</h2>%s%s</section>' %
+            (_projection_note(note), body))
+
+
+PROJECTION_RENDERERS = {
+    "resume": render_resume_projection,
+    "shelf": render_shelf_projection,
+    "agenda": render_agenda_projection,
+    "path": render_path_projection,
+}
+
+
+def render_projection(state, learner_job, presentation_profile="field-guide",
+                      note=None):
+    """Render one learner job over canonical state without mutating it."""
+    if learner_job not in LEARNER_JOBS:
+        learner_job = "shelf"
+        note = note or "That learner-job prototype is unavailable; showing Shelf."
+    profile = presentation_profile \
+        if presentation_profile in ("field-guide", "trajectory-deck") \
+        else "field-guide"
+    before = projection_identity(state)
+    body = PROJECTION_RENDERERS[learner_job](state, note=note)
+    if projection_identity(state) != before:
+        raise ValueError("home projection changed canonical identity")
+    return ('<div class="home-projection ib-profile-%s" '
+            'data-presentation-profile="%s">%s</div>' %
+            (_esc(profile), _esc(profile), body))
+
+
 def render_shelf(state, note=None):
     head = ""
     if note:
@@ -449,13 +646,19 @@ RENDERERS = {
 }
 
 
-def render_home(state, mode=None, note=None):
+def render_home(state, mode=None, note=None, presentation_profile="field-guide"):
     """Render one mode over one state dict. An unknown mode falls back to
     the shelf and says so once."""
     mode, fallback_note = resolve_mode(mode or DEFAULT_MODE)
     if fallback_note:
         note = fallback_note
-    return RENDERERS[mode](state, note=note)
+    profile = presentation_profile \
+        if presentation_profile in ("field-guide", "trajectory-deck") \
+        else "field-guide"
+    return ('<div class="home-mode ib-profile-%s" '
+            'data-presentation-profile="%s" data-home-mode="%s">%s</div>' %
+            (_esc(profile), _esc(profile), _esc(mode),
+             RENDERERS[mode](state, note=note)))
 
 
 # Styles for the four modes, appended to the theme block the shell
@@ -473,5 +676,11 @@ padding:.75rem 1rem;margin-bottom:1rem;max-width:40rem;}
 border-radius:999px;border:1px solid var(--accent,#888);}
 .home-split{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;
 align-items:start;}
+.home-course-list{display:grid;gap:1rem}.home-course{border-bottom:1px solid
+var(--line,var(--accent,#888));padding:.75rem 0}.home-facts{list-style:none;
+padding:0}.home-path{display:grid;gap:.5rem}.ib-profile-trajectory-deck
+.home-job-resume .home-course{border:2px solid var(--edge,var(--accent,#888));
+padding:1rem}.ib-profile-field-guide .home-path{border-inline-start:2px solid
+var(--line,var(--accent,#888));padding-inline-start:1.5rem}
 @media (max-width:640px){.home-split{grid-template-columns:1fr;}}
 """

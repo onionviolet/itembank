@@ -97,7 +97,7 @@ a:hover{text-decoration:underline;text-underline-offset:3px}
   font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--mut)}
 a.go,button.go,.walkthrough-offer button,form[data-shelf-form] button{
   background:var(--ink);color:var(--bg);border:1px solid var(--ink);
-  border-radius:2px;padding:11px 18px;font-weight:600;font-size:14px;
+  border-radius:2px;padding:11px 18px;font-weight:600;font-size:16px;
   text-decoration:none;box-shadow:none}
 a.go.ghost,button.go.ghost,.walkthrough-replay button,
 form[data-shelf-form] button[value="skip_walkthrough"],
@@ -145,7 +145,7 @@ a{font-weight:600;text-decoration:none}
   letter-spacing:0;font-family:var(--font-chrome)}
 a.go,button.go,.walkthrough-offer button,form[data-shelf-form] button{
   background:var(--accent);color:var(--card);border:0;border-radius:999px;
-  padding:14px 22px;font-weight:650;font-size:15px;text-decoration:none}
+  padding:14px 22px;font-weight:650;font-size:16px;text-decoration:none}
 a.go.ghost,button.go.ghost,.walkthrough-replay button,
 form[data-shelf-form] button[value="skip_walkthrough"],
 form[data-shelf-form] button[value="remove_sample_course"]{
@@ -243,7 +243,7 @@ a{font-weight:550;text-decoration:none}
   letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}
 a.go,button.go,.walkthrough-offer button,form[data-shelf-form] button{
   background:var(--accent);color:var(--bg);border:1px solid var(--accent);
-  border-radius:3px;padding:10px 16px;font-weight:650;font-size:14px;
+  border-radius:3px;padding:10px 16px;font-weight:650;font-size:16px;
   text-decoration:none}
 a.go.ghost,button.go.ghost,.walkthrough-replay button,
 form[data-shelf-form] button[value="skip_walkthrough"],
@@ -297,7 +297,7 @@ a{font-weight:600;text-decoration:none}
   letter-spacing:0;font-family:var(--font-chrome)}
 a.go,button.go,.walkthrough-offer button,form[data-shelf-form] button{
   background:var(--ink);color:var(--card);border:0;border-radius:14px;
-  padding:13px 20px;font-weight:650;font-size:15px;text-decoration:none}
+  padding:13px 20px;font-weight:650;font-size:16px;text-decoration:none}
 a.go.ghost,button.go.ghost,.walkthrough-replay button,
 form[data-shelf-form] button[value="skip_walkthrough"],
 form[data-shelf-form] button[value="remove_sample_course"]{

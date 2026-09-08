@@ -789,6 +789,11 @@
       "method": "GET",
       "path": "^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/learn/(?P<lesson_id>[A-Za-z0-9_.-]{1,64})$",
       "token_gated": true
+    },
+    {
+      "method": "GET",
+      "path": "^/api/course/(?P<operation>outline|coverage|untreated|protocol|parity)/(?P<course_id>[A-Za-z0-9_.-]{1,64})$",
+      "token_gated": true
     }
   ],
   "schema_version": 1,

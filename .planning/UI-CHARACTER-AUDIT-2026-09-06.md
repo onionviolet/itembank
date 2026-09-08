@@ -1,6 +1,6 @@
 # UI character audit and proposed plan
 
-Date: 2026-09-06. Status: proposal for review. Application implementation is not authorized by this document.
+Date: 2026-09-06. Status: proposed implementation plan under an accepted product-experience direction. Application implementation is not authorized by this document.
 
 ## Scope and evidence
 
@@ -17,6 +17,233 @@ The repository already contained application and planning edits from other work.
 > Propose a distinctive visual direction suited to a learning workspace. Explain how typography, color, spacing, geometry, layout, and interaction details can create a recognizable identity. Avoid simply replacing every rounded corner with a square one. Preserve reading comfort, accessibility, responsive behavior, and clear navigation.
 
 Interpretation: refine the current experience using concrete production evidence. The direction below is proposed, not a replacement for an accepted product contract. This document is the owning record for this bounded design request. Existing visual options remain registered. No idea is rejected or removed by this audit.
+
+### Product-experience alignment recorded 2026-09-06
+
+The later user direction asks for a local-first desktop product with the
+coherence and convenience associated with SaaS software. The product contract
+now owns that direction. This audit supplies its bounded presentation and
+navigation proposal. It does not propose a hosted SaaS architecture. The
+existing Tauri shell, local runtime, local canonical files, optional disclosed
+model egress, and CLI parity remain unchanged.
+
+The latest vision-plan and feature-opportunity audits reinforce the same
+priority. Visible shelf-to-course navigation, note-and-return, exact resume,
+actionable empty states, and recoverable agent work matter more than adding a
+new shell or visual novelty. A1.1 and A1.2 remain the smallest first UI pass.
+Their implementation still requires a separate execution action and the review
+evidence already named below.
+
+### Direction amendment recorded 2026-09-06
+
+The later user direction authorizes a comprehensive future visual redesign and
+removes the current production aesthetic as a compatibility target. The
+existing colors, default look, theme catalogue presentation, geometry, and page
+composition may be replaced when comparative prototypes show a better coherent
+course experience. Syntax Lab is a useful example of character arising from a
+focused activity frame, clear hierarchy, purposeful color, concise controls,
+and visible state. It is not the selected design and should not turn the whole
+course product into a coding drill.
+
+This amendment partly supersedes the preservation-first parts of D1 and A1.5
+for future visual work. Their verified defects, task hierarchy, reading comfort,
+responsive behavior, accessibility, and interaction-state findings remain
+current. Saved preferences remain durable objects until a reviewed migration
+specifies fallback, notification, validation, and recovery. The Reach
+milestone's freeze on new visual-system implementation remains a sequencing
+rule, not a statement that the current look should survive the later redesign.
+
+### Replace-or-retain fitness rule
+
+Future UI work preserves outcomes and durable state, not old presentation for
+its own sake. For each existing component, layout, navigation pattern, theme,
+or interaction, compare retention, adaptation, and replacement against the
+same representative course journeys. Choose the option that produces clearer
+hierarchy, lower task friction, stronger responsive behavior, accessible state,
+comfortable reading, and a more coherent learning-workspace identity.
+
+Age is neither a reason to keep nor replace something. “Modern” means fitting
+current desktop and mobile interaction expectations while retaining a useful
+plain-file experience and the project's authority boundaries. It does not mean
+adding fashionable animation, visual density, generic dashboard cards, or a
+new framework without evidence that they improve the learner's task.
+
+A replacement is accepted only when before-and-after evidence shows the same
+or better task completion, keyboard and screen-reader semantics, reflow,
+contrast, reduced-motion behavior, saved-state migration, and recovery. Remove
+the old path after the accepted replacement and migration exist. Do not keep
+two permanent presentation systems unless they serve named different tasks.
+
+### Open design-language comparison
+
+No final design language is selected. Preserve these candidates for the future
+visual phase:
+
+| Candidate | Core character | Best fit | Main risk |
+|---|---|---|---|
+| Editorial learning studio | Calm typography, source visibility, generous reading rhythm, restrained navigation | Courses, lessons, notes, and source-grounded study | Can feel passive or overly academic during active practice |
+| Modern learning workspace | Clear application hierarchy, familiar navigation, purposeful controls, visible progress and recovery | Shelf, course management, settings, evidence, and cross-mode movement | Can become generic product chrome without a distinctive learning identity |
+| Crafted reading-and-doing workshop | Editorial reading combined with visible tools, artifacts, progress, and activity transitions | The complete source-to-course journey | Can become visually dense or inconsistent without strict shared roles |
+
+Monkeytype is inspiration only for coding practice and CS Dojo: focus,
+keyboard fluency, state clarity, customization, and low-friction repetition.
+It is not a candidate or template for the application shell, course structure,
+reading, assessment authority, notes, or evidence. Syntax Lab similarly informs
+the coding activity frame rather than the whole product. The official
+Monkeytype project describes its own target as a minimal, customizable test
+with unobtrusive prompts and straightforward real-time feedback. That supports
+this coding-surface inspiration and not a wholesale product analogy. Source:
+[`monkeytypegame/monkeytype` README](https://github.com/monkeytypegame/monkeytype/blob/master/README.md).
+
+Prototype the candidates with the same representative content and tasks. At a
+minimum, compare the course shelf, one long lesson, one practice activity, one
+formal assessment state, notes and evidence, an agent operation with recovery,
+and mobile navigation. A hybrid is accepted only if shared typography, color,
+spacing, geometry, navigation, and state rules make the modes recognizably one
+product. User review makes the final selection.
+
+### Technical-instrument revision after prototype review
+
+The first editorial studio, modern workspace, and reading-and-doing workshop
+prototypes were judged too weak in character. They are rejected as presented.
+The next pass keeps identical journey content but increases technical precision
+without turning the app into a terminal, generic developer dashboard, or
+Monkeytype clone.
+
+Compare three stronger languages:
+
+| Candidate | Technical character | Guardrail |
+|---|---|---|
+| Precision console | Crisp grid, explicit state labels, keyboard command layer, restrained panels, high information clarity | Long reading remains comfortably distinct from controls |
+| Instrumented studio | Editorial content paired with measured progress rails, source locators, operation state, and compact technical metadata | Metrics never imply mastery and metadata never overwhelms the lesson |
+| Modular workbench | Clear zones for source, lesson, activity, notes, and evidence with tool-like transitions and visible recovery | Zones share one system and do not become separate miniature applications |
+
+Shared requirements include deliberate monospace accents rather than universal
+monospace, sharp focus treatment, purposeful accent color, compact controls
+that retain 44px targets, explicit pending and recovery states, restrained
+radius and elevation, fast keyboard movement, and low-motion feedback. Use
+Monkeytype as evidence for restraint, immediate state, and interaction
+confidence. Use its specific centered typing composition only inside coding
+practice where the task warrants it.
+
+### Selected pair and shared foundation
+
+### Home and transition companion scope recorded 2026-09-07
+
+The later user direction requires the future comparison to cover complete
+learner transitions, not only representative static states. The reconciled
+scope and current external evidence live in
+`notes/2026-09-07-home-and-transition-ui-scope.md`. Its resume, shelf, agenda,
+and path home presentations are reversible prototypes over identical course
+and runtime state. Its transition matrix adds first use, Home, Back, exact
+resume, interruption, practice completion, quiz and exam completion, pending
+review, remediation, later return, changed courses, and course completion to
+the comparison gate.
+
+The deeper evidence pass is delegated by
+`PROMPT-UI-FLOW-AND-OPEN-SOURCE-ABSORPTION-2026-09-07.md`. It reconciles prior
+audits before inspecting current products and public repositories, records
+fact separately from recommendation, and reopens affected findings when named
+change, failure, freshness, or coverage triggers occur. This adds evidence and
+prototype obligations. It does not authorize production UI changes or expand
+the active Reach critical path.
+
+User review selected both stable finalists:
+
+- `prototypes/17c-finalists/field-guide.html`, Measured Field Guide.
+- `prototypes/17c-finalists/trajectory-deck.html`, Learning Trajectory Deck.
+
+Keep both through one implementation architecture:
+
+| Layer | Owns | Extension rule |
+|---|---|---|
+| Semantic contract | Roles such as canvas, surface, text, muted text, accent, source, pending, unavailable, danger, focus, and recovery | New capabilities consume roles and never depend on a literal color or font |
+| Foundation tokens | Type roles, spacing, target size, radii, borders, elevation, motion, reading measure, breakpoints, and contrast derivation | One token source feeds every composition and appearance mode |
+| Shared primitives | App frame, navigation, course row, source locator, status signal, activity frame, answer group, note editor, evidence table, operation event, disclosure, dialog, and recovery action | A capability maps to existing primitives before proposing another one |
+| Composition recipes | Field Guide and Trajectory Deck layout, density, emphasis, and navigation arrangements | Recipes may rearrange primitives but do not fork data, state, scoring, disclosure, or accessibility behavior |
+| Capability adapters | Semantic lesson blocks and learning activities mapped to primitives, static fallback, states, and evidence behavior | Each adapter declares purpose, supported states, keyboard and touch behavior, plain fallback, and unavailable recovery |
+| Verification harness | Identical representative states rendered across recipes, modes, viewports, and capability profiles | A changed primitive reruns every recipe; a changed adapter reruns its capability profile |
+
+#### Named extension seams
+
+Treat the table above as the presentation extension contract, not only as a
+way to retain two themes. A course shell or navigation arrangement registers as
+a presentation profile. Colors, type choices, spacing, geometry, and motion
+register as an appearance theme over semantic tokens. A reader, activity,
+editor, source view, agent panel, exporter, or integration registers as a
+capability adapter when it has distinct behavior or states.
+
+Each registration declares identity, version, supported semantic roles,
+required operations, supported profiles and modes, keyboard and touch behavior,
+plain fallback, unavailable behavior, migration effect, verification fixtures,
+and removal recovery. Registrations may compose existing primitives. They may
+not replace canonical content, scoring, evidence, rights, route identity, or
+recovery authority. Do not create a universal dynamic loader before two real
+registrations at the same seam prove that shared machinery removes duplication.
+
+Expose Measured Field Guide and Learning Trajectory Deck as user-switchable
+presentation profiles over identical markup and state. Field Guide emphasizes
+source-heavy reading, explanation, annotation, and reflection. Trajectory Deck
+emphasizes course movement, active practice, evidence, agent operations, and
+recovery. Do not maintain two renderers. Automatic task-based switching is a
+later option to test and is not the first implementation.
+
+#### Presentation-profile setting contract
+
+- Stable values are `field-guide` and `trajectory-deck`. Unknown or unavailable
+  values fall back visibly to a supported profile.
+- Profile choice changes derived presentation only. It never changes canonical
+  content, URL identity, session state, evidence, scoring, or disclosure.
+- Switching preserves the current course, surface, activity, focus target where
+  meaningful, scroll or reading locator, unsaved-field warning, and browser
+  history behavior.
+- Settings provides a representative live preview before acceptance. Save uses
+  the existing settings authority and recovery path.
+- Color scheme, contrast, and accent are orthogonal settings. Every supported
+  combination must pass contrast and focus derivation rather than relying on a
+  profile's prototype colors.
+- Exported settings name the profile version. A removed or renamed profile
+  requires a migration, user-visible fallback, validation, and undo or restore
+  route.
+- Print, plain-file, and no-script output use the same semantic source. Field
+  Guide is the preferred print composition unless later evidence selects a
+  better static representation.
+- A capability ships only when representative states work in both profiles or
+  an equivalent documented fallback passes the same task and accessibility
+  gate.
+
+#### Foundation sequence
+
+1. Extract shared semantic roles and tokens from both prototypes without
+   copying their literal colors into component logic.
+2. Implement shared primitives against the existing surface shell and runtime
+   contracts. Keep production behavior unchanged.
+3. Express both finalists as composition and appearance recipes over those
+   primitives.
+4. Migrate one shelf-to-lesson-to-practice vertical slice and compare it in
+   both recipes at desktop and mobile sizes.
+5. Add future capabilities through the adapter declaration, then extend the
+   primitive set only when the capability cannot be expressed honestly.
+
+Do not begin with a universal component library or a framework rewrite. Build
+only primitives exercised by the representative slice. Promote a primitive to
+the shared foundation after both recipes use it or one recipe and a named
+capability require it.
+
+#### Further decisions to test
+
+- Whether color schemes remain independent of composition, so either finalist
+  can support light, dark, OLED, and high-contrast modes.
+- Whether the right-side Field Guide margin becomes a disclosure on narrow
+  screens rather than moving below content.
+- Whether Trajectory Deck's numbered journey is structural navigation or a
+  temporary activity sequence. It must not imply a fixed course order.
+- Whether the saved profile choice remains global or gains an optional
+  per-course override. Global is the smaller first implementation.
+- Whether an optional automatic task-based profile mode improves the journey
+  without surprising the learner or moving controls during an activity.
+- Whether printing and plain-file preview should preferentially use the Field
+  Guide recipe while retaining the same semantic source.
 
 ## F1: Audit findings, ranked by impact
 
@@ -88,7 +315,12 @@ Disposition: prototype proposal for review. Build on the prior Structured studio
 
 An empty map should say what the learner can do next using an existing supported route. A filled shelf should distinguish title, resume cue, status, and action without making every course a dashboard. A long lesson should read like an annotated text, with an activity surface only where the learner acts.
 
-Existing looks remain registered. A new illustrated or textured background is backburner, with reconsideration only if the plain typography and layout prototype still lacks identity in user review. Its costs are asset maintenance, dark-mode variants, and reading distraction. No existing option is rejected.
+Existing looks remain available during the current bounded repair work. They
+do not constrain the future comprehensive redesign. A later design phase may
+retain, migrate, supersede, or retire them through explicit user review and a
+recoverable settings migration. Illustrated or textured treatments remain
+prototype candidates when they serve learning hierarchy without harming
+reading, contrast, motion preferences, or maintenance.
 
 ## A1: Fix plan in dependency order
 
@@ -118,7 +350,13 @@ WCAG context: [Target Size Minimum](https://www.w3.org/WAI/WCAG22/Understanding/
 
 ## Bounded first implementation pass for review
 
-Proposed scope: A1.1 plus the shelf and course-frame portion of A1.2 only. Four application files: `surfaces/presentation.py`, `surfaces/daemon.py`, `surfaces/study.py`, and `surfaces/quiz_page.py`. Add only regression coverage needed for those changes. Use the existing palette, fonts, and radius tokens. Do not yet change the default look or accent.
+Proposed current-milestone scope: A1.1 plus the shelf and course-frame portion
+of A1.2 only. Four application files: `surfaces/presentation.py`,
+`surfaces/daemon.py`, `surfaces/study.py`, and `surfaces/quiz_page.py`. Add only
+regression coverage needed for those changes. Use the existing palette, fonts,
+and radius tokens for this bounded repair because the comprehensive visual
+redesign belongs to a later reviewed phase. Do not mistake temporary reuse for
+an obligation to preserve this aesthetic.
 
 Review output: before/after views of a two-course shelf, one course overview, Study before reveal, and Quiz with table responses at 1280 and 375px. Include a populated and empty course example. Acceptance requires a visible current course area, shared onboarding controls, a mobile navigation disclosure, exactly one study action group, and 44px selects.
 

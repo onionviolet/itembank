@@ -1397,6 +1397,15 @@ def check_first_launch_offline():
                        "Replay walkthrough"):
             if needle not in plain:
                 fail("first launch omitted %r" % needle)
+        for needle in ('class="go" name="action" '
+                       'value="advance_walkthrough"',
+                       'class="go ghost" name="action" '
+                       'value="skip_walkthrough"',
+                       'class="go ghost" name="action" '
+                       'value="replay_walkthrough"'):
+            if needle not in body:
+                fail("walkthrough control missed shared treatment: %r"
+                     % needle)
         if 'class="course-card"' not in body:
             fail("the walkthrough offer replaced or blocked the shelf")
 

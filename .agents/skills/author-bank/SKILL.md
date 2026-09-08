@@ -1,6 +1,6 @@
 ---
 name: author-bank
-description: Write or extend itembank question banks that lint clean. Use when asked to author items through the write, lint, fix loop, with the distractor, position-skew, and confidence rules the linter enforces.
+description: Write or extend source-grounded itembank question banks that lint clean. Use when authoring diagnostic, practice, or exam-aligned items through the write, lint, fix loop, including blueprint fit, grading constraints, distractors, position skew, and confidence rules.
 ---
 
 # Author an itembank bank
@@ -13,6 +13,11 @@ This skill owns purpose, demand, blueprint fit, item construction, lint,
 statistical review, and runtime validation for question banks. A learner
 note or generated draft never silently becomes keyed assessment truth: no
 key laundering.
+
+For summative, certification, placement, or grade-bearing items, read
+`../ASSESSMENT-INTAKE.md` before drafting. The assessment profile, not the
+author's intuition, supplies scope, construct, distribution, conditions, and
+grading constraints.
 
 The linter is your reviewer for structure and quality: it names every error
 by item number, and you fix what it names. Never argue with it or skip an
@@ -49,6 +54,18 @@ exam-blueprint constraints. If these are absent, propose them through
 `curriculum-design`; do not create generic trivia and attach an objective
 afterward. Draft one bounded objective at a time and checkpoint between
 objectives.
+
+For consequential items, verify the assessment readiness gate. If the tested
+scope, construct, format, conditions, or scoring authority is unresolved, do
+not label the item summative or blueprint-faithful. It may be drafted as
+provisional exploratory practice with the uncertainty preserved.
+
+Use the target assessment's documented item families by default. If its final
+exam is single-selection multiple choice, do not add `short`, `build`, `dnd`,
+or other formats to the mock or summative bank. A non-target format is allowed
+only as labeled teaching or diagnostic practice, a separate completion
+requirement, or learner-selected enrichment. Keep it out of exam-fidelity
+statistics and do not imply that it predicts the official score.
 
 ## 4. Draft the items
 
@@ -88,6 +105,11 @@ Type variants: `[TYPE: multi]` plus `[SELECT: 2]`, `[TYPE: table]` plus
 `[CATEGORIES: ...]`, `[TYPE: build]` (ordered steps), `[TYPE: dnd]` (sort
 into buckets), `[TYPE: short]` (constructed response, never auto-graded; add
 a `RUBRIC:` so a marker can grade it).
+
+For `short` items, derive the rubric from the approved grading policy and
+objective demand. State criteria, performance levels, point allocation,
+acceptable variation, required evidence, and escalation conditions. Do not
+invent partial credit, penalties, grade bands, or a pass threshold.
 
 Cite the source for source-derived items in the bank's `## SOURCES`
 registry, and label synthesized scenarios as synthesis. Distractors

@@ -1,6 +1,6 @@
 ---
 name: build-course
-description: Orchestrate an AI-assisted itembank course from books, syllabi, standards, exam blueprints, notes, folders, or existing banks. Use when creating or revising a complete course, deciding readings versus generated treatments, coordinating curriculum and item skills, or using learner evidence and metrics to improve the course path.
+description: Orchestrate an AI-assisted itembank course from books, syllabi, standards, exam blueprints, grading policies, notes, folders, or existing banks. Use when creating or revising a complete course, scoping what is taught and tested, deciding treatments, coordinating curriculum and item skills, or using learner evidence to improve the course path.
 ---
 
 # Build a source-grounded course
@@ -15,6 +15,10 @@ evidence review, and recovery. It delegates curriculum structure to
 `curriculum-design`, source treatments to `absorb-book`, and item writing to
 `author-bank`, and it is responsible for the operation manifest they work
 under.
+
+When the course includes any consequential assessment, also read
+`../ASSESSMENT-INTAKE.md`. The resulting assessment profile is part of the
+course checkpoint and governs downstream curriculum and item work.
 
 The shipped product has no course manifest command. Do not invent one. A
 course today is a set of reviewable planning artifacts (target statement,
@@ -36,13 +40,26 @@ Before touching anything, record in the working plan:
   writes, and who reviews.
 
 Discovery is read-only and never authorizes transmission or mutation.
+An LMS page, export, or remote source set must be acquired by a separately
+approved operation before this skill inventories or transforms it. Access to
+one authenticated object does not authorize collection of its linked objects.
+Never treat imported quiz keys, student submissions, grades, or feedback as
+accepted assessment truth.
 
 ## 2. Establish the target
 
 Record learner, outcome, timeframe, source authority, syllabus or blueprint
-version, assessment conditions, prior knowledge, and constraints. Distinguish
-a standardized-test blueprint course from a local knowledge course; never
-claim standardized-test fidelity without a cited, versioned blueprint.
+version, prior knowledge, and constraints. For each exam or graded component,
+complete the assessment and grading intake: purpose, tested and excluded scope,
+construct, distribution, formats, conditions, scoring, standard, review,
+retakes, and reporting. Distinguish a standardized-test blueprint course from
+a local knowledge course. Never claim fidelity without a cited, versioned
+authority and a completed readiness gate.
+
+For a publicly documented standardized or licensing exam, discover the current
+governing materials from the exam owner and question-pool authority before
+relying on a textbook or preparation provider. Bind the profile to the
+learner's exam date, level, and jurisdiction.
 
 ## 3. Inventory before creating
 
@@ -70,7 +87,9 @@ scanned.
 ## 4. Design the curriculum
 
 Use `curriculum-design` to produce hierarchical objectives, prerequisites,
-source alignment, treatments, coverage states, and the assessment blueprint.
+source alignment, treatments, coverage states, assessment profiles, and the
+assessment blueprint. Preserve official grades, itembank evidence, completion,
+and mastery as separate states.
 Every coverage claim cites `coverage` or `stats` output or a source locator.
 Unknown stays unknown.
 
@@ -80,6 +99,11 @@ For each objective choose direct reading, excerpt, guided lesson, terms and
 notes, worked example, visual or demonstration, practice, test,
 assessment-first diagnostic, learner artifact, or human review. Prefer the
 source when it already teaches well, and state why the treatment fits.
+
+Assign each objective and treatment to `core`, `support`, or `enrichment` as
+defined in the assessment intake. Build the default path from core plus the
+minimum necessary support. Offer enrichment as an explicit choice without
+letting it displace tested coverage or required course work.
 
 Then generate only what is genuinely missing, one bounded objective or
 section at a time: `absorb-book` for an approved source treatment,
@@ -129,7 +153,8 @@ transferred between objectives by alignment alone.
 
 ## 8. Close the operation
 
-Report, in files rather than chat: the course map, direct readings,
+Report, in files rather than chat: the course map, assessment and grading
+profile, direct readings,
 generated and still-needed artifacts, the practice and test plan, cited gaps
 and conflicts, the evidence-based next action, every write performed with its
 undo step, what is now stale because of the change (staleness marking has no

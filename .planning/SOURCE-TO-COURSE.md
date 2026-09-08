@@ -26,10 +26,38 @@ discover the material, derive and verify objectives, decide how each objective
 is best learned, produce missing artifacts, administer practice and tests, and
 revise the path from recorded evidence.
 
+itembank is a local-first, agent-operable learning harness for people. Its
+stable contracts connect sources, objectives, treatments, learning activities,
+assessments, evidence, validation, permissions, and accepted revisions. AI may
+operate and extend those learning workflows, but the product is not primarily
+an AI-training, reinforcement-learning, prompt-optimization, or model-evaluation
+harness. Those uses may later enter as registered capabilities only when they
+serve the learner-centered course system and retain the same authority,
+inspectability, rights, and recovery boundaries.
+
 The course is the primary user-facing object. Objectives are its organizing
 spine. Sources, readings, lessons, terms, notes, examples, visuals, practice
 banks, tests, and evidence are connected artifacts rather than separate
 products.
+
+## Product experience and delivery
+
+itembank is a local-first desktop product with the coherence and convenience
+people expect from mature SaaS software. This is an experience standard, not a
+hosting model. First use is guided. The course shelf gives a clear place to
+begin and return. Long AI and maintenance operations expose durable state,
+needs-input, recovery, and undo. Navigation and controls behave consistently.
+Settings explain storage, network use, model choice, privacy, and updates in
+language a learner can act on.
+
+The installed application and browser-served UI remain clients of the same
+local runtime. The shipped Tauri shell is the desktop container. Electron is
+not a product requirement. Canonical courses, sources, banks, evidence, and
+operation records stay on the learner's device. Optional hosted model calls
+follow the existing rights and egress contract. This direction does not add
+accounts, multi-tenancy, hosted storage, cloud gradebooks, or subscription
+billing. Any later commercial or synchronization layer requires its own
+decision and may not silently move assessment or content authority off device.
 
 ## The course-building loop
 
@@ -130,6 +158,26 @@ things-to-know blocks, niche or expert tips, warnings, worked examples, source
 citations, diagrams, math, runnable code, inline checks, hints, retries, and
 accessible visual interactions. These are semantic teaching roles, not
 decorative card types.
+
+Measured Field Guide and Learning Trajectory Deck are user-switchable
+presentation profiles over this same semantic content and runtime state. A
+profile may change composition, navigation arrangement, density, and emphasis.
+It may not change available activities, keyed disclosure, scoring, evidence,
+source identity, or accessibility meaning. Color scheme, contrast mode, and
+accent remain independent appearance settings. An unavailable or future-schema
+profile falls back to a supported profile without changing canonical course or
+learner data and reports the fallback visibly.
+
+The complete presentation layer is extensible at named seams. Course shells,
+navigation compositions, readers, activity renderers, editors, source views,
+agent panels, exporters, and integrations consume stable semantic roles and
+shared operation contracts. Presentation profiles arrange shared primitives.
+Appearance themes supply visual tokens. Capability adapters map a declared
+learning or integration capability to those primitives and provide a useful
+static and unavailable fallback. Adding one must not require a second content
+model, route catalogue, scorer, evidence store, permission system, or recovery
+authority. Extension metadata describes compatibility and degradation. It does
+not grant authority or prove that code is installed, safe, or available.
 
 The authored lesson file is the durable content layer. It must remain coherent,
 readable, navigable, and reasonably attractive in a plain Markdown or document

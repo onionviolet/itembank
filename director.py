@@ -366,8 +366,6 @@ def operation_entries(base, operation_id):
     """
     found = []
     for entry in journal.entries(base):
-        if entry.get("operation") != AGENT_RECORD_TYPE:
-            continue
         agent = entry.get("agent") or {}
         if agent.get("operation_id") == operation_id:
             found.append(entry)
@@ -1475,7 +1473,7 @@ def recommend_once(base, course_root, objective_id, settings, profile_name,
             code=error.get("code") or "director.backend_unavailable",
             message=error.get("message") or "")
         return {"status": "unavailable", "code": error.get("code") or "",
-                "record": None}
+                "record": None, "operation_id": operation_id}
 
     provider = result.get("provider") or {}
     record = validate_recommendation(result.get("candidate"))
@@ -1597,18 +1595,13 @@ def apply_recommendation(base, course_root, record, source_object_id,
         locator=coverage.get("locator") or "",
         state=computed_state,
         confidence=coverage.get("confidence") or "unknown",
-        actor_kind=actor_kind, actor_name=actor_name)
-    record_phase(
-        base, operation_id, "accept", 3, "applied",
         actor_kind=actor_kind, actor_name=actor_name,
-        proposal={"objective_id": record["objective_id"],
-                  "treatment_kind": treatment_kind},
-        # The bind sends nothing. Recording an egress dict anyway, with an
-        # empty span list and zero bytes, is the disclosure that this phase of
-        # the operation reached no backend; an absent key would leave a reader
-        # unable to tell "nothing was sent" from "nobody recorded".
-        egress=egress_record("local", "local", profile_name, [], [], 0),
-        message="the recommendation was bound")
+        applied_agent=_agent_dict(
+            operation_id, "", "", "", (), "accept", 3,
+            _checkpoint_with_outcome(None, "recorded", ""),
+            {"objective_id": record["objective_id"],
+             "treatment_kind": treatment_kind},
+            egress_record("local", "local", profile_name, [], [], 0)))
     return result
 
 

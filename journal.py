@@ -373,7 +373,7 @@ def commit_operation(base, object_id, kind, rel_path, operation, new_bytes,
                       expected_fingerprint, actor_kind, actor_name,
                       create_if_missing=False, source_object_id=None,
                       source_revision=None, write_target=True, note=None,
-                      rights=None):
+                      rights=None, applied_agent=None):
     """The one compare-and-swap write path every durable object kind goes
     through. See the module docstring's Walking-skeleton usage paragraph for
     the minimal three-call sequence. Raises `JournalError` on refusal;
@@ -394,14 +394,14 @@ def commit_operation(base, object_id, kind, rel_path, operation, new_bytes,
         create_if_missing=create_if_missing,
         source_object_id=source_object_id, source_revision=source_revision,
         restores_revision=None, write_target=write_target, note=note,
-        rights=rights)
+        rights=rights, applied_agent=applied_agent)
 
 
 def _commit_impl(base, object_id, kind, rel_path, operation, new_bytes,
                   expected_fingerprint, actor_kind, actor_name,
                   create_if_missing, source_object_id, source_revision,
                   restores_revision, write_target=True, note=None,
-                  rights=None):
+                  rights=None, applied_agent=None):
     if operation not in RECORD_TYPES:
         raise JournalError(
             "journal.unknown_operation",
@@ -585,6 +585,8 @@ def _commit_impl(base, object_id, kind, rel_path, operation, new_bytes,
         applied = dict(template)
         applied["state"] = "applied"
         applied["resolves_entry"] = prepared["entry_id"]
+        if applied_agent is not None:
+            applied["agent"] = applied_agent
         applied = append_entry(base, applied)
 
         rebuild_registry(base)

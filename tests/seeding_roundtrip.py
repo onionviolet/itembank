@@ -34,7 +34,7 @@ from surfaces import cli, daemon, seeding                                 # noqa
 from surfaces.seeding import (                                            # noqa: E402
     ACCEPT_COPY, BACKEND_UNREACHABLE, BATCH_FRAMING_LINE, CANCEL_COPY,
     CANCELLED_SUMMARY, NO_SOURCE_RECORDED, PROGRESS_LINE, SKIP_COPY,
-    FakeModelAdapter, run_seeding_run, render_accept_surface,
+    ConfiguredModelAdapter, FakeModelAdapter, run_seeding_run, render_accept_surface,
     render_cancelled_surface, render_degraded_surface)
 
 
@@ -347,7 +347,7 @@ def test_cli_accept_loop_reaches_the_shared_endpoint():
         saved = cli.seeding.run_seeding_run
         old_stdin = sys.stdin
         try:
-            cli.seeding.run_seeding_run = lambda bank_, adapter=None: run
+            cli.seeding.run_seeding_run = lambda bank_, adapter=None, **kw: run
             # Leg 1: accept -- one decision for the single draft.
             out = io.StringIO()
             sys.stdin = io.StringIO("accept\n")
@@ -355,6 +355,9 @@ def test_cli_accept_loop_reaches_the_shared_endpoint():
                 rc = cli.cmd_seed(types.SimpleNamespace(bank=bank))
             if rc != 0:
                 fail("cmd_seed exited %d on the accept leg" % rc)
+            if "Stages reached: " + " -> ".join(seeding.STAGES) not in \
+                    out.getvalue():
+                fail("cmd_seed did not expose the six-stage flow")
             if bank_item_count(bank) != before + 1:
                 fail("the CLI accept decision must write through accept_candidate")
             # Leg 2: cancel a fresh decision pass -- nothing more is written.
@@ -606,6 +609,49 @@ def test_no_backend_refuses_by_name_and_starts_no_draft():
         r = run_cli("coverage", bank, timeout=60)
         if r.returncode != 0 or "emt:airway" not in r.stdout:
             fail("coverage must still work with no backend:\n%s" % r.stdout)
+
+
+def test_configured_adapter_uses_shared_model_boundary():
+    """The production seeding adapter sends every stage through invoke."""
+    calls = []
+    original_resolve = seeding.model_adapter.resolve_profile
+    original_invoke = seeding.model_adapter.invoke
+
+    def resolve(settings, name=None):
+        return ({"name": "local", "transport": "openai_compatible"}, None)
+
+    def invoke(request, settings):
+        calls.append(request)
+        stage = request["payload"]["author_request"]["request"]["stage"]
+        if stage == "outline":
+            candidate = {"sections": FAKE_OUTLINE.splitlines()}
+        elif stage == "verification":
+            candidate = {"ok": True, "notes": ["checked"]}
+        else:
+            section = request["payload"]["author_request"]["request"]["section"]
+            candidate = {"text": {"Stem": FAKE_STEM, "Options": FAKE_OPTIONS,
+                                  "Rationale": FAKE_RATIONALE}[section]}
+        return {"status": "ok", "candidate": candidate}
+
+    try:
+        seeding.model_adapter.resolve_profile = resolve
+        seeding.model_adapter.invoke = invoke
+        adapter = ConfiguredModelAdapter({"model_backend": {"active": "local"}})
+        if not adapter.available():
+            fail("configured adapter did not resolve the active profile")
+        if adapter.draft_outline("emt:airway", {}) != FAKE_OUTLINE:
+            fail("configured outline did not cross the shared adapter")
+        if adapter.draft_section(FAKE_OUTLINE, "Stem") != FAKE_STEM:
+            fail("configured section did not cross the shared adapter")
+        verified = adapter.verify("draft", "emt:airway", {})
+        if verified != {"ok": True, "notes": ["checked"]}:
+            fail("configured verification did not cross the shared adapter")
+        if len(calls) != 3 or any(c["operation"] != "author" for c in calls):
+            fail("configured seeding calls bypassed the author boundary: %r"
+                 % calls)
+    finally:
+        seeding.model_adapter.resolve_profile = original_resolve
+        seeding.model_adapter.invoke = original_invoke
 
 
 def test_import_still_works_with_no_backend():

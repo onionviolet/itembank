@@ -202,7 +202,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{
 .app-nav{display:flex;align-items:center;justify-content:space-between;
   gap:var(--space-3);margin:0 0 var(--space-4);padding:0 0 var(--space-3);
   border-bottom:1px solid var(--line)}
-.app-nav .app-name{color:var(--ink);font-weight:700}
+.app-nav .app-name{color:var(--ink);font-weight:600}
 .app-nav ul{display:flex;align-items:center;gap:var(--space-3);
   list-style:none;margin:0;padding:0}
 .app-nav a[aria-current]{color:var(--ink);text-decoration:underline;
@@ -424,6 +424,16 @@ PRIMITIVE_CSS = r"""
   background:var(--card);padding:var(--density-card-pad);
   margin:0 0 var(--space-3)}
 .ib-walkthrough p{max-width:var(--measure-prose)}
+.ib-activity-frame{margin:var(--space-4) 0}
+.ib-activity-facts{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);margin:0 0 var(--space-3)}
+.ib-activity-facts div{min-width:10rem}.ib-activity-facts dt{font-size:12px;color:var(--mut)}
+.ib-activity-facts dd{margin:2px 0 0;font-size:16px}.ib-course-identity p,.ib-source{color:var(--mut)}
+.ib-profile-trajectory-deck .ib-activity-frame{border-top:2px solid var(--edge);padding-top:var(--space-3)}
+.ib-profile-field-guide .ib-source{border-inline-start:2px solid var(--line);padding-inline-start:var(--space-3)}
+.ib-profile-guide-main{max-width:var(--measure-prose)}
+.ib-profile-deck-task{border:1px solid var(--edge);border-radius:var(--r-2);
+  padding:var(--space-3);background:var(--card)}
+.ib-profile-deck-task .actions{margin:var(--space-3) 0 0}
 .ib-capture textarea{display:block;width:100%;min-width:0;min-height:44px;
   max-height:calc(var(--text-body) * 1.5 * 8 + var(--space-3));overflow-y:auto;
   font-family:var(--font-paper);font-size:var(--text-body);line-height:1.5;
@@ -490,7 +500,7 @@ def _action_markup(action, primary=False):
 
 def surface_shell(title, body, theme_css="", back=None, wide=False,
                   context=None, noscript=None, extra_css="", doc_title=None,
-                  tail="", classes="", palette=False):
+                  tail="", classes="", palette=False, presentation_profile=""):
     """The one shared semantic document shell: doctype, generated theme
     block plus shared design-token CSS, an optional sticky context line,
     an optional back link, a single `h1`, a `main` landmark holding `body`,
@@ -534,12 +544,16 @@ def surface_shell(title, body, theme_css="", back=None, wide=False,
     cls = "surface" + (" wide" if wide else "")
     if classes:
         cls = cls + " " + classes
+    if presentation_profile in PROFILE_RECIPES:
+        cls += " ib-profile ib-profile-%s" % presentation_profile
     head_title = title if doc_title is None else doc_title
+    profile_attr = (' data-presentation-profile="%s"' % esc(presentation_profile)
+                    if presentation_profile else "")
     return ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
             "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-            "<title>%s</title>%s</head><body><div class=\"%s\">%s<main>%s"
+            "<title>%s</title>%s</head><body><div class=\"%s\"%s>%s<main>%s"
             "</main>%s%s</div></body></html>"
-            % (esc(head_title), style, esc(cls), "\n".join(parts), body, ns,
+            % (esc(head_title), style, esc(cls), profile_attr, "\n".join(parts), body, ns,
                tail))
 
 
@@ -642,6 +656,155 @@ def render_surface(view, adapter=None):
     if adapter is None:
         adapter = default_adapter
     return adapter(view)
+
+
+# ---- Phase 20 semantic presentation seam ---------------------------------
+# These primitives carry learner-facing meaning only. They do not receive a
+# scorer, a writable session, a key, or an evidence path.
+ACTIVITY_PURPOSE_LABELS = {
+    "diagnostic": "Diagnostic", "practice": "Practice",
+    "remediation": "Remediation", "exam": "Formal assessment",
+    "drill": "Drill", "study": "Deliberate review",
+}
+RESPONSE_FORMAT_LABELS = {
+    "mc": "Single choice", "multi": "Multiple choice",
+    "table": "Table response", "build": "Build response",
+    "dnd": "Ordering or matching", "short": "Short response",
+    "visual": "Visual interaction", "check": "Code check",
+    "reading": "Reading", "recall": "Recall and reveal",
+}
+RESPONSE_FORMAT_INSTRUCTIONS = {
+    "mc": "Choose one option.",
+    "multi": "Choose the requested number of options.",
+    "table": "Choose one category for every row.",
+    "build": "Select every step in the order it should happen.",
+    "dnd": "Match every row to a category. Dragging is not required.",
+    "short": "Write your response. It stays pending until a marker reviews it.",
+    "visual": "Use the visual or its adjacent keyboard controls, then submit.",
+    "check": "Edit the source, then run the check. The runtime records the verdict.",
+    "reading": "Read the passage in order or use its section navigation.",
+    "recall": "Recall your answer before revealing the reference answer.",
+}
+DISCLOSURE_LABELS = {
+    "now": "Feedback available now", "completion": "Feedback after completion",
+    "locked": "Review locked", "pending": "Pending human review",
+}
+PROFILE_RECIPES = ("field-guide", "trajectory-deck")
+
+# Phase 20's bounded UI-adapter inventory. These declarations describe how
+# existing surfaces consume presentation profiles. They contain no callable
+# loader, route, scorer, writer, or package hook.
+SURFACE_ADAPTER_VERSION = 1
+SURFACE_ADAPTERS = (
+    {
+        "identity": "question-response", "version": SURFACE_ADAPTER_VERSION,
+        "roles": ("learner",), "operations": ("read", "respond"),
+        "modes": PROFILE_RECIPES,
+        "input": "runtime.public_item plus runtime-owned session state",
+        "fallback": "semantic HTML and native controls",
+        "unavailable": "name the unavailable interaction and retain static instructions",
+        "migration": "presentation-only. Canonical item and session schemas stay unchanged",
+        "tests": ("presentation_profiles_roundtrip.py", "component_primitives_roundtrip.py"),
+        "removal_recovery": "render the field-guide semantic fallback without changing session or evidence",
+        "disposition": "shared-profile-framing",
+    },
+    {
+        "identity": "course-areas", "version": SURFACE_ADAPTER_VERSION,
+        "roles": ("learner", "reviewer"),
+        "operations": ("overview", "learn", "practice", "test", "map", "sources", "build", "agent", "evidence"),
+        "modes": PROFILE_RECIPES, "input": "ia course-area read models",
+        "fallback": "shared course frame with plain rows and supported links",
+        "unavailable": "typed area notice with one supported recovery action",
+        "migration": "same course ids, URLs, and operation dispatch",
+        "tests": ("ia_route_roundtrip.py", "presentation_profiles_roundtrip.py", "agent_operation_roundtrip.py"),
+        "removal_recovery": "retain the route and field-guide frame; never mutate course content",
+        "disposition": "shared-profile-framing",
+    },
+    {
+        "identity": "settings", "version": SURFACE_ADAPTER_VERSION,
+        "roles": ("learner",), "operations": ("preview", "save", "recover"),
+        "modes": PROFILE_RECIPES, "input": "validated local settings",
+        "fallback": "visible field-guide preview for an unsupported saved value",
+        "unavailable": "no-script copy keeps current saved settings",
+        "migration": "missing profile resolves to field-guide without writing",
+        "tests": ("settings_roundtrip.py", "presentation_profiles_roundtrip.py"),
+        "removal_recovery": "preserve the unknown string until a supported profile is explicitly saved",
+        "disposition": "shared-profile-framing",
+    },
+    {
+        "identity": "authoring-export-integrations", "version": SURFACE_ADAPTER_VERSION,
+        "roles": ("author", "learner"),
+        "operations": ("author", "export", "mcp"),
+        "modes": ("current-semantic-output",),
+        "input": "existing CLI, API, and generated projection contracts",
+        "fallback": "current deterministic output remains unchanged",
+        "unavailable": "existing typed command or capability error",
+        "migration": "not migrated where profile framing would change non-UI output identity",
+        "tests": ("course_ops_roundtrip.py", "mcp_roundtrip.py", "surface_roundtrip.py"),
+        "removal_recovery": "remove the declaration only; commands, exports, and tool projection remain unchanged",
+        "disposition": "compatibility-adapter-no-profile-rewrite",
+    },
+)
+
+
+def surface_adapter_manifest():
+    """Return a defensive, JSON-ready copy of the bounded UI declarations."""
+    return json.loads(json.dumps({"version": SURFACE_ADAPTER_VERSION,
+                                  "external_loader": False,
+                                  "adapters": SURFACE_ADAPTERS}))
+
+
+def semantic_view(application="itembank", course="", location="", purpose="practice",
+                  response_type="mc", disclosure="now", position="", content="",
+                  next_action=None, status=None, source=""):
+    """Build the profile-neutral slice view from public state only."""
+    return {"application": application, "course": course, "location": location,
+            "purpose": purpose, "response_type": response_type,
+            "disclosure": disclosure, "position": position, "content": content,
+            "next_action": next_action or {}, "status": status or {}, "source": source}
+
+
+def activity_frame(view):
+    """One learner activity frame. Purpose always precedes response format."""
+    purpose = ACTIVITY_PURPOSE_LABELS.get(view.get("purpose"), "Practice")
+    response = RESPONSE_FORMAT_LABELS.get(view.get("response_type"), "Response")
+    disclosure = DISCLOSURE_LABELS.get(view.get("disclosure"), "Review locked")
+    facts = ('<dl class="ib-activity-facts"><div><dt>Purpose</dt><dd>%s</dd></div>'
+             '<div><dt>Response format</dt><dd>%s</dd></div>'
+             '<div><dt>Disclosure</dt><dd>%s</dd></div>%s</dl>'
+             % (esc(purpose), esc(response), esc(disclosure),
+                ('<div><dt>Position</dt><dd>%s</dd></div>' % esc(view["position"]))
+                if view.get("position") else ""))
+    instruction = RESPONSE_FORMAT_INSTRUCTIONS.get(
+        view.get("response_type"), "Follow the response instructions below.")
+    return ('<section class="ib-activity-frame" aria-label="Learner activity">'
+            '%s<p class="ib-activity-instructions">%s</p>%s</section>'
+            % (facts, esc(instruction), view.get("content", "")))
+
+
+def render_profile(view, profile="field-guide"):
+    """Render either recipe over identical semantic state and action data."""
+    active = profile if profile in PROFILE_RECIPES else "field-guide"
+    identity = ('<header class="ib-course-identity"><p>Application: %s</p><h1>%s</h1>'
+                '<p>%s</p></header>' % (esc(view.get("application", "itembank")),
+                esc(view.get("course") or view.get("application", "itembank")),
+                esc(view.get("location", ""))))
+    status = view.get("status") or {}
+    notice = status_notice(status.get("text", ""), status.get("kind", "neutral"),
+                           status.get("label", "")) if status.get("text") else ""
+    source = ('<aside class="ib-source" aria-label="Source">%s</aside>' % esc(view["source"])
+              if view.get("source") else "")
+    action = _action_markup(view.get("next_action") or {}, primary=True) if (view.get("next_action") or {}).get("label") else ""
+    if active == "trajectory-deck":
+        task = ('<section class="ib-profile-deck-task" aria-label="Current task">%s%s</section>' %
+                (activity_frame(view), ('<div class="actions">%s</div>' % action if action else "")))
+        core = identity + task + notice + source
+    else:
+        core = ('<div class="ib-profile-guide-main">%s%s%s%s</div>' %
+                (activity_frame(view), notice, source,
+                 ('<div class="actions">%s</div>' % action if action else "")))
+        core = identity + core
+    return '<div class="ib-profile ib-profile-%s" data-presentation-profile="%s">%s</div>' % (active, active, core)
 
 
 # ---- 17A-03: component primitives -----------------------------------------

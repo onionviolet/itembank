@@ -58,6 +58,82 @@ CAP_BLOCK_COPY = ("Today\u2019s {subject} cap is reached "
                   "({count} of {cap} ordinary attempts).")
 OVERRIDE_CONFIRMATION = "start one additional sitting"
 
+# Phase 20's learner lifecycle is a presentation and navigation contract over
+# existing authorities. These rows contain no transition function: the runtime,
+# evidence log, course files, settings, and operation journal remain the only
+# durable owners.
+LIFECYCLE_FIELDS = (
+    "family", "events", "actor", "durable_authority", "derived_ui_state",
+    "destination", "back", "home", "unsaved_work", "idempotency",
+    "unavailable", "announcement", "composition")
+
+
+def _lifecycle(family, events, authority, destination, unsaved="none",
+               idempotency="read only; replay writes nothing",
+               unavailable="preserve last accepted state; offer offline help"):
+    return {
+        "family": family, "events": tuple(events), "actor": "learner",
+        "durable_authority": authority,
+        "derived_ui_state": "projection of " + authority,
+        "destination": destination,
+        "back": "return to the exact prior route, locator, focus, and scroll",
+        "home": "return to the selected home projection with an exact resume cue",
+        "unsaved_work": unsaved, "idempotency": idempotency,
+        "unavailable": unavailable,
+        "announcement": "name the destination, state, and next safe action",
+        "composition": "same semantics at wide and narrow widths",
+    }
+
+
+LIFECYCLE_TRANSITIONS = (
+    _lifecycle("walkthrough", ("start", "skip", "interrupt", "complete", "replay"),
+               "settings", "usable home; replay remains in Help"),
+    _lifecycle("home", ("empty", "one", "many", "archived", "corrupted", "stale", "conflicted"),
+               "course files and accepted revisions", "truthful course state or recovery action"),
+    _lifecycle("course entry", ("start", "exact resume", "course switch", "deep link", "reload", "close", "crash"),
+               "course identity and runtime session", "addressed course area and saved locator"),
+    _lifecycle("course navigation", ("Back", "Home"), "browser route plus course identity",
+               "explicit parent or selected home projection",
+               unsaved="prompt only when a form contains losable private work"),
+    _lifecycle("lesson and source", ("source", "lesson", "definition", "citation", "prerequisite", "note", "practice", "passage return"),
+               "accepted source, lesson, and learner note files", "exact passage or related activity",
+               unsaved="preserve saved notes; prompt only for an unsaved note"),
+    _lifecycle("practice", ("correct", "incorrect", "retry", "skip", "stop", "remediation", "interrupt"),
+               "runtime session and evidence log", "authorized feedback, exact resume, or remediation",
+               idempotency="dedupe response events; GET, Back, and reload append nothing"),
+    _lifecycle("assessment active", ("quiz", "exam", "active attempt", "accidental exit", "timeout", "submit", "interrupt"),
+               "runtime session and evidence log", "held item, completion, or exact resume",
+               unsaved="prompt only before a response that the runtime has not recorded",
+               idempotency="dedupe response events; replay cannot advance the cursor"),
+    _lifecycle("assessment result", ("pending prose", "settled result", "allowed review", "locked review", "evidence", "remediation", "course continuation", "home"),
+               "runtime mark and evidence log", "permitted review, evidence, course, or home",
+               idempotency="reads append nothing; settled marks retain their event identity"),
+    _lifecycle("course completion", ("satisfied objectives", "incomplete requirements", "exhausted material", "changed revision", "later return"),
+               "accepted course revision, objective graph, and evidence log", "named completion state and learner-owned next action"),
+    _lifecycle("agent proposal", ("pending", "accept", "reject", "conflict", "undo", "interrupt", "recover"),
+               "operation journal and accepted course revision", "proposal, accepted state, conflict inspection, or recovery",
+               idempotency="dedupe proposal, acceptance, rejection, and undo by operation identity"),
+    _lifecycle("capability loss", ("offline", "model unavailable"),
+               "last accepted local files and runtime session", "local route or named unavailable action"),
+)
+
+LIFECYCLE_FAILURE_ACTIONS = {
+    "empty": "choose or add supported material",
+    "unknown": "inspect the addressed object",
+    "unavailable": "use the local fallback or offline help",
+    "interrupted": "resume the same saved position",
+    "conflict": "inspect changes without overwriting either revision",
+    "pending": "wait for or perform the required review",
+    "invalid": "return to the last valid state and correct the input",
+    "recovery": "retry from the last accepted state",
+}
+
+
+def lifecycle_transition_graph():
+    """Return defensive copies of the deterministic Phase 20 graph."""
+    return [dict(row, events=tuple(row["events"]))
+            for row in LIFECYCLE_TRANSITIONS]
+
 
 def ms_since(ts):
     """Milliseconds between an ISO-8601 UTC timestamp and now, or `None` when

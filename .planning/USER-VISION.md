@@ -1440,6 +1440,584 @@ constraint relaxation, which already judged ideas on product merit and real
 cost rather than on a fixed stack.
 
 
+### 2026-09-06: SaaS-quality experience in the desktop product
+
+> Consdiering SAAS as an entry point, whatever that means?
+
+> I guess SAAS experience or wahatever thats fitting, I mean the goal will be a electron app or something so I am unsure
+
+> That makes more sense, how can that be combines with current plans and more?
+
+#### Interpretation recorded 2026-09-06
+
+**Status:** active direction. The desired experience is settled enough to guide
+current work. A hosted SaaS business is not requested by these statements.
+
+**Current interpretation:** itembank should feel like a coherent, approachable
+software product rather than a collection of local tools. The useful part of
+the SaaS comparison is the experience: guided first use, a clear course home,
+visible progress and recovery for long operations, understandable settings,
+consistent navigation, and ordinary product controls. The current Tauri shell
+already carries the desktop goal, so Electron is an example of an installed
+app and not a request to replace the shell. Canonical courses, sources, banks,
+and evidence remain local. Hosted services remain optional and disclose exact
+egress.
+
+**Open questions:** commercial licensing, subscriptions, managed model usage,
+cloud synchronization, and accounts are not settled by this entry. Each would
+need a separate user decision because each changes cost, privacy, recovery, or
+data authority. The current direction needs none of them.
+
+**Planning effect:** no new architecture or phase is created. The binding
+experience statement is added to `SOURCE-TO-COURSE.md`. The Reach milestone
+uses the Phase 18 cold-install evidence, the Phase 19D visible learner journey,
+and the current UI character audit as the acceptance path. The UI audit remains
+a bounded implementation proposal and does not gain authorization to change
+application code from this interpretation alone. `IDEA-LEDGER.md`
+IL-20260906-07 records the disposition.
+
+**Relationship to prior entries:** extends the 2026-08-13 complete app flow,
+visual ambition, source-to-course, and course-shelf entries. It also extends
+the 2026-08-22 paid-learning-subscription entry from capability substitution
+to product coherence. It does not reverse that entry's distinction between
+recreating an experience and recreating a business. It confirms the existing
+local-first, no-hosted-storage direction.
+
+### 2026-09-06: comprehensive future UI character
+
+> that UI is alot more better and has more character than mines currently, did we have it in the books to adjust to have more character? we can forget how the ui was prior and improve it comprehensicely in the future accordingly
+
+#### Interpretation recorded 2026-09-06
+
+**Status:** active direction. The future visual redesign may replace the
+current visual language comprehensively rather than treating its appearance as
+a compatibility requirement.
+
+**Current interpretation:** itembank should develop a distinctive, coherent,
+and engaging learning-workspace identity. The reviewed Syntax Lab interface is
+evidence that a focused hierarchy, restrained but deliberate color, concise
+controls, a strong activity frame, and visible interaction state can give a
+small learning surface more character. It is a reference point, not a request
+to copy its code-training layout or visual details. Existing runtime behavior,
+learning authority, accessibility, responsive use, local data, and durable
+learner settings remain constraints. The current colors, component shapes,
+page composition, theme catalogue, and default look do not.
+
+**Open questions:** the final visual direction, component vocabulary, motion,
+illustration, density, and treatment of existing optional looks require
+comparative prototypes and direct user review. Retiring a saved look or theme
+needs an explicit migration and recovery decision. This entry does not select
+Syntax Lab as the final design.
+
+**Planning effect:** the UI character audit owns the revised comprehensive
+design direction. Its earlier bounded preservation-first proposal is partly
+superseded as a future visual target, though its verified defects and
+accessibility gates remain valid. The current Reach milestone may still fix
+functional UI defects without opening a redesign. A future UI phase should
+prototype materially different directions against the complete course journey
+and may promote a new default after user review.
+
+**Relationship to prior entries:** strengthens the 2026-08-13 visual ambition,
+the 2026-08-16 structured-studio selection, and the 2026-09-06 SaaS-quality
+experience direction. It partly supersedes preservation of the current
+production aesthetic in the 2026-09-06 UI character audit. It does not
+supersede the local-first product, one-runtime authority, readable lesson,
+responsive, accessibility, or recoverability requirements.
+
+### 2026-09-06: Syntax Lab inspiration and an expandable CS Dojo
+
+> we can even be inspired by 'syntax lab' from diego, incoporate that into a relevant subsection, or as a cs dojo and stuff, it can easily be expanded for other leanguages and more
+
+#### Interpretation recorded 2026-09-06
+
+**Status:** exploratory product direction. Syntax Lab may inspire a dedicated
+CS Dojo capability as well as the broader visual redesign.
+
+**Current interpretation:** a CS Dojo would be a focused executable-practice
+surface within a course. It can preserve Syntax Lab's useful rhythm of prompt,
+editor, provided context, deterministic check, actionable feedback, retry, and
+next activity while connecting every exercise to itembank objectives, runtime
+authority, and durable evidence. Language support should be adapter-based so
+Python and JavaScript are initial examples rather than a closed list.
+
+**Open questions:** the first supported languages, execution isolation,
+resource limits, package policy, multi-file projects, compile versus run
+activities, debugging and test-writing treatments, and the boundary between
+instructional practice and formal assessment require a reversible prototype
+and threat review.
+
+**Planning effect:** the audit remediation plan's executable-practice section
+owns the bounded CS Dojo prototype route. `IDEA-LEDGER.md` IL-20260906-09 records
+its disposition. No current item format or milestone scope changes until the
+prototype passes its runtime, evidence, security, accessibility, offline, and
+recovery gates.
+
+**Relationship to prior entries:** extends the comprehensive UI character entry
+and its Syntax Lab comparison. It also gives the existing runnable-code and
+changed-context application goals a concrete optional surface. It does not
+make executable practice the default treatment for every programming
+objective.
+
+### 2026-09-07: CS coursework extension beyond code drills
+
+> adjust and add into plan or make these addressed accordingly? so we can have a code learning sub program/extension for cs coursework and more, will whatever is happennigning in code learner be psueudo leetcode and more?
+
+#### Interpretation recorded 2026-09-07
+
+**Status:** active product direction. The CS Dojo route must cover a coherent
+CS coursework extension rather than only a bank of short code-completion
+drills.
+
+**Current interpretation:** the code learning extension belongs inside a
+course as an optional, objective-linked CS Dojo. Its activity range includes
+code reading and prediction, tracing and explanation, typed executable code,
+debugging, test construction, tool and multi-file work, and learner-owned labs
+or projects. A concise function challenge similar to LeetCode is one useful
+practice mode, but it does not define the extension or provide a curriculum by
+itself.
+
+**Open questions:** the first representative course and languages, the safe
+execution and package boundary, which activity responses become formal scored
+items, how multi-file and terminal work degrades offline, and which project
+qualities require human review remain prototype decisions.
+
+**Planning effect:** D3.1 of the consolidated audit remediation plan now owns
+the question-and-activity matrix, the distinction between drill practice and
+authentic coursework, and a broader representative prototype gate.
+`IDEA-LEDGER.md` IL-20260906-09 carries the amended prototype scope. No new
+item type is committed until the activity contract proves whether executable
+code is an item response, a lesson capability, a learner artifact, or more
+than one of these under distinct policies.
+
+**Relationship to prior entries:** extends the 2026-09-06 Syntax Lab and CS
+Dojo entry. It narrows the interpretation that Syntax Lab's current drill
+shape could stand for the whole extension, while retaining its editor,
+declared-context, deterministic-check, retry, and feedback patterns.
+
+### 2026-09-06: close audit findings and prefer the best-fitting future UI
+
+> keep in mind the audit findings and make sure everything will be addressed, making sure our future UI is modern and fitting and that anything old can be replaces if there are better/more fitting options and more
+
+#### Interpretation recorded 2026-09-06
+
+**Status:** active direction. Audit findings must remain traceable to closure,
+and the future UI is not constrained by the age or current presence of a
+component or visual pattern.
+
+**Current interpretation:** every accepted audit finding needs a durable final
+state with an owner and evidence. The future interface should use contemporary,
+task-appropriate interaction and visual patterns that make the source-to-course
+workspace coherent, understandable, accessible, and comfortable for sustained
+learning. Existing components, navigation, themes, layouts, and presentation
+patterns may be retained, redesigned, migrated, or replaced according to which
+option better serves that outcome. Modern does not mean copying a trend. It
+means clear hierarchy, familiar controls where familiarity helps, responsive
+behavior, visible state, purposeful character, and reduced friction across the
+complete course journey.
+
+**Open questions:** comparative prototypes and representative learner journeys
+must determine the final visual language. A replacement that changes stored
+preferences, navigation behavior, accessibility semantics, or recovery needs a
+reviewed migration and fallback. Human visual and accessibility acceptance
+remain required where already assigned.
+
+**Planning effect:** the UI character audit gains an explicit replace-or-retain
+fitness test. The consolidated remediation plan gains an audit closure
+protocol. Reach continues to fix immediate journey defects first, while the
+comprehensive visual replacement remains a later reviewed phase. No audit item
+may disappear merely because its milestone or original plan closes.
+
+**Relationship to prior entries:** confirms and sharpens the 2026-09-06
+comprehensive future UI character, SaaS-quality desktop experience, audit
+remediation, and UI-priority entries. It does not supersede accessibility,
+local-first ownership, runtime authority, responsive use, or recoverability.
+
+### 2026-09-06: keep the final design language open
+
+> save and adjust accordingly, we are unsure and we can establish better in the future
+
+#### Interpretation recorded 2026-09-06
+
+**Status:** partly superseded. The need for a coherent modern design language
+remains active, but Monkeytype is no longer part of the app-wide comparison.
+
+**Current interpretation:** retain three credible directions for comparison:
+a calm editorial learning studio, a focused practice instrument inspired by
+the clarity and visible state of tools such as Monkeytype, and a crafted
+workshop that combines reading and doing. A hybrid may ultimately assign these
+qualities to different modes under one shared system. No direction is selected
+by this conversation alone.
+
+**Open questions:** representative prototypes must show which direction best
+supports shelf navigation, sustained reading, active practice, assessment,
+notes, evidence, agent operations, recovery, desktop use, and mobile use. User
+review should select the direction after those comparisons rather than from a
+single attractive screen.
+
+**Planning effect:** the future UI phase must prototype the three directions or
+justify a smaller comparison set from evidence. It uses the same content and
+tasks for each prototype and records what is retained, combined, superseded,
+or rejected. Current Reach work may fix navigation and interaction defects but
+does not establish the final design language.
+
+**Relationship to prior entries:** narrows the commitment implied by the
+2026-09-06 comprehensive UI and best-fitting replacement entries. It confirms
+their outcome and replacement freedom while keeping the final aesthetic and
+mode balance open.
+
+### 2026-09-06: Monkeytype is coding-surface inspiration
+
+> monkey type's ui design was the intended insiration for code sstuff, we just need good design language and more and stuff
+
+#### Interpretation recorded 2026-09-06
+
+**Status:** active clarification.
+
+**Current interpretation:** Monkeytype's visual focus, immediate state,
+keyboard fluency, customization, and low-friction repetition may inform coding
+practice and CS Dojo. It should not define the course shelf, lessons, notes,
+evidence, settings, or the application shell. The complete product needs its
+own fitting design language with shared typography, color, spacing, geometry,
+navigation, state, and accessibility rules.
+
+**Open questions:** the broader design language remains unsettled. Comparative
+prototypes should explore coherent learning-product directions without treating
+a typing or coding tool as the overall product archetype.
+
+**Planning effect:** remove Monkeytype from the app-wide candidate comparison
+and retain it only in the CS Dojo reference and prototype route. The future UI
+phase still compares broader design systems across the complete course journey.
+
+**Relationship to prior entries:** partly supersedes the 2026-09-06 open
+design-language interpretation where Monkeytype informed a general focused
+practice candidate. It confirms the separate Syntax Lab and CS Dojo entry and
+the requirement for a comprehensive modern design language.
+
+### 2026-09-06: make the broader product feel like a technical instrument
+
+> all of them feels a little weak, I want a techy feel like monkey type or something else, update accordingly?
+
+#### Interpretation recorded 2026-09-06
+
+**Status:** active direction.
+
+**Current interpretation:** the three initial broad directions lacked enough
+technical character. The app-wide language should feel precise, responsive,
+purposeful, and tool-like through strong state communication, disciplined
+monospace accents, keyboard confidence, compact but readable controls,
+high-contrast focus, restrained surfaces, and meaningful data density.
+Monkeytype is one reference for this quality, but its typing-test layout still
+belongs chiefly to coding practice and CS Dojo. The product should not become a
+terminal imitation, code editor, neon dashboard, or typing-test clone.
+
+**Open questions:** a revised prototype pass must test at least three distinct
+technical languages and determine how much density, color, motion, and
+monospace treatment remains comfortable for long reading and broad subject
+matter. User review selects the balance.
+
+**Planning effect:** the prior editorial, workspace, and workshop prototypes
+are rejected as presented, not as abstract categories. The next prototype pass
+must show stronger technical-instrument character across the same course
+journey. Preserve the best reading and learning qualities only when they fit
+the sharper shared system.
+
+**Relationship to prior entries:** refines the open design-language and
+Monkeytype-scope entries. It broadens Monkeytype's influence to the desired
+level of precision and technical character while keeping its specific layout
+and coding interaction patterns scoped to CS Dojo.
+
+### 2026-09-06: keep both selected finalists on one foundation
+
+> Okay [Measured field guide](/Users/weiwei/.codex/worktrees/d78d/itembank/prototypes/17c-finalists/field-guide.html)
+>
+> 1. [Learning trajectory deck](/Users/weiwei/.codex/worktrees/d78d/itembank/prototypes/17c-finalists/trajectory-deck.html)
+>
+> Those two are the most fitting, we can keep both? Make method to setup base stuff and make it easy to adapt or implement skills in the future? other stuff to consider?
+
+#### Interpretation recorded 2026-09-06
+
+**Status:** active direction.
+
+**Current interpretation:** retain Measured Field Guide and Learning
+Trajectory Deck as two coordinated compositions built from one design system.
+Field Guide is strongest for source-grounded reading, explanation, annotation,
+and reflection. Trajectory Deck is strongest for course movement, active
+practice, evidence, operation state, and recovery. Shared semantic roles,
+tokens, primitives, state language, navigation identity, and accessibility
+behavior must make them recognizably one product.
+
+**Open questions:** implementation must test whether the compositions should be
+selected automatically by task, offered as user-selectable presentation
+profiles, or combined within a single journey. The first production vertical
+slice should resolve this without maintaining duplicate markup or state logic.
+
+**Planning effect:** preserve both prototype files in the main checkout. The UI
+character audit owns a layered foundation and extension method. Future learning
+capabilities map their semantic needs to shared primitives before requesting a
+new component. Production migration begins with one representative vertical
+slice and expands only after visual, behavioral, responsive, accessibility,
+settings, and recovery gates pass.
+
+**Relationship to prior entries:** resolves the finalist-selection question
+created by the open design-language and technical-instrument entries. It keeps
+the permission to replace old presentation while narrowing future work to two
+selected compositions and one shared foundation.
+
+### 2026-09-06: expose both finalists as presentation profiles
+
+> so both can be kept as a switchable theme or something, save and update things accordingly? more to consider
+
+#### Interpretation recorded 2026-09-06
+
+**Status:** active direction.
+
+**Current interpretation:** Measured Field Guide and Learning Trajectory Deck
+remain available as user-switchable presentation profiles. A profile controls
+composition, navigation arrangement, density, and emphasis. Color scheme,
+contrast mode, and accent remain independent appearance settings, so either
+profile can support light, dark, OLED, high contrast, and custom accent where
+the contrast derivation permits it. Both profiles render the same semantic
+content, URLs, runtime state, evidence, and accessibility meaning.
+
+**Open questions:** the first implementation slice must settle the default
+profile and whether an optional automatic task-based mode adds value. It must
+also test whether profile choice is global or may be overridden per course.
+No automatic mode or per-course override is committed yet.
+
+**Planning effect:** add a recoverable presentation-profile setting with a live
+preview and explicit fallback. The UI character audit owns the setting model,
+extension contract, and cross-profile verification. Future capabilities must
+work in both profiles or declare an honest equivalent fallback before release.
+
+**Relationship to prior entries:** resolves the switchability question in the
+selected-finalists entry. It keeps both compositions and supersedes automatic
+task-based switching as the assumed first implementation, while retaining it
+as a later option to test.
+
+### 2026-09-07: make the complete UI adaptable through extensions and themes
+
+> for UI 2, we can have the UI designs be implemented extension/theme style, for everything and anything can be updated or adjusted as extension accordingly? thoughts? Plug other parts in accordingly and more, then create a prompt to continue work
+
+#### Interpretation recorded 2026-09-07
+
+**Status:** active direction.
+
+**Current interpretation:** the learner interface should be composed from
+stable semantic roles, shared primitives, presentation profiles, appearance
+themes, and capability adapters. A new or revised course shell, reader,
+activity presentation, editor, source view, agent panel, or integration should
+enter through a named seam instead of requiring an unrelated frontend fork.
+Profiles and themes may replace or rearrange presentation broadly while the
+same canonical content, runtime state, assessment authority, evidence, rights,
+accessibility meaning, and recovery behavior remain underneath.
+
+**Open questions:** the future UI phase must prove the smallest descriptor and
+mount contract on one representative vertical slice. It must decide which
+variation belongs to a profile, an appearance theme, a capability adapter, or
+a separate product surface. External package loading remains unresolved until
+its supply-chain and isolation gate is accepted.
+
+**Planning effect:** strengthen the UI character plan and extension-delivery
+contract around named presentation and capability seams. Implement the two
+selected profiles as the first proof. Require representative cross-profile,
+responsive, accessibility, unavailable-state, migration, and recovery checks.
+Use `PROMPT-EXTENSIBLE-UI-CONTINUATION-2026-09-07.md` as the next operational
+handoff after current Reach packet ownership is reconciled.
+
+**Relationship to prior entries:** extends the selected-finalists and
+switchable-profile entries. It also applies the existing named-seam plugin
+direction to the complete presentation layer without reopening the rejected
+swappable-authority design.
+
+### 2026-09-07: comparative homes, complete transitions, and renewable UI research
+
+> like right now its like this, and I assume it can be sectioned better somehow but Im not sure how, can we look accross existing learning platforms and LMS and more and scope improvements?
+
+> unsure, we can have multiple options and implement all of them and have the user decide what they like instead, look accross sites and more and scope accordingly
+
+> Save accordingly also need to consider UI flow, from returning to home/finishing exam/quiz and more,&#x20;
+>
+> Combine prior audits and new findings, make prompt to look further, also looking at githubs and repos and more, and then make sure we can absorb everything and more and address everything
+
+> re research in case of new info and more in the future
+
+#### Interpretation recorded 2026-09-07
+
+**Status:** active direction.
+
+**Current interpretation:** the future UI comparison must cover the complete
+learner journey rather than isolated screens. Home may have multiple reversible
+projections over identical course and runtime state so the user can compare a
+resume-first, shelf-first, agenda-first, and within-course path presentation.
+The comparison must include leaving and returning home, starting and stopping
+activities, completing practice, quizzes, and exams, post-assessment review and
+remediation, exact resume, interruption, stale or changed courses, and course
+completion. Existing audits and current platform evidence are reconciled before
+new recommendations. Public repositories contribute inspectable behavior and
+test patterns, not code to copy. Research remains renewable through named
+change, failure, freshness, and coverage triggers.
+
+**Open questions:** comparative prototypes and learner review must determine
+which home projections remain distinct, which combine, and which are
+superseded. Deeper research must verify current product behavior and repository
+paths, identify omitted transitions, and set evidence-specific freshness
+windows. No permanent four-view commitment or automatic switching rule is
+settled.
+
+**Planning effect:** add the exploratory scope note
+`notes/2026-09-07-home-and-transition-ui-scope.md`, the research handoff
+`PROMPT-UI-FLOW-AND-OPEN-SOURCE-ABSORPTION-2026-09-07.md`, and idea-ledger
+entry IL-20260907-02. Feed their verified findings into the existing UI
+character owner and extensible-UI continuation after Reach. Do not expand the
+active Reach execution path or change binding requirements from this initial
+comparison.
+
+**Relationship to prior entries:** extends the complete app-flow entries from
+2026-08-13 and 2026-08-20, the 2026-09-06 comprehensive UI direction, and the
+2026-09-07 extensible-presentation direction. It adds explicit home variants,
+post-practice and post-assessment transitions, repository inspection, and
+future re-research triggers. It does not supersede the selected Measured Field
+Guide and Learning Trajectory Deck profiles.
+
+### 2026-09-07: a learning harness for people, operated by AI
+
+> should we consider itembank a learning based harness for ai in the future? or just keep it as is as something agentically driven?
+
+> okay write that down accordingly
+
+#### Interpretation recorded 2026-09-07
+
+**Status:** resolved.
+
+**Current interpretation:** itembank is a local-first, agent-operable learning
+harness for people. Stable contracts connect learner-owned sources, objectives,
+treatments, activities, assessments, evidence, validation, permissions, and
+accepted revisions. AI may construct courses, tutor within runtime grants,
+interpret evidence, and propose improvements. The learner remains the intended
+beneficiary, and the deterministic runtime remains the authority for scoring,
+assessment disclosure, session state, and accepted evidence. An AI-training,
+reinforcement-learning, prompt-optimization, or general model-evaluation
+harness is not the primary product identity.
+
+**Open questions:** later research may test AI evaluation or improvement
+capabilities that directly support learning-system quality. Each begins as a
+registered capability and must prove a learner-centered use, inspectable
+artifacts, declared evidence authority, rights and egress, validation, and
+recovery before it affects product scope.
+
+**Planning effect:** the north star in `SOURCE-TO-COURSE.md` now names itembank
+as a local-first, agent-operable learning harness for people and distinguishes
+that identity from infrastructure whose primary subject is training or
+evaluating AI. Existing course, agent, runtime, and authority requirements
+remain in force. `IDEA-LEDGER.md` records the framing and the gate for adjacent
+AI-facing capabilities.
+
+**Relationship to prior entries:** confirms the 2026-08-13 source-to-course
+goal and course-generator direction. It clarifies the 2026-08-19 agentic
+capability direction by naming the stable learning contracts as the harness
+and agents as replaceable operators. It narrows neither useful AI work nor the
+goal of supporting local and hosted agents.
+
+### 2026-09-08: acquire transcripts, Canvas course material, and other sources
+
+> extend itembank capability to scrape and download or absorb transcripts by providing tools like canvas stuff downloader and more, we can also audit other stuff to consider and more, and imprvoements for that repor or other lacking extention features
+
+#### Interpretation recorded 2026-09-08
+
+**Status:** exploratory.
+
+**Current interpretation:** itembank should acquire learner-authorized course
+material instead of requiring every source to be manually downloaded first.
+The experience should include Canvas course discovery and download, transcript
+and caption intake, optional transcription when captions are unavailable, and
+an audit that exposes other missing acquisition capabilities. Acquisition feeds
+the existing source adapter, binding, rights, and course-building contracts.
+
+**Open questions:** research and a prototype must settle Canvas export versus
+API order, token or OAuth handling, the exact first resource set, local ASR
+backend choice, hosted transcription egress, assessment-content boundaries,
+and which non-Canvas LMS format should follow. A real learner-approved Canvas
+course walkthrough is required before promotion.
+
+**Planning effect:**
+`SOURCE-ACQUISITION-EXTENSION-AUDIT-2026-09-08.md` records the current capability
+map, missing cases, proposed command surface, dispositions, sequence, and
+acceptance gate. The work is routed after Reach and does not change the current
+19D recovery path.
+
+**Relationship to prior entries:** extends the 2026-08-20 remote-source and
+paper-note OCR direction, the 2026-08-26 Navigate2 scrape direction, Phase 14C
+source intake, and the 2026-09-07 extension architecture. It distinguishes
+upstream Canvas course acquisition from the existing downstream Canvas LTI
+surface. It does not supersede the requirement that unknown rights remain
+restrictive.
+
+### 2026-09-08: defer local AI and skip the sitting for now
+
+> we can skip the sitting for now
+
+#### Interpretation recorded 2026-09-08
+
+**Status:** active direction.
+
+**Current interpretation:** the current milestone may proceed without a new
+Math 1400 assessment sitting and without repairing live local-model proposal
+generation. Both remain deferred product-validation legs. No sitting, score,
+mastery result, next-activity recommendation, accepted model proposal, or
+model-backed treatment may be claimed from this decision.
+
+**Open questions:** the deferred learner journey still needs a representative
+source-grounded lesson and assessment, a runtime-owned sitting, honest evidence
+denominators, and export and restore observation. The local-AI leg still needs
+a parseable provider response through the strict proposal contract.
+
+**Planning effect:** reconcile Reach and Phase 19D as closed under an explicit
+scope waiver, retain their unmet evidence as deferred work with owners and
+triggers, and allow Phase 20 to execute without manufacturing the missing
+evidence. Phase 20 may use deterministic fixtures and existing representative
+content for UI checks.
+
+**Relationship to prior entries:** narrows the 2026-09-06 SaaS-quality Reach
+exit and the 2026-09-07 UI handoff by deferring the new Math 1400 sitting. It
+does not supersede the earlier evidence, assessment-authority, accessibility,
+or recovery requirements.
+
+### 2026-09-08: reader definitions and external documents
+
+> future reader should have the option of double clicking for definition and more, be able to work with external slides/pdf/epub and more?
+
+#### Interpretation recorded 2026-09-08
+
+**Status:** exploratory interaction, active product direction.
+
+**Current interpretation:** the future reader should let a learner act on text
+to request a definition or related learning help, with double-click available
+as one discoverable option. It should also work alongside external PDF, EPUB,
+and slide sources by opening and navigating them, preserving source location,
+and connecting selected passages or pages to definitions, notes, citations,
+objectives, lessons, and activities. External files remain sources with their
+own identity. Importing, annotating, editing, converting, and exporting them
+are distinct operations rather than one vague mutation.
+
+**Open questions:** a reader prototype must test double-click against ordinary
+text selection and browser conventions, and settle the definition panel's
+additional actions. It must provide equivalent keyboard, touch, and
+screen-reader paths. Format trials must settle embedded versus side-by-side
+display, locator fidelity, annotation ownership, supported slide formats, and
+whether any format needs lossless round-trip editing rather than read and bind.
+
+**Planning effect:** register a reader interaction prototype under the shared
+lesson capability contract. Apply it to the existing PDF, EPUB, PPTX, and
+source-adapter work rather than creating another parser or source model. No
+current milestone is expanded until representative external files pass the
+reader, rights, offline, accessibility, and recovery gates.
+
+**Relationship to prior entries:** confirms the 2026-08-13 hoverable-definition
+direction and extends the 2026-08-20 confusing-term criterion with an explicit
+learner activation option. It also extends the 2026-08-14 editor and reader
+direction and the source-intake work without superseding portable Markdown,
+progressive enhancement, or restrictive unknown-rights behavior.
+
 ## Interpretation protocol
 
 An interpretation may appear immediately after a verbatim entry when it helps

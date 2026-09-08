@@ -246,8 +246,9 @@ HELP_GET_RE = re.compile(r"^/help/(?P<code>[a-z0-9_.]{1,64})$")
 # The area alternation is a closed vocabulary mirroring `ia.COURSE_AREAS` minus
 # `overview`, which COURSE_GET_RE serves at the bare course path.
 COURSE_GET_RE = re.compile(r"^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})$")
-COURSE_AREA_RE = re.compile(r"^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/(?P<area>learn|practice|test|map|sources|build|evidence)$")
+COURSE_AREA_RE = re.compile(r"^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/(?P<area>learn|practice|test|map|sources|build|agent|evidence)$")
 COURSE_LESSON_RE = re.compile(r"^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/learn/(?P<lesson_id>[A-Za-z0-9_.-]{1,64})$")
+COURSE_READ_RE = re.compile(r"^/api/course/(?P<operation>outline|coverage|untreated|protocol|parity)/(?P<course_id>[A-Za-z0-9_.-]{1,64})$")
 
 # Fields a browser may send on `POST /day/<stem>/edit`. Everything else is
 # refused before any helper runs (T-04-21): the client addresses the plan by
@@ -328,6 +329,7 @@ API_ROUTES = (
     ("POST", "/api/rubric-review", "handle_api_rubric_review"),
     ("POST", "/api/mark", "handle_api_mark"),
     ("POST", "/api/course/create", "handle_api_course_create"),
+    ("POST", "/api/course/register-source", "handle_api_course_register_source"),
     ("POST", "/api/course/rename", "handle_api_course_rename"),
     ("POST", "/api/course/add-source", "handle_api_course_add_source"),
     ("POST", "/api/course/bind", "handle_api_bind"),
@@ -360,6 +362,7 @@ API_ROUTES = (
     ("POST", "/api/course/verify-package", "handle_api_course_verify_package"),
     ("POST", "/api/course/restore-package", "handle_api_course_restore_package"),
     ("POST", "/api/course/package-losses", "handle_api_course_package_losses"),
+    ("POST", "/api/course/agent-operation", "handle_api_course_agent_operation"),
     ("POST", "/api/export_audio", "handle_api_export_audio"),
     ("POST", "/api/lesson/run", "handle_api_lesson_run"),
     ("POST", "/api/source/import", "handle_api_source_import"),
@@ -403,6 +406,7 @@ ROUTES = (
     ("POST", "/api/theme", "handle_theme_post"),
     ("POST", "/cli-twin", "handle_cli_twin"),
     ("POST", "/seed/accept", "handle_seed_accept"),
+    ("POST", "/mcp", "handle_mcp"),
 ) + API_ROUTES + LEGACY_API_ALIASES + (
     ("GET", KATEX_ASSET_RE, "handle_katex_asset"),
     ("GET", FONT_ASSET_RE, "handle_font_asset"),
@@ -422,7 +426,9 @@ ROUTES = (
     ("GET", HELP_GET_RE, "handle_help_get"),
     ("GET", COURSE_GET_RE, "handle_course_get"),
     ("GET", COURSE_AREA_RE, "handle_course_area_get"),
+    ("POST", COURSE_AREA_RE, "handle_course_area_post"),
     ("GET", COURSE_LESSON_RE, "handle_course_lesson_get"),
+    ("GET", COURSE_READ_RE, "handle_course_read_get"),
 )
 
 # Every route in ROUTES has a CLI command that reaches the same runtime
@@ -444,6 +450,7 @@ ROUTE_CLI = {
     ("POST", "/api/theme"): "theme",
     ("POST", "/cli-twin"): "cli-twin",
     ("POST", "/seed/accept"): "seed",
+    ("POST", "/mcp"): "mcp",
     ("POST", "/api/start"): "start",
     ("POST", "/api/next"): "next",
     ("POST", "/api/submit"): "submit",
@@ -456,6 +463,7 @@ ROUTE_CLI = {
     ("POST", "/api/rubric-review"): "rubric-review",
     ("POST", "/api/mark"): "mark",
     ("POST", "/api/course/create"): "course",
+    ("POST", "/api/course/register-source"): "course",
     ("POST", "/api/course/rename"): "course",
     ("POST", "/api/course/add-source"): "course",
     ("POST", "/api/course/bind"): "bind",
@@ -488,6 +496,7 @@ ROUTE_CLI = {
     ("POST", "/api/course/verify-package"): "course",
     ("POST", "/api/course/restore-package"): "course",
     ("POST", "/api/course/package-losses"): "course",
+    ("POST", "/api/course/agent-operation"): "course",
     # The two deprecated aliases. Same twin as the canonical route, because
     # they are the same call.
     ("POST", "/api/bind"): "bind",
@@ -518,7 +527,9 @@ ROUTE_CLI = {
     ("GET", HELP_GET_RE): "help-code",
     ("GET", COURSE_GET_RE): "daemon",
     ("GET", COURSE_AREA_RE): "daemon",
+    ("POST", COURSE_AREA_RE): "course",
     ("GET", COURSE_LESSON_RE): "daemon",
+    ("GET", COURSE_READ_RE): "course",
 }
 
 # Extensibility Rule 9(a) (ROADMAP.md): every /api/* route reserves its
@@ -546,6 +557,7 @@ SURFACE_PARITY = (
     (("POST", "/api/shelf"), "shelf", "shelf"),
     (("POST", "/api/mark"), "mark", "mark"),
     (("POST", "/api/course/create"), "course", "course_create"),
+    (("POST", "/api/course/register-source"), "course", "course_register_source"),
     (("POST", "/api/course/rename"), "course", "course_rename"),
     (("POST", "/api/course/add-source"), "course", "course_add_source"),
     (("POST", "/api/course/bind"), "bind", "bind"),
@@ -578,6 +590,7 @@ SURFACE_PARITY = (
     (("POST", "/api/course/verify-package"), "course", "course_verify_package"),
     (("POST", "/api/course/restore-package"), "course", "course_restore_package"),
     (("POST", "/api/course/package-losses"), "course", "course_package_losses"),
+    (("POST", "/api/course/agent-operation"), "course", "course_agent_operation"),
 )
 
 
@@ -767,6 +780,22 @@ RESTORE_SCRIPT = """<script>
         activeId: active && active.id ? active.id : ""
       }));
     } catch (e) { /* a browser refusing storage loses only the cue */ }
+  });
+  var dirty = false;
+  function warnOnUnsaved(e) {
+    if (!dirty) { return; }
+    e.preventDefault();
+    e.returnValue = "";
+  }
+  document.addEventListener("input", function (e) {
+    if (e.target && e.target.closest("form")) {
+      dirty = true;
+      window.addEventListener("beforeunload", warnOnUnsaved);
+    }
+  });
+  document.addEventListener("submit", function () {
+    dirty = false;
+    window.removeEventListener("beforeunload", warnOnUnsaved);
   });
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", onLoad);
@@ -1071,9 +1100,90 @@ def _options(values, labels=None, blank=""):
     return "".join(out)
 
 
+def _agent_area_html(handler, state, course_dir):
+    """The durable, JavaScript-optional Agent review flow."""
+    from surfaces import agent_operation as agent_op
+    cfg = settings.load_settings(handler.root)
+    records = agent_op.proposals(course_dir)
+    active = next((r for r in records if r.get("disposition") == "proposed"),
+                  records[0] if records else None)
+    cid = presentation.esc(state["course_id"])
+
+    def field(name, value):
+        return '<input type="hidden" name="%s" value="%s">' % (
+            presentation.esc(name), presentation.esc(value or ""))
+
+    starts = []
+    for skill, spec in sorted((cfg.get("agent_runs") or {}).items()):
+        target = spec.get("target") if isinstance(spec, dict) else ""
+        starts.append('<li><form method="post" action="/course/%s/agent">%s%s'
+                      '<button class="go" type="submit">Start %s</button> '
+                      '<span class="mono">Target: %s</span></form></li>'
+                      % (cid, field("action", "start"), field("skill", skill),
+                         presentation.esc(skill), presentation.esc(target)))
+    if not starts:
+        starts.append('<li>Agent operation unavailable. No runnable skill has a configured target. Open model settings.</li>')
+
+    if active:
+        pid = active.get("proposal_id") or ""
+        disposition = active.get("disposition") or "unavailable"
+        copy = {"proposed": "Proposal pending review.",
+                "accepted": "Proposal accepted. One journaled change was applied.",
+                "rejected": "Proposal rejected. No accepted course content changed.",
+                "conflicted": "The target changed after this proposal was created. Nothing was overwritten.",
+                "undone": "Accepted change undone. The previous valid bytes were restored and the reversal was recorded."}.get(
+                    disposition, "Agent operation unavailable. %s" % (active.get("reason") or "Record unreadable."))
+        citations = "".join("<li>%s</li>" % presentation.esc(str(c))
+                            for c in active.get("citations") or []) or "<li>No citations supplied.</li>"
+        diff = presentation.esc("\n".join((active.get("diff") or {}).get("lines") or []))
+        controls = ""
+        if disposition == "proposed":
+            reject = ('<form method="post" action="/course/%s/agent">%s%s'
+                      '<button class="go" type="submit" aria-label="Reject proposal %s">Reject proposal</button></form>'
+                      % (cid, field("action", "reject"), field("proposal_id", pid), presentation.esc(pid)))
+            if (cfg.get("auditor_autonomy") or "report_only") in agent_op.AUTONOMY_MAY_WRITE:
+                accept = ('<form method="post" action="/course/%s/agent">%s%s'
+                          '<button class="go primary" type="submit" aria-label="Accept proposal %s">Accept proposal</button></form>'
+                          % (cid, field("action", "accept"), field("proposal_id", pid), presentation.esc(pid)))
+            else:
+                accept = '<p>Accept is unavailable because auditor_autonomy is report_only. Change it in Settings, Agent autonomy, if you want reviewed proposals to become revisions.</p>'
+            controls = '<div class="actions" role="group" aria-label="Proposal decision">%s%s</div>' % (accept, reject)
+        elif disposition == "accepted" and active.get("undoable"):
+            controls = ('<form method="post" action="/course/%s/agent">%s%s'
+                        '<button class="go primary" type="submit" aria-label="Undo accepted change for %s">Undo accepted change</button></form>'
+                        % (cid, field("action", "undo"), field("proposal_id", pid),
+                           presentation.esc(active.get("target") or pid)))
+        review = ('<section aria-labelledby="agent-review"><h3 id="agent-review">Review proposed change</h3>'
+                  '<div role="status" aria-live="polite"><p>%s</p></div>'
+                  '<dl><dt>Proposal</dt><dd class="mono">%s</dd><dt>Target</dt><dd>%s</dd>'
+                  '<dt>Expected fingerprint</dt><dd class="mono">%s</dd><dt>Validation</dt><dd>%s</dd>'
+                  '<dt>Egress</dt><dd>%s</dd></dl><h4>Citations</h4><ul>%s</ul>'
+                  '<div class="vf-diff" role="region" aria-label="Proposed change diff"><pre>%s</pre></div>%s'
+                  '<details><summary>Review evidence</summary><p class="mono">Operation %s. Interaction %s. Journal %s. Undo %s.</p></details></section>'
+                  % (presentation.esc(copy), presentation.esc(pid), presentation.esc(active.get("target") or "Unavailable"),
+                     presentation.esc(active.get("expected_fingerprint") or "new file"),
+                     presentation.esc(str((active.get("validation") or {}).get("state") or "unknown")),
+                     presentation.esc(str((active.get("egress") or {}).get("destination") or "local")), citations, diff, controls,
+                     presentation.esc(active.get("operation_id") or ""), presentation.esc(active.get("interaction_id") or ""),
+                     presentation.esc(active.get("entry_id") or "none"), presentation.esc(active.get("undo_entry_id") or "none")))
+    else:
+        review = '<section><h3>No agent operations yet</h3><p>Start a skill to create a reviewable proposal. Nothing changes until you accept it.</p></section>'
+    history = "".join('<li><b>%s</b> <span class="mono">%s</span>, %s</li>'
+                      % (presentation.esc(r.get("disposition") or "unavailable"),
+                         presentation.esc(r.get("proposal_id") or "unknown"),
+                         presentation.esc(r.get("target") or r.get("reason") or "")) for r in records)
+    return ('<p>Agent operations create stored proposals. The runtime remains the sole scoring authority.</p>'
+            '<section><h3>Start an agent operation</h3><ul class="course-rows">%s</ul></section>%s'
+            '<section><h3>Review history</h3><ul class="course-rows">%s</ul></section>'
+            '<p class="mono">CLI twin: itembank course agent-operation %s status --proposal-id &lt;id&gt;</p>'
+            % ("".join(starts), review, history or "<li>No records.</li>", cid))
+
+
 def _course_area_extra(handler, state, course_dir):
     """Markup an area carries beyond its rows. Today only Sources has any:
     the bind panel and the rights records it depends on."""
+    if course_dir is not None and state.get("area") == "agent":
+        return _agent_area_html(handler, state, course_dir)
     if course_dir is None or state.get("area") != "sources":
         return ""
     try:
@@ -1166,8 +1276,14 @@ def _course_frame(handler, state, back, course_dir=None):
                    % (presentation.esc(lead), _course_rows_html(rows))
                    if lead else _course_rows_html(rows))
     else:
-        content = '<p class="area-state">%s</p>' % presentation.esc(
-            state["notice"])
+        action = state.get("next_action")
+        action_html = (('<p><a class="go" href="%s">%s</a></p>'
+                        % (presentation.esc(action["href"]),
+                           presentation.esc(action["label"]))) if action else "")
+        content = ('<div class="area-state" data-course-state="%s">'
+                   '<p>%s</p>%s</div>'
+                   % (presentation.esc(state.get("display_state", "empty")),
+                      presentation.esc(state["notice"]), action_html))
     desktop_nav = ('<nav class="course-areas course-nav-desktop" '
                    'aria-label="Course areas"><ul>%s</ul></nav>' % "".join(nav))
     mobile_nav = ('<details class="course-areas course-nav-mobile">'
@@ -1185,11 +1301,13 @@ def _course_frame(handler, state, back, course_dir=None):
                   presentation.esc(heading_id),
                   presentation.esc(state["area_label"]), content,
                   _course_area_extra(handler, state, course_dir))))
+    cfg = settings.load_settings(handler.root)
+    profile, _notice = settings.resolve_presentation_profile(cfg)
     return presentation.surface_shell(
         state["course_name"], body,
-        theme_css=theme.theme_css(settings.load_settings(handler.root)),
+        theme_css=theme.theme_css(cfg),
         back=back, noscript=COURSE_NOSCRIPT, tail=RESTORE_SCRIPT,
-        palette=True)
+        palette=True, presentation_profile=profile)
 
 
 def _course_not_found(handler):
@@ -1221,9 +1339,27 @@ def handle_palette(handler):
         "application/json; charset=utf-8")
 
 
+def _course_page_state(handler, course_id, area):
+    """Resolve a page through the read-operation door before rendering it.
+
+    The page state remains presentation data owned by ``ia``.  The canonical
+    outline read establishes that the addressed course is readable through the
+    same operation layer an agent uses, instead of letting the page be an
+    unvalidated, parallel course lookup.
+    """
+    try:
+        course_ops.run(handler.root, "outline", {"course_id": course_id})
+    except Exception:
+        return None
+    return ia.course_area_state(handler.root, course_id, area)
+
+
 def handle_course_get(handler, course_id):
     """`GET /course/<course_id>` -- the course Overview frame."""
-    state = ia.course_area_state(handler.root, course_id, "overview")
+    state = _course_page_state(handler, course_id, "overview")
+    if state is None:
+        _course_not_found(handler)
+        return
     if not state["found"]:
         _course_not_found(handler)
         return
@@ -1239,7 +1375,10 @@ def handle_course_area_get(handler, course_id, area):
     second URL for the same object, so both widths are served by this one
     route and the nav lists all eight areas at either width.
     """
-    state = ia.course_area_state(handler.root, course_id, area)
+    state = _course_page_state(handler, course_id, area)
+    if state is None:
+        _course_not_found(handler)
+        return
     if not state["found"]:
         _course_not_found(handler)
         return
@@ -1250,9 +1389,36 @@ def handle_course_area_get(handler, course_id, area):
         course_dir=ia.course_dir_for(handler.root, course_id)).encode("utf-8"))
 
 
+def handle_course_area_post(handler, course_id, area):
+    """Settle an Agent form through the same dispatcher used by API and CLI."""
+    if area != "agent":
+        handler.send_error(405, "this course area is read-only")
+        return
+    if _reject_cross_origin_write(handler):
+        return
+    fields = handler.read_form()
+    request = {"course_id": course_id,
+               "action": (fields.get("action") or [""])[-1]}
+    for name in ("skill", "proposal_id", "reason"):
+        value = (fields.get(name) or [""])[-1]
+        if value:
+            request[name] = value
+    try:
+        course_ops.run(handler.root, "agent_operation", request,
+                       actor_kind="human", actor_name="course-agent-tab")
+    except Exception as exc:
+        code = getattr(exc, "code", "agent.operation_failed")
+        handler.send_error(400, "%s: %s" % (code, getattr(exc, "message", str(exc))))
+        return
+    handler.send_redirect("/course/%s/agent" % urllib.parse.quote(course_id, safe=""))
+
+
 def handle_course_lesson_get(handler, course_id, lesson_id):
     """`GET /course/<course_id>/learn/<lesson_id>` -- one lesson inside Learn."""
-    state = ia.course_area_state(handler.root, course_id, "learn")
+    state = _course_page_state(handler, course_id, "learn")
+    if state is None:
+        _course_not_found(handler)
+        return
     if not state["found"]:
         _course_not_found(handler)
         return
@@ -1261,6 +1427,22 @@ def handle_course_lesson_get(handler, course_id, lesson_id):
         {"href": "/course/" + course_id,
          "label": "Back to " + state["course_name"]}).encode("utf-8"))
 
+
+def handle_course_read_get(handler, operation, course_id):
+    """GET course read authority, shared by agent clients and page code."""
+    if _reject_cross_origin(handler):
+        return
+    try:
+        result = course_ops.run(handler.root, operation, {"course_id": course_id})
+    except Exception as exc:
+        code = getattr(exc, "code", None)
+        if code:
+            handler.send_error(404 if code == "course.unknown_course" else 400,
+                               "%s: %s" % (code, getattr(exc, "message", str(exc))))
+            return
+        handler.send_server_error(exc)
+        return
+    handler.send_json(result)
 
 def handle_api_shelf(handler):
     """`POST /api/shelf` -- the one mutating route Phase 16B adds.
@@ -1857,7 +2039,9 @@ def handle_report_get(handler):
         return
     summary = result["summary"]
     status = result["status"]
-    theme_block = theme.theme_css(settings.load_settings(handler.root))
+    cfg = settings.load_settings(handler.root)
+    theme_block = theme.theme_css(cfg)
+    profile, _notice = settings.resolve_presentation_profile(cfg)
     if summary["auto_attempts"] == 0 and summary["pending_manual"] == 0:
         body = REPORT_EMPTY
     else:
@@ -2166,13 +2350,14 @@ def handle_index(handler):
             pass
     shelf = ia.course_shelf_state(handler.root)
     if shelf["available"] and shelf["cards"]:
+        profile, _notice = settings.resolve_presentation_profile(cfg)
         handler.send_html(presentation.surface_shell(
             "Courses",
             _course_shelf_body(shelf, ia.walkthrough_state(handler.root),
                                sample),
             theme_css=theme_block,
             noscript=SHELF_NOSCRIPT, tail=SHELF_SCRIPT,
-            palette=True).encode("utf-8"))
+            palette=True, presentation_profile=profile).encode("utf-8"))
         return
     if not banks and not plans:
         served_dir = html.escape(os.path.abspath(handler.root))
@@ -2182,10 +2367,14 @@ def handle_index(handler):
             cfg.get("home") if isinstance(cfg, dict) else None)
         state = home.build_state(handler.root, banks, plans,
                                  handler.collisions)
-        body = home.render_home(state, mode, note=note)
+        profile, _notice = settings.resolve_presentation_profile(cfg)
+        body = home.render_home(state, mode, note=note,
+                                presentation_profile=profile)
+    profile, _notice = settings.resolve_presentation_profile(cfg)
     page = presentation.surface_shell(
         "itembank", body,
-        theme_css=theme_block + home.HOME_CSS, palette=True)
+        theme_css=theme_block + home.HOME_CSS, palette=True,
+        presentation_profile=profile)
     handler.send_html(page.encode("utf-8"))
 
 
@@ -2196,7 +2385,9 @@ def handle_banks(handler):
     shares their stem. The home links here instead of duplicating the
     list, because this is the only view that shows a collision."""
     banks, plans = handler.banks, handler.plans
-    theme_block = theme.theme_css(settings.load_settings(handler.root))
+    cfg = settings.load_settings(handler.root)
+    theme_block = theme.theme_css(cfg)
+    profile, _notice = settings.resolve_presentation_profile(cfg)
     stems = sorted(set(banks) | set(plans), key=str.lower)
     if stems:
         report_links = sessions_by_bank(handler.root, banks)
@@ -2384,8 +2575,8 @@ def _lan_refused(handler):
 # `look` joined the actions on 2026-09-05: the look axis is switchable from
 # the settings page, and it saves through `theme.persist_look`, the same
 # single writer `itembank theme look` uses.
-THEME_ACTIONS = ("preview", "pick", "save", "reset", "look")
-THEME_ALLOWED_FIELDS = ("action", "source", "confirm", "look")
+THEME_ACTIONS = ("preview", "pick", "save", "reset", "look", "profile")
+THEME_ALLOWED_FIELDS = ("action", "source", "confirm", "look", "profile")
 
 
 def _mode_layer_section():
@@ -2508,6 +2699,11 @@ def handle_theme_post(handler):
                                "preview": theme.theme_preview(
                                    written["accent"])})
             return
+        if action == "profile":
+            written = theme.persist_presentation_profile(handler.root,
+                                                         data.get("profile"))
+            handler.send_json({"saved": True, "presentation_profile": written})
+            return
         if action == "reset":
             if data.get("confirm") != "RESET":
                 handler.send_error(
@@ -2571,27 +2767,50 @@ def _send_quiz_page(handler, stem, path, qs, sess, view, teaching, lesson_slugs,
     """
     tokens = (dict((kind, _mint_quiz_token(handler, view, kind))
                    for kind in ("submit", "hint", "stumped")) if view else None)
-    theme_block = theme.theme_css(settings.load_settings(handler.root))
+    cfg = settings.load_settings(handler.root)
+    theme_block = theme.theme_css(cfg)
+    profile, _notice = settings.resolve_presentation_profile(cfg)
     _, page = quiz.page_for(path, qs, serve=True, reveal=False,
                             post_path="/quiz/%s/answer" % stem,
                             bank_stem=stem, mode=sess.get("mode", "practice"),
                             lesson_base="/lesson/%s" % stem,
                             lesson_slugs=lesson_slugs, theme_css=theme_block,
-                            assist=True, home_href="/")
+                            assist=True, home_href="/", presentation_profile=profile)
+    # A form POST records and moves the runtime cursor before its PRG redirect.
+    # Show the just-answered public item and runtime-issued verdict first. The
+    # Continue link then renders the live cursor without replaying the answer.
+    rendered_view = view
+    continue_href = None
+    continue_label = None
+    if isinstance(flash, dict) and flash.get("action") in ("advance", "complete"):
+        before = flash.get("before")
+        if isinstance(before, dict) and before.get("item"):
+            rendered_view = before
+            if flash.get("action") == "advance":
+                continue_href = "/quiz/%s" % stem
+                try:
+                    continue_label = "Continue to item %d" % (
+                        int(view.get("position", 0) or 0) + 1)
+                except (AttributeError, TypeError, ValueError):
+                    continue_label = "Continue"
+            else:
+                continue_href = "/report?session=%s" % urllib.parse.quote(
+                    str(before.get("session_id", "")))
+                continue_label = "View summary"
     # The shared quiz shell starts with Item 1 for the client-started/offline
     # path.  Served redirects render the current public runtime view again,
     # so carry its cursor into the server-rendered context band as well.
-    if view is not None:
+    if rendered_view is not None:
         try:
-            position = int(view.get("position", 0) or 0) + 1
+            position = int(rendered_view.get("position", 0) or 0) + 1
         except (TypeError, ValueError):
             position = 1
         page = page.replace('<b id="pos">1</b>',
                             '<b id="pos">%d</b>' % position, 1)
-    if view is not None:
-        baseline = quiz_page.baseline_for(view, teaching,
+    if rendered_view is not None:
+        baseline = quiz_page.baseline_for(rendered_view, teaching,
                                           "/quiz/%s/answer" % stem, tokens, flash,
-                                          prefill)
+                                          prefill, continue_href, continue_label)
         page = page.replace('<div id="host"></div>', '<div id="host">%s</div>' % baseline, 1)
     handler.send_html(page.encode("utf-8"), status)
 
@@ -2698,7 +2917,8 @@ def _mint_quiz_flash(handler, before, after, result):
         handler.quiz_flash_receipts[receipt] = {
             "session_id": before.get("session_id"), "source_item_id": (before.get("item") or {}).get("id"),
             "cursor": after.get("position"), "status": after.get("status"), "target": target,
-            "result": result, "expires": time.monotonic() + QUIZ_TOKEN_TTL}
+            "result": result, "before": before,
+            "expires": time.monotonic() + QUIZ_TOKEN_TTL}
     return receipt
 
 
@@ -2711,10 +2931,13 @@ def _consume_quiz_flash(handler, receipt, view):
         return None
     current = (view.get("item") or {}).get("id")
     if rec["status"] == "complete":
-        return rec["result"] if rec["target"] is None and current is None else None
-    if current not in (rec["source_item_id"], rec["target"]):
+        if rec["target"] is not None or current is not None:
+            return None
+    elif current not in (rec["source_item_id"], rec["target"]):
         return None
-    return rec["result"]
+    payload = dict(rec["result"])
+    payload["before"] = rec["before"]
+    return payload
 
 
 def _content_type(handler):
@@ -3284,9 +3507,13 @@ def _lesson_context_nav(handler, bank_path):
         if inside:
             matches.append(course_id)
     if len(matches) == 1:
-        links.insert(0, {"href": "/course/%s/learn" %
-                         urllib.parse.quote(matches[0], safe=""),
+        course_id = urllib.parse.quote(matches[0], safe="")
+        links.insert(0, {"href": "/course/%s/learn" % course_id,
                          "label": "Back to course"})
+        links.append({"href": "/quiz/%s" %
+                      urllib.parse.quote(os.path.splitext(
+                          os.path.basename(bank_path))[0], safe=""),
+                      "label": "Continue to practice"})
     return links
 
 
@@ -4912,7 +5139,7 @@ def _course_operation(handler, operation, envelope=None):
             return
     try:
         result = course_ops.run(handler.root, operation, data,
-                                actor_kind="human",
+                                actor_kind=getattr(handler, "actor_kind", "human"),
                                 actor_name=data.get("actor") or "")
     except Exception as exc:                       # typed course/graph errors
         code = getattr(exc, "code", None)
@@ -4940,6 +5167,28 @@ def handle_api_course_create(handler):
     which is `journal.commit_operation` as a mint, and writes nothing else.
     """
     _course_operation(handler, "create")
+
+
+def handle_api_course_register_source(handler):
+    """Register one bounded local source through the journal mint path."""
+    _course_operation(handler, "register_source")
+
+
+def handle_mcp(handler):
+    """HTTP registration of the same JSON-RPC framing used by stdio."""
+    if _reject_cross_origin(handler):
+        return
+    try:
+        message = handler.read_json()
+    except (ValueError, TypeError) as exc:
+        handler.send_error(400, "malformed JSON-RPC body: %s" % exc)
+        return
+    from surfaces import mcp
+    response = mcp.frame(handler, message)
+    if response is None:
+        handler.send_json({})
+    else:
+        handler.send_json(response)
 
 
 def handle_api_course_rename(handler):
@@ -5258,6 +5507,12 @@ def handle_api_course_restore_package(handler):
 
 def handle_api_course_package_losses(handler):
     _course_operation(handler, "package_losses")
+
+
+def handle_api_course_agent_operation(handler):
+    """One token-gated lifecycle route. The closed request document admits
+    identities and review decisions, never proposal bytes or authority."""
+    _course_operation(handler, "agent_operation")
 
 
 def handle_api_bind(handler):

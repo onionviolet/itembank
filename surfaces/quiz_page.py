@@ -39,6 +39,24 @@ included (`tests/presentation_roundtrip.py` Test 2).
 import html
 
 
+RESPONSE_FORMAT_LABELS = {
+    "mc": "Single choice", "multi": "Multiple choice",
+    "table": "Table response", "build": "Build response",
+    "dnd": "Ordering or matching", "short": "Short response",
+    "visual": "Visual interaction", "check": "Code check",
+}
+RESPONSE_FORMAT_INSTRUCTIONS = {
+    "mc": "Choose one option.",
+    "multi": "Choose the requested number of options.",
+    "table": "Choose one category for every row.",
+    "build": "Select every step in the order it should happen.",
+    "dnd": "Match every row to a category. Dragging is not required.",
+    "short": "Write your response. It stays pending until a marker reviews it.",
+    "visual": "Use the visual or its adjacent keyboard controls, then submit.",
+    "check": "Edit the source, then run the check. The runtime records the verdict.",
+}
+
+
 TEMPLATE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>__TITLE__</title>
@@ -132,6 +150,12 @@ h1.stem{font-size:32px;font-weight:600;line-height:1.2;margin:0 0 14px;
   padding:9px 0;border-bottom:1px solid var(--line)}
 .rowline:last-of-type{border-bottom:0}
 .rowtext{flex:1 1 240px;min-width:0;font-family:var(--font-paper)}
+.rowline select{flex:1 1 12rem;min-width:0;max-width:100%;min-height:44px;
+  font:inherit;font-size:16px;padding:8px 12px;border:1px solid var(--edge);
+  border-radius:8px;background:var(--card);color:inherit}
+.response-body{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.response-table,.response-dnd,.response-visual,.response-check{
+  max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain}
 .seg{display:flex;gap:5px;flex-wrap:wrap}
 .seg button{font:inherit;font-size:16px;padding:8px 12px;min-height:44px;
   font-family:var(--font-chrome);border-radius:7px;border:1px solid var(--edge);background:var(--card);
@@ -322,7 +346,11 @@ textarea.ans:disabled{opacity:.75}
   font-family:var(--font-ledger)}
 .provenance summary{cursor:pointer}
 .assist-id{overflow-wrap:anywhere;word-break:break-all}
-</style></head><body><div class="wrap">
+.activity-frame{margin:0 0 var(--space-4)}
+.activity-facts{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);margin:0}
+.activity-facts div{min-width:10rem}.activity-facts dt{font-size:12px;color:var(--mut)}
+.activity-facts dd{margin:2px 0 0;font-size:16px}
+</style></head><body><div class="wrap" data-presentation-profile="__PRESENTATION_PROFILE__">
 <nav class="context-line" data-surface-context aria-label="Session context">
   <span class="cx" id="cx-bank">__CTX_BANK__</span>
   <span class="cx objective" id="cx-objective"></span>
@@ -330,6 +358,12 @@ textarea.ans:disabled{opacity:.75}
   <span class="cx mode" id="cx-mode">__CTX_MODE__</span>
   <span class="cx lesson" id="cx-lesson"></span>
 </nav>
+<section class="activity-frame" aria-label="Learner activity">
+  <dl class="activity-facts"><div><dt>Purpose</dt><dd id="activity-purpose">__CTX_MODE__</dd></div>
+  <div><dt>Response format</dt><dd id="activity-response">Response</dd></div>
+  <div><dt>Disclosure</dt><dd id="activity-disclosure">Feedback follows session policy</dd></div></dl>
+  <p class="hint" id="activity-instructions">Follow the response instructions below.</p>
+</section>
 <details class="session-details">
   <summary>Session details</summary>
   <div id="detail-body" class="detail-body"></div>
@@ -588,9 +622,16 @@ def _form_controls(item, prefill=None):
                                           html.escape(str(s)))
                                          for s in item.get("steps") or []))
                        for n in range(len(item.get("steps") or [])))
+    if t == "visual":
+        return ('<div class="pend" role="note">This visual response needs the '
+                'interactive page. Enable JavaScript, then reload this item. '
+                'No response has been recorded.</div>')
     label = "Code response" if t == "check" else "Your response"
+    value = _prefilled(prefill, "answer")
+    if t == "check" and not value:
+        value = item.get("starter", "")
     return '<label>%s<textarea class="ans" name="answer">%s</textarea></label>' % (
-        label, html.escape(_prefilled(prefill, "answer")))
+        label, html.escape(value))
 
 
 def _selection_card(picks):
@@ -622,7 +663,8 @@ def _hint_card(row, locked=False):
         html.escape(str(body)))
 
 
-def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=None):
+def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=None,
+                 continue_href=None, continue_label=None):
     """Pure, key-free HTML adapter over public runtime projections.
 
     `prefill` is the raw form mapping of a submission that did not go through
@@ -633,6 +675,10 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=N
     if not item:
         return '<div class="done empty" data-server-baseline>Session complete.</div>'
     teaching = (teaching_result or {}).get("teaching") or {}
+    response_type = item.get("type", "")
+    format_label = RESPONSE_FORMAT_LABELS.get(response_type, "Response")
+    instructions = RESPONSE_FORMAT_INSTRUCTIONS.get(
+        response_type, "Follow the response instructions below.")
     feedback = ""
     if isinstance(flash, dict):
         if flash.get("refused"):
@@ -667,13 +713,30 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=N
             feedback = '<div class="%s">%s</div>' % (
                 "pend" if score is None else "verdict " + ("y" if score else "n"),
                 "Recorded. Not marked here." if score is None else
-                ("Previous answer: correct" if score else "Previous answer: not correct"))
+                ("Correct. Your answer was recorded." if score else
+                 "Not correct. Your answer was recorded."))
+    # The served form uses PRG. The runtime may already hold the next cursor
+    # after accepting this answer, but the learner must first see the verdict
+    # for the item they just answered. This pause is presentation only: the
+    # explicit link resumes the runtime's current item without a second submit.
+    if continue_href:
+        action = ('<div class="act"><a class="go" data-feedback-continue '
+                  'href="%s">%s</a></div>' %
+                  (html.escape(continue_href, quote=True),
+                   html.escape(continue_label or "Continue")))
+        return ('<div class="card" data-server-baseline data-feedback-pause '
+                'data-session-id="%s" data-item-id="%s">'
+                '<h1 class="stem">%s</h1><p class="hint"><b>%s.</b> %s</p>'
+                '<div class="feedback" role="status" aria-live="polite">%s</div>%s</div>' %
+                (html.escape(str(view.get("session_id", "")), quote=True),
+                 html.escape(str(item.get("id", "")), quote=True),
+                 html.escape(str(item.get("stem", ""))), html.escape(format_label),
+                 html.escape(instructions), feedback, action))
     ladder = ""
     if teaching.get("available"):
         cards = ''.join(_hint_card(x) for x in teaching.get("shown") or [])
         if teaching.get("next_locked"):
             cards += _hint_card(teaching["next_locked"], True)
-        cards += ''.join(_hint_card(x, True) for x in teaching.get("further_locked") or [])
         action = ""
         if not teaching.get("exhausted"):
             kind = "hint" if teaching.get("entitled") else "stumped"
@@ -684,20 +747,26 @@ def baseline_for(view, teaching_result, post_path, tokens, flash=None, prefill=N
                       '<button class="go ghost" data-teach="%s" type="submit">%s</button></form>' %
                       (html.escape(post_path, quote=True), html.escape(tokens[kind], quote=True),
                        kind, kind, html.escape(label)))
-        ladder = '<section class="support-region"><h3 class="hint-heading">Hints</h3>' \
+        # The runtime owns hint entitlement. The page offers one next help
+        # action instead of promoting locked future tiers as competing tasks.
+        ladder = '<section class="support-region"><h3 class="hint-heading">Help</h3>' \
                  '<ol class="hint-ladder">%s</ol>%s</section>' % (cards, action)
     elif teaching.get("unavailable_reason"):
         ladder = '<section class="support-region"><p class="assist-copy">%s</p></section>' % \
                  html.escape(str(teaching["unavailable_reason"]))
+    submit = ('' if response_type == "visual" else
+              '<div class="act"><button class="go" type="submit">Submit answer</button></div>')
     return ('<div class="card" data-server-baseline data-session-id="%s" data-item-id="%s">'
-            '<h1 class="stem">%s</h1><form method="post" action="%s" data-answer-form>%s'
+            '<h1 class="stem">%s</h1><p class="hint"><b>%s.</b> %s</p>'
+            '<form method="post" action="%s" data-answer-form>%s'
             '<input type="hidden" name="form_token" value="%s"><input type="hidden" name="action" value="submit">'
             '<div class="feedback" role="status" aria-live="polite">%s</div>'
-            '<div class="act"><button class="go" type="submit">Submit answer</button></div></form>%s</div>' %
+            '%s</form>%s</div>' %
             (html.escape(str(view.get("session_id", "")), quote=True),
              html.escape(str(item.get("id", "")), quote=True), html.escape(str(item.get("stem", ""))),
+             html.escape(format_label), html.escape(instructions),
              html.escape(post_path, quote=True), _form_controls(item, prefill),
-             html.escape(tokens["submit"], quote=True), feedback, ladder))
+             html.escape(tokens["submit"], quote=True), feedback, submit, ladder))
 ASSIST_JS = (ASSIST_JS
     .replace("__ASSIST_PREPARING__", ASSIST_COPY["preparing"])
     .replace("__ASSIST_GENERATED_HEADING__", ASSIST_COPY["generated_heading"])
@@ -725,6 +794,17 @@ const LABEL = {mc:"multiple choice", multi:"multiple response",
                table:"options table", build:"build list", dnd:"drag-and-drop",
                short:"short answer", check:"code check",
                visual:"visual assessment"};
+const FORMAT_LABEL = {mc:"Single choice", multi:"Multiple choice",
+  table:"Table response", build:"Build response", dnd:"Ordering or matching",
+  short:"Short response", visual:"Visual interaction", check:"Code check"};
+const FORMAT_INSTRUCTION = {mc:"Choose one option.",
+  multi:"Choose the requested number of options.",
+  table:"Choose one category for every row.",
+  build:"Select every step in the order it should happen.",
+  dnd:"Match every row to a category. Dragging is not required.",
+  short:"Write your response. It stays pending until a marker reviews it.",
+  visual:"Use the visual or its adjacent keyboard controls, then submit.",
+  check:"Edit the source, then run the check. The runtime records the verdict."};
 const FS = "\u001f", PS = "\u001e";   /* must match FIELD_SEP and PAIR_SEP */
 const REDUCED = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 let i = 0, score = 0, autoTotal = 0;
@@ -734,6 +814,10 @@ const host = document.getElementById("host");
 const cxObjective = document.getElementById("cx-objective");
 const cxLesson = document.getElementById("cx-lesson");
 const detailBody = document.getElementById("detail-body");
+const activityResponse = document.getElementById("activity-response");
+const activityDisclosure = document.getElementById("activity-disclosure");
+const activityPurpose = document.getElementById("activity-purpose");
+const activityInstructions = document.getElementById("activity-instructions");
 const esc = s => (s==null?"":String(s)).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 
 function installStickyMeasure(){
@@ -786,6 +870,13 @@ function metaChips(q){
 
 function setContext(q){
   if(cxObjective) cxObjective.textContent = q.objective || "";
+  if(activityPurpose) activityPurpose.textContent = document.getElementById("cx-mode").textContent === "exam"
+    ? "Formal assessment" : "Practice";
+  if(activityResponse) activityResponse.textContent = FORMAT_LABEL[q.type] || q.type || "Response";
+  if(activityInstructions) activityInstructions.textContent = FORMAT_INSTRUCTION[q.type] || "Follow the response instructions below.";
+  if(activityDisclosure) activityDisclosure.textContent = q.type === "short"
+    ? "Pending human review" : (document.getElementById("cx-mode").textContent === "exam"
+      ? "Feedback after completion" : "Feedback available now");
   if(cxLesson) cxLesson.innerHTML = lessonChip(q);
   if(detailBody) detailBody.innerHTML = `<span class="chip">${esc(q.objective||"")}</span>`
     + `<span class="chip">${esc(document.getElementById("cx-mode").textContent)}</span>`
@@ -834,6 +925,7 @@ function render(){
   card.className = "card";
   card.innerHTML = `<h1 class="stem">${esc(q.stem)}</h1>`;
   const body = document.createElement("div");
+  body.className = `response-body response-${q.type}`;
   card.appendChild(body);
   const fb = document.createElement("div");
   fb.className = "feedback";
@@ -1294,6 +1386,17 @@ const LABEL = {mc:"multiple choice", multi:"multiple response",
                table:"options table", build:"build list", dnd:"drag-and-drop",
                short:"short answer", check:"code check",
                visual:"visual assessment"};
+const FORMAT_LABEL = {mc:"Single choice", multi:"Multiple choice",
+  table:"Table response", build:"Build response", dnd:"Ordering or matching",
+  short:"Short response", visual:"Visual interaction", check:"Code check"};
+const FORMAT_INSTRUCTION = {mc:"Choose one option.",
+  multi:"Choose the requested number of options.",
+  table:"Choose one category for every row.",
+  build:"Select every step in the order it should happen.",
+  dnd:"Match every row to a category. Dragging is not required.",
+  short:"Write your response. It stays pending until a marker reviews it.",
+  visual:"Use the visual or its adjacent keyboard controls, then submit.",
+  check:"Edit the source, then run the check. The runtime records the verdict."};
 const FS = "\u001f", PS = "\u001e";   /* must match FIELD_SEP and PAIR_SEP */
 const REDUCED = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 let sessionId = null, i = 0, total = 0, score = 0, autoTotal = 0;
@@ -1307,6 +1410,10 @@ const host = document.getElementById("host");
 const cxObjective = document.getElementById("cx-objective");
 const cxLesson = document.getElementById("cx-lesson");
 const detailBody = document.getElementById("detail-body");
+const activityResponse = document.getElementById("activity-response");
+const activityDisclosure = document.getElementById("activity-disclosure");
+const activityPurpose = document.getElementById("activity-purpose");
+const activityInstructions = document.getElementById("activity-instructions");
 const esc = s => (s==null?"":String(s)).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 
 function installStickyMeasure(){
@@ -1367,6 +1474,13 @@ function metaChips(q){
 
 function setContext(q){
   if(cxObjective) cxObjective.textContent = q.objective || "";
+  if(activityPurpose) activityPurpose.textContent = document.getElementById("cx-mode").textContent === "exam"
+    ? "Formal assessment" : "Practice";
+  if(activityResponse) activityResponse.textContent = FORMAT_LABEL[q.type] || q.type || "Response";
+  if(activityInstructions) activityInstructions.textContent = FORMAT_INSTRUCTION[q.type] || "Follow the response instructions below.";
+  if(activityDisclosure) activityDisclosure.textContent = q.type === "short"
+    ? "Pending human review" : (document.getElementById("cx-mode").textContent === "exam"
+      ? "Feedback after completion" : "Feedback available now");
   if(cxLesson) cxLesson.innerHTML = lessonChip(q);
   if(detailBody) detailBody.innerHTML = `<span class="chip">${esc(q.objective||"")}</span>`
     + `<span class="chip">${esc(document.getElementById("cx-mode").textContent)}</span>`
@@ -1426,6 +1540,7 @@ function renderItem(view){
   card.className = "card";
   card.innerHTML = `<h1 class="stem">${esc(q.stem)}</h1>`;
   const body = document.createElement("div");
+  body.className = `response-body response-${q.type}`;
   card.appendChild(body);
   const fb = document.createElement("div");
   fb.className = "feedback";
@@ -3092,11 +3207,10 @@ function renderTeaching(card, result){
   }
   const shown=(teaching.shown||[]).map(x=>hintCard(x,false)).join("");
   const next=teaching.next_locked ? hintCard(teaching.next_locked,true) : "";
-  const further=(teaching.further_locked||[]).map(x=>hintCard(x,true)).join("");
   const label=teaching.entitled ? "Open the next hint" : "I'm stumped &mdash; show the next hint";
   const action=teaching.exhausted ? "" : `<div class="hint-actions"><button type="button"
     class="go ghost" data-teach="${teaching.entitled?"hint":"stumped"}">${label}</button></div>`;
-  region.innerHTML=`<h3 class="hint-heading">Hints</h3><ol class="hint-ladder">${shown}${next}${further}</ol>${action}`;
+  region.innerHTML=`<h3 class="hint-heading">Hints</h3><ol class="hint-ladder">${shown}${next}</ol>${action}`;
   const button=region.querySelector("[data-teach]");
   if(button) button.onclick=()=>api("/api/teach",{session_id:sessionId,
     action:{kind:button.dataset.teach}}).then(fresh=>renderTeaching(card,fresh));

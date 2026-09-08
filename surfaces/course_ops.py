@@ -80,6 +80,7 @@ import identity
 import journal
 import resources
 import schema_validate
+from surfaces import agent_operation
 import blueprint
 from surfaces import binding_cli
 from surfaces import ia
@@ -98,6 +99,7 @@ REQUEST_SCHEMA_PATH = "schemas/course_operation.schema.json"
 # reserved MCP tool names are all checked against.
 OPERATION_ENGINE = {
     "create": "course.create_course",
+    "register_source": "journal.commit_operation",
     "rename": "course.write_course",
     "add_source": "graph.add_source",
     "bind": "course.bind_source",
@@ -130,6 +132,12 @@ OPERATION_ENGINE = {
     "verify_package": "course_package.verify_manifest",
     "restore_package": "course_package.restore_package",
     "package_losses": "course_package.loss_report_text",
+    "outline": "graph.outline_projection",
+    "coverage": "director.coverage_claims_for",
+    "untreated": "director.untreated_objectives",
+    "protocol": "director.protocol_report",
+    "parity": "director.parity_view",
+    "agent_operation": "surfaces.agent_operation",
 }
 
 # The operations that only read. They reach no writer, advance no revision,
@@ -137,7 +145,8 @@ OPERATION_ENGINE = {
 # other name in OPERATION_ENGINE writes.
 READ_OPERATIONS = ("bindings", "structure", "treatments", "autonomy",
                    "replay", "blueprint_gate", "audit", "staleness",
-                   "verify_package", "package_losses")
+                   "verify_package", "package_losses", "outline",
+                   "coverage", "untreated", "protocol", "parity")
 
 # The operations whose journal origin is an AGENT rather than the human at the
 # surface, because a model produced what they record. Everything absent from
@@ -399,6 +408,38 @@ def _op_add_source(root, body, actor_kind, actor_name, base=None):
                 "%s; no surface removes a Sources row yet, so the reversal "
                 "is restoring the sidecar's previous revision from the "
                 "operation journal" % revision.get("revision"),
+    }
+
+
+def _op_register_source(root, body, actor_kind, actor_name, base=None):
+    """Mint one local source through the existing journal authority."""
+    base = base or resolve_course(root, body["course_id"])
+    raw = body["content"].encode("utf-8")
+    if len(raw) > 1048576:
+        raise course_module.CourseError(
+            "course.source_too_large",
+            "source content exceeds the one MiB local registration limit; "
+            "nothing was written")
+    object_id = identity.new_object_id()
+    rel_path = "sources/" + body["filename"]
+    try:
+        record = journal.commit_operation(
+            base, object_id, "source", rel_path, "mint",
+            raw, expected_fingerprint=None,
+            actor_kind=actor_kind, actor_name=actor_name,
+            create_if_missing=True, rights=body.get("grants"))
+    except journal.JournalError as exc:
+        raise course_module.CourseError(exc.code, exc.message)
+    return {
+        "operation": "register_source",
+        "engine": OPERATION_ENGINE["register_source"],
+        "course_id": body["course_id"],
+        "source_object_id": object_id,
+        "filename": body["filename"],
+        "fingerprint": record.get("fingerprint"),
+        "revision": record.get("revision"),
+        "rights": record.get("rights"),
+        "undo": "reverse the mint journal entry before another object depends on it",
     }
 
 
@@ -1207,6 +1248,40 @@ def _op_staleness(root, body, actor_kind, actor_name, base=None):
             "course_id": body["course_id"],
             "rows": blueprint.staleness_report(body.get("dependents") or [])}
 
+def _op_outline(root, body, actor_kind, actor_name, base=None):
+    base = base or resolve_course(root, body["course_id"])
+    record = course_module.read_course(base)
+    return {"operation": "outline", "engine": "graph.outline_projection",
+            "course_id": body["course_id"],
+            "outline": graph.outline_projection(record["doc"])}
+
+def _op_coverage(root, body, actor_kind, actor_name, base=None):
+    base = base or resolve_course(root, body["course_id"])
+    doc = course_module.read_course(base)["doc"]
+    return {"operation": "coverage", "engine": "director.coverage_claims_for",
+            "course_id": body["course_id"],
+            "claims": director.coverage_claims_for(doc, {})}
+
+def _op_untreated(root, body, actor_kind, actor_name, base=None):
+    base = base or resolve_course(root, body["course_id"])
+    return {"operation": "untreated", "engine": "director.untreated_objectives",
+            "course_id": body["course_id"],
+            "objectives": director.untreated_objectives(
+                course_module.read_course(base)["doc"])}
+
+def _op_protocol(root, body, actor_kind, actor_name, base=None):
+    base = base or resolve_course(root, body["course_id"])
+    doc = course_module.read_course(base)["doc"]
+    return {"operation": "protocol", "engine": "director.protocol_report",
+            "course_id": body["course_id"],
+            "report": director.protocol_report(doc.get("log") or [])}
+
+def _op_parity(root, body, actor_kind, actor_name, base=None):
+    base = base or resolve_course(root, body["course_id"])
+    return {"operation": "parity", "engine": "director.parity_view",
+            "course_id": body["course_id"],
+            "view": director.parity_view(course_module.read_course(base))}
+
 
 def _relative_package_path(root, package_root):
     return os.path.relpath(package_root, os.path.realpath(root)).replace(
@@ -1827,8 +1902,40 @@ def _op_settle_migration(root, body, actor_kind, actor_name, base=None):
     }
 
 
+def _op_agent_operation(root, body, actor_kind, actor_name, base=None):
+    """Dispatch the complete proposal lifecycle through its one durable
+    implementation. The request carries identities and decisions only."""
+    base = base or resolve_course(root, body["course_id"])
+    action = body["action"]
+    if action == "start" and not body.get("skill"):
+        raise course_module.CourseError("course.invalid_request",
+                                        "agent-operation start requires skill")
+    if action != "start" and not body.get("proposal_id"):
+        raise course_module.CourseError(
+            "course.invalid_request",
+            "agent-operation %s requires proposal_id" % action)
+    cfg = settings_module.load_settings(root)
+    if action == "start":
+        result = agent_operation.start(body["skill"], cfg, base)
+    elif action == "status":
+        result = agent_operation.status(base, body["proposal_id"])
+    elif action == "accept":
+        result = agent_operation.accept(body["proposal_id"], cfg, base=base,
+                                        reviewer=actor_name)
+    elif action == "reject":
+        result = agent_operation.reject(base, body["proposal_id"], actor_name,
+                                        body.get("reason") or "")
+    else:
+        result = agent_operation.undo(base, body["proposal_id"], actor_name)
+    if isinstance(result, dict):
+        result.pop("base", None)
+    return result
+
+
 OPERATIONS = {
+    "agent_operation": _op_agent_operation,
     "create": _op_create,
+    "register_source": _op_register_source,
     "rename": _op_rename,
     "add_source": _op_add_source,
     "bind": _op_bind,
@@ -1861,6 +1968,9 @@ OPERATIONS = {
     "verify_package": _op_verify_package,
     "restore_package": _op_restore_package,
     "package_losses": _op_package_losses,
+    "outline": _op_outline, "coverage": _op_coverage,
+    "untreated": _op_untreated, "protocol": _op_protocol,
+    "parity": _op_parity,
 }
 
 
@@ -2156,7 +2266,7 @@ def cmd_course(a):
         # The subcommand name is the operation name, with the one spelling
         # difference a command line wants: a hyphen reads better in a shell
         # and an underscore is what a JSON field is called.
-        operation = a.action.replace("-", "_")
+        operation = getattr(a, "operation", a.action).replace("-", "_")
         node, _document = operation_schema(operation)
         request = {}
         for identity_field in ("course_id", "package_id"):
@@ -2170,6 +2280,8 @@ def cmd_course(a):
             if value is None or value == "" or value == []:
                 continue
             request[name] = value
+        if operation == "agent_operation":
+            request["action"] = a.action
         payload = run(a.root, operation, request, actor_kind="human",
                       actor_name=getattr(a, "actor", "") or "")
         if getattr(a, "json", False):
