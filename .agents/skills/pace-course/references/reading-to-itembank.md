@@ -2,6 +2,29 @@
 
 Use this protocol when a live-course source may become early reading or later practice. The numeric ranges are defaults, not quotas.
 
+## Choose the learning mode
+
+Modes are selectable treatments, not mandatory stages. A familiar topic may go directly to retrieval; a difficult topic may need teaching before a summary helps.
+
+| Mode | Purpose | Default output | Evidence meaning |
+|---|---|---|---|
+| **Early view / familiarity** | Reduce first-contact cost | 5 to 10 minute topic map, five to eight terms, prerequisite reminders, and two or three things to notice in class | Exposure only. Optional recognition checks are unscored and give no mastery credit. |
+| **Source summary** | Navigate or consolidate an available source | Central claims, definitions, diagrams, examples, and unresolved questions with page or slide locators | Preparation, not learning evidence and not answer authority. |
+| **Teaching content** | Explain a mechanism the source does not make usable alone | One 20 to 35 minute lesson with three to five objectives, why-it-works explanations, a worked example, a contrasting case, and teach-back prompts | Guided performance stays labeled guided. |
+| **Retrieval / quiz** | Test independent recall and transfer | Four to six varied items across the block, then explanations and targeted rereading | Readiness evidence only when answers and sources are verified and no hints appear during the scored attempt. |
+
+Apply course policy before selecting a mode. A summary never replaces an explicitly assigned reading. After a summary, use one closed-source teach-back; if it exposes a gap, return to the cited source.
+
+Track `source_state` separately from `acquisition_status`. A published file may still be `inventory_only`, which means it cannot support a claimed summary. Generated artifacts should also record `coverage`, `source_version`, `mode`, and `assistance`; treat these as protocol fields until Itembank supports them directly.
+
+## Handle slides faithfully
+
+- Preserve definitions, notation, diagram relationships, and instructor examples. Summarize by concept and cite slide locators.
+- Mark sparse or unexplained slides as incomplete. Never invent what the instructor may have said aloud.
+- Label supplementary explanation separately from instructor content.
+- If visuals were not inspected, say so. Text extraction alone cannot establish coverage of diagrams or visual emphasis.
+- Familiarity checks measure recognition, guided checks measure supported performance, and independent retrieval measures readiness. Never present immediate repetition of a revealed answer as mastery.
+
 ## Build a proper early reading
 
 1. Start with the next published class topic or due preparation. Choose one coherent subsection, argument, proof family, or worked-example group. Archive completeness does not determine reading priority.
@@ -44,6 +67,8 @@ When a new post arrives, compare its source version and objectives with the curr
 - **Retire:** the objective is no longer taught or practice is no longer permitted.
 
 Preserve completed reading history. Quarantine only affected items and record the reason and replacement trigger.
+
+Trace a changed source to affected summaries, lessons, and items through source version and objective. Do not reset unrelated material.
 
 ## Course boundaries
 
