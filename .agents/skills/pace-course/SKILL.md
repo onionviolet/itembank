@@ -50,5 +50,9 @@ collected coursework. Run the shipped lint, stats, and coverage gates, keep
 real banks outside this repository, and let the runtime own scoring and keyed
 disclosure.
 
+For reading size, promotion gates, small-bank defaults, feedback timing and
+source-change handling, read
+[references/reading-to-itembank.md](references/reading-to-itembank.md).
+
 Close with the files read, accepted artifact or diff, dated plan, unresolved
 posting dependencies, validation, and exact next action.
