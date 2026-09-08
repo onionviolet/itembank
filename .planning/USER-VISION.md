@@ -1440,6 +1440,24 @@ constraint relaxation, which already judged ideas on product merit and real
 cost rather than on a fixed stack.
 
 
+### 2026-09-07: class-ahead source pacing and durable agent workflow
+
+> summarizing slides and questions days earlier so I am ahead and more? other stuff to consider?
+
+> split the pages and sections accordingly, so like read x before y day of class or something, more to consider?
+
+> adjust sections accordingly, record for future workflow and more, maybe as an skill in itembank in skills repo and more
+
+**Status:** active.
+
+**Current interpretation:** a live course needs a rolling preparation operation between source intake and assessment. It reconciles newly posted slides, filled notes, assigned readings, questions, and class dates into one unit artifact. It splits reading at conceptual boundaries, schedules first exposure before class, reserves the class morning for short recall, requires one paper attempt, and captures only the instructor's new emphasis afterward. The goal is to arrive able to follow and question the lecture, not to accumulate earlier summaries.
+
+**Open questions:** the default lead is one published class, usually two to four calendar days, because an LMS may not expose later material. A late posting shortens the lead instead of forcing a forecast. Evidence may later justify a longer lead for a specific course. Itembank practice begins only when independent practice is permitted, source bindings and objectives are stable, and a complete bank can pass the product's validation gates.
+
+**Planning effect:** added the mirrored `pace-course` skill as the portable workflow. The source-to-course contract now names live-course pacing as a course treatment operation. No runtime command or new durable format is implied.
+
+**Relationship to prior entries:** extends the 2026-08-26 reading-surface direction and the 2026-08-28 paced-lesson option. It governs when and how source work reaches the learner; it does not replace the continuous reader or the optional paced presentation mode.
+
 ## Interpretation protocol
 
 An interpretation may appear immediately after a verbatim entry when it helps

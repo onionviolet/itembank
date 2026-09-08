@@ -140,6 +140,23 @@ adaptive disclosure, and other learning controls, without making the source
 file depend on those enhancements for its meaning. A richer capability must
 have a useful non-interactive representation and an accessible interaction.
 
+### Live-course pacing
+
+A course built around current classes supports a rolling, source-grounded plan
+one published meeting ahead. New slides, filled notes, readings, questions, and
+dates reconcile into one accepted unit artifact rather than parallel
+summaries. Reading ranges split at conceptual boundaries. First exposure occurs
+before class, the class morning holds short retrieval, and the post-class pass
+records only the instructor's new emphasis or correction.
+
+Question purpose and authority remain explicit. Instructor examples, in-class
+prompts, uncollected source questions, collected work, and formal assessments
+are different objects. A course may record the objective tested by collected
+work without reproducing a barred prompt. Itembank practice follows only after
+the course permits it, objective and source bindings are stable, and the bank
+can pass complete validation. A reading layer does not silently become an
+answer key, assessment, or mastery claim.
+
 ### Learning experience and capability research
 
 Do not design the course journey by accumulating attractive widgets. Research

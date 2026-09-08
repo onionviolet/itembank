@@ -401,6 +401,7 @@ Repo playbooks live in two mirrored trees so every agent finds them:
 | `guiding-questions` | Run a Socratic tutoring session with the JSON protocol |
 | `author-bank` | The write → lint → fix loop for new items |
 | `ocr` | Read text out of images via a local Ollama vision model (optional; needs the model pulled) |
+| `pace-course` | Reconcile live slides, notes, readings, questions, and dates into a rolling class-ahead plan |
 
 Where each tool finds the playbooks:
 
