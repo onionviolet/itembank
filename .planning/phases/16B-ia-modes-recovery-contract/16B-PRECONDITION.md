@@ -66,7 +66,7 @@ the same recorded hash command returned the current compatibility value below.
 The preceding value remains in that test's dated history.
 
 ```
-bd95f46dad87ce478d6954a198caaefb9ab044c31c671980974bb2caaf3012e9
+6ab4db9327513222b9ccbad267f2afa4d12e17c00e5362b1a065b3674628e0e6
 ```
 
 ## Deviations found

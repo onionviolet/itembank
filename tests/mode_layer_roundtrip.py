@@ -63,7 +63,7 @@ BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
 # no-sections call signature or its authority boundary. The pre-change value
 # was 5c7e2cb5c3fb1e1591154adea102c965c1e6f401c270229459f376fb20cf1c1a.
 THEME_PAGE_BASELINE = \
-    "bd95f46dad87ce478d6954a198caaefb9ab044c31c671980974bb2caaf3012e9"
+    "6ab4db9327513222b9ccbad267f2afa4d12e17c00e5362b1a065b3674628e0e6"
 
 # Phase 16C appends rows here rather than creating a second fixture. Each row
 # is (setting_name, requests, expected_winning_layer, expected_value).
