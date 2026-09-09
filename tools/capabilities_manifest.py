@@ -66,6 +66,8 @@ SINCE = {
     # 2026-09-05: the CLI twin of POST /api/course/<operation>. Still 0.3.0,
     # the same unreleased version every command above lands in.
     "course": "0.3.0",
+    # Phase 19E's generated MCP tool table ships in the same unreleased version.
+    "mcp": "0.3.0",
 }
 
 # The two byte-identical skill mirrors (CI enforces the diff); the index
@@ -81,6 +83,15 @@ CHANGED_FOR_AGENTS = [
          "index of this install (version, format contract version, every "
          "CLI command with its since-version, served routes, skill index, "
          "and this changelog). Reading it is not a network event.",
+     ]},
+    {"version": "unreleased",
+     "changes": [
+         "The current checkout publishes the generated MCP tool table through "
+         "the mcp command and token-gated /mcp route, and exposes course "
+         "source-registration and agent-operation routes.",
+         "Lesson readers now disclose authored comparison interactions and "
+         "guided progressive-reading controls while retaining static and "
+         "offline fallbacks; accessibility review remains a human gate.",
      ]},
 ]
 

@@ -1,28 +1,27 @@
 # Phase 20 verification
 
 **Checked:** 2026-09-08
-**Verdict:** Blocked from full closure
+**Verdict:** Deterministic repair complete, human closure owed
 **Scope:** Plan 20-05 Task 3 audit closure and deterministic verification
 
 Every current audit and inspiration row has a terminal disposition, evidence,
-an exact blocked condition, or a named external or human owner. Phase 20 cannot
-honestly close because the stylesheet suite still names owed off-scale modules,
-the required full daemon transition suite remains unavailable in this runner,
-and the blocking human visual, touch, and screen-reader checkpoint remains
-owed.
+an exact blocked condition, or a named external or human owner. The Plan 20-05
+focused gates and full daemon transition suite pass. The three previously
+failing deterministic integration gates now pass. The human visual,
+touch-device, and screen-reader checkpoint remains owed.
 
 ## Requirement coverage
 
 | Requirement | Deterministic evidence | Current result |
 |---|---|---|
-| FLOW-01 | Home, IA-route, profile, lifecycle, and transition fixtures preserve exact next actions, course context, Back, Home, interruption, and recovery | Focused deterministic legs pass. The required full daemon result remains unavailable because the runner terminates it at about 30 seconds |
+| FLOW-01 | Home, IA-route, profile, lifecycle, transition, and full daemon fixtures preserve exact next actions, course context, Back, Home, interruption, and recovery | Passed |
 | FLOW-02 | Profile course-to-lesson-to-practice context, serve lifecycle, and route parity checks | Passed for the Phase 20 slice |
 | CAP-02 | Versioned `presentation.surface_adapter_manifest()`, settings migration and removal recovery, plain fallback, and no-loader checks | Passed |
 | ACTIVITY-01 | Purpose precedes response format across every shipped purpose and response type | Passed |
 | ACTIVITY-03 | Serve, hint, Agent, MCP, and profile parity checks preserve runtime scoring and disclosure authority | Passed |
 | A11Y-01 | Deterministic keyboard, focus, target, reflow, fallback, and state checks | Automated leg passes. Human touch and screen-reader acceptance is skipped and not certified |
 | VISUAL-01 | Both profiles render the same semantic state with separate hierarchy and stable routes | Deterministic leg passes. Weibao's aesthetic acceptance is skipped |
-| VISUAL-02 | Settings and profile fixtures preserve independent profile, home, look, theme, contrast, accent, density, and motion axes | Passed |
+| VISUAL-02 | Settings and profile fixtures preserve independent profile, home, look, theme, contrast, accent, density, and motion axes | Passed, including the repaired config-key and 16B compatibility fixtures |
 
 The repository-wide requirement statuses remain owned by their canonical
 phases. This record verifies only Phase 20's contribution and does not mark the
@@ -41,10 +40,10 @@ loader.
 
 ## Audit and inspiration coverage
 
-`20-AUDIT-CROSSWALK.md` now gives every current finding one of these terminal
+`20-AUDIT-CROSSWALK.md` gives every current finding one of these terminal
 states: fixed and deterministically verified, human owed with an automated leg,
-externally owned, or blocked by an exact condition. No owned deterministic
-finding remains merely deferred.
+externally owned, or blocked by an exact condition. The Settings integration
+row is now fixed with direct deterministic evidence.
 
 `20-INSPIRATION-MATRIX.md` records an acceptance result for every adapted or
 rejected pattern. Resume and Shelf are retained. Agenda and Path remain
@@ -64,15 +63,16 @@ checkout.
 | `python3 tests/settings_roundtrip.py` | Passed |
 | `python3 tests/component_primitives_roundtrip.py` | Passed, 17 primitives |
 | `python3 tests/presentation_profiles_roundtrip.py` | Passed |
-| EXT-01 through EXT-04 preservation suites | Passed: extension registry, source adapters, model adapter, capability diagnostics, Agent operation, MCP, course operations, and surface roundtrips |
-| Home, visual-accessibility, serve, IA-route, hint, and stylesheet suites | Passed. The visual suite reported 13 positive layout gates. The stylesheet suite also reported Settings, Day, and Study as off-scale and owed rather than done |
-| `python3 scripts/preflight.py --quick` | Passed every enabled gate. Tests, clean, and JS were skipped by quick mode |
-| `git diff --check` | Passed |
-| `python3 tests/daemon_roundtrip.py` | Unavailable in this runner. The earlier picker-timeout cause was repaired in the shared checkout. The runner now terminates the full suite at about 30 seconds before it returns a result. This is owed, not passed |
+| EXT-01 through EXT-04 focused preservation suites | Passed: extension registry, source adapters, model adapter, capability diagnostics, Agent operation, MCP, course operations, model surface, and surface roundtrips |
+| Home, visual-accessibility, serve, IA-route, hint, and stylesheet suites | Passed. The visual suite reported 13 positive layout gates. The stylesheet suite still reports Settings, Day, and Study as historical debt outside its enforced scope |
+| `python3 tests/daemon_roundtrip.py` | Passed three consecutive runs in Plan 20-04 after the preconnected twelve-client repair |
+| `python3 tests/config_roundtrip.py` | Passed, including schema-key completeness and the 16B current compatibility fixture |
+| `python3 tests/capabilities_roundtrip.py` | Passed after MCP `SINCE` metadata and generated manifest regeneration |
+| `python3 scripts/preflight.py` | Completed once. All setup, summary, schema, generation, JavaScript, and 116 test-file rows ran. The Phase 20 tracer and daemon rows passed. The aggregate failed only on the pre-existing four-subject parity `ok / unavailable` result and the expected dirty-tree clean row |
+| `git diff --check` | Passed after the final scoped diff review |
 
-`20-TRANSITION-GATES.md` remains the exact owner of the unavailable full daemon
-result. Its 11 transition families have passing focused contract legs, but its
-overall gate remains incomplete.
+`20-TRANSITION-GATES.md` remains the exact owner of the full daemon result. Its
+11 transition families and full daemon gate pass, with human legs owed.
 
 ## Human and sampling results
 
@@ -106,9 +106,10 @@ Synthetic fixtures cover both profiles, all shipped home modes, registered
 Agenda and Path prototypes, all response types, desktop and phone breakpoints,
 degraded states, no-script fallback, offline behavior, profile migration, and
 adapter removal recovery. Large modules were sampled by symbol and narrow line
-windows rather than read whole: `surfaces/daemon.py`, `tests/daemon_roundtrip.py`,
-`surfaces/presentation.py`, `tests/ia_route_roundtrip.py`, and
-`tests/source_adapters_roundtrip.py`.
+windows rather than read whole: `schemas/settings.schema.json`,
+`surfaces/settings.py`, `surfaces/daemon.py`, `surfaces/theme.py`,
+`surfaces/presentation.py`, `tests/daemon_roundtrip.py`,
+`tests/ia_route_roundtrip.py`, and `tests/source_adapters_roundtrip.py`.
 
 ## Rollback and remaining risk
 
@@ -117,10 +118,10 @@ terminal-disposition edits in `20-AUDIT-CROSSWALK.md` and
 `20-INSPIRATION-MATRIX.md`. No runtime, parser, scorer, route, evidence,
 settings, Canvas, catalog, or external service state changes in Task 3.
 
-The unresolved deterministic condition is the unavailable full daemon result.
-Run it in a normal terminal or CI that permits it to return. The stylesheet
-suite also names an owned type-scale scope for Settings, Day, and Study that
-must enter enforcement and pass before its crosswalk row is fixed. Weibao owns
-the visual, touch, and screen-reader Task 2 checkpoint. Until those conditions
-are satisfied, Phase 20 stays blocked and no continuation task is created merely
-to repeat the blockers.
+The named deterministic repair changes only compatibility metadata and its
+generated artifact. The original 16B evidence remains preserved beside a
+current compatibility baseline for the accepted model-profile revision. The
+previous model-parity `unavailable` result remains environment-owned. A dirty
+tree remains expected because this authorized chain is uncommitted. Weibao owns
+the visual, touch-device, and screen-reader Task 2 checkpoint. No continuation
+task is created.

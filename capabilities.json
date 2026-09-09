@@ -103,6 +103,13 @@
         "capabilities.json introduced: a static, local, machine-readable index of this install (version, format contract version, every CLI command with its since-version, served routes, skill index, and this changelog). Reading it is not a network event."
       ],
       "version": "0.3.0"
+    },
+    {
+      "changes": [
+        "The current checkout publishes the generated MCP tool table through the mcp command and token-gated /mcp route, and exposes course source-registration and agent-operation routes.",
+        "Lesson readers now disclose authored comparison interactions and guided progressive-reading controls while retaining static and offline fallbacks; accessibility review remains a human gate."
+      ],
+      "version": "unreleased"
     }
   ],
   "commands": [
@@ -129,6 +136,11 @@
     {
       "help": "one process on one port for every surface",
       "name": "daemon",
+      "since": "0.3.0"
+    },
+    {
+      "help": "serve the generated MCP tool table over stdio",
+      "name": "mcp",
       "since": "0.3.0"
     },
     {
@@ -387,6 +399,11 @@
     },
     {
       "method": "GET",
+      "path": "/courses",
+      "token_gated": true
+    },
+    {
+      "method": "GET",
       "path": "/banks",
       "token_gated": true
     },
@@ -438,6 +455,11 @@
     {
       "method": "POST",
       "path": "/seed/accept",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/mcp",
       "token_gated": true
     },
     {
@@ -498,6 +520,11 @@
     {
       "method": "POST",
       "path": "/api/course/create",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/course/register-source",
       "token_gated": true
     },
     {
@@ -662,6 +689,11 @@
     },
     {
       "method": "POST",
+      "path": "/api/course/agent-operation",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
       "path": "/api/export_audio",
       "token_gated": true
     },
@@ -782,7 +814,12 @@
     },
     {
       "method": "GET",
-      "path": "^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/(?P<area>learn|practice|test|map|sources|build|evidence)$",
+      "path": "^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/(?P<area>learn|practice|test|map|sources|build|agent|evidence)$",
+      "token_gated": true
+    },
+    {
+      "method": "POST",
+      "path": "^/course/(?P<course_id>[A-Za-z0-9_.-]{1,64})/(?P<area>learn|practice|test|map|sources|build|agent|evidence)$",
       "token_gated": true
     },
     {
@@ -808,6 +845,7 @@
     "lesson-authoring",
     "media-intake",
     "ocr",
+    "problem-intake",
     "user-vision"
   ]
 }

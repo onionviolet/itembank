@@ -15,8 +15,8 @@ This file is the current routing answer for UI findings relevant to Phase 20. It
 | Walkthrough controls use browser-default styling beside production controls | UI character F1.1 | Fixed and deterministically verified | The walkthrough uses the shared primitive treatment. `tests/component_primitives_roundtrip.py` and `tests/ia_route_roundtrip.py::check_walkthrough_interruption` cover controls and state preservation |
 | Shelf and course areas lack a consistent application and course navigation frame | UI character F1.2, remediation R5, 16B route contract | Fixed and deterministically verified | `presentation.surface_adapter_manifest()` declares the shared course-area frame. `tests/presentation_profiles_roundtrip.py` and `tests/ia_route_roundtrip.py` verify course context, stable routes, Back, and Home behavior |
 | Quiz exposes all locked hint tiers and internal tier vocabulary before use | UI character F1.3, 13.5 wrong-answer contract, 17A progressive disclosure | Fixed, directly observed, and deterministically verified | The local served Quiz had regressed to six visible locked tiers. It now shows only the next permitted tier and one help action. `tests/serve_roundtrip.py` asserts one locked tier. The local browser recheck observed only Tier 0 and "I'm stumped" on a fresh sitting. Runtime disclosure authority remains unchanged |
-| Repeated rounded containers and drifting type sizes weaken hierarchy | UI character F1.4 and 13.5 five-size contract | Blocked on an owned deterministic condition | Shared semantic roles and the in-scope lesson, presentation, and Quiz type scale pass. `tests/stylesheet_roundtrip.py` explicitly reports `surfaces.theme` Settings CSS, `surfaces.day`, and `surfaces.study` as off-scale and owed rather than done. Those modules must enter the enforced type-scale scope and pass before this finding is fixed. Human aesthetic acceptance also remains Weibao-owned |
-| Settings gives appearance choices more space than learner-critical controls | UI character F1.5 and 16B settings contract | Fixed and deterministically verified | Settings has a compact preview and uses the active profile shell. `tests/settings_roundtrip.py` verifies migration, preview, save recovery, and all shipped values |
+| Repeated rounded containers and drifting type sizes weaken hierarchy | UI character F1.4 and 13.5 five-size contract | Externally owned historical debt, Phase 20 slice verified | Shared semantic roles and the in-scope lesson, presentation, and Quiz type scale pass. `tests/stylesheet_roundtrip.py` still names `surfaces.theme` Settings CSS, `surfaces.day`, and `surfaces.study` as debt inherited from Phase 13.5 and frozen Phase 17A. Weibao owns assignment to a new visual-system maintenance plan. Human aesthetic acceptance also remains Weibao-owned |
+| Settings gives appearance choices more space than learner-critical controls | UI character F1.5 and 16B settings contract | Fixed and deterministically verified | The compact preview, active profile shell, migration, preview, recovery, and shipped-value checks pass. `tests/config_roundtrip.py` now names `presentation_profile` and passes the 16B current compatibility fixture without altering the original evidence |
 | Empty course areas tell the truth but offer no next supported action | UI character F1.5 and 16B degraded-state matrix | Fixed and deterministically verified | `tests/presentation_profiles_roundtrip.py::check_course_transition_and_degraded_state_contract` and component zero, error, and partial-state checks require a supported action or an exact blocker |
 | Search or sticky chrome can cover mobile content | UI character A1.4 and V1.4 | Human owed, automated leg verified | `tests/visual_accessibility_roundtrip.py` and responsive profile fixtures cover fixed widths and reflow. Weibao owns the skipped touch-device and perceived-clarity check |
 | Activity purpose and item response format are visually conflated | ACTIVITY-01, 16B Activity naming warning, user direction | Fixed and deterministically verified | `presentation.activity_frame()` orders Purpose before Response format. `tests/presentation_profiles_roundtrip.py::check_activity_separation` covers every purpose and shipped response format |
@@ -54,20 +54,22 @@ The detailed fact, adaptation, rejection, and acceptance mapping lives in `20-IN
 | External-user cold install | Phase 18 human leg |
 | Shipped `shelf`, `next-action`, `agent`, and `split` home modes | Preserve all four. `shelf` remains default. Phase 20-02 tests both presentation profiles and migration without silent deletion or rename |
 | Resume, Shelf, Agenda, and Path learner jobs | Phase 20-02 maps Resume and Shelf to existing modes first. Agenda and Path prototype without stable setting values until human review retains, combines, or supersedes them |
-| Full migration of Agent, Sources, Map, Evidence, authoring, export, and integrations | Agent, Sources, Map, Evidence, and Build use the shared course frame. Settings uses the active profile shell. Authoring, export, and MCP retain their deterministic output identity through the named `authoring-export-integrations` compatibility adapter |
+| Full migration of Agent, Sources, Map, Evidence, authoring, export, and integrations | Agent, Sources, Map, Evidence, and Build use the shared course frame. Settings uses the active profile shell. Authoring, export, and MCP retain their deterministic output identity through the named `authoring-export-integrations` compatibility adapter. Their focused suites pass |
 | External extension packages, package loading, runtime fetching, and live reload | EXT-05 decision gate, not Phase 20 |
+| Generated capability publication | Repaired compatibility metadata. `tools/capabilities_manifest.py` declares MCP's `SINCE` entry and regenerated `capabilities.json` passes `tests/capabilities_roundtrip.py` |
+| Four-subject model parity | Existing model-harness owner. `tests/four_subject_review.py` remains red because one parity run returned `unavailable`. Plan 20-05 changes no model configuration or transport behavior |
 
 ## Phase closure status
 
 Every current row above has a terminal disposition and either deterministic
-evidence, an exact blocked condition, or a named owner. Phase 20 itself remains
-blocked from full closure by three gates outside this Task 3 write: the owed
-Settings, Day, and Study type-scale enforcement reported by the stylesheet
-suite, Weibao's skipped human visual, touch, and screen-reader acceptance, and
-the unavailable `tests/daemon_roundtrip.py` transition gate recorded in
-`20-TRANSITION-GATES.md`. The runner terminates that full suite at about 30
-seconds before a result. It is owed and none of these conditions is represented
-as passed.
+evidence, an exact blocked condition, or a named external or human owner. The
+full daemon transition gate now passes. The Settings and capability-publication
+integration fixtures now pass. One fully captured preflight passed the Phase 20
+rows and every setup, summary, schema, generation, and JavaScript row. Its only
+test failure was the existing four-subject parity `ok / unavailable` result.
+Dirty-tree clean failed as expected without commit authority. Weibao's skipped
+visual, touch-device, and screen-reader acceptance remains human owed. No human
+or environment-only row is represented as passed.
 
 ## Reopen triggers
 

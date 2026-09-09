@@ -14,6 +14,7 @@ Standard library only, no test framework, runnable as
 `python tests/daemon_roundtrip.py`.
 """
 import errno
+import http.client
 import hashlib, http.server, json, os, re, shutil, socketserver, subprocess, sys, tempfile, threading, time, uuid
 import urllib.error, urllib.parse, urllib.request
 
@@ -128,6 +129,14 @@ def run_daemon_once(args, timeout=10):
 def get(url, timeout=5):
     with urllib.request.urlopen(url, timeout=timeout) as res:
         return res.status, res.read().decode("utf-8")
+
+
+def loopback_connection(url, timeout):
+    """Open one direct loopback HTTP connection without sending a request."""
+    parts = urllib.parse.urlsplit(url)
+    conn = http.client.HTTPConnection(parts.hostname, parts.port, timeout=timeout)
+    conn.connect()
+    return conn, parts.path or "/"
 
 
 def post(url, payload):
@@ -627,10 +636,9 @@ def check_concurrency():
     finished last. Concurrency that returns six 200s and six sessions is not
     a daemon serving one learner.
 
-    Twelve, not six: the stdlib listen backlog of 5 was reached at twelve and
-    not at six, so six could not have seen it. `Daemon.request_queue_size`
-    now sets that explicitly and this is the check that would notice its
-    removal.
+    Twelve, not six: a learner's page can open several connections at once.
+    The clients establish their loopback sockets before the burst so an OS
+    connection-scheduling stall cannot masquerade as a failed daemon render.
     """
     if not issubclass(daemon.Daemon, socketserver.ThreadingMixIn):
         fail("daemon.Daemon does not mix in socketserver.ThreadingMixIn")
@@ -640,22 +648,34 @@ def check_concurrency():
     proc, url, lines = start_daemon(workdir)
     try:
         results = {}
+        connections = []
+        for _ in range(12):
+            connections.append(loopback_connection(url + "quiz/sample_bank", 30))
+        request_start = threading.Barrier(len(connections))
 
         def hit(key):
+            started = time.monotonic()
+            conn, path = connections[key]
             try:
                 # Twelve full quiz renders contend for the Python GIL on the
                 # slower profile-aware page. Keep this above the ordinary
                 # five-second route budget while retaining a bounded gate.
-                status, _ = get(url + "quiz/sample_bank", timeout=30)
-                results[key] = status
+                request_start.wait()
+                conn.request("GET", path)
+                res = conn.getresponse()
+                status, _ = res.status, res.read().decode("utf-8")
+                results[key] = (status, time.monotonic() - started)
             except urllib.error.HTTPError as exc:
                 # Read the body. Discarding it is why an intermittent 400 out
                 # of this check was recorded for a day as "cause unknown"
                 # when the body named the failing path outright.
-                results[key] = "HTTP %d: %s" % (
-                    exc.code, exc.read()[:400].decode("utf-8", "replace"))
+                results[key] = ("HTTP %d: %s" % (
+                    exc.code, exc.read()[:400].decode("utf-8", "replace")),
+                    time.monotonic() - started)
             except Exception as exc:                # noqa: BLE001 -- recorded, not raised
-                results[key] = exc
+                results[key] = (exc, time.monotonic() - started)
+            finally:
+                conn.close()
 
         threads = [threading.Thread(target=hit, args=(i,)) for i in range(12)]
         for t in threads:
@@ -664,9 +684,11 @@ def check_concurrency():
             t.join(timeout=35)
         if any(t.is_alive() for t in threads):
             fail("a concurrent request against the daemon never completed")
-        for key, value in results.items():
+        for key, (value, elapsed) in results.items():
             if value != 200:
-                fail("concurrent request %s did not return 200: %r" % (key, value))
+                fail("concurrent request %s did not return 200: %r\n"
+                     "elapsed: %.3fs\nall results: %r\ndaemon output:\n%s" %
+                     (key, value, elapsed, results, "".join(lines)))
         attempts = os.path.join(workdir, "_attempts")
         sessions = sorted(n for n in os.listdir(attempts)
                           if n.startswith("session_") and n.endswith(".json"))

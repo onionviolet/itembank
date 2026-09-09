@@ -56,8 +56,14 @@ BANK = os.path.join(ROOT, "fixtures", "sample_bank.md")
 # no color, no spacing value and no type size: every value is an existing
 # token. The pre-change value was
 # 8f9678185b188b63a04df95302c2d0823efc0f33c1901d7853a87c3fc866ece9.
+# Re-taken 2026-09-08, same command, after Phase 20 added the independent
+# presentation-profile composition axis. `theme_page` now passes that safe,
+# settings-derived profile to the shared presentation shell. This is a
+# deliberate rendered-settings compatibility revision, not a change to the
+# no-sections call signature or its authority boundary. The pre-change value
+# was 5c7e2cb5c3fb1e1591154adea102c965c1e6f401c270229459f376fb20cf1c1a.
 THEME_PAGE_BASELINE = \
-    "5c7e2cb5c3fb1e1591154adea102c965c1e6f401c270229459f376fb20cf1c1a"
+    "bd95f46dad87ce478d6954a198caaefb9ab044c31c671980974bb2caaf3012e9"
 
 # Phase 16C appends rows here rather than creating a second fixture. Each row
 # is (setting_name, requests, expected_winning_layer, expected_value).

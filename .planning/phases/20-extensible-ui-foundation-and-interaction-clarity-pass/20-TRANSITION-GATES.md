@@ -2,16 +2,16 @@
 
 **Checked:** 2026-09-08
 **Scope:** Plan 20-04 Tasks 1 and 2
-**Overall gate:** Blocked
+**Overall gate:** Passed, human legs owed
 
 The lifecycle graph has all 11 required transition families. Its focused graph,
 IA-route, presentation-profile, quick-preflight, and diff checks pass. The
-theme-picker timeout was repaired by removing the live native-picker request
-from automated daemon coverage. The daemon picker contract now passes without
-opening a visible system dialog. The required full daemon suite remains
-unverified because this task runner ends foreground commands at about 30
-seconds before the suite returns a result. This is an unavailable deterministic
-leg, not a pass or a product-failure attribution, so this record is not green.
+theme-picker contract passes without opening a visible system dialog. The full
+daemon suite now passes three consecutive runs. Its concurrent-render client
+opens all twelve loopback sockets before sending the GET burst. This preserves
+the twelve-render and one-session assertions while removing an OS-level
+connection-scheduling timeout that occurred before a daemon handler received
+the request.
 
 Every row below has a passed deterministic contract leg and a human-owed
 acceptance leg. `check_lifecycle_transition_graph` verifies the family names,
@@ -41,7 +41,7 @@ narrow composition, distinct failure states, safe actions, and defensive copy.
 | `python3 tests/ia_route_roundtrip.py` | Passed, 26 checks |
 | `python3 tests/presentation_profiles_roundtrip.py` | Passed |
 | `python3 -c '...check_theme_pick_contract()...'` | Passed. The daemon contract confirms the picker bridge and Settings fallback without invoking a native picker. |
-| `python3 tests/daemon_roundtrip.py` | Unavailable in this task runner. The command exceeded the runner's roughly 30-second foreground limit before returning a final result. Rerun in a normal terminal or CI. |
+| `python3 tests/daemon_roundtrip.py` | Passed three consecutive runs after the preconnected twelve-client burst repair. It retained the 12 concurrent full renders, 30-second bound, 200 responses, one-session assertion, and temp-file sweep. |
 | `python3 scripts/preflight.py --quick` | Passed. Tests, clean, and JavaScript legs were intentionally skipped by `--quick`. |
 | `git diff --check` | Passed |
 | Human visual comparison | Human owed. Skipped by explicit user direction |

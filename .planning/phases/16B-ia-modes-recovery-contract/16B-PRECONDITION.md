@@ -43,6 +43,32 @@ itembank.json 47c69e77940a38014c92377b9f5702d802148edff23100cccf786181e4219ce7
 3d9a94c70270413b29390317660b37dc198fc6ae1530c4d5dd3041710c4a1235
 ```
 
+## Current compatibility baseline
+
+The original additivity evidence above remains historical evidence. The
+configuration compatibility fixture uses this later baseline because Phase 19D
+deliberately changed the shipped `model_backend` profile. It still excludes
+every additive key listed in `tests/config_roundtrip.py`, including Phase 20's
+`presentation_profile`, and therefore catches any unapproved change to the
+remaining existing effective settings values.
+
+```
+22
+30483f6f1f49a06ba3949420bfb041254745876d80dfad0508df03a519ff1bc5
+```
+
+## Current rendered-settings compatibility baseline
+
+The no-sections `theme_page(cfg)` fixture keeps its original historical
+fingerprints in `tests/mode_layer_roundtrip.py`. Phase 20 deliberately passes
+the settings-derived `presentation_profile` to the shared shell. On 2026-09-08
+the same recorded hash command returned the current compatibility value below.
+The preceding value remains in that test's dated history.
+
+```
+bd95f46dad87ce478d6954a198caaefb9ab044c31c671980974bb2caaf3012e9
+```
+
 ## Deviations found
 
 Two, neither a halt.

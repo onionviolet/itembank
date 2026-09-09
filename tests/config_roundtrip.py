@@ -132,7 +132,10 @@ def test_schema_names_every_project_key():
                 # language), independent of `theme` and `accent`. Every look's
                 # ground is re-measured against every semantic token by
                 # tests/stylesheet_roundtrip.py.
-                "look"}
+                "look",
+                # Phase 20's presentation-composition axis, independent from
+                # the existing appearance and navigation axes.
+                "presentation_profile"}
     if keys != expected:
         fail("schema properties %r do not equal the expected key set %r" % (keys, expected))
     for name, sub in schema["properties"].items():
@@ -812,6 +815,9 @@ POST_BASELINE_KEYS = (
     # exist when the baseline was taken, and `look: classic` renders the
     # shipped shape, so an install that never sets it is unchanged.
     "look",
+    # Phase 20's presentation-composition axis. It did not exist when the
+    # Phase 16B baseline was recorded, so it cannot change that fingerprint.
+    "presentation_profile",
 )
 
 BASELINE_EXCLUDED_KEYS = NEW_16B_KEYS + POST_BASELINE_KEYS
@@ -822,21 +828,20 @@ PRECONDITION = os.path.join(
 
 
 def _read_additivity_baseline():
-    """The recorded count and hash of the pre-16B effective settings document.
+    """The accepted compatibility count and hash for existing settings values.
 
-    Read out of `16B-PRECONDITION.md`'s Additivity baseline section, which was
-    written before any 16B change existed. A baseline computed after a 16B
-    edit would make this assertion pass for the wrong reason, so the file is
-    required rather than optional.
+    The original pre-16B evidence remains in the precondition record. This
+    fixture reads its later compatibility baseline because a subsequent
+    accepted model-profile revision changed an existing setting deliberately.
     """
     if not os.path.exists(PRECONDITION):
-        fail("16B-PRECONDITION.md's Additivity baseline section is missing; "
+        fail("16B-PRECONDITION.md's Current compatibility baseline section is missing; "
              "the additivity claim cannot be proven")
     text = io.open(PRECONDITION, encoding="utf-8").read()
-    marker = "## Additivity baseline"
+    marker = "## Current compatibility baseline"
     start = text.find(marker)
     if start < 0:
-        fail("16B-PRECONDITION.md's Additivity baseline section is missing; "
+        fail("16B-PRECONDITION.md's Current compatibility baseline section is missing; "
              "the additivity claim cannot be proven")
     section = text[start:text.find("\n## ", start + len(marker))]
     lines = [ln.strip() for ln in section.split("\n") if ln.strip()]
@@ -847,7 +852,7 @@ def _read_additivity_baseline():
         elif len(line) == 64 and all(c in "0123456789abcdef" for c in line):
             digest = line
     if count is None or digest is None:
-        fail("16B-PRECONDITION.md's Additivity baseline section is missing; "
+        fail("16B-PRECONDITION.md's Current compatibility baseline section is missing; "
              "the additivity claim cannot be proven")
     return count, digest
 
