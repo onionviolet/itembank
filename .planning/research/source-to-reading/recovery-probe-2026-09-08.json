@@ -1,0 +1,52 @@
+{
+  "R1_director_mint": {
+    "result": {
+      "reversed_entries": [],
+      "restored_revisions": [],
+      "complete": true
+    },
+    "target_exists": true,
+    "gate": "A completed reversal restores prior absence",
+    "passed": false
+  },
+  "R2_journal_mint": {
+    "target_exists": true,
+    "bytes": 0,
+    "gate": "Undo of creation restores absence, not an empty file",
+    "passed": false
+  },
+  "R3_adapter_undo": {
+    "markdown_exists": true,
+    "sidecar_exists": true,
+    "raw_unchanged": true,
+    "gate": "Undo removes both derived objects and retains raw input",
+    "passed": false
+  },
+  "R3_adapter_interruption": {
+    "injection_reached": true,
+    "raised": null,
+    "returned": {
+      "schema_version": 1,
+      "source_id": null,
+      "status": "unsupported",
+      "adapter": null,
+      "md_rel_path": null,
+      "sidecar_rel_path": null,
+      "journal_entry_id": null,
+      "error": {
+        "code": "source.internal_error",
+        "message": "unexpected source-adapter failure"
+      }
+    },
+    "added_files": [
+      "pdf-single-column.pdf.locator.json"
+    ],
+    "gate": "Interruption before journal commit leaves no orphan sidecar",
+    "passed": false
+  },
+  "C1_conflict_preserved": {
+    "code": "journal.conflict",
+    "external_bytes_preserved": true,
+    "passed": true
+  }
+}

@@ -4,11 +4,11 @@ milestone: reach
 milestone_name: reach
 current_phase_name: 20-extensible-ui-foundation-and-interaction-clarity-pass
 current_phase: 20
-status: "Reach is closed under the 2026-09-08 scope waiver. Phase 20 is active. Plans 20-01 and 20-02 are complete for the deterministic showcase pass. The home projections share one canonical state. Human visual and screen-reader review was skipped by explicit user direction, not passed or certified."
-stopped_at: "Begin 20-03 Task 1 at the shared learning hierarchy for lesson, Study, practice, quiz, and exam. Keep synthetic fixtures, runtime-owned disclosure, and the no-real-sitting boundary."
+status: "Phase 20's three named deterministic integration repairs pass. The one captured full preflight passed every Phase 20 row, then failed only on the existing four-subject parity ok / unavailable result and expected dirty-tree clean. Human visual, touch-device, and screen-reader review remains owed and uncertified."
+stopped_at: "Compatibility repair packet completed. The remaining Phase 20 gate is Weibao's human visual, touch-device, screen-reader, 200 percent text, 400 percent zoom, and aesthetic review. Repository-wide green also needs the separately owned four-subject parity backend."
 last_updated: "2026-09-08T00:00:00.000Z"
 last_activity: 2026-09-08
-last_activity_desc: "Plan 20-02 closed for the deterministic showcase pass after its projection-neutral home, presentation-profile, IA-route, and quick-preflight gates passed. Agenda and Path remain prototypes. Human visual and screen-reader review was skipped by user direction and remains uncertified."
+last_activity_desc: "The configuration-key, 16B compatibility, theme-page baseline, and MCP manifest gaps were repaired. A captured full preflight passed Phase 20 rows but retained the separately owned four-subject parity unavailable failure. Human review remains owed."
 progress:
   total_phases: 41
   completed_phases: 40
@@ -18,7 +18,27 @@ progress:
 ---
 # Project State
 
-## Current position (2026-09-08): Phase 20 active after a bounded Reach waiver
+## Current position (2026-09-08): Phase 20 deterministic repair complete
+
+**Next agent packet:** The populated-course walkthrough and exact recovery
+probes are recorded in [SOURCE-TO-READING-NEXT-PACKET-2026-09-08.md](SOURCE-TO-READING-NEXT-PACKET-2026-09-08.md).
+Prototype the reading-occurrence contract over an existing local source before
+changing durable formats. Exact import undo remains blocked by R1 through R3.
+Human Phase 20 acceptance remains owed.
+
+**Current answer:** The Plan 20-05 focused implementation and deterministic
+suites pass, including the repaired full daemon transition gate. The three
+named integration repairs now pass: Config names `presentation_profile`, the
+16B current compatibility fixture and the theme-page baseline match their
+accepted revisions, and MCP capability publication regenerates cleanly. The
+original 16B evidence remains preserved. One captured full preflight passed
+the Phase 20 rows but failed on the separately owned four-subject parity
+`ok / unavailable` result and expected dirty-tree clean. Human visual,
+touch-device, screen-reader, 200 percent text, 400 percent zoom, and aesthetic
+review remain owed. The exact rows are in `20-VERIFICATION.md` and
+`20-AUDIT-CROSSWALK.md`.
+
+## Superseded position (2026-09-08): Phase 20 active after a bounded Reach waiver
 
 **Current answer:** Reach is closed for sequencing purposes under the user's
 2026-09-08 decision to defer local AI and skip the new Math 1400 sitting for
