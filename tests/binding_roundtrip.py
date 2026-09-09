@@ -34,6 +34,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import course as course_module                              # noqa: E402
 import graph                                                # noqa: E402
+import identity                                              # noqa: E402
 import journal                                              # noqa: E402
 from surfaces import binding_cli                            # noqa: E402
 from daemon_roundtrip import start_daemon, json_request      # noqa: E402
@@ -54,6 +55,21 @@ def workspace(prefix):
     dest = os.path.join(tmp, "course_fixture_17b")
     shutil.copytree(FIXTURE, dest,
                     ignore=shutil.ignore_patterns("_attempts"))
+    # The fixture's journal is intentionally ignored because it is runtime
+    # state. Recreate the source registration through the journal's public
+    # compare-and-swap path so a clean checkout has the same authority state
+    # as a locally generated fixture.
+    source_path = os.path.join(dest, "sources", "lantern_moss_survey.md")
+    with open(source_path, "rb") as source_file:
+        source_bytes = source_file.read()
+    journal.commit_operation(
+        dest, "5c5bc6b17baa44c6", "source",
+        "sources/lantern_moss_survey.md", "link", source_bytes,
+        identity.object_fingerprint(source_bytes, "source"),
+        "human", "binding fixture", write_target=False,
+        rights={"read": "granted", "quote": "granted",
+                "transform": "granted", "package": "granted",
+                "export": "granted"})
     return tmp, dest
 
 
