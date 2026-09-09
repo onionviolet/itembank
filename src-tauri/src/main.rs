@@ -116,6 +116,11 @@ fn banks_dir() -> PathBuf {
     std::env::var_os("ITEMBANK_BANKS_DIR")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("USERPROFILE").map(PathBuf::from))
+        .or_else(|| {
+            std::env::var_os("HOME")
+                .map(PathBuf::from)
+                .map(|home| home.join("Documents").join("itembank"))
+        })
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
