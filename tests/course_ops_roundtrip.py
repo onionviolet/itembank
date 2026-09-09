@@ -114,6 +114,10 @@ def seed_17b_journal(course_root):
             course_root, object_id, kind, rel_path, "link", raw,
             identity.object_fingerprint(raw, kind), "human", "17B fixture",
             write_target=False, rights=rights)
+        if not (kind == "course" and object_id == "ba070378d35d44e7"):
+            journal.op_adopt(
+                course_root, object_id,
+                identity.object_fingerprint(raw, kind), "human", "17B fixture")
 
 
 def fail(msg):
