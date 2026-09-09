@@ -85,6 +85,7 @@
         "lesson.check_ref_unknown",
         "lesson.duplicate_heading",
         "lesson.invalid_direction",
+        "lesson.invalid_comparison",
         "lesson.invalid_step",
         "lesson.duplicate_step",
         "lesson.invalid_pace",

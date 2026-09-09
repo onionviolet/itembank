@@ -589,6 +589,32 @@ def _lesson_directive_defaults():
             "pace": "none", "pace_raw": ""}
 
 
+def parse_lesson_comparison(body):
+    """Validate the opt-in Example comparison, without executable content.
+
+    None means absent. An error preserves the complete author's static text.
+    Both renderer and lint consume this authority over the callout body.
+    """
+    lines = body.splitlines()
+    if not lines or not lines[0].startswith("[COMPARE:"):
+        return None
+    match = re.fullmatch(
+        r"\[COMPARE: ([0-9]{1,5}),([0-9]{1,5}),([0-9]{1,5}),"
+        r"([^\[\]\n,]{1,24})\]", lines[0])
+    if match:
+        a, b, maximum = map(int, match.groups()[:3])
+        unit = match.group(4).strip()
+        if (0 <= a <= maximum and 0 <= b <= maximum
+                and 1 <= maximum <= 10000 and unit
+                and any(x.strip() for x in lines[1:])):
+            return {"a": a, "b": b, "max": maximum, "unit": unit,
+                    "text": "\n".join(lines[1:])}
+    return {"error": (
+        "Use [COMPARE: A,B,maximum,unit] with whole numbers from 0 to maximum, "
+        "maximum 1 to 10000, a unit up to 24 characters, and a static "
+        "explanation on following lines.")}
+
+
 def parse_lesson(bank_path):
     """A second, independent read over the bank file for a different purpose:
     the LESSON section's teaching text. Never called from inside `load()` or
@@ -2344,6 +2370,21 @@ THE RULE THAT SURVIVES EVERY TYPE
   pressure. `itembank lint` warns when a distractor line never says it.
 
 THE LESSON SECTION
+  Optional deterministic comparison inside an Example callout:
+    > [!EXAMPLE]
+    > [COMPARE: 12,18,24,mm]
+    > Authored synthesis: **equal intervals** let us compare depths.
+    > At B=6, B-A=-6 mm. At B=12, equal. At B=18, B-A=6 mm.
+  The first body line declares A,B,maximum,unit. Whole numbers only:
+  0 <= A,B <= maximum <= 10000, maximum >= 1. Unit is 1 to 24 characters
+  without commas or brackets. Following static explanation is required.
+  Controls are an explicit Example enhancement, never inferred from tables.
+  The runtime glossable gate checks the complete block before rendering.
+  Withheld blocks have no payload or controls. Invalid settings retain escaped static text.
+  The native page offers a B slider and reset. No script means static text.
+  Parameters are temporary presentation state, never scores or evidence.
+  No authored executable content or remote imports are accepted.
+
   A bank may carry one optional LESSON section: the teaching text its items
   test. It lives above the first question, opened by `## LESSON` at the start
   of a line and running to the first `Qn.` line that parses as a real question;
@@ -2402,6 +2443,8 @@ ONE CONSTRAINT
   whose prose contains an illustrative line shaped like a question marker.
 
 LESSON LINT CODES
+  lesson.invalid_comparison error    an Example comparison has invalid bounds
+                                      or lacks a static explanation
   item.lesson_ref_unknown   error     an item's LESSON-REF names no heading
   lesson.duplicate_heading  error     two headings slug-collide
   lesson.src_unreadable     error     LESSON-SRC names a missing or out-of-tree
@@ -2796,7 +2839,7 @@ LINT_CODES = tuple(sorted({
     "item.structure_nonconformant",
     "lesson.invalid_gate", "lesson.check_ref_unknown",
     "lesson.invalid_semantic_profile", "lesson.lang_empty",
-    "lesson.invalid_direction",
+    "lesson.invalid_direction", "lesson.invalid_comparison",
     "lesson.invalid_step", "lesson.duplicate_step", "lesson.invalid_pace",
     "lesson.unknown_semantic", "lesson.unknown_required_semantic",
     "lesson.definition_before_example", "lesson.example_order_no_reason",
@@ -3960,7 +4003,35 @@ def lint(questions, lesson=LESSON_UNCHECKED, terms=TERMS_UNCHECKED,
             # first-appearance order, so a lesson using the same unknown
             # kind six times reports it once rather than six times.
             from surfaces.lesson import (_CALLOUT_MARK_RE,
-                                         _callout_required_of, _callout_spec)
+                                         _callout_required_of, _callout_spec,
+                                         _callout_entered, _protect_code)
+            # Validate only the explicitly opted-in Example body. Ordinary
+            # examples, tables and emphasis retain their existing meaning.
+            # The reader protects fences per heading. An unterminated fence
+            # in one heading must not hide declarations in the next.
+            protected = "\n\n".join(
+                _protect_code(part)[0] for part in re.split(
+                    r"(?m)(?=^###\s)", lesson.get("body") or ""))
+            comparison_lines = protected.split("\n")
+            index = 0
+            while index < len(comparison_lines):
+                raw_line = comparison_lines[index]
+                index += 1
+                marker = _CALLOUT_MARK_RE.match(raw_line)
+                if marker is None or not _callout_entered(raw_line):
+                    continue
+                block = [marker.group(2)] if marker.group(2) else []
+                while index < len(comparison_lines) and comparison_lines[index].startswith(">"):
+                    following = comparison_lines[index]
+                    block.append(re.sub(r"^>\s?", "", following))
+                    index += 1
+                kind, _ = _callout_required_of(marker.group(1))
+                if kind != "EXAMPLE":
+                    continue
+                comparison = parse_lesson_comparison("\n".join(block))
+                if comparison and comparison.get("error"):
+                    errors.append(LintError("lesson.invalid_comparison",
+                                            "semantics", "BANK", comparison["error"]))
             seen_unknown = []
             for raw_line in (lesson.get("body") or "").split("\n"):
                 cm = _CALLOUT_MARK_RE.match(raw_line)

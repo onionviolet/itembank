@@ -2303,7 +2303,7 @@ def test_daemon_context_nav_resolves_ownership():
         links = daemon._lesson_context_nav(Handler(), bank)
         if links != [{"href": "/course/course-1/learn",
                       "label": "Back to course"},
-                     {"href": "/", "label": "Courses"},
+                     {"href": "/courses", "label": "Courses"},
                      {"href": "/quiz/lesson_bank",
                       "label": "Continue to practice"}]:
             fail("unique course ownership must resolve the course link: %r"
@@ -2313,7 +2313,7 @@ def test_daemon_context_nav_resolves_ownership():
             "cards": [{"course_id": "course-1"},
                       {"course_id": "course-2"}]}
         links = daemon._lesson_context_nav(Handler(), bank)
-        if links != [{"href": "/", "label": "Courses"}]:
+        if links != [{"href": "/courses", "label": "Courses"}]:
             fail("ambiguous ownership must retain only Courses fallback: %r"
                  % links)
     finally:
@@ -2543,12 +2543,13 @@ def test_spec_names_every_lesson_lint_code():
     not yet been written. Raised again to fourteen on 2026-08-28 by
     lesson.authored_key_disclosure, and to seventeen on 2026-08-31 by plan
     16D-01's pacing findings (lesson.invalid_step, lesson.duplicate_step,
-    lesson.invalid_pace), whose SPEC rows landed with the codes."""
+    lesson.invalid_pace), whose SPEC rows landed with the codes. The native
+    comparison adds lesson.invalid_comparison as the eighteenth code."""
     s = itembank.SPEC + "\n" + SPEC_03_1
     lesson_codes = [c for c in itembank.LINT_CODES
                     if c.startswith("lesson.") or c == "item.lesson_ref_unknown"]
-    if len(lesson_codes) != 17:
-        fail("expected exactly 17 lesson lint codes, got %d: %r"
+    if len(lesson_codes) != 18:
+        fail("expected exactly 18 lesson lint codes, got %d: %r"
              % (len(lesson_codes), lesson_codes))
     for c in lesson_codes:
         if c not in s:

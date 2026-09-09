@@ -8,6 +8,8 @@ only way out of a lesson is to another surface, never to a score.
 import html, json, os, re, sys
 
 import capabilities
+from model import parse_lesson_comparison
+from surfaces import lesson_interaction, lesson_progressive
 import evidence
 import retention
 import subjects
@@ -1316,6 +1318,17 @@ def _callout_html(spec, body, ctx=None, required=False):
                     % (icon, html.escape(label), inner))
         return _gate_band_html(check_id, ctx)
     inner = _inline(body)
+    if slug == "example":
+        comparison = parse_lesson_comparison(body)
+        if comparison is not None:
+            if ctx is None or "comparison_questions" not in ctx or not glossable(
+                    ctx["comparison_questions"], {"def": body}):
+                inner = "Comparison withheld by the runtime disclosure check."
+            elif comparison.get("error"):
+                inner = ('<p>Comparison unavailable. Read the static explanation below.</p>'
+                         + inner)
+            else:
+                inner = lesson_interaction.render(comparison, _inline)
     extra = ""
     if slug == "example" and ctx is not None \
             and ctx.get("example_layout") == "parallel":
@@ -2034,6 +2047,7 @@ def _reader_context(bank_path, qs):
         os.path.dirname(os.path.abspath(bank_path)) or ".")
     reader = cfg.get("reader") or {}
     ctx = {
+        "comparison_questions": qs,
         "gloss": {},
         "marks": reader.get("gloss_marks", "all"),
         "print_inline": reader.get("print_gloss", "appendix") == "inline",
@@ -2575,7 +2589,17 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
                 # the first stage of every heading, which is not one guided
                 # reading but several started at once.
                 stages = guided_stages(h["body"], h["slug"] or "")
-                chunks = _split_rendered_stages(rendered)
+                # Keep the heading container outside the stages. Splitting
+                # through it creates unbalanced sections that browsers repair
+                # into nested stages, making later content impossible to reveal.
+                heading_open = re.match(r'<section\b[^>]*>', rendered)
+                outer_open = outer_close = ""
+                stage_body = rendered
+                if heading_open and rendered.endswith("</section>"):
+                    outer_open = heading_open.group(0)
+                    outer_close = "</section>"
+                    stage_body = rendered[len(outer_open):-len(outer_close)]
+                chunks = _split_rendered_stages(stage_body)
                 if chunks:
                     if len(stages) != len(chunks):
                         stages = [{"index": i, "slug": "", "blocks": "",
@@ -2588,7 +2612,7 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
                         stage["index"] = stage_index + offset
                         numbered.append(_stage_html(stage, chunk))
                     stage_index += len(chunks)
-                    rendered = "".join(numbered)
+                    rendered = outer_open + "".join(numbered) + outer_close
             if ctx.get("gate_stop"):
                 # G1 truncation: the section ends at the band; the rest of
                 # this section and every later section is withheld, and the
@@ -2757,7 +2781,9 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
                      html.escape(presentation_profile, quote=True))
             .replace("__THEME__", THEME_CSS)
             .replace("__SHARED_CSS__", SHARED_CSS)
-            .replace("__LESSON_CSS__", LESSON_CSS)
+            .replace("__LESSON_CSS__", LESSON_CSS + (lesson_interaction.CSS
+                     if 'class="lesson-comparison"' in body else "")
+                     + (lesson_progressive.CSS if mode == "guided" else ""))
             .replace("__WARN_CSS__", warn_css)
             .replace("__GLOSS_ANCHOR_CSS__", anchor_css)
             .replace("__GLOSS_PRINT_CSS__", print_css)
@@ -2767,7 +2793,9 @@ def lesson_page(bank_path, qs, lesson, ref=None, runtime=False, drill=False,
             .replace("__READER_NAV__", nav_html)
             .replace("__GLOSS_SCRIPT__", gloss_script)
             .replace("__MATH_ASSETS__", math_assets)
-            .replace("__MATH_SCRIPT__", math_script)
+            .replace("__MATH_SCRIPT__", math_script + (lesson_interaction.JS
+                     if 'class="lesson-comparison"' in body else "")
+                     + (lesson_progressive.JS if mode == "guided" else ""))
             .replace("__STATUS__", status_html)
             .replace("__CONTEXT_NAV__", context_nav_html)
             .replace("__RUNNABLE_JS__", runnable_js)

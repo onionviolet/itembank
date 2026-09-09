@@ -3664,6 +3664,8 @@ def handle_lesson_get(handler, stem):
     step_id = None
     tier_payload = None
     tier_show_url = None
+    if (params.get("view") or [""])[0] == "guided" and not print_mode:
+        mode = "guided"
     if (params.get("view") or [""])[0] == "paced" and not print_mode:
         paced = _paced_context(handler, stem, path, les, params)
         if paced is not None:
@@ -3676,6 +3678,10 @@ def handle_lesson_get(handler, stem):
                     + paced["announce"]
             if gate is not None and step_id is not None:
                 gate = dict(gate, paced_step=step_id)
+    context_nav = list(context_nav) + [{
+        "href": "/lesson/%s%s" % (urllib.parse.quote(stem, safe=""),
+                                    "" if mode == "guided" else "?view=guided"),
+        "label": "Read continuously" if mode == "guided" else "Read step by step"}]
     page = lesson.lesson_page(path, qs, les, runtime=True, drill=drill,
                               gate=gate, focus=focus, announce=announce,
                               profile=profile,
