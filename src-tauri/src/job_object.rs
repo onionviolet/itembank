@@ -8,26 +8,30 @@
 //! sidecar, no held port.
 
 use std::io;
+#[cfg(target_os = "windows")]
 use windows_sys::Win32::Foundation::CloseHandle;
+#[cfg(target_os = "windows")]
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-    SetInformationJobObject,
+    SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+    JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
 };
-use windows_sys::Win32::System::Threading::{
-    OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE,
-};
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE};
 
 pub struct JobObject {
+    #[cfg(target_os = "windows")]
     handle: windows_sys::Win32::Foundation::HANDLE,
 }
 
 // The handle is process-owned and only ever used from the owning thread; the
 // wrapper is stored for the app's lifetime.
+#[cfg(target_os = "windows")]
 unsafe impl Send for JobObject {}
 
 impl JobObject {
     pub fn create() -> io::Result<JobObject> {
+        #[cfg(target_os = "windows")]
         unsafe {
             let handle = CreateJobObjectW(std::ptr::null(), std::ptr::null());
             if handle.is_null() {
@@ -48,6 +52,11 @@ impl JobObject {
             }
             Ok(JobObject { handle })
         }
+        #[cfg(not(target_os = "windows"))]
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "Windows job objects are unavailable on this platform",
+        ))
     }
 
     /// Assign a running child process to this job. Best-effort backstop: a
@@ -55,6 +64,7 @@ impl JobObject {
     /// reported so the shell can log the degraded state rather than pretend
     /// the backstop exists.
     pub fn assign_pid(&self, pid: u32) -> io::Result<()> {
+        #[cfg(target_os = "windows")]
         unsafe {
             let proc_handle = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, 0, pid);
             if proc_handle.is_null() {
@@ -69,9 +79,18 @@ impl JobObject {
                 Ok(())
             }
         }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = (self, pid);
+            Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "Windows job objects are unavailable on this platform",
+            ))
+        }
     }
 }
 
+#[cfg(target_os = "windows")]
 impl Drop for JobObject {
     fn drop(&mut self) {
         unsafe {
@@ -80,7 +99,7 @@ impl Drop for JobObject {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "windows"))]
 mod tests {
     use super::*;
     use std::process::Command;

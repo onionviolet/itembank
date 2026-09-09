@@ -15,7 +15,9 @@ use tauri::menu::{Menu, MenuItem, Submenu};
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindow};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
+#[cfg(target_os = "windows")]
 use windows_sys::Win32::Foundation::{BOOL, HWND};
+#[cfg(target_os = "windows")]
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible, SetForegroundWindow,
 };
@@ -430,11 +432,13 @@ fn focus_running_instance(app: AppHandle) {
     let _ = app;
 }
 
+#[cfg(target_os = "windows")]
 struct FocusCtx {
     own_pid: u32,
     found: bool,
 }
 
+#[cfg(target_os = "windows")]
 unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: isize) -> BOOL {
     let ctx = &mut *(lparam as *mut FocusCtx);
     if IsWindowVisible(hwnd) == 0 {
@@ -456,6 +460,7 @@ unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: isize) -> BOOL {
     1
 }
 
+#[cfg(target_os = "windows")]
 fn focus_existing_window() -> bool {
     let mut ctx = FocusCtx {
         own_pid: std::process::id(),
@@ -465,6 +470,13 @@ fn focus_existing_window() -> bool {
         EnumWindows(Some(enum_proc), &mut ctx as *mut FocusCtx as isize);
     }
     ctx.found
+}
+
+#[cfg(not(target_os = "windows"))]
+fn focus_existing_window() -> bool {
+    // Window enumeration is a Windows-only attach path. Reporting false keeps
+    // callers from claiming another shell was found on platforms without it.
+    false
 }
 
 fn urlencode(s: &str) -> String {
@@ -479,8 +491,6 @@ fn urlencode(s: &str) -> String {
     }
     out
 }
-
-
 fn html_escape(s: &str) -> String {
     let mut out = String::new();
     for ch in s.chars() {

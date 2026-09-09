@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""Generate the minimal shell icon (a solid default-accent square) as a
-valid PNG-in-ICO -- the one binary asset Tauri's build embeds into the exe.
-Stdlib only. A brand icon is out of scope for this phase (D-15: no new UI);
-this exists so the exe resource step has a real file.
+"""Generate the minimal shell icon (a solid default-accent square).
+
+Tauri's Windows bundle consumes the ICO while its Rust context macro consumes
+the PNG for the tray icon. Keep both outputs derived from one stdlib-only
+source. A brand icon is out of scope for this phase (D-15: no new UI).
 """
 import os, struct, zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = os.path.join(ROOT, "src-tauri", "icons", "icon.ico")
+ICON_DIR = os.path.join(ROOT, "src-tauri", "icons")
+ICO_OUT = os.path.join(ICON_DIR, "icon.ico")
+PNG_OUT = os.path.join(ICON_DIR, "icon.png")
 
 
 def png_chunk(tag, data):
@@ -30,10 +33,13 @@ def main():
     ico = (struct.pack("<HHH", 0, 1, 1)
            + struct.pack("<BBBBHHII", size, size, 0, 0, 1, 32, len(png), 22)
            + png)
-    os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    with open(OUT, "wb") as f:
+    os.makedirs(ICON_DIR, exist_ok=True)
+    with open(PNG_OUT, "wb") as f:
+        f.write(png)
+    with open(ICO_OUT, "wb") as f:
         f.write(ico)
-    print("wrote %s (%d bytes)" % (OUT, len(ico)))
+    print("wrote %s (%d bytes)" % (PNG_OUT, len(png)))
+    print("wrote %s (%d bytes)" % (ICO_OUT, len(ico)))
 
 
 if __name__ == "__main__":
