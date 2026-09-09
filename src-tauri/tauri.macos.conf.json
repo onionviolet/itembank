@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "targets": ["app", "dmg"],
+    "icon": ["icons/icon.png"],
+    "macOS": {
+      "files": {
+        "Resources/itembank-sidecar": "../dist/itembank-sidecar-onedir/itembank-sidecar"
+      }
+    }
+  }
+}

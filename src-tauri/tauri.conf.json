@@ -36,9 +36,6 @@
     }
   },
   "bundle": {
-    "active": true,
-    "targets": ["nsis"],
-    "externalBin": ["binaries/itembank-sidecar"],
-    "icon": ["icons/icon.ico"]
+    "active": true
   }
 }

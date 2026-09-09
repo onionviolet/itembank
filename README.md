@@ -325,6 +325,17 @@ A release is one `itembank-X.Y.Z.pyz` file plus one launcher shim per OS,
 downloaded from GitHub Releases and run in place. There is no installer and
 no install step.
 
+To build the native macOS app and drag-to-install disk image from source, run:
+
+```bash
+scripts/build_shell_macos.sh
+```
+
+The command writes `dist/itembank.app` and `dist/itembank-arm64.dmg`. The app
+contains its own Python runtime, so users of that bundle do not need Python.
+The local build is ad-hoc signed. A public download still needs Developer ID
+signing and Apple notarization before it can open without Gatekeeper warnings.
+
 **Python 3.11 or newer must already be on the machine.** `zipapp` does not
 bundle an interpreter, and the stdlib-only constraint this project holds
 itself to rules out the tools that do. "Double-clickable" here means

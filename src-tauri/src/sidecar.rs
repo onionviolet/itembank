@@ -40,9 +40,20 @@ impl SidecarHandle {
     }
 }
 
-fn bundled_sidecar_path() -> Option<PathBuf> {
-    let exe = std::env::current_exe().ok()?;
+fn bundled_sidecar_from_exe(exe: &Path) -> Option<PathBuf> {
     let dir = exe.parent()?;
+
+    #[cfg(target_os = "macos")]
+    {
+        let candidate = dir
+            .parent()?
+            .join("Resources/itembank-sidecar/itembank-sidecar");
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+
+    #[cfg(target_os = "windows")]
     for triple in ["x86_64-pc-windows-msvc", "x86_64-pc-windows-gnu"] {
         let candidate = dir.join(format!("itembank-sidecar-{triple}.exe"));
         if candidate.exists() {
@@ -50,6 +61,10 @@ fn bundled_sidecar_path() -> Option<PathBuf> {
         }
     }
     None
+}
+
+fn bundled_sidecar_path() -> Option<PathBuf> {
+    bundled_sidecar_from_exe(&std::env::current_exe().ok()?)
 }
 
 pub fn spawn(banks_dir: &Path) -> std::io::Result<SidecarHandle> {
@@ -135,4 +150,29 @@ pub fn spawn(banks_dir: &Path) -> std::io::Result<SidecarHandle> {
         output,
         handshake_rx: rx,
     })
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::bundled_sidecar_from_exe;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn finds_sidecar_inside_macos_app_resources() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("itembank-sidecar-{nonce}"));
+        let exe = root.join("itembank.app/Contents/MacOS/itembank-shell");
+        let sidecar = root.join(
+            "itembank.app/Contents/Resources/itembank-sidecar/itembank-sidecar",
+        );
+        fs::create_dir_all(sidecar.parent().unwrap()).unwrap();
+        fs::write(&sidecar, b"fixture").unwrap();
+
+        assert_eq!(bundled_sidecar_from_exe(&exe), Some(sidecar));
+        fs::remove_dir_all(root).unwrap();
+    }
 }
