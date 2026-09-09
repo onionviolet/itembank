@@ -91,6 +91,31 @@ from daemon_roundtrip import start_daemon, json_request      # noqa: E402
 FAILURES = []
 
 
+def seed_17b_journal(course_root):
+    """Recreate ignored fixture journal state through the journal authority."""
+    objects = (
+        ("ba070378d35d44e7", "course", "course-graph.md", None),
+        ("d035bddef2d84eff", "course", "scope.md", None),
+        ("95abc1ccd3e241f9", "objective", "objectives.md", None),
+        ("1672ba231fd446ee", "bank", "unit3_bank.md", None),
+        ("36157b3e10cb46e5", "lesson", "unit3_lesson.md", None),
+        ("5c5bc6b17baa44c6", "source", "sources/lantern_moss_survey.md",
+         {"read": "granted", "quote": "granted", "transform": "granted",
+          "package": "granted", "export": "granted"}),
+        ("8bd25c20ceaa4e20", "source", "sources/fen_hydrology_field_notes.md",
+         {"read": "granted", "quote": "granted", "transform": "granted",
+          "package": "granted", "export": "granted"}),
+    )
+    for object_id, kind, rel_path, rights in objects:
+        path = os.path.join(course_root, rel_path)
+        with open(path, "rb") as handle:
+            raw = handle.read()
+        journal.commit_operation(
+            course_root, object_id, kind, rel_path, "link", raw,
+            identity.object_fingerprint(raw, kind), "human", "17B fixture",
+            write_target=False, rights=rights)
+
+
 def fail(msg):
     print("FAIL: " + msg)
     FAILURES.append(msg)
@@ -2039,6 +2064,7 @@ def check_17c_losses_are_classified_on_surface_restore():
         os.mkdir(source_root)
         os.mkdir(restore_root)
         shutil.copytree(os.path.join(ROOT, "course_fixture_17b"), source_course)
+        seed_17b_journal(source_course)
 
         def cli(*args):
             completed = subprocess.run(
