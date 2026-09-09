@@ -2,6 +2,7 @@
 """R5: one visible shelf-to-course-to-home application journey."""
 import html
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -35,15 +36,23 @@ def check_read_models_and_markup():
                                      "learn")
         page = daemon._course_frame(
             type("Handler", (), {"root": root, "banks": {}})(), state,
-            {"href": "/", "label": "Back to courses"},
+            {"href": "/courses", "label": "Back to courses"},
             ia.course_dir_for(root, sample_course.SAMPLE_COURSE_ID))
         plain = html.unescape(page)
         for needle in ("Current area: Learn", "Course area: Learn",
-                       'href="/"', "Back to courses"):
+                       'href="/courses"', "Back to courses"):
             if needle not in plain:
                 fail("course frame omitted %r" % needle)
-        if page.count('aria-current="page"') != 2:
-            fail("desktop and mobile course navigation lost current state")
+        # Application navigation has its own current page. Count each course
+        # menu independently so duplicate or missing selections cannot cancel.
+        for pattern in (
+                r'<nav class="course-areas course-nav-desktop".*?</nav>',
+                r'<details class="course-areas course-nav-mobile".*?</details>'):
+            menu = re.search(pattern, page, re.S)
+            if menu is None or menu.group().count('aria-current="page"') != 1:
+                fail("desktop or mobile course navigation lost current state")
+            if 'aria-current="page">Learn</a>' not in menu.group():
+                fail("course navigation selected the wrong area")
         for needle in (".course-nav-mobile{display:none}",
                        ".course-nav-desktop{display:none}",
                        ".course-nav-mobile{display:block"):

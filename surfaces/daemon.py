@@ -725,7 +725,7 @@ def handle_help_get(handler, code):
     handler.send_html(presentation.surface_shell(
         entry["title"], body,
         theme_css=theme.theme_css(settings.load_settings(handler.root)),
-        back={"href": "/", "label": "Back to courses"}).encode("utf-8"))
+        back={"href": "/courses", "label": "Back to courses"}).encode("utf-8"))
 
 
 # Progressive enhancement only, emitted by the three course-level handlers.
@@ -1371,7 +1371,7 @@ def _course_not_found(handler):
     handler.send_html(presentation.surface_shell(
         "That link does not resolve", body,
         theme_css=theme.theme_css(settings.load_settings(handler.root)),
-        back={"href": "/", "label": "Back to courses"}).encode("utf-8"), 404)
+        back={"href": "/courses", "label": "Back to courses"}).encode("utf-8"), 404)
 
 
 def handle_palette(handler):
@@ -1416,7 +1416,7 @@ def handle_course_get(handler, course_id):
         _course_not_found(handler)
         return
     handler.send_html(_course_frame(
-        handler, state, {"href": "/", "label": "Back to courses"},
+        handler, state, {"href": "/courses", "label": "Back to courses"},
         course_dir=ia.course_dir_for(handler.root, course_id)).encode("utf-8"))
 
 
@@ -3570,10 +3570,10 @@ def _lesson_context_nav(handler, bank_path):
 
     The bank location is compared with the resolved course directory and a
     course is named only when exactly one shelf card owns the file. Every
-    daemon lesson still has the root Courses link when course metadata is
+    daemon lesson still has the Courses shelf link when course metadata is
     unavailable or ownership is ambiguous.
     """
-    links = [{"href": "/", "label": "Courses"}]
+    links = [{"href": "/courses", "label": "Courses"}]
     try:
         shelf = ia.course_shelf_state(handler.root)
     except Exception:

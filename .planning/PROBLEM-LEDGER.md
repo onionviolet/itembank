@@ -103,6 +103,65 @@ any resulting migration proposal.
 
 ## Link audit, 2026-09-08
 
+### P-20260908-04: selected course navigation text disappears
+
+**Reported by:** Weibao, 2026-09-08
+**Status:** Reproduced, repair in progress
+**Area and owner:** shared course navigation, `surfaces/presentation.py`
+
+**Verbatim observation:**
+
+> make prompt to audit little bugs and more like color of the text. being the same as the shading once its clicked on and more, then run in new hat, make sure we have absorbed all good and missing features from the other stuff and more accordingly
+
+**Observed environment:** The supplied screenshot shows Current area: Learn
+and an unreadable selected pill. Input method was not supplied. The live local
+course was initially on Practice. Clicking Learn reproduced the screenshot.
+Current settings were Neo, light, Field Guide, and custom accent `#1e46c8`.
+
+**Diagnosis, separate from observation:** Browser computed styles on both
+routes returned `rgb(36, 58, 68)` for selected text and background, or 1:1
+contrast. The Neo look supplies a dark selected background. The later product
+shell replaces only its foreground with the same dark product ink. Both desktop
+and mobile navigation copies inherit the collision. Route, heading, and
+`aria-current` agree, so no route-state mismatch was reproduced.
+
+**Repair scope:** Own the selected foreground and background together in the
+shared product rule. Preserve underline and `aria-current`, appearance settings,
+routes, and runtime authority. Regression and browser checks cover look/theme
+and presentation-profile combinations. Human accessibility acceptance remains
+separate. The competitor reconciliation belongs in the existing ABSORPTION.md.
+
+**Before-repair evidence:** `python3 tests/navigation_color_roundtrip.py`
+failed its final-rule check in all 56 configuration combinations. The contrast
+test for the intended paired tokens passed. Those structural failures do not
+mean all 56 variants had an identical visible collision.
+
+**Nearby finding:** The same Neo navigation renders inactive labels with
+`#65716f` on `#e6eade`, measured at 4.15:1 for 14px text. The bounded repair
+uses existing product ink for these labels as well. This is an agent-observed
+contrast defect, not a second quotation from the user.
+
+### P-20260908-05: Courses links return to Your desk
+
+**Reported by:** Agent walkthrough prompted by Weibao's P-20260908-04 audit
+request, 2026-09-08. No additional user quotation is claimed.
+**Status:** Reproduced, repair in progress
+**Owner:** `surfaces/daemon.py`, lesson context and course-back navigation
+
+**Observation:** Keyboard/browser navigation from the synthetic Unit 3 lesson
+via its Courses link opened `/` with title Your desk. The shared application
+Courses link points to `/courses`. The same stale destination exists in the
+course overview, unknown-course recovery, and help back links.
+
+**Diagnosis:** These links retain the old shelf-at-root route after the product
+home split. Replace their destination with the existing `/courses` route. No
+new route or runtime change is needed.
+
+**Before-repair evidence:** The new fallback-navigation regression in
+`tests/navigation_color_roundtrip.py` fails with actual `/`, expected `/courses`.
+Browser observation confirms the misleading destination with course metadata
+present as well. Repair verification must exercise the real destination.
+
 ### P-20260908-01 state transition
 
 **Status:** Fixed and deterministically verified. Direct local recheck passed.
@@ -132,3 +191,50 @@ comparison of both profiles across the full learner flow.
 **Deterministic evidence:** `python3 tests/presentation_profiles_roundtrip.py`
 and `python3 tests/settings_roundtrip.py` passed. The profile choice was not
 saved and no default, profile value, or migration state changed.
+
+## UI contrast audit transitions, 2026-09-08
+
+### P-20260908-04 state transition
+
+**Status:** Fixed and deterministically verified. Direct browser recheck
+passed. Human accessibility and aesthetic acceptance remain owed.
+
+**Repair:** `surfaces/presentation.py` now owns a paired selected background
+and foreground and uses darker existing ink for inactive course links.
+Selected text measures 10.91:1 instead of 1:1. Inactive labels no longer use
+the failed 4.15:1 muted pair. Underline and `aria-current` remain explicit.
+
+**Proof:** `python3 tests/navigation_color_roundtrip.py` passes 3 tests.
+Browser checks passed 280 rendered selected-link states across seven looks,
+four theme settings, two profiles and five interaction states. Native course
+routes agree with their selected labels. At 390px, Enter opens the course menu,
+links are 44px high and no horizontal overflow occurs. Emulated doubled text
+also retains 390px scroll width. Focus, reduced motion and contrast preference
+checks passed within the recorded scope. Physical touch, screen reader and
+human zoom/aesthetic acceptance are not certified.
+
+**Related test repair:** `tests/course_shell_roundtrip.py` counted the
+application's current link as a course selection. It now requires exactly one
+current Learn link in each course menu and passes. This does not weaken native
+selection checks.
+
+### P-20260908-05 state transition
+
+**Status:** Fixed and deterministically verified. Direct browser recheck passed.
+
+**Repair:** Four stale Courses/back destinations in `surfaces/daemon.py` now
+point to `/courses`. The existing profile test's expected link was updated.
+No route or scoring behavior changed.
+
+**Proof:** The native lesson's Courses link now opens the Courses title and
+course shelf. The no-metadata fallback test passes. Final course-shell,
+presentation-profile, stylesheet and navigation checks pass. The daemon suite
+passes 78 served checks after the route repair.
+
+**Ownership and remaining work:** Detailed browser scope, changed paths,
+competitor capability dispositions, full preflight failures and recovery are
+in `research/competition-2026-09-08/ABSORPTION.md`, Native UI repair and
+capability reconciliation. This repair does not close P-20260908-02/03,
+source-reading R1-R3, or competitor prototype promotion gates. The original
+8767 process was left running. A fresh 8768 audit process supplied repaired
+browser evidence because a Python daemon retains already-imported code.

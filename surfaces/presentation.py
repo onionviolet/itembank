@@ -539,7 +539,8 @@ button.go.primary,a.go.primary{background:var(--product-ink);border-color:var(--
   list-style:none;padding:0;margin:0}
 .course-areas{border-bottom:1px solid var(--product-line);padding-bottom:var(--space-3);
   margin-bottom:var(--space-5)}
-.course-areas a[aria-current]{color:var(--product-ink);text-decoration:underline;
+.course-areas a{color:var(--product-ink)}
+.course-areas a[aria-current]{background:var(--product-ink);color:var(--paper);text-decoration:underline;
   text-underline-offset:8px;text-decoration-thickness:2px}
 .course-rows{list-style:none;padding:0;margin:0}
 .course-rows .row{padding:var(--space-4) 0;border-bottom:1px solid var(--product-line)}

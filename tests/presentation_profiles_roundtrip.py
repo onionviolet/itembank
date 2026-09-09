@@ -251,7 +251,7 @@ def check_course_lesson_practice_context():
             ia.course_dir_for = original_dir
         if links != [
                 {"href": "/course/synthetic/learn", "label": "Back to course"},
-                {"href": "/", "label": "Courses"},
+                {"href": "/courses", "label": "Courses"},
                 {"href": "/quiz/lesson_bank", "label": "Continue to practice"}]:
             fail("course, lesson, and practice did not preserve one context: %r" % links)
     for token in ("sessionStorage", "scrollY", "activeId", "beforeunload",
