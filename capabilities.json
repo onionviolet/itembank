@@ -100,16 +100,13 @@
   "changed_for_agents": [
     {
       "changes": [
-        "capabilities.json introduced: a static, local, machine-readable index of this install (version, format contract version, every CLI command with its since-version, served routes, skill index, and this changelog). Reading it is not a network event."
-      ],
-      "version": "0.3.0"
-    },
-    {
-      "changes": [
+        "capabilities.json introduced: a static, local, machine-readable index of this install (version, format contract version, every CLI command with its since-version, served routes, skill index, and this changelog). Reading it is not a network event.",
         "The current checkout publishes the generated MCP tool table through the mcp command and token-gated /mcp route, and exposes course source-registration and agent-operation routes.",
-        "Lesson readers now disclose authored comparison interactions and guided progressive-reading controls while retaining static and offline fallbacks; accessibility review remains a human gate."
+        "Lesson readers now disclose authored comparison interactions and guided progressive-reading controls while retaining static and offline fallbacks; accessibility review remains a human gate.",
+        "The learner workspace now provides course-first desk, learning, practice, activity, source, and settings routes over one runtime.",
+        "A self-contained macOS arm64 app and DMG now bundle the Python runtime and use a stable Documents/itembank workspace."
       ],
-      "version": "unreleased"
+      "version": "0.4.0"
     }
   ],
   "commands": [
@@ -141,7 +138,7 @@
     {
       "help": "serve the generated MCP tool table over stdio",
       "name": "mcp",
-      "since": "0.3.0"
+      "since": "0.4.0"
     },
     {
       "help": "packaged-app launch (D-03/D-04): the daemon in sidecar mode, printing the fixed stdout handshake (itembank-port/token/version) after binding and gating every route except the marker with a per-launch token",
@@ -336,12 +333,12 @@
     {
       "help": "create, rename, read a course, or record a source in it, the CLI twin of POST /api/course/<operation>",
       "name": "course",
-      "since": "0.3.0"
+      "since": "0.4.0"
     },
     {
       "help": "bind a source or a treatment to an objective, list what a course holds, or record a source's rights",
       "name": "bind",
-      "since": "0.3.0"
+      "since": "0.4.0"
     },
     {
       "help": "preview, set, reset, or pick the source accent",
@@ -390,7 +387,7 @@
     }
   ],
   "format_contract_version": 1,
-  "itembank_version": "0.3.0",
+  "itembank_version": "0.4.0",
   "routes": [
     {
       "method": "GET",

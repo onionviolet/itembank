@@ -1,6 +1,6 @@
 [package]
 name = "itembank-shell"
-version = "0.3.0"
+version = "0.4.0"
 description = "Tauri 2 shell over the itembank Python sidecar (one transport, no second scorer)"
 authors = ["itembank"]
 edition = "2021"

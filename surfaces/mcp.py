@@ -13,7 +13,7 @@ import schema_validate
 
 
 PROTOCOL_VERSION = "2026-07-28"
-SERVER_INFO = {"name": "itembank", "version": "0.3.0"}
+SERVER_INFO = {"name": "itembank", "version": "0.4.0"}
 
 
 def _document(relpath):

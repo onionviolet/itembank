@@ -51,7 +51,7 @@ REPORT_SCHEMA_VERSION = 1
 
 # The public tool identity recorded in every report/manifest (D-17). Mirrors
 # itembank.__version__ without importing the CLI shim into the domain layer.
-TOOL_VERSION = "itembank-0.3.0"
+TOOL_VERSION = "itembank-0.4.0"
 
 # Schema-bounded caps (T-11-04, T-11-14): a request may ask for at most
 # this many items, retries, and per-objective items. The bounds live here so

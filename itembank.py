@@ -41,7 +41,7 @@ install step: `python itembank.py` from a checkout is the whole thing.
 """
 # D-07: releases are tagged plain vX.Y.Z with no pre-release or build suffix,
 # because the updater compares version components as integers.
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 import os
 import sys

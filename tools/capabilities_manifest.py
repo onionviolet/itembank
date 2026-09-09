@@ -59,15 +59,13 @@ SINCE = {
     "update": "0.3.0", "import": "0.3.0", "seed": "0.3.0", "guard": "0.3.0",
     "calibrate": "0.3.0", "audit": "0.3.0", "lti": "0.3.0",
     # The first course-shaped command, added 2026-09-05 to fill the surface
-    # grid's `source binding / create` cell. Still 0.3.0: it lands inside the
-    # same unreleased version every command above did.
-    "bind": "0.3.0",
+    # grid's `source binding / create` cell.
+    "bind": "0.4.0",
     # Phase 19A's dispatch spine and its first operation family, added
-    # 2026-09-05: the CLI twin of POST /api/course/<operation>. Still 0.3.0,
-    # the same unreleased version every command above lands in.
-    "course": "0.3.0",
-    # Phase 19E's generated MCP tool table ships in the same unreleased version.
-    "mcp": "0.3.0",
+    # 2026-09-05: the CLI twin of POST /api/course/<operation>.
+    "course": "0.4.0",
+    # Phase 19E's generated MCP tool table ships in 0.4.0.
+    "mcp": "0.4.0",
 }
 
 # The two byte-identical skill mirrors (CI enforces the diff); the index
@@ -77,21 +75,22 @@ SKILL_ROOTS = (".claude/skills", ".agents/skills")
 # One entry per release describing what an agent must know that release
 # notes for humans would bury. Each release appends one entry.
 CHANGED_FOR_AGENTS = [
-    {"version": "0.3.0",
+    {"version": "0.4.0",
      "changes": [
          "capabilities.json introduced: a static, local, machine-readable "
          "index of this install (version, format contract version, every "
          "CLI command with its since-version, served routes, skill index, "
          "and this changelog). Reading it is not a network event.",
-     ]},
-    {"version": "unreleased",
-     "changes": [
          "The current checkout publishes the generated MCP tool table through "
          "the mcp command and token-gated /mcp route, and exposes course "
          "source-registration and agent-operation routes.",
          "Lesson readers now disclose authored comparison interactions and "
          "guided progressive-reading controls while retaining static and "
          "offline fallbacks; accessibility review remains a human gate.",
+         "The learner workspace now provides course-first desk, learning, "
+         "practice, activity, source, and settings routes over one runtime.",
+         "A self-contained macOS arm64 app and DMG now bundle the Python "
+         "runtime and use a stable Documents/itembank workspace.",
      ]},
 ]
 

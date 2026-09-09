@@ -321,7 +321,7 @@ def citations_for_objective(normalized, objective_key):
 # ---------------------------------------------------------------------------
 
 REPORT_SCHEMA_VERSION = 1
-TOOL_VERSION = "itembank-0.3.0"
+TOOL_VERSION = "itembank-0.4.0"
 AUTHORING_REQUEST_VERSION = 1
 DEFAULT_PER_OBJECTIVE_CAP = 20
 
