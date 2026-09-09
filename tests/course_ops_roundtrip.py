@@ -93,9 +93,10 @@ FAILURES = []
 
 def seed_17b_journal(course_root):
     """Recreate ignored fixture journal state through the journal authority."""
+    if os.path.exists(journal.registry_path(course_root)):
+        raise AssertionError("17B fixture unexpectedly carried ignored journal state")
     objects = (
         ("ba070378d35d44e7", "course", "course-graph.md", None),
-        ("d035bddef2d84eff", "course", "scope.md", None),
         ("95abc1ccd3e241f9", "objective", "objectives.md", None),
         ("1672ba231fd446ee", "bank", "unit3_bank.md", None),
         ("36157b3e10cb46e5", "lesson", "unit3_lesson.md", None),
@@ -107,6 +108,8 @@ def seed_17b_journal(course_root):
           "package": "granted", "export": "granted"}),
     )
     for object_id, kind, rel_path, rights in objects:
+        if rights is None and kind != "course":
+            rights = {"package": "granted", "export": "granted"}
         path = os.path.join(course_root, rel_path)
         with open(path, "rb") as handle:
             raw = handle.read()
@@ -2067,7 +2070,9 @@ def check_17c_losses_are_classified_on_surface_restore():
         source_course = os.path.join(source_root, "course")
         os.mkdir(source_root)
         os.mkdir(restore_root)
-        shutil.copytree(os.path.join(ROOT, "course_fixture_17b"), source_course)
+        shutil.copytree(
+            os.path.join(ROOT, "course_fixture_17b"), source_course,
+            ignore=shutil.ignore_patterns("_journal", "_attempts", "_evidence"))
         seed_17b_journal(source_course)
 
         def cli(*args):
