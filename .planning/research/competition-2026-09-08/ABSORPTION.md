@@ -1,6 +1,6 @@
 # Selective competitor absorption
 
-Date: 2026-09-08. Status: deterministic comparison integrated in the native lesson renderer with applicable gates passed. Full repository preflight remains red on separate findings below. Human review remains owed. Grounding and generation remain prototypes.
+Date: 2026-09-08. Status: deterministic comparison, guided progression, optional-tip folding, authored-wording highlights and inline excerpt previews are implemented in the native lesson renderer. See the latest reader expansion below for current verification. Human review remains owed. External-source grounding and generation remain prototypes.
 
 ## Decision against USER-VISION
 
@@ -10,7 +10,7 @@ Keep Itembank and absorb bounded capabilities. Do not fork OpenMAIC as the produ
 | --- | --- | --- |
 | Source-grounded lesson generation | Prototype | Pinned OpenMAIC generation package 0.3.6 behind a caller-owned model function. Trial exposes outline and single teaching-scene generation with four deterministic contract tests. Source-claim checks, portable Markdown, preview, validation, and accepted-revision recovery remain required. |
 | Exact passage assistance | Prototype | Adapted DeepTutor normalization and range grounding with Apache-2.0 attribution. Twenty tests cover boundaries. Loopback UI prepares context only. Production must bind canonical sources and operation grants before calling a model. |
-| Interactive explanations | Integrated deterministic comparison | Link two adds an explicit bounded comparison to the existing Example role and native lesson route. Link one's LiaScript progressive explanation and isolated rainfall trial remain evidence. Human accessibility review remains owed. |
+| Interactive explanations | Integrated bounded native treatments | Comparison, guided progression, highlight toggle and optional-tip folding use existing semantic content. The reader expansion below adds source previews and an outline. Human accessibility review remains owed. Broader activity formats remain candidates. |
 | Teacher, classmates, discussions, voice, institutional LMS | Backburner | Not part of this default learner flow. Revisit only for a specific learner need with evidence that the extra cost helps. |
 | External grading or evidence authority | Do not import | Generated practice remains a draft until Itembank validation. Itembank's runtime retains scoring and disclosure authority. |
 
@@ -304,3 +304,88 @@ work remain separate local uncommitted work. Integration evidence above was
 measured in that combined local checkout, not a claim that all those inputs
 are included in the UI repair commit. The navigation, course-shell and
 presentation-profile suites passed again after restart.
+
+## Native reader absorption expansion, 2026-09-08
+
+The user explicitly asked to absorb LiaScript highlighting and other platforms
+as well. USER-VISION and IL-20260908-07 preserve both statements. This expands
+the implementation scope beyond the two original comparison links. The full
+20-candidate matrix above remains active. No whole-platform parity is claimed.
+
+### Implemented reader slice
+
+`surfaces/lesson_progressive.py` enhances the existing guided mode. The native
+lesson route now exposes `Read step by step` and `Read continuously`. It uses
+the existing parser, semantic roles, source excerpts and runtime truncation.
+
+| Reference pattern | Native result | Evidence boundary |
+| --- | --- | --- |
+| LiaScript progressive explanations and visual emphasis | Next explanation, show all, restart, current-step border and a learner-controlled highlight toggle over authored bold wording. | Native implementation, not a LiaScript runtime import. Plain Markdown remains unchanged and readable. No new narration or model call. |
+| H5P accordion-style optional detail | Existing optional Expert tip blocks become independently collapsible native details in guided mode. | Tips begin open. Required blocks, assessment checks and source excerpts are not collapsed by this rule. This is pattern reuse, not H5P package compatibility. |
+| Source notebook citation navigation | A lesson outline opens permitted headings. A citation to one unambiguous rendered excerpt gets an inline source preview. | No new extraction, retrieval or remote assistance. Ambiguous and external source links retain their ordinary behavior. This does not close G1 or claim exact external-document reader integration. |
+| OpenMAIC direct manipulation | The prior native rainfall comparison remains available alongside the new reading controls. | Existing bounded comparison only. Rich scene generation and other simulations remain separate. |
+
+The H5P pattern was refreshed against its official
+[Accordion description](https://h5p.org/accordion). The wider source-workspace
+comparison was refreshed against [Open Notebook](https://github.com/lfnovo/open-notebook).
+[LiaScript documentation](https://github.com/LiaScript/docs) and the earlier
+live two-step trial remain the progression references. Original implementation
+was written here. No third-party code or dependency was copied or installed.
+
+### Broader absorption remains owned
+
+| Lane | Platforms retained | Remaining concrete result |
+| --- | --- | --- |
+| Source reading and assistance | DeepTutor, Open Notebook, NotebookLM, OpenTutor | Exact external-source occurrence, source selection and anchored notes through canonical owners. Inline excerpt previews are a smaller completed step. G1 and G3 remain open. |
+| Generation and authoring | OpenMAIC, OpenTutor, Lumi AI Editor, eXeLearning | One source-faithful editable lesson draft with citations, validation, revision and recovery. G5 remains open. |
+| Rich teaching | LiaScript, H5P, Excalidraw | Broader diagrams and finite interaction types follow demonstrated objective needs. Guided progression is now implemented. External format compatibility and drawing remain unproved. |
+| Review | Anki, FSRS | Pinned scheduling conformance and one course-level export/import flow. G4 remains open. |
+| Extraction and delivery | Docling, MinerU, Marker, Unstructured, Kolibri, Moodle, Open edX, LearnHouse | Source-fidelity adapter trials and offline restoration before new dependency or package promises. Institutional delivery retains its existing disposition. |
+
+### Authority and verification
+
+Accepted lesson Markdown remains the source of truth. DOM state is disposable
+and resets on reopening. The renderer owns presentation, while the runtime
+owns checks, disclosure and scoring. No content write, model call, storage,
+telemetry or accepted-evidence event is introduced. A required check truncates
+content before enhancement, so show-all and source preview cannot fetch the
+withheld remainder. Source excerpts are copied as text, never executable HTML.
+
+Automated JavaScript checks use the real generated page to verify independent
+stages, reveal/reset, highlight toggle, source jump, folded-tip print recovery,
+unchanged authored wording and the no-script fallback. Python checks verify
+required-check truncation and static content. The existing lesson suite passes
+after correcting its obsolete Courses-link expectation from `/` to `/courses`.
+An intermediate loopback timeout was retried successfully without loosening
+the test. The 12-test comparison suite also passes.
+
+Browser observation on the native route verified progression from 1/3 to 2/3,
+highlight toggling and keyboard expansion of the optional tip. Human touch,
+screen-reader, zoom and aesthetic review remain owed. The full preflight result
+is recorded separately below when the run completes. No commit or push was
+requested or performed by this pass. Large modules were sampled around the
+guided renderer and lesson route, not read in full.
+
+### Final reader expansion verification
+
+The full preflight completed all 120 Python scripts and the JavaScript suite.
+There were 116 passing Python scripts and four failures: the stale capability
+manifest, rejected-color accent state, extended 16B theme-page baseline, and
+the unavailable four-subject parity backend. These match previously recorded
+findings outside this reader slice. Skill mirrors also fail on the existing
+unmirrored `author-bank/_attempts` directory. Clean-tree fails with the shared
+uncommitted changes. Transcript: `/tmp/itembank-progressive-full.log`.
+
+The final quick preflight fails only on skill mirrors. Its other executed
+gates pass. Transcript: `/tmp/itembank-progressive-final-quick.log`.
+The final three JavaScript reader tests pass, including repeat citation clicks
+after restarting with the same URL fragment. The two Python reader tests and
+12 comparison tests pass. No second full run is claimed.
+
+The final browser pass verified the inline quoted source preview, source jump,
+restart and highlight toggle. A 390-pixel viewport had a 390-pixel document
+scroll width. The highlighted text uses foreground RGB 24,37,27 on background
+255,240,138 and an underline. Native shared button styles are used. The
+temporary viewport override was reset. The scoped synthetic preview remains
+available on port 8769 with `?view=guided`. Human accessibility and aesthetic
+acceptance remain open.

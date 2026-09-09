@@ -642,6 +642,34 @@ launch relevant course treatments alongside the source. Editing or round-trip
 export of each proprietary format remains an open question rather than an
 implied commitment.
 
+### 2026-09-08: competitor scope and selective generation absorption
+
+> scope all the competitions, absorb stuff and more, you can run through the experience, and also using [$efficient-agent-routing](/Users/weiwei/Documents/Dev/agent-skills/skills/efficient-agent-routing/SKILL.md) check out everything and then absorb properly
+
+> maic seems inefficient for what we need, we can absorb the lesson generation and more, but we dont need the extra stuff like multiple sub agents and more and stuff, look at uservision and absorb what should be absorbs
+
+**Disposition:** Split, promote, and route (2026-09-08).
+
+The product direction is promoted verbatim to USER-VISION.md under selective generation absorption. The broad research and routing request belongs to `research/competition-2026-09-08/ABSORPTION.md`, which reconciles the landscape, hands-on trials, actual prototype adoption, exclusions, and remaining gates. Classroom agent multiplicity is not a requirement for lesson generation.
+
+### 2026-09-08: interactive visual teaching without conversation
+
+> we can absort the interactiveness, small slight, bright text highlighting and other stuff and more, just without the conversational stuff and stuff
+
+**Disposition:** Promote and route (2026-09-08).
+
+Promoted verbatim to USER-VISION.md. IL-20260908-06 and `research/competition-2026-09-08/ABSORPTION.md` preserve interactive treatments and bright highlighting separately from excluded conversational staging. Subtle motion is an interpretation to evaluate, not an invented exact requirement.
+
+### 2026-09-08: absorb LiaScript and the wider platform landscape
+
+> what about the highlights from lia script and other stuff and more? also make those absorbed and more
+
+> other platforms and more as well
+
+**Disposition:** Promote and route (2026-09-08).
+
+Promoted verbatim to USER-VISION.md. The existing competition ABSORPTION.md owns implementation evidence and the full landscape. IL-20260908-07 extends absorption beyond OpenMAIC and LiaScript. Broad intent does not mean every surveyed runtime or institutional feature must be installed.
+
 ## Disposition vocabulary
 
 - **Promote:** add the verbatim statement and interpretation to `USER-VISION`.

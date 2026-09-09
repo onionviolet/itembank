@@ -1,0 +1,1 @@
+A rain gauge measures rainfall depth in millimeters. Compare readings over equal time intervals. Gauge A collected 12 mm in 24 hours and gauge B collected 18 mm in 24 hours. B received 6 mm more.

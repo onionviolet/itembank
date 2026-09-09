@@ -2054,3 +2054,46 @@ work. Verification results live in the report's validation section.
   IL-20260815-07 source intake, and the Phase 14C EPUB decision. It composes
   existing reader and adapter seams instead of introducing a parallel content
   model.
+
+### IL-20260908-04: selective competitor absorption
+
+- **Idea:** reuse source-grounded lesson generation and supporting components without making a simulated multi-agent classroom the default product.
+- **Disposition:** Prototype.
+- **Owner:** competition absorption coordinator, then the existing course-authoring and reader owners.
+- **Evidence class:** direct user direction on 2026-09-08, pinned upstream code inspection, and hands-on OpenMAIC and DeepTutor trials.
+- **Dependency and cost driver:** one source-to-draft boundary, source citations, caller-owned models, accepted revisions, portable fallbacks, and existing validation. Cost comes from model calls, package maintenance, fidelity checks, and runtime integration.
+- **Promotion gate:** one bounded source produces a useful candidate lesson without classroom orchestration. Source-selection assistance verifies revision and canonical passage before preparing context. Production adoption still requires artifact validation, review, rights, recovery, and reader integration.
+- **Boundary:** no imported scoring, evidence, classroom roster, or generated executable authority. Optional multi-agent teaching remains Backburner under IL-20260908-05.
+- **Relationship:** narrows the OpenMAIC fork exploration and extends IL-20260908-03. `research/competition-2026-09-08/ABSORPTION.md` owns reconciliation.
+
+### IL-20260908-05: optional simulated classroom
+
+- **Idea:** optional teacher/classmate personas, agent discussion, avatar staging, and narrated classroom playback.
+- **Disposition:** Backburner.
+- **Owner:** future learning-treatment owner.
+- **Evidence class:** user excludes this overhead from current needs. OpenMAIC demonstrations establish product behavior rather than learning efficacy.
+- **Dependency and cost driver:** a learner job where dialogue adds value, additional model calls, latency, audio/media dependencies, and accessible alternatives.
+- **Revisit trigger:** explicit user demand or a bounded trial showing a learning benefit over one direct explanation that justifies the additional time and cost.
+- **Retained alternative:** single-artifact generation and learner-triggered contextual help. This disposition does not require a product fork.
+
+### IL-20260908-07: wider competitor absorption in the native workflow
+
+- **Idea:** implement useful source, lesson, interaction, authoring, and review patterns from the full competitor landscape.
+- **Disposition:** Registered.
+- **Owner:** existing course, lesson, reader, review, and source-adapter owners by capability.
+- **Evidence class:** direct user instruction on 2026-09-08. Specific implementation selection is an engineering interpretation.
+- **Dependency and cost driver:** existing semantic rendering and runtime authority first. Source-model work, generation quality, extraction dependencies, and scheduler conformance require their own evidence.
+- **Promotion gate:** a native learner flow with source fidelity, static meaning, runtime disclosure, regression checks, and named human review limits.
+- **Boundary:** no simulated classroom, voice, imported scorer, or automatic dependency adoption. No claim of whole-platform parity.
+- **Relationship:** extends IL-20260908-04 and IL-20260908-06. The full landscape and implementation record remain in `research/competition-2026-09-08/ABSORPTION.md`.
+
+### IL-20260908-06: interactive visual teaching without conversation
+
+- **Idea:** absorb direct lesson interaction, bright text emphasis, and useful small visual effects without conversational staging.
+- **Disposition:** Registered.
+- **Owner:** existing lesson-rendering and reader workstream.
+- **Evidence class:** direct user direction on 2026-09-08. The earlier OpenMAIC polynomial control trial demonstrates an interaction, not a learning-effect measurement.
+- **Dependency and cost driver:** semantic lesson roles, existing interaction capabilities, portable content, accessible controls, and motion preferences. Avoid a second renderer or a model call for routine visual interaction.
+- **Promotion gate:** demonstrate a useful highlighted explanation and learner-controlled interaction in the existing surface. Verify keyboard and touch behavior, readable contrast, reduced motion, and a study-usable static fallback. Highlights must not imply mastery or accepted evidence.
+- **Boundary:** no character chat, turn-taking, simulated discussion, or narration dependency. Staged reveals and subtle motion are candidate interpretations, not mandatory effects on every lesson.
+- **Relationship:** extends IL-20260908-04 and clarifies that IL-20260908-05 does not exclude visual richness. Adoption criteria live in `research/competition-2026-09-08/ABSORPTION.md`.

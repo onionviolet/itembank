@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Rainfall, side by side | Itembank lesson trial</title>
+<link rel="stylesheet" href="lesson.css">
+<script src="lesson.js" defer></script>
+<body>
+<a class="skip" href="#lesson">Skip to lesson</a>
+<header><a href="lesson.md">Plain Markdown</a><span>ITEMBANK / FIELD NOTES</span><span>Prototype · synthetic source</span></header>
+<main id="lesson">
+<p class="eyebrow">MEASUREMENT / ONE IDEA TO EXPLORE</p>
+<h1>Rainfall, side by side.</h1>
+<p class="lede">More rain, or just more time? Start with <mark><strong>equal time intervals</strong></mark>, then compare the depths.</p>
+<p class="objective"><strong>Your aim:</strong> compare two rainfall depths and explain why the time intervals must match.</p>
+<div class="layout">
+<section class="card experiment" aria-labelledby="explore-title">
+<p class="eyebrow">01 / EXPLORE THE DIFFERENCE</p>
+<h2 id="explore-title">Keep A fixed. Change B.</h2>
+<p>Both gauges represent <strong>24 hours</strong>. The starting values come from <a href="#source">source RAIN-01</a>.</p>
+<p id="scenario" class="badge">Source values · A 12 mm / B 18 mm</p>
+<figure>
+<svg viewBox="0 0 520 220" role="img" aria-labelledby="chart-title chart-desc">
+<title id="chart-title">Rainfall depth comparison</title>
+<desc id="chart-desc">A is 12 mm. B is 18 mm. B is 6 mm higher than A.</desc>
+<g class="grid"><path d="M100 40V170 M195 40V170 M290 40V170 M385 40V170 M480 40V170"/></g>
+<text x="32" y="88">A</text><text x="32" y="148">B</text>
+<rect class="bar-a" x="100" y="58" width="190" height="42" rx="5"/>
+<rect id="bar-b" class="bar-b" x="100" y="118" width="285" height="42" rx="5"/>
+<text x="108" y="85" class="bar-label">12 mm</text><text id="b-label" x="108" y="145" class="bar-label">18 mm</text>
+<g class="axis"><text x="100" y="195">0</text><text x="195" y="195">6</text><text x="290" y="195">12</text><text x="385" y="195">18</text><text x="480" y="195">24 mm</text></g>
+</svg>
+<figcaption>Same scale. Same duration. Labels carry the meaning even without color.</figcaption>
+</figure>
+<div id="controls" hidden>
+<label for="depth"><strong>Gauge B depth</strong> <output id="depth-value" for="depth">18 mm</output></label>
+<input id="depth" type="range" min="0" max="24" step="1" value="18" aria-describedby="control-help" aria-valuetext="18 millimeters">
+<p id="control-help" class="small">Drag, use arrow keys, or use the buttons. Values away from 18 mm are hypothetical.</p>
+<div class="buttons"><button id="less" type="button">B − 1 mm</button><button id="more" type="button">B + 1 mm</button><button id="reset" type="button">Reset to source</button></div>
+</div>
+<p id="comparison" class="result" role="status" aria-live="polite" aria-atomic="true">B is 6 mm higher than A.</p>
+<p id="equation" class="equation">18 − 12 = +6 mm</p>
+<noscript><p>The controls need JavaScript. The source diagram and complete study version below still work.</p></noscript>
+</section>
+<aside class="card source" id="source" aria-labelledby="source-title">
+<p class="eyebrow">SOURCE / RAIN-01 · PARAGRAPH 1</p>
+<h2 id="source-title">The observation</h2>
+<blockquote>A rain gauge measures rainfall depth in millimeters. Compare readings over equal time intervals. Gauge A collected 12 mm in 24 hours and gauge B collected 18 mm in 24 hours. B received 6 mm more.</blockquote>
+<p class="small">Synthetic text created for this comparison. No real course material.</p>
+<a href="../rainfall.txt">Open unchanged source text</a>
+<hr>
+<h3>What to notice</h3>
+<p><mark><strong>Depth is the quantity.</strong></mark> Here, millimeters describe rainfall depth.</p>
+<p><mark class="mint"><strong>Time is held equal.</strong></mark> Keep that condition visible while comparing.</p>
+<p class="small">The two notes above paraphrase RAIN-01. The reasoning and hypothetical values below are labeled synthesis.</p>
+</aside>
+</div>
+<section class="study" aria-labelledby="study-title">
+<p class="eyebrow">02 / MAKE SENSE OF IT</p>
+<h2 id="study-title">A comparison you can explain.</h2>
+<p><strong>AI-authored synthesis from RAIN-01.</strong> Open either step when you want the reasoning. These controls do not submit an answer.</p>
+<details><summary>Why hold time equal?</summary><p>RAIN-01 asks for equal intervals. That lets this comparison focus on depth over the same duration. A larger depth over a longer interval would mix two changing quantities.</p></details>
+<details><summary>How does the difference work?</summary><p>Subtract A from B. At the source values, <strong>18 − 12 = 6 mm</strong>. B is higher by 6 mm. At B = 12 mm the difference is zero. At B = 6 mm, B is lower by 6 mm. The last two values are hypothetical examples, not extra source observations.</p></details>
+<h3>Static study version</h3>
+<p>This table and explanation remain available with JavaScript disabled and in <a href="lesson.md">plain Markdown</a>.</p>
+<table><caption>A stays at 12 mm over 24 hours. B also represents 24 hours.</caption><thead><tr><th scope="col">B depth</th><th scope="col">B − A</th><th scope="col">Meaning</th><th scope="col">Origin</th></tr></thead><tbody><tr><th scope="row">6 mm</th><td>−6 mm</td><td>B is 6 mm lower</td><td>Hypothetical</td></tr><tr><th scope="row">12 mm</th><td>0 mm</td><td>Equal depths</td><td>Hypothetical</td></tr><tr><th scope="row">18 mm</th><td>+6 mm</td><td>B is 6 mm higher</td><td>RAIN-01</td></tr></tbody></table>
+<p><strong>Takeaway:</strong> compare depths over equal time intervals. Subtract A from B to see the size and direction of the difference.</p>
+</section>
+<footer>Exploration only. Nothing is scored or saved. Reopening starts at the source values.</footer>
+</main>
+</body></html>

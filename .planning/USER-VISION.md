@@ -2049,6 +2049,56 @@ selects one product identity. It preserves the earlier extensible semantic
 presentation seam as implementation infrastructure, not as a competing
 learner-facing design.
 
+### 2026-09-08: absorb useful generation without a simulated classroom
+
+> maic seems inefficient for what we need, we can absorb the lesson generation and more, but we dont need the extra stuff like multiple sub agents and more and stuff, look at uservision and absorb what should be absorbs
+
+#### Interpretation recorded 2026-09-08
+
+**Status:** active direction.
+
+**Current interpretation:** absorb competitor capabilities that serve the existing source-to-course vision, especially useful lesson generation. Do not adopt OpenMAIC's simulated teacher and classmate roster, multi-agent discussion, or its whole classroom workflow as the default learner experience. Select reusable generation, editing, source-grounding, and interaction components by learning value and operational cost. Agents remain replaceable operators.
+
+**Open questions:** which generation components improve a source-grounded lesson under the existing portable artifact contract, how much model work each needs, and which rich treatments justify their cost. A generated artifact must be assessed on source fidelity and usability rather than its number of scenes or agents.
+
+**Planning effect:** the competition absorption pass prioritizes a single-artifact generator and source-selection grounding prototypes. Its owning synthesis is `research/competition-2026-09-08/ABSORPTION.md`. The classroom shell and role orchestration are outside the current absorption slice. No upstream scorer, storage model, or generated executable content becomes canonical by copying it.
+
+**Relationship to prior entries:** confirms the 2026-08-13 source-to-course and treatment-selection goal, the 2026-09-07 learning-harness framing, and the 2026-09-08 external-reader direction. Narrows the earlier OpenMAIC fork exploration to selective capability absorption. It does not cancel the competitor survey or useful optional teaching treatments.
+
+### 2026-09-08: interactive visual teaching without conversation
+
+> we can absort the interactiveness, small slight, bright text highlighting and other stuff and more, just without the conversational stuff and stuff
+
+#### Interpretation recorded 2026-09-08
+
+**Status:** active direction.
+
+**Current interpretation:** retain rich interactive teaching and visual emphasis from the competitor experience without its conversational presentation. Bright text highlighting is explicit. Small transitions, staged reveals, and restrained motion are plausible interpretations of "small slight", not an exact user specification. Interactive diagrams and controls should act directly on the lesson rather than require dialogue with characters.
+
+**Open questions:** which small visual effects improve comprehension and what "small slight" specifically refers to. This does not block retaining interactive teaching as intended scope.
+
+**Planning effect:** `research/competition-2026-09-08/ABSORPTION.md` carries the visual-interaction adoption criteria. IL-20260908-06 registers the capability for the existing lesson and reader surfaces. These are desired capabilities, not a claim that they have shipped.
+
+**Relationship to prior entries:** extends the immediately preceding selective-generation direction and the earlier visual-ambition and progressive-lesson goals. Excluding simulated conversation does not reduce lessons to static text or exclude learner-controlled interaction.
+
+### 2026-09-08: absorb LiaScript and the wider platform landscape
+
+> what about the highlights from lia script and other stuff and more? also make those absorbed and more
+
+> other platforms and more as well
+
+#### Interpretation recorded 2026-09-08
+
+**Status:** active direction.
+
+**Current interpretation:** implement useful capabilities from the full existing competitor landscape, including highlighting and progressive explanations. Do not narrow absorption to OpenMAIC or LiaScript. Preserve the exclusions for simulated classroom agents, speakers, and conversational staging.
+
+**Open questions:** which source, authoring, interaction, and review capability should follow the first native reader additions. A priority question is pending. The selected initial slice is an implementation choice, not an exhaustive interpretation of "and more".
+
+**Planning effect:** the existing `research/competition-2026-09-08/ABSORPTION.md` tracks the native guided-reader additions and remaining platform families under IL-20260908-07. Retain the complete landscape and name unimplemented capabilities explicitly.
+
+**Relationship to prior entries:** extends the September 8 selective-generation and interactive-visual-teaching entries. It authorizes implementation beyond a comparison report while preserving the source-to-course and portable-artifact boundaries.
+
 ## Interpretation protocol
 
 An interpretation may appear immediately after a verbatim entry when it helps

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Itembank | Source study prototype</title>
+<style>
+:root{color-scheme:light;font:17px/1.65 system-ui;color:#173137;background:#f4f2eb}
+*{box-sizing:border-box}body{margin:0}header,main{max-width:1100px;margin:auto;padding:28px}
+header{border-bottom:1px solid #bbc7c1}h1{font:600 34px/1.2 Georgia;margin:12px 0}h2{font-size:21px}
+.eyebrow{font-size:12px;letter-spacing:.13em;text-transform:uppercase}main{display:grid;grid-template-columns:1.2fr 1fr;gap:30px}
+article,aside{background:#fffef9;border:1px solid #d0d8cd;border-radius:12px;padding:26px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;margin:0}label{display:block;font-weight:600;margin-top:15px}
+textarea{width:100%;font:inherit;padding:10px;border:1px solid #84978e;border-radius:6px;min-height:120px}
+button{background:#1e574f;color:white;padding:11px 16px;border:0;border-radius:6px;font:600 15px system-ui;margin:12px 8px 0 0;cursor:pointer}
+button.secondary{color:#234e44;background:#e9eee5}:focus-visible{outline:3px solid #b65b16;outline-offset:3px}
+.note{color:#4c625d;font-size:14px}#status{font-weight:600}#result{border-top:1px solid #c6d1ca;padding-top:18px}blockquote{border-left:3px solid #679384;margin:15px 0;padding-left:14px}
+@media(max-width:760px){main{grid-template-columns:1fr;padding:18px}header{padding:18px}article,aside{padding:20px}}
+</style>
+<header><div class="eyebrow">Itembank / absorption trial</div><h1>Help starts with the passage.</h1><p>Select text from the source, then check exactly what assistance would receive.</p></header>
+<main><article><div class="eyebrow">Synthetic source / rainfall measurement</div><h2>Compare like with like</h2><pre id="source" tabindex="0">Loading the source...</pre><button id="use">Use selected passage</button><p class="note">You can also copy a passage into the field. The server checks it against this source revision.</p></article>
+<aside><h2>Passage assistance</h2><label for="selection">Selected passage</label><textarea id="selection" placeholder="Select or paste a passage from the source"></textarea><button id="prepare">Prepare assistance</button><button id="reset" class="secondary">Clear</button><p id="status" role="status" aria-live="polite">No passage prepared.</p><section id="result" hidden><h2>Verified source context</h2><blockquote id="quote"></blockquote><p class="note" id="reference"></p><details><summary>Context that would accompany this passage</summary><pre id="context"></pre></details></section><p class="note">This prototype prepares context only. It makes no model call and records no score, completion, or learner evidence.</p></aside></main>
+<script>
+let revision='',rangeBounds={};const byId=id=>document.getElementById(id);
+fetch('/api/source').then(r=>r.json()).then(s=>{revision=s.revision;byId('source').textContent=s.text}).catch(()=>{byId('status').textContent='Source unavailable. Reload to try again.'});
+byId('selection').oninput=()=>{rangeBounds={};byId('result').hidden=true;byId('status').textContent='Selection changed. Prepare assistance to verify it.'};
+byId('use').onclick=()=>{const selected=window.getSelection();if(selected&&selected.rangeCount&&byId('source').contains(selected.anchorNode)&&byId('source').contains(selected.focusNode)){const range=selected.getRangeAt(0);const before=range.cloneRange();before.selectNodeContents(byId('source'));before.setEnd(range.startContainer,range.startOffset);const start=Array.from(before.toString()).length;const value=range.toString();rangeBounds={selection_start:start,selection_end:start+Array.from(value).length};byId('selection').value=value;byId('result').hidden=true;byId('status').textContent='Passage selected. Prepare assistance to verify it.';byId('selection').focus()}else{byId('status').textContent='Select text in the source, or paste a passage below.'}};
+byId('reset').onclick=()=>{byId('selection').value='';rangeBounds={};byId('result').hidden=true;byId('status').textContent='No passage prepared.';byId('selection').focus()};
+const errors={unmatched_selection:'That passage is not in this source. Select it again.',ambiguous_selection:'That passage occurs more than once. Select a longer unique passage.',empty_selection:'Choose a passage first.',stale_revision:'The source revision changed. Reload before preparing assistance.',selection_too_large:'Choose a shorter passage.'};
+byId('prepare').onclick=async()=>{byId('result').hidden=true;byId('prepare').disabled=true;try{const response=await fetch('/api/ground',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({selection:byId('selection').value,revision,...rangeBounds})});const result=await response.json();if(result.code!=='ok'){byId('status').textContent=errors[result.code]||'Context unavailable. Select the passage again.';return}const p=result.payload;byId('quote').textContent=p.selection;byId('context').textContent=p.surrounding_context;byId('reference').textContent=p.source_id+' / '+p.locator+' / characters '+p.selection_start+' to '+p.selection_end;byId('result').hidden=false;byId('status').textContent='Passage verified. No model call made.'}catch{byId('status').textContent='Connection unavailable. Your selection is still here.'}finally{byId('prepare').disabled=false}};
+</script>
+</html>

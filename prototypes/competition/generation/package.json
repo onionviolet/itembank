@@ -1,0 +1,14 @@
+{
+  "name": "itembank-openmaic-generation-trial",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Generator-only, unaccepted lesson-outline trial.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test.mjs",
+    "demo": "node demo.mjs"
+  },
+  "dependencies": {
+    "@openmaic/generation": "0.3.6"
+  }
+}
